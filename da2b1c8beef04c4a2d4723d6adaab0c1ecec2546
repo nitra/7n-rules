@@ -1,0 +1,27 @@
+npm/mdc/spell.mdc
+  801db5b66a0d159a 4,7,9-11,18-19,30-31,33,35,39-41,45-50,52-59,62-71
+.cspell.json
+  801db5b66a0d159a 12-13
+package.json
+  801db5b66a0d159a 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "da2b1c8beef04c4a2d4723d6adaab0c1ecec2546",
+  "prompts": {
+    "801db5b66a0d159a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "657c23c4-c04a-4595-a602-cd6be1b94547",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib <v@nitra.ai>",
+      "messages": [],
+      "total_additions": 137,
+      "total_deletions": 33,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
