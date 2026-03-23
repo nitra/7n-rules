@@ -1,0 +1,27 @@
+npm/package.json
+  09940ca9bce852bb 23,27
+npm/bin/nitra-cursor.js
+  09940ca9bce852bb 1-141
+npm/README.md
+  09940ca9bce852bb 76-77
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "94e4f100e37104826f9e744ce4ca7283b3852ee4",
+  "prompts": {
+    "09940ca9bce852bb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "19e60f4d-a133-4357-929c-ac912151ed2f",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib <v@nitra.ai>",
+      "messages": [],
+      "total_additions": 147,
+      "total_deletions": 6,
+      "accepted_lines": 145,
+      "overriden_lines": 0
+    }
+  }
+}
