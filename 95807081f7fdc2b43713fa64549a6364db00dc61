@@ -1,0 +1,23 @@
+.vscode/settings.json
+  b1c169244f9586ed 2-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.17",
+  "base_commit_sha": "95807081f7fdc2b43713fa64549a6364db00dc61",
+  "prompts": {
+    "b1c169244f9586ed": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ab7eab2f-cc77-400c-85cf-fa94bc2ddf71",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib <v@nitra.ai>",
+      "messages": [],
+      "total_additions": 61,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}
