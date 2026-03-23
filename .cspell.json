@@ -9,7 +9,8 @@
     "report"
   ],
   "import": [
-    "@nitra/cspell-dict/cspell-ext.json"
+    "@nitra/cspell-dict/cspell-ext.json",
+    "@cspell/dict-uk-ua/cspell-ext.json"
   ],
   "words": [
 

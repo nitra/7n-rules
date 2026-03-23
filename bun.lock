@@ -5,6 +5,7 @@
     "": {
       "name": "nitra-cursor",
       "devDependencies": {
+        "@cspell/dict-uk-ua": "^4.0.6",
         "@nitra/cspell-dict": "^1.0.185",
       },
     },
@@ -14,6 +15,8 @@
     },
   },
   "packages": {
+    "@cspell/dict-uk-ua": ["@cspell/dict-uk-ua@4.0.6", "", {}, "sha512-r/PB8LFboPm+fd2xqRrNMCf7yPiJC+skNZsmGA3bun2y1FsZqcZ2kqkiWxHTZZrWmgj98pgoVxmLePcVofLLjA=="],
+
     "@nitra/cspell-dict": ["@nitra/cspell-dict@1.0.185", "", {}, "sha512-0ZNz/tmimLzaUSvOkKrTDQCscDY+jW6RJnU6zvpZQwIBn97obsEAQ2sudn4zsAIcLcdMcoQ2dQW1+8elSifQVg=="],
 
     "@nitra/cursor": ["@nitra/cursor@workspace:npm"],

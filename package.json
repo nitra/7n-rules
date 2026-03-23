@@ -6,11 +6,11 @@
   "bugs": "https://github.com/nitra/cursor/issues",
   "license": "MIT",
   "workspaces": [
-
     "npm"
   ],
   "type": "module",
   "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
+    "@cspell/dict-uk-ua": "^4.0.6",
+    "@nitra/cspell-dict": "^1.0.185"
   }
 }
