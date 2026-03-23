@@ -1,0 +1,28 @@
+---
+description: Перевірка правопису в текстових файлах
+alwaysApply: true
+version: '1.0'
+---
+
+В корені проекту є файл з правилами перевірки правопису для cspell:
+
+```json title=".cspell.json"
+{
+  "version": "0.2",
+  "language": "en,uk,ru-ru,nitra",
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "import": ["@nitra/cspell-dict/cspell-ext.json"]
+}
+```
+
+в ньому в секції "words" додаються локальні виключення для правопису.
+
+в кореневому package.json є залежність на @nitra/cspell-dict:
+
+```json title="package.json"
+{
+  "dependencies": {
+    "@nitra/cspell-dict": "^1.0.185"
+  }
+}
+```

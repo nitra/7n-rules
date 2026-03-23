@@ -1,0 +1,16 @@
+{
+  "name": "nitra-cursor",
+  "version": "1.0.0",
+  "description": "cursor helper",
+  "homepage": "https://github.com/nitra/cursor",
+  "bugs": "https://github.com/nitra/cursor/issues",
+  "license": "MIT",
+  "workspaces": [
+
+    "npm"
+  ],
+  "type": "module",
+  "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185",
+  }
+}

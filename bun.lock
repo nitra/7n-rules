@@ -1,0 +1,21 @@
+{
+  "lockfileVersion": 1,
+  "configVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "nitra-cursor",
+      "devDependencies": {
+        "@nitra/cspell-dict": "^1.0.185",
+      },
+    },
+    "npm": {
+      "name": "@nitra/cursor",
+      "version": "2.5.0",
+    },
+  },
+  "packages": {
+    "@nitra/cspell-dict": ["@nitra/cspell-dict@1.0.185", "", {}, "sha512-0ZNz/tmimLzaUSvOkKrTDQCscDY+jW6RJnU6zvpZQwIBn97obsEAQ2sudn4zsAIcLcdMcoQ2dQW1+8elSifQVg=="],
+
+    "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
+  }
+}

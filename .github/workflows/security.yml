@@ -1,0 +1,41 @@
+name: security
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vulnerability - library
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          vuln-type: 'library'
+          scanners: 'vuln'
+          ignore-unfixed: true
+          format: 'table'
+          # exit-code: '1'
+          hide-progress: true
+          output: trivy.txt
+
+      - name: Publish Trivy Output to Summary
+        if: ${{ hashFiles('trivy.txt') != '5df6e0e2761359d30a8275058e299fcc0381534545f55cf43e41983f5d4c9456' }}
+        run: |
+          {
+            echo "### 🔴 Security Output ❗🔴"
+            echo "<details><summary>Click to expand</summary>"
+            echo ""
+            echo '```terraform'
+            cat trivy.txt
+            echo '```'
+            echo "</details>"
+          } >> $GITHUB_STEP_SUMMARY
+          exit 1

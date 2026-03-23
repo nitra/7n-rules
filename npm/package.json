@@ -1,0 +1,36 @@
+{
+  "name": "@nitra/cursor",
+  "version": "2.5.0",
+  "description": "cursor with filename",
+  "keywords": [
+    "cursor",
+    "console",
+    "debug",
+    "logging",
+    "nitra"
+  ],
+  "homepage": "https://github.com/nitra/cursor#readme",
+  "bugs": {
+    "url": "https://github.com/nitra/cursor/issues"
+  },
+  "license": "ISC",
+  "author": "v@nitra.ai",
+  "types": "./types/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nitra/cursor.git"
+  },
+  "files": [
+    "mdc",
+    "src",
+    "types"
+  ],
+  "type": "module",
+
+  "scripts": {
+    "test": "npx coverage-node test/index.js"
+  },
+  "dependencies": {
+
+  }
+}
