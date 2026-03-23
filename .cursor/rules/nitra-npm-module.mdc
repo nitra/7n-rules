@@ -1,0 +1,14 @@
+---
+description: Оформлення репозиторію для npm модуля
+alwaysApply: true
+version: '1.0'
+---
+
+Проект представляє собою Bun monorepo
+
+Структура проекту:
+
+- .github/workflows/ - скрипти для github actions
+- demo/ - опціонально демо проект
+- npm/ - файли для npm модуля
+- package.json

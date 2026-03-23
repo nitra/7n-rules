@@ -1,0 +1,71 @@
+---
+description: Перевірка правопису в текстових файлах
+alwaysApply: true
+version: '1.1'
+---
+
+У корені проекту має бути `.cspell.json` і залежності для cspell у кореневому `package.json` (зазвичай `devDependencies`).
+
+## Базовий варіант (без окремого словника української)
+
+Якщо текст переважно англійською та достатньо словника nitra:
+
+```json title=".cspell.json"
+{
+  "version": "0.2",
+  "language": "nitra",
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "import": ["@nitra/cspell-dict/cspell-ext.json"],
+  "words": []
+}
+```
+
+```json title="package.json"
+{
+  "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185"
+  }
+}
+```
+
+## Проєкт з українською мовою
+
+Якщо в репозиторії є українська документація, коментарі або рядки в коді — потрібен **окремий словник** `@cspell/dict-uk-ua`, інакше cspell не перевірятиме український правопис коректно.
+
+**1. Залежності** — додай пакет словника поруч із `@nitra/cspell-dict`:
+
+```json title="package.json"
+{
+  "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185",
+    "@cspell/dict-uk-ua": "^4.0.6"
+  }
+}
+```
+
+Встановлення: `bun add -d @cspell/dict-uk-ua` (або `npm i -D @cspell/dict-uk-ua`).
+
+**2. `.cspell.json`** — у полі `language` має бути `uk` (разом з іншими мовами через кому), у `import` — підключення розширення українського словника:
+
+```json title=".cspell.json"
+{
+  "version": "0.2",
+  "language": "en,uk,nitra",
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "import": [
+    "@nitra/cspell-dict/cspell-ext.json",
+    "@cspell/dict-uk-ua/cspell-ext.json"
+  ],
+  "words": []
+}
+```
+
+Підлаштуй `language` під проєкт (наприклад додай `ru-ru`, якщо потрібна перевірка російською). Порядок у `import` може впливати на пріоритет словників — тримай корпоративний `@nitra/cspell-dict` там, де зручно для ваших правил.
+
+## Локальні виключення
+
+У секції `words` у `.cspell.json` додають власні терміни, імена та скорочення, яких немає в словниках.
+
+## Інші мови
+
+Для іншої мови встанови відповідний пакет `@cspell/dict-*`, додай його `cspell-ext.json` у `import` і код мови в `language`. Огляд словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
