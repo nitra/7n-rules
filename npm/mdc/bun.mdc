@@ -1,10 +1,18 @@
 ---
 description: Bun як єдиний package manager у монорепо
 alwaysApply: true
-version: '1.0'
+version: '1.1'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
+
+**Одноразові CLI (hasura, eslint, vite, cypress тощо):**
+
+- Якщо в проєкті вже використовується **`npx`** (скрипти, CI, Dockerfile) — **залишай `npx`**, не замінюй на `bunx`.
+- Якщо новий виклик CLI додається з нуля і в цьому репозиторії прийнято лише Bun — можна `bunx <tool>`.
+
+Заборонено використовувати як менеджер пакетів / lockfile:
+- `npm install`, `yarn`, `pnpm` (і відповідні lockfile, крім `bun.lock`)
 
 Дозволені команди:
 - `bun i`
@@ -30,6 +38,7 @@ version: '1.0'
 
 Lockfile у репозиторії: `bun.lock`.
 Не створювати `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`.
+Видалити якщо вони є. Видалити .yarn та .yarnrc.yml якщо вони є.
 
 Для Bun monorepo:
 - Встановлювати залежності у відповідному пакеті, а не в корені без потреби.

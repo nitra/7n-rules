@@ -5,6 +5,9 @@
   "homepage": "https://github.com/nitra/cursor",
   "bugs": "https://github.com/nitra/cursor/issues",
   "license": "MIT",
+  "scripts": {
+    "start": "bun ./npm/bin/nitra-cursor.js"
+  },
   "workspaces": [
     "npm"
   ],
