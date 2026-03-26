@@ -39,3 +39,26 @@ Lockfile у репозиторії: `bun.lock`.
 Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файлидля yarn
 
 Якщо в проекті використовується npx, то не заміняти його на bunx, а використовувати npx.
+Коли зміна відбувається в Dockerfile, то використовувати
+```dockerfile
+FROM oven/bun:alpine AS build-env
+```
+замість образу node
+
+В Github actions bun повинен налаштований так:
+```yaml
+- uses: oven-sh/setup-bun@v2
+
+- name: Cache Bun dependencies
+  uses: actions/cache@v4
+  with:
+    path: |
+      ~/.bun/install/cache
+      node_modules
+    key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+    restore-keys: |
+      ${{ runner.os }}-bun-
+
+- name: Install dependencies
+  run: bun install --frozen-lockfile
+```
