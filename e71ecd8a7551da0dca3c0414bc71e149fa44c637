@@ -1,0 +1,23 @@
+.cursor/rules/nitra-bun.mdc
+  21702fd6c7b90b6c 2,6-9,11-16,25-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.20",
+  "base_commit_sha": "e71ecd8a7551da0dca3c0414bc71e149fa44c637",
+  "prompts": {
+    "21702fd6c7b90b6c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "926e9e0b-7698-4fc8-812e-37bc2f0fbf33",
+        "model": "default"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 1,
+      "accepted_lines": 23,
+      "overriden_lines": 1
+    }
+  }
+}
