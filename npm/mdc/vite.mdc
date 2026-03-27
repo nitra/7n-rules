@@ -1,0 +1,7 @@
+---
+description: Vite
+alwaysApply: true
+version: '1.0'
+---
+Потрібно використовувати Vite для frontend проекту версії 8 та вище.
+
