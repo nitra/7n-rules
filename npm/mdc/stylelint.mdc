@@ -1,0 +1,83 @@
+---
+description: Правила стилів CSS та SCSS
+alwaysApply: true
+version: '1.0'
+---
+
+в файлі .vscode/extensions.json є налаштування для офіційного плагіну:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["stylelint.vscode-stylelint"]
+}
+```
+
+в файлі .vscode/settings.json є налаштування для stylelint:
+
+```json title=".vscode/settings.json"
+{
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": "explicit"
+  }
+}
+```
+
+в файлі package.json є налаштування для stylelint:
+```json title="package.json"
+  "scripts": {
+    "lint-style": "stylelint '**/*.{css,scss,vue}' --fix",
+  },
+  "devDependencies": {
+    "@nitra/stylelint-config": "^1.3.0"
+  },
+  "stylelint": {
+    "extends": "@nitra/stylelint-config"
+  },
+```
+Є гітхаб actions .github/workflows/lint-style.yml:
+```yaml
+name: StyleLint
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: StyleLint
+        run: |
+          node - <<'NODE'
+          const fs = require('fs')
+          const data = JSON.parse(fs.readFileSync('package.json', 'utf8'))
+          delete data.workspaces
+          data.devDependencies = {}
+          fs.writeFileSync('package.json', JSON.stringify(data, null, 2) + '\n')
+          NODE
+          npm install @nitra/stylelint-config
+          npx stylelint '**/*.{css,scss,vue}'
+```
+
