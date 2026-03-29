@@ -1,0 +1,23 @@
+npm/mdc/vue.mdc
+  606e8e3fde84754d 4,39-41,43-53,78-89,91-111,113-115,118-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.22",
+  "base_commit_sha": "0d4602cd7569a2fad6dfc8fb313aafe4ad24d93b",
+  "prompts": {
+    "606e8e3fde84754d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8cb406e8-e0f1-41cd-8e94-f04e01b7bfae",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib <v@nitra.ai>",
+      "messages": [],
+      "total_additions": 71,
+      "total_deletions": 1,
+      "accepted_lines": 57,
+      "overriden_lines": 5
+    }
+  }
+}
