@@ -1,0 +1,130 @@
+---
+description: Vue
+alwaysApply: true
+version: '1.0'
+---
+
+# Vue 3 (Composition API)
+
+# Vue 3 Composition API — правила для .cursorrules
+
+## Найкращі практики Vue 3 Composition API
+
+```javascript
+const vue3CompositionApiBestPractices = [
+  'Використовуй функцію setup() для логіки компонента',
+  'Реалізуй computed properties через computed()',
+  'Використовуй watch і watchEffect для side effects',
+  'Підключай lifecycle hooks: onMounted, onUpdated тощо',
+  'Використовуй provide/inject для dependency injection'
+]
+```
+
+## Структура папок
+
+```javascript
+const folderStructure = `
+src/
+  components/
+  composables/
+  views/
+  router/
+  store/
+  assets/
+  App.vue
+  main.js
+`
+```
+
+## Додаткові вказівки
+
+```javascript
+const additionalInstructions = `
+1. Використовуй JavaScript
+2. Коректно оголошуй props і emits
+3. За потреби використовуй компонент Teleport у Vue 3
+4. Застосовуй Suspense для async components
+5. Реалізуй належний error handling
+6. Дотримуйся Vue 3 style guide і naming conventions
+7. Використовуй Vite для швидкої розробки та збірки
+`
+```
+
+### Детальні вказівки
+
+1. **Vue router**: Завжди використовуй Vue router для маршрутизації в проекті версії 5 та його file-based routing.
+2. **Компонент Teleport**: Використовуй Teleport у Vue 3, коли потрібно рендерити поза поточною ієрархією DOM.
+3. **Suspense для async components**: Застосовуй Suspense для асинхронних компонентів і кращого UX.
+4. **Error handling**: Реалізуй глобальний error handling механізмами Vue 3, щоб коректно перехоплювати та обробляти помилки.
+5. **Style guide і naming**: Дотримуйся офіційного Vue 3 style guide і naming conventions для узгодженості кодової бази.
+6. **Vue macros**: Використовуй Vue macros для більш ефективного розробки компонентів.
+7. **Vue Reactivity Transform**: Використовуй Vue Reactivity Transform для змінних в компонентах.
+
+### Приклад
+
+```javascript
+// Приклад Vue 3 компонента з Composition API
+import { computed, onMounted } from 'vue'
+
+export default {
+  setup() {
+    const count = $ref(0)
+    const doubleCount = computed(() => count * 2)
+
+    onMounted(() => {
+      console.log('Компонент змонтовано')
+    })
+
+    return {
+      count,
+      doubleCount
+    }
+  }
+}
+```
+
+в файлі .vscode/extensions.json є налаштування для Vue:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["Vue.volar"]
+}
+```
+
+мінімальний повний `package.json` для Vite + Vue + `vue-macros` (версії підлаштуй під проєкт):
+
+```json title="package.json"
+{
+  "name": "my-vue-app",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "vite": "^8.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "vue-macros": "^3.1.2"
+  }
+}
+```
+
+```javascript title="vite.config.js"
+import Vue from '@vitejs/plugin-vue'
+import VueMacros from 'vue-macros/vite'
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  plugins: [
+    VueMacros({
+      plugins: {
+        vue: Vue()
+      }
+    })
+  ]
+})
+```
+
+### Висновок
+
+Дотримуючись цих практик і правил, можна будувати масштабовані, підтримувані та ефективні застосунки на Vue 3 з Composition API. Завжди звіряйся з офіційною документацією Vue 3 щодо оновлень і нових можливостей.
