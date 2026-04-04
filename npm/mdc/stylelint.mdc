@@ -4,7 +4,7 @@ alwaysApply: true
 version: '1.0'
 ---
 
-в файлі .vscode/extensions.json є налаштування для офіційного плагіну:
+В файлі .vscode/extensions.json є налаштування для офіційного плагіну:
 
 ```json title=".vscode/extensions.json"
 {
