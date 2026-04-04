@@ -1,0 +1,31 @@
+.cursor/rules/nitra-ga.mdc
+  39d706baba071a9d 71
+.vscode/extensions.json
+  39d706baba071a9d 2
+npm/mdc/ga.mdc
+  39d706baba071a9d 71
+.github/workflows/clean-ga-workflows.yml
+  39d706baba071a9d 1-19
+.github/workflows/clean-merged-branch.yml
+  39d706baba071a9d 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f39b39d49f021e7c244d1d50eb2db45dcdc881bb",
+  "prompts": {
+    "39d706baba071a9d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "437cc2f9-3ffa-41a2-9f25-02385a5f37bd",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 52,
+      "total_deletions": 6,
+      "accepted_lines": 47,
+      "overriden_lines": 0
+    }
+  }
+}
