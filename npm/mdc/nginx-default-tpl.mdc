@@ -1,6 +1,6 @@
 ---
 description: Правила nginx для статичних файлів
-version: '1.0'
+version: '1.1'
 ---
 
 # Якщо в проекті є файл default.tpl.conf або default.conf.template
@@ -87,6 +87,9 @@ RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*
   export $(grep -v '^#' /tpl/values-$BRANCH.ini | xargs) && \
   envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf
 ```
+
+Якщо у конфігураційних файлах *.ini є змінні які відсутні в default.conf.template, то їх потрібно вилучити.
+
 
 в файлі .vscode/extensions.json є налаштування для NGINX Configuration Language Support:
 
