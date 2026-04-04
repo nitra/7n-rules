@@ -13,10 +13,13 @@
  *
  * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
  * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
+ *
+ * Після завантаження: у .cursor/rules видаляються файли *.mdc з префіксом «nitra-» (керовані
+ * пакетом), яких немає у списку rules у nitra-cursor.json. Інші .mdc у цій директорії залишаються.
  */
 
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -173,6 +176,42 @@ async function listProjectRulesMdcFiles() {
 }
 
 /**
+ * Базові імена файлів .mdc, які очікуються згідно з nitra-cursor.json (префікс nitra-).
+ * @param {string[]} configRules елементи масиву rules з конфігу
+ * @returns {Set<string>} множина очікуваних імен файлів (наприклад nitra-bun.mdc)
+ */
+function expectedManagedRuleBasenames(configRules) {
+  return new Set(configRules.map(rule => `${RULE_PREFIX}${normalizeRuleName(rule)}`))
+}
+
+/**
+ * Видаляє з каталогу правил файли *.mdc з префіксом nitra-, яких немає у конфігурації.
+ * Файли без префікса nitra- не змінює.
+ * @param {string} rulesDir абсолютний шлях до .cursor/rules
+ * @param {string[]} configRules елементи масиву rules з nitra-cursor.json
+ * @returns {Promise<string[]>} відсортовані імена видалених файлів
+ */
+async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
+  if (!existsSync(rulesDir)) {
+    return []
+  }
+  const expected = expectedManagedRuleBasenames(configRules)
+  const names = await readdir(rulesDir)
+  const removed = []
+  for (const name of names) {
+    if (!name.endsWith('.mdc') || !name.startsWith(RULE_PREFIX)) {
+      continue
+    }
+    if (expected.has(name)) {
+      continue
+    }
+    await unlink(join(rulesDir, name))
+    removed.push(name)
+  }
+  return removed.sort((a, b) => a.localeCompare(b))
+}
+
+/**
  * Повністю перезаписує AGENTS.md у корені cwd з npm/AGENTS.template.md
  * @returns {Promise<void>} завершення запису файлу
  */
@@ -237,7 +276,21 @@ for (const rule of rules) {
   }
 }
 
-// 4. AGENTS.md зі списком файлів *.mdc у .cursor/rules (після оновлення на диску)
+// 4. Прибираємо керовані nitra-*.mdc, яких немає у nitra-cursor.json
+try {
+  const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
+  if (removed.length > 0) {
+    console.log(`\n🧹 Видалено правила поза списком ${CONFIG_FILE} (${removed.length}):`)
+    for (const name of removed) {
+      console.log(`   − ${RULES_DIR}/${name}`)
+    }
+  }
+} catch (error) {
+  console.error(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: ${error.message}`)
+  process.exit(1)
+}
+
+// 5. AGENTS.md зі списком файлів *.mdc у .cursor/rules (після оновлення на диску)
 try {
   await syncAgentsMd()
 } catch (error) {
@@ -245,7 +298,7 @@ try {
   process.exit(1)
 }
 
-// 5. Підсумок
+// 6. Підсумок
 console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
 if (failCount > 0) {
   process.exit(1)
