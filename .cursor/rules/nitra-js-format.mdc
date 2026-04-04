@@ -1,7 +1,7 @@
 ---
 description: Правила форматів JavaScript ecosystem
 alwaysApply: true
-version: '1.1'
+version: '1.2'
 ---
 
 В корені проекту є файл з правилами форматування для oxfmt:
@@ -95,3 +95,5 @@ version: '1.1'
 ```
 
 Також потрібно прибрати якщо є в проекті модул @nitra/prettier-config та prettier та всі виклики prettier і налаштування для нього.
+
+Завжди пиши JSDoc до функцій та методів.

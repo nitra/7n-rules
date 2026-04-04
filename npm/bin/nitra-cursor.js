@@ -10,6 +10,9 @@
  *
  * Якщо у корені репозиторію немає nitra-cursor.json, він створюється автоматично
  * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення).
+ *
+ * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
+ * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
  */
 
 import { existsSync } from 'node:fs'
@@ -21,11 +24,14 @@ import { fileURLToPath } from 'node:url'
 const PACKAGE_NAME = '@nitra/cursor'
 const UNPKG_BASE = 'https://unpkg.com'
 const CONFIG_FILE = 'nitra-cursor.json'
+const AGENTS_FILE = 'AGENTS.md'
+const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
 const RULE_PREFIX = 'nitra-'
 
 const binDir = dirname(fileURLToPath(import.meta.url))
 const BUNDLED_MDC_DIR = join(binDir, '..', 'mdc')
+const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
 
 /**
  * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
@@ -74,7 +80,7 @@ async function readConfig() {
     const defaultConfig = { rules }
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
-      `📝 Створено ${CONFIG_FILE} з усіма правилами з пакету (${rules.length}). ` + `За потреби відредагуйте список.\n`
+      `📝 Створено ${CONFIG_FILE} з усіма правилами з пакету (${rules.length}). За потреби відредагуйте список.\n`
     )
     return defaultConfig
   }
@@ -113,6 +119,79 @@ function buildUrl(ruleName, version) {
 function normalizeRuleName(ruleName) {
   const name = ruleName.endsWith('.mdc') ? ruleName : `${ruleName}.mdc`
   return basename(name)
+}
+
+/**
+ * Розгортає в шаблоні блок Mustache {{#section}} … {{/section}} для масиву елементів
+ * @param {string} template вихідний текст шаблону
+ * @param {string} section ім'я секції (наприклад services)
+ * @param {Record<string, string>[]} items елементи для повторення тіла секції
+ * @param {string} prop ключ поля для підстановки замість {{prop}}
+ * @returns {string} текст після розгортання усіх входжень блоку
+ */
+function expandMustacheSection(template, section, items, prop) {
+  const open = `{{#${section}}}`
+  const close = `{{/${section}}}`
+  const placeholder = `{{${prop}}}`
+  let result = template
+  let start = result.indexOf(open)
+  let end = result.indexOf(close)
+  while (start !== -1 && end !== -1 && end > start) {
+    const inner = result.slice(start + open.length, end)
+    const rendered = items.map(item => inner.split(placeholder).join(String(item[prop]))).join('')
+    result = result.slice(0, start) + rendered + result.slice(end + close.length)
+    start = result.indexOf(open)
+    end = result.indexOf(close)
+  }
+  return result
+}
+
+/**
+ * Підставляє у вміст AGENTS.template.md список шляхів до файлів правил
+ * @param {string} templateText вміст AGENTS.template.md
+ * @param {string[]} mdcBasenames імена файлів (*.mdc) з .cursor/rules
+ * @returns {string} готовий markdown для AGENTS.md
+ */
+function renderAgentsTemplate(templateText, mdcBasenames) {
+  const items = mdcBasenames.map(mdcName => ({
+    name: `- ${RULES_DIR}/${mdcName}`
+  }))
+  return expandMustacheSection(templateText, 'services', items, 'name')
+}
+
+/**
+ * Повертає відсортовані імена *.mdc у .cursor/rules поточного проєкту
+ * @returns {Promise<string[]>} базові імена файлів (лише .mdc)
+ */
+async function listProjectRulesMdcFiles() {
+  const rulesDir = join(cwd(), RULES_DIR)
+  if (!existsSync(rulesDir)) {
+    return []
+  }
+  const names = await readdir(rulesDir)
+  return names.filter(n => n.endsWith('.mdc')).sort((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Повністю перезаписує AGENTS.md у корені cwd з npm/AGENTS.template.md
+ * @returns {Promise<void>} завершення запису файлу
+ */
+async function syncAgentsMd() {
+  if (!existsSync(BUNDLED_AGENTS_TEMPLATE_PATH)) {
+    throw new Error(
+      `Не знайдено шаблон ${AGENTS_TEMPLATE_FILE} у пакеті.\n` +
+        `Очікуваний шлях: ${BUNDLED_AGENTS_TEMPLATE_PATH}\n` +
+        `Перевстановіть ${PACKAGE_NAME}.`
+    )
+  }
+  const templateText = await readFile(BUNDLED_AGENTS_TEMPLATE_PATH, 'utf8')
+  const mdcFiles = await listProjectRulesMdcFiles()
+  const body = renderAgentsTemplate(templateText, mdcFiles)
+  const agentsPath = join(cwd(), AGENTS_FILE)
+  const hadFile = existsSync(agentsPath)
+  const out = body.endsWith('\n') ? body : `${body}\n`
+  await writeFile(agentsPath, out, 'utf8')
+  console.log(hadFile ? `📝 Оновлено ${AGENTS_FILE} з ${AGENTS_TEMPLATE_FILE}` : `📝 Створено ${AGENTS_FILE} з ${AGENTS_TEMPLATE_FILE}`)
 }
 
 console.log(`\n🔧 @nitra/cursor — завантаження cursor-правил\n`)
@@ -158,7 +237,15 @@ for (const rule of rules) {
   }
 }
 
-// 4. Підсумок
+// 4. AGENTS.md зі списком файлів *.mdc у .cursor/rules (після оновлення на диску)
+try {
+  await syncAgentsMd()
+} catch (error) {
+  console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
+  process.exit(1)
+}
+
+// 5. Підсумок
 console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
 if (failCount > 0) {
   process.exit(1)
