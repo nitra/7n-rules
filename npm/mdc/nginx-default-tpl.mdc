@@ -88,7 +88,7 @@ RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*
   envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf
 ```
 
-в файлі .vscode/extensions.json є налаштування для oxfmt:
+в файлі .vscode/extensions.json є налаштування для NGINX Configuration Language Support:
 
 ```json title=".vscode/extensions.json"
 {
@@ -96,7 +96,7 @@ RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*
 }
 ```
 
-в файлі .vscode/settings.json є налаштування для oxfmt:
+в файлі .vscode/settings.json є налаштування для NGINX Configuration Language Support:
 
 ```json title=".vscode/settings.json"
 {
