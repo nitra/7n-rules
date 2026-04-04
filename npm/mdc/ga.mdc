@@ -1,0 +1,92 @@
+---
+description: Правила форматів для .github/workflows
+alwaysApply: true
+version: '1.0'
+---
+
+#
+
+Всі файли в директорії .github/workflows повинні мати розширення тільки yml
+
+Якщо є .github/workflows/apply-k8s.yml, то в ньому обов'язково повинно бути вказано що критерій для запуску це:
+
+```yaml
+on:
+  push:
+    paths:
+      - '**/k8s/*.yaml'
+```
+
+Якщо є .github/workflows/apply-nats-consumer.yml, то в ньому обов'язково повинно бути вказано що критерій для запуску це:
+
+```yaml
+on:
+  push:
+    paths:
+      - '**/consumer.yaml'
+```
+
+Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
+
+```yaml
+name: Clean action for removing completed workflow runs
+
+on:
+  schedule:
+    - cron: '0 1 16 * *'
+
+  # Allow workflow to be manually run from the GitHub UI
+  workflow_dispatch:
+
+jobs:
+  cleanup_old_workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: dmvict/clean-workflow-runs@v1.0.0
+        with:
+          token: ${{ github.token }}
+          save_period: 31
+          save_min_runs_number: 0
+
+```
+
+Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
+
+```yaml
+name: Clean abandoned branches
+
+on:
+  # Run daily at midnight
+  schedule:
+    - cron: '0 1 15 * *'
+
+  # Allow workflow to be manually run from the GitHub UI
+  workflow_dispatch:
+
+jobs:
+  cleanup_old_branches:
+    runs-on: ubuntu-latest
+    steps:
+      - id: delete_stuff
+        name: Delete those pesky dead branches
+        uses: phpdocker-io/github-actions-delete-abandoned-branches@v2
+        with:
+          github_token: ${{ github.token }}
+          last_commit_age_days: 90
+          ignore_branches: main,dev
+          dry_run: no
+
+      - name: Get output
+        run: "echo 'Deleted branches: ${{ steps.delete_stuff.outputs.deleted_branches }}'"
+```
+
+якщо в ignore_branches задані інші бранчі, то це допустимо.
+
+в файлі .vscode/extensions.json є налаштування для GitHub Actions:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["github.vscode-github-actions"]
+}
+```

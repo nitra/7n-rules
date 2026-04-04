@@ -1,0 +1,19 @@
+name: Clean action for removing completed workflow runs
+
+on:
+  schedule:
+    - cron: '0 1 16 * *'
+
+  # Allow workflow to be manually run from the GitHub UI
+  workflow_dispatch:
+
+jobs:
+  cleanup_old_workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete workflow runs
+        uses: dmvict/clean-workflow-runs@v1.0.0
+        with:
+          token: ${{ github.token }}
+          save_period: 31
+          save_min_runs_number: 0
