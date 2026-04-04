@@ -1,0 +1,23 @@
+npm/bin/nitra-cursor.js
+  73ccbe426f1c3d41 16-18,22,179-213,279-293,301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "e40bbf4aeb9642a76e7ddfd522983b5db96cf5c6",
+  "prompts": {
+    "73ccbe426f1c3d41": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c474817f-dfb2-4b14-9bf8-b6cfaef63531",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 56,
+      "total_deletions": 3,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
