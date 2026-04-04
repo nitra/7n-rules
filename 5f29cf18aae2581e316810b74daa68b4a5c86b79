@@ -1,0 +1,25 @@
+npm/README.md
+  4c601749deee16da 46-49,60,69-70,78-82,84-107
+npm/bin/nitra-cursor.js
+  4c601749deee16da 14-15,28,34,83,124-196,240-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5f29cf18aae2581e316810b74daa68b4a5c86b79",
+  "prompts": {
+    "4c601749deee16da": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ab567696-ff6d-425d-9aac-33563cf92027",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 223,
+      "total_deletions": 106,
+      "accepted_lines": 126,
+      "overriden_lines": 2
+    }
+  }
+}
