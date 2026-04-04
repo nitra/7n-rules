@@ -70,6 +70,27 @@ server {
 
 Якщо в файлі вже були proxy_pass секції, то їх логіку потрібно перенести до HTTPRoute в k8s.
 
+В HTTPRoute повинна бути секція Exact редиректу на версію з /
+
+```yaml
+spec:
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /$PUBLIC_PATH
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /$PUBLIC_PATH/
+            statusCode: 301
+```
+
+де $PUBLIC_PATH підставляється з ini файлу з dev середовища, а якщо для інших середовищ відрізняється то підставляється в kustomization.ya,l відповідні значення з ini середовища.
+
 В Dockerfile потрібно додати команду для стиснення файлів, які потім використовуватимуться з `gzip_static on`:
 
 ```dockerfile

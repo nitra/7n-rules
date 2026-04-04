@@ -26,6 +26,7 @@ version: '1.0'
 ```
 
 в файлі package.json є налаштування для stylelint:
+
 ```json title="package.json"
   "scripts": {
     "lint-style": "stylelint '**/*.{css,scss,vue}' --fix",
@@ -37,7 +38,9 @@ version: '1.0'
     "extends": "@nitra/stylelint-config"
   },
 ```
+
 Є гітхаб actions .github/workflows/lint-style.yml:
+
 ```yaml
 name: StyleLint
 
@@ -81,3 +84,8 @@ jobs:
           npx stylelint '**/*.{css,scss,vue}'
 ```
 
+В корені проекту має бути файл .stylelintignore з виключенням:
+
+```text title=".stylelintignore"
+dist/
+```
