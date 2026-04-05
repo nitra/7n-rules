@@ -1,0 +1,7 @@
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "minLines": 25,
+  "reporters": ["console"],
+  "ignore": [".cursor/skills/**", "npm/AGENTS.template.md"]
+}

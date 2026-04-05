@@ -13,6 +13,7 @@ on:
       - '**/*.tsx'
       - '**/*.vue'
       - '**/eslint.config.*'
+      - '.jscpd.json'
 
   pull_request:
     branches:
@@ -47,3 +48,4 @@ jobs:
         run: |
           bunx oxlint
           bunx eslint .
+          bunx jscpd .

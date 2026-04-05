@@ -11,7 +11,7 @@
   "type": "module",
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
-    "lint-js": "oxlint --fix && bunx eslint --fix .",
+    "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd .",
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
   },
   "devDependencies": {

@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.2'
+version: '1.4'
 ---
 
-Перевірка виконується за допомогою **oxlint** та **ESLint**.
+Перевірка виконується за допомогою **oxlint**, **ESLint** та **jscpd** (дублікати коду).
 
 У файлі `.vscode/extensions.json` мають бути рекомендації розширень:
 
@@ -18,18 +18,30 @@ version: '1.2'
 }
 ```
 
-У кореневому `package.json` додай скрипт і залежність:
+У кореневому `package.json` додай скрипт і залежності:
 
 ```json title="package.json"
   "scripts": {
-    "lint-js": "oxlint --fix && bunx eslint --fix ."
+    "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
     "@nitra/eslint-config": "^3.3.0"
   }
 ```
 
-У `devDependencies` достатньо `@nitra/eslint-config` (залежності ESLint підтягуються разом із ним). **oxlint** і **eslint** у скриптах викликай через `bunx`; окремо не додавай пакети `oxlint` / `eslint`, якщо цього не вимагає ваш монорепо.
+У `devDependencies` достатньо `@nitra/eslint-config` (залежності ESLint підтягуються разом із ним). **oxlint**, **eslint** та **jscpd** у скриптах викликай через `bunx`; окремо не додавай пакети `oxlint` / `eslint` / `jscpd`, якщо цього не вимагає ваш монорепо.
+
+У корені проєкту має бути `.jscpd.json`. Мінімум: увімкнути облік `.gitignore`, ненульовий код виходу при знаходженні клонів, консольний звіт. За потреби додай `ignore` (дзеркальні каталоги, шаблони) та `minLines`, щоб відсікти дрібні збіги:
+
+```json title=".jscpd.json"
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "minLines": 25,
+  "ignore": []
+}
+```
 
 Додай workflow `.github/workflows/lint-js.yml`:
 
@@ -49,6 +61,7 @@ on:
       - '**/*.tsx'
       - '**/*.vue'
       - '**/eslint.config.*'
+      - '.jscpd.json'
 
   pull_request:
     branches:
@@ -83,6 +96,7 @@ jobs:
         run: |
           bunx oxlint
           bunx eslint .
+          bunx jscpd .
 ```
 
 **Без дублювання CI:** якщо в `.github/workflows` уже є `lint.yml` з тими самими кроками `oxlint` або `eslint`,  видали зайвий workflow, а саме `lint.yml` — лінт JS має виконуватися в одному місці.

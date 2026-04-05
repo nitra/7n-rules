@@ -8,7 +8,6 @@ on:
       - '.cspell.json'
       - '.gitignore'
       - '.markdownlint-cli2.jsonc'
-      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'

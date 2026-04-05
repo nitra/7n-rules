@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.10'
+version: '1.12'
 ---
 
 Правило описує роботу з **текстовими файлами** в репозиторії: перевірка правопису через **cspell**, стиль **Markdown** через **markdownlint**, валідація **JSON/YAML/TOML** проти схем [Schema Store](https://www.schemastore.org/) через **[v8r](https://chris48s.github.io/v8r/)** та інтеграція в CI.
@@ -37,9 +37,9 @@ version: '1.10'
 
 `(bunx v8r "**/*.json" || [ $? -eq 98 ]) && …` — для `**/*.json`, `**/*.yml`, `**/*.yaml`, `**/*.toml`. Інші коди виходу (наприклад **1**) лишаються помилками.
 
-За замовчуванням v8r враховує **`.gitignore`** і **`.v8rignore`**. Якщо для файлу немає схеми в каталозі, запуск завершиться з помилкою — такі шляхи додай у **`.v8rignore`** (редакторські конфіги, `.jsonc`, внутрішні каталоги, lockfile, який не проходить схему, тощо).
+За замовчуванням v8r враховує **`.gitignore`**. Файл **`.v8rignore`** підключається **лише якщо він існує** — **не створюй його без потреби**. Додай **`.v8rignore`**, коли `bunx v8r` падає на шляхах без схеми в Schema Store (наприклад `.vscode/*.json`, службові JSON у `.git/`, `.n-cursor.json`, `**/*.jsonc`, lockfile тощо).
 
-Викликай через **`bunx v8r`** у скрипті `lint-text` (як у блоці вище).
+Викликай через **`bunx v8r`** у скрипті `lint-text` (як у блоці вище). Пакет **`v8r` у `devDependencies` не додавай** — для CLI достатньо **`bunx`**.
 
 ## Конфігурація markdownlint-cli2
 
@@ -81,7 +81,6 @@ on:
       - '.cspell.json'
       - '.gitignore'
       - '.markdownlint-cli2.jsonc'
-      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'
@@ -159,8 +158,7 @@ jobs:
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185",
-    "markdownlint-cli2": "^0.22.0",
-    "v8r": "^6.0.0"
+    "markdownlint-cli2": "^0.22.0"
   }
 }
 ```
@@ -179,8 +177,7 @@ jobs:
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185",
     "@cspell/dict-uk-ua": "^4.0.6",
-    "markdownlint-cli2": "^0.22.0",
-    "v8r": "^6.0.0"
+    "markdownlint-cli2": "^0.22.0"
   }
 }
 ```

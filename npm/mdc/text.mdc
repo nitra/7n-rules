@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.10'
+version: '1.12'
 ---
 
 Правило описує роботу з **текстовими файлами** в репозиторії: перевірка правопису через **cspell**, стиль **Markdown** через **markdownlint-cli2**, валідація **JSON/YAML/TOML** через **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** у Cursor/VS Code та інтеграція в CI.
@@ -42,7 +42,9 @@ version: '1.10'
 
 **Код 98:** якщо для glob **немає жодного файлу**, v8r дає **98**. Це стосується не лише TOML: репозиторій без `.yml`/`.yaml` зламає **один** спільний виклик `v8r` уже на `**/*.yml`. Окремі виклики з дозволом лише **98** покривають і такі репозиторії.
 
-За замовчуванням v8r враховує **`.gitignore`** і **`.v8rignore`**. Якщо для файлу немає схеми в каталозі, запуск завершиться з помилкою — додай такі шляхи в **`.v8rignore`**.
+За замовчуванням v8r враховує **`.gitignore`**. **`.v8rignore` не створюй завчасно** — файл потрібен **лише коли** `bunx v8r` падає на JSON/YAML без схеми в каталозі (тоді додай у ignore відповідні glob’и).
+
+Пакет **`v8r` у `devDependencies` не додавай** — у скрипті достатньо **`bunx v8r`**.
 
 ## Конфігурація markdownlint-cli2
 
@@ -84,7 +86,6 @@ on:
       - '.cspell.json'
       - '.gitignore'
       - '.markdownlint-cli2.jsonc'
-      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'

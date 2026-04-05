@@ -27,8 +27,15 @@ export async function check() {
 
     if (pkg.scripts?.['lint-js']) {
       pass('package.json містить скрипт lint-js')
+      if (String(pkg.scripts['lint-js']).includes('jscpd')) {
+        pass('lint-js містить jscpd')
+      } else {
+        fail('lint-js має викликати jscpd — додай "&& bunx jscpd ." у кінець скрипта')
+      }
     } else {
-      fail('package.json не містить скрипт "lint-js" — додай: "oxlint --fix && bunx eslint --fix ."')
+      fail(
+        'package.json не містить скрипт "lint-js" — додай: "oxlint --fix && bunx eslint --fix . && bunx jscpd ."'
+      )
     }
 
     if (pkg.devDependencies?.['@nitra/eslint-config']) {
@@ -63,8 +70,38 @@ export async function check() {
     } else {
       fail('lint-js.yml не містить eslint')
     }
+    if (content.includes('jscpd')) {
+      pass('lint-js.yml містить jscpd')
+    } else {
+      fail('lint-js.yml не містить jscpd — додай крок bunx jscpd .')
+    }
   } else {
     fail('.github/workflows/lint-js.yml не існує — створи його')
+  }
+
+  if (existsSync('.jscpd.json')) {
+    let jscpdCfg
+    try {
+      jscpdCfg = JSON.parse(await readFile('.jscpd.json', 'utf8'))
+    } catch {
+      fail('.jscpd.json не є валідним JSON')
+      jscpdCfg = null
+    }
+    if (jscpdCfg) {
+      pass('.jscpd.json існує')
+      if (jscpdCfg.gitignore === true) {
+        pass('.jscpd.json: gitignore увімкнено')
+      } else {
+        fail('.jscpd.json має містити "gitignore": true')
+      }
+      if (jscpdCfg.exitCode === 1) {
+        pass('.jscpd.json: exitCode 1 при дублікатах')
+      } else {
+        fail('.jscpd.json має містити "exitCode": 1 (інакше CI не впаде на клонах)')
+      }
+    }
+  } else {
+    fail('.jscpd.json не існує — створи з gitignore, exitCode та reporters згідно js-lint.mdc')
   }
 
   for (const dup of ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml']) {
