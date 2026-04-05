@@ -129,7 +129,7 @@ export async function check() {
 
 ## Порівняння на реальних даних
 
-Виміряно на проєкті з 10 правилами (bun, ga, js-format, js-lint, spell, style-lint, npm-module, js-pino, nginx, vue):
+Виміряно на проєкті з 10 правилами (bun, ga, js-format, js-lint, text, style-lint, npm-module, js-pino, nginx, vue):
 
 ### Контекст (кожне повідомлення до агента)
 

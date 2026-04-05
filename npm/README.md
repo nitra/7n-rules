@@ -14,7 +14,7 @@
 
 ```json
 {
-  "rules": ["js-format", "npm-module", "spell"]
+  "rules": ["js-format", "npm-module", "text"]
 }
 ```
 
@@ -24,14 +24,14 @@
 | ------------ | ------------------------------------------------- |
 | `js-format`  | Правила форматування JavaScript ecosystem (oxfmt) |
 | `npm-module` | Структура репозиторію для npm-модуля (bun mono)   |
-| `spell`      | Перевірка правопису через cspell                  |
+| `text`       | Текстові файли: cspell, CI                        |
 
 Щоб завантажити правила конкретної версії пакету, додайте поле `version`:
 
 ```json
 {
   "version": "2.5.0",
-  "rules": ["js-format", "spell"]
+  "rules": ["js-format", "text"]
 }
 ```
 
@@ -56,7 +56,7 @@ CLI автоматично:
 📋 Правил до завантаження: 3
   ⬇  js-format → .cursor/rules/n-js-format.mdc ... ✅
   ⬇  npm-module → .cursor/rules/n-npm-module.mdc ... ✅
-  ⬇  spell → .cursor/rules/n-spell.mdc ... ✅
+  ⬇  text → .cursor/rules/n-text.mdc ... ✅
 📝 Оновлено AGENTS.md з AGENTS.template.md
 
 ✨ Готово: 3 завантажено, 0 з помилками
@@ -70,7 +70,7 @@ npm/
 ├── mdc/                 # cursor-правила
 │   ├── js-format.mdc
 │   ├── npm-module.mdc
-│   └── spell.mdc
+│   └── text.mdc
 └── bin/
     └── n-cursor.js  # CLI-скрипт
 ```
@@ -96,7 +96,7 @@ npm/
 {{/services}}
 ```
 
-Під час запуску CLI тіло між `{{#services}}` і `{{/services}}` повторюється для кожного `*.mdc` у `.cursor/rules/`; у `{{name}}` підставляється вже готовий markdown-рядок (наприклад `- .cursor/rules/n-spell.mdc`).
+Під час запуску CLI тіло між `{{#services}}` і `{{/services}}` повторюється для кожного `*.mdc` у `.cursor/rules/`; у `{{name}}` підставляється вже готовий markdown-рядок (наприклад `- .cursor/rules/n-text.mdc`).
 
 3. Після змін у шаблоні перевірте локально: у тестовому репозиторії з `.n-cursor.json` виконайте `npx`/`bunx` на зібраному пакеті або `node npm/bin/n-cursor.js` з кореня того репозиторію і переконайтеся, що **`AGENTS.md`** виглядає як очікується.
 

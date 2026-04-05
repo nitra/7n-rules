@@ -4,8 +4,6 @@ alwaysApply: true
 version: '1.2'
 ---
 
-# Vue 3 (Composition API)
-
 # Vue 3 Composition API — правила для .cursorrules
 
 ## Найкращі практики Vue 3 Composition API

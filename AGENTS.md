@@ -18,7 +18,7 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-npm-module.mdc
 
-- .cursor/rules/n-spell.mdc
+- .cursor/rules/n-text.mdc
 
 - .cursor/rules/script.mdc
 

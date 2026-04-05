@@ -40,6 +40,7 @@ oxfmt .
 
 ```bash
 bun run lint-js
+bun run lint-text
 bun run lint-style
 ```
 

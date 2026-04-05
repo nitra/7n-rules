@@ -1,4 +1,4 @@
 {
-  "rules": ["ga", "bun", "js-format", "js-lint", "npm-module", "spell"],
+  "rules": ["ga", "bun", "js-format", "js-lint", "npm-module", "text"],
   "skills": ["fix", "publish-telegram"]
 }
