@@ -25,7 +25,7 @@ version: '1.2'
     "lint-js": "oxlint --fix && bunx eslint --fix ."
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.0.7"
+    "@nitra/eslint-config": "^3.3.0"
   }
 ```
 

@@ -5,7 +5,7 @@ on:
     - cron: '0 1 16 * *'
 
   # Allow workflow to be manually run from the GitHub UI
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   cleanup_old_workflows:
