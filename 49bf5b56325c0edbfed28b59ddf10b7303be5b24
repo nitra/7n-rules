@@ -1,0 +1,21 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "49bf5b56325c0edbfed28b59ddf10b7303be5b24",
+  "prompts": {
+    "af01a58081fcb052": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf7db321-94fc-46d9-a4af-64a94bf456c3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    }
+  }
+}
