@@ -25,7 +25,7 @@ version: '1.4'
     "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.3.0"
+    "@nitra/eslint-config": "^3.4.0"
   }
 ```
 
