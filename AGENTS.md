@@ -31,6 +31,8 @@ The primary development rules are stored in the Cursor rules directory:
 
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Викликається командою /publish-telegram. Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди моноширним шрифтом. Use when the user says /publish-telegram, publish, or asks to prepare material for Telegram channel sharing with the dev team.
 
+- `.cursor/skills/n-lint/SKILL.md` — Запуск усіх скриптів `lint-*` з `package.json` і виправлення зауважень лінтерів. Use when the user asks to run linters, fix lint issues, or mentions n-lint.
+
 
 ## Instructions for all agents
 
