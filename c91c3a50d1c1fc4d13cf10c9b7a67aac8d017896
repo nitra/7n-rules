@@ -1,0 +1,147 @@
+AGENTS.md
+  fb32c59c1b004391 27
+npm/mdc/style-lint.mdc
+  fb32c59c1b004391 11
+npm/mdc/bun.mdc
+  e281d9923688b94a 48
+npm/scripts/check-style-lint.mjs
+  e281d9923688b94a 5,20-24,26-30,42-46,51-55,62-66,73-82
+  283ed601c73d2523 4
+npm/scripts/check-nginx-default-tpl.mjs
+  e281d9923688b94a 5,28-32,34-38,40-44,53-57,62-66
+  283ed601c73d2523 4
+npm/scripts/utils/pass.mjs
+  283ed601c73d2523 1-7
+npm/scripts/check-bun.mjs
+  e281d9923688b94a 5,19-23,26-35,39-43
+  283ed601c73d2523 4
+npm/scripts/check-js-format.mjs
+  283ed601c73d2523 4
+  e281d9923688b94a 5,32-36,49-53,60-64
+npm/scripts/check-spell.mjs
+  283ed601c73d2523 4
+  e281d9923688b94a 5,20-24,26-30,33-37,39-43,52-56,58-74
+.github/workflows/lint-spell.yml
+  e281d9923688b94a 1-59
+eslint.config.js
+  e281d9923688b94a 4
+npm/skills/n-fix/SKILL.md
+  fb32c59c1b004391 1-56
+npm/scripts/check-vue.mjs
+  283ed601c73d2523 4
+  e281d9923688b94a 5,19-23,34-38,51-55,57-61,63-67,69-73,80-89
+npm/scripts/check-js-lint.mjs
+  283ed601c73d2523 4
+  e281d9923688b94a 5,17-23,28-32,34-38,56-65
+package.json
+  e281d9923688b94a 14-15
+npm/scripts/check-js-pino.mjs
+  e281d9923688b94a 5
+  283ed601c73d2523 4
+.cursor/rules/n-bun.mdc
+  e281d9923688b94a 48
+docs/fix-cursor-skill.md
+  fb32c59c1b004391 24,31,35,107,113,117,199,215,262
+npm/.n-cursor.example.json
+  fb32c59c1b004391 3
+.cursor/skills/n-fix/SKILL.md
+  fb32c59c1b004391 1-56
+npm/scripts/check-npm-module.mjs
+  e281d9923688b94a 5,17-21,25-29,44-48,50-54
+  283ed601c73d2523 4
+.n-cursor.json
+  fb32c59c1b004391 3
+npm/bin/n-cursor.js
+  e281d9923688b94a 110-121,170
+  fb32c59c1b004391 218-232,236,239,446,452,468
+.cspell.json
+  e281d9923688b94a 7-50
+npm/scripts/check-ga.mjs
+  283ed601c73d2523 4
+  e281d9923688b94a 5,34-38,43-47,52-56,61-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "c91c3a50d1c1fc4d13cf10c9b7a67aac8d017896",
+  "prompts": {
+    "283ed601c73d2523": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7101d780-99b3-41e6-891d-bfbbabcedaa7",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 35,
+      "total_deletions": 21,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "546ef76b67e95a71": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9829e2d1-be22-48b3-ab5c-06f1f8e8de28",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "83da0d9b8cd9fdbf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6e6284e0-e39f-4f0e-a4e0-4fd81bfb4b1d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "af01a58081fcb052": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf7db321-94fc-46d9-a4af-64a94bf456c3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "e281d9923688b94a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "68c48fce-281d-4e7d-909d-7d9e2e7d30f4",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 397,
+      "total_deletions": 133,
+      "accepted_lines": 378,
+      "overriden_lines": 0
+    },
+    "fb32c59c1b004391": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a6f00521-dbd9-4fff-b6de-9f76738d9736",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 146,
+      "total_deletions": 152,
+      "accepted_lines": 145,
+      "overriden_lines": 0
+    }
+  }
+}
