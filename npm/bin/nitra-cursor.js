@@ -6,7 +6,7 @@
  * Завантажує cursor-правила з npm-пакету nitra-cursor у локальний репозиторій.
  *
  * Використання:
- *   `npx @nitra/cursor`
+ *   `npx \@nitra/cursor`
  *
  * Якщо у корені репозиторію немає nitra-cursor.json, він створюється автоматично
  * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення).
@@ -52,7 +52,7 @@ async function discoverBundledRuleNames() {
   const rules = names
     .filter(n => n.endsWith('.mdc'))
     .map(n => n.slice(0, -'.mdc'.length))
-    .sort((a, b) => a.localeCompare(b))
+    .toSorted((a, b) => a.localeCompare(b))
   if (rules.length === 0) {
     throw new Error(`У каталозі mdc пакету немає файлів .mdc. Створіть ${CONFIG_FILE} вручну.`)
   }
@@ -172,7 +172,7 @@ async function listProjectRulesMdcFiles() {
     return []
   }
   const names = await readdir(rulesDir)
-  return names.filter(n => n.endsWith('.mdc')).sort((a, b) => a.localeCompare(b))
+  return names.filter(n => n.endsWith('.mdc')).toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -204,7 +204,7 @@ async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
       removed.push(name)
     }
   }
-  return removed.sort((a, b) => a.localeCompare(b))
+  return removed.toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -229,73 +229,78 @@ async function syncAgentsMd() {
   console.log(hadFile ? `📝 Оновлено ${AGENTS_FILE} з ${AGENTS_TEMPLATE_FILE}` : `📝 Створено ${AGENTS_FILE} з ${AGENTS_TEMPLATE_FILE}`)
 }
 
-console.log(`\n🔧 @nitra/cursor — завантаження cursor-правил\n`)
-
-// 1. Зчитуємо конфіг
-let config
+// CLI: top-level await — помилки з кодом виходу 1 через process.exitCode (без process.exit)
 try {
-  config = await readConfig()
-} catch (error) {
-  console.error(`❌ ${error.message}`)
-  process.exit(1)
-}
+  console.log(`\n🔧 @nitra/cursor — завантаження cursor-правил\n`)
 
-const { rules, version } = config
-if (version) {
-  console.log(`📦 Версія пакету: ${version}`)
-}
-console.log(`📋 Правил до завантаження: ${rules.length}`)
-
-// 2. Створюємо директорію .cursor/rules якщо не існує
-const rulesDir = join(cwd(), RULES_DIR)
-await mkdir(rulesDir, { recursive: true })
-
-// 3. Завантажуємо та зберігаємо кожне правило
-let successCount = 0
-let failCount = 0
-
-for (const rule of rules) {
-  const url = buildUrl(rule, version)
-  const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
-  const destPath = join(rulesDir, fileName)
-
+  // 1. Зчитуємо конфіг
+  let config
   try {
-    process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-    const content = await fetchText(url)
-    await writeFile(destPath, content, 'utf8')
-    console.log(`✅`)
-    successCount++
+    config = await readConfig()
   } catch (error) {
-    console.log(`❌`)
-    console.error(`     Помилка: ${error.message}`)
-    failCount++
+    console.error(`❌ ${error.message}`)
+    throw error
   }
-}
 
-// 4. Прибираємо керовані nitra-*.mdc, яких немає у nitra-cursor.json
-try {
-  const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
-  if (removed.length > 0) {
-    console.log(`\n🧹 Видалено правила поза списком ${CONFIG_FILE} (${removed.length}):`)
-    for (const name of removed) {
-      console.log(`   − ${RULES_DIR}/${name}`)
+  const { rules, version } = config
+  if (version) {
+    console.log(`📦 Версія пакету: ${version}`)
+  }
+  console.log(`📋 Правил до завантаження: ${rules.length}`)
+
+  // 2. Створюємо директорію .cursor/rules якщо не існує
+  const rulesDir = join(cwd(), RULES_DIR)
+  await mkdir(rulesDir, { recursive: true })
+
+  // 3. Завантажуємо та зберігаємо кожне правило
+  let successCount = 0
+  let failCount = 0
+
+  for (const rule of rules) {
+    const url = buildUrl(rule, version)
+    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
+    const destPath = join(rulesDir, fileName)
+
+    try {
+      process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
+      const content = await fetchText(url)
+      await writeFile(destPath, content, 'utf8')
+      console.log(`✅`)
+      successCount++
+    } catch (error) {
+      console.log(`❌`)
+      console.error(`     Помилка: ${error.message}`)
+      failCount++
     }
   }
-} catch (error) {
-  console.error(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: ${error.message}`)
-  process.exit(1)
-}
 
-// 5. AGENTS.md зі списком файлів *.mdc у .cursor/rules (після оновлення на диску)
-try {
-  await syncAgentsMd()
-} catch (error) {
-  console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
-  process.exit(1)
-}
+  // 4. Прибираємо керовані nitra-*.mdc, яких немає у nitra-cursor.json
+  try {
+    const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
+    if (removed.length > 0) {
+      console.log(`\n🧹 Видалено правила поза списком ${CONFIG_FILE} (${removed.length}):`)
+      for (const name of removed) {
+        console.log(`   − ${RULES_DIR}/${name}`)
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: ${error.message}`)
+    throw error
+  }
 
-// 6. Підсумок
-console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
-if (failCount > 0) {
-  process.exit(1)
+  // 5. AGENTS.md зі списком файлів *.mdc у .cursor/rules (після оновлення на диску)
+  try {
+    await syncAgentsMd()
+  } catch (error) {
+    console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
+    throw error
+  }
+
+  // 6. Підсумок
+  console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
+  if (failCount > 0) {
+    throw new Error(`Не вдалося завантажити ${failCount} з ${rules.length} правил`)
+  }
+} catch {
+  process.exitCode = 1
 }

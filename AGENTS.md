@@ -15,6 +15,8 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/nitra-js-format.mdc
 
+- .cursor/rules/nitra-js-lint.mdc
+
 - .cursor/rules/nitra-npm-module.mdc
 
 - .cursor/rules/nitra-spell.mdc
