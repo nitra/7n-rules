@@ -1,0 +1,76 @@
+npm/bin/nitra-cursor.js
+  5d7153dcc28bab07 232,234,236-249,251-253,255-257,259-262,264-274,277-282
+  35a2eddb7b5a4367 283-284,286-288,291,293-297,299-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "6fee951f7b53bd20df3b6d7af95335d7bab81da4",
+  "prompts": {
+    "35a2eddb7b5a4367": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3d088fa0-6ebf-4717-90a0-1c7c04c6e079",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 98,
+      "total_deletions": 93,
+      "accepted_lines": 70,
+      "overriden_lines": 0
+    },
+    "452f8a535827fb6a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8c69dfeb-f317-4f3f-9a82-29e16e3be3fc",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 36,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "5d7153dcc28bab07": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "35c3c8ea-3089-4174-b3d9-8920f4e0d669",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 1558,
+      "total_deletions": 569,
+      "accepted_lines": 962,
+      "overriden_lines": 0
+    },
+    "af01a58081fcb052": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf7db321-94fc-46d9-a4af-64a94bf456c3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "d4eeeef266f5e6e9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bbe200c2-d7be-4d53-91a8-56b779c9eebd",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 177,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
