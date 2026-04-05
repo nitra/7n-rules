@@ -1,0 +1,44 @@
+npm/bin/nitra-cursor.js
+  af01a58081fcb052 9
+npm/mdc/js-lint.mdc
+  af01a58081fcb052 4,7,9,15,21,32,34,44-49,51,90,102
+.github/workflows/lint-js.yml
+  af01a58081fcb052 1-49
+package.json
+  af01a58081fcb052 18-19
+.vscode/extensions.json
+  af01a58081fcb052 2-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b96c0bd6a7dce5fd587d96890916626c9966ee00",
+  "prompts": {
+    "03c1f330c155dfee": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0fce4921-8be0-4197-8d53-4249dbe1c8ac",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 3,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "af01a58081fcb052": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf7db321-94fc-46d9-a4af-64a94bf456c3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 138,
+      "total_deletions": 37,
+      "accepted_lines": 73,
+      "overriden_lines": 0
+    }
+  }
+}
