@@ -1,0 +1,76 @@
+npm/scripts/check-js-lint.mjs
+  18322e5cdd153215 30-34,36-38,73-77,82-104
+npm/mdc/js-lint.mdc
+  18322e5cdd153215 4,7,21,25,32,34-44,64,99
+.cursor/rules/n-js-lint.mdc
+  18322e5cdd153215 4,7,21,25,32,34-44,64,99
+.github/workflows/lint-js.yml
+  18322e5cdd153215 16,51
+.cursor/rules/n-text.mdc
+  05116067eea0d68a 4,40,42,161,180
+.jscpd.json
+  18322e5cdd153215 1-7
+package.json
+  18322e5cdd153215 14
+npm/mdc/text.mdc
+  05116067eea0d68a 4,45,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b81750eddec66aea5af4e177509bba91adb56e1f",
+  "prompts": {
+    "05116067eea0d68a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8bd70de7-6a2d-4ecf-929d-d9c273d48706",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 22,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    },
+    "18322e5cdd153215": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3110af18-f021-4951-a871-0d617718aaf7",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 104,
+      "total_deletions": 30,
+      "accepted_lines": 90,
+      "overriden_lines": 0
+    },
+    "af01a58081fcb052": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cf7db321-94fc-46d9-a4af-64a94bf456c3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 49,
+      "overriden_lines": 0
+    },
+    "c38cb091dc4dd287": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ea50ff9e-8bd1-42e9-9ea6-d8ad7d83c2b3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 64,
+      "overriden_lines": 0
+    }
+  }
+}
