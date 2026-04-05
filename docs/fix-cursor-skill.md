@@ -21,18 +21,18 @@
 
 Повільно, дорого (тисячі токенів), ненадійно.
 
-## Рішення: Cursor Skill `fix-cursor`
+## Рішення: Cursor Skill `n-fix`
 
 Cursor Skill — це markdown-файл з інструкціями для AI-агента, який автоматично підхоплюється при релевантних запитах. На відміну від правил (`.cursor/rules/`), skill описує не конвенції, а **конкретний workflow** — послідовність дій.
 
 ### Як працює
 
 ```
-Розробник: "fix-cursor" (або "виправ проєкт", "apply rules")
+Розробник: "n-fix" (або "виправ проєкт", "apply rules")
                 │
                 ▼
         Cursor бачить Skill
-        fix-cursor/SKILL.md
+        n-fix/SKILL.md
                 │
                 ▼
     ┌───────────────────────┐
@@ -104,17 +104,17 @@ Skill поєднує два підходи:
 ## Анатомія Skill-файлу
 
 ```
-.cursor/skills/fix-cursor/
+.cursor/skills/n-fix/
 └── SKILL.md
 ```
 
 ```yaml
 ---
-name: fix-cursor
+name: n-fix
 description: >-
   Fix project to comply with all n cursor rules. Use when the user asks
   to fix the project, apply rules, make project compliant, or mentions
-  fix-cursor.
+  n-fix.
 ---
 ```
 
@@ -144,6 +144,9 @@ description: >-
 
 ```javascript
 // fix-bun.mjs — скрипт що сам видаляє файли, оновлює JSON
+/**
+ *
+ */
 export async function fix() {
   if (existsSync('yarn.lock')) unlinkSync('yarn.lock')
   // ...
@@ -193,7 +196,7 @@ npm/@nitra/cursor/
 ├── mdc/              ← правила (MDC файли)
 ├── scripts/          ← check-скрипти
 ├── skills/           ← Cursor Skills
-│   └── fix-cursor/
+│   └── n-fix/
 │       └── SKILL.md
 └── AGENTS.template.md
 ```
@@ -209,7 +212,7 @@ npm/@nitra/cursor/
 ```markdown
 ## Skills
 
-- `.cursor/skills/fix-cursor/SKILL.md` — автоматичне виправлення проєкту
+- `.cursor/skills/n-fix/SKILL.md` — автоматичне виправлення проєкту
 ```
 
 Агент читає `AGENTS.md` → бачить skill → відкриває `SKILL.md` → виконує workflow.
@@ -256,4 +259,4 @@ description: >-
 | Skill         | Workflow для агента: послідовність дій | `.cursor/skills/` |
 | AGENTS.md     | Entry point для всіх агентів           | корінь проєкту    |
 
-Skill `fix-cursor` — це точка, де програмна верифікація зустрічається з інтелектом LLM. Скрипти швидко знаходять проблеми, агент розумно їх вирішує, а потім скрипти підтверджують результат. Один workflow, одна команда, повна відповідність стандартам.
+Skill `n-fix` — це точка, де програмна верифікація зустрічається з інтелектом LLM. Скрипти швидко знаходять проблеми, агент розумно їх вирішує, а потім скрипти підтверджують результат. Один workflow, одна команда, повна відповідність стандартам.

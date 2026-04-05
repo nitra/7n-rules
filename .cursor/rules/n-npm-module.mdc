@@ -12,3 +12,7 @@ version: '1.0'
 - demo/ - опціонально демо проект
 - npm/ - файли для npm модуля
 - package.json
+
+## Перевірка
+
+`npx @nitra/cursor check npm-module`

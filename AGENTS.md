@@ -8,7 +8,6 @@ This file is the entry point for all AI agents working with this repository.
 
 The primary development rules are stored in the Cursor rules directory:
 
-
 - .cursor/rules/n-bun.mdc
 
 - .cursor/rules/n-ga.mdc
@@ -23,16 +22,11 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/script.mdc
 
-
 ## Skills
 
+- `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
 
-- `.cursor/skills/n-fix-cursor/SKILL.md` — Fix project to comply with all n cursor rules. Use when the user asks to fix the project, apply rules, make project compliant, or mentions fix-cursor or n-fix-cursor. Runs diagnostics, identifies violations, applies fixes, and verifies the result.
-
-- `.cursor/skills/n-publish-telegram/SKILL.md` — Викликається командою /publish-telegram. Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди моноширним шрифтом. Use when the user says /publish-telegram, publish, or asks to prepare material for Telegram channel sharing with the dev team.
-
-- `.cursor/skills/n-lint/SKILL.md` — Запуск усіх скриптів `lint-*` з `package.json` і виправлення зауважень лінтерів. Use when the user asks to run linters, fix lint issues, or mentions n-lint.
-
+- `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 
 ## Instructions for all agents
 

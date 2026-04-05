@@ -1,13 +1,14 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
+import { pass } from './utils/pass.mjs'
+
 /**
  * Перевіряє відповідність проєкту правилам js-pino.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
   let exitCode = 0
-  const pass = msg => console.log(`  ✅ ${msg}`)
   const fail = msg => {
     console.log(`  ❌ ${msg}`)
     exitCode = 1

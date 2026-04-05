@@ -1,4 +1,4 @@
 {
   "rules": ["js-format", "npm-module", "spell"],
-  "skills": ["fix-cursor", "publish-telegram"]
+  "skills": ["fix", "publish-telegram"]
 }

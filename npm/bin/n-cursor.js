@@ -107,20 +107,19 @@ async function migrateLegacyManagedRuleFilenames(rulesDir) {
   }
   const names = await readdir(rulesDir)
   for (const name of names) {
-    if (!name.endsWith('.mdc') || !name.startsWith('nitra-')) {
-      continue
+    if (name.endsWith('.mdc') && name.startsWith('nitra-')) {
+      const rest = name.slice('nitra-'.length)
+      const newName = `${RULE_PREFIX}${rest}`
+      const from = join(rulesDir, name)
+      const to = join(rulesDir, newName)
+      if (existsSync(to)) {
+        await unlink(from)
+        console.log(`📝 Видалено застарілий ${RULES_DIR}/${name} (вже є ${newName})\n`)
+      } else {
+        await rename(from, to)
+        console.log(`📝 Перейменовано ${RULES_DIR}/${name} → ${RULES_DIR}/${newName}\n`)
+      }
     }
-    const rest = name.slice('nitra-'.length)
-    const newName = `${RULE_PREFIX}${rest}`
-    const from = join(rulesDir, name)
-    const to = join(rulesDir, newName)
-    if (existsSync(to)) {
-      await unlink(from)
-      console.log(`📝 Видалено застарілий ${RULES_DIR}/${name} (вже є ${newName})\n`)
-      continue
-    }
-    await rename(from, to)
-    console.log(`📝 Перейменовано ${RULES_DIR}/${name} → ${RULES_DIR}/${newName}\n`)
   }
 }
 
@@ -168,7 +167,7 @@ async function readConfig() {
     throw new Error(`Невірний JSON у файлі ${CONFIG_FILE}`)
   }
   if (!Array.isArray(config.rules) || config.rules.length === 0) {
-    throw new Error(`У ${CONFIG_FILE} має бути непоророжній масив "rules"`)
+    throw new Error(`У ${CONFIG_FILE} має бути непорожній масив "rules"`)
   }
   if (!Array.isArray(config.skills)) {
     if ('skills' in config) {
@@ -204,7 +203,7 @@ function normalizeRuleName(ruleName) {
 }
 
 /**
- * Нормалізує id skill з конфігу до форми без префікса n- (як «fix-cursor»)
+ * Нормалізує id skill з конфігу до форми без префікса n- (як «fix»)
  * @param {string} skillName елемент масиву skills або ім'я каталогу
  * @returns {string} id без префікса n-
  */
@@ -216,13 +215,28 @@ function normalizeSkillId(skillName) {
   return s
 }
 
+/** Legacy id у `.n-cursor.json` → поточний bundled id (каталог `n-<id>` у пакеті) */
+const LEGACY_SKILL_ID_MAP = {
+  'fix-cursor': 'fix'
+}
+
+/**
+ * Поточний id skill для шляхів у пакеті та `.cursor/skills`
+ * @param {string} skillName елемент масиву skills або ім'я каталогу
+ * @returns {string} canonical id без префікса n-
+ */
+function canonicalSkillId(skillName) {
+  const id = normalizeSkillId(skillName)
+  return LEGACY_SKILL_ID_MAP[id] ?? id
+}
+
 /**
  * Ім'я керованого каталогу skill у .cursor/skills (префікс n-)
  * @param {string} skillId id без префікса
- * @returns {string} наприклад n-fix-cursor
+ * @returns {string} наприклад n-fix
  */
 function managedSkillDirName(skillId) {
-  return `${RULE_PREFIX}${normalizeSkillId(skillId)}`
+  return `${RULE_PREFIX}${canonicalSkillId(skillId)}`
 }
 
 /**
@@ -429,12 +443,13 @@ async function syncSkills(configSkills) {
   let fail = 0
 
   for (const skillId of configSkills) {
+    const id = canonicalSkillId(skillId)
     const dirName = managedSkillDirName(skillId)
     const srcDir = join(BUNDLED_SKILLS_DIR, dirName)
     const destDir = join(skillsRoot, dirName)
 
     if (existsSync(srcDir)) {
-      process.stdout.write(`  ⬇  ${skillId} → ${SKILLS_DIR}/${dirName} ... `)
+      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${dirName} ... `)
       try {
         await mkdir(destDir, { recursive: true })
         const files = await readdir(srcDir)
@@ -450,7 +465,7 @@ async function syncSkills(configSkills) {
         fail++
       }
     } else {
-      process.stdout.write(`  ⬇  ${skillId} → ${SKILLS_DIR}/${dirName} ... `)
+      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${dirName} ... `)
       console.log(`❌`)
       console.error(`     Немає каталогу в пакеті: ${dirName}`)
       fail++

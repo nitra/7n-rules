@@ -9,16 +9,17 @@
     "npm"
   ],
   "type": "module",
-  "engines": {
-    "node": ">=24"
-  },
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
-    "lint-js": "oxlint --fix && bunx eslint --fix ."
+    "lint-js": "oxlint --fix && bunx eslint --fix .",
+    "lint-spell": "npx cspell ."
   },
   "devDependencies": {
     "@cspell/dict-uk-ua": "^4.0.6",
     "@nitra/cspell-dict": "^1.0.185",
     "@nitra/eslint-config": "^3.3.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }

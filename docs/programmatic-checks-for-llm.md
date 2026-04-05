@@ -77,6 +77,9 @@ Lockfile: bun.lock
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
+/**
+ *
+ */
 export async function check() {
   let exitCode = 0
   const pass = msg => console.log(`  ✅ ${msg}`)
@@ -172,7 +175,7 @@ Read package.json      → 517 bytes   → перевірити відсутні
 
 Перший варіант, який ми спробували — вбудувати скрипти прямо в MDC файли:
 
-````markdown
+```markdown
 ## Scripts
 
 ​`javascript title="check-bun.mjs"
@@ -180,7 +183,7 @@ import { existsSync } from 'node:fs'
 // ... 30 рядків коду перевірки ...
 process.exitCode = exitCode
 ​`
-````
+```
 
 **Чому це погано:**
 
@@ -206,6 +209,9 @@ process.exitCode = exitCode
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
+/**
+ *
+ */
 export async function check() {
   let exitCode = 0
   const pass = msg => console.log(`  ✅ ${msg}`)

@@ -1,29 +1,39 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
+import { pass } from './utils/pass.mjs'
+
 /**
  * Перевіряє відповідність проєкту правилам js-format.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
   let exitCode = 0
-  const pass = msg => console.log(`  ✅ ${msg}`)
   const fail = msg => {
     console.log(`  ❌ ${msg}`)
     exitCode = 1
   }
 
   const expectedKeys = [
-    'arrowParens', 'printWidth', 'bracketSpacing', 'bracketSameLine',
-    'semi', 'singleQuote', 'tabWidth', 'trailingComma', 'useTabs'
+    'arrowParens',
+    'printWidth',
+    'bracketSpacing',
+    'bracketSameLine',
+    'semi',
+    'singleQuote',
+    'tabWidth',
+    'trailingComma',
+    'useTabs'
   ]
 
   if (existsSync('.oxfmtrc.json')) {
     const cfg = JSON.parse(await readFile('.oxfmtrc.json', 'utf8'))
     const missing = expectedKeys.filter(k => !(k in cfg))
-    missing.length === 0
-      ? pass('.oxfmtrc.json містить всі обовʼязкові ключі')
-      : fail(`.oxfmtrc.json відсутні ключі: ${missing.join(', ')}`)
+    if (missing.length === 0) {
+      pass('.oxfmtrc.json містить всі обовʼязкові ключі')
+    } else {
+      fail(`.oxfmtrc.json відсутні ключі: ${missing.join(', ')}`)
+    }
 
     if (cfg.semi !== false) fail('.oxfmtrc.json: semi має бути false')
     if (cfg.singleQuote !== true) fail('.oxfmtrc.json: singleQuote має бути true')
@@ -36,18 +46,22 @@ export async function check() {
 
   if (existsSync('.vscode/extensions.json')) {
     const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    ext.recommendations?.includes('oxc.oxc-vscode')
-      ? pass('extensions.json містить oxc.oxc-vscode')
-      : fail('extensions.json не містить oxc.oxc-vscode')
+    if (ext.recommendations?.includes('oxc.oxc-vscode')) {
+      pass('extensions.json містить oxc.oxc-vscode')
+    } else {
+      fail('extensions.json не містить oxc.oxc-vscode')
+    }
   } else {
     fail('.vscode/extensions.json не існує')
   }
 
   if (existsSync('.vscode/settings.json')) {
     const settings = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
-    settings['editor.formatOnSave'] === true
-      ? pass('settings.json: editor.formatOnSave увімкнено')
-      : fail('settings.json: editor.formatOnSave має бути true')
+    if (settings['editor.formatOnSave'] === true) {
+      pass('settings.json: editor.formatOnSave увімкнено')
+    } else {
+      fail('settings.json: editor.formatOnSave має бути true')
+    }
 
     const fmtTypes = ['javascript', 'typescript', 'json', 'vue', 'css', 'html']
     for (const t of fmtTypes) {

@@ -1,10 +1,7 @@
 ---
 name: n-publish-telegram
 description: >-
-  Викликається командою /publish-telegram. Підготовка матеріалу з поточного
-  контексту для публікації в Telegram-каналі команди моноширним шрифтом.
-  Use when the user says /publish-telegram, publish, or asks to prepare
-  material for Telegram channel sharing with the dev team.
+  Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 ---
 
 # Публікація в Telegram

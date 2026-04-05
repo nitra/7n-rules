@@ -97,3 +97,7 @@ version: '1.3'
 Також потрібно прибрати якщо є в проекті модул @nitra/prettier-config та prettier та всі виклики prettier і налаштування для нього.
 
 Завжди пиши JSDoc до функцій та методів.
+
+## Перевірка
+
+`npx @nitra/cursor check js-format`
