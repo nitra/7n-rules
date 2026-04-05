@@ -1,16 +1,19 @@
 {
-  "name": "nitra-cursor",
+  "name": "n-cursor",
   "version": "1.0.0",
   "description": "cursor helper",
-  "homepage": "https://github.com/nitra/cursor",
-  "bugs": "https://github.com/nitra/cursor/issues",
+  "homepage": "https://github.com/n/cursor",
+  "bugs": "https://github.com/n/cursor/issues",
   "license": "MIT",
   "workspaces": [
     "npm"
   ],
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "start": "bun ./npm/bin/nitra-cursor.js",
+    "start": "bun ./npm/bin/n-cursor.js",
     "lint-js": "oxlint --fix && bunx eslint --fix ."
   },
   "devDependencies": {

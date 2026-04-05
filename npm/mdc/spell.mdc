@@ -8,7 +8,7 @@ version: '1.1'
 
 ## Базовий варіант (без окремого словника української)
 
-Якщо текст переважно англійською та достатньо словника nitra:
+Якщо текст переважно англійською та достатньо корпоративного словника (@nitra/cspell-dict; у полі `language` cspell лишається тег `nitra`):
 
 ```json title=".cspell.json"
 {
@@ -69,3 +69,7 @@ version: '1.1'
 ## Інші мови
 
 Для іншої мови встанови відповідний пакет `@cspell/dict-*`, додай його `cspell-ext.json` у `import` і код мови в `language`. Огляд словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
+
+## Перевірка
+
+`npx @nitra/cursor check spell`

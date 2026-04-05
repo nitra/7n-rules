@@ -90,3 +90,7 @@ jobs:
   "recommendations": ["github.vscode-github-actions"]
 }
 ```
+
+## Перевірка
+
+`npx @nitra/cursor check ga`

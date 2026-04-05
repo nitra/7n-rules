@@ -1,0 +1,4 @@
+{
+  "rules": ["ga", "bun", "js-format", "js-lint", "npm-module", "spell"],
+  "skills": ["fix-cursor", "publish-telegram"]
+}

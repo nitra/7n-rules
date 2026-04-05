@@ -218,3 +218,7 @@ export default defineConfig({
 Потрібно використовувати unplugin-auto-import для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з Vue sfc імпорти які їх дублюють.
 
 Потрібно використовувати vite-plugin-vue-layouts-next для автоматичного імпортування layout компонентів.
+
+## Перевірка
+
+`npx @nitra/cursor check vue`

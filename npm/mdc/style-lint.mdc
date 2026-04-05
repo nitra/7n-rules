@@ -89,3 +89,7 @@ jobs:
 ```text title=".stylelintignore"
 dist/
 ```
+
+## Перевірка
+
+`npx @nitra/cursor check style-lint`

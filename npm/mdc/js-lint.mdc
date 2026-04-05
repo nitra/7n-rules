@@ -85,7 +85,7 @@ jobs:
           bunx eslint .
 ```
 
-**Без дублювання CI:** якщо в `.github/workflows` уже є `lint.yml` з тими самими кроками `oxlint` або `eslint`,  видали зайвий workflow — лінт JS має виконуватися в одному місці.
+**Без дублювання CI:** якщо в `.github/workflows` уже є `lint.yml` з тими самими кроками `oxlint` або `eslint`,  видали зайвий workflow, а саме `lint.yml` — лінт JS має виконуватися в одному місці.
 
 У корені проєкту має бути `eslint.config.js` із розподілом директорій за типом коду:
 
@@ -114,3 +114,7 @@ export default [
 Завжди код повинен використовувати синтаксис 24+ версії node
 
 Завжди повинен використовуватися top level await
+
+## Перевірка
+
+`npx @nitra/cursor check js-lint`

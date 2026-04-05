@@ -12,6 +12,12 @@ The primary development rules are stored in the Cursor rules directory:
 {{name}}
 {{/services}}
 
+## Skills
+
+{{#skills}}
+{{name}}
+{{/skills}}
+
 ## Instructions for all agents
 
 Before making changes, read the relevant rule files for the area you are working on.

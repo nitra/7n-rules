@@ -1,3 +1,0 @@
-{
-  "rules": ["ga", "bun", "js-format", "js-lint", "npm-module", "spell"]
-}

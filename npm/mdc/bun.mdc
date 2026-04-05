@@ -71,3 +71,7 @@ FROM oven/bun:alpine AS build-env
 - name: Install dependencies
   run: bun install --frozen-lockfile
 ```
+
+## Перевірка
+
+`npx @nitra/cursor check bun`
