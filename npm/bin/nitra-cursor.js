@@ -6,7 +6,7 @@
  * Завантажує cursor-правила з npm-пакету nitra-cursor у локальний репозиторій.
  *
  * Використання:
- *   npx @nitra/cursor
+ *   `npx @nitra/cursor`
  *
  * Якщо у корені репозиторію немає nitra-cursor.json, він створюється автоматично
  * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення).
@@ -199,14 +199,10 @@ async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
   const names = await readdir(rulesDir)
   const removed = []
   for (const name of names) {
-    if (!name.endsWith('.mdc') || !name.startsWith(RULE_PREFIX)) {
-      continue
+    if (name.endsWith('.mdc') && name.startsWith(RULE_PREFIX) && !expected.has(name)) {
+      await unlink(join(rulesDir, name))
+      removed.push(name)
     }
-    if (expected.has(name)) {
-      continue
-    }
-    await unlink(join(rulesDir, name))
-    removed.push(name)
   }
   return removed.sort((a, b) => a.localeCompare(b))
 }

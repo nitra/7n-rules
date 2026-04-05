@@ -1,3 +1,7 @@
 {
-  "recommendations": ["oxc.oxc-vscode", "github.vscode-github-actions"]
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "github.vscode-github-actions",
+    "oxc.oxc-vscode"
+  ]
 }

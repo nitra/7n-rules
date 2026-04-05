@@ -92,11 +92,13 @@ spec:
             type: PathPrefix
             value: /$PUBLIC_PATH/
       backendRefs:
-        - name: user-site
+        - name: $SERVICE_NAME
           port: 8080
 ```
 
 де $PUBLIC_PATH підставляється з ini файлу з dev середовища, а якщо для інших середовищ відрізняється то підставляється в kustomization.ya,l відповідні значення з ini середовища.
+
+В $SERVICE_NAME повинно бути вказано ім'я сервісу, яке буде використовуватися в k8s.
 
 В Dockerfile потрібно додати команду для стиснення файлів, які потім використовуватимуться з `gzip_static on`:
 

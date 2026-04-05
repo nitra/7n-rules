@@ -1,13 +1,21 @@
-name: Lint
+name: Lint JS
 
 on:
   push:
     branches:
-      - main
+      - dev
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/eslint.config.*'
 
   pull_request:
     branches:
-      - main
       - dev
 
 concurrency:
@@ -38,3 +46,4 @@ jobs:
       - name: Eslint
         run: |
           bunx oxlint
+          bunx eslint .

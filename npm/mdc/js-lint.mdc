@@ -1,0 +1,102 @@
+---
+description: Перевірка JavaScript коду
+alwaysApply: true
+version: '1.2'
+---
+
+Перевірка виконується за допомогою **oxlint** та **ESLint**.
+
+У файлі `.vscode/extensions.json` мають бути рекомендації розширень:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "github.vscode-github-actions",
+    "oxc.oxc-vscode"
+  ]
+}
+```
+
+У кореневому `package.json` додай скрипт і залежність:
+
+```json title="package.json"
+  "scripts": {
+    "lint-js": "oxlint --fix && bunx eslint --fix ."
+  },
+  "devDependencies": {
+    "@nitra/eslint-config": "^3.0.7"
+  }
+```
+
+У `devDependencies` достатньо `@nitra/eslint-config` (залежності ESLint підтягуються разом із ним). **oxlint** і **eslint** у скриптах викликай через `bunx`; окремо не додавай пакети `oxlint` / `eslint`, якщо цього не вимагає ваш монорепо.
+
+Додай workflow `.github/workflows/lint-js.yml`:
+
+```yaml
+name: Lint JS
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/eslint.config.*'
+
+  pull_request:
+    branches:
+      - dev
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Eslint
+        run: |
+          bunx oxlint
+          bunx eslint .
+```
+
+**Без дублювання CI:** якщо в `.github/workflows` уже є `lint.yml` з тими самими кроками `oxlint` або `eslint`,  видали зайвий workflow — лінт JS має виконуватися в одному місці.
+
+У корені проєкту має бути `eslint.config.js` із розподілом директорій за типом коду:
+
+```javascript title="eslint.config.js"
+import { getConfig } from '@nitra/eslint-config'
+
+export default [
+  ...getConfig({
+    node: ['npm']
+  })
+]
+```
+
+У монорепо пакети з Vite (frontend) вкажи в секції `vue`, решту — у секції `node` у виклику `getConfig`.

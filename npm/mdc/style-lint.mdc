@@ -32,7 +32,7 @@ version: '1.0'
     "lint-style": "stylelint '**/*.{css,scss,vue}' --fix",
   },
   "devDependencies": {
-    "@nitra/stylelint-config": "^1.3.0"
+    "@nitra/stylelint-config": "^1.4.0"
   },
   "stylelint": {
     "extends": "@nitra/stylelint-config"

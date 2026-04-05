@@ -5,15 +5,17 @@
   "homepage": "https://github.com/nitra/cursor",
   "bugs": "https://github.com/nitra/cursor/issues",
   "license": "MIT",
-  "scripts": {
-    "start": "bun ./npm/bin/nitra-cursor.js"
-  },
   "workspaces": [
     "npm"
   ],
   "type": "module",
+  "scripts": {
+    "start": "bun ./npm/bin/nitra-cursor.js",
+    "lint-js": "oxlint --fix && bunx eslint --fix ."
+  },
   "devDependencies": {
     "@cspell/dict-uk-ua": "^4.0.6",
-    "@nitra/cspell-dict": "^1.0.185"
+    "@nitra/cspell-dict": "^1.0.185",
+    "@nitra/eslint-config": "^3.0.7"
   }
 }
