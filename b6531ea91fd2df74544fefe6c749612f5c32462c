@@ -1,0 +1,31 @@
+npm/tests/check-text-fixture.test.mjs
+  1b29930f49968854 2,51
+npm/scripts/check-text.mjs
+  1b29930f49968854 4,44
+npm/mdc/text.mdc
+  1b29930f49968854 4,21,160
+npm/package.json
+  1b29930f49968854 3
+.cursor/rules/n-text.mdc
+  1b29930f49968854 4,21,160
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "b6531ea91fd2df74544fefe6c749612f5c32462c",
+  "prompts": {
+    "1b29930f49968854": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4467af6-6664-46f3-a035-2dacdafc488d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 11,
+      "total_deletions": 20,
+      "accepted_lines": 11,
+      "overriden_lines": 0
+    }
+  }
+}
