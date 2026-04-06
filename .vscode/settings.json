@@ -1,4 +1,10 @@
 {
+  "json.schemas": [
+    {
+      "fileMatch": [".n-cursor.json", "**/.n-cursor.example.json"],
+      "url": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json"
+    }
+  ],
   "editor.formatOnSave": true,
   "[css]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"

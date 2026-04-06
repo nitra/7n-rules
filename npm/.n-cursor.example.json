@@ -1,4 +1,5 @@
 {
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
   "rules": ["js-format", "npm-module", "text"],
   "skills": ["fix", "publish-telegram"]
 }

@@ -41,6 +41,9 @@ on:
 jobs:
   cleanup_old_workflows:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Delete workflow runs
         uses: dmvict/clean-workflow-runs@v1.0.0
@@ -67,6 +70,8 @@ on:
 jobs:
   cleanup_old_branches:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - id: delete_stuff
         name: Delete those pesky dead branches
@@ -78,10 +83,67 @@ jobs:
           dry_run: no
 
       - name: Get output
-        run: "echo 'Deleted branches: ${{ steps.delete_stuff.outputs.deleted_branches }}'"
+        env:
+          DELETED_BRANCHES: ${{ steps.delete_stuff.outputs.deleted_branches }}
+        run: |
+          echo "Deleted branches: ${DELETED_BRANCHES}"
 ```
 
 якщо в ignore_branches задані інші бранчі, то це допустимо.
+
+Повинен бути файл .github/workflows/lint-ga.yml, зі змістом:
+
+```yaml
+name: Lint GA
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - '.github/workflows/**'
+      - '.github/zizmor.yml'
+      - 'package.json'
+      - 'bun.lock'
+
+  pull_request:
+    branches:
+      - dev
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  lint-ga:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Lint GA
+        run: bun run lint-ga
+```
 
 в файлі .vscode/extensions.json є налаштування для GitHub Actions:
 
@@ -91,6 +153,29 @@ jobs:
 }
 ```
 
+## actionlint
+
+Статична перевірка синтаксису та виразів GitHub Actions: [actionlint](https://github.com/rhysd/actionlint).
+
+У кореневому `package.json` у скрипті `lint-ga` викликай **actionlint** через **`bunx node-actionlint`** (пакет [node-actionlint](https://www.npmjs.com/package/node-actionlint) постає бінарник actionlint для Node-екосистеми).
+
+## zizmor
+
+Статичний аналіз безпеки для GitHub Actions: [zizmor documentation](https://docs.zizmor.sh).
+
+У кореневому `package.json` має бути скрипт:
+
+```json title="package.json"
+"scripts": {
+  "lint-ga": "bunx node-actionlint && uvx zizmor --offline --collect=workflows ."
+}
+```
+
+Параметр `--offline` обмежує аналіз офлайн-аудитами (без GitHub API);
+
+За замовчуванням audit [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) вимагає повний commit SHA для кожного `uses:`. Якщо у проєкті прийняті **семантичні теги** (`@v4`, `@v2` тощо), додай `.github/zizmor.yml` з політикою `ref-pin` (приклад у цьому репозиторії).
+
 ## Перевірка
 
-`npx @nitra/cursor check ga`
+- `bun run lint-ga` — actionlint (node-actionlint) і zizmor
+- `npx @nitra/cursor check ga`

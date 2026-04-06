@@ -20,11 +20,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v5
         with:
           node-version: '24' # includes npm@11.6.0
-          registry-url: https://registry.npmjs.org
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4

@@ -1,0 +1,7 @@
+# https://docs.zizmor.sh/configuration/
+# За замовчуванням zizmor вимагає hash-pin для всіх uses:; політика ref-pin дозволяє теги/гілки (@v4 тощо).
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        '*': ref-pin

@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+  "title": "n-cursor project config",
+  "description": "Конфігурація правил і skills для CLI @nitra/cursor (файл .n-cursor.json у корені репозиторію).",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "rules": {
+      "type": "array",
+      "description": "Ідентифікатори правил без префікса n- (відповідають файлам n-<id>.mdc).",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "skills": {
+      "type": "array",
+      "description": "Ідентифікатори skills без префікса n- (каталог .cursor/skills).",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "required": ["rules", "skills"]
+}

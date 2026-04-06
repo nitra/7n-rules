@@ -10,6 +10,9 @@ on:
 jobs:
   cleanup_old_workflows:
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
     steps:
       - name: Delete workflow runs
         uses: dmvict/clean-workflow-runs@v1.0.0

@@ -12,13 +12,13 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd .",
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])",
+    "lint-ga": "bunx node-actionlint && uvx zizmor --offline --collect=workflows ."
   },
   "devDependencies": {
     "@cspell/dict-uk-ua": "^4.0.6",
-    "@nitra/cspell-dict": "^1.0.185",
-    "@nitra/eslint-config": "^3.4.0",
-    "markdownlint-cli2": "^0.22.0"
+    "@nitra/cspell-dict": "^1.0.187",
+    "@nitra/eslint-config": "^3.4.0"
   },
   "engines": {
     "node": ">=24"

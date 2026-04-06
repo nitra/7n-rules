@@ -1,33 +1,14 @@
-name: Lint Text
+name: Lint GA
 
 on:
   push:
     branches:
       - dev
     paths:
-      - '.cspell.json'
-      - '.gitignore'
-      - '.markdownlint-cli2.jsonc'
-      - '**/*.js'
-      - '**/*.ts'
-      - '**/*.vue'
-      - '**/*.html'
-      - '**/*.css'
-      - '**/*.scss'
-      - '**/*.less'
-      - '**/*.json'
-      - '**/*.jsonc'
-      - '**/*.yaml'
-      - '**/*.yml'
-      - '**/*.toml'
-      - '**/*.xml'
-      - '**/*.md'
-      - '**/*.mdc'
-      - '**/*.mdс'
-      - '**/*.txt'
-      - '**/*.go'
-      - '**/*.py'
-      - '**/*.php'
+      - '.github/workflows/**'
+      - '.github/zizmor.yml'
+      - 'package.json'
+      - 'bun.lock'
 
   pull_request:
     branches:
@@ -38,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  text:
+  lint-ga:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -62,5 +43,7 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Lint text
-        run: bun run lint-text
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Lint GA
+        run: bun run lint-ga

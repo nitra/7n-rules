@@ -30,7 +30,7 @@ export async function check() {
     pass('Всі workflows мають розширення .yml')
   }
 
-  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml']) {
+  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml']) {
     if (files.includes(f)) {
       pass(`${f} існує`)
     } else {

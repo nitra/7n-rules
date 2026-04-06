@@ -11,6 +11,8 @@ on:
 jobs:
   cleanup_old_branches:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - id: delete_stuff
         name: Delete those pesky dead branches
@@ -22,4 +24,7 @@ jobs:
           dry_run: no
 
       - name: Get output
-        run: "echo 'Deleted branches: ${{ steps.delete_stuff.outputs.deleted_branches }}'"
+        env:
+          DELETED_BRANCHES: ${{ steps.delete_stuff.outputs.deleted_branches }}
+        run: |
+          echo "Deleted branches: ${DELETED_BRANCHES}"

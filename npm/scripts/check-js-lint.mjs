@@ -33,9 +33,7 @@ export async function check() {
         fail('lint-js має викликати jscpd — додай "&& bunx jscpd ." у кінець скрипта')
       }
     } else {
-      fail(
-        'package.json не містить скрипт "lint-js" — додай: "oxlint --fix && bunx eslint --fix . && bunx jscpd ."'
-      )
+      fail('package.json не містить скрипт "lint-js" — додай: "oxlint --fix && bunx eslint --fix . && bunx jscpd ."')
     }
 
     if (pkg.devDependencies?.['@nitra/eslint-config']) {

@@ -10,8 +10,12 @@ concurrency:
 jobs:
   security:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Vulnerability - library
         uses: aquasecurity/trivy-action@0.24.0
