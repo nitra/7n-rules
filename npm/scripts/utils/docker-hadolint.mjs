@@ -1,7 +1,7 @@
 /**
  * Спільна логіка виклику hadolint для шляхів до Dockerfile (див. docker.mdc).
  *
- * Відносні шляхи з прямими слешами для контейнера; спочатку бінарник hadolint з PATH,
+ * Відносні шляхи з прямими слешами для контейнера; спочатку hadolint з PATH,
  * інакше docker run з образом HADOLINT_IMAGE. Використовується check-docker.mjs та
  * run-docker.mjs.
  */

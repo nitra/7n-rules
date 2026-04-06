@@ -6,7 +6,7 @@
  * без виклику зовнішніх CLI.
  *
  * kubeconform перевіряє маніфести проти OpenAPI-схем Kubernetes; kubescape — сканування на
- * misconfiguration / compliance (NSA, MITRE, CIS тощо). Обидва бінарники очікуються в PATH
+ * misconfiguration / compliance (NSA, MITRE, CIS тощо). Обидві утиліти очікуються в PATH
  * (локально: Homebrew, релізи GitHub; у CI — крок установки з k8s.mdc).
  *
  * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у check-k8s.mjs / k8s.mdc.
@@ -69,7 +69,7 @@ async function findK8sRoots(root) {
 /**
  * Запускає kubeconform для переліку каталогів.
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
- * @returns {number} код виходу процесу kubeconform (127, якщо бінарник не знайдено)
+ * @returns {number} код виходу процесу kubeconform (127, якщо kubeconform відсутній у PATH)
  */
 function runKubeconform(dirs) {
   const args = [
@@ -94,7 +94,7 @@ function runKubeconform(dirs) {
 /**
  * Запускає kubescape scan для кожного каталогу окремо (узгоджено з прикладами CLI).
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
- * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо бінарник не знайдено
+ * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо kubescape відсутній у PATH
  */
 function runKubescape(dirs) {
   for (const d of dirs) {

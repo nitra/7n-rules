@@ -93,13 +93,13 @@ jobs:
         run: bun run lint-docker
 ```
 
-Версія бінарника **v2.12.0** узгоджуй з **`HADOLINT_IMAGE`** у **`npm/scripts/utils/docker-hadolint.mjs`**.
+Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/scripts/utils/docker-hadolint.mjs`**.
 
 Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) має викликати **`lint-docker`**, якщо він існує.
 
 ## Запуск
 
-1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови бінарник (приклад у workflow).
+1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
 2. **`npx @nitra/cursor check docker`** — **`check-docker.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (**`PATH`** або **`docker run`** з **`hadolint/hadolint:v2.12.0`**).
 3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure).
 
@@ -113,7 +113,7 @@ jobs:
 
 ## Редактор
 
-Розширення VS Code / Cursor: **`exiasr.hadolint`** (потрібен бінарник hadolint) — за потреби в **`.vscode/extensions.json`**.
+Розширення VS Code / Cursor: **`exiasr.hadolint`** (потрібна утиліта hadolint) — за потреби в **`.vscode/extensions.json`**.
 
 ## Перевірка
 

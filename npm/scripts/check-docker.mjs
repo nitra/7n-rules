@@ -2,7 +2,7 @@
  * Запускає hadolint для Dockerfile / Containerfile у всьому репозиторії (див. docker.mdc).
  *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
- * тощо. Спочатку бінарник hadolint з PATH, інакше docker run з образом hadolint/hadolint.
+ * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
  * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
  */
 import { basename } from 'node:path'
