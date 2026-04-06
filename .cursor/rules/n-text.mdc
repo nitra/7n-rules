@@ -144,7 +144,7 @@ jobs:
 {
   "version": "0.2",
   "language": "nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": []
 }
@@ -190,7 +190,7 @@ jobs:
 {
   "version": "0.2",
   "language": "en,uk,nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
   "import": [
     "@nitra/cspell-dict/cspell-ext.json",
     "@cspell/dict-uk-ua/cspell-ext.json"
@@ -200,6 +200,8 @@ jobs:
 ```
 
 Підлаштуй `language` під проєкт (наприклад додай `ru-ru`, якщо потрібна перевірка російською). Порядок у `import` може впливати на пріоритет словників — тримай корпоративний `@nitra/cspell-dict` там, де зручно для ваших правил.
+
+**Український апостроф:** у словах не використовуй прямий символ `'` (U+0027); потрібен типографський апостроф `’` (U+2019). Якщо після цього cspell досі підсвічує слово як невідоме — додай його до масиву `words` у `.cspell.json`.
 
 ## Локальні виключення (cspell `words`)
 

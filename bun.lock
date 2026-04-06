@@ -7,12 +7,13 @@
       "devDependencies": {
         "@cspell/dict-uk-ua": "^4.0.6",
         "@nitra/cspell-dict": "^1.0.187",
+        "@nitra/cursor": "workspace:*",
         "@nitra/eslint-config": "^3.4.0",
       },
     },
     "npm": {
       "name": "@nitra/cursor",
-      "version": "1.6.1",
+      "version": "1.6.28",
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },

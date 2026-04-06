@@ -1,0 +1,68 @@
+/**
+ * Мінімальний тестовий каталог для check-text (репозиторій cursor зараз не проходить check-text без markdownlint-cli2 у корені).
+ */
+import { describe, expect, test } from 'bun:test'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import { check } from '../scripts/check-text.mjs'
+import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
+
+describe('check-text (мінімальний проєкт)', () => {
+  test('проходить при повному мінімальному наборі', async () => {
+    await withTmpCwd(async () => {
+      await writeFile(
+        '.v8rignore',
+        `.vscode/extensions.json
+.vscode/settings.json
+`,
+        'utf8'
+      )
+      await ensureDir('.vscode')
+      await writeJson('.vscode/extensions.json', {
+        recommendations: ['DavidAnson.vscode-markdownlint']
+      })
+      await writeJson('.markdownlint-cli2.jsonc', {
+        gitignore: true,
+        config: { default: true, MD013: false }
+      })
+      await writeJson('.cspell.json', {
+        version: '0.2',
+        language: 'en,nitra',
+        ignorePaths: ['node_modules'],
+        import: ['@nitra/cspell-dict/cspell-ext.json'],
+        words: []
+      })
+      const u2019 = '\u2019'
+      await ensureDir('.cursor/rules')
+      await writeFile(
+        join('.cursor/rules', 'n-text.mdc'),
+        `---
+description: test
+---
+**Український апостроф:** U+0027 та U+2019; у прикладі символ ${u2019}
+`,
+        'utf8'
+      )
+      await writeJson('package.json', {
+        name: 'text-fixture',
+        private: true,
+        devDependencies: {
+          '@nitra/cspell-dict': '^1.0.0',
+          'markdownlint-cli2': '^0.22.0'
+        },
+        scripts: {
+          'lint-text':
+            'npx cspell . && bunx markdownlint-cli2 --fix "**/*.md" "**/*.mdc" && bun ./npm/scripts/run-v8r.mjs'
+        }
+      })
+      await ensureDir('.github/workflows')
+      await writeFile(
+        join('.github/workflows', 'lint-text.yml'),
+        'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bun run lint-text\n',
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+})

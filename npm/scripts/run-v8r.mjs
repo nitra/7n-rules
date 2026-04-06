@@ -18,17 +18,36 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { isRunAsCli } from './cli-entry.mjs'
+
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */
-const DEFAULT_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
+export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
 
 /** Абсолютний шлях до `schemas/v8r-catalog.json` поруч з цим скриптом у пакеті `@nitra/cursor`. */
-const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../schemas/v8r-catalog.json')
+export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../schemas/v8r-catalog.json')
 
-if (existsSync(V8R_CATALOG_PATH)) {
-  const globs = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_GLOBS
+/**
+ * Повертає шлях до каталогу схем v8r для пакета (для тестів і діагностики).
+ * @returns {string} абсолютний шлях до v8r-catalog.json
+ */
+export function getV8rCatalogPath() {
+  return V8R_CATALOG_PATH
+}
+
+/**
+ * Запускає послідовні виклики v8r по glob-ам; не змінює process.exitCode (лише повертає код).
+ * @param {string[]} [globs] патерни; за замовчуванням DEFAULT_V8R_GLOBS
+ * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r
+ */
+export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS) {
+  if (!existsSync(V8R_CATALOG_PATH)) {
+    process.stderr.write(
+      `run-v8r: не знайдено каталог схем за шляхом ${V8R_CATALOG_PATH} (очікується npm/schemas/v8r-catalog.json у пакеті)\n`
+    )
+    return 2
+  }
 
   for (const pattern of globs) {
-    // Порядок важливий: glob має бути перед -c, інакше yargs у v8r не отримує позиційні patterns.
     const result = spawnSync('bun', ['x', 'v8r', pattern, '-c', V8R_CATALOG_PATH], {
       encoding: 'utf8',
       maxBuffer: 50 * 1024 * 1024,
@@ -38,8 +57,7 @@ if (existsSync(V8R_CATALOG_PATH)) {
 
     if (result.error) {
       process.stderr.write(`${result.error.message}\n`)
-      process.exitCode = 1
-      break
+      return 1
     }
 
     const exitCode = result.status ?? 1
@@ -50,13 +68,13 @@ if (existsSync(V8R_CATALOG_PATH)) {
       if (result.stderr?.length) {
         process.stderr.write(result.stderr)
       }
-      process.exitCode = exitCode
-      break
+      return exitCode
     }
   }
-} else {
-  process.stderr.write(
-    `run-v8r: не знайдено каталог схем за шляхом ${V8R_CATALOG_PATH} (очікується npm/schemas/v8r-catalog.json у пакеті)\n`
-  )
-  process.exitCode = 2
+  return 0
+}
+
+if (isRunAsCli()) {
+  const globs = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_V8R_GLOBS
+  process.exitCode = runV8rWithGlobs(globs)
 }

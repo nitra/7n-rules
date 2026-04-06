@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.5'
+version: '1.6'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -29,6 +29,8 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
   }
 }
 ```
+
+Якщо правило **`docker`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-docker`** і виклик **`bun run lint-docker`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
 
 Додай workflow **`.github/workflows/lint-docker.yml`** (гілка **`dev`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
 
@@ -95,7 +97,7 @@ jobs:
 
 Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/scripts/utils/docker-hadolint.mjs`**.
 
-Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) має викликати **`lint-docker`**, якщо він існує.
+Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-docker`**, коли в проєкті підключено правило **`docker`**.
 
 ## Запуск
 
@@ -119,6 +121,6 @@ jobs:
 
 `npx @nitra/cursor check docker`
 
-Після змін у Dockerfile: **`bun run lint-docker`**, якщо скрипт додано в проєкт.
+Після змін у Dockerfile: **`bun run lint-docker`** (обов'язково для проєктів з правилом **`docker`** у **`.n-cursor.json`**).
 
 Kubernetes YAML і `$schema` у `k8s/` — окреме правило **`k8s.mdc`**, **`check k8s`**.

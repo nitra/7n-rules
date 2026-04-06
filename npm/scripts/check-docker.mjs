@@ -16,7 +16,7 @@ import { walkDir } from './utils/walkDir.mjs'
  * @param {string} name basename шляху
  * @returns {boolean} true для Dockerfile / Dockerfile.* / Containerfile / Containerfile.*
  */
-function isDockerfileName(name) {
+export function isDockerfileName(name) {
   const n = name.toLowerCase()
   if (n === 'dockerfile' || n === 'containerfile') return true
   if (n.startsWith('dockerfile.') || n.startsWith('containerfile.')) return true
@@ -28,7 +28,7 @@ function isDockerfileName(name) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
-async function findDockerfilePaths(root) {
+export async function findDockerfilePaths(root) {
   /** @type {string[]} */
   const out = []
   await walkDir(root, p => {

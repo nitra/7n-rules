@@ -14,7 +14,7 @@ import { walkDir } from './utils/walkDir.mjs'
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
 const YANNH_PIN = 'v1.33.9-standalone-strict'
 
-/** Гілка репозиторію yannh/kubernetes-json-schema для raw.githubusercontent.com (каталог набору — у підшляху після ref). */
+/** Гілка репозиторію yannh/kubernetes-json-schema для raw.githubusercontent.com (каталог набору в URL одразу після ref). */
 const YANNH_REF = 'master'
 
 const KUSTOMIZATION_SCHEMA = 'https://json.schemastore.org/kustomization.json'
@@ -59,7 +59,7 @@ const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
  * @param {string} filePath шлях до файлу
  * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
  */
-function pathHasK8sSegment(filePath) {
+export function pathHasK8sSegment(filePath) {
   const parts = filePath.split(/[/\\]/u)
   return parts.includes('k8s')
 }
@@ -140,7 +140,7 @@ function kindToSchemaFilePart(kind) {
  * @param {string} doc перший YAML-документ після modeline
  * @returns {{ expected: string | null, reason: string }} reason — для повідомлень про помилку
  */
-function expectedSchemaUrl(filePath, doc) {
+export function expectedSchemaUrl(filePath, doc) {
   const base = basename(filePath)
   const baseLower = base.toLowerCase()
 

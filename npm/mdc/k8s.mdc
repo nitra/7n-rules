@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.7'
+version: '1.8'
 globs: "**/k8s/**/*.{yaml,yml}"
 alwaysApply: false
 ---
@@ -41,6 +41,8 @@ alwaysApply: false
   }
 }
 ```
+
+Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
 
 Шлях до скрипта підстав свій (`./scripts/…` після копіювання, `node_modules/@nitra/cursor/scripts/…` якщо пакет у залежностях).
 
@@ -105,13 +107,13 @@ jobs:
 
 Після **`install.sh`** kubescape може опинитися поза стандартним PATH; за потреби додай крок **`echo "$HOME/.kubescape/bin" >> $GITHUB_PATH`** (див. документацію [kubescape](https://github.com/kubescape/kubescape#readme)).
 
-Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) має викликати **`lint-k8s`**, якщо він існує.
+Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-k8s`**, коли в проєкті підключено правило **`k8s`**.
 
 ## Перевірка
 
 **`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче. Якщо під `k8s` немає yaml/yml — перевірку пропущено. Синтаксис YAML і зміст маніфесту скрипт не перевіряє — вручну.
 
-Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape), якщо скрипт додано в проєкт.
+Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape; обов'язково для проєктів з правилом **`k8s`** у **`.n-cursor.json`**).
 
 ## Що закодовано в `check-k8s.mjs`
 

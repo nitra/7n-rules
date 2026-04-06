@@ -12,7 +12,7 @@
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
  * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення). У файлі завжди має бути
- * поле `$schema` з посиланням на JSON Schema пакету; при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
+ * поле `$schema` з посиланням на JSON Schema пакету (публічний URL для IDE); при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
  *
  * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
  * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
@@ -33,10 +33,9 @@ import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 const PACKAGE_NAME = '@nitra/cursor'
-const UNPKG_BASE = 'https://unpkg.com'
 const CONFIG_FILE = '.n-cursor.json'
-/** URL JSON Schema для `.n-cursor.json` (поле `$schema` у файлі конфігурації) */
-const CONFIG_SCHEMA_URL = `${UNPKG_BASE}/${PACKAGE_NAME}/schemas/n-cursor.json`
+/** Публічний URL JSON Schema для поля `$schema` у `.n-cursor.json` (IDE); вміст правил CLI читає лише з диска пакету */
+const CONFIG_SCHEMA_URL = 'https://unpkg.com/@nitra/cursor/schemas/n-cursor.json'
 const AGENTS_FILE = 'AGENTS.md'
 const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
@@ -88,19 +87,6 @@ async function discoverBundledSkillNames() {
 }
 
 /**
- * Завантажує текст з URL
- * @param {string} url адреса HTTP(S)
- * @returns {Promise<string>} тіло відповіді як UTF-8 текст
- */
-async function fetchText(url) {
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status} — не вдалося завантажити: ${url}`)
-  }
-  return response.text()
-}
-
-/**
  * Перейменовує у каталозі правил файли `nitra-*.mdc` → `n-*.mdc`. Якщо `n-*.mdc` уже є, застарілий файл видаляється.
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
  * @returns {Promise<void>}
@@ -148,7 +134,7 @@ async function migrateLegacyConfigIfNeeded() {
 
 /**
  * Зчитує конфіг .n-cursor.json з поточної директорії
- * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-), опційно version; при відсутності файлу створює дефолтний конфіг
+ * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
  */
 async function readConfig() {
   await migrateLegacyConfigIfNeeded()
@@ -192,18 +178,6 @@ async function readConfig() {
 }
 
 /**
- * Повертає URL для завантаження правила з unpkg
- * @param {string} ruleName - ім'я без розширення, наприклад "js-format"
- * @param {string} [version] - версія пакету (необов'язково, за замовчуванням "latest")
- * @returns {string} повний URL файлу правила на unpkg
- */
-function buildUrl(ruleName, version) {
-  const name = ruleName.endsWith('.mdc') ? ruleName : `${ruleName}.mdc`
-  const ver = version ? `@${version}` : '@latest'
-  return `${UNPKG_BASE}/${PACKAGE_NAME}${ver}/mdc/${name}`
-}
-
-/**
  * Витягує чисте ім'я файлу правила (без шляху, але зберігає .mdc)
  * "npm/mdc/js-format.mdc" → "js-format.mdc"
  * "js-format"              → "js-format.mdc"
@@ -213,6 +187,40 @@ function buildUrl(ruleName, version) {
 function normalizeRuleName(ruleName) {
   const name = ruleName.endsWith('.mdc') ? ruleName : `${ruleName}.mdc`
   return basename(name)
+}
+
+/**
+ * Читає вміст правила з каталогу `mdc/` установленого пакету (наприклад `node_modules/@nitra/cursor/mdc` або кеш npx).
+ * @param {string} rule елемент масиву rules з `.n-cursor.json`
+ * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
+ */
+function readBundledRuleContent(rule) {
+  const bundledName = normalizeRuleName(rule)
+  const bundledPath = join(BUNDLED_MDC_DIR, bundledName)
+  if (!existsSync(bundledPath)) {
+    throw new Error(
+      `Немає файлу ${bundledName} у ${BUNDLED_MDC_DIR}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
+    )
+  }
+  return readFile(bundledPath, 'utf8')
+}
+
+/**
+ * Версія з `package.json` установленого пакету (каталог поруч із `bin/`).
+ * @returns {Promise<string | null>} поле `version` рядком або `null`, якщо файлу немає / помилка парсингу
+ */
+async function readBundledPackageVersion() {
+  const pkgPath = join(binDir, '..', 'package.json')
+  if (!existsSync(pkgPath)) {
+    return null
+  }
+  try {
+    const raw = await readFile(pkgPath, 'utf8')
+    const pkg = JSON.parse(raw)
+    return typeof pkg.version === 'string' ? pkg.version : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -618,7 +626,7 @@ async function runChecks(requestedRules) {
 }
 
 /**
- * Завантажує правила з npm та синхронізує локальні файли
+ * Копіює правила з каталогу `mdc/` установленого пакету та синхронізує `.cursor/rules`
  * @returns {Promise<void>}
  */
 async function runSync() {
@@ -633,8 +641,12 @@ async function runSync() {
   }
 
   const { rules, skills, version } = config
+  const bundledVer = await readBundledPackageVersion()
+  if (bundledVer) {
+    console.log(`📦 Джерело правил: ${PACKAGE_NAME}@${bundledVer}`)
+  }
   if (version) {
-    console.log(`📦 Версія пакету: ${version}`)
+    console.log(`⚠️  Поле "version" у ${CONFIG_FILE} ігнорується; правила беруться з установленого пакету.\n`)
   }
   console.log(`📋 Правил до завантаження: ${rules.length}`)
   console.log(`📋 Skills до синхронізації: ${skills.length}`)
@@ -646,13 +658,12 @@ async function runSync() {
   let failCount = 0
 
   for (const rule of rules) {
-    const url = buildUrl(rule, version)
     const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
     const destPath = join(rulesDir, fileName)
 
     try {
       process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const content = await fetchText(url)
+      const content = await readBundledRuleContent(rule)
       await writeFile(destPath, content, 'utf8')
       console.log(`✅`)
       successCount++

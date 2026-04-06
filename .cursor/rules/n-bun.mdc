@@ -1,7 +1,7 @@
 ---
 description: Bun як єдиний package manager у монорепо
 alwaysApply: true
-version: '1.2'
+version: '1.3'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
@@ -87,3 +87,5 @@ FROM oven/bun:alpine AS build-env
 Якщо в кореневому @package.json  існують скрипти з префіксом `lint-`, обов'язково створюй `lint` скрипт, який буде запускати всі ці скрипти з лінт-префіксом.
 
 У кінці скрипта `lint` додай `&& oxfmt .`.
+
+Якщо в **`.n-cursor.json`** у масиві **`rules`** є **`docker`**, у кореневому `package.json` **обов'язково** скрипт **`lint-docker`** (див. **`docker.mdc`**) і рядок **`bun run lint-docker`** у **`lint`**. Якщо є **`k8s`** — **обов'язково** **`lint-k8s`** і **`bun run lint-k8s`** у **`lint`** (див. **`k8s.mdc`**). Перевірка — **`npx @nitra/cursor check bun`**.

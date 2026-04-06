@@ -9,6 +9,7 @@
  */
 import { basename } from 'node:path'
 
+import { isRunAsCli } from './cli-entry.mjs'
 import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
 import { pass } from './utils/pass.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -18,7 +19,7 @@ import { walkDir } from './utils/walkDir.mjs'
  * @param {string} name basename шляху
  * @returns {boolean} true, якщо ім’я підходить під lint-docker
  */
-function isLintDockerfileName(name) {
+export function isLintDockerfileName(name) {
   const n = name.toLowerCase()
   if (n === 'dockerfile') return true
   return n.endsWith('.dockerfile') && n.length > '.dockerfile'.length
@@ -29,7 +30,7 @@ function isLintDockerfileName(name) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
-async function findLintDockerfilePaths(root) {
+export async function findLintDockerfilePaths(root) {
   /** @type {string[]} */
   const out = []
   await walkDir(root, p => {
@@ -73,4 +74,6 @@ async function main() {
   return exitCode
 }
 
-process.exitCode = await main()
+if (isRunAsCli()) {
+  process.exitCode = await main()
+}

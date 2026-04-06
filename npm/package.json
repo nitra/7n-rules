@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.6.27",
+  "version": "1.7.1",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -32,7 +32,7 @@
   ],
   "type": "module",
   "scripts": {
-    "test": "npx coverage-node test/index.js"
+    "test": "bun test tests"
   },
   "engines": {
     "node": ">=24"

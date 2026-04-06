@@ -15,6 +15,7 @@
 import { spawnSync } from 'node:child_process'
 import { basename, dirname } from 'node:path'
 
+import { isRunAsCli } from './cli-entry.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія Kubernetes для kubeconform — синхронно з YANNH_PIN (без префікса v і суфікса -standalone-strict). */
@@ -29,7 +30,7 @@ const DATREE_CRD_SCHEMA_LOCATION =
  * @param {string} filePath шлях до файлу
  * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
  */
-function pathHasK8sSegment(filePath) {
+export function pathHasK8sSegment(filePath) {
   const parts = filePath.split(/[/\\]/u)
   return parts.includes('k8s')
 }
@@ -39,7 +40,7 @@ function pathHasK8sSegment(filePath) {
  * @param {string} absFile абсолютний шлях до yaml
  * @returns {string | null} абсолютний шлях до `…/k8s` або null, якщо сегмента `k8s` у ланцюжку немає
  */
-function k8sRootFromFile(absFile) {
+export function k8sRootFromFile(absFile) {
   let dir = dirname(absFile)
   for (let i = 0; i < 64; i++) {
     if (basename(dir) === 'k8s') return dir
@@ -55,7 +56,7 @@ function k8sRootFromFile(absFile) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до каталогів `k8s`
  */
-async function findK8sRoots(root) {
+export async function findK8sRoots(root) {
   /** @type {Set<string>} */
   const roots = new Set()
   await walkDir(root, p => {
@@ -136,4 +137,6 @@ async function main() {
   return ks
 }
 
-process.exitCode = await main()
+if (isRunAsCli()) {
+  process.exitCode = await main()
+}

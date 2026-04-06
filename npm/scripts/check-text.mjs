@@ -4,11 +4,41 @@
  * cspell, markdownlint-cli2, скрипт `lint-text` з v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
  * workflow `lint-text.yml`, розширення VSCode для markdownlint.
+ *
+ * Якщо є `.cursor/rules/n-text.mdc` і/або `npm/mdc/text.mdc` — перевіряє наявність абзацу про український
+ * апостроф (U+0027 vs U+2019) і приклад з символом U+2019 у тексті.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+
+/** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
+const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
+
+/**
+ * Перевіряє абзац про український апостроф у вмісті правила text.
+ * @param {string} filePath шлях до файлу (для повідомлень)
+ * @param {string} body вміст .mdc у UTF-8
+ * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
+ * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ * @returns {void}
+ */
+function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
+  if (!body.includes(UK_APOSTROPHE_HEADING)) {
+    failFn(`${filePath}: додай абзац **Український апостроф:** (U+0027 / U+2019, масив words) — див. text.mdc`)
+    return
+  }
+  if (!body.includes('U+0027') || !body.includes('U+2019')) {
+    failFn(`${filePath}: абзац про апостроф має містити позначки U+0027 та U+2019`)
+    return
+  }
+  if (!body.includes('\u2019')) {
+    failFn(`${filePath}: у прикладі має бути типографський символ U+2019 (\u2019)`)
+    return
+  }
+  passFn(`${filePath}: абзац про український апостроф на місці`)
+}
 
 /**
  * Перевіряє відповідність проєкту правилам text.mdc (cspell, markdownlint-cli2, v8r)
@@ -102,6 +132,16 @@ export async function check() {
     }
   } else {
     fail('.cspell.json не існує — створи його')
+  }
+
+  const textRulePaths = ['.cursor/rules/n-text.mdc', 'npm/mdc/text.mdc'].filter(p => existsSync(p))
+  if (textRulePaths.length === 0) {
+    pass('n-text.mdc / npm/mdc/text.mdc відсутні — перевірку абзацу про апостроф пропущено')
+  } else {
+    for (const p of textRulePaths) {
+      const body = await readFile(p, 'utf8')
+      verifyUkApostropheRuleParagraph(p, body, fail, pass)
+    }
   }
 
   if (existsSync('package.json')) {
