@@ -1,7 +1,14 @@
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { pass } from './utils/pass.mjs'
+
+/** Шаблони наявності MegaLinter у вмісті workflow */
+const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]
+
+/** Типові конфіги MegaLinter у корені репо */
+const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
 
 /**
  * Перевіряє відповідність проєкту правилам ga.mdc
@@ -65,6 +72,27 @@ export async function check() {
     }
   } else {
     fail('.vscode/extensions.json не існує')
+  }
+
+  const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
+  let foundMegalinter = false
+  for (const f of ymlWorkflows) {
+    const content = await readFile(join(wfDir, f), 'utf8')
+    if (MEGALINTER_USE_PATTERNS.some(re => re.test(content))) {
+      foundMegalinter = true
+      fail(`MegaLinter у workflow ${wfDir}/${f} — видали інтеграцію (ga.mdc: MegaLinter)`)
+    }
+  }
+
+  for (const name of MEGALINTER_CONFIG_NAMES) {
+    if (existsSync(name)) {
+      foundMegalinter = true
+      fail(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
+    }
+  }
+
+  if (!foundMegalinter) {
+    pass('Залишків MegaLinter не виявлено')
   }
 
   return exitCode
