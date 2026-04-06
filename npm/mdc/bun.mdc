@@ -81,3 +81,7 @@ FROM oven/bun:alpine AS build-env
 ## Перевірка
 
 `npx @nitra/cursor check bun`
+
+## lint
+
+Якщо в кореневому @package.json  існують скрипти з префіксом `lint-`, обов'язково створюй `lint` скрипт, який буде запускати всі ці скрипти з лінт-префіксом.

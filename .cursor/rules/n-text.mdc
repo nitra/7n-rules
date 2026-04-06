@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.16'
+version: '1.17'
 ---
 
 **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
@@ -30,7 +30,14 @@ version: '1.16'
 }
 ```
 
-**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. **`.v8rignore`** лише коли немає схеми. Враховує `.gitignore`.
+**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. Враховує `.gitignore`.
+
+У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в [Schema Store](https://www.schemastore.org/); для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі). Інші файли без схеми — за тією ж логікою; не розширюй ignore, щоб приховати проблеми там, де схема є.
+
+```text title=".v8rignore"
+.vscode/extensions.json
+.vscode/settings.json
+```
 
 ```json title=".markdownlint-cli2.jsonc"
 {
@@ -52,6 +59,7 @@ version: '1.16'
 У корені проєкту має бути `.cspell.json` і залежності для cspell у кореневому `package.json` (зазвичай `devDependencies`).
 
 Додай workflow `.github/workflows/lint-text.yml`:
+
 ```yaml title=".github/workflows/lint-text.yml"
 name: Lint Text
 
@@ -63,6 +71,7 @@ on:
       - '.cspell.json'
       - '.gitignore'
       - '.markdownlint-cli2.jsonc'
+      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'
@@ -201,7 +210,6 @@ jobs:
 ## Інші мови
 
 Для іншої мови встанови відповідний пакет `@cspell/dict-*`, додай його `cspell-ext.json` у `import` і код мови в `language`. Огляд словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
-
 
 ## Перевірка
 

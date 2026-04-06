@@ -1,8 +1,8 @@
 /**
  * Перевіряє текстовий стек за правилом text.mdc.
  *
- * cspell, markdownlint-cli2, скрипт `lint-text` з чотирма викликами v8r, workflow `lint-text.yml`,
- * розширення VSCode для markdownlint.
+ * cspell, markdownlint-cli2, скрипт `lint-text` з чотирма викликами v8r, `.v8rignore` (vscode JSON),
+ * workflow `lint-text.yml`, розширення VSCode для markdownlint.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -18,6 +18,24 @@ export async function check() {
   const fail = msg => {
     console.log(`  ❌ ${msg}`)
     exitCode = 1
+  }
+
+  const v8rIgnoreRequired = ['.vscode/extensions.json', '.vscode/settings.json']
+  if (existsSync('.v8rignore')) {
+    const raw = await readFile('.v8rignore', 'utf8')
+    const lines = new Set(raw
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0 && !l.startsWith('#')))
+    for (const path of v8rIgnoreRequired) {
+      if (lines.has(path)) {
+        pass(`.v8rignore містить ${path}`)
+      } else {
+        fail(`.v8rignore: додай рядок "${path}" (JSON без схеми в Schema Store — див. n-text.mdc)`)
+      }
+    }
+  } else {
+    fail('.v8rignore не існує — створи згідно n-text.mdc (мінімум .vscode/extensions.json і .vscode/settings.json)')
   }
 
   if (existsSync('.vscode/extensions.json')) {

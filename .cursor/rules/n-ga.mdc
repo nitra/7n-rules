@@ -33,6 +33,7 @@ jobs:
           save_min_runs_number: 0
 
 ```
+
 Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
 
 ```yaml

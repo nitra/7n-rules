@@ -1,0 +1,39 @@
+---
+description: Dockerfile — лінт через hadolint (локально або Docker); перевірка check-docker
+version: '1.0'
+globs: "**/Dockerfile*"
+alwaysApply: false
+---
+
+# Docker — hadolint
+
+[hadolint](https://github.com/hadolint/hadolint) перевіряє Dockerfile на типові помилки та рекомендації (`FROM`, `RUN`, `COPY`, shell form тощо).
+
+## Область
+
+- Усі файли з іменем **`Dockerfile`** або **`Dockerfile.*`** (наприклад `Dockerfile.prod`) у репозиторії, крім ігнорованих каталогів (`node_modules`, `.git`, `dist`, …) — як у **`check-docker.mjs`**.
+- Також скрипт перевірки обробляє **`Containerfile`** та **`Containerfile.*`** (Podman / альтернативні імена), навіть якщо glob правила спрацьовує переважно на `Dockerfile*`.
+
+## Запуск
+
+1. **`npx @nitra/cursor check docker`** — те саме, що рекомендовано після змін у Dockerfile.
+2. Спочатку викликається бінарник **`hadolint`** з `PATH`; якщо його немає — **`docker run`** з образом **`hadolint/hadolint:v2.12.0`** (тег узгоджуй з **`HADOLINT_IMAGE`** у `npm/scripts/check-docker.mjs`).
+3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure).
+
+Якщо в репозиторії немає жодного відповідного файлу — перевірка пропускається (exit 0).
+
+## Агентам
+
+- Після правок у Dockerfile проганяй **`check docker`**.
+- Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile або правила в **`.hadolint.yaml`**.
+- Образи на базі Bun — див. **`n-bun.mdc`**.
+
+## Редактор
+
+Розширення VS Code / Cursor: **`exiasr.hadolint`** (потрібен бінарник hadolint) — за потреби в **`.vscode/extensions.json`**.
+
+## Перевірка
+
+`npx @nitra/cursor check docker`
+
+Kubernetes YAML і `$schema` у `k8s/` — окреме правило **`k8s.mdc`**, **`check k8s`**.

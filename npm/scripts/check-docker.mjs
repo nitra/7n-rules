@@ -1,0 +1,145 @@
+/**
+ * Запускає hadolint для Dockerfile / Containerfile у всьому репозиторії (див. docker.mdc).
+ *
+ * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
+ * тощо. Спочатку бінарник hadolint з PATH, інакше docker run з образом hadolint/hadolint.
+ * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
+ */
+import { spawnSync } from 'node:child_process'
+import { basename, relative, sep } from 'node:path'
+
+import { pass } from './utils/pass.mjs'
+import { walkDir } from './utils/walkDir.mjs'
+
+/** Тег образу для резервного запуску (узгоджуй з docker.mdc). */
+const HADOLINT_IMAGE = 'hadolint/hadolint:v2.12.0'
+
+/**
+ * Чи є basename Dockerfile / Containerfile (у т.ч. Dockerfile.prod).
+ * @param {string} name basename шляху
+ * @returns {boolean} true для Dockerfile / Dockerfile.* / Containerfile / Containerfile.*
+ */
+function isDockerfileName(name) {
+  const n = name.toLowerCase()
+  if (n === 'dockerfile' || n === 'containerfile') return true
+  if (n.startsWith('dockerfile.') || n.startsWith('containerfile.')) return true
+  return false
+}
+
+/**
+ * Збирає абсолютні шляхи до Dockerfile / Containerfile від кореня cwd.
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи
+ */
+async function findDockerfilePaths(root) {
+  /** @type {string[]} */
+  const out = []
+  await walkDir(root, p => {
+    if (isDockerfileName(basename(p))) out.push(p)
+  })
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Відносний шлях від root з прямими слешами (hadolint у контейнері).
+ * @param {string} root корінь
+ * @param {string} absPath абсолютний шлях
+ * @returns {string} відносний шлях з прямими слешами
+ */
+function posixRel(root, absPath) {
+  return relative(root, absPath).split(sep).join('/')
+}
+
+/**
+ * Запуск hadolint: спочатку PATH, інакше Docker.
+ * @param {string} root корінь репозиторію
+ * @param {string} absPath абсолютний шлях до Dockerfile
+ * @returns {{ ok: boolean, stdout: string, stderr: string, via: string }} результат перевірки hadolint та канал запуску
+ */
+function lintDockerfileWithHadolint(root, absPath) {
+  const rel = posixRel(root, absPath)
+  const local = spawnSync('hadolint', [rel], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 10 * 1024 * 1024
+  })
+  if (!local.error) {
+    const ok = local.status === 0
+    return {
+      ok,
+      stdout: local.stdout ?? '',
+      stderr: local.stderr ?? '',
+      via: 'hadolint'
+    }
+  }
+  if (local.error.code !== 'ENOENT') {
+    return {
+      ok: false,
+      stdout: '',
+      stderr: local.error.message,
+      via: 'hadolint'
+    }
+  }
+
+  const docker = spawnSync(
+    'docker',
+    ['run', '--rm', '-v', `${root}:/workdir`, '-w', '/workdir', HADOLINT_IMAGE, rel],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024
+    }
+  )
+  if (docker.error) {
+    return {
+      ok: false,
+      stdout: '',
+      stderr:
+        `Не знайдено hadolint у PATH і не вдалося запустити Docker (${docker.error.message}). ` +
+        `Встанови hadolint (наприклад brew install hadolint) або Docker (див. docker.mdc).`,
+      via: 'docker'
+    }
+  }
+  const ok = docker.status === 0
+  return {
+    ok,
+    stdout: docker.stdout ?? '',
+    stderr: docker.stderr ?? '',
+    via: 'docker'
+  }
+}
+
+/**
+ * Перевіряє Dockerfile / Containerfile через hadolint (docker.mdc).
+ * @returns {Promise<number>} 0 — все OK, 1 — є зауваження або помилка запуску
+ */
+export async function check() {
+  let exitCode = 0
+  const fail = msg => {
+    console.log(`  ❌ ${msg}`)
+    exitCode = 1
+  }
+
+  const root = process.cwd()
+  const files = await findDockerfilePaths(root)
+
+  if (files.length === 0) {
+    pass('Немає Dockerfile / Containerfile — перевірку hadolint пропущено')
+    return 0
+  }
+
+  pass(`Знайдено файлів для hadolint: ${files.length}`)
+
+  for (const abs of files) {
+    const rel = posixRel(root, abs) || basename(abs)
+    const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
+    const tail = (stdout + stderr).trim()
+    if (ok) {
+      pass(`${rel} (${via})`)
+    } else {
+      fail(`${rel} (${via})${tail ? `:\n${tail}` : ''}`)
+    }
+  }
+
+  return exitCode
+}
