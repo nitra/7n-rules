@@ -87,19 +87,13 @@ export async function check() {
       fail('@nitra/cspell-dict відсутній — bun add -d @nitra/cspell-dict')
     }
 
-    if (devDeps['markdownlint-cli2']) {
-      pass('markdownlint-cli2 є в devDependencies')
-    } else {
-      fail('markdownlint-cli2 відсутній — bun add -d markdownlint-cli2')
-    }
-
     const lintText = pkg.scripts?.['lint-text']
     const v8rCalls = typeof lintText === 'string' ? (lintText.match(/bunx v8r/g) || []).length : 0
     const eq98Hints = typeof lintText === 'string' ? (lintText.match(/eq 98/g) || []).length : 0
     if (
       typeof lintText === 'string' &&
       lintText.includes('cspell') &&
-      lintText.includes('markdownlint-cli2') &&
+      lintText.includes('bunx markdownlint-cli2') &&
       lintText.includes('**/*.mdc') &&
       v8rCalls >= 4 &&
       eq98Hints >= 4 &&

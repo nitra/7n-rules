@@ -1,10 +1,8 @@
 ---
 description: Правила форматів для .github/workflows
 alwaysApply: true
-version: '1.0'
+version: '1.1'
 ---
-
-#
 
 Всі файли в директорії .github/workflows повинні мати розширення тільки yml
 
@@ -174,6 +172,17 @@ jobs:
 Параметр `--offline` обмежує аналіз офлайн-аудитами (без GitHub API);
 
 За замовчуванням audit [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) вимагає повний commit SHA для кожного `uses:`. У всих проєктах прийняті **семантичні теги** (`@v4`, `@v2` тощо), додай `.github/zizmor.yml` з політикою `ref-pin` (приклад у цьому репозиторії).
+
+## MegaLinter
+
+Якщо в проєкті є [MegaLinter](https://megalinter.io/) (або залишки інтеграції), **видали його повністю** і все пов’язане:
+
+- workflow у `.github/workflows`, що викликає `oxsecurity/megalinter-action`, `megalinter/megalinter` або інший офіційний action MegaLinter;
+- конфігураційні файли: `.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml` та інші шляхи з документації MegaLinter у цьому репо;
+- записи в `package.json` (скрипти, залежності на `mega-linter-runner` тощо);
+- кроки в інших CI, Dockerfile, `Makefile`, pre-commit (`.pre-commit-config.yaml`), документації — усюди, де викликається або згадується MegaLinter.
+
+Після видалення лінтування GitHub Actions має відповідати правилам цього файлу (окремі workflow та `lint-ga`, а не агрегатор MegaLinter).
 
 ## Перевірка
 

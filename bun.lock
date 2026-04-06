@@ -12,7 +12,7 @@
     },
     "npm": {
       "name": "@nitra/cursor",
-      "version": "1.5.3",
+      "version": "1.7.0",
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },
