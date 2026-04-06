@@ -173,7 +173,7 @@ jobs:
 
 Параметр `--offline` обмежує аналіз офлайн-аудитами (без GitHub API);
 
-За замовчуванням audit [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) вимагає повний commit SHA для кожного `uses:`. Якщо у проєкті прийняті **семантичні теги** (`@v4`, `@v2` тощо), додай `.github/zizmor.yml` з політикою `ref-pin` (приклад у цьому репозиторії).
+За замовчуванням audit [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) вимагає повний commit SHA для кожного `uses:`. У всих проєктах прийняті **семантичні теги** (`@v4`, `@v2` тощо), додай `.github/zizmor.yml` з політикою `ref-pin` (приклад у цьому репозиторії).
 
 ## Перевірка
 
