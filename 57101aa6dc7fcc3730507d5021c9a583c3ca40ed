@@ -1,0 +1,174 @@
+npm/tests/utils-workspaces.test.mjs
+  97dc9da780fd51f2 5
+  047bdf1ce0929a13 1-4,6-59
+npm/tests/integration-repo-checks.test.mjs
+  97dc9da780fd51f2 18
+  047bdf1ce0929a13 1-17,19-38
+npm/scripts/check-docker.mjs
+  047bdf1ce0929a13 19,31
+npm/tests/check-k8s-schema.test.mjs
+  047bdf1ce0929a13 1-10,12-45
+npm/tests/docker-discover.test.mjs
+  047bdf1ce0929a13 1-58
+npm/tests/utils-docker-hadolint.test.mjs
+  047bdf1ce0929a13 1-21
+npm/mdc/k8s.mdc
+  d32c5402f187b21c 3,46
+  884754cdda52bc2d 45,110,116
+npm/schemas/n-cursor.json
+  98f415dea747f72c 32
+.cursor/rules/n-text.mdc
+  4b84b33e9c5c4868 204-205
+npm/tests/check-js-pino-fixture.test.mjs
+  047bdf1ce0929a13 1-10,12-52
+  97dc9da780fd51f2 11
+npm/scripts/run-v8r.mjs
+  047bdf1ce0929a13 21-22,24,27-35,37-48,60,71,74-79
+npm/bin/n-cursor.js
+  98f415dea747f72c 15,37-38,137,193-209,211-225,629,644-647,649,666
+  884754cdda52bc2d 210
+npm/scripts/check-text.mjs
+  4b84b33e9c5c4868 7-9,16-42,137-146
+npm/scripts/cli-entry.mjs
+  047bdf1ce0929a13 1-10,13-27
+  97dc9da780fd51f2 11-12
+npm/tests/utils-pass.test.mjs
+  047bdf1ce0929a13 1-25
+.cursor/rules/n-bun.mdc
+  d32c5402f187b21c 4,90
+  884754cdda52bc2d 91
+npm/tests/cli-entry.test.mjs
+  047bdf1ce0929a13 1-12
+npm/scripts/run-k8s.mjs
+  047bdf1ce0929a13 18,33,43,59,140-142
+npm/scripts/check-bun.mjs
+  d32c5402f187b21c 7-9,20,22-38,70-71,81-82,86-92,96-98
+  884754cdda52bc2d 21,83-85,93-95
+npm/tests/check-text-fixture.test.mjs
+  047bdf1ce0929a13 1,3-4,6-10,12-68
+  97dc9da780fd51f2 2,5,11
+npm/tests/utils-walkDir.test.mjs
+  97dc9da780fd51f2 43
+  047bdf1ce0929a13 1-42,44-51
+npm/package.json
+  047bdf1ce0929a13 3,35
+npm/tests/check-bun.test.mjs
+  047bdf1ce0929a13 1,3-62
+  97dc9da780fd51f2 2
+npm/mdc/bun.mdc
+  d32c5402f187b21c 4,90
+  884754cdda52bc2d 91
+npm/tests/run-k8s-roots.test.mjs
+  97dc9da780fd51f2 32-33
+  047bdf1ce0929a13 1-31,34-36
+npm/mdc/text.mdc
+  4b84b33e9c5c4868 204
+npm/mdc/docker.mdc
+  884754cdda52bc2d 33,100,124
+  d32c5402f187b21c 3,34
+npm/scripts/run-docker.mjs
+  047bdf1ce0929a13 12,22,33,77-79
+npm/tests/check-empty-trees.test.mjs
+  047bdf1ce0929a13 1-22
+npm/scripts/check-k8s.mjs
+  884754cdda52bc2d 17
+  047bdf1ce0929a13 62,143
+npm/tests/helpers.mjs
+  97dc9da780fd51f2 10-11,15,37-38
+  047bdf1ce0929a13 1-9,12-14,16-36,39-42
+npm/tests/run-v8r-catalog.test.mjs
+  97dc9da780fd51f2 15
+  047bdf1ce0929a13 1-14,16-19
+npm/README.md
+  98f415dea747f72c 7,31,51
+npm/tests/check-rule-fixtures.test.mjs
+  047bdf1ce0929a13 1-4,6-12,14-38,40-46,48-76,78-95
+  97dc9da780fd51f2 5,13,39,47,77
+.cursor/rules/scripts.mdc
+  047bdf1ce0929a13 4,29,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "57101aa6dc7fcc3730507d5021c9a583c3ca40ed",
+  "prompts": {
+    "047bdf1ce0929a13": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6248fb44-73dd-441f-9c27-1eda8f92b50c",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 796,
+      "total_deletions": 38,
+      "accepted_lines": 762,
+      "overriden_lines": 1
+    },
+    "4b84b33e9c5c4868": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6ccfdd41-720a-4dd7-8a71-392331880fa6",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 50,
+      "total_deletions": 5,
+      "accepted_lines": 43,
+      "overriden_lines": 0
+    },
+    "884754cdda52bc2d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1f3edaf3-ddac-43f2-8e5b-d372f99cb3ae",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 25,
+      "total_deletions": 25,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    },
+    "97dc9da780fd51f2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8fcedc65-bbb5-47cb-8934-2c81582a3129",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 71,
+      "total_deletions": 27,
+      "accepted_lines": 23,
+      "overriden_lines": 0
+    },
+    "98f415dea747f72c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fd6704ae-7de5-470c-ab63-dab4f84c03d2",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 82,
+      "total_deletions": 80,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    },
+    "d32c5402f187b21c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f6ef7482-d220-4063-8fbc-be8443b4ab7b",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 9,
+      "accepted_lines": 44,
+      "overriden_lines": 0
+    }
+  }
+}
