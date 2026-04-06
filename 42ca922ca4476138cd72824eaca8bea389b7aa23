@@ -1,0 +1,31 @@
+npm/scripts/utils/docker-hadolint.mjs
+  1fb56d26c961696a 4
+npm/package.json
+  1fb56d26c961696a 3
+npm/scripts/run-k8s.mjs
+  1fb56d26c961696a 9,72,97
+npm/mdc/docker.mdc
+  1fb56d26c961696a 96,102,116
+npm/scripts/check-docker.mjs
+  1fb56d26c961696a 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "42ca922ca4476138cd72824eaca8bea389b7aa23",
+  "prompts": {
+    "1fb56d26c961696a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "642f4231-1c9e-4347-94fe-98b8e6c88046",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 9,
+      "accepted_lines": 9,
+      "overriden_lines": 0
+    }
+  }
+}
