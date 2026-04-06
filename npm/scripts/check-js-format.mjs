@@ -1,3 +1,8 @@
+/**
+ * Перевіряє форматування коду за правилом js-format.mdc.
+ *
+ * `.oxfmtrc.json` з потрібними ключами, VSCode і oxfmt, відсутність Prettier у конфігах і залежностях.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 

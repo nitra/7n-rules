@@ -1,12 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.5'
+version: '1.7'
 ---
 
-Перевірка виконується за допомогою **oxlint**, **ESLint** та **jscpd** (дублікати коду).
-
-У файлі `.vscode/extensions.json` мають бути рекомендації розширень:
+**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`:** `oxlint` (без `bunx`), **`bunx eslint`**, **`bunx jscpd`**; у CI — `bunx oxlint` / `bunx eslint` / `bunx jscpd`. Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -18,20 +16,19 @@ version: '1.5'
 }
 ```
 
-У кореневому `package.json` додай скрипт і залежності:
-
 ```json title="package.json"
+{
   "scripts": {
     "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
     "@nitra/eslint-config": "^3.4.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
+}
 ```
-
-У `devDependencies` достатньо `@nitra/eslint-config` (залежності ESLint підтягуються разом із ним). **oxlint**, **eslint** та **jscpd** у скриптах викликай через `bunx`; окремо не додавай пакети `oxlint` / `eslint` / `jscpd`, якщо цього не вимагає ваш монорепо.
-
-У корені проєкту має бути `.jscpd.json`. Мінімум: увімкнути облік `.gitignore`, ненульовий код виходу при знаходженні клонів, консольний звіт. За потреби додай `ignore` (дзеркальні каталоги, шаблони) та `minLines`, щоб відсікти дрібні збіги:
 
 ```json title=".jscpd.json"
 {
@@ -43,18 +40,11 @@ version: '1.5'
 }
 ```
 
-## jscpd: рефакторинг і структура
+## jscpd
 
-Коли **jscpd** знаходить клони, спочатку зменшуй дублювання кодом, а не конфігом.
+Рефакторинг і єдина реалізація замість «роздутого» `ignore` / `minLines`; випадкові збіги — точково з обґрунтуванням.
 
-- **Рефакторинг:** винеси спільні фрагменти в функції, модулі, утиліти, composables/hooks, спільні компоненти або базові типи — залежно від контексту.
-- **Структура:** якщо одна й та сама логіка розмазана між файлами чи пакетами, запропонуй зміну структури (наприклад, спільний модуль, `shared/`, внутрішній пакет у monorepo), щоб була **одна канонічна реалізація** і повторні місця лише викликали її.
-
-Так ти уникаєш **хибних обходів** перевірки: розширення `ignore` чи завищення `minLines` лише щоб прибрати звіт — не заміна рефакторингу для справжніх клонів. Якщо збіг **семантично випадковий** (генерований код, формальні шаблони без спільної логіки), після оцінки допустимо точковий `ignore` або зміна порогу — з коротким обґрунтуванням.
-
-Додай workflow `.github/workflows/lint-js.yml`:
-
-```yaml
+```yaml title=".github/workflows/lint-js.yml"
 name: Lint JS
 
 on:
@@ -112,9 +102,7 @@ jobs:
           bunx jscpd .
 ```
 
-**Без дублювання CI:** якщо в `.github/workflows` уже є `lint.yml` з тими самими кроками `oxlint` або `eslint`,  видали зайвий workflow, а саме `lint.yml` — лінт JS має виконуватися в одному місці.
-
-У корені проєкту має бути `eslint.config.js` із розподілом директорій за типом коду:
+Один workflow на лінт JS; зайвий `lint.yml` з тими самими кроками — прибери.
 
 ```javascript title="eslint.config.js"
 import { getConfig } from '@nitra/eslint-config'
@@ -126,21 +114,9 @@ export default [
 ]
 ```
 
-У монорепо пакети з Vite (frontend) вкажи в секції `vue`, решту — у секції `node` у виклику `getConfig`.
+Vite frontend — секція **`vue`**, решта — **`node`**.
 
-## Додаткові js правила
-
-Завжди додавай до package.json що підтримується 24+ версія node:
-
-```json title="package.json"
-"engines": {
-  "node": ">=24"
-}
-```
-
-Завжди код повинен використовувати синтаксис 24+ версії node
-
-Завжди повинен використовуватися top level await
+**Код:** синтаксис Node **24+**, **top level await**.
 
 ## Перевірка
 

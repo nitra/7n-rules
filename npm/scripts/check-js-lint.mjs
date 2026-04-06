@@ -1,3 +1,9 @@
+/**
+ * Перевіряє лінт JavaScript за правилом js-lint.mdc.
+ *
+ * Flat ESLint, скрипт `lint-js` (oxlint, eslint, jscpd), `engines.node`, без prettier,
+ * наявність `.jscpd.json` і workflow `lint-js.yml`.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
@@ -27,13 +33,41 @@ export async function check() {
 
     if (pkg.scripts?.['lint-js']) {
       pass('package.json містить скрипт lint-js')
-      if (String(pkg.scripts['lint-js']).includes('jscpd')) {
+      const lintJs = String(pkg.scripts['lint-js'])
+      if (lintJs.includes('jscpd')) {
         pass('lint-js містить jscpd')
       } else {
         fail('lint-js має викликати jscpd — додай "&& bunx jscpd ." у кінець скрипта')
       }
+      if (lintJs.includes('bunx eslint')) {
+        pass('lint-js викликає bunx eslint')
+      } else {
+        fail('lint-js має містити bunx eslint (n-js-lint.mdc)')
+      }
+      if (lintJs.includes('bunx jscpd')) {
+        pass('lint-js викликає bunx jscpd')
+      } else {
+        fail('lint-js має містити bunx jscpd (n-js-lint.mdc)')
+      }
+      if (lintJs.includes('oxlint')) {
+        pass('lint-js містить oxlint')
+      } else {
+        fail('lint-js має містити oxlint (n-js-lint.mdc)')
+      }
     } else {
       fail('package.json не містить скрипт "lint-js" — додай: "oxlint --fix && bunx eslint --fix . && bunx jscpd ."')
+    }
+
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
+    if (allDeps.prettier) {
+      fail('package.json: видали залежність prettier (oxfmt замість prettier, n-js-lint.mdc)')
+    } else {
+      pass('package.json не містить prettier')
+    }
+    if (allDeps['@nitra/prettier-config']) {
+      fail('package.json: видали @nitra/prettier-config (n-js-lint.mdc)')
+    } else {
+      pass('package.json не містить @nitra/prettier-config')
     }
 
     if (pkg.devDependencies?.['@nitra/eslint-config']) {

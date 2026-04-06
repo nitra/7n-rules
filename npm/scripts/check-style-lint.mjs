@@ -1,3 +1,9 @@
+/**
+ * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
+ *
+ * `@nitra/stylelint-config`, скрипт `lint-style`, `.stylelintignore`, workflow `lint-style.yml`,
+ * VSCode stylelint і вимкнена вбудована CSS-валідація.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 

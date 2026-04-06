@@ -1,14 +1,10 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.13'
+version: '1.16'
 ---
 
-Правило описує роботу з **текстовими файлами** в репозиторії: перевірка правопису через **cspell**, стиль **Markdown** через **markdownlint-cli2**, валідація **JSON/YAML/TOML** через **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** у Cursor/VS Code та інтеграція в CI.
-
-## Розширення Cursor / VS Code
-
-У файлі `.vscode/extensions.json` **додай** `DavidAnson.vscode-markdownlint` у масив `recommendations` (разом із записами з інших правил, зокрема js-lint / js-format):
+**cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
 
 ```json title=".vscode/extensions.json"
 {
@@ -21,34 +17,21 @@ version: '1.13'
 }
 ```
 
-## Скрипти та залежності в package.json
-
-У кореневому `package.json` один скрипт **lint-text** має послідовно викликати **cspell**, **markdownlint-cli2** і **v8r** (і решту блоків з розділів нижче в одному файлі):
+**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**, **`markdownlint-cli2`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bunx`**, не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
 ```json title="package.json"
+{
   "scripts": {
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
   },
   "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185",
     "markdownlint-cli2": "^0.22.0"
   }
+}
 ```
 
-**markdownlint-cli2** і **v8r** у скрипті викликай через `bunx`. Окремо не додавай пакет `markdownlint`, якщо достатньо `markdownlint-cli2`. Маски `**/*.md` і `**/*.mdc` охоплюють Markdown і правила Cursor (`.mdc`); виключення з `.gitignore` для markdownlint задаються в `.markdownlint-cli2.jsonc` (`gitignore: true`). За потреби можна додати окремий скрипт `lint-md` лише для markdownlint — CI все одно має викликати повний `bun run lint-text`.
-
-## v8r
-
-[v8r](https://chris48s.github.io/v8r/) — CLI-валідатор: за іменем файлу знаходить схему в [Schema Store](https://www.schemastore.org/) і перевіряє вміст. У `lint-text` — чотири послідовні виклики з масками `**/*.json`, `**/*.yml`, `**/*.yaml`, `**/*.toml`, кожен у вигляді `(bunx v8r "<glob>" || [ $? -eq 98 ])`.
-
-**Код 98:** якщо для glob **немає жодного файлу**, v8r дає **98**. Це стосується не лише TOML: репозиторій без `.yml`/`.yaml` зламає **один** спільний виклик `v8r` уже на `**/*.yml`. Окремі виклики з дозволом лише **98** покривають і такі репозиторії.
-
-За замовчуванням v8r враховує **`.gitignore`**. **`.v8rignore` не створюй завчасно** — файл потрібен **лише коли** `bunx v8r` падає на JSON/YAML без схеми в каталозі (тоді додай у ignore відповідні glob’и).
-
-Пакет **`v8r` у `devDependencies` не додавай** — у скрипті достатньо **`bunx v8r`**.
-
-## Конфігурація markdownlint-cli2
-
-У корені проєкту має бути **`.markdownlint-cli2.jsonc`** (документація: [DavidAnson/markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2)):
+**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. **`.v8rignore`** лише коли немає схеми. Враховує `.gitignore`.
 
 ```json title=".markdownlint-cli2.jsonc"
 {
@@ -63,19 +46,9 @@ version: '1.13'
 }
 ```
 
-`gitignore: true` змушує markdownlint-cli2 пропускати шляхи з `.gitignore` (у тому числі `node_modules`, якщо воно там є). Додатковий glob `"#node_modules"` у скрипті не потрібен. За потреби додай власні шляхи через `ignores` у цьому ж файлі.
+**MD041** off навмисно (`.mdc` з frontmatter). Деталі — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).
 
-За потреби увімкни окремі правила (наприклад `MD013` з `line_length: 120`), щоб узгодити довжину рядків з `.oxfmtrc.json`.
-
-`MD041` вимкнено навмисно: файли `.mdc` (Cursor rules) мають YAML frontmatter, після якого перший абзац часто не є заголовком H1.
-
-## Cspell
-
-У корені проєкту має бути `.cspell.json` і залежності для cspell у кореневому `package.json` (зазвичай `devDependencies`).
-
-Додай workflow `.github/workflows/lint-text.yml`:
-
-```yaml
+```yaml title=".github/workflows/lint-text.yml"
 name: Lint Text
 
 on:
@@ -144,11 +117,11 @@ jobs:
         run: bun run lint-text
 ```
 
-**Без дублювання CI:** якщо в `.github/workflows` уже є workflow з тими самими кроками `cspell` або `markdownlint-cli2`, видали зайвий — перевірки тексту та Markdown мають виконуватися в одному місці.
+Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
 
-## Базовий варіант cspell (без окремого словника української)
+**`.cspell.json`**, `version: "0.2"`, **`language`**, **`import`** з `@nitra/cspell-dict`, **`ignorePaths`**, **`words`** лише для назв/термінів, коли не виправити текстом.
 
-Якщо текст переважно англійською та достатньо корпоративного словника (@nitra/cspell-dict; у полі `language` cspell лишається тег `nitra`):
+Базово (англійська + корпоративний словник):
 
 ```json title=".cspell.json"
 {
@@ -160,69 +133,7 @@ jobs:
 }
 ```
 
-```json title="package.json"
-{
-  "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
-  },
-  "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
-    "markdownlint-cli2": "^0.22.0"
-  }
-}
-```
-
-## Проєкт з українською мовою
-
-Якщо в репозиторії є українська документація, коментарі або рядки в коді — потрібен **окремий словник** `@cspell/dict-uk-ua`, інакше cspell не перевірятиме український правопис коректно.
-
-**1. Залежності** — додай пакет словника поруч із `@nitra/cspell-dict`:
-
-```json title="package.json"
-{
-  "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
-  },
-  "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
-    "@cspell/dict-uk-ua": "^4.0.6",
-    "markdownlint-cli2": "^0.22.0"
-  }
-}
-```
-
-Встановлення: `bun add -d @cspell/dict-uk-ua` (або `npm i -D @cspell/dict-uk-ua`).
-
-**2. `.cspell.json`** — у полі `language` має бути `uk` (разом з іншими мовами через кому), у `import` — підключення розширення українського словника:
-
-```json title=".cspell.json"
-{
-  "version": "0.2",
-  "language": "en,uk,nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
-  "import": [
-    "@nitra/cspell-dict/cspell-ext.json",
-    "@cspell/dict-uk-ua/cspell-ext.json"
-  ],
-  "words": []
-}
-```
-
-Підлаштуй `language` під проєкт (наприклад додай `ru-ru`, якщо потрібна перевірка російською). Порядок у `import` може впливати на пріоритет словників — тримай корпоративний `@nitra/cspell-dict` там, де зручно для ваших правил.
-
-## Локальні виключення (cspell `words`)
-
-Коли **cspell** підсвічує слово, спочатку **виправ текст**, а не розширюй словник:
-
-- виправ **друкарські помилки** та неправильні форми;
-- **перефразуй коректною українською** (або англійською, залежно від контексту файлу): заміни кальки й випадкові склади на звичні формулювання зі словників;
-- заміни **жаргон**, якщо є природний еквівалент у тому ж стилі документації (наприклад, у коментарях пиши «функція зворотного виклику» замість розмовного запозичення з англійського `callback`).
-
-У секцію `words` у `.cspell.json` додавай записи **лише якщо переписати коректно неможливо** або **недоречно**: власні назви, стабільні технічні терміни без усталеного перекладу в проєкті, ідентифікатори зовнішніх API тощо.
-
-## Інші мови
-
-Для іншої мови встанови відповідний пакет `@cspell/dict-*`, додай його `cspell-ext.json` у `import` і код мови в `language`. Огляд словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
+З українською: `bun add -d @cspell/dict-uk-ua`, у **`language`** додай **`uk`**, у **`import`** — `@cspell/dict-uk-ua/cspell-ext.json`. Інші мови: [@cspell/dict-*](https://github.com/streetsidesoftware/cspell-dicts).
 
 ## Перевірка
 

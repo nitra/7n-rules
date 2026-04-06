@@ -1,3 +1,9 @@
+/**
+ * Допоміжний модуль для скриптів перевірки монорепо.
+ *
+ * Зчитує кореневий `package.json` і повертає список каталогів-пакетів (корінь `.` плюс шляхи
+ * з `workspaces`, з урахуванням glob).
+ */
 import { existsSync } from 'node:fs'
 import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'

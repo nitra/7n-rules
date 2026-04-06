@@ -1,3 +1,9 @@
+/**
+ * Для кожного workspace-пакета перевіряє правило js-pino.mdc.
+ *
+ * Заборона bunyan на користь pino та наявність `OTEL_RESOURCE_ATTRIBUTES` у `k8s/base/configmap.yaml`,
+ * якщо такий файл існує.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -34,9 +40,7 @@ async function checkWorkspacePackage(rootDir, fail) {
       if (content.includes('service.name=') && content.includes('service.namespace=')) {
         pass(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
       } else {
-        fail(
-          `${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`
-        )
+        fail(`${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`)
       }
     } else {
       fail(`${label}k8s/base/configmap.yaml не містить OTEL_RESOURCE_ATTRIBUTES`)
@@ -59,9 +63,7 @@ export async function check() {
   const workspaceRoots = roots.filter(r => r !== '.')
 
   if (workspaceRoots.length === 0) {
-    pass(
-      'js-pino: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено'
-    )
+    pass('js-pino: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено')
     return exitCode
   }
 

@@ -1,3 +1,8 @@
+/**
+ * Перевіряє структуру npm-модуля в монорепо за правилом npm-module.mdc.
+ *
+ * Workspace `npm/`, `npm/package.json`, workflow `npm-publish.yml` з OIDC і шляхом до пакета.
+ */
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 
@@ -51,6 +56,29 @@ export async function check() {
     pass('.github/workflows/ існує')
   } else {
     fail('.github/workflows/ не існує')
+  }
+
+  const publishWf = '.github/workflows/npm-publish.yml'
+  if (existsSync(publishWf)) {
+    pass(`${publishWf} існує`)
+    const pub = await readFile(publishWf, 'utf8')
+    const need = [
+      { sub: 'npm/**', msg: `${publishWf}: у on.push.paths має бути npm/**` },
+      { sub: 'branches:', msg: `${publishWf}: очікується on.push.branches` },
+      { sub: 'main', msg: `${publishWf}: очікується branch main` },
+      { sub: 'id-token: write', msg: `${publishWf}: permissions має містити id-token: write (OIDC)` },
+      { sub: 'JS-DevTools/npm-publish', msg: `${publishWf}: очікується uses: JS-DevTools/npm-publish` },
+      { sub: 'package: npm/package.json', msg: `${publishWf}: with.package має бути npm/package.json` }
+    ]
+    for (const { sub, msg } of need) {
+      if (pub.includes(sub)) {
+        pass(`${publishWf} містить «${sub}»`)
+      } else {
+        fail(msg)
+      }
+    }
+  } else {
+    fail(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
   }
 
   return exitCode

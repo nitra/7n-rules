@@ -1,3 +1,9 @@
+/**
+ * Знаходить пакети з `vue` у dependencies і перевіряє їх за правилом vue.mdc.
+ *
+ * Версії Vite та плагінів, vue-macros, auto-import, layouts, вміст `vite.config`;
+ * у репозиторії — рекомендацію розширення Vue.volar.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -125,9 +131,7 @@ export async function check() {
   }
 
   if (vueRoots.length === 0) {
-    fail(
-      'vue не знайдено в dependencies жодного пакета (корінь репо та каталоги з кореневого workspaces)'
-    )
+    fail('vue не знайдено в dependencies жодного пакета (корінь репо та каталоги з кореневого workspaces)')
     return exitCode
   }
 

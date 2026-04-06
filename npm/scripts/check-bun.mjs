@@ -1,3 +1,9 @@
+/**
+ * Перевіряє відповідність репозиторію правилам Bun (n-bun.mdc).
+ *
+ * Очікує наявність `bun.lock`, забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn`
+ * і поле `packageManager` у кореневому `package.json`.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 

@@ -1,3 +1,9 @@
+/**
+ * Перевіряє шаблон nginx за правилом nginx-default-tpl.mdc.
+ *
+ * Правильна назва файлу, `listen 8080`, `/healthz`, `gzip_static`, без `proxy_pass` у шаблоні,
+ * рекомендації VSCode для nginx.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 

@@ -1,23 +1,14 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.0'
+version: '1.2'
 ---
 
-Проект представляє собою Bun monorepo
+Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
 
-Структура проекту:
+## npm publish
 
-- .github/workflows/ - скрипти для github actions
-- demo/ - опціонально демо проект
-- npm/ - файли для npm модуля
-- package.json
-
-## npm publish (GitHub Actions)
-
-У `.github/workflows/` має бути workflow `npm-publish.yml`, який публікує пакет з `npm/package.json` на npm при push у `main`, коли змінюється дерево `npm/**`.
-
-Приклад вмісту:
+**`npm-publish.yml`:** push у **`main`**, **`paths: npm/**`**, **`JS-DevTools/npm-publish@v4`**, **`with.package: npm/package.json`**, **`permissions.id-token: write`** (OIDC на npm).
 
 ```yaml title=".github/workflows/npm-publish.yml"
 name: npm-publish
@@ -55,9 +46,6 @@ jobs:
         with:
           package: npm/package.json
 ```
-
-- `id-token: write` потрібен для **trusted publishing** (OIDC) на npm, якщо пакет налаштований у npm без класичного токена в секретах.
-- Шлях `package: npm/package.json` узгоджений зі структурою monorepo (`npm/` — каталог модуля).
 
 ## Перевірка
 

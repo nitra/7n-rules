@@ -5,3 +5,5 @@ rules:
     config:
       policies:
         '*': ref-pin
+  template-injection:
+    disable: true

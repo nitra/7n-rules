@@ -1,14 +1,10 @@
 ---
 description: Правила форматів для .github/workflows
 alwaysApply: true
-version: '1.0'
+version: '1.2'
 ---
 
-#
-
-Всі файли в директорії .github/workflows повинні мати розширення тільки yml
-
-Якщо є .github/workflows/apply-k8s.yml, то в ньому обов'язково повинно бути вказано що критерій для запуску це:
+У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
 
 ```yaml
 on:
@@ -17,16 +13,12 @@ on:
       - '**/k8s/*.yaml'
 ```
 
-Якщо є .github/workflows/apply-nats-consumer.yml, то в ньому обов'язково повинно бути вказано що критерій для запуску це:
-
 ```yaml
 on:
   push:
     paths:
       - '**/consumer.yaml'
 ```
-
-Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
 
 ```yaml
 name: Clean action for removing completed workflow runs
@@ -53,8 +45,6 @@ jobs:
           save_min_runs_number: 0
 
 ```
-
-Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
 
 ```yaml
 name: Clean abandoned branches
@@ -89,9 +79,7 @@ jobs:
           echo "Deleted branches: ${DELETED_BRANCHES}"
 ```
 
-якщо в ignore_branches задані інші бранчі, то це допустимо.
-
-Повинен бути файл .github/workflows/lint-ga.yml, зі змістом:
+Інші гілки в `ignore_branches` — допустимо.
 
 ```yaml
 name: Lint GA
@@ -145,25 +133,13 @@ jobs:
         run: bun run lint-ga
 ```
 
-в файлі .vscode/extensions.json є налаштування для GitHub Actions:
-
 ```json title=".vscode/extensions.json"
 {
   "recommendations": ["github.vscode-github-actions"]
 }
 ```
 
-## actionlint
-
-Статична перевірка синтаксису та виразів GitHub Actions: [actionlint](https://github.com/rhysd/actionlint).
-
-У кореневому `package.json` у скрипті `lint-ga` викликай **actionlint** через **`bunx node-actionlint`** (пакет [node-actionlint](https://www.npmjs.com/package/node-actionlint) постає бінарник actionlint для Node-екосистеми).
-
-## zizmor
-
-Статичний аналіз безпеки для GitHub Actions: [zizmor documentation](https://docs.zizmor.sh).
-
-У кореневому `package.json` має бути скрипт:
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [node-actionlint](https://www.npmjs.com/package/node-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Скрипт у корені:
 
 ```json title="package.json"
 "scripts": {
@@ -171,11 +147,22 @@ jobs:
 }
 ```
 
-Параметр `--offline` обмежує аналіз офлайн-аудитами (без GitHub API);
+**`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
 
-За замовчуванням audit [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) вимагає повний commit SHA для кожного `uses:`. У всих проєктах прийняті **семантичні теги** (`@v4`, `@v2` тощо), додай `.github/zizmor.yml` з політикою `ref-pin` (приклад у цьому репозиторії).
+```yaml title=".github/zizmor.yml"
+# https://docs.zizmor.sh/configuration/
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        '*': ref-pin
+  template-injection:
+    disable: true
+```
+
+**MegaLinter:** не використовувати; прибрати workflow, конфіги (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`), залежності та згадки в CI / pre-commit / документації.
 
 ## Перевірка
 
-- `bun run lint-ga` — actionlint (node-actionlint) і zizmor
+- `bun run lint-ga`
 - `npx @nitra/cursor check ga`

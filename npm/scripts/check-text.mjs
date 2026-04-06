@@ -1,3 +1,9 @@
+/**
+ * Перевіряє текстовий стек за правилом text.mdc.
+ *
+ * cspell, markdownlint-cli2, скрипт `lint-text` з чотирма викликами v8r, workflow `lint-text.yml`,
+ * розширення VSCode для markdownlint.
+ */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
@@ -85,6 +91,12 @@ export async function check() {
       pass('@nitra/cspell-dict є в devDependencies')
     } else {
       fail('@nitra/cspell-dict відсутній — bun add -d @nitra/cspell-dict')
+    }
+
+    if (devDeps['markdownlint-cli2']) {
+      pass('markdownlint-cli2 є в devDependencies')
+    } else {
+      fail('markdownlint-cli2 відсутній — bun add -d markdownlint-cli2 (n-text.mdc)')
     }
 
     const lintText = pkg.scripts?.['lint-text']
