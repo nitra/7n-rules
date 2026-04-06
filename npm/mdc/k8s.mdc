@@ -115,7 +115,7 @@ jobs:
 
 ## Що закодовано в `check-k8s.mjs`
 
-При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_GROUPS`**, а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** (число з PIN, наприклад `v1.33.9-standalone-strict` → **`1.33.9`**).
+При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_REF`** (якщо зміниться гілка за замовчуванням у репо yannh), **`YANNH_GROUPS`**, а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** (число з PIN, наприклад `v1.33.9-standalone-strict` → **`1.33.9`**).
 
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
 - **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree.
@@ -130,11 +130,11 @@ jobs:
 Орієнтир — **перший документ** (до наступного `---`).
 
 1. **Ім’я** `kustomization.yaml` або `kustomization.yml` → `https://json.schemastore.org/kustomization.json`.
-2. **`apiVersion: v1`** → yannh, PIN **`v1.33.9-standalone-strict`**:
-   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/<PIN>/<kind>-v1.json`
+2. **`apiVersion: v1`** → yannh, PIN набору схем **`v1.33.9-standalone-strict`**, ref репозиторію для raw URL — **`master`** (каталог версії не є коренем репо на GitHub):
+   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-v1.json`
    `<kind>`: літери в нижньому регістрі без роздільників між CamelCase (наприклад `Service` → `service`).
 3. **`apiVersion: group/version`** і **group** у **`YANNH_GROUPS`** у скрипті → yannh:
-   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
+   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
    Приклади: `apps/v1` + `Deployment` → `deployment-apps-v1.json`; `networking.k8s.io/v1` + `Ingress` → `ingress-networking-k8s-io-v1.json`.
 4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog):
    `https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/CRDs/<group>/<kind>_<version>.json`

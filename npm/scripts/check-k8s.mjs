@@ -14,9 +14,12 @@ import { walkDir } from './utils/walkDir.mjs'
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
 const YANNH_PIN = 'v1.33.9-standalone-strict'
 
+/** Гілка репозиторію yannh/kubernetes-json-schema для raw.githubusercontent.com (каталог набору — у підшляху після ref). */
+const YANNH_REF = 'master'
+
 const KUSTOMIZATION_SCHEMA = 'https://json.schemastore.org/kustomization.json'
 
-const YANNH_BASE = `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/${YANNH_PIN}/`
+const YANNH_BASE = `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/${YANNH_REF}/${YANNH_PIN}/`
 
 const DATREE_CRD_BASE = 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/CRDs/'
 
