@@ -424,10 +424,7 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
  * @returns {Promise<void>}
  */
 async function syncClaudeMd(configRules, configSkills) {
-  const lines = [
-    `<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`,
-    '',
-  ]
+  const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
 
   for (const rule of configRules) {
     const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`

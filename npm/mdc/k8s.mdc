@@ -145,6 +145,7 @@ jobs:
    ```yaml
    # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json
    ```
+
 3. **`apiVersion: group/version`** і **group** у **`YANNH_GROUPS`** у скрипті → yannh:
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
    Приклади: `apps/v1` + `Deployment` → `deployment-apps-v1.json`; `networking.k8s.io/v1` + `Ingress` → `ingress-networking-k8s-io-v1.json`.

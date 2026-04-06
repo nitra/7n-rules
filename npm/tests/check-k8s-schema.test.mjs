@@ -66,8 +66,7 @@ describe('expectedSchemaUrl', () => {
   })
 
   test('InfisicalSecret v1alpha1 — datree raw (не GitHub Pages)', () => {
-    const doc =
-      'apiVersion: secrets.infisical.com/v1alpha1\nkind: InfisicalSecret\nmetadata:\n  name: x\nspec: {}\n'
+    const doc = 'apiVersion: secrets.infisical.com/v1alpha1\nkind: InfisicalSecret\nmetadata:\n  name: x\nspec: {}\n'
     const { expected, reason } = expectedSchemaUrl('base/k8s/infisical.yaml', doc)
     expect(expected).toBe(
       'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/secrets.infisical.com/infisicalsecret_v1alpha1.json'
