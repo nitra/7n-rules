@@ -1,0 +1,23 @@
+npm/scripts/check-ga.mjs
+  1b29930f49968854 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7a2ae76b79f28185117484b16083a20337f15df5",
+  "prompts": {
+    "1b29930f49968854": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4467af6-6664-46f3-a035-2dacdafc488d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    }
+  }
+}
