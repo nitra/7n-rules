@@ -1,0 +1,137 @@
+/**
+ * Запуск kubeconform та kubescape для каталогів `…/k8s`, де є YAML-маніфести (див. k8s.mdc).
+ *
+ * Знаходить унікальні корені каталогів із іменем `k8s` за шляхами файлів `*.yaml` / `*.yml`
+ * (той самий принцип сегмента `k8s`, що й у check-k8s.mjs). Якщо таких файлів немає — вихід 0
+ * без виклику зовнішніх CLI.
+ *
+ * kubeconform перевіряє маніфести проти OpenAPI-схем Kubernetes; kubescape — сканування на
+ * misconfiguration / compliance (NSA, MITRE, CIS тощо). Обидва бінарники очікуються в PATH
+ * (локально: Homebrew, релізи GitHub; у CI — крок установки з k8s.mdc).
+ *
+ * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у check-k8s.mjs / k8s.mdc.
+ */
+import { spawnSync } from 'node:child_process'
+import { basename, dirname } from 'node:path'
+
+import { walkDir } from './utils/walkDir.mjs'
+
+/** Версія Kubernetes для kubeconform — синхронно з YANNH_PIN (без префікса v і суфікса -standalone-strict). */
+const KUBERNETES_VERSION = '1.29.1'
+
+/** Додатковий реєстр схем для CRD (як у README kubeconform). */
+const DATREE_CRD_SCHEMA_LOCATION =
+  'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+/**
+ * Чи містить шлях сегмент директорії `k8s`.
+ * @param {string} filePath шлях до файлу
+ * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
+ */
+function pathHasK8sSegment(filePath) {
+  const parts = filePath.split(/[/\\]/u)
+  return parts.includes('k8s')
+}
+
+/**
+ * Каталог `…/k8s`, що містить маніфест (йдемо вгору від файлу до компонента `k8s`).
+ * @param {string} absFile абсолютний шлях до yaml
+ * @returns {string | null} абсолютний шлях до `…/k8s` або null, якщо сегмента `k8s` у ланцюжку немає
+ */
+function k8sRootFromFile(absFile) {
+  let dir = dirname(absFile)
+  for (let i = 0; i < 64; i++) {
+    if (basename(dir) === 'k8s') return dir
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
+}
+
+/**
+ * Унікальні корені `k8s` з yaml/yml під деревом cwd.
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи до каталогів `k8s`
+ */
+async function findK8sRoots(root) {
+  /** @type {Set<string>} */
+  const roots = new Set()
+  await walkDir(root, p => {
+    if (!pathHasK8sSegment(p)) return
+    if (!/\.ya?ml$/iu.test(p)) return
+    const k8sRoot = k8sRootFromFile(p)
+    if (k8sRoot) roots.add(k8sRoot)
+  })
+  return [...roots].toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Запускає kubeconform для переліку каталогів.
+ * @param {string[]} dirs абсолютні шляхи до `…/k8s`
+ * @returns {number} код виходу процесу kubeconform (127, якщо бінарник не знайдено)
+ */
+function runKubeconform(dirs) {
+  const args = [
+    '-summary',
+    '-kubernetes-version',
+    KUBERNETES_VERSION,
+    '-schema-location',
+    'default',
+    '-schema-location',
+    DATREE_CRD_SCHEMA_LOCATION,
+    '-ignore-missing-schemas',
+    ...dirs
+  ]
+  const r = spawnSync('kubeconform', args, { stdio: 'inherit', shell: false })
+  if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
+    console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
+    return 127
+  }
+  return r.status ?? 1
+}
+
+/**
+ * Запускає kubescape scan для кожного каталогу окремо (узгоджено з прикладами CLI).
+ * @param {string[]} dirs абсолютні шляхи до `…/k8s`
+ * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо бінарник не знайдено
+ */
+function runKubescape(dirs) {
+  for (const d of dirs) {
+    const r = spawnSync('kubescape', ['scan', d, '--severity-threshold', 'high'], {
+      stdio: 'inherit',
+      shell: false
+    })
+    if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
+      console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+      return 127
+    }
+    if (r.status !== 0) return r.status ?? 1
+  }
+  return 0
+}
+
+/**
+ * Головна точка входу: kubeconform + kubescape для усіх знайдених дерев `k8s`.
+ * @returns {Promise<number>} код виходу для `process.exitCode` (0 — успіх або пропуск)
+ */
+async function main() {
+  const root = process.cwd()
+  const dirs = await findK8sRoots(root)
+
+  if (dirs.length === 0) {
+    console.log('run-k8s: немає yaml/yml під k8s — kubeconform і kubescape пропущено')
+    return 0
+  }
+
+  console.log(`run-k8s: каталоги k8s (${dirs.length}):`)
+  for (const d of dirs) console.log(`  ${d}`)
+
+  const kc = runKubeconform(dirs)
+  if (kc !== 0) return kc
+
+  const ks = runKubescape(dirs)
+  return ks
+}
+
+process.exitCode = await main()

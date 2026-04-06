@@ -5,7 +5,8 @@
  * і поле `packageManager` у кореневому `package.json`.
  *
  * Якщо в кореневому `package.json` є скрипти з префіксом `lint-`, перевіряє наявність агрегованого
- * скрипта `lint`, у якому через `bun run <ім’я>` викликаються всі такі скрипти.
+ * скрипта `lint`, у якому через `bun run <ім’я>` викликаються всі такі скрипти, і що рядок `lint`
+ * закінчується на `&& oxfmt .`.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -63,6 +64,11 @@ export async function check() {
           )
         } else {
           pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
+          if (/\s*&&\s+oxfmt\s+\.\s*$/.test(aggregate.trim())) {
+            pass('package.json: `lint` завершується `&& oxfmt .`')
+          } else {
+            fail('Скрипт `lint` має закінчуватися на `&& oxfmt .`')
+          }
         }
       } else {
         fail(

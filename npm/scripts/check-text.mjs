@@ -1,7 +1,8 @@
 /**
  * Перевіряє текстовий стек за правилом text.mdc.
  *
- * cspell, markdownlint-cli2, скрипт `lint-text` з чотирма викликами v8r, `.v8rignore` (vscode JSON),
+ * cspell, markdownlint-cli2, скрипт `lint-text` з v8r (`run-v8r.mjs` або чотири `bunx v8r`),
+ * `.v8rignore` (vscode JSON),
  * workflow `lint-text.yml`, розширення VSCode для markdownlint.
  */
 import { existsSync } from 'node:fs'
@@ -23,10 +24,12 @@ export async function check() {
   const v8rIgnoreRequired = ['.vscode/extensions.json', '.vscode/settings.json']
   if (existsSync('.v8rignore')) {
     const raw = await readFile('.v8rignore', 'utf8')
-    const lines = new Set(raw
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => l.length > 0 && !l.startsWith('#')))
+    const lines = new Set(
+      raw
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && !l.startsWith('#'))
+    )
     for (const path of v8rIgnoreRequired) {
       if (lines.has(path)) {
         pass(`.v8rignore містить ${path}`)
@@ -119,23 +122,31 @@ export async function check() {
 
     const lintText = pkg.scripts?.['lint-text']
     const v8rCalls = typeof lintText === 'string' ? (lintText.match(/bunx v8r/g) || []).length : 0
+    const quietCalls = typeof lintText === 'string' ? (lintText.match(/run-v8r?\.mjs/g) || []).length : 0
     const eq98Hints = typeof lintText === 'string' ? (lintText.match(/eq 98/g) || []).length : 0
+    const globsOk =
+      typeof lintText === 'string' &&
+      lintText.includes('**/*.json') &&
+      lintText.includes('**/*.yml') &&
+      lintText.includes('**/*.yaml') &&
+      lintText.includes('**/*.toml')
+    const legacyV8r = v8rCalls >= 4 && eq98Hints >= 4
+    const quietBundled = quietCalls === 1
+    const quietLegacy4x = quietCalls >= 4
+    const v8rTextOk = legacyV8r || quietBundled || quietLegacy4x
+    const globsRequired = legacyV8r || quietLegacy4x
     if (
       typeof lintText === 'string' &&
       lintText.includes('cspell') &&
       lintText.includes('bunx markdownlint-cli2') &&
       lintText.includes('**/*.mdc') &&
-      v8rCalls >= 4 &&
-      eq98Hints >= 4 &&
-      lintText.includes('**/*.json') &&
-      lintText.includes('**/*.yml') &&
-      lintText.includes('**/*.yaml') &&
-      lintText.includes('**/*.toml')
+      v8rTextOk &&
+      (!globsRequired || globsOk)
     ) {
-      pass('package.json: lint-text — чотири виклики v8r з || [ $? -eq 98 ] для json/yml/yaml/toml')
+      pass('package.json: lint-text — v8r: run-v8r.mjs (один виклик або чотири) або чотири bunx v8r з || [ $? -eq 98 ]')
     } else {
       fail(
-        'package.json: lint-text — чотири (bunx v8r "<glob>" || [ $? -eq 98 ]) для **/*.json **/*.yml **/*.yaml **/*.toml (див. n-text.mdc)'
+        'package.json: lint-text — v8r: bun ./…/run-v8r.mjs або чотири (bunx v8r "<glob>" || [ $? -eq 98 ]) для json/yml/yaml/toml (див. n-text.mdc)'
       )
     }
 

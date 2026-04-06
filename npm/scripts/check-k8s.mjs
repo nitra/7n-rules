@@ -224,9 +224,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
 
   const m = lines[0].match(MODELINE_RE)
   if (!m) {
-    fail(
-      `${rel}: перший рядок має бути коментарем # yaml-language-server: $schema=<url> (без префіксів перед #)`
-    )
+    fail(`${rel}: перший рядок має бути коментарем # yaml-language-server: $schema=<url> (без префіксів перед #)`)
     return
   }
 

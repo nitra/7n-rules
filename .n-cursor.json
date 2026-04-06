@@ -12,8 +12,5 @@
     "text",
     "vue"
   ],
-  "skills": [
-    "fix",
-    "publish-telegram"
-  ]
+  "skills": ["fix", "publish-telegram"]
 }

@@ -41,7 +41,7 @@
 
 ### v8r і власний каталог схем
 
-Для перевірки `.n-cursor.json` через [v8r](https://chris48s.github.io/v8r/) передайте каталог пакета (`-c` / `--catalogs`): локально `node_modules/@nitra/cursor/schemas/v8r-catalog.json`, після публікації також [unpkg](https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json). JSON Schema конфігурації: [n-cursor.json](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
+Скрипт `scripts/run-v8r.mjs` передає в v8r каталог **`schemas/v8r-catalog.json`** пакета автоматично (у репозиторії той самий файл, що й `npm/schemas/v8r-catalog.json` від кореня монорепо). Якщо викликаєш `bunx v8r` напряму, передай `-c`: локально `node_modules/@nitra/cursor/schemas/v8r-catalog.json` або [unpkg](https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json). JSON Schema конфігурації: [n-cursor.json](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
 
 ## Запуск
 

@@ -1,0 +1,76 @@
+/**
+ * run-docker (скрипт lint-docker): hadolint лише для файлів з іменем Dockerfile та суфіксом .dockerfile (див. docker.mdc).
+ *
+ * Обхід дерева як у check-docker (walkDir, ті самі пропуски каталогів). На відміну від
+ * check docker, не обробляються Dockerfile.*, Containerfile тощо — лише канонічне ім’я
+ * Dockerfile та варіанти виду app.Dockerfile (регістр суфікса не важливий).
+ *
+ * Виклик hadolint — через utils/docker-hadolint.mjs (PATH або docker run).
+ */
+import { basename } from 'node:path'
+
+import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
+import { pass } from './utils/pass.mjs'
+import { walkDir } from './utils/walkDir.mjs'
+
+/**
+ * Чи входить файл до набору lint-docker: Dockerfile або *.Dockerfile (*.dockerfile).
+ * @param {string} name basename шляху
+ * @returns {boolean} true, якщо ім’я підходить під lint-docker
+ */
+function isLintDockerfileName(name) {
+  const n = name.toLowerCase()
+  if (n === 'dockerfile') return true
+  return n.endsWith('.dockerfile') && n.length > '.dockerfile'.length
+}
+
+/**
+ * Збирає абсолютні шляхи для lint-docker.
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи
+ */
+async function findLintDockerfilePaths(root) {
+  /** @type {string[]} */
+  const out = []
+  await walkDir(root, p => {
+    if (isLintDockerfileName(basename(p))) out.push(p)
+  })
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Запуск hadolint по Dockerfile та *.Dockerfile.
+ * @returns {Promise<number>} 0 — OK, 1 — зауваження або помилка
+ */
+async function main() {
+  let exitCode = 0
+  const fail = msg => {
+    console.log(`  ❌ ${msg}`)
+    exitCode = 1
+  }
+
+  const root = process.cwd()
+  const files = await findLintDockerfilePaths(root)
+
+  if (files.length === 0) {
+    pass('lint-docker: немає Dockerfile / *.Dockerfile — hadolint пропущено')
+    return 0
+  }
+
+  pass(`lint-docker: файлів для hadolint: ${files.length}`)
+
+  for (const abs of files) {
+    const rel = posixRel(root, abs) || basename(abs)
+    const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
+    const tail = (stdout + stderr).trim()
+    if (ok) {
+      pass(`${rel} (${via})`)
+    } else {
+      fail(`${rel} (${via})${tail ? `:\n${tail}` : ''}`)
+    }
+  }
+
+  return exitCode
+}
+
+process.exitCode = await main()

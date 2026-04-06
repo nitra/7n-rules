@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.18'
+version: '1.22'
 ---
 
 **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
@@ -12,17 +12,20 @@ version: '1.18'
     "dbaeumer.vscode-eslint",
     "github.vscode-github-actions",
     "oxc.oxc-vscode",
-    "DavidAnson.vscode-markdownlint"
+    "DavidAnson.vscode-markdownlint",
+    "redhat.vscode-yaml"
   ]
 }
 ```
 
-**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**, **`markdownlint-cli2`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bunx`**, не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**, **`markdownlint-cli2`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bun x v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+
+У v8r **немає** прапорця тихого режиму; рекомендовано скрипт **`run-v8r.mjs`** з репозиторію пакета `@nitra/cursor` (`npm/scripts/run-v8r.mjs`): один виклик у `lint-text` — під капотом послідовні **`bun x v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` скрипт підставляє в v8r сам (аргумент **`-c`** не потрібен у `lint-text`). За бажання можна передати власні glob-и аргументами скрипта. Шлях до скрипта: `./npm/scripts/…`, `./scripts/…` після копіювання, або `node_modules/@nitra/cursor/scripts/…`.
 
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185"
@@ -30,7 +33,7 @@ version: '1.18'
 }
 ```
 
-**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. Враховує `.gitignore`. Опційно для глобу `**/*.json` додай **власний каталог схем** [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog) (наприклад `-c npm/schemas/v8r-catalog.json` у репозиторії пакета `@nitra/cursor` або `-c https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json`), щоб перевіряти **`.n-cursor.json`** за схемою з [unpkg](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
+**v8r:** без обгортки — чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` для **`**/*.json`**, **`**/*.yml`**, **`**/*.yaml`**, **`**/*.toml`** (за потреби окремо **json5**). Враховує `.gitignore`. Для **`**/*.json`** опційно додай **власний каталог схем** [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog) (наприклад `-c npm/schemas/v8r-catalog.json` у репозиторії пакета `@nitra/cursor` або `-c https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json`), щоб перевіряти **`.n-cursor.json`** за схемою з [unpkg](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
 
 У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в [Schema Store](https://www.schemastore.org/); для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі). Інші файли без схеми — за тією ж логікою; не розширюй ignore, щоб приховати проблеми там, де схема є. За потреби додай **`.git/**`** (службові JSON під `.git`) та **`npm/schemas/n-cursor.json`** у репозиторії `@nitra/cursor`, якщо для цього файлу немає стабільної схеми в ланцюжку v8r.
 
@@ -150,7 +153,7 @@ jobs:
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185",
@@ -168,7 +171,7 @@ jobs:
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185",
