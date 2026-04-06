@@ -1,0 +1,25 @@
+npm/scripts/check-text.mjs
+  8bb69f2b6a912fec 4-5,158-164
+npm/package.json
+  8bb69f2b6a912fec 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "5204c619e0104b825f358f99c1d92fbef3f66ebe",
+  "prompts": {
+    "8bb69f2b6a912fec": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fc92c7fe-4e4f-4316-a381-633e5f662d17",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 2,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  }
+}
