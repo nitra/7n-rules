@@ -1,7 +1,8 @@
 /**
  * Перевіряє текстовий стек за правилом text.mdc.
  *
- * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без devDependencies), v8r (`run-v8r.mjs` або чотири `bunx v8r`),
+ * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json), заборона
+ * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
  * workflow `lint-text.yml`, розширення VSCode для markdownlint.
  *
@@ -152,6 +153,13 @@ export async function check() {
       pass('@nitra/cspell-dict є в devDependencies')
     } else {
       fail('@nitra/cspell-dict відсутній — bun add -d @nitra/cspell-dict')
+    }
+
+    const rootDeps = pkg.dependencies || {}
+    if (devDeps['markdownlint-cli2'] || rootDeps['markdownlint-cli2']) {
+      fail(
+        'markdownlint-cli2 не додавай у dependencies/devDependencies — лише bunx у lint-text (n-text.mdc); прибери з package.json і bun i'
+      )
     }
 
     const lintText = pkg.scripts?.['lint-text']
