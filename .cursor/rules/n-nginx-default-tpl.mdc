@@ -1,0 +1,144 @@
+---
+description: Правила nginx для статичних файлів
+version: '1.1'
+---
+
+# Якщо в проекті є файл default.tpl.conf або default.conf.template
+
+Якщо файл називається default.tpl.conf його потрібно перейменувати на default.conf.template
+
+default.conf.template повинен виглядати так:
+
+```nginx
+server_tokens off;
+port_in_redirect off;
+client_max_body_size 0;
+client_body_buffer_size 512M;
+
+server {
+    listen 8080;
+    server_name _;
+
+    # disable all log
+    access_log off;
+    error_log off;
+
+    # This would be the directory where your Vite app's static files are stored at
+    root /usr/share/nginx/html;
+
+    location /healthz {
+        add_header Content-Type text/plain;
+        access_log off;
+        return 200 "healthy";
+    }
+
+    # Без gz стиснених файлів, 1 year is 31536000 seconds
+    location ~ ^$PUBLIC_PATH/(.+\.(?:gif|jpe?g|png|ico|woff2|xlsx))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+    }
+
+    # С gz стисненими файлами, 1 year is 31536000 seconds
+    location ~ ^$PUBLIC_PATH/(.+\.(?:svg|js|css|ttf|map|xml|webmanifest|wasm))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+
+        # дозволяє віддавати замість звичайного файлу попередньо стиснутий файл з таким же ім'ям та з розширенням ".gz"
+        gzip_static on;
+    }
+
+    location $PUBLIC_PATH/ {
+        index index.html;
+        alias /usr/share/nginx/html/;
+
+        #  eliminates the step of copying the data into the buffer and enables direct copying data from one file descriptor to another.
+        sendfile on;
+        # to prevent one fast connection from entirely occupying the worker process
+        sendfile_max_chunk 512k;
+        # to send HTTP response headers in one packet right after the chunk of data has been obtained by sendfile().
+        tcp_nopush on;
+
+        # дозволяє віддавати замість звичайного файлу попередньо стиснутий файл з таким же ім'ям та з розширенням ".gz"
+        gzip_static on;
+
+        try_files $uri $uri/ /index.html =404;
+    }
+}
+```
+
+Тобто в ньому не потрібно щоб було жодного proxy_pass секціі і інших опцій для proxy.
+
+Якщо в файлі вже були proxy_pass секції, то їх логіку потрібно перенести до HTTPRoute в k8s.
+
+В HTTPRoute повинна бути секція Exact редиректу на версію з /
+
+```yaml
+spec:
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /$PUBLIC_PATH
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            scheme: https
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /$PUBLIC_PATH/
+            statusCode: 301
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /$PUBLIC_PATH/
+      backendRefs:
+        - name: $SERVICE_NAME
+          port: 8080
+```
+
+де $PUBLIC_PATH підставляється з ini файлу з dev середовища, а якщо для інших середовищ відрізняється то підставляється в kustomization.ya,l відповідні значення з ini середовища.
+
+В $SERVICE_NAME повинно бути вказано ім'я сервісу, яке буде використовуватися в k8s.
+
+В Dockerfile потрібно додати команду для стиснення файлів, які потім використовуватимуться з `gzip_static on`:
+
+```dockerfile
+RUN for s in js css map xml webmanifest html wasm; do find /usr/share/nginx/html -type f -name "*.$$s" -exec gzip -k {} +; done
+```
+
+Поруч з файлом default.conf.template повинні бути конфігураційні файли *.ini для різних середовищ. В Dockerfile повинна бути команда, для заміни плейсхолдерів в цих файлах на значення з середовища:
+
+```dockerfile
+# 1) Витягнути імена змінних з ini (ігноруємо коментарі/порожні)
+# 2) Зробити список для envsubst: $NAMESPACE $NAMESPACE2 ...
+# 3) Підвантажити значення з ini і підставити лише їх
+RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*/\1/p' /tpl/values-$BRANCH.ini) && \
+ VARS=$(printf '%s\n' $NAMES | awk '{printf "$%s ", $0}') && \
+  export $(grep -v '^#' /tpl/values-$BRANCH.ini | xargs) && \
+  envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf
+```
+
+Якщо у конфігураційних файлах *.ini є змінні які відсутні в default.conf.template, то їх потрібно вилучити.
+
+в файлі .vscode/extensions.json є налаштування для NGINX Configuration Language Support:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["ahmadalli.vscode-nginx-conf"]
+}
+```
+
+в файлі .vscode/settings.json є налаштування для NGINX Configuration Language Support:
+
+```json title=".vscode/settings.json"
+{
+  "editor.formatOnSave": true,
+  "[nginx]": {
+    "editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"
+  }
+}
+```
+
+## Перевірка
+
+`npx @nitra/cursor check nginx-default-tpl`

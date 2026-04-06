@@ -8,6 +8,7 @@ This file is the entry point for all AI agents working with this repository.
 
 The primary development rules are stored in the Cursor rules directory:
 
+
 - .cursor/rules/dev-dep.mdc
 
 - .cursor/rules/n-bun.mdc
@@ -18,17 +19,30 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-js-lint.mdc
 
+- .cursor/rules/n-js-pino.mdc
+
+- .cursor/rules/n-nginx-default-tpl.mdc
+
 - .cursor/rules/n-npm-module.mdc
+
+- .cursor/rules/n-style-lint.mdc
 
 - .cursor/rules/n-text.mdc
 
-- .cursor/rules/script.mdc
+- .cursor/rules/n-vue.mdc
+
+- .cursor/rules/npm-increment-version.mdc
+
+- .cursor/rules/scripts.mdc
+
 
 ## Skills
+
 
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
 
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
+
 
 ## Instructions for all agents
 

@@ -25,8 +25,7 @@ version: '1.16'
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
-    "markdownlint-cli2": "^0.22.0"
+    "@nitra/cspell-dict": "^1.0.185"
   }
 }
 ```
@@ -48,6 +47,11 @@ version: '1.16'
 
 **MD041** off навмисно (`.mdc` з frontmatter). Деталі — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).
 
+## Cspell
+
+У корені проєкту має бути `.cspell.json` і залежності для cspell у кореневому `package.json` (зазвичай `devDependencies`).
+
+Додай workflow `.github/workflows/lint-text.yml`:
 ```yaml title=".github/workflows/lint-text.yml"
 name: Lint Text
 
@@ -121,7 +125,7 @@ jobs:
 
 **`.cspell.json`**, `version: "0.2"`, **`language`**, **`import`** з `@nitra/cspell-dict`, **`ignorePaths`**, **`words`** лише для назв/термінів, коли не виправити текстом.
 
-Базово (англійська + корпоративний словник):
+Базово (англійська + українська + корпоративний словник):
 
 ```json title=".cspell.json"
 {
@@ -133,7 +137,71 @@ jobs:
 }
 ```
 
-З українською: `bun add -d @cspell/dict-uk-ua`, у **`language`** додай **`uk`**, у **`import`** — `@cspell/dict-uk-ua/cspell-ext.json`. Інші мови: [@cspell/dict-*](https://github.com/streetsidesoftware/cspell-dicts).
+```json title="package.json"
+{
+  "scripts": {
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+  },
+  "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185",
+    "@cspell/dict-uk-ua": "^4.0.6"
+  }
+}
+```
+
+## Проєкт з українською мовою
+
+Якщо в репозиторії є українська документація, коментарі або рядки в коді — потрібен **окремий словник** `@cspell/dict-ru_ru`, інакше cspell не перевірятиме російський правопис коректно.
+
+**1. Залежності** — додай пакет словника поруч із `@nitra/cspell-dict`:
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])"
+  },
+  "devDependencies": {
+    "@nitra/cspell-dict": "^1.0.185",
+    "@cspell/dict-uk-ua": "^4.0.6",
+    "@cspell/dict-ru_ru": "^2.3.2",
+    "markdownlint-cli2": "^0.22.0"
+  }
+}
+```
+
+Встановлення: `bun add -d @cspell/dict-uk-ua` (або `npm i -D @cspell/dict-uk-ua`).
+
+**2. `.cspell.json`** — у полі `language` має бути `uk` (разом з іншими мовами через кому), у `import` — підключення розширення українського словника:
+
+```json title=".cspell.json"
+{
+  "version": "0.2",
+  "language": "en,uk,nitra",
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "import": [
+    "@nitra/cspell-dict/cspell-ext.json",
+    "@cspell/dict-uk-ua/cspell-ext.json"
+  ],
+  "words": []
+}
+```
+
+Підлаштуй `language` під проєкт (наприклад додай `ru-ru`, якщо потрібна перевірка російською). Порядок у `import` може впливати на пріоритет словників — тримай корпоративний `@nitra/cspell-dict` там, де зручно для ваших правил.
+
+## Локальні виключення (cspell `words`)
+
+Коли **cspell** підсвічує слово, спочатку **виправ текст**, а не розширюй словник:
+
+- виправ **друкарські помилки** та неправильні форми;
+- **перефразуй коректною українською** (або англійською, залежно від контексту файлу): заміни кальки й випадкові склади на звичні формулювання зі словників;
+- заміни **жаргон**, якщо є природний еквівалент у тому ж стилі документації (наприклад, у коментарях пиши «функція зворотного виклику» замість розмовного запозичення з англійського `callback`).
+
+У секцію `words` у `.cspell.json` додавай записи **лише якщо переписати коректно неможливо** або **недоречно**: власні назви, стабільні технічні терміни без усталеного перекладу в проєкті, ідентифікатори зовнішніх API тощо.
+
+## Інші мови
+
+Для іншої мови встанови відповідний пакет `@cspell/dict-*`, додай його `cspell-ext.json` у `import` і код мови в `language`. Огляд словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
+
 
 ## Перевірка
 

@@ -5,12 +5,14 @@
  *
  * Використання:
  *   `npx \@nitra/cursor`             — завантажити cursor-правила
- *   `npx \@nitra/cursor check`       — перевірити правила, перелічені в AGENTS.md (якщо є check-*.mjs)
+ *   `npx \@nitra/cursor check`       — перевірити правила, перелічені в AGENTS.md (якщо є check-*.mjs);
+ *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує AGENTS.md)
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
- * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення).
+ * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення). У файлі завжди має бути
+ * поле `$schema` з посиланням на JSON Schema пакету; при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
  *
  * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
  * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
@@ -33,6 +35,8 @@ import { fileURLToPath } from 'node:url'
 const PACKAGE_NAME = '@nitra/cursor'
 const UNPKG_BASE = 'https://unpkg.com'
 const CONFIG_FILE = '.n-cursor.json'
+/** URL JSON Schema для `.n-cursor.json` (поле `$schema` у файлі конфігурації) */
+const CONFIG_SCHEMA_URL = `${UNPKG_BASE}/${PACKAGE_NAME}/schemas/n-cursor.json`
 const AGENTS_FILE = 'AGENTS.md'
 const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
@@ -144,7 +148,7 @@ async function migrateLegacyConfigIfNeeded() {
 
 /**
  * Зчитує конфіг .n-cursor.json з поточної директорії
- * @returns {Promise<{rules: string[], skills: string[], version?: string}>} rules, skills (id без префікса n-), опційно version; при відсутності файлу створює дефолтний конфіг
+ * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-), опційно version; при відсутності файлу створює дефолтний конфіг
  */
 async function readConfig() {
   await migrateLegacyConfigIfNeeded()
@@ -152,7 +156,7 @@ async function readConfig() {
   if (!existsSync(configPath)) {
     const rules = await discoverBundledRuleNames()
     const skills = await discoverBundledSkillNames()
-    const defaultConfig = { rules, skills }
+    const defaultConfig = { $schema: CONFIG_SCHEMA_URL, rules, skills }
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
       `📝 Створено ${CONFIG_FILE} з усіма правилами (${rules.length}) і skills (${skills.length}) з пакету. За потреби відредагуйте списки.\n`
@@ -175,6 +179,15 @@ async function readConfig() {
     }
     config.skills = await discoverBundledSkillNames()
   }
+
+  if (config.$schema !== CONFIG_SCHEMA_URL) {
+    const { $schema: _omit, ...rest } = config
+    const normalized = { $schema: CONFIG_SCHEMA_URL, ...rest }
+    await writeFile(configPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
+    console.log(`📝 Оновлено поле $schema у ${CONFIG_FILE}\n`)
+    return normalized
+  }
+
   return config
 }
 
@@ -544,6 +557,17 @@ async function runChecks(requestedRules) {
   if (available.length === 0) {
     console.error('❌ Не знайдено жодного check-скрипта у пакеті')
     throw new Error('No check scripts found')
+  }
+
+  const root = cwd()
+  const legacyConfigPath = join(root, 'nitra-cursor.json')
+  if (existsSync(join(root, CONFIG_FILE)) || existsSync(legacyConfigPath)) {
+    try {
+      await readConfig()
+    } catch (error) {
+      console.error(`❌ ${error.message}`)
+      throw error
+    }
   }
 
   let rulesToCheck

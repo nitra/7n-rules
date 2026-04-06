@@ -6,19 +6,7 @@ version: '1.2'
 
 У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
 
-```yaml
-on:
-  push:
-    paths:
-      - '**/k8s/*.yaml'
-```
-
-```yaml
-on:
-  push:
-    paths:
-      - '**/consumer.yaml'
-```
+Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
 
 ```yaml
 name: Clean action for removing completed workflow runs
@@ -45,6 +33,7 @@ jobs:
           save_min_runs_number: 0
 
 ```
+Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
 
 ```yaml
 name: Clean abandoned branches
@@ -80,6 +69,7 @@ jobs:
 ```
 
 Інші гілки в `ignore_branches` — допустимо.
+Повинен бути файл .github/workflows/lint-ga.yml, зі змістом:
 
 ```yaml
 name: Lint GA

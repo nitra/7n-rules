@@ -6,6 +6,10 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Посилання на JSON Schema для автодоповнення та валідації в IDE; має збігатися з $id цієї схеми (рекомендовано завжди вказувати)."
+    },
     "rules": {
       "type": "array",
       "description": "Ідентифікатори правил без префікса n- (відповідають файлам n-<id>.mdc).",
