@@ -34,7 +34,7 @@ const DATREE_CRD_RAW_REF = 'main'
 
 const DATREE_CRD_RAW_BASE = `https://raw.githubusercontent.com/datreeio/CRDs-catalog/${DATREE_CRD_RAW_REF}/`
 
-/** У ключі `Map` означає «будь-який / відсутній `type`» (наприклад CRD без верхньорівневого `type:`). */
+/** У ключі `Map` означає «будь-який / відсутній `type`» (наприклад CRD без кореневого `type:`). */
 const K8S_EXPLICIT_SCHEMA_TYPE_ANY = '*'
 
 /**
@@ -42,7 +42,7 @@ const K8S_EXPLICIT_SCHEMA_TYPE_ANY = '*'
  * `typeKey` — значення поля **`type:`** або **`K8S_EXPLICIT_SCHEMA_TYPE_ANY`**.
  * @param {string} apiVersion повне значення `apiVersion` з маніфесту
  * @param {string} kind значення `kind` з маніфесту (як у YAML)
- * @param {string} typeKey значення верхньорівневого `type:` або `K8S_EXPLICIT_SCHEMA_TYPE_ANY`
+ * @param {string} typeKey значення кореневого `type:` або `K8S_EXPLICIT_SCHEMA_TYPE_ANY`
  * @returns {string} внутрішній ключ для `Map`
  */
 function k8sExplicitSchemaMapKey(apiVersion, kind, typeKey) {
@@ -52,7 +52,6 @@ function k8sExplicitSchemaMapKey(apiVersion, kind, typeKey) {
 /**
  * Таблиця явних `$schema` для поєднань **`apiVersion` + `kind` + `type`** (див. k8s.mdc).
  * Щоб додати рядок: визнач **`apiVersion`**, **`kind`**, при потребі **`type`**, вкажи **URL** і **reason**.
- *
  * @type {Map<string, { schema: string, reason: string }>}
  */
 const EXPLICIT_K8S_SCHEMAS = new Map([
@@ -73,7 +72,7 @@ const EXPLICIT_K8S_SCHEMAS = new Map([
 ])
 
 /**
- * Витягує верхньорівневе поле **`type:`** з документа (без повного YAML-парсера).
+ * Витягує кореневе поле **`type:`** з документа (без повного YAML-парсера).
  * @param {string} doc фрагмент YAML одного документа
  * @returns {string | undefined} значення без лапок або undefined, якщо поля немає
  */
@@ -87,7 +86,7 @@ function extractTopLevelManifestType(doc) {
  * Шукає схему в **`EXPLICIT_K8S_SCHEMAS`**: спочатку за точним **`type`**, потім за **`*`**.
  * @param {string} apiVersion повне значення `apiVersion` з маніфесту
  * @param {string} kind значення `kind` з маніфесту (як у YAML)
- * @param {string | undefined} manifestType верхньорівневе поле `type` або undefined, якщо відсутнє
+ * @param {string | undefined} manifestType кореневе поле `type` або undefined, якщо відсутнє
  * @returns {{ schema: string, reason: string } | null} запис таблиці або null, якщо збігу немає
  */
 function lookupExplicitK8sSchema(apiVersion, kind, manifestType) {

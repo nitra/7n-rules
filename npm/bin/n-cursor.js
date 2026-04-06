@@ -52,6 +52,7 @@ const AGENTS_FILE = 'AGENTS.md'
 const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
 const SKILLS_DIR = '.cursor/skills'
+const COMMANDS_DIR = '.claude/commands'
 const RULE_PREFIX = 'n-'
 
 const binDir = dirname(fileURLToPath(import.meta.url))
@@ -416,6 +417,49 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
 }
 
 /**
+ * Генерує CLAUDE.md у корені cwd з at-імпортами всіх .mdc-правил та посиланнями на skills.
+ * Завдяки цьому Claude Code автоматично завантажує вміст кожного правила при старті.
+ * @param {string[]} configRules елементи масиву rules з .n-cursor.json
+ * @param {string[]} configSkills id skills з конфігу
+ * @returns {Promise<void>}
+ */
+async function syncClaudeMd(configRules, configSkills) {
+  const lines = [
+    `<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`,
+    '',
+  ]
+
+  for (const rule of configRules) {
+    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
+    lines.push(`@${RULES_DIR}/${fileName}`)
+  }
+
+  if (configSkills.length > 0) {
+    lines.push('', '## Skills', '')
+    const skillsRoot = join(cwd(), SKILLS_DIR)
+    for (const skillId of configSkills) {
+      const id = canonicalSkillId(skillId)
+      const dirName = managedSkillDirName(skillId)
+      const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
+      let desc = ''
+      if (existsSync(skillMdPath)) {
+        const text = await readFile(skillMdPath, 'utf8')
+        const parsed = extractSkillDescription(text)
+        if (parsed) desc = parsed
+      }
+      const ref = `- \`${SKILLS_DIR}/${dirName}/SKILL.md\``
+      lines.push(desc ? `${ref} — ${desc}` : ref, `  Команда: \`/${RULE_PREFIX}${id}\``)
+    }
+  }
+
+  lines.push('')
+  const claudeMdPath = join(cwd(), 'CLAUDE.md')
+  const hadFile = existsSync(claudeMdPath)
+  await writeFile(claudeMdPath, lines.join('\n'), 'utf8')
+  console.log(hadFile ? `📝 Оновлено CLAUDE.md` : `📝 Створено CLAUDE.md`)
+}
+
+/**
  * Повністю перезаписує AGENTS.md у корені cwd з npm/AGENTS.template.md
  * @param {string[]} configSkills id skills з конфігу
  * @returns {Promise<void>} завершення запису файлу
@@ -489,6 +533,75 @@ async function syncSkills(configSkills) {
     }
   }
   return { success, fail }
+}
+
+/**
+ * Синхронізує .claude/commands/n-<id>.md зі skills пакету.
+ * Кожен файл містить посилання на відповідний cursor skill, а не копію інструкцій.
+ * @param {string[]} configSkills id без префікса n-
+ * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
+ */
+async function syncCommands(configSkills) {
+  if (configSkills.length === 0 || !existsSync(BUNDLED_SKILLS_DIR)) {
+    return { success: 0, fail: 0 }
+  }
+
+  const commandsDir = join(cwd(), COMMANDS_DIR)
+  await mkdir(commandsDir, { recursive: true })
+
+  let success = 0
+  let fail = 0
+
+  for (const skillId of configSkills) {
+    const id = canonicalSkillId(skillId)
+    const dirName = managedSkillDirName(skillId)
+    const srcSkillMd = join(BUNDLED_SKILLS_DIR, dirName, 'SKILL.md')
+    const destFile = join(commandsDir, `${RULE_PREFIX}${id}.md`)
+
+    process.stdout.write(`  ⬇  ${id} → ${COMMANDS_DIR}/${RULE_PREFIX}${id}.md ... `)
+    if (existsSync(srcSkillMd)) {
+      try {
+        const raw = await readFile(srcSkillMd, 'utf8')
+        const desc = extractSkillDescription(raw)
+        const header = desc ? `# ${RULE_PREFIX}${id} — ${desc}\n\n` : ''
+        const body = `${header}Виконай інструкції зі скілу \`.cursor/skills/${dirName}/SKILL.md\`.\n`
+        await writeFile(destFile, body, 'utf8')
+        console.log(`✅`)
+        success++
+      } catch (error) {
+        console.log(`❌`)
+        console.error(`     Помилка: ${error.message}`)
+        fail++
+      }
+    } else {
+      console.log(`❌`)
+      console.error(`     Немає SKILL.md у пакеті: ${dirName}`)
+      fail++
+    }
+  }
+  return { success, fail }
+}
+
+/**
+ * Видаляє файли n-*.md у .claude/commands, яких немає у конфігурації skills
+ * @param {string} commandsDir абсолютний шлях до .claude/commands
+ * @param {string[]} configSkills id без префікса n-
+ * @returns {Promise<string[]>} імена видалених файлів
+ */
+async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
+  if (!existsSync(commandsDir)) {
+    return []
+  }
+  const expected = new Set(configSkills.map(s => `${RULE_PREFIX}${canonicalSkillId(s)}.md`))
+  const names = await readdir(commandsDir)
+  const removed = []
+  for (const name of names) {
+    if (name.endsWith('.md') && name.startsWith(RULE_PREFIX) && !expected.has(name)) {
+      await unlink(join(commandsDir, name))
+      removed.push(name)
+    }
+  }
+  return removed.toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -712,9 +825,36 @@ async function runSync() {
   }
 
   try {
+    const { success: cmdOk, fail: cmdFail } = await syncCommands(skills)
+    if (skills.length > 0) {
+      console.log(`\n⌨️  Commands: ${cmdOk} скопійовано, ${cmdFail} з помилками`)
+    }
+    const removedCmds = await removeOrphanManagedCommandFiles(join(cwd(), COMMANDS_DIR), skills)
+    if (removedCmds.length > 0) {
+      console.log(`\n🧹 Видалено commands поза списком ${CONFIG_FILE} (${removedCmds.length}):`)
+      for (const name of removedCmds) {
+        console.log(`   − ${COMMANDS_DIR}/${name}`)
+      }
+    }
+    if (cmdFail > 0) {
+      throw new Error(`Не вдалося скопіювати ${cmdFail} з ${skills.length} commands`)
+    }
+  } catch (error) {
+    console.error(`❌ Commands: ${error instanceof Error ? error.message : String(error)}`)
+    throw error
+  }
+
+  try {
     await syncAgentsMd(skills)
   } catch (error) {
     console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
+    throw error
+  }
+
+  try {
+    await syncClaudeMd(rules, skills)
+  } catch (error) {
+    console.error(`❌ Не вдалося оновити CLAUDE.md: ${error instanceof Error ? error.message : String(error)}`)
     throw error
   }
 
