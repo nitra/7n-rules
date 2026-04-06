@@ -18,7 +18,7 @@ version: '1.22'
 }
 ```
 
-**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**, **`markdownlint-cli2`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bun x v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bun x v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
 У v8r **немає** прапорця тихого режиму; рекомендовано скрипт **`run-v8r.mjs`** з репозиторію пакета `@nitra/cursor` (`npm/scripts/run-v8r.mjs`): один виклик у `lint-text` — під капотом послідовні **`bun x v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` скрипт підставляє в v8r сам. За бажання можна передати власні glob-и аргументами скрипта. Шлях до скрипта: `./npm/scripts/…`, `./scripts/…` після копіювання, або `node_modules/@nitra/cursor/scripts/…`.
 
@@ -72,10 +72,6 @@ on:
     branches:
       - dev
     paths:
-      - '.cspell.json'
-      - '.gitignore'
-      - '.markdownlint-cli2.jsonc'
-      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'
@@ -111,28 +107,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun-deps
 
       - name: Lint text
         run: bun run lint-text
 ```
+
+Composite **`.github/actions/setup-bun-deps/action.yml`** — checkout, Node 24, Bun, кеш і `bun install --frozen-lockfile` (див. **ga.mdc**).
 
 Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
 

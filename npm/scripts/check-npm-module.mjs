@@ -1,7 +1,7 @@
 /**
  * Перевіряє структуру npm-модуля в монорепо за правилом npm-module.mdc.
  *
- * Workspace `npm/`, `npm/package.json`, workflow `npm-publish.yml` з OIDC і шляхом до пакета.
+ * Workspace `npm/`, `npm/package.json`, workflow `npm-publish.yml` з OIDC, `on.push.paths` з glob для каталогу npm (див. npm-module.mdc).
  */
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'

@@ -45,12 +45,6 @@ on:
       - '**/Dockerfile'
       - '**/*.Dockerfile'
       - '**/*.dockerfile'
-      - '.hadolint.yaml'
-      - 'npm/scripts/run-docker.mjs'
-      - 'npm/scripts/utils/docker-hadolint.mjs'
-      - 'npm/scripts/check-docker.mjs'
-      - 'npm/mdc/docker.mdc'
-      - 'package.json'
 
   pull_request:
     branches:
@@ -66,7 +60,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -76,10 +70,14 @@ jobs:
           chmod +x /tmp/hadolint
           sudo mv /tmp/hadolint /usr/local/bin/hadolint
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache

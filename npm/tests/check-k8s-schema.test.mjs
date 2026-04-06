@@ -36,10 +36,22 @@ describe('expectedSchemaUrl', () => {
     expect(expected).toContain('deployment-apps-v1.json')
   })
 
-  test('CRD-група — datree', () => {
+  test('CRD-група — datree (GitHub Pages)', () => {
     const doc = 'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: x\n'
     const { expected, reason } = expectedSchemaUrl('base/k8s/route.yaml', doc)
-    expect(expected).toContain('datreeio/CRDs-catalog')
+    expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1.json')
     expect(reason).toContain('datree')
+  })
+
+  test('HTTPRoute v1beta1 — datree (GitHub Pages)', () => {
+    const doc = 'apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\nmetadata:\n  name: x\n'
+    const { expected } = expectedSchemaUrl('base/k8s/route-beta.yaml', doc)
+    expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json')
+  })
+
+  test('networking.gke.io HealthCheckPolicy — datree', () => {
+    const doc = 'apiVersion: networking.gke.io/v1\nkind: HealthCheckPolicy\nmetadata:\n  name: x\n'
+    const { expected } = expectedSchemaUrl('base/k8s/hcp.yaml', doc)
+    expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json')
   })
 })

@@ -2,7 +2,8 @@
  * Перевіряє Kubernetes YAML у шляхах з сегментом `k8s` (див. k8s.mdc).
  *
  * Перший рядок `# yaml-language-server: $schema=…`, без дублікатів, розширення `.yaml`
- * (окрім `kustomization.yml`); URL схеми за першим документом — kustomization / yannh / datree.
+ * (окрім `kustomization.yml`); URL схеми за першим документом — kustomization / yannh / datree
+ * (datree: `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`).
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  */
 import { readFile } from 'node:fs/promises'
@@ -21,7 +22,8 @@ const KUSTOMIZATION_SCHEMA = 'https://json.schemastore.org/kustomization.json'
 
 const YANNH_BASE = `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/${YANNH_REF}/${YANNH_PIN}/`
 
-const DATREE_CRD_BASE = 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/CRDs/'
+/** Публікація [CRDs-catalog](https://github.com/datreeio/CRDs-catalog) на GitHub Pages (те саме дерево, що й raw на `main`). */
+const DATREE_CRD_BASE = 'https://datreeio.github.io/CRDs-catalog/'
 
 /**
  * Групи API Kubernetes, для яких у перевірці очікується схема yannh (не datree CRD catalog).

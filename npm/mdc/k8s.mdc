@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.8'
+version: '1.10'
 globs: "**/k8s/**/*.{yaml,yml}"
 alwaysApply: false
 ---
@@ -72,7 +72,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           persist-credentials: false
 
@@ -86,10 +86,14 @@ jobs:
           curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
           echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
 
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - uses: oven-sh/setup-bun@v2
 
       - name: Cache Bun dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.bun/install/cache
@@ -117,10 +121,10 @@ jobs:
 
 ## Що закодовано в `check-k8s.mjs`
 
-При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_REF`** (якщо зміниться гілка за замовчуванням у репо yannh), **`YANNH_GROUPS`**, а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** (число з PIN, наприклад `v1.33.9-standalone-strict` → **`1.33.9`**).
+При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_REF`** (якщо зміниться гілка за замовчуванням у репо yannh), **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** (GitHub Pages каталогу CRD), а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** і **`DATREE_CRD_SCHEMA_LOCATION`** (узгоджено з базою datree у цьому правилі).
 
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
-- **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree.
+- **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages).
 
 ## Коли застосовувати (агентам)
 
@@ -138,8 +142,22 @@ jobs:
 3. **`apiVersion: group/version`** і **group** у **`YANNH_GROUPS`** у скрипті → yannh:
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
    Приклади: `apps/v1` + `Deployment` → `deployment-apps-v1.json`; `networking.k8s.io/v1` + `Ingress` → `ingress-networking-k8s-io-v1.json`.
-4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog):
-   `https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/CRDs/<group>/<kind>_<version>.json`
+4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) через **GitHub Pages** (канон для `$schema` у редакторі):
+   `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`
+   (`<kind>` — лише літери та цифри в нижньому регістрі, без роздільників між CamelCase, як для yannh.)
+
+   **Приклад (Gateway API):** `apiVersion: gateway.networking.k8s.io/v1beta1`, `kind: HTTPRoute`:
+
+   ```yaml
+   # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json
+   ```
+
+   **Приклад (GKE):** `apiVersion: networking.gke.io/v1`, `kind: HealthCheckPolicy`:
+
+   ```yaml
+   # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
+   ```
+
 5. **Немає надійного публічного URL** — не вигадуй: залиш коректний `$schema` або `file:` за узгодженням.
 
 ## Багатодокументні YAML

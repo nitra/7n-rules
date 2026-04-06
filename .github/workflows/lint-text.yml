@@ -5,10 +5,6 @@ on:
     branches:
       - dev
     paths:
-      - '.cspell.json'
-      - '.gitignore'
-      - '.markdownlint-cli2.jsonc'
-      - '.v8rignore'
       - '**/*.js'
       - '**/*.ts'
       - '**/*.vue'
@@ -44,24 +40,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun-deps
 
       - name: Lint text
         run: bun run lint-text

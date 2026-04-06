@@ -16,7 +16,7 @@ jobs:
     steps:
       - id: delete_stuff
         name: Delete those pesky dead branches
-        uses: phpdocker-io/github-actions-delete-abandoned-branches@v2
+        uses: phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3
         with:
           github_token: ${{ github.token }}
           last_commit_age_days: 90

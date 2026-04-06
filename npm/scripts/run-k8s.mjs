@@ -23,7 +23,7 @@ const KUBERNETES_VERSION = '1.33.9'
 
 /** Додатковий реєстр схем для CRD (як у README kubeconform). */
 const DATREE_CRD_SCHEMA_LOCATION =
-  'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+  'https://datreeio.github.io/CRDs-catalog/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 /**
  * Чи містить шлях сегмент директорії `k8s`.

@@ -20,10 +20,16 @@
  * Після завантаження: у .cursor/rules видаляються файли *.mdc з префіксом «n-» (керовані
  * пакетом), яких немає у списку rules у .n-cursor.json. Інші .mdc у цій директорії залишаються.
  *
+ * Composite GitHub Action `.github/actions/setup-bun-deps/action.yml` копіюється з каталогу
+ * `github-actions/` пакету при кожному успішному синку (workflows з правил ga / js-lint / text).
+ *
  * Skills копіюються з npm/skills пакету лише для id з масиву «skills» у .n-cursor.json
  * (у JSON — без префікса, каталоги в проєкті — n-<id>, як і для правил). Якщо ключа skills
  * немає, за замовчуванням підтягуються всі bundled skills з префіксом n- у пакеті.
  * Зайві каталоги n-* у .cursor/skills, яких немає у списку, видаляються.
+ *
+ * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
+ * в dependencies), CLI дописує devDependencies з діапазоном ^<version> поточного пакету — зручно після npx.
  */
 
 import { existsSync } from 'node:fs'
@@ -31,6 +37,12 @@ import { mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs
 import { basename, dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
+
+import {
+  ensureNitraCursorInRootDevDependencies,
+  readBundledPackageVersion
+} from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 const CONFIG_FILE = '.n-cursor.json'
@@ -47,6 +59,8 @@ const BUNDLED_MDC_DIR = join(binDir, '..', 'mdc')
 const BUNDLED_SCRIPTS_DIR = join(binDir, '..', 'scripts')
 const BUNDLED_SKILLS_DIR = join(binDir, '..', 'skills')
 const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
+/** Корінь установленого пакету (каталог з `mdc/`, `github-actions/`, …) */
+const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 
 /**
  * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
@@ -203,24 +217,6 @@ function readBundledRuleContent(rule) {
     )
   }
   return readFile(bundledPath, 'utf8')
-}
-
-/**
- * Версія з `package.json` установленого пакету (каталог поруч із `bin/`).
- * @returns {Promise<string | null>} поле `version` рядком або `null`, якщо файлу немає / помилка парсингу
- */
-async function readBundledPackageVersion() {
-  const pkgPath = join(binDir, '..', 'package.json')
-  if (!existsSync(pkgPath)) {
-    return null
-  }
-  try {
-    const raw = await readFile(pkgPath, 'utf8')
-    const pkg = JSON.parse(raw)
-    return typeof pkg.version === 'string' ? pkg.version : null
-  } catch {
-    return null
-  }
 }
 
 /**
@@ -651,6 +647,14 @@ async function runSync() {
   console.log(`📋 Правил до завантаження: ${rules.length}`)
   console.log(`📋 Skills до синхронізації: ${skills.length}`)
 
+  try {
+    const { destPath } = await syncSetupBunDepsAction(cwd(), BUNDLED_PACKAGE_ROOT)
+    console.log(`📝 Оновлено ${destPath} (composite setup-bun-deps з пакету)\n`)
+  } catch (error) {
+    console.error(`❌ Не вдалося записати setup-bun-deps action: ${error.message}`)
+    throw error
+  }
+
   const rulesDir = join(cwd(), RULES_DIR)
   await mkdir(rulesDir, { recursive: true })
 
@@ -724,6 +728,7 @@ async function runSync() {
 const [command, ...args] = process.argv.slice(2)
 
 try {
+  await ensureNitraCursorInRootDevDependencies(cwd())
   if (command === 'check') {
     await runChecks(args)
   } else {

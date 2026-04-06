@@ -2,7 +2,8 @@
  * Перевіряє GitHub Actions за правилом ga.mdc.
  *
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
- * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json` і виклик у `lint-ga.yml`.
+ * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
+ * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx @nitra/cursor`).
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -32,6 +33,15 @@ export async function check() {
   if (!existsSync(wfDir)) {
     fail(`Директорія ${wfDir} не існує`)
     return exitCode
+  }
+
+  const setupBunDepsAction = '.github/actions/setup-bun-deps/action.yml'
+  if (existsSync(setupBunDepsAction)) {
+    pass(`${setupBunDepsAction} існує`)
+  } else {
+    fail(
+      `Відсутній ${setupBunDepsAction} — запустіть npx @nitra/cursor або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
+    )
   }
 
   const files = await readdir(wfDir)
