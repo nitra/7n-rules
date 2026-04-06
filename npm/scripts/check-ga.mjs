@@ -3,8 +3,11 @@
  *
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
  * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
- * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx \@nitra/cursor`),
+ * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx @nitra/cursor`),
  * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
+ *
+ * Заборонено дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах
+ * (oven-sh/setup-bun, actions/cache, bun install).
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -46,6 +49,33 @@ function verifyCheckoutBeforeLocalSetupBunDeps(relPath, content, failFn, passFn)
     return
   }
   passFn(`${relPath}: перед setup-bun-deps є checkout`)
+}
+
+/**
+ * Перевіряє, чи не використовуються oven-sh/setup-bun або actions/cache безпосередньо у workflow.
+ * @param {string} relPath шлях для повідомлень
+ * @param {string} content вміст YAML
+ * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
+ * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ */
+function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
+  const forbidden = [
+    { pattern: 'oven-sh/setup-bun', msg: 'використовуй .github/actions/setup-bun-deps замість oven-sh/setup-bun' },
+    { pattern: 'actions/cache', msg: 'використовуй .github/actions/setup-bun-deps замість actions/cache' },
+    { pattern: 'bun install', msg: 'використовуй .github/actions/setup-bun-deps замість bun install' }
+  ]
+
+  let foundForbidden = false
+  for (const { pattern, msg } of forbidden) {
+    if (content.includes(pattern)) {
+      failFn(`${relPath}: ${msg} (ga.mdc)`)
+      foundForbidden = true
+    }
+  }
+
+  if (!foundForbidden) {
+    passFn(`${relPath}: не містить заборонених кроків setup-bun/cache/install`)
+  }
 }
 
 /**
@@ -142,6 +172,12 @@ export async function check() {
     pass('Залишків MegaLinter не виявлено')
   }
 
+  for (const f of ymlWorkflows) {
+    const content = await readFile(join(wfDir, f), 'utf8')
+    verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${f}`, content, fail, pass)
+    verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
+  }
+
   const zizmorPath = '.github/zizmor.yml'
   if (existsSync(zizmorPath)) {
     const z = await readFile(zizmorPath, 'utf8')
@@ -189,15 +225,6 @@ export async function check() {
       pass('lint-ga.yml містить astral-sh/setup-uv')
     } else {
       fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
-    }
-    verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/lint-ga.yml`, lgContent, fail, pass)
-  }
-
-  for (const wfName of ['lint-js.yml', 'lint-text.yml']) {
-    const p = join(wfDir, wfName)
-    if (existsSync(p)) {
-      const body = await readFile(p, 'utf8')
-      verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${wfName}`, body, fail, pass)
     }
   }
 
