@@ -1,13 +1,11 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-action.json
+
 name: Setup Bun dependencies
-description: Checkout, Node 24, Bun, cache та bun install --frozen-lockfile
+description: Node 24, Bun, cache та bun install --frozen-lockfile (checkout — окремим кроком у workflow)
 
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v6
-      with:
-        persist-credentials: false
-
     - uses: actions/setup-node@v6
       with:
         node-version: '24'

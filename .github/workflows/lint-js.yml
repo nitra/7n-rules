@@ -28,6 +28,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Eslint

@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.23'
+version: '1.24'
 ---
 
 **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
@@ -107,13 +107,17 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Lint text
         run: bun run lint-text
 ```
 
-Composite **`.github/actions/setup-bun-deps/action.yml`** — checkout, Node 24, Bun, кеш і `bun install --frozen-lockfile` (див. **ga.mdc**).
+Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
 
 Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
 

@@ -3,7 +3,11 @@
  *
  * Перший рядок `# yaml-language-server: $schema=…`, без дублікатів, розширення `.yaml`
  * (окрім `kustomization.yml`); URL схеми за першим документом — kustomization / yannh / datree
- * (datree: `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`).
+ * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
+ *
+ * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
+ * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
+ * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  */
 import { readFile } from 'node:fs/promises'
@@ -24,6 +28,75 @@ const YANNH_BASE = `https://raw.githubusercontent.com/yannh/kubernetes-json-sche
 
 /** Публікація [CRDs-catalog](https://github.com/datreeio/CRDs-catalog) на GitHub Pages (те саме дерево, що й raw на `main`). */
 const DATREE_CRD_BASE = 'https://datreeio.github.io/CRDs-catalog/'
+
+/** Raw URL для окремих CRD, де в редакторі канон — `raw.githubusercontent.com` (див. k8s.mdc). */
+const DATREE_CRD_RAW_REF = 'main'
+
+const DATREE_CRD_RAW_BASE = `https://raw.githubusercontent.com/datreeio/CRDs-catalog/${DATREE_CRD_RAW_REF}/`
+
+/** У ключі `Map` означає «будь-який / відсутній `type`» (наприклад CRD без верхньорівневого `type:`). */
+const K8S_EXPLICIT_SCHEMA_TYPE_ANY = '*'
+
+/**
+ * Ключ запису в **`EXPLICIT_K8S_SCHEMAS`**: `apiVersion`, **`kind` як у YAML** (регістр як у маніфесті),
+ * `typeKey` — значення поля **`type:`** або **`K8S_EXPLICIT_SCHEMA_TYPE_ANY`**.
+ * @param {string} apiVersion повне значення `apiVersion` з маніфесту
+ * @param {string} kind значення `kind` з маніфесту (як у YAML)
+ * @param {string} typeKey значення верхньорівневого `type:` або `K8S_EXPLICIT_SCHEMA_TYPE_ANY`
+ * @returns {string} внутрішній ключ для `Map`
+ */
+function k8sExplicitSchemaMapKey(apiVersion, kind, typeKey) {
+  return `${apiVersion}\0${kind}\0${typeKey}`
+}
+
+/**
+ * Таблиця явних `$schema` для поєднань **`apiVersion` + `kind` + `type`** (див. k8s.mdc).
+ * Щоб додати рядок: визнач **`apiVersion`**, **`kind`**, при потребі **`type`**, вкажи **URL** і **reason**.
+ *
+ * @type {Map<string, { schema: string, reason: string }>}
+ */
+const EXPLICIT_K8S_SCHEMAS = new Map([
+  [
+    k8sExplicitSchemaMapKey('secrets.infisical.com/v1alpha1', 'InfisicalSecret', K8S_EXPLICIT_SCHEMA_TYPE_ANY),
+    {
+      schema: `${DATREE_CRD_RAW_BASE}secrets.infisical.com/infisicalsecret_v1alpha1.json`,
+      reason: 'InfisicalSecret v1alpha1 (явна таблиця схем, datree CRDs-catalog raw)'
+    }
+  ],
+  [
+    k8sExplicitSchemaMapKey('v1', 'Secret', 'kubernetes.io/basic-auth'),
+    {
+      schema: `${YANNH_BASE}secret-v1.json`,
+      reason: 'Secret type kubernetes.io/basic-auth (явна таблиця схем, yannh secret-v1.json)'
+    }
+  ]
+])
+
+/**
+ * Витягує верхньорівневе поле **`type:`** з документа (без повного YAML-парсера).
+ * @param {string} doc фрагмент YAML одного документа
+ * @returns {string | undefined} значення без лапок або undefined, якщо поля немає
+ */
+function extractTopLevelManifestType(doc) {
+  const m = doc.match(/^\s*type:\s*(\S+)\s*$/mu)
+  const raw = m?.[1]?.replaceAll(/^["']|["']$/gu, '')
+  return raw === undefined || raw === '' ? undefined : raw
+}
+
+/**
+ * Шукає схему в **`EXPLICIT_K8S_SCHEMAS`**: спочатку за точним **`type`**, потім за **`*`**.
+ * @param {string} apiVersion повне значення `apiVersion` з маніфесту
+ * @param {string} kind значення `kind` з маніфесту (як у YAML)
+ * @param {string | undefined} manifestType верхньорівневе поле `type` або undefined, якщо відсутнє
+ * @returns {{ schema: string, reason: string } | null} запис таблиці або null, якщо збігу немає
+ */
+function lookupExplicitK8sSchema(apiVersion, kind, manifestType) {
+  if (manifestType !== undefined) {
+    const exact = EXPLICIT_K8S_SCHEMAS.get(k8sExplicitSchemaMapKey(apiVersion, kind, manifestType))
+    if (exact) return exact
+  }
+  return EXPLICIT_K8S_SCHEMAS.get(k8sExplicitSchemaMapKey(apiVersion, kind, K8S_EXPLICIT_SCHEMA_TYPE_ANY)) ?? null
+}
 
 /**
  * Групи API Kubernetes, для яких у перевірці очікується схема yannh (не datree CRD catalog).
@@ -158,6 +231,12 @@ export function expectedSchemaUrl(filePath, doc) {
     }
   }
 
+  const manifestType = extractTopLevelManifestType(doc)
+  const explicit = lookupExplicitK8sSchema(apiVersion, kind, manifestType)
+  if (explicit) {
+    return { expected: explicit.schema, reason: explicit.reason }
+  }
+
   if (apiVersion === 'v1') {
     const k = kindToSchemaFilePart(kind)
     return { expected: `${YANNH_BASE}${k}-v1.json`, reason: 'core v1 (yannh)' }
@@ -182,6 +261,7 @@ export function expectedSchemaUrl(filePath, doc) {
   }
 
   const datreeKind = kindToSchemaFilePart(kind)
+
   const url = `${DATREE_CRD_BASE}${group}/${datreeKind}_${version}.json`
   return { expected: url, reason: 'CRD / група поза yannh (datree CRDs-catalog)' }
 }

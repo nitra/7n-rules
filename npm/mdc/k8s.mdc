@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.10'
+version: '1.12'
 globs: "**/k8s/**/*.{yaml,yml}"
 alwaysApply: false
 ---
@@ -124,7 +124,7 @@ jobs:
 При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_REF`** (якщо зміниться гілка за замовчуванням у репо yannh), **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** (GitHub Pages каталогу CRD), а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** і **`DATREE_CRD_SCHEMA_LOCATION`** (узгоджено з базою datree у цьому правилі).
 
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
-- **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages).
+- **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; далі перевіряється **`EXPLICIT_K8S_SCHEMAS`** (`Map`: `apiVersion` + `kind` + `type`, для записів без `type` у маніфесті — третій компонент **`*`**); потім `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages), крім рядків явної таблиці (наприклад **InfisicalSecret** — raw на `main`).
 
 ## Коли застосовувати (агентам)
 
@@ -139,12 +139,24 @@ jobs:
 2. **`apiVersion: v1`** → yannh, PIN набору схем **`v1.33.9-standalone-strict`**, ref репозиторію для raw URL — **`master`** (каталог версії не є коренем репо на GitHub):
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-v1.json`
    `<kind>`: літери в нижньому регістрі без роздільників між CamelCase (наприклад `Service` → `service`).
+
+   **`kind: Secret`** і **`type: kubernetes.io/basic-auth`** — той самий шаблон, **`secret-v1.json`**:
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json
+   ```
 3. **`apiVersion: group/version`** і **group** у **`YANNH_GROUPS`** у скрипті → yannh:
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
    Приклади: `apps/v1` + `Deployment` → `deployment-apps-v1.json`; `networking.k8s.io/v1` + `Ingress` → `ingress-networking-k8s-io-v1.json`.
-4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) через **GitHub Pages** (канон для `$schema` у редакторі):
+4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog). Типово для `$schema` у редакторі — **GitHub Pages**:
    `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`
    (`<kind>` — лише літери та цифри в нижньому регістрі, без роздільників між CamelCase, як для yannh.)
+
+   **Виняток — `InfisicalSecret`:** `apiVersion: secrets.infisical.com/v1alpha1`, `kind: InfisicalSecret` — канонічний modeline через **raw** на гілці **`main`** (не GitHub Pages):
+
+   ```yaml
+   # yaml-language-server: $schema=https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/secrets.infisical.com/infisicalsecret_v1alpha1.json
+   ```
 
    **Приклад (Gateway API):** `apiVersion: gateway.networking.k8s.io/v1beta1`, `kind: HTTPRoute`:
 

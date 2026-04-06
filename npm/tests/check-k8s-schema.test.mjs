@@ -54,4 +54,24 @@ describe('expectedSchemaUrl', () => {
     const { expected } = expectedSchemaUrl('base/k8s/hcp.yaml', doc)
     expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json')
   })
+
+  test('Secret v1 type kubernetes.io/basic-auth — yannh secret-v1.json', () => {
+    const doc =
+      'apiVersion: v1\nkind: Secret\ntype: kubernetes.io/basic-auth\nmetadata:\n  name: x\nstringData:\n  username: u\n'
+    const { expected, reason } = expectedSchemaUrl('base/k8s/basic-auth.yaml', doc)
+    expect(expected).toBe(
+      'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/secret-v1.json'
+    )
+    expect(reason).toContain('yannh')
+  })
+
+  test('InfisicalSecret v1alpha1 — datree raw (не GitHub Pages)', () => {
+    const doc =
+      'apiVersion: secrets.infisical.com/v1alpha1\nkind: InfisicalSecret\nmetadata:\n  name: x\nspec: {}\n'
+    const { expected, reason } = expectedSchemaUrl('base/k8s/infisical.yaml', doc)
+    expect(expected).toBe(
+      'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/secrets.infisical.com/infisicalsecret_v1alpha1.json'
+    )
+    expect(reason).toContain('InfisicalSecret')
+  })
 })

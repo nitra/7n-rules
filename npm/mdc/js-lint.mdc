@@ -1,7 +1,7 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.7'
+version: '1.8'
 ---
 
 **oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`:** `oxlint` (без `bunx`), **`bunx eslint`**, **`bunx jscpd`**; у CI — `bunx oxlint` / `bunx eslint` / `bunx jscpd`. Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
@@ -86,6 +86,10 @@ jobs:
     permissions:
       contents: read
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - uses: ./.github/actions/setup-bun-deps
 
       - name: Eslint
@@ -95,7 +99,7 @@ jobs:
           bunx jscpd .
 ```
 
-Composite **`.github/actions/setup-bun-deps/action.yml`** — checkout, Node 24, Bun, кеш і `bun install --frozen-lockfile` (див. **ga.mdc**).
+Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
 
 Один workflow на лінт JS; зайвий `lint.yml` з тими самими кроками — прибери.
 

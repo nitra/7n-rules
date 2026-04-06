@@ -3,7 +3,8 @@
  *
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
  * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
- * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx \@nitra/cursor`).
+ * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx \@nitra/cursor`),
+ * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -16,6 +17,36 @@ const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/
 
 /** Типові конфіги MegaLinter у корені репо */
 const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
+
+/**
+ * Якщо workflow викликає локальний setup-bun-deps, раніше у файлі має бути `actions/checkout@v…` (ga.mdc).
+ * @param {string} relPath шлях для повідомлень
+ * @param {string} content вміст YAML
+ * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
+ * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ * @returns {void}
+ */
+function verifyCheckoutBeforeLocalSetupBunDeps(relPath, content, failFn, passFn) {
+  const patterns = ['./.github/actions/setup-bun-deps', './npm/github-actions/setup-bun-deps']
+  let idxSetup = -1
+  for (const p of patterns) {
+    const i = content.indexOf(p)
+    if (i !== -1 && (idxSetup === -1 || i < idxSetup)) {
+      idxSetup = i
+    }
+  }
+  if (idxSetup === -1) {
+    return
+  }
+  const idxCheckout = content.indexOf('actions/checkout@v')
+  if (idxCheckout === -1 || idxCheckout > idxSetup) {
+    failFn(
+      `${relPath}: перед локальним setup-bun-deps потрібен крок actions/checkout@v6 — інакше runner не знайде action.yml (ga.mdc)`
+    )
+    return
+  }
+  passFn(`${relPath}: перед setup-bun-deps є checkout`)
+}
 
 /**
  * Перевіряє відповідність проєкту правилам ga.mdc
@@ -158,6 +189,15 @@ export async function check() {
       pass('lint-ga.yml містить astral-sh/setup-uv')
     } else {
       fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
+    }
+    verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/lint-ga.yml`, lgContent, fail, pass)
+  }
+
+  for (const wfName of ['lint-js.yml', 'lint-text.yml']) {
+    const p = join(wfDir, wfName)
+    if (existsSync(p)) {
+      const body = await readFile(p, 'utf8')
+      verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${wfName}`, body, fail, pass)
     }
   }
 
