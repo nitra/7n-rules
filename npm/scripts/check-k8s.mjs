@@ -12,7 +12,7 @@ import { pass } from './utils/pass.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
-const YANNH_PIN = 'v1.29.1-standalone-strict'
+const YANNH_PIN = 'v1.33.9-standalone-strict'
 
 const KUSTOMIZATION_SCHEMA = 'https://json.schemastore.org/kustomization.json'
 

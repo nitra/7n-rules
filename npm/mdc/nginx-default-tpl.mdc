@@ -103,7 +103,10 @@ spec:
 В Dockerfile потрібно додати команду для стиснення файлів, які потім використовуватимуться з `gzip_static on`:
 
 ```dockerfile
-RUN for s in js css map xml webmanifest html wasm; do find /usr/share/nginx/html -type f -name "*.$$s" -exec gzip -k {} +; done
+RUN find /usr/share/nginx/html -type f \( \
+  -name '*.js' -o -name '*.css' -o -name '*.map' -o -name '*.xml' -o \
+  -name '*.webmanifest' -o -name '*.html' -o -name '*.wasm' -o -name '*.ttf' \
+  \) -exec gzip -k {} +
 ```
 
 Поруч з файлом default.conf.template повинні бути конфігураційні файли *.ini для різних середовищ. В Dockerfile повинна бути команда, для заміни плейсхолдерів в цих файлах на значення з середовища:

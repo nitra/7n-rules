@@ -10,6 +10,7 @@
  * (локально: Homebrew, релізи GitHub; у CI — крок установки з k8s.mdc).
  *
  * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у check-k8s.mjs / k8s.mdc.
+ * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
  */
 import { spawnSync } from 'node:child_process'
 import { basename, dirname } from 'node:path'
@@ -17,7 +18,7 @@ import { basename, dirname } from 'node:path'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія Kubernetes для kubeconform — синхронно з YANNH_PIN (без префікса v і суфікса -standalone-strict). */
-const KUBERNETES_VERSION = '1.29.1'
+const KUBERNETES_VERSION = '1.33.9'
 
 /** Додатковий реєстр схем для CRD (як у README kubeconform). */
 const DATREE_CRD_SCHEMA_LOCATION =
@@ -93,6 +94,7 @@ function runKubeconform(dirs) {
 
 /**
  * Запускає kubescape scan для кожного каталогу окремо (узгоджено з прикладами CLI).
+ * Немає прапорця версії Kubernetes — за потреби додай `scan framework <ім’я>` під CIS/інші набори.
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
  * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо kubescape відсутній у PATH
  */

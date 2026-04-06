@@ -144,7 +144,7 @@ jobs:
 {
   "version": "0.2",
   "language": "nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": []
 }
@@ -190,7 +190,7 @@ jobs:
 {
   "version": "0.2",
   "language": "en,uk,nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
   "import": [
     "@nitra/cspell-dict/cspell-ext.json",
     "@cspell/dict-uk-ua/cspell-ext.json"
