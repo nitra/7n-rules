@@ -15,7 +15,8 @@
 ```json
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "rules": ["js-format", "npm-module", "text"]
+  "rules": ["js-format", "npm-module", "text"],
+  "skills": ["fix"]
 }
 ```
 
@@ -33,9 +34,14 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
   "version": "2.5.0",
-  "rules": ["js-format", "text"]
+  "rules": ["js-format", "text"],
+  "skills": ["fix"]
 }
 ```
+
+### v8r і власний каталог схем
+
+Для перевірки `.n-cursor.json` через [v8r](https://chris48s.github.io/v8r/) передайте каталог пакета (`-c` / `--catalogs`): локально `node_modules/@nitra/cursor/schemas/v8r-catalog.json`, після публікації також [unpkg](https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json). JSON Schema конфігурації: [n-cursor.json](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
 
 ## Запуск
 

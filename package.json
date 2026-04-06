@@ -13,7 +13,7 @@
     "start": "bun ./npm/bin/n-cursor.js",
     "lint": "bun run lint-js && bun run lint-text && bun run lint-ga",
     "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd .",
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])",
+    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && (bunx v8r \"**/*.json\" -c npm/schemas/v8r-catalog.json || [ $? -eq 98 ]) && (bunx v8r \"**/*.yml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.yaml\" || [ $? -eq 98 ]) && (bunx v8r \"**/*.toml\" || [ $? -eq 98 ])",
     "lint-ga": "bunx node-actionlint && uvx zizmor --offline --collect=workflows ."
   },
   "devDependencies": {

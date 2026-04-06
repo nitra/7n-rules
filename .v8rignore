@@ -1,2 +1,4 @@
 .vscode/extensions.json
 .vscode/settings.json
+.git/**
+npm/schemas/n-cursor.json

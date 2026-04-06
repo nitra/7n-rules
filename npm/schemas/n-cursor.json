@@ -4,11 +4,12 @@
   "title": "n-cursor project config",
   "description": "Конфігурація правил і skills для CLI @nitra/cursor (файл .n-cursor.json у корені репозиторію).",
   "type": "object",
-  "additionalProperties": true,
+  "additionalProperties": false,
   "properties": {
     "$schema": {
       "type": "string",
-      "description": "Посилання на JSON Schema для автодоповнення та валідації в IDE; має збігатися з $id цієї схеми (рекомендовано завжди вказувати)."
+      "format": "uri",
+      "description": "Посилання на JSON Schema для автодоповнення та валідації в IDE; очікувано https://unpkg.com/@nitra/cursor/schemas/n-cursor.json"
     },
     "rules": {
       "type": "array",
@@ -20,12 +21,16 @@
     },
     "skills": {
       "type": "array",
-      "description": "Ідентифікатори skills без префікса n- (каталог .cursor/skills).",
+      "description": "Ідентифікатори skills без префікса n- (каталог .cursor/skills). Якщо відсутній, CLI доповнить списком skills з пакету.",
       "items": {
         "type": "string",
         "minLength": 1
       }
+    },
+    "version": {
+      "type": "string",
+      "description": "Версія пакету @nitra/cursor на unpkg для завантаження правил (необов'язково, інакше latest)."
     }
   },
-  "required": ["rules", "skills"]
+  "required": ["rules"]
 }

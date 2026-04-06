@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json.schemastore.org/schema-catalog.json",
+  "version": 1,
+  "schemas": [
+    {
+      "name": "n-cursor.json",
+      "description": "Конфігурація @nitra/cursor (.n-cursor.json у корені репозиторію)",
+      "url": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+      "fileMatch": [".n-cursor.json", "**/.n-cursor.json", ".n-cursor.example.json", "**/.n-cursor.example.json"]
+    },
+    {
+      "name": "schema-catalog",
+      "description": "Каталог схем Schema Store (v8r-catalog.json у пакеті)",
+      "url": "https://json.schemastore.org/schema-catalog.json",
+      "fileMatch": ["npm/schemas/v8r-catalog.json"]
+    }
+  ]
+}

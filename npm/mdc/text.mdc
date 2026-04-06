@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.17'
+version: '1.18'
 ---
 
 **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
@@ -31,13 +31,14 @@ version: '1.17'
 }
 ```
 
-**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. Враховує `.gitignore`.
+**v8r:** чотири виклики `(bunx v8r "<glob>" || [ $? -eq 98 ])` — exit **98**, якщо glob порожній. Враховує `.gitignore`. Опційно для глобу `**/*.json` додай **власний каталог схем** [`--catalogs`](https://chris48s.github.io/v8r/usage-examples/#using-a-custom-catlog) (наприклад `-c npm/schemas/v8r-catalog.json` у репозиторії пакета `@nitra/cursor` або `-c https://unpkg.com/@nitra/cursor/schemas/v8r-catalog.json`), щоб перевіряти **`.n-cursor.json`** за схемою з [unpkg](https://unpkg.com/@nitra/cursor/schemas/n-cursor.json).
 
-У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в [Schema Store](https://www.schemastore.org/); для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі). Інші файли без схеми — за тією ж логікою; не розширюй ignore, щоб приховати проблеми там, де схема є.
+У корені проєкту має бути **`.v8rignore`**: **v8r** шукає схему в [Schema Store](https://www.schemastore.org/); для JSON без запису там перевірка завершується помилкою. Мінімум виключи **`.vscode/extensions.json`** і **`.vscode/settings.json`** (немає стабільної схеми в каталозі). Інші файли без схеми — за тією ж логікою; не розширюй ignore, щоб приховати проблеми там, де схема є. За потреби додай **`.git/**`** (службові JSON під `.git`) та **`npm/schemas/n-cursor.json`** у репозиторії `@nitra/cursor`, якщо для цього файлу немає стабільної схеми в ланцюжку v8r.
 
 ```text title=".v8rignore"
 .vscode/extensions.json
 .vscode/settings.json
+.git/**
 ```
 
 ```json title=".markdownlint-cli2.jsonc"
