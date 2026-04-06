@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
 alwaysApply: true
-version: '1.22'
+version: '1.23'
 ---
 
 **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
@@ -18,7 +18,7 @@ version: '1.22'
 }
 ```
 
-**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**. Для української додай **`@cspell/dict-uk-ua`**. **`v8r`** лише через **`bun x v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
+**`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**. Для української додай **`@cspell/dict-uk-ua`**. **`markdownlint-cli2`** викликай у `lint-text` лише через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bun x v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
 У v8r **немає** прапорця тихого режиму; рекомендовано скрипт **`run-v8r.mjs`** з репозиторію пакета `@nitra/cursor` (`npm/scripts/run-v8r.mjs`): один виклик у `lint-text` — під капотом послідовні **`bun x v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` скрипт підставляє в v8r сам. За бажання можна передати власні glob-и аргументами скрипта. Шлях до скрипта: `./npm/scripts/…`, `./scripts/…` після копіювання, або `node_modules/@nitra/cursor/scripts/…`.
 
@@ -157,8 +157,7 @@ Composite **`.github/actions/setup-bun-deps/action.yml`** — checkout, Node 24,
   "devDependencies": {
     "@nitra/cspell-dict": "^1.0.185",
     "@cspell/dict-uk-ua": "^4.0.6",
-    "@cspell/dict-ru_ru": "^2.3.2",
-    "markdownlint-cli2": "^0.22.0"
+    "@cspell/dict-ru_ru": "^2.3.2"
   }
 }
 ```

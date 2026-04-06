@@ -1,7 +1,7 @@
 /**
  * Перевіряє текстовий стек за правилом text.mdc.
  *
- * cspell, markdownlint-cli2, скрипт `lint-text` з v8r (`run-v8r.mjs` або чотири `bunx v8r`),
+ * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без devDependencies), v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
  * workflow `lint-text.yml`, розширення VSCode для markdownlint.
  *
@@ -41,7 +41,7 @@ function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам text.mdc (cspell, markdownlint-cli2, v8r)
+ * Перевіряє відповідність проєкту правилам text.mdc (cspell, markdownlint через bunx, v8r)
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
@@ -152,12 +152,6 @@ export async function check() {
       pass('@nitra/cspell-dict є в devDependencies')
     } else {
       fail('@nitra/cspell-dict відсутній — bun add -d @nitra/cspell-dict')
-    }
-
-    if (devDeps['markdownlint-cli2']) {
-      pass('markdownlint-cli2 є в devDependencies')
-    } else {
-      fail('markdownlint-cli2 відсутній — bun add -d markdownlint-cli2 (n-text.mdc)')
     }
 
     const lintText = pkg.scripts?.['lint-text']

@@ -1,5 +1,5 @@
 /**
- * Мінімальний тестовий каталог для check-text (репозиторій cursor зараз не проходить check-text без markdownlint-cli2 у корені).
+ * Мінімальний тестовий каталог для check-text (cspell, markdownlint-cli2 через bunx у lint-text, v8r).
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -48,8 +48,7 @@ description: test
         name: 'text-fixture',
         private: true,
         devDependencies: {
-          '@nitra/cspell-dict': '^1.0.0',
-          'markdownlint-cli2': '^0.22.0'
+          '@nitra/cspell-dict': '^1.0.0'
         },
         scripts: {
           'lint-text':
