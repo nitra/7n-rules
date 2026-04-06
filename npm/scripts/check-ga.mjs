@@ -94,10 +94,10 @@ export async function check() {
 
   if (files.includes('apply-k8s.yml')) {
     const content = await readFile(`${wfDir}/apply-k8s.yml`, 'utf8')
-    if (content.includes('**/k8s/*.yaml')) {
+    if (content.includes('**/k8s/**/*.yaml')) {
       pass('apply-k8s.yml має правильний paths trigger')
     } else {
-      fail('apply-k8s.yml не містить paths: **/k8s/*.yaml')
+      fail('apply-k8s.yml не містить paths: **/k8s/**/*.yaml')
     }
   }
 
