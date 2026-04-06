@@ -1,0 +1,85 @@
+npm/mdc/js-lint.mdc
+  1b29930f49968854 4,89-92,102
+npm/mdc/ga.mdc
+  1b29930f49968854 4,99-102,111
+npm/scripts/check-k8s.mjs
+  bf1145b55872eb33 6-10,32-99,234-238
+.github/workflows/lint-ga.yml
+  1b29930f49968854 25-28
+npm/tests/check-k8s-schema.test.mjs
+  bf1145b55872eb33 57-76
+.cursor/rules/n-ga.mdc
+  1b29930f49968854 4,99-102,111
+npm/github-actions/setup-bun-deps/action.yml
+  1b29930f49968854 4
+  b859cae0d132a603 1-2
+.github/actions/setup-bun-deps/action.yml
+  b859cae0d132a603 1-2
+  1b29930f49968854 4
+.cursor/rules/n-text.mdc
+  1b29930f49968854 4,110-113,120
+.cursor/rules/n-js-lint.mdc
+  1b29930f49968854 4,89-92,102
+npm/mdc/text.mdc
+  1b29930f49968854 4,110-113,120
+.github/workflows/lint-js.yml
+  1b29930f49968854 31-34
+npm/package.json
+  bf1145b55872eb33 3
+npm/scripts/sync-setup-bun-deps-action.mjs
+  1b29930f49968854 6
+npm/mdc/k8s.mdc
+  bf1145b55872eb33 3,127,142-147,151,155-159
+npm/scripts/check-ga.mjs
+  1b29930f49968854 6-7,22-50,193-201
+.github/workflows/lint-text.yml
+  1b29930f49968854 43-46
+.vscode/settings.json
+  b859cae0d132a603 2,4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "3ffebecb82e0c20abba14bb98d789b0f9dd60d51",
+  "prompts": {
+    "1b29930f49968854": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4467af6-6664-46f3-a035-2dacdafc488d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 102,
+      "total_deletions": 33,
+      "accepted_lines": 92,
+      "overriden_lines": 1
+    },
+    "b859cae0d132a603": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "acc4d6b9-1010-40f0-8283-0f43c2e02ca8",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 1
+    },
+    "bf1145b55872eb33": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9a94f846-cc2c-4d1a-b6f5-f4d2c360f5be",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 141,
+      "total_deletions": 29,
+      "accepted_lines": 117,
+      "overriden_lines": 0
+    }
+  }
+}
