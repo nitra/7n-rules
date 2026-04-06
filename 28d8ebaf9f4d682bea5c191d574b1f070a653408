@@ -1,0 +1,36 @@
+npm/scripts/check-ga.mjs
+  2a6ab8b2a24069a9 3,7-11,77-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "28d8ebaf9f4d682bea5c191d574b1f070a653408",
+  "prompts": {
+    "2a6ab8b2a24069a9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bc79e46c-a58b-4293-8a9a-2da4cfa223af",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 59,
+      "total_deletions": 9,
+      "accepted_lines": 50,
+      "overriden_lines": 0
+    },
+    "c38cb091dc4dd287": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ea50ff9e-8bd1-42e9-9ea6-d8ad7d83c2b3",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0
+    }
+  }
+}
