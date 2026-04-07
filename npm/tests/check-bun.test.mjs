@@ -4,8 +4,17 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../scripts/check-bun.mjs'
+import { check, isAllowedRootDevDependency } from '../scripts/check-bun.mjs'
 import { withTmpCwd, writeJson } from './helpers.mjs'
+
+describe('isAllowedRootDevDependency', () => {
+  test('дозволені лише @cspell/ та @nitra/', () => {
+    expect(isAllowedRootDevDependency('@cspell/dict-uk-ua')).toBe(true)
+    expect(isAllowedRootDevDependency('@nitra/eslint-config')).toBe(true)
+    expect(isAllowedRootDevDependency('lodash')).toBe(false)
+    expect(isAllowedRootDevDependency('@types/node')).toBe(false)
+  })
+})
 
 describe('check-bun', () => {
   test('успіх: bun.lock, мінімальний package.json', async () => {
@@ -22,6 +31,42 @@ describe('check-bun', () => {
       await writeFile('package-lock.json', '{}', 'utf8')
       await writeJson('package.json', { name: 't' })
       expect(await check()).toBe(1)
+    })
+  })
+
+  test('помилка: поле dependencies у корені', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeJson('package.json', {
+        name: 't',
+        private: true,
+        dependencies: { lodash: '^4.0.0' }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('помилка: зайвий пакет у кореневих devDependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeJson('package.json', {
+        name: 't',
+        private: true,
+        devDependencies: { lodash: '^4.0.0' }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('успіх: кореневі devDependencies лише @nitra/*', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeJson('package.json', {
+        name: 't',
+        private: true,
+        devDependencies: { '@nitra/eslint-config': '^3.0.0' }
+      })
+      expect(await check()).toBe(0)
     })
   })
 

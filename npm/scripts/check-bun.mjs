@@ -1,8 +1,11 @@
 /**
- * Перевіряє відповідність репозиторію правилам Bun (n-bun.mdc).
+ * Перевіряє відповідність репозиторію правилам Bun (bun.mdc).
  *
  * Очікує наявність `bun.lock`, забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn`
  * і поле `packageManager` у кореневому `package.json`.
+ *
+ * У кореневому `package.json` не має бути поля **`dependencies`**; у **`devDependencies`** дозволені
+ * лише пакети з префіксами **`@cspell/`** та **`@nitra/`** (інші залежності — у workspace-пакетах).
  *
  * Якщо в `.n-cursor.json` у `rules` є `docker` або `k8s`, вимагає у кореневому `package.json`
  * відповідно скриптів `lint-docker` / `lint-k8s` (див. docker.mdc, k8s.mdc).
@@ -15,6 +18,15 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+
+/**
+ * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише `@cspell/*` та `@nitra/*`).
+ * @param {string} name ключ з поля `devDependencies`
+ * @returns {boolean} true, якщо префікс дозволений
+ */
+export function isAllowedRootDevDependency(name) {
+  return name.startsWith('@cspell/') || name.startsWith('@nitra/')
+}
 
 /**
  * Зчитує ідентифікатори правил з `.n-cursor.json` (поле `rules`).
@@ -75,6 +87,37 @@ export async function check() {
       fail(`package.json містить поле packageManager: "${pkg.packageManager}" — видали його`)
     } else {
       pass('package.json не містить packageManager')
+    }
+
+    if (pkg.dependencies === undefined) {
+      pass('Кореневий package.json без поля `dependencies`')
+    } else {
+      fail(
+        'Кореневий package.json не повинен містити поле `dependencies` — додай залежності в workspace-пакети (bun.mdc)'
+      )
+    }
+
+    const dev = pkg.devDependencies
+    if (dev === undefined) {
+      pass('Кореневий package.json без devDependencies')
+    } else if (dev === null || typeof dev !== 'object' || Array.isArray(dev)) {
+      fail(
+        'Кореневий package.json: `devDependencies` має бути object з ключами пакетів і діапазонами версій (не null, не масив)'
+      )
+    } else {
+      const bad = Object.keys(dev).filter(n => !isAllowedRootDevDependency(n))
+      if (bad.length > 0) {
+        fail(
+          `Кореневі devDependencies дозволені лише @cspell/* та @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`
+        )
+      } else {
+        const n = Object.keys(dev).length
+        pass(
+          n === 0
+            ? 'Кореневі devDependencies порожні (дозволені лише @cspell/* та @nitra/*)'
+            : `Кореневі devDependencies лише @cspell/* та @nitra/* (${n} пак.)`
+        )
+      }
     }
 
     const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {}
