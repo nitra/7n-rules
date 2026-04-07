@@ -4,9 +4,12 @@
 import { describe, expect, test } from 'bun:test'
 
 import {
+  baseKustomizationNamespaceViolation,
   deploymentImagePullPolicyViolation,
   deploymentResourcesViolation,
   expectedSchemaUrl,
+  isBaseKustomizationPath,
+  isForbiddenK8sDevPath,
   isRuKustomizationPath,
   metadataNamespaceForbiddenViolation,
   pathHasK8sSegment,
@@ -42,6 +45,38 @@ patches:
 
   test('false без $patch: delete', () => {
     expect(ruKustomizationHasHealthCheckDeletePatch('kind: HealthCheckPolicy')).toBe(false)
+  })
+})
+
+describe('isForbiddenK8sDevPath', () => {
+  test('true для …/k8s/dev/…', () => {
+    expect(isForbiddenK8sDevPath('app/k8s/dev/foo.yaml')).toBe(true)
+  })
+
+  test('false без k8s/dev як каталогу', () => {
+    expect(isForbiddenK8sDevPath('app/k8s/base/kustomization.yaml')).toBe(false)
+    expect(isForbiddenK8sDevPath('app/k8s/development.yaml')).toBe(false)
+  })
+})
+
+describe('isBaseKustomizationPath', () => {
+  test('true для k8s/base/kustomization.yaml або .yml', () => {
+    expect(isBaseKustomizationPath('x/k8s/base/kustomization.yaml')).toBe(true)
+    expect(isBaseKustomizationPath('k8s/base/kustomization.yml')).toBe(true)
+  })
+
+  test('false для інших kustomization', () => {
+    expect(isBaseKustomizationPath('k8s/prod/kustomization.yaml')).toBe(false)
+  })
+})
+
+describe('baseKustomizationNamespaceViolation', () => {
+  test('null для непорожнього namespace', () => {
+    expect(baseKustomizationNamespaceViolation({ namespace: 'dev', resources: [] })).toBeNull()
+  })
+
+  test('помилка без namespace', () => {
+    expect(baseKustomizationNamespaceViolation({ resources: [] })).toContain('namespace')
   })
 })
 

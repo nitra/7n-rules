@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.16'
+version: '1.18'
 globs: "**/k8s/**/*.{yaml,yml}"
 alwaysApply: false
 ---
@@ -145,7 +145,7 @@ resources: {}
 ### Namespace
 
 - У **`base/kustomization.yaml`** задай **`namespace: dev`** (або узгоджене ім’я для dev **namespace**), щоб **усі ресурси base** потрапляли в цей namespace через Kustomize.
-- У **маніфестах ресурсів** (Deployment, Service, …) **не вказуй** **`metadata.namespace`** — **namespace** задається **лише в файлах Kustomize** (`kustomization.yaml` / `kustomization.yml`), полем верхнього рівня **`namespace:`**.
+
 - **Не додавай** окремі **patches** Kustomize, які лише змінюють **namespace**: **namespace** визначає Kustomize; у overlays додаткові зміни — без дублювання логіки **namespace**.
 
 ### Рядки, що змінюються між середовищами
@@ -157,10 +157,6 @@ resources: {}
   ```
 
   Текст коментаря узгодь у команді; важливо, щоб було видно, що значення **навіть у base** може бути замінене overlay.
-
-### Документація в дереві k8s
-
-- У каталозі **`k8s`** (корінь оголошеного дерева маніфестів) має бути **`README.md`**: коротко опиши структуру (`base`, overlays), як зібрати/застосувати середовища, посилання на внутрішні правила команди.
 
 ### Міграція зі старої структури
 
@@ -199,7 +195,7 @@ resources: {}
 
 ## Перевірка
 
-**`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче; для кожного документа **`Deployment`** — **`containers[].resources`**, **`imagePullPolicy: Always`**; у файлах **не** `kustomization.yaml` / `kustomization.yml` — заборона **`metadata.namespace`** (**namespace** лише в Kustomize, див. **Kustomize: структура каталогів**); заборона **`kind: Ingress`**; наявність **`HealthCheckPolicy`** — вимога до **`ru/kustomization.yaml`** з **`$patch: delete`** (див. **Ingress → Gateway API**). Якщо під `k8s` немає yaml/yml — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
+**`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче; для кожного документа **`Deployment`** — **`containers[].resources`**, **`imagePullPolicy: Always`**; заборона **`kind: Ingress`**; наявність **`HealthCheckPolicy`** — вимога до **`ru/kustomization.yaml`** з **`$patch: delete`** (див. **Ingress → Gateway API**); заборона шляхів **`…/k8s/dev/…`**; якщо існує **`k8s/base/kustomization.yaml`** (або **`.yml`**) — непорожній **`namespace`** у першому документі. Якщо під `k8s` немає yaml/yml — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
 
 Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape; обов'язково для проєктів з правилом **`k8s`** у **`.n-cursor.json`**).
 
@@ -213,13 +209,15 @@ resources: {}
 - У файлах, ім’я яких **не** `kustomization.yaml` / `kustomization.yml`, у кожному документі — заборона поля **`metadata.namespace`** (**namespace** задається в Kustomize).
 - Документи з **`kind: Ingress`** — заборонені (потрібен перехід на Gateway API, див. розділ **Ingress → Gateway API**).
 - Якщо в будь-якому файлі під **`k8s`** є **`kind: HealthCheckPolicy`**, серед файлів має бути **`ru/kustomization.yaml`** (сегмент шляху **`ru`** перед іменем файлу), а його вміст — patch видалення **HealthCheckPolicy** з **`$patch: delete`** (див. той самий розділ).
+- Заборона шляхів **`…/k8s/dev/…`** (окремої директорії **`dev`** під **`k8s`** не має бути).
+- Якщо існує **`k8s/base/kustomization.yaml`** (або **`.yml`**), у першому документі має бути непорожнє поле **`namespace`** (типово **`dev`**; див. розділ **Namespace**).
 
 ## Коли застосовувати (агентам)
 
 - Зміни в k8s YAML — після правок **`check k8s`**.
 - Якщо перший рядок уже коректний і URL відповідає `apiVersion` / `kind` — не дублюй; змінився ресурс — онови лише `$schema`.
 - У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**); додай **`imagePullPolicy: Always`** для кожного контейнера.
-- Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, **`README.md`** у `k8s`, коментарі для рядків, що змінюються в overlay).
+- Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, коментарі для рядків, що змінюються в overlay).
 - Після міграції на нову структуру **видали** застарілі файли та каталоги, які вже замінені (див. **Міграція зі старої структури**).
 
 ## Визначення схеми YAML (канон)

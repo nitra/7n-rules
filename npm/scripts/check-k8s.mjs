@@ -15,6 +15,9 @@
  * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API). Якщо є **`HealthCheckPolicy`**,
  * має існувати **`ru/kustomization.yaml`** з patch видалення цього kind (`$patch: delete`).
  *
+ * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; якщо є **`…/k8s/base/kustomization.yaml`**
+ * (або **`.yml`**), у першому документі має бути непорожнє поле **`namespace`**.
+ *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
@@ -151,6 +154,43 @@ export function pathHasK8sSegment(filePath) {
 }
 
 /**
+ * Чи заборонений шлях з окремою директорією **`dev`** під **`k8s`** (джерело правди — **`base`**).
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true для `…/k8s/dev/…`
+ */
+export function isForbiddenK8sDevPath(rel) {
+  const n = rel.replaceAll('\\', '/')
+  return n.includes('/k8s/dev/')
+}
+
+/**
+ * Чи це **`k8s/base/kustomization.yaml`** або **`kustomization.yml`** (перевірка поля **`namespace`**).
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true, якщо це `…/k8s/base/kustomization.yaml` або `…/k8s/base/kustomization.yml`
+ */
+export function isBaseKustomizationPath(rel) {
+  const n = rel.replaceAll('\\', '/')
+  return /(^|\/)k8s\/base\/kustomization\.yaml$/u.test(n) || /(^|\/)k8s\/base\/kustomization\.yml$/u.test(n)
+}
+
+/**
+ * Чи коректне поле **`namespace`** у розібраному Kustomization для **`base`**.
+ * @param {unknown} obj перший документ YAML
+ * @returns {string | null} текст порушення або null, якщо ок
+ */
+export function baseKustomizationNamespaceViolation(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return 'у base/kustomization.yaml має бути непорожній namespace (див. k8s.mdc)'
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const ns = rec.namespace
+  if (typeof ns === 'string' && ns.trim() !== '') {
+    return null
+  }
+  return 'у base/kustomization.yaml має бути непорожній namespace (наприклад namespace: dev; див. k8s.mdc)'
+}
+
+/**
  * Збирає всі yaml/yml під деревом від кореня cwd, якщо шлях містить сегмент `k8s`.
  * @param {string} root корінь репозиторію (cwd)
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
@@ -163,7 +203,8 @@ async function findK8sYamlFiles(root) {
     if (!/\.ya?ml$/iu.test(p)) return
     out.push(p)
   })
-  return out.toSorted((a, b) => a.localeCompare(b))
+  // eslint-disable-next-line unicorn/no-array-sort -- toSorted потребує lib ES2023 у перевірці типів IDE
+  return [...out].sort((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -602,6 +643,59 @@ async function checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles) {
 }
 
 /**
+ * Реєструє порушення для шляхів виду **`…/k8s/dev/…`** (окремої директорії **dev** не має бути).
+ * @param {string[]} yamlFiles абсолютні шляхи
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} fail callback для реєстрації порушення
+ * @returns {void}
+ */
+function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
+  for (const abs of yamlFiles) {
+    const rel = relative(root, abs).replaceAll('\\', '/')
+    if (isForbiddenK8sDevPath(rel)) {
+      fail(`${rel}: заборонена директорія k8s/dev/ — середовище dev відповідає base (див. k8s.mdc)`)
+    }
+  }
+}
+
+/**
+ * Якщо є **`k8s/base/kustomization.yaml`**, у ньому має бути непорожній **`namespace`**.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFiles абсолютні шляхи
+ * @param {(msg: string) => void} fail callback для реєстрації порушення
+ * @returns {Promise<void>}
+ */
+async function ensureBaseKustomizationHasNamespace(root, yamlFiles, fail) {
+  for (const abs of yamlFiles) {
+    const rel = relative(root, abs).replaceAll('\\', '/')
+    if (isBaseKustomizationPath(rel)) {
+      try {
+        const raw = await readFile(abs, 'utf8')
+        const lines = toLines(raw)
+        const body = yamlBodyAfterModeline(lines)
+        /** @type {import('yaml').Document[] | undefined} */
+        let docs
+        try {
+          docs = parseAllDocuments(body)
+        } catch {
+          fail(`${rel}: не вдалося розпарсити YAML для перевірки namespace у base (див. k8s.mdc)`)
+        }
+        if (docs !== undefined) {
+          const first = docs[0]?.toJSON()
+          const v = baseKustomizationNamespaceViolation(first)
+          if (v) {
+            fail(`${rel}: ${v}`)
+          }
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати (${msg})`)
+      }
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам k8s.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -622,6 +716,8 @@ export async function check() {
 
   pass(`YAML у k8s: ${yamlFiles.length} файл(ів)`)
 
+  assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
+
   /** @type {string[]} */
   const healthCheckPolicyFiles = []
 
@@ -630,6 +726,8 @@ export async function check() {
   }
 
   await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyFiles, fail)
+
+  await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 
   return exitCode
 }
