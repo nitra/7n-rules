@@ -27,8 +27,24 @@
 | `js-format`  | Правила форматування JavaScript ecosystem (oxfmt) |
 | `npm-module` | Структура репозиторію для npm-модуля (bun mono)   |
 | `text`       | Текстові файли: cspell, CI                        |
+| `k8s`        | Kubernetes YAML, Kustomize, kubeconform           |
 
 Щоб використовувати конкретну версію правил, оновіть залежність `@nitra/cursor` у проєкті (`bun add -d @nitra/cursor@<версія>` тощо). Поле `version` у `.n-cursor.json`, якщо воно лишилось у старих конфігах, **ігнорується**.
+
+### Правило `k8s` і Kustomize
+
+У цільовому репозиторії з маніфестами під **`**/k8s`** дотримуйтесь **`mdc/k8s.mdc`** з пакету (після синку — `.cursor/rules/n-k8s.mdc`або копія з`node_modules/@nitra/cursor/mdc/k8s.mdc`).
+
+Коротко:
+
+- **Структура Kustomize:** спільне виноситься в **`base`**; вміст **base** відповідає тому, як має виглядати середовище **dev**; окремої директорії **`dev/`** немає — за dev відповідає **`base`**. У інших середовищах — тонкі **overlays** (часто лише **`kustomization.yaml`** і patches / оверрайди).
+- У каталозі **`k8s`** має бути **`README.md`** з описом дерев і застосування.
+- **Namespace** задається в **`kustomization.yaml`** (`namespace:`), а не через **`metadata.namespace`** у кожному ресурсі; окремі patches лише на зміну **namespace** не потрібні.
+- У **Deployment** для кожного контейнера: **`resources`**, **`imagePullPolicy: Always`** (перевіряє **`npx @nitra/cursor check k8s`**).
+- Рядки в **base**, які змінюються в overlays, позначайте коментарем на рядку (узгоджено в команді), наприклад: `# буде замінено через kustomize`.
+- Після перенесення в **`base`** / overlays **видаляйте** застарілі маніфести та каталоги, які більше не потрібні.
+
+Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/scripts/check-k8s.mjs`** (у встановленому пакеті — `scripts/check-k8s.mjs`).
 
 ### v8r і власний каталог схем
 

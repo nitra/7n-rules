@@ -3,7 +3,47 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { deploymentResourcesViolation, expectedSchemaUrl, pathHasK8sSegment } from '../scripts/check-k8s.mjs'
+import {
+  deploymentImagePullPolicyViolation,
+  deploymentResourcesViolation,
+  expectedSchemaUrl,
+  isRuKustomizationPath,
+  metadataNamespaceForbiddenViolation,
+  pathHasK8sSegment,
+  ruKustomizationHasHealthCheckDeletePatch
+} from '../scripts/check-k8s.mjs'
+
+describe('isRuKustomizationPath', () => {
+  test('true для …/ru/kustomization.yaml', () => {
+    expect(isRuKustomizationPath('app/k8s/overlays/ru/kustomization.yaml')).toBe(true)
+    expect(isRuKustomizationPath(String.raw`x\k8s\ru\kustomization.yaml`)).toBe(true)
+  })
+
+  test('false для інших kustomization', () => {
+    expect(isRuKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
+    expect(isRuKustomizationPath('app/k8s/ru/foo.yaml')).toBe(false)
+  })
+})
+
+describe('ruKustomizationHasHealthCheckDeletePatch', () => {
+  test('true для patch delete HealthCheckPolicy', () => {
+    const y = `
+patches:
+  - target:
+      kind: HealthCheckPolicy
+    patch: |-
+      kind: HealthCheckPolicy
+      metadata:
+        name: my-svc
+      $patch: delete
+`
+    expect(ruKustomizationHasHealthCheckDeletePatch(y)).toBe(true)
+  })
+
+  test('false без $patch: delete', () => {
+    expect(ruKustomizationHasHealthCheckDeletePatch('kind: HealthCheckPolicy')).toBe(false)
+  })
+})
 
 describe('pathHasK8sSegment', () => {
   test('true, коли є компонент k8s', () => {
@@ -53,6 +93,52 @@ describe('deploymentResourcesViolation', () => {
       }
     }
     expect(deploymentResourcesViolation(manifest)).toBeNull()
+  })
+})
+
+describe('deploymentImagePullPolicyViolation', () => {
+  test('null для не-Deployment', () => {
+    expect(deploymentImagePullPolicyViolation({ kind: 'Service' })).toBeNull()
+  })
+
+  test('помилка без imagePullPolicy', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [{ name: 'app', image: 'x:y', resources: {} }]
+          }
+        }
+      }
+    }
+    expect(deploymentImagePullPolicyViolation(manifest)).toContain('Always')
+  })
+
+  test('ok для imagePullPolicy: Always', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [{ name: 'app', image: 'x:y', resources: {}, imagePullPolicy: 'Always' }]
+          }
+        }
+      }
+    }
+    expect(deploymentImagePullPolicyViolation(manifest)).toBeNull()
+  })
+})
+
+describe('metadataNamespaceForbiddenViolation', () => {
+  test('null без metadata.namespace', () => {
+    expect(metadataNamespaceForbiddenViolation({ kind: 'Deployment', metadata: { name: 'x' } })).toBeNull()
+  })
+
+  test('помилка при metadata.namespace', () => {
+    expect(
+      metadataNamespaceForbiddenViolation({ kind: 'Deployment', metadata: { name: 'x', namespace: 'ns' } })
+    ).toContain('metadata.namespace')
   })
 })
 

@@ -7,7 +7,13 @@
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
  * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
- * порожній **`{}`**).
+ * порожній **`{}`**) та **`imagePullPolicy: Always`**.
+ *
+ * У файлах **не** `kustomization.yaml` / `kustomization.yml` у документах не має бути **`metadata.namespace`**
+ * (namespace лише в Kustomize).
+ *
+ * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API). Якщо є **`HealthCheckPolicy`**,
+ * має існувати **`ru/kustomization.yaml`** з patch видалення цього kind (`$patch: delete`).
  *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
@@ -206,6 +212,103 @@ function extractApiVersionAndKind(doc) {
 }
 
 /**
+ * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім’ям файлу).
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true, якщо це `…/ru/kustomization.yaml`
+ */
+export function isRuKustomizationPath(rel) {
+  const norm = rel.replaceAll('\\', '/')
+  return /(^|\/)ru\/kustomization\.yaml$/u.test(norm)
+}
+
+/**
+ * Чи вміст overlay **`ru/kustomization.yaml`** містить Kustomize patch видалення **HealthCheckPolicy**.
+ * @param {string} raw повний текст файлу
+ * @returns {boolean} true, якщо є `$patch: delete` і блоки kind/metadata для HealthCheckPolicy
+ */
+export function ruKustomizationHasHealthCheckDeletePatch(raw) {
+  if (!/\$patch:\s*delete/u.test(raw)) return false
+  if (!/kind:\s*HealthCheckPolicy/u.test(raw)) return false
+  if (!/metadata:/u.test(raw)) return false
+  if (!/name:\s*\S+/u.test(raw)) return false
+  return true
+}
+
+/**
+ * Шукає **Ingress** / **HealthCheckPolicy** у розібраних документах; реєструє порушення для Ingress.
+ * @param {string} rel відносний шлях до файлу
+ * @param {string} body YAML після modeline
+ * @param {(msg: string) => void} fail callback для помилки (Ingress)
+ * @param {string[]} healthCheckPolicyFiles накопичувач шляхів, де зустріли HealthCheckPolicy
+ * @returns {void}
+ */
+function scanIngressAndHealthCheckPolicy(rel, body, fail, healthCheckPolicyFiles) {
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return
+  }
+
+  for (const [di, doc] of docs.entries()) {
+    if (doc.errors.length === 0) {
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        if (rec.kind === 'Ingress') {
+          fail(
+            `${rel}: знайдено kind: Ingress (документ ${di + 1}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml), patch у ru/kustomization.yaml (див. k8s.mdc)`
+          )
+        } else if (rec.kind === 'HealthCheckPolicy' && !healthCheckPolicyFiles.includes(rel)) {
+          healthCheckPolicyFiles.push(rel)
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Якщо у дереві k8s є HealthCheckPolicy, вимагає **ru/kustomization.yaml** з patch видалення.
+ * @param {string} root корінь cwd
+ * @param {string[]} yamlFiles абсолютні шляхи до yaml під k8s
+ * @param {string[]} healthCheckPolicyFiles відносні шляхи з HealthCheckPolicy
+ * @param {(msg: string) => void} fail callback для помилки (немає ru або немає patch)
+ * @returns {Promise<void>} завершення після перевірки overlay ru
+ */
+async function ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyFiles, fail) {
+  if (healthCheckPolicyFiles.length === 0) {
+    return
+  }
+
+  const ruAbsList = yamlFiles.filter(abs => isRuKustomizationPath(relative(root, abs) || abs))
+  if (ruAbsList.length === 0) {
+    fail(
+      `Знайдено HealthCheckPolicy у ${healthCheckPolicyFiles.join(', ')} — додай ru/kustomization.yaml з patch видалення (див. k8s.mdc)`
+    )
+    return
+  }
+
+  for (const abs of ruAbsList) {
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${relative(root, abs) || abs}: не вдалося прочитати (${msg})`)
+      return
+    }
+    if (ruKustomizationHasHealthCheckDeletePatch(raw)) {
+      return
+    }
+  }
+
+  fail(
+    'Є HealthCheckPolicy, але жоден ru/kustomization.yaml не містить очікуваного patch видалення (kind: HealthCheckPolicy, metadata.name, $patch: delete) — див. k8s.mdc'
+  )
+}
+
+/**
  * Чи порушує маніфест вимогу **`Deployment.spec.template.spec.containers[].resources`** (див. k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа як об'єкт JavaScript
  * @returns {string | null} текст порушення для `fail` або null, якщо перевірка не застосовується / ок
@@ -246,32 +349,104 @@ export function deploymentResourcesViolation(manifest) {
 }
 
 /**
- * Парсить усі YAML-документи з тіла файлу й реєструє порушення **`Deployment.resources`**.
- * @param {string} rel відносний шлях (для повідомлень)
+ * Чи контейнери **Deployment** мають **`imagePullPolicy: Always`** (k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null, якщо не Deployment / ок
+ */
+export function deploymentImagePullPolicyViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Deployment') return null
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template))
+    return null
+  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpec === null || podSpec === undefined || typeof podSpec !== 'object' || Array.isArray(podSpec)) return null
+  const containers = /** @type {Record<string, unknown>} */ (podSpec).containers
+  if (!Array.isArray(containers)) return null
+
+  for (const [i, c] of containers.entries()) {
+    const label =
+      typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
+        ? c.name
+        : `#${i + 1}`
+    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
+      const cont = /** @type {Record<string, unknown>} */ (c)
+      if (cont.imagePullPolicy !== 'Always') {
+        return `контейнер "${label}": imagePullPolicy має бути Always (див. k8s.mdc)`
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * У маніфестах ресурсів не має бути **metadata.namespace** — лише у **kustomization** (k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null, якщо поля немає
+ */
+export function metadataNamespaceForbiddenViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  const meta = rec.metadata
+  if (meta !== null && typeof meta === 'object' && !Array.isArray(meta) && 'namespace' in meta) {
+    return 'metadata.namespace заборонено — задай namespace у kustomization.yaml (поле namespace) (див. k8s.mdc)'
+  }
+  return null
+}
+
+/**
+ * Чи ім’я файлу — kustomization (дозволяє не застосовувати перевірку metadata.namespace до вмісту).
+ * @param {string} baseLower basename у нижньому регістрі
+ * @returns {boolean} true для `kustomization.yaml` / `kustomization.yml`
+ */
+function isKustomizationFileName(baseLower) {
+  return baseLower === 'kustomization.yaml' || baseLower === 'kustomization.yml'
+}
+
+/**
+ * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **imagePullPolicy**.
+ * @param {string} rel відносний шлях
+ * @param {string} baseLower basename файлу (нижній регістр)
  * @param {string} body вміст після modeline
  * @param {(msg: string) => void} fail реєстрація помилки
  */
-function validateDeploymentResourcesInK8sYaml(rel, body, fail) {
+function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail) {
   /** @type {import('yaml').Document[]} */
   let docs
   try {
     docs = parseAllDocuments(body)
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error)
-    fail(
-      `${rel}: не вдалося розібрати YAML для перевірки Deployment.spec.template.spec.containers[].resources (${msg})`
-    )
+    fail(`${rel}: не вдалося розібрати YAML для перевірок маніфестів (${msg})`)
     return
   }
+
+  const skipMetaNs = isKustomizationFileName(baseLower)
 
   for (const [di, doc] of docs.entries()) {
     if (doc.errors.length > 0) {
       fail(`${rel}: YAML (документ ${di + 1}): ${doc.errors.map(e => e.message).join('; ')}`)
     } else {
       const obj = doc.toJSON()
-      const v = deploymentResourcesViolation(obj)
-      if (v !== null) {
-        fail(`${rel}: Deployment (документ ${di + 1}): ${v}`)
+      if (!skipMetaNs) {
+        const ns = metadataNamespaceForbiddenViolation(obj)
+        if (ns !== null) {
+          fail(`${rel}: документ ${di + 1}: ${ns}`)
+        }
+      }
+      const resV = deploymentResourcesViolation(obj)
+      if (resV !== null) {
+        fail(`${rel}: Deployment (документ ${di + 1}): ${resV}`)
+      }
+      const pullV = deploymentImagePullPolicyViolation(obj)
+      if (pullV !== null) {
+        fail(`${rel}: Deployment (документ ${di + 1}): ${pullV}`)
       }
     }
   }
@@ -358,9 +533,10 @@ function countSchemaModelines(lines) {
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail реєстрація помилки
  * @param {(msg: string) => void} pass реєстрація успіху
+ * @param {string[]} healthCheckPolicyFiles накопичувач файлів із kind: HealthCheckPolicy
  * @returns {Promise<void>}
  */
-async function checkK8sYamlFile(abs, root, fail, pass) {
+async function checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles) {
   const rel = relative(root, abs) || abs
   const base = basename(abs)
   const baseLower = base.toLowerCase()
@@ -398,6 +574,8 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
 
   const body = yamlBodyAfterModeline(lines)
 
+  scanIngressAndHealthCheckPolicy(rel, body, fail, healthCheckPolicyFiles)
+
   if (schemaUrl.startsWith('file:')) {
     pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
   } else if (/^https:/iu.test(schemaUrl)) {
@@ -420,7 +598,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
     return
   }
 
-  validateDeploymentResourcesInK8sYaml(rel, body, fail)
+  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail)
 }
 
 /**
@@ -444,9 +622,14 @@ export async function check() {
 
   pass(`YAML у k8s: ${yamlFiles.length} файл(ів)`)
 
+  /** @type {string[]} */
+  const healthCheckPolicyFiles = []
+
   for (const abs of yamlFiles) {
-    await checkK8sYamlFile(abs, root, fail, pass)
+    await checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles)
   }
+
+  await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyFiles, fail)
 
   return exitCode
 }
