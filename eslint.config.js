@@ -1,7 +1,7 @@
 import { getConfig } from '@nitra/eslint-config'
 
 export default [
-  { ignores: ['docs/**'] },
+  { ignores: ['**/auto-imports.d.ts', 'docs/**'] },
   ...getConfig({
     node: ['npm']
   })

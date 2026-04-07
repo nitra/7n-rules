@@ -1,7 +1,7 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.8'
+version: '1.9'
 ---
 
 **oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`:** `oxlint` (без `bunx`), **`bunx eslint`**, **`bunx jscpd`**; у CI — `bunx oxlint` / `bunx eslint` / `bunx jscpd`. Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
@@ -38,7 +38,7 @@ version: '1.8'
   "exitCode": 1,
   "reporters": ["console"],
   "minLines": 25,
-  "ignore": []
+  "ignore": ["**/dist/**",]
 }
 ```
 
@@ -132,9 +132,7 @@ export default [
 
 ## Тести
 
-Проекту повинен бути покритий unit тестами за допомогою Bun test.
-
-**Код:** синтаксис Node **24+**, **top level await**.
+Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
 
 ## Перевірка
 

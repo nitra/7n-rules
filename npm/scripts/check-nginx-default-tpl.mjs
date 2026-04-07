@@ -143,10 +143,11 @@ export function nginxTemplateViolations(content) {
     if (!ok(content)) return msg
   }
 
+  // cspell:ignore fastcgi uwsgi
   const proxyLike =
     /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
   if (proxyLike.test(content)) {
-    return 'знайдено proxy/fastcgi/grpc — прибери з шаблону, логіку винеси в HTTPRoute (k8s) (див. nginx-default-tpl.mdc)'
+    return 'знайдено proxy, gRPC або інший *_pass до бекенду — прибери з шаблону, логіку винеси в HTTPRoute (k8s) (див. nginx-default-tpl.mdc)'
   }
 
   return null
@@ -158,7 +159,8 @@ export function nginxTemplateViolations(content) {
  * @returns {boolean} true, якщо структура збігається з прикладом у nginx-default-tpl.mdc
  */
 export function httpRouteMatchesNginxDefaultTpl(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) return false
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return false
   const m = /** @type {Record<string, unknown>} */ (manifest)
   if (m.kind !== 'HTTPRoute') return false
   const spec = m.spec
@@ -226,7 +228,7 @@ export function httpRouteMatchesNginxDefaultTpl(manifest) {
 export function iniKeysMissingInTemplate(keys, template) {
   for (const k of keys) {
     if (!template.includes(`$${k}`)) {
-      return `змінна "${k}" з *.ini не використовується в шаблоні — вилучи її з ini або додай плейсхолдер $${k} (див. nginx-default-tpl.mdc)`
+      return `змінна "${k}" з *.ini не використовується в шаблоні — вилучи її з ini або додай у шаблон $${k} (див. nginx-default-tpl.mdc)`
     }
   }
   return null

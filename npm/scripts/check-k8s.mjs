@@ -207,17 +207,19 @@ function extractApiVersionAndKind(doc) {
 
 /**
  * Чи порушує маніфест вимогу **`Deployment.spec.template.spec.containers[].resources`** (див. k8s.mdc).
- * @param {unknown} manifest корінь розпарсеного YAML-документа
+ * @param {unknown} manifest корінь YAML-документа як об'єкт JavaScript
  * @returns {string | null} текст порушення для `fail` або null, якщо перевірка не застосовується / ок
  */
 export function deploymentResourcesViolation(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) return null
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
   const rec = /** @type {Record<string, unknown>} */ (manifest)
   if (rec.kind !== 'Deployment') return null
   const spec = rec.spec
   if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
   const template = /** @type {Record<string, unknown>} */ (spec).template
-  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template)) return null
+  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template))
+    return null
   const podSpec = /** @type {Record<string, unknown>} */ (template).spec
   if (podSpec === null || podSpec === undefined || typeof podSpec !== 'object' || Array.isArray(podSpec)) return null
   const containers = /** @type {Record<string, unknown>} */ (podSpec).containers

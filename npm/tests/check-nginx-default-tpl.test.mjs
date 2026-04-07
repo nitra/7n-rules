@@ -71,7 +71,7 @@ describe('findDefaultConfTemplatePaths', () => {
 })
 
 describe('nginxTemplateViolations', () => {
-  test('null для канонічної фікстури', async () => {
+  test('null для канонічного зразка з каталогу fixtures', async () => {
     const tpl = await readFile(join(fixDir, 'default.conf.template'), 'utf8')
     expect(nginxTemplateViolations(tpl)).toBeNull()
   })

@@ -1,46 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.8'
+version: '1.9'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`:** `oxlint` (без `bunx`), **`bunx eslint`**, **`bunx jscpd`**; у CI — `bunx oxlint` / `bunx eslint` / `bunx jscpd`. Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
-
-```json title=".vscode/extensions.json"
-{
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "github.vscode-github-actions",
-    "oxc.oxc-vscode"
-  ]
-}
-```
-
-```json title="package.json"
-{
-  "scripts": {
-    "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd ."
-  },
-  "devDependencies": {
-    "@nitra/eslint-config": "^3.4.0"
-  },
-  "engines": {
-    "node": ">=24"
-  }
-}
-```
-
-У корені проєкту має бути `.jscpd.json`. Мінімум: увімкнути облік `.gitignore`, ненульовий код виходу при знаходженні клонів, консольний звіт. За потреби додай `ignore` (дзеркальні каталоги, шаблони) та `minLines`, щоб відсікти дрібні збіги:
-
-```json title=".jscpd.json"
-{
-  "gitignore": true,
-  "exitCode": 1,
-  "reporters": ["console"],
-  "minLines": 25,
-  "ignore": []
-}
-```
+**oxlint**, **ESLint**, **jscpd**; без **prettier** і **@nitra/prettier-config**. Конкретні вимоги до `package.json`, `eslint.config.js` / `eslint.config.mjs`, `.vscode/extensions.json`, `.jscpd.json` і `.github/workflows/lint-js.yml` виконує скрипт **`npm/scripts/check-js-lint.mjs`** (запуск: **`npx @nitra/cursor check js-lint`**).
 
 ## jscpd: рефакторинг і структура
 
@@ -51,90 +15,15 @@ version: '1.8'
 
 Так ти уникаєш **хибних обходів** перевірки: розширення `ignore` чи завищення `minLines` лише щоб прибрати звіт — не заміна рефакторингу для справжніх клонів. Якщо збіг **семантично випадковий** (генерований код, формальні шаблони без спільної логіки), після оцінки допустимо точковий `ignore` або зміна порогу — з коротким обґрунтуванням.
 
-Але обов'язково перед рефакторингом перевір чи є тести на блоки які підлягають зміні, а саме Bun.test для js та playwright для vue. Якщо є, то перевір чи вони покривають блоки які підлягають зміні. Якщо не покривають або тестів немає — спочатку створи їх, перевір що вони покривають і відпрацьовують коректно, а потім роби рефакторинг і ще раз запускай тести, але якщо тести не відпрацьовують коректно після рефакторингу, то не роби рефакторинг.
+Перед рефакторингом перевір наявність і покриття тестів (Bun.test для JS, Playwright для Vue). Якщо тестів немає або вони не торкаються змінюваних блоків — спочатку додай тести, потім рефакторинг; якщо після рефакторингу тести падають — поверни зміни.
 
-Додай workflow:
+## Монорепо та Vue
 
-```yaml title=".github/workflows/lint-js.yml"
-name: Lint JS
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.js'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.jsx'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.vue'
-      - '**/eslint.config.*'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  eslint:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Eslint
-        run: |
-          bunx oxlint
-          bunx eslint .
-          bunx jscpd .
-```
-
-Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
-
-Один workflow на лінт JS; зайвий `lint.yml` з тими самими кроками — прибери.
-
-```javascript title="eslint.config.js"
-import { getConfig } from '@nitra/eslint-config'
-
-export default [
-  {
-    ignores: ['**/auto-imports.d.ts']
-  },
-  ...getConfig({
-    node: ['npm']
-  })
-]
-```
-
-У монорепо пакети з Vite (frontend) вкажи в секції `vue`, решту — у секції `node` у виклику `getConfig`.
-
-## Додаткові js правила
-
-Завжди додавай до package.json що підтримується 24+ версія node:
-
-```json title="package.json"
-"engines": {
-  "node": ">=24"
-}
-```
+У виклику **`getConfig`** пакети з Vite (frontend) вкажи в секції **`vue`**, решту — у **`node`**.
 
 ## Тести
 
-Проекту повинен бути покритий unit тестами за допомогою Bun test.
-
-**Код:** синтаксис Node **24+**, **top level await**.
+Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
 
 ## Перевірка
 
