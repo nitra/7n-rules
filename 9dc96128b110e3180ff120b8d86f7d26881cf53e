@@ -1,0 +1,82 @@
+npm/tests/fixtures/nginx-default-tpl/values-dev.ini
+  525b12ae35dd2da3 1
+npm/tests/check-nginx-default-tpl.test.mjs
+  525b12ae35dd2da3 1-4,7-13,15-29,59-123
+  ea625639c898f764 5-6,14,30-58
+.claude/settings.local.json
+  b355aafba57bfe36 4
+npm/tests/check-k8s-schema.test.mjs
+  525b12ae35dd2da3 6,19-58
+npm/scripts/check-k8s.mjs
+  525b12ae35dd2da3 8-11,20,209-213,215-217,219,221,223-230,240-267,274-277,401-403,405-408,410-413,415-417,421
+  a8ffc2c254650628 214,218,220,222,231-239,268-273
+npm/mdc/k8s.mdc
+  525b12ae35dd2da3 3,118-127,130,140,146
+npm/tests/fixtures/nginx-default-tpl/default.conf.template
+  525b12ae35dd2da3 1-41
+npm/tests/check-rule-fixtures.test.mjs
+  525b12ae35dd2da3 5,7,14-15,83-84,86-92,100
+npm/scripts/check-nginx-default-tpl.mjs
+  ea625639c898f764 12-14,17-18,42-77,273-278
+  a8ffc2c254650628 87,90,161,165,170-171,184,191,195,205,212,322,324,329
+  525b12ae35dd2da3 2,4-11,20,22-41,78-86,88-89,91-160,162-164,166-169,172-183,185-190,192-194,196-204,206-211,213-218,221-258,271,281,283-286,288,290-295,297,300-309,311,314-321,325-328,330,332,334-351,356-357,363-364,368-374,376,378,380-381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "9dc96128b110e3180ff120b8d86f7d26881cf53e",
+  "prompts": {
+    "525b12ae35dd2da3": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "52ef3940-85ef-4ea0-a54f-5af875bbbf46",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 696,
+      "total_deletions": 163,
+      "accepted_lines": 566,
+      "overriden_lines": 0
+    },
+    "a8ffc2c254650628": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6976c176-26bb-42b3-b55a-69266f3904bb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 39,
+      "total_deletions": 35,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    },
+    "b355aafba57bfe36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ca840ac6-0fa4-467f-94da-5ede87915f22",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 2,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "ea625639c898f764": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c151deec-2d01-4c50-b7a5-2835440cb5c2",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 110,
+      "total_deletions": 36,
+      "accepted_lines": 79,
+      "overriden_lines": 0
+    }
+  }
+}
