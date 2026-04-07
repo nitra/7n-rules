@@ -1,0 +1,41 @@
+server_tokens off;
+port_in_redirect off;
+client_max_body_size 0;
+client_body_buffer_size 512M;
+
+server {
+    listen 8080;
+    server_name _;
+
+    access_log off;
+    error_log off;
+
+    root /usr/share/nginx/html;
+
+    location /healthz {
+        add_header Content-Type text/plain;
+        access_log off;
+        return 200 "healthy";
+    }
+
+    location ~ ^$PUBLIC_PATH/(.+\.(?:gif|jpe?g|png|ico|woff2|xlsx))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+    }
+
+    location ~ ^$PUBLIC_PATH/(.+\.(?:svg|js|css|ttf|map|xml|webmanifest|wasm))$ {
+        alias /usr/share/nginx/html/$1;
+        add_header 'Cache-Control' "public,max-age=31536000,immutable";
+        gzip_static on;
+    }
+
+    location $PUBLIC_PATH/ {
+        index index.html;
+        alias /usr/share/nginx/html/;
+        sendfile on;
+        sendfile_max_chunk 512k;
+        tcp_nopush on;
+        gzip_static on;
+        try_files $uri $uri/ /index.html =404;
+    }
+}

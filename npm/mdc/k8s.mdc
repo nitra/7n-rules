@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.12'
+version: '1.13'
 globs: "**/k8s/**/*.{yaml,yml}"
 alwaysApply: false
 ---
@@ -115,9 +115,19 @@ jobs:
 
 Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-k8s`**, коли в проєкті підключено правило **`k8s`**.
 
+## Deployment: `resources`
+
+Для **`kind: Deployment`** у кожному контейнері **`spec.template.spec.containers[]`** має бути явне поле **`resources`**. Якщо ліміти та requests ще не задані, додай порожній об'єкт:
+
+```yaml
+resources: {}
+```
+
+Так маніфест явно резервує місце під **`requests` / `limits`** і уникає випадкового пропуску секції. **`check k8s`** перевіряє це для кожного YAML-документа **`Deployment`** у файлах під **`k8s`**.
+
 ## Перевірка
 
-**`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче. Якщо під `k8s` немає yaml/yml — перевірку пропущено. Синтаксис YAML і зміст маніфесту скрипт не перевіряє — вручну.
+**`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче; для кожного документа **`Deployment`** у файлі — наявність **`containers[].resources`** (див. розділ **Deployment: `resources`**). Якщо під `k8s` немає yaml/yml — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
 
 Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape; обов'язково для проєктів з правилом **`k8s`** у **`.n-cursor.json`**).
 
@@ -127,11 +137,13 @@ jobs:
 
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
 - **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; далі перевіряється **`EXPLICIT_K8S_SCHEMAS`** (`Map`: `apiVersion` + `kind` + `type`, для записів без `type` у маніфесті — третій компонент **`*`**); потім `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages), крім рядків явної таблиці (наприклад **InfisicalSecret** — raw на `main`).
+- У кожному YAML-документі з **`kind: Deployment`** — парсинг через **`yaml`**: у кожного елемента **`spec.template.spec.containers[]`** має існувати ключ **`resources`** зі значенням-об'єктом (допускається порожній **`{}`**).
 
 ## Коли застосовувати (агентам)
 
 - Зміни в k8s YAML — після правок **`check k8s`**.
 - Якщо перший рядок уже коректний і URL відповідає `apiVersion` / `kind` — не дублюй; змінився ресурс — онови лише `$schema`.
+- У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**).
 
 ## Визначення схеми YAML (канон)
 

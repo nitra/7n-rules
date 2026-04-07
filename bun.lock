@@ -17,6 +17,9 @@
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },
+      "dependencies": {
+        "yaml": "^2.8.3",
+      },
     },
   },
   "packages": {

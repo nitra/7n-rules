@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { expectedSchemaUrl, pathHasK8sSegment } from '../scripts/check-k8s.mjs'
+import { deploymentResourcesViolation, expectedSchemaUrl, pathHasK8sSegment } from '../scripts/check-k8s.mjs'
 
 describe('pathHasK8sSegment', () => {
   test('true, коли є компонент k8s', () => {
@@ -13,6 +13,46 @@ describe('pathHasK8sSegment', () => {
 
   test('false без сегмента k8s', () => {
     expect(pathHasK8sSegment('foo/bar/baz.yaml')).toBe(false)
+  })
+})
+
+describe('deploymentResourcesViolation', () => {
+  test('null для не-Deployment', () => {
+    expect(deploymentResourcesViolation({ kind: 'Service' })).toBeNull()
+  })
+
+  test('null без масиву containers', () => {
+    expect(deploymentResourcesViolation({ kind: 'Deployment', spec: { template: { spec: {} } } })).toBeNull()
+  })
+
+  test('помилка, коли немає resources', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: { template: { spec: { containers: [{ name: 'app', image: 'x:y' }] } } }
+    }
+    expect(deploymentResourcesViolation(manifest)).toContain('resources: {}')
+  })
+
+  test('ok для resources: {}', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: { template: { spec: { containers: [{ name: 'app', image: 'x:y', resources: {} }] } } }
+    }
+    expect(deploymentResourcesViolation(manifest)).toBeNull()
+  })
+
+  test('ok для resources з limits', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [{ name: 'app', image: 'x:y', resources: { limits: { memory: '128Mi' } } }]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest)).toBeNull()
   })
 })
 

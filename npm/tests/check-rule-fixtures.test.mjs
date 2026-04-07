@@ -2,13 +2,16 @@
  * Тести check-vue, check-style-lint, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
  */
 import { describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { copyFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { check as checkNginx } from '../scripts/check-nginx-default-tpl.mjs'
 import { check as checkStyle } from '../scripts/check-style-lint.mjs'
 import { check as checkVue } from '../scripts/check-vue.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
+
+const nginxFixDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures/nginx-default-tpl')
 
 describe('check-vue (мінімальний проєкт)', () => {
   test('проходить для мінімального Vue-пакета в workspace', async () => {
@@ -77,9 +80,16 @@ describe('check-style-lint (мінімальний проєкт)', () => {
 describe('check-nginx-default-tpl (мінімальний проєкт)', () => {
   test('проходить з шаблоном і налаштуваннями VSCode', async () => {
     await withTmpCwd(async () => {
+      await copyFile(join(nginxFixDir, 'default.conf.template'), 'default.conf.template')
+      await copyFile(join(nginxFixDir, 'values-dev.ini'), 'values-dev.ini')
       await writeFile(
-        'default.conf.template',
-        `server {\n  listen 8080;\n  location /healthz { return 200; }\n  gzip_static on;\n}\n`,
+        'Dockerfile',
+        [
+          'FROM nginx:alpine',
+          "RUN find /usr/share/nginx/html -type f -name '*.js' -exec gzip -k {} +",
+          'RUN envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf',
+          ''
+        ].join('\n'),
         'utf8'
       )
       await ensureDir('.vscode')
@@ -87,6 +97,7 @@ describe('check-nginx-default-tpl (мінімальний проєкт)', () => 
         recommendations: ['ahmadalli.vscode-nginx-conf']
       })
       await writeJson('.vscode/settings.json', {
+        'editor.formatOnSave': true,
         '[nginx]': { 'editor.defaultFormatter': 'ahmadalli.vscode-nginx-conf' }
       })
       expect(await checkNginx()).toBe(0)

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}

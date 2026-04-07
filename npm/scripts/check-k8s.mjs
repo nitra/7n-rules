@@ -5,6 +5,10 @@
  * (окрім `kustomization.yml`); URL схеми за першим документом — kustomization / yannh / datree
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
+ * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
+ * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
+ * порожній **`{}`**).
+ *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
@@ -12,6 +16,8 @@
  */
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
+
+import { parseAllDocuments } from 'yaml'
 
 import { pass } from './utils/pass.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -200,6 +206,76 @@ function extractApiVersionAndKind(doc) {
 }
 
 /**
+ * Чи порушує маніфест вимогу **`Deployment.spec.template.spec.containers[].resources`** (див. k8s.mdc).
+ * @param {unknown} manifest корінь розпарсеного YAML-документа
+ * @returns {string | null} текст порушення для `fail` або null, якщо перевірка не застосовується / ок
+ */
+export function deploymentResourcesViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Deployment') return null
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template)) return null
+  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpec === null || podSpec === undefined || typeof podSpec !== 'object' || Array.isArray(podSpec)) return null
+  const containers = /** @type {Record<string, unknown>} */ (podSpec).containers
+  if (!Array.isArray(containers)) return null
+
+  for (const [i, c] of containers.entries()) {
+    const label =
+      typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
+        ? c.name
+        : `#${i + 1}`
+    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
+      const cont = /** @type {Record<string, unknown>} */ (c)
+      if (!('resources' in cont)) {
+        return `контейнер "${label}": відсутнє поле resources — додай resources: {} (див. k8s.mdc)`
+      }
+      const r = cont.resources
+      if (r === null || typeof r !== 'object' || Array.isArray(r)) {
+        return `контейнер "${label}": resources має бути об'єктом (наприклад порожній об'єкт у YAML: resources: {})`
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Парсить усі YAML-документи з тіла файлу й реєструє порушення **`Deployment.resources`**.
+ * @param {string} rel відносний шлях (для повідомлень)
+ * @param {string} body вміст після modeline
+ * @param {(msg: string) => void} fail реєстрація помилки
+ */
+function validateDeploymentResourcesInK8sYaml(rel, body, fail) {
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(
+      `${rel}: не вдалося розібрати YAML для перевірки Deployment.spec.template.spec.containers[].resources (${msg})`
+    )
+    return
+  }
+
+  for (const [di, doc] of docs.entries()) {
+    if (doc.errors.length > 0) {
+      fail(`${rel}: YAML (документ ${di + 1}): ${doc.errors.map(e => e.message).join('; ')}`)
+    } else {
+      const obj = doc.toJSON()
+      const v = deploymentResourcesViolation(obj)
+      if (v !== null) {
+        fail(`${rel}: Deployment (документ ${di + 1}): ${v}`)
+      }
+    }
+  }
+}
+
+/**
  * Kind для імен файлів yannh/datree: лише літери та цифри, нижній регістр (Service → service, HTTPRoute → httproute).
  * @param {string} kind значення поля kind
  * @returns {string} рядок для шаблону імені файлу схеми
@@ -318,31 +394,31 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
     return
   }
 
+  const body = yamlBodyAfterModeline(lines)
+
   if (schemaUrl.startsWith('file:')) {
     pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
-    return
-  }
+  } else if (/^https:/iu.test(schemaUrl)) {
+    const doc = firstYamlDocument(body)
+    const { expected, reason } = expectedSchemaUrl(abs, doc)
 
-  if (!/^https:/iu.test(schemaUrl)) {
+    if (expected === null) {
+      fail(`${rel}: ${reason}`)
+      return
+    }
+
+    if (schemaUrl !== expected) {
+      fail(`${rel}: $schema не відповідає правилу (${reason}). Очікується:\n     ${expected}\n     Зараз: ${schemaUrl}`)
+      return
+    }
+
+    pass(`${rel}: $schema узгоджено (${reason})`)
+  } else {
     fail(`${rel}: $schema має бути https URL або file: (див. k8s.mdc)`)
     return
   }
 
-  const body = yamlBodyAfterModeline(lines)
-  const doc = firstYamlDocument(body)
-  const { expected, reason } = expectedSchemaUrl(abs, doc)
-
-  if (expected === null) {
-    fail(`${rel}: ${reason}`)
-    return
-  }
-
-  if (schemaUrl !== expected) {
-    fail(`${rel}: $schema не відповідає правилу (${reason}). Очікується:\n     ${expected}\n     Зараз: ${schemaUrl}`)
-    return
-  }
-
-  pass(`${rel}: $schema узгоджено (${reason})`)
+  validateDeploymentResourcesInK8sYaml(rel, body, fail)
 }
 
 /**
