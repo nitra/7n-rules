@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+import { anyRunStepIncludesStylelint, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам style-lint.mdc
@@ -54,8 +55,10 @@ export async function check() {
   if (existsSync('.github/workflows/lint-style.yml')) {
     const content = await readFile('.github/workflows/lint-style.yml', 'utf8')
     pass('lint-style.yml існує')
-    if (content.includes('stylelint')) {
-      pass('lint-style.yml містить stylelint')
+    const root = parseWorkflowYaml(content)
+    const ok = root ? anyRunStepIncludesStylelint(root) : content.includes('stylelint')
+    if (ok) {
+      pass('lint-style.yml містить stylelint у кроці run')
     } else {
       fail('lint-style.yml не містить виклик stylelint')
     }

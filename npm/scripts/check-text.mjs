@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+import { anyRunStepIncludes, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
@@ -194,7 +195,9 @@ export async function check() {
 
     if (existsSync('.github/workflows/lint-text.yml')) {
       const wf = await readFile('.github/workflows/lint-text.yml', 'utf8')
-      if (wf.includes('bun run lint-text')) {
+      const root = parseWorkflowYaml(wf)
+      const ok = root ? anyRunStepIncludes(root, 'bun run lint-text') : wf.includes('bun run lint-text')
+      if (ok) {
         pass('lint-text.yml викликає bun run lint-text')
       } else {
         fail('lint-text.yml має містити крок bun run lint-text')

@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
 
 /** Очікуваний локальний скрипт (oxlint без bunx; eslint/jscpd через bunx). */
 export const CANONICAL_LINT_JS = 'oxlint --fix && bunx eslint --fix . && bunx jscpd .'
@@ -154,26 +155,38 @@ export async function check() {
   if (existsSync('.github/workflows/lint-js.yml')) {
     const content = await readFile('.github/workflows/lint-js.yml', 'utf8')
     pass('lint-js.yml існує')
-    const checks = [
-      ['actions/checkout@v6', 'lint-js.yml: потрібен крок actions/checkout@v6 (ga.mdc)'],
-      ['persist-credentials: false', 'lint-js.yml: checkout з persist-credentials: false'],
-      ['./.github/actions/setup-bun-deps', 'lint-js.yml: потрібен uses: ./.github/actions/setup-bun-deps'],
-      ['bunx oxlint', 'lint-js.yml: у run має бути bunx oxlint'],
-      ['bunx eslint .', 'lint-js.yml: у run має бути bunx eslint . (без --fix у CI)'],
-      ['bunx jscpd .', 'lint-js.yml: у run має бути bunx jscpd .']
-    ]
-    for (const [needle, errMsg] of checks) {
-      if (content.includes(needle)) {
-        pass(`lint-js.yml містить: ${needle}`)
+    const root = parseWorkflowYaml(content)
+    if (root) {
+      const v = verifyLintJsWorkflowStructure(root)
+      if (v.ok) {
+        pass('lint-js.yml: кроки checkout, setup-bun-deps, oxlint/eslint/jscpd (YAML + кроки)')
       } else {
-        fail(errMsg)
+        for (const msg of v.failures) {
+          fail(`lint-js.yml: ${msg}`)
+        }
       }
-    }
-    if (content.includes('bunx oxlint') && /bunx\s+oxlint[^\n]*--fix/u.test(content)) {
-      fail('lint-js.yml: у CI не використовуй oxlint --fix (лише bunx oxlint)')
-    }
-    if (content.includes('eslint --fix')) {
-      fail('lint-js.yml: у CI не використовуй eslint --fix (лише bunx eslint .)')
+    } else {
+      const checks = [
+        ['actions/checkout@v6', 'lint-js.yml: потрібен крок actions/checkout@v6 (ga.mdc)'],
+        ['persist-credentials: false', 'lint-js.yml: checkout з persist-credentials: false'],
+        ['./.github/actions/setup-bun-deps', 'lint-js.yml: потрібен uses: ./.github/actions/setup-bun-deps'],
+        ['bunx oxlint', 'lint-js.yml: у run має бути bunx oxlint'],
+        ['bunx eslint .', 'lint-js.yml: у run має бути bunx eslint . (без --fix у CI)'],
+        ['bunx jscpd .', 'lint-js.yml: у run має бути bunx jscpd .']
+      ]
+      for (const [needle, errMsg] of checks) {
+        if (content.includes(needle)) {
+          pass(`lint-js.yml містить: ${needle}`)
+        } else {
+          fail(errMsg)
+        }
+      }
+      if (content.includes('bunx oxlint') && /bunx\s+oxlint[^\n]*--fix/u.test(content)) {
+        fail('lint-js.yml: у CI не використовуй oxlint --fix (лише bunx oxlint)')
+      }
+      if (content.includes('eslint --fix')) {
+        fail('lint-js.yml: у CI не використовуй eslint --fix (лише bunx eslint .)')
+      }
     }
   } else {
     fail('.github/workflows/lint-js.yml не існує — створи його (див. check-js-lint.mjs / js-lint.mdc)')

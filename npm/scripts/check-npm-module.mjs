@@ -2,11 +2,19 @@
  * Перевіряє структуру npm-модуля в монорепо за правилом npm-module.mdc.
  *
  * Workspace `npm/`, `npm/package.json`, workflow `npm-publish.yml` з OIDC, `on.push.paths` з glob для каталогу npm (див. npm-module.mdc).
+ * Поля workflow перевіряються після **YAML parse**, щоб не плутати з коментарями.
  */
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 
 import { pass } from './utils/pass.mjs'
+import {
+  hasIdTokenWritePermission,
+  hasNpmPublishStepWithPackage,
+  parseWorkflowYaml,
+  pushHasMainBranch,
+  pushPathsIncludeNpmGlob
+} from './utils/gha-workflow.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам npm-module.mdc
@@ -62,19 +70,44 @@ export async function check() {
   if (existsSync(publishWf)) {
     pass(`${publishWf} існує`)
     const pub = await readFile(publishWf, 'utf8')
-    const need = [
-      { sub: 'npm/**', msg: `${publishWf}: у on.push.paths має бути npm/**` },
-      { sub: 'branches:', msg: `${publishWf}: очікується on.push.branches` },
-      { sub: 'main', msg: `${publishWf}: очікується branch main` },
-      { sub: 'id-token: write', msg: `${publishWf}: permissions має містити id-token: write (OIDC)` },
-      { sub: 'JS-DevTools/npm-publish', msg: `${publishWf}: очікується uses: JS-DevTools/npm-publish` },
-      { sub: 'package: npm/package.json', msg: `${publishWf}: with.package має бути npm/package.json` }
-    ]
-    for (const { sub, msg } of need) {
-      if (pub.includes(sub)) {
-        pass(`${publishWf} містить «${sub}»`)
+    const root = parseWorkflowYaml(pub)
+
+    if (root) {
+      if (pushPathsIncludeNpmGlob(root)) {
+        pass(`${publishWf}: on.push.paths містить npm/**`)
       } else {
-        fail(msg)
+        fail(`${publishWf}: у on.push.paths має бути npm/**`)
+      }
+      if (pushHasMainBranch(root)) {
+        pass(`${publishWf}: очікується branch main`)
+      } else {
+        fail(`${publishWf}: очікується branch main`)
+      }
+      if (hasIdTokenWritePermission(root)) {
+        pass(`${publishWf}: permissions містить id-token: write (OIDC)`)
+      } else {
+        fail(`${publishWf}: permissions має містити id-token: write (OIDC)`)
+      }
+      if (hasNpmPublishStepWithPackage(root)) {
+        pass(`${publishWf}: uses JS-DevTools/npm-publish та with.package npm/package.json`)
+      } else {
+        fail(`${publishWf}: очікується uses: JS-DevTools/npm-publish та with.package: npm/package.json`)
+      }
+    } else {
+      const need = [
+        { sub: 'npm/**', msg: `${publishWf}: у on.push.paths має бути npm/**` },
+        { sub: 'branches:', msg: `${publishWf}: очікується on.push.branches` },
+        { sub: 'main', msg: `${publishWf}: очікується branch main` },
+        { sub: 'id-token: write', msg: `${publishWf}: permissions має містити id-token: write (OIDC)` },
+        { sub: 'JS-DevTools/npm-publish', msg: `${publishWf}: очікується uses: JS-DevTools/npm-publish` },
+        { sub: 'package: npm/package.json', msg: `${publishWf}: with.package має бути npm/package.json` }
+      ]
+      for (const { sub, msg } of need) {
+        if (pub.includes(sub)) {
+          pass(`${publishWf} містить «${sub}»`)
+        } else {
+          fail(msg)
+        }
       }
     }
   } else {

@@ -7,13 +7,22 @@
  * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
  *
  * Заборонено дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах
- * (oven-sh/setup-bun, actions/cache, bun install).
+ * (oven-sh/setup-bun, actions/cache, bun install). Перевірки `uses`/`run` виконуються після **YAML parse**
+ * (`yaml`), щоб не спрацьовувати на випадкові збіги в коментарях або поза кроками.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { pass } from './utils/pass.mjs'
+import {
+  anyRunStepIncludes,
+  eventPathsIncludeExact,
+  findForbiddenUsesOrRunPatterns,
+  hasAnyStepUsesContaining,
+  hasCheckoutBeforeLocalSetupBunDeps,
+  parseWorkflowYaml
+} from './utils/gha-workflow.mjs'
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]
@@ -21,8 +30,19 @@ const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/
 /** Типові конфіги MegaLinter у корені репо */
 const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
 
+/** Локальні composite setup-bun-deps (ga.mdc). */
+const SETUP_BUN_PATTERNS = ['./.github/actions/setup-bun-deps', './npm/github-actions/setup-bun-deps']
+
+/** Заборонені підрядки лише в кроках uses/run. */
+const FORBIDDEN_BUN_PATTERNS = [
+  { pattern: 'oven-sh/setup-bun', msg: 'використовуй .github/actions/setup-bun-deps замість oven-sh/setup-bun' },
+  { pattern: 'actions/cache', msg: 'використовуй .github/actions/setup-bun-deps замість actions/cache' },
+  { pattern: 'bun install', msg: 'використовуй .github/actions/setup-bun-deps замість bun install' }
+]
+
 /**
  * Якщо workflow викликає локальний setup-bun-deps, раніше у файлі має бути `actions/checkout@v…` (ga.mdc).
+ * Fallback: сирий текст, якщо YAML не вдається розібрати.
  * @param {string} relPath шлях для повідомлень
  * @param {string} content вміст YAML
  * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
@@ -30,9 +50,22 @@ const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-
  * @returns {void}
  */
 function verifyCheckoutBeforeLocalSetupBunDeps(relPath, content, failFn, passFn) {
-  const patterns = ['./.github/actions/setup-bun-deps', './npm/github-actions/setup-bun-deps']
+  const root = parseWorkflowYaml(content)
+  if (root) {
+    if (!hasAnyStepUsesContaining(root, SETUP_BUN_PATTERNS)) {
+      return
+    }
+    if (!hasCheckoutBeforeLocalSetupBunDeps(root, SETUP_BUN_PATTERNS)) {
+      failFn(
+        `${relPath}: перед локальним setup-bun-deps потрібен крок actions/checkout@v6 — інакше runner не знайде action.yml (ga.mdc)`
+      )
+      return
+    }
+    passFn(`${relPath}: перед setup-bun-deps є checkout`)
+    return
+  }
   let idxSetup = -1
-  for (const p of patterns) {
+  for (const p of SETUP_BUN_PATTERNS) {
     const i = content.indexOf(p)
     if (i !== -1 && (idxSetup === -1 || i < idxSetup)) {
       idxSetup = i
@@ -52,27 +85,33 @@ function verifyCheckoutBeforeLocalSetupBunDeps(relPath, content, failFn, passFn)
 }
 
 /**
- * Перевіряє, чи не використовуються oven-sh/setup-bun або actions/cache безпосередньо у workflow.
+ * Перевіряє заборонені кроки Bun/cache/install у `uses` та `run`.
  * @param {string} relPath шлях для повідомлень
  * @param {string} content вміст YAML
  * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
  * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ * @returns {void}
  */
 function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
-  const forbidden = [
-    { pattern: 'oven-sh/setup-bun', msg: 'використовуй .github/actions/setup-bun-deps замість oven-sh/setup-bun' },
-    { pattern: 'actions/cache', msg: 'використовуй .github/actions/setup-bun-deps замість actions/cache' },
-    { pattern: 'bun install', msg: 'використовуй .github/actions/setup-bun-deps замість bun install' }
-  ]
-
+  const root = parseWorkflowYaml(content)
+  if (root) {
+    const hits = findForbiddenUsesOrRunPatterns(root, FORBIDDEN_BUN_PATTERNS)
+    if (hits.length === 0) {
+      passFn(`${relPath}: не містить заборонених кроків setup-bun/cache/install`)
+    } else {
+      for (const h of hits) {
+        failFn(`${relPath}: ${h.msg} (ga.mdc)`)
+      }
+    }
+    return
+  }
   let foundForbidden = false
-  for (const { pattern, msg } of forbidden) {
+  for (const { pattern, msg } of FORBIDDEN_BUN_PATTERNS) {
     if (content.includes(pattern)) {
       failFn(`${relPath}: ${msg} (ga.mdc)`)
       foundForbidden = true
     }
   }
-
   if (!foundForbidden) {
     passFn(`${relPath}: не містить заборонених кроків setup-bun/cache/install`)
   }
@@ -109,7 +148,9 @@ export async function check() {
 
   const yamlFiles = files.filter(f => f.endsWith('.yaml'))
   if (yamlFiles.length > 0) {
-    for (const f of yamlFiles) fail(`Workflow з розширенням .yaml: ${wfDir}/${f} — перейменуй на .yml`)
+    for (const f of yamlFiles) {
+      fail(`Workflow з розширенням .yaml: ${wfDir}/${f} — перейменуй на .yml`)
+    }
   } else {
     pass('Всі workflows мають розширення .yml')
   }
@@ -124,7 +165,10 @@ export async function check() {
 
   if (files.includes('apply-k8s.yml')) {
     const content = await readFile(`${wfDir}/apply-k8s.yml`, 'utf8')
-    if (content.includes('**/k8s/**/*.yaml')) {
+    const root = parseWorkflowYaml(content)
+    const ok =
+      root && eventPathsIncludeExact(root, 'push', '**/k8s/**/*.yaml') ? true : content.includes('**/k8s/**/*.yaml')
+    if (ok) {
       pass('apply-k8s.yml має правильний paths trigger')
     } else {
       fail('apply-k8s.yml не містить paths: **/k8s/**/*.yaml')
@@ -133,7 +177,10 @@ export async function check() {
 
   if (files.includes('apply-nats-consumer.yml')) {
     const content = await readFile(`${wfDir}/apply-nats-consumer.yml`, 'utf8')
-    if (content.includes('**/consumer.yaml')) {
+    const root = parseWorkflowYaml(content)
+    const ok =
+      root && eventPathsIncludeExact(root, 'push', '**/consumer.yaml') ? true : content.includes('**/consumer.yaml')
+    if (ok) {
       pass('apply-nats-consumer.yml має правильний paths trigger')
     } else {
       fail('apply-nats-consumer.yml не містить paths: **/consumer.yaml')
@@ -216,15 +263,30 @@ export async function check() {
   const lintGaWf = join(wfDir, 'lint-ga.yml')
   if (existsSync(lintGaWf)) {
     const lgContent = await readFile(lintGaWf, 'utf8')
-    if (lgContent.includes('bun run lint-ga')) {
-      pass('lint-ga.yml викликає bun run lint-ga')
+    const root = parseWorkflowYaml(lgContent)
+    if (root) {
+      if (anyRunStepIncludes(root, 'bun run lint-ga')) {
+        pass('lint-ga.yml викликає bun run lint-ga')
+      } else {
+        fail('lint-ga.yml: крок має містити bun run lint-ga')
+      }
+      const usesFlat = hasAnyStepUsesContaining(root, ['astral-sh/setup-uv'])
+      if (usesFlat || lgContent.includes('astral-sh/setup-uv')) {
+        pass('lint-ga.yml містить astral-sh/setup-uv')
+      } else {
+        fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
+      }
     } else {
-      fail('lint-ga.yml: крок має містити bun run lint-ga')
-    }
-    if (lgContent.includes('astral-sh/setup-uv')) {
-      pass('lint-ga.yml містить astral-sh/setup-uv')
-    } else {
-      fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
+      if (lgContent.includes('bun run lint-ga')) {
+        pass('lint-ga.yml викликає bun run lint-ga')
+      } else {
+        fail('lint-ga.yml: крок має містити bun run lint-ga')
+      }
+      if (lgContent.includes('astral-sh/setup-uv')) {
+        pass('lint-ga.yml містить astral-sh/setup-uv')
+      } else {
+        fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
+      }
     }
   }
 

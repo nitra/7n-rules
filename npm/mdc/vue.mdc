@@ -217,10 +217,10 @@ export default defineConfig({
 
 Потрібно використовувати Vite версії 8 та вище для frontend проекту на Vue.
 
-Потрібно використовувати unplugin-auto-import для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з Vue sfc імпорти які їх дублюють.
+Потрібно використовувати unplugin-auto-import для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
 
 Потрібно використовувати vite-plugin-vue-layouts-next для автоматичного імпортування layout компонентів.
 
 ## Перевірка
 
-`npx @nitra/cursor check vue`
+`npx @nitra/cursor check vue` — перевіряє залежності, `vite.config`, а також обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue`; дозволені лише type-only та side-effect `import 'vue'`. Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/scripts/utils/vue-forbidden-imports.mjs`).

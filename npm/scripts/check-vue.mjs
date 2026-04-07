@@ -3,12 +3,21 @@
  *
  * Версії Vite та плагінів, vue-macros, auto-import, layouts, вміст `vite.config`;
  * у репозиторії — рекомендацію розширення Vue.volar.
+ *
+ * Заборонені явні value-імпорти з `vue` у джерелах пакета — сканування `.vue`/`.ts`/`.js` тощо
+ * через **oxc-parser** (`module.staticImports`; див. `utils/vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
 import { pass } from './utils/pass.mjs'
+import {
+  findForbiddenVueImportsInSourceFile,
+  isVueImportScanSourceFile,
+  shouldSkipFileForVueImportScan
+} from './utils/vue-forbidden-imports.mjs'
+import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
 /**
@@ -21,10 +30,30 @@ function packageLabel(rootDir) {
 }
 
 /**
+ * Текст кількості файлів українською (1 файл, 2 файли, 5 файлів, 11 файлів).
+ * @param {number} n невід’ємна кількість
+ * @returns {string} фраза виду «N файл» / «N файли» / «N файлів»
+ */
+function ukFilesCountPhrase(n) {
+  const m100 = n % 100
+  if (m100 >= 11 && m100 <= 14) {
+    return `${n} файлів`
+  }
+  const m10 = n % 10
+  if (m10 === 1) {
+    return `${n} файл`
+  }
+  if (m10 >= 2 && m10 <= 4) {
+    return `${n} файли`
+  }
+  return `${n} файлів`
+}
+
+/**
  * Перевіряє залежності та vite.config одного Vue-пакета.
  * @param {string} rootDir відносний шлях до пакета
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
- * @returns {Promise<void>} завершується після перевірок залежностей і Vite
+ * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
  */
 async function checkVuePackage(rootDir, fail) {
   const label = packageLabel(rootDir)
@@ -94,6 +123,33 @@ async function checkVuePackage(rootDir, fail) {
     }
   } else {
     fail(`${prefix}немає vite.config.js|ts|mjs у каталозі пакета`)
+  }
+
+  const absPackageRoot = join(process.cwd(), rootDir)
+  /** @type {string[]} */
+  const sourcePaths = []
+  await walkDir(absPackageRoot, absPath => {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    if (shouldSkipFileForVueImportScan(rel) || !isVueImportScanSourceFile(rel)) {
+      return
+    }
+    sourcePaths.push(absPath)
+  })
+
+  let importViolations = 0
+  for (const absPath of sourcePaths) {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    const content = await readFile(absPath, 'utf8')
+    const hits = findForbiddenVueImportsInSourceFile(content, rel)
+    for (const v of hits) {
+      importViolations++
+      fail(`${prefix}${rel}:${v.line} — прибери явний value-імпорт з 'vue' (unplugin-auto-import): ${v.snippet}`)
+    }
+  }
+  if (importViolations === 0) {
+    pass(
+      `${prefix}немає заборонених value-імпортів з 'vue' у джерелах (проскановано ${ukFilesCountPhrase(sourcePaths.length)})`
+    )
   }
 }
 
