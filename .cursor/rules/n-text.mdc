@@ -13,8 +13,18 @@ version: '1.24'
     "github.vscode-github-actions",
     "oxc.oxc-vscode",
     "DavidAnson.vscode-markdownlint",
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "irongeek.vscode-env"
   ]
+}
+```
+
+```json title=".vscode/settings.json"
+{
+  "files.associations": {
+    "*.env.*": "env",
+    "*.env": "env"
+  }
 }
 ```
 
@@ -28,7 +38,7 @@ version: '1.24'
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185"
+    "@nitra/cspell-dict": "^1.0.188"
   }
 }
 ```
@@ -143,7 +153,7 @@ jobs:
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
+    "@nitra/cspell-dict": "^1.0.188",
     "@cspell/dict-uk-ua": "^4.0.6"
   }
 }
@@ -161,7 +171,7 @@ jobs:
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^1.0.185",
+    "@nitra/cspell-dict": "^1.0.188",
     "@cspell/dict-uk-ua": "^4.0.6",
     "@cspell/dict-ru_ru": "^2.3.2"
   }

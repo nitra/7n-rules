@@ -22,8 +22,6 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-text.mdc
 
-- .cursor/rules/npm-increment-version.mdc
-
 - .cursor/rules/scripts.mdc
 
 ## Skills
