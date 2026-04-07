@@ -1,0 +1,39 @@
+npm/tests/check-nginx-default-tpl.test.mjs
+  ea625639c898f764 74
+npm/mdc/js-lint.mdc
+  ea625639c898f764 4,135
+npm/scripts/check-js-lint.mjs
+  ea625639c898f764 4-7,14-25,27-28,30-39,51,53,56,59-78,87-88,91,95,100,105,118,129-153,157-167,169-170,172-173,175-176,179-190,213-223,227,231
+npm/scripts/check-nginx-default-tpl.mjs
+  ea625639c898f764 146,150,231
+.cursor/rules/n-js-lint.mdc
+  ea625639c898f764 4,7,18,20,22,26
+eslint.config.js
+  ea625639c898f764 4
+npm/tests/check-js-lint.test.mjs
+  ea625639c898f764 1-22
+npm/scripts/check-k8s.mjs
+  ea625639c898f764 210
+npm/package.json
+  ea625639c898f764 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "2bc2a3faf8265bbc55a4f0a5d6344827d2b7f877",
+  "prompts": {
+    "ea625639c898f764": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c151deec-2d01-4c50-b7a5-2835440cb5c2",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 210,
+      "total_deletions": 307,
+      "accepted_lines": 164,
+      "overriden_lines": 1
+    }
+  }
+}
