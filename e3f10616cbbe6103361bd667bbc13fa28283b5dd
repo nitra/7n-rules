@@ -1,0 +1,27 @@
+npm/package.json
+  b8ad272ecd79dfc7 3
+npm/mdc/npm-module.mdc
+  b8ad272ecd79dfc7 11,13,15
+.cursor/rules/n-npm-module.mdc
+  b8ad272ecd79dfc7 11,13,15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "e3f10616cbbe6103361bd667bbc13fa28283b5dd",
+  "prompts": {
+    "b8ad272ecd79dfc7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3e2bcc9c-769d-47c6-86d1-69813f72d09f",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 8,
+      "accepted_lines": 7,
+      "overriden_lines": 0
+    }
+  }
+}
