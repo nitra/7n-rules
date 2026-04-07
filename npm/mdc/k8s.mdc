@@ -46,7 +46,7 @@ alwaysApply: false
 
 Шлях до скрипта підстав свій (`./scripts/…` після копіювання, `node_modules/@nitra/cursor/scripts/…` якщо пакет у залежностях).
 
-Додай workflow **`.github/workflows/lint-k8s.yml`** (гілка **`dev`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
+Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
 
 ```yaml title=".github/workflows/lint-k8s.yml"
 name: Lint K8s
@@ -55,12 +55,14 @@ on:
   push:
     branches:
       - dev
+      - main
     paths:
       - '**/k8s/**/*.yml'
 
   pull_request:
     branches:
       - dev
+      - main
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

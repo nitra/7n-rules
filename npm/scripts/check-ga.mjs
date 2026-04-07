@@ -3,7 +3,7 @@
  *
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
  * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
- * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує `npx @nitra/cursor`),
+ * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує npx `\@nitra/cursor`),
  * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
  *
  * Заборонено дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах

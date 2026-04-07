@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - dev
+      - main
     paths:
       - '.github/actions/**'
       - '.github/workflows/**'
@@ -11,6 +12,7 @@ on:
   pull_request:
     branches:
       - dev
+      - main
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}

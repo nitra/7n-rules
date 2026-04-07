@@ -32,7 +32,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 Якщо правило **`docker`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-docker`** і виклик **`bun run lint-docker`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
 
-Додай workflow **`.github/workflows/lint-docker.yml`** (гілка **`dev`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
+Додай workflow **`.github/workflows/lint-docker.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
 
 ```yaml title=".github/workflows/lint-docker.yml"
 name: Lint Docker
@@ -41,6 +41,7 @@ on:
   push:
     branches:
       - dev
+      - main
     paths:
       - '**/Dockerfile'
       - '**/*.Dockerfile'
@@ -49,6 +50,7 @@ on:
   pull_request:
     branches:
       - dev
+      - main
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
