@@ -1,0 +1,67 @@
+npm/tests/check-rule-fixtures.test.mjs
+  b6e8f4cc125f4cde 16-53,57,61-67
+npm/scripts/check-js-lint.mjs
+  b6e8f4cc125f4cde 13,158-162,164-188
+npm/scripts/check-style-lint.mjs
+  b6e8f4cc125f4cde 11,58-61
+npm/mdc/vue.mdc
+  b6e8f4cc125f4cde 220,226
+npm/tests/gha-workflow.test.mjs
+  f121e316cf87b807 2
+  b6e8f4cc125f4cde 1,3-105
+.cursor/rules/scripts.mdc
+  b6e8f4cc125f4cde 4,33-43
+npm/scripts/check-text.mjs
+  b6e8f4cc125f4cde 16,198-200
+npm/scripts/check-ga.mjs
+  b6e8f4cc125f4cde 10-11,18-25,33-42,53-66,68,88,93,96-106,109,151,153,168-171,180-183,266-268,273-278,280-287,289
+  f121e316cf87b807 45
+npm/tests/vue-forbidden-imports.test.mjs
+  b6e8f4cc125f4cde 1,3-76
+  f121e316cf87b807 2
+npm/scripts/check-npm-module.mjs
+  b6e8f4cc125f4cde 5,11-17,73-77,79-87,89-110
+npm/scripts/utils/gha-workflow.mjs
+  f121e316cf87b807 11
+  b6e8f4cc125f4cde 1-10,12-38,40-181,183-223,225-350
+npm/scripts/utils/vue-forbidden-imports.mjs
+  f121e316cf87b807 8,14-15,34,71-72,84-85,100,161,170,172
+  b6e8f4cc125f4cde 1-7,9-13,16-33,35-41,43-70,73-83,86-99,101-160,162-169,171,173-178
+npm/package.json
+  f121e316cf87b807 3
+npm/scripts/check-vue.mjs
+  b6e8f4cc125f4cde 6-8,12,15-20,33-51,56,127-153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f5f5e964775b3b5e2fe1f21ec33d42f4105c7d97",
+  "prompts": {
+    "b6e8f4cc125f4cde": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "f93ef037-d74a-43d0-b3d0-57e9d1f1853a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 1366,
+      "total_deletions": 449,
+      "accepted_lines": 971,
+      "overriden_lines": 4
+    },
+    "f121e316cf87b807": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "57489152-d533-4a44-96af-492f134f6d42",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 17,
+      "total_deletions": 17,
+      "accepted_lines": 17,
+      "overriden_lines": 0
+    }
+  }
+}
