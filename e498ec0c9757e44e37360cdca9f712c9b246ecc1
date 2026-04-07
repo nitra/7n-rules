@@ -1,0 +1,31 @@
+npm/scripts/check-bun.mjs
+  ea625639c898f764 7-8,23-27,29-30,92-121
+npm/tests/check-bun.test.mjs
+  ea625639c898f764 7,10-17,37-72
+npm/mdc/bun.mdc
+  ea625639c898f764 4
+.cursor/rules/n-bun.mdc
+  ea625639c898f764 4,52
+npm/package.json
+  ea625639c898f764 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "e498ec0c9757e44e37360cdca9f712c9b246ecc1",
+  "prompts": {
+    "ea625639c898f764": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c151deec-2d01-4c50-b7a5-2835440cb5c2",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 98,
+      "total_deletions": 10,
+      "accepted_lines": 92,
+      "overriden_lines": 2
+    }
+  }
+}
