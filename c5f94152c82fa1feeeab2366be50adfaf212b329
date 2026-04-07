@@ -1,0 +1,29 @@
+npm/mdc/k8s.mdc
+  ea625639c898f764 3,198,212-213,220
+npm/package.json
+  ea625639c898f764 3
+npm/tests/check-k8s-schema.test.mjs
+  ea625639c898f764 7,11-12,51-82
+npm/scripts/check-k8s.mjs
+  ea625639c898f764 18-20,157-192,206-207,646-697,719-720,730
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "c5f94152c82fa1feeeab2366be50adfaf212b329",
+  "prompts": {
+    "ea625639c898f764": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c151deec-2d01-4c50-b7a5-2835440cb5c2",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 230,
+      "total_deletions": 83,
+      "accepted_lines": 141,
+      "overriden_lines": 0
+    }
+  }
+}
