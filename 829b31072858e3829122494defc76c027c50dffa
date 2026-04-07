@@ -1,0 +1,49 @@
+npm/mdc/ga.mdc
+  b8ad272ecd79dfc7 82,89
+.cursor/rules/n-ga.mdc
+  b8ad272ecd79dfc7 82,89
+.cursor/rules/n-text.mdc
+  b8ad272ecd79dfc7 74,100
+npm/package.json
+  b8ad272ecd79dfc7 3
+.github/workflows/lint-text.yml
+  b8ad272ecd79dfc7 7,33
+npm/mdc/text.mdc
+  b8ad272ecd79dfc7 74,100
+.github/workflows/lint-ga.yml
+  b8ad272ecd79dfc7 7,15
+npm/mdc/k8s.mdc
+  b8ad272ecd79dfc7 49,58,65
+npm/mdc/style-lint.mdc
+  b8ad272ecd79dfc7 58,67
+npm/mdc/docker.mdc
+  b8ad272ecd79dfc7 35,44,53
+.cursor/rules/n-js-lint.mdc
+  b8ad272ecd79dfc7 65,79
+npm/scripts/check-ga.mjs
+  b8ad272ecd79dfc7 6
+npm/mdc/js-lint.mdc
+  b8ad272ecd79dfc7 65,79
+.github/workflows/lint-js.yml
+  b8ad272ecd79dfc7 7,21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "829b31072858e3829122494defc76c027c50dffa",
+  "prompts": {
+    "b8ad272ecd79dfc7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3e2bcc9c-769d-47c6-86d1-69813f72d09f",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 5,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  }
+}
