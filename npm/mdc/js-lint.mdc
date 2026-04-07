@@ -19,7 +19,7 @@ version: '1.9'
 ```json title="package.json"
 {
   "scripts": {
-    "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd ."
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
     "@nitra/eslint-config": "^3.4.0"

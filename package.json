@@ -13,7 +13,7 @@
     "test": "bun test npm/tests",
     "start": "bun ./npm/bin/n-cursor.js",
     "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && oxfmt .",
-    "lint-js": "oxlint --fix && bunx eslint --fix . && bunx jscpd .",
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .",
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",
     "lint-ga": "bunx node-actionlint && uvx zizmor --offline --collect=workflows .",
     "lint-k8s": "bun ./npm/scripts/run-k8s.mjs",

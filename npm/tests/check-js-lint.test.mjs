@@ -16,7 +16,7 @@ describe('normalizeLintJsScript / isCanonicalLintJs', () => {
   })
 
   test('інший порядок або відсутній jscpd — не канон', () => {
-    expect(isCanonicalLintJs('bunx eslint --fix . && oxlint --fix && bunx jscpd .')).toBe(false)
-    expect(isCanonicalLintJs('oxlint --fix && bunx eslint --fix .')).toBe(false)
+    expect(isCanonicalLintJs('bunx eslint --fix . && bunx oxlint --fix && bunx jscpd .')).toBe(false)
+    expect(isCanonicalLintJs('bunx oxlint --fix && bunx eslint --fix .')).toBe(false)
   })
 })

@@ -9,11 +9,11 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { pass } from './utils/pass.mjs'
 import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
+import { pass } from './utils/pass.mjs'
 
 /** Очікуваний локальний скрипт (oxlint без bunx; eslint/jscpd через bunx). */
-export const CANONICAL_LINT_JS = 'oxlint --fix && bunx eslint --fix . && bunx jscpd .'
+export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'
 
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
 export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']
@@ -182,7 +182,7 @@ export async function check() {
         }
       }
       if (content.includes('bunx oxlint') && /bunx\s+oxlint[^\n]*--fix/u.test(content)) {
-        fail('lint-js.yml: у CI не використовуй oxlint --fix (лише bunx oxlint)')
+        fail('lint-js.yml: у CI не використовуй bunx oxlint --fix (лише bunx oxlint)')
       }
       if (content.includes('eslint --fix')) {
         fail('lint-js.yml: у CI не використовуй eslint --fix (лише bunx eslint .)')
