@@ -1,0 +1,98 @@
+npm/mdc/style-lint.mdc
+  ab1be6192244a116 12,14,33,91
+  f0a4b57da5eaa0c9 4,37
+  f1bd862920744f4e 11
+  376299372a83e253 47,49,78-79,82-83,85,88
+npm/tests/check-rule-fixtures.test.mjs
+  f0a4b57da5eaa0c9 76
+  376299372a83e253 93
+npm/tests/check-k8s-schema.test.mjs
+  f1bd862920744f4e 4-5,7,12,17-18,22,71,74-77,192-298
+npm/bin/rename-yaml-extensions.mjs
+  f1bd862920744f4e 1-44
+npm/mdc/abie.mdc
+  376299372a83e253 56-57
+npm/mdc/k8s.mdc
+  ab1be6192244a116 130,170
+  f1bd862920744f4e 3-4,18,60,126,128-129,168,179,182,189
+  376299372a83e253 49,81-82,164
+npm/scripts/rename-yaml-extensions.mjs
+  f1bd862920744f4e 1-159
+npm/scripts/utils/gha-workflow.mjs
+  f0a4b57da5eaa0c9 344-345,347
+npm/bin/n-cursor.js
+  f1bd862920744f4e 11,47,875-876,889-892
+npm/scripts/run-k8s.mjs
+  f1bd862920744f4e 4-5,55,64,126
+npm/package.json
+  376299372a83e253 3
+  f1bd862920744f4e 23-24,37
+npm/scripts/check-style-lint.mjs
+  376299372a83e253 6,101-105
+  f0a4b57da5eaa0c9 28-29,31-33,35,68,70,72
+  ab1be6192244a116 4-5
+npm/tests/rename-yaml-extensions.test.mjs
+  f1bd862920744f4e 1-103
+npm/scripts/check-k8s.mjs
+  f1bd862920744f4e 12-17,21-22,29,31,171-355,357,361,365,371,378,382,574,584-614,622,625-637,646,648,660,668-682,778,782,843-844,864,915,923
+  376299372a83e253 19,467,473,489,781,819,926
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "fc18c399fd0a13f7b80a451b3db6124d98c96f42",
+  "prompts": {
+    "376299372a83e253": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6e73c952-8b0b-4c16-af72-8ec8404506c6",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 96,
+      "accepted_lines": 30,
+      "overriden_lines": 0
+    },
+    "ab1be6192244a116": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "326cfa98-fdc6-4efd-b062-09026dfec7b9",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 23,
+      "total_deletions": 34,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "f0a4b57da5eaa0c9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a304c450-8347-4015-8894-2c7255ea6fee",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 28,
+      "total_deletions": 14,
+      "accepted_lines": 15,
+      "overriden_lines": 1
+    },
+    "f1bd862920744f4e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2e86aec2-f539-4793-8709-225fde0b7289",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 924,
+      "total_deletions": 244,
+      "accepted_lines": 727,
+      "overriden_lines": 7
+    }
+  }
+}
