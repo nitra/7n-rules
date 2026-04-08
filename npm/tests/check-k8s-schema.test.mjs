@@ -3,7 +3,7 @@
  */
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
 
@@ -25,7 +25,11 @@ import {
   metadataNamespaceForbiddenViolation,
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
-  ruKustomizationHasHealthCheckDeletePatch
+  ruKustomizationHasHealthCheckDeletePatch,
+  collectGatewayApiRouteBackendServiceNames,
+  kustomizationSvcYamlMissingSvcHlViolation,
+  serviceSvcHlYamlHeadlessViolation,
+  serviceSvcYamlClusterIpTypeViolation
 } from '../scripts/check-k8s.mjs'
 
 describe('classifyBackendConfigManifestPresence', () => {
@@ -348,8 +352,8 @@ describe('serviceForbiddenGcpAnnotationsViolation', () => {
   })
 
   test('SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS містить обидва ключі', () => {
-    expect([...SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS].sort()).toEqual(
-      ['cloud.google.com/backend-config', 'cloud.google.com/neg'].sort()
+    expect([...SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS].toSorted()).toEqual(
+      ['cloud.google.com/backend-config', 'cloud.google.com/neg'].toSorted()
     )
   })
 })
@@ -529,5 +533,102 @@ describe('expectedSchemaUrl', () => {
       'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/secrets.infisical.com/infisicalsecret_v1alpha1.json'
     )
     expect(reason).toContain('InfisicalSecret')
+  })
+})
+
+describe('serviceSvcYamlClusterIpTypeViolation', () => {
+  test('ok для ClusterIP', () => {
+    expect(
+      serviceSvcYamlClusterIpTypeViolation({
+        kind: 'Service',
+        spec: { type: 'ClusterIP' }
+      })
+    ).toBeNull()
+  })
+
+  test('помилка без type', () => {
+    expect(
+      serviceSvcYamlClusterIpTypeViolation({
+        kind: 'Service',
+        spec: {}
+      })
+    ).toContain('ClusterIP')
+  })
+
+  test('не Service — null', () => {
+    expect(serviceSvcYamlClusterIpTypeViolation({ kind: 'ConfigMap' })).toBeNull()
+  })
+})
+
+describe('serviceSvcHlYamlHeadlessViolation', () => {
+  test('ok для headless з суфіксом -hl', () => {
+    expect(
+      serviceSvcHlYamlHeadlessViolation({
+        kind: 'Service',
+        metadata: { name: 'app-hl' },
+        spec: { clusterIP: 'None' }
+      })
+    ).toBeNull()
+  })
+
+  test('помилка без суфікса -hl у name', () => {
+    expect(
+      serviceSvcHlYamlHeadlessViolation({
+        kind: 'Service',
+        metadata: { name: 'app' },
+        spec: { clusterIP: 'None' }
+      })
+    ).toContain('-hl')
+  })
+
+  test('помилка без clusterIP None', () => {
+    expect(
+      serviceSvcHlYamlHeadlessViolation({
+        kind: 'Service',
+        metadata: { name: 'app-hl' },
+        spec: { type: 'ClusterIP' }
+      })
+    ).toContain('None')
+  })
+})
+
+describe('kustomizationSvcYamlMissingSvcHlViolation', () => {
+  const dir = resolve('/fixture/k8s/base')
+
+  test('null коли є svc.yaml і svc-hl.yaml', () => {
+    expect(kustomizationSvcYamlMissingSvcHlViolation(dir, ['svc.yaml', 'svc-hl.yaml'])).toBeNull()
+  })
+
+  test('помилка без svc-hl.yaml', () => {
+    expect(kustomizationSvcYamlMissingSvcHlViolation(dir, ['svc.yaml'])).toContain('svc-hl')
+  })
+
+  test('null для вкладеного каталогу', () => {
+    expect(kustomizationSvcYamlMissingSvcHlViolation(dir, ['api/svc.yaml', 'api/svc-hl.yaml'])).toBeNull()
+  })
+
+  test('помилка для вкладеного svc без hl', () => {
+    expect(kustomizationSvcYamlMissingSvcHlViolation(dir, ['api/svc.yaml'])).toContain('svc-hl')
+  })
+})
+
+describe('collectGatewayApiRouteBackendServiceNames', () => {
+  test('збирає backendRefs до Service', () => {
+    const names = collectGatewayApiRouteBackendServiceNames({
+      rules: [
+        {
+          backendRefs: [{ name: 'api-hl', port: 80 }, { name: 'gw', kind: 'Gateway', group: 'gateway.networking.k8s.io' }]
+        }
+      ]
+    })
+    expect(names).toContain('api-hl')
+    expect(names).not.toContain('gw')
+  })
+
+  test('backendRef однина', () => {
+    const names = collectGatewayApiRouteBackendServiceNames({
+      rules: [{ matches: [{ path: { value: '/' } }], backendRef: { name: 'x-hl', port: 8080 } }]
+    })
+    expect(names).toEqual(['x-hl'])
   })
 })

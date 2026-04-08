@@ -27,6 +27,16 @@
  * У **`kind: Service`** у **`metadata.annotations`** не повинно бути ключів **`cloud.google.com/neg`**
  * та **`cloud.google.com/backend-config`** (див. k8s.mdc).
  *
+ * Файли **`svc.yaml`** / **`svc-hl.yaml`** у **одному каталозі** (див. k8s.mdc): для кожного **`svc.yaml`**
+ * поруч обов’язковий **`svc-hl.yaml`** (headless-копія: той самий селектор/порти, **`metadata.name`** з суфіксом **`-hl`**,
+ * **`spec.clusterIP: None`**). У **`svc.yaml`** кожен **Service** має **`spec.type: ClusterIP`**. У **`svc-hl.yaml`**
+ * кожен **Service** — **`spec.clusterIP: None`** та ім’я на **`-hl`**. У маршрутах **Gateway API**
+ * (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**, група **`gateway.networking.k8s.io`**)
+ * посилання **`backendRefs` / `backendRef`** на **Service** мають вказувати лише сервіси з суфіксом **`-hl`** у **`name`**.
+ * Якщо **`kustomization.yaml`** посилається на **`svc.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**,
+ * **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** файлі має бути посилання на відповідний **`svc-hl.yaml`**
+ * в **тому ж каталозі**, що й **`svc.yaml`** (логіка збігається з **`pathsFromKustomizationObject`**).
+ *
  * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; у **`k8s/base/kustomization.yaml`**
  * завжди має бути непорожнє поле **`namespace:`** (перевірка, якщо файл існує).
  *
@@ -297,6 +307,79 @@ function pathsFromKustomizationObject(obj) {
 }
 
 /**
+ * Чи для кожного посилання kustomization на файл **`svc.yaml`** у списку є посилання на sibling **`svc-hl.yaml`**
+ * (той самий каталог після **`resolve`** відносно каталогу **`kustomization.yaml`**).
+ * @param {string} kustomizationDir абсолютний шлях до каталогу з **`kustomization.yaml`**
+ * @param {string[]} pathRefs рядки з **`pathsFromKustomizationObject`**
+ * @returns {string | null} текст порушення або null, якщо ок
+ */
+export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, pathRefs) {
+  /** @type {Set<string>} */
+  const resolved = new Set()
+  for (const ref of pathRefs) {
+    if (typeof ref === 'string' && !ref.includes('://')) {
+      resolved.add(resolve(kustomizationDir, ref))
+    }
+  }
+  for (const ref of pathRefs) {
+    if (typeof ref === 'string' && !ref.includes('://')) {
+      const abs = resolve(kustomizationDir, ref)
+      if (basename(abs).toLowerCase() === 'svc.yaml') {
+        const hlAbs = resolve(dirname(abs), 'svc-hl.yaml')
+        if (!resolved.has(hlAbs)) {
+          return `kustomization посилається на «${ref}» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, напр. той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)`
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: разом із **`svc.yaml`** має бути **`svc-hl.yaml`** у полях шляхів.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFiles абсолютні шляхи до yaml під k8s
+ * @param {(msg: string) => void} fail callback помилки
+ * @returns {Promise<void>}
+ */
+async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
+  for (const kustAbs of yamlFiles) {
+    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
+      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+      let raw
+      try {
+        raw = await readFile(kustAbs, 'utf8')
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати для перевірки svc.yaml/svc-hl.yaml у kustomization (${msg})`)
+      }
+      if (raw !== undefined) {
+        const lines = toLines(raw)
+        const body = yamlBodyAfterModeline(lines)
+        /** @type {import('yaml').Document[] | undefined} */
+        let docs
+        try {
+          docs = parseAllDocuments(body)
+        } catch {
+          fail(`${rel}: не вдалося розпарсити YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
+        }
+        if (docs !== undefined) {
+          const first = docs[0]?.toJSON()
+          if (first !== null && first !== undefined && typeof first === 'object' && !Array.isArray(first)) {
+            const pathRefs = pathsFromKustomizationObject(first)
+            const kustDir = dirname(kustAbs)
+            const v = kustomizationSvcYamlMissingSvcHlViolation(kustDir, pathRefs)
+            if (v !== null) {
+              fail(`${rel}: ${v}`)
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Збирає відносні шляхи (posix) до YAML, підключених до Kustomize з будь-якого **`kustomization.yaml`** під `k8s`.
  * Обходить **`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**;
  * для каталогу з **`kustomization.yaml`** виконує рекурсивний обхід.
@@ -439,7 +522,6 @@ function k8sYamlBodyForDocumentParse(lines) {
 
 /**
  * Чи всі нетривіальні документи у тілі — **`kind: BackendConfig`**, чи є змішування з іншими kind.
- *
  * @param {string} body YAML без обов’язкового modeline (див. `k8sYamlBodyForDocumentParse`)
  * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розпарсити YAML
  */
@@ -475,7 +557,6 @@ export function classifyBackendConfigManifestPresence(body) {
 
 /**
  * Видаляє під **`k8s`** YAML-файли, що містять **лише** ресурси **BackendConfig**; змішані файли — `fail`.
- *
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail реєстрація порушення
  * @param {(msg: string) => void} pass реєстрація успіху
@@ -528,6 +609,37 @@ function yamlBodyAfterModeline(lines) {
   let i = 1
   while (i < lines.length && lines[i].trim() === '') i++
   return lines.slice(i).join('\n')
+}
+
+/**
+ * Читає k8s YAML і повертає фрагмент після modeline `$schema`, якщо перший рядок — modeline.
+ * Потрібно для парної перевірки **`svc.yaml`** / **`svc-hl.yaml`**.
+ * @param {string} abs абсолютний шлях до файлу
+ * @returns {Promise<string>} тіло для `parseAllDocuments`
+ */
+async function readK8sYamlBodyAfterModelineForSvcPair(abs) {
+  const raw = await readFile(abs, 'utf8')
+  const lines = toLines(raw)
+  if (lines.length > 0 && MODELINE_RE.test(lines[0])) {
+    return yamlBodyAfterModeline(lines)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Розбирає YAML на корені документів-об’єктів (ігнорує зламані документи).
+ * @param {string} body фрагмент YAML
+ * @returns {unknown[]} масив об’єктів-документів
+ */
+function parseK8sYamlDocumentObjectRoots(body) {
+  try {
+    return parseAllDocuments(body)
+      .filter(d => d.errors.length === 0)
+      .map(d => d.toJSON())
+      .filter(x => x !== null && x !== undefined && typeof x === 'object' && !Array.isArray(x))
+  } catch {
+    return []
+  }
 }
 
 /**
@@ -747,6 +859,287 @@ export function serviceForbiddenGcpAnnotationsViolation(manifest) {
   return `metadata.annotations: прибери заборонені ключі GKE: ${found.join(', ')} (див. k8s.mdc)`
 }
 
+/** Суфікс **`metadata.name`** headless-сервісу поруч із **`svc.yaml`** (див. k8s.mdc). */
+const SVC_HL_NAME_SUFFIX = '-hl'
+
+/**
+ * Kind маршрутів Gateway API, у **`spec`** яких шукаємо **`backendRefs`** / **`backendRef`** до **Service**.
+ * @type {Set<string>}
+ */
+const GATEWAY_API_ROUTE_KINDS = new Set(['HTTPRoute', 'GRPCRoute', 'TCPRoute', 'TLSRoute', 'UDPRoute'])
+
+/** Префікс **`apiVersion`** стандартних ресурсів Gateway API. */
+const GATEWAY_API_GROUP_PREFIX = 'gateway.networking.k8s.io/'
+
+/**
+ * Чи **Service** у **`svc.yaml`** має **`spec.type: ClusterIP`** (k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null
+ */
+export function serviceSvcYamlClusterIpTypeViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Service') return null
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
+    return 'Service: додай spec.type: ClusterIP (svc.yaml, див. k8s.mdc)'
+  }
+  const s = /** @type {Record<string, unknown>} */ (spec)
+  if (s.type !== 'ClusterIP') {
+    const cur = s.type === undefined ? 'відсутнє' : String(s.type)
+    return `Service spec.type має бути ClusterIP (svc.yaml; зараз: ${cur}; див. k8s.mdc)`
+  }
+  return null
+}
+
+/**
+ * Чи **Service** у **`svc-hl.yaml`** headless (**`spec.clusterIP: None`**) з суфіксом **`-hl`** у **`metadata.name`**.
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null
+ */
+export function serviceSvcHlYamlHeadlessViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Service') return null
+  const meta = rec.metadata
+  if (meta === null || meta === undefined || typeof meta !== 'object' || Array.isArray(meta)) {
+    return 'Service: потрібні metadata.name з суфіксом -hl (svc-hl.yaml, див. k8s.mdc)'
+  }
+  const m = /** @type {Record<string, unknown>} */ (meta)
+  const n = m.name
+  if (typeof n !== 'string' || !n.endsWith(SVC_HL_NAME_SUFFIX)) {
+    return `Service metadata.name має закінчуватися на «${SVC_HL_NAME_SUFFIX}» (svc-hl.yaml; див. k8s.mdc)`
+  }
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
+    return 'Service: додай spec.clusterIP: None (svc-hl.yaml, див. k8s.mdc)'
+  }
+  const s = /** @type {Record<string, unknown>} */ (spec)
+  if (s.clusterIP !== 'None') {
+    const cur = s.clusterIP === undefined ? 'відсутнє' : String(s.clusterIP)
+    return `Service spec.clusterIP має бути None (headless, svc-hl.yaml; зараз: ${cur}; див. k8s.mdc)`
+  }
+  return null
+}
+
+/**
+ * Чи об’єкт схожий на **backendRef** до **Kubernetes Service** у Gateway API.
+ * @param {unknown} obj вузол у дереві **`spec`**
+ * @returns {boolean} true, якщо враховуємо поле **`name`** як посилання на Service
+ */
+function isGatewayApiBackendRefToService(obj) {
+  if (obj === null || obj === undefined || typeof obj !== 'object' || Array.isArray(obj)) return false
+  const o = /** @type {Record<string, unknown>} */ (obj)
+  if (typeof o.name !== 'string') return false
+  const kind = o.kind
+  if (kind !== undefined && kind !== 'Service') return false
+  const group = o.group
+  if (typeof group === 'string' && group !== '' && group !== 'core') return false
+  return true
+}
+
+/**
+ * Збирає імена **Service** з **`backendRefs`** / **`backendRef`** у піддереві **`spec`** маршруту Gateway API.
+ * @param {unknown} spec значення **`spec`** маршруту
+ * @returns {string[]} імена backend-сервісів (можливі дублікати)
+ */
+export function collectGatewayApiRouteBackendServiceNames(spec) {
+  /** @type {string[]} */
+  const out = []
+
+  /**
+   * @param {unknown} node вузол для обходу
+   * @returns {void}
+   */
+  function walk(node) {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const x of node) {
+        walk(x)
+      }
+      return
+    }
+    if (typeof node !== 'object') return
+    if (isGatewayApiBackendRefToService(node)) {
+      out.push(String(/** @type {Record<string, unknown>} */ (node).name))
+    }
+    for (const v of Object.values(node)) {
+      walk(v)
+    }
+  }
+
+  walk(spec)
+  return out
+}
+
+/**
+ * Реєструє порушення: маршрути Gateway API мають посилатися на **Service** з суфіксом **`-hl`**.
+ * @param {string} rel відносний шлях до файлу
+ * @param {string} body YAML після modeline
+ * @param {(msg: string) => void} fail callback помилки
+ * @returns {void}
+ */
+function scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail) {
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return
+  }
+
+  for (const [di, doc] of docs.entries()) {
+    if (doc.errors.length === 0) {
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        const av = rec.apiVersion
+        const kind = rec.kind
+        if (
+          typeof av === 'string' &&
+          av.startsWith(GATEWAY_API_GROUP_PREFIX) &&
+          typeof kind === 'string' &&
+          GATEWAY_API_ROUTE_KINDS.has(kind)
+        ) {
+          const names = collectGatewayApiRouteBackendServiceNames(rec.spec)
+          for (const svcName of names) {
+            if (!svcName.endsWith(SVC_HL_NAME_SUFFIX)) {
+              fail(
+                `${rel}: Gateway API ${kind} (документ ${di + 1}): backendRef до Service має вказувати headless-сервіс з суфіксом «${SVC_HL_NAME_SUFFIX}» у name (зараз: «${svcName}»; див. k8s.mdc)`
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Перевіряє пари **`svc.yaml`** / **`svc-hl.yaml`** у каталозі (наявність, узгоджені імена **Service**).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
+ * @param {(msg: string) => void} fail callback помилки
+ * @returns {Promise<void>}
+ */
+async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
+  const absSet = new Set(yamlFiles)
+
+  for (const abs of yamlFiles) {
+    if (basename(abs).toLowerCase() === 'svc-hl.yaml') {
+      const svcAbs = join(dirname(abs), 'svc.yaml')
+      if (!absSet.has(svcAbs)) {
+        const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+        fail(`${rel}: svc-hl.yaml потребує svc.yaml у тому самому каталозі (див. k8s.mdc)`)
+      }
+    }
+  }
+
+  for (const svcAbs of yamlFiles) {
+    if (basename(svcAbs).toLowerCase() === 'svc.yaml') {
+      const rel = (relative(root, svcAbs) || svcAbs).replaceAll('\\', '/')
+      const hlAbs = join(dirname(svcAbs), 'svc-hl.yaml')
+      if (absSet.has(hlAbs)) {
+        /** @type {string | undefined} */
+        let svcBody
+        /** @type {string | undefined} */
+        let hlBody
+        try {
+          svcBody = await readK8sYamlBodyAfterModelineForSvcPair(svcAbs)
+          hlBody = await readK8sYamlBodyAfterModelineForSvcPair(hlAbs)
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          fail(`${rel}: не вдалося прочитати svc.yaml / svc-hl.yaml (${msg})`)
+        }
+        if (svcBody !== undefined && hlBody !== undefined) {
+          const svcRoots = parseK8sYamlDocumentObjectRoots(svcBody)
+          const hlRoots = parseK8sYamlDocumentObjectRoots(hlBody)
+
+          /** @type {string[]} */
+          const svcNames = []
+          for (const [i, rootObj] of svcRoots.entries()) {
+            const r = /** @type {Record<string, unknown>} */ (rootObj)
+            if (r.kind === 'Service') {
+              const meta = r.metadata
+              if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+                const nm = /** @type {Record<string, unknown>} */ (meta).name
+                if (typeof nm === 'string') {
+                  svcNames.push(nm)
+                } else {
+                  fail(`${rel}: svc.yaml (документ ${i + 1}): Service без metadata.name (див. k8s.mdc)`)
+                }
+              } else {
+                fail(`${rel}: svc.yaml (документ ${i + 1}): Service без metadata (див. k8s.mdc)`)
+              }
+            }
+          }
+
+          if (svcNames.length === 0) {
+            fail(`${rel}: svc.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
+          } else {
+            /** @type {string[]} */
+            const hlNames = []
+            for (const [i, rootObj] of hlRoots.entries()) {
+              const r = /** @type {Record<string, unknown>} */ (rootObj)
+              if (r.kind === 'Service') {
+                const meta = r.metadata
+                if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+                  const nm = /** @type {Record<string, unknown>} */ (meta).name
+                  if (typeof nm === 'string') {
+                    hlNames.push(nm)
+                  } else {
+                    const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+                    fail(`${hlRel}: svc-hl.yaml (документ ${i + 1}): Service без metadata.name (див. k8s.mdc)`)
+                  }
+                } else {
+                  const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+                  fail(`${hlRel}: svc-hl.yaml (документ ${i + 1}): Service без metadata (див. k8s.mdc)`)
+                }
+              }
+            }
+
+            if (hlNames.length === 0) {
+              const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+              fail(`${hlRel}: svc-hl.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
+            } else {
+              const hlSet = new Set(hlNames)
+              for (const n of svcNames) {
+                const expectHl = `${n}${SVC_HL_NAME_SUFFIX}`
+                if (!hlSet.has(expectHl)) {
+                  fail(
+                    `${rel}: для Service «${n}» у svc.yaml у svc-hl.yaml має бути Service з metadata.name «${expectHl}» (див. k8s.mdc)`
+                  )
+                }
+              }
+
+              for (const h of hlNames) {
+                if (h.endsWith(SVC_HL_NAME_SUFFIX)) {
+                  const base = h.slice(0, -SVC_HL_NAME_SUFFIX.length)
+                  if (!svcNames.includes(base)) {
+                    const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+                    fail(
+                      `${hlRel}: Service «${h}» у svc-hl.yaml не відповідає жодному Service у svc.yaml (очікується базове ім’я «${base}»; див. k8s.mdc)`
+                    )
+                  }
+                } else {
+                  const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+                  fail(
+                    `${hlRel}: Service «${h}» у svc-hl.yaml: metadata.name має закінчуватися на «${SVC_HL_NAME_SUFFIX}» (див. k8s.mdc)`
+                  )
+                }
+              }
+            }
+          }
+        }
+      } else {
+        fail(`${rel}: поруч обов’язковий svc-hl.yaml (headless-копія з суфіксом -hl у metadata.name; див. k8s.mdc)`)
+      }
+    }
+  }
+}
+
 /**
  * Для маніфестів, **підключених** до Kustomize (шлях у `resources` / `patches` / …), **metadata.namespace** не додають.
  * @param {unknown} manifest корінь YAML-документа
@@ -816,7 +1209,8 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
 
 /**
  * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **Hasura image pin**,
- * **Service — заборонені GKE-анотації**.
+ * **Service — заборонені GKE-анотації**, **`svc.yaml`** (**`spec.type: ClusterIP`**), **`svc-hl.yaml`**
+ * (**headless**, суфікс **`-hl`** у **`metadata.name`**).
  * @param {string} rel відносний шлях
  * @param {string} baseLower basename файлу (нижній регістр)
  * @param {string} body вміст після modeline
@@ -871,6 +1265,18 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
       const svcGcpV = serviceForbiddenGcpAnnotationsViolation(obj)
       if (svcGcpV !== null) {
         fail(`${rel}: Service (документ ${di + 1}): ${svcGcpV}`)
+      }
+      if (baseLower === 'svc.yaml') {
+        const svcT = serviceSvcYamlClusterIpTypeViolation(obj)
+        if (svcT !== null) {
+          fail(`${rel}: Service (документ ${di + 1}): ${svcT}`)
+        }
+      }
+      if (baseLower === 'svc-hl.yaml') {
+        const svcH = serviceSvcHlYamlHeadlessViolation(obj)
+        if (svcH !== null) {
+          fail(`${rel}: Service (документ ${di + 1}): ${svcH}`)
+        }
       }
     }
   }
@@ -1024,6 +1430,8 @@ async function checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel) {
 
   const kustomizeManaged = kustomizeManagedRel.has(rel)
   validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
+
+  scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
 }
 
 /**
@@ -1110,6 +1518,10 @@ export async function check() {
   for (const abs of yamlFiles) {
     await checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel)
   }
+
+  await validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail)
+
+  await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 

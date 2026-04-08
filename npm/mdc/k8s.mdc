@@ -117,6 +117,14 @@ resources: {}
 
 Вони потрібні для інтеграції з **Ingress** / класичним балансуванням GKE; після переходу на **Gateway API** їх слід **прибрати** з маніфестів. **`check k8s`** завершиться помилкою, якщо хоча б один із цих ключів присутній.
 
+## Service: `svc.yaml` і `svc-hl.yaml` (Gateway API)
+
+- У тому самому каталозі, де лежить **`svc.yaml`**, обов’язково має бути **`svc-hl.yaml`**. Якщо файлу ще немає — створи його як копію **`svc.yaml`**: для кожного **Service** задай **`metadata.name`** з суфіксом **`-hl`**, **`spec.clusterIP: None`** (headless), збережи селектор і порти як у кластерного сервісу; **`check k8s`** не генерує файли автоматично.
+- У **`svc.yaml`** кожен **Service** має мати **`spec.type: ClusterIP`**.
+- У **`svc-hl.yaml`** кожен **Service** має мати **`spec.clusterIP: None`** та **`metadata.name`**, що закінчується на **`-hl`**, узгоджено з відповідним ім’ям у **`svc.yaml`** (наприклад **`app`** → **`app-hl`**).
+- У маршрутах **Gateway API** з групи **`gateway.networking.k8s.io`** (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**) посилання **`backendRefs`** / **`backendRef`** на **Service** мають вказувати лише сервіси з цього headless-файлу (ім’я з суфіксом **`-hl`**).
+- Якщо **`svc.yaml`** підключено через **`kustomization.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** **`kustomization.yaml`** додай посилання на відповідний **`svc-hl.yaml`** (той самий відносний префікс каталогу, що й для **`svc.yaml`**).
+
 ## Kustomize: структура каталогів (`base` / overlays)
 
 Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.
@@ -184,7 +192,7 @@ resources: {}
 
 Не дублюй тут повний перелік — він у **верхньому JSDoc** **`npm/scripts/check-k8s.mjs`** і в константах (**`YANNH_PIN`**, **`YANNH_GROUPS`**, **`EXPLICIT_K8S_SCHEMAS`**, **`CLUSTER_SCOPED_KINDS`**, **`HASURA_GRAPHQL_ENGINE_IMAGE`** тощо).
 
-Коротко: **`$schema`** (один modeline, без **`.yml`** під **`k8s`**), заборона **Ingress**, **Deployment.resources**, пін **hasura/graphql-engine**, **Service** без анотацій NEG/backend-config, **`metadata.namespace`** залежно від **base** і графа Kustomize, заборона **`…/k8s/dev/…`**, непорожній **`namespace:`** у **`k8s/base/kustomization.yaml`**, видалення файлів, де всі документи — лише **BackendConfig** (змішані файли — помилка).
+Коротко: **`$schema`** (один modeline, без **`.yml`** під **`k8s`**), заборона **Ingress**, **Deployment.resources**, пін **hasura/graphql-engine**, **Service** без анотацій NEG/backend-config, пари **`svc.yaml`** / **`svc-hl.yaml`** (**ClusterIP** / headless **`-hl`**) і їхні записи в **`kustomization.yaml`**, **Gateway API** маршрути — **backendRef** лише на **`-hl`**, **`metadata.namespace`** залежно від **base** і графа Kustomize, заборона **`…/k8s/dev/…`**, непорожній **`namespace:`** у **`k8s/base/kustomization.yaml`**, видалення файлів, де всі документи — лише **BackendConfig** (змішані файли — помилка).
 
 При зміні **PIN** версії Kubernetes оновлюй узгоджено **`check-k8s.mjs`**, **`run-k8s.mjs`** (**`KUBERNETES_VERSION`**, **`DATREE_CRD_SCHEMA_LOCATION`**) і розділи **lint-k8s** / **Визначення схеми YAML** у цьому файлі (**`YANNH_REF`**, **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** — за потреби в скрипті).
 
