@@ -1,7 +1,7 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.2'
+version: '1.4'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (**Deployment** + **HealthCheckPolicy**), overlay **ua** / **ru** (**nodeSelector**, видалення **HealthCheckPolicy** у **ru**) і гілки в **clean-merged-branch**. **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
@@ -28,6 +28,49 @@ spec:
     group: ''
     kind: Service
     name: СЕРВІС
+```
+
+## k8s: overlay **HTTPRoute** `nginx-run` (**ua** / **ru**)
+
+Якщо під **`k8s`** є **Deployment**, у **кожному** **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** має бути inline **JSON6902** у **`patches[].patch`** на **`target.kind: HTTPRoute`**, **`name: nginx-run`**: **replace** **`/spec/hostnames`** (допустимі домени — як у прикладах нижче) і **replace** **`/spec/parentRefs/0/namespace`** (**`ua`** або **`ru`**). Для **ru** додатково потрібна анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** (зазвичай **op: add**, **`/metadata/annotations`**). Критерії — **`validateAbieNginxRunHttpRoutePatches`** / **`getCombinedNginxRunPatchTextFromKustomization`** у **`npm/scripts/check-abie.mjs`**.
+
+```yaml title="…/ua/kustomization.yaml (фрагмент)"
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app" # також допускається vybeerai.com.ua, *.vybeerai.com.ua, *.abie.app
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ua
+```
+
+```yaml title="…/ru/kustomization.yaml (фрагмент)"
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "napitkivmeste.tech" # також допускається выбирайонлайн.рф, *.napitkivmeste.tech, *.выбирайонлайн.рф
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ru
+```
+
+```yaml title="…/ru/kustomization.yaml (фрагмент)"
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 ```
 
 ## k8s: overlay **`ru`** і HealthCheckPolicy
@@ -72,6 +115,18 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           yandex.cloud/preemptible: "false"
+```
+
+### Базовий Deployment (`…/base/`)
+
+Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`** (наприклад **`…/k8s/base/deploy.yaml`**), у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**) — overlay **ua** / **ru** підміняє селектор через kustomize. Деталі — **`deploymentDocumentHasAbieBasePreemNodeSelector`** / **`isAbieK8sBaseYamlPath`** у **`npm/scripts/check-abie.mjs`**.
+
+```yaml title="…/base/deploy.yaml (фрагмент)"
+spec:
+  template:
+    spec:
+      nodeSelector:
+        preem: 'true' # буде замінено через kustomize
 ```
 
 ## Git branches

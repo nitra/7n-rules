@@ -1,5 +1,5 @@
 /**
- * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml.
+ * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml, base preem, HTTPRoute nginx-run.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -8,12 +8,17 @@ import { join } from 'node:path'
 import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
+  deploymentDocumentHasAbieBasePreemNodeSelector,
+  getCombinedNginxRunPatchTextFromKustomization,
   ignoreBranchesIncludesRequired,
+  isAbieK8sBaseYamlPath,
   isRuKustomizationPath,
   isUaKustomizationPath,
   kustomizationHasAbieDeploymentNodeSelectorPatch,
+  kustomizationHasAbieNginxRunHttpRoutePatch,
   parseCleanMergedIgnoreBranches,
   validateAbieHcYaml,
+  validateAbieNginxRunHttpRoutePatches,
   check,
   isAbieRuleEnabled
 } from '../scripts/check-abie.mjs'
@@ -65,6 +70,46 @@ describe('check-abie (допоміжні функції)', () => {
     expect(isUaKustomizationPath(String.raw`x\k8s\ua\kustomization.yaml`)).toBe(true)
     expect(isUaKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
     expect(isUaKustomizationPath('app/k8s/ua/foo.yaml')).toBe(false)
+  })
+
+  test('isAbieK8sBaseYamlPath — сегмент base у шляху', () => {
+    expect(isAbieK8sBaseYamlPath('app/k8s/base/deploy.yaml')).toBe(true)
+    expect(isAbieK8sBaseYamlPath(String.raw`pkg\k8s\base\a.yaml`)).toBe(true)
+    expect(isAbieK8sBaseYamlPath('app/k8s/ua/kustomization.yaml')).toBe(false)
+    expect(isAbieK8sBaseYamlPath('app/k8s/overlays/ru/foo.yaml')).toBe(false)
+  })
+
+  test('deploymentDocumentHasAbieBasePreemNodeSelector', () => {
+    const ok = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            nodeSelector: { preem: 'true' }
+          }
+        }
+      }
+    }
+    expect(deploymentDocumentHasAbieBasePreemNodeSelector(ok)).toBe(true)
+    expect(
+      deploymentDocumentHasAbieBasePreemNodeSelector({
+        ...ok,
+        spec: { template: { spec: { nodeSelector: { preem: true } } } }
+      })
+    ).toBe(true)
+    expect(
+      deploymentDocumentHasAbieBasePreemNodeSelector({
+        ...ok,
+        spec: { template: { spec: { nodeSelector: { preem: 'false' } } } }
+      })
+    ).toBe(false)
+    expect(
+      deploymentDocumentHasAbieBasePreemNodeSelector({
+        ...ok,
+        spec: { template: { spec: { containers: [] } } }
+      })
+    ).toBe(false)
+    expect(deploymentDocumentHasAbieBasePreemNodeSelector({ kind: 'Service' })).toBe(false)
   })
 
   test('parseCleanMergedIgnoreBranches знаходить ignore_branches', () => {
@@ -125,6 +170,84 @@ patches:
     const bad = UA_KUSTOMIZATION_NODE_SELECTOR_PATCH.replace('op: add', 'op: replace')
     expect(kustomizationHasAbieDeploymentNodeSelectorPatch(bad, 'ua')).toBe(false)
   })
+
+  const UA_KUSTOMIZATION_HTTPROUTE = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ua
+`
+
+  const RU_KUSTOMIZATION_HTTPROUTE = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "napitkivmeste.tech"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ru
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
+`
+
+  test('getCombinedNginxRunPatchTextFromKustomization збирає patch для nginx-run', () => {
+    const joined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
+    expect(joined).toContain('/spec/hostnames')
+    expect(joined).toContain('websocket')
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — ua / ru', () => {
+    const uaCombined = getCombinedNginxRunPatchTextFromKustomization(UA_KUSTOMIZATION_HTTPROUTE)
+    expect(validateAbieNginxRunHttpRoutePatches(uaCombined, 'ua')).toBeNull()
+    const ruCombined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
+    expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru')).toBeNull()
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — ru без websocket', () => {
+    const ruOnly = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "napitkivmeste.tech"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ru
+`
+    const c = getCombinedNginxRunPatchTextFromKustomization(ruOnly)
+    expect(validateAbieNginxRunHttpRoutePatches(c, 'ru')).toContain('websocket')
+  })
+
+  test('kustomizationHasAbieNginxRunHttpRoutePatch', () => {
+    expect(kustomizationHasAbieNginxRunHttpRoutePatch(UA_KUSTOMIZATION_HTTPROUTE, 'ua')).toBe(true)
+    expect(kustomizationHasAbieNginxRunHttpRoutePatch(RU_KUSTOMIZATION_HTTPROUTE, 'ru')).toBe(true)
+  })
 })
 
 describe('check-abie (інтеграція в тимчасовому каталозі)', () => {
@@ -168,9 +291,33 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        preem: 'true'
       containers: []
 `
       await writeFile(join('app/k8s/base/deploy.yaml'), dep, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: base Deployment без preem — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      const dep = `# yaml-language-server: $schema=https://example.com/d.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x
+spec:
+  template:
+    spec:
+      containers: []
+`
+      await writeFile(join('app/k8s/base/deploy.yaml'), dep, 'utf8')
+      await writeFile(join('app/k8s/base/hc.yaml'), HC_MIN, 'utf8')
       expect(await check()).toBe(1)
     })
   })
@@ -190,6 +337,8 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        preem: 'true'
       containers: []
 `
       await writeFile(join('app/k8s/base/deploy.yaml'), dep, 'utf8')
@@ -235,6 +384,8 @@ metadata:
 spec:
   template:
     spec:
+      nodeSelector:
+        preem: 'true'
       containers: []
 `
       await writeFile(join('app/k8s/base/deploy.yaml'), dep, 'utf8')
@@ -250,6 +401,17 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           preem: 'false'
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ua
 `
       await writeFile(join('app/k8s/ua/kustomization.yaml'), uaK, 'utf8')
       const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -271,6 +433,25 @@ patches:
         path: /spec/template/spec/nodeSelector
         value:
           yandex.cloud/preemptible: "false"
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "napitkivmeste.tech"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ru
+  - target:
+      kind: HTTPRoute
+      name: nginx-run
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)
