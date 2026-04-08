@@ -1,0 +1,71 @@
+npm/scripts/check-abie.mjs
+  a4320017ae2b921c 35,282,285,330,332,778,781,805,831,840,843,867,893,902-903,909,975,985,987,990
+  916743e07382a7f6 82,84,120,315-320,322-325,510-521,528,553-554,570-575,578,584
+npm/scripts/check-js-pino.mjs
+  a4320017ae2b921c 11,18,21,40,42,57-58,65,69,72
+npm/scripts/check-vue.mjs
+  a4320017ae2b921c 14,56,59,70,78,87,93,99,105,116,121,151,162-163,189,193,196
+npm/scripts/check-npm-module.mjs
+  a4320017ae2b921c 10,24-25,114
+npm/scripts/check-nginx-default-tpl.mjs
+  a4320017ae2b921c 21,267-268,284,383
+npm/tests/check-reporter.test.mjs
+  a4320017ae2b921c 1-31
+npm/scripts/utils/check-reporter.mjs
+  a4320017ae2b921c 1-27
+npm/scripts/check-js-format.mjs
+  a4320017ae2b921c 9,16-17,95
+npm/scripts/run-docker.mjs
+  a4320017ae2b921c 14,47-48,55,71
+npm/scripts/check-docker.mjs
+  a4320017ae2b921c 11,45-46,53,69
+npm/scripts/check-style-lint.mjs
+  a4320017ae2b921c 11,19-20,105
+npm/scripts/check-text.mjs
+  a4320017ae2b921c 15,50-51,215
+npm/package.json
+  a4320017ae2b921c 3
+.cspell.json
+  916743e07382a7f6 15-19
+npm/scripts/check-bun.mjs
+  a4320017ae2b921c 20,56-57,164
+npm/scripts/check-js-lint.mjs
+  a4320017ae2b921c 13,44-45,242
+npm/scripts/check-k8s.mjs
+  a4320017ae2b921c 54,1485-1486,1496,1515
+npm/scripts/check-ga.mjs
+  a4320017ae2b921c 17,125-126,132,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "ac243a251c1fec8234aef82adf501baa5ce5df5c",
+  "prompts": {
+    "916743e07382a7f6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5a7a0818-6798-494f-bd4a-676a98777f10",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 46,
+      "accepted_lines": 41,
+      "overriden_lines": 1
+    },
+    "a4320017ae2b921c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d49db2c2-70d0-4195-8ff7-c87626c32347",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 155,
+      "total_deletions": 134,
+      "accepted_lines": 155,
+      "overriden_lines": 0
+    }
+  }
+}
