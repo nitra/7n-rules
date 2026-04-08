@@ -42,7 +42,7 @@ alwaysApply: false
 }
 ```
 
-Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
+Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **мають** бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
 
 Шлях до скрипта підстав свій (`./scripts/…` після копіювання, `node_modules/@nitra/cursor/scripts/…` якщо пакет у залежностях).
 
@@ -96,34 +96,25 @@ jobs:
 
 ## Deployment: `resources`
 
-Для **`kind: Deployment`** у кожному контейнері **`spec.template.spec.containers[]`** має бути явне поле **`resources`**. Якщо ліміти та requests ще не задані, додай порожній об'єкт:
+У **`Deployment`** у кожному **`containers`** / **`initContainers`** має бути **`resources`**; якщо лімітів ще немає — мінімум порожній запис:
 
 ```yaml
 resources: {}
 ```
 
-Так маніфест явно резервує місце під **`requests` / `limits`** і уникає випадкового пропуску секції. **`check k8s`** перевіряє це для кожного YAML-документа **`Deployment`** у файлах під **`k8s`**.
+**`check k8s`** перевіряє наявність **`resources`** у кожному документі **Deployment** під **`k8s`**. Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
 
-**`imagePullPolicy`:** у маніфестах не вимагається; Kubernetes за замовчуванням: образ **без тега** або з **`:latest`** → **Always**, з іншим тегом → **IfNotPresent**. **`check k8s`** це поле не перевіряє.
-
-Якщо в **`Deployment`** у **`spec.template.spec.containers`** або **`initContainers`** задано образ **`hasura/graphql-engine`**, у полі **`image`** має бути саме **`hasura/graphql-engine:v2.48.15.ubi.amd64`** (для еквівалента Docker Hub допускається префікс **`docker.io/`**). Інші теги або сторонні реєстри з тим самим репозиторієм **`hasura/graphql-engine`** — порушення **`check k8s`**.
+Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег із константи **`HASURA_GRAPHQL_ENGINE_IMAGE`** у **`check-k8s.mjs`** (допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
 
 ## Service: заборонені анотації GKE
 
-У **`kind: Service`** не використовуй у **`metadata.annotations`** ключі:
-
-- **`cloud.google.com/neg`**
-- **`cloud.google.com/backend-config`**
-
-Вони потрібні для інтеграції з **Ingress** / класичним балансуванням GKE; після переходу на **Gateway API** їх слід **прибрати** з маніфестів. **`check k8s`** завершиться помилкою, якщо хоча б один із цих ключів присутній.
+У **`kind: Service`** не додавай у **`metadata.annotations`** **`cloud.google.com/neg`** і **`cloud.google.com/backend-config`** (legacy під Ingress / старе балансування GKE). **check k8s** падає, якщо ключ є.
 
 ## Service: `svc.yaml` і `svc-hl.yaml` (Gateway API)
 
-- У тому самому каталозі, де лежить **`svc.yaml`**, обов’язково має бути **`svc-hl.yaml`**. Якщо файлу ще немає — створи його як копію **`svc.yaml`**: для кожного **Service** задай **`metadata.name`** з суфіксом **`-hl`**, **`spec.clusterIP: None`** (headless), збережи селектор і порти як у кластерного сервісу; **`check k8s`** не генерує файли автоматично.
-- У **`svc.yaml`** кожен **Service** має мати **`spec.type: ClusterIP`**.
-- У **`svc-hl.yaml`** кожен **Service** має мати **`spec.clusterIP: None`** та **`metadata.name`**, що закінчується на **`-hl`**, узгоджено з відповідним ім’ям у **`svc.yaml`** (наприклад **`app`** → **`app-hl`**).
-- У маршрутах **Gateway API** з групи **`gateway.networking.k8s.io`** (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**) посилання **`backendRefs`** / **`backendRef`** на **Service** мають вказувати лише сервіси з цього headless-файлу (ім’я з суфіксом **`-hl`**).
-- Якщо **`svc.yaml`** підключено через **`kustomization.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** **`kustomization.yaml`** додай посилання на відповідний **`svc-hl.yaml`** (той самий відносний префікс каталогу, що й для **`svc.yaml`**).
+Пара файлів для кластерного й headless **Service**: **`svc.yaml`** + **`svc-hl.yaml`** в одному каталозі, **`spec.type: ClusterIP`** / **`clusterIP: None`**, імена **`-hl`**, узгодженість пар, маршрути **`gateway.networking.k8s.io`** (**HTTPRoute**, **GRPCRoute**, **TCPRoute**, **TLSRoute**, **UDPRoute**) — **backendRef** лише на сервіси з суфіксом **`-hl`**; якщо **kustomization** посилається на **`svc.yaml`**, у **тому ж** **`kustomization.yaml`** має бути посилання на sibling **`svc-hl.yaml`**. Скрипт **не** створює файли — додай **`svc-hl.yaml`** вручну (копія з правками **name** / **clusterIP**).
+
+**Точні умови та повідомлення `fail`** — верхній JSDoc **`npm/scripts/check-k8s.mjs`**.
 
 ## Kustomize: структура каталогів (`base` / overlays)
 
@@ -142,11 +133,11 @@ resources: {}
 
 ### Namespace
 
-- **`base/kustomization.yaml`:** у цьому файлі поле **`namespace:`** **завжди** має бути присутнє й **непорожнє**, щоб Kustomize застосував один цільовий namespace до ресурсів **base**. **`check k8s`** перевіряє це, коли файл є в репозиторії.
+- **`base/kustomization.yaml`:** поле **`namespace:`** має бути **непорожнім** (перевіряє **check k8s**, якщо файл є).
 
-- **Де не дублювати `metadata.namespace`:** у YAML під **`k8s`**, чиї шляхи **досяжні** з будь-якого **`kustomization.yaml`** через **`resources`**, **`bases`**, **`components`**, **`crds`**, елементи **`patches`** з полем **`path`**, **`patchesStrategicMerge`** (транзитивно, зокрема через каталог із дочірнім **`kustomization.yaml`**). У таких файлах **не** вказуй **`metadata.namespace`** — його виставляє Kustomize за полем **`namespace:`** у kustomization.
+- **Де не дублювати `metadata.namespace`:** у YAML, досяжних через **граф Kustomize** (шляхи з **`kustomization.yaml`**, як у логіці **`collectKustomizeManagedRelPaths`** / **check k8s**). **Namespace** задає **`namespace:`** у kustomization.
 
-- **Коли `metadata.namespace` обов’язковий:** YAML під **`k8s`**, який **ніде** не перелічений у згаданих полях жодного kustomization-файлу, має містити **непорожній** **`metadata.namespace`** у кожному документі з **`apiVersion`** та **`kind`**, **окрім** кластерних ресурсів (наприклад **`Namespace`**, **`ClusterRole`**, **`PersistentVolume`** — повний перелік у **`check-k8s.mjs`**, **`CLUSTER_SCOPED_KINDS`**). Якщо файл має бути без namespace у маніфесті — підключи його до kustomization через **`resources`** / **`patches`** тощо.
+- **Коли `metadata.namespace` обов’язковий у файлі:** YAML під **`k8s`**, який **не** в графі жодного kustomization — непорожній **`metadata.namespace`** для namespaced **kind** (винятки — кластерні **kind**, перелік **`CLUSTER_SCOPED_KINDS`** у **`check-k8s.mjs`**). Якщо namespace у маніфесті не потрібен — підключи файл через **`resources`** / **`patches`** тощо.
 
 - **Не додавай** окремі **patches** Kustomize, які лише змінюють **namespace**: **namespace** визначає Kustomize; у overlays додаткові зміни — без дублювання логіки **namespace**.
 
@@ -182,27 +173,56 @@ resources: {}
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
+3. Якщо **HTTPRoute** посилається на **Service** в іншому **namespace**, потрібен **ReferenceGrant** (дозвіл). Наприклад **HTTPRoute** в **`contract`** і **Service** в **`dev`** — додай маніфест на кшталт **`base/rg.yaml`** (фрагмент нижче).
+
+```yaml title="base/rg.yaml"
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/referencegrant_v1beta1.json
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: contract-to-dev
+  namespace: dev
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: contract
+  to:
+    - group: ''
+      kind: Service
+      # Якщо name не вказано, доступ дозволено до всіх Service в цьому namespace
+```
+
+**ReferenceGrant** має бути в **namespace** тих **Service**, до яких відкривається доступ (у прикладі — **`dev`**). Якщо **`namespace:`** у **overlay** не збігається з **namespace** гранта, **не** додавай **`base/rg.yaml`** у **`resources:`** того overlay — Kustomize може перезаписати **`metadata.namespace`** гранта. Натомість застосуй **`patches`** (JSON patch), щоб явно виставити потрібний **namespace**:
+
+```yaml title="overlay/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: ReferenceGrant
+      name: contract-to-dev
+    patch: |-
+      - op: replace
+        path: /metadata/namespace
+        value: dev
+```
+
 ## Перевірка
 
-**`npx @nitra/cursor check k8s`** — деталі умов у **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**; канон URL **`$schema`** для редактору — розділ **«Визначення схеми YAML»** нижче. Якщо під `k8s` немає `*.yaml` — перевірку пропущено. Решту політик кластера / compliance закриває **`lint-k8s`**.
+**`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.
 
-Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape).
+**Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
-## Що закодовано в `check-k8s.mjs`
+## Що саме в скрипті `check-k8s.mjs`
 
-Не дублюй тут повний перелік — він у **верхньому JSDoc** **`npm/scripts/check-k8s.mjs`** і в константах (**`YANNH_PIN`**, **`YANNH_GROUPS`**, **`EXPLICIT_K8S_SCHEMAS`**, **`CLUSTER_SCOPED_KINDS`**, **`HASURA_GRAPHQL_ENGINE_IMAGE`** тощо).
+Повний перелік умов, константи (**`YANNH_PIN`**, **`CLUSTER_SCOPED_KINDS`**, **`HASURA_GRAPHQL_ENGINE_IMAGE`** тощо) і допоміжні функції — у файлі скрипта; змінив вимогу для **check** — онови **JSDoc** і за потреби тести в **`npm/tests/check-k8s-schema.test.mjs`**.
 
-Коротко: **`$schema`** (один modeline, без **`.yml`** під **`k8s`**), заборона **Ingress**, **Deployment.resources**, пін **hasura/graphql-engine**, **Service** без анотацій NEG/backend-config, пари **`svc.yaml`** / **`svc-hl.yaml`** (**ClusterIP** / headless **`-hl`**) і їхні записи в **`kustomization.yaml`**, **Gateway API** маршрути — **backendRef** лише на **`-hl`**, **`metadata.namespace`** залежно від **base** і графа Kustomize, заборона **`…/k8s/dev/…`**, непорожній **`namespace:`** у **`k8s/base/kustomization.yaml`**, видалення файлів, де всі документи — лише **BackendConfig** (змішані файли — помилка).
-
-При зміні **PIN** версії Kubernetes оновлюй узгоджено **`check-k8s.mjs`**, **`run-k8s.mjs`** (**`KUBERNETES_VERSION`**, **`DATREE_CRD_SCHEMA_LOCATION`**) і розділи **lint-k8s** / **Визначення схеми YAML** у цьому файлі (**`YANNH_REF`**, **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** — за потреби в скрипті).
+При зміні **PIN** версії Kubernetes узгодь **`check-k8s.mjs`**, **`run-k8s.mjs`** (**`KUBERNETES_VERSION`**, **`DATREE_CRD_SCHEMA_LOCATION`**) і цей файл (**lint-k8s**, **Визначення схеми YAML**).
 
 ## Коли застосовувати (агентам)
 
-- Зміни в k8s YAML — після правок **`check k8s`**.
-- Якщо перший рядок уже коректний і URL відповідає `apiVersion` / `kind` — не дублюй; змінився ресурс — онови лише `$schema`.
-- У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**). **`imagePullPolicy`** за потреби не дублюй — достатньо політики Kubernetes за тегом образу.
-- Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, коментарі для рядків, що змінюються в overlay). У **`base/kustomization.yaml`** завжди задавай непорожній **`namespace:`**. У **`k8s/base`** у кожному ресурсному YAML має бути явний **`metadata.namespace`**. Поза **base**, якщо не хочеш **`metadata.namespace`** у файлі — підключи його до kustomization (**`resources`** / **`patches`** тощо); інакше додай явний **`metadata.namespace`**.
-- Після міграції на нову структуру **видали** застарілі файли та каталоги, які вже замінені (див. **Міграція зі старої структури**).
+- Після змін у k8s YAML: **`npx @nitra/cursor check k8s`** і за наявності правила — **`bun run lint-k8s`**.
+- Оновив **`apiVersion` / `kind`** — підправ **перший** рядок **`$schema`** (див. **Визначення схеми YAML**).
+- Дотримуйся **Kustomize** з цього правила; деталі **namespace** / графа ресурсів — **check k8s** + підказки в JSDoc скрипта.
 
 ## Визначення схеми YAML (канон)
 

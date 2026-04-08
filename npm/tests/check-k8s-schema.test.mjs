@@ -253,7 +253,7 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
     expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
   })
 
-  test('помилка для іншого тега', () => {
+  test('помилка для іншого тегу образу', () => {
     const manifest = {
       kind: 'Deployment',
       spec: {

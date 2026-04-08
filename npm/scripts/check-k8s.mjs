@@ -6,9 +6,9 @@
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
- * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
+ * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об’єкт, допускається
  * порожній **`{}`**). Поле **`imagePullPolicy`** не перевіряється — діють типові правила Kubernetes
- * (`:latest` або без тега → **Always**, інші теги → **IfNotPresent**). Якщо серед **`containers`** /
+ * (`:latest` або коли тег не вказано → **Always**, інші теги → **IfNotPresent**). Якщо серед **`containers`** /
  * **`initContainers`** є образ **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`**
  * (див. k8s.mdc).
  *
@@ -327,7 +327,7 @@ export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, path
       if (basename(abs).toLowerCase() === 'svc.yaml') {
         const hlAbs = resolve(dirname(abs), 'svc-hl.yaml')
         if (!resolved.has(hlAbs)) {
-          return `kustomization посилається на «${ref}» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, напр. той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)`
+          return `kustomization посилається на «${ref}» — додай у тому ж kustomization.yaml посилання на відповідний svc-hl.yaml (очікуваний шлях поруч, наприклад той самий префікс каталогу + svc-hl.yaml; див. k8s.mdc)`
         }
       }
     }
@@ -627,9 +627,9 @@ async function readK8sYamlBodyAfterModelineForSvcPair(abs) {
 }
 
 /**
- * Розбирає YAML на корені документів-об’єктів (ігнорує зламані документи).
+ * Розбирає YAML на корені документів (ігнорує зламані документи).
  * @param {string} body фрагмент YAML
- * @returns {unknown[]} масив об’єктів-документів
+ * @returns {unknown[]} масив успішно розібраних коренів YAML-документів
  */
 function parseK8sYamlDocumentObjectRoots(body) {
   try {
@@ -722,7 +722,7 @@ function scanIngressInYamlDocuments(rel, body, fail) {
 
 /**
  * Чи порушує маніфест вимогу **`Deployment.spec.template.spec.containers[].resources`** (див. k8s.mdc).
- * @param {unknown} manifest корінь YAML-документа як об'єкт JavaScript
+ * @param {unknown} manifest корінь YAML-документа як запис JavaScript
  * @returns {string | null} текст порушення для `fail` або null, якщо перевірка не застосовується / ок
  */
 export function deploymentResourcesViolation(manifest) {
@@ -752,7 +752,7 @@ export function deploymentResourcesViolation(manifest) {
       }
       const r = cont.resources
       if (r === null || typeof r !== 'object' || Array.isArray(r)) {
-        return `контейнер "${label}": resources має бути об'єктом (наприклад порожній об'єкт у YAML: resources: {})`
+        return `контейнер "${label}": resources має бути записом у YAML (наприклад порожній: resources: {})`
       }
     }
   }
@@ -761,7 +761,7 @@ export function deploymentResourcesViolation(manifest) {
 }
 
 /**
- * Прибирає digest з посилання на образ (`@sha256:…`) для порівняння тега.
+ * Прибирає digest з посилання на образ (`@sha256:…`) для порівняння тегу образу.
  * @param {string} image значення поля `image`
  * @returns {string} той самий рядок без суфікса `@…` (digest), з `.trim()`
  */
@@ -771,7 +771,7 @@ function stripImageDigest(image) {
 }
 
 /**
- * Чи рядок `image` вказує на репозиторій **hasura/graphql-engine** (будь-який тег / без тега).
+ * Чи рядок `image` вказує на репозиторій **hasura/graphql-engine** (будь-який тег / без вказаного тегу).
  * @param {string} image значення поля `image`
  * @returns {boolean} true, якщо шлях образу закінчується на `hasura/graphql-engine` з тегом або без
  */
@@ -808,7 +808,7 @@ function hasuraGraphqlEngineViolationInContainerList(list, containers) {
 }
 
 /**
- * Чи порушує **Deployment** вимогу пінованого образу **hasura/graphql-engine** (k8s.mdc).
+ * Чи порушує **Deployment** вимогу щодо зафіксованого образу **hasura/graphql-engine** (k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null, якщо не Deployment / образу немає / ок
  */
