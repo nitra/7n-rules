@@ -1,0 +1,35 @@
+npm/skills/abie-kustomize/SKILL.md
+  41a709b7b477665a 2,4,8-26
+npm/schemas/n-cursor.json
+  41a709b7b477665a 24
+npm/README.md
+  41a709b7b477665a 88,92
+npm/bin/n-cursor.js
+  41a709b7b477665a 27-29,91,100-101,239,243,434,484,500-503,506,522,524,549-551,561,572,589
+npm/skills/publish-telegram/SKILL.md
+  41a709b7b477665a 2
+npm/skills/fix/SKILL.md
+  41a709b7b477665a 2
+docs/fix-cursor-skill.md
+  41a709b7b477665a 198-199
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "d5438e95a9177f4f32f77605517e96874f7075f4",
+  "prompts": {
+    "41a709b7b477665a": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3aade817-0d27-4803-938a-023fdf71678a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 186,
+      "total_deletions": 103,
+      "accepted_lines": 56,
+      "overriden_lines": 0
+    }
+  }
+}
