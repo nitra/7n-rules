@@ -10,7 +10,7 @@ import { pass } from './pass.mjs'
 
 /**
  * Створює пару `pass` / `fail` з накопиченням ненульового коду виходу.
- * @returns {{ pass: typeof pass, fail: (msg: string) => void, getExitCode: () => number }}
+ * @returns {{ pass: typeof pass, fail: (msg: string) => void, getExitCode: () => number }} об’єкт з `pass`, `fail` і `getExitCode()` (0 або 1 після будь-якого `fail`)
  */
 export function createCheckReporter() {
   let exitCode = 0

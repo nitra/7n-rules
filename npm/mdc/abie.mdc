@@ -1,14 +1,18 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.4'
+version: '1.7'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (**Deployment** + **HealthCheckPolicy**), overlay **ua** / **ru** (**nodeSelector**, видалення **HealthCheckPolicy** у **ru**) і гілки в **clean-merged-branch**. **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**), видалення **HealthCheckPolicy** у **ru**), а також гілки **dev**, **ua**, **ru** у **clean-merged-branch**.
+
+**`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
+
+**Канон перевірки** — **`npm/scripts/check-abie.mjs`**: верхній JSDoc і реалізація задають точні умови, допустимі домени для hostnames, тексти помилок. Нижче — зміст правила й орієнтовні фрагменти YAML; не дублюй тут покроковий алгоритм зі скрипта.
 
 ## k8s: `hc.yaml` поруч із Deployment
 
-Якщо під **`k8s`** є **`kind: Deployment`**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`/healthz`**, порт **8080**, **`targetRef.name`** = **`metadata.name`**. Деталі — **`validateAbieHcYaml`** у **`npm/scripts/check-abie.mjs`**.
+Якщо під **`k8s`** є **Deployment**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`/healthz`**, порт **8080**, **`targetRef.name`** = **`metadata.name`**.
 
 ```yaml title="hc.yaml"
 # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
@@ -30,19 +34,19 @@ spec:
     name: СЕРВІС
 ```
 
-## k8s: overlay **HTTPRoute** `nginx-run` (**ua** / **ru**)
+## k8s: overlay **HTTPRoute** (**ua** / **ru**)
 
-Якщо під **`k8s`** є **Deployment**, у **кожному** **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** має бути inline **JSON6902** у **`patches[].patch`** на **`target.kind: HTTPRoute`**, **`name: nginx-run`**: **replace** **`/spec/hostnames`** (допустимі домени — як у прикладах нижче) і **replace** **`/spec/parentRefs/0/namespace`** (**`ua`** або **`ru`**). Для **ru** додатково потрібна анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** (зазвичай **op: add**, **`/metadata/annotations`**). Критерії — **`validateAbieNginxRunHttpRoutePatches`** / **`getCombinedNginxRunPatchTextFromKustomization`** у **`npm/scripts/check-abie.mjs`**.
+За наявності **Deployment** під **k8s** у **кожному** **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**. Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: replace
         path: /spec/hostnames
         value:
-          - "abie.app" # також допускається vybeerai.com.ua, *.vybeerai.com.ua, *.abie.app
+          - "abie.app" # зокрема vybeerai.com.ua, *.vybeerai.com.ua, *.abie.app
       - op: replace
         path: /spec/parentRefs/0/namespace
         value: ua
@@ -51,12 +55,12 @@ spec:
 ```yaml title="…/ru/kustomization.yaml (фрагмент)"
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: replace
         path: /spec/hostnames
         value:
-          - "napitkivmeste.tech" # також допускається выбирайонлайн.рф, *.napitkivmeste.tech, *.выбирайонлайн.рф
+          - "napitkivmeste.tech" # зокрема выбирайонлайн.рф, *.napitkivmeste.tech, *.выбирайонлайн.рф
       - op: replace
         path: /spec/parentRefs/0/namespace
         value: ru
@@ -65,7 +69,7 @@ spec:
 ```yaml title="…/ru/kustomization.yaml (фрагмент)"
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: add
         path: /metadata/annotations
@@ -73,9 +77,9 @@ spec:
           gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 ```
 
-## k8s: overlay **`ru`** і HealthCheckPolicy
+## k8s: overlay **ru** і HealthCheckPolicy
 
-Якщо в дереві **k8s** є **HealthCheckPolicy**, **check abie** вимагає **`ru/kustomization.yaml`** з patch **`$patch: delete`** для політики (узгоджено з **k8s.mdc** / **check-k8s**, **`ruKustomizationHasHealthCheckDeletePatch`** у **`npm/scripts/check-k8s.mjs`**). Підстав реальне ім’я замість **`СЕРВІС`**:
+Якщо в дереві **k8s** є **HealthCheckPolicy**, у **`ru/kustomization.yaml`** має бути patch **`$patch: delete`** для політики (узгоджено з **k8s.mdc**; перевірка в **`check-k8s.mjs`**, **`ruKustomizationHasHealthCheckDeletePatch`**). Підстав реальне ім’я замість **`СЕРВІС`**:
 
 ```yaml title="…/ru/kustomization.yaml (фрагмент)"
 patches:
@@ -89,9 +93,9 @@ patches:
       $patch: delete
 ```
 
-## k8s: overlay **`ua`** / **`ru`** і nodeSelector
+## k8s: overlay **ua** / **ru** і nodeSelector
 
-Якщо під **`k8s`** є **Deployment**, у **кожному** **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** має бути inline **JSON6902** у **`patches[].patch`** на **`target.kind: Deployment`** з **nodeSelector** за політикою abie (**ua** — **add** + **preem** false; **ru** — **replace** + **yandex.cloud/preemptible** false). Критерії збігу — **`kustomizationHasAbieDeploymentNodeSelectorPatch`** у **`npm/scripts/check-abie.mjs`**.
+За наявності **Deployment** під **k8s** у **кожному** **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** — patch на **`kind: Deployment`**: **ua** — **`spec.template.spec.nodeSelector`** з **`preem: false`**; **ru** — **`spec.template.spec.nodeSelector`** з **`yandex.cloud/preemptible: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
 patches:
@@ -119,7 +123,7 @@ patches:
 
 ### Базовий Deployment (`…/base/`)
 
-Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`** (наприклад **`…/k8s/base/deploy.yaml`**), у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**) — overlay **ua** / **ru** підміняє селектор через kustomize. Деталі — **`deploymentDocumentHasAbieBasePreemNodeSelector`** / **`isAbieK8sBaseYamlPath`** у **`npm/scripts/check-abie.mjs`**.
+Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`**, у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**); overlay **ua** / **ru** підміняє селектор.
 
 ```yaml title="…/base/deploy.yaml (фрагмент)"
 spec:
@@ -131,7 +135,7 @@ spec:
 
 ## Git branches
 
-У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно), наприклад:
+У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно):
 
 ```yaml title=".github/workflows/clean-merged-branch.yml (фрагмент)"
 with:

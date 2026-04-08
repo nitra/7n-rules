@@ -206,20 +206,10 @@ patches:
         value: dev
 ```
 
-4.  Якщо в kustomization.yaml є remove разом з add  на однаковий path:
+4. **JSON patch у kustomization:** де можливо, змінюй ресурс через **`op: replace`** (одна операція на `path`), а не пару **`remove` + `add`** на той самий шлях. **`add`** / **`remove`** лишай лише коли **`replace`** не підходить (наприклад додати новий ключ або прибрати поле без заміни).
 
 ```yaml title="overlay/kustomization.yaml (фрагмент)"
-      - op: remove
-        path: /spec/template/spec/nodeSelector
-      - op: add
-        path: /spec/template/spec/nodeSelector
-        value:
-          preem: "false"
-```
-
-заміняй на replace:
-
-```yaml title="overlay/kustomization.yaml (фрагмент)"
+patches:
   - target:
       kind: Deployment
       name: x

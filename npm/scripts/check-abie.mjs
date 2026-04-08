@@ -21,9 +21,10 @@
  * має бути inline **JSON6902** patch на **`kind: Deployment`**: для **ua** — **`op: add`**, **`path: /spec/template/spec/nodeSelector`**,
  * **`preem: false`**; для **ru** — **`op: replace`**, той самий **path**, **`yandex.cloud/preemptible: false`** (див. abie.mdc).
  *
- * **HTTPRoute nginx-run:** за тієї ж умови (**Deployment** під **k8s**) у **кожному** **`ua`/`ru` kustomization** має бути
- * inline **JSON6902** на **`kind: HTTPRoute`**, **`name: nginx-run`**: **replace** **`/spec/hostnames`** (домени з abie.mdc),
- * **replace** **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** також **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
+ * **HTTPRoute (overlay):** за тієї ж умови (**Deployment** під **k8s**) у **кожному** **`ua`/`ru` kustomization** має бути
+ * inline **JSON6902** на **`kind: HTTPRoute`** з **непорожнім `target.name`** (будь-яке ім’я): **replace** **`/spec/hostnames`**
+ * (домени з abie.mdc), **replace** **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** також
+ * **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -484,11 +485,11 @@ const ABIE_RU_HTTPROUTE_HOST_MARKERS = [
 ]
 
 /**
- * Збирає тексти inline **patch** для **HTTPRoute/nginx-run** з одного розібраного документа **Kustomization**.
+ * Збирає тексти inline **patch** для **HTTPRoute** (будь-який непорожній **target.name**) з одного документа **Kustomization**.
  * @param {import('yaml').Document} doc документ після **parseAllDocuments**
  * @returns {string[]} непорожні рядки **patch**
  */
-function collectNginxRunPatchStringsFromKustomizationDoc(doc) {
+function collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc) {
   if (doc.errors.length > 0) {
     return []
   }
@@ -512,7 +513,7 @@ function collectNginxRunPatchStringsFromKustomizationDoc(doc) {
       const target = pr.target
       if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
         const tg = /** @type {Record<string, unknown>} */ (target)
-        if (tg.kind === 'HTTPRoute' && tg.name === 'nginx-run') {
+        if (tg.kind === 'HTTPRoute' && typeof tg.name === 'string' && tg.name.trim() !== '') {
           const patchStr = pr.patch
           if (typeof patchStr === 'string' && patchStr.trim() !== '') {
             out.push(patchStr)
@@ -525,7 +526,7 @@ function collectNginxRunPatchStringsFromKustomizationDoc(doc) {
 }
 
 /**
- * Збирає всі inline **JSON6902**-фрагменти для **HTTPRoute/nginx-run** у **kustomization.yaml** (усі документи у файлі).
+ * Збирає всі inline **JSON6902**-фрагменти для **HTTPRoute** (непорожній **target.name**) у **kustomization.yaml** (усі документи у файлі).
  * @param {string} raw повний текст файлу
  * @returns {string} текст для **`validateAbieNginxRunHttpRoutePatches`** (може бути порожнім)
  */
@@ -544,44 +545,44 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
   /** @type {string[]} */
   const chunks = []
   for (const doc of docs) {
-    chunks.push(...collectNginxRunPatchStringsFromKustomizationDoc(doc))
+    chunks.push(...collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc))
   }
   return chunks.join('\n')
 }
 
 /**
- * Перевіряє сукупний текст patch(ів) **HTTPRoute/nginx-run** на відповідність abie.mdc.
+ * Перевіряє сукупний текст patch(ів) **HTTPRoute** (будь-яке **target.name**) на відповідність abie.mdc.
  * @param {string} combined текст одного або кількох inline **patch**, розділених символом нового рядка
  * @param {'ua' | 'ru'} mode **ua** або **ru**
  * @returns {string | null} повідомлення про помилку або **null**
  */
 export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
   if (typeof combined !== 'string' || combined.trim() === '') {
-    return `очікується patch target kind HTTPRoute name nginx-run (replace hostnames, parentRefs namespace ${mode}; для ru — також gwin… upgradeTypes websocket) — abie.mdc`
+    return `очікується patch target kind HTTPRoute з непорожнім target.name (replace hostnames, parentRefs namespace ${mode}; для ru — також gwin… upgradeTypes websocket) — abie.mdc`
   }
   const hasHostnamesReplace = /-\s*op:\s*replace\b[\s\S]{0,200}?path:\s*\/spec\/hostnames\b/m.test(combined)
   if (!hasHostnamesReplace) {
-    return 'HTTPRoute nginx-run: потрібен блок op replace з path /spec/hostnames (abie.mdc)'
+    return 'HTTPRoute: потрібен блок op replace з path /spec/hostnames (abie.mdc)'
   }
   const markers = mode === 'ua' ? ABIE_UA_HTTPROUTE_HOST_MARKERS : ABIE_RU_HTTPROUTE_HOST_MARKERS
   if (!markers.some(m => combined.includes(m))) {
-    return `HTTPRoute nginx-run: у value для /spec/hostnames має бути один із доменів abie (${markers.join(', ')}) — abie.mdc`
+    return `HTTPRoute: у value для /spec/hostnames має бути один із доменів abie (${markers.join(', ')}) — abie.mdc`
   }
   const namespaceOk =
     mode === 'ua'
       ? /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu.test(combined)
       : /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu.test(combined)
   if (!namespaceOk) {
-    return `HTTPRoute nginx-run: потрібен replace path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
+    return `HTTPRoute: потрібен replace path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
   }
   if (mode === 'ru' && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
-    return 'HTTPRoute nginx-run (ru): потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
+    return 'HTTPRoute (ru): потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
   }
   return null
 }
 
 /**
- * Чи **kustomization** містить валідні для abie записи **patch** для **HTTPRoute/nginx-run** (**ua** або **ru**).
+ * Чи **kustomization** містить валідні для abie **patch** для **HTTPRoute** з непорожнім **target.name** (**ua** або **ru**).
  * @param {string} raw повний текст **kustomization.yaml**
  * @param {'ua' | 'ru'} mode overlay
  * @returns {boolean} true, якщо **`validateAbieNginxRunHttpRoutePatches`** повертає **null**
@@ -833,7 +834,7 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
 }
 
 /**
- * Якщо є **Deployment** під **k8s**, вимагає в кожному overlay **ua** та **ru** patch **HTTPRoute/nginx-run** (abie.mdc).
+ * Якщо є **Deployment** під **k8s**, вимагає в кожному overlay **ua** та **ru** patch **HTTPRoute** (непорожній **target.name**) за abie.mdc.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback
@@ -844,7 +845,7 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     fail(
-      'Є Deployment у k8s — додай ua/kustomization.yaml з patch HTTPRoute nginx-run (hostnames, parentRefs namespace ua) — abie.mdc'
+      'Є Deployment у k8s — додай ua/kustomization.yaml з patch HTTPRoute (будь-який target.name: hostnames, parentRefs namespace ua) — abie.mdc'
     )
     return
   }
@@ -864,13 +865,13 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
       fail(`${rel}: ${v}`)
       return
     }
-    passFn(`${rel}: HTTPRoute nginx-run (ua) відповідає abie.mdc`)
+    passFn(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
   }
 
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (ruAbsList.length === 0) {
     fail(
-      'Є Deployment у k8s — додай ru/kustomization.yaml з patch HTTPRoute nginx-run (hostnames, namespace ru, gwin websocket) — abie.mdc'
+      'Є Deployment у k8s — додай ru/kustomization.yaml з patch HTTPRoute (будь-який target.name: hostnames, namespace ru, gwin websocket) — abie.mdc'
     )
     return
   }
@@ -890,7 +891,7 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
       fail(`${rel}: ${v}`)
       return
     }
-    passFn(`${rel}: HTTPRoute nginx-run (ru) відповідає abie.mdc`)
+    passFn(`${rel}: HTTPRoute patch (ru) відповідає abie.mdc`)
   }
 }
 
@@ -983,7 +984,7 @@ export async function check() {
   if (deploymentDirs.size > 0) {
     pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')
     await ensureUaRuAbieNodeSelectorPatches(root, yamlFiles, fail, pass)
-    pass('Є Deployment — перевіряємо HTTPRoute nginx-run у ua/ru kustomization (abie.mdc)')
+    pass('Є Deployment — перевіряємо HTTPRoute у ua/ru kustomization (abie.mdc)')
     await ensureUaRuAbieHttpRoutePatches(root, yamlFiles, fail, pass)
   }
 

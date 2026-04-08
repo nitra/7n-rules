@@ -1,5 +1,5 @@
 /**
- * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml, base preem, HTTPRoute nginx-run.
+ * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml, base preem, HTTPRoute (будь-який target.name).
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -176,7 +176,7 @@ kind: Kustomization
 patches:
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: replace
         path: /spec/hostnames
@@ -192,7 +192,7 @@ kind: Kustomization
 patches:
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: replace
         path: /spec/hostnames
@@ -203,7 +203,7 @@ patches:
         value: ru
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: my-httproute
     patch: |-
       - op: add
         path: /metadata/annotations
@@ -211,10 +211,25 @@ patches:
           gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 `
 
-  test('getCombinedNginxRunPatchTextFromKustomization збирає patch для nginx-run', () => {
+  test('getCombinedNginxRunPatchTextFromKustomization збирає patch для HTTPRoute з довільним target.name', () => {
     const joined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
     expect(joined).toContain('/spec/hostnames')
     expect(joined).toContain('websocket')
+  })
+
+  test('getCombinedNginxRunPatchTextFromKustomization не збирає HTTPRoute без target.name', () => {
+    const raw = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HTTPRoute
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app"
+`
+    expect(getCombinedNginxRunPatchTextFromKustomization(raw).trim()).toBe('')
   })
 
   test('validateAbieNginxRunHttpRoutePatches — ua / ru', () => {
@@ -230,7 +245,7 @@ kind: Kustomization
 patches:
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: edge-route
     patch: |-
       - op: replace
         path: /spec/hostnames
@@ -403,7 +418,7 @@ patches:
           preem: 'false'
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: app-route
     patch: |-
       - op: replace
         path: /spec/hostnames
@@ -435,7 +450,7 @@ patches:
           yandex.cloud/preemptible: "false"
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: app-route
     patch: |-
       - op: replace
         path: /spec/hostnames
@@ -446,7 +461,7 @@ patches:
         value: ru
   - target:
       kind: HTTPRoute
-      name: nginx-run
+      name: app-route
     patch: |-
       - op: add
         path: /metadata/annotations
