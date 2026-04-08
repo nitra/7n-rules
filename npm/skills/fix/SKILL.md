@@ -1,5 +1,5 @@
 ---
-name: n-fix
+name: fix
 description: >-
   Виправити проєкт відповідно до всіх правил в .cursor/rules/
 ---

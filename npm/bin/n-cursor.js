@@ -24,8 +24,9 @@
  * `github-actions/` пакету при кожному успішному синку (workflows з правил ga / js-lint / text).
  *
  * Skills копіюються з npm/skills пакету лише для id з масиву «skills» у .n-cursor.json
- * (у JSON — без префікса, каталоги в проєкті — n-<id>, як і для правил). Якщо ключа skills
- * немає, за замовчуванням підтягуються всі bundled skills з префіксом n- у пакеті.
+ * (у JSON — без префікса, як імена файлів у mdc/ без n-). У пакеті джерело — каталоги
+ * skills/<id>/ (без префікса); у проєкті — .cursor/skills/n-<id>/ (префікс n-, як n-*.mdc).
+ * Якщо ключа skills немає, за замовчуванням підтягуються всі підкаталоги skills/ (лише імена без префікса n-).
  * Зайві каталоги n-* у .cursor/skills, яких немає у списку, видаляються.
  *
  * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
@@ -87,7 +88,7 @@ async function discoverBundledRuleNames() {
 }
 
 /**
- * Імена skills (без префікса n-) з каталогу skills пакету — лише директорії n-*
+ * Імена skills (id без префікса n-) з каталогу skills пакету — лише підкаталоги `<id>/` без префікса n-
  * @returns {Promise<string[]>} відсортовані id
  */
 async function discoverBundledSkillNames() {
@@ -96,8 +97,8 @@ async function discoverBundledSkillNames() {
   }
   const entries = await readdir(BUNDLED_SKILLS_DIR, { withFileTypes: true })
   return entries
-    .filter(e => e.isDirectory() && e.name.startsWith(RULE_PREFIX))
-    .map(e => e.name.slice(RULE_PREFIX.length))
+    .filter(e => e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith(RULE_PREFIX))
+    .map(e => e.name)
     .toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -233,28 +234,13 @@ function normalizeSkillId(skillName) {
   return s
 }
 
-/** Legacy id у `.n-cursor.json` → поточний bundled id (каталог `n-<id>` у пакеті) */
-const LEGACY_SKILL_ID_MAP = {
-  'fix-cursor': 'fix'
-}
-
-/**
- * Поточний id skill для шляхів у пакеті та `.cursor/skills`
- * @param {string} skillName елемент масиву skills або ім'я каталогу
- * @returns {string} canonical id без префікса n-
- */
-function canonicalSkillId(skillName) {
-  const id = normalizeSkillId(skillName)
-  return LEGACY_SKILL_ID_MAP[id] ?? id
-}
-
 /**
  * Ім'я керованого каталогу skill у .cursor/skills (префікс n-)
- * @param {string} skillId id без префікса
+ * @param {string} skillId id без префікса (або з префіксом n- у конфігу — нормалізується)
  * @returns {string} наприклад n-fix
  */
 function managedSkillDirName(skillId) {
-  return `${RULE_PREFIX}${canonicalSkillId(skillId)}`
+  return `${RULE_PREFIX}${normalizeSkillId(skillId)}`
 }
 
 /**
@@ -445,7 +431,7 @@ async function syncClaudeMd(configRules, configSkills) {
     lines.push('', '## Skills', '')
     const skillsRoot = join(cwd(), SKILLS_DIR)
     for (const skillId of configSkills) {
-      const id = canonicalSkillId(skillId)
+      const id = normalizeSkillId(skillId)
       const dirName = managedSkillDirName(skillId)
       const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
       let desc = ''
@@ -495,7 +481,7 @@ async function syncAgentsMd(configSkills) {
 }
 
 /**
- * Копіює лише skills зі списку configSkills (каталоги n-* у пакеті)
+ * Копіює лише skills зі списку configSkills (джерело: skills/<id>/ у пакеті)
  * @param {string[]} configSkills id без префікса n-
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих копіювань
  */
@@ -511,13 +497,13 @@ async function syncSkills(configSkills) {
   let fail = 0
 
   for (const skillId of configSkills) {
-    const id = canonicalSkillId(skillId)
-    const dirName = managedSkillDirName(skillId)
-    const srcDir = join(BUNDLED_SKILLS_DIR, dirName)
-    const destDir = join(skillsRoot, dirName)
+    const id = normalizeSkillId(skillId)
+    const srcDir = join(BUNDLED_SKILLS_DIR, id)
+    const destDirName = managedSkillDirName(skillId)
+    const destDir = join(skillsRoot, destDirName)
 
     if (existsSync(srcDir)) {
-      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${dirName} ... `)
+      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
       try {
         await mkdir(destDir, { recursive: true })
         const files = await readdir(srcDir)
@@ -533,9 +519,9 @@ async function syncSkills(configSkills) {
         fail++
       }
     } else {
-      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${dirName} ... `)
+      process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
       console.log(`❌`)
-      console.error(`     Немає каталогу в пакеті: ${dirName}`)
+      console.error(`     Немає каталогу в пакеті: skills/${id}`)
       fail++
     }
   }
@@ -560,9 +546,9 @@ async function syncCommands(configSkills) {
   let fail = 0
 
   for (const skillId of configSkills) {
-    const id = canonicalSkillId(skillId)
-    const dirName = managedSkillDirName(skillId)
-    const srcSkillMd = join(BUNDLED_SKILLS_DIR, dirName, 'SKILL.md')
+    const id = normalizeSkillId(skillId)
+    const srcSkillMd = join(BUNDLED_SKILLS_DIR, id, 'SKILL.md')
+    const destDirName = managedSkillDirName(skillId)
     const destFile = join(commandsDir, `${RULE_PREFIX}${id}.md`)
 
     process.stdout.write(`  ⬇  ${id} → ${COMMANDS_DIR}/${RULE_PREFIX}${id}.md ... `)
@@ -572,7 +558,7 @@ async function syncCommands(configSkills) {
         const descRaw = extractSkillDescription(raw)
         const desc = descRaw ? skillDescriptionSafeForMarkdownInline(descRaw) : ''
         const header = desc ? `# ${RULE_PREFIX}${id} — ${desc}\n\n` : ''
-        const body = `${header}Виконай інструкції зі скілу \`.cursor/skills/${dirName}/SKILL.md\`.\n`
+        const body = `${header}Виконай інструкції зі скілу \`.cursor/skills/${destDirName}/SKILL.md\`.\n`
         await writeFile(destFile, body, 'utf8')
         console.log(`✅`)
         success++
@@ -583,7 +569,7 @@ async function syncCommands(configSkills) {
       }
     } else {
       console.log(`❌`)
-      console.error(`     Немає SKILL.md у пакеті: ${dirName}`)
+      console.error(`     Немає SKILL.md у пакеті: skills/${id}`)
       fail++
     }
   }
@@ -600,7 +586,7 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
   if (!existsSync(commandsDir)) {
     return []
   }
-  const expected = new Set(configSkills.map(s => `${RULE_PREFIX}${canonicalSkillId(s)}.md`))
+  const expected = new Set(configSkills.map(s => `${RULE_PREFIX}${normalizeSkillId(s)}.md`))
   const names = await readdir(commandsDir)
   const removed = []
   for (const name of names) {

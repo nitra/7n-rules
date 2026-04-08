@@ -21,7 +21,7 @@
     },
     "skills": {
       "type": "array",
-      "description": "Ідентифікатори skills без префікса n- (каталог .cursor/skills). Якщо відсутній, CLI доповнить списком skills з пакету.",
+      "description": "Ідентифікатори skills без префікса n- (у пакеті — підкаталог skills/<id>/, у проєкті після синку — .cursor/skills/n-<id>/). Якщо відсутній, CLI доповнить списком skills з пакету.",
       "items": {
         "type": "string",
         "minLength": 1

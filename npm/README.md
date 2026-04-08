@@ -85,10 +85,11 @@ CLI автоматично (команда завантаження правил
 ```
 npm/
 ├── AGENTS.template.md   # шаблон AGENTS.md для цільових репозиторіїв (потрапляє в npm-архів)
-├── mdc/                 # cursor-правила
+├── mdc/                 # cursor-правила (без префікса n-; після синку — .cursor/rules/n-<id>.mdc)
 │   ├── js-format.mdc
 │   ├── npm-module.mdc
 │   └── text.mdc
+├── skills/              # skills (каталоги <id>/; після синку — .cursor/skills/n-<id>/)
 └── bin/
     └── n-cursor.js  # CLI-скрипт
 ```

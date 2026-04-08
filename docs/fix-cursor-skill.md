@@ -195,8 +195,8 @@ Skill розповсюджується разом з пакетом `@nitra/curs
 npm/@nitra/cursor/
 ├── mdc/              ← правила (MDC файли)
 ├── scripts/          ← check-скрипти
-├── skills/           ← Cursor Skills
-│   └── n-fix/
+├── skills/           ← Cursor Skills (у пакеті — <id>/; після синку в проєкті — .cursor/skills/n-<id>/)
+│   └── fix/
 │       └── SKILL.md
 └── AGENTS.template.md
 ```

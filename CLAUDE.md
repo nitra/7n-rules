@@ -13,5 +13,3 @@
   Команда: `/n-fix`
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
   Команда: `/n-publish-telegram`
-- `.cursor/skills/n-mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc і перенести максимум перевірюваної логіки в check-{id}.mjs; залишити в .mdc лише те, що не автоматизується або служить контекстом для агента
-  Команда: `/n-mdc-check`
