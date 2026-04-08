@@ -1,0 +1,142 @@
+.cursor/skills/mdc-check/SKILL.md
+  5b09a439b85fecdb 4,10,24,50,58,67,81
+npm/tests/check-js-lint.test.mjs
+  45db41389f441b72 14-15
+.claude/commands/n-mdc-check.md
+  5b09a439b85fecdb 1
+npm/scripts/check-abie.mjs
+  7e2b3fd939a955e4 35,93,347,351-352,358,464-465
+  b1660aa4c62a94c7 85,125,131,154,157,162-175,177-179,183-185,195,304,315,317,325,331-332,335-336,416-418,424-425,433,436-454
+  974f43bb92d2e6bf 1-34,36-84,86-92,94-98,100-103,106-124,126-130,132-153,155-156,158-161,176,180-182,186-194,196-303,305-314,316,318-324,326-330,333-334,337-346,348-350,353-357,359-415,419-423,426-432,434-435,455-463,466-468
+npm/mdc/js-lint.mdc
+  45db41389f441b72 4,7
+CLAUDE.md
+  5b09a439b85fecdb 16
+AGENTS.md
+  5b09a439b85fecdb 33
+  7f777235f1adfffd 34
+.cursor/rules/n-js-lint.mdc
+  45db41389f441b72 4,7
+npm/bin/n-cursor.js
+  5b09a439b85fecdb 283-285,287-291,395,455,572-573
+  90342436d5b918d4 286
+npm/mdc/bun.mdc
+  45db41389f441b72 4,66,68,71,74
+.cursor/skills/n-mdc-check/SKILL.md
+  5b09a439b85fecdb 4
+  7f777235f1adfffd 1-3,5-40,42-86
+npm/tests/integration-repo-checks.test.mjs
+  974f43bb92d2e6bf 8,27
+npm/package.json
+  90342436d5b918d4 3
+npm/mdc/abie.mdc
+  974f43bb92d2e6bf 51-56
+  7e2b3fd939a955e4 16,28,31,40
+npm/skills/n-mdc-check/SKILL.md
+  5b09a439b85fecdb 4,10,24,50,58,67,81
+  7f777235f1adfffd 1-3,5-9,11-23,25-40,42-49,51-57,59-66,68-80,82-86
+.cursor/rules/n-bun.mdc
+  45db41389f441b72 66,68,71,74
+npm/tests/check-abie.test.mjs
+  974f43bb92d2e6bf 1-167
+npm/scripts/check-js-lint.mjs
+  45db41389f441b72 31,36,90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "a40c735145820cb0562226f74521da00466d9431",
+  "prompts": {
+    "45db41389f441b72": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c9d57a11-859e-4539-878c-833cc2abf55d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 36,
+      "total_deletions": 64,
+      "accepted_lines": 25,
+      "overriden_lines": 0
+    },
+    "5b09a439b85fecdb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "63c32d12-8223-4c74-9be6-a192c63021e4",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 37,
+      "total_deletions": 26,
+      "accepted_lines": 31,
+      "overriden_lines": 0
+    },
+    "7e2b3fd939a955e4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4e3e2395-9d25-4f0f-97da-835981a38958",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 13,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "7f777235f1adfffd": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "101b2126-1e81-4175-9423-cb6ad9a975b9",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 177,
+      "total_deletions": 3,
+      "accepted_lines": 163,
+      "overriden_lines": 2
+    },
+    "90342436d5b918d4": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "43a9f792-3355-48c8-8d76-6eaf9f44ad66",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 2,
+      "overriden_lines": 0
+    },
+    "974f43bb92d2e6bf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6d826b84-cdfe-46aa-8b51-ca115bbbada7",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 656,
+      "total_deletions": 20,
+      "accepted_lines": 573,
+      "overriden_lines": 2
+    },
+    "b1660aa4c62a94c7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d711e8b6-0952-421f-89c4-9c3690ecab54",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 90,
+      "total_deletions": 83,
+      "accepted_lines": 59,
+      "overriden_lines": 0
+    }
+  }
+}
