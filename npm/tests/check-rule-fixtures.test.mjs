@@ -73,7 +73,7 @@ describe('check-style-lint (мінімальний проєкт)', () => {
       await writeJson('package.json', {
         name: 's',
         private: true,
-        scripts: { 'lint-style': `stylelint '**/*.css' --fix` },
+        scripts: { 'lint-style': `npx stylelint '**/*.css' --fix` },
         devDependencies: { '@nitra/stylelint-config': '^1.4.0' },
         stylelint: { extends: '@nitra/stylelint-config' }
       })
@@ -90,6 +90,7 @@ describe('check-style-lint (мінімальний проєкт)', () => {
       })
       await writeJson('.vscode/settings.json', {
         'css.validate': false,
+        'less.validate': false,
         'scss.validate': false
       })
       expect(await checkStyle()).toBe(0)

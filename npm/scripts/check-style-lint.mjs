@@ -1,8 +1,9 @@
 /**
  * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
  *
- * `@nitra/stylelint-config`, скрипт `lint-style`, `.stylelintignore`, workflow `lint-style.yml`,
- * VSCode stylelint і вимкнена вбудована CSS-валідація.
+ * Очікування: `@nitra/stylelint-config`, `lint-style` через `npx stylelint`, `.stylelintignore`,
+ * workflow `lint-style.yml` (у `run` — `npx stylelint` або `bun run lint-style`), VSCode stylelint,
+ * `css.validate` / `scss.validate` / `less.validate`: false.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -24,8 +25,14 @@ export async function check() {
   if (existsSync('package.json')) {
     const pkg = JSON.parse(await readFile('package.json', 'utf8'))
 
-    if (pkg.scripts?.['lint-style']) {
+    const lintStyle = pkg.scripts?.['lint-style']
+    if (lintStyle) {
       pass('package.json містить скрипт lint-style')
+      if (String(lintStyle).includes('npx stylelint')) {
+        pass('lint-style викликає stylelint через npx')
+      } else {
+        fail("lint-style має викликати stylelint через npx — наприклад: npx stylelint '**/*.{css,scss,vue}' --fix")
+      }
     } else {
       fail('package.json не містить скрипт "lint-style"')
     }
@@ -56,11 +63,13 @@ export async function check() {
     const content = await readFile('.github/workflows/lint-style.yml', 'utf8')
     pass('lint-style.yml існує')
     const root = parseWorkflowYaml(content)
-    const ok = root ? anyRunStepIncludesStylelint(root) : content.includes('stylelint')
+    const ok = root
+      ? anyRunStepIncludesStylelint(root)
+      : content.includes('npx stylelint') || content.includes('bun run lint-style')
     if (ok) {
-      pass('lint-style.yml містить stylelint у кроці run')
+      pass('lint-style.yml містить npx stylelint або bun run lint-style у кроці run')
     } else {
-      fail('lint-style.yml не містить виклик stylelint')
+      fail('lint-style.yml має містити npx stylelint або bun run lint-style у кроці run')
     }
   } else {
     fail('.github/workflows/lint-style.yml не існує — створи його')
@@ -88,6 +97,11 @@ export async function check() {
       pass('scss.validate вимкнено')
     } else {
       fail('settings.json: scss.validate має бути false')
+    }
+    if (s['less.validate'] === false) {
+      pass('less.validate вимкнено')
+    } else {
+      fail('settings.json: less.validate має бути false')
     }
   }
 

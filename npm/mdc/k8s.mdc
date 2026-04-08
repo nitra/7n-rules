@@ -1,13 +1,13 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.18'
-globs: "**/k8s/**/*.{yaml,yml}"
+version: '1.23'
+globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
 
 # Kubernetes YAML у шляхах з `k8s`
 
-Для кожного файлу `*.yaml` або `*.yml`, у шляху якого є сегмент директорії **`k8s`** (наприклад `site/k8s/base/deployment.yaml`), **перший рядок** — коментар-директива для [YAML Language Server](https://github.com/redhat-developer/yaml-language-server):
+Для кожного файлу `*.yaml`, у шляху якого є сегмент директорії **`k8s`** (наприклад `site/k8s/base/deployment.yaml`), **перший рядок** — коментар-директива для [YAML Language Server](https://github.com/redhat-developer/yaml-language-server):
 
 ```yaml
 # yaml-language-server: $schema=https://...
@@ -15,7 +15,7 @@ alwaysApply: false
 
 Далі — вміст маніфесту. Зайвий порожній рядок між коментарем і YAML не додавай, якщо в проєкті не прийнято інше.
 
-**Розширення:** усі маніфести — **`.yaml`**. Виняток: **`kustomization.yml`** (і `kustomization.yaml`) дозволені за іменем.
+**Розширення:** усі маніфести під **`k8s`**, включно з **`kustomization.yaml`**, — лише **`.yaml`** (розширення **`.yml`** не використовуй).
 
 **Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor check docker`**.
 
@@ -46,7 +46,7 @@ alwaysApply: false
 
 Шлях до скрипта підстав свій (`./scripts/…` після копіювання, `node_modules/@nitra/cursor/scripts/…` якщо пакет у залежностях).
 
-Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
+Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**). **Не** дублюй **`setup-node`**, **`oven-sh/setup-bun`**, **`actions/cache`** і **`bun install`** у job — після **`checkout`** використовуй локальний composite **`setup-bun-deps`** (шлях **`./.github/actions/setup-bun-deps`** або **`./npm/github-actions/setup-bun-deps`**, як у репозиторії). Встановлення **kubeconform** / **kubescape** лишаються окремими кроками.
 
 ```yaml title=".github/workflows/lint-k8s.yml"
 name: Lint K8s
@@ -57,7 +57,7 @@ on:
       - dev
       - main
     paths:
-      - '**/k8s/**/*.yml'
+      - '**/k8s/**/*.yaml'
 
   pull_request:
     branches:
@@ -78,6 +78,8 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: ./.github/actions/setup-bun-deps
+
       - name: Install kubeconform
         run: |
           curl -sSL "https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz" | tar xz
@@ -88,32 +90,9 @@ jobs:
           curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
           echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
       - name: Lint K8s
         run: bun run lint-k8s
 ```
-
-Після **`install.sh`** kubescape може опинитися поза стандартним PATH; за потреби додай крок **`echo "$HOME/.kubescape/bin" >> $GITHUB_PATH`** (див. документацію [kubescape](https://github.com/kubescape/kubescape#readme)).
-
-Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-k8s`**, коли в проєкті підключено правило **`k8s`**.
 
 ## Deployment: `resources`
 
@@ -144,7 +123,11 @@ resources: {}
 
 ### Namespace
 
-- У **`base/kustomization.yaml`** задай **`namespace: dev`** (або узгоджене ім’я для dev **namespace**), щоб **усі ресурси base** потрапляли в цей namespace через Kustomize.
+- **`base/kustomization.yaml`:** у цьому файлі поле **`namespace:`** **завжди** має бути присутнє й **непорожнє**, щоб Kustomize застосував один цільовий namespace до ресурсів **base**. **`check k8s`** перевіряє це, коли файл є в репозиторії.
+
+- **Де не дублювати `metadata.namespace`:** у YAML під **`k8s`**, чиї шляхи **досяжні** з будь-якого **`kustomization.yaml`** через **`resources`**, **`bases`**, **`components`**, **`crds`**, елементи **`patches`** з полем **`path`**, **`patchesStrategicMerge`** (транзитивно, зокрема через каталог із дочірнім **`kustomization.yaml`**). У таких файлах **не** вказуй **`metadata.namespace`** — його виставляє Kustomize за полем **`namespace:`** у kustomization.
+
+- **Коли `metadata.namespace` обов’язковий:** YAML під **`k8s`**, який **ніде** не перелічений у згаданих полях жодного kustomization-файлу, має містити **непорожній** **`metadata.namespace`** у кожному документі з **`apiVersion`** та **`kind`**, **окрім** кластерних ресурсів (наприклад **`Namespace`**, **`ClusterRole`**, **`PersistentVolume`** — повний перелік у **`check-k8s.mjs`**, **`CLUSTER_SCOPED_KINDS`**). Якщо файл має бути без namespace у маніфесті — підключи його до kustomization через **`resources`** / **`patches`** тощо.
 
 - **Не додавай** окремі **patches** Kustomize, які лише змінюють **namespace**: **namespace** визначає Kustomize; у overlays додаткові зміни — без дублювання логіки **namespace**.
 
@@ -176,28 +159,15 @@ resources: {}
 
    Для `$schema` у першому рядку див. приклад **HealthCheckPolicy** у тому ж розділі (datree CRDs-catalog).
 
-3. **Overlay `ru`:** у **`ru/kustomization.yaml`** (шлях з сегментами **`…/ru/kustomization.yaml`** під **`k8s`**) додай **видалення** ресурсу HealthCheckPolicy для середовища, де політика не потрібна (підстав **реальне ім’я** замість `SERVICE_NAME`):
-
-   ```yaml
-   patches:
-     - target:
-         kind: HealthCheckPolicy
-       patch: |-
-         kind: HealthCheckPolicy
-         metadata:
-           name: SERVICE_NAME
-         $patch: delete
-   ```
-
    За потреби розшир **`target`** (`name`, `namespace`), щоб однозначно вказати об’єкт.
 
-**`check k8s`:** заборонено **`kind: Ingress`**; якщо в проєкті є **`kind: HealthCheckPolicy`**, має існувати хоча б один **`ru/kustomization.yaml`** під **`k8s`** із блоком видалення (**`$patch: delete`** для **HealthCheckPolicy**).
+**`check k8s`:** заборонено **`kind: Ingress`**.
 
 ## Перевірка
 
-**`npx @nitra/cursor check k8s`** — узгодженість першого рядка (`$schema`), один рядок `# yaml-language-server` на файл, правило для `.yml`, відповідність URL першому YAML-документу (до `---`) за логікою нижче; для кожного документа **`Deployment`** — **`containers[].resources`**, **`imagePullPolicy: Always`**; заборона **`kind: Ingress`**; наявність **`HealthCheckPolicy`** — вимога до **`ru/kustomization.yaml`** з **`$patch: delete`** (див. **Ingress → Gateway API**); заборона шляхів **`…/k8s/dev/…`**; якщо існує **`k8s/base/kustomization.yaml`** (або **`.yml`**) — непорожній **`namespace`** у першому документі. Якщо під `k8s` немає yaml/yml — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
+**`npx @nitra/cursor check k8s`** — критерії збігаються з розділом **«Що закодовано в `check-k8s.mjs`»** і з **«Визначення схеми YAML»** вище. Якщо під `k8s` немає `*.yaml` — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
 
-Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape; обов'язково для проєктів з правилом **`k8s`** у **`.n-cursor.json`**).
+Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape).
 
 ## Що закодовано в `check-k8s.mjs`
 
@@ -206,25 +176,24 @@ resources: {}
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
 - **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; далі перевіряється **`EXPLICIT_K8S_SCHEMAS`** (`Map`: `apiVersion` + `kind` + `type`, для записів без `type` у маніфесті — третій компонент **`*`**); потім `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages), крім рядків явної таблиці (наприклад **InfisicalSecret** — raw на `main`).
 - У кожному YAML-документі з **`kind: Deployment`** — парсинг через **`yaml`**: у кожного елемента **`spec.template.spec.containers[]`** має існувати ключ **`resources`** зі значенням-об'єктом (допускається порожній **`{}`**); у кожного контейнера — **`imagePullPolicy: Always`**.
-- У файлах, ім’я яких **не** `kustomization.yaml`.
+- **Namespace у маніфестах (не ім’я `kustomization`):** ресурсні YAML у **`…/k8s/base/`** — **завжди** непорожній **`metadata.namespace`**. Інакше будується множина шляхів, досяжних з **`kustomization.yaml`** через **`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**, з рекурсією в каталоги з дочірнім **`kustomization.yaml`**: для таких файлів **поза** **`k8s/base`** — **заборона** **`metadata.namespace`**; для файлів поза **`k8s/base`** і поза множиною — **вимога** непорожнього **`metadata.namespace`** (крім **`CLUSTER_SCOPED_KINDS`**).
 - Документи з **`kind: Ingress`** — заборонені (потрібен перехід на Gateway API, див. розділ **Ingress → Gateway API**).
-- Якщо в будь-якому файлі під **`k8s`** є **`kind: HealthCheckPolicy`**, серед файлів має бути **`ru/kustomization.yaml`** (сегмент шляху **`ru`** перед іменем файлу), а його вміст — patch видалення **HealthCheckPolicy** з **`$patch: delete`** (див. той самий розділ).
 - Заборона шляхів **`…/k8s/dev/…`** (окремої директорії **`dev`** під **`k8s`** не має бути).
-- Якщо існує **`k8s/base/kustomization.yaml`** (або **`.yml`**), у першому документі має бути непорожнє поле **`namespace`** (типово **`dev`**; див. розділ **Namespace**).
+- Якщо в дереві є **`k8s/base/kustomization.yaml`**, у першому документі **завжди** має бути непорожнє поле **`namespace`** (типово **`dev`**; див. розділ **Namespace**).
 
 ## Коли застосовувати (агентам)
 
 - Зміни в k8s YAML — після правок **`check k8s`**.
 - Якщо перший рядок уже коректний і URL відповідає `apiVersion` / `kind` — не дублюй; змінився ресурс — онови лише `$schema`.
 - У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**); додай **`imagePullPolicy: Always`** для кожного контейнера.
-- Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, коментарі для рядків, що змінюються в overlay).
+- Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, коментарі для рядків, що змінюються в overlay). У **`base/kustomization.yaml`** завжди задавай непорожній **`namespace:`**. У **`k8s/base`** у кожному ресурсному YAML має бути явний **`metadata.namespace`**. Поза **base**, якщо не хочеш **`metadata.namespace`** у файлі — підключи його до kustomization (**`resources`** / **`patches`** тощо); інакше додай явний **`metadata.namespace`**.
 - Після міграції на нову структуру **видали** застарілі файли та каталоги, які вже замінені (див. **Міграція зі старої структури**).
 
 ## Визначення схеми YAML (канон)
 
 Орієнтир — **перший документ** (до наступного `---`).
 
-1. **Ім’я** `kustomization.yaml` або `kustomization.yml` → `https://json.schemastore.org/kustomization.json`.
+1. **Ім’я** `kustomization.yaml` → `https://json.schemastore.org/kustomization.json`.
 2. **`apiVersion: v1`** → yannh, PIN набору схем **`v1.33.9-standalone-strict`**, ref репозиторію для raw URL — **`master`** (каталог версії не є коренем репо на GitHub):
    `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-v1.json`
    `<kind>`: літери в нижньому регістрі без роздільників між CamelCase (наприклад `Service` → `service`).

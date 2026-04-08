@@ -1,8 +1,8 @@
 /**
  * Запуск kubeconform та kubescape для каталогів `…/k8s`, де є YAML-маніфести (див. k8s.mdc).
  *
- * Знаходить унікальні корені каталогів із іменем `k8s` за шляхами файлів `*.yaml` / `*.yml`
- * (той самий принцип сегмента `k8s`, що й у check-k8s.mjs). Якщо таких файлів немає — вихід 0
+ * Знаходить унікальні корені каталогів із іменем `k8s` за шляхами файлів **`*.yaml`**
+ * (той самий принцип сегмента `k8s`, що й у check-k8s.mjs; розширення **`.yml`** під `k8s` не використовується). Якщо таких файлів немає — вихід 0
  * без виклику зовнішніх CLI.
  *
  * kubeconform перевіряє маніфести проти OpenAPI-схем Kubernetes; kubescape — сканування на
@@ -52,7 +52,7 @@ export function k8sRootFromFile(absFile) {
 }
 
 /**
- * Унікальні корені `k8s` з yaml/yml під деревом cwd.
+ * Унікальні корені `k8s` за наявності `*.yaml` під деревом cwd.
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до каталогів `k8s`
  */
@@ -61,7 +61,7 @@ export async function findK8sRoots(root) {
   const roots = new Set()
   await walkDir(root, p => {
     if (!pathHasK8sSegment(p)) return
-    if (!/\.ya?ml$/iu.test(p)) return
+    if (!/\.yaml$/iu.test(p)) return
     const k8sRoot = k8sRootFromFile(p)
     if (k8sRoot) roots.add(k8sRoot)
   })
@@ -123,7 +123,7 @@ async function main() {
   const dirs = await findK8sRoots(root)
 
   if (dirs.length === 0) {
-    console.log('run-k8s: немає yaml/yml під k8s — kubeconform і kubescape пропущено')
+    console.log('run-k8s: немає *.yaml під k8s — kubeconform і kubescape пропущено')
     return 0
   }
 

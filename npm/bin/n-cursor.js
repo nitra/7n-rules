@@ -8,6 +8,7 @@
  *   `npx \@nitra/cursor check`       — перевірити правила, перелічені в AGENTS.md (якщо є check-*.mjs);
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує AGENTS.md)
+ *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
@@ -43,6 +44,7 @@ import {
   ensureNitraCursorInRootDevDependencies,
   readBundledPackageVersion
 } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
@@ -863,10 +865,31 @@ const [command, ...args] = process.argv.slice(2)
 
 try {
   await ensureNitraCursorInRootDevDependencies(cwd())
-  if (command === 'check') {
-    await runChecks(args)
-  } else {
-    await runSync()
+  switch (command) {
+    case 'check': {
+      await runChecks(args)
+
+      break
+    }
+    case 'rename-yaml-extensions': {
+      const code = await runRenameYamlExtensionsCli(args)
+      if (code !== 0) {
+        process.exitCode = 1
+      }
+
+      break
+    }
+    case undefined:
+    case '': {
+      await runSync()
+
+      break
+    }
+    default: {
+      console.error(`❌ Невідома команда: ${command}`)
+      console.error(`   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions`)
+      process.exitCode = 1
+    }
   }
 } catch {
   process.exitCode = 1

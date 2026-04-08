@@ -2,29 +2,33 @@
  * Перевіряє Kubernetes YAML у шляхах з сегментом `k8s` (див. k8s.mdc).
  *
  * Перший рядок `# yaml-language-server: $schema=…`, без дублікатів, розширення `.yaml`
- * (окрім `kustomization.yml`); URL схеми за першим документом — kustomization / yannh / datree
+ * (окрім `kustomization.yaml`); URL схеми за першим документом — kustomization / yannh / datree
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
  * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
  * порожній **`{}`**) та **`imagePullPolicy: Always`**.
  *
- * У файлах **не** `kustomization.yaml` / `kustomization.yml` у документах не має бути **`metadata.namespace`**
- * (namespace лише в Kustomize).
+ * **Namespace і Kustomize:** YAML у **`…/k8s/base/`** (окрім імені **`kustomization.yaml`**)
+ * завжди має **непорожній** **`metadata.namespace`** у відповідних документах (узгоджено з dev у репозиторії),
+ * навіть якщо **`namespace:`** заданий у **`base/kustomization.yaml`**.
+ * Поза **`k8s/base`**: для файлів, досяжних з kustomization через **`resources`**, **`bases`**, **`components`**,
+ * **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**, **`metadata.namespace`** у маніфесті **не** додають;
+ * файли **поза** цим графом — **непорожній** **`metadata.namespace`** (крім **кластерних** kind; див. k8s.mdc).
  *
- * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API). Якщо є **`HealthCheckPolicy`**,
- * має існувати **`ru/kustomization.yaml`** з patch видалення цього kind (`$patch: delete`).
+ * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API).
  *
- * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; якщо є **`…/k8s/base/kustomization.yaml`**
- * (або **`.yml`**), у першому документі має бути непорожнє поле **`namespace`**.
+ * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; у **`k8s/base/kustomization.yaml`**
+ * завжди має бути непорожнє поле **`namespace:`** (перевірка, якщо файл існує).
  *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  */
-import { readFile } from 'node:fs/promises'
-import { basename, relative } from 'node:path'
+import { existsSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
@@ -164,34 +168,218 @@ export function isForbiddenK8sDevPath(rel) {
 }
 
 /**
- * Чи це **`k8s/base/kustomization.yaml`** або **`kustomization.yml`** (перевірка поля **`namespace`**).
- * @param {string} rel шлях від кореня репозиторію
- * @returns {boolean} true, якщо це `…/k8s/base/kustomization.yaml` або `…/k8s/base/kustomization.yml`
+ * Відносний шлях від кореня репозиторію у вигляді з `/` (для множини kustomize).
+ * @param {string} root корінь cwd
+ * @param {string} abs абсолютний шлях
+ * @returns {string | null} posix-відносний шлях або null, якщо поза root
  */
-export function isBaseKustomizationPath(rel) {
-  const n = rel.replaceAll('\\', '/')
-  return /(^|\/)k8s\/base\/kustomization\.yaml$/u.test(n) || /(^|\/)k8s\/base\/kustomization\.yml$/u.test(n)
+function posixRelFromAbs(root, abs) {
+  const r = (relative(root, abs) || abs).replaceAll('\\', '/')
+  if (r.startsWith('..')) return null
+  return r
 }
 
 /**
- * Чи коректне поле **`namespace`** у розібраному Kustomization для **`base`**.
+ * Вбудовані та поширені **кластерні** `kind`, для яких **`metadata.namespace`** не застосовується.
+ * CRD з невідомим kind лишаються з вимогою namespace, якщо файл не в kustomization — за потреби додай path у `resources`.
+ * @type {Set<string>}
+ */
+const CLUSTER_SCOPED_KINDS = new Set([
+  'APIService',
+  'CertificateSigningRequest',
+  'ClusterCIDR',
+  'ClusterRole',
+  'ClusterRoleBinding',
+  'ComponentStatus',
+  'CSIDriver',
+  'CSINode',
+  'CustomResourceDefinition',
+  'FlowSchema',
+  'IPAddress',
+  'IngressClass',
+  'MutatingWebhookConfiguration',
+  'Namespace',
+  'Node',
+  'PersistentVolume',
+  'PriorityClass',
+  'PriorityLevelConfiguration',
+  'RuntimeClass',
+  'ServiceCIDR',
+  'StorageClass',
+  'StorageVersionMigration',
+  'ValidatingAdmissionPolicy',
+  'ValidatingAdmissionPolicyBinding',
+  'ValidatingWebhookConfiguration',
+  'VolumeAttachment'
+])
+
+/**
+ * Чи `kind` за замовчуванням **кластерний** (без namespace у маніфесті).
+ * @param {string} kind значення `kind`
+ * @returns {boolean} true для кластерних built-in / поширених API
+ */
+export function isClusterScopedKubernetesKind(kind) {
+  return typeof kind === 'string' && kind !== '' && CLUSTER_SCOPED_KINDS.has(kind)
+}
+
+/**
+ * Додає рядки шляхів з поля-масиву kustomization.
+ * @param {unknown} arr значення з YAML
+ * @param {string[]} acc накопичувач
+ */
+function pushStringPaths(arr, acc) {
+  if (!Array.isArray(arr)) return
+  for (const item of arr) {
+    if (typeof item === 'string' && item.trim() !== '') acc.push(item.trim())
+  }
+}
+
+/**
+ * Шляхи з полів Kustomization для resolve відносно каталогу **`kustomization.yaml`**.
+ * @param {unknown} obj корінь першого документа Kustomization
+ * @returns {string[]} відносні або абсолютні посилання з маніфесту
+ */
+function pathsFromKustomizationObject(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  /** @type {string[]} */
+  const out = []
+  pushStringPaths(rec.resources, out)
+  pushStringPaths(rec.bases, out)
+  pushStringPaths(rec.components, out)
+  pushStringPaths(rec.crds, out)
+  pushStringPaths(rec.patchesStrategicMerge, out)
+  const patches = rec.patches
+  if (Array.isArray(patches)) {
+    for (const p of patches) {
+      if (
+        p !== null &&
+        typeof p === 'object' &&
+        !Array.isArray(p) &&
+        typeof p.path === 'string' &&
+        p.path.trim() !== ''
+      ) {
+        out.push(p.path.trim())
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Збирає відносні шляхи (posix) до YAML, підключених до Kustomize з будь-якого **`kustomization.yaml`** під `k8s`.
+ * Обходить **`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**;
+ * для каталогу з **`kustomization.yaml`** виконує рекурсивний обхід.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs відсортовані абсолютні шляхи до `*.yaml` / `*.yml` під k8s (для `.yml` check-k8s вимагає перейменувати на `.yaml`)
+ * @returns {Promise<Set<string>>} множина відносних шляхів до керованих файлів
+ */
+export async function collectKustomizeManagedRelPaths(root, yamlFilesAbs) {
+  /** @type {Set<string>} */
+  const managed = new Set()
+  const kustomizationAbsList = yamlFilesAbs.filter(abs => {
+    const b = basename(abs).toLowerCase()
+    return b === 'kustomization.yaml'
+  })
+
+  /** @type {Set<string>} */
+  const visitedKustomization = new Set()
+
+  /**
+   * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+   * @returns {Promise<void>}
+   */
+  async function walkKustomization(kustAbs) {
+    const normKust = resolve(kustAbs)
+    if (visitedKustomization.has(normKust)) return
+    visitedKustomization.add(normKust)
+
+    let raw
+    try {
+      raw = await readFile(normKust, 'utf8')
+    } catch {
+      return
+    }
+    const lines = toLines(raw)
+    const body = yamlBodyAfterModeline(lines)
+
+    /** @type {import('yaml').Document[] | undefined} */
+    let docs
+    try {
+      docs = parseAllDocuments(body)
+    } catch {
+      return
+    }
+    const first = docs[0]?.toJSON()
+    if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) return
+
+    const kustDir = dirname(normKust)
+    const pathRefs = pathsFromKustomizationObject(first)
+
+    for (const ref of pathRefs) {
+      if (!ref.includes('://')) {
+        const resolved = resolve(kustDir, ref)
+        let st
+        try {
+          st = await stat(resolved)
+        } catch {
+          st = undefined
+        }
+        if (st) {
+          if (st.isFile()) {
+            if (/\.ya?ml$/iu.test(resolved)) {
+              const pr = posixRelFromAbs(root, resolved)
+              if (pr !== null) managed.add(pr)
+            }
+          } else if (st.isDirectory()) {
+            const childK = existsSync(join(resolved, 'kustomization.yaml'))
+              ? join(resolved, 'kustomization.yaml')
+              : null
+            if (childK !== null) {
+              await walkKustomization(childK)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (const k of kustomizationAbsList) {
+    await walkKustomization(k)
+  }
+
+  return managed
+}
+
+/**
+ * Чи це **`k8s/base/kustomization.yaml`** (перевірка обов’язкового непорожнього **`namespace:`**).
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true для шляху виду `…/k8s/base/kustomization.yaml`
+ */
+export function isBaseKustomizationPath(rel) {
+  const n = rel.replaceAll('\\', '/')
+  return /(^|\/)k8s\/base\/kustomization\.yaml$/u.test(n)
+}
+
+/**
+ * Чи є в Kustomization для **`base`** завжди обов’язкове непорожнє поле **`namespace:`** (k8s.mdc).
  * @param {unknown} obj перший документ YAML
  * @returns {string | null} текст порушення або null, якщо ок
  */
 export function baseKustomizationNamespaceViolation(obj) {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
-    return 'у base/kustomization.yaml має бути непорожній namespace (див. k8s.mdc)'
+    return 'у base/kustomization.yaml завжди має бути непорожній namespace: (див. k8s.mdc)'
   }
   const rec = /** @type {Record<string, unknown>} */ (obj)
   const ns = rec.namespace
   if (typeof ns === 'string' && ns.trim() !== '') {
     return null
   }
-  return 'у base/kustomization.yaml має бути непорожній namespace (наприклад namespace: dev; див. k8s.mdc)'
+  return 'у base/kustomization.yaml завжди додай непорожній namespace: (наприклад namespace: dev; див. k8s.mdc)'
 }
 
 /**
- * Збирає всі yaml/yml під деревом від кореня cwd, якщо шлях містить сегмент `k8s`.
+ * Збирає всі `*.yaml` та `*.yml` під деревом від кореня cwd, якщо шлях містить сегмент `k8s` (для `.yml` далі — помилка перейменування).
  * @param {string} root корінь репозиторію (cwd)
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
  */
@@ -276,14 +464,13 @@ export function ruKustomizationHasHealthCheckDeletePatch(raw) {
 }
 
 /**
- * Шукає **Ingress** / **HealthCheckPolicy** у розібраних документах; реєструє порушення для Ingress.
+ * Шукає **Ingress** у розібраних документах; реєструє порушення.
  * @param {string} rel відносний шлях до файлу
  * @param {string} body YAML після modeline
  * @param {(msg: string) => void} fail callback для помилки (Ingress)
- * @param {string[]} healthCheckPolicyFiles накопичувач шляхів, де зустріли HealthCheckPolicy
  * @returns {void}
  */
-function scanIngressAndHealthCheckPolicy(rel, body, fail, healthCheckPolicyFiles) {
+function scanIngressInYamlDocuments(rel, body, fail) {
   /** @type {import('yaml').Document[]} */
   let docs
   try {
@@ -299,54 +486,12 @@ function scanIngressAndHealthCheckPolicy(rel, body, fail, healthCheckPolicyFiles
         const rec = /** @type {Record<string, unknown>} */ (obj)
         if (rec.kind === 'Ingress') {
           fail(
-            `${rel}: знайдено kind: Ingress (документ ${di + 1}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml), patch у ru/kustomization.yaml (див. k8s.mdc)`
+            `${rel}: знайдено kind: Ingress (документ ${di + 1}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml) (див. k8s.mdc)`
           )
-        } else if (rec.kind === 'HealthCheckPolicy' && !healthCheckPolicyFiles.includes(rel)) {
-          healthCheckPolicyFiles.push(rel)
         }
       }
     }
   }
-}
-
-/**
- * Якщо у дереві k8s є HealthCheckPolicy, вимагає **ru/kustomization.yaml** з patch видалення.
- * @param {string} root корінь cwd
- * @param {string[]} yamlFiles абсолютні шляхи до yaml під k8s
- * @param {string[]} healthCheckPolicyFiles відносні шляхи з HealthCheckPolicy
- * @param {(msg: string) => void} fail callback для помилки (немає ru або немає patch)
- * @returns {Promise<void>} завершення після перевірки overlay ru
- */
-async function ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyFiles, fail) {
-  if (healthCheckPolicyFiles.length === 0) {
-    return
-  }
-
-  const ruAbsList = yamlFiles.filter(abs => isRuKustomizationPath(relative(root, abs) || abs))
-  if (ruAbsList.length === 0) {
-    fail(
-      `Знайдено HealthCheckPolicy у ${healthCheckPolicyFiles.join(', ')} — додай ru/kustomization.yaml з patch видалення (див. k8s.mdc)`
-    )
-    return
-  }
-
-  for (const abs of ruAbsList) {
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${relative(root, abs) || abs}: не вдалося прочитати (${msg})`)
-      return
-    }
-    if (ruKustomizationHasHealthCheckDeletePatch(raw)) {
-      return
-    }
-  }
-
-  fail(
-    'Є HealthCheckPolicy, але жоден ru/kustomization.yaml не містить очікуваного patch видалення (kind: HealthCheckPolicy, metadata.name, $patch: delete) — див. k8s.mdc'
-  )
 }
 
 /**
@@ -426,7 +571,7 @@ export function deploymentImagePullPolicyViolation(manifest) {
 }
 
 /**
- * У маніфестах ресурсів не має бути **metadata.namespace** — лише у **kustomization** (k8s.mdc).
+ * Для маніфестів, **підключених** до Kustomize (шлях у `resources` / `patches` / …), **metadata.namespace** не додають.
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null, якщо поля немає
  */
@@ -436,7 +581,37 @@ export function metadataNamespaceForbiddenViolation(manifest) {
   const rec = /** @type {Record<string, unknown>} */ (manifest)
   const meta = rec.metadata
   if (meta !== null && typeof meta === 'object' && !Array.isArray(meta) && 'namespace' in meta) {
-    return 'metadata.namespace заборонено — задай namespace у kustomization.yaml (поле namespace) (див. k8s.mdc)'
+    return 'metadata.namespace заборонено — namespace задає kustomization.yaml (поле namespace); файл підключено через resources / patches / … (див. k8s.mdc)'
+  }
+  return null
+}
+
+/**
+ * Вимагає непорожній **metadata.namespace** для namespaced-документів (крім кластерних kind).
+ * @param {unknown} manifest корінь YAML-документа
+ * @param {boolean} [inBaseDir] true — файл у **`k8s/base/`** (текст повідомлення для base)
+ * @returns {string | null} текст порушення або null, якщо перевірка не застосовується / ок
+ */
+export function metadataNamespaceRequiredViolation(manifest, inBaseDir = false) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind === 'List' || rec.kind === 'Kustomization') return null
+  if (typeof rec.kind !== 'string' || rec.kind === '') return null
+  if (typeof rec.apiVersion !== 'string' || rec.apiVersion === '') return null
+  if (isClusterScopedKubernetesKind(rec.kind)) return null
+  const meta = rec.metadata
+  if (meta === null || meta === undefined || typeof meta !== 'object' || Array.isArray(meta)) {
+    return inBaseDir
+      ? 'додай metadata з непорожнім metadata.namespace — у k8s/base у кожному ресурсному YAML має бути явний namespace (див. k8s.mdc)'
+      : 'додай metadata з непорожнім metadata.namespace — файл не підключено до жодного kustomization.yaml (resources, patches, …) під k8s (див. k8s.mdc)'
+  }
+  const m = /** @type {Record<string, unknown>} */ (meta)
+  const ns = m.namespace
+  if (typeof ns !== 'string' || ns.trim() === '') {
+    return inBaseDir
+      ? 'metadata.namespace обов’язковий у k8s/base — додай явний namespace у маніфесті (див. k8s.mdc)'
+      : 'metadata.namespace обов’язковий — файл не перелічений у kustomization.yaml під k8s; додай path у kustomization або явний namespace (див. k8s.mdc)'
   }
   return null
 }
@@ -444,10 +619,22 @@ export function metadataNamespaceForbiddenViolation(manifest) {
 /**
  * Чи ім’я файлу — kustomization (дозволяє не застосовувати перевірку metadata.namespace до вмісту).
  * @param {string} baseLower basename у нижньому регістрі
- * @returns {boolean} true для `kustomization.yaml` / `kustomization.yml`
+ * @returns {boolean} true для `kustomization.yaml`
  */
 function isKustomizationFileName(baseLower) {
-  return baseLower === 'kustomization.yaml' || baseLower === 'kustomization.yml'
+  return baseLower === 'kustomization.yaml'
+}
+
+/**
+ * Чи це **ресурсний** YAML у каталозі **`k8s/base`** (не `kustomization.yaml`).
+ * @param {string} rel відносний шлях від кореня репозиторію
+ * @param {string} baseLower basename у нижньому регістрі
+ * @returns {boolean} true для `…/k8s/base/*.yaml` окрім kustomization
+ */
+export function isK8sBaseManifestYamlPath(rel, baseLower) {
+  if (isKustomizationFileName(baseLower)) return false
+  const n = rel.replaceAll('\\', '/')
+  return /(^|\/)k8s\/base\//u.test(n)
 }
 
 /**
@@ -456,8 +643,9 @@ function isKustomizationFileName(baseLower) {
  * @param {string} baseLower basename файлу (нижній регістр)
  * @param {string} body вміст після modeline
  * @param {(msg: string) => void} fail реєстрація помилки
+ * @param {boolean} kustomizeManaged чи файл досяжний з kustomization.yaml (resources / patches / …)
  */
-function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail) {
+function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged) {
   /** @type {import('yaml').Document[]} */
   let docs
   try {
@@ -469,6 +657,7 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail) {
   }
 
   const skipMetaNs = isKustomizationFileName(baseLower)
+  const inBaseManifest = isK8sBaseManifestYamlPath(rel, baseLower)
 
   for (const [di, doc] of docs.entries()) {
     if (doc.errors.length > 0) {
@@ -476,9 +665,21 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail) {
     } else {
       const obj = doc.toJSON()
       if (!skipMetaNs) {
-        const ns = metadataNamespaceForbiddenViolation(obj)
-        if (ns !== null) {
-          fail(`${rel}: документ ${di + 1}: ${ns}`)
+        if (inBaseManifest) {
+          const req = metadataNamespaceRequiredViolation(obj, true)
+          if (req !== null) {
+            fail(`${rel}: документ ${di + 1}: ${req}`)
+          }
+        } else if (kustomizeManaged) {
+          const ns = metadataNamespaceForbiddenViolation(obj)
+          if (ns !== null) {
+            fail(`${rel}: документ ${di + 1}: ${ns}`)
+          }
+        } else {
+          const req = metadataNamespaceRequiredViolation(obj, false)
+          if (req !== null) {
+            fail(`${rel}: документ ${di + 1}: ${req}`)
+          }
         }
       }
       const resV = deploymentResourcesViolation(obj)
@@ -512,7 +713,7 @@ export function expectedSchemaUrl(filePath, doc) {
   const base = basename(filePath)
   const baseLower = base.toLowerCase()
 
-  if (baseLower === 'kustomization.yaml' || baseLower === 'kustomization.yml') {
+  if (baseLower === 'kustomization.yaml') {
     return { expected: KUSTOMIZATION_SCHEMA, reason: 'kustomization (ім’я файлу)' }
   }
 
@@ -574,15 +775,15 @@ function countSchemaModelines(lines) {
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail реєстрація помилки
  * @param {(msg: string) => void} pass реєстрація успіху
- * @param {string[]} healthCheckPolicyFiles накопичувач файлів із kind: HealthCheckPolicy
+ * @param {Set<string>} kustomizeManagedRel відносні posix-шляхи з collectKustomizeManagedRelPaths
  * @returns {Promise<void>}
  */
-async function checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles) {
-  const rel = relative(root, abs) || abs
+async function checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel) {
+  const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
   const base = basename(abs)
   const baseLower = base.toLowerCase()
 
-  if (baseLower.endsWith('.yml') && baseLower !== 'kustomization.yml') {
+  if (baseLower.endsWith('.yml')) {
     fail(`${rel}: розширення .yml — перейменуй на .yaml (див. k8s.mdc)`)
     return
   }
@@ -615,7 +816,7 @@ async function checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles) {
 
   const body = yamlBodyAfterModeline(lines)
 
-  scanIngressAndHealthCheckPolicy(rel, body, fail, healthCheckPolicyFiles)
+  scanIngressInYamlDocuments(rel, body, fail)
 
   if (schemaUrl.startsWith('file:')) {
     pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
@@ -639,7 +840,8 @@ async function checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles) {
     return
   }
 
-  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail)
+  const kustomizeManaged = kustomizeManagedRel.has(rel)
+  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
 }
 
 /**
@@ -659,7 +861,7 @@ function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
 }
 
 /**
- * Якщо є **`k8s/base/kustomization.yaml`**, у ньому має бути непорожній **`namespace`**.
+ * Якщо є **`k8s/base/kustomization.yaml`**, у ньому **завжди** має бути непорожній **`namespace:`**.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи
  * @param {(msg: string) => void} fail callback для реєстрації порушення
@@ -710,7 +912,7 @@ export async function check() {
   const yamlFiles = await findK8sYamlFiles(root)
 
   if (yamlFiles.length === 0) {
-    pass('Немає yaml/yml під k8s — перевірку $schema пропущено')
+    pass('Немає *.yaml під k8s — перевірку $schema пропущено')
     return 0
   }
 
@@ -718,14 +920,11 @@ export async function check() {
 
   assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
 
-  /** @type {string[]} */
-  const healthCheckPolicyFiles = []
+  const kustomizeManagedRel = await collectKustomizeManagedRelPaths(root, yamlFiles)
 
   for (const abs of yamlFiles) {
-    await checkK8sYamlFile(abs, root, fail, pass, healthCheckPolicyFiles)
+    await checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel)
   }
-
-  await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyFiles, fail)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 

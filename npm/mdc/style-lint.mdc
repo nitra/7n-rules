@@ -1,25 +1,23 @@
 ---
 description: Правила стилів CSS та SCSS
 alwaysApply: true
-version: '1.1'
+version: '1.2'
 ---
 
 ## Генерація та редагування стилів (Cursor і інші агенти)
 
 - **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам’яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
 - **Форматування** узгоджуй з **`n-js-format.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
-- **Після змін:** запускай **`bun run lint-style`** (або `bunx stylelint` з тими ж glob-ами та прапорцями, що в скрипті та CI) і виправляй усе, що лишилось після auto-fix. За потреби пройдись повним набором `lint-*` з `package.json` (див. навичку **`n-fix`**).
-- **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** / вузькі придушення правил без потреби; краще змінити стилі під правила проєкту.
+- **Запуск stylelint:** лише **`npx stylelint`** (у **`lint-style`**, у CI, вручну). Не використовуй **`bunx stylelint`** і не запускай **stylelint** напряму без **`npx`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний набір `lint-*` (навичка **`n-fix`**).
+- **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
-В файлі .vscode/extensions.json є налаштування для офіційного плагіну:
+**VSCode:** у **`.vscode/extensions.json`** рекомендуй **`stylelint.vscode-stylelint`**. У **`.vscode/settings.json`** вимкни вбудовану валідацію CSS/SCSS/Less і увімкни явні code actions:
 
 ```json title=".vscode/extensions.json"
 {
   "recommendations": ["stylelint.vscode-stylelint"]
 }
 ```
-
-в файлі .vscode/settings.json є налаштування для stylelint:
 
 ```json title=".vscode/settings.json"
 {
@@ -32,11 +30,11 @@ version: '1.1'
 }
 ```
 
-в файлі package.json є налаштування для stylelint:
+**`package.json`:**
 
 ```json title="package.json"
   "scripts": {
-    "lint-style": "stylelint '**/*.{css,scss,vue}' --fix",
+    "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
   },
   "devDependencies": {
     "@nitra/stylelint-config": "^1.4.0"
@@ -46,9 +44,9 @@ version: '1.1'
   },
 ```
 
-Є гітхаб actions .github/workflows/lint-style.yml:
+Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі **`bun run lint-style`** (у скрипті вже **`npx stylelint`**). **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
 
-```yaml
+```yaml title=".github/workflows/lint-style.yml"
 name: StyleLint
 
 on:
@@ -77,23 +75,20 @@ concurrency:
 jobs:
   stylelint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
 
       - name: StyleLint
-        run: |
-          node - <<'NODE'
-          const fs = require('fs')
-          const data = JSON.parse(fs.readFileSync('package.json', 'utf8'))
-          delete data.workspaces
-          data.devDependencies = {}
-          fs.writeFileSync('package.json', JSON.stringify(data, null, 2) + '\n')
-          NODE
-          npm install @nitra/stylelint-config
-          npx stylelint '**/*.{css,scss,vue}'
+        run: bun run lint-style
 ```
 
-В корені проекту має бути файл .stylelintignore з виключенням:
+У корені проєкту має бути **`.stylelintignore`**:
 
 ```text title=".stylelintignore"
 dist/

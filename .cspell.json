@@ -3,5 +3,15 @@
   "language": "en,uk,ru-ru,nitra",
   "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
   "import": ["@nitra/cspell-dict/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
-  "words": ["пов’язаних", "розпарсити", "плейсхолдер", "Патчів"]
+  "words": [
+    "пов’язаних",
+    "обов’язкове",
+    "обов’язковий",
+    "обов’язкового",
+    "Kust",
+    "crds",
+    "розпарсити",
+    "плейсхолдер",
+    "Патчів"
+  ]
 }

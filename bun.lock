@@ -8,12 +8,12 @@
         "@cspell/dict-uk-ua": "^4.0.6",
         "@nitra/cspell-dict": "^1.0.188",
         "@nitra/cursor": "workspace:*",
-        "@nitra/eslint-config": "^3.4.0",
+        "@nitra/eslint-config": "^3.4.3",
       },
     },
     "npm": {
       "name": "@nitra/cursor",
-      "version": "1.8.26",
+      "version": "1.8.55",
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },
@@ -70,7 +70,7 @@
 
     "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
 
-    "@nitra/eslint-config": ["@nitra/eslint-config@3.4.0", "", { "dependencies": { "@eslint/js": "^10.0.1", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.2.0", "eslint-plugin-import": "^2.32.0", "eslint-plugin-jsdoc": "^62.9.0", "eslint-plugin-jsonc": "^3.1.2", "eslint-plugin-markdown": "^5.1.0", "eslint-plugin-n": "^17.24.0", "eslint-plugin-oxlint": "^1.58.0", "eslint-plugin-security": "^4.0.0", "eslint-plugin-unicorn": "^64.0.0", "eslint-plugin-vue": "^10.8.0", "eslint-plugin-yml": "^3.3.1", "globals": "^17.4.0", "vue-eslint-parser": "^10.4.0" } }, "sha512-dLGJYEf4rirmLiKzt0qYTTXHfsu4nfLSwfcz3yWXAWopDJDCQqzmsWcUtAJ6FD3RFIKRRn3cdgdlRs4nQtBtRg=="],
+    "@nitra/eslint-config": ["@nitra/eslint-config@3.4.3", "", { "dependencies": { "@eslint/js": "^10.0.1", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.2.0", "eslint-plugin-import": "^2.32.0", "eslint-plugin-jsdoc": "^62.9.0", "eslint-plugin-jsonc": "^3.1.2", "eslint-plugin-markdown": "^5.1.0", "eslint-plugin-n": "^17.24.0", "eslint-plugin-oxlint": "^1.58.0", "eslint-plugin-security": "^4.0.0", "eslint-plugin-unicorn": "^64.0.0", "eslint-plugin-vue": "^10.8.0", "eslint-plugin-yml": "^3.3.1", "globals": "^17.4.0", "vue-eslint-parser": "^10.4.0" } }, "sha512-pj6mJhQjtNlGcGyxXekLdi9KbISMR8eZ0GC2J9vlAKvjDraLqokWjsJAHpZ1mqEx4Hux5+328QsJ9bH1W1+5Cw=="],
 
     "@ota-meshi/ast-token-store": ["@ota-meshi/ast-token-store@0.3.0", "", {}, "sha512-XRO0zi2NIUKq2lUk3T1ecFSld1fMWRKE6naRFGkgkdeosx7IslyUKNv5Dcb5PJTja9tHJoFu0v/7yEpAkrkrTg=="],
 

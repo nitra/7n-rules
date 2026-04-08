@@ -28,7 +28,7 @@ spec:
     name: НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ
 ```
 
-і підключення до kustomize. Але у директорії ru повинен бути файл kustomization.yaml з patch, що видаляє ресурс **HealthCheckPolicy**.
+**Overlay `ru`:** у **`…/ru/kustomization.yaml`** під **`k8s`** додай **видалення** ресурсу HealthCheckPolicy для середовища, де політика не потрібна (підстав **реальне ім’я** замість `НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ`):
 
 ```yaml title="kustomization.yaml"
 patches:
@@ -52,5 +52,7 @@ ignore_branches: dev,ua,ru
 ## Перевірка
 
 `npx @nitra/cursor check abie`
+
+Повна матриця полів **`hc.yaml`**, **`ignore_branches`** і умов для **`ru/kustomization.yaml`** — у **`npm/scripts/check-abie.mjs`**.
 
 Програмна перевірка (**`check-abie.mjs`**) виконується лише якщо у **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень (щоб не вимагати **ua**/**ru** у репозиторіях без цього правила).

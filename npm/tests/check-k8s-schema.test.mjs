@@ -1,17 +1,25 @@
 /**
  * Тести визначення очікуваного $schema та сегмента `k8s` у шляху (check-k8s).
  */
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
   baseKustomizationNamespaceViolation,
+  collectKustomizeManagedRelPaths,
   deploymentImagePullPolicyViolation,
   deploymentResourcesViolation,
   expectedSchemaUrl,
   isBaseKustomizationPath,
+  isClusterScopedKubernetesKind,
+  isK8sBaseManifestYamlPath,
   isForbiddenK8sDevPath,
   isRuKustomizationPath,
   metadataNamespaceForbiddenViolation,
+  metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
   ruKustomizationHasHealthCheckDeletePatch
 } from '../scripts/check-k8s.mjs'
@@ -60,9 +68,13 @@ describe('isForbiddenK8sDevPath', () => {
 })
 
 describe('isBaseKustomizationPath', () => {
-  test('true для k8s/base/kustomization.yaml або .yml', () => {
+  test('true для k8s/base/kustomization.yaml', () => {
     expect(isBaseKustomizationPath('x/k8s/base/kustomization.yaml')).toBe(true)
-    expect(isBaseKustomizationPath('k8s/base/kustomization.yml')).toBe(true)
+    expect(isBaseKustomizationPath('k8s/base/kustomization.yaml')).toBe(true)
+  })
+
+  test('false для kustomization.yml', () => {
+    expect(isBaseKustomizationPath('k8s/base/kustomization.yml')).toBe(false)
   })
 
   test('false для інших kustomization', () => {
@@ -174,6 +186,113 @@ describe('metadataNamespaceForbiddenViolation', () => {
     expect(
       metadataNamespaceForbiddenViolation({ kind: 'Deployment', metadata: { name: 'x', namespace: 'ns' } })
     ).toContain('metadata.namespace')
+  })
+})
+
+describe('isClusterScopedKubernetesKind', () => {
+  test('true для ClusterRole', () => {
+    expect(isClusterScopedKubernetesKind('ClusterRole')).toBe(true)
+  })
+
+  test('false для Deployment', () => {
+    expect(isClusterScopedKubernetesKind('Deployment')).toBe(false)
+  })
+})
+
+describe('metadataNamespaceRequiredViolation', () => {
+  test('null для кластерного kind', () => {
+    expect(
+      metadataNamespaceRequiredViolation({ apiVersion: 'rbac.authorization.k8s.io/v1', kind: 'ClusterRole' })
+    ).toBeNull()
+  })
+
+  test('null без apiVersion/kind', () => {
+    expect(metadataNamespaceRequiredViolation({ metadata: { name: 'x' } })).toBeNull()
+  })
+
+  test('помилка без namespace у namespaced ресурсі', () => {
+    expect(
+      metadataNamespaceRequiredViolation({
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'cm' }
+      })
+    ).toContain('metadata.namespace')
+  })
+
+  test('текст для k8s/base згадує base', () => {
+    expect(
+      metadataNamespaceRequiredViolation(
+        {
+          apiVersion: 'v1',
+          kind: 'ConfigMap',
+          metadata: { name: 'cm' }
+        },
+        true
+      )
+    ).toContain('k8s/base')
+  })
+
+  test('ok з непорожнім namespace', () => {
+    expect(
+      metadataNamespaceRequiredViolation({
+        apiVersion: 'v1',
+        kind: 'ConfigMap',
+        metadata: { name: 'cm', namespace: 'app' }
+      })
+    ).toBeNull()
+  })
+})
+
+describe('isK8sBaseManifestYamlPath', () => {
+  test('true для dep.yaml у k8s/base', () => {
+    expect(isK8sBaseManifestYamlPath('app/k8s/base/dep.yaml', 'dep.yaml')).toBe(true)
+  })
+
+  test('false для kustomization.yaml', () => {
+    expect(isK8sBaseManifestYamlPath('app/k8s/base/kustomization.yaml', 'kustomization.yaml')).toBe(false)
+  })
+
+  test('false поза base', () => {
+    expect(isK8sBaseManifestYamlPath('app/k8s/prod/patch.yaml', 'patch.yaml')).toBe(false)
+  })
+})
+
+describe('collectKustomizeManagedRelPaths', () => {
+  test('містить файл з resources та транзитивно з base', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-kust-'))
+    const baseDir = join(root, 'svc/k8s/base')
+    await mkdir(baseDir, { recursive: true })
+    const kBase = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - dep.yaml
+`
+    const dep = 'x'
+    await writeFile(join(baseDir, 'kustomization.yaml'), kBase, 'utf8')
+    await writeFile(join(baseDir, 'dep.yaml'), dep, 'utf8')
+
+    const overlayDir = join(root, 'svc/k8s/prod')
+    await mkdir(overlayDir, { recursive: true })
+    const kProd = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../base
+`
+    await writeFile(join(overlayDir, 'kustomization.yaml'), kProd, 'utf8')
+
+    const yamlAbs = [
+      join(baseDir, 'kustomization.yaml'),
+      join(baseDir, 'dep.yaml'),
+      join(overlayDir, 'kustomization.yaml')
+    ]
+
+    const managed = await collectKustomizeManagedRelPaths(root, yamlAbs)
+    expect(managed.has('svc/k8s/base/dep.yaml')).toBe(true)
   })
 })
 
