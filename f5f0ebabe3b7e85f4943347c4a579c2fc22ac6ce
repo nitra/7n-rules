@@ -1,0 +1,27 @@
+npm/package.json
+  a9ee916bd447040c 3,23,37
+npm/bin/rename-yaml-extensions.mjs
+  a9ee916bd447040c 6-9
+npm/scripts/rename-yaml-extensions.mjs
+  a9ee916bd447040c 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f5f0ebabe3b7e85f4943347c4a579c2fc22ac6ce",
+  "prompts": {
+    "a9ee916bd447040c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "2af34194-20a0-484a-8b93-24e8e782b770",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 10,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}
