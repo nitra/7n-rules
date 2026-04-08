@@ -3,10 +3,10 @@
 /**
  * CLI для перейменування розширень YAML (k8s та `.github`). Бізнес-логіка — у **`scripts/rename-yaml-extensions.mjs`**.
  *
- * Точки входу:
- * - **`npx \@nitra/cursor rename-yaml-extensions`** [опції]
- * - **`npx n-rename-yaml-extensions`** [опції] (глобальний shim з `package.json` bin)
- * - **`bun ./node_modules/\@nitra/cursor/bin/rename-yaml-extensions.mjs`**
+ * Публічна точка входу — лише головний CLI пакета:
+ * **`npx \@nitra/cursor rename-yaml-extensions`** [опції] (або **`bun ./bin/n-cursor.js rename-yaml-extensions`** у репозиторії пакета).
+ *
+ * Цей файл лишається модулем для **`n-cursor.js`**; прямий запуск **`node ./bin/rename-yaml-extensions.mjs`** — лише для розробки/тестів.
  *
  * Опції: **`--dry-run`**, **`--root=<шлях>`** (корінь обходу; за замовчуванням **`process.cwd()`**).
  */

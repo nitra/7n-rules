@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.8.55",
+  "version": "1.8.56",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -20,8 +20,7 @@
     "url": "git+https://github.com/n/cursor.git"
   },
   "bin": {
-    "n-cursor": "./bin/n-cursor.js",
-    "n-rename-yaml-extensions": "./bin/rename-yaml-extensions.mjs"
+    "n-cursor": "./bin/n-cursor.js"
   },
   "files": [
     "mdc",
@@ -35,7 +34,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test tests",
-    "rename-yaml-extensions": "bun ./bin/rename-yaml-extensions.mjs"
+    "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
   },
   "dependencies": {
     "oxc-parser": "^0.124.0",
