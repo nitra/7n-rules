@@ -10,8 +10,12 @@ import { describe, expect, test } from 'bun:test'
 import {
   baseKustomizationNamespaceViolation,
   collectKustomizeManagedRelPaths,
+  deploymentHasuraGraphqlEngineImageViolation,
   deploymentImagePullPolicyViolation,
   deploymentResourcesViolation,
+  HASURA_GRAPHQL_ENGINE_IMAGE,
+  SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
+  serviceForbiddenGcpAnnotationsViolation,
   expectedSchemaUrl,
   isBaseKustomizationPath,
   isClusterScopedKubernetesKind,
@@ -140,6 +144,175 @@ describe('deploymentResourcesViolation', () => {
       }
     }
     expect(deploymentResourcesViolation(manifest)).toBeNull()
+  })
+})
+
+describe('deploymentHasuraGraphqlEngineImageViolation', () => {
+  test('null для не-Deployment', () => {
+    expect(deploymentHasuraGraphqlEngineImageViolation({ kind: 'Service' })).toBeNull()
+  })
+
+  test('null без hasura/graphql-engine', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [{ name: 'app', image: 'nginx:1', resources: {}, imagePullPolicy: 'Always' }]
+          }
+        }
+      }
+    }
+    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
+  })
+
+  test('ok для канонічного образу', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              {
+                name: 'hasura',
+                image: HASURA_GRAPHQL_ENGINE_IMAGE,
+                resources: {},
+                imagePullPolicy: 'Always'
+              }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
+  })
+
+  test('ok для docker.io/…', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              {
+                name: 'hasura',
+                image: `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`,
+                resources: {},
+                imagePullPolicy: 'Always'
+              }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
+  })
+
+  test('помилка для іншого тега', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              {
+                name: 'hasura',
+                image: 'hasura/graphql-engine:v2.40.0',
+                resources: {},
+                imagePullPolicy: 'Always'
+              }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain(HASURA_GRAPHQL_ENGINE_IMAGE)
+  })
+
+  test('перевірка initContainers', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            initContainers: [
+              {
+                name: 'h',
+                image: 'hasura/graphql-engine:wrong',
+                resources: {},
+                imagePullPolicy: 'Always'
+              }
+            ],
+            containers: [
+              {
+                name: 'app',
+                image: 'nginx:1',
+                resources: {},
+                imagePullPolicy: 'Always'
+              }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain('initContainers')
+  })
+})
+
+describe('serviceForbiddenGcpAnnotationsViolation', () => {
+  test('null для не-Service', () => {
+    expect(serviceForbiddenGcpAnnotationsViolation({ kind: 'Deployment' })).toBeNull()
+  })
+
+  test('null без metadata.annotations', () => {
+    expect(
+      serviceForbiddenGcpAnnotationsViolation({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: { name: 'x' }
+      })
+    ).toBeNull()
+  })
+
+  test('null з дозволеними анотаціями', () => {
+    expect(
+      serviceForbiddenGcpAnnotationsViolation({
+        apiVersion: 'v1',
+        kind: 'Service',
+        metadata: { name: 'x', annotations: { 'prometheus.io/scrape': 'true' } }
+      })
+    ).toBeNull()
+  })
+
+  test('помилка для cloud.google.com/neg', () => {
+    const v = serviceForbiddenGcpAnnotationsViolation({
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: { name: 'x', annotations: { 'cloud.google.com/neg': '{"ingress":true}' } }
+    })
+    expect(v).toContain('cloud.google.com/neg')
+  })
+
+  test('помилка для обох ключів', () => {
+    const v = serviceForbiddenGcpAnnotationsViolation({
+      apiVersion: 'v1',
+      kind: 'Service',
+      metadata: {
+        name: 'x',
+        annotations: {
+          'cloud.google.com/neg': 'x',
+          'cloud.google.com/backend-config': '{"default":"x"}'
+        }
+      }
+    })
+    expect(v).toContain('cloud.google.com/neg')
+    expect(v).toContain('cloud.google.com/backend-config')
+  })
+
+  test('SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS містить обидва ключі', () => {
+    expect([...SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS].sort()).toEqual(
+      ['cloud.google.com/backend-config', 'cloud.google.com/neg'].sort()
+    )
   })
 })
 

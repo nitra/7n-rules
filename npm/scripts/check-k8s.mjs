@@ -7,7 +7,8 @@
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
  * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
- * порожній **`{}`**) та **`imagePullPolicy: Always`**.
+ * порожній **`{}`**) та **`imagePullPolicy: Always`**. Якщо серед **`containers`** / **`initContainers`**
+ * є образ **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`** (див. k8s.mdc).
  *
  * **Namespace і Kustomize:** YAML у **`…/k8s/base/`** (окрім імені **`kustomization.yaml`**)
  * завжди має **непорожній** **`metadata.namespace`** у відповідних документах (узгоджено з dev у репозиторії),
@@ -17,6 +18,9 @@
  * файли **поза** цим графом — **непорожній** **`metadata.namespace`** (крім **кластерних** kind; див. k8s.mdc).
  *
  * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API).
+ *
+ * У **`kind: Service`** у **`metadata.annotations`** не повинно бути ключів **`cloud.google.com/neg`**
+ * та **`cloud.google.com/backend-config`** (див. k8s.mdc).
  *
  * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; у **`k8s/base/kustomization.yaml`**
  * завжди має бути непорожнє поле **`namespace:`** (перевірка, якщо файл існує).
@@ -37,6 +41,27 @@ import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
 const YANNH_PIN = 'v1.33.9-standalone-strict'
+
+/**
+ * Дозволений образ **hasura/graphql-engine** у Deployment (узгоджено з k8s.mdc).
+ * Еквівалент **`docker.io/…`** також приймається.
+ */
+export const HASURA_GRAPHQL_ENGINE_IMAGE = 'hasura/graphql-engine:v2.48.15.ubi.amd64'
+
+/** Набір прийнятних рядків `image` без digest (`@sha256:…`). */
+const HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES = new Set([
+  HASURA_GRAPHQL_ENGINE_IMAGE,
+  `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`
+])
+
+/**
+ * Ключі анотацій GKE (NEG / BackendConfig) у **Service** — заборонені (узгоджено з k8s.mdc).
+ * @type {readonly string[]}
+ */
+export const SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS = Object.freeze([
+  'cloud.google.com/neg',
+  'cloud.google.com/backend-config'
+])
 
 /** Гілка репозиторію yannh/kubernetes-json-schema для raw.githubusercontent.com (каталог набору в URL одразу після ref). */
 const YANNH_REF = 'master'
@@ -571,6 +596,105 @@ export function deploymentImagePullPolicyViolation(manifest) {
 }
 
 /**
+ * Прибирає digest з посилання на образ (`@sha256:…`) для порівняння тега.
+ * @param {string} image значення поля `image`
+ * @returns {string} той самий рядок без суфікса `@…` (digest), з `.trim()`
+ */
+function stripImageDigest(image) {
+  const at = image.indexOf('@')
+  return (at === -1 ? image : image.slice(0, at)).trim()
+}
+
+/**
+ * Чи рядок `image` вказує на репозиторій **hasura/graphql-engine** (будь-який тег / без тега).
+ * @param {string} image значення поля `image`
+ * @returns {boolean} true, якщо шлях образу закінчується на `hasura/graphql-engine` з тегом або без
+ */
+function isHasuraGraphqlEngineImageRef(image) {
+  const s = stripImageDigest(image)
+  return /(^|\/)hasura\/graphql-engine(?:[:]|$)/u.test(s)
+}
+
+/**
+ * Перевіряє пін образу Hasura у одному списку контейнерів Pod spec.
+ * @param {string} list ім’я поля для повідомлення (`containers` / `initContainers`)
+ * @param {unknown} containers значення з маніфесту
+ * @returns {string | null} текст порушення або null
+ */
+function hasuraGraphqlEngineViolationInContainerList(list, containers) {
+  if (!Array.isArray(containers)) return null
+  for (const [i, c] of containers.entries()) {
+    const label =
+      typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
+        ? c.name
+        : `#${i + 1}`
+    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
+      const cont = /** @type {Record<string, unknown>} */ (c)
+      const image = cont.image
+      if (typeof image === 'string' && image.trim() !== '' && isHasuraGraphqlEngineImageRef(image)) {
+        const normalized = stripImageDigest(image)
+        if (!HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES.has(normalized)) {
+          return `${list} "${label}": образ hasura/graphql-engine має бути ${HASURA_GRAPHQL_ENGINE_IMAGE} (зараз: ${image}) (див. k8s.mdc)`
+        }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Чи порушує **Deployment** вимогу пінованого образу **hasura/graphql-engine** (k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null, якщо не Deployment / образу немає / ок
+ */
+export function deploymentHasuraGraphqlEngineImageViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Deployment') return null
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template))
+    return null
+  const podSpecRaw = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpecRaw === null || podSpecRaw === undefined || typeof podSpecRaw !== 'object' || Array.isArray(podSpecRaw))
+    return null
+  const podSpec = /** @type {Record<string, unknown>} */ (podSpecRaw)
+
+  const main = hasuraGraphqlEngineViolationInContainerList('containers', podSpec.containers)
+  if (main !== null) return main
+  return hasuraGraphqlEngineViolationInContainerList('initContainers', podSpec.initContainers)
+}
+
+/**
+ * Чи **Service** містить заборонені анотації GKE у **`metadata.annotations`** (k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null, якщо не Service / анотацій немає / ок
+ */
+export function serviceForbiddenGcpAnnotationsViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Service') return null
+  const meta = rec.metadata
+  if (meta === null || meta === undefined || typeof meta !== 'object' || Array.isArray(meta)) return null
+  const m = /** @type {Record<string, unknown>} */ (meta)
+  const ann = m.annotations
+  if (ann === null || ann === undefined || typeof ann !== 'object' || Array.isArray(ann)) return null
+  const a = /** @type {Record<string, unknown>} */ (ann)
+  /** @type {string[]} */
+  const found = []
+  for (const key of SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS) {
+    if (Object.hasOwn(a, key)) {
+      found.push(key)
+    }
+  }
+  if (found.length === 0) return null
+  return `metadata.annotations: прибери заборонені ключі GKE: ${found.join(', ')} (див. k8s.mdc)`
+}
+
+/**
  * Для маніфестів, **підключених** до Kustomize (шлях у `resources` / `patches` / …), **metadata.namespace** не додають.
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null, якщо поля немає
@@ -638,7 +762,8 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
 }
 
 /**
- * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **imagePullPolicy**.
+ * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **imagePullPolicy**, **Hasura image pin**,
+ * **Service — заборонені GKE-анотації**.
  * @param {string} rel відносний шлях
  * @param {string} baseLower basename файлу (нижній регістр)
  * @param {string} body вміст після modeline
@@ -689,6 +814,14 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
       const pullV = deploymentImagePullPolicyViolation(obj)
       if (pullV !== null) {
         fail(`${rel}: Deployment (документ ${di + 1}): ${pullV}`)
+      }
+      const hasuraV = deploymentHasuraGraphqlEngineImageViolation(obj)
+      if (hasuraV !== null) {
+        fail(`${rel}: Deployment (документ ${di + 1}): ${hasuraV}`)
+      }
+      const svcGcpV = serviceForbiddenGcpAnnotationsViolation(obj)
+      if (svcGcpV !== null) {
+        fail(`${rel}: Service (документ ${di + 1}): ${svcGcpV}`)
       }
     }
   }

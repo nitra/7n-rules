@@ -106,6 +106,17 @@ resources: {}
 
 У кожному контейнері **`Deployment`** має бути **`imagePullPolicy: Always`** (див. **`check k8s`**).
 
+Якщо в **`Deployment`** у **`spec.template.spec.containers`** або **`initContainers`** задано образ **`hasura/graphql-engine`**, у полі **`image`** має бути саме **`hasura/graphql-engine:v2.48.15.ubi.amd64`** (для еквівалента Docker Hub допускається префікс **`docker.io/`**). Інші теги або сторонні реєстри з тим самим репозиторієм **`hasura/graphql-engine`** — порушення **`check k8s`**.
+
+## Service: заборонені анотації GKE
+
+У **`kind: Service`** не використовуй у **`metadata.annotations`** ключі:
+
+- **`cloud.google.com/neg`**
+- **`cloud.google.com/backend-config`**
+
+Вони потрібні для інтеграції з **Ingress** / класичним балансуванням GKE; після переходу на **Gateway API** їх слід **прибрати** з маніфестів. **`check k8s`** завершиться помилкою, якщо хоча б один із цих ключів присутній.
+
 ## Kustomize: структура каталогів (`base` / overlays)
 
 Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.
