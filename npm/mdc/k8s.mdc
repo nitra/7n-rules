@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.23'
+version: '1.24'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -104,7 +104,7 @@ resources: {}
 
 Так маніфест явно резервує місце під **`requests` / `limits`** і уникає випадкового пропуску секції. **`check k8s`** перевіряє це для кожного YAML-документа **`Deployment`** у файлах під **`k8s`**.
 
-У кожному контейнері **`Deployment`** має бути **`imagePullPolicy: Always`** (див. **`check k8s`**).
+**`imagePullPolicy`:** у маніфестах не вимагається; Kubernetes за замовчуванням: образ **без тега** або з **`:latest`** → **Always**, з іншим тегом → **IfNotPresent**. **`check k8s`** це поле не перевіряє.
 
 Якщо в **`Deployment`** у **`spec.template.spec.containers`** або **`initContainers`** задано образ **`hasura/graphql-engine`**, у полі **`image`** має бути саме **`hasura/graphql-engine:v2.48.15.ubi.amd64`** (для еквівалента Docker Hub допускається префікс **`docker.io/`**). Інші теги або сторонні реєстри з тим самим репозиторієм **`hasura/graphql-engine`** — порушення **`check k8s`**.
 
@@ -176,27 +176,23 @@ resources: {}
 
 ## Перевірка
 
-**`npx @nitra/cursor check k8s`** — критерії збігаються з розділом **«Що закодовано в `check-k8s.mjs`»** і з **«Визначення схеми YAML»** вище. Якщо під `k8s` немає `*.yaml` — перевірку пропущено. Інший зміст маніфесту — вручну / **`lint-k8s`**.
+**`npx @nitra/cursor check k8s`** — деталі умов у **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**; канон URL **`$schema`** для редактору — розділ **«Визначення схеми YAML»** нижче. Якщо під `k8s` немає `*.yaml` — перевірку пропущено. Решту політик кластера / compliance закриває **`lint-k8s`**.
 
 Після змін у маніфестах: **`bun run lint-k8s`** (kubeconform + kubescape).
 
 ## Що закодовано в `check-k8s.mjs`
 
-При зміні правил синхронно оновлюй **`YANNH_PIN`**, **`YANNH_REF`** (якщо зміниться гілка за замовчуванням у репо yannh), **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** (GitHub Pages каталогу CRD), а в **`run-k8s.mjs`** — константу **`KUBERNETES_VERSION`** і **`DATREE_CRD_SCHEMA_LOCATION`** (узгоджено з базою datree у цьому правилі).
+Не дублюй тут повний перелік — він у **верхньому JSDoc** **`npm/scripts/check-k8s.mjs`** і в константах (**`YANNH_PIN`**, **`YANNH_GROUPS`**, **`EXPLICIT_K8S_SCHEMAS`**, **`CLUSTER_SCOPED_KINDS`**, **`HASURA_GRAPHQL_ENGINE_IMAGE`** тощо).
 
-- Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
-- **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; далі перевіряється **`EXPLICIT_K8S_SCHEMAS`** (`Map`: `apiVersion` + `kind` + `type`, для записів без `type` у маніфесті — третій компонент **`*`**); потім `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages), крім рядків явної таблиці (наприклад **InfisicalSecret** — raw на `main`).
-- У кожному YAML-документі з **`kind: Deployment`** — парсинг через **`yaml`**: у кожного елемента **`spec.template.spec.containers[]`** має існувати ключ **`resources`** зі значенням-об'єктом (допускається порожній **`{}`**); у кожного контейнера — **`imagePullPolicy: Always`**.
-- **Namespace у маніфестах (не ім’я `kustomization`):** ресурсні YAML у **`…/k8s/base/`** — **завжди** непорожній **`metadata.namespace`**. Інакше будується множина шляхів, досяжних з **`kustomization.yaml`** через **`resources`**, **`bases`**, **`components`**, **`crds`**, **`patches[].path`**, **`patchesStrategicMerge`**, з рекурсією в каталоги з дочірнім **`kustomization.yaml`**: для таких файлів **поза** **`k8s/base`** — **заборона** **`metadata.namespace`**; для файлів поза **`k8s/base`** і поза множиною — **вимога** непорожнього **`metadata.namespace`** (крім **`CLUSTER_SCOPED_KINDS`**).
-- Документи з **`kind: Ingress`** — заборонені (потрібен перехід на Gateway API, див. розділ **Ingress → Gateway API**).
-- Заборона шляхів **`…/k8s/dev/…`** (окремої директорії **`dev`** під **`k8s`** не має бути).
-- Якщо в дереві є **`k8s/base/kustomization.yaml`**, у першому документі **завжди** має бути непорожнє поле **`namespace`** (типово **`dev`**; див. розділ **Namespace**).
+Коротко: **`$schema`** (один modeline, без **`.yml`** під **`k8s`**), заборона **Ingress**, **Deployment.resources**, пін **hasura/graphql-engine**, **Service** без анотацій NEG/backend-config, **`metadata.namespace`** залежно від **base** і графа Kustomize, заборона **`…/k8s/dev/…`**, непорожній **`namespace:`** у **`k8s/base/kustomization.yaml`**, видалення файлів, де всі документи — лише **BackendConfig** (змішані файли — помилка).
+
+При зміні **PIN** версії Kubernetes оновлюй узгоджено **`check-k8s.mjs`**, **`run-k8s.mjs`** (**`KUBERNETES_VERSION`**, **`DATREE_CRD_SCHEMA_LOCATION`**) і розділи **lint-k8s** / **Визначення схеми YAML** у цьому файлі (**`YANNH_REF`**, **`YANNH_GROUPS`**, **`DATREE_CRD_BASE`** — за потреби в скрипті).
 
 ## Коли застосовувати (агентам)
 
 - Зміни в k8s YAML — після правок **`check k8s`**.
 - Якщо перший рядок уже коректний і URL відповідає `apiVersion` / `kind` — не дублюй; змінився ресурс — онови лише `$schema`.
-- У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**); додай **`imagePullPolicy: Always`** для кожного контейнера.
+- У **`Deployment`** без поля **`resources`** у контейнері — додай **`resources: {}`** (див. розділ **Deployment: `resources`**). **`imagePullPolicy`** за потреби не дублюй — достатньо політики Kubernetes за тегом образу.
 - Дотримуйся структури **Kustomize** (`base` = dev, overlays без дублювання `base`, коментарі для рядків, що змінюються в overlay). У **`base/kustomization.yaml`** завжди задавай непорожній **`namespace:`**. У **`k8s/base`** у кожному ресурсному YAML має бути явний **`metadata.namespace`**. Поза **base**, якщо не хочеш **`metadata.namespace`** у файлі — підключи його до kustomization (**`resources`** / **`patches`** тощо); інакше додай явний **`metadata.namespace`**.
 - Після міграції на нову структуру **видали** застарілі файли та каталоги, які вже замінені (див. **Міграція зі старої структури**).
 

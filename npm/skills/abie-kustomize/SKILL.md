@@ -21,6 +21,4 @@ README має бути в директорії **k8s**.
 
 Застарілі файли прибирай.
 
-У всіх Deployment має бути `imagePullPolicy: Always`.
-
 Для overlays **ru** та **ua** `namespace` задавай у `kustomization.yaml` (без окремих patch лише на зміну namespace). Деталі — **n-k8s** / **abie** у `.cursor/rules/`, якщо ці правила увімкнені в проєкті.

@@ -9,9 +9,9 @@ import { describe, expect, test } from 'bun:test'
 
 import {
   baseKustomizationNamespaceViolation,
+  classifyBackendConfigManifestPresence,
   collectKustomizeManagedRelPaths,
   deploymentHasuraGraphqlEngineImageViolation,
-  deploymentImagePullPolicyViolation,
   deploymentResourcesViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
@@ -27,6 +27,49 @@ import {
   pathHasK8sSegment,
   ruKustomizationHasHealthCheckDeletePatch
 } from '../scripts/check-k8s.mjs'
+
+describe('classifyBackendConfigManifestPresence', () => {
+  test('only для одного BackendConfig', () => {
+    const y = `apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: x
+`
+    expect(classifyBackendConfigManifestPresence(y)).toBe('only')
+  })
+
+  test('only для кількох BackendConfig', () => {
+    const y = `apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: a
+---
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: b
+`
+    expect(classifyBackendConfigManifestPresence(y)).toBe('only')
+  })
+
+  test('mixed з Service', () => {
+    const y = `apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: x
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: s
+`
+    expect(classifyBackendConfigManifestPresence(y)).toBe('mixed')
+  })
+
+  test('none без BackendConfig', () => {
+    expect(classifyBackendConfigManifestPresence('apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n')).toBe('none')
+  })
+})
 
 describe('isRuKustomizationPath', () => {
   test('true для …/ru/kustomization.yaml', () => {
@@ -158,7 +201,7 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [{ name: 'app', image: 'nginx:1', resources: {}, imagePullPolicy: 'Always' }]
+            containers: [{ name: 'app', image: 'nginx:1', resources: {} }]
           }
         }
       }
@@ -176,8 +219,7 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
               {
                 name: 'hasura',
                 image: HASURA_GRAPHQL_ENGINE_IMAGE,
-                resources: {},
-                imagePullPolicy: 'Always'
+                resources: {}
               }
             ]
           }
@@ -197,8 +239,7 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
               {
                 name: 'hasura',
                 image: `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`,
-                resources: {},
-                imagePullPolicy: 'Always'
+                resources: {}
               }
             ]
           }
@@ -218,8 +259,7 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
               {
                 name: 'hasura',
                 image: 'hasura/graphql-engine:v2.40.0',
-                resources: {},
-                imagePullPolicy: 'Always'
+                resources: {}
               }
             ]
           }
@@ -239,16 +279,14 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
               {
                 name: 'h',
                 image: 'hasura/graphql-engine:wrong',
-                resources: {},
-                imagePullPolicy: 'Always'
+                resources: {}
               }
             ],
             containers: [
               {
                 name: 'app',
                 image: 'nginx:1',
-                resources: {},
-                imagePullPolicy: 'Always'
+                resources: {}
               }
             ]
           }
@@ -313,40 +351,6 @@ describe('serviceForbiddenGcpAnnotationsViolation', () => {
     expect([...SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS].sort()).toEqual(
       ['cloud.google.com/backend-config', 'cloud.google.com/neg'].sort()
     )
-  })
-})
-
-describe('deploymentImagePullPolicyViolation', () => {
-  test('null для не-Deployment', () => {
-    expect(deploymentImagePullPolicyViolation({ kind: 'Service' })).toBeNull()
-  })
-
-  test('помилка без imagePullPolicy', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [{ name: 'app', image: 'x:y', resources: {} }]
-          }
-        }
-      }
-    }
-    expect(deploymentImagePullPolicyViolation(manifest)).toContain('Always')
-  })
-
-  test('ok для imagePullPolicy: Always', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [{ name: 'app', image: 'x:y', resources: {}, imagePullPolicy: 'Always' }]
-          }
-        }
-      }
-    }
-    expect(deploymentImagePullPolicyViolation(manifest)).toBeNull()
   })
 })
 

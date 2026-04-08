@@ -7,8 +7,10 @@
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
  * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об'єкт, допускається
- * порожній **`{}`**) та **`imagePullPolicy: Always`**. Якщо серед **`containers`** / **`initContainers`**
- * є образ **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`** (див. k8s.mdc).
+ * порожній **`{}`**). Поле **`imagePullPolicy`** не перевіряється — діють типові правила Kubernetes
+ * (`:latest` або без тега → **Always**, інші теги → **IfNotPresent**). Якщо серед **`containers`** /
+ * **`initContainers`** є образ **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`**
+ * (див. k8s.mdc).
  *
  * **Namespace і Kustomize:** YAML у **`…/k8s/base/`** (окрім імені **`kustomization.yaml`**)
  * завжди має **непорожній** **`metadata.namespace`** у відповідних документах (узгоджено з dev у репозиторії),
@@ -18,6 +20,9 @@
  * файли **поза** цим графом — **непорожній** **`metadata.namespace`** (крім **кластерних** kind; див. k8s.mdc).
  *
  * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API).
+ *
+ * Файли під **`k8s`**, де всі YAML-документи — лише **`kind: BackendConfig`**, **видаляються** автоматично.
+ * Якщо **BackendConfig** змішано з іншими ресурсами в одному файлі — перевірка завершується помилкою (розділи маніфести).
  *
  * У **`kind: Service`** у **`metadata.annotations`** не повинно бути ключів **`cloud.google.com/neg`**
  * та **`cloud.google.com/backend-config`** (див. k8s.mdc).
@@ -31,7 +36,7 @@
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  */
 import { existsSync } from 'node:fs'
-import { readFile, stat } from 'node:fs/promises'
+import { readFile, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
@@ -421,6 +426,90 @@ async function findK8sYamlFiles(root) {
 }
 
 /**
+ * Тіло YAML для політик (Ingress, BackendConfig тощо): якщо перший рядок — modeline `$schema`, береться вміст після нього.
+ * @param {string[]} lines рядки файлу
+ * @returns {string} фрагмент для `parseAllDocuments`
+ */
+function k8sYamlBodyForDocumentParse(lines) {
+  if (lines.length > 0 && MODELINE_RE.test(lines[0])) {
+    return yamlBodyAfterModeline(lines)
+  }
+  return lines.join('\n')
+}
+
+/**
+ * Чи всі нетривіальні документи у тілі — **`kind: BackendConfig`**, чи є змішування з іншими kind.
+ *
+ * @param {string} body YAML без обов’язкового modeline (див. `k8sYamlBodyForDocumentParse`)
+ * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розпарсити YAML
+ */
+export function classifyBackendConfigManifestPresence(body) {
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return 'unparsed'
+  }
+
+  let hasBc = false
+  let hasOther = false
+  for (const doc of docs) {
+    if (doc.errors.length === 0) {
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const kind = obj.kind
+        if (kind === 'BackendConfig') {
+          hasBc = true
+        } else if (kind !== undefined && kind !== null && String(kind).trim() !== '') {
+          hasOther = true
+        }
+      }
+    }
+  }
+
+  if (!hasBc) return 'none'
+  if (hasOther) return 'mixed'
+  return 'only'
+}
+
+/**
+ * Видаляє під **`k8s`** YAML-файли, що містять **лише** ресурси **BackendConfig**; змішані файли — `fail`.
+ *
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @param {(msg: string) => void} pass реєстрація успіху
+ * @returns {Promise<void>}
+ */
+async function removeBackendConfigOnlyK8sYamlFiles(root, fail, pass) {
+  const yamlFiles = await findK8sYamlFiles(root)
+  for (const abs of yamlFiles) {
+    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+    try {
+      const raw = await readFile(abs, 'utf8')
+      const lines = toLines(raw)
+      const body = k8sYamlBodyForDocumentParse(lines)
+      const bcPresence = classifyBackendConfigManifestPresence(body)
+
+      if (bcPresence === 'mixed') {
+        fail(
+          `${rel}: у файлі разом BackendConfig та інші kind — винеси BackendConfig окремо або прибери вручну; автоматичне видалення не застосовується (див. k8s.mdc)`
+        )
+      } else if (bcPresence === 'only') {
+        try {
+          await unlink(abs)
+          pass(`${rel}: видалено (лише kind: BackendConfig; див. k8s.mdc)`)
+        } catch (error) {
+          fail(`${rel}: не вдалося видалити BackendConfig-файл (${error.message})`)
+        }
+      }
+    } catch (error) {
+      fail(`${rel}: не вдалося прочитати для перевірки BackendConfig (${error.message})`)
+    }
+  }
+}
+
+/**
  * Прибирає BOM і ділить на рядки.
  * @param {string} content вміст файлу
  * @returns {string[]} рядки без BOM на початку
@@ -552,42 +641,6 @@ export function deploymentResourcesViolation(manifest) {
       const r = cont.resources
       if (r === null || typeof r !== 'object' || Array.isArray(r)) {
         return `контейнер "${label}": resources має бути об'єктом (наприклад порожній об'єкт у YAML: resources: {})`
-      }
-    }
-  }
-
-  return null
-}
-
-/**
- * Чи контейнери **Deployment** мають **`imagePullPolicy: Always`** (k8s.mdc).
- * @param {unknown} manifest корінь YAML-документа
- * @returns {string | null} текст порушення або null, якщо не Deployment / ок
- */
-export function deploymentImagePullPolicyViolation(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
-    return null
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  if (rec.kind !== 'Deployment') return null
-  const spec = rec.spec
-  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
-  const template = /** @type {Record<string, unknown>} */ (spec).template
-  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template))
-    return null
-  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
-  if (podSpec === null || podSpec === undefined || typeof podSpec !== 'object' || Array.isArray(podSpec)) return null
-  const containers = /** @type {Record<string, unknown>} */ (podSpec).containers
-  if (!Array.isArray(containers)) return null
-
-  for (const [i, c] of containers.entries()) {
-    const label =
-      typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
-        ? c.name
-        : `#${i + 1}`
-    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
-      const cont = /** @type {Record<string, unknown>} */ (c)
-      if (cont.imagePullPolicy !== 'Always') {
-        return `контейнер "${label}": imagePullPolicy має бути Always (див. k8s.mdc)`
       }
     }
   }
@@ -762,7 +815,7 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
 }
 
 /**
- * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **imagePullPolicy**, **Hasura image pin**,
+ * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **Hasura image pin**,
  * **Service — заборонені GKE-анотації**.
  * @param {string} rel відносний шлях
  * @param {string} baseLower basename файлу (нижній регістр)
@@ -810,10 +863,6 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
       const resV = deploymentResourcesViolation(obj)
       if (resV !== null) {
         fail(`${rel}: Deployment (документ ${di + 1}): ${resV}`)
-      }
-      const pullV = deploymentImagePullPolicyViolation(obj)
-      if (pullV !== null) {
-        fail(`${rel}: Deployment (документ ${di + 1}): ${pullV}`)
       }
       const hasuraV = deploymentHasuraGraphqlEngineImageViolation(obj)
       if (hasuraV !== null) {
@@ -1042,6 +1091,9 @@ export async function check() {
   }
 
   const root = process.cwd()
+
+  await removeBackendConfigOnlyK8sYamlFiles(root, fail, pass)
+
   const yamlFiles = await findK8sYamlFiles(root)
 
   if (yamlFiles.length === 0) {

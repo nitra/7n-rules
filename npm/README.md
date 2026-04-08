@@ -39,7 +39,7 @@
 
 - **Структура Kustomize:** спільне виноситься в **`base`**; вміст **base** відповідає тому, як має виглядати середовище **dev**; окремої директорії **`dev/`** немає — за dev відповідає **`base`**. У інших середовищах — тонкі **overlays** (часто лише **`kustomization.yaml`** і patches / оверрайди).
 - **Namespace** задається в **`kustomization.yaml`** (`namespace:`), а не через **`metadata.namespace`** у кожному ресурсі; окремі patches лише на зміну **namespace** не потрібні.
-- У **Deployment** для кожного контейнера: **`resources`**, **`imagePullPolicy: Always`** (перевіряє **`npx @nitra/cursor check k8s`**).
+- У **Deployment** для кожного контейнера: **`resources`** (перевіряє **`npx @nitra/cursor check k8s`**);
 - Рядки в **base**, які змінюються в overlays, позначайте коментарем на рядку (узгоджено в команді), наприклад: `# буде замінено через kustomize`.
 - Після перенесення в **`base`** / overlays **видаляйте** застарілі маніфести та каталоги, які більше не потрібні.
 
