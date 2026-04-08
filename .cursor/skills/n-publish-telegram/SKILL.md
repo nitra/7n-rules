@@ -1,5 +1,5 @@
 ---
-name: publish-telegram
+name: n-publish-telegram
 description: >-
   Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 ---

@@ -1,5 +1,5 @@
 ---
-name: abie-kustomize
+name: n-abie-kustomize
 description: >-
   Трансформація дерев k8s у структуру Kustomize (base + overlays): dev → base, без окремої dev/
 version: '1.0'
