@@ -1,0 +1,31 @@
+npm/tests/check-empty-trees.test.mjs
+  a4320017ae2b921c 2,5,9,23-46
+npm/scripts/check-k8s.mjs
+  a4320017ae2b921c 43-45,686-902,1734-1735
+npm/tests/check-abie.test.mjs
+  a4320017ae2b921c 169-175
+npm/scripts/check-abie.mjs
+  a4320017ae2b921c 20-22,24-26,346-347,365-366,556,558-559,570,780,796,806,822
+npm/tests/check-k8s-schema.test.mjs
+  a4320017ae2b921c 29-30,627-674
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7e6f62c4dfc964b72556431dd1d932c2b7345a18",
+  "prompts": {
+    "a4320017ae2b921c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d49db2c2-70d0-4195-8ff7-c87626c32347",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 340,
+      "total_deletions": 41,
+      "accepted_lines": 325,
+      "overriden_lines": 0
+    }
+  }
+}
