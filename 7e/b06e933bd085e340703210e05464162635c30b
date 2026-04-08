@@ -1,0 +1,29 @@
+npm/mdc/abie.mdc
+  916743e07382a7f6 4,33,35-36,45,59,120-124,128-129
+npm/scripts/check-abie.mjs
+  916743e07382a7f6 17-20,23-26,70-122,278-334,474-587,589-598,840-899,980-981,992-993
+npm/tests/check-abie.test.mjs
+  916743e07382a7f6 2,11-12,14,18,21,75-114,173-250,294-295,299-311,320,340-341,387-388,404-414,436-454
+npm/package.json
+  916743e07382a7f6 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "7eb06e933bd085e340703210e05464162635c30b",
+  "prompts": {
+    "916743e07382a7f6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "5a7a0818-6798-494f-bd4a-676a98777f10",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 532,
+      "total_deletions": 31,
+      "accepted_lines": 507,
+      "overriden_lines": 0
+    }
+  }
+}
