@@ -667,16 +667,6 @@ function extractApiVersionAndKind(doc) {
 }
 
 /**
- * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім’ям файлу).
- * @param {string} rel шлях від кореня репозиторію
- * @returns {boolean} true, якщо це `…/ru/kustomization.yaml`
- */
-export function isRuKustomizationPath(rel) {
-  const norm = rel.replaceAll('\\', '/')
-  return /(^|\/)ru\/kustomization\.yaml$/u.test(norm)
-}
-
-/**
  * Чи вміст overlay **`ru/kustomization.yaml`** містить Kustomize patch видалення **HealthCheckPolicy**.
  * @param {string} raw повний текст файлу
  * @returns {boolean} true, якщо є `$patch: delete` і блоки kind/metadata для HealthCheckPolicy

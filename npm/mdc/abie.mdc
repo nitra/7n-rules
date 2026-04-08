@@ -1,20 +1,22 @@
 ---
-description: Правила для проєктів abinbevefes
+description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.0'
+version: '1.2'
 ---
 
-## k8s
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (**Deployment** + **HealthCheckPolicy**), overlay **ua** / **ru** (**nodeSelector**, видалення **HealthCheckPolicy** у **ru**) і гілки в **clean-merged-branch**. **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
-Якщо в проекті є k8s deployment, рядом з ним повинен бути:
+## k8s: `hc.yaml` поруч із Deployment
+
+Якщо під **`k8s`** є **`kind: Deployment`**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`/healthz`**, порт **8080**, **`targetRef.name`** = **`metadata.name`**. Деталі — **`validateAbieHcYaml`** у **`npm/scripts/check-abie.mjs`**.
 
 ```yaml title="hc.yaml"
 # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
 apiVersion: networking.gke.io/v1
 kind: HealthCheckPolicy
 metadata:
-  name: НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ
-  namespace: dev # буде замінено через kustomize
+  name: СЕРВІС
+  namespace: dev # kustomize overlay
 spec:
   default:
     config:
@@ -25,34 +27,62 @@ spec:
   targetRef:
     group: ''
     kind: Service
-    name: НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ
+    name: СЕРВІС
 ```
 
-**Overlay `ru`:** у **`…/ru/kustomization.yaml`** під **`k8s`** додай **видалення** ресурсу HealthCheckPolicy для середовища, де політика не потрібна (підстав **реальне ім’я** замість `НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ`):
+## k8s: overlay **`ru`** і HealthCheckPolicy
 
-```yaml title="kustomization.yaml"
+Якщо в дереві **k8s** є **HealthCheckPolicy**, **check abie** вимагає **`ru/kustomization.yaml`** з patch **`$patch: delete`** для політики (узгоджено з **k8s.mdc** / **check-k8s**, **`ruKustomizationHasHealthCheckDeletePatch`** у **`npm/scripts/check-k8s.mjs`**). Підстав реальне ім’я замість **`СЕРВІС`**:
+
+```yaml title="…/ru/kustomization.yaml (фрагмент)"
 patches:
   - target:
       kind: HealthCheckPolicy
+      name: СЕРВІС
     patch: |-
       kind: HealthCheckPolicy
       metadata:
-        name: НАЗВА_СЕРВІСУ_ДЛЯ_РОЗГОРТАННЯ
+        name: СЕРВІС
       $patch: delete
 ```
 
-## branch
+## k8s: overlay **`ua`** / **`ru`** і nodeSelector
 
-В lean-merged-branch.yml список гілок, які повинні бути:
+Якщо під **`k8s`** є **Deployment**, у **кожному** **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** має бути inline **JSON6902** у **`patches[].patch`** на **`target.kind: Deployment`** з **nodeSelector** за політикою abie (**ua** — **add** + **preem** false; **ru** — **replace** + **yandex.cloud/preemptible** false). Критерії збігу — **`kustomizationHasAbieDeploymentNodeSelectorPatch`** у **`npm/scripts/check-abie.mjs`**.
 
-```yaml title=".github/workflows/clean-merged-branch.yml"
-ignore_branches: dev,ua,ru
+```yaml title="…/ua/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: my-app
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: 'false'
+```
+
+```yaml title="…/ru/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: my-app
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          yandex.cloud/preemptible: "false"
+```
+
+## Git branches
+
+У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно), наприклад:
+
+```yaml title=".github/workflows/clean-merged-branch.yml (фрагмент)"
+with:
+  ignore_branches: main,dev,ua,ru
 ```
 
 ## Перевірка
 
-`npx @nitra/cursor check abie`
-
-Повна матриця полів **`hc.yaml`**, **`ignore_branches`** і умов для **`ru/kustomization.yaml`** — у **`npm/scripts/check-abie.mjs`**.
-
-Програмна перевірка (**`check-abie.mjs`**) виконується лише якщо у **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень (щоб не вимагати **ua**/**ru** у репозиторіях без цього правила).
+**`npx @nitra/cursor check abie`**

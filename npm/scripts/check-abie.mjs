@@ -1,5 +1,5 @@
 /**
- * Перевіряє відповідність проєкту правилу abie.mdc (проєкти abinbevefes).
+ * Перевіряє відповідність проєкту правилу abie.mdc (проєкти AbInBev Efes).
  *
  * Застосовується лише якщо у **`.n-cursor.json`** у масиві **`rules`** є **`abie`** — інакше вихід **0**
  * без перевірок (щоб не суперечити типовому **ga.mdc** з **`ignore_branches: main,dev`**).
@@ -12,7 +12,11 @@
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
  * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **Service** з тим самим **`metadata.name`**.
  * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
- * (узгоджено з **k8s.mdc** / **check-k8s.mjs**).
+ * (логіка вмісту — **`ruKustomizationHasHealthCheckDeletePatch`** у **check-k8s.mjs**, узгоджено з **k8s.mdc**).
+ *
+ * **nodeSelector:** якщо є **Deployment** під **k8s**, у кожному **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`**
+ * має бути inline **JSON6902** patch на **`kind: Deployment`**: для **ua** — **`op: add`**, **`path: /spec/template/spec/nodeSelector`**,
+ * **`preem: false`**; для **ru** — **`op: replace`**, той самий **path**, **`yandex.cloud/preemptible: false`** (див. abie.mdc).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -20,7 +24,7 @@ import { dirname, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
-import { isRuKustomizationPath, pathHasK8sSegment, ruKustomizationHasHealthCheckDeletePatch } from './check-k8s.mjs'
+import { pathHasK8sSegment, ruKustomizationHasHealthCheckDeletePatch } from './check-k8s.mjs'
 import { pass } from './utils/pass.mjs'
 import { flattenWorkflowSteps, getStepUses, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -34,6 +38,26 @@ const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
 
 /** Гілки, які мають бути в **`ignore_branches`** за abie.mdc. */
 export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
+
+/**
+ * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім’ям файлу) — специфіка abie overlay.
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true, якщо це `…/ru/kustomization.yaml`
+ */
+export function isRuKustomizationPath(rel) {
+  const norm = rel.replaceAll('\\', '/')
+  return /(^|\/)ru\/kustomization\.yaml$/u.test(norm)
+}
+
+/**
+ * Чи відносний шлях вказує на **`ua/kustomization.yaml`** (сегмент **`ua`** перед ім’ям файлу) — специфіка abie overlay.
+ * @param {string} rel шлях від кореня репозиторію
+ * @returns {boolean} true, якщо це `…/ua/kustomization.yaml`
+ */
+export function isUaKustomizationPath(rel) {
+  const norm = rel.replaceAll('\\', '/')
+  return /(^|\/)ua\/kustomization\.yaml$/u.test(norm)
+}
 
 /**
  * Чи увімкнено правило **abie** у конфігу репозиторію.
@@ -199,6 +223,136 @@ function stripBom(s) {
 }
 
 /**
+ * Чи рядок inline JSON6902 patch містить очікуваний **ua** nodeSelector (**op: add**, **preem: false**).
+ * @param {string} patchText поле **patch** у kustomization
+ * @returns {boolean} true, якщо критерії abie.mdc виконано
+ */
+function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
+  if (typeof patchText !== 'string' || patchText.trim() === '') {
+    return false
+  }
+  if (!/op:\s*add\b/u.test(patchText)) {
+    return false
+  }
+  if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
+    return false
+  }
+  if (!/\bpreem:\s*['"]?false['"]?\b/u.test(patchText)) {
+    return false
+  }
+  return true
+}
+
+/**
+ * Чи рядок inline JSON6902 patch містить очікуваний **ru** nodeSelector (**op: replace**, **yandex.cloud/preemptible: false**).
+ * @param {string} patchText поле **patch** у kustomization
+ * @returns {boolean} true, якщо критерії abie.mdc виконано
+ */
+function jsonPatchTextHasRuDeploymentNodeSelector(patchText) {
+  if (typeof patchText !== 'string' || patchText.trim() === '') {
+    return false
+  }
+  if (!/op:\s*replace\b/u.test(patchText)) {
+    return false
+  }
+  if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
+    return false
+  }
+  if (!/yandex\.cloud\/preemptible:\s*['"]?false['"]?/u.test(patchText)) {
+    return false
+  }
+  return true
+}
+
+/**
+ * Чи один елемент **patches** у kustomization відповідає abie nodeSelector для заданого **mode**.
+ * @param {unknown} p елемент масиву **patches**
+ * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @returns {boolean} true, якщо patch відповідає abie для **mode**
+ */
+function inlineKustomizationPatchMatchesAbieMode(p, mode) {
+  if (p === null || typeof p !== 'object' || Array.isArray(p)) {
+    return false
+  }
+  const pr = /** @type {Record<string, unknown>} */ (p)
+  const target = pr.target
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+    return false
+  }
+  const tg = /** @type {Record<string, unknown>} */ (target)
+  if (tg.kind !== 'Deployment') {
+    return false
+  }
+  const patchStr = pr.patch
+  if (typeof patchStr !== 'string') {
+    return false
+  }
+  if (mode === 'ua' && jsonPatchTextHasUaDeploymentNodeSelector(patchStr)) {
+    return true
+  }
+  if (mode === 'ru' && jsonPatchTextHasRuDeploymentNodeSelector(patchStr)) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Чи один YAML-документ kustomization містить відповідний inline patch на Deployment.
+ * @param {import('yaml').Document} doc документ після **parseAllDocuments**
+ * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @returns {boolean} true, якщо знайдено відповідний patch
+ */
+function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
+  if (doc.errors.length > 0) {
+    return false
+  }
+  const root = doc.toJSON()
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) {
+    return false
+  }
+  const rec = /** @type {Record<string, unknown>} */ (root)
+  if (rec.kind !== 'Kustomization') {
+    return false
+  }
+  const patches = rec.patches
+  if (!Array.isArray(patches)) {
+    return false
+  }
+  for (const p of patches) {
+    if (inlineKustomizationPatchMatchesAbieMode(p, mode)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Чи **kustomization.yaml** містить inline **patches** на **Deployment** з nodeSelector за abie.mdc (**ua** або **ru**).
+ * @param {string} raw повний текст файлу
+ * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @returns {boolean} true, якщо знайдено відповідний patch
+ */
+export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
+  const body = stripBom(raw)
+  const lines = body.split(/\r?\n/u)
+  const first = lines[0] ?? ''
+  const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(rest)
+  } catch {
+    return false
+  }
+  for (const doc of docs) {
+    if (kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * Перевіряє **hc.yaml** на відповідність abie.mdc.
  * @param {string} raw повний текст файлу
  * @param {string} relPath відносний шлях для повідомлень
@@ -341,7 +495,7 @@ async function collectHealthCheckPolicyRelPaths(root, yamlAbs) {
 }
 
 /**
- * Якщо є **HealthCheckPolicy**, вимагає **ru/kustomization.yaml** з patch видалення (як **check-k8s**).
+ * Якщо є **HealthCheckPolicy**, вимагає **ru/kustomization.yaml** з patch видалення (**ruKustomizationHasHealthCheckDeletePatch** у **check-k8s**).
  * @param {string} root корінь
  * @param {string[]} yamlFilesAbs абсолютні шляхи yaml k8s
  * @param {string[]} healthCheckPolicyRelativePaths відносні шляхи
@@ -375,6 +529,67 @@ async function ensureRuKustomizationHealthCheckDelete(root, yamlFilesAbs, health
   fail(
     'Є HealthCheckPolicy, але жоден ru/kustomization.yaml не містить очікуваного patch видалення (kind: HealthCheckPolicy, metadata.name, $patch: delete) — abie.mdc'
   )
+}
+
+/**
+ * Якщо є **Deployment** під **k8s**, вимагає в кожному overlay **ua** та **ru** (**kustomization.yaml**) JSON6902 patch nodeSelector (abie.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback
+ * @returns {Promise<void>}
+ */
+async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail) {
+  const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
+  if (uaAbsList.length === 0) {
+    fail(
+      'Є Deployment у k8s — додай ua/kustomization.yaml з inline patch на Deployment: op add, path /spec/template/spec/nodeSelector, preem false (abie.mdc)'
+    )
+    return
+  }
+  for (const abs of uaAbsList) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати (${msg})`)
+      return
+    }
+    if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
+      fail(
+        `${rel}: потрібен patch target kind Deployment з op: add, path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
+      )
+      return
+    }
+    pass(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)
+  }
+
+  const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
+  if (ruAbsList.length === 0) {
+    fail(
+      'Є Deployment у k8s — додай ru/kustomization.yaml з inline patch на Deployment: op replace, path /spec/template/spec/nodeSelector, yandex.cloud/preemptible false (abie.mdc)'
+    )
+    return
+  }
+  for (const abs of ruAbsList) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати (${msg})`)
+      return
+    }
+    if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ru')) {
+      fail(
+        `${rel}: потрібен patch target kind Deployment з op: replace, path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
+      )
+      return
+    }
+    pass(`${rel}: nodeSelector patch (ru) відповідає abie.mdc`)
+  }
 }
 
 /**
@@ -463,6 +678,11 @@ export async function check() {
 
   const healthCheckPolicyRelativePaths = await collectHealthCheckPolicyRelPaths(root, yamlFiles)
   await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyRelativePaths, fail)
+
+  if (deploymentDirs.size > 0) {
+    pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')
+    await ensureUaRuAbieNodeSelectorPatches(root, yamlFiles, fail)
+  }
 
   return exitCode
 }

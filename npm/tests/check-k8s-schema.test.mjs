@@ -21,7 +21,6 @@ import {
   isClusterScopedKubernetesKind,
   isK8sBaseManifestYamlPath,
   isForbiddenK8sDevPath,
-  isRuKustomizationPath,
   metadataNamespaceForbiddenViolation,
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
@@ -72,18 +71,6 @@ metadata:
 
   test('none без BackendConfig', () => {
     expect(classifyBackendConfigManifestPresence('apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n')).toBe('none')
-  })
-})
-
-describe('isRuKustomizationPath', () => {
-  test('true для …/ru/kustomization.yaml', () => {
-    expect(isRuKustomizationPath('app/k8s/overlays/ru/kustomization.yaml')).toBe(true)
-    expect(isRuKustomizationPath(String.raw`x\k8s\ru\kustomization.yaml`)).toBe(true)
-  })
-
-  test('false для інших kustomization', () => {
-    expect(isRuKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
-    expect(isRuKustomizationPath('app/k8s/ru/foo.yaml')).toBe(false)
   })
 })
 
@@ -617,7 +604,10 @@ describe('collectGatewayApiRouteBackendServiceNames', () => {
     const names = collectGatewayApiRouteBackendServiceNames({
       rules: [
         {
-          backendRefs: [{ name: 'api-hl', port: 80 }, { name: 'gw', kind: 'Gateway', group: 'gateway.networking.k8s.io' }]
+          backendRefs: [
+            { name: 'api-hl', port: 80 },
+            { name: 'gw', kind: 'Gateway', group: 'gateway.networking.k8s.io' }
+          ]
         }
       ]
     })

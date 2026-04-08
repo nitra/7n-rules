@@ -9,6 +9,9 @@ import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
   ignoreBranchesIncludesRequired,
+  isRuKustomizationPath,
+  isUaKustomizationPath,
+  kustomizationHasAbieDeploymentNodeSelectorPatch,
   parseCleanMergedIgnoreBranches,
   validateAbieHcYaml,
   check,
@@ -50,6 +53,20 @@ spec:
 `
 
 describe('check-abie (допоміжні функції)', () => {
+  test('isRuKustomizationPath — overlay ru/kustomization.yaml', () => {
+    expect(isRuKustomizationPath('app/k8s/overlays/ru/kustomization.yaml')).toBe(true)
+    expect(isRuKustomizationPath(String.raw`x\k8s\ru\kustomization.yaml`)).toBe(true)
+    expect(isRuKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
+    expect(isRuKustomizationPath('app/k8s/ru/foo.yaml')).toBe(false)
+  })
+
+  test('isUaKustomizationPath — overlay ua/kustomization.yaml', () => {
+    expect(isUaKustomizationPath('app/k8s/overlays/ua/kustomization.yaml')).toBe(true)
+    expect(isUaKustomizationPath(String.raw`x\k8s\ua\kustomization.yaml`)).toBe(true)
+    expect(isUaKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
+    expect(isUaKustomizationPath('app/k8s/ua/foo.yaml')).toBe(false)
+  })
+
   test('parseCleanMergedIgnoreBranches знаходить ignore_branches', () => {
     const ib = parseCleanMergedIgnoreBranches(CLEAN_MERGED_MIN)
     expect(ib).toBe('dev,ua,ru')
@@ -69,6 +86,44 @@ describe('check-abie (допоміжні функції)', () => {
   test('validateAbieHcYaml — невірний порт', () => {
     const bad = HC_MIN.replace('port: 8080', 'port: 80')
     expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('8080')
+  })
+
+  const UA_KUSTOMIZATION_NODE_SELECTOR_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: 'false'
+`
+
+  const RU_KUSTOMIZATION_NODE_SELECTOR_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          yandex.cloud/preemptible: "false"
+`
+
+  test('kustomizationHasAbieDeploymentNodeSelectorPatch — ua / ru', () => {
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(UA_KUSTOMIZATION_NODE_SELECTOR_PATCH, 'ua')).toBe(true)
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(UA_KUSTOMIZATION_NODE_SELECTOR_PATCH, 'ru')).toBe(false)
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(RU_KUSTOMIZATION_NODE_SELECTOR_PATCH, 'ru')).toBe(true)
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(RU_KUSTOMIZATION_NODE_SELECTOR_PATCH, 'ua')).toBe(false)
+  })
+
+  test('kustomizationHasAbieDeploymentNodeSelectorPatch — відхиляє не той op', () => {
+    const bad = UA_KUSTOMIZATION_NODE_SELECTOR_PATCH.replace('op: add', 'op: replace')
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(bad, 'ua')).toBe(false)
   })
 })
 
@@ -120,7 +175,7 @@ spec:
     })
   })
 
-  test('abie: Deployment + hc.yaml + ru patch — 0', async () => {
+  test('abie: Deployment + hc без ua/kustomization — 1', async () => {
     await withTmpCwd(async () => {
       await writeJson('.n-cursor.json', { rules: ['abie'] })
       await ensureDir('.github/workflows')
@@ -144,11 +199,78 @@ kind: Kustomization
 patches:
   - target:
       kind: HealthCheckPolicy
+      name: my-svc
     patch: |-
       kind: HealthCheckPolicy
       metadata:
         name: my-svc
       $patch: delete
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          yandex.cloud/preemptible: "false"
+`
+      await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: Deployment + hc.yaml + ru patch — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      await ensureDir('app/k8s/ua')
+      await ensureDir('app/k8s/ru')
+      const dep = `# yaml-language-server: $schema=https://example.com/d.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x
+spec:
+  template:
+    spec:
+      containers: []
+`
+      await writeFile(join('app/k8s/base/deploy.yaml'), dep, 'utf8')
+      await writeFile(join('app/k8s/base/hc.yaml'), HC_MIN, 'utf8')
+      const uaK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: 'false'
+`
+      await writeFile(join('app/k8s/ua/kustomization.yaml'), uaK, 'utf8')
+      const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HealthCheckPolicy
+      name: my-svc
+    patch: |-
+      kind: HealthCheckPolicy
+      metadata:
+        name: my-svc
+      $patch: delete
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          yandex.cloud/preemptible: "false"
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)

@@ -58,5 +58,8 @@
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
   "oxc.path.oxlint": "/opt/homebrew/bin/oxlint",
-  "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt"
+  "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt",
+  "files.associations": {
+    "*.mdc": "markdown"
+  }
 }
