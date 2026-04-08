@@ -30,6 +30,8 @@ The primary development rules are stored in the Cursor rules directory:
 
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 
+- `.cursor/skills/n-mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc і перенести максимум перевірюваної логіки в check-{id}.mjs; залишити в .mdc лише те, що не автоматизується або служить контекстом для агента
+
 ## Instructions for all agents
 
 Before making changes, read the relevant rule files for the area you are working on.

@@ -206,7 +206,7 @@ resources: {}
 - Обхід з пропуском `node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`.
 - **`file:`** у `$schema` — URL до apiVersion/kind не звіряється; **`https:`** — kustomization за іменем файлу → Schema Store; далі перевіряється **`EXPLICIT_K8S_SCHEMAS`** (`Map`: `apiVersion` + `kind` + `type`, для записів без `type` у маніфесті — третій компонент **`*`**); потім `v1` → yannh; група з `YANNH_GROUPS` → yannh; інакше → datree (GitHub Pages), крім рядків явної таблиці (наприклад **InfisicalSecret** — raw на `main`).
 - У кожному YAML-документі з **`kind: Deployment`** — парсинг через **`yaml`**: у кожного елемента **`spec.template.spec.containers[]`** має існувати ключ **`resources`** зі значенням-об'єктом (допускається порожній **`{}`**); у кожного контейнера — **`imagePullPolicy: Always`**.
-- У файлах, ім’я яких **не** `kustomization.yaml` / `kustomization.yml`, у кожному документі — заборона поля **`metadata.namespace`** (**namespace** задається в Kustomize).
+- У файлах, ім’я яких **не** `kustomization.yaml`.
 - Документи з **`kind: Ingress`** — заборонені (потрібен перехід на Gateway API, див. розділ **Ingress → Gateway API**).
 - Якщо в будь-якому файлі під **`k8s`** є **`kind: HealthCheckPolicy`**, серед файлів має бути **`ru/kustomization.yaml`** (сегмент шляху **`ru`** перед іменем файлу), а його вміст — patch видалення **HealthCheckPolicy** з **`$patch: delete`** (див. той самий розділ).
 - Заборона шляхів **`…/k8s/dev/…`** (окремої директорії **`dev`** під **`k8s`** не має бути).

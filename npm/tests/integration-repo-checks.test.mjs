@@ -5,6 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { check as checkAbie } from '../scripts/check-abie.mjs'
 import { check as checkBun } from '../scripts/check-bun.mjs'
 import { check as checkDocker } from '../scripts/check-docker.mjs'
 import { check as checkGa } from '../scripts/check-ga.mjs'
@@ -23,6 +24,7 @@ describe('check-* на реальному репозиторії', () => {
     const prev = process.cwd()
     process.chdir(REPO_ROOT)
     try {
+      expect(await checkAbie()).toBe(0)
       expect(await checkBun()).toBe(0)
       expect(await checkGa()).toBe(0)
       expect(await checkJsFormat()).toBe(0)

@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises'
 import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
 import { pass } from './utils/pass.mjs'
 
-/** Очікуваний локальний скрипт (oxlint без bunx; eslint/jscpd через bunx). */
+/** Очікуваний локальний скрипт. */
 export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'
 
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
@@ -28,14 +28,12 @@ export function normalizeLintJsScript(s) {
 }
 
 /**
- * Чи рядок `lint-js` збігається з каноном і без `bunx oxlint`.
+ * Чи рядок `lint-js` збігається з каноном (`bunx oxlint`, `bunx eslint`, `bunx jscpd`).
  * @param {string} script значення `scripts.lint-js` з package.json
  * @returns {boolean} true, якщо рядок канонічний
  */
 export function isCanonicalLintJs(script) {
-  const n = normalizeLintJsScript(script)
-  if (n.includes('bunx oxlint')) return false
-  return n === CANONICAL_LINT_JS
+  return normalizeLintJsScript(script) === CANONICAL_LINT_JS
 }
 
 /**
@@ -89,7 +87,7 @@ export async function check() {
         pass(`lint-js збігається з каноном: ${CANONICAL_LINT_JS}`)
       } else {
         fail(
-          `lint-js має бути рівно: "${CANONICAL_LINT_JS}" (oxlint без bunx; див. js-lint.mdc / check-js-lint.mjs). Зараз: ${JSON.stringify(normalizeLintJsScript(lintJs))}`
+          `lint-js має бути рівно: "${CANONICAL_LINT_JS}" (див. js-lint.mdc / check-js-lint.mjs). Зараз: ${JSON.stringify(normalizeLintJsScript(lintJs))}`
         )
       }
     } else {

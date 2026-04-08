@@ -11,8 +11,8 @@ describe('normalizeLintJsScript / isCanonicalLintJs', () => {
     expect(isCanonicalLintJs(CANONICAL_LINT_JS)).toBe(true)
   })
 
-  test('bunx oxlint у локальному скрипті заборонено', () => {
-    expect(isCanonicalLintJs('bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .')).toBe(false)
+  test('oxlint без bunx у локальному скрипті — не канон', () => {
+    expect(isCanonicalLintJs('oxlint --fix && bunx eslint --fix . && bunx jscpd .')).toBe(false)
   })
 
   test('інший порядок або відсутній jscpd — не канон', () => {

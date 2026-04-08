@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.9'
+version: '1.11'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`:** `oxlint` (без `bunx`), **`bunx eslint`**, **`bunx jscpd`**; у CI — `bunx oxlint` / `bunx eslint` / `bunx jscpd`. Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
+**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -38,7 +38,7 @@ version: '1.9'
   "exitCode": 1,
   "reporters": ["console"],
   "minLines": 25,
-  "ignore": ["**/dist/**",]
+  "ignore": ["**/dist/**"]
 }
 ```
 

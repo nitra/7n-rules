@@ -280,6 +280,16 @@ function extractSkillDescription(text) {
 }
 
 /**
+ * Підготовка опису skill для вставки в звичайний markdown (заголовок H1, bullet без code fence).
+ * Послідовність `<id>` сприймається markdownlint (MD033) як inline HTML — замінюємо на `{id}`.
+ * @param {string} desc один рядок з YAML frontmatter SKILL.md
+ * @returns {string} той самий рядок після заміни літералу з кутовими дужками навколо id на плейсхолдер у фігурних дужках (MD033).
+ */
+function skillDescriptionSafeForMarkdownInline(desc) {
+  return desc.replaceAll('<id>', '{id}')
+}
+
+/**
  * Розгортає в шаблоні блок Mustache {{#section}} … {{/section}} для масиву елементів
  * @param {string} template вихідний текст шаблону
  * @param {string} section ім'я секції (наприклад services)
@@ -382,7 +392,7 @@ async function buildSkillBulletItems(skillIds) {
       const text = await readFile(skillMdPath, 'utf8')
       const parsed = extractSkillDescription(text)
       if (parsed) {
-        desc = parsed
+        desc = skillDescriptionSafeForMarkdownInline(parsed)
       }
     }
     const pathLine = `- \`${SKILLS_DIR}/${dirName}/SKILL.md\``
@@ -442,7 +452,7 @@ async function syncClaudeMd(configRules, configSkills) {
       if (existsSync(skillMdPath)) {
         const text = await readFile(skillMdPath, 'utf8')
         const parsed = extractSkillDescription(text)
-        if (parsed) desc = parsed
+        if (parsed) desc = skillDescriptionSafeForMarkdownInline(parsed)
       }
       const ref = `- \`${SKILLS_DIR}/${dirName}/SKILL.md\``
       lines.push(desc ? `${ref} — ${desc}` : ref, `  Команда: \`/${RULE_PREFIX}${id}\``)
@@ -559,7 +569,8 @@ async function syncCommands(configSkills) {
     if (existsSync(srcSkillMd)) {
       try {
         const raw = await readFile(srcSkillMd, 'utf8')
-        const desc = extractSkillDescription(raw)
+        const descRaw = extractSkillDescription(raw)
+        const desc = descRaw ? skillDescriptionSafeForMarkdownInline(descRaw) : ''
         const header = desc ? `# ${RULE_PREFIX}${id} — ${desc}\n\n` : ''
         const body = `${header}Виконай інструкції зі скілу \`.cursor/skills/${dirName}/SKILL.md\`.\n`
         await writeFile(destFile, body, 'utf8')
