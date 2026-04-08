@@ -8,16 +8,17 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
 /**
  * Перевіряє відповідність правилам js-pino.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
+ * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок цього пакета
  */
-async function checkWorkspacePackage(rootDir, fail) {
+async function checkWorkspacePackage(rootDir, fail, passFn) {
   const label = `[${rootDir}] `
   const pkgPath = join(rootDir, 'package.json')
   if (existsSync(pkgPath)) {
@@ -36,9 +37,9 @@ async function checkWorkspacePackage(rootDir, fail) {
   if (existsSync(configmapPath)) {
     const content = await readFile(configmapPath, 'utf8')
     if (content.includes('OTEL_RESOURCE_ATTRIBUTES')) {
-      pass(`${label}k8s/base/configmap.yaml містить OTEL_RESOURCE_ATTRIBUTES`)
+      passFn(`${label}k8s/base/configmap.yaml містить OTEL_RESOURCE_ATTRIBUTES`)
       if (content.includes('service.name=') && content.includes('service.namespace=')) {
-        pass(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
+        passFn(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
       } else {
         fail(`${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`)
       }
@@ -53,23 +54,20 @@ async function checkWorkspacePackage(rootDir, fail) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const roots = await getMonorepoPackageRootDirs()
   const workspaceRoots = roots.filter(r => r !== '.')
 
   if (workspaceRoots.length === 0) {
     pass('js-pino: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено')
-    return exitCode
+    return reporter.getExitCode()
   }
 
   for (const r of workspaceRoots) {
-    await checkWorkspacePackage(r, fail)
+    await checkWorkspacePackage(r, fail, pass)
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

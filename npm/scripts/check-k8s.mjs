@@ -51,7 +51,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
@@ -1482,11 +1482,8 @@ async function ensureBaseKustomizationHasNamespace(root, yamlFiles, fail) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const root = process.cwd()
 
@@ -1496,7 +1493,7 @@ export async function check() {
 
   if (yamlFiles.length === 0) {
     pass('Немає *.yaml під k8s — перевірку $schema пропущено')
-    return 0
+    return reporter.getExitCode()
   }
 
   pass(`YAML у k8s: ${yamlFiles.length} файл(ів)`)
@@ -1515,5 +1512,5 @@ export async function check() {
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 
-  return exitCode
+  return reporter.getExitCode()
 }

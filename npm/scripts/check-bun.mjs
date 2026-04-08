@@ -17,7 +17,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /**
  * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише `@cspell/*` та `@nitra/*`).
@@ -53,11 +53,8 @@ async function loadNCursorRules() {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const forbidden = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']
   for (const f of forbidden) {
@@ -164,5 +161,5 @@ export async function check() {
     }
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   hasIdTokenWritePermission,
   hasNpmPublishStepWithPackage,
@@ -21,11 +21,8 @@ import {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   if (existsSync('package.json')) {
     pass('package.json існує')
@@ -114,5 +111,5 @@ export async function check() {
     fail(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

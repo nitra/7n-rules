@@ -206,6 +206,30 @@ patches:
         value: dev
 ```
 
+4.  Якщо в kustomization.yaml є remove разом з add  на однаковий path:
+
+```yaml title="overlay/kustomization.yaml (фрагмент)"
+      - op: remove
+        path: /spec/template/spec/nodeSelector
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: "false"
+```
+
+заміняй на replace:
+
+```yaml title="overlay/kustomization.yaml (фрагмент)"
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: "false"
+```
+
 ## Перевірка
 
 **`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.

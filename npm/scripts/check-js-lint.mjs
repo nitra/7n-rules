@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /** Очікуваний локальний скрипт. */
 export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'
@@ -41,11 +41,8 @@ export function isCanonicalLintJs(script) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   let eslintPath = ''
   if (existsSync('eslint.config.js')) {
@@ -242,5 +239,5 @@ export async function check() {
     if (existsSync(dup)) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

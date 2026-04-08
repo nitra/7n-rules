@@ -6,18 +6,15 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам js-format.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const expectedKeys = [
     'arrowParens',
@@ -95,5 +92,5 @@ export async function check() {
     if (pkg.prettier) fail('package.json містить поле "prettier" — видали його')
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

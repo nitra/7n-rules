@@ -12,7 +12,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
@@ -47,11 +47,8 @@ function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const v8rIgnoreRequired = ['.vscode/extensions.json', '.vscode/settings.json']
   if (existsSync('.v8rignore')) {
@@ -215,5 +212,5 @@ export async function check() {
     }
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

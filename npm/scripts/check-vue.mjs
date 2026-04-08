@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
@@ -53,9 +53,10 @@ function ukFilesCountPhrase(n) {
  * Перевіряє залежності та vite.config одного Vue-пакета.
  * @param {string} rootDir відносний шлях до пакета
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
+ * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
  */
-async function checkVuePackage(rootDir, fail) {
+async function checkVuePackage(rootDir, fail, passFn) {
   const label = packageLabel(rootDir)
   const prefix = `[${label}] `
 
@@ -66,7 +67,7 @@ async function checkVuePackage(rootDir, fail) {
   const allDeps = { ...deps, ...devDeps }
 
   if (deps.vue) {
-    pass(`${prefix}vue в dependencies: ${deps.vue}`)
+    passFn(`${prefix}vue в dependencies: ${deps.vue}`)
   } else {
     fail(`${prefix}vue відсутній в dependencies`)
   }
@@ -74,7 +75,7 @@ async function checkVuePackage(rootDir, fail) {
   if (devDeps.vite) {
     const match = devDeps.vite.match(/(\d+)/)
     if (match && Number(match[1]) >= 8) {
-      pass(`${prefix}vite >= 8: ${devDeps.vite}`)
+      passFn(`${prefix}vite >= 8: ${devDeps.vite}`)
     } else {
       fail(`${prefix}vite має бути >= 8, знайдено: ${devDeps.vite}`)
     }
@@ -83,25 +84,25 @@ async function checkVuePackage(rootDir, fail) {
   }
 
   if (devDeps['@vitejs/plugin-vue']) {
-    pass(`${prefix}@vitejs/plugin-vue: ${devDeps['@vitejs/plugin-vue']}`)
+    passFn(`${prefix}@vitejs/plugin-vue: ${devDeps['@vitejs/plugin-vue']}`)
   } else {
     fail(`${prefix}@vitejs/plugin-vue відсутній в devDependencies`)
   }
 
   if (allDeps['vue-macros']) {
-    pass(`${prefix}vue-macros: ${allDeps['vue-macros']}`)
+    passFn(`${prefix}vue-macros: ${allDeps['vue-macros']}`)
   } else {
     fail(`${prefix}vue-macros відсутній — bun add -d vue-macros`)
   }
 
   if (allDeps['unplugin-auto-import']) {
-    pass(`${prefix}unplugin-auto-import присутній`)
+    passFn(`${prefix}unplugin-auto-import присутній`)
   } else {
     fail(`${prefix}unplugin-auto-import відсутній — bun add -d unplugin-auto-import`)
   }
 
   if (allDeps['vite-plugin-vue-layouts-next']) {
-    pass(`${prefix}vite-plugin-vue-layouts-next присутній`)
+    passFn(`${prefix}vite-plugin-vue-layouts-next присутній`)
   } else {
     fail(`${prefix}vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next`)
   }
@@ -112,12 +113,12 @@ async function checkVuePackage(rootDir, fail) {
     const relConfig = join(rootDir, viteConfig)
     const content = await readFile(relConfig, 'utf8')
     if (content.includes('VueMacros')) {
-      pass(`${prefix}${viteConfig} використовує VueMacros`)
+      passFn(`${prefix}${viteConfig} використовує VueMacros`)
     } else {
       fail(`${prefix}${viteConfig} не містить VueMacros`)
     }
     if (content.includes('AutoImport')) {
-      pass(`${prefix}${viteConfig} використовує AutoImport`)
+      passFn(`${prefix}${viteConfig} використовує AutoImport`)
     } else {
       fail(`${prefix}${viteConfig} не містить AutoImport`)
     }
@@ -147,7 +148,7 @@ async function checkVuePackage(rootDir, fail) {
     }
   }
   if (importViolations === 0) {
-    pass(
+    passFn(
       `${prefix}немає заборонених value-імпортів з 'vue' у джерелах (проскановано ${ukFilesCountPhrase(sourcePaths.length)})`
     )
   }
@@ -158,11 +159,8 @@ async function checkVuePackage(rootDir, fail) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   if (existsSync('.vscode/extensions.json')) {
     const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
@@ -188,12 +186,12 @@ export async function check() {
 
   if (vueRoots.length === 0) {
     fail('vue не знайдено в dependencies жодного пакета (корінь репо та каталоги з кореневого workspaces)')
-    return exitCode
+    return reporter.getExitCode()
   }
 
   for (const r of vueRoots) {
-    await checkVuePackage(r, fail)
+    await checkVuePackage(r, fail, pass)
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

@@ -11,7 +11,7 @@ import { basename } from 'node:path'
 
 import { isRunAsCli } from './cli-entry.mjs'
 import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /**
@@ -44,18 +44,15 @@ export async function findLintDockerfilePaths(root) {
  * @returns {Promise<number>} 0 — OK, 1 — зауваження або помилка
  */
 async function main() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const root = process.cwd()
   const files = await findLintDockerfilePaths(root)
 
   if (files.length === 0) {
     pass('lint-docker: немає Dockerfile / *.Dockerfile — hadolint пропущено')
-    return 0
+    return reporter.getExitCode()
   }
 
   pass(`lint-docker: файлів для hadolint: ${files.length}`)
@@ -71,7 +68,7 @@ async function main() {
     }
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }
 
 if (isRunAsCli()) {

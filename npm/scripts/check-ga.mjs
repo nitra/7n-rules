@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   anyRunStepIncludes,
   eventPathsIncludeExact,
@@ -122,17 +122,14 @@ function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const wfDir = '.github/workflows'
 
   if (!existsSync(wfDir)) {
     fail(`Директорія ${wfDir} не існує`)
-    return exitCode
+    return reporter.getExitCode()
   }
 
   const setupBunDepsAction = '.github/actions/setup-bun-deps/action.yml'
@@ -290,5 +287,5 @@ export async function check() {
     }
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }

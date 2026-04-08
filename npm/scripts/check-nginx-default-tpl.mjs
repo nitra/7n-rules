@@ -18,7 +18,7 @@ import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { findDockerfilePaths } from './check-docker.mjs'
-import { pass } from './utils/pass.mjs'
+import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /**
@@ -264,11 +264,8 @@ function dockerfileHasEnvsSubstTemplate(dockerfileContent) {
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
-  let exitCode = 0
-  const fail = msg => {
-    console.log(`  ❌ ${msg}`)
-    exitCode = 1
-  }
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
 
   const root = process.cwd()
 
@@ -284,7 +281,7 @@ export async function check() {
 
   if (templates.length === 0) {
     pass('Немає default.conf.template — перевірку nginx-default-tpl пропущено')
-    return 0
+    return reporter.getExitCode()
   }
 
   pass(`Знайдено default.conf.template: ${templates.length}`)
@@ -383,5 +380,5 @@ export async function check() {
     fail('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
   }
 
-  return exitCode
+  return reporter.getExitCode()
 }
