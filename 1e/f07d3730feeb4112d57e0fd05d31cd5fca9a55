@@ -1,0 +1,29 @@
+npm/tests/check-k8s-schema.test.mjs
+  3fe606433fbac1e8 13,16-18,150-318
+npm/mdc/k8s.mdc
+  3fe606433fbac1e8 109-119
+npm/scripts/check-k8s.mjs
+  3fe606433fbac1e8 10-11,22-24,45-65,599-696,765-766,818-825
+npm/package.json
+  3fe606433fbac1e8 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "1ef07d3730feeb4112d57e0fd05d31cd5fca9a55",
+  "prompts": {
+    "3fe606433fbac1e8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "29897552-4570-4edc-b4a4-d9a722d4aeb1",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 354,
+      "total_deletions": 37,
+      "accepted_lines": 320,
+      "overriden_lines": 0
+    }
+  }
+}
