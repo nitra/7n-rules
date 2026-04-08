@@ -40,6 +40,9 @@
  * Структура **Kustomize** (див. k8s.mdc): заборона шляхів **`…/k8s/dev/…`**; у **`k8s/base/kustomization.yaml`**
  * завжди має бути непорожнє поле **`namespace:`** (перевірка, якщо файл існує).
  *
+ * **Inline JSON6902** у **`patches`** (і зовнішні файли з **`patches[].path`** під **`k8s`**, якщо вміст — масив JSON Patch): не допускається пара **`remove`** і **`add`**
+ * на один і той самий **`path`** у межах одного фрагмента — потрібен **`op: replace`** (k8s.mdc). **check-k8s** це перевіряє.
+ *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
@@ -677,6 +680,224 @@ export function ruKustomizationHasHealthCheckDeletePatch(raw) {
   if (!/metadata:/u.test(raw)) return false
   if (!/name:\s*\S+/u.test(raw)) return false
   return true
+}
+
+/**
+ * Чи абсолютний шлях лежить усередині кореня репозиторію (без виходу через `..`).
+ * @param {string} rootAbs абсолютний корінь
+ * @param {string} fileAbs абсолютний шлях до файлу
+ * @returns {boolean} true, якщо `fileAbs` усередині `rootAbs`
+ */
+function resolvedFilePathIsUnderRoot(rootAbs, fileAbs) {
+  const r = resolve(rootAbs)
+  const f = resolve(fileAbs)
+  const rel = relative(r, f).replaceAll('\\', '/')
+  if (rel === '') {
+    return true
+  }
+  return !rel.startsWith('../') && rel !== '..'
+}
+
+/**
+ * Нормалізує **`path`** з операції JSON Patch (RFC 6902).
+ * @param {string} p значення поля **path**
+ * @returns {string} обрізаний рядок
+ */
+function normalizeJsonPatchPath(p) {
+  return typeof p === 'string' ? p.trim() : ''
+}
+
+/**
+ * Витягує пари **op** / **path** з масиву операцій JSON6902.
+ * @param {unknown[]} arr корінь-масив з YAML/JSON
+ * @returns {Array<{ op: string, path: string }>} **op** у нижньому регістрі
+ */
+function extractJson6902OpsFromArray(arr) {
+  /** @type {Array<{ op: string, path: string }>} */
+  const out = []
+  for (const item of arr) {
+    if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+      const rec = /** @type {Record<string, unknown>} */ (item)
+      const op = rec.op
+      const path = rec.path
+      if (typeof op === 'string' && typeof path === 'string') {
+        const p = normalizeJsonPatchPath(path)
+        if (p !== '') {
+          out.push({ op: op.trim().toLowerCase(), path: p })
+        }
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Витягує операції JSON6902 з тексту inline **patch** або окремого файлу patch (YAML-масив або JSON-масив).
+ * Інший вміст (strategic merge, `$patch: delete` тощо) дає порожній масив.
+ * @param {string} patchText вміст поля **patch** або файлу
+ * @returns {Array<{ op: string, path: string }>}
+ */
+export function collectJson6902OperationsFromPatchText(patchText) {
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') {
+    return []
+  }
+  try {
+    const docs = parseAllDocuments(t)
+    for (const d of docs) {
+      if (d.errors.length > 0) {
+        continue
+      }
+      const j = d.toJSON()
+      if (Array.isArray(j)) {
+        return extractJson6902OpsFromArray(j)
+      }
+    }
+  } catch {
+    /* пробуємо JSON */
+  }
+  if (t.startsWith('[')) {
+    try {
+      const j = JSON.parse(t)
+      if (Array.isArray(j)) {
+        return extractJson6902OpsFromArray(j)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return []
+}
+
+/**
+ * Шляхи JSON Patch, де в одному наборі операцій є і **remove**, і **add** (k8s.mdc: краще **replace**).
+ * @param {Array<{ op: string, path: string }>} ops нормалізовані **op**
+ * @returns {string[]} унікальні **path** з порушенням (відсортовано)
+ */
+export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
+  /** @type {Map<string, Set<string>>} */
+  const byPath = new Map()
+  for (const { op, path } of ops) {
+    if (!path) {
+      continue
+    }
+    if (!byPath.has(path)) {
+      byPath.set(path, new Set())
+    }
+    byPath.get(path).add(op)
+  }
+  /** @type {string[]} */
+  const out = []
+  for (const [path, set] of byPath) {
+    if (set.has('remove') && set.has('add')) {
+      out.push(path)
+    }
+  }
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: у inline **`patch`** і у зовнішніх patch-файлах не має бути **remove** і **add** на той самий **path**.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFilesAbs, fail) {
+  const rootNorm = resolve(root)
+  for (const kustAbs of yamlFilesAbs) {
+    if (basename(kustAbs).toLowerCase() !== 'kustomization.yaml') {
+      continue
+    }
+    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+    let raw
+    try {
+      raw = await readFile(kustAbs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
+      continue
+    }
+    const lines = toLines(raw)
+    const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+    /** @type {import('yaml').Document[]} */
+    let docs
+    try {
+      docs = parseAllDocuments(body)
+    } catch {
+      continue
+    }
+    for (const doc of docs) {
+      if (doc.errors.length > 0) {
+        continue
+      }
+      const rootObj = doc.toJSON()
+      if (rootObj === null || typeof rootObj !== 'object' || Array.isArray(rootObj)) {
+        continue
+      }
+      const rec = /** @type {Record<string, unknown>} */ (rootObj)
+      if (rec.kind !== 'Kustomization') {
+        continue
+      }
+      const patches = rec.patches
+      if (!Array.isArray(patches)) {
+        continue
+      }
+      let patchIdx = 0
+      for (const p of patches) {
+        patchIdx++
+        if (p === null || typeof p !== 'object' || Array.isArray(p)) {
+          continue
+        }
+        const pr = /** @type {Record<string, unknown>} */ (p)
+        if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
+          const ops = collectJson6902OperationsFromPatchText(pr.patch)
+          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+          if (bad.length > 0) {
+            fail(
+              `${rel}: patches[${patchIdx}] inline JSON6902: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
+            )
+          }
+        }
+        if (typeof pr.path === 'string' && pr.path.trim() !== '') {
+          const patchRef = pr.path.trim()
+          const resolved = resolve(dirname(kustAbs), patchRef)
+          if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+            continue
+          }
+          if (!existsSync(resolved)) {
+            continue
+          }
+          let st
+          try {
+            st = await stat(resolved)
+          } catch {
+            continue
+          }
+          if (!st.isFile()) {
+            continue
+          }
+          let pRaw
+          try {
+            pRaw = await readFile(resolved, 'utf8')
+          } catch {
+            continue
+          }
+          const ops = collectJson6902OperationsFromPatchText(pRaw)
+          if (ops.length === 0) {
+            continue
+          }
+          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+          if (bad.length > 0) {
+            const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
+            fail(
+              `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
+            )
+          }
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -1509,6 +1730,8 @@ export async function check() {
   await validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail)
 
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
+
+  await validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFiles, fail)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 

@@ -1,11 +1,12 @@
 /**
- * Тести check-docker і check-k8s у дереві без відповідних файлів (ранній вихід 0).
+ * Тести check-docker і check-k8s у дереві без відповідних файлів (ранній вихід 0) та JSON6902 у kustomization.
  */
 import { describe, expect, test } from 'bun:test'
+import { writeFile } from 'node:fs/promises'
 
 import { check as checkDocker } from '../scripts/check-docker.mjs'
 import { check as checkK8s } from '../scripts/check-k8s.mjs'
-import { withTmpCwd } from './helpers.mjs'
+import { ensureDir, withTmpCwd } from './helpers.mjs'
 
 describe('check без цільових файлів', () => {
   test('check-docker — 0, якщо немає Dockerfile', async () => {
@@ -17,6 +18,30 @@ describe('check без цільових файлів', () => {
   test('check-k8s — 0, якщо немає yaml під k8s', async () => {
     await withTmpCwd(async () => {
       expect(await checkK8s()).toBe(0)
+    })
+  })
+
+  test('check-k8s — 1, якщо kustomization з remove+add на той самий path', async () => {
+    await withTmpCwd(async () => {
+      await ensureDir('app/k8s/ua')
+      const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources: []
+patches:
+  - target:
+      kind: Deployment
+      name: x
+    patch: |-
+      - op: remove
+        path: /spec/template/spec/nodeSelector
+      - op: add
+        path: /spec/template/spec/nodeSelector
+        value:
+          preem: "false"
+`
+      await writeFile('app/k8s/ua/kustomization.yaml', k, 'utf8')
+      expect(await checkK8s()).toBe(1)
     })
   })
 })

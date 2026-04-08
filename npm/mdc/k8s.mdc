@@ -226,11 +226,7 @@ patches:
 
 **Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
-## Що саме в скрипті `check-k8s.mjs`
 
-Повний перелік умов, константи (**`YANNH_PIN`**, **`CLUSTER_SCOPED_KINDS`**, **`HASURA_GRAPHQL_ENGINE_IMAGE`** тощо) і допоміжні функції — у файлі скрипта; змінив вимогу для **check** — онови **JSDoc** і за потреби тести в **`npm/tests/check-k8s-schema.test.mjs`**.
-
-При зміні **PIN** версії Kubernetes узгодь **`check-k8s.mjs`**, **`run-k8s.mjs`** (**`KUBERNETES_VERSION`**, **`DATREE_CRD_SCHEMA_LOCATION`**) і цей файл (**lint-k8s**, **Визначення схеми YAML**).
 
 ## Коли застосовувати (агентам)
 

@@ -166,8 +166,13 @@ patches:
     expect(kustomizationHasAbieDeploymentNodeSelectorPatch(RU_KUSTOMIZATION_NODE_SELECTOR_PATCH, 'ua')).toBe(false)
   })
 
-  test('kustomizationHasAbieDeploymentNodeSelectorPatch — відхиляє не той op', () => {
-    const bad = UA_KUSTOMIZATION_NODE_SELECTOR_PATCH.replace('op: add', 'op: replace')
+  test('kustomizationHasAbieDeploymentNodeSelectorPatch — ua з op replace теж підходить', () => {
+    const uaReplace = UA_KUSTOMIZATION_NODE_SELECTOR_PATCH.replace('op: add', 'op: replace')
+    expect(kustomizationHasAbieDeploymentNodeSelectorPatch(uaReplace, 'ua')).toBe(true)
+  })
+
+  test('kustomizationHasAbieDeploymentNodeSelectorPatch — відхиляє ua без preem false', () => {
+    const bad = UA_KUSTOMIZATION_NODE_SELECTOR_PATCH.replace("preem: 'false'", "preem: 'true'")
     expect(kustomizationHasAbieDeploymentNodeSelectorPatch(bad, 'ua')).toBe(false)
   })
 

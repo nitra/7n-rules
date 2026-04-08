@@ -26,6 +26,8 @@ import {
   pathHasK8sSegment,
   ruKustomizationHasHealthCheckDeletePatch,
   collectGatewayApiRouteBackendServiceNames,
+  collectJson6902OperationsFromPatchText,
+  json6902PathsWithRemoveAndAddOnSamePath,
   kustomizationSvcYamlMissingSvcHlViolation,
   serviceSvcHlYamlHeadlessViolation,
   serviceSvcYamlClusterIpTypeViolation
@@ -620,5 +622,53 @@ describe('collectGatewayApiRouteBackendServiceNames', () => {
       rules: [{ matches: [{ path: { value: '/' } }], backendRef: { name: 'x-hl', port: 8080 } }]
     })
     expect(names).toEqual(['x-hl'])
+  })
+})
+
+describe('JSON6902 remove+add на той самий path (k8s.mdc)', () => {
+  test('collectJson6902OperationsFromPatchText — YAML-масив операцій', () => {
+    const y = `- op: remove
+  path: /spec/a
+- op: add
+  path: /spec/a
+  value: 1
+`
+    const ops = collectJson6902OperationsFromPatchText(y)
+    expect(ops).toEqual([
+      { op: 'remove', path: '/spec/a' },
+      { op: 'add', path: '/spec/a' }
+    ])
+  })
+
+  test('collectJson6902OperationsFromPatchText — JSON-масив', () => {
+    const j = '[{"op":"remove","path":"/x"},{"op":"add","path":"/x","value":1}]'
+    expect(collectJson6902OperationsFromPatchText(j).length).toBe(2)
+  })
+
+  test('strategic merge / не масив — порожньо', () => {
+    expect(collectJson6902OperationsFromPatchText('kind: Deployment\nmetadata:\n  name: x')).toEqual([])
+  })
+
+  test('json6902PathsWithRemoveAndAddOnSamePath — знаходить path', () => {
+    const ops = [
+      { op: 'remove', path: '/spec/x' },
+      { op: 'add', path: '/spec/x' }
+    ]
+    expect(json6902PathsWithRemoveAndAddOnSamePath(ops)).toEqual(['/spec/x'])
+  })
+
+  test('json6902PathsWithRemoveAndAddOnSamePath — лише replace', () => {
+    const ops = [{ op: 'replace', path: '/spec/x' }]
+    expect(json6902PathsWithRemoveAndAddOnSamePath(ops)).toEqual([])
+  })
+
+  test('remove і add на різних path — ок', () => {
+    const y = `- op: remove
+  path: /a
+- op: add
+  path: /b
+  value: 1
+`
+    expect(json6902PathsWithRemoveAndAddOnSamePath(collectJson6902OperationsFromPatchText(y))).toEqual([])
   })
 })

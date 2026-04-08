@@ -17,14 +17,13 @@
  * **nodeSelector (base):** якщо **Deployment** лежить у шляху з сегментом **`base`** (наприклад **`…/k8s/base/deploy.yaml`**),
  * у **`spec.template.spec.nodeSelector`** має бути **`preem`** з булевим значенням **true** або рядком **`'true'`** — overlay **ua** та **ru** далі підміняють селектор.
  *
- * **nodeSelector (overlay):** якщо є **Deployment** під **k8s**, у кожному **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`**
- * має бути inline **JSON6902** patch на **`kind: Deployment`**: для **ua** — **`op: add`**, **`path: /spec/template/spec/nodeSelector`**,
- * **`preem: false`**; для **ru** — **`op: replace`**, той самий **path**, **`yandex.cloud/preemptible: false`** (див. abie.mdc).
+ * **nodeSelector (overlay):** якщо є **Deployment** під **k8s**, у **`ua`/`ru` kustomization** — inline patch на **`kind: Deployment`**
+ * з **`path: /spec/template/spec/nodeSelector`**: **ua** — **`preem: false`**; **ru** — **`yandex.cloud/preemptible: false`**.
+ * Узагальнені вимоги **k8s.mdc** до JSON6902 (зокрема заборона **remove** + **add** на той самий **path**) перевіряє **check-k8s.mjs**; **check-abie** — лише abie-специфічний вміст (без дублювання цього правила).
  *
- * **HTTPRoute (overlay):** за тієї ж умови (**Deployment** під **k8s**) у **кожному** **`ua`/`ru` kustomization** має бути
- * inline **JSON6902** на **`kind: HTTPRoute`** з **непорожнім `target.name`** (будь-яке ім’я): **replace** **`/spec/hostnames`**
- * (домени з abie.mdc), **replace** **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** також
- * **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
+ * **HTTPRoute (overlay):** тієї ж умови — patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
+ * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
+ * Вибір **`op`** — **k8s.mdc**.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -344,15 +343,13 @@ function stripBom(s) {
 }
 
 /**
- * Чи рядок inline JSON6902 patch містить очікуваний **ua** nodeSelector (**op: add**, **preem: false**).
+ * Чи рядок inline JSON6902 patch містить очікуваний **ua** nodeSelector (**preem: false** на **`/spec/template/spec/nodeSelector`**).
+ * Конкретний **`op`** не перевіряється — див. **k8s.mdc**.
  * @param {string} patchText поле **patch** у kustomization
  * @returns {boolean} true, якщо критерії abie.mdc виконано
  */
 function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
-    return false
-  }
-  if (!/op:\s*add\b/u.test(patchText)) {
     return false
   }
   if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
@@ -365,15 +362,13 @@ function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
 }
 
 /**
- * Чи рядок inline JSON6902 patch містить очікуваний **ru** nodeSelector (**op: replace**, **yandex.cloud/preemptible: false**).
+ * Чи рядок inline JSON6902 patch містить очікуваний **ru** nodeSelector (**yandex.cloud/preemptible: false** на **`/spec/template/spec/nodeSelector`**).
+ * Конкретний **`op`** не перевіряється — див. **k8s.mdc**.
  * @param {string} patchText поле **patch** у kustomization
  * @returns {boolean} true, якщо критерії abie.mdc виконано
  */
 function jsonPatchTextHasRuDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
-    return false
-  }
-  if (!/op:\s*replace\b/u.test(patchText)) {
     return false
   }
   if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
@@ -558,11 +553,10 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
  */
 export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
   if (typeof combined !== 'string' || combined.trim() === '') {
-    return `очікується patch target kind HTTPRoute з непорожнім target.name (replace hostnames, parentRefs namespace ${mode}; для ru — також gwin… upgradeTypes websocket) — abie.mdc`
+    return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — також gwin… websocket) — abie.mdc`
   }
-  const hasHostnamesReplace = /-\s*op:\s*replace\b[\s\S]{0,200}?path:\s*\/spec\/hostnames\b/m.test(combined)
-  if (!hasHostnamesReplace) {
-    return 'HTTPRoute: потрібен блок op replace з path /spec/hostnames (abie.mdc)'
+  if (!/path:\s*\/spec\/hostnames\b/m.test(combined)) {
+    return 'HTTPRoute: потрібен path /spec/hostnames у patch (abie.mdc)'
   }
   const markers = mode === 'ua' ? ABIE_UA_HTTPROUTE_HOST_MARKERS : ABIE_RU_HTTPROUTE_HOST_MARKERS
   if (!markers.some(m => combined.includes(m))) {
@@ -573,7 +567,7 @@ export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
       ? /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu.test(combined)
       : /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu.test(combined)
   if (!namespaceOk) {
-    return `HTTPRoute: потрібен replace path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
+    return `HTTPRoute: потрібен path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
   }
   if (mode === 'ru' && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
     return 'HTTPRoute (ru): потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
@@ -783,7 +777,7 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     fail(
-      'Є Deployment у k8s — додай ua/kustomization.yaml з inline patch на Deployment: op add, path /spec/template/spec/nodeSelector, preem false (abie.mdc)'
+      'Є Deployment у k8s — додай ua/kustomization.yaml з patch на Deployment: path /spec/template/spec/nodeSelector, preem false (abie.mdc)'
     )
     return
   }
@@ -799,7 +793,7 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
     }
     if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
       fail(
-        `${rel}: потрібен patch target kind Deployment з op: add, path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
+        `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
       )
       return
     }
@@ -809,7 +803,7 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (ruAbsList.length === 0) {
     fail(
-      'Є Deployment у k8s — додай ru/kustomization.yaml з inline patch на Deployment: op replace, path /spec/template/spec/nodeSelector, yandex.cloud/preemptible false (abie.mdc)'
+      'Є Deployment у k8s — додай ru/kustomization.yaml з patch на Deployment: path /spec/template/spec/nodeSelector, yandex.cloud/preemptible false (abie.mdc)'
     )
     return
   }
@@ -825,7 +819,7 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
     }
     if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ru')) {
       fail(
-        `${rel}: потрібен patch target kind Deployment з op: replace, path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
+        `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
       )
       return
     }
