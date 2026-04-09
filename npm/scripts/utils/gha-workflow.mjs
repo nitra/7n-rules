@@ -341,11 +341,10 @@ export function anyRunStepIncludes(root, needle) {
 }
 
 /**
- * Чи викликається stylelint коректно: `npx stylelint` у run або `bun run lint-style`
- * (скрипт `lint-style` у package.json має містити `npx stylelint`).
+ * Чи викликається stylelint у workflow через `npx stylelint` у кроці `run` (вимога для CI).
  * @param {Record<string, unknown>} root корінь workflow
  * @returns {boolean} `true`, якщо умова виконана
  */
 export function anyRunStepIncludesStylelint(root) {
-  return anyRunStepIncludes(root, 'npx stylelint') || anyRunStepIncludes(root, 'bun run lint-style')
+  return anyRunStepIncludes(root, 'npx stylelint')
 }

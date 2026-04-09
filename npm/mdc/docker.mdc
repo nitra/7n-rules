@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.6'
+version: '1.7'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -103,14 +103,19 @@ jobs:
 
 1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
 2. **`npx @nitra/cursor check docker`** — **`check-docker.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (**`PATH`** або **`docker run`** з **`hadolint/hadolint:v2.12.0`**).
-3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure).
+3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
+
+```yaml title=".hadolint.yaml"
+ignored:
+  - DL3007
+```
 
 Якщо немає файлів у межах відповідного набору (**`lint-docker`** або **`check docker`**) — перевірка пропускається (exit 0).
 
 ## Агентам
 
 - Після правок у Dockerfile проганяй **`bun run lint-docker`** і/або **`check docker`**.
-- Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile або правила в **`.hadolint.yaml`**.
+- Винятки: **`# hadolint ignore=DL3008`** (або інший код) у Dockerfile або **`ignored`** у **`.hadolint.yaml`** (наприклад **DL3007** для **`:latest`** — див. вище).
 - Образи на базі Bun — див. **`n-bun.mdc`**.
 
 ## Редактор

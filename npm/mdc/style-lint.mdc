@@ -8,7 +8,7 @@ version: '1.2'
 
 - **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам’яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
 - **Форматування** узгоджуй з **`n-js-format.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
-- **Запуск stylelint:** лише **`npx stylelint`** (у **`lint-style`**, у CI, вручну). Не використовуй **`bunx stylelint`** і не запускай **stylelint** напряму без **`npx`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний набір `lint-*` (навичка **`n-fix`**).
+- **Запуск stylelint:** лише **`npx stylelint`**. Локально — через скрипт **`lint-style`** (`bun run lint-style`); у **GitHub Actions** у кроці **`run`** викликай `npx stylelint '**/*.{css,scss,vue}' --fix` напряму (не через **`bun run lint-style`**). Не використовуй **`bunx stylelint`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний набір `lint-*` (навичка **`n-fix`**).
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
 **VSCode:** у **`.vscode/extensions.json`** рекомендуй **`stylelint.vscode-stylelint`**. У **`.vscode/settings.json`** вимкни вбудовану валідацію CSS/SCSS/Less і увімкни явні code actions:
@@ -44,7 +44,7 @@ version: '1.2'
   },
 ```
 
-Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі **`bun run lint-style`** (у скрипті вже **`npx stylelint`**). **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
+Додай **`.github/workflows/lint-style.yml`** (лише **`.yml`**, **`ga.mdc`**): після **`checkout`** — локальний composite **`setup-bun-deps`**, далі `npx stylelint '**/*.{css,scss,vue}' --fix` у кроці **`run`**. **Не** дублюй окремі кроки **`setup-node`** / **`oven-sh/setup-bun`** / кеш / **`npm install`**.
 
 ```yaml title=".github/workflows/lint-style.yml"
 name: StyleLint
@@ -85,7 +85,7 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 
       - name: StyleLint
-        run: bun run lint-style
+        run: npx stylelint '**/*.{css,scss,vue}' --fix
 ```
 
 У корені проєкту має бути **`.stylelintignore`**:

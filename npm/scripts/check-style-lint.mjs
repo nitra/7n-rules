@@ -2,7 +2,7 @@
  * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
  *
  * Очікування: `@nitra/stylelint-config`, `lint-style` через `npx stylelint`, `.stylelintignore`,
- * workflow `lint-style.yml` (у `run` — `npx stylelint` або `bun run lint-style`), VSCode stylelint,
+ * workflow `lint-style.yml` (у `run` — лише `npx stylelint`, не `bun run lint-style`), VSCode stylelint,
  * `css.validate` / `scss.validate` / `less.validate`: false.
  */
 import { existsSync } from 'node:fs'
@@ -60,13 +60,13 @@ export async function check() {
     const content = await readFile('.github/workflows/lint-style.yml', 'utf8')
     pass('lint-style.yml існує')
     const root = parseWorkflowYaml(content)
-    const ok = root
-      ? anyRunStepIncludesStylelint(root)
-      : content.includes('npx stylelint') || content.includes('bun run lint-style')
+    const ok = root ? anyRunStepIncludesStylelint(root) : content.includes('npx stylelint')
     if (ok) {
-      pass('lint-style.yml містить npx stylelint або bun run lint-style у кроці run')
+      pass('lint-style.yml містить npx stylelint у кроці run')
     } else {
-      fail('lint-style.yml має містити npx stylelint або bun run lint-style у кроці run')
+      fail(
+        "lint-style.yml має викликати stylelint у CI через npx — наприклад: npx stylelint '**/*.{css,scss,vue}' --fix"
+      )
     }
   } else {
     fail('.github/workflows/lint-style.yml не існує — створи його')
