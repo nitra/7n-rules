@@ -1,0 +1,31 @@
+npm/tests/check-abie.test.mjs
+  f4ed47d61d6f123c 2,11-13,78-104,507
+.cspell.json
+  f4ed47d61d6f123c 21-22
+npm/mdc/abie.mdc
+  f4ed47d61d6f123c 4,11,39,98
+npm/scripts/check-abie.mjs
+  f4ed47d61d6f123c 20,24-25,71-121,823,826,831,841,847-853,855-858,871,885-888,895,905-906,911,917-923,925-928,934-935,940,954-957,1050
+npm/scripts/check-k8s.mjs
+  f4ed47d61d6f123c 738,748,752,780-784,807,809,811,814,819-827,829-852,855-857,861,863-864,869,871,873,880-891
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.5",
+  "base_commit_sha": "f42b7b2b7242216d70021137a9ef6c89177db36c",
+  "prompts": {
+    "f4ed47d61d6f123c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "4a559ea9-57b3-49b3-a5d4-399df7bb0938",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 284,
+      "total_deletions": 189,
+      "accepted_lines": 203,
+      "overriden_lines": 0
+    }
+  }
+}
