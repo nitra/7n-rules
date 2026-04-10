@@ -8,6 +8,8 @@
  * **`phpdocker-io/github-actions-delete-abandoned-branches`** у **`with.ignore_branches`** мають бути
  * **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно).
  *
+ * **Firebase Hosting:** у корені репозиторію не має бути **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`**.
+ *
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
  * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **Service** з тим самим **`metadata.name`**.
@@ -969,6 +971,30 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
 }
 
 /**
+ * Перевіряє відсутність артефактів Firebase Hosting у корені репозиторію (abie.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} passFn успішне повідомлення
+ * @param {(msg: string) => void} failFn повідомлення про порушення
+ * @returns {void}
+ */
+function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
+  for (const name of ['.firebaserc', 'firebase.json']) {
+    const abs = join(root, name)
+    if (existsSync(abs)) {
+      failFn(`Знайдено заборонений файл Firebase Hosting: ${name} — видали його (abie.mdc)`)
+    } else {
+      passFn(`Немає ${name}`)
+    }
+  }
+  const firebaseDir = join(root, '.firebase')
+  if (existsSync(firebaseDir)) {
+    failFn('Знайдено директорію .firebase — видали її (abie.mdc)')
+  } else {
+    passFn('Немає .firebase/')
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам abie.mdc.
  * @returns {Promise<number>} 0 — OK, 1 — є порушення
  */
@@ -984,6 +1010,7 @@ export async function check() {
   }
 
   pass('Правило abie увімкнено — виконуємо перевірки')
+  ensureNoFirebaseHostingArtifacts(root, pass, fail)
 
   const cleanMergedPath = join(root, '.github/workflows/clean-merged-branch.yml')
   if (existsSync(cleanMergedPath)) {

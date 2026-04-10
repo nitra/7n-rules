@@ -1,10 +1,10 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.8'
+version: '1.9'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**), видалення **HealthCheckPolicy** у **ru**), а також гілки **dev**, **ua**, **ru** у **clean-merged-branch**.
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**), видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
@@ -134,6 +134,10 @@ spec:
       nodeSelector:
         preem: 'true' # буде замінено через kustomize
 ```
+
+## Firebase Hosting
+
+У корені репозиторію не тримати конфіг і кеш **Firebase Hosting**: видали **`.firebaserc`**, **`firebase.json`** та каталог **`.firebase/`**, якщо вони є.
 
 ## Git branches
 

@@ -32,6 +32,10 @@
  *
  * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
  * в dependencies), CLI дописує devDependencies з діапазоном ^<version> поточного пакету — зручно після npx.
+ *
+ * Перед копіюванням правил (режим без підкоманди): оновлення \@nitra/cursor у package.json до
+ * останньої версії з npm (крім workspace:/file:/link: тощо), `bun i`, далі файли беруться з
+ * `node_modules/@nitra/cursor`, якщо пакет з’явився після встановлення.
  */
 
 import { existsSync } from 'node:fs'
@@ -40,10 +44,8 @@ import { basename, dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import {
-  ensureNitraCursorInRootDevDependencies,
-  readBundledPackageVersion
-} from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
@@ -68,17 +70,18 @@ const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 
 /**
  * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
+ * @param {string} [bundledMdcDir] каталог `mdc/` у корені пакету (за замовчуванням — з поточного процесу)
  * @returns {Promise<string[]>} відсортовані імена файлів правил без суфікса .mdc
  */
-async function discoverBundledRuleNames() {
-  if (!existsSync(BUNDLED_MDC_DIR)) {
+async function discoverBundledRuleNames(bundledMdcDir = BUNDLED_MDC_DIR) {
+  if (!existsSync(bundledMdcDir)) {
     throw new Error(
       `Не знайдено каталог правил пакету.\n` +
-        `Очікуваний шлях: ${BUNDLED_MDC_DIR}\n` +
+        `Очікуваний шлях: ${bundledMdcDir}\n` +
         `Перевстановіть ${PACKAGE_NAME} або створіть ${CONFIG_FILE} вручну.`
     )
   }
-  const names = await readdir(BUNDLED_MDC_DIR)
+  const names = await readdir(bundledMdcDir)
   const rules = names
     .filter(n => n.endsWith('.mdc'))
     .map(n => n.slice(0, -'.mdc'.length))
@@ -91,13 +94,14 @@ async function discoverBundledRuleNames() {
 
 /**
  * Імена skills (id без префікса n-) з каталогу skills пакету — лише підкаталоги `<id>/` без префікса n-
+ * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету
  * @returns {Promise<string[]>} відсортовані id
  */
-async function discoverBundledSkillNames() {
-  if (!existsSync(BUNDLED_SKILLS_DIR)) {
+async function discoverBundledSkillNames(bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+  if (!existsSync(bundledSkillsDir)) {
     return []
   }
-  const entries = await readdir(BUNDLED_SKILLS_DIR, { withFileTypes: true })
+  const entries = await readdir(bundledSkillsDir, { withFileTypes: true })
   return entries
     .filter(e => e.isDirectory() && !e.name.startsWith('.') && !e.name.startsWith(RULE_PREFIX))
     .map(e => e.name)
@@ -152,14 +156,17 @@ async function migrateLegacyConfigIfNeeded() {
 
 /**
  * Зчитує конфіг .n-cursor.json з поточної директорії
+ * @param {{ bundledMdcDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@nitra/cursor`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
  */
-async function readConfig() {
+async function readConfig(paths = {}) {
+  const bundledMdcDir = paths.bundledMdcDir ?? BUNDLED_MDC_DIR
+  const bundledSkillsDir = paths.bundledSkillsDir ?? BUNDLED_SKILLS_DIR
   await migrateLegacyConfigIfNeeded()
   const configPath = join(cwd(), CONFIG_FILE)
   if (!existsSync(configPath)) {
-    const rules = await discoverBundledRuleNames()
-    const skills = await discoverBundledSkillNames()
+    const rules = await discoverBundledRuleNames(bundledMdcDir)
+    const skills = await discoverBundledSkillNames(bundledSkillsDir)
     const defaultConfig = { $schema: CONFIG_SCHEMA_URL, rules, skills }
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
@@ -181,7 +188,7 @@ async function readConfig() {
     if ('skills' in config) {
       throw new Error(`У ${CONFIG_FILE} поле "skills" має бути масивом рядків`)
     }
-    config.skills = await discoverBundledSkillNames()
+    config.skills = await discoverBundledSkillNames(bundledSkillsDir)
   }
 
   if (config.$schema !== CONFIG_SCHEMA_URL) {
@@ -210,14 +217,15 @@ function normalizeRuleName(ruleName) {
 /**
  * Читає вміст правила з каталогу `mdc/` установленого пакету (наприклад `node_modules/@nitra/cursor/mdc` або кеш npx).
  * @param {string} rule елемент масиву rules з `.n-cursor.json`
+ * @param {string} [bundledMdcDir] каталог `mdc/` у корені пакету-джерела
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
-function readBundledRuleContent(rule) {
+function readBundledRuleContent(rule, bundledMdcDir = BUNDLED_MDC_DIR) {
   const bundledName = normalizeRuleName(rule)
-  const bundledPath = join(BUNDLED_MDC_DIR, bundledName)
+  const bundledPath = join(bundledMdcDir, bundledName)
   if (!existsSync(bundledPath)) {
     throw new Error(
-      `Немає файлу ${bundledName} у ${BUNDLED_MDC_DIR}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
+      `Немає файлу ${bundledName} у ${bundledMdcDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
     )
   }
   return readFile(bundledPath, 'utf8')
@@ -457,17 +465,18 @@ async function syncClaudeMd(configRules, configSkills) {
 /**
  * Повністю перезаписує AGENTS.md у корені cwd з npm/AGENTS.template.md
  * @param {string[]} configSkills id skills з конфігу
+ * @param {string} [agentsTemplatePath] шлях до AGENTS.template.md у корені пакету-джерела
  * @returns {Promise<void>} завершення запису файлу
  */
-async function syncAgentsMd(configSkills) {
-  if (!existsSync(BUNDLED_AGENTS_TEMPLATE_PATH)) {
+async function syncAgentsMd(configSkills, agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
+  if (!existsSync(agentsTemplatePath)) {
     throw new Error(
       `Не знайдено шаблон ${AGENTS_TEMPLATE_FILE} у пакеті.\n` +
-        `Очікуваний шлях: ${BUNDLED_AGENTS_TEMPLATE_PATH}\n` +
+        `Очікуваний шлях: ${agentsTemplatePath}\n` +
         `Перевстановіть ${PACKAGE_NAME}.`
     )
   }
-  const templateText = await readFile(BUNDLED_AGENTS_TEMPLATE_PATH, 'utf8')
+  const templateText = await readFile(agentsTemplatePath, 'utf8')
   const mdcFiles = await listProjectRulesMdcFiles()
   const skillItems = await buildSkillBulletItems(configSkills)
   const body = renderAgentsTemplate(templateText, mdcFiles, skillItems)
@@ -485,10 +494,11 @@ async function syncAgentsMd(configSkills) {
 /**
  * Копіює лише skills зі списку configSkills (джерело: skills/<id>/ у пакеті)
  * @param {string[]} configSkills id без префікса n-
+ * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих копіювань
  */
-async function syncSkills(configSkills) {
-  if (configSkills.length === 0 || !existsSync(BUNDLED_SKILLS_DIR)) {
+async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+  if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
 
@@ -500,7 +510,7 @@ async function syncSkills(configSkills) {
 
   for (const skillId of configSkills) {
     const id = normalizeSkillId(skillId)
-    const srcDir = join(BUNDLED_SKILLS_DIR, id)
+    const srcDir = join(bundledSkillsDir, id)
     const destDirName = managedSkillDirName(skillId)
     const destDir = join(skillsRoot, destDirName)
 
@@ -534,10 +544,11 @@ async function syncSkills(configSkills) {
  * Синхронізує .claude/commands/n-<id>.md зі skills пакету.
  * Кожен файл містить посилання на відповідний cursor skill, а не копію інструкцій.
  * @param {string[]} configSkills id без префікса n-
+ * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
-async function syncCommands(configSkills) {
-  if (configSkills.length === 0 || !existsSync(BUNDLED_SKILLS_DIR)) {
+async function syncCommands(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+  if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
     return { success: 0, fail: 0 }
   }
 
@@ -549,7 +560,7 @@ async function syncCommands(configSkills) {
 
   for (const skillId of configSkills) {
     const id = normalizeSkillId(skillId)
-    const srcSkillMd = join(BUNDLED_SKILLS_DIR, id, 'SKILL.md')
+    const srcSkillMd = join(bundledSkillsDir, id, 'SKILL.md')
     const destDirName = managedSkillDirName(skillId)
     const destFile = join(commandsDir, `${RULE_PREFIX}${id}.md`)
 
@@ -731,24 +742,60 @@ async function runChecks(requestedRules) {
 }
 
 /**
+ * Читає поле `version` з `package.json` пакету за абсолютним шляхом до його кореня.
+ * @param {string} packageRoot корінь пакету (тека з `package.json`)
+ * @returns {Promise<string | null>} semver рядком або null, якщо файлу/поля немає або JSON некоректний
+ */
+async function readBundledVersionAt(packageRoot) {
+  const p = join(packageRoot, 'package.json')
+  if (!existsSync(p)) {
+    return null
+  }
+  try {
+    const pkg = JSON.parse(await readFile(p, 'utf8'))
+    return typeof pkg.version === 'string' ? pkg.version : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Копіює правила з каталогу `mdc/` установленого пакету та синхронізує `.cursor/rules`
  * @returns {Promise<void>}
  */
 async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
+  const projectRoot = cwd()
+  let effectivePackageRoot
+  try {
+    effectivePackageRoot = await upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: ${msg}`)
+    throw error
+  }
+
+  const bundledMdcDir = join(effectivePackageRoot, 'mdc')
+  const bundledSkillsDir = join(effectivePackageRoot, 'skills')
+  const bundledAgentsTemplatePath = join(effectivePackageRoot, AGENTS_TEMPLATE_FILE)
+
   let config
   try {
-    config = await readConfig()
+    config = await readConfig({ bundledMdcDir, bundledSkillsDir })
   } catch (error) {
     console.error(`❌ ${error.message}`)
     throw error
   }
 
   const { rules, skills, version } = config
-  const bundledVer = await readBundledPackageVersion()
+  const bundledVer = await readBundledVersionAt(effectivePackageRoot)
   if (bundledVer) {
-    console.log(`📦 Джерело правил: ${PACKAGE_NAME}@${bundledVer}`)
+    const line =
+      effectivePackageRoot === BUNDLED_PACKAGE_ROOT
+        ? `📦 Джерело правил: ${PACKAGE_NAME}@${bundledVer}`
+        : `📦 Джерело правил: ${PACKAGE_NAME}@${bundledVer} (шлях: ${effectivePackageRoot})`
+    console.log(`${line}\n`)
   }
   if (version) {
     console.log(`⚠️  Поле "version" у ${CONFIG_FILE} ігнорується; правила беруться з установленого пакету.\n`)
@@ -757,7 +804,7 @@ async function runSync() {
   console.log(`📋 Skills до синхронізації: ${skills.length}`)
 
   try {
-    const { destPath } = await syncSetupBunDepsAction(cwd(), BUNDLED_PACKAGE_ROOT)
+    const { destPath } = await syncSetupBunDepsAction(cwd(), effectivePackageRoot)
     console.log(`📝 Оновлено ${destPath} (composite setup-bun-deps з пакету)\n`)
   } catch (error) {
     console.error(`❌ Не вдалося записати setup-bun-deps action: ${error.message}`)
@@ -776,7 +823,7 @@ async function runSync() {
 
     try {
       process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const content = await readBundledRuleContent(rule)
+      const content = await readBundledRuleContent(rule, bundledMdcDir)
       await writeFile(destPath, content, 'utf8')
       console.log(`✅`)
       successCount++
@@ -801,7 +848,7 @@ async function runSync() {
   }
 
   try {
-    const { success: skillOk, fail: skillFail } = await syncSkills(skills)
+    const { success: skillOk, fail: skillFail } = await syncSkills(skills, bundledSkillsDir)
     if (skills.length > 0) {
       console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${skillFail} з помилками`)
     }
@@ -821,7 +868,7 @@ async function runSync() {
   }
 
   try {
-    const { success: cmdOk, fail: cmdFail } = await syncCommands(skills)
+    const { success: cmdOk, fail: cmdFail } = await syncCommands(skills, bundledSkillsDir)
     if (skills.length > 0) {
       console.log(`\n⌨️  Commands: ${cmdOk} скопійовано, ${cmdFail} з помилками`)
     }
@@ -841,7 +888,7 @@ async function runSync() {
   }
 
   try {
-    await syncAgentsMd(skills)
+    await syncAgentsMd(skills, bundledAgentsTemplatePath)
   } catch (error) {
     console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
     throw error
