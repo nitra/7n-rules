@@ -15,6 +15,8 @@ alwaysApply: false
 
 Далі — вміст маніфесту. Зайвий порожній рядок між коментарем і YAML не додавай, якщо в проєкті не прийнято інше.
 
+**Виняток — без modeline:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути (ні в першому рядку, ні далі). Перший рядок — одразу YAML (`apiVersion:` тощо). Перевірка — **`check-k8s.mjs`**.
+
 **Розширення:** усі маніфести під **`k8s`**, включно з **`kustomization.yaml`**, — лише **`.yaml`** (розширення **`.yml`** не використовуй).
 
 **Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor check docker`**.

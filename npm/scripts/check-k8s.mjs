@@ -3,6 +3,7 @@
  *
  * Перший рядок `# yaml-language-server: $schema=…`, без дублікатів, розширення `.yaml`
  * (окрім `kustomization.yaml`); URL схеми за першим документом — kustomization / yannh / datree
+ * (**виняток:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` — рядка `# yaml-language-server:` у файлі бути не має).
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
@@ -669,6 +670,18 @@ function extractApiVersionAndKind(doc) {
     apiVersion: av?.[1]?.replaceAll(/^["']|["']$/gu, ''),
     kind: k?.[1]?.replaceAll(/^["']|["']$/gu, '')
   }
+}
+
+/**
+ * Чи перший YAML-документ (до `---`) — **HttpBackendGroup** з API **alb.yc.io/v1alpha1** (Yandex ALB).
+ * Для таких файлів **check-k8s** не вимагає modeline `# yaml-language-server: $schema=…` і забороняє його.
+ * @param {string} yamlBody вміст файлу або фрагмент після modeline
+ * @returns {boolean} true, якщо `apiVersion`/`kind` першого документа збігаються з винятком
+ */
+export function k8sYamlFirstDocIsAlbYcHttpBackendGroup(yamlBody) {
+  const first = firstYamlDocument(yamlBody)
+  const { apiVersion, kind } = extractApiVersionAndKind(first)
+  return apiVersion === 'alb.yc.io/v1alpha1' && kind === 'HttpBackendGroup'
 }
 
 /**
@@ -1599,12 +1612,38 @@ async function checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel) {
     return
   }
 
-  const m = lines[0].match(MODELINE_RE)
-  if (!m) {
+  const firstLineIsModeline = MODELINE_RE.test(lines[0])
+  const bodyForFirstDoc = k8sYamlBodyForDocumentParse(lines)
+  const isAlbHttpBackendGroup = k8sYamlFirstDocIsAlbYcHttpBackendGroup(bodyForFirstDoc)
+
+  if (isAlbHttpBackendGroup) {
+    if (firstLineIsModeline) {
+      fail(
+        `${rel}: для kind HttpBackendGroup (apiVersion alb.yc.io/v1alpha1) не задавай # yaml-language-server: $schema — прибери перший рядок modeline (k8s.mdc)`
+      )
+      return
+    }
+    if (countSchemaModelines(lines) > 0) {
+      fail(
+        `${rel}: для kind HttpBackendGroup (apiVersion alb.yc.io/v1alpha1) не використовуй # yaml-language-server: $schema у файлі (k8s.mdc)`
+      )
+      return
+    }
+    const body = lines.join('\n')
+    scanIngressInYamlDocuments(rel, body, fail)
+    pass(`${rel}: HttpBackendGroup (alb.yc.io/v1alpha1) — modeline $schema не застосовується (k8s.mdc)`)
+    const kustomizeManaged = kustomizeManagedRel.has(rel)
+    validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
+    scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
+    return
+  }
+
+  if (!firstLineIsModeline) {
     fail(`${rel}: перший рядок має бути коментарем # yaml-language-server: $schema=<url> (без префіксів перед #)`)
     return
   }
 
+  const m = /** @type {RegExpMatchArray} */ (lines[0].match(MODELINE_RE))
   const schemaUrl = m[1]
   if (countSchemaModelines(lines) > 1) {
     fail(`${rel}: кілька рядків yaml-language-server $schema — лиш один modeline на файл (див. k8s.mdc)`)

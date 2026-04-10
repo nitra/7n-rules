@@ -17,6 +17,7 @@ import {
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
   serviceForbiddenGcpAnnotationsViolation,
   expectedSchemaUrl,
+  k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
   isClusterScopedKubernetesKind,
   isK8sBaseManifestYamlPath,
@@ -463,6 +464,41 @@ resources:
 
     const managed = await collectKustomizeManagedRelPaths(root, yamlAbs)
     expect(managed.has('svc/k8s/base/dep.yaml')).toBe(true)
+  })
+})
+
+describe('k8sYamlFirstDocIsAlbYcHttpBackendGroup', () => {
+  test('true для першого документа HttpBackendGroup alb.yc.io/v1alpha1', () => {
+    const y = `apiVersion: alb.yc.io/v1alpha1
+kind: HttpBackendGroup
+metadata:
+  name: be
+`
+    expect(k8sYamlFirstDocIsAlbYcHttpBackendGroup(y)).toBe(true)
+  })
+
+  test('false для Deployment', () => {
+    expect(
+      k8sYamlFirstDocIsAlbYcHttpBackendGroup(`apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: d
+`)
+    ).toBe(false)
+  })
+
+  test('false якщо HttpBackendGroup лише у другому документі', () => {
+    const y = `apiVersion: v1
+kind: Service
+metadata:
+  name: s
+---
+apiVersion: alb.yc.io/v1alpha1
+kind: HttpBackendGroup
+metadata:
+  name: be
+`
+    expect(k8sYamlFirstDocIsAlbYcHttpBackendGroup(y)).toBe(false)
   })
 })
 

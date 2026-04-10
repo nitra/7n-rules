@@ -13,6 +13,7 @@
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
  * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **Service** з тим самим **`metadata.name`**.
+ * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc** (наприклад **HttpBackendGroup** `alb.yc.io/v1alpha1` — **без** modeline).
  * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
  * (логіка вмісту — **`ruKustomizationHasHealthCheckDeletePatch`** у **check-k8s.mjs**, узгоджено з **k8s.mdc**).
  *
