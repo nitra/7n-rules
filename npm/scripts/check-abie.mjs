@@ -23,7 +23,8 @@
  *
  * **HTTPRoute (overlay):** лише якщо в каталозі пакета (батько **`k8s`**) є **`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`**
  * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
- * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
+ * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**,
+ * якщо в тому ж **`kustomization.yaml`** згадується **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura + JWT).
  * Вибір **`op`** — **k8s.mdc**.
  */
 import { existsSync } from 'node:fs'
@@ -38,6 +39,9 @@ import { flattenWorkflowSteps, getStepUses, parseWorkflowYaml } from './utils/gh
 import { walkDir } from './utils/walkDir.mjs'
 
 const CONFIG_FILE = '.n-cursor.json'
+
+/** Маркер у kustomization.yaml: якщо зустрічається у файлі — для overlay ru у patch HTTPRoute потрібна анотація gwin…websocket. */
+const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
 
 /** Очікуваний URL **`$schema`** для **hc.yaml** (abie.mdc). */
 export const ABIE_HC_SCHEMA_URL = 'https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json'
@@ -602,11 +606,12 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
  * Перевіряє сукупний текст patch(ів) **HTTPRoute** (будь-яке **target.name**) на відповідність abie.mdc.
  * @param {string} combined текст одного або кількох inline **patch**, розділених символом нового рядка
  * @param {'ua' | 'ru'} mode **ua** або **ru**
+ * @param {string} [fullKustomizationRaw] повний текст **kustomization.yaml** — для **ru** визначає, чи потрібна анотація **gwin…websocket** (лише якщо є **`HASURA_GRAPHQL_JWT_SECRET`**)
  * @returns {string | null} повідомлення про помилку або **null**
  */
-export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
+export function validateAbieNginxRunHttpRoutePatches(combined, mode, fullKustomizationRaw) {
   if (typeof combined !== 'string' || combined.trim() === '') {
-    return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — також gwin… websocket) — abie.mdc`
+    return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — gwin… websocket лише за наявності HASURA_GRAPHQL_JWT_SECRET у файлі) — abie.mdc`
   }
   if (!/path:\s*\/spec\/hostnames\b/m.test(combined)) {
     return 'HTTPRoute: потрібен path /spec/hostnames у patch (abie.mdc)'
@@ -622,8 +627,12 @@ export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
   if (!namespaceOk) {
     return `HTTPRoute: потрібен path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
   }
-  if (mode === 'ru' && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
-    return 'HTTPRoute (ru): потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
+  const ruNeedsWebsocket =
+    mode === 'ru' &&
+    typeof fullKustomizationRaw === 'string' &&
+    fullKustomizationRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)
+  if (ruNeedsWebsocket && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
+    return 'HTTPRoute (ru): за наявності HASURA_GRAPHQL_JWT_SECRET у kustomization потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
   }
   return null
 }
@@ -636,7 +645,7 @@ export function validateAbieNginxRunHttpRoutePatches(combined, mode) {
  */
 export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
   const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-  return validateAbieNginxRunHttpRoutePatches(combined, mode) === null
+  return validateAbieNginxRunHttpRoutePatches(combined, mode, raw) === null
 }
 
 /**
@@ -947,7 +956,7 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
         return
       }
       const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru')
+      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru', raw)
       if (v !== null) {
         fail(`${rel}: ${v}`)
         return

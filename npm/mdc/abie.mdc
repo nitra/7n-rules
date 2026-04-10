@@ -36,7 +36,7 @@ spec:
 
 ## k8s: overlay **HTTPRoute** (**ua** / **ru**)
 
-За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**. Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** лише якщо в **тому ж** **`ru/kustomization.yaml`** є згадка **`HASURA_GRAPHQL_JWT_SECRET`** (типово patch на **ConfigMap** Hasura). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:
@@ -66,7 +66,9 @@ spec:
         value: ru
 ```
 
-```yaml title="…/ru/kustomization.yaml (фрагмент)"
+Якщо в цьому ж файлі є **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura з JWT), додай окремий patch на **HTTPRoute** з анотацією для WebSocket:
+
+```yaml title="…/ru/kustomization.yaml (фрагмент, після patch на ConfigMap з HASURA_GRAPHQL_JWT_SECRET)"
   - target:
       kind: HTTPRoute
       name: my-httproute

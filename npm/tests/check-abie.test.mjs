@@ -236,20 +236,35 @@ patches:
       - op: replace
         path: /spec/parentRefs/0/namespace
         value: ru
+`
+
+  const RU_KUSTOMIZATION_WITH_HASURA_NO_WS = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: ConfigMap
+      name: caps-h
+    patch: |-
+      - op: replace
+        path: /data/HASURA_GRAPHQL_JWT_SECRET
+        value: '{}'
   - target:
       kind: HTTPRoute
-      name: my-httproute
+      name: edge-route
     patch: |-
-      - op: add
-        path: /metadata/annotations
+      - op: replace
+        path: /spec/hostnames
         value:
-          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
+          - "napitkivmeste.tech"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ru
 `
 
   test('getCombinedNginxRunPatchTextFromKustomization збирає patch для HTTPRoute з довільним target.name', () => {
     const joined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
     expect(joined).toContain('/spec/hostnames')
-    expect(joined).toContain('websocket')
+    expect(joined).toContain('napitkivmeste.tech')
   })
 
   test('getCombinedNginxRunPatchTextFromKustomization не збирає HTTPRoute без target.name', () => {
@@ -271,10 +286,10 @@ patches:
     const uaCombined = getCombinedNginxRunPatchTextFromKustomization(UA_KUSTOMIZATION_HTTPROUTE)
     expect(validateAbieNginxRunHttpRoutePatches(uaCombined, 'ua')).toBeNull()
     const ruCombined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
-    expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru')).toBeNull()
+    expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru', RU_KUSTOMIZATION_HTTPROUTE)).toBeNull()
   })
 
-  test('validateAbieNginxRunHttpRoutePatches — ru без websocket', () => {
+  test('validateAbieNginxRunHttpRoutePatches — ru без websocket, без HASURA у файлі — OK', () => {
     const ruOnly = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 patches:
@@ -291,7 +306,27 @@ patches:
         value: ru
 `
     const c = getCombinedNginxRunPatchTextFromKustomization(ruOnly)
-    expect(validateAbieNginxRunHttpRoutePatches(c, 'ru')).toContain('websocket')
+    expect(validateAbieNginxRunHttpRoutePatches(c, 'ru', ruOnly)).toBeNull()
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — ru з HASURA у файлі без websocket — помилка', () => {
+    const c = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_WITH_HASURA_NO_WS)
+    expect(validateAbieNginxRunHttpRoutePatches(c, 'ru', RU_KUSTOMIZATION_WITH_HASURA_NO_WS)).toContain('websocket')
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — ru з HASURA і з websocket — OK', () => {
+    const raw = `${RU_KUSTOMIZATION_WITH_HASURA_NO_WS.trimEnd()}
+  - target:
+      kind: HTTPRoute
+      name: edge-route
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
+`
+    const c = getCombinedNginxRunPatchTextFromKustomization(raw)
+    expect(validateAbieNginxRunHttpRoutePatches(c, 'ru', raw)).toBeNull()
   })
 
   test('kustomizationHasAbieNginxRunHttpRoutePatch', () => {
@@ -494,14 +529,6 @@ patches:
       - op: replace
         path: /spec/parentRefs/0/namespace
         value: ru
-  - target:
-      kind: HTTPRoute
-      name: app-route
-    patch: |-
-      - op: add
-        path: /metadata/annotations
-        value:
-          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       await writeFile(join('app/vite.config.js'), 'export default {}\n', 'utf8')
