@@ -1,5 +1,5 @@
 /**
- * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml, base preem, HTTPRoute (будь-який target.name).
+ * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -8,6 +8,9 @@ import { join } from 'node:path'
 import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
+  abieOverlayK8sTreeHasDeployment,
+  abieOverlayRequiresHttpRouteByVite,
+  abiePackageDirFromK8sOverlay,
   deploymentDocumentHasAbieBasePreemNodeSelector,
   getCombinedNginxRunPatchTextFromKustomization,
   ignoreBranchesIncludesRequired,
@@ -70,6 +73,33 @@ describe('check-abie (допоміжні функції)', () => {
     expect(isUaKustomizationPath(String.raw`x\k8s\ua\kustomization.yaml`)).toBe(true)
     expect(isUaKustomizationPath('app/k8s/base/kustomization.yaml')).toBe(false)
     expect(isUaKustomizationPath('app/k8s/ua/foo.yaml')).toBe(false)
+  })
+
+  test('abiePackageDirFromK8sOverlay — каталог пакета перед /k8s/(ua|ru)/', () => {
+    const root = '/repo'
+    expect(abiePackageDirFromK8sOverlay(root, join(root, 'app/k8s/ua/kustomization.yaml'))).toBe(join(root, 'app'))
+    expect(abiePackageDirFromK8sOverlay(root, join(root, 'app/k8s/ru/kustomization.yaml'))).toBe(join(root, 'app'))
+    expect(abiePackageDirFromK8sOverlay(root, join(root, 'app/k8s/base/kustomization.yaml'))).toBe(null)
+  })
+
+  test('abieOverlayK8sTreeHasDeployment — Deployment у дереві k8s того ж пакета', () => {
+    const root = '/r'
+    const uaK = join(root, 'pkg/k8s/ua/kustomization.yaml')
+    const dirs = new Set([join(root, 'pkg/k8s/base')])
+    expect(abieOverlayK8sTreeHasDeployment(dirs, root, uaK)).toBe(true)
+    expect(abieOverlayK8sTreeHasDeployment(new Set([join(root, 'other/k8s/base')]), root, uaK)).toBe(false)
+  })
+
+  test('abieOverlayRequiresHttpRouteByVite — лише за наявності vite.config у пакеті', async () => {
+    await withTmpCwd(async () => {
+      const root = process.cwd()
+      await ensureDir('svc/k8s/ua')
+      const uaAbs = join(root, 'svc/k8s/ua/kustomization.yaml')
+      await writeFile(uaAbs, 'kind: Kustomization\n', 'utf8')
+      expect(abieOverlayRequiresHttpRouteByVite(root, uaAbs)).toBe(false)
+      await writeFile(join(root, 'svc/vite.config.js'), 'export default {}\n', 'utf8')
+      expect(abieOverlayRequiresHttpRouteByVite(root, uaAbs)).toBe(true)
+    })
   })
 
   test('isAbieK8sBaseYamlPath — сегмент base у шляху', () => {
@@ -474,6 +504,7 @@ patches:
           gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      await writeFile(join('app/vite.config.js'), 'export default {}\n', 'utf8')
       expect(await check()).toBe(0)
     })
   })

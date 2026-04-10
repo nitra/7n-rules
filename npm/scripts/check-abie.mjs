@@ -17,11 +17,12 @@
  * **nodeSelector (base):** якщо **Deployment** лежить у шляху з сегментом **`base`** (наприклад **`…/k8s/base/deploy.yaml`**),
  * у **`spec.template.spec.nodeSelector`** має бути **`preem`** з булевим значенням **true** або рядком **`'true'`** — overlay **ua** та **ru** далі підміняють селектор.
  *
- * **nodeSelector (overlay):** якщо є **Deployment** під **k8s**, у **`ua`/`ru` kustomization** — inline patch на **`kind: Deployment`**
+ * **nodeSelector (overlay):** якщо в дереві **k8s** пакета є **Deployment**, у **`ua`/`ru` kustomization** цього пакета — inline patch на **`kind: Deployment`**
  * з **`path: /spec/template/spec/nodeSelector`**: **ua** — **`preem: false`**; **ru** — **`yandex.cloud/preemptible: false`**.
  * Узагальнені вимоги **k8s.mdc** до JSON6902 (зокрема заборона **remove** + **add** на той самий **path**) перевіряє **check-k8s.mjs**; **check-abie** — лише abie-специфічний вміст (без дублювання цього правила).
  *
- * **HTTPRoute (overlay):** тієї ж умови — patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
+ * **HTTPRoute (overlay):** лише якщо в каталозі пакета (батько **`k8s`**) є **`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`**
+ * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
  * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**.
  * Вибір **`op`** — **k8s.mdc**.
  */
@@ -64,6 +65,58 @@ export function isRuKustomizationPath(rel) {
 export function isUaKustomizationPath(rel) {
   const norm = rel.replaceAll('\\', '/')
   return /(^|\/)ua\/kustomization\.yaml$/u.test(norm)
+}
+
+/**
+ * Каталог пакета: шлях перед сегментом **`/k8s/`** для overlay **`…/k8s/(ua|ru)/kustomization.yaml`**.
+ * @param {string} root корінь репозиторію
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
+ * @returns {string | null} абсолютний шлях до каталогу пакета або null, якщо шлях не overlay ua чи ru
+ */
+export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
+  const rel = relative(root, kustomizationAbs).replaceAll('\\', '/') || kustomizationAbs
+  const m = rel.match(/^(.+)\/k8s\/(?:ua|ru)\/kustomization\.yaml$/u)
+  return m ? join(root, m[1]) : null
+}
+
+/**
+ * Чи для цього overlay застосовувати вимоги **HTTPRoute** (лише Vite-пакети).
+ * @param {string} root корінь репозиторію
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
+ * @returns {boolean} **true**, якщо поруч із **k8s** є **vite.config** (**js** / **mjs** / **ts**)
+ */
+export function abieOverlayRequiresHttpRouteByVite(root, kustomizationAbs) {
+  const pkg = abiePackageDirFromK8sOverlay(root, kustomizationAbs)
+  if (!pkg) {
+    return false
+  }
+  return (
+    existsSync(join(pkg, 'vite.config.js')) ||
+    existsSync(join(pkg, 'vite.config.mjs')) ||
+    existsSync(join(pkg, 'vite.config.ts'))
+  )
+}
+
+/**
+ * Чи в дереві **k8s** того ж пакета, що й overlay **ua** або **ru**, є **Deployment** (за каталогами з **collectDeploymentDirs**).
+ * @param {Set<string>} deploymentDirs абсолютні каталоги YAML-файлів із **Deployment**
+ * @param {string} root корінь репозиторію
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
+ * @returns {boolean} **true**, якщо хоч один каталог із **deploymentDirs** лежить під **`…/k8s/`** цього пакета
+ */
+export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizationAbs) {
+  const pkg = abiePackageDirFromK8sOverlay(root, kustomizationAbs)
+  if (!pkg) {
+    return false
+  }
+  const k8sRoot = join(pkg, 'k8s').replaceAll('\\', '/')
+  for (const dir of deploymentDirs) {
+    const norm = dir.replaceAll('\\', '/')
+    if (norm === k8sRoot || norm.startsWith(`${k8sRoot}/`)) {
+      return true
+    }
+  }
+  return false
 }
 
 /**
@@ -766,14 +819,16 @@ async function ensureRuKustomizationHealthCheckDelete(root, yamlFilesAbs, health
 }
 
 /**
- * Якщо є **Deployment** під **k8s**, вимагає в кожному overlay **ua** та **ru** (**kustomization.yaml**) JSON6902 patch nodeSelector (abie.mdc).
+ * Якщо є **Deployment** під **k8s**, вимагає в overlay **ua** та **ru** (**kustomization.yaml**) JSON6902 patch nodeSelector (abie.mdc)
+ * лише для kustomization того пакета, у дереві **k8s** якого є **Deployment**.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {Set<string>} deploymentDirs абсолютні каталоги YAML-файлів із **Deployment**
  * @param {(msg: string) => void} fail callback
  * @param {(msg: string) => void} passFn успішне повідомлення
  * @returns {Promise<void>}
  */
-async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passFn) {
+async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentDirs, fail, passFn) {
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     fail(
@@ -783,21 +838,25 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
   }
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати (${msg})`)
-      return
+    if (abieOverlayK8sTreeHasDeployment(deploymentDirs, root, abs)) {
+      let raw
+      try {
+        raw = await readFile(abs, 'utf8')
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати (${msg})`)
+        return
+      }
+      if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
+        fail(
+          `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
+        )
+        return
+      }
+      passFn(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)
+    } else {
+      passFn(`${rel}: nodeSelector patch (ua) не застосовується — немає Deployment у дереві k8s цього пакета (abie)`)
     }
-    if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
-      fail(
-        `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
-      )
-      return
-    }
-    passFn(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)
   }
 
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
@@ -809,26 +868,31 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
   }
   for (const abs of ruAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати (${msg})`)
-      return
+    if (abieOverlayK8sTreeHasDeployment(deploymentDirs, root, abs)) {
+      let raw
+      try {
+        raw = await readFile(abs, 'utf8')
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати (${msg})`)
+        return
+      }
+      if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ru')) {
+        fail(
+          `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
+        )
+        return
+      }
+      passFn(`${rel}: nodeSelector patch (ru) відповідає abie.mdc`)
+    } else {
+      passFn(`${rel}: nodeSelector patch (ru) не застосовується — немає Deployment у дереві k8s цього пакета (abie)`)
     }
-    if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ru')) {
-      fail(
-        `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
-      )
-      return
-    }
-    passFn(`${rel}: nodeSelector patch (ru) відповідає abie.mdc`)
   }
 }
 
 /**
- * Якщо є **Deployment** під **k8s**, вимагає в кожному overlay **ua** та **ru** patch **HTTPRoute** (непорожній **target.name**) за abie.mdc.
+ * Якщо є **Deployment** під **k8s**, вимагає в overlay **ua** та **ru** patch **HTTPRoute** (непорожній **target.name**) за abie.mdc
+ * лише для пакетів з **vite.config.{js,mjs,ts}** у каталозі пакета (батько **k8s**).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback
@@ -838,54 +902,60 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, fail, passF
 async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) {
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
-    fail(
-      'Є Deployment у k8s — додай ua/kustomization.yaml з patch HTTPRoute (будь-який target.name: hostnames, parentRefs namespace ua) — abie.mdc'
+    passFn(
+      'Немає ua/kustomization.yaml у дереві k8s — patch HTTPRoute (ua) не вимагається (abie.mdc, лише Vite-пакети)'
     )
-    return
   }
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати (${msg})`)
-      return
+    if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
+      let raw
+      try {
+        raw = await readFile(abs, 'utf8')
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати (${msg})`)
+        return
+      }
+      const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
+      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua')
+      if (v !== null) {
+        fail(`${rel}: ${v}`)
+        return
+      }
+      passFn(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
+    } else {
+      passFn(`${rel}: HTTPRoute patch (ua) не застосовується — немає vite.config.{js,mjs,ts} у пакеті (abie)`)
     }
-    const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-    const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua')
-    if (v !== null) {
-      fail(`${rel}: ${v}`)
-      return
-    }
-    passFn(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
   }
 
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (ruAbsList.length === 0) {
-    fail(
-      'Є Deployment у k8s — додай ru/kustomization.yaml з patch HTTPRoute (будь-який target.name: hostnames, namespace ru, gwin websocket) — abie.mdc'
+    passFn(
+      'Немає ru/kustomization.yaml у дереві k8s — patch HTTPRoute (ru) не вимагається (abie.mdc, лише Vite-пакети)'
     )
-    return
   }
   for (const abs of ruAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати (${msg})`)
-      return
+    if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
+      let raw
+      try {
+        raw = await readFile(abs, 'utf8')
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати (${msg})`)
+        return
+      }
+      const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
+      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru')
+      if (v !== null) {
+        fail(`${rel}: ${v}`)
+        return
+      }
+      passFn(`${rel}: HTTPRoute patch (ru) відповідає abie.mdc`)
+    } else {
+      passFn(`${rel}: HTTPRoute patch (ru) не застосовується — немає vite.config.{js,mjs,ts} у пакеті (abie)`)
     }
-    const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-    const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru')
-    if (v !== null) {
-      fail(`${rel}: ${v}`)
-      return
-    }
-    passFn(`${rel}: HTTPRoute patch (ru) відповідає abie.mdc`)
   }
 }
 
@@ -977,7 +1047,7 @@ export async function check() {
 
   if (deploymentDirs.size > 0) {
     pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')
-    await ensureUaRuAbieNodeSelectorPatches(root, yamlFiles, fail, pass)
+    await ensureUaRuAbieNodeSelectorPatches(root, yamlFiles, deploymentDirs, fail, pass)
     pass('Є Deployment — перевіряємо HTTPRoute у ua/ru kustomization (abie.mdc)')
     await ensureUaRuAbieHttpRoutePatches(root, yamlFiles, fail, pass)
   }

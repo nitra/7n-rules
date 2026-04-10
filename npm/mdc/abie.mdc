@@ -1,14 +1,14 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.7'
+version: '1.8'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**), видалення **HealthCheckPolicy** у **ru**), а також гілки **dev**, **ua**, **ru** у **clean-merged-branch**.
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
-**Канон перевірки** — **`npm/scripts/check-abie.mjs`**: верхній JSDoc і реалізація задають точні умови, допустимі домени для hostnames, тексти помилок. Нижче — зміст правила й орієнтовні фрагменти YAML; не дублюй тут покроковий алгоритм зі скрипта.
+**Канон перевірки** — **`npm/scripts/check-abie.mjs`** у пакеті **`@nitra/cursor`**: верхній JSDoc і реалізація задають точні умови, допустимі домени для hostnames, тексти помилок. Нижче — зміст правила й орієнтовні фрагменти YAML; не дублюй тут покроковий алгоритм зі скрипта.
 
 ## k8s: `hc.yaml` поруч із Deployment
 
@@ -36,7 +36,7 @@ spec:
 
 ## k8s: overlay **HTTPRoute** (**ua** / **ru**)
 
-За наявності **Deployment** під **k8s** у **кожному** **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**. Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**. Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:
@@ -95,7 +95,7 @@ patches:
 
 ## k8s: overlay **ua** / **ru** і nodeSelector
 
-За наявності **Deployment** під **k8s** у **кожному** **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** — patch на **`kind: Deployment`**: **ua** — **`spec.template.spec.nodeSelector`** з **`preem: false`**; **ru** — **`spec.template.spec.nodeSelector`** з **`yandex.cloud/preemptible: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
+У **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** того пакета, у дереві **`k8s`** якого є **Deployment**, потрібен patch на **`kind: Deployment`**: **ua** — **`spec.template.spec.nodeSelector`** з **`preem: false`**; **ru** — **`spec.template.spec.nodeSelector`** з **`yandex.cloud/preemptible: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
 patches:

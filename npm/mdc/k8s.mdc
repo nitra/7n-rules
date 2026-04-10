@@ -226,8 +226,6 @@ patches:
 
 **Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
-
-
 ## Коли застосовувати (агентам)
 
 - Після змін у k8s YAML: **`npx @nitra/cursor check k8s`** і за наявності правила — **`bun run lint-k8s`**.

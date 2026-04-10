@@ -735,7 +735,7 @@ function extractJson6902OpsFromArray(arr) {
  * Витягує операції JSON6902 з тексту inline **patch** або окремого файлу patch (YAML-масив або JSON-масив).
  * Інший вміст (strategic merge, `$patch: delete` тощо) дає порожній масив.
  * @param {string} patchText вміст поля **patch** або файлу
- * @returns {Array<{ op: string, path: string }>}
+ * @returns {Array<{ op: string, path: string }>} нормалізовані **op** / **path** або порожній масив, якщо не JSON6902-масив
  */
 export function collectJson6902OperationsFromPatchText(patchText) {
   const t = typeof patchText === 'string' ? patchText.trim() : ''
@@ -745,12 +745,11 @@ export function collectJson6902OperationsFromPatchText(patchText) {
   try {
     const docs = parseAllDocuments(t)
     for (const d of docs) {
-      if (d.errors.length > 0) {
-        continue
-      }
-      const j = d.toJSON()
-      if (Array.isArray(j)) {
-        return extractJson6902OpsFromArray(j)
+      if (d.errors.length === 0) {
+        const j = d.toJSON()
+        if (Array.isArray(j)) {
+          return extractJson6902OpsFromArray(j)
+        }
       }
     }
   } catch {
@@ -778,13 +777,12 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
   /** @type {Map<string, Set<string>>} */
   const byPath = new Map()
   for (const { op, path } of ops) {
-    if (!path) {
-      continue
+    if (path) {
+      if (!byPath.has(path)) {
+        byPath.set(path, new Set())
+      }
+      byPath.get(path).add(op)
     }
-    if (!byPath.has(path)) {
-      byPath.set(path, new Set())
-    }
-    byPath.get(path).add(op)
   }
   /** @type {string[]} */
   const out = []
@@ -806,93 +804,91 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
 async function validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
   for (const kustAbs of yamlFilesAbs) {
-    if (basename(kustAbs).toLowerCase() !== 'kustomization.yaml') {
-      continue
-    }
-    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-    let raw
-    try {
-      raw = await readFile(kustAbs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
-      continue
-    }
-    const lines = toLines(raw)
-    const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-    /** @type {import('yaml').Document[]} */
-    let docs
-    try {
-      docs = parseAllDocuments(body)
-    } catch {
-      continue
-    }
-    for (const doc of docs) {
-      if (doc.errors.length > 0) {
-        continue
+    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
+      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+      /** @type {string | undefined} */
+      let raw
+      let readOk = false
+      try {
+        raw = await readFile(kustAbs, 'utf8')
+        readOk = true
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
       }
-      const rootObj = doc.toJSON()
-      if (rootObj === null || typeof rootObj !== 'object' || Array.isArray(rootObj)) {
-        continue
-      }
-      const rec = /** @type {Record<string, unknown>} */ (rootObj)
-      if (rec.kind !== 'Kustomization') {
-        continue
-      }
-      const patches = rec.patches
-      if (!Array.isArray(patches)) {
-        continue
-      }
-      let patchIdx = 0
-      for (const p of patches) {
-        patchIdx++
-        if (p === null || typeof p !== 'object' || Array.isArray(p)) {
-          continue
+      if (readOk && raw !== undefined) {
+        const lines = toLines(raw)
+        const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+        /** @type {import('yaml').Document[] | null} */
+        let docs = null
+        try {
+          docs = parseAllDocuments(body)
+        } catch {
+          docs = null
         }
-        const pr = /** @type {Record<string, unknown>} */ (p)
-        if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
-          const ops = collectJson6902OperationsFromPatchText(pr.patch)
-          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-          if (bad.length > 0) {
-            fail(
-              `${rel}: patches[${patchIdx}] inline JSON6902: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
-            )
-          }
-        }
-        if (typeof pr.path === 'string' && pr.path.trim() !== '') {
-          const patchRef = pr.path.trim()
-          const resolved = resolve(dirname(kustAbs), patchRef)
-          if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
-            continue
-          }
-          if (!existsSync(resolved)) {
-            continue
-          }
-          let st
-          try {
-            st = await stat(resolved)
-          } catch {
-            continue
-          }
-          if (!st.isFile()) {
-            continue
-          }
-          let pRaw
-          try {
-            pRaw = await readFile(resolved, 'utf8')
-          } catch {
-            continue
-          }
-          const ops = collectJson6902OperationsFromPatchText(pRaw)
-          if (ops.length === 0) {
-            continue
-          }
-          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-          if (bad.length > 0) {
-            const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
-            fail(
-              `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
-            )
+        if (docs !== null) {
+          for (const doc of docs) {
+            if (doc.errors.length === 0) {
+              const rootObj = doc.toJSON()
+              if (rootObj !== null && typeof rootObj === 'object' && !Array.isArray(rootObj)) {
+                const rec = /** @type {Record<string, unknown>} */ (rootObj)
+                if (rec.kind === 'Kustomization') {
+                  const patches = rec.patches
+                  if (Array.isArray(patches)) {
+                    let patchIdx = 0
+                    for (const p of patches) {
+                      patchIdx++
+                      if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
+                        const pr = /** @type {Record<string, unknown>} */ (p)
+                        if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
+                          const ops = collectJson6902OperationsFromPatchText(pr.patch)
+                          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+                          if (bad.length > 0) {
+                            fail(
+                              `${rel}: patches[${patchIdx}] inline JSON6902: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
+                            )
+                          }
+                        }
+                        if (typeof pr.path === 'string' && pr.path.trim() !== '') {
+                          const patchRef = pr.path.trim()
+                          const resolved = resolve(dirname(kustAbs), patchRef)
+                          if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
+                            /** @type {import('node:fs').Stats | null} */
+                            let st = null
+                            try {
+                              st = await stat(resolved)
+                            } catch {
+                              st = null
+                            }
+                            if (st !== null && st.isFile()) {
+                              /** @type {string | undefined} */
+                              let pRaw
+                              try {
+                                pRaw = await readFile(resolved, 'utf8')
+                              } catch {
+                                pRaw = undefined
+                              }
+                              if (pRaw !== undefined) {
+                                const ops = collectJson6902OperationsFromPatchText(pRaw)
+                                if (ops.length > 0) {
+                                  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+                                  if (bad.length > 0) {
+                                    const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
+                                    fail(
+                                      `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
+                                    )
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
