@@ -1,0 +1,76 @@
+npm/scripts/upgrade-nitra-cursor-and-install.mjs
+  d0277ce9eec840bc 6,111
+  9b262552f250bad8 1-5,7-99,101-104,106-110,112-201
+.cursor/skills/n-fix/SKILL.md
+  9509be901d85ea68 11-17
+npm/bin/n-cursor.js
+  9b262552f250bad8 35-38,47-48,73,76-77,80,84,97,100-101,104,159,162-164,168-169,191,220,223,225,228,468,471-472,475,479,497,500-501,513,547,550-551,563,745-761,769-777,779-782,785,792,794-798,807,826,851,871,891
+npm/tests/upgrade-nitra-cursor-and-install.test.mjs
+  d0277ce9eec840bc 2
+  9b262552f250bad8 1,3-88
+npm/mdc/abie.mdc
+  e2ef1d3aaed011f9 4,7,138-141
+npm/scripts/check-abie.mjs
+  e2ef1d3aaed011f9 11-12,974-996,1013
+npm/tests/check-abie.test.mjs
+  e2ef1d3aaed011f9 2,355-374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "c09fa2319df5fe1fe45d3c61c3376e85c7b9816b",
+  "prompts": {
+    "9509be901d85ea68": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1a3eb269-52d5-41c4-9565-b932ccf1ce45",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 2,
+      "accepted_lines": 7,
+      "overriden_lines": 1
+    },
+    "9b262552f250bad8": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7a3fe9c4-528f-4080-a340-cea7833a1303",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 425,
+      "total_deletions": 88,
+      "accepted_lines": 367,
+      "overriden_lines": 2
+    },
+    "d0277ce9eec840bc": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6c0909fa-2c93-4e7b-97b3-1ef65fdbb6b9",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 3,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 101,
+      "total_deletions": 15,
+      "accepted_lines": 59,
+      "overriden_lines": 1
+    }
+  }
+}
