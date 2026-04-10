@@ -1,0 +1,73 @@
+npm/scripts/check-text.mjs
+  c20e9c40e8f91c9f 2,4-5,10,49,85-89,97-151,213-218
+npm/scripts/check-k8s.mjs
+  ee97d1f1f6e53933 50-51
+docs/programmatic-checks-for-llm.md
+  c20e9c40e8f91c9f 25,132,143,154
+.n-cursor.json
+  c20e9c40e8f91c9f 3
+npm/mdc/text.mdc
+  c20e9c40e8f91c9f 2,4,7,27-77,81-111,300
+npm/tests/check-text-fixture.test.mjs
+  c20e9c40e8f91c9f 2,23-44
+npm/mdc/style-lint.mdc
+  c20e9c40e8f91c9f 10
+npm/tests/integration-repo-checks.test.mjs
+  c20e9c40e8f91c9f 31
+npm/mdc/vue.mdc
+  c20e9c40e8f91c9f 111
+npm/.n-cursor.example.json
+  c20e9c40e8f91c9f 3
+npm/bin/n-cursor.js
+  c20e9c40e8f91c9f 207-208
+npm/mdc/k8s.mdc
+  ee97d1f1f6e53933 109-120,122-190,309
+npm/README.md
+  c20e9c40e8f91c9f 9,18,28,73,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "6fc1fd882e753a378703e04b2e5834f524165fa4",
+  "prompts": {
+    "c20e9c40e8f91c9f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b44661f8-c8ad-4b53-9dde-1ef189af39de",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 201,
+      "total_deletions": 230,
+      "accepted_lines": 200,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "ee97d1f1f6e53933": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "78f8babf-ee97-4264-a6cf-e075070dfb77",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 85,
+      "total_deletions": 1,
+      "accepted_lines": 84,
+      "overriden_lines": 1
+    }
+  }
+}
