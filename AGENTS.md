@@ -14,8 +14,6 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-ga.mdc
 
-- .cursor/rules/n-js-format.mdc
-
 - .cursor/rules/n-js-lint.mdc
 
 - .cursor/rules/n-npm-module.mdc

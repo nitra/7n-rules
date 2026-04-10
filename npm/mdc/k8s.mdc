@@ -106,6 +106,88 @@ resources: {}
 
 Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег із константи **`HASURA_GRAPHQL_ENGINE_IMAGE`** у **`check-k8s.mjs`** (допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
 
+### HTTPRoute для Deployment з `hasura/graphql-engine`
+
+Якщо для такого **Deployment** описано **`HTTPRoute`**, **`spec.rules`** мають відповідати канону нижче: редірект **`/ql`** та **`/ql/`** на **`/ql/console`** (**`302`**), правило з **`PathPrefix` `/ql`**, **`URLRewrite`** префікса на **`/`**, окреме правило для **WebSocket** (**`Upgrade: websocket`**) з **`RequestHeaderModifier`** (прибрати **`Authorization`** — авторизація для WebSocket іде всередині messages), далі **`PathPrefix` `/`** на той самий backend.
+
+**`parentRefs`**, **`hostnames`**, **`metadata.namespace`** / **`name`** підлаштуй під середовище. У **`backendRefs.name`** вказуй **headless** **Service** з суфіксом **`-hl`** (див. розділ **«Service: `svc.yaml` і `svc-hl.yaml`»**); у прикладі **`db-h-hl`** заміни на фактичне ім’я.
+
+```yaml
+# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: HTTPRoute
+metadata:
+  name: db-h
+  namespace: dev
+spec:
+  parentRefs:
+    - name: gw
+      namespace: dev
+      sectionName: https
+  hostnames:
+    - abie.cloud
+  rules:
+    - matches:
+        - path:
+            type: Exact
+            value: /ql
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /ql/console
+            statusCode: 302
+    - matches:
+        - path:
+            type: Exact
+            value: /ql/
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path:
+              type: ReplaceFullPath
+              replaceFullPath: /ql/console
+            statusCode: 302
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /ql
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: db-h-hl
+          port: 8080
+    # У WebSocket авторизація йде всередині messages
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+          headers:
+            - type: Exact
+              name: Upgrade
+              value: websocket
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove:
+              - Authorization
+      backendRefs:
+        - name: db-h-hl
+          port: 8080
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: db-h-hl
+          port: 8080
+```
+
 ## Service: заборонені анотації GKE
 
 У **`kind: Service`** не додавай у **`metadata.annotations`** **`cloud.google.com/neg`** і **`cloud.google.com/backend-config`** (legacy під Ingress / старе балансування GKE). **check k8s** падає, якщо ключ є.
@@ -224,7 +306,7 @@ patches:
 
 **`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.
 
-**Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
+**Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), повна структура **`HTTPRoute`** для **Hasura** (канон — у розділі про **`hasura/graphql-engine`**), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
 ## Коли застосовувати (агентам)
 

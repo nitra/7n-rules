@@ -1,10 +1,10 @@
 ---
-description: Обробка та перевірка текстових файлів (cspell, markdownlint-cli2, v8r, CI)
+description: Обробка та перевірка текстових файлів, oxfmt, cspell, markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.24'
+version: '1.25'
 ---
 
-**cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
+**oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
 
 ```json title=".vscode/extensions.json"
 {
@@ -24,9 +24,91 @@ version: '1.24'
   "files.associations": {
     "*.env.*": "env",
     "*.env": "env"
-  }
+  },
+  "editor.formatOnSave": true,
+  "[css]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[graphql]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[handlebars]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[html]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[json5]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[less]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[mdx]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[scss]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[vue]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[yaml]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt"
 }
 ```
+
+У корені проєкту має бути файл з правилами форматування для **oxfmt**:
+
+```json title=".oxfmtrc.json"
+{
+  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql"],
+  "arrowParens": "avoid",
+  "printWidth": 120,
+  "bracketSpacing": true,
+  "bracketSameLine": true,
+  "embeddedLanguageFormatting": "auto",
+  "endOfLine": "lf",
+  "htmlWhitespaceSensitivity": "css",
+  "insertPragma": false,
+  "jsxSingleQuote": true,
+  "proseWrap": "preserve",
+  "quoteProps": "as-needed",
+  "requirePragma": false,
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "trailingComma": "none",
+  "useTabs": false,
+  "vueIndentScriptAndStyle": false
+}
+```
+
+Поле **`ignorePatterns`** додавай за потреби (наприклад згенеровані каталоги); якщо виключень немає — ключ можна опустити.
+
+Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього.
+
+Завжди пиши **JSDoc** до функцій та методів.
 
 **`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`**. Для української додай **`@cspell/dict-uk-ua`**. **`markdownlint-cli2`** викликай у `lint-text` лише через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bunx v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
@@ -215,4 +297,4 @@ jobs:
 
 ## Перевірка
 
-`npx @nitra/cursor check text`
+`npx @nitra/cursor check text` (охоплює oxfmt, cspell, markdownlint, v8r, CI для `lint-text`)

@@ -204,8 +204,8 @@ async function readConfig(paths = {}) {
 
 /**
  * Витягує чисте ім'я файлу правила (без шляху, але зберігає .mdc)
- * "npm/mdc/js-format.mdc" → "js-format.mdc"
- * "js-format"              → "js-format.mdc"
+ * "npm/mdc/text.mdc" → "text.mdc"
+ * "text"             → "text.mdc"
  * @param {string} ruleName шлях або базове ім'я, з суфіксом .mdc або без
  * @returns {string} лише ім'я файлу з суфіксом .mdc
  */

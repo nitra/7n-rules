@@ -8,13 +8,7 @@ description: >-
 
 ## Workflow
 
-**Завжди спочатку** виконай синхронізацію пакета з проєктом (оновлення `.n-cursor.json`, правил, `CLAUDE.md`, skills/commands тощо), **лише потім** інші кроки:
-
-```bash
-npx @nitra/cursor
-```
-
-1. **Діагностика** — після синхронізації запусти перевірку (за замовчуванням лише правила з `AGENTS.md`, для яких є `check-*.mjs`; повний набір — явні аргументи: `npx @nitra/cursor check bun ga …`):
+1. **Діагностика** — запусти перевірку (за замовчуванням лише правила з `AGENTS.md`, для яких є `check-*.mjs`; повний набір — явні аргументи: `npx @nitra/cursor check bun ga …`):
 
 ```bash
 npx @nitra/cursor check

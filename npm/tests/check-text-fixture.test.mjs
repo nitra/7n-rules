@@ -1,5 +1,5 @@
 /**
- * Мінімальний тестовий каталог для check-text (cspell, markdownlint-cli2 через bunx у lint-text, v8r).
+ * Мінімальний тестовий каталог для check-text (oxfmt, cspell, markdownlint-cli2 через bunx у lint-text, v8r).
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -20,7 +20,28 @@ describe('check-text (мінімальний проєкт)', () => {
       )
       await ensureDir('.vscode')
       await writeJson('.vscode/extensions.json', {
-        recommendations: ['DavidAnson.vscode-markdownlint']
+        recommendations: ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode']
+      })
+      const oxfmtBlock = Object.fromEntries(
+        ['css', 'html', 'javascript', 'json', 'typescript', 'vue'].map(lang => [
+          `[${lang}]`,
+          { 'editor.defaultFormatter': 'oxc.oxc-vscode' }
+        ])
+      )
+      await writeJson('.vscode/settings.json', {
+        'editor.formatOnSave': true,
+        ...oxfmtBlock
+      })
+      await writeJson('.oxfmtrc.json', {
+        arrowParens: 'avoid',
+        printWidth: 120,
+        bracketSpacing: true,
+        bracketSameLine: true,
+        semi: false,
+        singleQuote: true,
+        tabWidth: 2,
+        trailingComma: 'none',
+        useTabs: false
       })
       await writeJson('.markdownlint-cli2.jsonc', {
         gitignore: true,

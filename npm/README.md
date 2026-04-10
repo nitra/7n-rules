@@ -6,7 +6,7 @@
 
 Репозиторій `@nitra/cursor` містить cursor-правила у директорії `mdc/`. CLI копіює обрані правила з **каталогу `mdc/` того пакету, з якого виконується `bin/n-cursor.js`**: після `npm i` / `bun add` це зазвичай `node_modules/@nitra/cursor/mdc`; при **`npx @nitra/cursor`** пакет потрапляє в **кеш npx/npm**, і правила читаються з тієї розпакованої копії (у корені проєкту залежність не обов’язкова). Жодних окремих HTTP-запитів до CDN для файлів правил немає — лише те, що вже є в tarball пакету.
 
-Наприклад, правило `mdc/js-format.mdc` буде збережено як `.cursor/rules/n-js-format.mdc`.
+Наприклад, правило `mdc/text.mdc` буде збережено як `.cursor/rules/n-text.mdc`.
 
 ## Підготовка
 
@@ -15,19 +15,18 @@
 ```json
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "rules": ["js-format", "npm-module", "text"],
+  "rules": ["npm-module", "text"],
   "skills": ["fix"]
 }
 ```
 
 Доступні правила:
 
-| Назва        | Опис                                              |
-| ------------ | ------------------------------------------------- |
-| `js-format`  | Правила форматування JavaScript ecosystem (oxfmt) |
-| `npm-module` | Структура репозиторію для npm-модуля (bun mono)   |
-| `text`       | Текстові файли: cspell, CI                        |
-| `k8s`        | Kubernetes YAML, Kustomize, kubeconform           |
+| Назва        | Опис                                            |
+| ------------ | ----------------------------------------------- |
+| `npm-module` | Структура репозиторію для npm-модуля (bun mono) |
+| `text`       | Текст, oxfmt, cspell, markdownlint, v8r, CI     |
+| `k8s`        | Kubernetes YAML, Kustomize, kubeconform         |
 
 Щоб використовувати конкретну версію правил, оновіть залежність `@nitra/cursor` у проєкті (`bun add -d @nitra/cursor@<версія>` тощо). Поле `version` у `.n-cursor.json`, якщо воно лишилось у старих конфігах, **ігнорується**.
 
@@ -71,13 +70,12 @@ CLI автоматично (команда завантаження правил
 ```
 🔧 @nitra/cursor — завантаження cursor-правил
 
-📋 Правил до завантаження: 3
-  ⬇  js-format → .cursor/rules/n-js-format.mdc ... ✅
+📋 Правил до завантаження: 2
   ⬇  npm-module → .cursor/rules/n-npm-module.mdc ... ✅
   ⬇  text → .cursor/rules/n-text.mdc ... ✅
 📝 Оновлено AGENTS.md з AGENTS.template.md
 
-✨ Готово: 3 завантажено, 0 з помилками
+✨ Готово: 2 завантажено, 0 з помилками
 ```
 
 ## Структура пакету
@@ -86,7 +84,6 @@ CLI автоматично (команда завантаження правил
 npm/
 ├── AGENTS.template.md   # шаблон AGENTS.md для цільових репозиторіїв (потрапляє в npm-архів)
 ├── mdc/                 # cursor-правила (без префікса n-; після синку — .cursor/rules/n-<id>.mdc)
-│   ├── js-format.mdc
 │   ├── npm-module.mdc
 │   └── text.mdc
 ├── skills/              # skills (каталоги <id>/; після синку — .cursor/skills/n-<id>/)

@@ -108,7 +108,7 @@ const additionalInstructions = `
 
 ### Інструменти (узгоджено з Vite і цим правилом)
 
-- Якість коду: **ESLint** + **eslint-plugin-vue**; форматування — **oxfmt**, див. `js-format.mdc`.
+- Якість коду: **ESLint** + **eslint-plugin-vue**; форматування — **oxfmt**, див. `text.mdc`.
 - Збірка та dev-сервер — **Vite**
 - **Vue Devtools** для дебагу; продакшен-збірка — **`vite build`**, оптимізація асетів і кешування на рівні деплою / CDN.
 

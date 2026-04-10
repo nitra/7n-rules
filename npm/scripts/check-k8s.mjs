@@ -47,6 +47,8 @@
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
+ *
+ * Структура **`HTTPRoute`** для **Deployment** з образом **`hasura/graphql-engine`** (редиректи **`/ql`**, **WebSocket**, **`URLRewrite`**) — лише в **k8s.mdc**, автоматично не звіряється.
  */
 import { existsSync } from 'node:fs'
 import { readFile, stat, unlink } from 'node:fs/promises'

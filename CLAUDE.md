@@ -2,7 +2,6 @@
 
 @.cursor/rules/n-bun.mdc
 @.cursor/rules/n-ga.mdc
-@.cursor/rules/n-js-format.mdc
 @.cursor/rules/n-js-lint.mdc
 @.cursor/rules/n-npm-module.mdc
 @.cursor/rules/n-text.mdc

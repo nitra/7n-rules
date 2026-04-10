@@ -1,10 +1,13 @@
 /**
- * Перевіряє текстовий стек за правилом text.mdc.
+ * Перевіряє текстовий стек і форматування за правилом text.mdc.
+ *
+ * oxfmt: `.oxfmtrc.json` з обовʼязковими ключами, VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
+ * відсутність Prettier у конфігах і залежностях.
  *
  * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json), заборона
  * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
- * workflow `lint-text.yml`, розширення VSCode для markdownlint.
+ * workflow `lint-text.yml`, розширення VSCode (markdownlint, oxc).
  *
  * Якщо є `.cursor/rules/n-text.mdc` і/або `npm/mdc/text.mdc` — перевіряє наявність абзацу про український
  * апостроф (U+0027 vs U+2019) і приклад з символом U+2019 у тексті.
@@ -43,7 +46,7 @@ function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам text.mdc (cspell, markdownlint через bunx, v8r)
+ * Перевіряє відповідність проєкту правилам text.mdc (oxfmt, cspell, markdownlint через bunx, v8r)
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
@@ -79,11 +82,73 @@ export async function check() {
       } else {
         fail('extensions.json: додай "DavidAnson.vscode-markdownlint" у recommendations (див. n-text.mdc)')
       }
+      if (Array.isArray(rec) && rec.includes('oxc.oxc-vscode')) {
+        pass('extensions.json містить oxc.oxc-vscode')
+      } else {
+        fail('extensions.json: додай "oxc.oxc-vscode" у recommendations (див. n-text.mdc)')
+      }
     } catch {
       fail('.vscode/extensions.json — невалідний JSON')
     }
   } else {
     fail('.vscode/extensions.json не існує — створи з recommendations згідно n-text.mdc')
+  }
+
+  if (existsSync('.vscode/settings.json')) {
+    try {
+      const settings = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
+      if (settings['editor.formatOnSave'] === true) {
+        pass('settings.json: editor.formatOnSave увімкнено')
+      } else {
+        fail('settings.json: editor.formatOnSave має бути true')
+      }
+      const fmtTypes = ['javascript', 'typescript', 'json', 'vue', 'css', 'html']
+      for (const t of fmtTypes) {
+        const key = `[${t}]`
+        if (settings[key]?.['editor.defaultFormatter'] === 'oxc.oxc-vscode') {
+          pass(`settings.json: ${key} використовує oxc.oxc-vscode`)
+        } else {
+          fail(`settings.json: ${key} має використовувати oxc.oxc-vscode як defaultFormatter`)
+        }
+      }
+    } catch {
+      fail('.vscode/settings.json — невалідний JSON')
+    }
+  } else {
+    fail('.vscode/settings.json не існує — створи згідно n-text.mdc')
+  }
+
+  const expectedOxfmtKeys = [
+    'arrowParens',
+    'printWidth',
+    'bracketSpacing',
+    'bracketSameLine',
+    'semi',
+    'singleQuote',
+    'tabWidth',
+    'trailingComma',
+    'useTabs'
+  ]
+  if (existsSync('.oxfmtrc.json')) {
+    const cfg = JSON.parse(await readFile('.oxfmtrc.json', 'utf8'))
+    const missing = expectedOxfmtKeys.filter(k => !(k in cfg))
+    if (missing.length === 0) {
+      pass('.oxfmtrc.json містить всі обовʼязкові ключі')
+    } else {
+      fail(`.oxfmtrc.json відсутні ключі: ${missing.join(', ')}`)
+    }
+    if (cfg.semi !== false) fail('.oxfmtrc.json: semi має бути false')
+    if (cfg.singleQuote !== true) fail('.oxfmtrc.json: singleQuote має бути true')
+    if (cfg.tabWidth !== 2) fail('.oxfmtrc.json: tabWidth має бути 2')
+    if (cfg.useTabs !== false) fail('.oxfmtrc.json: useTabs має бути false')
+    if (cfg.printWidth !== 120) fail('.oxfmtrc.json: printWidth має бути 120')
+  } else {
+    fail('.oxfmtrc.json не існує — створи його')
+  }
+
+  const prettierFiles = ['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', '.prettierrc.yml']
+  for (const f of prettierFiles) {
+    if (existsSync(f)) fail(`Знайдено конфіг prettier: ${f} — видали його`)
   }
 
   if (existsSync('.markdownlint-cli2.jsonc')) {
@@ -145,6 +210,12 @@ export async function check() {
 
   if (existsSync('package.json')) {
     const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+    const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
+    for (const dep of ['prettier', '@nitra/prettier-config']) {
+      if (allDeps[dep]) fail(`package.json містить залежність ${dep} — видали її`)
+    }
+    if (pkg.prettier) fail('package.json містить поле "prettier" — видали його')
+
     const devDeps = pkg.devDependencies || {}
 
     if (devDeps['@nitra/cspell-dict']) {
