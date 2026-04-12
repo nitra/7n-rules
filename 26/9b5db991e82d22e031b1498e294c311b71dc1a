@@ -1,0 +1,69 @@
+npm/types/bin/n-cursor.d.ts
+  85590cdd33c7581d 2
+npm/tests/check-k8s-schema.test.mjs
+  85590cdd33c7581d 83-85
+npm/.n-cursor.example.json
+  de0273f047f334e9 4
+npm/scripts/check-abie.mjs
+  85590cdd33c7581d 546,563,585-600,612,621-626,628-649,660,1074-1075
+npm/README.md
+  de0273f047f334e9 19
+npm/scripts/check-npm-module.mjs
+  85590cdd33c7581d 36,54,69-70,88-89,98,131-132
+.n-cursor.json
+  de0273f047f334e9 4
+npm/skills/lint/SKILL.md
+  de0273f047f334e9 1-42
+npm/package.json
+  de0273f047f334e9 3
+.cursor/skills/n-lint/SKILL.md
+  de0273f047f334e9 1-42
+.cspell.json
+  85590cdd33c7581d 11,25-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "269b5db991e82d22e031b1498e294c311b71dc1a",
+  "prompts": {
+    "85590cdd33c7581d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c76c04a-14e5-415e-b45f-cf9f3c644e54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 190,
+      "total_deletions": 102,
+      "accepted_lines": 164,
+      "overriden_lines": 0
+    },
+    "de0273f047f334e9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a996b4e4-db64-4fb4-a34f-41892d5f3574",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 90,
+      "total_deletions": 4,
+      "accepted_lines": 88,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
