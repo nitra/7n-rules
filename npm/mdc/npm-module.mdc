@@ -1,10 +1,45 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.3'
+version: '1.7'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
+
+## TypeScript declaration (`npm/types`)
+
+Файл **`npm/package.json`** має містити **`"types"`** (шлях до головного `.d.ts` або `.d.mts` під **`./types/…`**) і запис **`"types"`** у **`files`**, щоб npm публікував декларації.
+
+Генерація — через **`tsc`** і **`bunx -p typescript`** (окремий пакет **`typescript`** у `devDependencies` не потрібен).
+
+### Варіант A: є вихідний **`.js`** під **`npm/src/`**
+
+Якщо під **`npm/src`** (рекурсивно) є хоча б один файл **`.js`**:
+
+- **`"types": "./types/index.d.ts"`**;
+- у **hk** на **`pre-commit`** з каталогу **`npm/`** викликай:
+
+```bash
+bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly --outDir types --skipLibCheck
+```
+
+Якщо glob не розгортається — **`bash -O globstar`** або **`include`** у **`tsconfig`** з тими самими **`compilerOptions`**.
+
+### Варіант B: немає **`npm/src/**/*.js`** (наприклад лише **`bin/`**, **`scripts/**/*.mjs`**)
+
+Не створюй штучний **`src/index.js`**. Замість цього:
+
+1. Додай **`npm/tsconfig.emit-types.json`** з **`include`** на реальні шляхи (`.js` / `.mjs`), **`compilerOptions`**: **`allowJs`**, **`declaration`**, **`emitDeclarationOnly`**, **`outDir`: `"types"`**, **`skipLibCheck`**: **`true`** (за потреби **`rootDir`**, **`module`**, **`moduleResolution`**).
+2. Після першого **`tsc`** подивись, який **`.d.ts`** / **`.d.mts`** відповідає публічному API, і вкажи його в **`types`** (наприклад **`./types/bin/cli.d.ts`**).
+3. У **hk** на **`pre-commit`** з **`npm/`** викликай **`tsc -p tsconfig.emit-types.json`**. Якщо через імпорти **TypeScript** все одно згенерує зайві **`.d.mts`** у **`types/`**, після **`tsc`** обрізай дерево до потрібного entrypoint (наприклад залиш лише **`types/bin/n-cursor.d.ts`** через **`find`**), щоб у пакеті не збирались декларації внутрішніх модулів.
+
+Файл **`tsconfig.emit-types.json`** тримай у репозиторії для **hk** / локальної генерації; у **`files`** його не додавай, якщо не хочеш публікувати його на **npm**.
+
+## Git hooks: hk + pre-commit
+
+У корені репозиторію — **`hk.pkl`** (або **`.config/hk.pkl`**) з **`["pre-commit"]`** і командою з відповідного варіанту (A або B) вище.
+
+Після додавання **`hk.pkl`**: **`hk install`**.
 
 ## Build версія
 

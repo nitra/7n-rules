@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "outDir": "types",
+    "rootDir": ".",
+    "skipLibCheck": true,
+    "target": "ESNext"
+  },
+  "include": ["bin/n-cursor.js"],
+  "exclude": ["**/node_modules/**", "**/tests/**", "types/**"]
+}

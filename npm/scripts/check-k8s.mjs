@@ -34,6 +34,7 @@
  * кожен **Service** — **`spec.clusterIP: None`** та ім’я на **`-hl`**. У маршрутах **Gateway API**
  * (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**, група **`gateway.networking.k8s.io`**)
  * посилання **`backendRefs` / `backendRef`** на **Service** мають вказувати лише сервіси з суфіксом **`-hl`** у **`name`**.
+ * **HealthCheckPolicy** (**`networking.gke.io/v1`**, GKE): **`spec.targetRef`** на **Service** — **`name`** з суфіксом **`-hl`** (див. k8s.mdc).
  * Якщо **`kustomization.yaml`** посилається на **`svc.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**,
  * **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** файлі має бути посилання на відповідний **`svc-hl.yaml`**
  * в **тому ж каталозі**, що й **`svc.yaml`** (логіка збігається з **`pathsFromKustomizationObject`**).
@@ -1147,6 +1148,37 @@ export function serviceSvcHlYamlHeadlessViolation(manifest) {
 }
 
 /**
+ * Чи **HealthCheckPolicy** (GKE) у **`spec.targetRef`** посилається на headless **Service** (суфікс **`-hl`**).
+ *
+ * Застосовується лише для **`apiVersion: networking.gke.io/v1`** і **`targetRef.kind: Service`** (або без **`kind`**).
+ * Інші **`targetRef.kind`** скрипт не оцінює.
+ *
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null
+ */
+export function healthCheckPolicyTargetRefHeadlessServiceViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'HealthCheckPolicy') return null
+  if (rec.apiVersion !== 'networking.gke.io/v1') return null
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const targetRef = /** @type {Record<string, unknown>} */ (spec).targetRef
+  if (targetRef === null || targetRef === undefined || typeof targetRef !== 'object' || Array.isArray(targetRef)) {
+    return 'HealthCheckPolicy: потрібний spec.targetRef (див. k8s.mdc)'
+  }
+  const tr = /** @type {Record<string, unknown>} */ (targetRef)
+  const k = tr.kind
+  if (typeof k === 'string' && k !== '' && k !== 'Service') return null
+  const n = tr.name
+  if (typeof n !== 'string' || !n.endsWith(SVC_HL_NAME_SUFFIX)) {
+    return `HealthCheckPolicy: spec.targetRef.name має бути headless Service (суфікс «${SVC_HL_NAME_SUFFIX}»; див. k8s.mdc)`
+  }
+  return null
+}
+
+/**
  * Чи об’єкт схожий на **backendRef** до **Kubernetes Service** у Gateway API.
  *
  * Вимагає числовий **`port`**, щоб не плутати з **`HTTPHeaderMatch`** тощо (там теж є **`name`**, але без **`port`**).
@@ -1436,7 +1468,7 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
 /**
  * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **Hasura image pin**,
  * **Service — заборонені GKE-анотації**, **`svc.yaml`** (**`spec.type: ClusterIP`**), **`svc-hl.yaml`**
- * (**headless**, суфікс **`-hl`** у **`metadata.name`**).
+ * (**headless**, суфікс **`-hl`** у **`metadata.name`**), **HealthCheckPolicy** (**`targetRef.name`** з **`-hl`**).
  * @param {string} rel відносний шлях
  * @param {string} baseLower basename файлу (нижній регістр)
  * @param {string} body вміст після modeline
@@ -1503,6 +1535,10 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
         if (svcH !== null) {
           fail(`${rel}: Service (документ ${di + 1}): ${svcH}`)
         }
+      }
+      const hcpHl = healthCheckPolicyTargetRefHeadlessServiceViolation(obj)
+      if (hcpHl !== null) {
+        fail(`${rel}: документ ${di + 1}: ${hcpHl}`)
       }
     }
   }

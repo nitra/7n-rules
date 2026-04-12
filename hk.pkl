@@ -1,0 +1,21 @@
+amends "package://github.com/jdx/hk/releases/download/v1.42.0/hk@1.42.0#/Config.pkl"
+
+local linters = new Mapping<String, Step> {
+    ["npm-tsc-types"] {
+        glob = List(
+            "npm/tsconfig.emit-types.json",
+            "npm/bin/n-cursor.js",
+            "npm/types/bin/n-cursor.d.ts"
+        )
+        check_first = false
+        fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-cursor.d.ts' -delete && find types -depth -type d -empty -delete"
+    }
+}
+
+hooks {
+    ["pre-commit"] {
+        fix = true
+        stash = "git"
+        steps = linters
+    }
+}

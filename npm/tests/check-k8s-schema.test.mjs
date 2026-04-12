@@ -13,10 +13,9 @@ import {
   collectKustomizeManagedRelPaths,
   deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
-  HASURA_GRAPHQL_ENGINE_IMAGE,
-  SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
-  serviceForbiddenGcpAnnotationsViolation,
   expectedSchemaUrl,
+  HASURA_GRAPHQL_ENGINE_IMAGE,
+  healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
   isClusterScopedKubernetesKind,
@@ -26,6 +25,8 @@ import {
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
   ruKustomizationHasHealthCheckDeletePatch,
+  SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
+  serviceForbiddenGcpAnnotationsViolation,
   collectGatewayApiRouteBackendServiceNames,
   collectJson6902OperationsFromPatchText,
   json6902PathsWithRemoveAndAddOnSamePath,
@@ -74,6 +75,51 @@ metadata:
 
   test('none без BackendConfig', () => {
     expect(classifyBackendConfigManifestPresence('apiVersion: v1\nkind: Service\nmetadata:\n  name: s\n')).toBe('none')
+  })
+})
+
+describe('healthCheckPolicyTargetRefHeadlessServiceViolation', () => {
+  test('null для не-HealthCheckPolicy', () => {
+    expect(healthCheckPolicyTargetRefHeadlessServiceViolation({ kind: 'Service', metadata: { name: 'x-hl' } })).toBeNull()
+  })
+
+  test('null для іншого apiVersion', () => {
+    expect(
+      healthCheckPolicyTargetRefHeadlessServiceViolation({
+        apiVersion: 'networking.gke.io/v1beta1',
+        kind: 'HealthCheckPolicy',
+        spec: { targetRef: { kind: 'Service', name: 'x' } }
+      })
+    ).toBeNull()
+  })
+
+  test('помилка, коли targetRef.name без суфікса -hl', () => {
+    const v = healthCheckPolicyTargetRefHeadlessServiceViolation({
+      apiVersion: 'networking.gke.io/v1',
+      kind: 'HealthCheckPolicy',
+      spec: { targetRef: { kind: 'Service', name: 'app' } }
+    })
+    expect(v).toContain('-hl')
+  })
+
+  test('null для коректного headless імені', () => {
+    expect(
+      healthCheckPolicyTargetRefHeadlessServiceViolation({
+        apiVersion: 'networking.gke.io/v1',
+        kind: 'HealthCheckPolicy',
+        spec: { targetRef: { kind: 'Service', name: 'app-hl' } }
+      })
+    ).toBeNull()
+  })
+
+  test('null, коли targetRef.kind не Service', () => {
+    expect(
+      healthCheckPolicyTargetRefHeadlessServiceViolation({
+        apiVersion: 'networking.gke.io/v1',
+        kind: 'HealthCheckPolicy',
+        spec: { targetRef: { kind: 'Pod', name: 'x' } }
+      })
+    ).toBeNull()
   })
 })
 
