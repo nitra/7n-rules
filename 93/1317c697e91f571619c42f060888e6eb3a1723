@@ -1,0 +1,59 @@
+npm/scripts/utils/graphql-gql-scan.mjs
+  7138e6317f6995ad 1-115
+npm/package.json
+  7138e6317f6995ad 3
+npm/mdc/graphql.mdc
+  7138e6317f6995ad 2,4,6-33
+npm/tests/check-graphql.test.mjs
+  7138e6317f6995ad 1-32
+npm/scripts/check-graphql.mjs
+  7138e6317f6995ad 1-97
+npm/tests/integration-repo-checks.test.mjs
+  7138e6317f6995ad 12,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "931317c697e91f571619c42f060888e6eb3a1723",
+  "prompts": {
+    "7138e6317f6995ad": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8ceec7f2-23b4-468c-808c-6606d9da276d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 313,
+      "total_deletions": 2,
+      "accepted_lines": 277,
+      "overriden_lines": 1
+    },
+    "85590cdd33c7581d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c76c04a-14e5-415e-b45f-cf9f3c644e54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
