@@ -9,6 +9,7 @@ import { check as checkAbie } from '../scripts/check-abie.mjs'
 import { check as checkBun } from '../scripts/check-bun.mjs'
 import { check as checkDocker } from '../scripts/check-docker.mjs'
 import { check as checkGa } from '../scripts/check-ga.mjs'
+import { check as checkGraphql } from '../scripts/check-graphql.mjs'
 import { check as checkJsLint } from '../scripts/check-js-lint.mjs'
 import { check as checkText } from '../scripts/check-text.mjs'
 import { check as checkJsPino } from '../scripts/check-js-pino.mjs'
@@ -27,6 +28,7 @@ describe('check-* на реальному репозиторії', () => {
       expect(await checkAbie()).toBe(0)
       expect(await checkBun()).toBe(0)
       expect(await checkGa()).toBe(0)
+      expect(await checkGraphql()).toBe(0)
       expect(await checkJsLint()).toBe(0)
       expect(await checkText()).toBe(0)
       expect(await checkNpmModule()).toBe(0)

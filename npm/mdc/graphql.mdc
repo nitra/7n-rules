@@ -1,0 +1,33 @@
+---
+description: GraphQL у коді (tagged template `gql`) — GraphQL Config і розширення VS Code
+alwaysApply: true
+version: '1.0'
+---
+
+Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)), а в **`.vscode/extensions.json`** у масиві **`recommendations`** — запис **`graphql.vscode-graphql`**, щоб підсвітка, навігація до схеми й діагностика працювали в редакторі.
+
+Деталі виявлення `gql` у скриптах (у т.ч. лише `<script>` у SFC) — **`npm/scripts/check-graphql.mjs`** / **`npm/scripts/utils/graphql-gql-scan.mjs`**.
+
+## `.graphqlrc.yml`
+
+Підстав свої шляхи до схеми та до файлів з операціями; приклад орієнтиру:
+
+```yaml title=".graphqlrc.yml"
+schema: schema.graphql
+documents:
+  - '**/*.{vue,js,ts,tsx}'
+```
+
+## `.vscode/extensions.json`
+
+Додай **`graphql.vscode-graphql`** до наявного списку **`recommendations`** (не замінюй інші записи):
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["graphql.vscode-graphql"]
+}
+```
+
+## Перевірка
+
+`npx @nitra/cursor check graphql`
