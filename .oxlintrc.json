@@ -1,8 +1,10 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["unicorn", "oxc", "import", "jsdoc", "promise", "node"],
+  "jsPlugins": ["@e18e/eslint-plugin"],
   "categories": {},
   "rules": {
+    "e18e/prefer-includes": "error",
     "array-callback-return": "deny",
     "no-new-wrappers": "deny",
     "import/no-named-as-default": "deny",

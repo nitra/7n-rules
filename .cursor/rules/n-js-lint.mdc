@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.11'
+version: '1.13'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. Достатньо **`@nitra/eslint-config`** у devDependencies; пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
+**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.5.0`** (з ним транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -22,10 +22,21 @@ version: '1.11'
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.4.0"
+    "@nitra/eslint-config": "^3.5.0"
   },
   "engines": {
     "node": ">=24"
+  }
+}
+```
+
+У корені має бути **`.oxlintrc.json`** з підключенням **`@e18e/eslint-plugin`** через **`jsPlugins`** і правилом **`e18e/prefer-includes`** зі значенням **`error`**. Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.5.0**), oxlint резолвить його з **`node_modules`**.
+
+```json title=".oxlintrc.json (фрагмент)"
+{
+  "jsPlugins": ["@e18e/eslint-plugin"],
+  "rules": {
+    "e18e/prefer-includes": "error"
   }
 }
 ```

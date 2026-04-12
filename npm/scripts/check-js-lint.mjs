@@ -2,9 +2,10 @@
  * Перевіряє лінт JavaScript за правилом js-lint.mdc.
  *
  * Канонічний `lint-js`, flat ESLint з getConfig і ignore для auto-imports, рекомендації VSCode,
- * `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow `lint-js.yml` (checkout@v6,
- * setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24. Дубль перевірки JS у `lint.yml` —
- * заборонено.
+ * `.oxlintrc.json` з `jsPlugins` (`@e18e/eslint-plugin`) і правилом `e18e/prefer-includes: error`,
+ * `@nitra/eslint-config` у devDependencies мінімум **3.5.0** (транзитивний `@e18e/eslint-plugin` для oxlint), `.jscpd.json`
+ * (gitignore, exitCode, reporters, minLines), workflow `lint-js.yml` (checkout@v6, setup-bun-deps,
+ * bunx без --fix), без prettier, `engines.node` >= 24. Дубль перевірки JS у `lint.yml` — заборонено.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -34,6 +35,55 @@ export function normalizeLintJsScript(s) {
  */
 export function isCanonicalLintJs(script) {
   return normalizeLintJsScript(script) === CANONICAL_LINT_JS
+}
+
+/**
+ * Чи діапазон `@nitra/eslint-config` у `package.json` передбачає версію з транзитивним `@e18e/eslint-plugin` (>=3.5.0).
+ *
+ * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
+ * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.5.0
+ */
+export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
+  const s = String(versionSpec).trim()
+  if (s.startsWith('workspace:')) {
+    return true
+  }
+  const m = s.match(/(\d+)\.(\d+)\.(\d+)/u)
+  if (!m) {
+    return false
+  }
+  const major = Number(m[1])
+  const minor = Number(m[2])
+  const patch = Number(m[3])
+  return major > 3 || (major === 3 && minor > 5) || (major === 3 && minor === 5 && patch >= 0)
+}
+
+/**
+ * Перевіряє обов’язкові поля `.oxlintrc.json` для плагіна e18e (js-lint.mdc).
+ *
+ * @param {unknown} cfg корінь JSON-конфігурації oxlint
+ * @returns {{ ok: boolean, failures: string[] }} `ok` і перелік повідомлень для `fail`
+ */
+export function verifyOxlintRcE18e(cfg) {
+  const failures = []
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
+    return { ok: false, failures: ['.oxlintrc.json: корінь має бути об’єктом'] }
+  }
+  const o = /** @type {Record<string, unknown>} */ (cfg)
+  const jsPlugins = o.jsPlugins
+  if (!Array.isArray(jsPlugins) || !jsPlugins.includes('@e18e/eslint-plugin')) {
+    failures.push('.oxlintrc.json: jsPlugins має містити "@e18e/eslint-plugin"')
+  }
+  const rules = o.rules
+  if (!rules || typeof rules !== 'object' || Array.isArray(rules)) {
+    failures.push('.oxlintrc.json: поле rules має бути об’єктом')
+  } else {
+    const r = /** @type {Record<string, unknown>} */ (rules)
+    if (r['e18e/prefer-includes'] !== 'error') {
+      failures.push('.oxlintrc.json: у rules має бути "e18e/prefer-includes": "error"')
+    }
+  }
+  return { ok: failures.length === 0, failures }
 }
 
 /**
@@ -103,8 +153,16 @@ export async function check() {
       pass('package.json не містить @nitra/prettier-config')
     }
 
-    if (pkg.devDependencies?.['@nitra/eslint-config']) {
+    const nitraEslint = pkg.devDependencies?.['@nitra/eslint-config']
+    if (nitraEslint) {
       pass('@nitra/eslint-config є в devDependencies')
+      if (nitraEslintConfigDeclaresE18eTransitive(nitraEslint)) {
+        pass('@nitra/eslint-config: мінімум 3.5.0 (транзитивний @e18e/eslint-plugin для oxlint jsPlugins, js-lint.mdc)')
+      } else {
+        fail(
+          '@nitra/eslint-config: онови до мінімум "^3.5.0" — з цієї версії постачається @e18e/eslint-plugin для .oxlintrc.json (js-lint.mdc)'
+        )
+      }
     } else {
       fail('@nitra/eslint-config відсутній в devDependencies — додай: bun add -d @nitra/eslint-config')
     }
@@ -120,6 +178,29 @@ export async function check() {
     } else {
       fail('package.json не містить engines.node — додай: "engines": { "node": ">=24" }')
     }
+  }
+
+  if (existsSync('.oxlintrc.json')) {
+    let oxCfg
+    try {
+      oxCfg = JSON.parse(await readFile('.oxlintrc.json', 'utf8'))
+    } catch {
+      fail('.oxlintrc.json не є валідним JSON')
+      oxCfg = null
+    }
+    if (oxCfg !== null) {
+      pass('.oxlintrc.json існує')
+      const oxV = verifyOxlintRcE18e(oxCfg)
+      if (oxV.ok) {
+        pass('.oxlintrc.json: jsPlugins з @e18e/eslint-plugin і e18e/prefer-includes: error')
+      } else {
+        for (const msg of oxV.failures) {
+          fail(msg)
+        }
+      }
+    }
+  } else {
+    fail('.oxlintrc.json не існує — додай конфіг oxlint (js-lint.mdc)')
   }
 
   if (existsSync('.vscode/extensions.json')) {
