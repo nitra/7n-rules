@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.24'
+version: '1.25'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -253,44 +253,13 @@ spec:
 
    Для `$schema` у першому рядку див. приклад **HealthCheckPolicy** у тому ж розділі (datree CRDs-catalog).
 
+   **`spec.targetRef`** (типово **`kind: Service`**) має вказувати на **headless** сервіс — ім’я з суфіксом **`-hl`** (див. **«Service: `svc.yaml` і `svc-hl.yaml`»**); для проєктів **abie** точні умови — **`check-abie.mjs`** / **abie.mdc**.
+
    За потреби розшир **`target`** (`name`, `namespace`), щоб однозначно вказати об’єкт.
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
-3. Якщо **HTTPRoute** посилається на **Service** в іншому **namespace**, потрібен **ReferenceGrant** (дозвіл). Наприклад **HTTPRoute** в **`contract`** і **Service** в **`dev`** — додай маніфест на кшталт **`base/rg.yaml`** (фрагмент нижче).
-
-```yaml title="base/rg.yaml"
-# yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/referencegrant_v1beta1.json
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant
-metadata:
-  name: contract-to-dev
-  namespace: dev
-spec:
-  from:
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      namespace: contract
-  to:
-    - group: ''
-      kind: Service
-      # Якщо name не вказано, доступ дозволено до всіх Service в цьому namespace
-```
-
-**ReferenceGrant** має бути в **namespace** тих **Service**, до яких відкривається доступ (у прикладі — **`dev`**). Якщо **`namespace:`** у **overlay** не збігається з **namespace** гранта, **не** додавай **`base/rg.yaml`** у **`resources:`** того overlay — Kustomize може перезаписати **`metadata.namespace`** гранта. Натомість застосуй **`patches`** (JSON patch), щоб явно виставити потрібний **namespace**:
-
-```yaml title="overlay/kustomization.yaml (фрагмент)"
-patches:
-  - target:
-      kind: ReferenceGrant
-      name: contract-to-dev
-    patch: |-
-      - op: replace
-        path: /metadata/namespace
-        value: dev
-```
-
-4. **JSON patch у kustomization:** де можливо, змінюй ресурс через **`op: replace`** (одна операція на `path`), а не пару **`remove` + `add`** на той самий шлях. **`add`** / **`remove`** лишай лише коли **`replace`** не підходить (наприклад додати новий ключ або прибрати поле без заміни).
+3. **JSON patch у kustomization:** де можливо, змінюй ресурс через **`op: replace`** (одна операція на `path`), а не пару **`remove` + `add`** на той самий шлях. **`add`** / **`remove`** лишай лише коли **`replace`** не підходить (наприклад додати новий ключ або прибрати поле без заміни).
 
 ```yaml title="overlay/kustomization.yaml (фрагмент)"
 patches:
@@ -308,7 +277,7 @@ patches:
 
 **`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.
 
-**Не входить у check k8s:** наприклад **ReferenceGrant** і доступ між **namespace** (лише рекомендації тут), повна структура **`HTTPRoute`** для **Hasura** (канон — у розділі про **`hasura/graphql-engine`**), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
+**Не входить у check k8s:** наприклад повна структура **`HTTPRoute`** для **Hasura** (канон — у розділі про **`hasura/graphql-engine`**), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
 ## Коли застосовувати (агентам)
 

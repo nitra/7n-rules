@@ -1,7 +1,7 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.10'
+version: '1.11'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`filelint-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
@@ -12,7 +12,7 @@ version: '1.10'
 
 ## k8s: `hc.yaml` поруч із Deployment
 
-Якщо під **`k8s`** є **Deployment**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`/healthz`**, порт **8080**, **`targetRef.name`** = **`metadata.name`**.
+Якщо під **`k8s`** є **Deployment**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`/healthz`**, порт **8080**, **`targetRef.name`** — **headless** **Service** з суфіксом **`-hl`** (узгоджено з парою **`svc.yaml`** / **`svc-hl.yaml`** у **k8s.mdc**): або **`${metadata.name}-hl`**, або те саме ім’я, якщо **`metadata.name`** уже з **`-hl`**.
 
 ```yaml title="hc.yaml"
 # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
@@ -31,7 +31,7 @@ spec:
   targetRef:
     group: ''
     kind: Service
-    name: СЕРВІС
+    name: СЕРВІС-hl
 ```
 
 ## k8s: overlay **HTTPRoute** (**ua** / **ru**)

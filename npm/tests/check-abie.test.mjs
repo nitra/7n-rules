@@ -60,7 +60,7 @@ spec:
   targetRef:
     group: ''
     kind: Service
-    name: my-svc
+    name: my-svc-hl
 `
 
 describe('check-abie (допоміжні функції)', () => {
@@ -164,6 +164,16 @@ describe('check-abie (допоміжні функції)', () => {
   test('validateAbieHcYaml — невірний порт', () => {
     const bad = HC_MIN.replace('port: 8080', 'port: 80')
     expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('8080')
+  })
+
+  test('validateAbieHcYaml — targetRef без -hl (очікується my-svc-hl)', () => {
+    const bad = HC_MIN.replace('name: my-svc-hl', 'name: my-svc')
+    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('my-svc-hl')
+  })
+
+  test('validateAbieHcYaml — успіх, коли metadata.name вже з суфіксом -hl', () => {
+    const y = HC_MIN.replace(/^  name: my-svc$/mu, '  name: my-svc-hl')
+    expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
   })
 
   const UA_KUSTOMIZATION_NODE_SELECTOR_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1

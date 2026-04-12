@@ -12,7 +12,8 @@
  *
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
- * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **Service** з тим самим **`metadata.name`**.
+ * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **headless Service** (ім’я з суфіксом **`-hl`**):
+ * якщо **`metadata.name`** уже закінчується на **`-hl`**, **`targetRef.name`** має збігатися з ним; інакше **`targetRef.name`** = **`${metadata.name}-hl`**.
  * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc** (наприклад **HttpBackendGroup** `alb.yc.io/v1alpha1` — **без** modeline).
  * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
  * (логіка вмісту — **`ruKustomizationHasHealthCheckDeletePatch`** у **check-k8s.mjs**, узгоджено з **k8s.mdc**).
@@ -900,8 +901,9 @@ export function validateAbieHcYaml(raw, relPath) {
     return `${relPath}: targetRef.kind має бути Service (abie.mdc)`
   }
   const svcName = targetRef.name
-  if (typeof svcName !== 'string' || svcName !== name) {
-    return `${relPath}: targetRef.name має збігатися з metadata.name (${name}) (abie.mdc)`
+  const expectedHl = name.endsWith('-hl') ? name : `${name}-hl`
+  if (typeof svcName !== 'string' || svcName !== expectedHl) {
+    return `${relPath}: targetRef.name має посилатися на headless Service (очікується ${expectedHl}, суфікс -hl) (abie.mdc)`
   }
   return null
 }

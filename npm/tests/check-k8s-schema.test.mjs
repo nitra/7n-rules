@@ -659,6 +659,22 @@ describe('collectGatewayApiRouteBackendServiceNames', () => {
     })
     expect(names).toEqual(['x-hl'])
   })
+
+  test('не плутає HTTPHeaderMatch (name + type + value) з backendRef', () => {
+    const names = collectGatewayApiRouteBackendServiceNames({
+      rules: [
+        {
+          matches: [
+            {
+              headers: [{ name: 'Upgrade', type: 'Exact', value: 'websocket' }]
+            }
+          ],
+          backendRefs: [{ name: 'app-hl', port: 8080 }]
+        }
+      ]
+    })
+    expect(names).toEqual(['app-hl'])
+  })
 })
 
 describe('JSON6902 remove+add на той самий path (k8s.mdc)', () => {

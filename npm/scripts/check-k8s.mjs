@@ -1148,6 +1148,9 @@ export function serviceSvcHlYamlHeadlessViolation(manifest) {
 
 /**
  * Чи об’єкт схожий на **backendRef** до **Kubernetes Service** у Gateway API.
+ *
+ * Вимагає числовий **`port`**, щоб не плутати з **`HTTPHeaderMatch`** тощо (там теж є **`name`**, але без **`port`**).
+ *
  * @param {unknown} obj вузол у дереві **`spec`**
  * @returns {boolean} true, якщо враховуємо поле **`name`** як посилання на Service
  */
@@ -1155,6 +1158,7 @@ function isGatewayApiBackendRefToService(obj) {
   if (obj === null || obj === undefined || typeof obj !== 'object' || Array.isArray(obj)) return false
   const o = /** @type {Record<string, unknown>} */ (obj)
   if (typeof o.name !== 'string') return false
+  if (typeof o.port !== 'number') return false
   const kind = o.kind
   if (kind !== undefined && kind !== 'Service') return false
   const group = o.group
