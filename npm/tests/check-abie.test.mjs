@@ -8,13 +8,16 @@ import { join } from 'node:path'
 import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
+  ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
   abieOverlayK8sTreeHasDeployment,
   abieOverlayRequiresHttpRouteByVite,
   abiePackageDirFromK8sOverlay,
+  analyzeAbieSharedBackendRefsInPackageK8s,
   deploymentDocumentHasAbieBasePreemNodeSelector,
   getCombinedNginxRunPatchTextFromKustomization,
   ignoreBranchesIncludesRequired,
   isAbieK8sBaseYamlPath,
+  isK8sYamlInAbiePackageExcludingUaRuOverlays,
   isRuKustomizationPath,
   isUaKustomizationPath,
   kustomizationHasAbieDeploymentNodeSelectorPatch,
@@ -287,6 +290,90 @@ patches:
     expect(validateAbieNginxRunHttpRoutePatches(uaCombined, 'ua')).toBeNull()
     const ruCombined = getCombinedNginxRunPatchTextFromKustomization(RU_KUSTOMIZATION_HTTPROUTE)
     expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru', RU_KUSTOMIZATION_HTTPROUTE)).toBeNull()
+  })
+
+  test('ABIE_SHARED_CROSS_NS_BACKEND_NAMES — канонічні імена', () => {
+    expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('auth-run-hl')
+    expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('filelint-hl')
+  })
+
+  test('isK8sYamlInAbiePackageExcludingUaRuOverlays', () => {
+    expect(isK8sYamlInAbiePackageExcludingUaRuOverlays('app/k8s/base/hr.yaml', 'app')).toBe(true)
+    expect(isK8sYamlInAbiePackageExcludingUaRuOverlays('app/k8s/ua/kustomization.yaml', 'app')).toBe(false)
+    expect(isK8sYamlInAbiePackageExcludingUaRuOverlays('app/k8s/ru/kustomization.yaml', 'app')).toBe(false)
+    expect(isK8sYamlInAbiePackageExcludingUaRuOverlays('other/k8s/base/x.yaml', 'app')).toBe(false)
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — shared refCount без patch namespace — помилка', () => {
+    const uaCombined = getCombinedNginxRunPatchTextFromKustomization(UA_KUSTOMIZATION_HTTPROUTE)
+    expect(validateAbieNginxRunHttpRoutePatches(uaCombined, 'ua', undefined, 1)).toContain('auth-run-hl')
+  })
+
+  test('validateAbieNginxRunHttpRoutePatches — shared refCount з patch namespace — OK', () => {
+    const raw = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: HTTPRoute
+      name: my-httproute
+    patch: |-
+      - op: replace
+        path: /spec/hostnames
+        value:
+          - "abie.app"
+      - op: replace
+        path: /spec/parentRefs/0/namespace
+        value: ua
+      - op: replace
+        path: /spec/rules/0/backendRefs/0/namespace
+        value: ua
+`
+    const c = getCombinedNginxRunPatchTextFromKustomization(raw)
+    expect(validateAbieNginxRunHttpRoutePatches(c, 'ua', undefined, 1)).toBeNull()
+  })
+
+  test('analyzeAbieSharedBackendRefsInPackageK8s — без namespace: dev дає помилку', async () => {
+    await withTmpCwd(async () => {
+      const root = process.cwd()
+      await ensureDir('p/k8s/base')
+      const hrPath = join(root, 'p/k8s/base/hr.yaml')
+      await writeFile(
+        hrPath,
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: x
+spec:
+  rules:
+    - backendRefs:
+        - name: auth-run-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      const yamlFilesAbs = [hrPath]
+      const bad = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
+      expect(bad.refCount).toBe(1)
+      expect(bad.baseErrors.length).toBe(1)
+      await writeFile(
+        hrPath,
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: x
+spec:
+  rules:
+    - backendRefs:
+        - name: auth-run-hl
+          namespace: dev
+          port: 8080
+`,
+        'utf8'
+      )
+      const ok = await analyzeAbieSharedBackendRefsInPackageK8s(root, join(root, 'p'), yamlFilesAbs)
+      expect(ok.refCount).toBe(1)
+      expect(ok.baseErrors.length).toBe(0)
+    })
   })
 
   test('validateAbieNginxRunHttpRoutePatches — ru без websocket, без HASURA у файлі — OK', () => {

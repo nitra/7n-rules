@@ -28,6 +28,8 @@
  * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
  * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**,
  * якщо в тому ж **`kustomization.yaml`** згадується **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura + JWT).
+ * **Спільні бекенди (`auth-run-hl`, `filelint-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
+ * у patch overlay **ua** та **ru** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** або **ru** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
  * Вибір **`op`** — **k8s.mdc**.
  */
 import { existsSync } from 'node:fs'
@@ -45,6 +47,14 @@ const CONFIG_FILE = '.n-cursor.json'
 
 /** Маркер у kustomization.yaml: якщо зустрічається у файлі — для overlay ru у patch HTTPRoute потрібна анотація gwin…websocket. */
 const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
+
+/**
+ * Спільні **Service** (**`-hl`**) у **dev**: у base-**HTTPRoute** обов’язково **`namespace: dev`**, у overlay — patch **`…/backendRefs/…/namespace`** (abie.mdc).
+ * Експорт для споживачів / тестів.
+ */
+export const ABIE_SHARED_CROSS_NS_BACKEND_NAMES = Object.freeze(['auth-run-hl', 'filelint-hl'])
+
+const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NAMES)
 
 /** Очікуваний URL **`$schema`** для **hc.yaml** (abie.mdc). */
 export const ABIE_HC_SCHEMA_URL = 'https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json'
@@ -528,6 +538,136 @@ export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
   return false
 }
 
+/**
+ * Чи YAML відносно кореня належить до **`${pkgRel}/k8s/**`** поза піддеревами **`ua/`** та **`ru/`** (base-шар abie).
+ * @param {string} relFromRoot відносний шлях від кореня
+ * @param {string} pkgRelFromRoot каталог пакета відносно кореня (без завершального слеша після імені пакета)
+ * @returns {boolean}
+ */
+export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelFromRoot) {
+  const normRel = relFromRoot.replaceAll('\\', '/')
+  const pkg = pkgRelFromRoot.replaceAll('\\', '/').replace(/\/$/u, '')
+  const prefix = `${pkg}/k8s/`
+  if (!normRel.startsWith(prefix)) {
+    return false
+  }
+  const after = normRel.slice(prefix.length)
+  return !after.startsWith('ua/') && !after.startsWith('ru/')
+}
+
+/**
+ * З HTTPRoute-документа рахує **`backendRefs`** до **`auth-run-hl`** / **`filelint-hl`** і порушення **`namespace: dev`**.
+ * @param {unknown} obj корінь YAML
+ * @param {string} rel відносний шлях (повідомлення)
+ * @returns {{ refCount: number, errors: string[] }}
+ */
+function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
+  /** @type {string[]} */
+  const errors = []
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return { refCount: 0, errors }
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  if (rec.kind !== 'HTTPRoute') {
+    return { refCount: 0, errors }
+  }
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
+    return { refCount: 0, errors }
+  }
+  const rules = /** @type {Record<string, unknown>} */ (spec).rules
+  if (!Array.isArray(rules)) {
+    return { refCount: 0, errors }
+  }
+  let refCount = 0
+  for (const rule of rules) {
+    if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) {
+      continue
+    }
+    const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
+    if (!Array.isArray(brs)) {
+      continue
+    }
+    for (const br of brs) {
+      if (br === null || typeof br !== 'object' || Array.isArray(br)) {
+        continue
+      }
+      const brRec = /** @type {Record<string, unknown>} */ (br)
+      const name = brRec.name
+      if (typeof name !== 'string' || !ABIE_SHARED_CROSS_NS_BACKEND_SET.has(name)) {
+        continue
+      }
+      refCount++
+      const ns = brRec.namespace
+      if (typeof ns !== 'string' || ns !== 'dev') {
+        errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
+      }
+    }
+  }
+  return { refCount, errors }
+}
+
+/**
+ * З YAML під **k8s** пакета (без overlay **ua** та **ru**) збирає кількість **`backendRefs`** до **`auth-run-hl`** і **`filelint-hl`** і порушення **`namespace: dev`**.
+ * @param {string} root корінь репозиторію
+ * @param {string} pkgAbs абсолютний шлях до каталогу пакета
+ * @param {string[]} yamlFilesAbs усі **yaml** під **k8s** (як **findK8sYamlFiles**)
+ * @returns {Promise<{ refCount: number, baseErrors: string[] }>}
+ */
+export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs) {
+  const pkgRel = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
+  let refCount = 0
+  /** @type {string[]} */
+  const baseErrors = []
+  for (const abs of yamlFilesAbs) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    if (!isK8sYamlInAbiePackageExcludingUaRuOverlays(rel, pkgRel)) {
+      continue
+    }
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch {
+      continue
+    }
+    const body = stripBom(raw)
+    const lines = body.split(/\r?\n/u)
+    const first = lines[0] ?? ''
+    const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+    /** @type {import('yaml').Document[]} */
+    let docs
+    try {
+      docs = parseAllDocuments(rest)
+    } catch {
+      continue
+    }
+    for (const doc of docs) {
+      if (doc.errors.length > 0) {
+        continue
+      }
+      const obj = doc.toJSON()
+      const st = httpRouteDocSharedCrossNsBackendStats(obj, rel)
+      refCount += st.refCount
+      baseErrors.push(...st.errors)
+    }
+  }
+  return { refCount, baseErrors }
+}
+
+/**
+ * Рахує операції JSON6902 з **`path`**: **`/spec/rules/…/backendRefs/…/namespace`** та **`value`** overlay.
+ * @param {string} combined сукупний текст patch **HTTPRoute**
+ * @param {'ua' | 'ru'} mode overlay
+ * @returns {number}
+ */
+function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) {
+  const re =
+    mode === 'ua'
+      ? /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/gmu
+      : /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/gmu
+  return [...combined.matchAll(re)].length
+}
+
 /** Домени **hostnames** для overlay **ua** (підрядки у JSON6902-тексті patch), abie.mdc. */
 const ABIE_UA_HTTPROUTE_HOST_MARKERS = ['abie.app', 'vybeerai.com.ua', '*.abie.app', '*.vybeerai.com.ua']
 
@@ -610,9 +750,15 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
  * @param {string} combined текст одного або кількох inline **patch**, розділених символом нового рядка
  * @param {'ua' | 'ru'} mode **ua** або **ru**
  * @param {string} [fullKustomizationRaw] повний текст **kustomization.yaml** — для **ru** визначає, чи потрібна анотація **gwin…websocket** (лише якщо є **`HASURA_GRAPHQL_JWT_SECRET`**)
+ * @param {number} [sharedCrossNsBackendRefCount] скільки **`backendRefs`** до **`auth-run-hl`** і **`filelint-hl`** у base **HTTPRoute** пакета — стільки ж patch-ів **`…/backendRefs/…/namespace`** з **`value`** overlay
  * @returns {string | null} повідомлення про помилку або **null**
  */
-export function validateAbieNginxRunHttpRoutePatches(combined, mode, fullKustomizationRaw) {
+export function validateAbieNginxRunHttpRoutePatches(
+  combined,
+  mode,
+  fullKustomizationRaw,
+  sharedCrossNsBackendRefCount = 0
+) {
   if (typeof combined !== 'string' || combined.trim() === '') {
     return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — gwin… websocket лише за наявності HASURA_GRAPHQL_JWT_SECRET у файлі) — abie.mdc`
   }
@@ -636,6 +782,16 @@ export function validateAbieNginxRunHttpRoutePatches(combined, mode, fullKustomi
     fullKustomizationRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)
   if (ruNeedsWebsocket && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
     return 'HTTPRoute (ru): за наявності HASURA_GRAPHQL_JWT_SECRET у kustomization потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
+  }
+  const sharedCount =
+    typeof sharedCrossNsBackendRefCount === 'number' && Number.isFinite(sharedCrossNsBackendRefCount)
+      ? Math.max(0, Math.floor(sharedCrossNsBackendRefCount))
+      : 0
+  if (sharedCount > 0) {
+    const patchHits = countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode)
+    if (patchHits < sharedCount) {
+      return `HTTPRoute: для backendRefs до спільних сервісів auth-run-hl, filelint-hl очікується ${sharedCount} JSON6902 patch(ів) з path /spec/rules/…/backendRefs/…/namespace та value ${mode} (зараз ${patchHits}) — abie.mdc`
+    }
   }
   return null
 }
@@ -912,6 +1068,21 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentD
  * @returns {Promise<void>}
  */
 async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) {
+  /** @type {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} */
+  const sharedBackendAnalysisByPkg = new Map()
+  /**
+   * @param {string} pkgAbs
+   * @returns {Promise<{ refCount: number, baseErrors: string[] }>}
+   */
+  const getSharedBackendAnalysis = pkgAbs => {
+    let p = sharedBackendAnalysisByPkg.get(pkgAbs)
+    if (!p) {
+      p = analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs)
+      sharedBackendAnalysisByPkg.set(pkgAbs, p)
+    }
+    return p
+  }
+
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     passFn(
@@ -921,6 +1092,16 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
+      const pkgAbs = abiePackageDirFromK8sOverlay(root, abs)
+      if (!pkgAbs) {
+        fail(`${rel}: внутрішня помилка abie overlay (немає каталогу пакета)`)
+        return
+      }
+      const sharedAnalysis = await getSharedBackendAnalysis(pkgAbs)
+      for (const err of sharedAnalysis.baseErrors) {
+        fail(err)
+        return
+      }
       let raw
       try {
         raw = await readFile(abs, 'utf8')
@@ -930,7 +1111,7 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
         return
       }
       const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua')
+      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua', raw, sharedAnalysis.refCount)
       if (v !== null) {
         fail(`${rel}: ${v}`)
         return
@@ -950,6 +1131,16 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   for (const abs of ruAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
+      const pkgAbs = abiePackageDirFromK8sOverlay(root, abs)
+      if (!pkgAbs) {
+        fail(`${rel}: внутрішня помилка abie overlay (немає каталогу пакета)`)
+        return
+      }
+      const sharedAnalysis = await getSharedBackendAnalysis(pkgAbs)
+      for (const err of sharedAnalysis.baseErrors) {
+        fail(err)
+        return
+      }
       let raw
       try {
         raw = await readFile(abs, 'utf8')
@@ -959,7 +1150,7 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
         return
       }
       const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru', raw)
+      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru', raw, sharedAnalysis.refCount)
       if (v !== null) {
         fail(`${rel}: ${v}`)
         return

@@ -1,10 +1,10 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.9'
+version: '1.10'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**), видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`filelint-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
@@ -38,6 +38,28 @@ spec:
 
 За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** лише якщо в **тому ж** **`ru/kustomization.yaml`** є згадка **`HASURA_GRAPHQL_JWT_SECRET`** (типово patch на **ConfigMap** Hasura). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
+### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`filelint-hl`**
+
+Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** та **`ru/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
+
+```yaml title="…/k8s/base/hr.yaml (фрагмент)"
+spec:
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: auth-run-hl
+          namespace: dev
+          port: 8080
+        - name: filelint-hl
+          namespace: dev
+          port: 8080
+```
+
+У **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** або **`ru`**. Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
+
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:
       kind: HTTPRoute
@@ -49,6 +71,12 @@ spec:
           - "abie.app" # зокрема vybeerai.com.ua, *.vybeerai.com.ua, *.abie.app
       - op: replace
         path: /spec/parentRefs/0/namespace
+        value: ua
+      - op: replace
+        path: /spec/rules/0/backendRefs/0/namespace
+        value: ua
+      - op: replace
+        path: /spec/rules/0/backendRefs/1/namespace
         value: ua
 ```
 
@@ -63,6 +91,12 @@ spec:
           - "napitkivmeste.tech" # зокрема выбирайонлайн.рф, *.napitkivmeste.tech, *.выбирайонлайн.рф
       - op: replace
         path: /spec/parentRefs/0/namespace
+        value: ru
+      - op: replace
+        path: /spec/rules/0/backendRefs/0/namespace
+        value: ru
+      - op: replace
+        path: /spec/rules/0/backendRefs/1/namespace
         value: ru
 ```
 
