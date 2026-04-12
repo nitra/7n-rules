@@ -1,0 +1,40 @@
+npm/tests/check-abie.test.mjs
+  77a319a94fd695e5 11,15,20,295-378
+npm/package.json
+  77a319a94fd695e5 3
+npm/scripts/check-abie.mjs
+  77a319a94fd695e5 31-32,51-58,541-670,753,756-761,786-795,1071-1085,1095-1104,1114,1134-1143,1153
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "51ce6fa9b9aa00c5db9f9d796eae2bd66e20ebe2",
+  "prompts": {
+    "77a319a94fd695e5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "61d69c8e-86f8-4eb0-8b37-d3230f7cdbdb",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 289,
+      "total_deletions": 11,
+      "accepted_lines": 282,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
