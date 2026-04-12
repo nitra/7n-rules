@@ -80,7 +80,9 @@ metadata:
 
 describe('healthCheckPolicyTargetRefHeadlessServiceViolation', () => {
   test('null для не-HealthCheckPolicy', () => {
-    expect(healthCheckPolicyTargetRefHeadlessServiceViolation({ kind: 'Service', metadata: { name: 'x-hl' } })).toBeNull()
+    expect(
+      healthCheckPolicyTargetRefHeadlessServiceViolation({ kind: 'Service', metadata: { name: 'x-hl' } })
+    ).toBeNull()
   })
 
   test('null для іншого apiVersion', () => {

@@ -33,7 +33,7 @@ const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
  */
 async function npmSrcTreeHasJsFile() {
   const root = 'npm/src'
@@ -51,7 +51,7 @@ async function npmSrcTreeHasJsFile() {
 
 /**
  * Знаходить текстовий вміст конфігурації hk для перевірки npm-module.
- * @returns {Promise<{ path: string, text: string } | null>}
+ * @returns {Promise<{ path: string, text: string } | null>} знайдений файл або `null`
  */
 async function readHkConfig() {
   const candidates = ['hk.pkl', '.config/hk.pkl']
@@ -66,8 +66,8 @@ async function readHkConfig() {
 
 /**
  * Підрядки для hk при layout з каталогом `npm/src` і glob `src` + `.js` у команді (див. npm-module.mdc).
- * @param {string} hkText
- * @returns {string[]}
+ * @param {string} hkText текст конфігурації hk
+ * @returns {string[]} відсутні фрагменти
  */
 function missingHkSrcLayoutFragments(hkText) {
   const need = [
@@ -85,8 +85,8 @@ function missingHkSrcLayoutFragments(hkText) {
 
 /**
  * Підрядки для hk при layout з `tsconfig.emit-types.json` (див. npm-module.mdc).
- * @param {string} hkText
- * @returns {string[]}
+ * @param {string} hkText текст конфігурації hk
+ * @returns {string[]} відсутні фрагменти
  */
 function missingHkEmitTypesConfigFragments(hkText) {
   const need = ['["pre-commit"]', 'bunx -p typescript tsc', 'tsconfig.emit-types.json']
@@ -95,7 +95,7 @@ function missingHkEmitTypesConfigFragments(hkText) {
 
 /**
  * Перевіряє `npm/tsconfig.emit-types.json` на мінімальний набір опцій для `emitDeclarationOnly` у `types/`.
- * @param {unknown} parsed
+ * @param {unknown} parsed результат `JSON.parse` конфігурації
  * @returns {string[]} повідомлення про помилки (порожній — OK)
  */
 function emitTypesConfigIssues(parsed) {
@@ -128,8 +128,8 @@ function emitTypesConfigIssues(parsed) {
 
 /**
  * Шлях на дискі до файлу з поля `types` у `npm/package.json` (значення на кшталт `./types/bin/x.d.ts`).
- * @param {string} typesField
- * @returns {string | null}
+ * @param {string} typesField значення поля `types` з `package.json`
+ * @returns {string | null} абсолютний шлях або `null`
  */
 function npmTypesFileFromPackageField(typesField) {
   if (typeof typesField !== 'string' || !typesField.startsWith('./types/')) {

@@ -33,7 +33,7 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 2. Після першого **`tsc`** подивись, який **`.d.ts`** / **`.d.mts`** відповідає публічному API, і вкажи його в **`types`** (наприклад **`./types/bin/cli.d.ts`**).
 3. У **hk** на **`pre-commit`** з **`npm/`** викликай **`tsc -p tsconfig.emit-types.json`**. Якщо через імпорти **TypeScript** все одно згенерує зайві **`.d.mts`** у **`types/`**, після **`tsc`** обрізай дерево до потрібного entrypoint (наприклад залиш лише **`types/bin/n-cursor.d.ts`** через **`find`**), щоб у пакеті не збирались декларації внутрішніх модулів.
 
-Файл **`tsconfig.emit-types.json`** тримай у репозиторії для **hk** / локальної генерації; у **`files`** його не додавай
+Файл **`tsconfig.emit-types.json`** тримай у репозиторії для **hk** / локальної генерації; у **`files`** його не додавай, якщо не хочеш публікувати його на **npm**.
 
 ## Git hooks: hk + pre-commit
 

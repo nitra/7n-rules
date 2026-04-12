@@ -1152,7 +1152,6 @@ export function serviceSvcHlYamlHeadlessViolation(manifest) {
  *
  * Застосовується лише для **`apiVersion: networking.gke.io/v1`** і **`targetRef.kind: Service`** (або без **`kind`**).
  * Інші **`targetRef.kind`** скрипт не оцінює.
- *
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null
  */
@@ -1182,7 +1181,6 @@ export function healthCheckPolicyTargetRefHeadlessServiceViolation(manifest) {
  * Чи об’єкт схожий на **backendRef** до **Kubernetes Service** у Gateway API.
  *
  * Вимагає числовий **`port`**, щоб не плутати з **`HTTPHeaderMatch`** тощо (там теж є **`name`**, але без **`port`**).
- *
  * @param {unknown} obj вузол у дереві **`spec`**
  * @returns {boolean} true, якщо враховуємо поле **`name`** як посилання на Service
  */

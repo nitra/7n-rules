@@ -172,7 +172,7 @@ describe('check-abie (допоміжні функції)', () => {
   })
 
   test('validateAbieHcYaml — успіх, коли metadata.name вже з суфіксом -hl', () => {
-    const y = HC_MIN.replace(/^  name: my-svc$/mu, '  name: my-svc-hl')
+    const y = HC_MIN.replace(/^ {2}name: my-svc$/mu, '  name: my-svc-hl')
     expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
   })
 

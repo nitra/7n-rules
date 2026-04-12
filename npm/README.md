@@ -16,7 +16,7 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
   "rules": ["npm-module", "text"],
-  "skills": ["fix"]
+  "skills": ["fix", "lint"]
 }
 ```
 

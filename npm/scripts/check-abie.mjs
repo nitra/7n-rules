@@ -543,7 +543,7 @@ export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
  * Чи YAML відносно кореня належить до **`${pkgRel}/k8s/**`** поза піддеревами **`ua/`** та **`ru/`** (base-шар abie).
  * @param {string} relFromRoot відносний шлях від кореня
  * @param {string} pkgRelFromRoot каталог пакета відносно кореня (без завершального слеша після імені пакета)
- * @returns {boolean}
+ * @returns {boolean} `true`, якщо шлях належить до base-шару abie
  */
 export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelFromRoot) {
   const normRel = relFromRoot.replaceAll('\\', '/')
@@ -560,7 +560,7 @@ export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelF
  * З HTTPRoute-документа рахує **`backendRefs`** до **`auth-run-hl`** / **`filelint-hl`** і порушення **`namespace: dev`**.
  * @param {unknown} obj корінь YAML
  * @param {string} rel відносний шлях (повідомлення)
- * @returns {{ refCount: number, errors: string[] }}
+ * @returns {{ refCount: number, errors: string[] }} кількість посилань і список порушень
  */
 function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
   /** @type {string[]} */
@@ -582,26 +582,22 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
   }
   let refCount = 0
   for (const rule of rules) {
-    if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) {
-      continue
-    }
-    const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
-    if (!Array.isArray(brs)) {
-      continue
-    }
-    for (const br of brs) {
-      if (br === null || typeof br !== 'object' || Array.isArray(br)) {
-        continue
-      }
-      const brRec = /** @type {Record<string, unknown>} */ (br)
-      const name = brRec.name
-      if (typeof name !== 'string' || !ABIE_SHARED_CROSS_NS_BACKEND_SET.has(name)) {
-        continue
-      }
-      refCount++
-      const ns = brRec.namespace
-      if (typeof ns !== 'string' || ns !== 'dev') {
-        errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
+    if (rule !== null && typeof rule === 'object' && !Array.isArray(rule)) {
+      const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
+      if (Array.isArray(brs)) {
+        for (const br of brs) {
+          if (br !== null && typeof br === 'object' && !Array.isArray(br)) {
+            const brRec = /** @type {Record<string, unknown>} */ (br)
+            const name = brRec.name
+            if (typeof name === 'string' && ABIE_SHARED_CROSS_NS_BACKEND_SET.has(name)) {
+              refCount++
+              const ns = brRec.namespace
+              if (typeof ns !== 'string' || ns !== 'dev') {
+                errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -613,7 +609,7 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
  * @param {string} root корінь репозиторію
  * @param {string} pkgAbs абсолютний шлях до каталогу пакета
  * @param {string[]} yamlFilesAbs усі **yaml** під **k8s** (як **findK8sYamlFiles**)
- * @returns {Promise<{ refCount: number, baseErrors: string[] }>}
+ * @returns {Promise<{ refCount: number, baseErrors: string[] }>} кількість посилань і базові помилки
  */
 export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs) {
   const pkgRel = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
@@ -622,34 +618,36 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
   const baseErrors = []
   for (const abs of yamlFilesAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (!isK8sYamlInAbiePackageExcludingUaRuOverlays(rel, pkgRel)) {
-      continue
-    }
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch {
-      continue
-    }
-    const body = stripBom(raw)
-    const lines = body.split(/\r?\n/u)
-    const first = lines[0] ?? ''
-    const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-    /** @type {import('yaml').Document[]} */
-    let docs
-    try {
-      docs = parseAllDocuments(rest)
-    } catch {
-      continue
-    }
-    for (const doc of docs) {
-      if (doc.errors.length > 0) {
-        continue
+    if (isK8sYamlInAbiePackageExcludingUaRuOverlays(rel, pkgRel)) {
+      let raw
+      try {
+        raw = await readFile(abs, 'utf8')
+      } catch {
+        raw = undefined
       }
-      const obj = doc.toJSON()
-      const st = httpRouteDocSharedCrossNsBackendStats(obj, rel)
-      refCount += st.refCount
-      baseErrors.push(...st.errors)
+      if (raw !== undefined) {
+        const body = stripBom(raw)
+        const lines = body.split(/\r?\n/u)
+        const first = lines[0] ?? ''
+        const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+        /** @type {import('yaml').Document[] | undefined} */
+        let docs
+        try {
+          docs = parseAllDocuments(rest)
+        } catch {
+          docs = undefined
+        }
+        if (docs !== undefined) {
+          for (const doc of docs) {
+            if (doc.errors.length === 0) {
+              const obj = doc.toJSON()
+              const st = httpRouteDocSharedCrossNsBackendStats(obj, rel)
+              refCount += st.refCount
+              baseErrors.push(...st.errors)
+            }
+          }
+        }
+      }
     }
   }
   return { refCount, baseErrors }
@@ -659,7 +657,7 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
  * Рахує операції JSON6902 з **`path`**: **`/spec/rules/…/backendRefs/…/namespace`** та **`value`** overlay.
  * @param {string} combined сукупний текст patch **HTTPRoute**
  * @param {'ua' | 'ru'} mode overlay
- * @returns {number}
+ * @returns {number} кількість знайдених патчів namespace
  */
 function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) {
   const re =
@@ -1073,8 +1071,8 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   /** @type {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} */
   const sharedBackendAnalysisByPkg = new Map()
   /**
-   * @param {string} pkgAbs
-   * @returns {Promise<{ refCount: number, baseErrors: string[] }>}
+   * @param {string} pkgAbs абсолютний шлях до каталогу пакета
+   * @returns {Promise<{ refCount: number, baseErrors: string[] }>} кількість посилань і базові помилки
    */
   const getSharedBackendAnalysis = pkgAbs => {
     let p = sharedBackendAnalysisByPkg.get(pkgAbs)
