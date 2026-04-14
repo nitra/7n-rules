@@ -1,6 +1,7 @@
 /**
  * Тести перейменування розширень **.yml** / **.yaml** (rename-yaml-extensions.mjs).
  */
+import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
@@ -55,9 +56,10 @@ describe('replaceExtension', () => {
 
 describe('parseRenameYamlArgs', () => {
   test('--dry-run та --root', () => {
-    const r = parseRenameYamlArgs(['--dry-run', '--root=/tmp/x'])
+    const tmpRoot = join(tmpdir(), 'x')
+    const r = parseRenameYamlArgs([`--dry-run`, `--root=${tmpRoot}`])
     expect(r.dryRun).toBe(true)
-    expect(r.root).toBe(resolve('/tmp/x'))
+    expect(r.root).toBe(resolve(tmpRoot))
   })
 })
 

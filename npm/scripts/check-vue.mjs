@@ -12,6 +12,8 @@ import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
+
+const MAJOR_VERSION_RE = /(\d+)/
 import {
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
@@ -73,7 +75,7 @@ async function checkVuePackage(rootDir, fail, passFn) {
   }
 
   if (devDeps.vite) {
-    const match = devDeps.vite.match(/(\d+)/)
+    const match = devDeps.vite.match(MAJOR_VERSION_RE)
     if (match && Number(match[1]) >= 8) {
       passFn(`${prefix}vite >= 8: ${devDeps.vite}`)
     } else {

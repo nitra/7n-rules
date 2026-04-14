@@ -62,7 +62,8 @@ export async function check() {
     if (ok) {
       pass(`${rel} (${via})`)
     } else {
-      fail(`${rel} (${via})${tail ? `:\n${tail}` : ''}`)
+      const detail = tail ? `:\n${tail}` : ''
+      fail(`${rel} (${via})${detail}`)
     }
   }
 

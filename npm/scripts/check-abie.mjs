@@ -423,7 +423,7 @@ export function jsonPatchRemovesPath(patchText, posixPath) {
       ? String.raw`path:\s*\/spec\/clusterIP\b`
       : String.raw`path:\s*\/spec\/clusterIPs\b`
   const opRe = String.raw`op:\s*remove\b`
-  return new RegExp(`${opRe}[\\s\\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(`${pathRe}[\\s\\S]{0,200}?${opRe}`, 'mu').test(patchText)
+  return new RegExp(String.raw`${opRe}[\s\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(String.raw`${pathRe}[\s\S]{0,200}?${opRe}`, 'mu').test(patchText)
 }
 
 /**

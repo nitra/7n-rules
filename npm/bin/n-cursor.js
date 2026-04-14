@@ -68,6 +68,11 @@ const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
 /** Корінь установленого пакету (каталог з `mdc/`, `github-actions/`, …) */
 const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 
+const YAML_FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
+const SKILL_DESCRIPTION_RE = /description:\s*>-\s*\r?\n((?:[ \t]+[^\n]*(?:\r?\n|$))+)/m
+const NEWLINE_RE = /\r?\n/
+const LEADING_SPACES_RE = /^\s+/
+
 /**
  * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
  * @param {string} [bundledMdcDir] каталог `mdc/` у корені пакету (за замовчуванням — з поточного процесу)
@@ -192,7 +197,7 @@ async function readConfig(paths = {}) {
   }
 
   if (config.$schema !== CONFIG_SCHEMA_URL) {
-    const { $schema: _omit, ...rest } = config
+    const rest = Object.fromEntries(Object.entries(config).filter(([k]) => k !== '$schema'))
     const normalized = { $schema: CONFIG_SCHEMA_URL, ...rest }
     await writeFile(configPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
     console.log(`📝 Оновлено поле $schema у ${CONFIG_FILE}\n`)
@@ -259,18 +264,18 @@ function managedSkillDirName(skillId) {
  * @returns {string | null} один рядок опису або null
  */
 function extractSkillDescription(text) {
-  const fm = text.match(/^---\r?\n([\s\S]*?)\r?\n---/)
+  const fm = text.match(YAML_FRONTMATTER_RE)
   if (!fm) {
     return null
   }
   const block = fm[1]
-  const desc = block.match(/description:\s*>-\s*\r?\n((?:^\s+.+(?:\r?\n|$))+)/m)
+  const desc = block.match(SKILL_DESCRIPTION_RE)
   if (!desc) {
     return null
   }
   return desc[1]
-    .split(/\r?\n/)
-    .map(line => line.replace(/^\s+/, '').trimEnd())
+    .split(NEWLINE_RE)
+    .map(line => line.replace(LEADING_SPACES_RE, '').trimEnd())
     .join(' ')
     .trim()
 }

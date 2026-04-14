@@ -6,6 +6,8 @@ import { join } from 'node:path'
 
 import { HADOLINT_IMAGE, posixRel } from '../scripts/utils/docker-hadolint.mjs'
 
+const HADOLINT_IMAGE_RE = /^hadolint\/hadolint:v[\d.]+$/
+
 describe('docker-hadolint', () => {
   test('posixRel дає слеші як у POSIX', () => {
     const root = '/proj'
@@ -16,6 +18,6 @@ describe('docker-hadolint', () => {
   })
 
   test('константа образу hadolint зафіксована', () => {
-    expect(HADOLINT_IMAGE).toMatch(/^hadolint\/hadolint:v[\d.]+$/)
+    expect(HADOLINT_IMAGE).toMatch(HADOLINT_IMAGE_RE)
   })
 })

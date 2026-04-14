@@ -5,6 +5,8 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+const HC_NAME_RE = /^ {2}name: my-svc$/mu
+
 import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
@@ -179,7 +181,7 @@ describe('check-abie (допоміжні функції)', () => {
   })
 
   test('validateAbieHcYaml — успіх, коли metadata.name вже з суфіксом -hl', () => {
-    const y = HC_MIN.replace(/^ {2}name: my-svc$/mu, '  name: my-svc-hl')
+    const y = HC_MIN.replace(HC_NAME_RE, '  name: my-svc-hl')
     expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
   })
 

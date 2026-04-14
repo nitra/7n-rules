@@ -39,7 +39,6 @@ export function isCanonicalLintJs(script) {
 
 /**
  * Чи діапазон `@nitra/eslint-config` у `package.json` передбачає версію з транзитивним `@e18e/eslint-plugin` (>=3.5.0).
- *
  * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
  * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.5.0
  */
@@ -60,7 +59,6 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
 
 /**
  * Перевіряє потрібні поля `.oxlintrc.json` для розширення e18e (js-lint.mdc).
- *
  * @param {unknown} cfg корінь JSON-конфігурації oxlint
  * @returns {{ ok: boolean, failures: string[] }} `ok` і перелік повідомлень для `fail`
  */

@@ -12,10 +12,12 @@ import {
   shouldSkipFileForVueImportScan
 } from './vue-forbidden-imports.mjs'
 
+const VUE_EXTENSION_RE = /\.vue$/u
+
 /**
  * Мова для Oxc за шляхом файлу (розширення).
  * @param {string} filePath віртуальний або реальний шлях
- * @returns {'js' | 'jsx' | 'ts' | 'tsx'}
+ * @returns {'js' | 'jsx' | 'ts' | 'tsx'} мова для Oxc парсера
  */
 function langFromPath(filePath) {
   const lower = filePath.toLowerCase()
@@ -34,11 +36,11 @@ function langFromPath(filePath) {
 /**
  * Віртуальний шлях для парсера: SFC розбираємо як TypeScript.
  * @param {string} relativePath відносний шлях до файлу
- * @returns {string}
+ * @returns {string} шлях із заміненим розширенням для SFC
  */
 function virtualPathForParse(relativePath) {
   if (relativePath.endsWith('.vue')) {
-    return relativePath.replace(/\.vue$/u, '.ts')
+    return relativePath.replace(VUE_EXTENSION_RE, '.ts')
   }
   return relativePath
 }
@@ -46,7 +48,7 @@ function virtualPathForParse(relativePath) {
 /**
  * Чи містить AST хоча б один `gql` tagged template.
  * @param {unknown} node корінь або вузол AST
- * @returns {boolean}
+ * @returns {boolean} true якщо знайдено тег gql
  */
 function astContainsGqlTag(node) {
   if (node === null || node === undefined) {
@@ -56,7 +58,7 @@ function astContainsGqlTag(node) {
     return false
   }
   if (Array.isArray(node)) {
-    return node.some(astContainsGqlTag)
+    return node.some(n => astContainsGqlTag(n))
   }
   if (node.type === 'TaggedTemplateExpression') {
     const tag = node.tag
@@ -65,10 +67,7 @@ function astContainsGqlTag(node) {
     }
   }
   for (const key of Object.keys(node)) {
-    if (key === 'loc' || key === 'range') {
-      continue
-    }
-    if (astContainsGqlTag(node[key])) {
+    if (key !== 'loc' && key !== 'range' && astContainsGqlTag(node[key])) {
       return true
     }
   }
@@ -99,7 +98,7 @@ export function sourceFileHasGqlTaggedTemplate(content, relativePath) {
 /**
  * Чи підлягає файл скануванню за розширенням (узгоджено з vue-import scan).
  * @param {string} relativePath відносний шлях
- * @returns {boolean}
+ * @returns {boolean} true якщо файл підлягає скануванню
  */
 export function isGqlScanSourceFile(relativePath) {
   return isVueImportScanSourceFile(relativePath)
@@ -108,7 +107,7 @@ export function isGqlScanSourceFile(relativePath) {
 /**
  * Чи пропустити файл (декларації, auto-imports) — ті самі критерії, що для vue-import scan.
  * @param {string} relativePosix шлях з posix-слешами
- * @returns {boolean}
+ * @returns {boolean} true якщо файл потрібно пропустити
  */
 export function shouldSkipFileForGqlScan(relativePosix) {
   return shouldSkipFileForVueImportScan(relativePosix)

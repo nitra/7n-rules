@@ -16,6 +16,10 @@ import { relative, resolve } from 'node:path'
 
 import { walkDir } from './utils/walkDir.mjs'
 
+const K8S_YML_RE = /\.yml$/iu
+const GITHUB_YAML_RE = /\.yaml$/iu
+const EXTENSION_RE = /^(.+)(\.[^./\\]+)$/u
+
 /**
  * Відносний шлях від кореня з `/`; `null`, якщо поза root.
  * @param {string} rootAbs абсолютний корінь
@@ -34,7 +38,7 @@ export function posixRelFromRoot(rootAbs, fileAbs) {
  * @returns {boolean} true, якщо є сегмент k8s і суфікс .yml
  */
 export function pathMatchesK8sYml(relPosix) {
-  if (!/\.yml$/iu.test(relPosix)) return false
+  if (!K8S_YML_RE.test(relPosix)) return false
   return relPosix.split('/').includes('k8s')
 }
 
@@ -44,7 +48,7 @@ export function pathMatchesK8sYml(relPosix) {
  * @returns {boolean} true, якщо є сегмент .github і суфікс .yaml
  */
 export function pathMatchesGithubYaml(relPosix) {
-  if (!/\.yaml$/iu.test(relPosix)) return false
+  if (!GITHUB_YAML_RE.test(relPosix)) return false
   return relPosix.split('/').includes('.github')
 }
 
@@ -55,7 +59,7 @@ export function pathMatchesGithubYaml(relPosix) {
  * @returns {string} шлях з останнім розширенням, заміненим на newExt
  */
 export function replaceExtension(relPosix, newExt) {
-  const m = relPosix.match(/^(.+)(\.[^./\\]+)$/u)
+  const m = relPosix.match(EXTENSION_RE)
   if (!m) return relPosix + newExt
   return m[1] + newExt
 }

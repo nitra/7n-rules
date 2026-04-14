@@ -8,6 +8,8 @@ import { existsSync } from 'node:fs'
 import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
+const TRAILING_SLASH_RE = /\/$/
+
 /**
  * Нормалізує поле `workspaces` з package.json до масиву шляхів / glob-патернів.
  * @param {unknown} workspaces значення `workspaces` з кореневого package.json
@@ -35,7 +37,11 @@ export async function getMonorepoPackageRootDirs(repoRoot = '.') {
   }
   const pkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
   for (const raw of normalizeWorkspacePatterns(pkg.workspaces)) {
-    const w = raw.replaceAll('\\', '/').replace(/\/+$/, '') || '.'
+    let w = raw.replaceAll('\\', '/')
+    while (TRAILING_SLASH_RE.test(w)) {
+      w = w.slice(0, -1)
+    }
+    w = w || '.'
     if (w.includes('*')) {
       const globPat = `${w}/package.json`
       for await (const f of glob(globPat, { cwd: repoRoot })) {

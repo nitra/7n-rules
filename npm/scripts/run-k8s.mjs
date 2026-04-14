@@ -16,7 +16,11 @@ import { spawnSync } from 'node:child_process'
 import { basename, dirname } from 'node:path'
 
 import { isRunAsCli } from './cli-entry.mjs'
+import { resolveCmd } from './utils/resolve-cmd.mjs'
 import { walkDir } from './utils/walkDir.mjs'
+
+const PATH_SEPARATOR_RE = /[/\\]/u
+const YAML_EXT_RE = /\.yaml$/iu
 
 /** Версія Kubernetes для kubeconform — синхронно з YANNH_PIN (без префікса v і суфікса -standalone-strict). */
 const KUBERNETES_VERSION = '1.33.9'
@@ -31,7 +35,7 @@ const DATREE_CRD_SCHEMA_LOCATION =
  * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
  */
 export function pathHasK8sSegment(filePath) {
-  const parts = filePath.split(/[/\\]/u)
+  const parts = filePath.split(PATH_SEPARATOR_RE)
   return parts.includes('k8s')
 }
 
@@ -61,7 +65,7 @@ export async function findK8sRoots(root) {
   const roots = new Set()
   await walkDir(root, p => {
     if (!pathHasK8sSegment(p)) return
-    if (!/\.yaml$/iu.test(p)) return
+    if (!YAML_EXT_RE.test(p)) return
     const k8sRoot = k8sRootFromFile(p)
     if (k8sRoot) roots.add(k8sRoot)
   })
@@ -85,7 +89,12 @@ function runKubeconform(dirs) {
     '-ignore-missing-schemas',
     ...dirs
   ]
-  const r = spawnSync('kubeconform', args, { stdio: 'inherit', shell: false })
+  const kubeconformPath = resolveCmd('kubeconform')
+  if (!kubeconformPath) {
+    console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
+    return 127
+  }
+  const r = spawnSync(kubeconformPath, args, { stdio: 'inherit', shell: false })
   if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
     console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
     return 127
@@ -101,7 +110,12 @@ function runKubeconform(dirs) {
  */
 function runKubescape(dirs) {
   for (const d of dirs) {
-    const r = spawnSync('kubescape', ['scan', d, '--severity-threshold', 'high'], {
+    const kubescapePath = resolveCmd('kubescape')
+    if (!kubescapePath) {
+      console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+      return 127
+    }
+    const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high'], {
       stdio: 'inherit',
       shell: false
     })

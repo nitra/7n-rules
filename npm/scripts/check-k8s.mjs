@@ -511,8 +511,8 @@ async function findK8sYamlFiles(root) {
     if (!/\.ya?ml$/iu.test(p)) return
     out.push(p)
   })
-  // eslint-disable-next-line unicorn/no-array-sort -- toSorted потребує lib ES2023 у перевірці типів IDE
-  return [...out].sort((a, b) => a.localeCompare(b))
+   
+  return out.toSorted((a, b) => a.localeCompare(b))
 }
 
 /**

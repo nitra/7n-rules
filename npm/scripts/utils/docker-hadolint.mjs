@@ -8,6 +8,8 @@
 import { spawnSync } from 'node:child_process'
 import { relative, sep } from 'node:path'
 
+import { resolveCmd } from './resolve-cmd.mjs'
+
 /** Тег образу для резервного запуску (узгоджуй з docker.mdc). */
 export const HADOLINT_IMAGE = 'hadolint/hadolint:v2.12.0'
 
@@ -29,12 +31,13 @@ export function posixRel(root, absPath) {
  */
 export function lintDockerfileWithHadolint(root, absPath) {
   const rel = posixRel(root, absPath)
-  const local = spawnSync('hadolint', [rel], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024
-  })
-  if (!local.error) {
+  const hadolintPath = resolveCmd('hadolint')
+  if (hadolintPath) {
+    const local = spawnSync(hadolintPath, [rel], {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024
+    })
     const ok = local.status === 0
     return {
       ok,
@@ -43,16 +46,20 @@ export function lintDockerfileWithHadolint(root, absPath) {
       via: 'hadolint'
     }
   }
-  if (local.error.code !== 'ENOENT') {
+
+  const dockerPath = resolveCmd('docker')
+  if (!dockerPath) {
     return {
       ok: false,
       stdout: '',
-      stderr: local.error.message,
-      via: 'hadolint'
+      stderr:
+        'Не знайдено hadolint у PATH і не знайдено docker у PATH. ' +
+        'Встанови hadolint (наприклад brew install hadolint) або Docker (див. docker.mdc).',
+      via: 'docker'
     }
   }
 
-  const docker = spawnSync('docker', ['run', '--rm', '-v', `${root}:/workdir`, '-w', '/workdir', HADOLINT_IMAGE, rel], {
+  const docker = spawnSync(dockerPath, ['run', '--rm', '-v', `${root}:/workdir`, '-w', '/workdir', HADOLINT_IMAGE, rel], {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 10 * 1024 * 1024

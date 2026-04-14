@@ -24,7 +24,7 @@ export const GRAPHQL_RC_FILENAME = '.graphqlrc.yml'
 export const REQUIRED_GRAPHQL_VSCODE_EXTENSION = 'graphql.vscode-graphql'
 
 /**
- * Перевіряє graphql.mdc: умовна вимога `.graphqlrc.yml` і `graphql.vscode-graphql` за наявності `gql`…``.
+ * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml і graphql.vscode-graphql за наявності gql tagged templates.
  * @returns {Promise<number>} 0 — OK, 1 — порушення
  */
 export async function check() {
@@ -59,19 +59,15 @@ export async function check() {
 
   pass(`Знайдено gql\`…\` у ${hits.length} файлі(ах): ${hits.slice(0, 5).join(', ')}${hits.length > 5 ? '…' : ''}`)
 
-  if (!existsSync(GRAPHQL_RC_FILENAME)) {
+  if (existsSync(GRAPHQL_RC_FILENAME)) {
+    pass(`${GRAPHQL_RC_FILENAME} існує`)
+  } else {
     fail(
       `Відсутній ${GRAPHQL_RC_FILENAME} у корені — додай GraphQL Config (graphql.mdc), бо в проєкті є gql template literals`
     )
-  } else {
-    pass(`${GRAPHQL_RC_FILENAME} існує`)
   }
 
-  if (!existsSync('.vscode/extensions.json')) {
-    fail(
-      '.vscode/extensions.json не існує — створи файл і додай у recommendations graphql.vscode-graphql (graphql.mdc)'
-    )
-  } else {
+  if (existsSync('.vscode/extensions.json')) {
     let ext
     try {
       ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
@@ -83,14 +79,18 @@ export async function check() {
       const rec = ext.recommendations
       if (!Array.isArray(rec)) {
         fail('.vscode/extensions.json: поле recommendations має бути масивом')
-      } else if (!rec.includes(REQUIRED_GRAPHQL_VSCODE_EXTENSION)) {
+      } else if (rec.includes(REQUIRED_GRAPHQL_VSCODE_EXTENSION)) {
+        pass(`.vscode/extensions.json: є ${REQUIRED_GRAPHQL_VSCODE_EXTENSION}`)
+      } else {
         fail(
           `.vscode/extensions.json: додай у recommendations "${REQUIRED_GRAPHQL_VSCODE_EXTENSION}" (graphql.mdc)`
         )
-      } else {
-        pass(`.vscode/extensions.json: є ${REQUIRED_GRAPHQL_VSCODE_EXTENSION}`)
       }
     }
+  } else {
+    fail(
+      '.vscode/extensions.json не існує — створи файл і додай у recommendations graphql.vscode-graphql (graphql.mdc)'
+    )
   }
 
   return reporter.getExitCode()

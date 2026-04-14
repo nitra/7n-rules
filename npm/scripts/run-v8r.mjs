@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { isRunAsCli } from './cli-entry.mjs'
+import { resolveCmd } from './utils/resolve-cmd.mjs'
 
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */
 export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
@@ -48,7 +49,8 @@ export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS) {
   }
 
   for (const pattern of globs) {
-    const result = spawnSync('bun', ['x', 'v8r', pattern, '-c', V8R_CATALOG_PATH], {
+    const bunPath = resolveCmd('bun') ?? process.execPath
+    const result = spawnSync(bunPath, ['x', 'v8r', pattern, '-c', V8R_CATALOG_PATH], {
       encoding: 'utf8',
       maxBuffer: 50 * 1024 * 1024,
       shell: false,

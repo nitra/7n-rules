@@ -1,7 +1,8 @@
 /**
  * Перевіряє текстовий стек і форматування за правилом text.mdc.
  *
- * oxfmt: `.oxfmtrc.json` з обовʼязковими ключами, VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
+ * oxfmt: `.oxfmtrc.json` з обовʼязковими ключами та масивом ignorePatterns (два канонічні glob-и з text.mdc для hasura metadata і schema.graphql),
+ * VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
  * відсутність Prettier у конфігах і залежностях.
  *
  * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json); у кореневих **`devDependencies`**
@@ -20,18 +21,25 @@ import { isAllowedRootDevDependency } from './check-bun.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
+const WORKSPACE_STAR_RE = /^workspace:\*/
+const VERSION_PREFIX_RE = /^[\^~>=<]+\s*/
+const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)/
+
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
 
+/** Мінімальні glob-и в `ignorePatterns` у `.oxfmtrc.json` (text.mdc). */
+const OXFMT_REQUIRED_IGNORE_PATTERNS = ['**/hasura/metadata/**', '**/schema.graphql']
+
 /**
- * Чи діапазон версії @nitra/cspell-dict у package.json означає лінію 2.0.0+ (з цієї версії словники входять у пакет).
+ * Чи діапазон версії `@nitra/cspell-dict` у package.json означає лінію 2.0.0+ (з цієї версії словники входять у пакет).
  * @param {string|undefined} range наприклад "^2.0.0"
- * @returns {boolean}
+ * @returns {boolean} true якщо мажорна версія >= 2
  */
 function cspellDictVersionAtLeast200(range) {
   if (typeof range !== 'string' || !range.trim()) return false
-  const cleaned = range.trim().replace(/^workspace:\*/, '').replace(/^[\^~>=<]+\s*/, '')
-  const m = cleaned.match(/^(\d+)\.(\d+)\.(\d+)/)
+  const cleaned = range.trim().replace(WORKSPACE_STAR_RE, '').replace(VERSION_PREFIX_RE, '')
+  const m = cleaned.match(SEMVER_RE)
   if (!m) return false
   const major = Number(m[1])
   return major >= 2
@@ -158,6 +166,22 @@ export async function check() {
     if (cfg.tabWidth !== 2) fail('.oxfmtrc.json: tabWidth має бути 2')
     if (cfg.useTabs !== false) fail('.oxfmtrc.json: useTabs має бути false')
     if (cfg.printWidth !== 120) fail('.oxfmtrc.json: printWidth має бути 120')
+
+    if (Array.isArray(cfg.ignorePatterns)) {
+      const set = new Set(cfg.ignorePatterns)
+      const missing = OXFMT_REQUIRED_IGNORE_PATTERNS.filter(p => !set.has(p))
+      if (missing.length === 0) {
+        pass('.oxfmtrc.json: ignorePatterns містить hasura/metadata та schema.graphql')
+      } else {
+        fail(
+          `.oxfmtrc.json ignorePatterns: додай відсутні елементи: ${missing.join(', ')} (канонічний приклад у text.mdc)`
+        )
+      }
+    } else {
+      fail(
+        `.oxfmtrc.json: додай масив ignorePatterns з ${OXFMT_REQUIRED_IGNORE_PATTERNS.join(', ')} (див. text.mdc)`
+      )
+    }
   } else {
     fail('.oxfmtrc.json не існує — створи його')
   }
@@ -245,10 +269,10 @@ export async function check() {
     const cspellRange = devDeps['@nitra/cspell-dict']
     if (!cspellRange) {
       fail('@nitra/cspell-dict у devDependencies обовʼязковий для cspell — bun add -d @nitra/cspell-dict@^2.0.0')
-    } else if (!cspellDictVersionAtLeast200(cspellRange)) {
-      fail('@nitra/cspell-dict має бути ^2.0.0 або новіший (словники зібрані в пакеті з 2.x)')
-    } else {
+    } else if (cspellDictVersionAtLeast200(cspellRange)) {
       pass('@nitra/cspell-dict ^2.0.0+')
+    } else {
+      fail('@nitra/cspell-dict має бути ^2.0.0 або новіший (словники зібрані в пакеті з 2.x)')
     }
 
     const rootDeps = pkg.dependencies || {}

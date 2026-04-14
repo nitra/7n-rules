@@ -10,6 +10,9 @@
  */
 import { parseSync } from 'oxc-parser'
 
+const VUE_EXT_RE = /\.vue$/u
+const SOURCE_FILE_RE = /\.(vue|[cm]?[jt]sx?)$/
+
 /**
  * Мова для Oxc за шляхом файлу (розширення).
  * @param {string} filePath віртуальний або реальний шлях до файлу
@@ -74,7 +77,7 @@ function isAllowedVueStaticImport(imp) {
  */
 function virtualPathForParse(relativePath) {
   if (relativePath.endsWith('.vue')) {
-    return relativePath.replace(/\.vue$/u, '.ts')
+    return relativePath.replace(VUE_EXT_RE, '.ts')
   }
   return relativePath
 }
@@ -162,7 +165,7 @@ export function shouldSkipFileForVueImportScan(relativePosix) {
  * @returns {boolean} `true`, якщо розширення підходить для пошуку import
  */
 export function isVueImportScanSourceFile(relativePath) {
-  return /\.(vue|[cm]?[jt]sx?)$/.test(relativePath)
+  return SOURCE_FILE_RE.test(relativePath)
 }
 
 /**

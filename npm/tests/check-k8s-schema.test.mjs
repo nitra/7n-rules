@@ -7,6 +7,8 @@ import { join, resolve } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
 
+const SERVICE_V1_JSON_RE = /service-v1\.json$/
+
 import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
@@ -560,7 +562,7 @@ describe('expectedSchemaUrl', () => {
   test('core v1 — yannh', () => {
     const doc = 'apiVersion: v1\nkind: Service\nmetadata:\n  name: x\n'
     const { expected, reason } = expectedSchemaUrl('base/k8s/svc.yaml', doc)
-    expect(expected).toMatch(/service-v1\.json$/)
+    expect(expected).toMatch(SERVICE_V1_JSON_RE)
     expect(reason).toContain('yannh')
   })
 

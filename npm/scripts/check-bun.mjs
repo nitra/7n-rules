@@ -19,6 +19,8 @@ import { readFile } from 'node:fs/promises'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
+const OXFMT_END_RE = /&&[ \t]+oxfmt[ \t]+\.[ \t]*$/
+
 /**
  * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише **`@nitra/*`**).
  * @param {string} name ключ з поля `devDependencies`
@@ -142,20 +144,22 @@ export async function check() {
       if (aggregate.trim()) {
         const missing = lintPrefixed.filter(name => !aggregate.includes(`bun run ${name}`))
         if (missing.length > 0) {
+          const missingList = missing.map(s => `\`${s}\``).join(', ')
           fail(
-            `Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missing.map(s => `\`${s}\``).join(', ')}`
+            `Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`
           )
         } else {
           pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
-          if (/\s*&&\s+oxfmt\s+\.\s*$/.test(aggregate.trim())) {
+          if (OXFMT_END_RE.test(aggregate.trim())) {
             pass('package.json: `lint` завершується `&& oxfmt .`')
           } else {
             fail('Скрипт `lint` має закінчуватися на `&& oxfmt .`')
           }
         }
       } else {
+        const scriptList = lintPrefixed.map(s => `\`${s}\``).join(', ')
         fail(
-          `У package.json є скрипти ${lintPrefixed.map(s => `\`${s}\``).join(', ')}, але немає агрегованого \`lint\` — додай скрипт, який запускає їх через \`bun run\``
+          `У package.json є скрипти ${scriptList}, але немає агрегованого \`lint\` — додай скрипт, який запускає їх через \`bun run\``
         )
       }
     }

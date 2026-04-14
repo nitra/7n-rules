@@ -20,6 +20,14 @@ const NPM_LATEST_URL = 'https://registry.npmjs.org/@nitra/cursor/latest'
 
 const execFileAsync = promisify(execFile)
 
+const WORKSPACE_RE = /^workspace:/i
+const FILE_RE = /^file:/i
+const LINK_RE = /^link:/i
+const PORTAL_RE = /^portal:/i
+const GIT_RE = /^git(\+|:\/\/)/i
+const NPM_PROTO_RE = /^npm:/i
+const HTTP_RE = /^https?:\/\//i
+
 /**
  * Чи не можна безпечно підставити semver з npm замість поточного специфікатора залежності.
  * @param {string} specifier значення з package.json
@@ -30,25 +38,25 @@ export function shouldSkipNpmVersionUpgrade(specifier) {
   if (!s) {
     return true
   }
-  if (/^workspace:/i.test(s)) {
+  if (WORKSPACE_RE.test(s)) {
     return true
   }
-  if (/^file:/i.test(s)) {
+  if (FILE_RE.test(s)) {
     return true
   }
-  if (/^link:/i.test(s)) {
+  if (LINK_RE.test(s)) {
     return true
   }
-  if (/^portal:/i.test(s)) {
+  if (PORTAL_RE.test(s)) {
     return true
   }
-  if (/^git(\+|:\/\/)/i.test(s)) {
+  if (GIT_RE.test(s)) {
     return true
   }
-  if (/^npm:/i.test(s)) {
+  if (NPM_PROTO_RE.test(s)) {
     return true
   }
-  if (/^https?:\/\//i.test(s)) {
+  if (HTTP_RE.test(s)) {
     return true
   }
   if (s.startsWith('./') || s.startsWith('../')) {

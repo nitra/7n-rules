@@ -16,6 +16,8 @@ import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
+
+const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
 import {
   hasIdTokenWritePermission,
   hasNpmPublishStepWithPackage,

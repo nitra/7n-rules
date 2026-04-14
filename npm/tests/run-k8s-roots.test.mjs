@@ -1,6 +1,7 @@
 /**
  * Тести пошуку коренів каталогів `k8s` для run-k8s.
  */
+import { tmpdir } from 'node:os'
 import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -10,13 +11,13 @@ import { withTmpCwd } from './helpers.mjs'
 
 describe('k8sRootFromFile', () => {
   test('повертає каталог k8s зі шляху до yaml', () => {
-    const root = '/tmp'
+    const root = tmpdir()
     const f = join(root, 'app', 'k8s', 'base', 'd.yaml')
     expect(k8sRootFromFile(f)).toBe(join(root, 'app', 'k8s'))
   })
 
   test('null, якщо сегмента k8s немає', () => {
-    expect(k8sRootFromFile('/tmp/a/b/c.yaml')).toBe(null)
+    expect(k8sRootFromFile(join(tmpdir(), 'a', 'b', 'c.yaml'))).toBe(null)
   })
 })
 
