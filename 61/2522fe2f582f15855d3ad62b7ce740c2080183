@@ -1,0 +1,143 @@
+npm/scripts/check-graphql.mjs
+  ad078305d71baece 27,62-64,70,82-84,90-93
+npm/scripts/check-vue.mjs
+  ad078305d71baece 15-16,78
+npm/scripts/upgrade-nitra-cursor-and-install.mjs
+  ad078305d71baece 23-30,41,44,47,50,53,56,59
+npm/scripts/check-docker.mjs
+  ad078305d71baece 65-66
+npm/tests/utils-docker-hadolint.test.mjs
+  ad078305d71baece 9-10,21
+.cursor/rules/n-text.mdc
+  c603eaff1ac77c65 107
+npm/scripts/run-docker.mjs
+  ad078305d71baece 67-68
+npm/scripts/check-npm-module.mjs
+  ad078305d71baece 19-20
+npm/bin/n-cursor.js
+  ad078305d71baece 71-75,200,267,272,277-278
+npm/tests/rename-yaml-extensions.test.mjs
+  ad078305d71baece 4,59-60,62
+npm/scripts/rename-yaml-extensions.mjs
+  ad078305d71baece 19-22,41,51,62
+npm/scripts/utils/workspaces.mjs
+  ad078305d71baece 11-12,40-44
+npm/scripts/check-bun.mjs
+  ad078305d71baece 22-23,147,149,153,160,162
+npm/tests/check-abie.test.mjs
+  ad078305d71baece 8-9,184
+npm/scripts/check-text.mjs
+  c603eaff1ac77c65 5,31-33,169,171-179,184
+  ad078305d71baece 24-27,35,37,41-42,170,180-183,272,274-275
+npm/scripts/utils/vue-forbidden-imports.mjs
+  ad078305d71baece 13-15,80,168
+.oxfmtrc.json
+  c603eaff1ac77c65 2
+npm/scripts/utils/docker-hadolint.mjs
+  ad078305d71baece 11-12,34-40,49-51,55-58,62
+npm/scripts/utils/resolve-cmd.mjs
+  ad078305d71baece 1-23
+npm/scripts/utils/graphql-gql-scan.mjs
+  ad078305d71baece 15-16,20,39,43,51,61,70,101,110
+npm/tests/run-v8r-catalog.test.mjs
+  d05f334ac2105b91 15-22
+npm/tests/check-k8s-schema.test.mjs
+  ad078305d71baece 10-11,565
+npm/tests/check-text-fixture.test.mjs
+  c603eaff1ac77c65 36
+npm/tests/run-k8s-roots.test.mjs
+  ad078305d71baece 4,14,20
+npm/scripts/run-v8r.mjs
+  ad078305d71baece 22,52-53
+npm/package.json
+  c603eaff1ac77c65 3
+npm/mdc/text.mdc
+  c603eaff1ac77c65 107
+npm/scripts/run-k8s.mjs
+  ad078305d71baece 19,22-24,38,68,92-97,113-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "612522fe2f582f15855d3ad62b7ce740c2080183",
+  "prompts": {
+    "7138e6317f6995ad": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8ceec7f2-23b4-468c-808c-6606d9da276d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "85590cdd33c7581d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c76c04a-14e5-415e-b45f-cf9f3c644e54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "ad078305d71baece": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4dfc747-9205-4394-bb98-199cf9600a9b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 178,
+      "total_deletions": 84,
+      "accepted_lines": 175,
+      "overriden_lines": 0
+    },
+    "c603eaff1ac77c65": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e4210834-474d-4537-8221-c5fcf01853cf",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 26,
+      "total_deletions": 4,
+      "accepted_lines": 20,
+      "overriden_lines": 1
+    },
+    "d05f334ac2105b91": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "1e86ac2a-d181-4c3d-b45b-711dea18e5e1",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 8,
+      "total_deletions": 4,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
