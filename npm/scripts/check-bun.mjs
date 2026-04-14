@@ -4,8 +4,8 @@
  * Очікує наявність `bun.lock`, забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn`
  * і поле `packageManager` у кореневому `package.json`.
  *
- * У кореневому `package.json` не має бути поля **`dependencies`**; у **`devDependencies`** дозволені
- * лише пакети з префіксами **`@cspell/`** та **`@nitra/`** (інші залежності — у workspace-пакетах).
+ * У кореневому `package.json` не має бути поля **`dependencies`**; у **`devDependencies`** дозволені лише
+ * пакети **`@nitra/*`** (наприклад **`@nitra/cspell-dict`**, **`@nitra/eslint-config`**).
  *
  * Якщо в `.n-cursor.json` у `rules` є `docker` або `k8s`, вимагає у кореневому `package.json`
  * відповідно скриптів `lint-docker` / `lint-k8s` (див. docker.mdc, k8s.mdc).
@@ -20,12 +20,12 @@ import { readFile } from 'node:fs/promises'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /**
- * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише `@cspell/*` та `@nitra/*`).
+ * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише **`@nitra/*`**).
  * @param {string} name ключ з поля `devDependencies`
  * @returns {boolean} true, якщо префікс дозволений
  */
 export function isAllowedRootDevDependency(name) {
-  return name.startsWith('@cspell/') || name.startsWith('@nitra/')
+  return name.startsWith('@nitra/')
 }
 
 /**
@@ -105,14 +105,14 @@ export async function check() {
       const bad = Object.keys(dev).filter(n => !isAllowedRootDevDependency(n))
       if (bad.length > 0) {
         fail(
-          `Кореневі devDependencies дозволені лише @cspell/* та @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`
+          `Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`
         )
       } else {
         const n = Object.keys(dev).length
         pass(
           n === 0
-            ? 'Кореневі devDependencies порожні (дозволені лише @cspell/* та @nitra/*)'
-            : `Кореневі devDependencies лише @cspell/* та @nitra/* (${n} пак.)`
+            ? 'Кореневі devDependencies порожні або відсутні (лише @nitra/*)'
+            : `Кореневі devDependencies: лише @nitra/* (${n} пак.)`
         )
       }
     }

@@ -69,7 +69,7 @@ description: test
         name: 'text-fixture',
         private: true,
         devDependencies: {
-          '@nitra/cspell-dict': '^1.0.0'
+          '@nitra/cspell-dict': '^2.0.0'
         },
         scripts: {
           'lint-text':

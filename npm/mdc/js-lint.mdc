@@ -30,7 +30,7 @@ version: '1.13'
 }
 ```
 
-У корені має бути **`.oxlintrc.json`** з підключенням **`@e18e/eslint-plugin`** через **`jsPlugins`** і правилом **`e18e/prefer-includes`** зі значенням **`error`**. Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.5.0**), oxlint резолвить його з **`node_modules`**.
+У корені має бути **`.oxlintrc.json`** з підключенням **`@e18e/eslint-plugin`** через **`jsPlugins`** і правилом **`e18e/prefer-includes`** зі значенням **`error`**. Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.5.0**), oxlint підвантажує його з **`node_modules`**.
 
 ```json title=".oxlintrc.json (фрагмент)"
 {

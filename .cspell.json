@@ -2,8 +2,10 @@
   "version": "0.2",
   "language": "en,uk,ru-ru,nitra",
   "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report"],
-  "import": ["@nitra/cspell-dict/cspell-ext.json", "@cspell/dict-uk-ua/cspell-ext.json"],
+  "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": [
+    "graphqlrc",
+    "sonarjs",
     "пов’язаних",
     "обов’язкове",
     "обов’язковий",

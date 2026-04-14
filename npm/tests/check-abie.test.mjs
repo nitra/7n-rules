@@ -1,5 +1,5 @@
 /**
- * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, Firebase Hosting у корені, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом.
+ * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, Firebase Hosting у корені, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом, Service NodePort у ru.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -15,12 +15,15 @@ import {
   analyzeAbieSharedBackendRefsInPackageK8s,
   deploymentDocumentHasAbieBasePreemNodeSelector,
   getCombinedNginxRunPatchTextFromKustomization,
+  getMissingAbieRuServiceNodePortPatchServiceNames,
   ignoreBranchesIncludesRequired,
+  jsonPatchTextSetsServiceTypeNodePort,
   isAbieK8sBaseYamlPath,
   isK8sYamlInAbiePackageExcludingUaRuOverlays,
   isRuKustomizationPath,
   isUaKustomizationPath,
   kustomizationHasAbieDeploymentNodeSelectorPatch,
+  serviceDocumentRequiresAbieRuNodePortOverlay,
   kustomizationHasAbieNginxRunHttpRoutePatch,
   parseCleanMergedIgnoreBranches,
   validateAbieHcYaml,
@@ -430,6 +433,87 @@ patches:
     expect(kustomizationHasAbieNginxRunHttpRoutePatch(UA_KUSTOMIZATION_HTTPROUTE, 'ua')).toBe(true)
     expect(kustomizationHasAbieNginxRunHttpRoutePatch(RU_KUSTOMIZATION_HTTPROUTE, 'ru')).toBe(true)
   })
+
+  test('serviceDocumentRequiresAbieRuNodePortOverlay — ClusterIP, headless і -hl так; NodePort / LB / ExternalName ні', () => {
+    const cluster = {
+      kind: 'Service',
+      metadata: { name: 'web' },
+      spec: { type: 'ClusterIP', ports: [{ port: 80 }] }
+    }
+    expect(serviceDocumentRequiresAbieRuNodePortOverlay(cluster)).toBe(true)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'web' },
+        spec: { ports: [{ port: 80 }] }
+      })
+    ).toBe(true)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'x-hl' },
+        spec: { type: 'ClusterIP', clusterIP: 'None', ports: [{ port: 80 }] }
+      })
+    ).toBe(true)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'x-hl' },
+        spec: { type: 'ClusterIP', ports: [{ port: 80 }] }
+      })
+    ).toBe(true)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'web' },
+        spec: { clusterIP: 'None', ports: [{ port: 80 }] }
+      })
+    ).toBe(true)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'web' },
+        spec: { type: 'NodePort', ports: [{ port: 80 }] }
+      })
+    ).toBe(false)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'x' },
+        spec: { type: 'LoadBalancer', ports: [{ port: 80 }] }
+      })
+    ).toBe(false)
+    expect(
+      serviceDocumentRequiresAbieRuNodePortOverlay({
+        kind: 'Service',
+        metadata: { name: 'x' },
+        spec: { type: 'ExternalName', externalName: 'foo' }
+      })
+    ).toBe(false)
+    expect(serviceDocumentRequiresAbieRuNodePortOverlay({ kind: 'Deployment', metadata: { name: 'x' } })).toBe(false)
+  })
+
+  test('jsonPatchTextSetsServiceTypeNodePort та getMissingAbieRuServiceNodePortPatchServiceNames', () => {
+    const okPatch = `- op: replace
+  path: /spec/type
+  value: NodePort
+`
+    expect(jsonPatchTextSetsServiceTypeNodePort(okPatch)).toBe(true)
+    expect(jsonPatchTextSetsServiceTypeNodePort(okPatch.replace('NodePort', 'ClusterIP'))).toBe(false)
+    const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Service
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+`
+    expect(getMissingAbieRuServiceNodePortPatchServiceNames(ruK, ['web'])).toEqual([])
+    expect(getMissingAbieRuServiceNodePortPatchServiceNames(ruK, ['web', 'api'])).toEqual(['api'])
+  })
 })
 
 describe('check-abie (інтеграція в тимчасовому каталозі)', () => {
@@ -649,6 +733,85 @@ patches:
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       await writeFile(join('app/vite.config.js'), 'export default {}\n', 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: ClusterIP Service без ru/kustomization — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      const svc = `apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+    - port: 80
+`
+      await writeFile(join('app/k8s/base/svc.yaml'), svc, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: ClusterIP Service і ru без patch /spec/type NodePort — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      await ensureDir('app/k8s/ru')
+      const svc = `apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+    - port: 80
+`
+      await writeFile(join('app/k8s/base/svc.yaml'), svc, 'utf8')
+      const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+`
+      await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: ClusterIP Service і ru з patch NodePort — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      await ensureDir('app/k8s/ru')
+      const svc = `apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+    - port: 80
+`
+      await writeFile(join('app/k8s/base/svc.yaml'), svc, 'utf8')
+      const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: Service
+      name: web
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+`
+      await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)
     })
   })

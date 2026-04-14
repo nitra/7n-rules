@@ -4,7 +4,8 @@
  * oxfmt: `.oxfmtrc.json` з обовʼязковими ключами, VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
  * відсутність Prettier у конфігах і залежностях.
  *
- * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json), заборона
+ * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json); у кореневих **`devDependencies`**
+ * дозволені лише **`@nitra/*`** (як у bun.mdc), зокрема **`@nitra/cspell-dict` ^2.0.0+**; без імпорту **`@cspell/dict-*`** у `.cspell.json`, заборона
  * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
  * workflow `lint-text.yml`, розширення VSCode (markdownlint, oxc).
@@ -15,11 +16,26 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
+import { isAllowedRootDevDependency } from './check-bun.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
+
+/**
+ * Чи діапазон версії @nitra/cspell-dict у package.json означає лінію 2.0.0+ (з цієї версії словники входять у пакет).
+ * @param {string|undefined} range наприклад "^2.0.0"
+ * @returns {boolean}
+ */
+function cspellDictVersionAtLeast200(range) {
+  if (typeof range !== 'string' || !range.trim()) return false
+  const cleaned = range.trim().replace(/^workspace:\*/, '').replace(/^[\^~>=<]+\s*/, '')
+  const m = cleaned.match(/^(\d+)\.(\d+)\.(\d+)/)
+  if (!m) return false
+  const major = Number(m[1])
+  return major >= 2
+}
 
 /**
  * Перевіряє абзац про український апостроф у вмісті правила text.
@@ -217,11 +233,22 @@ export async function check() {
     if (pkg.prettier) fail('package.json містить поле "prettier" — видали його')
 
     const devDeps = pkg.devDependencies || {}
-
-    if (devDeps['@nitra/cspell-dict']) {
-      pass('@nitra/cspell-dict є в devDependencies')
+    const nonNitraDev = Object.keys(devDeps).filter(n => !isAllowedRootDevDependency(n))
+    if (nonNitraDev.length > 0) {
+      fail(
+        `Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${nonNitraDev.join(', ')} (bun.mdc)`
+      )
     } else {
-      fail('@nitra/cspell-dict відсутній — bun add -d @nitra/cspell-dict')
+      pass('Кореневі devDependencies лише @nitra/*')
+    }
+
+    const cspellRange = devDeps['@nitra/cspell-dict']
+    if (!cspellRange) {
+      fail('@nitra/cspell-dict у devDependencies обовʼязковий для cspell — bun add -d @nitra/cspell-dict@^2.0.0')
+    } else if (!cspellDictVersionAtLeast200(cspellRange)) {
+      fail('@nitra/cspell-dict має бути ^2.0.0 або новіший (словники зібрані в пакеті з 2.x)')
+    } else {
+      pass('@nitra/cspell-dict ^2.0.0+')
     }
 
     const rootDeps = pkg.dependencies || {}
@@ -276,9 +303,13 @@ export async function check() {
 
     if (existsSync('.cspell.json')) {
       const cfg = JSON.parse(await readFile('.cspell.json', 'utf8'))
-      const hasUkImport = (cfg.import || []).some(i => i.includes('@cspell/dict-uk-ua'))
-      if (hasUkImport && !devDeps['@cspell/dict-uk-ua']) {
-        fail('.cspell.json імпортує @cspell/dict-uk-ua, але пакет відсутній в devDependencies')
+      const dictImports = (cfg.import || []).filter(i => typeof i === 'string' && i.includes('@cspell/dict-'))
+      if (dictImports.length > 0) {
+        fail(
+          `.cspell.json не має імпортувати @cspell/dict-* (${dictImports.join(', ')}) — використовуй лише @nitra/cspell-dict/cspell-ext.json`
+        )
+      } else {
+        pass('.cspell.json без прямих імпортів @cspell/dict-*')
       }
     }
   }

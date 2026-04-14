@@ -4,7 +4,7 @@ alwaysApply: true
 version: '1.0'
 ---
 
-Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)), а в **`.vscode/extensions.json`** у масиві **`recommendations`** — запис **`graphql.vscode-graphql`**, щоб підсвітка, навігація до схеми й діагностика працювали в редакторі.
+Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\``для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)), а в **`.vscode/extensions.json`** у масиві **`recommendations`** — запис **`graphql.vscode-graphql`**, щоб підсвітка, навігація до схеми й діагностика працювали в редакторі.
 
 Деталі виявлення `gql` у скриптах (у т.ч. лише `<script>` у SFC) — **`npm/scripts/check-graphql.mjs`** / **`npm/scripts/utils/graphql-gql-scan.mjs`**.
 

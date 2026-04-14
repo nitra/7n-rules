@@ -50,7 +50,7 @@ Lockfile у репозиторії: `bun.lock`.
 - Якщо залежність потрібна лише одному пакету, додавати її в директорії цього пакета.
 - У CI та локально запускати скрипти через `bun run`.
 
-В кореневому в package.json не повинно бути `dependencies`, а в  `devDependencies` будуть тільки `@cspell/*` та `@nitra/*` модулі.
+В кореневому в package.json не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`
 
 Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn
 

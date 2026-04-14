@@ -59,7 +59,7 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
 }
 
 /**
- * Перевіряє обов’язкові поля `.oxlintrc.json` для плагіна e18e (js-lint.mdc).
+ * Перевіряє потрібні поля `.oxlintrc.json` для розширення e18e (js-lint.mdc).
  *
  * @param {unknown} cfg корінь JSON-конфігурації oxlint
  * @returns {{ ok: boolean, failures: string[] }} `ok` і перелік повідомлень для `fail`
@@ -67,7 +67,7 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
 export function verifyOxlintRcE18e(cfg) {
   const failures = []
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
-    return { ok: false, failures: ['.oxlintrc.json: корінь має бути об’єктом'] }
+    return { ok: false, failures: ['.oxlintrc.json: корінь має бути значенням типу object'] }
   }
   const o = /** @type {Record<string, unknown>} */ (cfg)
   const jsPlugins = o.jsPlugins
@@ -76,7 +76,7 @@ export function verifyOxlintRcE18e(cfg) {
   }
   const rules = o.rules
   if (!rules || typeof rules !== 'object' || Array.isArray(rules)) {
-    failures.push('.oxlintrc.json: поле rules має бути об’єктом')
+    failures.push('.oxlintrc.json: поле rules має бути значенням типу object')
   } else {
     const r = /** @type {Record<string, unknown>} */ (rules)
     if (r['e18e/prefer-includes'] !== 'error') {

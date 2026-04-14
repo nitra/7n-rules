@@ -32,6 +32,9 @@
  * **Спільні бекенди (`auth-run-hl`, `filelint-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
  * у patch overlay **ua** та **ru** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** або **ru** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
  * Вибір **`op`** — **k8s.mdc**.
+ *
+ * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
+ * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -293,6 +296,286 @@ function isDeploymentDoc(obj) {
     !Array.isArray(obj) &&
     /** @type {Record<string, unknown>} */ (obj).kind === 'Deployment'
   )
+}
+
+/**
+ * Чи документ — **Service**.
+ * @param {unknown} obj корінь YAML-документа
+ * @returns {boolean} true, якщо **kind** — **Service**
+ */
+function isServiceDoc(obj) {
+  return (
+    obj !== null &&
+    typeof obj === 'object' &&
+    !Array.isArray(obj) &&
+    /** @type {Record<string, unknown>} */ (obj).kind === 'Service'
+  )
+}
+
+/**
+ * Чи відносний шлях до YAML під **`…/k8s/…`** не в каталозі overlay **`k8s/ua/`** чи **`k8s/ru/`** у репозиторії (після **`k8s/`** одразу не йде **`ua/`** чи **`ru/`**).
+ * @param {string} relFromRoot шлях від кореня
+ * @returns {boolean} true для base / спільних маніфестів; **false** для файлів усередині **`k8s/ua/…`** або **`k8s/ru/…`**
+ */
+function k8sYamlRelOutsideUaRuOverlays(relFromRoot) {
+  const norm = relFromRoot.replaceAll('\\', '/')
+  const idx = norm.indexOf('/k8s/')
+  if (idx === -1) {
+    return false
+  }
+  const after = norm.slice(idx + '/k8s/'.length)
+  return after.length > 0 && !after.startsWith('ua/') && !after.startsWith('ru/')
+}
+
+/**
+ * Каталог пакета з відносного шляху **`…/k8s/…`** (частина до **`/k8s/`**).
+ * @param {string} root корінь репозиторію
+ * @param {string} relFromRoot відносний шлях
+ * @returns {string | null} абсолютний шлях до каталогу пакета або **null**
+ */
+function abiePackageDirFromK8sYamlRel(root, relFromRoot) {
+  const norm = relFromRoot.replaceAll('\\', '/')
+  const m = norm.match(/^(.+)\/k8s\//u)
+  return m ? join(root, m[1]) : null
+}
+
+/**
+ * Чи **Service** у base-шарі abie потребує в **ru** patch **`spec.type: NodePort`** (у т. ч. **headless**; не вже **NodePort** / **LoadBalancer** / **ExternalName**).
+ * @param {unknown} obj корінь YAML (**Service**)
+ * @returns {boolean} true, якщо для overlay **ru** очікується **NodePort**
+ */
+export function serviceDocumentRequiresAbieRuNodePortOverlay(obj) {
+  if (!isServiceDoc(obj)) {
+    return false
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const meta = rec.metadata
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return false
+  }
+  const name = /** @type {Record<string, unknown>} */ (meta).name
+  if (typeof name !== 'string' || name.trim() === '') {
+    return false
+  }
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
+    return true
+  }
+  const sp = /** @type {Record<string, unknown>} */ (spec)
+  const t = sp.type
+  if (t === 'NodePort' || t === 'LoadBalancer' || t === 'ExternalName') {
+    return false
+  }
+  return true
+}
+
+/**
+ * Чи фрагмент **JSON6902** у **`patch`** задає **`/spec/type`** зі значенням **NodePort** (abie overlay **ru**).
+ * @param {string} patchText поле **patch** у kustomization
+ * @returns {boolean} true, якщо знайдено **path** і **value**
+ */
+export function jsonPatchTextSetsServiceTypeNodePort(patchText) {
+  if (typeof patchText !== 'string' || patchText.trim() === '') {
+    return false
+  }
+  if (!/path:\s*\/spec\/type\b/u.test(patchText)) {
+    return false
+  }
+  if (!/value:\s*['"]?NodePort['"]?(?:\s|$)/iu.test(patchText)) {
+    return false
+  }
+  return true
+}
+
+/**
+ * З одного документа **Kustomization** збирає пари **Service name → patch text** для **inline patches** з **target.kind: Service**.
+ * @param {import('yaml').Document} doc документ після **parseAllDocuments**
+ * @returns {Map<string, string>} ім’я сервісу → текст **patch**
+ */
+function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
+  /** @type {Map<string, string>} */
+  const out = new Map()
+  if (doc.errors.length > 0) {
+    return out
+  }
+  const root = doc.toJSON()
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) {
+    return out
+  }
+  const rec = /** @type {Record<string, unknown>} */ (root)
+  if (rec.kind !== 'Kustomization') {
+    return out
+  }
+  const patches = rec.patches
+  if (!Array.isArray(patches)) {
+    return out
+  }
+  for (const p of patches) {
+    if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
+      const pr = /** @type {Record<string, unknown>} */ (p)
+      const target = pr.target
+      if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
+        const tg = /** @type {Record<string, unknown>} */ (target)
+        if (tg.kind === 'Service' && typeof tg.name === 'string' && tg.name.trim() !== '') {
+          const patchStr = pr.patch
+          if (typeof patchStr === 'string' && patchStr.trim() !== '') {
+            const prev = out.get(tg.name)
+            out.set(tg.name, prev === undefined ? patchStr : `${prev}\n${patchStr}`)
+          }
+        }
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Імена **Service**, для яких у **ru/kustomization.yaml** немає очікуваного patch **`/spec/type` → NodePort** (abie.mdc).
+ * @param {string} raw повний текст **kustomization.yaml**
+ * @param {Iterable<string>} serviceNames імена **metadata.name** з base-шару
+ * @returns {string[]} відсортовані імена без коректного patch
+ */
+export function getMissingAbieRuServiceNodePortPatchServiceNames(raw, serviceNames) {
+  const req = [...new Set([...serviceNames].filter(n => typeof n === 'string' && n.trim() !== ''))].toSorted((a, b) =>
+    a.localeCompare(b)
+  )
+  if (req.length === 0) {
+    return []
+  }
+  const body = stripBom(raw)
+  const lines = body.split(/\r?\n/u)
+  const first = lines[0] ?? ''
+  const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(rest)
+  } catch {
+    return req
+  }
+  /** @type {Map<string, string>} */
+  const byName = new Map()
+  for (const doc of docs) {
+    const chunk = collectAbieServicePatchTextsByNameFromKustomizationDoc(doc)
+    for (const [k, v] of chunk) {
+      const prev = byName.get(k)
+      byName.set(k, prev === undefined ? v : `${prev}\n${v}`)
+    }
+  }
+  return req.filter(n => {
+    const pt = byName.get(n)
+    return pt === undefined || !jsonPatchTextSetsServiceTypeNodePort(pt)
+  })
+}
+
+/**
+ * Для кожного пакета збирає імена **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
+ * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
+ * @returns {Promise<Map<string, Set<string>>>} **pkgAbs** → множина імен **Service**
+ */
+async function collectAbieRuNodePortServiceNamesByPackage(root, yamlAbs, fail) {
+  /** @type {Map<string, Set<string>>} */
+  const map = new Map()
+  for (const abs of yamlAbs) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    if (k8sYamlRelOutsideUaRuOverlays(rel)) {
+      const pkgAbs = abiePackageDirFromK8sYamlRel(root, rel)
+      if (pkgAbs) {
+        let raw
+        let readOk = false
+        try {
+          raw = await readFile(abs, 'utf8')
+          readOk = true
+        } catch (error) {
+          const msg = error instanceof Error ? error.message : String(error)
+          fail(`${rel}: не вдалося прочитати (${msg})`)
+        }
+        if (readOk) {
+          const body = stripBom(raw)
+          const lines = body.split(/\r?\n/u)
+          const first = lines[0] ?? ''
+          const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+          /** @type {import('yaml').Document[]} */
+          let docs
+          let parseOk = false
+          try {
+            docs = parseAllDocuments(rest)
+            parseOk = true
+          } catch (error) {
+            const msg = error instanceof Error ? error.message : String(error)
+            fail(`${rel}: YAML (${msg})`)
+          }
+          if (parseOk) {
+            for (const doc of docs) {
+              if (doc.errors.length === 0) {
+                const obj = doc.toJSON()
+                if (serviceDocumentRequiresAbieRuNodePortOverlay(obj)) {
+                  const rec = /** @type {Record<string, unknown>} */ (obj)
+                  const meta = /** @type {Record<string, unknown>} */ (rec.metadata)
+                  const n = meta.name
+                  if (typeof n === 'string' && n.trim() !== '') {
+                    let s = map.get(pkgAbs)
+                    if (!s) {
+                      s = new Set()
+                      map.set(pkgAbs, s)
+                    }
+                    s.add(n)
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return map
+}
+
+/**
+ * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**, якщо ще не **NodePort** / **LoadBalancer** / **ExternalName** (abie.mdc).
+ * @param {string} root корінь
+ * @param {string[]} yamlFilesAbs yaml під **k8s**
+ * @param {(msg: string) => void} fail callback
+ * @param {(msg: string) => void} passFn успішне повідомлення
+ * @returns {Promise<void>}
+ */
+async function ensureRuAbieServiceNodePortPatches(root, yamlFilesAbs, fail, passFn) {
+  const byPkg = await collectAbieRuNodePortServiceNamesByPackage(root, yamlFilesAbs, fail)
+  const entries = [...byPkg.entries()].filter(([, names]) => names.size > 0)
+  if (entries.length === 0) {
+    passFn('Немає Service у шарі k8s без k8s/ua/ та k8s/ru/ — patch NodePort у k8s/ru/ не вимагається (abie.mdc)')
+    return
+  }
+  for (const [pkgAbs, names] of entries.toSorted((a, b) => a[0].localeCompare(b[0]))) {
+    const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
+    const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
+    if (!existsSync(ruAbs)) {
+      fail(
+        `${relPkg}/k8s: є Service (у т. ч. headless), для overlay ru потрібен patch /spec/type → NodePort: ${[...names].toSorted((a, b) => a.localeCompare(b)).join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
+      )
+      return
+    }
+    const relRu = relative(root, ruAbs).replaceAll('\\', '/') || ruAbs
+    let raw
+    try {
+      raw = await readFile(ruAbs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${relRu}: не вдалося прочитати (${msg})`)
+      return
+    }
+    const missing = getMissingAbieRuServiceNodePortPatchServiceNames(raw, names)
+    if (missing.length > 0) {
+      fail(
+        `${relRu}: для kind: Service потрібен inline JSON6902 з path /spec/type та value NodePort (ім’я target: ${missing.join(', ')}) — abie.mdc`
+      )
+      return
+    }
+    passFn(`${relRu}: patch Service → NodePort (ru) відповідає abie.mdc`)
+  }
 }
 
 /**
@@ -1272,6 +1555,9 @@ export async function check() {
 
   const healthCheckPolicyRelativePaths = await collectHealthCheckPolicyRelPaths(root, yamlFiles)
   await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyRelativePaths, fail)
+
+  pass('Перевіряємо Service → NodePort у ru/kustomization (abie.mdc)')
+  await ensureRuAbieServiceNodePortPatches(root, yamlFiles, fail, pass)
 
   if (deploymentDirs.size > 0) {
     pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')

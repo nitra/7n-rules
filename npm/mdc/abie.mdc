@@ -1,10 +1,10 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.11'
+version: '1.14'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`filelint-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`filelint-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
@@ -111,6 +111,21 @@ spec:
         path: /metadata/annotations
         value:
           gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
+```
+
+## k8s: overlay **ru** і **Service** (у т. ч. headless → NodePort)
+
+Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Деталі перевірки — **`check-abie.mjs`**.
+
+```yaml title="…/ru/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Service
+      name: my-app
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
 ```
 
 ## k8s: overlay **ru** і HealthCheckPolicy

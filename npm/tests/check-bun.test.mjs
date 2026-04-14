@@ -8,9 +8,10 @@ import { check, isAllowedRootDevDependency } from '../scripts/check-bun.mjs'
 import { withTmpCwd, writeJson } from './helpers.mjs'
 
 describe('isAllowedRootDevDependency', () => {
-  test('дозволені лише @cspell/ та @nitra/', () => {
-    expect(isAllowedRootDevDependency('@cspell/dict-uk-ua')).toBe(true)
+  test('лише @nitra/*', () => {
     expect(isAllowedRootDevDependency('@nitra/eslint-config')).toBe(true)
+    expect(isAllowedRootDevDependency('@cspell/dict-uk-ua')).toBe(false)
+    expect(isAllowedRootDevDependency('@cspell/cspell-lib')).toBe(false)
     expect(isAllowedRootDevDependency('lodash')).toBe(false)
     expect(isAllowedRootDevDependency('@types/node')).toBe(false)
   })
