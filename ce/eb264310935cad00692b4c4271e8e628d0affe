@@ -1,0 +1,68 @@
+npm/package.json
+  82c7e5a3ecf77dcb 3
+npm/mdc/abie.mdc
+  82c7e5a3ecf77dcb 118
+npm/scripts/check-abie.mjs
+  82c7e5a3ecf77dcb 37,373,375,387,400,403,409,411,414,531,610,630
+npm/tests/check-abie.test.mjs
+  82c7e5a3ecf77dcb 919
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.2.8",
+  "base_commit_sha": "ceeb264310935cad00692b4c4271e8e628d0affe",
+  "prompts": {
+    "7138e6317f6995ad": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8ceec7f2-23b4-468c-808c-6606d9da276d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 1,
+      "overriden_lines": 0
+    },
+    "82c7e5a3ecf77dcb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a52fa5df-e652-4e41-b967-59413c992dd6",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 30,
+      "accepted_lines": 15,
+      "overriden_lines": 0
+    },
+    "85590cdd33c7581d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c76c04a-14e5-415e-b45f-cf9f3c644e54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 84,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    }
+  }
+}
