@@ -34,7 +34,7 @@
  * Вибір **`op`** — **k8s.mdc**.
  *
  * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
- * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** або **`spec.clusterIPs`** з **`None`** — у тому ж patch додай **`op: remove`** для **`/spec/clusterIP`** та **`/spec/clusterIPs`** (інакше **NodePort** з **`None`** відхиляє API).
+ * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — у тому ж patch додай **`op: remove`** для **`/spec/clusterIP`** (поле **`clusterIPs`** у статичному YAML часто відсутнє — **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -370,9 +370,9 @@ export function serviceDocumentRequiresAbieRuNodePortOverlay(obj) {
 }
 
 /**
- * Чи в base-**Service** є **headless** **`None`**, який треба прибрати в **ru** перед **NodePort** (**clusterIP** / **clusterIPs**).
+ * Чи в base-**Service** задано **headless** через **`spec.clusterIP: None`**, який треба прибрати в **ru** перед **NodePort**.
  * @param {unknown} obj корінь YAML (**Service**)
- * @returns {boolean} **true**, якщо **`spec.clusterIP === 'None'`** або **`spec.clusterIPs`** містить **`'None'`**
+ * @returns {boolean} **true**, якщо **`spec.clusterIP === 'None'`**
  */
 export function serviceDocumentRequiresRuClusterIPNoneRemoval(obj) {
   if (!isServiceDoc(obj)) {
@@ -384,14 +384,7 @@ export function serviceDocumentRequiresRuClusterIPNoneRemoval(obj) {
     return false
   }
   const sp = /** @type {Record<string, unknown>} */ (spec)
-  if (sp.clusterIP === 'None') {
-    return true
-  }
-  const cips = sp.clusterIPs
-  if (Array.isArray(cips) && cips.includes('None')) {
-    return true
-  }
-  return false
+  return sp.clusterIP === 'None'
 }
 
 /**
@@ -404,24 +397,21 @@ export function jsonPatchRemovesPath(patchText, posixPath) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
     return false
   }
-  if (posixPath !== '/spec/clusterIP' && posixPath !== '/spec/clusterIPs') {
+  if (posixPath !== '/spec/clusterIP') {
     return false
   }
-  const pathRe =
-    posixPath === '/spec/clusterIP'
-      ? String.raw`path:\s*\/spec\/clusterIP\b`
-      : String.raw`path:\s*\/spec\/clusterIPs\b`
+  const pathRe = String.raw`path:\s*\/spec\/clusterIP\b`
   const opRe = String.raw`op:\s*remove\b`
   return new RegExp(`${opRe}[\\s\\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(`${pathRe}[\\s\\S]{0,200}?${opRe}`, 'mu').test(patchText)
 }
 
 /**
- * Чи patch прибирає **headless** поля **`clusterIP`** / **`clusterIPs`**, щоб **NodePort** пройшов валідацію API.
+ * Чи patch містить **`op: remove`** для **`/spec/clusterIP`**, щоб прибрати **headless** перед **NodePort**.
  * @param {string} patchText поле **patch** у kustomization
- * @returns {boolean} true, якщо є **remove** і для **`/spec/clusterIP`**, і для **`/spec/clusterIPs`**
+ * @returns {boolean} true, якщо є **remove** для **`/spec/clusterIP`**
  */
 export function jsonPatchTextClearsHeadlessServiceClusterIPNone(patchText) {
-  return jsonPatchRemovesPath(patchText, '/spec/clusterIP') && jsonPatchRemovesPath(patchText, '/spec/clusterIPs')
+  return jsonPatchRemovesPath(patchText, '/spec/clusterIP')
 }
 
 /**
@@ -538,7 +528,7 @@ export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
       }
       if (requiresClear && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
         errors.push(
-          `${name}: для spec.clusterIP/spec.clusterIPs: None додай у той самий patch op: remove для path /spec/clusterIP та /spec/clusterIPs (abie.mdc)`
+          `${name}: для spec.clusterIP: None додай у той самий patch op: remove для path /spec/clusterIP (abie.mdc)`
         )
       }
     }
@@ -617,7 +607,7 @@ async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail)
 }
 
 /**
- * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; якщо в base було **`clusterIP: None`** / **`clusterIPs: None`** — також **`op: remove`** на **`/spec/clusterIP`** та **`/spec/clusterIPs`** (abie.mdc).
+ * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; якщо в base було **`clusterIP: None`** — також **`op: remove`** на **`/spec/clusterIP`** (abie.mdc).
  * @param {string} root корінь
  * @param {string[]} yamlFilesAbs yaml під **k8s**
  * @param {(msg: string) => void} fail callback
@@ -637,7 +627,7 @@ async function ensureRuAbieServiceNodePortPatches(root, yamlFilesAbs, fail, pass
     const nameList = [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))
     if (!existsSync(ruAbs)) {
       fail(
-        `${relPkg}/k8s: є Service, для overlay ru потрібен patch Service (NodePort; для headless — ще remove clusterIP/clusterIPs): ${nameList.join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
+        `${relPkg}/k8s: є Service, для overlay ru потрібен patch Service (NodePort; для headless — ще remove /spec/clusterIP): ${nameList.join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
       )
       return
     }

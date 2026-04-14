@@ -537,19 +537,16 @@ patches:
         metadata: { name: 'x' },
         spec: { clusterIPs: ['None'], ports: [{ port: 80 }] }
       })
-    ).toBe(true)
+    ).toBe(false)
     expect(serviceDocumentRequiresRuClusterIPNoneRemoval({ kind: 'Service', metadata: { name: 'x' }, spec: { ports: [] } })).toBe(false)
     const fullHlPatch = `- op: replace
   path: /spec/type
   value: NodePort
 - op: remove
   path: /spec/clusterIP
-- op: remove
-  path: /spec/clusterIPs
 `
     expect(jsonPatchTextClearsHeadlessServiceClusterIPNone(fullHlPatch)).toBe(true)
     expect(jsonPatchRemovesPath(fullHlPatch, '/spec/clusterIP')).toBe(true)
-    expect(jsonPatchRemovesPath(fullHlPatch, '/spec/clusterIPs')).toBe(true)
     const nodePortOnly = `- op: replace
   path: /spec/type
   value: NodePort
@@ -919,7 +916,7 @@ patches:
     })
   })
 
-  test('abie: headless Service і ru з NodePort + remove clusterIP/clusterIPs — 0', async () => {
+  test('abie: headless Service і ru з NodePort + remove clusterIP — 0', async () => {
     await withTmpCwd(async () => {
       await writeJson('.n-cursor.json', { rules: ['abie'] })
       await ensureDir('.github/workflows')
@@ -950,8 +947,6 @@ patches:
         value: NodePort
       - op: remove
         path: /spec/clusterIP
-      - op: remove
-        path: /spec/clusterIPs
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)
