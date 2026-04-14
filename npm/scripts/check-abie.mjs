@@ -34,7 +34,7 @@
  * Вибір **`op`** — **k8s.mdc**.
  *
  * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
- * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — у тому ж patch додай **`op: remove`** для **`/spec/clusterIP`** (поле **`clusterIPs`** у статичному YAML часто відсутнє — **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
+ * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — **`op: remove`** для **`/spec/clusterIP`**; якщо в base **явно** задано **`spec.clusterIPs`** — також **`remove`** для **`/spec/clusterIPs`** (інакше **API** може залишити **`None`** для **NodePort**; без ключа **`clusterIPs`** у base **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -388,19 +388,40 @@ export function serviceDocumentRequiresRuClusterIPNoneRemoval(obj) {
 }
 
 /**
+ * Чи в base-**Service** у **`spec`** явно задано поле **`clusterIPs`** (тоді **`remove`** на **`/spec/clusterIPs`** безпечний для **`kubectl kustomize`**).
+ * @param {unknown} obj корінь YAML (**Service**)
+ * @returns {boolean} **true**, якщо **`Object.hasOwn(spec, 'clusterIPs')`**
+ */
+export function serviceDocumentBaseDeclaresClusterIPsField(obj) {
+  if (!isServiceDoc(obj)) {
+    return false
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
+    return false
+  }
+  const sp = /** @type {Record<string, unknown>} */ (spec)
+  return Object.hasOwn(sp, 'clusterIPs')
+}
+
+/**
  * Чи **JSON6902**-текст містить **`op: remove`** для заданого **`path`** (порядок ключів **op** / **path** неважливий).
  * @param {string} patchText поле **patch** у kustomization
- * @param {string} posixPath наприклад **`/spec/clusterIP`**
+ * @param {string} posixPath **`/spec/clusterIP`** або **`/spec/clusterIPs`**
  * @returns {boolean} true, якщо знайдено пару **remove** + **path**
  */
 export function jsonPatchRemovesPath(patchText, posixPath) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
     return false
   }
-  if (posixPath !== '/spec/clusterIP') {
+  if (posixPath !== '/spec/clusterIP' && posixPath !== '/spec/clusterIPs') {
     return false
   }
-  const pathRe = String.raw`path:\s*\/spec\/clusterIP\b`
+  const pathRe =
+    posixPath === '/spec/clusterIP'
+      ? String.raw`path:\s*\/spec\/clusterIP\b`
+      : String.raw`path:\s*\/spec\/clusterIPs\b`
   const opRe = String.raw`op:\s*remove\b`
   return new RegExp(`${opRe}[\\s\\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(`${pathRe}[\\s\\S]{0,200}?${opRe}`, 'mu').test(patchText)
 }
@@ -506,7 +527,7 @@ function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
 /**
  * Повідомлення про порушення patch **Service** у **ru/kustomization.yaml** (abie.mdc).
  * @param {string} raw повний текст **kustomization.yaml**
- * @param {Map<string, { requiresClusterIPNoneClear: boolean }>} targetsByName ім’я **Service** → чи треба прибрати **None**
+ * @param {Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean }>} targetsByName ім’я **Service** → прапорці patch
  * @returns {string[]} порожньо, якщо все OK
  */
 export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
@@ -518,7 +539,8 @@ export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
   const errors = []
   for (const name of [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))) {
     const flags = targetsByName.get(name)
-    const requiresClear = flags?.requiresClusterIPNoneClear === true
+    const requiresClusterIPRemove = flags?.requiresClusterIPNoneClear === true
+    const requiresClusterIPsRemove = flags?.requiresClusterIPsRemove === true
     const pt = byName.get(name)
     if (pt === undefined || String(pt).trim() === '') {
       errors.push(`${name}: немає inline patch для kind: Service`)
@@ -526,9 +548,14 @@ export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
       if (!jsonPatchTextSetsServiceTypeNodePort(pt)) {
         errors.push(`${name}: потрібен JSON6902 path /spec/type та value NodePort`)
       }
-      if (requiresClear && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
+      if (requiresClusterIPRemove && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
         errors.push(
           `${name}: для spec.clusterIP: None додай у той самий patch op: remove для path /spec/clusterIP (abie.mdc)`
+        )
+      }
+      if (requiresClusterIPsRemove && !jsonPatchRemovesPath(pt, '/spec/clusterIPs')) {
+        errors.push(
+          `${name}: у base задано spec.clusterIPs — додай op: remove для path /spec/clusterIPs (інакше NodePort з None у clusterIPs; abie.mdc)`
         )
       }
     }
@@ -541,10 +568,10 @@ export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
  * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
- * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean }>>>} **pkgAbs** → (**ім’я** → прапорці)
+ * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} **pkgAbs** → (**ім’я** → прапорці)
  */
 async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail) {
-  /** @type {Map<string, Map<string, { requiresClusterIPNoneClear: boolean }>>} */
+  /** @type {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} */
   const map = new Map()
   for (const abs of yamlAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
@@ -590,9 +617,11 @@ async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail)
                       map.set(pkgAbs, inner)
                     }
                     const needClear = serviceDocumentRequiresRuClusterIPNoneRemoval(obj)
+                    const needClusterIPsRemove = serviceDocumentBaseDeclaresClusterIPsField(obj)
                     const prev = inner.get(n)
                     inner.set(n, {
-                      requiresClusterIPNoneClear: (prev?.requiresClusterIPNoneClear === true) || needClear
+                      requiresClusterIPNoneClear: (prev?.requiresClusterIPNoneClear === true) || needClear,
+                      requiresClusterIPsRemove: (prev?.requiresClusterIPsRemove === true) || needClusterIPsRemove
                     })
                   }
                 }
@@ -607,7 +636,7 @@ async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail)
 }
 
 /**
- * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; якщо в base було **`clusterIP: None`** — також **`op: remove`** на **`/spec/clusterIP`** (abie.mdc).
+ * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; при **`clusterIP: None`** — **`op: remove`** на **`/spec/clusterIP`**; якщо в base є **`spec.clusterIPs`** — ще **`remove`** на **`/spec/clusterIPs`** (abie.mdc).
  * @param {string} root корінь
  * @param {string[]} yamlFilesAbs yaml під **k8s**
  * @param {(msg: string) => void} fail callback

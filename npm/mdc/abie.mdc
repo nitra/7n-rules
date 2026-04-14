@@ -115,9 +115,9 @@ spec:
 
 ## k8s: overlay **ru** і **Service** (у т. ч. headless → NodePort)
 
-Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Якщо в base було **`spec.clusterIP: None`**, у тому ж **patch** додай **`op: remove`** для **`/spec/clusterIP`** (не додавай **`remove`** на **`/spec/clusterIPs`**: у статичному YAML ключа часто немає — **`kubectl kustomize`** падає з *Unable to remove nonexistent key*). Деталі — **`check-abie.mjs`**.
+Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Якщо в base було **`spec.clusterIP: None`**, у тому ж **patch** додай **`op: remove`** для **`/spec/clusterIP`**. Якщо в base **явно** задано **`spec.clusterIPs`** (зокрема **`['None']`**), додай **`op: remove`** і для **`/spec/clusterIPs`** — інакше **API** може відхилити **NodePort** (*`spec.clusterIPs[0]: Invalid value: "None"`*). **Не** додавай **`remove`** на **`/spec/clusterIPs`**, якщо ключа **немає** в base: **`kubectl kustomize`** тоді падає (*Unable to remove nonexistent key*). Якщо в base лише **`clusterIP: None`**, а помилка лишається після **`kubectl apply -k`** (злиття з уже існуючим **Service** у кластері), тимчасово **видали** **`Service`** у **`ru`** і застосуй знову, або додай у base поле **`clusterIPs`**, щоб **`remove`** у patch був валідний для **kustomize**. Деталі — **`check-abie.mjs`**.
 
-```yaml title="…/ru/kustomization.yaml (фрагмент, headless → NodePort)"
+```yaml title="…/ru/kustomization.yaml (фрагмент, headless → NodePort, без clusterIPs у base)"
 patches:
   - target:
       kind: Service
@@ -129,6 +129,8 @@ patches:
       - op: remove
         path: /spec/clusterIP
 ```
+
+Якщо в base у цього **Service** уже є **`spec.clusterIPs`**, той самий **patch** розшир **remove** на **`/spec/clusterIPs`** (див. **`check-abie.mjs`**).
 
 ## k8s: overlay **ru** і HealthCheckPolicy
 
