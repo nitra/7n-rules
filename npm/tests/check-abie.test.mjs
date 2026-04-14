@@ -14,9 +14,11 @@ import {
   abiePackageDirFromK8sOverlay,
   analyzeAbieSharedBackendRefsInPackageK8s,
   deploymentDocumentHasAbieBasePreemNodeSelector,
+  getAbieRuServiceNodePortPatchErrors,
   getCombinedNginxRunPatchTextFromKustomization,
-  getMissingAbieRuServiceNodePortPatchServiceNames,
   ignoreBranchesIncludesRequired,
+  jsonPatchRemovesPath,
+  jsonPatchTextClearsHeadlessServiceClusterIPNone,
   jsonPatchTextSetsServiceTypeNodePort,
   isAbieK8sBaseYamlPath,
   isK8sYamlInAbiePackageExcludingUaRuOverlays,
@@ -24,6 +26,7 @@ import {
   isUaKustomizationPath,
   kustomizationHasAbieDeploymentNodeSelectorPatch,
   serviceDocumentRequiresAbieRuNodePortOverlay,
+  serviceDocumentRequiresRuClusterIPNoneRemoval,
   kustomizationHasAbieNginxRunHttpRoutePatch,
   parseCleanMergedIgnoreBranches,
   validateAbieHcYaml,
@@ -493,7 +496,7 @@ patches:
     expect(serviceDocumentRequiresAbieRuNodePortOverlay({ kind: 'Deployment', metadata: { name: 'x' } })).toBe(false)
   })
 
-  test('jsonPatchTextSetsServiceTypeNodePort та getMissingAbieRuServiceNodePortPatchServiceNames', () => {
+  test('jsonPatchTextSetsServiceTypeNodePort та getAbieRuServiceNodePortPatchErrors', () => {
     const okPatch = `- op: replace
   path: /spec/type
   value: NodePort
@@ -511,8 +514,73 @@ patches:
         path: /spec/type
         value: NodePort
 `
-    expect(getMissingAbieRuServiceNodePortPatchServiceNames(ruK, ['web'])).toEqual([])
-    expect(getMissingAbieRuServiceNodePortPatchServiceNames(ruK, ['web', 'api'])).toEqual(['api'])
+    const onlyWeb = new Map([['web', { requiresClusterIPNoneClear: false }]])
+    expect(getAbieRuServiceNodePortPatchErrors(ruK, onlyWeb)).toEqual([])
+    const webApi = new Map([
+      ['web', { requiresClusterIPNoneClear: false }],
+      ['api', { requiresClusterIPNoneClear: false }]
+    ])
+    expect(getAbieRuServiceNodePortPatchErrors(ruK, webApi).length).toBe(1)
+    expect(getAbieRuServiceNodePortPatchErrors(ruK, webApi)[0]).toContain('api')
+  })
+
+  test('serviceDocumentRequiresRuClusterIPNoneRemoval та jsonPatchTextClearsHeadlessServiceClusterIPNone', () => {
+    const headless = {
+      kind: 'Service',
+      metadata: { name: 'user-site-hl' },
+      spec: { clusterIP: 'None', ports: [{ port: 80 }] }
+    }
+    expect(serviceDocumentRequiresRuClusterIPNoneRemoval(headless)).toBe(true)
+    expect(
+      serviceDocumentRequiresRuClusterIPNoneRemoval({
+        kind: 'Service',
+        metadata: { name: 'x' },
+        spec: { clusterIPs: ['None'], ports: [{ port: 80 }] }
+      })
+    ).toBe(true)
+    expect(serviceDocumentRequiresRuClusterIPNoneRemoval({ kind: 'Service', metadata: { name: 'x' }, spec: { ports: [] } })).toBe(false)
+    const fullHlPatch = `- op: replace
+  path: /spec/type
+  value: NodePort
+- op: remove
+  path: /spec/clusterIP
+- op: remove
+  path: /spec/clusterIPs
+`
+    expect(jsonPatchTextClearsHeadlessServiceClusterIPNone(fullHlPatch)).toBe(true)
+    expect(jsonPatchRemovesPath(fullHlPatch, '/spec/clusterIP')).toBe(true)
+    expect(jsonPatchRemovesPath(fullHlPatch, '/spec/clusterIPs')).toBe(true)
+    const nodePortOnly = `- op: replace
+  path: /spec/type
+  value: NodePort
+`
+    expect(jsonPatchTextClearsHeadlessServiceClusterIPNone(nodePortOnly)).toBe(false)
+    const hlTargets = new Map([['user-site-hl', { requiresClusterIPNoneClear: true }]])
+    const ruKNodePortOnlyHl = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Service
+      name: user-site-hl
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+`
+    expect(getAbieRuServiceNodePortPatchErrors(ruKNodePortOnlyHl, hlTargets).length).toBeGreaterThan(0)
+    const ruHl = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+patches:
+  - target:
+      kind: Service
+      name: user-site-hl
+    patch: |-
+${fullHlPatch
+  .split('\n')
+  .map(l => `      ${l}`)
+  .join('\n')}
+`
+    expect(getAbieRuServiceNodePortPatchErrors(ruHl, hlTargets)).toEqual([])
   })
 })
 
@@ -810,6 +878,80 @@ patches:
       - op: replace
         path: /spec/type
         value: NodePort
+`
+      await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: headless Service (clusterIP None) і ru лише NodePort без remove — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      await ensureDir('app/k8s/ru')
+      const svc = `apiVersion: v1
+kind: Service
+metadata:
+  name: user-site-hl
+spec:
+  clusterIP: None
+  ports:
+    - port: 8080
+`
+      await writeFile(join('app/k8s/base/svc-hl.yaml'), svc, 'utf8')
+      const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: Service
+      name: user-site-hl
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+`
+      await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: headless Service і ru з NodePort + remove clusterIP/clusterIPs — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      await ensureDir('app/k8s/ru')
+      const svc = `apiVersion: v1
+kind: Service
+metadata:
+  name: user-site-hl
+spec:
+  clusterIP: None
+  ports:
+    - port: 8080
+`
+      await writeFile(join('app/k8s/base/svc-hl.yaml'), svc, 'utf8')
+      const ruK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../base
+patches:
+  - target:
+      kind: Service
+      name: user-site-hl
+    patch: |-
+      - op: replace
+        path: /spec/type
+        value: NodePort
+      - op: remove
+        path: /spec/clusterIP
+      - op: remove
+        path: /spec/clusterIPs
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)

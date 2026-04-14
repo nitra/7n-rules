@@ -1,7 +1,7 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.14'
+version: '1.15'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`filelint-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона артефактів **Firebase Hosting** у корені репозиторію.
@@ -115,17 +115,21 @@ spec:
 
 ## k8s: overlay **ru** і **Service** (у т. ч. headless → NodePort)
 
-Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Деталі перевірки — **`check-abie.mjs`**.
+Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Якщо в base було **`spec.clusterIP: None`** або **`spec.clusterIPs`** з **`None`** (типово **headless**), у тому ж **patch** додай **`op: remove`** для **`/spec/clusterIP`** та **`/spec/clusterIPs`** — інакше API відхилить **NodePort** з помилкою на **`clusterIPs`**. Деталі — **`check-abie.mjs`**.
 
-```yaml title="…/ru/kustomization.yaml (фрагмент)"
+```yaml title="…/ru/kustomization.yaml (фрагмент, headless → NodePort)"
 patches:
   - target:
       kind: Service
-      name: my-app
+      name: user-site-hl
     patch: |-
       - op: replace
         path: /spec/type
         value: NodePort
+      - op: remove
+        path: /spec/clusterIP
+      - op: remove
+        path: /spec/clusterIPs
 ```
 
 ## k8s: overlay **ru** і HealthCheckPolicy

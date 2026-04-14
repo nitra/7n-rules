@@ -34,7 +34,7 @@
  * Вибір **`op`** — **k8s.mdc**.
  *
  * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
- * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**.
+ * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** або **`spec.clusterIPs`** з **`None`** — у тому ж patch додай **`op: remove`** для **`/spec/clusterIP`** та **`/spec/clusterIPs`** (інакше **NodePort** з **`None`** відхиляє API).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -370,6 +370,61 @@ export function serviceDocumentRequiresAbieRuNodePortOverlay(obj) {
 }
 
 /**
+ * Чи в base-**Service** є **headless** **`None`**, який треба прибрати в **ru** перед **NodePort** (**clusterIP** / **clusterIPs**).
+ * @param {unknown} obj корінь YAML (**Service**)
+ * @returns {boolean} **true**, якщо **`spec.clusterIP === 'None'`** або **`spec.clusterIPs`** містить **`'None'`**
+ */
+export function serviceDocumentRequiresRuClusterIPNoneRemoval(obj) {
+  if (!isServiceDoc(obj)) {
+    return false
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
+    return false
+  }
+  const sp = /** @type {Record<string, unknown>} */ (spec)
+  if (sp.clusterIP === 'None') {
+    return true
+  }
+  const cips = sp.clusterIPs
+  if (Array.isArray(cips) && cips.includes('None')) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Чи **JSON6902**-текст містить **`op: remove`** для заданого **`path`** (порядок ключів **op** / **path** неважливий).
+ * @param {string} patchText поле **patch** у kustomization
+ * @param {string} posixPath наприклад **`/spec/clusterIP`**
+ * @returns {boolean} true, якщо знайдено пару **remove** + **path**
+ */
+export function jsonPatchRemovesPath(patchText, posixPath) {
+  if (typeof patchText !== 'string' || patchText.trim() === '') {
+    return false
+  }
+  if (posixPath !== '/spec/clusterIP' && posixPath !== '/spec/clusterIPs') {
+    return false
+  }
+  const pathRe =
+    posixPath === '/spec/clusterIP'
+      ? String.raw`path:\s*\/spec\/clusterIP\b`
+      : String.raw`path:\s*\/spec\/clusterIPs\b`
+  const opRe = String.raw`op:\s*remove\b`
+  return new RegExp(`${opRe}[\\s\\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(`${pathRe}[\\s\\S]{0,200}?${opRe}`, 'mu').test(patchText)
+}
+
+/**
+ * Чи patch прибирає **headless** поля **`clusterIP`** / **`clusterIPs`**, щоб **NodePort** пройшов валідацію API.
+ * @param {string} patchText поле **patch** у kustomization
+ * @returns {boolean} true, якщо є **remove** і для **`/spec/clusterIP`**, і для **`/spec/clusterIPs`**
+ */
+export function jsonPatchTextClearsHeadlessServiceClusterIPNone(patchText) {
+  return jsonPatchRemovesPath(patchText, '/spec/clusterIP') && jsonPatchRemovesPath(patchText, '/spec/clusterIPs')
+}
+
+/**
  * Чи фрагмент **JSON6902** у **`patch`** задає **`/spec/type`** зі значенням **NodePort** (abie overlay **ru**).
  * @param {string} patchText поле **patch** у kustomization
  * @returns {boolean} true, якщо знайдено **path** і **value**
@@ -430,31 +485,24 @@ function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
 }
 
 /**
- * Імена **Service**, для яких у **ru/kustomization.yaml** немає очікуваного patch **`/spec/type` → NodePort** (abie.mdc).
+ * Збирає тексти **patch** на **Service** з **kustomization.yaml** (усі документи).
  * @param {string} raw повний текст **kustomization.yaml**
- * @param {Iterable<string>} serviceNames імена **metadata.name** з base-шару
- * @returns {string[]} відсортовані імена без коректного patch
+ * @returns {Map<string, string>} **target.name** → об’єднаний текст **patch**
  */
-export function getMissingAbieRuServiceNodePortPatchServiceNames(raw, serviceNames) {
-  const req = [...new Set([...serviceNames].filter(n => typeof n === 'string' && n.trim() !== ''))].toSorted((a, b) =>
-    a.localeCompare(b)
-  )
-  if (req.length === 0) {
-    return []
-  }
+function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
   const body = stripBom(raw)
   const lines = body.split(/\r?\n/u)
   const first = lines[0] ?? ''
   const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+  /** @type {Map<string, string>} */
+  const byName = new Map()
   /** @type {import('yaml').Document[]} */
   let docs
   try {
     docs = parseAllDocuments(rest)
   } catch {
-    return req
+    return byName
   }
-  /** @type {Map<string, string>} */
-  const byName = new Map()
   for (const doc of docs) {
     const chunk = collectAbieServicePatchTextsByNameFromKustomizationDoc(doc)
     for (const [k, v] of chunk) {
@@ -462,21 +510,51 @@ export function getMissingAbieRuServiceNodePortPatchServiceNames(raw, serviceNam
       byName.set(k, prev === undefined ? v : `${prev}\n${v}`)
     }
   }
-  return req.filter(n => {
-    const pt = byName.get(n)
-    return pt === undefined || !jsonPatchTextSetsServiceTypeNodePort(pt)
-  })
+  return byName
 }
 
 /**
- * Для кожного пакета збирає імена **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
+ * Повідомлення про порушення patch **Service** у **ru/kustomization.yaml** (abie.mdc).
+ * @param {string} raw повний текст **kustomization.yaml**
+ * @param {Map<string, { requiresClusterIPNoneClear: boolean }>} targetsByName ім’я **Service** → чи треба прибрати **None**
+ * @returns {string[]} порожньо, якщо все OK
+ */
+export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
+  if (targetsByName.size === 0) {
+    return []
+  }
+  const byName = collectAbieRuServicePatchTextByTargetNameFromRaw(raw)
+  /** @type {string[]} */
+  const errors = []
+  for (const name of [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))) {
+    const flags = targetsByName.get(name)
+    const requiresClear = flags?.requiresClusterIPNoneClear === true
+    const pt = byName.get(name)
+    if (pt === undefined || String(pt).trim() === '') {
+      errors.push(`${name}: немає inline patch для kind: Service`)
+    } else {
+      if (!jsonPatchTextSetsServiceTypeNodePort(pt)) {
+        errors.push(`${name}: потрібен JSON6902 path /spec/type та value NodePort`)
+      }
+      if (requiresClear && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
+        errors.push(
+          `${name}: для spec.clusterIP/spec.clusterIPs: None додай у той самий patch op: remove для path /spec/clusterIP та /spec/clusterIPs (abie.mdc)`
+        )
+      }
+    }
+  }
+  return errors
+}
+
+/**
+ * Для кожного пакета збирає **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
  * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
- * @returns {Promise<Map<string, Set<string>>>} **pkgAbs** → множина імен **Service**
+ * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean }>>>} **pkgAbs** → (**ім’я** → прапорці)
  */
-async function collectAbieRuNodePortServiceNamesByPackage(root, yamlAbs, fail) {
-  /** @type {Map<string, Set<string>>} */
+async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail) {
+  /** @type {Map<string, Map<string, { requiresClusterIPNoneClear: boolean }>>} */
   const map = new Map()
   for (const abs of yamlAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
@@ -516,12 +594,16 @@ async function collectAbieRuNodePortServiceNamesByPackage(root, yamlAbs, fail) {
                   const meta = /** @type {Record<string, unknown>} */ (rec.metadata)
                   const n = meta.name
                   if (typeof n === 'string' && n.trim() !== '') {
-                    let s = map.get(pkgAbs)
-                    if (!s) {
-                      s = new Set()
-                      map.set(pkgAbs, s)
+                    let inner = map.get(pkgAbs)
+                    if (!inner) {
+                      inner = new Map()
+                      map.set(pkgAbs, inner)
                     }
-                    s.add(n)
+                    const needClear = serviceDocumentRequiresRuClusterIPNoneRemoval(obj)
+                    const prev = inner.get(n)
+                    inner.set(n, {
+                      requiresClusterIPNoneClear: (prev?.requiresClusterIPNoneClear === true) || needClear
+                    })
                   }
                 }
               }
@@ -535,7 +617,7 @@ async function collectAbieRuNodePortServiceNamesByPackage(root, yamlAbs, fail) {
 }
 
 /**
- * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**, якщо ще не **NodePort** / **LoadBalancer** / **ExternalName** (abie.mdc).
+ * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; якщо в base було **`clusterIP: None`** / **`clusterIPs: None`** — також **`op: remove`** на **`/spec/clusterIP`** та **`/spec/clusterIPs`** (abie.mdc).
  * @param {string} root корінь
  * @param {string[]} yamlFilesAbs yaml під **k8s**
  * @param {(msg: string) => void} fail callback
@@ -543,18 +625,19 @@ async function collectAbieRuNodePortServiceNamesByPackage(root, yamlAbs, fail) {
  * @returns {Promise<void>}
  */
 async function ensureRuAbieServiceNodePortPatches(root, yamlFilesAbs, fail, passFn) {
-  const byPkg = await collectAbieRuNodePortServiceNamesByPackage(root, yamlFilesAbs, fail)
-  const entries = [...byPkg.entries()].filter(([, names]) => names.size > 0)
+  const byPkg = await collectAbieRuNodePortServiceTargetsByPackage(root, yamlFilesAbs, fail)
+  const entries = [...byPkg.entries()].filter(([, m]) => m.size > 0)
   if (entries.length === 0) {
     passFn('Немає Service у шарі k8s без k8s/ua/ та k8s/ru/ — patch NodePort у k8s/ru/ не вимагається (abie.mdc)')
     return
   }
-  for (const [pkgAbs, names] of entries.toSorted((a, b) => a[0].localeCompare(b[0]))) {
+  for (const [pkgAbs, targetsByName] of entries.toSorted((a, b) => a[0].localeCompare(b[0]))) {
     const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
     const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
+    const nameList = [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))
     if (!existsSync(ruAbs)) {
       fail(
-        `${relPkg}/k8s: є Service (у т. ч. headless), для overlay ru потрібен patch /spec/type → NodePort: ${[...names].toSorted((a, b) => a.localeCompare(b)).join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
+        `${relPkg}/k8s: є Service, для overlay ru потрібен patch Service (NodePort; для headless — ще remove clusterIP/clusterIPs): ${nameList.join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
       )
       return
     }
@@ -567,11 +650,9 @@ async function ensureRuAbieServiceNodePortPatches(root, yamlFilesAbs, fail, pass
       fail(`${relRu}: не вдалося прочитати (${msg})`)
       return
     }
-    const missing = getMissingAbieRuServiceNodePortPatchServiceNames(raw, names)
-    if (missing.length > 0) {
-      fail(
-        `${relRu}: для kind: Service потрібен inline JSON6902 з path /spec/type та value NodePort (ім’я target: ${missing.join(', ')}) — abie.mdc`
-      )
+    const patchErrors = getAbieRuServiceNodePortPatchErrors(raw, targetsByName)
+    if (patchErrors.length > 0) {
+      fail(`${relRu}: ${patchErrors.join('; ')}`)
       return
     }
     passFn(`${relRu}: patch Service → NodePort (ru) відповідає abie.mdc`)
