@@ -24,10 +24,34 @@ describe('check без цільових файлів', () => {
   test('check-k8s — 1, якщо kustomization з remove+add на той самий path', async () => {
     await withTmpCwd(async () => {
       await ensureDir('app/k8s/ua')
+      const depSchema =
+        'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'
+      const dep = `# yaml-language-server: $schema=${depSchema}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x
+  template:
+    metadata:
+      labels:
+        app: x
+    spec:
+      containers:
+        - name: c
+          image: nginx:1.27
+          resources: {}
+`
       const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources: []
+namespace: ns1
+resources:
+  - deploy.yaml
 patches:
   - target:
       kind: Deployment
@@ -40,6 +64,53 @@ patches:
         value:
           preem: "false"
 `
+      await writeFile('app/k8s/ua/deploy.yaml', dep, 'utf8')
+      await writeFile('app/k8s/ua/kustomization.yaml', k, 'utf8')
+      expect(await checkK8s()).toBe(1)
+    })
+  })
+
+  test('check-k8s — 1, якщо patch.target вказує на неіснуючий ресурс', async () => {
+    await withTmpCwd(async () => {
+      await ensureDir('app/k8s/ua')
+      const depSchema =
+        'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'
+      const dep = `# yaml-language-server: $schema=${depSchema}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: x
+  template:
+    metadata:
+      labels:
+        app: x
+    spec:
+      containers:
+        - name: c
+          image: nginx:1.27
+          resources: {}
+`
+      const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: ns1
+resources:
+  - deploy.yaml
+patches:
+  - target:
+      kind: Deployment
+      name: ghost
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+`
+      await writeFile('app/k8s/ua/deploy.yaml', dep, 'utf8')
       await writeFile('app/k8s/ua/kustomization.yaml', k, 'utf8')
       expect(await checkK8s()).toBe(1)
     })

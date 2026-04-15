@@ -45,6 +45,11 @@
  * **Inline JSON6902** у **`patches`** (і зовнішні файли з **`patches[].path`** під **`k8s`**, якщо вміст — масив JSON Patch): не допускається пара **`remove`** і **`add`**
  * на один і той самий **`path`** у межах одного фрагмента — потрібен **`op: replace`** (k8s.mdc). **check-k8s** це перевіряє.
  *
+ * **Мішень patch:** у **`patches[].target`** і **`patchesJson6902[].target`** (без **labelSelector** / **annotationSelector**)
+ * має існувати відповідний ресурс у зібраному з **`resources`**, **`bases`**, **`components`**, **`crds`** каталозі (рекурсивно для підкаталогів з **`kustomization.yaml`**).
+ * Для **`patchesStrategicMerge`** і для **`patches[].path`** без **`target`** і без inline **`patch`** (зовнішній strategic-merge)
+ * кожен YAML-документ з кореневим **`kind`** і **`metadata.name`** також звіряється з цим каталогом.
+ *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
@@ -469,6 +474,533 @@ export async function collectKustomizeManagedRelPaths(root, yamlFilesAbs) {
   }
 
   return managed
+}
+
+/**
+ * Шляхи лише з полів ресурсів Kustomization (**без** patch-файлів).
+ * @param {unknown} obj корінь першого документа Kustomization
+ * @returns {string[]} відносні посилання
+ */
+function resourcePathRefsFromKustomizationObject(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  /** @type {string[]} */
+  const out = []
+  pushStringPaths(rec.resources, out)
+  pushStringPaths(rec.bases, out)
+  pushStringPaths(rec.components, out)
+  pushStringPaths(rec.crds, out)
+  return out
+}
+
+/**
+ * Дескриптор ресурсу для звірки з **`target`** Kustomize / strategic-merge фрагментом.
+ * @typedef {{ group: string, version: string, kind: string, name: string, namespace: string }} KustomizeResourceDescriptor
+ */
+
+/**
+ * Розбиває **`apiVersion`** Kubernetes на **group** і **version**.
+ * @param {unknown} apiVersion значення з YAML
+ * @returns {{ group: string, version: string }} для `group/version` — два сегменти; для `v1` — core (**group** порожній).
+ */
+export function splitK8sApiVersion(apiVersion) {
+  if (typeof apiVersion !== 'string') {
+    return { group: '', version: '' }
+  }
+  const t = apiVersion.trim()
+  if (t === '') {
+    return { group: '', version: '' }
+  }
+  const i = t.indexOf('/')
+  if (i === -1) {
+    return { group: '', version: t }
+  }
+  return { group: t.slice(0, i), version: t.slice(i + 1) }
+}
+
+/**
+ * Чи patch-**target** використовує **labelSelector** / **annotationSelector** (тоді статична перевірка за іменем не застосовується).
+ * @param {Record<string, unknown>} t об’єкт **target**
+ * @returns {boolean} true, якщо є непорожній селектор
+ */
+function patchTargetUsesSelector(t) {
+  const ls = t.labelSelector
+  if (
+    ls !== undefined &&
+    ls !== null &&
+    ls !== '' &&
+    ((typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0) ||
+      (typeof ls === 'string' && ls.trim() !== ''))
+  ) {
+    return true
+  }
+  const asel = t.annotationSelector
+  if (
+    asel !== undefined &&
+    asel !== null &&
+    asel !== '' &&
+    ((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
+      (typeof asel === 'string' && asel.trim() !== ''))
+  ) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Чи варто перевіряти **target** на наявність ресурсу в каталозі (є **kind** і **name**, немає селекторів).
+ * @param {unknown} target значення **patches[].target**
+ * @returns {boolean} true, якщо перевірка доречна
+ */
+export function shouldValidateKustomizePatchTarget(target) {
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+    return false
+  }
+  const t = /** @type {Record<string, unknown>} */ (target)
+  const kind = t.kind
+  const name = t.name
+  if (typeof kind !== 'string' || kind.trim() === '' || typeof name !== 'string' || name.trim() === '') {
+    return false
+  }
+  return !patchTargetUsesSelector(t)
+}
+
+/**
+ * Чи **target** Kustomize відповідає дескриптору ресурсу (узгоджено з правилами відбору Kustomize: пропущені поля **target** не звужують).
+ * @param {unknown} target об’єкт **target**
+ * @param {KustomizeResourceDescriptor} res дескриптор з інвентарю
+ * @returns {boolean} true, якщо збігається
+ */
+export function kustomizePatchTargetMatchesDescriptor(target, res) {
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+    return false
+  }
+  const rec = /** @type {Record<string, unknown>} */ (target)
+  const tk = rec.kind
+  const tn = rec.name
+  if (typeof tk !== 'string' || typeof tn !== 'string') {
+    return false
+  }
+  if (tk.trim() !== res.kind || tn.trim() !== res.name) {
+    return false
+  }
+  const tgtGroup = rec.group
+  if (typeof tgtGroup === 'string' && tgtGroup.trim() !== '' && res.group !== tgtGroup.trim()) {
+    return false
+  }
+  const tgtVersion = rec.version
+  if (typeof tgtVersion === 'string' && tgtVersion.trim() !== '' && res.version !== tgtVersion.trim()) {
+    return false
+  }
+  const tgtNs = rec.namespace
+  if (typeof tgtNs === 'string' && tgtNs.trim() !== '' && res.namespace !== tgtNs.trim()) {
+    return false
+  }
+  return true
+}
+
+/**
+ * Чи є в каталозі ресурс, який задовольняє **target**.
+ * @param {KustomizeResourceDescriptor[]} catalog зібрані дескриптори
+ * @param {unknown} target об’єкт **target**
+ * @returns {boolean} true, якщо перевірка не потрібна або знайдено збіг
+ */
+export function kustomizeResourceCatalogMatchesPatchTarget(catalog, target) {
+  if (!shouldValidateKustomizePatchTarget(target)) {
+    return true
+  }
+  return catalog.some(res => kustomizePatchTargetMatchesDescriptor(target, res))
+}
+
+/**
+ * Чи два дескриптори повністю збігаються (для strategic-merge фрагмента).
+ * @param {KustomizeResourceDescriptor} a перший
+ * @param {KustomizeResourceDescriptor} b другий
+ * @returns {boolean} true, якщо всі поля однакові
+ */
+export function kustomizeResourceDescriptorsIdentityEqual(a, b) {
+  return (
+    a.group === b.group &&
+    a.version === b.version &&
+    a.kind === b.kind &&
+    a.name === b.name &&
+    a.namespace === b.namespace
+  )
+}
+
+/**
+ * Будує дескриптор з маніфесту (пропускає **Kustomization** та об’єкти без **metadata.name**).
+ * @param {Record<string, unknown>} obj корінь документа
+ * @param {string} kustomizationDefaultNs значення **`namespace:`** з kustomization, що підключив файл
+ * @returns {KustomizeResourceDescriptor | null} дескриптор для звірки або **null**, якщо документ не підходить.
+ */
+export function kustomizeResourceDescriptorFromManifest(obj, kustomizationDefaultNs) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return null
+  }
+  const kindRaw = obj.kind
+  if (typeof kindRaw !== 'string' || kindRaw.trim() === '') {
+    return null
+  }
+  const kind = kindRaw.trim()
+  if (kind === 'Kustomization') {
+    return null
+  }
+  const meta = obj.metadata
+  let name = ''
+  if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+    const m = /** @type {Record<string, unknown>} */ (meta)
+    const n = m.name
+    if (typeof n === 'string' && n.trim() !== '') {
+      name = n.trim()
+    }
+  }
+  if (name === '') {
+    return null
+  }
+  const { group, version } = splitK8sApiVersion(obj.apiVersion)
+  let namespace = ''
+  if (!isClusterScopedKubernetesKind(kind)) {
+    let metaNs = ''
+    if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+      const m = /** @type {Record<string, unknown>} */ (meta)
+      const ns = m.namespace
+      if (typeof ns === 'string' && ns.trim() !== '') {
+        metaNs = ns.trim()
+      }
+    }
+    const def =
+      typeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''
+        ? kustomizationDefaultNs.trim()
+        : ''
+    namespace = metaNs || def
+  }
+  return { group, version, kind, name, namespace }
+}
+
+/**
+ * Читає k8s YAML і повертає корені документів-об’єктів (після modeline, якщо він є).
+ * @param {string} abs абсолютний шлях до файлу
+ * @returns {Promise<Record<string, unknown>[]>} масив коренів-об’єктів YAML-документів (без масивів на корені).
+ */
+async function readK8sYamlDocumentRootsForInventory(abs) {
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch {
+    return []
+  }
+  const lines = toLines(raw)
+  const body =
+    lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  /** @type {unknown[]} */
+  const roots = parseK8sYamlDocumentObjectRoots(body)
+  /** @type {Record<string, unknown>[]} */
+  const out = []
+  for (const r of roots) {
+    if (r !== null && typeof r === 'object' && !Array.isArray(r)) {
+      out.push(/** @type {Record<string, unknown>} */ (r))
+    }
+  }
+  return out
+}
+
+/**
+ * Збирає дескриптори ресурсів з **`resources` / `bases` / `components` / `crds`** для одного дерева kustomization.
+ * Повторний вхід у той самий **`kustomization.yaml`** дає порожній внесок (як у **`collectKustomizeManagedRelPaths`**).
+ * @param {string} kustAbs абсолютний шлях до **kustomization.yaml**
+ * @param {string} rootNorm нормалізований абсолютний корінь репозиторію
+ * @param {Set<string>} visitedKustomization нормалізовані абсолютні шляхи відвіданих **kustomization.yaml**
+ * @returns {Promise<KustomizeResourceDescriptor[]>} плоский список дескрипторів із дерева **resources** / **bases** / **components** / **crds**.
+ */
+export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visitedKustomization) {
+  const normKust = resolve(kustAbs)
+  if (visitedKustomization.has(normKust)) {
+    return []
+  }
+  visitedKustomization.add(normKust)
+
+  let raw
+  try {
+    raw = await readFile(normKust, 'utf8')
+  } catch {
+    return []
+  }
+  const lines = toLines(raw)
+  const body =
+    lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+
+  /** @type {import('yaml').Document[] | undefined} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return []
+  }
+  const first = docs[0]?.toJSON()
+  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
+    return []
+  }
+  const rec = /** @type {Record<string, unknown>} */ (first)
+  const kustNs = typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
+  const kustDir = dirname(normKust)
+  const pathRefs = resourcePathRefsFromKustomizationObject(first)
+
+  /** @type {KustomizeResourceDescriptor[]} */
+  const out = []
+
+  for (const ref of pathRefs) {
+    if (typeof ref === 'string' && !ref.includes('://')) {
+      const resolved = resolve(kustDir, ref)
+      if (resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+        /** @type {import('node:fs').Stats | undefined} */
+        let st
+        try {
+          st = await stat(resolved)
+        } catch {
+          st = undefined
+        }
+        if (st !== undefined) {
+          if (st.isFile() && /\.ya?ml$/iu.test(resolved)) {
+            const roots = await readK8sYamlDocumentRootsForInventory(resolved)
+            for (const o of roots) {
+              const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
+              if (d !== null) {
+                out.push(d)
+              }
+            }
+          } else if (st.isDirectory()) {
+            const childK = existsSync(join(resolved, 'kustomization.yaml'))
+              ? join(resolved, 'kustomization.yaml')
+              : null
+            if (childK !== null) {
+              const sub = await collectResourceDescriptorsForKustomizationWalk(
+                childK,
+                rootNorm,
+                visitedKustomization
+              )
+              out.push(...sub)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return out
+}
+
+/**
+ * Витягує записи з явним **target** з **patches** / **patchesJson6902**.
+ * @param {unknown} obj перший документ Kustomization
+ * @returns {Array<{ section: string, index: number, target: unknown }>} пари **section** + індекс (1-based) і **target** з YAML.
+ */
+function extractExplicitPatchTargetsFromKustomization(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return []
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  /** @type {Array<{ section: string, index: number, target: unknown }>} */
+  const out = []
+  /**
+   * @param {string} section ім’я поля
+   * @param {unknown} arr масив з YAML
+   * @returns {void}
+   */
+  const push = (section, arr) => {
+    if (!Array.isArray(arr)) {
+      return
+    }
+    let i = 0
+    for (const item of arr) {
+      i++
+      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+        const it = /** @type {Record<string, unknown>} */ (item)
+        if ('target' in it) {
+          out.push({ section, index: i, target: it.target })
+        }
+      }
+    }
+  }
+  push('patches', rec.patches)
+  push('patchesJson6902', rec.patchesJson6902)
+  return out
+}
+
+/**
+ * Людинозчитуваний опис **target** для повідомлення про помилку.
+ * @param {unknown} target об’єкт **target**
+ * @returns {string} короткий рядок
+ */
+function formatKustomizePatchTargetForMessage(target) {
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+    return String(target)
+  }
+  const t = /** @type {Record<string, unknown>} */ (target)
+  const parts = []
+  const g = t.group
+  const v = t.version
+  const k = t.kind
+  const n = t.name
+  const ns = t.namespace
+  if (typeof g === 'string' && g.trim() !== '') {
+    parts.push(`group=${g.trim()}`)
+  }
+  if (typeof v === 'string' && v.trim() !== '') {
+    parts.push(`version=${v.trim()}`)
+  }
+  if (typeof k === 'string' && k.trim() !== '') {
+    parts.push(`kind=${k.trim()}`)
+  }
+  if (typeof n === 'string' && n.trim() !== '') {
+    parts.push(`name=${n.trim()}`)
+  }
+  if (typeof ns === 'string' && ns.trim() !== '') {
+    parts.push(`namespace=${ns.trim()}`)
+  }
+  return parts.length > 0 ? parts.join(', ') : JSON.stringify(t)
+}
+
+/**
+ * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: **target** patch і strategic-merge посилання не вказують на ресурс поза інвентарем **resources** / **bases** / **components** / **crds**.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
+  const rootNorm = resolve(root)
+  for (const kustAbs of yamlFilesAbs) {
+    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
+      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+      /** @type {string | undefined} */
+      let raw
+      let readOk = false
+      try {
+        raw = await readFile(kustAbs, 'utf8')
+        readOk = true
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error)
+        fail(`${rel}: не вдалося прочитати для перевірки patch target (${msg})`)
+      }
+      if (readOk && raw !== undefined) {
+        const lines = toLines(raw)
+        const body =
+          lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+        /** @type {import('yaml').Document[] | null} */
+        let docs = null
+        try {
+          docs = parseAllDocuments(body)
+        } catch {
+          fail(`${rel}: не вдалося розпарсити YAML для перевірки patch target`)
+        }
+        if (docs !== null) {
+          const first = docs[0]?.toJSON()
+          if (first !== null && first !== undefined && typeof first === 'object' && !Array.isArray(first)) {
+            const rec = /** @type {Record<string, unknown>} */ (first)
+            if (rec.kind === 'Kustomization') {
+              const visited = new Set()
+              const catalog = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visited)
+              const kustDir = dirname(resolve(kustAbs))
+              const kustNs =
+                typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
+
+              for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
+                if (
+                  shouldValidateKustomizePatchTarget(target) &&
+                  !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)
+                ) {
+                  fail(
+                    `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
+                  )
+                }
+              }
+
+              const patchesOnlyPath = rec.patches
+              if (Array.isArray(patchesOnlyPath)) {
+                let pIdx = 0
+                for (const p of patchesOnlyPath) {
+                  pIdx++
+                  if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
+                    const pr = /** @type {Record<string, unknown>} */ (p)
+                    const hasTargetKey = 'target' in pr && pr.target !== undefined && pr.target !== null
+                    const pathStr = typeof pr.path === 'string' ? pr.path.trim() : ''
+                    const inlinePatch = typeof pr.patch === 'string' && pr.patch.trim() !== ''
+                    if (!hasTargetKey && pathStr !== '' && !inlinePatch && !pathStr.includes('://')) {
+                      const resolved = resolve(kustDir, pathStr)
+                      if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
+                        /** @type {import('node:fs').Stats | null} */
+                        let st = null
+                        try {
+                          st = await stat(resolved)
+                        } catch {
+                          st = null
+                        }
+                        if (st !== null && st.isFile() && /\.ya?ml$/iu.test(resolved)) {
+                          const roots = await readK8sYamlDocumentRootsForInventory(resolved)
+                          let docIdx = 0
+                          for (const o of roots) {
+                            docIdx++
+                            const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
+                            if (
+                              d !== null &&
+                              !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))
+                            ) {
+                              const relPatch = (relative(root, resolved) || pathStr).replaceAll('\\', '/')
+                              fail(
+                                `${rel}: patches[${pIdx}] path «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
+                              )
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+
+              const sm = rec.patchesStrategicMerge
+              if (Array.isArray(sm)) {
+                let smIdx = 0
+                for (const ref of sm) {
+                  smIdx++
+                  if (typeof ref === 'string' && ref.trim() !== '' && !ref.includes('://')) {
+                    const resolved = resolve(kustDir, ref.trim())
+                    if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
+                      /** @type {import('node:fs').Stats | null} */
+                      let st = null
+                      try {
+                        st = await stat(resolved)
+                      } catch {
+                        st = null
+                      }
+                      if (st !== null && st.isFile() && /\.ya?ml$/iu.test(resolved)) {
+                        const roots = await readK8sYamlDocumentRootsForInventory(resolved)
+                        let docIdx = 0
+                        for (const o of roots) {
+                          docIdx++
+                          const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
+                          if (
+                            d !== null &&
+                            !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))
+                          ) {
+                            const relPatch = (relative(root, resolved) || ref).replaceAll('\\', '/')
+                            fail(
+                              `${rel}: patchesStrategicMerge[${smIdx}] «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
+                            )
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -1807,6 +2339,8 @@ export async function check() {
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
 
   await validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFiles, fail)
+
+  await validateKustomizationPatchTargetsResolved(root, yamlFiles, fail)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 

@@ -32,7 +32,13 @@ import {
   collectGatewayApiRouteBackendServiceNames,
   collectJson6902OperationsFromPatchText,
   json6902PathsWithRemoveAndAddOnSamePath,
+  kustomizePatchTargetMatchesDescriptor,
+  kustomizeResourceCatalogMatchesPatchTarget,
+  kustomizeResourceDescriptorFromManifest,
+  kustomizeResourceDescriptorsIdentityEqual,
   kustomizationSvcYamlMissingSvcHlViolation,
+  shouldValidateKustomizePatchTarget,
+  splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
   serviceSvcYamlClusterIpTypeViolation
 } from '../scripts/check-k8s.mjs'
@@ -664,6 +670,70 @@ describe('serviceSvcHlYamlHeadlessViolation', () => {
         spec: { type: 'ClusterIP' }
       })
     ).toContain('None')
+  })
+})
+
+describe('splitK8sApiVersion / kustomize patch target', () => {
+  test('splitK8sApiVersion — core v1', () => {
+    expect(splitK8sApiVersion('v1')).toEqual({ group: '', version: 'v1' })
+  })
+
+  test('splitK8sApiVersion — apps/v1', () => {
+    expect(splitK8sApiVersion('apps/v1')).toEqual({ group: 'apps', version: 'v1' })
+  })
+
+  test('shouldValidateKustomizePatchTarget — потрібні kind і name', () => {
+    expect(shouldValidateKustomizePatchTarget({ kind: 'Deployment', name: 'x' })).toBe(true)
+    expect(shouldValidateKustomizePatchTarget({ kind: 'Deployment' })).toBe(false)
+    expect(shouldValidateKustomizePatchTarget({ name: 'x' })).toBe(false)
+  })
+
+  test('shouldValidateKustomizePatchTarget — пропуск за labelSelector', () => {
+    expect(
+      shouldValidateKustomizePatchTarget({
+        kind: 'Deployment',
+        name: 'x',
+        labelSelector: 'app=web'
+      })
+    ).toBe(false)
+  })
+
+  test('kustomizePatchTargetMatchesDescriptor — збіг з namespace у target', () => {
+    const res = { group: 'apps', version: 'v1', kind: 'Deployment', name: 'x', namespace: 'ns1' }
+    expect(
+      kustomizePatchTargetMatchesDescriptor(
+        { kind: 'Deployment', name: 'x', namespace: 'ns1', version: 'v1', group: 'apps' },
+        res
+      )
+    ).toBe(true)
+    expect(kustomizePatchTargetMatchesDescriptor({ kind: 'Deployment', name: 'x', namespace: 'other' }, res)).toBe(
+      false
+    )
+  })
+
+  test('kustomizeResourceCatalogMatchesPatchTarget', () => {
+    const catalog = [{ group: 'apps', version: 'v1', kind: 'Deployment', name: 'x', namespace: 'ns1' }]
+    expect(kustomizeResourceCatalogMatchesPatchTarget(catalog, { kind: 'Deployment', name: 'x' })).toBe(true)
+    expect(kustomizeResourceCatalogMatchesPatchTarget(catalog, { kind: 'Deployment', name: 'y' })).toBe(false)
+  })
+
+  test('kustomizeResourceDescriptorFromManifest — default namespace з kustomization', () => {
+    const d = kustomizeResourceDescriptorFromManifest(
+      {
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        metadata: { name: 'app' }
+      },
+      'ns1'
+    )
+    expect(d).toEqual({ group: 'apps', version: 'v1', kind: 'Deployment', name: 'app', namespace: 'ns1' })
+  })
+
+  test('kustomizeResourceDescriptorsIdentityEqual', () => {
+    const a = { group: '', version: 'v1', kind: 'Service', name: 's', namespace: 'n' }
+    const b = { group: '', version: 'v1', kind: 'Service', name: 's', namespace: 'n' }
+    expect(kustomizeResourceDescriptorsIdentityEqual(a, b)).toBe(true)
+    expect(kustomizeResourceDescriptorsIdentityEqual(a, { ...b, name: 't' })).toBe(false)
   })
 })
 
