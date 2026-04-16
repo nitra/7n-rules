@@ -64,6 +64,28 @@ const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NA
 export const ABIE_HC_SCHEMA_URL = 'https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json'
 
 const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
+const LINE_SPLIT_RE = /\r?\n/u
+const RU_KUSTOMIZATION_PATH_RE = /(^|\/)ru\/kustomization\.yaml$/u
+const UA_KUSTOMIZATION_PATH_RE = /(^|\/)ua\/kustomization\.yaml$/u
+const OVERLAY_PACKAGE_DIR_RE = /^(.+)\/k8s\/(?:ua|ru)\/kustomization\.yaml$/u
+const BASE_SEGMENT_RE = /(^|\/)base\//u
+const YAML_EXTENSION_RE = /\.ya?ml$/iu
+const K8S_PACKAGE_DIR_RE = /^(.+)\/k8s\//u
+const PATCH_PATH_TYPE_RE = /path:\s*\/spec\/type\b/u
+const PATCH_VALUE_NODE_PORT_RE = /value:\s*['"]?NodePort['"]?(?:\s|$)/iu
+const PATCH_NODE_SELECTOR_PATH_RE = /path:\s*\/spec\/template\/spec\/nodeSelector\b/u
+const PATCH_PREEM_FALSE_RE = /\bpreem:\s*['"]?false['"]?\b/u
+const PATCH_YANDEX_PREEMPTIBLE_FALSE_RE = /yandex\.cloud\/preemptible:\s*['"]?false['"]?/u
+const TRAILING_SLASH_RE = /\/$/u
+const PATCH_HOSTNAMES_PATH_RE = /path:\s*\/spec\/hostnames\b/mu
+const PATCH_PARENT_REF_NS_UA_RE = /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu
+const PATCH_PARENT_REF_NS_RU_RE = /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu
+const WEBSOCKET_ANNOTATION_RE = /gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/mu
+const LEADING_EMPTY_LINE_RE = /^\s*\n/u
+const REMOVE_CLUSTER_IP_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIP\b/mu
+const REMOVE_CLUSTER_IP_BEFORE_OP_RE = /path:\s*\/spec\/clusterIP\b[\s\S]{0,200}?op:\s*remove\b/mu
+const REMOVE_CLUSTER_IPS_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIPs\b/mu
+const REMOVE_CLUSTER_IPS_BEFORE_OP_RE = /path:\s*\/spec\/clusterIPs\b[\s\S]{0,200}?op:\s*remove\b/mu
 
 /** Гілки, які мають бути в **`ignore_branches`** за abie.mdc. */
 export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
@@ -75,7 +97,7 @@ export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
  */
 export function isRuKustomizationPath(rel) {
   const norm = rel.replaceAll('\\', '/')
-  return /(^|\/)ru\/kustomization\.yaml$/u.test(norm)
+  return RU_KUSTOMIZATION_PATH_RE.test(norm)
 }
 
 /**
@@ -85,7 +107,7 @@ export function isRuKustomizationPath(rel) {
  */
 export function isUaKustomizationPath(rel) {
   const norm = rel.replaceAll('\\', '/')
-  return /(^|\/)ua\/kustomization\.yaml$/u.test(norm)
+  return UA_KUSTOMIZATION_PATH_RE.test(norm)
 }
 
 /**
@@ -96,7 +118,7 @@ export function isUaKustomizationPath(rel) {
  */
 export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
   const rel = relative(root, kustomizationAbs).replaceAll('\\', '/') || kustomizationAbs
-  const m = rel.match(/^(.+)\/k8s\/(?:ua|ru)\/kustomization\.yaml$/u)
+  const m = rel.match(OVERLAY_PACKAGE_DIR_RE)
   return m ? join(root, m[1]) : null
 }
 
@@ -147,7 +169,7 @@ export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizat
  */
 export function isAbieK8sBaseYamlPath(rel) {
   const norm = rel.replaceAll('\\', '/')
-  return /(^|\/)base\//u.test(norm)
+  return BASE_SEGMENT_RE.test(norm)
 }
 
 /**
@@ -276,7 +298,7 @@ async function findK8sYamlFiles(root) {
     if (!pathHasK8sSegment(p)) {
       return
     }
-    if (!/\.ya?ml$/iu.test(p)) {
+    if (!YAML_EXTENSION_RE.test(p)) {
       return
     }
     out.push(p)
@@ -335,7 +357,7 @@ function k8sYamlRelOutsideUaRuOverlays(relFromRoot) {
  */
 function abiePackageDirFromK8sYamlRel(root, relFromRoot) {
   const norm = relFromRoot.replaceAll('\\', '/')
-  const m = norm.match(/^(.+)\/k8s\//u)
+  const m = norm.match(K8S_PACKAGE_DIR_RE)
   return m ? join(root, m[1]) : null
 }
 
@@ -418,12 +440,10 @@ export function jsonPatchRemovesPath(patchText, posixPath) {
   if (posixPath !== '/spec/clusterIP' && posixPath !== '/spec/clusterIPs') {
     return false
   }
-  const pathRe =
-    posixPath === '/spec/clusterIP'
-      ? String.raw`path:\s*\/spec\/clusterIP\b`
-      : String.raw`path:\s*\/spec\/clusterIPs\b`
-  const opRe = String.raw`op:\s*remove\b`
-  return new RegExp(String.raw`${opRe}[\s\S]{0,200}?${pathRe}`, 'mu').test(patchText) || new RegExp(String.raw`${pathRe}[\s\S]{0,200}?${opRe}`, 'mu').test(patchText)
+  if (posixPath === '/spec/clusterIP') {
+    return REMOVE_CLUSTER_IP_AFTER_OP_RE.test(patchText) || REMOVE_CLUSTER_IP_BEFORE_OP_RE.test(patchText)
+  }
+  return REMOVE_CLUSTER_IPS_AFTER_OP_RE.test(patchText) || REMOVE_CLUSTER_IPS_BEFORE_OP_RE.test(patchText)
 }
 
 /**
@@ -444,10 +464,10 @@ export function jsonPatchTextSetsServiceTypeNodePort(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
     return false
   }
-  if (!/path:\s*\/spec\/type\b/u.test(patchText)) {
+  if (!PATCH_PATH_TYPE_RE.test(patchText)) {
     return false
   }
-  if (!/value:\s*['"]?NodePort['"]?(?:\s|$)/iu.test(patchText)) {
+  if (!PATCH_VALUE_NODE_PORT_RE.test(patchText)) {
     return false
   }
   return true
@@ -502,7 +522,7 @@ function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
  */
 function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
   const body = stripBom(raw)
-  const lines = body.split(/\r?\n/u)
+  const lines = body.split(LINE_SPLIT_RE)
   const first = lines[0] ?? ''
   const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
   /** @type {Map<string, string>} */
@@ -589,7 +609,7 @@ async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail)
         }
         if (readOk) {
           const body = stripBom(raw)
-          const lines = body.split(/\r?\n/u)
+          const lines = body.split(LINE_SPLIT_RE)
           const first = lines[0] ?? ''
           const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
           /** @type {import('yaml').Document[]} */
@@ -620,8 +640,8 @@ async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail)
                     const needClusterIPsRemove = serviceDocumentBaseDeclaresClusterIPsField(obj)
                     const prev = inner.get(n)
                     inner.set(n, {
-                      requiresClusterIPNoneClear: (prev?.requiresClusterIPNoneClear === true) || needClear,
-                      requiresClusterIPsRemove: (prev?.requiresClusterIPsRemove === true) || needClusterIPsRemove
+                      requiresClusterIPNoneClear: prev?.requiresClusterIPNoneClear === true || needClear,
+                      requiresClusterIPsRemove: prev?.requiresClusterIPsRemove === true || needClusterIPsRemove
                     })
                   }
                 }
@@ -700,7 +720,7 @@ async function collectDeploymentDirs(root, yamlAbs, fail) {
     }
     if (readOk) {
       const body = stripBom(raw)
-      const lines = body.split(/\r?\n/u)
+      const lines = body.split(LINE_SPLIT_RE)
       const first = lines[0] ?? ''
       const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
       /** @type {import('yaml').Document[]} */
@@ -753,7 +773,7 @@ async function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fai
       return
     }
     const body = stripBom(raw)
-    const lines = body.split(/\r?\n/u)
+    const lines = body.split(LINE_SPLIT_RE)
     const first = lines[0] ?? ''
     const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
     /** @type {import('yaml').Document[]} */
@@ -806,10 +826,10 @@ function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
     return false
   }
-  if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
+  if (!PATCH_NODE_SELECTOR_PATH_RE.test(patchText)) {
     return false
   }
-  if (!/\bpreem:\s*['"]?false['"]?\b/u.test(patchText)) {
+  if (!PATCH_PREEM_FALSE_RE.test(patchText)) {
     return false
   }
   return true
@@ -825,10 +845,10 @@ function jsonPatchTextHasRuDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') {
     return false
   }
-  if (!/path:\s*\/spec\/template\/spec\/nodeSelector\b/u.test(patchText)) {
+  if (!PATCH_NODE_SELECTOR_PATH_RE.test(patchText)) {
     return false
   }
-  if (!/yandex\.cloud\/preemptible:\s*['"]?false['"]?/u.test(patchText)) {
+  if (!PATCH_YANDEX_PREEMPTIBLE_FALSE_RE.test(patchText)) {
     return false
   }
   return true
@@ -904,7 +924,7 @@ function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
  */
 export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
   const body = stripBom(raw)
-  const lines = body.split(/\r?\n/u)
+  const lines = body.split(LINE_SPLIT_RE)
   const first = lines[0] ?? ''
   const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
   /** @type {import('yaml').Document[]} */
@@ -930,7 +950,7 @@ export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
  */
 export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelFromRoot) {
   const normRel = relFromRoot.replaceAll('\\', '/')
-  const pkg = pkgRelFromRoot.replaceAll('\\', '/').replace(/\/$/u, '')
+  const pkg = pkgRelFromRoot.replaceAll('\\', '/').replace(TRAILING_SLASH_RE, '')
   const prefix = `${pkg}/k8s/`
   if (!normRel.startsWith(prefix)) {
     return false
@@ -1010,7 +1030,7 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
       }
       if (raw !== undefined) {
         const body = stripBom(raw)
-        const lines = body.split(/\r?\n/u)
+        const lines = body.split(LINE_SPLIT_RE)
         const first = lines[0] ?? ''
         const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
         /** @type {import('yaml').Document[] | undefined} */
@@ -1109,7 +1129,7 @@ function collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc) {
  */
 export function getCombinedNginxRunPatchTextFromKustomization(raw) {
   const body = stripBom(raw)
-  const lines = body.split(/\r?\n/u)
+  const lines = body.split(LINE_SPLIT_RE)
   const first = lines[0] ?? ''
   const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
   /** @type {import('yaml').Document[]} */
@@ -1144,7 +1164,7 @@ export function validateAbieNginxRunHttpRoutePatches(
   if (typeof combined !== 'string' || combined.trim() === '') {
     return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — gwin… websocket лише за наявності HASURA_GRAPHQL_JWT_SECRET у файлі) — abie.mdc`
   }
-  if (!/path:\s*\/spec\/hostnames\b/m.test(combined)) {
+  if (!PATCH_HOSTNAMES_PATH_RE.test(combined)) {
     return 'HTTPRoute: потрібен path /spec/hostnames у patch (abie.mdc)'
   }
   const markers = mode === 'ua' ? ABIE_UA_HTTPROUTE_HOST_MARKERS : ABIE_RU_HTTPROUTE_HOST_MARKERS
@@ -1152,9 +1172,7 @@ export function validateAbieNginxRunHttpRoutePatches(
     return `HTTPRoute: у value для /spec/hostnames має бути один із доменів abie (${markers.join(', ')}) — abie.mdc`
   }
   const namespaceOk =
-    mode === 'ua'
-      ? /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu.test(combined)
-      : /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu.test(combined)
+    mode === 'ua' ? PATCH_PARENT_REF_NS_UA_RE.test(combined) : PATCH_PARENT_REF_NS_RU_RE.test(combined)
   if (!namespaceOk) {
     return `HTTPRoute: потрібен path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
   }
@@ -1162,7 +1180,7 @@ export function validateAbieNginxRunHttpRoutePatches(
     mode === 'ru' &&
     typeof fullKustomizationRaw === 'string' &&
     fullKustomizationRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)
-  if (ruNeedsWebsocket && !/gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/m.test(combined)) {
+  if (ruNeedsWebsocket && !WEBSOCKET_ANNOTATION_RE.test(combined)) {
     return 'HTTPRoute (ru): за наявності HASURA_GRAPHQL_JWT_SECRET у kustomization потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
   }
   const sharedCount =
@@ -1197,7 +1215,7 @@ export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
  */
 export function validateAbieHcYaml(raw, relPath) {
   const body = stripBom(raw)
-  const lines = body.split(/\r?\n/u)
+  const lines = body.split(LINE_SPLIT_RE)
   if (lines.length === 0 || lines[0].trim() === '') {
     return `${relPath}: перший рядок порожній — потрібен # yaml-language-server: $schema=… (abie.mdc)`
   }
@@ -1211,7 +1229,7 @@ export function validateAbieHcYaml(raw, relPath) {
   const yamlBody = lines
     .slice(1)
     .join('\n')
-    .replace(/^\s*\n/u, '')
+    .replace(LEADING_EMPTY_LINE_RE, '')
   /** @type {import('yaml').Document[]} */
   let docs
   try {
@@ -1308,7 +1326,7 @@ async function collectHealthCheckPolicyRelPaths(root, yamlAbs) {
     }
     if (raw !== null) {
       const body = stripBom(raw)
-      const lines = body.split(/\r?\n/u)
+      const lines = body.split(LINE_SPLIT_RE)
       const first = lines[0] ?? ''
       const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
       try {

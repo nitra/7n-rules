@@ -4,9 +4,6 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-
-const HC_NAME_RE = /^ {2}name: my-svc$/mu
-
 import {
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
@@ -38,6 +35,8 @@ import {
   isAbieRuleEnabled
 } from '../scripts/check-abie.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
+
+const HC_NAME_RE = /^ {2}name: my-svc$/mu
 
 const CLEAN_MERGED_MIN = `name: Clean abandoned branches
 on:
@@ -549,7 +548,9 @@ patches:
         spec: { clusterIPs: ['None'], ports: [{ port: 80 }] }
       })
     ).toBe(true)
-    expect(serviceDocumentRequiresRuClusterIPNoneRemoval({ kind: 'Service', metadata: { name: 'x' }, spec: { ports: [] } })).toBe(false)
+    expect(
+      serviceDocumentRequiresRuClusterIPNoneRemoval({ kind: 'Service', metadata: { name: 'x' }, spec: { ports: [] } })
+    ).toBe(false)
     const fullHlPatch = `- op: replace
   path: /spec/type
   value: NodePort

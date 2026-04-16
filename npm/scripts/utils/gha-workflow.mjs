@@ -6,6 +6,11 @@
  */
 import { parse } from 'yaml'
 
+const CHECKOUT_USES_MARKER = 'actions/checkout@'
+const CHECKOUT_V6_USES = 'actions/checkout@v6'
+const LOCAL_SETUP_BUN_DEPS_MARKER = './.github/actions/setup-bun-deps'
+const BUNX_OXLINT_FIX_RE = /bunx\s+oxlint[^\n]*--fix/u
+
 /**
  * Парсить workflow YAML у звичайний об’єкт; при синтаксичній помилці — `null`.
  * @param {string} content вміст файлу
@@ -26,26 +31,12 @@ export function parseWorkflowYaml(content) {
  * @returns {{ jobId: string, stepIndex: number, step: Record<string, unknown> }[]} плоский список кроків з метаданими
  */
 export function flattenWorkflowSteps(root) {
-  const jobs = root?.jobs
-  if (!jobs || typeof jobs !== 'object') {
-    return []
-  }
   /** @type {{ jobId: string, stepIndex: number, step: Record<string, unknown> }[]} */
   const out = []
-  for (const [jobId, job] of Object.entries(jobs)) {
-    if (job && typeof job === 'object') {
-      const steps = /** @type {{ steps?: unknown }} */ (job).steps
-      if (Array.isArray(steps)) {
-        for (const [stepIndex, step] of steps.entries()) {
-          if (step && typeof step === 'object') {
-            out.push({
-              jobId,
-              stepIndex,
-              step: /** @type {Record<string, unknown>} */ (step)
-            })
-          }
-        }
-      }
+  for (const [jobId, job] of workflowJobsEntries(root)) {
+    const steps = workflowJobSteps(job)
+    for (const [stepIndex, step] of steps.entries()) {
+      out.push({ jobId, stepIndex, step })
     }
   }
   return out
@@ -100,37 +91,15 @@ export function hasAnyStepUsesContaining(root, substrings) {
  * @returns {boolean} `false`, якщо є setup без попереднього checkout
  */
 export function hasCheckoutBeforeLocalSetupBunDeps(root, setupPathSubstrings) {
-  const jobs = root?.jobs
-  if (!jobs || typeof jobs !== 'object') {
-    return true
-  }
-  for (const job of Object.values(jobs)) {
-    if (job && typeof job === 'object') {
-      const steps = /** @type {{ steps?: unknown }} */ (job).steps
-      if (Array.isArray(steps)) {
-        for (let i = 0; i < steps.length; i++) {
-          const step = steps[i]
-          if (step && typeof step === 'object') {
-            const uses = getStepUses(/** @type {Record<string, unknown>} */ (step))
-            const isSetup = setupPathSubstrings.some(s => uses.includes(s))
-            if (isSetup) {
-              let foundCheckout = false
-              for (let j = 0; j < i; j++) {
-                const prev = steps[j]
-                if (prev && typeof prev === 'object') {
-                  const u = getStepUses(/** @type {Record<string, unknown>} */ (prev))
-                  if (u.includes('actions/checkout@')) {
-                    foundCheckout = true
-                    break
-                  }
-                }
-              }
-              if (!foundCheckout) {
-                return false
-              }
-            }
-          }
-        }
+  for (const [, job] of workflowJobsEntries(root)) {
+    let hasCheckoutStep = false
+    for (const step of workflowJobSteps(job)) {
+      const uses = getStepUses(step)
+      if (uses.includes(CHECKOUT_USES_MARKER)) {
+        hasCheckoutStep = true
+      }
+      if (setupPathSubstrings.some(s => uses.includes(s)) && !hasCheckoutStep) {
+        return false
       }
     }
   }
@@ -279,26 +248,15 @@ export function verifyLintJsWorkflowStructure(root) {
   const usesList = steps.map(s => getStepUses(s.step))
   const runBlob = steps.map(s => getStepRun(s.step)).join('\n')
 
-  if (!usesList.some(u => u.includes('actions/checkout@v6'))) {
+  if (!usesList.some(u => u.includes(CHECKOUT_V6_USES))) {
     failures.push('немає кроку uses: actions/checkout@v6')
   }
 
-  let checkoutOk = false
-  for (const { step } of steps) {
-    const u = getStepUses(step)
-    if (u.includes('actions/checkout@v6')) {
-      const w = step.with
-      if (w && typeof w === 'object' && /** @type {Record<string, unknown>} */ (w)['persist-credentials'] === false) {
-        checkoutOk = true
-        break
-      }
-    }
-  }
-  if (!checkoutOk) {
+  if (!hasCheckoutWithPersistCredentialsFalse(steps)) {
     failures.push('checkout@v6 без with.persist-credentials: false')
   }
 
-  if (!usesList.some(u => u.includes('./.github/actions/setup-bun-deps'))) {
+  if (!usesList.some(u => u.includes(LOCAL_SETUP_BUN_DEPS_MARKER))) {
     failures.push('немає uses: ./.github/actions/setup-bun-deps')
   }
 
@@ -312,15 +270,7 @@ export function verifyLintJsWorkflowStructure(root) {
     failures.push('у run немає bunx jscpd .')
   }
 
-  for (const { step } of steps) {
-    const run = getStepRun(step)
-    if (/bunx\s+oxlint[^\n]*--fix/u.test(run)) {
-      failures.push('у run є oxlint з --fix (у CI заборонено)')
-    }
-    if (run.includes('eslint --fix')) {
-      failures.push('у run є eslint --fix (у CI заборонено)')
-    }
-  }
+  appendCiFixFlagFailures(failures, steps)
 
   return failures.length === 0 ? { ok: true, failures: [] } : { ok: false, failures }
 }
@@ -347,4 +297,72 @@ export function anyRunStepIncludes(root, needle) {
  */
 export function anyRunStepIncludesStylelint(root) {
   return anyRunStepIncludes(root, 'npx stylelint')
+}
+
+/**
+ * Повертає jobs як список пар [jobId, job], якщо структура валідна.
+ * @param {Record<string, unknown>} root корінь workflow
+ * @returns {[string, Record<string, unknown>][]} список jobs
+ */
+function workflowJobsEntries(root) {
+  const jobs = root?.jobs
+  if (!jobs || typeof jobs !== 'object') {
+    return []
+  }
+  return Object.entries(jobs).flatMap(([jobId, job]) =>
+    job && typeof job === 'object' ? [[jobId, /** @type {Record<string, unknown>} */ (job)]] : []
+  )
+}
+
+/**
+ * Повертає валідні кроки job.
+ * @param {Record<string, unknown>} job job-об’єкт
+ * @returns {Record<string, unknown>[]} кроки job
+ */
+function workflowJobSteps(job) {
+  const steps = /** @type {{ steps?: unknown }} */ (job).steps
+  if (!Array.isArray(steps)) {
+    return []
+  }
+  return steps.flatMap(step => (step && typeof step === 'object' ? [/** @type {Record<string, unknown>} */ (step)] : []))
+}
+
+/**
+ * Чи є checkout@v6 з `persist-credentials: false`.
+ * @param {{ step: Record<string, unknown> }[]} steps кроки flattenWorkflowSteps
+ * @returns {boolean} true, якщо знайдено очікуваний checkout
+ */
+function hasCheckoutWithPersistCredentialsFalse(steps) {
+  for (const { step } of steps) {
+    const uses = getStepUses(step)
+    if (uses.includes(CHECKOUT_V6_USES)) {
+      const withObj = step.with
+      if (
+        withObj &&
+        typeof withObj === 'object' &&
+        /** @type {Record<string, unknown>} */ (withObj)['persist-credentials'] === false
+      ) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * Додає порушення для `--fix` у CI-кроках lint-js workflow.
+ * @param {string[]} failures акумулятор порушень
+ * @param {{ step: Record<string, unknown> }[]} steps кроки flattenWorkflowSteps
+ * @returns {void}
+ */
+function appendCiFixFlagFailures(failures, steps) {
+  for (const { step } of steps) {
+    const run = getStepRun(step)
+    if (BUNX_OXLINT_FIX_RE.test(run)) {
+      failures.push('у run є oxlint з --fix (у CI заборонено)')
+    }
+    if (run.includes('eslint --fix')) {
+      failures.push('у run є eslint --fix (у CI заборонено)')
+    }
+  }
 }

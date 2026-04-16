@@ -4,7 +4,21 @@ alwaysApply: true
 version: '1.0'
 ---
 
-Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\``для GraphQL-запиту), у **корені репозиторію** має бути файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs)), а в **`.vscode/extensions.json`** у масиві **`recommendations`** — запис **`graphql.vscode-graphql`**, щоб підсвітка, навігація до схеми й діагностика працювали в редакторі.
+Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** мають бути:
+
+- файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs));
+- у **`.vscode/extensions.json`** в масиві **`recommendations`** — запис **`graphql.vscode-graphql`**;
+- у кореневому **`package.json`** скрипт:
+
+```json title="package.json (фрагмент)"
+{
+  "scripts": {
+    "dump-schema": "bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql"
+  }
+}
+```
+
+Це забезпечує підсвітку та діагностику GraphQL в редакторі, а також стандартний спосіб оновлення локальної `schema.graphql`.
 
 Деталі виявлення `gql` у скриптах (у т.ч. лише `<script>` у SFC) — **`npm/scripts/check-graphql.mjs`** / **`npm/scripts/utils/graphql-gql-scan.mjs`**.
 

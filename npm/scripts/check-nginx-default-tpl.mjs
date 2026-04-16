@@ -21,6 +21,15 @@ import { findDockerfilePaths } from './check-docker.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
+const LINE_SPLIT_RE = /\r?\n/u
+const INI_KEY_RE = /^([A-Za-z_]\w*)\s*=/u
+const RETURN_200_RE = /return\s+200/u
+const GZIP_STATIC_ON_RE = /gzip_static\s+on/gu
+const PROXY_LIKE_RE = /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
+const FIND_CMD_RE = /\bfind\b/u
+const GZIP_CMD_RE = /\bgzip\b/u
+const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
+
 /**
  * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; шлях `tests/fixtures` не обходиться як проєктний шаблон.
  * @param {string} root корінь cwd
@@ -82,10 +91,10 @@ export async function migrateDefaultTplConfFiles(root) {
 export function parseIniVariableNames(iniText) {
   /** @type {string[]} */
   const keys = []
-  for (const line of iniText.split(/\r?\n/u)) {
+  for (const line of iniText.split(LINE_SPLIT_RE)) {
     const t = line.trim()
     if (t !== '' && !t.startsWith('#') && !t.startsWith(';')) {
-      const m = t.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=/u)
+      const m = t.match(INI_KEY_RE)
       if (m) keys.push(m[1])
     }
   }
@@ -111,7 +120,7 @@ export function nginxTemplateViolations(content) {
     { msg: 'відсутнє root /usr/share/nginx/html', ok: c => c.includes('root /usr/share/nginx/html') },
     {
       msg: 'location /healthz має повертати healthy (див. nginx-default-tpl.mdc)',
-      ok: c => c.includes('/healthz') && (c.includes('healthy') || /return\s+200/u.test(c))
+      ok: c => c.includes('/healthz') && (c.includes('healthy') || RETURN_200_RE.test(c))
     },
     {
       msg: 'відсутній location для статики без gzip (gif|jpeg|png|ico|woff2|xlsx) з Cache-Control 31536000',
@@ -126,7 +135,7 @@ export function nginxTemplateViolations(content) {
     },
     {
       msg: 'gzip_static on має бути принаймні двічі (два location зі стисненням)',
-      ok: c => (c.match(/gzip_static\s+on/gu) ?? []).length >= 2
+      ok: c => (c.match(GZIP_STATIC_ON_RE) ?? []).length >= 2
     },
     { msg: 'відсутнє використання $PUBLIC_PATH у location', ok: c => c.includes('$PUBLIC_PATH') },
     {
@@ -144,9 +153,7 @@ export function nginxTemplateViolations(content) {
   }
 
   // cspell:ignore fastcgi uwsgi
-  const proxyLike =
-    /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
-  if (proxyLike.test(content)) {
+  if (PROXY_LIKE_RE.test(content)) {
     return 'знайдено proxy, gRPC або інший *_pass до бекенду — прибери з шаблону, логіку винеси в HTTPRoute (k8s) (див. nginx-default-tpl.mdc)'
   }
 
@@ -242,11 +249,11 @@ export function iniKeysMissingInTemplate(keys, template) {
 function dockerfileHasGzipStaticPipeline(dockerfileContent) {
   const c = dockerfileContent
   return (
-    /\bfind\b/u.test(c) &&
+    FIND_CMD_RE.test(c) &&
     c.includes('/usr/share/nginx/html') &&
-    /\bgzip\b/u.test(c) &&
+    GZIP_CMD_RE.test(c) &&
     c.includes('-k') &&
-    /\*\.(?:js|css)/u.test(c)
+    GZIP_EXTENSION_RE.test(c)
   )
 }
 

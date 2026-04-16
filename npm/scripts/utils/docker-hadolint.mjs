@@ -59,11 +59,15 @@ export function lintDockerfileWithHadolint(root, absPath) {
     }
   }
 
-  const docker = spawnSync(dockerPath, ['run', '--rm', '-v', `${root}:/workdir`, '-w', '/workdir', HADOLINT_IMAGE, rel], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024
-  })
+  const docker = spawnSync(
+    dockerPath,
+    ['run', '--rm', '-v', `${root}:/workdir`, '-w', '/workdir', HADOLINT_IMAGE, rel],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024
+    }
+  )
   if (docker.error) {
     return {
       ok: false,

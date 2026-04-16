@@ -12,6 +12,7 @@
   "scripts": {
     "test": "bun test npm/tests",
     "start": "bun ./npm/bin/n-cursor.js",
+    "dump-schema": "bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql",
     "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && oxfmt .",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .",
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",

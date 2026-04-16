@@ -44,6 +44,7 @@ import { basename, dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected, normalizeIdList } from '../scripts/auto-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -69,7 +70,6 @@ const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
 const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 
 const YAML_FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
-const SKILL_DESCRIPTION_RE = /description:\s*>-\s*\r?\n((?:[ \t]+[^\n]*(?:\r?\n|$))+)/m
 const NEWLINE_RE = /\r?\n/
 const LEADING_SPACES_RE = /^\s+/
 
@@ -169,42 +169,106 @@ async function readConfig(paths = {}) {
   const bundledSkillsDir = paths.bundledSkillsDir ?? BUNDLED_SKILLS_DIR
   await migrateLegacyConfigIfNeeded()
   const configPath = join(cwd(), CONFIG_FILE)
+  const availableRules = await discoverBundledRuleNames(bundledMdcDir)
+  const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
+
+  /**
+   * Повертає розпарсений package.json з кореня або null, якщо файл відсутній/некоректний.
+   * @returns {Promise<unknown | null>} Обʼєкт package.json або null, якщо файл недоступний чи JSON невалідний.
+   */
+  async function readRootPackageJsonSafe() {
+    const packageJsonPath = join(cwd(), 'package.json')
+    if (!existsSync(packageJsonPath)) {
+      return null
+    }
+    try {
+      return JSON.parse(await readFile(packageJsonPath, 'utf8'))
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Автодописує правила/skills за `auto-rules.md` і синхронізує `$schema`.
+   * @param {Record<string, unknown>} parsedConfig сирий обʼєкт конфігу
+   * @returns {Promise<Record<string, unknown>>} нормалізований конфіг
+   */
+  async function normalizeConfigWithAutoRules(parsedConfig) {
+    const currentRules = parsedConfig.rules
+    if (!Array.isArray(currentRules)) {
+      throw new TypeError(`У ${CONFIG_FILE} поле "rules" має бути масивом рядків`)
+    }
+    if ('skills' in parsedConfig && !Array.isArray(parsedConfig.skills)) {
+      throw new Error(`У ${CONFIG_FILE} поле "skills" має бути масивом рядків`)
+    }
+
+    const rootPkg = await readRootPackageJsonSafe()
+    const disableRules = normalizeIdList(parsedConfig['disable-rules'])
+    const disableSkills = normalizeIdList(parsedConfig['disable-skills'])
+    const autoDetected = await detectAutoRulesAndSkills({
+      root: cwd(),
+      availableRules,
+      availableSkills,
+      packageJsonParsed: rootPkg,
+      disableRules,
+      disableSkills
+    })
+
+    const merged = mergeConfigWithAutoDetected({
+      config: parsedConfig,
+      detectedRules: autoDetected.rules,
+      detectedSkills: autoDetected.skills
+    })
+
+    const rest = Object.fromEntries(Object.entries(parsedConfig).filter(([k]) => k !== '$schema'))
+    const normalized = {
+      $schema: CONFIG_SCHEMA_URL,
+      ...rest,
+      rules: merged.rules,
+      skills: merged.skills
+    }
+    if (merged['disable-rules']?.length) {
+      normalized['disable-rules'] = merged['disable-rules']
+    }
+    if (merged['disable-skills']?.length) {
+      normalized['disable-skills'] = merged['disable-skills']
+    }
+    return normalized
+  }
+
   if (!existsSync(configPath)) {
-    const rules = await discoverBundledRuleNames(bundledMdcDir)
-    const skills = await discoverBundledSkillNames(bundledSkillsDir)
-    const defaultConfig = { $schema: CONFIG_SCHEMA_URL, rules, skills }
+    const rootPkg = await readRootPackageJsonSafe()
+    const autoDetected = await detectAutoRulesAndSkills({
+      root: cwd(),
+      availableRules,
+      availableSkills,
+      packageJsonParsed: rootPkg
+    })
+    const defaultConfig = {
+      $schema: CONFIG_SCHEMA_URL,
+      rules: autoDetected.rules,
+      skills: autoDetected.skills
+    }
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
-      `📝 Створено ${CONFIG_FILE} з усіма правилами (${rules.length}) і skills (${skills.length}) з пакету. За потреби відредагуйте списки.\n`
+      `📝 Створено ${CONFIG_FILE} з автоаналізом правил (${defaultConfig.rules.length}) і skills (${defaultConfig.skills.length}).\n`
     )
     return defaultConfig
   }
   const raw = await readFile(configPath, 'utf8')
+  /** @type {Record<string, unknown>} */
   let config
   try {
     config = JSON.parse(raw)
   } catch {
     throw new Error(`Невірний JSON у файлі ${CONFIG_FILE}`)
   }
-  if (!Array.isArray(config.rules) || config.rules.length === 0) {
-    throw new Error(`У ${CONFIG_FILE} має бути непорожній масив "rules"`)
-  }
-  if (!Array.isArray(config.skills)) {
-    if ('skills' in config) {
-      throw new Error(`У ${CONFIG_FILE} поле "skills" має бути масивом рядків`)
-    }
-    config.skills = await discoverBundledSkillNames(bundledSkillsDir)
-  }
-
-  if (config.$schema !== CONFIG_SCHEMA_URL) {
-    const rest = Object.fromEntries(Object.entries(config).filter(([k]) => k !== '$schema'))
-    const normalized = { $schema: CONFIG_SCHEMA_URL, ...rest }
+  const normalized = await normalizeConfigWithAutoRules(config)
+  if (JSON.stringify(normalized) !== JSON.stringify(config)) {
     await writeFile(configPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
-    console.log(`📝 Оновлено поле $schema у ${CONFIG_FILE}\n`)
-    return normalized
+    console.log(`📝 Оновлено ${CONFIG_FILE}: синхронізовано $schema та авто-додані rules/skills\n`)
   }
-
-  return config
+  return normalized
 }
 
 /**
@@ -268,16 +332,22 @@ function extractSkillDescription(text) {
   if (!fm) {
     return null
   }
-  const block = fm[1]
-  const desc = block.match(SKILL_DESCRIPTION_RE)
-  if (!desc) {
+  const lines = fm[1].split(NEWLINE_RE)
+  const start = lines.findIndex(line => line.trim() === 'description: >-')
+  if (start === -1) {
     return null
   }
-  return desc[1]
-    .split(NEWLINE_RE)
-    .map(line => line.replace(LEADING_SPACES_RE, '').trimEnd())
-    .join(' ')
-    .trim()
+  const descLines = []
+  for (const line of lines.slice(start + 1)) {
+    if (!LEADING_SPACES_RE.test(line)) {
+      break
+    }
+    descLines.push(line.replace(LEADING_SPACES_RE, '').trimEnd())
+  }
+  if (descLines.length === 0) {
+    return null
+  }
+  return descLines.join(' ').trim()
 }
 
 /**
@@ -378,15 +448,31 @@ async function removeOrphanManagedRuleFiles(rulesDir, configRules) {
 }
 
 /**
- * Формує markdown-рядки для секції Skills у AGENTS.md з SKILL.md на диску
- * @param {string[]} skillIds id з конфігу (без префікса n-)
+ * Повертає відсортований список директорій skills у `.cursor/skills`.
+ * Директорія вважається skill-каталогом, якщо це підкаталог (без префікса `.`).
+ * @returns {Promise<string[]>} імена директорій (наприклад `n-fix`, `custom-skill`)
+ */
+async function listProjectSkillDirNames() {
+  const skillsRoot = join(cwd(), SKILLS_DIR)
+  if (!existsSync(skillsRoot)) {
+    return []
+  }
+  const entries = await readdir(skillsRoot, { withFileTypes: true })
+  return entries
+    .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+    .map(entry => entry.name)
+    .toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Формує markdown-рядки для секції Skills у AGENTS.md з усіх skill-директорій на диску.
  * @returns {Promise<{ name: string }[]>} елементи з полем name для Mustache-секції skills
  */
-async function buildSkillBulletItems(skillIds) {
+async function buildSkillBulletItems() {
   const skillsRoot = join(cwd(), SKILLS_DIR)
+  const skillDirNames = await listProjectSkillDirNames()
   const items = []
-  for (const id of skillIds) {
-    const dirName = managedSkillDirName(id)
+  for (const dirName of skillDirNames) {
     const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
     let desc = ''
     if (existsSync(skillMdPath)) {
@@ -428,39 +514,53 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
 }
 
 /**
- * Генерує CLAUDE.md у корені cwd з at-імпортами всіх .mdc-правил та посиланнями на skills.
- * Завдяки цьому Claude Code автоматично завантажує вміст кожного правила при старті.
- * @param {string[]} configRules елементи масиву rules з .n-cursor.json
- * @param {string[]} configSkills id skills з конфігу
- * @returns {Promise<void>}
+ * Рендерить секцію Skills для CLAUDE.md з урахуванням наявних slash-команд.
+ * @returns {Promise<string[]>} готові рядки секції (або порожній масив)
  */
-async function syncClaudeMd(configRules, configSkills) {
-  const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
-
-  for (const rule of configRules) {
-    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
-    lines.push(`@${RULES_DIR}/${fileName}`)
+async function buildClaudeSkillsSectionLines() {
+  const skillDirNames = await listProjectSkillDirNames()
+  if (skillDirNames.length === 0) {
+    return []
   }
 
-  if (configSkills.length > 0) {
-    lines.push('', '## Skills', '')
-    const skillsRoot = join(cwd(), SKILLS_DIR)
-    for (const skillId of configSkills) {
-      const id = normalizeSkillId(skillId)
-      const dirName = managedSkillDirName(skillId)
-      const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
-      let desc = ''
-      if (existsSync(skillMdPath)) {
-        const text = await readFile(skillMdPath, 'utf8')
-        const parsed = extractSkillDescription(text)
-        if (parsed) desc = skillDescriptionSafeForMarkdownInline(parsed)
+  const lines = ['', '## Skills', '']
+  const skillsRoot = join(cwd(), SKILLS_DIR)
+  const commandsRoot = join(cwd(), COMMANDS_DIR)
+  for (const dirName of skillDirNames) {
+    const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
+    const commandPath = join(commandsRoot, `${dirName}.md`)
+    let desc = ''
+    if (existsSync(skillMdPath)) {
+      const text = await readFile(skillMdPath, 'utf8')
+      const parsed = extractSkillDescription(text)
+      if (parsed) {
+        desc = skillDescriptionSafeForMarkdownInline(parsed)
       }
-      const ref = `- \`${SKILLS_DIR}/${dirName}/SKILL.md\``
-      lines.push(desc ? `${ref} — ${desc}` : ref, `  Команда: \`/${RULE_PREFIX}${id}\``)
+    }
+    const ref = `- \`${SKILLS_DIR}/${dirName}/SKILL.md\``
+    lines.push(desc ? `${ref} — ${desc}` : ref)
+    if (existsSync(commandPath)) {
+      lines.push(`  Команда: \`/${dirName}\``)
     }
   }
+  return lines
+}
 
-  lines.push('')
+/**
+ * Генерує CLAUDE.md у корені cwd з at-імпортами всіх .mdc-правил та посиланнями на skills.
+ * Завдяки цьому Claude Code автоматично завантажує вміст кожного правила при старті.
+ * @returns {Promise<void>}
+ */
+async function syncClaudeMd() {
+  const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
+  const mdcFiles = await listProjectRulesMdcFiles()
+
+  for (const mdcFile of mdcFiles) {
+    lines.push(`@${RULES_DIR}/${mdcFile}`)
+  }
+
+  const skillsSectionLines = await buildClaudeSkillsSectionLines()
+  lines.push(...skillsSectionLines, '')
   const claudeMdPath = join(cwd(), 'CLAUDE.md')
   const hadFile = existsSync(claudeMdPath)
   await writeFile(claudeMdPath, lines.join('\n'), 'utf8')
@@ -469,11 +569,10 @@ async function syncClaudeMd(configRules, configSkills) {
 
 /**
  * Повністю перезаписує AGENTS.md у корені cwd з npm/AGENTS.template.md
- * @param {string[]} configSkills id skills з конфігу
  * @param {string} [agentsTemplatePath] шлях до AGENTS.template.md у корені пакету-джерела
  * @returns {Promise<void>} завершення запису файлу
  */
-async function syncAgentsMd(configSkills, agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
+async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
   if (!existsSync(agentsTemplatePath)) {
     throw new Error(
       `Не знайдено шаблон ${AGENTS_TEMPLATE_FILE} у пакеті.\n` +
@@ -483,7 +582,7 @@ async function syncAgentsMd(configSkills, agentsTemplatePath = BUNDLED_AGENTS_TE
   }
   const templateText = await readFile(agentsTemplatePath, 'utf8')
   const mdcFiles = await listProjectRulesMdcFiles()
-  const skillItems = await buildSkillBulletItems(configSkills)
+  const skillItems = await buildSkillBulletItems()
   const body = renderAgentsTemplate(templateText, mdcFiles, skillItems)
   const agentsPath = join(cwd(), AGENTS_FILE)
   const hadFile = existsSync(agentsPath)
@@ -614,6 +713,76 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
     }
   }
   return removed.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Людинозрозумілий текст винятку для логів.
+ * @param {unknown} error виняток із catch
+ * @returns {string} текст повідомлення
+ */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
+ * Виконує крок синхронізації з уніфікованим логуванням помилки.
+ * @template T
+ * @param {string} prefix префікс повідомлення про помилку
+ * @param {() => Promise<T>} action операція
+ * @returns {Promise<T>} результат операції
+ */
+async function runSyncStep(prefix, action) {
+  try {
+    return await action()
+  } catch (error) {
+    console.error(`${prefix}${errorMessage(error)}`)
+    throw error
+  }
+}
+
+/**
+ * Копіює керовані `.mdc` файли з пакету до `.cursor/rules`.
+ * @param {string[]} rules список rules з конфігу
+ * @param {string} bundledMdcDir каталог `mdc` пакету-джерела
+ * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
+ * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
+ */
+async function syncManagedRuleFiles(rules, bundledMdcDir, rulesDir) {
+  let successCount = 0
+  let failCount = 0
+  for (const rule of rules) {
+    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
+    const destPath = join(rulesDir, fileName)
+    try {
+      process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
+      const content = await readBundledRuleContent(rule, bundledMdcDir)
+      await writeFile(destPath, content, 'utf8')
+      console.log(`✅`)
+      successCount++
+    } catch (error) {
+      console.log(`❌`)
+      console.error(`     Помилка: ${errorMessage(error)}`)
+      failCount++
+    }
+  }
+  return { successCount, failCount }
+}
+
+/**
+ * Логує видалені керовані правила/skills/commands у єдиному форматі.
+ * @param {string} title назва сутностей
+ * @param {string} basePath базовий шлях для виводу
+ * @param {string[]} names перелік елементів
+ * @returns {void}
+ */
+function logRemovedManagedItems(title, basePath, names) {
+  if (names.length === 0) {
+    return
+  }
+  console.log(`\n🧹 Видалено ${title} поза списком ${CONFIG_FILE} (${names.length}):`)
+  for (const name of names) {
+    console.log(`   − ${basePath}/${name}`)
+  }
 }
 
 /**
@@ -772,26 +941,16 @@ async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
   const projectRoot = cwd()
-  let effectivePackageRoot
-  try {
-    effectivePackageRoot = await upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: ${msg}`)
-    throw error
-  }
+  const effectivePackageRoot = await runSyncStep(
+    `❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `,
+    () => upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
+  )
 
   const bundledMdcDir = join(effectivePackageRoot, 'mdc')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')
   const bundledAgentsTemplatePath = join(effectivePackageRoot, AGENTS_TEMPLATE_FILE)
 
-  let config
-  try {
-    config = await readConfig({ bundledMdcDir, bundledSkillsDir })
-  } catch (error) {
-    console.error(`❌ ${error.message}`)
-    throw error
-  }
+  const config = await runSyncStep('❌ ', () => readConfig({ bundledMdcDir, bundledSkillsDir }))
 
   const { rules, skills, version } = config
   const bundledVer = await readBundledVersionAt(effectivePackageRoot)
@@ -808,103 +967,46 @@ async function runSync() {
   console.log(`📋 Правил до завантаження: ${rules.length}`)
   console.log(`📋 Skills до синхронізації: ${skills.length}`)
 
-  try {
+  await runSyncStep('❌ Не вдалося записати setup-bun-deps action: ', async () => {
     const { destPath } = await syncSetupBunDepsAction(cwd(), effectivePackageRoot)
     console.log(`📝 Оновлено ${destPath} (composite setup-bun-deps з пакету)\n`)
-  } catch (error) {
-    console.error(`❌ Не вдалося записати setup-bun-deps action: ${error.message}`)
-    throw error
-  }
+  })
 
   const rulesDir = join(cwd(), RULES_DIR)
   await mkdir(rulesDir, { recursive: true })
+  const { successCount, failCount } = await syncManagedRuleFiles(rules, bundledMdcDir, rulesDir)
 
-  let successCount = 0
-  let failCount = 0
-
-  for (const rule of rules) {
-    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
-    const destPath = join(rulesDir, fileName)
-
-    try {
-      process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const content = await readBundledRuleContent(rule, bundledMdcDir)
-      await writeFile(destPath, content, 'utf8')
-      console.log(`✅`)
-      successCount++
-    } catch (error) {
-      console.log(`❌`)
-      console.error(`     Помилка: ${error.message}`)
-      failCount++
-    }
-  }
-
-  try {
+  await runSyncStep(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: `, async () => {
     const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
-    if (removed.length > 0) {
-      console.log(`\n🧹 Видалено правила поза списком ${CONFIG_FILE} (${removed.length}):`)
-      for (const name of removed) {
-        console.log(`   − ${RULES_DIR}/${name}`)
-      }
-    }
-  } catch (error) {
-    console.error(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: ${error.message}`)
-    throw error
-  }
+    logRemovedManagedItems('правила', RULES_DIR, removed)
+  })
 
-  try {
+  await runSyncStep('❌ Skills: ', async () => {
     const { success: skillOk, fail: skillFail } = await syncSkills(skills, bundledSkillsDir)
     if (skills.length > 0) {
       console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${skillFail} з помилками`)
     }
     const removedSkills = await removeOrphanManagedSkillDirs(join(cwd(), SKILLS_DIR), skills)
-    if (removedSkills.length > 0) {
-      console.log(`\n🧹 Видалено skills поза списком ${CONFIG_FILE} (${removedSkills.length}):`)
-      for (const name of removedSkills) {
-        console.log(`   − ${SKILLS_DIR}/${name}`)
-      }
-    }
+    logRemovedManagedItems('skills', SKILLS_DIR, removedSkills)
     if (skillFail > 0) {
       throw new Error(`Не вдалося скопіювати ${skillFail} з ${skills.length} skills`)
     }
-  } catch (error) {
-    console.error(`❌ Skills: ${error.message}`)
-    throw error
-  }
+  })
 
-  try {
+  await runSyncStep('❌ Commands: ', async () => {
     const { success: cmdOk, fail: cmdFail } = await syncCommands(skills, bundledSkillsDir)
     if (skills.length > 0) {
       console.log(`\n⌨️  Commands: ${cmdOk} скопійовано, ${cmdFail} з помилками`)
     }
     const removedCmds = await removeOrphanManagedCommandFiles(join(cwd(), COMMANDS_DIR), skills)
-    if (removedCmds.length > 0) {
-      console.log(`\n🧹 Видалено commands поза списком ${CONFIG_FILE} (${removedCmds.length}):`)
-      for (const name of removedCmds) {
-        console.log(`   − ${COMMANDS_DIR}/${name}`)
-      }
-    }
+    logRemovedManagedItems('commands', COMMANDS_DIR, removedCmds)
     if (cmdFail > 0) {
       throw new Error(`Не вдалося скопіювати ${cmdFail} з ${skills.length} commands`)
     }
-  } catch (error) {
-    console.error(`❌ Commands: ${error instanceof Error ? error.message : String(error)}`)
-    throw error
-  }
+  })
 
-  try {
-    await syncAgentsMd(skills, bundledAgentsTemplatePath)
-  } catch (error) {
-    console.error(`❌ Не вдалося оновити ${AGENTS_FILE}: ${error.message}`)
-    throw error
-  }
-
-  try {
-    await syncClaudeMd(rules, skills)
-  } catch (error) {
-    console.error(`❌ Не вдалося оновити CLAUDE.md: ${error instanceof Error ? error.message : String(error)}`)
-    throw error
-  }
+  await runSyncStep(`❌ Не вдалося оновити ${AGENTS_FILE}: `, () => syncAgentsMd(bundledAgentsTemplatePath))
+  await runSyncStep('❌ Не вдалося оновити CLAUDE.md: ', () => syncClaudeMd())
 
   console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
   if (failCount > 0) {

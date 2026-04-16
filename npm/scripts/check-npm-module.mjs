@@ -16,8 +16,6 @@ import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
-
-const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
 import {
   hasIdTokenWritePermission,
   hasNpmPublishStepWithPackage,
@@ -26,6 +24,8 @@ import {
   pushPathsIncludeNpmGlob
 } from './utils/gha-workflow.mjs'
 import { walkDir } from './utils/walkDir.mjs'
+
+const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
 
 /** Канонічний entrypoint типів для пакетів із вихідним `.js` під каталогом `npm/src` */
 const TYPES_INDEX = './types/index.d.ts'
@@ -195,7 +195,7 @@ export async function check() {
         fail(`npm/package.json: при наявності .js під npm/src очікується "types": "${TYPES_INDEX}"`)
       }
     } else {
-      if (typeof typesField === 'string' && /^\.\/types\/.+\.d\.(ts|mts)$/.test(typesField)) {
+      if (typeof typesField === 'string' && TYPES_FILE_RE.test(typesField)) {
         pass(`npm/package.json: "types" вказує на файл під ./types/… (${typesField})`)
       } else {
         fail(

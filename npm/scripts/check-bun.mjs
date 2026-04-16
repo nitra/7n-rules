@@ -106,9 +106,7 @@ export async function check() {
     } else {
       const bad = Object.keys(dev).filter(n => !isAllowedRootDevDependency(n))
       if (bad.length > 0) {
-        fail(
-          `Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`
-        )
+        fail(`Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`)
       } else {
         const n = Object.keys(dev).length
         pass(
@@ -145,9 +143,7 @@ export async function check() {
         const missing = lintPrefixed.filter(name => !aggregate.includes(`bun run ${name}`))
         if (missing.length > 0) {
           const missingList = missing.map(s => `\`${s}\``).join(', ')
-          fail(
-            `Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`
-          )
+          fail(`Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`)
         } else {
           pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
           if (OXFMT_END_RE.test(aggregate.trim())) {

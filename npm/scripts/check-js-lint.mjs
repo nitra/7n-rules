@@ -19,13 +19,17 @@ export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bu
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
 export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']
 
+const WHITESPACE_RE = /\s+/gu
+const NON_DIGITS_RE = /\D+/u
+const OXLINT_FIX_RE = /bunx\s+oxlint[^\n]*--fix/u
+
 /**
  * Нормалізує рядок скрипта для порівняння (зайві пробіли).
  * @param {string} s вихідний рядок скрипта `lint-js`
  * @returns {string} рядок без зайвих пробілів на краях і з одиничними пробілами всередині
  */
 export function normalizeLintJsScript(s) {
-  return String(s).trim().replaceAll(/\s+/gu, ' ')
+  return String(s).trim().replaceAll(WHITESPACE_RE, ' ')
 }
 
 /**
@@ -47,13 +51,14 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
   if (s.startsWith('workspace:')) {
     return true
   }
-  const m = s.match(/(\d+)\.(\d+)\.(\d+)/u)
-  if (!m) {
+  const parts = s.split(NON_DIGITS_RE).filter(Boolean)
+  if (parts.length < 3) {
     return false
   }
-  const major = Number(m[1])
-  const minor = Number(m[2])
-  const patch = Number(m[3])
+  const [major, minor, patch] = parts.slice(0, 3).map(Number)
+  if ([major, minor, patch].some(n => Number.isNaN(n))) {
+    return false
+  }
   return major > 3 || (major === 3 && minor > 5) || (major === 3 && minor === 5 && patch >= 0)
 }
 
@@ -167,8 +172,8 @@ export async function check() {
 
     const nodeEngine = pkg.engines?.node
     if (nodeEngine) {
-      const match = nodeEngine.match(/(\d+)/u)
-      if (match && Number(match[1]) >= 24) {
+      const firstNumeric = String(nodeEngine).split(NON_DIGITS_RE).find(Boolean)
+      if (firstNumeric && Number(firstNumeric) >= 24) {
         pass(`engines.node: "${nodeEngine}"`)
       } else {
         fail(`engines.node: "${nodeEngine}" — має бути >=24`)
@@ -255,7 +260,7 @@ export async function check() {
           fail(errMsg)
         }
       }
-      if (content.includes('bunx oxlint') && /bunx\s+oxlint[^\n]*--fix/u.test(content)) {
+      if (content.includes('bunx oxlint') && OXLINT_FIX_RE.test(content)) {
         fail('lint-js.yml: у CI не використовуй bunx oxlint --fix (лише bunx oxlint)')
       }
       if (content.includes('eslint --fix')) {
@@ -268,8 +273,7 @@ export async function check() {
 
   if (existsSync('.github/workflows/lint.yml')) {
     const lintYml = await readFile('.github/workflows/lint.yml', 'utf8')
-    const looksLikeJsLint =
-      /\bbunx\s+oxlint\b/u.test(lintYml) && /\bbunx\s+eslint\b/u.test(lintYml) && /\bjscpd\b/u.test(lintYml)
+    const looksLikeJsLint = lintYml.includes('bunx oxlint') && lintYml.includes('bunx eslint') && lintYml.includes('jscpd')
     if (looksLikeJsLint) {
       fail('.github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js-lint.mdc)')
     } else {

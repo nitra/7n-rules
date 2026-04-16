@@ -6,9 +6,6 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
-
-const SERVICE_V1_JSON_RE = /service-v1\.json$/
-
 import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
@@ -42,6 +39,8 @@ import {
   serviceSvcHlYamlHeadlessViolation,
   serviceSvcYamlClusterIpTypeViolation
 } from '../scripts/check-k8s.mjs'
+
+const SERVICE_V1_JSON_RE = /service-v1\.json$/
 
 describe('classifyBackendConfigManifestPresence', () => {
   test('only для одного BackendConfig', () => {

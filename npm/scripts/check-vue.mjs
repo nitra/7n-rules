@@ -12,8 +12,6 @@ import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
-
-const MAJOR_VERSION_RE = /(\d+)/
 import {
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
@@ -21,6 +19,8 @@ import {
 } from './utils/vue-forbidden-imports.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
+
+const MAJOR_VERSION_RE = /(\d+)/
 
 /**
  * Формує зрозумілий для людини підпис пакета для повідомлень перевірки.

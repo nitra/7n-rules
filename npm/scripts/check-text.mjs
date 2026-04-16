@@ -178,9 +178,7 @@ export async function check() {
         )
       }
     } else {
-      fail(
-        `.oxfmtrc.json: додай масив ignorePatterns з ${OXFMT_REQUIRED_IGNORE_PATTERNS.join(', ')} (див. text.mdc)`
-      )
+      fail(`.oxfmtrc.json: додай масив ignorePatterns з ${OXFMT_REQUIRED_IGNORE_PATTERNS.join(', ')} (див. text.mdc)`)
     }
   } else {
     fail('.oxfmtrc.json не існує — створи його')

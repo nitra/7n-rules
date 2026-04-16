@@ -691,8 +691,7 @@ async function readK8sYamlDocumentRootsForInventory(abs) {
     return []
   }
   const lines = toLines(raw)
-  const body =
-    lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
   /** @type {unknown[]} */
   const roots = parseK8sYamlDocumentObjectRoots(body)
   /** @type {Record<string, unknown>[]} */
@@ -727,8 +726,7 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
     return []
   }
   const lines = toLines(raw)
-  const body =
-    lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
 
   /** @type {import('yaml').Document[] | undefined} */
   let docs
@@ -774,11 +772,7 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
               ? join(resolved, 'kustomization.yaml')
               : null
             if (childK !== null) {
-              const sub = await collectResourceDescriptorsForKustomizationWalk(
-                childK,
-                rootNorm,
-                visitedKustomization
-              )
+              const sub = await collectResourceDescriptorsForKustomizationWalk(childK, rootNorm, visitedKustomization)
               out.push(...sub)
             }
           }
@@ -885,8 +879,7 @@ async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fai
       }
       if (readOk && raw !== undefined) {
         const lines = toLines(raw)
-        const body =
-          lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+        const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
         /** @type {import('yaml').Document[] | null} */
         let docs = null
         try {
@@ -942,10 +935,7 @@ async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fai
                           for (const o of roots) {
                             docIdx++
                             const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-                            if (
-                              d !== null &&
-                              !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))
-                            ) {
+                            if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
                               const relPatch = (relative(root, resolved) || pathStr).replaceAll('\\', '/')
                               fail(
                                 `${rel}: patches[${pIdx}] path «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
@@ -980,10 +970,7 @@ async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fai
                         for (const o of roots) {
                           docIdx++
                           const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-                          if (
-                            d !== null &&
-                            !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))
-                          ) {
+                          if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
                             const relPatch = (relative(root, resolved) || ref).replaceAll('\\', '/')
                             fail(
                               `${rel}: patchesStrategicMerge[${smIdx}] «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
@@ -1043,7 +1030,7 @@ async function findK8sYamlFiles(root) {
     if (!/\.ya?ml$/iu.test(p)) return
     out.push(p)
   })
-   
+
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 

@@ -27,6 +27,22 @@
         "minLength": 1
       }
     },
+    "disable-rules": {
+      "type": "array",
+      "description": "Список rule id (без префікса n-), які не потрібно автододавати в `.n-cursor.json` під час запуску CLI.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "disable-skills": {
+      "type": "array",
+      "description": "Список skill id (без префікса n-), які не потрібно автододавати в `.n-cursor.json` під час запуску CLI.",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
     "version": {
       "type": "string",
       "description": "Застаріле поле, ігнорується CLI. Правила завжди копіюються з каталогу mdc/ установленого пакету (node_modules або кеш npx); змініть версію через оновлення залежності."
