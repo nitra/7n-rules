@@ -61,7 +61,7 @@ function normalizeSnippet(s) {
 
 /**
  * Перевіряє, чи це виклик `require('<module>')` з рядковим аргументом.
- * @param {any} node вузол AST
+ * @param {Record<string, unknown> | null | undefined} node вузол AST
  * @returns {string | null} ім'я модуля з аргументу, інакше `null`
  */
 function requireCallModule(node) {
@@ -75,7 +75,7 @@ function requireCallModule(node) {
 
 /**
  * Перевіряє, чи це динамічний `import('<module>')` з рядковим аргументом.
- * @param {any} node вузол AST
+ * @param {Record<string, unknown> | null | undefined} node вузол AST
  * @returns {string | null} ім'я модуля, інакше `null`
  */
 function dynamicImportModule(node) {
@@ -87,8 +87,8 @@ function dynamicImportModule(node) {
 
 /**
  * Простий рекурсивний обхід AST: заходимо в усі об'єкти/масиви, щоб знайти require/import-вузли.
- * @param {any} node корінь або під-вузол AST
- * @param {(n: any) => void} visit виклик для кожного об'єкта-вузла
+ * @param {unknown} node корінь або під-вузол AST
+ * @param {(n: unknown) => void} visit виклик для кожного об'єкта-вузла
  * @returns {void}
  */
 function walkAst(node, visit) {
@@ -101,9 +101,10 @@ function walkAst(node, visit) {
     visit(node)
   }
   for (const key of Object.keys(node)) {
-    if (key === 'parent') continue
-    const v = node[key]
-    if (v && typeof v === 'object') walkAst(v, visit)
+    if (key !== 'parent') {
+      const v = node[key]
+      if (v && typeof v === 'object') walkAst(v, visit)
+    }
   }
 }
 

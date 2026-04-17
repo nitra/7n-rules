@@ -2336,8 +2336,8 @@ function hasuraRuleIsWebsocket(rule, qlPath) {
  * @returns {{ prefix: string, startIndex: number } | null} виявлений префікс і позиція правила 1 або null
  */
 function findHasuraCanonStart(rules) {
-  for (let i = 0; i < rules.length; i++) {
-    const r = asPlainRecord(rules[i])
+  for (const [i, rule] of rules.entries()) {
+    const r = asPlainRecord(rule)
     const matches = r === null ? null : r.matches
     if (!Array.isArray(matches) || matches.length !== 1) {
       // наступне правило

@@ -29,7 +29,7 @@
  * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
  * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**,
  * якщо в тому ж **`kustomization.yaml`** згадується **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura + JWT).
- * **Спільні бекенди (`auth-run-hl`, `filelint-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
+ * **Спільні бекенди (`auth-run-hl`, `file-link-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
  * у patch overlay **ua** та **ru** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** або **ru** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
  * Вибір **`op`** — **k8s.mdc**.
  *
@@ -56,7 +56,7 @@ const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
  * Спільні **Service** (**`-hl`**) у **dev**: у base-**HTTPRoute** обов'язково **`namespace: dev`**, у overlay — patch **`…/backendRefs/…/namespace`** (abie.mdc).
  * Експорт для споживачів / тестів.
  */
-export const ABIE_SHARED_CROSS_NS_BACKEND_NAMES = Object.freeze(['auth-run-hl', 'filelint-hl'])
+export const ABIE_SHARED_CROSS_NS_BACKEND_NAMES = Object.freeze(['auth-run-hl', 'file-link-hl'])
 
 const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NAMES)
 
@@ -985,7 +985,7 @@ function checkSharedBackendRef(br, rel, errors) {
 }
 
 /**
- * З HTTPRoute-документа рахує **`backendRefs`** до **`auth-run-hl`** / **`filelint-hl`** і порушення **`namespace: dev`**.
+ * З HTTPRoute-документа рахує **`backendRefs`** до **`auth-run-hl`** / **`file-link-hl`** і порушення **`namespace: dev`**.
  * @param {unknown} obj корінь YAML
  * @param {string} rel відносний шлях (повідомлення)
  * @returns {{ refCount: number, errors: string[] }} кількість посилань і список порушень
@@ -1015,7 +1015,7 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
 }
 
 /**
- * З YAML під **k8s** пакета (без overlay **ua** та **ru**) збирає кількість **`backendRefs`** до **`auth-run-hl`** і **`filelint-hl`** і порушення **`namespace: dev`**.
+ * З YAML під **k8s** пакета (без overlay **ua** та **ru**) збирає кількість **`backendRefs`** до **`auth-run-hl`** і **`file-link-hl`** і порушення **`namespace: dev`**.
  * @param {string} root корінь репозиторію
  * @param {string} pkgAbs абсолютний шлях до каталогу пакета
  * @param {string[]} yamlFilesAbs усі **yaml** під **k8s** (як **findK8sYamlFiles**)
@@ -1135,7 +1135,7 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
  * @param {string} combined текст одного або кількох inline **patch**, розділених символом нового рядка
  * @param {'ua' | 'ru'} mode **ua** або **ru**
  * @param {string} [fullKustomizationRaw] повний текст **kustomization.yaml** — для **ru** визначає, чи потрібна анотація **gwin…websocket** (лише якщо є **`HASURA_GRAPHQL_JWT_SECRET`**)
- * @param {number} [sharedCrossNsBackendRefCount] скільки **`backendRefs`** до **`auth-run-hl`** і **`filelint-hl`** у base **HTTPRoute** пакета — стільки ж patch-ів **`…/backendRefs/…/namespace`** з **`value`** overlay
+ * @param {number} [sharedCrossNsBackendRefCount] скільки **`backendRefs`** до **`auth-run-hl`** і **`file-link-hl`** у base **HTTPRoute** пакета — стільки ж patch-ів **`…/backendRefs/…/namespace`** з **`value`** overlay
  * @returns {string | null} повідомлення про помилку або **null**
  */
 export function validateAbieNginxRunHttpRoutePatches(
@@ -1173,7 +1173,7 @@ export function validateAbieNginxRunHttpRoutePatches(
   if (sharedCount > 0) {
     const patchHits = countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode)
     if (patchHits < sharedCount) {
-      return `HTTPRoute: для backendRefs до спільних сервісів auth-run-hl, filelint-hl очікується ${sharedCount} JSON6902 patch(ів) з path /spec/rules/…/backendRefs/…/namespace та value ${mode} (зараз ${patchHits}) — abie.mdc`
+      return `HTTPRoute: для backendRefs до спільних сервісів auth-run-hl, file-link-hl очікується ${sharedCount} JSON6902 patch(ів) з path /spec/rules/…/backendRefs/…/namespace та value ${mode} (зараз ${patchHits}) — abie.mdc`
     }
   }
   return null

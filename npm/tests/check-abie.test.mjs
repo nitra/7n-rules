@@ -312,7 +312,7 @@ patches:
 
   test('ABIE_SHARED_CROSS_NS_BACKEND_NAMES — канонічні імена', () => {
     expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('auth-run-hl')
-    expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('filelint-hl')
+    expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('file-link-hl')
   })
 
   test('isK8sYamlInAbiePackageExcludingUaRuOverlays', () => {

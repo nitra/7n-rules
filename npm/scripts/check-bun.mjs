@@ -21,8 +21,9 @@ import { readFile } from 'node:fs/promises'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
 const OXFMT_END_RE = /&&[ \t]+oxfmt[ \t]+\.[ \t]*$/
-const HOISTED_LINKER_RE = /^\s*linker\s*=\s*"hoisted"\s*$/m
-const INSTALL_SECTION_RE = /^\s*\[install\]\s*$/m
+/** Пробіли/таби без `\s` (уникаємо super-linear backtracking у sonarjs/slow-regex). */
+const HOISTED_LINKER_RE = /^[ \t]*linker[ \t]*=[ \t]*"hoisted"[ \t]*$/m
+const INSTALL_SECTION_RE = /^[ \t]*\[install\][ \t]*$/m
 
 /**
  * Перевіряє `bunfig.toml` на секцію `[install]` з `linker = "hoisted"`.

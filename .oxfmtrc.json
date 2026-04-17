@@ -1,5 +1,5 @@
 {
-  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql"],
+  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
   "arrowParens": "avoid",
   "printWidth": 120,
   "bracketSpacing": true,

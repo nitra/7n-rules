@@ -184,6 +184,42 @@ function checkPackageJsonTypeModule(label, pkg, passFn, failFn) {
 }
 
 /**
+ * `"type": "module"` у кожного workspace з package.json.
+ * @param {unknown[]} workspaces поле workspaces з package.json
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkWorkspacePackagesTypeModule(workspaces, passFn, failFn) {
+  for (const ws of workspaces) {
+    const wsPkgPath = `${ws}/package.json`
+    if (existsSync(wsPkgPath)) {
+      const wsPkg = JSON.parse(await readFile(wsPkgPath, 'utf8'))
+      checkPackageJsonTypeModule(wsPkgPath, wsPkg, passFn, failFn)
+    }
+  }
+}
+
+/**
+ * engines.node >= 24.
+ * @param {{ engines?: { node?: string } }} pkg розпарсений package.json
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+function checkEnginesNode(pkg, passFn, failFn) {
+  const nodeEngine = pkg.engines?.node
+  if (nodeEngine) {
+    const firstNumeric = String(nodeEngine).split(NON_DIGITS_RE).find(Boolean)
+    if (firstNumeric && Number(firstNumeric) >= 24) {
+      passFn(`engines.node: "${nodeEngine}"`)
+    } else {
+      failFn(`engines.node: "${nodeEngine}" — має бути >=24`)
+    }
+  } else {
+    failFn('package.json не містить engines.node — додай: "engines": { "node": ">=24" }')
+  }
+}
+
+/**
  * Перевіряє package.json на lint-js, prettier, eslint-config, engines.node.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
@@ -195,13 +231,7 @@ async function checkPackageJsonJsLint(passFn, failFn) {
   checkPackageJsonTypeModule('package.json', pkg, passFn, failFn)
 
   const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
-  for (const ws of workspaces) {
-    const wsPkgPath = `${ws}/package.json`
-    if (existsSync(wsPkgPath)) {
-      const wsPkg = JSON.parse(await readFile(wsPkgPath, 'utf8'))
-      checkPackageJsonTypeModule(wsPkgPath, wsPkg, passFn, failFn)
-    }
-  }
+  await checkWorkspacePackagesTypeModule(workspaces, passFn, failFn)
 
   const lintJs = pkg.scripts?.['lint-js']
   if (lintJs) {
@@ -218,18 +248,7 @@ async function checkPackageJsonJsLint(passFn, failFn) {
   }
 
   checkPackageJsonLintDeps(pkg, passFn, failFn)
-
-  const nodeEngine = pkg.engines?.node
-  if (nodeEngine) {
-    const firstNumeric = String(nodeEngine).split(NON_DIGITS_RE).find(Boolean)
-    if (firstNumeric && Number(firstNumeric) >= 24) {
-      passFn(`engines.node: "${nodeEngine}"`)
-    } else {
-      failFn(`engines.node: "${nodeEngine}" — має бути >=24`)
-    }
-  } else {
-    failFn('package.json не містить engines.node — додай: "engines": { "node": ">=24" }')
-  }
+  checkEnginesNode(pkg, passFn, failFn)
 }
 
 /**
