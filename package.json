@@ -21,7 +21,7 @@
     "lint-docker": "bun ./npm/scripts/run-docker.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^2.0.0",
+    "@nitra/cspell-dict": "^2.1.0",
     "@nitra/cursor": "workspace:*",
     "@nitra/eslint-config": "^3.6.0"
   },

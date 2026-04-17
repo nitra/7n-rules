@@ -120,7 +120,7 @@ version: '1.25'
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^2.0.0"
+    "@nitra/cspell-dict": "^2.1.0"
   }
 }
 ```
@@ -235,7 +235,7 @@ jobs:
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^2.0.0"
+    "@nitra/cspell-dict": "^2.1.0"
   }
 }
 ```
@@ -252,7 +252,7 @@ jobs:
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
-    "@nitra/cspell-dict": "^2.0.0"
+    "@nitra/cspell-dict": "^2.1.0"
   }
 }
 ```
