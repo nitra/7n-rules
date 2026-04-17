@@ -1,7 +1,7 @@
 ---
 description: Bun як єдиний package manager у монорепо
 alwaysApply: true
-version: '1.6'
+version: '1.7'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
@@ -43,6 +43,13 @@ version: '1.6'
 Lockfile у репозиторії: `bun.lock`.
 Не створювати `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`.
 Видалити якщо вони є. Видалити .yarn та .yarnrc.yml якщо вони є.
+
+У корені репозиторію має бути **`bunfig.toml`** з **hoisted** лінкером (пласке `node_modules`, сумісне з інструментами, які не розуміють ізольований layout Bun):
+
+```toml title="bunfig.toml"
+[install]
+linker = "hoisted"
+```
 
 Для Bun monorepo:
 

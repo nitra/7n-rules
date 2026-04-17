@@ -21,8 +21,26 @@ describe('check-bun', () => {
   test('успіх: bun.lock, мінімальний package.json', async () => {
     await withTmpCwd(async () => {
       await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
       await writeJson('package.json', { name: 't', private: true })
       expect(await check()).toBe(0)
+    })
+  })
+
+  test('помилка: відсутній bunfig.toml', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeJson('package.json', { name: 't', private: true })
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('помилка: bunfig.toml без hoisted лінкера', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "isolated"\n', 'utf8')
+      await writeJson('package.json', { name: 't', private: true })
+      expect(await check()).toBe(1)
     })
   })
 
@@ -62,6 +80,7 @@ describe('check-bun', () => {
   test('успіх: кореневі devDependencies лише @nitra/*', async () => {
     await withTmpCwd(async () => {
       await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
       await writeJson('package.json', {
         name: 't',
         private: true,
@@ -94,6 +113,7 @@ describe('check-bun', () => {
   test('docker + lint-docker — OK', async () => {
     await withTmpCwd(async () => {
       await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
       await writeJson('.n-cursor.json', { rules: ['docker'] })
       await writeJson('package.json', {
         name: 't',

@@ -1,8 +1,9 @@
 /**
  * Перевіряє відповідність репозиторію правилам Bun (bun.mdc).
  *
- * Очікує наявність `bun.lock`, забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn`
- * і поле `packageManager` у кореневому `package.json`.
+ * Очікує наявність `bun.lock`, `bunfig.toml` з `linker = "hoisted"` у секції `[install]`,
+ * забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn` і поле `packageManager`
+ * у кореневому `package.json`.
  *
  * У кореневому `package.json` не має бути поля **`dependencies`**; у **`devDependencies`** дозволені лише
  * пакети **`@nitra/*`** (наприклад **`@nitra/cspell-dict`**, **`@nitra/eslint-config`**).
@@ -20,6 +21,30 @@ import { readFile } from 'node:fs/promises'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
 const OXFMT_END_RE = /&&[ \t]+oxfmt[ \t]+\.[ \t]*$/
+const HOISTED_LINKER_RE = /^\s*linker\s*=\s*"hoisted"\s*$/m
+const INSTALL_SECTION_RE = /^\s*\[install\]\s*$/m
+
+/**
+ * Перевіряє `bunfig.toml` на секцію `[install]` з `linker = "hoisted"`.
+ * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер
+ */
+async function checkBunfigHoisted(reporter) {
+  const { pass, fail } = reporter
+  if (!existsSync('bunfig.toml')) {
+    fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
+    return
+  }
+  const content = await readFile('bunfig.toml', 'utf8')
+  if (!INSTALL_SECTION_RE.test(content)) {
+    fail('bunfig.toml: відсутня секція [install] (bun.mdc)')
+    return
+  }
+  if (HOISTED_LINKER_RE.test(content)) {
+    pass('bunfig.toml: [install] linker = "hoisted"')
+  } else {
+    fail('bunfig.toml: у секції [install] має бути linker = "hoisted" (bun.mdc)')
+  }
+}
 
 /**
  * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише **`@nitra/*`**).
@@ -161,6 +186,8 @@ export async function check() {
   } else {
     fail('Відсутній bun.lock — запусти bun i')
   }
+
+  await checkBunfigHoisted(reporter)
 
   const cursorRules = await loadNCursorRules()
 

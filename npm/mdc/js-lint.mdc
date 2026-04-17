@@ -1,7 +1,7 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.13'
+version: '1.14'
 ---
 
 **oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.5.0`** (з ним транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
@@ -16,8 +16,11 @@ version: '1.13'
 }
 ```
 
+У кожному **`package.json`** проєкту (корінь і всі workspace-пакети) має бути **`"type": "module"`** — весь код у ESM.
+
 ```json title="package.json"
 {
+  "type": "module",
   "scripts": {
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },

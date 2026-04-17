@@ -5,7 +5,8 @@
  * `.oxlintrc.json` з `jsPlugins` (`@e18e/eslint-plugin`) і правилом `e18e/prefer-includes: error`,
  * `@nitra/eslint-config` у devDependencies мінімум **3.5.0** (транзитивний `@e18e/eslint-plugin` для oxlint), `.jscpd.json`
  * (gitignore, exitCode, reporters, minLines), workflow `lint-js.yml` (checkout@v6, setup-bun-deps,
- * bunx без --fix), без prettier, `engines.node` >= 24. Дубль перевірки JS у `lint.yml` — заборонено.
+ * bunx без --fix), без prettier, `engines.node` >= 24, `"type": "module"` у кореневому
+ * і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -168,6 +169,21 @@ function checkPackageJsonLintDeps(pkg, passFn, failFn) {
 }
 
 /**
+ * Перевіряє, що package.json має `"type": "module"`.
+ * @param {string} label шлях або назва пакета для повідомлень
+ * @param {{ type?: string }} pkg parsed package.json
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+function checkPackageJsonTypeModule(label, pkg, passFn, failFn) {
+  if (pkg.type === 'module') {
+    passFn(`${label}: "type": "module"`)
+  } else {
+    failFn(`${label}: має містити "type": "module" (js-lint.mdc)`)
+  }
+}
+
+/**
  * Перевіряє package.json на lint-js, prettier, eslint-config, engines.node.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
@@ -175,6 +191,17 @@ function checkPackageJsonLintDeps(pkg, passFn, failFn) {
 async function checkPackageJsonJsLint(passFn, failFn) {
   if (!existsSync('package.json')) return
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+
+  checkPackageJsonTypeModule('package.json', pkg, passFn, failFn)
+
+  const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
+  for (const ws of workspaces) {
+    const wsPkgPath = `${ws}/package.json`
+    if (existsSync(wsPkgPath)) {
+      const wsPkg = JSON.parse(await readFile(wsPkgPath, 'utf8'))
+      checkPackageJsonTypeModule(wsPkgPath, wsPkg, passFn, failFn)
+    }
+  }
 
   const lintJs = pkg.scripts?.['lint-js']
   if (lintJs) {
