@@ -44,11 +44,7 @@ describe('check-js-pino (мінімальний проєкт)', () => {
         name: 'pkg',
         dependencies: { '@nitra/pino': '^1.0.0' }
       })
-      await writeFile(
-        join('pkg', 'index.js'),
-        `import log from '@nitra/bunyan'\nlog.info('start')\n`,
-        'utf8'
-      )
+      await writeFile(join('pkg', 'index.js'), `import log from '@nitra/bunyan'\nlog.info('start')\n`, 'utf8')
       expect(await check()).toBe(1)
     })
   })
@@ -65,11 +61,7 @@ describe('check-js-pino (мінімальний проєкт)', () => {
         name: 'pkg',
         dependencies: { '@nitra/pino': '^1.0.0' }
       })
-      await writeFile(
-        join('pkg', 'index.js'),
-        `import log from '@nitra/pino'\nlog.info('start')\n`,
-        'utf8'
-      )
+      await writeFile(join('pkg', 'index.js'), `import log from '@nitra/pino'\nlog.info('start')\n`, 'utf8')
       expect(await check()).toBe(0)
     })
   })

@@ -2344,12 +2344,7 @@ function findHasuraCanonStart(rules) {
     } else {
       const m = asPlainRecord(matches[0])
       const p = m === null || m.headers !== undefined ? null : asPlainRecord(m.path)
-      if (
-        p !== null &&
-        p.type === 'Exact' &&
-        typeof p.value === 'string' &&
-        p.value.endsWith('/ql')
-      ) {
+      if (p !== null && p.type === 'Exact' && typeof p.value === 'string' && p.value.endsWith('/ql')) {
         return { prefix: p.value.slice(0, -'/ql'.length), startIndex: i }
       }
     }
@@ -2677,7 +2672,9 @@ async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
       const v = httpRouteHasuraCanonViolation(hr.obj)
       if (v !== null) {
         const rel = (relative(root, hr.abs) || hr.abs).replaceAll('\\', '/')
-        fail(`${rel}: HTTPRoute «${name}» (документ ${hr.docIndex}; прив'язано до Hasura-Deployment у тому ж каталозі): ${v}`)
+        fail(
+          `${rel}: HTTPRoute «${name}» (документ ${hr.docIndex}; прив'язано до Hasura-Deployment у тому ж каталозі): ${v}`
+        )
       }
     }
   }
