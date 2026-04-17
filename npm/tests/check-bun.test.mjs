@@ -35,7 +35,7 @@ describe('check-bun', () => {
     })
   })
 
-  test('помилка: bunfig.toml без hoisted лінкера', async () => {
+  test('помилка: bunfig.toml з linker isolated замість hoisted', async () => {
     await withTmpCwd(async () => {
       await writeFile('bun.lock', '', 'utf8')
       await writeFile('bunfig.toml', '[install]\nlinker = "isolated"\n', 'utf8')

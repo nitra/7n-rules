@@ -2641,7 +2641,7 @@ async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
  * Якщо документ — Hasura-Deployment із непорожнім `metadata.name`, додає ім'я до індексу за каталогом.
  * @param {Record<string, unknown>} rec корінь YAML-документа
  * @param {string} dir абсолютний шлях до каталогу файлу
- * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом (мутується)
+ * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом (під час обходу в нього додаються імена)
  * @returns {void}
  */
 function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
