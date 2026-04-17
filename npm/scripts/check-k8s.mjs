@@ -949,10 +949,7 @@ function formatKustomizePatchTargetForMessage(target) {
  */
 function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
   for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
-    if (
-      shouldValidateKustomizePatchTarget(target) &&
-      !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)
-    ) {
+    if (shouldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)) {
       fail(
         `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
       )
@@ -1163,7 +1160,16 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
   const kustNs = typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
   failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail)
   await failIfPathOnlyPatchesNotInCatalog(rel, rec.patches, kustDir, rootNorm, root, catalog, kustNs, fail)
-  await failIfStrategicMergePatchesNotInCatalog(rel, rec.patchesStrategicMerge, kustDir, rootNorm, root, catalog, kustNs, fail)
+  await failIfStrategicMergePatchesNotInCatalog(
+    rel,
+    rec.patchesStrategicMerge,
+    kustDir,
+    rootNorm,
+    root,
+    catalog,
+    kustNs,
+    fail
+  )
 }
 
 /**
@@ -1607,7 +1613,9 @@ async function auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fai
     return
   }
   const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
-  fail(`${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`)
+  fail(
+    `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
+  )
 }
 
 /**
@@ -1621,15 +1629,7 @@ async function auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fai
  * @param {(msg: string) => void} fail реєстрація порушення
  * @returns {Promise<void>}
  */
-async function auditOneKustomizationJson6902Patch(
-  rel,
-  pr,
-  patchIdx,
-  kustAbs,
-  rootNorm,
-  root,
-  fail
-) {
+async function auditOneKustomizationJson6902Patch(rel, pr, patchIdx, kustAbs, rootNorm, root, fail) {
   if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
     failIfJson6902RemoveAddConflictOnSamePath(rel, `patches[${patchIdx}] inline JSON6902`, pr.patch, fail)
   }
@@ -2378,15 +2378,7 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
  * @param {(msg: string) => void} fail реєстрація помилки
  * @returns {void}
  */
-function failIfK8sPolicyNamespaceRulesViolated(
-  rel,
-  docIndex,
-  obj,
-  skipMetaNs,
-  inBaseManifest,
-  kustomizeManaged,
-  fail
-) {
+function failIfK8sPolicyNamespaceRulesViolated(rel, docIndex, obj, skipMetaNs, inBaseManifest, kustomizeManaged, fail) {
   if (skipMetaNs) {
     return
   }
@@ -2479,15 +2471,7 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
       fail(`${rel}: YAML (документ ${di + 1}): ${doc.errors.map(e => e.message).join('; ')}`)
     } else {
       const obj = doc.toJSON()
-      failIfK8sPolicyNamespaceRulesViolated(
-        rel,
-        di + 1,
-        obj,
-        skipMetaNs,
-        inBaseManifest,
-        kustomizeManaged,
-        fail
-      )
+      failIfK8sPolicyNamespaceRulesViolated(rel, di + 1, obj, skipMetaNs, inBaseManifest, kustomizeManaged, fail)
       failIfK8sPolicyResourceRulesViolated(rel, baseLower, di + 1, obj, fail)
     }
   }

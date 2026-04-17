@@ -12,7 +12,7 @@
  *
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
- * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **headless Service** (ім’я з суфіксом **`-hl`**):
+ * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **headless Service** (ім'я з суфіксом **`-hl`**):
  * якщо **`metadata.name`** уже закінчується на **`-hl`**, **`targetRef.name`** має збігатися з ним; інакше **`targetRef.name`** = **`${metadata.name}-hl`**.
  * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc** (наприклад **HttpBackendGroup** `alb.yc.io/v1alpha1` — **без** modeline).
  * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
@@ -53,7 +53,7 @@ const CONFIG_FILE = '.n-cursor.json'
 const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
 
 /**
- * Спільні **Service** (**`-hl`**) у **dev**: у base-**HTTPRoute** обов’язково **`namespace: dev`**, у overlay — patch **`…/backendRefs/…/namespace`** (abie.mdc).
+ * Спільні **Service** (**`-hl`**) у **dev**: у base-**HTTPRoute** обов'язково **`namespace: dev`**, у overlay — patch **`…/backendRefs/…/namespace`** (abie.mdc).
  * Експорт для споживачів / тестів.
  */
 export const ABIE_SHARED_CROSS_NS_BACKEND_NAMES = Object.freeze(['auth-run-hl', 'filelint-hl'])
@@ -78,8 +78,10 @@ const PATCH_PREEM_FALSE_RE = /\bpreem:\s*['"]?false['"]?\b/u
 const PATCH_YANDEX_PREEMPTIBLE_FALSE_RE = /yandex\.cloud\/preemptible:\s*['"]?false['"]?/u
 const TRAILING_SLASH_RE = /\/$/u
 const PATCH_HOSTNAMES_PATH_RE = /path:\s*\/spec\/hostnames\b/mu
-const PATCH_PARENT_REF_NS_UA_RE = /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu
-const PATCH_PARENT_REF_NS_RU_RE = /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu
+const PATCH_PARENT_REF_NS_UA_RE =
+  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu
+const PATCH_PARENT_REF_NS_RU_RE =
+  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu
 const WEBSOCKET_ANNOTATION_RE = /gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/mu
 const LEADING_EMPTY_LINE_RE = /^\s*\n/u
 const REMOVE_CLUSTER_IP_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIP\b/mu
@@ -91,7 +93,7 @@ const REMOVE_CLUSTER_IPS_BEFORE_OP_RE = /path:\s*\/spec\/clusterIPs\b[\s\S]{0,20
 export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
 
 /**
- * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім’ям файлу) — специфіка abie overlay.
+ * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім'ям файлу) — специфіка abie overlay.
  * @param {string} rel шлях від кореня репозиторію
  * @returns {boolean} true, якщо це `…/ru/kustomization.yaml`
  */
@@ -101,7 +103,7 @@ export function isRuKustomizationPath(rel) {
 }
 
 /**
- * Чи відносний шлях вказує на **`ua/kustomization.yaml`** (сегмент **`ua`** перед ім’ям файлу) — специфіка abie overlay.
+ * Чи відносний шлях вказує на **`ua/kustomization.yaml`** (сегмент **`ua`** перед ім'ям файлу) — специфіка abie overlay.
  * @param {string} rel шлях від кореня репозиторію
  * @returns {boolean} true, якщо це `…/ua/kustomization.yaml`
  */
@@ -474,42 +476,40 @@ export function jsonPatchTextSetsServiceTypeNodePort(patchText) {
 }
 
 /**
+ * Витягує ім'я та текст patch для Service з елемента patches.
+ * @param {unknown} p елемент масиву patches
+ * @returns {{ name: string, patchStr: string } | null} ім'я та текст patch або null
+ */
+function extractServicePatchEntry(p) {
+  if (p === null || typeof p !== 'object' || Array.isArray(p)) return null
+  const pr = /** @type {Record<string, unknown>} */ (p)
+  const target = pr.target
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
+  const tg = /** @type {Record<string, unknown>} */ (target)
+  if (tg.kind !== 'Service' || typeof tg.name !== 'string' || tg.name.trim() === '') return null
+  const patchStr = pr.patch
+  if (typeof patchStr !== 'string' || patchStr.trim() === '') return null
+  return { name: tg.name, patchStr }
+}
+
+/**
  * З одного документа **Kustomization** збирає пари **Service name → patch text** для **inline patches** з **target.kind: Service**.
  * @param {import('yaml').Document} doc документ після **parseAllDocuments**
- * @returns {Map<string, string>} ім’я сервісу → текст **patch**
+ * @returns {Map<string, string>} ім'я сервісу → текст **patch**
  */
 function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
   /** @type {Map<string, string>} */
   const out = new Map()
-  if (doc.errors.length > 0) {
-    return out
-  }
+  if (doc.errors.length > 0) return out
   const root = doc.toJSON()
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) {
-    return out
-  }
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) return out
   const rec = /** @type {Record<string, unknown>} */ (root)
-  if (rec.kind !== 'Kustomization') {
-    return out
-  }
-  const patches = rec.patches
-  if (!Array.isArray(patches)) {
-    return out
-  }
-  for (const p of patches) {
-    if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
-      const pr = /** @type {Record<string, unknown>} */ (p)
-      const target = pr.target
-      if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
-        const tg = /** @type {Record<string, unknown>} */ (target)
-        if (tg.kind === 'Service' && typeof tg.name === 'string' && tg.name.trim() !== '') {
-          const patchStr = pr.patch
-          if (typeof patchStr === 'string' && patchStr.trim() !== '') {
-            const prev = out.get(tg.name)
-            out.set(tg.name, prev === undefined ? patchStr : `${prev}\n${patchStr}`)
-          }
-        }
-      }
+  if (rec.kind !== 'Kustomization' || !Array.isArray(rec.patches)) return out
+  for (const p of rec.patches) {
+    const entry = extractServicePatchEntry(p)
+    if (entry) {
+      const prev = out.get(entry.name)
+      out.set(entry.name, prev === undefined ? entry.patchStr : `${prev}\n${entry.patchStr}`)
     }
   }
   return out
@@ -518,7 +518,7 @@ function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
 /**
  * Збирає тексти **patch** на **Service** з **kustomization.yaml** (усі документи).
  * @param {string} raw повний текст **kustomization.yaml**
- * @returns {Map<string, string>} **target.name** → об’єднаний текст **patch**
+ * @returns {Map<string, string>} **target.name** → об'єднаний текст **patch**
  */
 function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
   const body = stripBom(raw)
@@ -545,40 +545,45 @@ function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
 }
 
 /**
+ * Збирає помилки patch для одного Service за ім'ям.
+ * @param {string} name ім'я Service
+ * @param {string | undefined} pt текст patch або undefined
+ * @param {{ requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean } | undefined} flags прапорці
+ * @param {string[]} errors масив для запису помилок
+ */
+function collectServicePatchErrors(name, pt, flags, errors) {
+  if (pt === undefined || String(pt).trim() === '') {
+    errors.push(`${name}: немає inline patch для kind: Service`)
+    return
+  }
+  if (!jsonPatchTextSetsServiceTypeNodePort(pt)) {
+    errors.push(`${name}: потрібен JSON6902 path /spec/type та value NodePort`)
+  }
+  if (flags?.requiresClusterIPNoneClear === true && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
+    errors.push(
+      `${name}: для spec.clusterIP: None додай у той самий patch op: remove для path /spec/clusterIP (abie.mdc)`
+    )
+  }
+  if (flags?.requiresClusterIPsRemove === true && !jsonPatchRemovesPath(pt, '/spec/clusterIPs')) {
+    errors.push(
+      `${name}: у base задано spec.clusterIPs — додай op: remove для path /spec/clusterIPs (інакше NodePort з None у clusterIPs; abie.mdc)`
+    )
+  }
+}
+
+/**
  * Повідомлення про порушення patch **Service** у **ru/kustomization.yaml** (abie.mdc).
  * @param {string} raw повний текст **kustomization.yaml**
- * @param {Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean }>} targetsByName ім’я **Service** → прапорці patch
+ * @param {Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean }>} targetsByName ім'я **Service** → прапорці patch
  * @returns {string[]} порожньо, якщо все OK
  */
 export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
-  if (targetsByName.size === 0) {
-    return []
-  }
+  if (targetsByName.size === 0) return []
   const byName = collectAbieRuServicePatchTextByTargetNameFromRaw(raw)
   /** @type {string[]} */
   const errors = []
   for (const name of [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))) {
-    const flags = targetsByName.get(name)
-    const requiresClusterIPRemove = flags?.requiresClusterIPNoneClear === true
-    const requiresClusterIPsRemove = flags?.requiresClusterIPsRemove === true
-    const pt = byName.get(name)
-    if (pt === undefined || String(pt).trim() === '') {
-      errors.push(`${name}: немає inline patch для kind: Service`)
-    } else {
-      if (!jsonPatchTextSetsServiceTypeNodePort(pt)) {
-        errors.push(`${name}: потрібен JSON6902 path /spec/type та value NodePort`)
-      }
-      if (requiresClusterIPRemove && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
-        errors.push(
-          `${name}: для spec.clusterIP: None додай у той самий patch op: remove для path /spec/clusterIP (abie.mdc)`
-        )
-      }
-      if (requiresClusterIPsRemove && !jsonPatchRemovesPath(pt, '/spec/clusterIPs')) {
-        errors.push(
-          `${name}: у base задано spec.clusterIPs — додай op: remove для path /spec/clusterIPs (інакше NodePort з None у clusterIPs; abie.mdc)`
-        )
-      }
-    }
+    collectServicePatchErrors(name, byName.get(name), targetsByName.get(name), errors)
   }
   return errors
 }
@@ -588,68 +593,64 @@ export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
  * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
- * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} **pkgAbs** → (**ім’я** → прапорці)
+ * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} **pkgAbs** → (**ім'я** → прапорці)
+ */
+/**
+ * Обробляє один Service-документ для збору NodePort-патч цілей.
+ * @param {unknown} obj YAML-документ (toJSON)
+ * @param {string} pkgAbs абсолютний шлях до пакета
+ * @param {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} map результуючий Map
+ */
+function processServiceDocForNodePortTargets(obj, pkgAbs, map) {
+  if (!serviceDocumentRequiresAbieRuNodePortOverlay(obj)) return
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const meta = /** @type {Record<string, unknown>} */ (rec.metadata)
+  const n = meta.name
+  if (typeof n !== 'string' || n.trim() === '') return
+  let inner = map.get(pkgAbs)
+  if (!inner) {
+    inner = new Map()
+    map.set(pkgAbs, inner)
+  }
+  const needClear = serviceDocumentRequiresRuClusterIPNoneRemoval(obj)
+  const needClusterIPsRemove = serviceDocumentBaseDeclaresClusterIPsField(obj)
+  const prev = inner.get(n)
+  inner.set(n, {
+    requiresClusterIPNoneClear: prev?.requiresClusterIPNoneClear === true || needClear,
+    requiresClusterIPsRemove: prev?.requiresClusterIPsRemove === true || needClusterIPsRemove
+  })
+}
+
+/**
+ * Обробляє YAML-документи з одного файлу для збору NodePort-патч цілей.
+ * @param {import('yaml').Document[]} docs документи з файлу
+ * @param {string} pkgAbs абсолютний шлях пакета
+ * @param {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} map результуючий Map
+ */
+function collectNodePortTargetsFromDocs(docs, pkgAbs, map) {
+  for (const doc of docs) {
+    if (doc.errors.length === 0) {
+      processServiceDocForNodePortTargets(doc.toJSON(), pkgAbs, map)
+    }
+  }
+}
+
+/**
+ * Для кожного пакета збирає **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
+ * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
+ * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} пакет → назва сервісу → прапори NodePort
  */
 async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail) {
   /** @type {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} */
   const map = new Map()
   for (const abs of yamlAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (k8sYamlRelOutsideUaRuOverlays(rel)) {
-      const pkgAbs = abiePackageDirFromK8sYamlRel(root, rel)
-      if (pkgAbs) {
-        let raw
-        let readOk = false
-        try {
-          raw = await readFile(abs, 'utf8')
-          readOk = true
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          fail(`${rel}: не вдалося прочитати (${msg})`)
-        }
-        if (readOk) {
-          const body = stripBom(raw)
-          const lines = body.split(LINE_SPLIT_RE)
-          const first = lines[0] ?? ''
-          const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-          /** @type {import('yaml').Document[]} */
-          let docs
-          let parseOk = false
-          try {
-            docs = parseAllDocuments(rest)
-            parseOk = true
-          } catch (error) {
-            const msg = error instanceof Error ? error.message : String(error)
-            fail(`${rel}: YAML (${msg})`)
-          }
-          if (parseOk) {
-            for (const doc of docs) {
-              if (doc.errors.length === 0) {
-                const obj = doc.toJSON()
-                if (serviceDocumentRequiresAbieRuNodePortOverlay(obj)) {
-                  const rec = /** @type {Record<string, unknown>} */ (obj)
-                  const meta = /** @type {Record<string, unknown>} */ (rec.metadata)
-                  const n = meta.name
-                  if (typeof n === 'string' && n.trim() !== '') {
-                    let inner = map.get(pkgAbs)
-                    if (!inner) {
-                      inner = new Map()
-                      map.set(pkgAbs, inner)
-                    }
-                    const needClear = serviceDocumentRequiresRuClusterIPNoneRemoval(obj)
-                    const needClusterIPsRemove = serviceDocumentBaseDeclaresClusterIPsField(obj)
-                    const prev = inner.get(n)
-                    inner.set(n, {
-                      requiresClusterIPNoneClear: prev?.requiresClusterIPNoneClear === true || needClear,
-                      requiresClusterIPsRemove: prev?.requiresClusterIPsRemove === true || needClusterIPsRemove
-                    })
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+    const pkgAbs = k8sYamlRelOutsideUaRuOverlays(rel) ? abiePackageDirFromK8sYamlRel(root, rel) : null
+    if (pkgAbs) {
+      const docs = await readAndParseYamlDocs(abs, rel, fail)
+      if (docs) collectNodePortTargetsFromDocs(docs, pkgAbs, map)
     }
   }
   return map
@@ -709,43 +710,42 @@ async function collectDeploymentDirs(root, yamlAbs, fail) {
   /** @type {Set<string>} */
   const dirs = new Set()
   for (const abs of yamlAbs) {
-    let raw
-    let readOk = false
-    try {
-      raw = await readFile(abs, 'utf8')
-      readOk = true
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${relative(root, abs) || abs}: не вдалося прочитати (${msg})`)
-    }
-    if (readOk) {
-      const body = stripBom(raw)
-      const lines = body.split(LINE_SPLIT_RE)
-      const first = lines[0] ?? ''
-      const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-      /** @type {import('yaml').Document[]} */
-      let docs
-      let parseOk = false
-      try {
-        docs = parseAllDocuments(rest)
-        parseOk = true
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${relative(root, abs) || abs}: YAML (${msg})`)
-      }
-      if (parseOk) {
-        for (const doc of docs) {
-          if (doc.errors.length === 0) {
-            const obj = doc.toJSON()
-            if (isDeploymentDoc(obj)) {
-              dirs.add(dirname(abs))
-            }
-          }
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    const docs = await readAndParseYamlDocs(abs, rel, fail)
+    if (docs) {
+      for (const doc of docs) {
+        if (doc.errors.length === 0 && isDeploymentDoc(doc.toJSON())) {
+          dirs.add(dirname(abs))
         }
       }
     }
   }
   return dirs
+}
+
+/**
+ * Перевіряє документи з одного файлу на наявність Deployment з preem nodeSelector.
+ * @param {import('yaml').Document[]} docs документи з файлу
+ * @param {string} rel відносний шлях файлу
+ * @param {(msg: string) => void} fail callback
+ * @returns {'violation' | 'found' | 'none'} результат перевірки
+ */
+function checkBaseDeploymentDocsForPreem(docs, rel, fail) {
+  for (const doc of docs) {
+    if (doc.errors.length === 0) {
+      const obj = doc.toJSON()
+      if (isDeploymentDoc(obj)) {
+        if (!deploymentDocumentHasAbieBasePreemNodeSelector(obj)) {
+          fail(
+            `${rel}: Deployment у base: потрібен spec.template.spec.nodeSelector.preem: true (або 'true') — abie.mdc`
+          )
+          return 'violation'
+        }
+        return 'found'
+      }
+    }
+  }
+  return 'none'
 }
 
 /**
@@ -757,48 +757,15 @@ async function collectDeploymentDirs(root, yamlAbs, fail) {
  * @returns {Promise<void>}
  */
 async function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fail, passFn) {
-  const baseFiles = yamlFilesAbs.filter(abs => {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    return isAbieK8sBaseYamlPath(rel)
-  })
+  const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
   let anyBaseDeployment = false
   for (const abs of baseFiles) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося прочитати (${msg})`)
-      return
-    }
-    const body = stripBom(raw)
-    const lines = body.split(LINE_SPLIT_RE)
-    const first = lines[0] ?? ''
-    const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-    /** @type {import('yaml').Document[]} */
-    let docs
-    try {
-      docs = parseAllDocuments(rest)
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: YAML (${msg})`)
-      return
-    }
-    for (const doc of docs) {
-      if (doc.errors.length === 0) {
-        const obj = doc.toJSON()
-        if (isDeploymentDoc(obj)) {
-          anyBaseDeployment = true
-          if (!deploymentDocumentHasAbieBasePreemNodeSelector(obj)) {
-            fail(
-              `${rel}: Deployment у base: потрібен spec.template.spec.nodeSelector.preem: true (або 'true') — abie.mdc`
-            )
-            return
-          }
-        }
-      }
-    }
+    const docs = await readAndParseYamlDocs(abs, rel, fail)
+    if (!docs) return
+    const r = checkBaseDeploymentDocsForPreem(docs, rel, fail)
+    if (r === 'violation') return
+    if (r === 'found') anyBaseDeployment = true
   }
   if (anyBaseDeployment) {
     passFn('Deployment у …/base/…: nodeSelector.preem відповідає abie.mdc')
@@ -814,6 +781,46 @@ async function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fai
  */
 function stripBom(s) {
   return s.startsWith('\uFEFF') ? s.slice(1) : s
+}
+
+/**
+ * Зчитує та парсить YAML-документи з файлу.
+ * При помилці читання викликає `failFn` і повертає `null`.
+ * При помилці парсингу викликає `failFn` і повертає `null`.
+ * Автоматично видаляє BOM та modeline (перший рядок з `$schema`).
+ * @param {string} abs абсолютний шлях до файлу
+ * @param {string} rel відносний шлях (для повідомлень)
+ * @param {(msg: string) => void} failFn callback при помилці
+ * @returns {Promise<import('yaml').Document[] | null>} масив документів або null при помилці
+ */
+async function readAndParseYamlDocs(abs, rel, failFn) {
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    failFn(`${rel}: не вдалося прочитати (${msg})`)
+    return null
+  }
+  const body = stripBom(raw)
+  const lines = body.split(LINE_SPLIT_RE)
+  const first = lines[0] ?? ''
+  const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
+  try {
+    return parseAllDocuments(rest)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    failFn(`${rel}: YAML (${msg})`)
+    return null
+  }
+}
+
+/**
+ * No-op fail handler для функцій, що повертають null/порожній масив при помилці.
+ * @param {string} _msg повідомлення ігнорується
+ */
+const silentFail = _msg => {
+  /* silent — пошкоджені файли ловить check-k8s */
 }
 
 /**
@@ -960,6 +967,24 @@ export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelF
 }
 
 /**
+ * Перевіряє один backendRef на відповідність abie.mdc.
+ * @param {unknown} br параметр br
+ * @param {string} rel відносний шлях (для повідомлень)
+ * @param {string[]} errors масив для запису помилок
+ * @returns {number} 1 якщо знайдено shared backend, 0 інакше
+ */
+function checkSharedBackendRef(br, rel, errors) {
+  if (br === null || typeof br !== 'object' || Array.isArray(br)) return 0
+  const brRec = /** @type {Record<string, unknown>} */ (br)
+  const name = brRec.name
+  if (typeof name !== 'string' || !ABIE_SHARED_CROSS_NS_BACKEND_SET.has(name)) return 0
+  if (typeof brRec.namespace !== 'string' || brRec.namespace !== 'dev') {
+    errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
+  }
+  return 1
+}
+
+/**
  * З HTTPRoute-документа рахує **`backendRefs`** до **`auth-run-hl`** / **`filelint-hl`** і порушення **`namespace: dev`**.
  * @param {unknown} obj корінь YAML
  * @param {string} rel відносний шлях (повідомлення)
@@ -968,38 +993,20 @@ export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelF
 function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
   /** @type {string[]} */
   const errors = []
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
-    return { refCount: 0, errors }
-  }
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return { refCount: 0, errors }
   const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (rec.kind !== 'HTTPRoute') {
-    return { refCount: 0, errors }
-  }
+  if (rec.kind !== 'HTTPRoute') return { refCount: 0, errors }
   const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return { refCount: 0, errors }
-  }
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return { refCount: 0, errors }
   const rules = /** @type {Record<string, unknown>} */ (spec).rules
-  if (!Array.isArray(rules)) {
-    return { refCount: 0, errors }
-  }
+  if (!Array.isArray(rules)) return { refCount: 0, errors }
   let refCount = 0
   for (const rule of rules) {
     if (rule !== null && typeof rule === 'object' && !Array.isArray(rule)) {
       const brs = /** @type {Record<string, unknown>} */ (rule).backendRefs
       if (Array.isArray(brs)) {
         for (const br of brs) {
-          if (br !== null && typeof br === 'object' && !Array.isArray(br)) {
-            const brRec = /** @type {Record<string, unknown>} */ (br)
-            const name = brRec.name
-            if (typeof name === 'string' && ABIE_SHARED_CROSS_NS_BACKEND_SET.has(name)) {
-              refCount++
-              const ns = brRec.namespace
-              if (typeof ns !== 'string' || ns !== 'dev') {
-                errors.push(`${rel}: HTTPRoute backendRefs до ${name} має містити namespace: dev (abie.mdc)`)
-              }
-            }
-          }
+          refCount += checkSharedBackendRef(br, rel, errors)
         }
       }
     }
@@ -1022,32 +1029,13 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
   for (const abs of yamlFilesAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     if (isK8sYamlInAbiePackageExcludingUaRuOverlays(rel, pkgRel)) {
-      let raw
-      try {
-        raw = await readFile(abs, 'utf8')
-      } catch {
-        raw = undefined
-      }
-      if (raw !== undefined) {
-        const body = stripBom(raw)
-        const lines = body.split(LINE_SPLIT_RE)
-        const first = lines[0] ?? ''
-        const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-        /** @type {import('yaml').Document[] | undefined} */
-        let docs
-        try {
-          docs = parseAllDocuments(rest)
-        } catch {
-          docs = undefined
-        }
-        if (docs !== undefined) {
-          for (const doc of docs) {
-            if (doc.errors.length === 0) {
-              const obj = doc.toJSON()
-              const st = httpRouteDocSharedCrossNsBackendStats(obj, rel)
-              refCount += st.refCount
-              baseErrors.push(...st.errors)
-            }
+      const docs = await readAndParseYamlDocs(abs, rel, silentFail)
+      if (docs) {
+        for (const doc of docs) {
+          if (doc.errors.length === 0) {
+            const st = httpRouteDocSharedCrossNsBackendStats(doc.toJSON(), rel)
+            refCount += st.refCount
+            baseErrors.push(...st.errors)
           }
         }
       }
@@ -1082,42 +1070,37 @@ const ABIE_RU_HTTPROUTE_HOST_MARKERS = [
 ]
 
 /**
+ * Витягує текст patch HTTPRoute з елемента patches.
+ * @param {unknown} p елемент масиву patches
+ * @returns {string | null} текст patch або null
+ */
+function extractHttpRoutePatchString(p) {
+  if (p === null || typeof p !== 'object' || Array.isArray(p)) return null
+  const pr = /** @type {Record<string, unknown>} */ (p)
+  const target = pr.target
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
+  const tg = /** @type {Record<string, unknown>} */ (target)
+  if (tg.kind !== 'HTTPRoute' || typeof tg.name !== 'string' || tg.name.trim() === '') return null
+  const patchStr = pr.patch
+  return typeof patchStr === 'string' && patchStr.trim() !== '' ? patchStr : null
+}
+
+/**
  * Збирає тексти inline **patch** для **HTTPRoute** (будь-який непорожній **target.name**) з одного документа **Kustomization**.
  * @param {import('yaml').Document} doc документ після **parseAllDocuments**
  * @returns {string[]} непорожні рядки **patch**
  */
 function collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc) {
-  if (doc.errors.length > 0) {
-    return []
-  }
+  if (doc.errors.length > 0) return []
   const root = doc.toJSON()
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) {
-    return []
-  }
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) return []
   const rec = /** @type {Record<string, unknown>} */ (root)
-  if (rec.kind !== 'Kustomization') {
-    return []
-  }
-  const patches = rec.patches
-  if (!Array.isArray(patches)) {
-    return []
-  }
+  if (rec.kind !== 'Kustomization' || !Array.isArray(rec.patches)) return []
   /** @type {string[]} */
   const out = []
-  for (const p of patches) {
-    if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
-      const pr = /** @type {Record<string, unknown>} */ (p)
-      const target = pr.target
-      if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
-        const tg = /** @type {Record<string, unknown>} */ (target)
-        if (tg.kind === 'HTTPRoute' && typeof tg.name === 'string' && tg.name.trim() !== '') {
-          const patchStr = pr.patch
-          if (typeof patchStr === 'string' && patchStr.trim() !== '') {
-            out.push(patchStr)
-          }
-        }
-      }
-    }
+  for (const p of rec.patches) {
+    const s = extractHttpRoutePatchString(p)
+    if (s !== null) out.push(s)
   }
   return out
 }
@@ -1208,54 +1191,12 @@ export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
 }
 
 /**
- * Перевіряє **hc.yaml** на відповідність abie.mdc.
- * @param {string} raw повний текст файлу
- * @param {string} relPath відносний шлях для повідомлень
- * @returns {string | null} текст помилки або **null**
+ * Перевіряє об'єкт HealthCheckPolicy на відповідність abie.mdc.
+ * @param {Record<string, unknown>} policy розібраний HealthCheckPolicy
+ * @param {string} relPath відносний шлях (для повідомлень)
+ * @returns {string | null} текст помилки або null якщо OK
  */
-export function validateAbieHcYaml(raw, relPath) {
-  const body = stripBom(raw)
-  const lines = body.split(LINE_SPLIT_RE)
-  if (lines.length === 0 || lines[0].trim() === '') {
-    return `${relPath}: перший рядок порожній — потрібен # yaml-language-server: $schema=… (abie.mdc)`
-  }
-  const m = lines[0].match(MODELINE_RE)
-  if (!m) {
-    return `${relPath}: перший рядок має бути modeline $schema (abie.mdc)`
-  }
-  if (m[1] !== ABIE_HC_SCHEMA_URL) {
-    return `${relPath}: $schema має бути\n     ${ABIE_HC_SCHEMA_URL}\n     (abie.mdc)`
-  }
-  const yamlBody = lines
-    .slice(1)
-    .join('\n')
-    .replace(LEADING_EMPTY_LINE_RE, '')
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(yamlBody)
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    return `${relPath}: не вдалося розібрати YAML (${msg})`
-  }
-  /** @type {Record<string, unknown> | null} */
-  let policy = null
-  for (const doc of docs) {
-    if (doc.errors.length > 0) {
-      return `${relPath}: YAML: ${doc.errors.map(e => e.message).join('; ')}`
-    }
-    const obj = doc.toJSON()
-    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-      const rec = /** @type {Record<string, unknown>} */ (obj)
-      if (rec.kind === 'HealthCheckPolicy') {
-        policy = rec
-        break
-      }
-    }
-  }
-  if (!policy) {
-    return `${relPath}: очікується документ kind: HealthCheckPolicy (abie.mdc)`
-  }
+function validateAbieHcPolicy(policy, relPath) {
   if (policy.apiVersion !== 'networking.gke.io/v1') {
     return `${relPath}: apiVersion має бути networking.gke.io/v1 (abie.mdc)`
   }
@@ -1271,7 +1212,8 @@ export function validateAbieHcYaml(raw, relPath) {
   if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
     return `${relPath}: відсутній spec (abie.mdc)`
   }
-  const def = /** @type {Record<string, unknown>} */ (spec).default
+  const specRec = /** @type {Record<string, unknown>} */ (spec)
+  const def = specRec.default
   if (def === null || typeof def !== 'object' || Array.isArray(def)) {
     return `${relPath}: відсутній spec.default (abie.mdc)`
   }
@@ -1279,32 +1221,97 @@ export function validateAbieHcYaml(raw, relPath) {
   if (config === null || typeof config !== 'object' || Array.isArray(config)) {
     return `${relPath}: відсутній spec.default.config (abie.mdc)`
   }
-  if (config.type !== 'HTTP') {
-    return `${relPath}: spec.default.config.type має бути HTTP (abie.mdc)`
-  }
+  if (config.type !== 'HTTP') return `${relPath}: spec.default.config.type має бути HTTP (abie.mdc)`
   const httpHc = /** @type {Record<string, unknown>} */ (config).httpHealthCheck
   if (httpHc === null || typeof httpHc !== 'object' || Array.isArray(httpHc)) {
     return `${relPath}: відсутній httpHealthCheck (abie.mdc)`
   }
-  if (httpHc.requestPath !== '/healthz') {
-    return `${relPath}: httpHealthCheck.requestPath має бути /healthz (abie.mdc)`
-  }
-  if (httpHc.port !== 8080) {
-    return `${relPath}: httpHealthCheck.port має бути 8080 (abie.mdc)`
-  }
-  const targetRef = /** @type {Record<string, unknown>} */ (spec).targetRef
+  if (httpHc.requestPath !== '/healthz') return `${relPath}: httpHealthCheck.requestPath має бути /healthz (abie.mdc)`
+  if (httpHc.port !== 8080) return `${relPath}: httpHealthCheck.port має бути 8080 (abie.mdc)`
+  const targetRef = specRec.targetRef
   if (targetRef === null || typeof targetRef !== 'object' || Array.isArray(targetRef)) {
     return `${relPath}: відсутній targetRef (abie.mdc)`
   }
-  if (targetRef.kind !== 'Service') {
-    return `${relPath}: targetRef.kind має бути Service (abie.mdc)`
-  }
-  const svcName = targetRef.name
+  const tr = /** @type {Record<string, unknown>} */ (targetRef)
+  if (tr.kind !== 'Service') return `${relPath}: targetRef.kind має бути Service (abie.mdc)`
   const expectedHl = name.endsWith('-hl') ? name : `${name}-hl`
-  if (typeof svcName !== 'string' || svcName !== expectedHl) {
+  if (typeof tr.name !== 'string' || tr.name !== expectedHl) {
     return `${relPath}: targetRef.name має посилатися на headless Service (очікується ${expectedHl}, суфікс -hl) (abie.mdc)`
   }
   return null
+}
+
+/**
+ * Шукає HealthCheckPolicy серед YAML-документів.
+ * @param {import('yaml').Document[]} docs документи
+ * @param {string} relPath відносний шлях для повідомлень
+ * @returns {{ policy: Record<string, unknown> } | { error: string }} знайдений документ або помилка
+ */
+function findHealthCheckPolicyInDocs(docs, relPath) {
+  for (const doc of docs) {
+    if (doc.errors.length > 0) {
+      return { error: `${relPath}: YAML: ${doc.errors.map(e => e.message).join('; ')}` }
+    }
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      const rec = /** @type {Record<string, unknown>} */ (obj)
+      if (rec.kind === 'HealthCheckPolicy') {
+        return { policy: rec }
+      }
+    }
+  }
+  return { policy: /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (null)) }
+}
+
+/**
+ * Перевіряє hc.yaml на відповідність схемі та структурі HealthCheckPolicy (abie.mdc).
+ * @param {string} raw вміст файлу
+ * @param {string} relPath відносний шлях (для повідомлень)
+ * @returns {string | null} null якщо OK, рядок з помилкою
+ */
+export function validateAbieHcYaml(raw, relPath) {
+  const body = stripBom(raw)
+  const lines = body.split(LINE_SPLIT_RE)
+  if (lines.length === 0 || lines[0].trim() === '') {
+    return `${relPath}: перший рядок порожній — потрібен # yaml-language-server: $schema=… (abie.mdc)`
+  }
+  const m = lines[0].match(MODELINE_RE)
+  if (!m) return `${relPath}: перший рядок має бути modeline $schema (abie.mdc)`
+  if (m[1] !== ABIE_HC_SCHEMA_URL) return `${relPath}: $schema має бути\n     ${ABIE_HC_SCHEMA_URL}\n     (abie.mdc)`
+
+  const yamlBody = lines.slice(1).join('\n').replace(LEADING_EMPTY_LINE_RE, '')
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(yamlBody)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    return `${relPath}: не вдалося розібрати YAML (${msg})`
+  }
+  const result = findHealthCheckPolicyInDocs(docs, relPath)
+  if ('error' in result) return result.error
+  if (!result.policy) return `${relPath}: очікується документ kind: HealthCheckPolicy (abie.mdc)`
+  return validateAbieHcPolicy(result.policy, relPath)
+}
+
+/**
+ * Збирає відносний шлях із документів, що містять HealthCheckPolicy.
+ * @param {import('yaml').Document[]} docs документи з файлу
+ * @param {string} rel відносний шлях файлу
+ * @param {string[]} out масив для запису шляхів
+ */
+function collectHealthCheckPolicyRelFromDocs(docs, rel, out) {
+  for (const doc of docs) {
+    if (doc.errors.length === 0) {
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        if (rec.kind === 'HealthCheckPolicy' && !out.includes(rel)) {
+          out.push(rel)
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -1318,34 +1325,8 @@ async function collectHealthCheckPolicyRelPaths(root, yamlAbs) {
   const out = []
   for (const abs of yamlAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch {
-      raw = null
-    }
-    if (raw !== null) {
-      const body = stripBom(raw)
-      const lines = body.split(LINE_SPLIT_RE)
-      const first = lines[0] ?? ''
-      const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-      try {
-        const docs = parseAllDocuments(rest)
-        for (const doc of docs) {
-          if (doc.errors.length === 0) {
-            const obj = doc.toJSON()
-            if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-              const rec = /** @type {Record<string, unknown>} */ (obj)
-              if (rec.kind === 'HealthCheckPolicy' && !out.includes(rel)) {
-                out.push(rel)
-              }
-            }
-          }
-        }
-      } catch {
-        /* пропускаємо пошкоджені файли — їх ловить check-k8s */
-      }
-    }
+    const docs = await readAndParseYamlDocs(abs, rel, silentFail)
+    if (docs) collectHealthCheckPolicyRelFromDocs(docs, rel, out)
   }
   return out
 }
@@ -1388,14 +1369,45 @@ async function ensureRuKustomizationHealthCheckDelete(root, yamlFilesAbs, health
 }
 
 /**
- * Якщо є **Deployment** під **k8s**, вимагає в overlay **ua** та **ru** (**kustomization.yaml**) JSON6902 patch nodeSelector (abie.mdc)
- * лише для kustomization того пакета, у дереві **k8s** якого є **Deployment**.
+ * Перевіряє одну kustomization.yaml на nodeSelector patch для заданого overlay.
+ * @param {string} abs абсолютний шлях до файлу
+ * @param {string} rel відносний шлях (для повідомлень)
+ * @param {'ua' | 'ru'} mode параметр mode
+ * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
  * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {Set<string>} deploymentDirs абсолютні каталоги YAML-файлів із **Deployment**
- * @param {(msg: string) => void} fail callback
- * @param {(msg: string) => void} passFn успішне повідомлення
- * @returns {Promise<void>}
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @returns {Promise<boolean>} false якщо виявлено помилку і слід зупинитись
+ */
+async function checkNodeSelectorKustomization(abs, rel, mode, deploymentDirs, root, fail, passFn) {
+  if (!abieOverlayK8sTreeHasDeployment(deploymentDirs, root, abs)) {
+    passFn(`${rel}: nodeSelector patch (${mode}) не застосовується — немає Deployment у дереві k8s цього пакета (abie)`)
+    return true
+  }
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати (${msg})`)
+    return false
+  }
+  if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode)) {
+    const detail = mode === 'ua' ? 'preem: false' : 'yandex.cloud/preemptible: false'
+    fail(`${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та ${detail} (abie.mdc)`)
+    return false
+  }
+  passFn(`${rel}: nodeSelector patch (${mode}) відповідає abie.mdc`)
+  return true
+}
+
+/**
+ * Перевіряє наявність патчів nodeSelector для ua/ru overlay у k8s.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи yaml-файлів під k8s
+ * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
  */
 async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentDirs, fail, passFn) {
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
@@ -1407,25 +1419,8 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentD
   }
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (abieOverlayK8sTreeHasDeployment(deploymentDirs, root, abs)) {
-      let raw
-      try {
-        raw = await readFile(abs, 'utf8')
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати (${msg})`)
-        return
-      }
-      if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
-        fail(
-          `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
-        )
-        return
-      }
-      passFn(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)
-    } else {
-      passFn(`${rel}: nodeSelector patch (ua) не застосовується — немає Deployment у дереві k8s цього пакета (abie)`)
-    }
+    const ok = await checkNodeSelectorKustomization(abs, rel, 'ua', deploymentDirs, root, fail, passFn)
+    if (!ok) return
   }
 
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
@@ -1437,26 +1432,59 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentD
   }
   for (const abs of ruAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (abieOverlayK8sTreeHasDeployment(deploymentDirs, root, abs)) {
-      let raw
-      try {
-        raw = await readFile(abs, 'utf8')
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати (${msg})`)
-        return
-      }
-      if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ru')) {
-        fail(
-          `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та yandex.cloud/preemptible: false (abie.mdc)`
-        )
-        return
-      }
-      passFn(`${rel}: nodeSelector patch (ru) відповідає abie.mdc`)
-    } else {
-      passFn(`${rel}: nodeSelector patch (ru) не застосовується — немає Deployment у дереві k8s цього пакета (abie)`)
-    }
+    const ok = await checkNodeSelectorKustomization(abs, rel, 'ru', deploymentDirs, root, fail, passFn)
+    if (!ok) return
   }
+}
+
+/**
+ * Перевіряє HTTPRoute patch для одного overlay (ua/ru).
+ * @param {string} abs абсолютний шлях до kustomization.yaml
+ * @param {string} rel відносний шлях (для повідомлень)
+ * @param {'ua' | 'ru'} mode overlay
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи yaml-файлів під k8s
+ * @param {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} cache кеш аналізу shared backend refs
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @returns {Promise<boolean>} false якщо виявлено помилку і слід зупинитись
+ */
+async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, cache, fail, passFn) {
+  if (!abieOverlayRequiresHttpRouteByVite(root, abs)) {
+    passFn(`${rel}: HTTPRoute patch (${mode}) не застосовується — немає vite.config.{js,mjs,ts} у пакеті (abie)`)
+    return true
+  }
+  const pkgAbs = abiePackageDirFromK8sOverlay(root, abs)
+  if (!pkgAbs) {
+    fail(`${rel}: внутрішня помилка abie overlay (немає каталогу пакета)`)
+    return false
+  }
+  let p = cache.get(pkgAbs)
+  if (!p) {
+    p = analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs)
+    cache.set(pkgAbs, p)
+  }
+  const sharedAnalysis = await p
+  for (const err of sharedAnalysis.baseErrors) {
+    fail(err)
+    return false
+  }
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати (${msg})`)
+    return false
+  }
+  const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
+  const v = validateAbieNginxRunHttpRoutePatches(combined, mode, raw, sharedAnalysis.refCount)
+  if (v !== null) {
+    fail(`${rel}: ${v}`)
+    return false
+  }
+  passFn(`${rel}: HTTPRoute patch (${mode}) відповідає abie.mdc`)
+  return true
 }
 
 /**
@@ -1464,25 +1492,12 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentD
  * лише для пакетів з **vite.config.{js,mjs,ts}** у каталозі пакета (батько **k8s**).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail callback
- * @param {(msg: string) => void} passFn успішне повідомлення
- * @returns {Promise<void>}
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
  */
 async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) {
   /** @type {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} */
-  const sharedBackendAnalysisByPkg = new Map()
-  /**
-   * @param {string} pkgAbs абсолютний шлях до каталогу пакета
-   * @returns {Promise<{ refCount: number, baseErrors: string[] }>} кількість посилань і базові помилки
-   */
-  const getSharedBackendAnalysis = pkgAbs => {
-    let p = sharedBackendAnalysisByPkg.get(pkgAbs)
-    if (!p) {
-      p = analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs)
-      sharedBackendAnalysisByPkg.set(pkgAbs, p)
-    }
-    return p
-  }
+  const cache = new Map()
 
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
@@ -1492,35 +1507,8 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   }
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
-      const pkgAbs = abiePackageDirFromK8sOverlay(root, abs)
-      if (!pkgAbs) {
-        fail(`${rel}: внутрішня помилка abie overlay (немає каталогу пакета)`)
-        return
-      }
-      const sharedAnalysis = await getSharedBackendAnalysis(pkgAbs)
-      for (const err of sharedAnalysis.baseErrors) {
-        fail(err)
-        return
-      }
-      let raw
-      try {
-        raw = await readFile(abs, 'utf8')
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати (${msg})`)
-        return
-      }
-      const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua', raw, sharedAnalysis.refCount)
-      if (v !== null) {
-        fail(`${rel}: ${v}`)
-        return
-      }
-      passFn(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
-    } else {
-      passFn(`${rel}: HTTPRoute patch (ua) не застосовується — немає vite.config.{js,mjs,ts} у пакеті (abie)`)
-    }
+    const ok = await checkHttpRouteKustomization(abs, rel, 'ua', root, yamlFilesAbs, cache, fail, passFn)
+    if (!ok) return
   }
 
   const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
@@ -1531,35 +1519,8 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   }
   for (const abs of ruAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (abieOverlayRequiresHttpRouteByVite(root, abs)) {
-      const pkgAbs = abiePackageDirFromK8sOverlay(root, abs)
-      if (!pkgAbs) {
-        fail(`${rel}: внутрішня помилка abie overlay (немає каталогу пакета)`)
-        return
-      }
-      const sharedAnalysis = await getSharedBackendAnalysis(pkgAbs)
-      for (const err of sharedAnalysis.baseErrors) {
-        fail(err)
-        return
-      }
-      let raw
-      try {
-        raw = await readFile(abs, 'utf8')
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати (${msg})`)
-        return
-      }
-      const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-      const v = validateAbieNginxRunHttpRoutePatches(combined, 'ru', raw, sharedAnalysis.refCount)
-      if (v !== null) {
-        fail(`${rel}: ${v}`)
-        return
-      }
-      passFn(`${rel}: HTTPRoute patch (ru) відповідає abie.mdc`)
-    } else {
-      passFn(`${rel}: HTTPRoute patch (ru) не застосовується — немає vite.config.{js,mjs,ts} у пакеті (abie)`)
-    }
+    const ok = await checkHttpRouteKustomization(abs, rel, 'ru', root, yamlFilesAbs, cache, fail, passFn)
+    if (!ok) return
   }
 }
 
@@ -1591,6 +1552,85 @@ function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
  * Перевіряє відповідність проєкту правилам abie.mdc.
  * @returns {Promise<number>} 0 — OK, 1 — є порушення
  */
+/**
+ * Перевіряє clean-merged-branch.yml на ignore_branches.
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkCleanMergedBranch(root, pass, fail) {
+  const cleanMergedPath = join(root, '.github/workflows/clean-merged-branch.yml')
+  if (!existsSync(cleanMergedPath)) {
+    fail(`Відсутній ${cleanMergedPath} — потрібен для ignore_branches (abie.mdc)`)
+    return
+  }
+  let wfRaw
+  try {
+    wfRaw = await readFile(cleanMergedPath, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`Не вдалося прочитати clean-merged-branch.yml (${msg})`)
+    return
+  }
+  const ib = parseCleanMergedIgnoreBranches(wfRaw)
+  if (ib === null || ib.trim() === '') {
+    fail(
+      'clean-merged-branch.yml: не знайдено with.ignore_branches у кроці phpdocker-io/github-actions-delete-abandoned-branches (abie.mdc)'
+    )
+  } else if (ignoreBranchesIncludesRequired(ib, ABIE_REQUIRED_IGNORE_BRANCHES)) {
+    pass('clean-merged-branch.yml: ignore_branches містить dev, ua, ru')
+  } else {
+    fail(`clean-merged-branch.yml: ignore_branches має містити dev, ua та ru (зараз: ${JSON.stringify(ib)}) — abie.mdc`)
+  }
+}
+
+/**
+ * Перевіряє один файл hc.yaml на відповідність abie.mdc.
+ * @param {string} root корінь репозиторію
+ * @param {string} dir директорія з Deployment
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkHcYamlFile(root, dir, pass, fail) {
+  const hcAbs = join(dir, 'hc.yaml')
+  const relHc = relative(root, hcAbs).replaceAll('\\', '/') || 'hc.yaml'
+  if (!existsSync(hcAbs)) {
+    fail(`${relative(root, dir) || dir}: є Deployment, але немає hc.yaml поруч — додай HealthCheckPolicy (abie.mdc)`)
+    return
+  }
+  let hcRaw
+  try {
+    hcRaw = await readFile(hcAbs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${relHc}: не вдалося прочитати (${msg})`)
+    return
+  }
+  const v = validateAbieHcYaml(hcRaw, relHc)
+  if (v === null) {
+    pass(`${relHc}: відповідає abie.mdc`)
+  } else {
+    fail(v)
+  }
+}
+
+/**
+ * Перевіряє hc.yaml у директоріях з Deployment.
+ * @param {string} root корінь репозиторію
+ * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkHcYamlFiles(root, deploymentDirs, pass, fail) {
+  for (const dir of [...deploymentDirs].toSorted((a, b) => a.localeCompare(b))) {
+    await checkHcYamlFile(root, dir, pass, fail)
+  }
+}
+
+/**
+ * Перевіряє відповідність проєкту правилам abie.mdc.
+ * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ */
 export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
@@ -1604,67 +1644,14 @@ export async function check() {
 
   pass('Правило abie увімкнено — виконуємо перевірки')
   ensureNoFirebaseHostingArtifacts(root, pass, fail)
-
-  const cleanMergedPath = join(root, '.github/workflows/clean-merged-branch.yml')
-  if (existsSync(cleanMergedPath)) {
-    /** @type {string | undefined} */
-    let wfRaw
-    try {
-      wfRaw = await readFile(cleanMergedPath, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`Не вдалося прочитати clean-merged-branch.yml (${msg})`)
-    }
-    if (wfRaw !== undefined) {
-      const ib = parseCleanMergedIgnoreBranches(wfRaw)
-      if (ib === null || ib.trim() === '') {
-        fail(
-          'clean-merged-branch.yml: не знайдено with.ignore_branches у кроці phpdocker-io/github-actions-delete-abandoned-branches (abie.mdc)'
-        )
-      } else if (ignoreBranchesIncludesRequired(ib, ABIE_REQUIRED_IGNORE_BRANCHES)) {
-        pass('clean-merged-branch.yml: ignore_branches містить dev, ua, ru')
-      } else {
-        fail(
-          `clean-merged-branch.yml: ignore_branches має містити dev, ua та ru (зараз: ${JSON.stringify(ib)}) — abie.mdc`
-        )
-      }
-    }
-  } else {
-    fail(`Відсутній ${cleanMergedPath} — потрібен для ignore_branches (abie.mdc)`)
-  }
+  await checkCleanMergedBranch(root, pass, fail)
 
   const yamlFiles = await findK8sYamlFiles(root)
   const deploymentDirs = await collectDeploymentDirs(root, yamlFiles, fail)
 
   if (deploymentDirs.size > 0) {
     pass(`Знайдено Deployment у ${deploymentDirs.size} директорія(ї/й) k8s — перевіряємо hc.yaml`)
-    for (const dir of [...deploymentDirs].toSorted((a, b) => a.localeCompare(b))) {
-      const hcAbs = join(dir, 'hc.yaml')
-      const relHc = relative(root, hcAbs).replaceAll('\\', '/') || 'hc.yaml'
-      if (existsSync(hcAbs)) {
-        let hcRaw
-        let hcReadOk = false
-        try {
-          hcRaw = await readFile(hcAbs, 'utf8')
-          hcReadOk = true
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          fail(`${relHc}: не вдалося прочитати (${msg})`)
-        }
-        if (hcReadOk) {
-          const v = validateAbieHcYaml(hcRaw, relHc)
-          if (v === null) {
-            pass(`${relHc}: відповідає abie.mdc`)
-          } else {
-            fail(v)
-          }
-        }
-      } else {
-        fail(
-          `${relative(root, dir) || dir}: є Deployment, але немає hc.yaml поруч — додай HealthCheckPolicy (abie.mdc)`
-        )
-      }
-    }
+    await checkHcYamlFiles(root, deploymentDirs, pass, fail)
     pass('Є Deployment — перевіряємо base: spec.template.spec.nodeSelector.preem (abie.mdc)')
     await ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFiles, fail, pass)
   } else {

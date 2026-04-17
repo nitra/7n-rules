@@ -51,6 +51,91 @@ async function loadNCursorRules() {
 }
 
 /**
+ * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
+ * @param {Record<string, unknown>} pkg розібраний package.json
+ */
+function checkDevDependencies(reporter, pkg) {
+  const { pass, fail } = reporter
+  const dev = pkg.devDependencies
+  if (dev === undefined) {
+    pass('Кореневий package.json без devDependencies')
+    return
+  }
+  if (dev === null || typeof dev !== 'object' || Array.isArray(dev)) {
+    fail(
+      'Кореневий package.json: `devDependencies` має бути object з ключами пакетів і діапазонами версій (не null, не масив)'
+    )
+    return
+  }
+  const bad = Object.keys(/** @type {object} */ (dev)).filter(n => !isAllowedRootDevDependency(n))
+  if (bad.length > 0) {
+    fail(`Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`)
+    return
+  }
+  const n = Object.keys(/** @type {object} */ (dev)).length
+  pass(
+    n === 0
+      ? 'Кореневі devDependencies порожні або відсутні (лише @nitra/*)'
+      : `Кореневі devDependencies: лише @nitra/* (${n} пак.)`
+  )
+}
+
+/**
+ * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
+ * @param {Record<string, string>} scripts scripts з package.json
+ */
+function checkLintAggregate(reporter, scripts) {
+  const { pass, fail } = reporter
+  const lintPrefixed = Object.keys(scripts).filter(name => name.startsWith('lint-'))
+  if (lintPrefixed.length === 0) return
+  const aggregate = typeof scripts.lint === 'string' ? scripts.lint : ''
+  if (!aggregate.trim()) {
+    const scriptList = lintPrefixed.map(s => `\`${s}\``).join(', ')
+    fail(
+      `У package.json є скрипти ${scriptList}, але немає агрегованого \`lint\` — додай скрипт, який запускає їх через \`bun run\``
+    )
+    return
+  }
+  const missing = lintPrefixed.filter(name => !aggregate.includes(`bun run ${name}`))
+  if (missing.length > 0) {
+    const missingList = missing.map(s => '`' + s + '`').join(', ')
+    fail(`Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`)
+    return
+  }
+  pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
+  if (OXFMT_END_RE.test(aggregate.trim())) {
+    pass('package.json: `lint` завершується `&& oxfmt .`')
+  } else {
+    fail('Скрипт `lint` має закінчуватися на `&& oxfmt .`')
+  }
+}
+
+/**
+ * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
+ * @param {Record<string, string>} scripts scripts з package.json
+ * @param {Set<string>} cursorRules активні правила з .n-cursor.json
+ */
+function checkCursorRuleScripts(reporter, scripts, cursorRules) {
+  const { pass, fail } = reporter
+  /** @type {Array<{rule: string, script: string, doc: string}>} */
+  const ruleScripts = [
+    { rule: 'docker', script: 'lint-docker', doc: 'docker.mdc' },
+    { rule: 'k8s', script: 'lint-k8s', doc: 'k8s.mdc' }
+  ]
+  for (const { rule, script, doc } of ruleScripts) {
+    if (cursorRules.has(rule)) {
+      if (scripts[script]) {
+        pass(`package.json: є \`${script}\` (правило ${rule} у .n-cursor.json)`)
+      } else {
+        fail(
+          `У .n-cursor.json є правило \`${rule}\` — додай скрипт \`${script}\` у кореневий package.json (див. ${doc})`
+        )
+      }
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам bun.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -58,8 +143,7 @@ export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const forbidden = ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']
-  for (const f of forbidden) {
+  for (const f of ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']) {
     if (existsSync(f)) {
       fail(`Знайдено заборонений файл: ${f} — видали його`)
     } else {
@@ -80,86 +164,30 @@ export async function check() {
 
   const cursorRules = await loadNCursorRules()
 
-  if (existsSync('package.json')) {
-    const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-    if (pkg.packageManager) {
-      fail(`package.json містить поле packageManager: "${pkg.packageManager}" — видали його`)
-    } else {
-      pass('package.json не містить packageManager')
-    }
-
-    if (pkg.dependencies === undefined) {
-      pass('Кореневий package.json без поля `dependencies`')
-    } else {
-      fail(
-        'Кореневий package.json не повинен містити поле `dependencies` — додай залежності в workspace-пакети (bun.mdc)'
-      )
-    }
-
-    const dev = pkg.devDependencies
-    if (dev === undefined) {
-      pass('Кореневий package.json без devDependencies')
-    } else if (dev === null || typeof dev !== 'object' || Array.isArray(dev)) {
-      fail(
-        'Кореневий package.json: `devDependencies` має бути object з ключами пакетів і діапазонами версій (не null, не масив)'
-      )
-    } else {
-      const bad = Object.keys(dev).filter(n => !isAllowedRootDevDependency(n))
-      if (bad.length > 0) {
-        fail(`Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`)
-      } else {
-        const n = Object.keys(dev).length
-        pass(
-          n === 0
-            ? 'Кореневі devDependencies порожні або відсутні (лише @nitra/*)'
-            : `Кореневі devDependencies: лише @nitra/* (${n} пак.)`
-        )
-      }
-    }
-
-    const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {}
-
-    if (cursorRules.has('docker')) {
-      if (scripts['lint-docker']) {
-        pass('package.json: є `lint-docker` (правило docker у .n-cursor.json)')
-      } else {
-        fail(
-          'У .n-cursor.json є правило `docker` — додай скрипт `lint-docker` у кореневий package.json (див. docker.mdc)'
-        )
-      }
-    }
-
-    if (cursorRules.has('k8s')) {
-      if (scripts['lint-k8s']) {
-        pass('package.json: є `lint-k8s` (правило k8s у .n-cursor.json)')
-      } else {
-        fail('У .n-cursor.json є правило `k8s` — додай скрипт `lint-k8s` у кореневий package.json (див. k8s.mdc)')
-      }
-    }
-    const lintPrefixed = Object.keys(scripts).filter(name => name.startsWith('lint-'))
-    if (lintPrefixed.length > 0) {
-      const aggregate = typeof scripts.lint === 'string' ? scripts.lint : ''
-      if (aggregate.trim()) {
-        const missing = lintPrefixed.filter(name => !aggregate.includes(`bun run ${name}`))
-        if (missing.length > 0) {
-          const missingList = missing.map(s => `\`${s}\``).join(', ')
-          fail(`Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`)
-        } else {
-          pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
-          if (OXFMT_END_RE.test(aggregate.trim())) {
-            pass('package.json: `lint` завершується `&& oxfmt .`')
-          } else {
-            fail('Скрипт `lint` має закінчуватися на `&& oxfmt .`')
-          }
-        }
-      } else {
-        const scriptList = lintPrefixed.map(s => `\`${s}\``).join(', ')
-        fail(
-          `У package.json є скрипти ${scriptList}, але немає агрегованого \`lint\` — додай скрипт, який запускає їх через \`bun run\``
-        )
-      }
-    }
+  if (!existsSync('package.json')) {
+    return reporter.getExitCode()
   }
+
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  if (pkg.packageManager) {
+    fail(`package.json містить поле packageManager: "${pkg.packageManager}" — видали його`)
+  } else {
+    pass('package.json не містить packageManager')
+  }
+
+  if (pkg.dependencies === undefined) {
+    pass('Кореневий package.json без поля `dependencies`')
+  } else {
+    fail(
+      'Кореневий package.json не повинен містити поле `dependencies` — додай залежності в workspace-пакети (bun.mdc)'
+    )
+  }
+
+  checkDevDependencies(reporter, pkg)
+
+  const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {}
+  checkCursorRuleScripts(reporter, scripts, cursorRules)
+  checkLintAggregate(reporter, scripts)
 
   return reporter.getExitCode()
 }

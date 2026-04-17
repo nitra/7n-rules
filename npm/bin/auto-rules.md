@@ -4,7 +4,7 @@
 
 ## Правила, які автоматично додається до .n-cursor.json
 
-abie - якщо в кореневому package.json в секції "repository" присутній текст "https://github.com/abinbevefes/**/"
+abie - якщо в кореневому package.json в секції "repository" присутній текст "<https://github.com/abinbevefes/**/>"
 
 bun - якщо в корені проекту є package.json
 
@@ -32,7 +32,7 @@ vue - якщо присутній хоч один vue файл
 
 ## Скіли, які автоматично додається до .n-cursor.json
 
-abie-kustomize - якщо в кореневому package.json в секції "repository" присутній текст "https://github.com/abinbevefes/**/"
+abie-kustomize - якщо в кореневому package.json в секції "repository" присутній текст "<https://github.com/abinbevefes/**/>"
 
 fix - завжди
 

@@ -75,12 +75,7 @@ const NEWLINE_RE = /\r?\n/
 const LEADING_SPACES_RE = /^\s+/
 
 /** Ключі `.n-cursor.json`, де значення — масиви id; після запуску CLI сортуються за алфавітом */
-const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ ([
-  'rules',
-  'skills',
-  'disable-rules',
-  'disable-skills'
-])
+const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ (['rules', 'skills', 'disable-rules', 'disable-skills'])
 
 /**
  * Сортує масиви id у конфігу за алфавітом (`localeCompare`), щоб порядок у файлі був стабільним після синку.
@@ -90,14 +85,10 @@ const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ ([
 function sortConfigIdArrays(config) {
   const out = { ...config }
   for (const key of CONFIG_SORTED_ARRAY_KEYS) {
-    if (!(key in out)) {
-      continue
-    }
     const v = out[key]
-    if (!Array.isArray(v)) {
-      continue
+    if (key in out && Array.isArray(v)) {
+      out[key] = v.map(String).toSorted((a, b) => a.localeCompare(b))
     }
-    out[key] = v.map(x => String(x)).toSorted((a, b) => a.localeCompare(b))
   }
   return out
 }
@@ -970,9 +961,8 @@ async function runSync() {
   console.log(`\n🔧 ${PACKAGE_NAME} — завантаження cursor-правил\n`)
 
   const projectRoot = cwd()
-  const effectivePackageRoot = await runSyncStep(
-    `❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `,
-    () => upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
+  const effectivePackageRoot = await runSyncStep(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `, () =>
+    upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
   )
 
   const bundledMdcDir = join(effectivePackageRoot, 'mdc')

@@ -324,7 +324,9 @@ function workflowJobSteps(job) {
   if (!Array.isArray(steps)) {
     return []
   }
-  return steps.flatMap(step => (step && typeof step === 'object' ? [/** @type {Record<string, unknown>} */ (step)] : []))
+  return steps.flatMap(step =>
+    step && typeof step === 'object' ? [/** @type {Record<string, unknown>} */ (step)] : []
+  )
 }
 
 /**

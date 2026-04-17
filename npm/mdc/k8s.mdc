@@ -123,7 +123,9 @@ metadata:
   namespace: dev
 spec:
   parentRefs:
-    - name: gw
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: gw
       namespace: dev
       sectionName: https
   hostnames:
@@ -164,27 +166,26 @@ spec:
       backendRefs:
         - name: db-h-hl
           port: 8080
-    # У WebSocket авторизація йде всередині messages
+    # у websocket авторизація йде всередині messages
+    # Той самий URLRewrite, що й для HTTP: інакше бекенд бачить /ql/v1/graphql замість /v1/graphql
     - matches:
         - path:
             type: PathPrefix
-            value: /
+            value: /ql
           headers:
             - type: Exact
               name: Upgrade
               value: websocket
       filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
         - type: RequestHeaderModifier
           requestHeaderModifier:
             remove:
               - Authorization
-      backendRefs:
-        - name: db-h-hl
-          port: 8080
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
       backendRefs:
         - name: db-h-hl
           port: 8080

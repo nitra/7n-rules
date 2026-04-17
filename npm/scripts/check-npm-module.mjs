@@ -142,13 +142,155 @@ function npmTypesFileFromPackageField(typesField) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам npm-module.mdc
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * Перевіряє поле types у npm/package.json.
+ * @param {unknown} typesField значення поля types
+ * @param {boolean} useSrcJsLayout чи використовується layout з npm/src
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
  */
-export async function check() {
-  const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+function checkNpmTypesField(typesField, useSrcJsLayout, passFn, failFn) {
+  if (useSrcJsLayout) {
+    if (typesField === TYPES_INDEX) {
+      passFn(`npm/package.json: "types": "${TYPES_INDEX}" (layout npm/src + .js)`)
+    } else {
+      failFn(`npm/package.json: при наявності .js під npm/src очікується "types": "${TYPES_INDEX}"`)
+    }
+  } else if (typeof typesField === 'string' && TYPES_FILE_RE.test(typesField)) {
+    passFn(`npm/package.json: "types" вказує на файл під ./types/… (${typesField})`)
+  } else {
+    failFn(
+      'npm/package.json: без .js під npm/src поле types має бути рядком виду ./types/….d.ts або .d.mts (див. npm-module.mdc)'
+    )
+  }
+}
 
+/**
+ * Перевіряє npm/package.json на типи та files.
+ * @param {boolean} useSrcJsLayout чи використовується layout з npm/src
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkNpmPackageJson(useSrcJsLayout, passFn, failFn) {
+  if (!existsSync('npm/package.json')) return
+  const npmPkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+  const typesField = npmPkg.types
+
+  checkNpmTypesField(typesField, useSrcJsLayout, passFn, failFn)
+
+  if (Array.isArray(npmPkg.files) && npmPkg.files.includes('types')) {
+    passFn('npm/package.json: files містить "types"')
+  } else {
+    failFn('npm/package.json: масив files має містити "types"')
+  }
+
+  const typesPath = useSrcJsLayout ? join('npm', 'types', 'index.d.ts') : npmTypesFileFromPackageField(typesField)
+  const missingTypesMsg = useSrcJsLayout
+    ? `Відсутній ${join('npm', 'types', 'index.d.ts')} (згенеруй tsc з npm-module.mdc)`
+    : `Файл для поля types не знайдено або шлях не під ./types/ — ${String(typesField)}`
+  if (typesPath && existsSync(typesPath)) {
+    passFn(`${typesPath} існує`)
+  } else {
+    failFn(missingTypesMsg)
+  }
+}
+
+/**
+ * Перевіряє npm/tsconfig.emit-types.json.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkEmitTypesConfig(passFn, failFn) {
+  if (!existsSync(EMIT_TYPES_CONFIG)) {
+    failFn(
+      `Без .js під npm/src потрібен ${EMIT_TYPES_CONFIG} (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)`
+    )
+    return
+  }
+  passFn(`${EMIT_TYPES_CONFIG} існує`)
+  let raw
+  try {
+    raw = JSON.parse(await readFile(EMIT_TYPES_CONFIG, 'utf8'))
+  } catch {
+    failFn(`${EMIT_TYPES_CONFIG}: некоректний JSON`)
+    return
+  }
+  const issues = emitTypesConfigIssues(raw)
+  if (issues.length === 0) {
+    passFn(`${EMIT_TYPES_CONFIG}: compilerOptions придатні для emitDeclarationOnly → types/`)
+  } else {
+    failFn(`${EMIT_TYPES_CONFIG}: ${issues.join('; ')}`)
+  }
+}
+
+/**
+ * Перевіряє npm-publish.yml workflow.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkPublishWorkflow(passFn, failFn) {
+  const publishWf = '.github/workflows/npm-publish.yml'
+  if (!existsSync(publishWf)) {
+    failFn(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
+    return
+  }
+  passFn(`${publishWf} існує`)
+  const pub = await readFile(publishWf, 'utf8')
+  const root = parseWorkflowYaml(pub)
+  if (root) {
+    const checks = [
+      {
+        ok: pushPathsIncludeNpmGlob(root),
+        pass: `${publishWf}: on.push.paths містить npm/**`,
+        fail: `${publishWf}: у on.push.paths має бути npm/**`
+      },
+      {
+        ok: pushHasMainBranch(root),
+        pass: `${publishWf}: очікується branch main`,
+        fail: `${publishWf}: очікується branch main`
+      },
+      {
+        ok: hasIdTokenWritePermission(root),
+        pass: `${publishWf}: permissions містить id-token: write (OIDC)`,
+        fail: `${publishWf}: permissions має містити id-token: write (OIDC)`
+      },
+      {
+        ok: hasNpmPublishStepWithPackage(root),
+        pass: `${publishWf}: uses JS-DevTools/npm-publish та with.package npm/package.json`,
+        fail: `${publishWf}: очікується uses: JS-DevTools/npm-publish та with.package: npm/package.json`
+      }
+    ]
+    for (const c of checks) {
+      if (c.ok) {
+        passFn(c.pass)
+      } else {
+        failFn(c.fail)
+      }
+    }
+    return
+  }
+  const need = [
+    { sub: 'npm/**', msg: `${publishWf}: у on.push.paths має бути npm/**` },
+    { sub: 'branches:', msg: `${publishWf}: очікується on.push.branches` },
+    { sub: 'main', msg: `${publishWf}: очікується branch main` },
+    { sub: 'id-token: write', msg: `${publishWf}: permissions має містити id-token: write (OIDC)` },
+    { sub: 'JS-DevTools/npm-publish', msg: `${publishWf}: очікується uses: JS-DevTools/npm-publish` },
+    { sub: 'package: npm/package.json', msg: `${publishWf}: with.package має бути npm/package.json` }
+  ]
+  for (const { sub, msg } of need) {
+    if (pub.includes(sub)) {
+      passFn(`${publishWf} містить «${sub}»`)
+    } else {
+      failFn(msg)
+    }
+  }
+}
+
+/**
+ * Перевіряє базову структуру монорепо (package.json, npm/, workspaces, npm/package.json).
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkNpmModuleBasicStructure(pass, fail) {
   if (existsSync('package.json')) {
     pass('package.json існує')
   } else {
@@ -168,8 +310,7 @@ export async function check() {
 
   if (existsSync('package.json')) {
     const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-    const ws = pkg.workspaces
-    if (Array.isArray(ws) && ws.includes('npm')) {
+    if (Array.isArray(pkg.workspaces) && pkg.workspaces.includes('npm')) {
       pass('package.json workspaces містить "npm"')
     } else {
       fail('package.json workspaces має містити "npm"')
@@ -181,81 +322,33 @@ export async function check() {
   } else {
     fail('npm/package.json не існує — створи package.json для npm модуля')
   }
+}
+
+/**
+ * Перевіряє відповідність проєкту правилам npm-module.mdc
+ * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ */
+export async function check() {
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
+
+  await checkNpmModuleBasicStructure(pass, fail)
 
   const useSrcJsLayout = await npmSrcTreeHasJsFile()
 
-  if (existsSync('npm/package.json')) {
-    const npmPkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
-    const typesField = npmPkg.types
-
-    if (useSrcJsLayout) {
-      if (typesField === TYPES_INDEX) {
-        pass(`npm/package.json: "types": "${TYPES_INDEX}" (layout npm/src + .js)`)
-      } else {
-        fail(`npm/package.json: при наявності .js під npm/src очікується "types": "${TYPES_INDEX}"`)
-      }
-    } else {
-      if (typeof typesField === 'string' && TYPES_FILE_RE.test(typesField)) {
-        pass(`npm/package.json: "types" вказує на файл під ./types/… (${typesField})`)
-      } else {
-        fail(
-          'npm/package.json: без .js під npm/src поле types має бути рядком виду ./types/….d.ts або .d.mts (див. npm-module.mdc)'
-        )
-      }
-    }
-
-    const files = npmPkg.files
-    if (Array.isArray(files) && files.includes('types')) {
-      pass('npm/package.json: files містить "types"')
-    } else {
-      fail('npm/package.json: масив files має містити "types"')
-    }
-
-    const typesPath = useSrcJsLayout ? join('npm', 'types', 'index.d.ts') : npmTypesFileFromPackageField(typesField)
-    if (typesPath && existsSync(typesPath)) {
-      pass(`${typesPath} існує`)
-    } else {
-      fail(
-        useSrcJsLayout
-          ? `Відсутній ${join('npm', 'types', 'index.d.ts')} (згенеруй tsc з npm-module.mdc)`
-          : `Файл для поля types не знайдено або шлях не під ./types/ — ${String(typesField)}`
-      )
-    }
-  }
+  await checkNpmPackageJson(useSrcJsLayout, pass, fail)
 
   if (!useSrcJsLayout) {
-    if (existsSync(EMIT_TYPES_CONFIG)) {
-      pass(`${EMIT_TYPES_CONFIG} існує`)
-      let raw
-      try {
-        raw = JSON.parse(await readFile(EMIT_TYPES_CONFIG, 'utf8'))
-      } catch {
-        fail(`${EMIT_TYPES_CONFIG}: некоректний JSON`)
-        raw = null
-      }
-      if (raw) {
-        const issues = emitTypesConfigIssues(raw)
-        if (issues.length === 0) {
-          pass(`${EMIT_TYPES_CONFIG}: compilerOptions придатні для emitDeclarationOnly → types/`)
-        } else {
-          fail(`${EMIT_TYPES_CONFIG}: ${issues.join('; ')}`)
-        }
-      }
-    } else {
-      fail(
-        `Без .js під npm/src потрібен ${EMIT_TYPES_CONFIG} (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)`
-      )
-    }
+    await checkEmitTypesConfig(pass, fail)
   }
 
+  const layoutLabel = useSrcJsLayout ? 'layout src' : 'tsconfig emit-types'
   const hk = await readHkConfig()
   if (hk) {
     pass(`${hk.path} існує`)
     const missing = useSrcJsLayout ? missingHkSrcLayoutFragments(hk.text) : missingHkEmitTypesConfigFragments(hk.text)
     if (missing.length === 0) {
-      pass(
-        `${hk.path}: pre-commit містить очікуваний виклик tsc (${useSrcJsLayout ? 'layout src' : 'tsconfig emit-types'})`
-      )
+      pass(`${hk.path}: pre-commit містить очікуваний виклик tsc (${layoutLabel})`)
     } else {
       fail(`${hk.path}: онови pre-commit крок (npm-module.mdc); не знайдено: ${missing.join(', ')}`)
     }
@@ -269,53 +362,7 @@ export async function check() {
     fail('.github/workflows/ не існує')
   }
 
-  const publishWf = '.github/workflows/npm-publish.yml'
-  if (existsSync(publishWf)) {
-    pass(`${publishWf} існує`)
-    const pub = await readFile(publishWf, 'utf8')
-    const root = parseWorkflowYaml(pub)
-
-    if (root) {
-      if (pushPathsIncludeNpmGlob(root)) {
-        pass(`${publishWf}: on.push.paths містить npm/**`)
-      } else {
-        fail(`${publishWf}: у on.push.paths має бути npm/**`)
-      }
-      if (pushHasMainBranch(root)) {
-        pass(`${publishWf}: очікується branch main`)
-      } else {
-        fail(`${publishWf}: очікується branch main`)
-      }
-      if (hasIdTokenWritePermission(root)) {
-        pass(`${publishWf}: permissions містить id-token: write (OIDC)`)
-      } else {
-        fail(`${publishWf}: permissions має містити id-token: write (OIDC)`)
-      }
-      if (hasNpmPublishStepWithPackage(root)) {
-        pass(`${publishWf}: uses JS-DevTools/npm-publish та with.package npm/package.json`)
-      } else {
-        fail(`${publishWf}: очікується uses: JS-DevTools/npm-publish та with.package: npm/package.json`)
-      }
-    } else {
-      const need = [
-        { sub: 'npm/**', msg: `${publishWf}: у on.push.paths має бути npm/**` },
-        { sub: 'branches:', msg: `${publishWf}: очікується on.push.branches` },
-        { sub: 'main', msg: `${publishWf}: очікується branch main` },
-        { sub: 'id-token: write', msg: `${publishWf}: permissions має містити id-token: write (OIDC)` },
-        { sub: 'JS-DevTools/npm-publish', msg: `${publishWf}: очікується uses: JS-DevTools/npm-publish` },
-        { sub: 'package: npm/package.json', msg: `${publishWf}: with.package має бути npm/package.json` }
-      ]
-      for (const { sub, msg } of need) {
-        if (pub.includes(sub)) {
-          pass(`${publishWf} містить «${sub}»`)
-        } else {
-          fail(msg)
-        }
-      }
-    }
-  } else {
-    fail(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
-  }
+  await checkPublishWorkflow(pass, fail)
 
   return reporter.getExitCode()
 }

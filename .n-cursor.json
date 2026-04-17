@@ -1,17 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "rules": [
-    "bun",
-    "ga",
-    "js-lint",
-    "js-pino",
-    "nginx-default-tpl",
-    "npm-module",
-    "text"
-  ],
-  "skills": [
-    "fix",
-    "lint",
-    "publish-telegram"
-  ]
+  "rules": ["bun", "ga", "js-lint", "js-pino", "nginx-default-tpl", "npm-module", "text"],
+  "skills": ["fix", "lint", "publish-telegram"]
 }

@@ -25,7 +25,8 @@ const LINE_SPLIT_RE = /\r?\n/u
 const INI_KEY_RE = /^([A-Za-z_]\w*)\s*=/u
 const RETURN_200_RE = /return\s+200/u
 const GZIP_STATIC_ON_RE = /gzip_static\s+on/gu
-const PROXY_LIKE_RE = /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
+const PROXY_LIKE_RE =
+  /\b(proxy_pass|proxy_redirect|proxy_set_header|proxy_http_version|fastcgi_pass|grpc_pass|uwsgi_pass)\b/u
 const FIND_CMD_RE = /\bfind\b/u
 const GZIP_CMD_RE = /\bgzip\b/u
 const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
@@ -267,6 +268,110 @@ function dockerfileHasEnvsSubstTemplate(dockerfileContent) {
 }
 
 /**
+ * Перевіряє один template-файл і поруч *.ini.
+ * @param {string} abs абсолютний шлях до template
+ * @param {string} root cwd
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkTemplateFile(abs, root, passFn, failFn) {
+  const rel = relative(root, abs) || abs
+  const content = await readFile(abs, 'utf8')
+  const v = nginxTemplateViolations(content)
+  if (v) {
+    failFn(`${rel}: ${v}`)
+  } else {
+    passFn(`${rel}: структура шаблону узгоджена з nginx-default-tpl.mdc`)
+  }
+
+  const dir = dirname(abs)
+  let iniNames = []
+  try {
+    const dirEntries = await readdir(dir)
+    iniNames = dirEntries.filter(n => n.endsWith('.ini'))
+  } catch {
+    iniNames = []
+  }
+  if (iniNames.length === 0) {
+    failFn(`${rel}: поруч немає жодного *.ini — додай values-*.ini для середовищ (див. nginx-default-tpl.mdc)`)
+    return
+  }
+  passFn(`${rel}: поруч є *.ini (${iniNames.length})`)
+  for (const iniName of iniNames) {
+    const iniPath = `${dir}/${iniName}`
+    const iniRel = relative(root, iniPath) || iniPath
+    try {
+      const iniRaw = await readFile(iniPath, 'utf8')
+      const miss = iniKeysMissingInTemplate(parseIniVariableNames(iniRaw), content)
+      if (miss) failFn(`${iniRel}: ${miss}`)
+    } catch (error) {
+      failFn(`${iniRel}: не вдалося прочитати (${error instanceof Error ? error.message : String(error)})`)
+    }
+  }
+}
+
+/**
+ * Перевіряє Dockerfile на наявність gzip та envsubst.
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkDockerfiles(root, passFn, failFn) {
+  const dockerPaths = await findDockerfilePaths(root)
+  if (dockerPaths.length === 0) {
+    failFn(
+      'Є default.conf.template, але немає Dockerfile / Containerfile — додай gzip для статики та envsubst (див. nginx-default-tpl.mdc)'
+    )
+    return
+  }
+  const bodies = await Promise.all(dockerPaths.map(p => readFile(p, 'utf8')))
+  if (bodies.some(body => dockerfileHasGzipStaticPipeline(body))) {
+    passFn('Dockerfile: знайдено крок стиснення статики (find + gzip -k)')
+  } else {
+    failFn('Dockerfile: потрібен RUN find … /usr/share/nginx/html … gzip -k (див. nginx-default-tpl.mdc)')
+  }
+  if (bodies.some(body => dockerfileHasEnvsSubstTemplate(body))) {
+    passFn('Dockerfile: знайдено envsubst для default.conf.template')
+  } else {
+    failFn('Dockerfile: потрібен envsubst з default.conf.template (див. nginx-default-tpl.mdc)')
+  }
+}
+
+/**
+ * Перевіряє VSCode extensions.json та settings.json для nginx.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkVscodeNginx(passFn, failFn) {
+  if (existsSync('.vscode/extensions.json')) {
+    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
+    if (ext.recommendations?.includes('ahmadalli.vscode-nginx-conf')) {
+      passFn('extensions.json містить ahmadalli.vscode-nginx-conf')
+    } else {
+      failFn('extensions.json не містить ahmadalli.vscode-nginx-conf')
+    }
+  } else {
+    failFn('Очікується .vscode/extensions.json з ahmadalli.vscode-nginx-conf (див. nginx-default-tpl.mdc)')
+  }
+
+  if (!existsSync('.vscode/settings.json')) {
+    failFn('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
+    return
+  }
+  const s = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
+  if (s['editor.formatOnSave'] === true) {
+    passFn('settings.json: editor.formatOnSave увімкнено')
+  } else {
+    failFn('settings.json: увімкни editor.formatOnSave: true (див. nginx-default-tpl.mdc)')
+  }
+  if (s['[nginx]']?.['editor.defaultFormatter'] === 'ahmadalli.vscode-nginx-conf') {
+    passFn('settings.json: [nginx] defaultFormatter налаштовано')
+  } else {
+    failFn('settings.json: [nginx].editor.defaultFormatter має бути ahmadalli.vscode-nginx-conf')
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -294,98 +399,11 @@ export async function check() {
   pass(`Знайдено default.conf.template: ${templates.length}`)
 
   for (const abs of templates) {
-    const rel = relative(root, abs) || abs
-    const content = await readFile(abs, 'utf8')
-    const v = nginxTemplateViolations(content)
-    if (v) {
-      fail(`${rel}: ${v}`)
-    } else {
-      pass(`${rel}: структура шаблону узгоджена з nginx-default-tpl.mdc`)
-    }
-
-    const dir = dirname(abs)
-    let iniNames = []
-    try {
-      const dirEntries = await readdir(dir)
-      iniNames = dirEntries.filter(n => n.endsWith('.ini'))
-    } catch {
-      iniNames = []
-    }
-    if (iniNames.length === 0) {
-      fail(`${rel}: поруч немає жодного *.ini — додай values-*.ini для середовищ (див. nginx-default-tpl.mdc)`)
-    } else {
-      pass(`${rel}: поруч є *.ini (${iniNames.length})`)
-    }
-
-    for (const iniName of iniNames) {
-      const iniPath = `${dir}/${iniName}`
-      const iniRel = relative(root, iniPath) || iniPath
-      let iniRaw
-      try {
-        iniRaw = await readFile(iniPath, 'utf8')
-      } catch (error) {
-        fail(`${iniRel}: не вдалося прочитати (${error instanceof Error ? error.message : String(error)})`)
-        iniRaw = null
-      }
-      if (iniRaw !== null) {
-        const keys = parseIniVariableNames(iniRaw)
-        const miss = iniKeysMissingInTemplate(keys, content)
-        if (miss) {
-          fail(`${iniRel}: ${miss}`)
-        }
-      }
-    }
+    await checkTemplateFile(abs, root, pass, fail)
   }
 
-  const dockerPaths = await findDockerfilePaths(root)
-  if (dockerPaths.length === 0) {
-    fail(
-      'Є default.conf.template, але немає Dockerfile / Containerfile — додай gzip для статики та envsubst (див. nginx-default-tpl.mdc)'
-    )
-  } else {
-    const bodies = await Promise.all(dockerPaths.map(p => readFile(p, 'utf8')))
-    const gzipOk = bodies.some(body => dockerfileHasGzipStaticPipeline(body))
-    const envOk = bodies.some(body => dockerfileHasEnvsSubstTemplate(body))
-    if (gzipOk) {
-      pass('Dockerfile: знайдено крок стиснення статики (find + gzip -k)')
-    } else {
-      fail('Dockerfile: потрібен RUN find … /usr/share/nginx/html … gzip -k (див. nginx-default-tpl.mdc)')
-    }
-    if (envOk) {
-      pass('Dockerfile: знайдено envsubst для default.conf.template')
-    } else {
-      fail('Dockerfile: потрібен envsubst з default.conf.template (див. nginx-default-tpl.mdc)')
-    }
-  }
-
-  if (existsSync('.vscode/extensions.json')) {
-    const extRaw = await readFile('.vscode/extensions.json', 'utf8')
-    const ext = JSON.parse(extRaw)
-    if (ext.recommendations?.includes('ahmadalli.vscode-nginx-conf')) {
-      pass('extensions.json містить ahmadalli.vscode-nginx-conf')
-    } else {
-      fail('extensions.json не містить ahmadalli.vscode-nginx-conf')
-    }
-  } else {
-    fail('Очікується .vscode/extensions.json з ahmadalli.vscode-nginx-conf (див. nginx-default-tpl.mdc)')
-  }
-
-  if (existsSync('.vscode/settings.json')) {
-    const settingsRaw = await readFile('.vscode/settings.json', 'utf8')
-    const s = JSON.parse(settingsRaw)
-    if (s['editor.formatOnSave'] === true) {
-      pass('settings.json: editor.formatOnSave увімкнено')
-    } else {
-      fail('settings.json: увімкни editor.formatOnSave: true (див. nginx-default-tpl.mdc)')
-    }
-    if (s['[nginx]']?.['editor.defaultFormatter'] === 'ahmadalli.vscode-nginx-conf') {
-      pass('settings.json: [nginx] defaultFormatter налаштовано')
-    } else {
-      fail('settings.json: [nginx].editor.defaultFormatter має бути ahmadalli.vscode-nginx-conf')
-    }
-  } else {
-    fail('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
-  }
+  await checkDockerfiles(root, pass, fail)
+  await checkVscodeNginx(pass, fail)
 
   return reporter.getExitCode()
 }

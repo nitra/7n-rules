@@ -52,99 +52,94 @@ function ukFilesCountPhrase(n) {
 }
 
 /**
- * Перевіряє залежності та vite.config одного Vue-пакета.
- * @param {string} rootDir відносний шлях до пакета
- * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
- * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
- * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
+ * Перевіряє наявність залежності в об'єкті deps.
+ * @param {Record<string,string>} deps об'єкт залежностей
+ * @param {string} name ім'я пакета
+ * @param {string} prefix префікс повідомлення
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {string} hint підказка при відсутності
  */
-async function checkVuePackage(rootDir, fail, passFn) {
-  const label = packageLabel(rootDir)
-  const prefix = `[${label}] `
-
-  const pkgPath = join(rootDir, 'package.json')
-  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-  const deps = pkg.dependencies || {}
-  const devDeps = pkg.devDependencies || {}
-  const allDeps = { ...deps, ...devDeps }
-
-  if (deps.vue) {
-    passFn(`${prefix}vue в dependencies: ${deps.vue}`)
+function checkRequiredDep(deps, name, prefix, passFn, fail, hint = `${name} відсутній`) {
+  if (deps[name]) {
+    passFn(`${prefix}${name}: ${deps[name]}`)
   } else {
-    fail(`${prefix}vue відсутній в dependencies`)
+    fail(`${prefix}${hint}`)
   }
+}
 
-  if (devDeps.vite) {
-    const match = devDeps.vite.match(MAJOR_VERSION_RE)
-    if (match && Number(match[1]) >= 8) {
-      passFn(`${prefix}vite >= 8: ${devDeps.vite}`)
-    } else {
-      fail(`${prefix}vite має бути >= 8, знайдено: ${devDeps.vite}`)
-    }
-  } else {
+/**
+ * Перевіряє версію vite у devDependencies.
+ * @param {Record<string,string>} devDeps devDependencies з package.json
+ * @param {string} prefix параметр prefix
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+function checkViteVersion(devDeps, prefix, passFn, fail) {
+  const v = devDeps.vite
+  if (!v) {
     fail(`${prefix}vite відсутній в devDependencies`)
+    return
   }
-
-  if (devDeps['@vitejs/plugin-vue']) {
-    passFn(`${prefix}@vitejs/plugin-vue: ${devDeps['@vitejs/plugin-vue']}`)
+  const match = v.match(MAJOR_VERSION_RE)
+  if (match && Number(match[1]) >= 8) {
+    passFn(`${prefix}vite >= 8: ${v}`)
   } else {
-    fail(`${prefix}@vitejs/plugin-vue відсутній в devDependencies`)
+    fail(`${prefix}vite має бути >= 8, знайдено: ${v}`)
   }
+}
 
-  if (allDeps['vue-macros']) {
-    passFn(`${prefix}vue-macros: ${allDeps['vue-macros']}`)
-  } else {
-    fail(`${prefix}vue-macros відсутній — bun add -d vue-macros`)
-  }
-
-  if (allDeps['unplugin-auto-import']) {
-    passFn(`${prefix}unplugin-auto-import присутній`)
-  } else {
-    fail(`${prefix}unplugin-auto-import відсутній — bun add -d unplugin-auto-import`)
-  }
-
-  if (allDeps['vite-plugin-vue-layouts-next']) {
-    passFn(`${prefix}vite-plugin-vue-layouts-next присутній`)
-  } else {
-    fail(`${prefix}vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next`)
-  }
-
+/**
+ * Перевіряє vite.config на наявність VueMacros і AutoImport.
+ * @param {string} rootDir параметр rootDir
+ * @param {string} prefix параметр prefix
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkViteConfig(rootDir, prefix, passFn, fail) {
   const configFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
   const viteConfig = configFiles.find(f => existsSync(join(rootDir, f)))
-  if (viteConfig) {
-    const relConfig = join(rootDir, viteConfig)
-    const content = await readFile(relConfig, 'utf8')
-    if (content.includes('VueMacros')) {
-      passFn(`${prefix}${viteConfig} використовує VueMacros`)
-    } else {
-      fail(`${prefix}${viteConfig} не містить VueMacros`)
-    }
-    if (content.includes('AutoImport')) {
-      passFn(`${prefix}${viteConfig} використовує AutoImport`)
-    } else {
-      fail(`${prefix}${viteConfig} не містить AutoImport`)
-    }
-  } else {
+  if (!viteConfig) {
     fail(`${prefix}немає vite.config.js|ts|mjs у каталозі пакета`)
+    return
   }
+  const content = await readFile(join(rootDir, viteConfig), 'utf8')
+  const checks = [
+    { token: 'VueMacros', ok: `${viteConfig} використовує VueMacros`, err: `${viteConfig} не містить VueMacros` },
+    { token: 'AutoImport', ok: `${viteConfig} використовує AutoImport`, err: `${viteConfig} не містить AutoImport` }
+  ]
+  for (const { token, ok, err } of checks) {
+    if (content.includes(token)) {
+      passFn(`${prefix}${ok}`)
+    } else {
+      fail(`${prefix}${err}`)
+    }
+  }
+}
 
-  const absPackageRoot = join(process.cwd(), rootDir)
+/**
+ * Сканує джерела пакета на заборонені value-імпорти з vue.
+ * @param {string} rootDir параметр rootDir
+ * @param {string} absPackageRoot параметр absPackageRoot
+ * @param {string} prefix параметр prefix
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkVueImportViolations(rootDir, absPackageRoot, prefix, passFn, fail) {
   /** @type {string[]} */
   const sourcePaths = []
   await walkDir(absPackageRoot, absPath => {
     const rel = relative(absPackageRoot, absPath).split('\\').join('/')
-    if (shouldSkipFileForVueImportScan(rel) || !isVueImportScanSourceFile(rel)) {
-      return
+    if (!shouldSkipFileForVueImportScan(rel) && isVueImportScanSourceFile(rel)) {
+      sourcePaths.push(absPath)
     }
-    sourcePaths.push(absPath)
   })
 
   let importViolations = 0
   for (const absPath of sourcePaths) {
     const rel = relative(absPackageRoot, absPath).split('\\').join('/')
     const content = await readFile(absPath, 'utf8')
-    const hits = findForbiddenVueImportsInSourceFile(content, rel)
-    for (const v of hits) {
+    for (const v of findForbiddenVueImportsInSourceFile(content, rel)) {
       importViolations++
       fail(`${prefix}${rel}:${v.line} — прибери явний value-імпорт з 'vue' (unplugin-auto-import): ${v.snippet}`)
     }
@@ -154,6 +149,52 @@ async function checkVuePackage(rootDir, fail, passFn) {
       `${prefix}немає заборонених value-імпортів з 'vue' у джерелах (проскановано ${ukFilesCountPhrase(sourcePaths.length)})`
     )
   }
+}
+
+/**
+ * Перевіряє залежності та vite.config одного Vue-пакета.
+ * @param {string} rootDir відносний шлях до пакета
+ * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
+ * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
+ * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
+ */
+async function checkVuePackage(rootDir, fail, passFn) {
+  const prefix = `[${packageLabel(rootDir)}] `
+  const pkg = JSON.parse(await readFile(join(rootDir, 'package.json'), 'utf8'))
+  const deps = pkg.dependencies || {}
+  const devDeps = pkg.devDependencies || {}
+  const allDeps = { ...deps, ...devDeps }
+
+  checkRequiredDep(deps, 'vue', prefix, passFn, fail, 'vue відсутній в dependencies')
+  checkViteVersion(devDeps, prefix, passFn, fail)
+  checkRequiredDep(
+    devDeps,
+    '@vitejs/plugin-vue',
+    prefix,
+    passFn,
+    fail,
+    '@vitejs/plugin-vue відсутній в devDependencies'
+  )
+  checkRequiredDep(allDeps, 'vue-macros', prefix, passFn, fail, 'vue-macros відсутній — bun add -d vue-macros')
+  checkRequiredDep(
+    allDeps,
+    'unplugin-auto-import',
+    prefix,
+    passFn,
+    fail,
+    'unplugin-auto-import відсутній — bun add -d unplugin-auto-import'
+  )
+  checkRequiredDep(
+    allDeps,
+    'vite-plugin-vue-layouts-next',
+    prefix,
+    passFn,
+    fail,
+    'vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next'
+  )
+
+  await checkViteConfig(rootDir, prefix, passFn, fail)
+  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
 }
 
 /**

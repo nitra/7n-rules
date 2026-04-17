@@ -118,6 +118,154 @@ function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
 }
 
 /**
+ * Перевіряє apply-workflow на наявність paths trigger.
+ * @param {string} wfDir директорія workflows
+ * @param {string[]} files список файлів у директорії
+ * @param {string} filename параметр filename
+ * @param {string} expectedPath параметр expectedPath
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkApplyWorkflow(wfDir, files, filename, expectedPath, passFn, failFn) {
+  if (!files.includes(filename)) return
+  const content = await readFile(`${wfDir}/${filename}`, 'utf8')
+  const root = parseWorkflowYaml(content)
+  const ok = root ? eventPathsIncludeExact(root, 'push', expectedPath) : content.includes(expectedPath)
+  if (ok) {
+    passFn(`${filename} має правильний paths trigger`)
+  } else {
+    failFn(`${filename} не містить paths: ${expectedPath}`)
+  }
+}
+
+/**
+ * Перевіряє відсутність MegaLinter у workflows та конфіг-файлах.
+ * @param {string} wfDir директорія workflows
+ * @param {string[]} ymlWorkflows параметр ymlWorkflows
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkMegalinter(wfDir, ymlWorkflows, passFn, failFn) {
+  let found = false
+  for (const f of ymlWorkflows) {
+    const content = await readFile(join(wfDir, f), 'utf8')
+    if (MEGALINTER_USE_PATTERNS.some(re => re.test(content))) {
+      found = true
+      failFn(`MegaLinter у workflow ${wfDir}/${f} — видали інтеграцію (ga.mdc: MegaLinter)`)
+    }
+  }
+  for (const name of MEGALINTER_CONFIG_NAMES) {
+    if (existsSync(name)) {
+      found = true
+      failFn(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
+    }
+  }
+  if (!found) passFn('Залишків MegaLinter не виявлено')
+}
+
+/**
+ * Перевіряє zizmor конфіг.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkZizmor(passFn, failFn) {
+  const zizmorPath = '.github/zizmor.yml'
+  if (!existsSync(zizmorPath)) {
+    failFn(`Відсутній ${zizmorPath} — потрібен для zizmor (ga.mdc)`)
+    return
+  }
+  const z = await readFile(zizmorPath, 'utf8')
+  passFn(`${zizmorPath} існує`)
+  if (z.includes('ref-pin')) {
+    passFn(`${zizmorPath} містить політику ref-pin (zizmor)`)
+  } else {
+    failFn(`${zizmorPath}: додай policies ref-pin для unpinned-uses (ga.mdc)`)
+  }
+}
+
+/**
+ * Перевіряє скрипт lint-ga в package.json.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkLintGaScript(passFn, failFn) {
+  if (!existsSync('package.json')) {
+    failFn('package.json не існує — потрібен lint-ga у scripts')
+    return
+  }
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  const lg = pkg.scripts?.['lint-ga']
+  if (typeof lg !== 'string') {
+    failFn('package.json: додай скрипт "lint-ga" (ga.mdc)')
+    return
+  }
+  passFn('package.json містить lint-ga')
+  if (lg.includes('node-actionlint')) {
+    passFn('lint-ga викликає node-actionlint')
+  } else {
+    failFn('lint-ga має містити bunx node-actionlint (ga.mdc)')
+  }
+  if (lg.includes('zizmor') && lg.includes('--offline')) {
+    passFn('lint-ga викликає zizmor з --offline')
+  } else {
+    failFn('lint-ga має містити zizmor і --offline (ga.mdc)')
+  }
+}
+
+/**
+ * Перевіряє lint-ga.yml workflow.
+ * @param {string} wfDir директорія workflows
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkLintGaWorkflow(wfDir, passFn, failFn) {
+  const lintGaWf = join(wfDir, 'lint-ga.yml')
+  if (!existsSync(lintGaWf)) return
+  const lgContent = await readFile(lintGaWf, 'utf8')
+  const root = parseWorkflowYaml(lgContent)
+  const hasBunRun = root ? anyRunStepIncludes(root, 'bun run lint-ga') : lgContent.includes('bun run lint-ga')
+  const hasSetupUv = root
+    ? hasAnyStepUsesContaining(root, ['astral-sh/setup-uv']) || lgContent.includes('astral-sh/setup-uv')
+    : lgContent.includes('astral-sh/setup-uv')
+  if (hasBunRun) {
+    passFn('lint-ga.yml викликає bun run lint-ga')
+  } else {
+    failFn('lint-ga.yml: крок має містити bun run lint-ga')
+  }
+  if (hasSetupUv) {
+    passFn('lint-ga.yml містить astral-sh/setup-uv')
+  } else {
+    failFn('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
+  }
+}
+
+/**
+ * Перевіряє розширення workflow-файлів і наявність обов'язкових workflow.
+ * @param {string} wfDir шлях до директорії workflows
+ * @param {string[]} files список файлів у wfDir
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+function checkGaWorkflowFiles(wfDir, files, pass, fail) {
+  const yamlFiles = files.filter(f => f.endsWith('.yaml'))
+  if (yamlFiles.length > 0) {
+    for (const f of yamlFiles) {
+      fail(`Workflow з розширенням .yaml: ${wfDir}/${f} — перейменуй на .yml`)
+    }
+  } else {
+    pass('Всі workflows мають розширення .yml')
+  }
+
+  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml']) {
+    if (files.includes(f)) {
+      pass(`${f} існує`)
+    } else {
+      fail(`Відсутній ${wfDir}/${f}`)
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам ga.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -142,47 +290,10 @@ export async function check() {
   }
 
   const files = await readdir(wfDir)
+  checkGaWorkflowFiles(wfDir, files, pass, fail)
 
-  const yamlFiles = files.filter(f => f.endsWith('.yaml'))
-  if (yamlFiles.length > 0) {
-    for (const f of yamlFiles) {
-      fail(`Workflow з розширенням .yaml: ${wfDir}/${f} — перейменуй на .yml`)
-    }
-  } else {
-    pass('Всі workflows мають розширення .yml')
-  }
-
-  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml']) {
-    if (files.includes(f)) {
-      pass(`${f} існує`)
-    } else {
-      fail(`Відсутній ${wfDir}/${f}`)
-    }
-  }
-
-  if (files.includes('apply-k8s.yml')) {
-    const content = await readFile(`${wfDir}/apply-k8s.yml`, 'utf8')
-    const root = parseWorkflowYaml(content)
-    const ok =
-      root && eventPathsIncludeExact(root, 'push', '**/k8s/**/*.yaml') ? true : content.includes('**/k8s/**/*.yaml')
-    if (ok) {
-      pass('apply-k8s.yml має правильний paths trigger')
-    } else {
-      fail('apply-k8s.yml не містить paths: **/k8s/**/*.yaml')
-    }
-  }
-
-  if (files.includes('apply-nats-consumer.yml')) {
-    const content = await readFile(`${wfDir}/apply-nats-consumer.yml`, 'utf8')
-    const root = parseWorkflowYaml(content)
-    const ok =
-      root && eventPathsIncludeExact(root, 'push', '**/consumer.yaml') ? true : content.includes('**/consumer.yaml')
-    if (ok) {
-      pass('apply-nats-consumer.yml має правильний paths trigger')
-    } else {
-      fail('apply-nats-consumer.yml не містить paths: **/consumer.yaml')
-    }
-  }
+  await checkApplyWorkflow(wfDir, files, 'apply-k8s.yml', '**/k8s/**/*.yaml', pass, fail)
+  await checkApplyWorkflow(wfDir, files, 'apply-nats-consumer.yml', '**/consumer.yaml', pass, fail)
 
   if (existsSync('.vscode/extensions.json')) {
     const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
@@ -196,25 +307,7 @@ export async function check() {
   }
 
   const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
-  let foundMegalinter = false
-  for (const f of ymlWorkflows) {
-    const content = await readFile(join(wfDir, f), 'utf8')
-    if (MEGALINTER_USE_PATTERNS.some(re => re.test(content))) {
-      foundMegalinter = true
-      fail(`MegaLinter у workflow ${wfDir}/${f} — видали інтеграцію (ga.mdc: MegaLinter)`)
-    }
-  }
-
-  for (const name of MEGALINTER_CONFIG_NAMES) {
-    if (existsSync(name)) {
-      foundMegalinter = true
-      fail(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
-    }
-  }
-
-  if (!foundMegalinter) {
-    pass('Залишків MegaLinter не виявлено')
-  }
+  await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
 
   for (const f of ymlWorkflows) {
     const content = await readFile(join(wfDir, f), 'utf8')
@@ -222,70 +315,9 @@ export async function check() {
     verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
   }
 
-  const zizmorPath = '.github/zizmor.yml'
-  if (existsSync(zizmorPath)) {
-    const z = await readFile(zizmorPath, 'utf8')
-    pass(`${zizmorPath} існує`)
-    if (z.includes('ref-pin')) {
-      pass(`${zizmorPath} містить політику ref-pin (zizmor)`)
-    } else {
-      fail(`${zizmorPath}: додай policies ref-pin для unpinned-uses (ga.mdc)`)
-    }
-  } else {
-    fail(`Відсутній ${zizmorPath} — потрібен для zizmor (ga.mdc)`)
-  }
-
-  if (existsSync('package.json')) {
-    const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-    const lg = pkg.scripts?.['lint-ga']
-    if (typeof lg === 'string') {
-      pass('package.json містить lint-ga')
-      if (lg.includes('node-actionlint')) {
-        pass('lint-ga викликає node-actionlint')
-      } else {
-        fail('lint-ga має містити bunx node-actionlint (ga.mdc)')
-      }
-      if (lg.includes('zizmor') && lg.includes('--offline')) {
-        pass('lint-ga викликає zizmor з --offline')
-      } else {
-        fail('lint-ga має містити zizmor і --offline (ga.mdc)')
-      }
-    } else {
-      fail('package.json: додай скрипт "lint-ga" (ga.mdc)')
-    }
-  } else {
-    fail('package.json не існує — потрібен lint-ga у scripts')
-  }
-
-  const lintGaWf = join(wfDir, 'lint-ga.yml')
-  if (existsSync(lintGaWf)) {
-    const lgContent = await readFile(lintGaWf, 'utf8')
-    const root = parseWorkflowYaml(lgContent)
-    if (root) {
-      if (anyRunStepIncludes(root, 'bun run lint-ga')) {
-        pass('lint-ga.yml викликає bun run lint-ga')
-      } else {
-        fail('lint-ga.yml: крок має містити bun run lint-ga')
-      }
-      const usesFlat = hasAnyStepUsesContaining(root, ['astral-sh/setup-uv'])
-      if (usesFlat || lgContent.includes('astral-sh/setup-uv')) {
-        pass('lint-ga.yml містить astral-sh/setup-uv')
-      } else {
-        fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
-      }
-    } else {
-      if (lgContent.includes('bun run lint-ga')) {
-        pass('lint-ga.yml викликає bun run lint-ga')
-      } else {
-        fail('lint-ga.yml: крок має містити bun run lint-ga')
-      }
-      if (lgContent.includes('astral-sh/setup-uv')) {
-        pass('lint-ga.yml містить astral-sh/setup-uv')
-      } else {
-        fail('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
-      }
-    }
-  }
+  await checkZizmor(pass, fail)
+  await checkLintGaScript(pass, fail)
+  await checkLintGaWorkflow(wfDir, pass, fail)
 
   return reporter.getExitCode()
 }
