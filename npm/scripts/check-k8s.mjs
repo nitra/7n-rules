@@ -143,14 +143,37 @@ const EXPLICIT_K8S_SCHEMAS = new Map([
 ])
 
 /**
+ * Прибирає зовнішні лапки зі скаляра YAML (`"x"` / `'x'`), якщо вони парні.
+ * @param {string | undefined} raw значення з `match(…)[1]` або подібне
+ * @returns {string | undefined} рядок без лапок або undefined, якщо вхід undefined
+ */
+function trimYamlScalarQuotes(raw) {
+  if (raw === undefined) {
+    return
+  }
+  const s = String(raw)
+  if (s.length >= 2 && ((s[0] === '"' && s.at(-1) === '"') || (s[0] === "'" && s.at(-1) === "'"))) {
+    return s.slice(1, -1)
+  }
+  return s
+}
+
+/**
  * Витягує кореневе поле **`type:`** з документа (без повного YAML-парсера).
  * @param {string} doc фрагмент YAML одного документа
  * @returns {string | undefined} значення без лапок або undefined, якщо поля немає
  */
 function extractTopLevelManifestType(doc) {
-  const m = doc.match(/^\s*type:\s*(\S+)\s*$/mu)
-  const raw = m?.[1]?.replaceAll(/^["']|["']$/gu, '')
-  return raw === undefined || raw === '' ? undefined : raw
+  for (const line of doc.split(YAML_LINE_SPLIT_RE)) {
+    const m = line.match(TYPE_FIELD_RE)
+    if (m) {
+      const raw = trimYamlScalarQuotes(m[1])
+      if (raw === undefined || raw === '') {
+        return
+      }
+      return raw
+    }
+  }
 }
 
 /**
@@ -198,6 +221,22 @@ const YANNH_GROUPS = new Set([
 ])
 
 const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
+const PATH_SPLIT_RE = /[/\\]/u
+const YAML_EXTENSION_RE = /\.ya?ml$/iu
+const YAML_LINE_SPLIT_RE = /\r?\n/u
+const API_VERSION_FIELD_RE = /^\s*apiVersion:\s*(\S+)\s*$/
+const KIND_FIELD_RE = /^\s*kind:\s*(\S+)\s*$/
+const TYPE_FIELD_RE = /^\s*type:\s*(\S+)\s*$/
+const YAML_DOC_SEPARATOR_LINE_RE = /^---\s*$/
+const HEALTHCHECK_DELETE_RE = /\$patch:\s*delete/u
+const HEALTHCHECK_KIND_RE = /kind:\s*HealthCheckPolicy/u
+const METADATA_LINE_RE = /metadata:/u
+const NAME_NON_EMPTY_RE = /name:\s*\S+/u
+const K8S_BASE_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/base\/kustomization\.yaml$/u
+const K8S_BASE_SEGMENT_RE = /(^|\/)k8s\/base\//u
+const OXLINT_SCHEMA_MODELINE_RE = /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u
+const HTTPS_SCHEMA_RE = /^https:/iu
+const HASURA_GRAPHQL_ENGINE_RE = /(^|\/)hasura\/graphql-engine(?::|$)/u
 
 /**
  * Чи містить шлях сегмент директорії `k8s` (рівно ця назва компонента).
@@ -205,7 +244,7 @@ const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
  * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
  */
 export function pathHasK8sSegment(filePath) {
-  const parts = filePath.split(/[/\\]/u)
+  const parts = filePath.split(PATH_SPLIT_RE)
   return parts.includes('k8s')
 }
 
@@ -348,6 +387,45 @@ export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, path
 }
 
 /**
+ * Один файл **`kustomization.yaml`**: **`svc.yaml`** у шляхах має мати парний **`svc-hl.yaml`**.
+ * @param {string} root корінь репозиторію
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
+  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+  let raw
+  try {
+    raw = await readFile(kustAbs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати для перевірки svc.yaml/svc-hl.yaml у kustomization (${msg})`)
+    return
+  }
+  const lines = toLines(raw)
+  const body = yamlBodyAfterModeline(lines)
+  /** @type {import('yaml').Document[] | undefined} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    fail(`${rel}: не вдалося розпарсити YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
+    return
+  }
+  const first = docs[0]?.toJSON()
+  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
+    return
+  }
+  const pathRefs = pathsFromKustomizationObject(first)
+  const kustDir = dirname(kustAbs)
+  const v = kustomizationSvcYamlMissingSvcHlViolation(kustDir, pathRefs)
+  if (v !== null) {
+    fail(`${rel}: ${v}`)
+  }
+}
+
+/**
  * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: разом із **`svc.yaml`** має бути **`svc-hl.yaml`** у полях шляхів.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до yaml під k8s
@@ -355,39 +433,8 @@ export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, path
  * @returns {Promise<void>}
  */
 async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
-  for (const kustAbs of yamlFiles) {
-    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
-      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-      let raw
-      try {
-        raw = await readFile(kustAbs, 'utf8')
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати для перевірки svc.yaml/svc-hl.yaml у kustomization (${msg})`)
-      }
-      if (raw !== undefined) {
-        const lines = toLines(raw)
-        const body = yamlBodyAfterModeline(lines)
-        /** @type {import('yaml').Document[] | undefined} */
-        let docs
-        try {
-          docs = parseAllDocuments(body)
-        } catch {
-          fail(`${rel}: не вдалося розпарсити YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
-        }
-        if (docs !== undefined) {
-          const first = docs[0]?.toJSON()
-          if (first !== null && first !== undefined && typeof first === 'object' && !Array.isArray(first)) {
-            const pathRefs = pathsFromKustomizationObject(first)
-            const kustDir = dirname(kustAbs)
-            const v = kustomizationSvcYamlMissingSvcHlViolation(kustDir, pathRefs)
-            if (v !== null) {
-              fail(`${rel}: ${v}`)
-            }
-          }
-        }
-      }
-    }
+  for (const kustAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+    await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
   }
 }
 
@@ -441,31 +488,44 @@ export async function collectKustomizeManagedRelPaths(root, yamlFilesAbs) {
     const kustDir = dirname(normKust)
     const pathRefs = pathsFromKustomizationObject(first)
 
-    for (const ref of pathRefs) {
-      if (!ref.includes('://')) {
-        const resolved = resolve(kustDir, ref)
-        let st
-        try {
-          st = await stat(resolved)
-        } catch {
-          st = undefined
-        }
-        if (st) {
-          if (st.isFile()) {
-            if (/\.ya?ml$/iu.test(resolved)) {
-              const pr = posixRelFromAbs(root, resolved)
-              if (pr !== null) managed.add(pr)
-            }
-          } else if (st.isDirectory()) {
-            const childK = existsSync(join(resolved, 'kustomization.yaml'))
-              ? join(resolved, 'kustomization.yaml')
-              : null
-            if (childK !== null) {
-              await walkKustomization(childK)
-            }
+    /**
+     * @param {string} ref шлях з kustomization
+     * @returns {Promise<void>}
+     */
+    async function handleKustomizeManagedPathRef(ref) {
+      if (ref.includes('://')) {
+        return
+      }
+      const resolved = resolve(kustDir, ref)
+      let st
+      try {
+        st = await stat(resolved)
+      } catch {
+        st = undefined
+      }
+      if (!st) {
+        return
+      }
+      if (st.isFile()) {
+        if (YAML_EXTENSION_RE.test(resolved)) {
+          const pr = posixRelFromAbs(root, resolved)
+          if (pr !== null) {
+            managed.add(pr)
           }
         }
+        return
       }
+      if (!st.isDirectory()) {
+        return
+      }
+      const childK = existsSync(join(resolved, 'kustomization.yaml')) ? join(resolved, 'kustomization.yaml') : null
+      if (childK !== null) {
+        await walkKustomization(childK)
+      }
+    }
+
+    for (const ref of pathRefs) {
+      await handleKustomizeManagedPathRef(ref)
     }
   }
 
@@ -629,6 +689,32 @@ export function kustomizeResourceDescriptorsIdentityEqual(a, b) {
 }
 
 /**
+ * Непорожнє **`metadata.name`**, якщо задано коректно.
+ * @param {unknown} meta значення **metadata**
+ * @returns {string} ім’я або порожній рядок
+ */
+function metadataNameTrimmed(meta) {
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return ''
+  }
+  const n = /** @type {Record<string, unknown>} */ (meta).name
+  return typeof n === 'string' && n.trim() !== '' ? n.trim() : ''
+}
+
+/**
+ * Непорожній **`metadata.namespace`**, якщо задано коректно.
+ * @param {unknown} meta значення **metadata**
+ * @returns {string} namespace або порожній рядок
+ */
+function metadataNamespaceTrimmed(meta) {
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+    return ''
+  }
+  const ns = /** @type {Record<string, unknown>} */ (meta).namespace
+  return typeof ns === 'string' && ns.trim() !== '' ? ns.trim() : ''
+}
+
+/**
  * Будує дескриптор з маніфесту (пропускає **Kustomization** та об’єкти без **metadata.name**).
  * @param {Record<string, unknown>} obj корінь документа
  * @param {string} kustomizationDefaultNs значення **`namespace:`** з kustomization, що підключив файл
@@ -647,28 +733,14 @@ export function kustomizeResourceDescriptorFromManifest(obj, kustomizationDefaul
     return null
   }
   const meta = obj.metadata
-  let name = ''
-  if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
-    const m = /** @type {Record<string, unknown>} */ (meta)
-    const n = m.name
-    if (typeof n === 'string' && n.trim() !== '') {
-      name = n.trim()
-    }
-  }
+  const name = metadataNameTrimmed(meta)
   if (name === '') {
     return null
   }
   const { group, version } = splitK8sApiVersion(obj.apiVersion)
   let namespace = ''
   if (!isClusterScopedKubernetesKind(kind)) {
-    let metaNs = ''
-    if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
-      const m = /** @type {Record<string, unknown>} */ (meta)
-      const ns = m.namespace
-      if (typeof ns === 'string' && ns.trim() !== '') {
-        metaNs = ns.trim()
-      }
-    }
+    const metaNs = metadataNamespaceTrimmed(meta)
     const def =
       typeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''
         ? kustomizationDefaultNs.trim()
@@ -747,38 +819,50 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
   /** @type {KustomizeResourceDescriptor[]} */
   const out = []
 
-  for (const ref of pathRefs) {
-    if (typeof ref === 'string' && !ref.includes('://')) {
-      const resolved = resolve(kustDir, ref)
-      if (resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
-        /** @type {import('node:fs').Stats | undefined} */
-        let st
-        try {
-          st = await stat(resolved)
-        } catch {
-          st = undefined
-        }
-        if (st !== undefined) {
-          if (st.isFile() && /\.ya?ml$/iu.test(resolved)) {
-            const roots = await readK8sYamlDocumentRootsForInventory(resolved)
-            for (const o of roots) {
-              const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-              if (d !== null) {
-                out.push(d)
-              }
-            }
-          } else if (st.isDirectory()) {
-            const childK = existsSync(join(resolved, 'kustomization.yaml'))
-              ? join(resolved, 'kustomization.yaml')
-              : null
-            if (childK !== null) {
-              const sub = await collectResourceDescriptorsForKustomizationWalk(childK, rootNorm, visitedKustomization)
-              out.push(...sub)
-            }
-          }
+  /**
+   * @param {string} ref шлях з resources/bases/…
+   * @returns {Promise<void>}
+   */
+  async function handleResourceDescriptorPathRef(ref) {
+    if (typeof ref !== 'string' || ref.includes('://')) {
+      return
+    }
+    const resolved = resolve(kustDir, ref)
+    if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+      return
+    }
+    /** @type {import('node:fs').Stats | undefined} */
+    let st
+    try {
+      st = await stat(resolved)
+    } catch {
+      st = undefined
+    }
+    if (st === undefined) {
+      return
+    }
+    if (st.isFile() && YAML_EXTENSION_RE.test(resolved)) {
+      const roots = await readK8sYamlDocumentRootsForInventory(resolved)
+      for (const o of roots) {
+        const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
+        if (d !== null) {
+          out.push(d)
         }
       }
+      return
     }
+    if (!st.isDirectory()) {
+      return
+    }
+    const childK = existsSync(join(resolved, 'kustomization.yaml')) ? join(resolved, 'kustomization.yaml') : null
+    if (childK !== null) {
+      const sub = await collectResourceDescriptorsForKustomizationWalk(childK, rootNorm, visitedKustomization)
+      out.push(...sub)
+    }
+  }
+
+  for (const ref of pathRefs) {
+    await handleResourceDescriptorPathRef(ref)
   }
 
   return out
@@ -856,6 +940,233 @@ function formatKustomizePatchTargetForMessage(target) {
 }
 
 /**
+ * Явні **patches[].target** / **patchesJson6902[].target** — ресурс має бути в інвентарі.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {Record<string, unknown>} first корінь Kustomization
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар resources/bases/…
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
+  for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
+    if (
+      shouldValidateKustomizePatchTarget(target) &&
+      !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)
+    ) {
+      fail(
+        `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
+      )
+    }
+  }
+}
+
+/**
+ * Документи з YAML-файлу мають мати дескриптор у **catalog** (інвентар resources).
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {string} resolvedAbs абсолютний шлях до patch-файлу
+ * @param {string} root корінь репо
+ * @param {string} relPatchFallback якщо **relative** дає порожньо
+ * @param {string} violationIntro префікс повідомлення (`patches[1] path` або `patchesStrategicMerge[2]`)
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар
+ * @param {string} kustNs default namespace
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function failIfYamlFileRootsMissingFromCatalog(
+  rel,
+  resolvedAbs,
+  root,
+  relPatchFallback,
+  violationIntro,
+  catalog,
+  kustNs,
+  fail
+) {
+  const roots = await readK8sYamlDocumentRootsForInventory(resolvedAbs)
+  let docIdx = 0
+  for (const o of roots) {
+    docIdx++
+    const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
+    if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
+      const relPatch = (relative(root, resolvedAbs) || relPatchFallback).replaceAll('\\', '/')
+      fail(
+        `${rel}: ${violationIntro} «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
+      )
+    }
+  }
+}
+
+/**
+ * Вирішує відносний шлях до існуючого **.yaml** під root і перевіряє, що це файл.
+ * @param {string} kustDir каталог kustomization
+ * @param {string} pathStr відносний шлях
+ * @param {string} rootNorm нормалізований корінь репо
+ * @returns {Promise<string | null>} абсолютний шлях або null
+ */
+async function resolveExistingYamlFileUnderRoot(kustDir, pathStr, rootNorm) {
+  const resolved = resolve(kustDir, pathStr)
+  if (!resolvedFilePathIsUnderRoot(rootNorm, resolved) || !existsSync(resolved)) {
+    return null
+  }
+  /** @type {import('node:fs').Stats | null} */
+  let st = null
+  try {
+    st = await stat(resolved)
+  } catch {
+    st = null
+  }
+  if (st === null || !st.isFile() || !YAML_EXTENSION_RE.test(resolved)) {
+    return null
+  }
+  return resolved
+}
+
+/**
+ * Один елемент **patches[]** лише з **path** (без **target**, без inline patch): корені файлу проти інвентарю.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {unknown} p елемент **patches**
+ * @param {number} pIdx 1-based індекс у масиві
+ * @param {string} kustDir каталог kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар
+ * @param {string} kustNs default namespace з kustomization
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function failIfOnePathOnlyPatchNotInCatalog(rel, p, pIdx, kustDir, rootNorm, root, catalog, kustNs, fail) {
+  if (p === null || typeof p !== 'object' || Array.isArray(p)) {
+    return
+  }
+  const pr = /** @type {Record<string, unknown>} */ (p)
+  const hasTargetKey = 'target' in pr && pr.target !== undefined && pr.target !== null
+  const pathStr = typeof pr.path === 'string' ? pr.path.trim() : ''
+  const inlinePatch = typeof pr.patch === 'string' && pr.patch.trim() !== ''
+  if (hasTargetKey || pathStr === '' || inlinePatch || pathStr.includes('://')) {
+    return
+  }
+  const resolved = await resolveExistingYamlFileUnderRoot(kustDir, pathStr, rootNorm)
+  if (resolved === null) {
+    return
+  }
+  await failIfYamlFileRootsMissingFromCatalog(
+    rel,
+    resolved,
+    root,
+    pathStr,
+    `patches[${pIdx}] path`,
+    catalog,
+    kustNs,
+    fail
+  )
+}
+
+/**
+ * **patches[]** лише з **path** (без **target**, без inline patch) — документи у файлі мають збігатися з інвентарем.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {unknown} patches поле **patches**
+ * @param {string} kustDir каталог kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар
+ * @param {string} kustNs default namespace з kustomization
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function failIfPathOnlyPatchesNotInCatalog(rel, patches, kustDir, rootNorm, root, catalog, kustNs, fail) {
+  if (!Array.isArray(patches)) {
+    return
+  }
+  let pIdx = 0
+  for (const p of patches) {
+    pIdx++
+    await failIfOnePathOnlyPatchNotInCatalog(rel, p, pIdx, kustDir, rootNorm, root, catalog, kustNs, fail)
+  }
+}
+
+/**
+ * **patchesStrategicMerge** — кожен документ у файлі має збігатися з інвентарем.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {unknown} sm поле **patchesStrategicMerge**
+ * @param {string} kustDir каталог kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар
+ * @param {string} kustNs default namespace з kustomization
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function failIfStrategicMergePatchesNotInCatalog(rel, sm, kustDir, rootNorm, root, catalog, kustNs, fail) {
+  if (!Array.isArray(sm)) {
+    return
+  }
+  let smIdx = 0
+  for (const ref of sm) {
+    smIdx++
+    if (typeof ref === 'string' && ref.trim() !== '' && !ref.includes('://')) {
+      const resolved = await resolveExistingYamlFileUnderRoot(kustDir, ref.trim(), rootNorm)
+      if (resolved !== null) {
+        await failIfYamlFileRootsMissingFromCatalog(
+          rel,
+          resolved,
+          root,
+          ref,
+          `patchesStrategicMerge[${smIdx}]`,
+          catalog,
+          kustNs,
+          fail
+        )
+      }
+    }
+  }
+}
+
+/**
+ * Один **`kustomization.yaml`**: patch **target**, **path** без target, **patchesStrategicMerge**.
+ * @param {string} root корінь репозиторію
+ * @param {string} kustAbs абсолютний шлях до файлу
+ * @param {string} rootNorm нормалізований корінь
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm, fail) {
+  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+  let raw
+  try {
+    raw = await readFile(kustAbs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати для перевірки patch target (${msg})`)
+    return
+  }
+  const lines = toLines(raw)
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  /** @type {import('yaml').Document[] | null} */
+  let docs = null
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    fail(`${rel}: не вдалося розпарсити YAML для перевірки patch target`)
+    return
+  }
+  const first = docs[0]?.toJSON()
+  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
+    return
+  }
+  const rec = /** @type {Record<string, unknown>} */ (first)
+  if (rec.kind !== 'Kustomization') {
+    return
+  }
+  const visited = new Set()
+  const catalog = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visited)
+  const kustDir = dirname(resolve(kustAbs))
+  const kustNs = typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
+  failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail)
+  await failIfPathOnlyPatchesNotInCatalog(rel, rec.patches, kustDir, rootNorm, root, catalog, kustNs, fail)
+  await failIfStrategicMergePatchesNotInCatalog(rel, rec.patchesStrategicMerge, kustDir, rootNorm, root, catalog, kustNs, fail)
+}
+
+/**
  * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: **target** patch і strategic-merge посилання не вказують на ресурс поза інвентарем **resources** / **bases** / **components** / **crds**.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
@@ -864,129 +1175,8 @@ function formatKustomizePatchTargetForMessage(target) {
  */
 async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs) {
-    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
-      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-      /** @type {string | undefined} */
-      let raw
-      let readOk = false
-      try {
-        raw = await readFile(kustAbs, 'utf8')
-        readOk = true
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати для перевірки patch target (${msg})`)
-      }
-      if (readOk && raw !== undefined) {
-        const lines = toLines(raw)
-        const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-        /** @type {import('yaml').Document[] | null} */
-        let docs = null
-        try {
-          docs = parseAllDocuments(body)
-        } catch {
-          fail(`${rel}: не вдалося розпарсити YAML для перевірки patch target`)
-        }
-        if (docs !== null) {
-          const first = docs[0]?.toJSON()
-          if (first !== null && first !== undefined && typeof first === 'object' && !Array.isArray(first)) {
-            const rec = /** @type {Record<string, unknown>} */ (first)
-            if (rec.kind === 'Kustomization') {
-              const visited = new Set()
-              const catalog = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visited)
-              const kustDir = dirname(resolve(kustAbs))
-              const kustNs =
-                typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
-
-              for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
-                if (
-                  shouldValidateKustomizePatchTarget(target) &&
-                  !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)
-                ) {
-                  fail(
-                    `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
-                  )
-                }
-              }
-
-              const patchesOnlyPath = rec.patches
-              if (Array.isArray(patchesOnlyPath)) {
-                let pIdx = 0
-                for (const p of patchesOnlyPath) {
-                  pIdx++
-                  if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
-                    const pr = /** @type {Record<string, unknown>} */ (p)
-                    const hasTargetKey = 'target' in pr && pr.target !== undefined && pr.target !== null
-                    const pathStr = typeof pr.path === 'string' ? pr.path.trim() : ''
-                    const inlinePatch = typeof pr.patch === 'string' && pr.patch.trim() !== ''
-                    if (!hasTargetKey && pathStr !== '' && !inlinePatch && !pathStr.includes('://')) {
-                      const resolved = resolve(kustDir, pathStr)
-                      if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
-                        /** @type {import('node:fs').Stats | null} */
-                        let st = null
-                        try {
-                          st = await stat(resolved)
-                        } catch {
-                          st = null
-                        }
-                        if (st !== null && st.isFile() && /\.ya?ml$/iu.test(resolved)) {
-                          const roots = await readK8sYamlDocumentRootsForInventory(resolved)
-                          let docIdx = 0
-                          for (const o of roots) {
-                            docIdx++
-                            const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-                            if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
-                              const relPatch = (relative(root, resolved) || pathStr).replaceAll('\\', '/')
-                              fail(
-                                `${rel}: patches[${pIdx}] path «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
-                              )
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-
-              const sm = rec.patchesStrategicMerge
-              if (Array.isArray(sm)) {
-                let smIdx = 0
-                for (const ref of sm) {
-                  smIdx++
-                  if (typeof ref === 'string' && ref.trim() !== '' && !ref.includes('://')) {
-                    const resolved = resolve(kustDir, ref.trim())
-                    if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
-                      /** @type {import('node:fs').Stats | null} */
-                      let st = null
-                      try {
-                        st = await stat(resolved)
-                      } catch {
-                        st = null
-                      }
-                      if (st !== null && st.isFile() && /\.ya?ml$/iu.test(resolved)) {
-                        const roots = await readK8sYamlDocumentRootsForInventory(resolved)
-                        let docIdx = 0
-                        for (const o of roots) {
-                          docIdx++
-                          const d = kustomizeResourceDescriptorFromManifest(o, kustNs)
-                          if (d !== null && !catalog.some(c => kustomizeResourceDescriptorsIdentityEqual(c, d))) {
-                            const relPatch = (relative(root, resolved) || ref).replaceAll('\\', '/')
-                            fail(
-                              `${rel}: patchesStrategicMerge[${smIdx}] «${relPatch}» документ ${docIdx} — у каталозі resources немає ресурсу ${d.kind}/${d.name} (namespace=${d.namespace || '(порожньо)'}, apiVersion group/version=${d.group || 'core'}/${d.version})`
-                            )
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+    await validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm, fail)
   }
 }
 
@@ -997,7 +1187,7 @@ async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fai
  */
 export function isBaseKustomizationPath(rel) {
   const n = rel.replaceAll('\\', '/')
-  return /(^|\/)k8s\/base\/kustomization\.yaml$/u.test(n)
+  return K8S_BASE_KUSTOMIZATION_PATH_RE.test(n)
 }
 
 /**
@@ -1027,7 +1217,7 @@ async function findK8sYamlFiles(root) {
   const out = []
   await walkDir(root, p => {
     if (!pathHasK8sSegment(p)) return
-    if (!/\.ya?ml$/iu.test(p)) return
+    if (!YAML_EXTENSION_RE.test(p)) return
     out.push(p)
   })
 
@@ -1047,6 +1237,22 @@ function k8sYamlBodyForDocumentParse(lines) {
 }
 
 /**
+ * Оновлює прапорці наявності **BackendConfig** / інших **kind** у документі.
+ * @param {unknown} kind значення **kind**
+ * @param {{ hasBc: boolean, hasOther: boolean }} acc накопичувач
+ * @returns {void}
+ */
+function updateBackendConfigKindFlags(kind, acc) {
+  if (kind === 'BackendConfig') {
+    acc.hasBc = true
+    return
+  }
+  if (kind !== undefined && kind !== null && String(kind).trim() !== '') {
+    acc.hasOther = true
+  }
+}
+
+/**
  * Чи всі нетривіальні документи у тілі — **`kind: BackendConfig`**, чи є змішування з іншими kind.
  * @param {string} body YAML без обов’язкового modeline (див. `k8sYamlBodyForDocumentParse`)
  * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розпарсити YAML
@@ -1060,24 +1266,22 @@ export function classifyBackendConfigManifestPresence(body) {
     return 'unparsed'
   }
 
-  let hasBc = false
-  let hasOther = false
+  const acc = { hasBc: false, hasOther: false }
   for (const doc of docs) {
     if (doc.errors.length === 0) {
       const obj = doc.toJSON()
       if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const kind = obj.kind
-        if (kind === 'BackendConfig') {
-          hasBc = true
-        } else if (kind !== undefined && kind !== null && String(kind).trim() !== '') {
-          hasOther = true
-        }
+        updateBackendConfigKindFlags(obj.kind, acc)
       }
     }
   }
 
-  if (!hasBc) return 'none'
-  if (hasOther) return 'mixed'
+  if (!acc.hasBc) {
+    return 'none'
+  }
+  if (acc.hasOther) {
+    return 'mixed'
+  }
   return 'only'
 }
 
@@ -1123,7 +1327,7 @@ async function removeBackendConfigOnlyK8sYamlFiles(root, fail, pass) {
  */
 function toLines(content) {
   const body = content.startsWith('\uFEFF') ? content.slice(1) : content
-  return body.split(/\r?\n/u)
+  return body.split(YAML_LINE_SPLIT_RE)
 }
 
 /**
@@ -1174,8 +1378,15 @@ function parseK8sYamlDocumentObjectRoots(body) {
  * @returns {string} перший документ без зайвих пробілів по краях
  */
 function firstYamlDocument(body) {
-  const parts = body.split(/^---\s*$/mu)
-  return (parts[0] ?? body).trim()
+  const lines = body.split(YAML_LINE_SPLIT_RE)
+  const out = []
+  for (const line of lines) {
+    if (YAML_DOC_SEPARATOR_LINE_RE.test(line)) {
+      break
+    }
+    out.push(line)
+  }
+  return out.join('\n').trim()
 }
 
 /**
@@ -1184,12 +1395,28 @@ function firstYamlDocument(body) {
  * @returns {{ apiVersion?: string, kind?: string }} знайдені поля або властивості відсутні
  */
 function extractApiVersionAndKind(doc) {
-  const av = doc.match(/^\s*apiVersion:\s*(\S+)\s*$/mu)
-  const k = doc.match(/^\s*kind:\s*(\S+)\s*$/mu)
-  return {
-    apiVersion: av?.[1]?.replaceAll(/^["']|["']$/gu, ''),
-    kind: k?.[1]?.replaceAll(/^["']|["']$/gu, '')
+  /** @type {string | undefined} */
+  let apiVersion
+  /** @type {string | undefined} */
+  let kind
+  for (const line of doc.split(YAML_LINE_SPLIT_RE)) {
+    if (apiVersion === undefined) {
+      const av = line.match(API_VERSION_FIELD_RE)
+      if (av) {
+        apiVersion = trimYamlScalarQuotes(av[1])
+      }
+    }
+    if (kind === undefined) {
+      const k = line.match(KIND_FIELD_RE)
+      if (k) {
+        kind = trimYamlScalarQuotes(k[1])
+      }
+    }
+    if (apiVersion !== undefined && kind !== undefined) {
+      break
+    }
   }
+  return { apiVersion, kind }
 }
 
 /**
@@ -1210,10 +1437,10 @@ export function k8sYamlFirstDocIsAlbYcHttpBackendGroup(yamlBody) {
  * @returns {boolean} true, якщо є `$patch: delete` і блоки kind/metadata для HealthCheckPolicy
  */
 export function ruKustomizationHasHealthCheckDeletePatch(raw) {
-  if (!/\$patch:\s*delete/u.test(raw)) return false
-  if (!/kind:\s*HealthCheckPolicy/u.test(raw)) return false
-  if (!/metadata:/u.test(raw)) return false
-  if (!/name:\s*\S+/u.test(raw)) return false
+  if (!HEALTHCHECK_DELETE_RE.test(raw)) return false
+  if (!HEALTHCHECK_KIND_RE.test(raw)) return false
+  if (!METADATA_LINE_RE.test(raw)) return false
+  if (!NAME_NON_EMPTY_RE.test(raw)) return false
   return true
 }
 
@@ -1330,6 +1557,173 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
 }
 
 /**
+ * Реєструє порушення, якщо в JSON6902-операціях є **remove** і **add** на один **path**.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {string} label фрагмент повідомлення (наприклад `patches[1] inline JSON6902`)
+ * @param {string} patchText текст patch
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {void}
+ */
+function failIfJson6902RemoveAddConflictOnSamePath(rel, label, patchText, fail) {
+  const ops = collectJson6902OperationsFromPatchText(patchText)
+  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+  if (bad.length > 0) {
+    fail(`${rel}: ${label}: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`)
+  }
+}
+
+/**
+ * Зовнішній patch-файл (масив JSON6902): remove+add на один path.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {string} resolved абсолютний шлях до файлу patch
+ * @param {string} root корінь репо
+ * @param {string} patchRef відносне посилання з kustomization
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fail) {
+  /** @type {import('node:fs').Stats | null} */
+  let st = null
+  try {
+    st = await stat(resolved)
+  } catch {
+    st = null
+  }
+  if (st === null || !st.isFile()) {
+    return
+  }
+  let pRaw
+  try {
+    pRaw = await readFile(resolved, 'utf8')
+  } catch {
+    return
+  }
+  const ops = collectJson6902OperationsFromPatchText(pRaw)
+  if (ops.length === 0) {
+    return
+  }
+  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
+  if (bad.length === 0) {
+    return
+  }
+  const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
+  fail(`${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`)
+}
+
+/**
+ * Один елемент **`patches[]`**: inline JSON6902 або зовнішній patch-файл.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {Record<string, unknown>} pr об’єкт patch
+ * @param {number} patchIdx 1-based індекс у масиві
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function auditOneKustomizationJson6902Patch(
+  rel,
+  pr,
+  patchIdx,
+  kustAbs,
+  rootNorm,
+  root,
+  fail
+) {
+  if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
+    failIfJson6902RemoveAddConflictOnSamePath(rel, `patches[${patchIdx}] inline JSON6902`, pr.patch, fail)
+  }
+  if (typeof pr.path !== 'string' || pr.path.trim() === '') {
+    return
+  }
+  const patchRef = pr.path.trim()
+  const resolved = resolve(dirname(kustAbs), patchRef)
+  if (!resolvedFilePathIsUnderRoot(rootNorm, resolved) || !existsSync(resolved)) {
+    return
+  }
+  await auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fail)
+}
+
+/**
+ * Усі **`patches[]`** у Kustomization: inline та зовнішні файли.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {unknown} patches поле **patches**
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function auditKustomizationPatchesJson6902(rel, patches, kustAbs, rootNorm, root, fail) {
+  if (!Array.isArray(patches)) {
+    return
+  }
+  let patchIdx = 0
+  for (const p of patches) {
+    patchIdx++
+    if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
+      const pr = /** @type {Record<string, unknown>} */ (p)
+      await auditOneKustomizationJson6902Patch(rel, pr, patchIdx, kustAbs, rootNorm, root, fail)
+    }
+  }
+}
+
+/**
+ * Один YAML-документ: якщо це Kustomization — перевірка **patches** на JSON6902 remove+add.
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {unknown} rootObj корінь документа
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} root корінь репо
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function auditJson6902ForKustomizationYamlDoc(rel, rootObj, kustAbs, rootNorm, root, fail) {
+  const rec = /** @type {Record<string, unknown>} */ (rootObj)
+  if (rec.kind !== 'Kustomization') {
+    return
+  }
+  await auditKustomizationPatchesJson6902(rel, rec.patches, kustAbs, rootNorm, root, fail)
+}
+
+/**
+ * Один **`kustomization.yaml`**: JSON6902 remove+add на одному path.
+ * @param {string} root корінь репозиторію
+ * @param {string} rootNorm нормалізований корінь
+ * @param {string} kustAbs абсолютний шлях до файлу
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function auditJson6902OneKustomizationYamlFile(root, rootNorm, kustAbs, fail) {
+  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+  let raw
+  try {
+    raw = await readFile(kustAbs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
+    return
+  }
+  const lines = toLines(raw)
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  /** @type {import('yaml').Document[] | null} */
+  let docs = null
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return
+  }
+  for (const doc of docs) {
+    if (doc.errors.length === 0) {
+      const rootObj = doc.toJSON()
+      if (rootObj !== null && typeof rootObj === 'object' && !Array.isArray(rootObj)) {
+        await auditJson6902ForKustomizationYamlDoc(rel, rootObj, kustAbs, rootNorm, root, fail)
+      }
+    }
+  }
+}
+
+/**
  * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: у inline **`patch`** і у зовнішніх patch-файлах не має бути **remove** і **add** на той самий **path**.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
@@ -1338,97 +1732,26 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
  */
 async function validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs) {
-    if (basename(kustAbs).toLowerCase() === 'kustomization.yaml') {
-      const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-      /** @type {string | undefined} */
-      let raw
-      let readOk = false
-      try {
-        raw = await readFile(kustAbs, 'utf8')
-        readOk = true
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
-      }
-      if (readOk && raw !== undefined) {
-        const lines = toLines(raw)
-        const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-        /** @type {import('yaml').Document[] | null} */
-        let docs = null
-        try {
-          docs = parseAllDocuments(body)
-        } catch {
-          docs = null
-        }
-        if (docs !== null) {
-          for (const doc of docs) {
-            if (doc.errors.length === 0) {
-              const rootObj = doc.toJSON()
-              if (rootObj !== null && typeof rootObj === 'object' && !Array.isArray(rootObj)) {
-                const rec = /** @type {Record<string, unknown>} */ (rootObj)
-                if (rec.kind === 'Kustomization') {
-                  const patches = rec.patches
-                  if (Array.isArray(patches)) {
-                    let patchIdx = 0
-                    for (const p of patches) {
-                      patchIdx++
-                      if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
-                        const pr = /** @type {Record<string, unknown>} */ (p)
-                        if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
-                          const ops = collectJson6902OperationsFromPatchText(pr.patch)
-                          const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-                          if (bad.length > 0) {
-                            fail(
-                              `${rel}: patches[${patchIdx}] inline JSON6902: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
-                            )
-                          }
-                        }
-                        if (typeof pr.path === 'string' && pr.path.trim() !== '') {
-                          const patchRef = pr.path.trim()
-                          const resolved = resolve(dirname(kustAbs), patchRef)
-                          if (resolvedFilePathIsUnderRoot(rootNorm, resolved) && existsSync(resolved)) {
-                            /** @type {import('node:fs').Stats | null} */
-                            let st = null
-                            try {
-                              st = await stat(resolved)
-                            } catch {
-                              st = null
-                            }
-                            if (st !== null && st.isFile()) {
-                              /** @type {string | undefined} */
-                              let pRaw
-                              try {
-                                pRaw = await readFile(resolved, 'utf8')
-                              } catch {
-                                pRaw = undefined
-                              }
-                              if (pRaw !== undefined) {
-                                const ops = collectJson6902OperationsFromPatchText(pRaw)
-                                if (ops.length > 0) {
-                                  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-                                  if (bad.length > 0) {
-                                    const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
-                                    fail(
-                                      `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
-                                    )
-                                  }
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+    await auditJson6902OneKustomizationYamlFile(root, rootNorm, kustAbs, fail)
   }
+}
+
+/**
+ * Заборонений **kind: Ingress** у документі.
+ * @param {string} rel відносний шлях до файлу
+ * @param {number} docIndex 1-based індекс документа
+ * @param {Record<string, unknown>} rec корінь маніфесту
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfIngressInDocument(rel, docIndex, rec, fail) {
+  if (rec.kind !== 'Ingress') {
+    return
+  }
+  fail(
+    `${rel}: знайдено kind: Ingress (документ ${docIndex}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml) (див. k8s.mdc)`
+  )
 }
 
 /**
@@ -1451,15 +1774,31 @@ function scanIngressInYamlDocuments(rel, body, fail) {
     if (doc.errors.length === 0) {
       const obj = doc.toJSON()
       if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        if (rec.kind === 'Ingress') {
-          fail(
-            `${rel}: знайдено kind: Ingress (документ ${di + 1}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml) (див. k8s.mdc)`
-          )
-        }
+        failIfIngressInDocument(rel, di + 1, /** @type {Record<string, unknown>} */ (obj), fail)
       }
     }
   }
+}
+
+/**
+ * Перевірка поля **resources** для одного контейнера **Deployment**.
+ * @param {unknown} c елемент **containers[]**
+ * @param {string} label підпис у повідомленні
+ * @returns {string | null} текст порушення або null
+ */
+function deploymentContainerResourcesViolation(c, label) {
+  if (c === null || c === undefined || typeof c !== 'object' || Array.isArray(c)) {
+    return null
+  }
+  const cont = /** @type {Record<string, unknown>} */ (c)
+  if (!('resources' in cont)) {
+    return `контейнер "${label}": відсутнє поле resources — додай resources: {} (див. k8s.mdc)`
+  }
+  const r = cont.resources
+  if (r === null || typeof r !== 'object' || Array.isArray(r)) {
+    return `контейнер "${label}": resources має бути записом у YAML (наприклад порожній: resources: {})`
+  }
+  return null
 }
 
 /**
@@ -1487,15 +1826,9 @@ export function deploymentResourcesViolation(manifest) {
       typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
         ? c.name
         : `#${i + 1}`
-    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
-      const cont = /** @type {Record<string, unknown>} */ (c)
-      if (!('resources' in cont)) {
-        return `контейнер "${label}": відсутнє поле resources — додай resources: {} (див. k8s.mdc)`
-      }
-      const r = cont.resources
-      if (r === null || typeof r !== 'object' || Array.isArray(r)) {
-        return `контейнер "${label}": resources має бути записом у YAML (наприклад порожній: resources: {})`
-      }
+    const v = deploymentContainerResourcesViolation(c, label)
+    if (v !== null) {
+      return v
     }
   }
 
@@ -1519,31 +1852,48 @@ function stripImageDigest(image) {
  */
 function isHasuraGraphqlEngineImageRef(image) {
   const s = stripImageDigest(image)
-  return /(^|\/)hasura\/graphql-engine(?:[:]|$)/u.test(s)
+  return HASURA_GRAPHQL_ENGINE_RE.test(s)
 }
 
 /**
- * Перевіряє пін образу Hasura у одному списку контейнерів Pod spec.
+ * Перевірка образу Hasura для одного контейнера у списку **containers** / **initContainers**.
  * @param {string} list ім’я поля для повідомлення (`containers` / `initContainers`)
- * @param {unknown} containers значення з маніфесту
+ * @param {unknown} c елемент масиву
+ * @param {number} i індекс
+ * @returns {string | null} текст порушення або null
+ */
+function hasuraGraphqlEngineViolationForOneContainer(list, c, i) {
+  const label =
+    typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
+      ? c.name
+      : `#${i + 1}`
+  if (c === null || c === undefined || typeof c !== 'object' || Array.isArray(c)) {
+    return null
+  }
+  const cont = /** @type {Record<string, unknown>} */ (c)
+  const image = cont.image
+  if (typeof image !== 'string' || image.trim() === '' || !isHasuraGraphqlEngineImageRef(image)) {
+    return null
+  }
+  const normalized = stripImageDigest(image)
+  if (!HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES.has(normalized)) {
+    return `${list} "${label}": образ hasura/graphql-engine має бути ${HASURA_GRAPHQL_ENGINE_IMAGE} (зараз: ${image}) (див. k8s.mdc)`
+  }
+  return null
+}
+
+/**
+ * Перевіряє масив **containers** / **initContainers** на зафіксований образ Hasura.
+ * @param {string} list **containers** або **initContainers** (для тексту помилки)
+ * @param {unknown} containers значення поля з маніфесту
  * @returns {string | null} текст порушення або null
  */
 function hasuraGraphqlEngineViolationInContainerList(list, containers) {
   if (!Array.isArray(containers)) return null
   for (const [i, c] of containers.entries()) {
-    const label =
-      typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
-        ? c.name
-        : `#${i + 1}`
-    if (c !== null && c !== undefined && typeof c === 'object' && !Array.isArray(c)) {
-      const cont = /** @type {Record<string, unknown>} */ (c)
-      const image = cont.image
-      if (typeof image === 'string' && image.trim() !== '' && isHasuraGraphqlEngineImageRef(image)) {
-        const normalized = stripImageDigest(image)
-        if (!HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES.has(normalized)) {
-          return `${list} "${label}": образ hasura/graphql-engine має бути ${HASURA_GRAPHQL_ENGINE_IMAGE} (зараз: ${image}) (див. k8s.mdc)`
-        }
-      }
+    const v = hasuraGraphqlEngineViolationForOneContainer(list, c, i)
+    if (v !== null) {
+      return v
     }
   }
   return null
@@ -1750,6 +2100,35 @@ export function collectGatewayApiRouteBackendServiceNames(spec) {
 }
 
 /**
+ * Один документ: маршрут Gateway API має посилатися на **Service** з суфіксом **`-hl`**.
+ * @param {string} rel відносний шлях до файлу
+ * @param {number} docIndex 1-based індекс документа
+ * @param {Record<string, unknown>} rec корінь маніфесту
+ * @param {(msg: string) => void} fail callback помилки
+ * @returns {void}
+ */
+function failIfGatewayRouteUsesNonHeadlessService(rel, docIndex, rec, fail) {
+  const av = rec.apiVersion
+  const kind = rec.kind
+  if (
+    typeof av !== 'string' ||
+    !av.startsWith(GATEWAY_API_GROUP_PREFIX) ||
+    typeof kind !== 'string' ||
+    !GATEWAY_API_ROUTE_KINDS.has(kind)
+  ) {
+    return
+  }
+  const names = collectGatewayApiRouteBackendServiceNames(rec.spec)
+  for (const svcName of names) {
+    if (!svcName.endsWith(SVC_HL_NAME_SUFFIX)) {
+      fail(
+        `${rel}: Gateway API ${kind} (документ ${docIndex}): backendRef до Service має вказувати headless-сервіс з суфіксом «${SVC_HL_NAME_SUFFIX}» у name (зараз: «${svcName}»; див. k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
  * Реєструє порушення: маршрути Gateway API мають посилатися на **Service** з суфіксом **`-hl`**.
  * @param {string} rel відносний шлях до файлу
  * @param {string} body YAML після modeline
@@ -1769,27 +2148,141 @@ function scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail) {
     if (doc.errors.length === 0) {
       const obj = doc.toJSON()
       if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        const av = rec.apiVersion
-        const kind = rec.kind
-        if (
-          typeof av === 'string' &&
-          av.startsWith(GATEWAY_API_GROUP_PREFIX) &&
-          typeof kind === 'string' &&
-          GATEWAY_API_ROUTE_KINDS.has(kind)
-        ) {
-          const names = collectGatewayApiRouteBackendServiceNames(rec.spec)
-          for (const svcName of names) {
-            if (!svcName.endsWith(SVC_HL_NAME_SUFFIX)) {
-              fail(
-                `${rel}: Gateway API ${kind} (документ ${di + 1}): backendRef до Service має вказувати headless-сервіс з суфіксом «${SVC_HL_NAME_SUFFIX}» у name (зараз: «${svcName}»; див. k8s.mdc)`
-              )
-            }
-          }
-        }
+        failIfGatewayRouteUsesNonHeadlessService(rel, di + 1, /** @type {Record<string, unknown>} */ (obj), fail)
       }
     }
   }
+}
+
+/**
+ * Збирає **`metadata.name`** для **kind: Service** у коренях документів; при помилці викликає **fail** і повертає false.
+ * @param {Record<string, unknown>[]} roots корені YAML-документів
+ * @param {string} relForMsg відносний шлях до файлу для повідомлення
+ * @param {string} fileLabel **svc.yaml** / **svc-hl.yaml**
+ * @param {string[]} names накопичувач імен
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {boolean} false, якщо зафіксовано порушення
+ */
+function appendServiceNamesFromSvcRoots(roots, relForMsg, fileLabel, names, fail) {
+  for (const [i, rootObj] of roots.entries()) {
+    const r = /** @type {Record<string, unknown>} */ (rootObj)
+    if (r.kind === 'Service') {
+      const meta = r.metadata
+      if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+        fail(`${relForMsg}: ${fileLabel} (документ ${i + 1}): Service без metadata (див. k8s.mdc)`)
+        return false
+      }
+      const nm = /** @type {Record<string, unknown>} */ (meta).name
+      if (typeof nm !== 'string') {
+        fail(`${relForMsg}: ${fileLabel} (документ ${i + 1}): Service без metadata.name (див. k8s.mdc)`)
+        return false
+      }
+      names.push(nm)
+    }
+  }
+  return true
+}
+
+/**
+ * Узгодженість імен **Service** між **svc.yaml** та **svc-hl.yaml**.
+ * @param {string} relSvc відносний шлях до **svc.yaml**
+ * @param {string} relHl відносний шлях до **svc-hl.yaml**
+ * @param {string[]} svcNames імена з **svc.yaml**
+ * @param {string[]} hlNames імена з **svc-hl.yaml**
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function validateSvcHlServiceNamePairing(relSvc, relHl, svcNames, hlNames, fail) {
+  if (svcNames.length === 0) {
+    fail(`${relSvc}: svc.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
+    return
+  }
+  if (hlNames.length === 0) {
+    fail(`${relHl}: svc-hl.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
+    return
+  }
+  const hlSet = new Set(hlNames)
+  for (const n of svcNames) {
+    const expectHl = `${n}${SVC_HL_NAME_SUFFIX}`
+    if (!hlSet.has(expectHl)) {
+      fail(
+        `${relSvc}: для Service «${n}» у svc.yaml у svc-hl.yaml має бути Service з metadata.name «${expectHl}» (див. k8s.mdc)`
+      )
+    }
+  }
+  for (const h of hlNames) {
+    if (h.endsWith(SVC_HL_NAME_SUFFIX)) {
+      const base = h.slice(0, -SVC_HL_NAME_SUFFIX.length)
+      if (!svcNames.includes(base)) {
+        fail(
+          `${relHl}: Service «${h}» у svc-hl.yaml не відповідає жодному Service у svc.yaml (очікується базове ім’я «${base}»; див. k8s.mdc)`
+        )
+      }
+    } else {
+      fail(
+        `${relHl}: Service «${h}» у svc-hl.yaml: metadata.name має закінчуватися на «${SVC_HL_NAME_SUFFIX}» (див. k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
+ * **svc-hl.yaml** без **svc.yaml** у тому самому каталозі.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFiles абсолютні шляхи
+ * @param {Set<string>} absSet той самий набір шляхів
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail) {
+  for (const abs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc-hl.yaml')) {
+    const svcAbs = join(dirname(abs), 'svc.yaml')
+    if (!absSet.has(svcAbs)) {
+      const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+      fail(`${rel}: svc-hl.yaml потребує svc.yaml у тому самому каталозі (див. k8s.mdc)`)
+    }
+  }
+}
+
+/**
+ * Одна пара **svc.yaml** / **svc-hl.yaml**: читання, імена **Service**, узгодженість.
+ * @param {string} root корінь репозиторію
+ * @param {Set<string>} absSet наявні yaml під k8s
+ * @param {string} svcAbs абсолютний шлях до **svc.yaml**
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {Promise<void>}
+ */
+async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
+  const rel = (relative(root, svcAbs) || svcAbs).replaceAll('\\', '/')
+  const hlAbs = join(dirname(svcAbs), 'svc-hl.yaml')
+  if (!absSet.has(hlAbs)) {
+    fail(`${rel}: поруч обов’язковий svc-hl.yaml (headless-копія з суфіксом -hl у metadata.name; див. k8s.mdc)`)
+    return
+  }
+  const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
+  let svcBody
+  let hlBody
+  try {
+    svcBody = await readK8sYamlBodyAfterModelineForSvcPair(svcAbs)
+    hlBody = await readK8sYamlBodyAfterModelineForSvcPair(hlAbs)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати svc.yaml / svc-hl.yaml (${msg})`)
+    return
+  }
+  const svcRoots = parseK8sYamlDocumentObjectRoots(svcBody)
+  const hlRoots = parseK8sYamlDocumentObjectRoots(hlBody)
+  /** @type {string[]} */
+  const svcNames = []
+  if (!appendServiceNamesFromSvcRoots(svcRoots, rel, 'svc.yaml', svcNames, fail)) {
+    return
+  }
+  /** @type {string[]} */
+  const hlNames = []
+  if (!appendServiceNamesFromSvcRoots(hlRoots, hlRel, 'svc-hl.yaml', hlNames, fail)) {
+    return
+  }
+  validateSvcHlServiceNamePairing(rel, hlRel, svcNames, hlNames, fail)
 }
 
 /**
@@ -1801,117 +2294,9 @@ function scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail) {
  */
 async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
   const absSet = new Set(yamlFiles)
-
-  for (const abs of yamlFiles) {
-    if (basename(abs).toLowerCase() === 'svc-hl.yaml') {
-      const svcAbs = join(dirname(abs), 'svc.yaml')
-      if (!absSet.has(svcAbs)) {
-        const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
-        fail(`${rel}: svc-hl.yaml потребує svc.yaml у тому самому каталозі (див. k8s.mdc)`)
-      }
-    }
-  }
-
-  for (const svcAbs of yamlFiles) {
-    if (basename(svcAbs).toLowerCase() === 'svc.yaml') {
-      const rel = (relative(root, svcAbs) || svcAbs).replaceAll('\\', '/')
-      const hlAbs = join(dirname(svcAbs), 'svc-hl.yaml')
-      if (absSet.has(hlAbs)) {
-        /** @type {string | undefined} */
-        let svcBody
-        /** @type {string | undefined} */
-        let hlBody
-        try {
-          svcBody = await readK8sYamlBodyAfterModelineForSvcPair(svcAbs)
-          hlBody = await readK8sYamlBodyAfterModelineForSvcPair(hlAbs)
-        } catch (error) {
-          const msg = error instanceof Error ? error.message : String(error)
-          fail(`${rel}: не вдалося прочитати svc.yaml / svc-hl.yaml (${msg})`)
-        }
-        if (svcBody !== undefined && hlBody !== undefined) {
-          const svcRoots = parseK8sYamlDocumentObjectRoots(svcBody)
-          const hlRoots = parseK8sYamlDocumentObjectRoots(hlBody)
-
-          /** @type {string[]} */
-          const svcNames = []
-          for (const [i, rootObj] of svcRoots.entries()) {
-            const r = /** @type {Record<string, unknown>} */ (rootObj)
-            if (r.kind === 'Service') {
-              const meta = r.metadata
-              if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
-                const nm = /** @type {Record<string, unknown>} */ (meta).name
-                if (typeof nm === 'string') {
-                  svcNames.push(nm)
-                } else {
-                  fail(`${rel}: svc.yaml (документ ${i + 1}): Service без metadata.name (див. k8s.mdc)`)
-                }
-              } else {
-                fail(`${rel}: svc.yaml (документ ${i + 1}): Service без metadata (див. k8s.mdc)`)
-              }
-            }
-          }
-
-          if (svcNames.length === 0) {
-            fail(`${rel}: svc.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
-          } else {
-            /** @type {string[]} */
-            const hlNames = []
-            for (const [i, rootObj] of hlRoots.entries()) {
-              const r = /** @type {Record<string, unknown>} */ (rootObj)
-              if (r.kind === 'Service') {
-                const meta = r.metadata
-                if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
-                  const nm = /** @type {Record<string, unknown>} */ (meta).name
-                  if (typeof nm === 'string') {
-                    hlNames.push(nm)
-                  } else {
-                    const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
-                    fail(`${hlRel}: svc-hl.yaml (документ ${i + 1}): Service без metadata.name (див. k8s.mdc)`)
-                  }
-                } else {
-                  const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
-                  fail(`${hlRel}: svc-hl.yaml (документ ${i + 1}): Service без metadata (див. k8s.mdc)`)
-                }
-              }
-            }
-
-            if (hlNames.length === 0) {
-              const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
-              fail(`${hlRel}: svc-hl.yaml має містити принаймні один kind: Service (див. k8s.mdc)`)
-            } else {
-              const hlSet = new Set(hlNames)
-              for (const n of svcNames) {
-                const expectHl = `${n}${SVC_HL_NAME_SUFFIX}`
-                if (!hlSet.has(expectHl)) {
-                  fail(
-                    `${rel}: для Service «${n}» у svc.yaml у svc-hl.yaml має бути Service з metadata.name «${expectHl}» (див. k8s.mdc)`
-                  )
-                }
-              }
-
-              for (const h of hlNames) {
-                if (h.endsWith(SVC_HL_NAME_SUFFIX)) {
-                  const base = h.slice(0, -SVC_HL_NAME_SUFFIX.length)
-                  if (!svcNames.includes(base)) {
-                    const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
-                    fail(
-                      `${hlRel}: Service «${h}» у svc-hl.yaml не відповідає жодному Service у svc.yaml (очікується базове ім’я «${base}»; див. k8s.mdc)`
-                    )
-                  }
-                } else {
-                  const hlRel = (relative(root, hlAbs) || hlAbs).replaceAll('\\', '/')
-                  fail(
-                    `${hlRel}: Service «${h}» у svc-hl.yaml: metadata.name має закінчуватися на «${SVC_HL_NAME_SUFFIX}» (див. k8s.mdc)`
-                  )
-                }
-              }
-            }
-          }
-        }
-      } else {
-        fail(`${rel}: поруч обов’язковий svc-hl.yaml (headless-копія з суфіксом -hl у metadata.name; див. k8s.mdc)`)
-      }
-    }
+  failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail)
+  for (const svcAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc.yaml')) {
+    await validateOneSvcYamlHlPair(root, absSet, svcAbs, fail)
   }
 }
 
@@ -1979,7 +2364,90 @@ function isKustomizationFileName(baseLower) {
 export function isK8sBaseManifestYamlPath(rel, baseLower) {
   if (isKustomizationFileName(baseLower)) return false
   const n = rel.replaceAll('\\', '/')
-  return /(^|\/)k8s\/base\//u.test(n)
+  return K8S_BASE_SEGMENT_RE.test(n)
+}
+
+/**
+ * Правила **metadata.namespace** для одного документа.
+ * @param {string} rel відносний шлях
+ * @param {number} docIndex 1-based
+ * @param {unknown} obj корінь документа
+ * @param {boolean} skipMetaNs пропуск для **kustomization.yaml**
+ * @param {boolean} inBaseManifest файл у **k8s/base/**
+ * @param {boolean} kustomizeManaged файл у графі kustomization
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfK8sPolicyNamespaceRulesViolated(
+  rel,
+  docIndex,
+  obj,
+  skipMetaNs,
+  inBaseManifest,
+  kustomizeManaged,
+  fail
+) {
+  if (skipMetaNs) {
+    return
+  }
+  if (inBaseManifest) {
+    const req = metadataNamespaceRequiredViolation(obj, true)
+    if (req !== null) {
+      fail(`${rel}: документ ${docIndex}: ${req}`)
+    }
+    return
+  }
+  if (kustomizeManaged) {
+    const ns = metadataNamespaceForbiddenViolation(obj)
+    if (ns !== null) {
+      fail(`${rel}: документ ${docIndex}: ${ns}`)
+    }
+    return
+  }
+  const req = metadataNamespaceRequiredViolation(obj, false)
+  if (req !== null) {
+    fail(`${rel}: документ ${docIndex}: ${req}`)
+  }
+}
+
+/**
+ * Deployment / Service / HealthCheckPolicy — політики для одного документа.
+ * @param {string} rel відносний шлях
+ * @param {string} baseLower basename (нижній регістр)
+ * @param {number} docIndex 1-based
+ * @param {unknown} obj корінь документа
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfK8sPolicyResourceRulesViolated(rel, baseLower, docIndex, obj, fail) {
+  const resV = deploymentResourcesViolation(obj)
+  if (resV !== null) {
+    fail(`${rel}: Deployment (документ ${docIndex}): ${resV}`)
+  }
+  const hasuraV = deploymentHasuraGraphqlEngineImageViolation(obj)
+  if (hasuraV !== null) {
+    fail(`${rel}: Deployment (документ ${docIndex}): ${hasuraV}`)
+  }
+  const svcGcpV = serviceForbiddenGcpAnnotationsViolation(obj)
+  if (svcGcpV !== null) {
+    fail(`${rel}: Service (документ ${docIndex}): ${svcGcpV}`)
+  }
+  if (baseLower === 'svc.yaml') {
+    const svcT = serviceSvcYamlClusterIpTypeViolation(obj)
+    if (svcT !== null) {
+      fail(`${rel}: Service (документ ${docIndex}): ${svcT}`)
+    }
+  }
+  if (baseLower === 'svc-hl.yaml') {
+    const svcH = serviceSvcHlYamlHeadlessViolation(obj)
+    if (svcH !== null) {
+      fail(`${rel}: Service (документ ${docIndex}): ${svcH}`)
+    }
+  }
+  const hcpHl = healthCheckPolicyTargetRefHeadlessServiceViolation(obj)
+  if (hcpHl !== null) {
+    fail(`${rel}: документ ${docIndex}: ${hcpHl}`)
+  }
 }
 
 /**
@@ -2011,52 +2479,16 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
       fail(`${rel}: YAML (документ ${di + 1}): ${doc.errors.map(e => e.message).join('; ')}`)
     } else {
       const obj = doc.toJSON()
-      if (!skipMetaNs) {
-        if (inBaseManifest) {
-          const req = metadataNamespaceRequiredViolation(obj, true)
-          if (req !== null) {
-            fail(`${rel}: документ ${di + 1}: ${req}`)
-          }
-        } else if (kustomizeManaged) {
-          const ns = metadataNamespaceForbiddenViolation(obj)
-          if (ns !== null) {
-            fail(`${rel}: документ ${di + 1}: ${ns}`)
-          }
-        } else {
-          const req = metadataNamespaceRequiredViolation(obj, false)
-          if (req !== null) {
-            fail(`${rel}: документ ${di + 1}: ${req}`)
-          }
-        }
-      }
-      const resV = deploymentResourcesViolation(obj)
-      if (resV !== null) {
-        fail(`${rel}: Deployment (документ ${di + 1}): ${resV}`)
-      }
-      const hasuraV = deploymentHasuraGraphqlEngineImageViolation(obj)
-      if (hasuraV !== null) {
-        fail(`${rel}: Deployment (документ ${di + 1}): ${hasuraV}`)
-      }
-      const svcGcpV = serviceForbiddenGcpAnnotationsViolation(obj)
-      if (svcGcpV !== null) {
-        fail(`${rel}: Service (документ ${di + 1}): ${svcGcpV}`)
-      }
-      if (baseLower === 'svc.yaml') {
-        const svcT = serviceSvcYamlClusterIpTypeViolation(obj)
-        if (svcT !== null) {
-          fail(`${rel}: Service (документ ${di + 1}): ${svcT}`)
-        }
-      }
-      if (baseLower === 'svc-hl.yaml') {
-        const svcH = serviceSvcHlYamlHeadlessViolation(obj)
-        if (svcH !== null) {
-          fail(`${rel}: Service (документ ${di + 1}): ${svcH}`)
-        }
-      }
-      const hcpHl = healthCheckPolicyTargetRefHeadlessServiceViolation(obj)
-      if (hcpHl !== null) {
-        fail(`${rel}: документ ${di + 1}: ${hcpHl}`)
-      }
+      failIfK8sPolicyNamespaceRulesViolated(
+        rel,
+        di + 1,
+        obj,
+        skipMetaNs,
+        inBaseManifest,
+        kustomizeManaged,
+        fail
+      )
+      failIfK8sPolicyResourceRulesViolated(rel, baseLower, di + 1, obj, fail)
     }
   }
 }
@@ -2067,31 +2499,24 @@ function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeMan
  * @returns {string} рядок для шаблону імені файлу схеми
  */
 function kindToSchemaFilePart(kind) {
-  return kind.replaceAll(/[^a-zA-Z0-9]/gu, '').toLowerCase()
+  let out = ''
+  for (const ch of kind) {
+    const c = ch.codePointAt(0)
+    if (c !== undefined && ((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122))) {
+      out += ch
+    }
+  }
+  return out.toLowerCase()
 }
 
 /**
- * Очікуваний $schema для маніфесту згідно з k8s.mdc.
- * @param {string} filePath шлях до файлу (для імені kustomization)
- * @param {string} doc перший YAML-документ після modeline
- * @returns {{ expected: string | null, reason: string }} reason — для повідомлень про помилку
+ * Очікуваний URL схеми за **apiVersion/kind** (не **kustomization.yaml**).
+ * @param {string} doc текст першого документа
+ * @param {string} apiVersion значення **apiVersion** з маніфесту
+ * @param {string} kind значення **kind** з маніфесту
+ * @returns {{ expected: string | null, reason: string }} очікуваний URL і пояснення для повідомлень
  */
-export function expectedSchemaUrl(filePath, doc) {
-  const base = basename(filePath)
-  const baseLower = base.toLowerCase()
-
-  if (baseLower === 'kustomization.yaml') {
-    return { expected: KUSTOMIZATION_SCHEMA, reason: 'kustomization (ім’я файлу)' }
-  }
-
-  const { apiVersion, kind } = extractApiVersionAndKind(doc)
-  if (!apiVersion || !kind) {
-    return {
-      expected: null,
-      reason: 'не знайдено apiVersion/kind у першому документі (потрібні для перевірки $schema)'
-    }
-  }
-
+function expectedSchemaUrlForTypedManifest(doc, apiVersion, kind) {
   const manifestType = extractTopLevelManifestType(doc)
   const explicit = lookupExplicitK8sSchema(apiVersion, kind, manifestType)
   if (explicit) {
@@ -2128,12 +2553,121 @@ export function expectedSchemaUrl(filePath, doc) {
 }
 
 /**
+ * Очікуваний $schema для маніфесту згідно з k8s.mdc.
+ * @param {string} filePath шлях до файлу (для імені kustomization)
+ * @param {string} doc перший YAML-документ після modeline
+ * @returns {{ expected: string | null, reason: string }} reason — для повідомлень про помилку
+ */
+export function expectedSchemaUrl(filePath, doc) {
+  const base = basename(filePath)
+  const baseLower = base.toLowerCase()
+
+  if (baseLower === 'kustomization.yaml') {
+    return { expected: KUSTOMIZATION_SCHEMA, reason: 'kustomization (ім’я файлу)' }
+  }
+
+  const { apiVersion, kind } = extractApiVersionAndKind(doc)
+  if (!apiVersion || !kind) {
+    return {
+      expected: null,
+      reason: 'не знайдено apiVersion/kind у першому документі (потрібні для перевірки $schema)'
+    }
+  }
+
+  return expectedSchemaUrlForTypedManifest(doc, apiVersion, kind)
+}
+
+/**
  * Підраховує рядки з modeline $schema у файлі.
  * @param {string[]} lines рядки файлу
  * @returns {number} скільки рядків містять modeline `$schema`
  */
 function countSchemaModelines(lines) {
-  return lines.filter(l => /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u.test(l.trim())).length
+  return lines.filter(l => OXLINT_SCHEMA_MODELINE_RE.test(l.trim())).length
+}
+
+/**
+ * Політики маніфестів і Gateway backendRefs після розбору тіла.
+ * @param {string} rel відносний шлях
+ * @param {string} baseLower basename (нижній регістр)
+ * @param {string} body YAML після modeline
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @param {Set<string>} kustomizeManagedRel kustomize-managed шляхи
+ * @returns {void}
+ */
+function runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel) {
+  const kustomizeManaged = kustomizeManagedRel.has(rel)
+  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
+  scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
+}
+
+/**
+ * Файл з першим документом **HttpBackendGroup** (ALB Yandex): без modeline **$schema**.
+ * @param {string} rel відносний шлях
+ * @param {string} baseLower basename
+ * @param {string[]} lines рядки файлу
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @param {(msg: string) => void} pass реєстрація успіху
+ * @param {Set<string>} kustomizeManagedRel kustomize-managed шляхи
+ * @returns {void}
+ */
+function checkK8sYamlHttpBackendGroupFile(rel, baseLower, lines, fail, pass, kustomizeManagedRel) {
+  const body = lines.join('\n')
+  scanIngressInYamlDocuments(rel, body, fail)
+  pass(`${rel}: HttpBackendGroup (alb.yc.io/v1alpha1) — modeline $schema не застосовується (k8s.mdc)`)
+  runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel)
+}
+
+/**
+ * Стандартний файл: перший рядок — modeline **$schema**, далі перевірка URL і політики.
+ * @param {string} abs абсолютний шлях
+ * @param {string} rel відносний шлях
+ * @param {string} baseLower basename
+ * @param {string[]} lines рядки файлу
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @param {(msg: string) => void} pass реєстрація успіху
+ * @param {Set<string>} kustomizeManagedRel kustomize-managed шляхи
+ * @returns {void}
+ */
+function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pass, kustomizeManagedRel) {
+  const match = lines[0].match(MODELINE_RE)
+  if (!match) {
+    fail(`${rel}: некоректний modeline $schema у першому рядку`)
+    return
+  }
+  const schemaUrl = match[1]
+  if (countSchemaModelines(lines) > 1) {
+    fail(`${rel}: кілька рядків yaml-language-server $schema — лиш один modeline на файл (див. k8s.mdc)`)
+    return
+  }
+
+  const body = yamlBodyAfterModeline(lines)
+
+  scanIngressInYamlDocuments(rel, body, fail)
+
+  if (schemaUrl.startsWith('file:')) {
+    pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
+  } else if (HTTPS_SCHEMA_RE.test(schemaUrl)) {
+    const doc = firstYamlDocument(body)
+    const { expected, reason } = expectedSchemaUrl(abs, doc)
+
+    if (expected === null) {
+      fail(`${rel}: ${reason}`)
+      return
+    }
+
+    if (schemaUrl !== expected) {
+      fail(`${rel}: $schema не відповідає правилу (${reason}). Очікується:\n     ${expected}\n     Зараз: ${schemaUrl}`)
+      return
+    }
+
+    pass(`${rel}: $schema узгоджено (${reason})`)
+  } else {
+    fail(`${rel}: $schema має бути https URL або file: (див. k8s.mdc)`)
+    return
+  }
+
+  runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel)
 }
 
 /**
@@ -2186,12 +2720,7 @@ async function checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel) {
       )
       return
     }
-    const body = lines.join('\n')
-    scanIngressInYamlDocuments(rel, body, fail)
-    pass(`${rel}: HttpBackendGroup (alb.yc.io/v1alpha1) — modeline $schema не застосовується (k8s.mdc)`)
-    const kustomizeManaged = kustomizeManagedRel.has(rel)
-    validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
-    scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
+    checkK8sYamlHttpBackendGroupFile(rel, baseLower, lines, fail, pass, kustomizeManagedRel)
     return
   }
 
@@ -2200,43 +2729,7 @@ async function checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel) {
     return
   }
 
-  const m = /** @type {RegExpMatchArray} */ (lines[0].match(MODELINE_RE))
-  const schemaUrl = m[1]
-  if (countSchemaModelines(lines) > 1) {
-    fail(`${rel}: кілька рядків yaml-language-server $schema — лиш один modeline на файл (див. k8s.mdc)`)
-    return
-  }
-
-  const body = yamlBodyAfterModeline(lines)
-
-  scanIngressInYamlDocuments(rel, body, fail)
-
-  if (schemaUrl.startsWith('file:')) {
-    pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
-  } else if (/^https:/iu.test(schemaUrl)) {
-    const doc = firstYamlDocument(body)
-    const { expected, reason } = expectedSchemaUrl(abs, doc)
-
-    if (expected === null) {
-      fail(`${rel}: ${reason}`)
-      return
-    }
-
-    if (schemaUrl !== expected) {
-      fail(`${rel}: $schema не відповідає правилу (${reason}). Очікується:\n     ${expected}\n     Зараз: ${schemaUrl}`)
-      return
-    }
-
-    pass(`${rel}: $schema узгоджено (${reason})`)
-  } else {
-    fail(`${rel}: $schema має бути https URL або file: (див. k8s.mdc)`)
-    return
-  }
-
-  const kustomizeManaged = kustomizeManagedRel.has(rel)
-  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
-
-  scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
+  checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pass, kustomizeManagedRel)
 }
 
 /**
@@ -2256,6 +2749,38 @@ function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
 }
 
 /**
+ * Один файл **k8s/base/kustomization.yaml**: непорожній **namespace:**.
+ * @param {string} root корінь репозиторію
+ * @param {string} abs абсолютний шлях до файлу
+ * @param {(msg: string) => void} fail реєстрація порушення
+ * @returns {Promise<void>}
+ */
+async function verifyBaseKustomizationNamespaceOnFile(root, abs, fail) {
+  const rel = relative(root, abs).replaceAll('\\', '/')
+  try {
+    const raw = await readFile(abs, 'utf8')
+    const lines = toLines(raw)
+    const body = yamlBodyAfterModeline(lines)
+    /** @type {import('yaml').Document[] | undefined} */
+    let docs
+    try {
+      docs = parseAllDocuments(body)
+    } catch {
+      fail(`${rel}: не вдалося розпарсити YAML для перевірки namespace у base (див. k8s.mdc)`)
+      return
+    }
+    const first = docs[0]?.toJSON()
+    const v = baseKustomizationNamespaceViolation(first)
+    if (v) {
+      fail(`${rel}: ${v}`)
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося прочитати (${msg})`)
+  }
+}
+
+/**
  * Якщо є **`k8s/base/kustomization.yaml`**, у ньому **завжди** має бути непорожній **`namespace:`**.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи
@@ -2266,28 +2791,7 @@ async function ensureBaseKustomizationHasNamespace(root, yamlFiles, fail) {
   for (const abs of yamlFiles) {
     const rel = relative(root, abs).replaceAll('\\', '/')
     if (isBaseKustomizationPath(rel)) {
-      try {
-        const raw = await readFile(abs, 'utf8')
-        const lines = toLines(raw)
-        const body = yamlBodyAfterModeline(lines)
-        /** @type {import('yaml').Document[] | undefined} */
-        let docs
-        try {
-          docs = parseAllDocuments(body)
-        } catch {
-          fail(`${rel}: не вдалося розпарсити YAML для перевірки namespace у base (див. k8s.mdc)`)
-        }
-        if (docs !== undefined) {
-          const first = docs[0]?.toJSON()
-          const v = baseKustomizationNamespaceViolation(first)
-          if (v) {
-            fail(`${rel}: ${v}`)
-          }
-        }
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error)
-        fail(`${rel}: не вдалося прочитати (${msg})`)
-      }
+      await verifyBaseKustomizationNamespaceOnFile(root, abs, fail)
     }
   }
 }

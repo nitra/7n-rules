@@ -14,6 +14,7 @@
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
  * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення). У файлі завжди має бути
  * поле `$schema` з посиланням на JSON Schema пакету (публічний URL для IDE); при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
+ * Масиви `rules`, `skills`, `disable-rules` і `disable-skills` при записі сортуються за алфавітом.
  *
  * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
  * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
@@ -72,6 +73,34 @@ const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 const YAML_FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
 const NEWLINE_RE = /\r?\n/
 const LEADING_SPACES_RE = /^\s+/
+
+/** Ключі `.n-cursor.json`, де значення — масиви id; після запуску CLI сортуються за алфавітом */
+const CONFIG_SORTED_ARRAY_KEYS = /** @type {const} */ ([
+  'rules',
+  'skills',
+  'disable-rules',
+  'disable-skills'
+])
+
+/**
+ * Сортує масиви id у конфігу за алфавітом (`localeCompare`), щоб порядок у файлі був стабільним після синку.
+ * @param {Record<string, unknown>} config об'єкт конфігу перед записом на диск
+ * @returns {Record<string, unknown>} копія з відсортованими масивами для відомих ключів
+ */
+function sortConfigIdArrays(config) {
+  const out = { ...config }
+  for (const key of CONFIG_SORTED_ARRAY_KEYS) {
+    if (!(key in out)) {
+      continue
+    }
+    const v = out[key]
+    if (!Array.isArray(v)) {
+      continue
+    }
+    out[key] = v.map(x => String(x)).toSorted((a, b) => a.localeCompare(b))
+  }
+  return out
+}
 
 /**
  * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
@@ -233,7 +262,7 @@ async function readConfig(paths = {}) {
     if (merged['disable-skills']?.length) {
       normalized['disable-skills'] = merged['disable-skills']
     }
-    return normalized
+    return sortConfigIdArrays(normalized)
   }
 
   if (!existsSync(configPath)) {
@@ -244,11 +273,11 @@ async function readConfig(paths = {}) {
       availableSkills,
       packageJsonParsed: rootPkg
     })
-    const defaultConfig = {
+    const defaultConfig = sortConfigIdArrays({
       $schema: CONFIG_SCHEMA_URL,
       rules: autoDetected.rules,
       skills: autoDetected.skills
-    }
+    })
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
       `📝 Створено ${CONFIG_FILE} з автоаналізом правил (${defaultConfig.rules.length}) і skills (${defaultConfig.skills.length}).\n`
