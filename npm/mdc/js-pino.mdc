@@ -1,11 +1,11 @@
 ---
 description: Використання @nitra/pino
 alwaysApply: true
-version: '1.0'
+version: '1.1'
 ---
 
 Проект використовує @nitra/pino для логування.
-Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino.
+Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
 
 В **/k8s/base/configmap.yaml повинен бути заданий OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'
 а в директоріях з kustomize повинні бути перевизначені значення OTEL_RESOURCE_ATTRIBUTES і в них service.namespace повинен відповідати namespace, в якому знаходиться дана директорія.

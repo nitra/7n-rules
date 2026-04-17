@@ -1,15 +1,55 @@
 /**
  * Для кожного workspace-пакета перевіряє правило js-pino.mdc.
  *
- * Заборона bunyan на користь pino та наявність `OTEL_RESOURCE_ATTRIBUTES` у `k8s/base/configmap.yaml`,
- * якщо такий файл існує.
+ * Заборона `@nitra/bunyan` / `bunyan` як у залежностях `package.json`, так і в коді
+ * (`import` / `require` / динамічний `import()`); наявність `OTEL_RESOURCE_ATTRIBUTES`
+ * у `k8s/base/configmap.yaml`, якщо такий файл існує.
+ *
+ * Імпорти в джерелах сканує AST через `oxc-parser` (див. `utils/bunyan-imports.mjs`),
+ * щоб виявити випадки на кшталт `import log from '@nitra/bunyan'`, які лишаються в коді
+ * після підміни залежності.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
+import {
+  findBunyanImportsInText,
+  isBunyanScanSourceFile,
+  shouldSkipFileForBunyanScan
+} from './utils/bunyan-imports.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
+
+/**
+ * Сканує джерела пакета на заборонені імпорти `@nitra/bunyan` / `bunyan`.
+ * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<number>} кількість знайдених порушень
+ */
+async function checkBunyanImports(absPackageRoot, label, fail) {
+  /** @type {string[]} */
+  const sourcePaths = []
+  await walkDir(absPackageRoot, absPath => {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    if (!shouldSkipFileForBunyanScan(rel) && isBunyanScanSourceFile(rel)) {
+      sourcePaths.push(absPath)
+    }
+  })
+
+  let violations = 0
+  for (const absPath of sourcePaths) {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    const content = await readFile(absPath, 'utf8')
+    for (const v of findBunyanImportsInText(content, rel)) {
+      violations++
+      fail(`${label}${rel}:${v.line} — заміни '${v.module}' на '@nitra/pino': ${v.snippet}`)
+    }
+  }
+  return violations
+}
 
 /**
  * Перевіряє відповідність правилам js-pino.mdc для одного workspace-пакета.
@@ -31,6 +71,11 @@ async function checkWorkspacePackage(rootDir, fail, passFn) {
     if (allDeps.bunyan) {
       fail(`${label}bunyan знайдено — замінити на @nitra/pino`)
     }
+  }
+
+  const importViolations = await checkBunyanImports(join(process.cwd(), rootDir), label, fail)
+  if (importViolations === 0) {
+    passFn(`${label}немає імпортів '@nitra/bunyan' / 'bunyan' у джерелах`)
   }
 
   const configmapPath = join(rootDir, 'k8s/base/configmap.yaml')

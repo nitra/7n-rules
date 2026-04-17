@@ -55,7 +55,7 @@
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  *
- * Структура **`HTTPRoute`** для **Deployment** з образом **`hasura/graphql-engine`** (редиректи **`/ql`**, **WebSocket**, **`URLRewrite`**) — лише в **k8s.mdc**, автоматично не звіряється.
+ * **Структура `HTTPRoute` для Hasura-Deployment:** звіряється канон 4 правил у **`spec.rules`** (редиректи **`<prefix>/ql`** і **`<prefix>/ql/`** на **`<prefix>/ql/console`** 302, **`PathPrefix <prefix>/ql`** + **URLRewrite** на **`/`**, окреме WebSocket-правило з **`RequestHeaderModifier`** remove **`Authorization`**). **Префікс параметризовано** (рядок перед **`/ql`** у першому Hasura-правилі). **Прив'язка** — за **`metadata.name`** у тому ж каталозі, що й **Deployment** з образом **`hasura/graphql-engine`** (див. k8s.mdc). **Додаткові правила** поверх канону дозволені.
  */
 import { existsSync } from 'node:fs'
 import { readFile, stat, unlink } from 'node:fs/promises'
@@ -1925,6 +1925,41 @@ export function deploymentHasuraGraphqlEngineImageViolation(manifest) {
 }
 
 /**
+ * Чи у списку контейнерів є хоча б один з образом **hasura/graphql-engine** (будь-який тег).
+ * @param {unknown} containers значення **containers** / **initContainers** із podSpec
+ * @returns {boolean} true — якщо знайдено хоча б один контейнер з образом Hasura
+ */
+function containerListHasHasuraImage(containers) {
+  if (!Array.isArray(containers)) return false
+  for (const c of containers) {
+    if (c !== null && typeof c === 'object' && !Array.isArray(c)) {
+      const image = /** @type {Record<string, unknown>} */ (c).image
+      if (typeof image === 'string' && image !== '' && isHasuraGraphqlEngineImageRef(image)) return true
+    }
+  }
+  return false
+}
+
+/**
+ * Чи **Deployment** використовує образ **hasura/graphql-engine** у будь-якому контейнері (маркер для прив'язки HTTPRoute-канона).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {boolean} true — для Deployment з Hasura-контейнером у containers / initContainers
+ */
+export function isHasuraDeploymentManifest(manifest) {
+  if (manifest === null || typeof manifest !== 'object' || Array.isArray(manifest)) return false
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Deployment') return false
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || typeof template !== 'object' || Array.isArray(template)) return false
+  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec)) return false
+  const p = /** @type {Record<string, unknown>} */ (podSpec)
+  return containerListHasHasuraImage(p.containers) || containerListHasHasuraImage(p.initContainers)
+}
+
+/**
  * Чи **Service** містить заборонені анотації GKE у **`metadata.annotations`** (k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null, якщо не Service / анотацій немає / ок
@@ -2155,6 +2190,247 @@ function scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail) {
 }
 
 /**
+ * Звузити `unknown` до `Record<string, unknown>` (`null`, масиви, примітиви → null).
+ * @param {unknown} node довільний вузол YAML-документа
+ * @returns {Record<string, unknown> | null} plain-об'єкт або null, якщо це не plain-запис
+ */
+function asPlainRecord(node) {
+  if (node === null || node === undefined || typeof node !== 'object' || Array.isArray(node)) return null
+  return /** @type {Record<string, unknown>} */ (node)
+}
+
+/**
+ * Чи `match` — рівно один шлях заданого типу з потрібним значенням, **без** `headers`.
+ * @param {unknown} rule одне правило `HTTPRoute`
+ * @param {'Exact' | 'PathPrefix'} pathType очікуваний `path.type`
+ * @param {string} pathValue очікуваний `path.value`
+ * @returns {boolean} true — якщо `matches` рівно один і відповідає критерію
+ */
+function hasuraRuleMatchesSinglePathNoHeaders(rule, pathType, pathValue) {
+  const r = asPlainRecord(rule)
+  if (r === null) return false
+  const matches = r.matches
+  if (!Array.isArray(matches) || matches.length !== 1) return false
+  const m = asPlainRecord(matches[0])
+  if (m === null) return false
+  if (m.headers !== undefined) return false
+  const p = asPlainRecord(m.path)
+  if (p === null) return false
+  return p.type === pathType && p.value === pathValue
+}
+
+/**
+ * Чи **filters** — рівно один `RequestRedirect` з `ReplaceFullPath` на `toPath` і `statusCode: 302`.
+ * @param {unknown} rule одне правило `HTTPRoute`
+ * @param {string} toPath очікуваний `requestRedirect.path.replaceFullPath`
+ * @returns {boolean} true — якщо filters відповідають канону редиректу
+ */
+function hasuraRuleHasExactRedirect(rule, toPath) {
+  const r = asPlainRecord(rule)
+  if (r === null) return false
+  const filters = r.filters
+  if (!Array.isArray(filters) || filters.length !== 1) return false
+  const f = asPlainRecord(filters[0])
+  if (f === null || f.type !== 'RequestRedirect') return false
+  const rr = asPlainRecord(f.requestRedirect)
+  if (rr === null || rr.statusCode !== 302) return false
+  const p = asPlainRecord(rr.path)
+  return p !== null && p.type === 'ReplaceFullPath' && p.replaceFullPath === toPath
+}
+
+/**
+ * Чи серед **filters** є `URLRewrite` з `ReplacePrefixMatch: /`.
+ * @param {unknown[]} filters масив filters з одного правила `HTTPRoute`
+ * @returns {boolean} true — якщо фільтр `URLRewrite` має `ReplacePrefixMatch: /`
+ */
+function hasuraFiltersIncludeUrlRewriteToSlash(filters) {
+  for (const f of filters) {
+    const fr = asPlainRecord(f)
+    if (fr !== null && fr.type === 'URLRewrite') {
+      const rw = asPlainRecord(fr.urlRewrite)
+      if (rw === null) return false
+      const p = asPlainRecord(rw.path)
+      return p !== null && p.type === 'ReplacePrefixMatch' && p.replacePrefixMatch === '/'
+    }
+  }
+  return false
+}
+
+/**
+ * Чи серед **filters** є `RequestHeaderModifier` з `remove: [Authorization]`.
+ * @param {unknown[]} filters масив filters з одного правила `HTTPRoute`
+ * @returns {boolean} true — якщо фільтр `RequestHeaderModifier` видаляє саме `Authorization`
+ */
+function hasuraFiltersRemoveAuthorization(filters) {
+  for (const f of filters) {
+    const fr = asPlainRecord(f)
+    if (fr !== null && fr.type === 'RequestHeaderModifier') {
+      const mod = asPlainRecord(fr.requestHeaderModifier)
+      if (mod === null) return false
+      const remove = mod.remove
+      if (!Array.isArray(remove) || remove.length !== 1) return false
+      return remove[0] === 'Authorization'
+    }
+  }
+  return false
+}
+
+/**
+ * Ім'я єдиного `backendRef` у правилі (або null, якщо backend-ів не рівно один).
+ * @param {unknown} rule одне правило `HTTPRoute`
+ * @returns {string | null} `backendRefs[0].name` або null, якщо backend-ів не рівно один
+ */
+function hasuraRuleSingleBackendName(rule) {
+  const r = asPlainRecord(rule)
+  if (r === null) return null
+  const refs = r.backendRefs
+  if (!Array.isArray(refs) || refs.length !== 1) return null
+  const b = asPlainRecord(refs[0])
+  if (b === null || typeof b.name !== 'string') return null
+  return b.name
+}
+
+/**
+ * Правило 3: `PathPrefix <qlPath>` + **filters** = 1 × `URLRewrite(ReplacePrefixMatch: /)`.
+ * @param {unknown} rule одне правило `HTTPRoute`
+ * @param {string} qlPath очікуваний `path.value` (`<prefix>/ql`)
+ * @returns {boolean} true — якщо правило відповідає канону пункту 3
+ */
+function hasuraRuleIsQlUrlRewrite(rule, qlPath) {
+  if (!hasuraRuleMatchesSinglePathNoHeaders(rule, 'PathPrefix', qlPath)) return false
+  const r = asPlainRecord(rule)
+  if (r === null) return false
+  const filters = r.filters
+  if (!Array.isArray(filters) || filters.length !== 1) return false
+  return hasuraFiltersIncludeUrlRewriteToSlash(filters)
+}
+
+/**
+ * Правило 4: WebSocket — `PathPrefix <qlPath>` + `Upgrade: websocket`, **filters** = `URLRewrite` + `RequestHeaderModifier(remove Authorization)`.
+ * @param {unknown} rule одне правило `HTTPRoute`
+ * @param {string} qlPath очікуваний `path.value` (`<prefix>/ql`)
+ * @returns {boolean} true — якщо правило відповідає канону пункту 4 (WebSocket)
+ */
+function hasuraRuleIsWebsocket(rule, qlPath) {
+  const r = asPlainRecord(rule)
+  if (r === null) return false
+  const matches = r.matches
+  if (!Array.isArray(matches) || matches.length !== 1) return false
+  const m = asPlainRecord(matches[0])
+  if (m === null) return false
+  const p = asPlainRecord(m.path)
+  if (p === null || p.type !== 'PathPrefix' || p.value !== qlPath) return false
+  const headers = m.headers
+  if (!Array.isArray(headers) || headers.length !== 1) return false
+  const h = asPlainRecord(headers[0])
+  if (h === null || h.type !== 'Exact' || h.name !== 'Upgrade' || h.value !== 'websocket') return false
+  const filters = r.filters
+  if (!Array.isArray(filters) || filters.length !== 2) return false
+  return hasuraFiltersIncludeUrlRewriteToSlash(filters) && hasuraFiltersRemoveAuthorization(filters)
+}
+
+/**
+ * Знаходить перше правило з **`matches`** = `[{ path: { type: 'Exact', value: '<prefix>/ql' } }]` (без headers),
+ * повертає `<prefix>` (може бути порожнім) і позицію правила 1.
+ * @param {unknown[]} rules вміст `spec.rules` HTTPRoute
+ * @returns {{ prefix: string, startIndex: number } | null} виявлений префікс і позиція правила 1 або null
+ */
+function findHasuraCanonStart(rules) {
+  for (let i = 0; i < rules.length; i++) {
+    const r = asPlainRecord(rules[i])
+    const matches = r === null ? null : r.matches
+    if (!Array.isArray(matches) || matches.length !== 1) {
+      // наступне правило
+    } else {
+      const m = asPlainRecord(matches[0])
+      const p = m === null || m.headers !== undefined ? null : asPlainRecord(m.path)
+      if (
+        p !== null &&
+        p.type === 'Exact' &&
+        typeof p.value === 'string' &&
+        p.value.endsWith('/ql')
+      ) {
+        return { prefix: p.value.slice(0, -'/ql'.length), startIndex: i }
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Знаходить перше правило за індексом ≥ `from`, що задовольняє `predicate`. Повертає індекс або -1.
+ * @param {unknown[]} rules вміст `spec.rules` HTTPRoute
+ * @param {number} from мінімальний індекс, з якого починати пошук
+ * @param {(rule: unknown) => boolean} predicate предикат на одне правило
+ * @returns {number} індекс знайденого правила або -1
+ */
+function findHasuraRule(rules, from, predicate) {
+  for (let i = from; i < rules.length; i++) {
+    if (predicate(rules[i])) return i
+  }
+  return -1
+}
+
+/**
+ * Чи **`HTTPRoute`** порушує канон 4 правил Hasura (див. k8s.mdc).
+ * Повертає текст порушення або null, якщо канон витримано. Додаткові правила поверх канону допускаються.
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {string | null} текст порушення або null, якщо канон витримано
+ */
+export function httpRouteHasuraCanonViolation(manifest) {
+  const rec = asPlainRecord(manifest)
+  if (rec === null) return null
+  const spec = asPlainRecord(rec.spec)
+  if (spec === null) return 'HTTPRoute без spec — канон Hasura вимагає 4 правил (див. k8s.mdc)'
+  const rules = spec.rules
+  if (!Array.isArray(rules) || rules.length === 0) {
+    return 'spec.rules порожній — канон Hasura вимагає 4 правил у порядку (див. k8s.mdc)'
+  }
+  const start = findHasuraCanonStart(rules)
+  if (start === null) {
+    return 'не знайдено правило 1 Hasura-канона: Exact "<prefix>/ql" + RequestRedirect ReplaceFullPath "<prefix>/ql/console" statusCode 302 (див. k8s.mdc)'
+  }
+  const { prefix, startIndex } = start
+  const qlPath = `${prefix}/ql`
+  const qlSlashPath = `${prefix}/ql/`
+  const consolePath = `${prefix}/ql/console`
+
+  if (!hasuraRuleHasExactRedirect(rules[startIndex], consolePath)) {
+    return `правило 1 Hasura-канона (rules[${startIndex}], prefix «${prefix}»): Exact "${qlPath}" має мати RequestRedirect ReplaceFullPath "${consolePath}" statusCode 302 (див. k8s.mdc)`
+  }
+
+  const i2 = findHasuraRule(
+    rules,
+    startIndex + 1,
+    r => hasuraRuleMatchesSinglePathNoHeaders(r, 'Exact', qlSlashPath) && hasuraRuleHasExactRedirect(r, consolePath)
+  )
+  if (i2 === -1) {
+    return `правило 2 Hasura-канона: після правила 1 має бути Exact "${qlSlashPath}" + RequestRedirect ReplaceFullPath "${consolePath}" statusCode 302 (див. k8s.mdc)`
+  }
+
+  const i3 = findHasuraRule(
+    rules,
+    i2 + 1,
+    r => hasuraRuleIsQlUrlRewrite(r, qlPath) && hasuraRuleSingleBackendName(r) !== null
+  )
+  if (i3 === -1) {
+    return `правило 3 Hasura-канона: після правила 2 має бути PathPrefix "${qlPath}" + URLRewrite ReplacePrefixMatch "/" + один backendRef на headless Service (див. k8s.mdc)`
+  }
+  const backendName = /** @type {string} */ (hasuraRuleSingleBackendName(rules[i3]))
+
+  const i4 = findHasuraRule(
+    rules,
+    i3 + 1,
+    r => hasuraRuleIsWebsocket(r, qlPath) && hasuraRuleSingleBackendName(r) === backendName
+  )
+  if (i4 === -1) {
+    return `правило 4 Hasura-канона (WebSocket): після правила 3 має бути PathPrefix "${qlPath}" + header "Upgrade: websocket" + URLRewrite ReplacePrefixMatch "/" + RequestHeaderModifier remove [Authorization] + backendRef «${backendName}» (див. k8s.mdc)`
+  }
+
+  return null
+}
+
+/**
  * Збирає **`metadata.name`** для **kind: Service** у коренях документів; при помилці викликає **fail** і повертає false.
  * @param {Record<string, unknown>[]} roots корені YAML-документів
  * @param {string} relForMsg відносний шлях до файлу для повідомлення
@@ -2297,6 +2573,113 @@ async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
   failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail)
   for (const svcAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc.yaml')) {
     await validateOneSvcYamlHlPair(root, absSet, svcAbs, fail)
+  }
+}
+
+/**
+ * Індексує Hasura-Deployment-и за каталогом (ключ — абсолютний шлях каталогу, значення — множина `metadata.name`).
+ * Паралельно збирає всі `kind: HTTPRoute` Gateway API (`gateway.networking.k8s.io/*`) із doc-індексом.
+ * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
+ * @returns {Promise<{
+ *   hasuraByDir: Map<string, Set<string>>,
+ *   httpRoutes: { abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]
+ * }>} індекс Hasura-Deployment-ів за каталогом і список HTTPRoute-документів
+ */
+async function collectHasuraDeploymentsAndHttpRoutes(yamlFiles) {
+  /** @type {Map<string, Set<string>>} */
+  const hasuraByDir = new Map()
+  /** @type {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]} */
+  const httpRoutes = []
+
+  for (const abs of yamlFiles) {
+    await indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes)
+  }
+
+  return { hasuraByDir, httpRoutes }
+}
+
+/**
+ * Читає один YAML і додає Hasura-Deployment-и / HTTPRoute-документи до відповідних колекцій (нещасливі читання ігнорує).
+ * @param {string} abs абсолютний шлях до файлу
+ * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом
+ * @param {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]} httpRoutes колектор HTTPRoute-документів
+ * @returns {Promise<void>}
+ */
+async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch {
+    return
+  }
+  const lines = toLines(raw)
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return
+  }
+  const dir = dirname(abs)
+
+  for (const [di, doc] of docs.entries()) {
+    if (doc.errors.length === 0) {
+      const rec = asPlainRecord(doc.toJSON())
+      if (rec !== null) {
+        recordHasuraDeploymentName(rec, dir, hasuraByDir)
+        const av = rec.apiVersion
+        if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
+          httpRoutes.push({ abs, dir, docIndex: di + 1, obj: rec })
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Якщо документ — Hasura-Deployment із непорожнім `metadata.name`, додає ім'я до індексу за каталогом.
+ * @param {Record<string, unknown>} rec корінь YAML-документа
+ * @param {string} dir абсолютний шлях до каталогу файлу
+ * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом (мутується)
+ * @returns {void}
+ */
+function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
+  if (!isHasuraDeploymentManifest(rec)) return
+  const meta = asPlainRecord(rec.metadata)
+  const name = meta === null ? undefined : meta.name
+  if (typeof name !== 'string' || name === '') return
+  let set = hasuraByDir.get(dir)
+  if (set === undefined) {
+    set = new Set()
+    hasuraByDir.set(dir, set)
+  }
+  set.add(name)
+}
+
+/**
+ * Для кожного `kind: HTTPRoute`, що прив'язаний до **Hasura-Deployment** у тому самому каталозі за **`metadata.name`**,
+ * звіряє канон 4 правил (див. `httpRouteHasuraCanonViolation` і k8s.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
+ * @param {(msg: string) => void} fail callback реєстрації помилки
+ * @returns {Promise<void>}
+ */
+async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
+  const { hasuraByDir, httpRoutes } = await collectHasuraDeploymentsAndHttpRoutes(yamlFiles)
+  if (hasuraByDir.size === 0 || httpRoutes.length === 0) return
+
+  for (const hr of httpRoutes) {
+    const meta = asPlainRecord(hr.obj.metadata)
+    const name = meta === null ? undefined : meta.name
+    const set = typeof name === 'string' && name !== '' ? hasuraByDir.get(hr.dir) : undefined
+    if (set !== undefined && typeof name === 'string' && set.has(name)) {
+      const v = httpRouteHasuraCanonViolation(hr.obj)
+      if (v !== null) {
+        const rel = (relative(root, hr.abs) || hr.abs).replaceAll('\\', '/')
+        fail(`${rel}: HTTPRoute «${name}» (документ ${hr.docIndex}; прив'язано до Hasura-Deployment у тому ж каталозі): ${v}`)
+      }
+    }
   }
 }
 
@@ -2810,6 +3193,8 @@ export async function check() {
   }
 
   await validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail)
+
+  await validateHasuraHttpRouteCanon(root, yamlFiles, fail)
 
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
 

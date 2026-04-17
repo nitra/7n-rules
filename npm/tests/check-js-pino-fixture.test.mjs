@@ -32,6 +32,48 @@ describe('check-js-pino (мінімальний проєкт)', () => {
     })
   })
 
+  test('1, якщо у джерелах workspace-пакета лишився import з @nitra/bunyan', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'r',
+        private: true,
+        workspaces: ['pkg']
+      })
+      await ensureDir('pkg')
+      await writeJson(join('pkg', 'package.json'), {
+        name: 'pkg',
+        dependencies: { '@nitra/pino': '^1.0.0' }
+      })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import log from '@nitra/bunyan'\nlog.info('start')\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('0, якщо джерела використовують лише @nitra/pino', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'r',
+        private: true,
+        workspaces: ['pkg']
+      })
+      await ensureDir('pkg')
+      await writeJson(join('pkg', 'package.json'), {
+        name: 'pkg',
+        dependencies: { '@nitra/pino': '^1.0.0' }
+      })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import log from '@nitra/pino'\nlog.info('start')\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
   test('configmap з OTEL_RESOURCE_ATTRIBUTES — OK', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {

@@ -110,7 +110,16 @@ resources: {}
 
 ### HTTPRoute для Deployment з `hasura/graphql-engine`
 
-Якщо для такого **Deployment** описано **`HTTPRoute`**, **`spec.rules`** мають відповідати канону нижче: редірект **`/ql`** та **`/ql/`** на **`/ql/console`** (**`302`**), правило з **`PathPrefix` `/ql`**, **`URLRewrite`** префікса на **`/`**, окреме правило для **WebSocket** (**`Upgrade: websocket`**) з **`RequestHeaderModifier`** (прибрати **`Authorization`** — авторизація для WebSocket іде всередині messages), далі **`PathPrefix` `/`** на той самий backend.
+**Прив'язка:** **check k8s** вважає **HTTPRoute** Hasura-маршрутом, якщо в **тому самому каталозі** є **`Deployment`** з образом **`hasura/graphql-engine`**, а його **`metadata.name`** збігається з **`metadata.name`** цього **`HTTPRoute`**. Саме за цією конвенцією скрипт шукає пари для звірки канону.
+
+**Префікс параметризовано:** **`<prefix>`** — рядок перед **`/ql`** у першому Hasura-правилі (**`Exact <prefix>/ql`**). Може бути порожнім (**`<prefix>`** = **``**, шлях **`/ql`**) або непорожнім (наприклад **`<prefix>`** = **`/notify`**, шлях **`/notify/ql`**). Усі інші Hasura-правила цього **HTTPRoute** мають містити той самий **`<prefix>`**.
+
+**Канон — 4 правила у цьому порядку** (додаткові правила поверх канону дозволені — вони просто ігноруються під час зіставлення):
+
+1. **`Exact <prefix>/ql`** → **`RequestRedirect`** **`ReplaceFullPath <prefix>/ql/console`** **`statusCode: 302`**.
+2. **`Exact <prefix>/ql/`** → те саме (редирект на **`<prefix>/ql/console`** 302).
+3. **`PathPrefix <prefix>/ql`** → **`URLRewrite`** **`ReplacePrefixMatch /`**, один **`backendRef`** на headless **Service** (**`-hl`**).
+4. **WebSocket:** **`PathPrefix <prefix>/ql`** + header **`Upgrade: websocket`** → **`URLRewrite`** **`ReplacePrefixMatch /`** + **`RequestHeaderModifier`** **`remove: [Authorization]`** (авторизація для WebSocket іде всередині messages). Той самий **`backendRef`**.
 
 **`parentRefs`**, **`hostnames`**, **`metadata.namespace`** / **`name`** підлаштуй під середовище. У **`backendRefs.name`** вказуй **headless** **Service** з суфіксом **`-hl`** (див. розділ **«Service: `svc.yaml` і `svc-hl.yaml`»**); у прикладі **`db-h-hl`** заміни на фактичне ім’я.
 
@@ -278,7 +287,7 @@ patches:
 
 **`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.
 
-**Не входить у check k8s:** наприклад повна структура **`HTTPRoute`** для **Hasura** (канон — у розділі про **`hasura/graphql-engine`**), **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
+**Не входить у check k8s:** **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
 
 ## Коли застосовувати (агентам)
 
