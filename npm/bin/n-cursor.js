@@ -221,6 +221,10 @@ async function readConfig(paths = {}) {
     if ('skills' in parsedConfig && !Array.isArray(parsedConfig.skills)) {
       throw new Error(`У ${CONFIG_FILE} поле "skills" має бути масивом рядків`)
     }
+    const { ignore } = parsedConfig
+    if (ignore !== undefined && (!Array.isArray(ignore) || ignore.some(p => typeof p !== 'string'))) {
+      throw new Error(`У ${CONFIG_FILE} поле "ignore" має бути масивом рядків (шляхів до директорій)`)
+    }
 
     const rootPkg = await readRootPackageJsonSafe()
     const disableRules = normalizeIdList(parsedConfig['disable-rules'])
@@ -571,10 +575,23 @@ async function buildClaudeSkillsSectionLines() {
  * Завдяки цьому Claude Code автоматично завантажує вміст кожного правила при старті.
  * @returns {Promise<void>}
  */
-async function syncClaudeMd() {
+/**
+ * @param {string[]} [ignore] директорії заборонені для редагування
+ */
+async function syncClaudeMd(ignore) {
   const lines = [`<!-- Цей файл генерується автоматично через \`npx ${PACKAGE_NAME}\`. Не редагуй вручну. -->`, '']
-  const mdcFiles = await listProjectRulesMdcFiles()
 
+  if (Array.isArray(ignore) && ignore.length > 0) {
+    lines.push('## Захищені директорії', '', 'Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:')
+    for (const dir of ignore) {
+      let d = dir
+      while (d.endsWith('/')) d = d.slice(0, -1)
+      lines.push(`- \`${d}/\``)
+    }
+    lines.push('')
+  }
+
+  const mdcFiles = await listProjectRulesMdcFiles()
   for (const mdcFile of mdcFiles) {
     lines.push(`@${RULES_DIR}/${mdcFile}`)
   }
@@ -971,7 +988,7 @@ async function runSync() {
 
   const config = await runSyncStep('❌ ', () => readConfig({ bundledMdcDir, bundledSkillsDir }))
 
-  const { rules, skills, version } = config
+  const { rules, skills, version, ignore } = config
   const bundledVer = await readBundledVersionAt(effectivePackageRoot)
   if (bundledVer) {
     const line =
@@ -1025,7 +1042,9 @@ async function runSync() {
   })
 
   await runSyncStep(`❌ Не вдалося оновити ${AGENTS_FILE}: `, () => syncAgentsMd(bundledAgentsTemplatePath))
-  await runSyncStep('❌ Не вдалося оновити CLAUDE.md: ', () => syncClaudeMd())
+  await runSyncStep('❌ Не вдалося оновити CLAUDE.md: ', () =>
+    syncClaudeMd(/** @type {string[] | undefined} */ (ignore))
+  )
 
   console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
   if (failCount > 0) {
