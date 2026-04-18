@@ -116,7 +116,7 @@ spec:
 ## k8s: overlay **ru** і nginx-sidecar для WebSocket (Hasura)
 
 YC ALB (gwin) має баг: якщо HTTPRoute-правило містить одночасно `URLRewrite` (ReplacePrefixMatch) і `upgrade_types: websocket` — ALB не обробляє WebSocket і повертає 404.
-https://center.yandex.cloud/support/tickets/TX549394
+<https://center.yandex.cloud/support/tickets/TX549394>
 
 Обхідний варіант: nginx-sidecar у поді, що сам виконує rewrite і проксіює WebSocket до Hasura.
 
