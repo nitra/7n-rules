@@ -1,0 +1,87 @@
+npm/bin/n-cursor.js
+  e49617d9e09ffe80 224,227,578-581,584,586,590-594,991,1045-1047
+  d56843ab97585b5e 225-226,587-589
+npm/mdc/abie.mdc
+  h_aeba97fd179f87 116-256
+npm/schemas/n-cursor.json
+  e49617d9e09ffe80 46-53
+npm/package.json
+  h_aeba97fd179f87 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.0",
+  "base_commit_sha": "6e6e8ccd7a70af741248d7a48ff57ba5551b2879",
+  "prompts": {
+    "7138e6317f6995ad": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "8ceec7f2-23b4-468c-808c-6606d9da276d",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 1
+    },
+    "85590cdd33c7581d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c76c04a-14e5-415e-b45f-cf9f3c644e54",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    },
+    "d56843ab97585b5e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fe8867bc-c832-4f67-92b2-4a0b634d2528",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 9,
+      "total_deletions": 14,
+      "accepted_lines": 6,
+      "overriden_lines": 0
+    },
+    "e2ef1d3aaed011f9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "fb14c81d-6368-4927-9245-137ad8d21f6a",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 2,
+      "overriden_lines": 1
+    },
+    "e49617d9e09ffe80": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8080de59-2026-478e-b716-de9d59d7d415",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 1458,
+      "total_deletions": 241,
+      "accepted_lines": 46,
+      "overriden_lines": 1
+    }
+  },
+  "humans": {
+    "h_aeba97fd179f87": {
+      "author": "vitaliytv"
+    }
+  }
+}
