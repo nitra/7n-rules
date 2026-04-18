@@ -5,6 +5,8 @@
  * (`import` / `require` / динамічний `import()`); наявність `OTEL_RESOURCE_ATTRIBUTES`
  * у `k8s/base/configmap.yaml`, якщо такий файл існує.
  *
+ * Перевірка відповідності імені ConfigMap імені Deployment — у `check-k8s.mjs` (k8s.mdc).
+ *
  * Імпорти в джерелах сканує AST через `oxc-parser` (див. `utils/bunyan-imports.mjs`),
  * щоб виявити випадки на кшталт `import log from '@nitra/bunyan'`, які лишаються в коді
  * після підміни залежності.
@@ -78,7 +80,7 @@ async function checkWorkspacePackage(rootDir, fail, passFn) {
     passFn(`${label}немає імпортів '@nitra/bunyan' / 'bunyan' у джерелах`)
   }
 
-  const configmapPath = join(rootDir, 'k8s/base/configmap.yaml')
+  const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
   if (existsSync(configmapPath)) {
     const content = await readFile(configmapPath, 'utf8')
     if (content.includes('OTEL_RESOURCE_ATTRIBUTES')) {

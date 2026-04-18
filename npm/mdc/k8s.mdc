@@ -210,6 +210,10 @@ spec:
 
 **Точні умови та повідомлення `fail`** — верхній JSDoc **`npm/scripts/check-k8s.mjs`**.
 
+## ConfigMap: ім'я збігається з Deployment
+
+Якщо в `k8s/base/` є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment. Точні умови перевірки — **`check-k8s.mjs`**.
+
 ## Kustomize: структура каталогів (`base` / overlays)
 
 Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.

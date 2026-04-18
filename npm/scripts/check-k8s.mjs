@@ -58,7 +58,7 @@
  * **Структура `HTTPRoute` для Hasura-Deployment:** звіряється канон 4 правил у **`spec.rules`** (редиректи **`<prefix>/ql`** і **`<prefix>/ql/`** на **`<prefix>/ql/console`** 302, **`PathPrefix <prefix>/ql`** + **URLRewrite** на **`/`**, окреме WebSocket-правило з **`RequestHeaderModifier`** remove **`Authorization`**). **Префікс параметризовано** (рядок перед **`/ql`** у першому Hasura-правилі). **Прив'язка** — за **`metadata.name`** у тому ж каталозі, що й **Deployment** з образом **`hasura/graphql-engine`** (див. k8s.mdc). **Додаткові правила** поверх канону дозволені.
  */
 import { existsSync } from 'node:fs'
-import { readFile, stat, unlink } from 'node:fs/promises'
+import { readFile, readdir, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
@@ -1959,6 +1959,88 @@ export function isHasuraDeploymentManifest(manifest) {
   return containerListHasHasuraImage(p.containers) || containerListHasHasuraImage(p.initContainers)
 }
 
+const K8S_YAML_EXT_RE = /\.ya?ml$/iu
+
+/**
+ * Знаходить перший документ **Deployment** серед YAML-файлів каталогу (для перевірки імені ConfigMap, js-pino.mdc).
+ * @param {string} dirPath абсолютний шлях до каталогу
+ * @returns {Promise<Record<string, unknown> | null>} об'єкт Deployment або null
+ */
+export async function findDeploymentDocInDir(dirPath) {
+  let entries
+  try {
+    entries = await readdir(dirPath)
+  } catch {
+    return null
+  }
+  for (const entry of entries) {
+    if (!K8S_YAML_EXT_RE.test(entry)) continue
+    let raw
+    try {
+      raw = await readFile(join(dirPath, entry), 'utf8')
+    } catch {
+      continue
+    }
+    let docs
+    try {
+      docs = parseAllDocuments(raw)
+    } catch {
+      continue
+    }
+    for (const doc of docs) {
+      if (doc.errors.length > 0) continue
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        if (rec.kind === 'Deployment') return rec
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * Збирає унікальні імена **ConfigMap**, на які посилається **Deployment**
+ * через `spec.template.spec.containers[*].envFrom[*].configMapRef.name`
+ * та `spec.template.spec.volumes[*].configMap.name` (для перевірки js-pino.mdc).
+ * @param {Record<string, unknown>} deployment об'єкт Deployment
+ * @returns {Set<string>} унікальні імена ConfigMap
+ */
+export function collectDeploymentConfigMapRefs(deployment) {
+  /** @type {Set<string>} */
+  const names = new Set()
+  const spec = deployment.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return names
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || typeof template !== 'object' || Array.isArray(template)) return names
+  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec)) return names
+  const ps = /** @type {Record<string, unknown>} */ (podSpec)
+  for (const c of Array.isArray(ps.containers) ? /** @type {unknown[]} */ (ps.containers) : []) {
+    if (c === null || typeof c !== 'object' || Array.isArray(c)) continue
+    const envFrom = /** @type {Record<string, unknown>} */ (c).envFrom
+    for (const ef of Array.isArray(envFrom) ? /** @type {unknown[]} */ (envFrom) : []) {
+      if (ef !== null && typeof ef === 'object' && !Array.isArray(ef)) {
+        const cmr = /** @type {Record<string, unknown>} */ (ef).configMapRef
+        if (cmr !== null && typeof cmr === 'object' && !Array.isArray(cmr)) {
+          const n = /** @type {Record<string, unknown>} */ (cmr).name
+          if (typeof n === 'string' && n.trim() !== '') names.add(n)
+        }
+      }
+    }
+  }
+  for (const v of Array.isArray(ps.volumes) ? /** @type {unknown[]} */ (ps.volumes) : []) {
+    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+      const cm = /** @type {Record<string, unknown>} */ (v).configMap
+      if (cm !== null && typeof cm === 'object' && !Array.isArray(cm)) {
+        const n = /** @type {Record<string, unknown>} */ (cm).name
+        if (typeof n === 'string' && n.trim() !== '') names.add(n)
+      }
+    }
+  }
+  return names
+}
+
 /**
  * Чи **Service** містить заборонені анотації GKE у **`metadata.annotations`** (k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа
@@ -3160,6 +3242,69 @@ async function ensureBaseKustomizationHasNamespace(root, yamlFiles, fail) {
   }
 }
 
+const CONFIGMAP_BASE_PATH_RE = /\/k8s\/base\/configmap\.yaml$/u
+
+/**
+ * Якщо в `k8s/base/` є `configmap.yaml` і Deployment посилається рівно на один ConfigMap —
+ * `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment (k8s.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, passFn) {
+  const cmFiles = yamlFilesAbs.filter(abs => {
+    const rel = relative(root, abs).replaceAll('\\', '/')
+    return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
+  })
+  for (const cmAbs of cmFiles) {
+    const rel = relative(root, cmAbs).replaceAll('\\', '/') || cmAbs
+    let raw
+    try {
+      raw = await readFile(cmAbs, 'utf8')
+    } catch {
+      continue
+    }
+    let cmName = null
+    try {
+      for (const doc of parseAllDocuments(raw)) {
+        if (doc.errors.length > 0) continue
+        const obj = doc.toJSON()
+        if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+          const rec = /** @type {Record<string, unknown>} */ (obj)
+          if (rec.kind === 'ConfigMap') {
+            const meta = rec.metadata
+            if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+              const n = /** @type {Record<string, unknown>} */ (meta).name
+              if (typeof n === 'string' && n.trim() !== '') cmName = n
+            }
+            break
+          }
+        }
+      }
+    } catch {
+      continue
+    }
+    if (cmName === null) continue
+    const deployment = await findDeploymentDocInDir(dirname(cmAbs))
+    if (deployment === null) continue
+    const meta = deployment.metadata
+    const deployName =
+      meta !== null && typeof meta === 'object' && !Array.isArray(meta)
+        ? /** @type {Record<string, unknown>} */ (meta).name
+        : null
+    const cmRefs = collectDeploymentConfigMapRefs(deployment)
+    if (cmRefs.size !== 1 || typeof deployName !== 'string') continue
+    if (cmName === deployName) {
+      passFn(`${rel}: metadata.name '${cmName}' збігається з Deployment (k8s.mdc)`)
+    } else {
+      fail(
+        `${rel}: metadata.name '${cmName}' має збігатися з назвою Deployment '${deployName}' — Deployment посилається рівно на один ConfigMap (k8s.mdc)`
+      )
+    }
+  }
+}
+
 /**
  * Перевіряє відповідність проєкту правилам k8s.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
@@ -3200,6 +3345,8 @@ export async function check() {
   await validateKustomizationPatchTargetsResolved(root, yamlFiles, fail)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
+
+  await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
 
   return reporter.getExitCode()
 }
