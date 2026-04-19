@@ -3,6 +3,7 @@ description: Правила nginx для статичних файлів
 version: '1.2'
 ---
 
+> **Автоміграція:** `npx @nitra/cursor check nginx-default-tpl` автоматично перейменовує `default.tpl.conf` → `default.conf.template` (або перезаписує вміст, якщо обидва файли існують). Якщо шаблон відсутній — перевірка пропускається.
 
 default.conf.template повинен виглядати так:
 

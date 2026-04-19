@@ -256,12 +256,72 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
     pass('Всі workflows мають розширення .yml')
   }
 
-  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml']) {
+  for (const f of ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']) {
     if (files.includes(f)) {
       pass(`${f} існує`)
     } else {
       fail(`Відсутній ${wfDir}/${f}`)
     }
+  }
+}
+
+/**
+ * Перевіряє git-ai.yml: тригер pull_request з types: [closed], умова merged у job, виклик git-ai.
+ * @param {string} wfDir директорія workflows
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkGitAiWorkflow(wfDir, passFn, failFn) {
+  const gitAiWf = join(wfDir, 'git-ai.yml')
+  if (!existsSync(gitAiWf)) return
+  const content = await readFile(gitAiWf, 'utf8')
+  const root = parseWorkflowYaml(content)
+
+  if (root) {
+    // on.pull_request.types має містити 'closed'
+    const on = root.on
+    let hasPrClosed = false
+    if (on && typeof on === 'object') {
+      const pr = /** @type {Record<string, unknown>} */ (on)['pull_request']
+      if (pr && typeof pr === 'object') {
+        const types = /** @type {Record<string, unknown>} */ (pr).types
+        hasPrClosed = Array.isArray(types) && types.includes('closed')
+      }
+    }
+    if (hasPrClosed) {
+      passFn('git-ai.yml: on.pull_request.types містить closed')
+    } else {
+      failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
+    }
+
+    // Job if-умова: запускати лише при злитті PR
+    const jobs = root.jobs
+    let hasMergedCondition = false
+    if (jobs && typeof jobs === 'object') {
+      for (const job of Object.values(jobs)) {
+        if (job && typeof job === 'object') {
+          const ifCond = String(/** @type {Record<string, unknown>} */ (job).if ?? '')
+          if (ifCond.includes('merged')) {
+            hasMergedCondition = true
+          }
+        }
+      }
+    }
+    if (hasMergedCondition) {
+      passFn('git-ai.yml: job має умову merged')
+    } else {
+      failFn('git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)')
+    }
+  }
+
+  // Крок викликає git-ai ci github run
+  const hasGitAiRun = root
+    ? anyRunStepIncludes(root, 'git-ai ci github run')
+    : content.includes('git-ai ci github run')
+  if (hasGitAiRun) {
+    passFn('git-ai.yml: крок виконує git-ai ci github run')
+  } else {
+    failFn('git-ai.yml: крок має містити git-ai ci github run (ga.mdc)')
   }
 }
 
@@ -318,6 +378,7 @@ export async function check() {
   await checkZizmor(pass, fail)
   await checkLintGaScript(pass, fail)
   await checkLintGaWorkflow(wfDir, pass, fail)
+  await checkGitAiWorkflow(wfDir, pass, fail)
 
   return reporter.getExitCode()
 }

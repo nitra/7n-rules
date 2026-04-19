@@ -753,6 +753,76 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
 }
 
 /**
+ * Синхронізує .claude/commands/{dirName}.md для всіх локальних скілів з .cursor/skills/
+ * що не керуються пакетом (відсутні в configSkills).
+ * @param {string[]} configSkills id керованих skills (вже оброблені syncCommands)
+ * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
+ */
+async function syncLocalOnlySkillCommands(configSkills) {
+  const skillsRoot = join(cwd(), SKILLS_DIR)
+  if (!existsSync(skillsRoot)) return { success: 0, fail: 0 }
+
+  const commandsDir = join(cwd(), COMMANDS_DIR)
+  await mkdir(commandsDir, { recursive: true })
+
+  const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
+  const allDirNames = await listProjectSkillDirNames()
+  const localOnly = allDirNames.filter(d => !managedDirNames.has(d))
+
+  let success = 0
+  let fail = 0
+
+  for (const dirName of localOnly) {
+    const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
+    const destFile = join(commandsDir, `${dirName}.md`)
+
+    process.stdout.write(`  ⬇  ${dirName} → ${COMMANDS_DIR}/${dirName}.md ... `)
+    try {
+      let desc = ''
+      if (existsSync(skillMdPath)) {
+        const raw = await readFile(skillMdPath, 'utf8')
+        const parsed = extractSkillDescription(raw)
+        if (parsed) desc = skillDescriptionSafeForMarkdownInline(parsed)
+      }
+      const header = desc ? `# ${dirName} — ${desc}\n\n` : ''
+      const body = `${header}Виконай інструкції зі скілу \`${SKILLS_DIR}/${dirName}/SKILL.md\`.\n`
+      await writeFile(destFile, body, 'utf8')
+      console.log(`✅`)
+      success++
+    } catch (error) {
+      console.log(`❌`)
+      console.error(`     Помилка: ${errorMessage(error)}`)
+      fail++
+    }
+  }
+  return { success, fail }
+}
+
+/**
+ * Видаляє .claude/commands/{dirName}.md файли локальних скілів, яких більше немає в .cursor/skills/
+ * @param {string} commandsDir абсолютний шлях до .claude/commands
+ * @param {string[]} configSkills id керованих skills
+ * @returns {Promise<string[]>} імена видалених файлів
+ */
+async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
+  if (!existsSync(commandsDir)) return []
+
+  const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
+  const allDirNames = new Set(await listProjectSkillDirNames())
+  const names = await readdir(commandsDir)
+  const removed = []
+
+  for (const name of names.filter(n => n.endsWith('.md') && !n.startsWith(RULE_PREFIX))) {
+    const dirName = name.slice(0, -3)
+    if (!managedDirNames.has(dirName) && !allDirNames.has(dirName)) {
+      await unlink(join(commandsDir, name))
+      removed.push(name)
+    }
+  }
+  return removed.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
  * Людинозрозумілий текст винятку для логів.
  * @param {unknown} error виняток із catch
  * @returns {string} текст повідомлення
@@ -1031,13 +1101,19 @@ async function runSync() {
 
   await runSyncStep('❌ Commands: ', async () => {
     const { success: cmdOk, fail: cmdFail } = await syncCommands(skills, bundledSkillsDir)
-    if (skills.length > 0) {
-      console.log(`\n⌨️  Commands: ${cmdOk} скопійовано, ${cmdFail} з помилками`)
+    const { success: localOk, fail: localFail } = await syncLocalOnlySkillCommands(skills)
+    const totalOk = cmdOk + localOk
+    const totalFail = cmdFail + localFail
+    if (totalOk + totalFail > 0) {
+      console.log(`\n⌨️  Commands: ${totalOk} скопійовано, ${totalFail} з помилками`)
     }
-    const removedCmds = await removeOrphanManagedCommandFiles(join(cwd(), COMMANDS_DIR), skills)
+    const commandsDir = join(cwd(), COMMANDS_DIR)
+    const removedCmds = await removeOrphanManagedCommandFiles(commandsDir, skills)
     logRemovedManagedItems('commands', COMMANDS_DIR, removedCmds)
-    if (cmdFail > 0) {
-      throw new Error(`Не вдалося скопіювати ${cmdFail} з ${skills.length} commands`)
+    const removedLocalCmds = await removeOrphanLocalSkillCommandFiles(commandsDir, skills)
+    logRemovedManagedItems('commands (local)', COMMANDS_DIR, removedLocalCmds)
+    if (totalFail > 0) {
+      throw new Error(`Не вдалося скопіювати ${totalFail} commands`)
     }
   })
 

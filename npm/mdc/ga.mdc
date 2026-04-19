@@ -4,7 +4,7 @@ alwaysApply: true
 version: '1.3'
 ---
 
-У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
+У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**, **`git-ai.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
 
 Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
 
@@ -108,6 +108,37 @@ jobs:
 
       - name: Lint GA
         run: bun run lint-ga
+```
+
+Повинен бути файл .github/workflows/git-ai.yml, зі змістом:
+
+```yaml
+name: Git AI
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  git-ai:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Install git-ai
+        run: |
+          curl -fsSL https://usegitai.com/install.sh | bash
+          echo "$HOME/.git-ai/bin" >> $GITHUB_PATH
+      - name: Run git-ai
+        id: run-git-ai
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git-ai ci github run
 ```
 
 **Локальний composite** (`uses: ./.github/actions/setup-bun-deps` або `./npm/github-actions/setup-bun-deps`): **спочатку** обов’язковий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun**, **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
