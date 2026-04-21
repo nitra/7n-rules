@@ -68,10 +68,17 @@
  * обов'язкові **`hpa.yaml`** (`autoscaling/v2`, `HorizontalPodAutoscaler`, `scaleTargetRef.name` = ім'я Deployment)
  * і **`pdb.yaml`** (`policy/v1`, `PodDisruptionBudget`, `selector.matchLabels.app` = мітка `app` Deployment).
  * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — `minReplicas === 1`,
- * `minAvailable === 0`; **прод** (решта) — `minReplicas >= 2`, `maxReplicas >= 2`, `minAvailable >= 1`.
- * Сам Deployment має мати у `spec.template.spec.topologySpreadConstraints` запис
+ * `maxReplicas === 1`, `minAvailable === 0`; **прод** (решта) — `minReplicas >= 2`, `maxReplicas >= 2`,
+ * `minAvailable >= 1`. Сам Deployment має мати у `spec.template.spec.topologySpreadConstraints` запис
  * `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`,
  * `labelSelector.matchLabels.app` рівне `spec.selector.matchLabels.app` Deployment.
+ *
+ * **Прод-оверрайди в kustomization.yaml:** для прод-оверлеїв (не dev-like) `kustomization.yaml` у своїх
+ * inline `patches[]` повинен змінювати `/spec/minReplicas` і `/spec/maxReplicas` для
+ * **HorizontalPodAutoscaler**, і `/spec/minAvailable` для **PodDisruptionBudget** — щоб прод-мінімуми
+ * з (`>=2`, `>=2`, `>=1`) не залишалися на dev-значеннях із base. Формат patch — JSON6902 або Strategic Merge;
+ * наявність перевіряється через `kustomizationPatchPathsByTargetKind` (конкретне значення — у вмісті patch,
+ * яке буде оцінено під час збірки Kustomize).
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat, unlink } from 'node:fs/promises'
@@ -3521,7 +3528,7 @@ export function k8sEnvSegmentFromRelPath(relPath) {
 export function isDevLikeK8sEnvSegment(segment) {
   if (typeof segment !== 'string' || segment === '') return false
   if (segment === 'base' || segment === 'dev') return true
-  return /-qa$/u.test(segment)
+  return segment.endsWith('-qa')
 }
 
 /**
@@ -3606,6 +3613,7 @@ export function hpaManifestViolations(manifest, expectedDeployName, isDevLike) {
   }
   if (isDevLike) {
     if (minR !== null && minR !== 1) errs.push(`spec.minReplicas для dev-like (base/dev/*-qa) має бути 1 (зараз: ${minR})`)
+    if (maxR !== null && maxR !== 1) errs.push(`spec.maxReplicas для dev-like (base/dev/*-qa) має бути 1 (зараз: ${maxR})`)
   } else {
     if (minR !== null && minR < 2) errs.push(`spec.minReplicas для прод середовища має бути мінімум 2 (зараз: ${minR})`)
     if (maxR !== null && maxR < 2) errs.push(`spec.maxReplicas для прод середовища має бути мінімум 2 (зараз: ${maxR})`)
@@ -3771,6 +3779,179 @@ async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
 }
 
 /**
+ * Збирає шляхи **JSON Pointer**, які змінює один inline `patch` у **`patches[]`** kustomization.yaml.
+ * Підтримка двох форматів:
+ * — **JSON6902** (масив операцій): беремо `path` кожної операції (через `collectJson6902OperationsFromPatchText`).
+ * — **Strategic Merge** (YAML-обʼєкт): плоскі шляхи до всіх листових полів (наприклад
+ *    `spec.minReplicas: 2` → `/spec/minReplicas`). Проміжні обʼєкти не вважаються «зміненими» — лише листки.
+ * @param {string} patchText вміст поля `patch`
+ * @returns {Set<string>} шляхи JSON Pointer (наприклад `/spec/minReplicas`)
+ */
+export function kustomizePatchModifiedPaths(patchText) {
+  /** @type {Set<string>} */
+  const out = new Set()
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') return out
+  const ops = collectJson6902OperationsFromPatchText(patchText)
+  if (ops.length > 0) {
+    for (const { path } of ops) {
+      if (path) out.add(path)
+    }
+    return out
+  }
+  let parsed
+  try {
+    for (const d of parseAllDocuments(t)) {
+      if (d.errors.length === 0) {
+        parsed = d.toJSON()
+        break
+      }
+    }
+  } catch {
+    return out
+  }
+  if (parsed === null || parsed === undefined || typeof parsed !== 'object' || Array.isArray(parsed)) return out
+  /**
+   * Рекурсивний обхід: шлях додаємо лише для листків (скаляр / масив).
+   * @param {Record<string, unknown>} obj
+   * @param {string} prefix
+   */
+  const walk = (obj, prefix) => {
+    for (const [k, v] of Object.entries(obj)) {
+      const p = `${prefix}/${k}`
+      if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
+        walk(/** @type {Record<string, unknown>} */ (v), p)
+      } else {
+        out.add(p)
+      }
+    }
+  }
+  walk(/** @type {Record<string, unknown>} */ (parsed), '')
+  return out
+}
+
+/**
+ * Читає `kind` з inline **`patch`** у форматі Strategic Merge (для випадків, коли **`target.kind`** не заданий).
+ * @param {string} patchText вміст поля `patch`
+ * @returns {string | null} значення `kind` першого документа або null
+ */
+function strategicMergePatchKind(patchText) {
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') return null
+  try {
+    for (const d of parseAllDocuments(t)) {
+      if (d.errors.length === 0) {
+        const obj = d.toJSON()
+        if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+          const k = /** @type {Record<string, unknown>} */ (obj).kind
+          if (typeof k === 'string' && k !== '') return k
+        }
+      }
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+/**
+ * Збирає шляхи, змінені всіма inline `patches[]` у kustomization, згрупованими за `kind` цілі.
+ * `kind` визначається з `target.kind` (канон) або, якщо відсутній — з `kind:` у тілі Strategic Merge patch.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @returns {Map<string, Set<string>>} `kind` → шляхи JSON Pointer, які overrides змінюють
+ */
+export function kustomizationPatchPathsByTargetKind(kust) {
+  /** @type {Map<string, Set<string>>} */
+  const byKind = new Map()
+  const patches = kust.patches
+  if (!Array.isArray(patches)) return byKind
+  for (const p of patches) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+    const pr = /** @type {Record<string, unknown>} */ (p)
+    if (typeof pr.patch !== 'string') continue
+    /** @type {string | null} */
+    let kind = null
+    const target = pr.target
+    if (target !== null && typeof target === 'object' && !Array.isArray(target)) {
+      const tk = /** @type {Record<string, unknown>} */ (target).kind
+      if (typeof tk === 'string' && tk !== '') kind = tk
+    }
+    if (kind === null) kind = strategicMergePatchKind(pr.patch)
+    if (kind === null) continue
+    const paths = kustomizePatchModifiedPaths(pr.patch)
+    if (!byKind.has(kind)) byKind.set(kind, new Set())
+    const set = byKind.get(kind)
+    for (const x of paths) set.add(x)
+  }
+  return byKind
+}
+
+/**
+ * Для прод kustomization.yaml вимагає патчі, що перевизначають **`/spec/minReplicas`** і **`/spec/maxReplicas`**
+ * на **HorizontalPodAutoscaler**, а також **`/spec/minAvailable`** на **PodDisruptionBudget**. Не застосовується
+ * до dev-like (base / dev / *-qa) — там ці значення беруть з base (див. k8s.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, passFn) {
+  const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
+    const rel = relative(root, kustAbs).replaceAll('\\', '/')
+    const segment = k8sEnvSegmentFromRelPath(rel)
+    if (segment === null || isDevLikeK8sEnvSegment(segment)) continue
+    let raw
+    try {
+      raw = await readFile(kustAbs, 'utf8')
+    } catch {
+      continue
+    }
+    /** @type {Record<string, unknown> | undefined} */
+    let kust
+    try {
+      for (const doc of parseAllDocuments(raw)) {
+        if (doc.errors.length === 0) {
+          const obj = doc.toJSON()
+          if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+            kust = /** @type {Record<string, unknown>} */ (obj)
+            break
+          }
+        }
+      }
+    } catch {
+      continue
+    }
+    if (kust === undefined) continue
+    const byKind = kustomizationPatchPathsByTargetKind(kust)
+    const hpaPaths = byKind.get('HorizontalPodAutoscaler') ?? new Set()
+    const pdbPaths = byKind.get('PodDisruptionBudget') ?? new Set()
+    let ok = true
+    if (!hpaPaths.has('/spec/minReplicas')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.minReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
+    if (!hpaPaths.has('/spec/maxReplicas')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
+    if (!pdbPaths.has('/spec/minAvailable')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
+    if (ok) {
+      passFn(`${rel}: прод-оверрайди HPA minReplicas/maxReplicas і PDB minAvailable присутні (k8s.mdc)`)
+    }
+  }
+}
+
+/**
  * Для кожного **Deployment** під `k8s/` перевіряє: у тому ж каталозі повинні бути
  * `hpa.yaml` (валідний `autoscaling/v2`) і `pdb.yaml` (валідний `policy/v1`), а сам Deployment
  * повинен мати канонічні **topologySpreadConstraints**. Env-залежні межі (`minReplicas`,
@@ -3928,6 +4109,8 @@ export async function check() {
   await validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFiles, fail, pass)
 
   await validateDeploymentHpaPdbAndTopology(root, yamlFiles, fail, pass)
+
+  await validateProdKustomizationOverrides(root, yamlFiles, fail, pass)
 
   return reporter.getExitCode()
 }

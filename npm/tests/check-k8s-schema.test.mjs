@@ -22,6 +22,8 @@ import {
   isDevLikeK8sEnvSegment,
   isForbiddenAutoscalingV1Manifest,
   k8sEnvSegmentFromRelPath,
+  kustomizationPatchPathsByTargetKind,
+  kustomizePatchModifiedPaths,
   pdbManifestViolations,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
@@ -1036,13 +1038,18 @@ describe('hpaManifestViolations', () => {
     expect(hpaManifestViolations(makeHpa(), 'x', false)).toEqual([])
   })
 
-  test('dev-like: minReplicas === 1 — ок', () => {
-    expect(hpaManifestViolations(makeHpa({ minReplicas: 1, maxReplicas: 10 }), 'x', true)).toEqual([])
+  test('dev-like: minReplicas=1, maxReplicas=1 — ок', () => {
+    expect(hpaManifestViolations(makeHpa({ minReplicas: 1, maxReplicas: 1 }), 'x', true)).toEqual([])
   })
 
   test('dev-like: minReplicas !== 1 — помилка', () => {
-    const errs = hpaManifestViolations(makeHpa({ minReplicas: 2 }), 'x', true)
+    const errs = hpaManifestViolations(makeHpa({ minReplicas: 2, maxReplicas: 2 }), 'x', true)
     expect(errs.some(e => e.includes('minReplicas'))).toBe(true)
+  })
+
+  test('dev-like: maxReplicas !== 1 — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ minReplicas: 1, maxReplicas: 10 }), 'x', true)
+    expect(errs.some(e => e.includes('maxReplicas'))).toBe(true)
   })
 
   test('прод: minReplicas < 2 — помилка', () => {
@@ -1191,5 +1198,77 @@ describe('deploymentTopologySpreadConstraintsViolation', () => {
       'x'
     )
     expect(v).toContain('ScheduleAnyway')
+  })
+})
+
+describe('kustomizePatchModifiedPaths', () => {
+  test('JSON6902 — шляхи з op/path', () => {
+    const text = `- op: replace
+  path: /spec/minReplicas
+  value: 3
+- op: replace
+  path: /spec/maxReplicas
+  value: 10
+`
+    const paths = kustomizePatchModifiedPaths(text)
+    expect(paths.has('/spec/minReplicas')).toBe(true)
+    expect(paths.has('/spec/maxReplicas')).toBe(true)
+  })
+
+  test('Strategic Merge — плоскі шляхи листків', () => {
+    const text = `apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: x
+spec:
+  minReplicas: 3
+  maxReplicas: 10
+`
+    const paths = kustomizePatchModifiedPaths(text)
+    expect(paths.has('/spec/minReplicas')).toBe(true)
+    expect(paths.has('/spec/maxReplicas')).toBe(true)
+    expect(paths.has('/metadata/name')).toBe(true)
+    expect(paths.has('/spec')).toBe(false) // проміжний об'єкт — не листок
+  })
+
+  test('Порожній / не-YAML — порожній результат', () => {
+    expect(kustomizePatchModifiedPaths('').size).toBe(0)
+    expect(kustomizePatchModifiedPaths('   ').size).toBe(0)
+  })
+})
+
+describe('kustomizationPatchPathsByTargetKind', () => {
+  test('збирає шляхи за target.kind (JSON6902)', () => {
+    const kust = {
+      patches: [
+        {
+          target: { kind: 'HorizontalPodAutoscaler', name: 'x' },
+          patch: '- op: replace\n  path: /spec/minReplicas\n  value: 3\n'
+        },
+        {
+          target: { kind: 'PodDisruptionBudget', name: 'x' },
+          patch: '- op: replace\n  path: /spec/minAvailable\n  value: 1\n'
+        }
+      ]
+    }
+    const byKind = kustomizationPatchPathsByTargetKind(kust)
+    expect(byKind.get('HorizontalPodAutoscaler').has('/spec/minReplicas')).toBe(true)
+    expect(byKind.get('PodDisruptionBudget').has('/spec/minAvailable')).toBe(true)
+  })
+
+  test('без target.kind — бере kind з тіла Strategic Merge', () => {
+    const kust = {
+      patches: [
+        {
+          patch: 'apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: x\nspec:\n  maxReplicas: 5\n'
+        }
+      ]
+    }
+    const byKind = kustomizationPatchPathsByTargetKind(kust)
+    expect(byKind.get('HorizontalPodAutoscaler').has('/spec/maxReplicas')).toBe(true)
+  })
+
+  test('без patches — порожня мапа', () => {
+    expect(kustomizationPatchPathsByTargetKind({}).size).toBe(0)
   })
 })
