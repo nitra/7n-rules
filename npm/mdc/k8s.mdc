@@ -214,6 +214,15 @@ spec:
 
 Якщо в `k8s/base/` є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment. Точні умови перевірки — **`check-k8s.mjs`**.
 
+## ConfigMap для Hasura-Deployment
+
+Якщо в `k8s/base/` поруч із **`configmap.yaml`** є **Deployment** з образом **`hasura/graphql-engine`**, у `data` ConfigMap **обов'язково** має бути ключ **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`**. Точні умови перевірки — **`check-k8s.mjs`**.
+
+```yaml
+data:
+  HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true'
+```
+
 ## Kustomize: структура каталогів (`base` / overlays)
 
 Трансформуй дерева **`**/k8s`**, щоб **винести спільне** через [Kustomize](https://kustomize.io/): один канонічний **`base`** і тонкі **overlays** для інших середовищ.

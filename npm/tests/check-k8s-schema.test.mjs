@@ -13,7 +13,9 @@ import {
   deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
   expectedSchemaUrl,
+  hasuraConfigMapRemoteSchemaPermissionsViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
+  HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
@@ -343,6 +345,58 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
       }
     }
     expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain('initContainers')
+  })
+})
+
+describe('hasuraConfigMapRemoteSchemaPermissionsViolation', () => {
+  test('null для не-ConfigMap', () => {
+    expect(hasuraConfigMapRemoteSchemaPermissionsViolation({ kind: 'Deployment' })).toBeNull()
+  })
+
+  test('null коли ключ є зі значенням "true"', () => {
+    expect(
+      hasuraConfigMapRemoteSchemaPermissionsViolation({
+        kind: 'ConfigMap',
+        metadata: { name: 'x' },
+        data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: 'true' }
+      })
+    ).toBeNull()
+  })
+
+  test('null для булевого true', () => {
+    expect(
+      hasuraConfigMapRemoteSchemaPermissionsViolation({
+        kind: 'ConfigMap',
+        metadata: { name: 'x' },
+        data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: true }
+      })
+    ).toBeNull()
+  })
+
+  test('помилка, якщо data відсутній', () => {
+    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
+      kind: 'ConfigMap',
+      metadata: { name: 'x' }
+    })
+    expect(msg).toContain(HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)
+  })
+
+  test('помилка, якщо ключ відсутній у data', () => {
+    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
+      kind: 'ConfigMap',
+      metadata: { name: 'x' },
+      data: { OTHER: 'true' }
+    })
+    expect(msg).toContain(HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)
+  })
+
+  test('помилка, якщо значення не true', () => {
+    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
+      kind: 'ConfigMap',
+      metadata: { name: 'x' },
+      data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: 'false' }
+    })
+    expect(msg).toContain('"true"')
   })
 })
 

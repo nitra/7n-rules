@@ -56,6 +56,11 @@
  * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
  *
  * **Структура `HTTPRoute` для Hasura-Deployment:** звіряється канон 4 правил у **`spec.rules`** (редиректи **`<prefix>/ql`** і **`<prefix>/ql/`** на **`<prefix>/ql/console`** 302, **`PathPrefix <prefix>/ql`** + **URLRewrite** на **`/`**, окреме WebSocket-правило з **`RequestHeaderModifier`** remove **`Authorization`**). **Префікс параметризовано** (рядок перед **`/ql`** у першому Hasura-правилі). **Прив'язка** — за **`metadata.name`** у тому ж каталозі, що й **Deployment** з образом **`hasura/graphql-engine`** (див. k8s.mdc). **Додаткові правила** поверх канону дозволені.
+ *
+ * **ConfigMap для Hasura-Deployment:** якщо в `k8s/base/` є `configmap.yaml` і поруч Deployment з образом
+ * **`hasura/graphql-engine`**, то в `data` ConfigMap обов'язково має бути ключ
+ * **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (приймається булеве `true`
+ * або рядок `"true"`, без регістрової залежності).
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat, unlink } from 'node:fs/promises'
@@ -1959,6 +1964,49 @@ export function isHasuraDeploymentManifest(manifest) {
   return containerListHasHasuraImage(p.containers) || containerListHasHasuraImage(p.initContainers)
 }
 
+/**
+ * Обов'язковий ключ у **`data`** ConfigMap для Hasura-Deployment (узгоджено з k8s.mdc).
+ */
+export const HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY = 'HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS'
+
+/**
+ * Чи значення поля `data.<key>` у ConfigMap читається як логічне **true**.
+ * ConfigMap у Kubernetes тримає значення як рядки, але в YAML часто пишуть без лапок —
+ * тому приймаємо і булевий **true**, і рядок **"true"** (без регістрової залежності).
+ * @param {unknown} v значення з `data[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]`
+ * @returns {boolean} true, якщо значення — `true` або рядок `'true'`
+ */
+function isConfigMapValueTrue(v) {
+  if (v === true) return true
+  if (typeof v === 'string' && v.trim().toLowerCase() === 'true') return true
+  return false
+}
+
+/**
+ * Чи порушує ConfigMap вимогу щодо **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"`** (k8s.mdc).
+ * Перевірка застосовна, коли в тому ж каталозі є Hasura-Deployment (див. `isHasuraDeploymentManifest`).
+ * @param {unknown} manifest корінь YAML-документа ConfigMap
+ * @returns {string | null} текст порушення або null, якщо не ConfigMap / ключ є і значення `true`
+ */
+export function hasuraConfigMapRemoteSchemaPermissionsViolation(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'ConfigMap') return null
+  const data = rec.data
+  if (data === null || data === undefined || typeof data !== 'object' || Array.isArray(data)) {
+    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
+  }
+  const d = /** @type {Record<string, unknown>} */ (data)
+  if (!Object.hasOwn(d, HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)) {
+    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
+  }
+  if (!isConfigMapValueTrue(d[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY])) {
+    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: значення має бути "true" (зараз: ${JSON.stringify(d[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY])}) (див. k8s.mdc)`
+  }
+  return null
+}
+
 const K8S_YAML_EXT_RE = /\.ya?ml$/iu
 
 /**
@@ -3306,6 +3354,63 @@ async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, 
 }
 
 /**
+ * Знаходить перший документ **ConfigMap** у файлі (з `metadata.name`).
+ * @param {string} absPath абсолютний шлях до YAML-файлу
+ * @returns {Promise<Record<string, unknown> | null>} об'єкт ConfigMap або null
+ */
+async function readFirstConfigMapDoc(absPath) {
+  let raw
+  try {
+    raw = await readFile(absPath, 'utf8')
+  } catch {
+    return null
+  }
+  let docs
+  try {
+    docs = parseAllDocuments(raw)
+  } catch {
+    return null
+  }
+  for (const doc of docs) {
+    if (doc.errors.length > 0) continue
+    const obj = doc.toJSON()
+    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+      const rec = /** @type {Record<string, unknown>} */ (obj)
+      if (rec.kind === 'ConfigMap') return rec
+    }
+  }
+  return null
+}
+
+/**
+ * Для кожного `k8s/base/configmap.yaml`, у каталозі якого поруч є Hasura-Deployment,
+ * вимагає у `data` ключ **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (k8s.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs, fail, passFn) {
+  const cmFiles = yamlFilesAbs.filter(abs => {
+    const rel = relative(root, abs).replaceAll('\\', '/')
+    return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
+  })
+  for (const cmAbs of cmFiles) {
+    const rel = relative(root, cmAbs).replaceAll('\\', '/') || cmAbs
+    const deployment = await findDeploymentDocInDir(dirname(cmAbs))
+    if (deployment === null || !isHasuraDeploymentManifest(deployment)) continue
+    const cm = await readFirstConfigMapDoc(cmAbs)
+    if (cm === null) continue
+    const violation = hasuraConfigMapRemoteSchemaPermissionsViolation(cm)
+    if (violation !== null) {
+      fail(`${rel}: ${violation}`)
+    } else {
+      passFn(`${rel}: ${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}="true" для Hasura-Deployment (k8s.mdc)`)
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам k8s.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -3347,6 +3452,8 @@ export async function check() {
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 
   await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
+
+  await validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFiles, fail, pass)
 
   return reporter.getExitCode()
 }
