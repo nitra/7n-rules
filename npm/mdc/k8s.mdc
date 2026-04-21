@@ -282,6 +282,32 @@ data:
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
+## HorizontalPodAutoscaler: `autoscaling/v2`
+
+У маніфестах під **`k8s`** заборонено **`apiVersion: autoscaling/v1`** (legacy HPA з єдиною метрикою CPU). Мігруй **HorizontalPodAutoscaler** на **`autoscaling/v2`**: поле **`spec.metrics`** (замість **`spec.targetCPUUtilizationPercentage`**) з **`type: Resource`** і **`target.type: Utilization`** / **`AverageUtilization`** — підтримує декілька метрик і зовнішні метрики. `check k8s` падає на будь-якому документі з **`apiVersion: autoscaling/v1`**.
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: app
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+```
+
 3. **JSON patch у kustomization:** де можливо, змінюй ресурс через **`op: replace`** (одна операція на `path`), а не пару **`remove` + `add`** на той самий шлях. **`add`** / **`remove`** лишай лише коли **`replace`** не підходить (наприклад додати новий ключ або прибрати поле без заміни).
 
 ```yaml title="overlay/kustomization.yaml (фрагмент)"

@@ -21,6 +21,7 @@
  * файли **поза** цим графом — **непорожній** **`metadata.namespace`** (крім **кластерних** kind; див. k8s.mdc).
  *
  * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API).
+ * **`apiVersion: autoscaling/v1`** заборонено (мігруй **HorizontalPodAutoscaler** на **`autoscaling/v2`**).
  *
  * Файли під **`k8s`**, де всі YAML-документи — лише **`kind: BackendConfig`**, **видаляються** автоматично.
  * Якщо **BackendConfig** змішано з іншими ресурсами в одному файлі — перевірка завершується помилкою (розділи маніфести).
@@ -1760,13 +1761,44 @@ function failIfIngressInDocument(rel, docIndex, rec, fail) {
 }
 
 /**
- * Шукає **Ingress** у розібраних документах; реєструє порушення.
+ * Чи маніфест використовує заборонений **`apiVersion: autoscaling/v1`** (HPA).
+ * Канон — **`autoscaling/v2`** (див. k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа
+ * @returns {boolean} true, якщо `apiVersion === 'autoscaling/v1'`
+ */
+export function isForbiddenAutoscalingV1Manifest(manifest) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return false
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  return rec.apiVersion === 'autoscaling/v1'
+}
+
+/**
+ * Заборонена група **`apiVersion: autoscaling/v1`** (HPA) — вимагається міграція на **`autoscaling/v2`**.
  * @param {string} rel відносний шлях до файлу
- * @param {string} body YAML після modeline
- * @param {(msg: string) => void} fail callback для помилки (Ingress)
+ * @param {number} docIndex 1-based індекс документа
+ * @param {Record<string, unknown>} rec корінь маніфесту
+ * @param {(msg: string) => void} fail реєстрація помилки
  * @returns {void}
  */
-function scanIngressInYamlDocuments(rel, body, fail) {
+function failIfAutoscalingV1InDocument(rel, docIndex, rec, fail) {
+  if (!isForbiddenAutoscalingV1Manifest(rec)) {
+    return
+  }
+  const kind = typeof rec.kind === 'string' ? rec.kind : '(невідомо)'
+  fail(
+    `${rel}: знайдено apiVersion: autoscaling/v1 (документ ${docIndex}, kind: ${kind}) — мігруй на autoscaling/v2 (див. k8s.mdc)`
+  )
+}
+
+/**
+ * Шукає заборонені маніфести у розібраних документах: **kind: Ingress** і **apiVersion: autoscaling/v1**.
+ * @param {string} rel відносний шлях до файлу
+ * @param {string} body YAML після modeline
+ * @param {(msg: string) => void} fail callback для помилки
+ * @returns {void}
+ */
+function scanForbiddenManifestsInYamlDocuments(rel, body, fail) {
   /** @type {import('yaml').Document[]} */
   let docs
   try {
@@ -1779,7 +1811,9 @@ function scanIngressInYamlDocuments(rel, body, fail) {
     if (doc.errors.length === 0) {
       const obj = doc.toJSON()
       if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        failIfIngressInDocument(rel, di + 1, /** @type {Record<string, unknown>} */ (obj), fail)
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        failIfIngressInDocument(rel, di + 1, rec, fail)
+        failIfAutoscalingV1InDocument(rel, di + 1, rec, fail)
       }
     }
   }
@@ -3107,7 +3141,7 @@ function runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeMa
  */
 function checkK8sYamlHttpBackendGroupFile(rel, baseLower, lines, fail, pass, kustomizeManagedRel) {
   const body = lines.join('\n')
-  scanIngressInYamlDocuments(rel, body, fail)
+  scanForbiddenManifestsInYamlDocuments(rel, body, fail)
   pass(`${rel}: HttpBackendGroup (alb.yc.io/v1alpha1) — modeline $schema не застосовується (k8s.mdc)`)
   runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel)
 }
@@ -3137,7 +3171,7 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
 
   const body = yamlBodyAfterModeline(lines)
 
-  scanIngressInYamlDocuments(rel, body, fail)
+  scanForbiddenManifestsInYamlDocuments(rel, body, fail)
 
   if (schemaUrl.startsWith('file:')) {
     pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)

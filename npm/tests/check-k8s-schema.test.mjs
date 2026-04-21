@@ -16,6 +16,7 @@ import {
   hasuraConfigMapRemoteSchemaPermissionsViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
+  isForbiddenAutoscalingV1Manifest,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
@@ -345,6 +346,30 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
       }
     }
     expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain('initContainers')
+  })
+})
+
+describe('isForbiddenAutoscalingV1Manifest', () => {
+  test('true для autoscaling/v1', () => {
+    expect(
+      isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v1', kind: 'HorizontalPodAutoscaler' })
+    ).toBe(true)
+  })
+
+  test('false для autoscaling/v2', () => {
+    expect(
+      isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler' })
+    ).toBe(false)
+  })
+
+  test('false для не-autoscaling apiVersion', () => {
+    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'apps/v1', kind: 'Deployment' })).toBe(false)
+  })
+
+  test('false для null / non-object', () => {
+    expect(isForbiddenAutoscalingV1Manifest(null)).toBe(false)
+    expect(isForbiddenAutoscalingV1Manifest('autoscaling/v1')).toBe(false)
+    expect(isForbiddenAutoscalingV1Manifest([{ apiVersion: 'autoscaling/v1' }])).toBe(false)
   })
 })
 
