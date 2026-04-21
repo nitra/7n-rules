@@ -96,15 +96,19 @@ jobs:
         run: bun run lint-k8s
 ```
 
-## Deployment: `resources`
+## Deployment: `resources.requests.cpu`
 
-У **`Deployment`** у кожному **`containers`** / **`initContainers`** має бути **`resources`**; якщо лімітів ще немає — мінімум порожній запис:
+У **`Deployment`** у кожному **`containers`** має бути **`resources.requests.cpu`** — непорожнє значення (наприклад **`"500m"`**, **`"100m"`** або число на кшталт **`0.5`**). Це гарантує, що Kubernetes планує pod з мінімальним бюджетом CPU і коректно працює з HPA (CPU target %).
+
+Якщо для сервісу ще не обрано конкретне значення — став **`"0.5"`** як безпечний мінімум:
 
 ```yaml
-resources: {}
+resources:
+  requests:
+    cpu: '0.5' # довільне значення; 0.5 — дефолт, якщо нічого специфічного ще не обрано
 ```
 
-**`check k8s`** перевіряє наявність **`resources`** у кожному документі **Deployment** під **`k8s`**. Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
+**`check k8s`** перевіряє присутність і непорожність **`resources.requests.cpu`** у кожному документі **Deployment** під **`k8s`**. Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
 
 Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег із константи **`HASURA_GRAPHQL_ENGINE_IMAGE`** у **`check-k8s.mjs`** (допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
 
@@ -281,6 +285,96 @@ data:
    За потреби розшир **`target`** (`name`, `namespace`), щоб однозначно вказати об’єкт.
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
+
+## Deployment: обов'язкові `hpa.yaml`, `pdb.yaml`, `topologySpreadConstraints`
+
+Для **кожного** `kind: Deployment` під **`k8s/`** у тому ж каталозі мають бути **`hpa.yaml`** (HPA) і **`pdb.yaml`** (PDB), а сам Deployment — мати канонічні **`spec.template.spec.topologySpreadConstraints`**. Скрипт звіряє прив'язку за іменами:
+
+- **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
+- **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
+- **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
+
+### Env-залежні межі (за сегментом після `/k8s/`)
+
+**Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa` (напр. `tr-qa`):
+
+- HPA: `minReplicas === 1`.
+- PDB: `minAvailable === 0`.
+
+**Прод-середовища** — усе інше (будь-який overlay без суфікса `-qa`):
+
+- HPA: `minReplicas >= 2`, `maxReplicas >= 2`.
+- PDB: `minAvailable >= 1`.
+
+### Приклади
+
+```yaml title="k8s/base/hpa.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend-api
+  minReplicas: 1 # прод: >= 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+```
+
+```yaml title="k8s/base/pdb.yaml"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/poddisruptionbudget-policy-v1.json
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-api
+spec:
+  minAvailable: 0 # прод: >= 1
+  selector:
+    matchLabels:
+      app: backend-api
+```
+
+```yaml title="k8s/base/deploy.yaml (фрагмент)"
+spec:
+  template:
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: backend-api
+```
+
+В overlays для проду `minReplicas`, `maxReplicas`, `minAvailable` підіймаєш до прод-мінімумів через **Kustomize patches** або окремі `hpa.yaml` / `pdb.yaml` у каталозі overlay (тоді перевірка спрацьовує за їхнім середовищем).
 
 ## HorizontalPodAutoscaler: `autoscaling/v2`
 

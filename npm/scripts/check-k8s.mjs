@@ -7,11 +7,12 @@
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
- * **`spec.template.spec.containers[]`** має бути ключ **`resources`** (значення — об’єкт, допускається
- * порожній **`{}`**). Поле **`imagePullPolicy`** не перевіряється — діють типові правила Kubernetes
- * (`:latest` або коли тег не вказано → **Always**, інші теги → **IfNotPresent**). Якщо серед **`containers`** /
- * **`initContainers`** є образ **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`**
- * (див. k8s.mdc).
+ * **`spec.template.spec.containers[]`** має бути ключ **`resources`** з непорожнім
+ * **`resources.requests.cpu`** (рядок на кшталт **`"500m"`** або число; якщо значення ще не обрано —
+ * рекомендоване за замовчуванням — **`DEFAULT_CONTAINER_CPU_REQUEST`** = **`"0.5"`**). Поле **`imagePullPolicy`**
+ * не перевіряється — діють типові правила Kubernetes (`:latest` або коли тег не вказано → **Always**,
+ * інші теги → **IfNotPresent**). Якщо серед **`containers`** / **`initContainers`** є образ
+ * **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`** (див. k8s.mdc).
  *
  * **Namespace і Kustomize:** YAML у **`…/k8s/base/`** (окрім імені **`kustomization.yaml`**)
  * завжди має **непорожній** **`metadata.namespace`** у відповідних документах (узгоджено з dev у репозиторії),
@@ -62,6 +63,15 @@
  * **`hasura/graphql-engine`**, то в `data` ConfigMap обов'язково має бути ключ
  * **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (приймається булеве `true`
  * або рядок `"true"`, без регістрової залежності).
+ *
+ * **HPA / PDB / topologySpreadConstraints для кожного Deployment:** у каталозі з **`Deployment`** поруч
+ * обов'язкові **`hpa.yaml`** (`autoscaling/v2`, `HorizontalPodAutoscaler`, `scaleTargetRef.name` = ім'я Deployment)
+ * і **`pdb.yaml`** (`policy/v1`, `PodDisruptionBudget`, `selector.matchLabels.app` = мітка `app` Deployment).
+ * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — `minReplicas === 1`,
+ * `minAvailable === 0`; **прод** (решта) — `minReplicas >= 2`, `maxReplicas >= 2`, `minAvailable >= 1`.
+ * Сам Deployment має мати у `spec.template.spec.topologySpreadConstraints` запис
+ * `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`,
+ * `labelSelector.matchLabels.app` рівне `spec.selector.matchLabels.app` Deployment.
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat, unlink } from 'node:fs/promises'
@@ -1820,7 +1830,26 @@ function scanForbiddenManifestsInYamlDocuments(rel, body, fail) {
 }
 
 /**
- * Перевірка поля **resources** для одного контейнера **Deployment**.
+ * Рекомендоване значення **`resources.requests.cpu`** за замовчуванням для підказки в повідомленнях (k8s.mdc).
+ */
+export const DEFAULT_CONTAINER_CPU_REQUEST = '0.5'
+
+/**
+ * Чи значення `resources.requests.cpu` записане у валідному вигляді:
+ * непорожній рядок (`"500m"`, `"0.5"`) або додатне число.
+ * @param {unknown} cpu значення поля `resources.requests.cpu`
+ * @returns {boolean} true, якщо значення прийнятне
+ */
+function isValidCpuRequestValue(cpu) {
+  if (typeof cpu === 'string') return cpu.trim() !== ''
+  if (typeof cpu === 'number') return Number.isFinite(cpu) && cpu > 0
+  return false
+}
+
+/**
+ * Перевірка поля **`resources`** для одного контейнера **Deployment**: вимагає не лише присутність
+ * **`resources`**, а й непорожнє **`resources.requests.cpu`** (див. k8s.mdc). Якщо конкретне
+ * значення ще не обрано — як безпечне за замовчуванням рекомендовано **`DEFAULT_CONTAINER_CPU_REQUEST`**.
  * @param {unknown} c елемент **containers[]**
  * @param {string} label підпис у повідомленні
  * @returns {string | null} текст порушення або null
@@ -1831,11 +1860,23 @@ function deploymentContainerResourcesViolation(c, label) {
   }
   const cont = /** @type {Record<string, unknown>} */ (c)
   if (!('resources' in cont)) {
-    return `контейнер "${label}": відсутнє поле resources — додай resources: {} (див. k8s.mdc)`
+    return `контейнер "${label}": відсутнє поле resources — додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
   }
   const r = cont.resources
   if (r === null || typeof r !== 'object' || Array.isArray(r)) {
-    return `контейнер "${label}": resources має бути записом у YAML (наприклад порожній: resources: {})`
+    return `контейнер "${label}": resources має бути записом у YAML`
+  }
+  const resources = /** @type {Record<string, unknown>} */ (r)
+  const requests = resources.requests
+  if (requests === null || requests === undefined || typeof requests !== 'object' || Array.isArray(requests)) {
+    return `контейнер "${label}": додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
+  }
+  const req = /** @type {Record<string, unknown>} */ (requests)
+  if (!('cpu' in req)) {
+    return `контейнер "${label}": додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
+  }
+  if (!isValidCpuRequestValue(req.cpu)) {
+    return `контейнер "${label}": resources.requests.cpu має бути непорожнім значенням (наприклад "500m" або ${DEFAULT_CONTAINER_CPU_REQUEST}) (зараз: ${JSON.stringify(req.cpu)}) (див. k8s.mdc)`
   }
   return null
 }
@@ -3445,6 +3486,403 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
 }
 
 /**
+ * Ім'я файлу HPA поруч із Deployment (див. k8s.mdc).
+ */
+export const HPA_FILENAME = 'hpa.yaml'
+
+/**
+ * Ім'я файлу PDB поруч із Deployment (див. k8s.mdc).
+ */
+export const PDB_FILENAME = 'pdb.yaml'
+
+/**
+ * Канонічний topologyKey для **topologySpreadConstraints** у Deployment (див. k8s.mdc).
+ */
+const TOPOLOGY_SPREAD_TOPOLOGY_KEY = 'kubernetes.io/hostname'
+
+/**
+ * Витягує сегмент каталогу після `/k8s/` у relative-шляху (перший компонент за `k8s/`).
+ * Приклад: `app/k8s/base/deploy.yaml` → `base`; `app/k8s/tr-qa/hpa.yaml` → `tr-qa`.
+ * @param {string} relPath відносний шлях у POSIX-форматі (через `/`)
+ * @returns {string | null} сегмент середовища або null, якщо `/k8s/` немає в шляху
+ */
+export function k8sEnvSegmentFromRelPath(relPath) {
+  const m = relPath.match(/(?:^|\/)k8s\/([^/]+)(?:\/|$)/u)
+  return m ? m[1] : null
+}
+
+/**
+ * Чи сегмент середовища вважається **dev-like** (м'які вимоги до HPA/PDB):
+ * `base`, `dev`, або будь-що з суфіксом `-qa` (напр. `tr-qa`).
+ * Решта (прод / staging / будь-який інший overlay) — прод-вимоги.
+ * @param {string | null | undefined} segment сегмент після `/k8s/`
+ * @returns {boolean} true для dev-like середовища
+ */
+export function isDevLikeK8sEnvSegment(segment) {
+  if (typeof segment !== 'string' || segment === '') return false
+  if (segment === 'base' || segment === 'dev') return true
+  return /-qa$/u.test(segment)
+}
+
+/**
+ * Витягує рядкове ім'я з `metadata.name` об'єкта Kubernetes.
+ * @param {Record<string, unknown>} manifest корінь маніфесту
+ * @returns {string | null} непорожнє ім'я або null
+ */
+function manifestMetadataName(manifest) {
+  const meta = manifest.metadata
+  if (meta === null || meta === undefined || typeof meta !== 'object' || Array.isArray(meta)) return null
+  const n = /** @type {Record<string, unknown>} */ (meta).name
+  return typeof n === 'string' && n.trim() !== '' ? n : null
+}
+
+/**
+ * Витягує мітку `app` з `spec.selector.matchLabels.app` Deployment.
+ * @param {Record<string, unknown>} deployment об'єкт Deployment
+ * @returns {string | null} непорожнє значення `app` або null, якщо не задане
+ */
+export function deploymentAppLabel(deployment) {
+  const spec = deployment.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const selector = /** @type {Record<string, unknown>} */ (spec).selector
+  if (selector === null || typeof selector !== 'object' || Array.isArray(selector)) return null
+  const matchLabels = /** @type {Record<string, unknown>} */ (selector).matchLabels
+  if (matchLabels === null || typeof matchLabels !== 'object' || Array.isArray(matchLabels)) return null
+  const app = /** @type {Record<string, unknown>} */ (matchLabels).app
+  return typeof app === 'string' && app.trim() !== '' ? app : null
+}
+
+/**
+ * Перетворює значення на ціле число (приймає число або числовий рядок).
+ * @param {unknown} v значення з YAML
+ * @returns {number | null} ціле або null, якщо не читається як ціле
+ */
+function coerceInteger(v) {
+  if (typeof v === 'number' && Number.isInteger(v)) return v
+  if (typeof v === 'string' && /^-?\d+$/u.test(v.trim())) return Number.parseInt(v, 10)
+  return null
+}
+
+/**
+ * Перевіряє **HPA** (`autoscaling/v2`, `HorizontalPodAutoscaler`): структура й env-залежні межі
+ * minReplicas / maxReplicas (**dev-like:** `minReplicas === 1`; **прод:** `minReplicas >= 2`, `maxReplicas >= 2`).
+ * @param {unknown} manifest корінь YAML-документа HPA
+ * @param {string} expectedDeployName очікуване ім'я Deployment у `scaleTargetRef.name`
+ * @param {boolean} isDevLike чи середовище dev-like (base/dev/*-qa)
+ * @returns {string[]} список порушень (порожній — ок)
+ */
+export function hpaManifestViolations(manifest, expectedDeployName, isDevLike) {
+  /** @type {string[]} */
+  const errs = []
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    errs.push('HPA має бути обʼєктом YAML')
+    return errs
+  }
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'HorizontalPodAutoscaler') errs.push(`kind має бути HorizontalPodAutoscaler (зараз: ${JSON.stringify(rec.kind)})`)
+  if (rec.apiVersion !== 'autoscaling/v2') errs.push(`apiVersion має бути autoscaling/v2 (зараз: ${JSON.stringify(rec.apiVersion)})`)
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
+    errs.push('spec відсутній або некоректний')
+    return errs
+  }
+  const s = /** @type {Record<string, unknown>} */ (spec)
+  const str = s.scaleTargetRef
+  if (str === null || str === undefined || typeof str !== 'object' || Array.isArray(str)) {
+    errs.push('spec.scaleTargetRef відсутній')
+  } else {
+    const r = /** @type {Record<string, unknown>} */ (str)
+    if (r.apiVersion !== 'apps/v1') errs.push(`spec.scaleTargetRef.apiVersion має бути apps/v1 (зараз: ${JSON.stringify(r.apiVersion)})`)
+    if (r.kind !== 'Deployment') errs.push(`spec.scaleTargetRef.kind має бути Deployment (зараз: ${JSON.stringify(r.kind)})`)
+    if (r.name !== expectedDeployName)
+      errs.push(`spec.scaleTargetRef.name має бути '${expectedDeployName}' (зараз: ${JSON.stringify(r.name)})`)
+  }
+  const minR = coerceInteger(s.minReplicas)
+  const maxR = coerceInteger(s.maxReplicas)
+  if (minR === null) errs.push('spec.minReplicas має бути цілим числом')
+  if (maxR === null) errs.push('spec.maxReplicas має бути цілим числом')
+  if (minR !== null && maxR !== null && minR > maxR) {
+    errs.push(`spec.minReplicas (${minR}) не може бути більше spec.maxReplicas (${maxR})`)
+  }
+  if (isDevLike) {
+    if (minR !== null && minR !== 1) errs.push(`spec.minReplicas для dev-like (base/dev/*-qa) має бути 1 (зараз: ${minR})`)
+  } else {
+    if (minR !== null && minR < 2) errs.push(`spec.minReplicas для прод середовища має бути мінімум 2 (зараз: ${minR})`)
+    if (maxR !== null && maxR < 2) errs.push(`spec.maxReplicas для прод середовища має бути мінімум 2 (зараз: ${maxR})`)
+  }
+  if (!Array.isArray(s.metrics) || s.metrics.length === 0) {
+    errs.push('spec.metrics має бути непорожнім масивом (наприклад, Resource/cpu/Utilization)')
+  }
+  const behavior = s.behavior
+  if (behavior === null || behavior === undefined || typeof behavior !== 'object' || Array.isArray(behavior)) {
+    errs.push('spec.behavior відсутній (має містити scaleUp і scaleDown)')
+  } else {
+    const b = /** @type {Record<string, unknown>} */ (behavior)
+    for (const key of /** @type {const} */ (['scaleUp', 'scaleDown'])) {
+      const v = b[key]
+      if (v === null || v === undefined || typeof v !== 'object' || Array.isArray(v)) {
+        errs.push(`spec.behavior.${key} відсутній`)
+        continue
+      }
+      const policies = /** @type {Record<string, unknown>} */ (v).policies
+      if (!Array.isArray(policies) || policies.length === 0) {
+        errs.push(`spec.behavior.${key}.policies має бути непорожнім масивом`)
+      }
+    }
+  }
+  return errs
+}
+
+/**
+ * Перевіряє **PDB** (`policy/v1`, `PodDisruptionBudget`): структура й env-залежна межа
+ * minAvailable (**dev-like:** `=== 0`; **прод:** `>= 1`).
+ * @param {unknown} manifest корінь YAML-документа PDB
+ * @param {string} expectedAppLabel очікувана мітка `app` у `selector.matchLabels`
+ * @param {boolean} isDevLike чи середовище dev-like (base/dev/*-qa)
+ * @returns {string[]} список порушень (порожній — ок)
+ */
+export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
+  /** @type {string[]} */
+  const errs = []
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    errs.push('PDB має бути обʼєктом YAML')
+    return errs
+  }
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'PodDisruptionBudget') errs.push(`kind має бути PodDisruptionBudget (зараз: ${JSON.stringify(rec.kind)})`)
+  if (rec.apiVersion !== 'policy/v1') errs.push(`apiVersion має бути policy/v1 (зараз: ${JSON.stringify(rec.apiVersion)})`)
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
+    errs.push('spec відсутній або некоректний')
+    return errs
+  }
+  const s = /** @type {Record<string, unknown>} */ (spec)
+  const minA = coerceInteger(s.minAvailable)
+  if (minA === null) {
+    errs.push('spec.minAvailable має бути цілим числом')
+  } else if (isDevLike) {
+    if (minA !== 0) errs.push(`spec.minAvailable для dev-like (base/dev/*-qa) має бути 0 (зараз: ${minA})`)
+  } else if (minA < 1) {
+    errs.push(`spec.minAvailable для прод середовища має бути мінімум 1 (зараз: ${minA})`)
+  }
+  const selector = s.selector
+  if (selector === null || selector === undefined || typeof selector !== 'object' || Array.isArray(selector)) {
+    errs.push('spec.selector відсутній')
+  } else {
+    const matchLabels = /** @type {Record<string, unknown>} */ (selector).matchLabels
+    if (matchLabels === null || matchLabels === undefined || typeof matchLabels !== 'object' || Array.isArray(matchLabels)) {
+      errs.push('spec.selector.matchLabels відсутній')
+    } else {
+      const app = /** @type {Record<string, unknown>} */ (matchLabels).app
+      if (app !== expectedAppLabel)
+        errs.push(`spec.selector.matchLabels.app має бути '${expectedAppLabel}' (зараз: ${JSON.stringify(app)})`)
+    }
+  }
+  return errs
+}
+
+/**
+ * Перевіряє, що Deployment має канонічний запис у **`spec.template.spec.topologySpreadConstraints`**:
+ * `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`,
+ * `labelSelector.matchLabels.app` збігається з міткою Deployment (див. k8s.mdc).
+ * @param {unknown} manifest корінь YAML-документа Deployment
+ * @param {string} expectedAppLabel очікувана мітка `app`
+ * @returns {string | null} текст порушення або null
+ */
+export function deploymentTopologySpreadConstraintsViolation(manifest, expectedAppLabel) {
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
+    return null
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'Deployment') return null
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec))
+    return 'spec відсутній'
+  const template = /** @type {Record<string, unknown>} */ (spec).template
+  if (template === null || typeof template !== 'object' || Array.isArray(template))
+    return 'spec.template відсутній'
+  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
+  if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec))
+    return 'spec.template.spec відсутній'
+  const tsc = /** @type {Record<string, unknown>} */ (podSpec).topologySpreadConstraints
+  if (!Array.isArray(tsc) || tsc.length === 0) {
+    return `spec.template.spec.topologySpreadConstraints: додай запис maxSkew=1, topologyKey=${TOPOLOGY_SPREAD_TOPOLOGY_KEY}, whenUnsatisfiable=ScheduleAnyway, labelSelector.matchLabels.app='${expectedAppLabel}' (k8s.mdc)`
+  }
+  for (const item of tsc) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
+    const it = /** @type {Record<string, unknown>} */ (item)
+    if (coerceInteger(it.maxSkew) !== 1) continue
+    if (it.topologyKey !== TOPOLOGY_SPREAD_TOPOLOGY_KEY) continue
+    if (it.whenUnsatisfiable !== 'ScheduleAnyway') continue
+    const ls = it.labelSelector
+    if (ls === null || typeof ls !== 'object' || Array.isArray(ls)) continue
+    const ml = /** @type {Record<string, unknown>} */ (ls).matchLabels
+    if (ml === null || typeof ml !== 'object' || Array.isArray(ml)) continue
+    if (/** @type {Record<string, unknown>} */ (ml).app === expectedAppLabel) {
+      return null
+    }
+  }
+  return `spec.template.spec.topologySpreadConstraints: бракує запису maxSkew=1, topologyKey=${TOPOLOGY_SPREAD_TOPOLOGY_KEY}, whenUnsatisfiable=ScheduleAnyway, labelSelector.matchLabels.app='${expectedAppLabel}' (k8s.mdc)`
+}
+
+/**
+ * Збирає всі документи з **k8s**-yaml за заданим `kind` у каталозі.
+ * @param {string} dirPath абсолютний шлях до каталогу
+ * @param {string} kind очікуваний `kind` (наприклад, `HorizontalPodAutoscaler`)
+ * @param {string} [filenameFilter] фільтр за basename (наприклад, `hpa.yaml`); якщо заданий — лише цей файл
+ * @returns {Promise<Record<string, unknown>[]>} список знайдених документів
+ */
+async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
+  /** @type {Record<string, unknown>[]} */
+  const out = []
+  let entries
+  try {
+    entries = await readdir(dirPath)
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (filenameFilter !== undefined) {
+      if (entry !== filenameFilter) continue
+    } else if (!K8S_YAML_EXT_RE.test(entry)) {
+      continue
+    }
+    let raw
+    try {
+      raw = await readFile(join(dirPath, entry), 'utf8')
+    } catch {
+      continue
+    }
+    let docs
+    try {
+      docs = parseAllDocuments(raw)
+    } catch {
+      continue
+    }
+    for (const doc of docs) {
+      if (doc.errors.length > 0) continue
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        if (rec.kind === kind) out.push(rec)
+      }
+    }
+  }
+  return out
+}
+
+/**
+ * Для кожного **Deployment** під `k8s/` перевіряє: у тому ж каталозі повинні бути
+ * `hpa.yaml` (валідний `autoscaling/v2`) і `pdb.yaml` (валідний `policy/v1`), а сам Deployment
+ * повинен мати канонічні **topologySpreadConstraints**. Env-залежні межі (`minReplicas`,
+ * `minAvailable`) — за сегментом після `/k8s/`: `base` / `dev` / `*-qa` = dev-like, решта — прод.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, passFn) {
+  /** @type {Set<string>} */
+  const seenDirs = new Set()
+  for (const abs of yamlFilesAbs) {
+    const dir = dirname(abs)
+    if (seenDirs.has(dir)) continue
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch {
+      continue
+    }
+    let docs
+    try {
+      docs = parseAllDocuments(raw)
+    } catch {
+      continue
+    }
+    /** @type {Record<string, unknown>[]} */
+    const deployments = []
+    for (const doc of docs) {
+      if (doc.errors.length > 0) continue
+      const obj = doc.toJSON()
+      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
+        const rec = /** @type {Record<string, unknown>} */ (obj)
+        if (rec.kind === 'Deployment') deployments.push(rec)
+      }
+    }
+    if (deployments.length === 0) continue
+    seenDirs.add(dir)
+    const relDir = relative(root, dir).replaceAll('\\', '/')
+    const segment = k8sEnvSegmentFromRelPath(relDir + '/')
+    const isDevLike = isDevLikeK8sEnvSegment(segment)
+    const hpaDocs = await readDocsByKindInDir(dir, 'HorizontalPodAutoscaler', HPA_FILENAME)
+    const pdbDocs = await readDocsByKindInDir(dir, 'PodDisruptionBudget', PDB_FILENAME)
+    for (const deployment of deployments) {
+      const deployName = manifestMetadataName(deployment)
+      const appLabel = deploymentAppLabel(deployment)
+      const deployRel = relDir === '' ? '.' : relDir
+      if (deployName === null) {
+        fail(`${deployRel}: Deployment без metadata.name — не можу перевірити HPA/PDB (k8s.mdc)`)
+        continue
+      }
+      if (appLabel === null) {
+        fail(`${deployRel}: Deployment '${deployName}' без spec.selector.matchLabels.app — додай мітку (k8s.mdc)`)
+        continue
+      }
+
+      const tscViolation = deploymentTopologySpreadConstraintsViolation(deployment, appLabel)
+      if (tscViolation !== null) {
+        fail(`${deployRel}: Deployment '${deployName}': ${tscViolation}`)
+      } else {
+        passFn(`${deployRel}: Deployment '${deployName}' має канонічні topologySpreadConstraints (k8s.mdc)`)
+      }
+
+      const hpaRel = `${deployRel}/${HPA_FILENAME}`
+      const matchedHpa = hpaDocs.find(h => {
+        const spec = h.spec
+        if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
+        const str = /** @type {Record<string, unknown>} */ (spec).scaleTargetRef
+        if (str === null || typeof str !== 'object' || Array.isArray(str)) return false
+        return /** @type {Record<string, unknown>} */ (str).name === deployName
+      })
+      if (matchedHpa === undefined) {
+        fail(
+          `${hpaRel}: відсутній або не знайдено HPA зі scaleTargetRef.name='${deployName}' поруч із Deployment (k8s.mdc)`
+        )
+      } else {
+        const hpaErrs = hpaManifestViolations(matchedHpa, deployName, isDevLike)
+        if (hpaErrs.length === 0) {
+          passFn(`${hpaRel}: HPA для Deployment '${deployName}' валідний (k8s.mdc)`)
+        } else {
+          for (const e of hpaErrs) fail(`${hpaRel}: ${e} (k8s.mdc)`)
+        }
+      }
+
+      const pdbRel = `${deployRel}/${PDB_FILENAME}`
+      const matchedPdb = pdbDocs.find(p => {
+        const spec = p.spec
+        if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
+        const selector = /** @type {Record<string, unknown>} */ (spec).selector
+        if (selector === null || typeof selector !== 'object' || Array.isArray(selector)) return false
+        const ml = /** @type {Record<string, unknown>} */ (selector).matchLabels
+        if (ml === null || typeof ml !== 'object' || Array.isArray(ml)) return false
+        return /** @type {Record<string, unknown>} */ (ml).app === appLabel
+      })
+      if (matchedPdb === undefined) {
+        fail(
+          `${pdbRel}: відсутній або не знайдено PDB зі selector.matchLabels.app='${appLabel}' поруч із Deployment (k8s.mdc)`
+        )
+      } else {
+        const pdbErrs = pdbManifestViolations(matchedPdb, appLabel, isDevLike)
+        if (pdbErrs.length === 0) {
+          passFn(`${pdbRel}: PDB для Deployment '${deployName}' валідний (k8s.mdc)`)
+        } else {
+          for (const e of pdbErrs) fail(`${pdbRel}: ${e} (k8s.mdc)`)
+        }
+      }
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам k8s.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -3488,6 +3926,8 @@ export async function check() {
   await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
 
   await validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFiles, fail, pass)
+
+  await validateDeploymentHpaPdbAndTopology(root, yamlFiles, fail, pass)
 
   return reporter.getExitCode()
 }

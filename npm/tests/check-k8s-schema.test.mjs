@@ -10,13 +10,19 @@ import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
   collectKustomizeManagedRelPaths,
+  deploymentAppLabel,
   deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
+  deploymentTopologySpreadConstraintsViolation,
   expectedSchemaUrl,
   hasuraConfigMapRemoteSchemaPermissionsViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
+  hpaManifestViolations,
+  isDevLikeK8sEnvSegment,
   isForbiddenAutoscalingV1Manifest,
+  k8sEnvSegmentFromRelPath,
+  pdbManifestViolations,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
@@ -216,18 +222,18 @@ describe('deploymentResourcesViolation', () => {
       kind: 'Deployment',
       spec: { template: { spec: { containers: [{ name: 'app', image: 'x:y' }] } } }
     }
-    expect(deploymentResourcesViolation(manifest)).toContain('resources: {}')
+    expect(deploymentResourcesViolation(manifest)).toContain('resources.requests.cpu')
   })
 
-  test('ok для resources: {}', () => {
+  test('помилка для resources: {} (бракує requests.cpu)', () => {
     const manifest = {
       kind: 'Deployment',
       spec: { template: { spec: { containers: [{ name: 'app', image: 'x:y', resources: {} }] } } }
     }
-    expect(deploymentResourcesViolation(manifest)).toBeNull()
+    expect(deploymentResourcesViolation(manifest)).toContain('requests.cpu')
   })
 
-  test('ok для resources з limits', () => {
+  test('помилка для resources з limits без requests.cpu', () => {
     const manifest = {
       kind: 'Deployment',
       spec: {
@@ -238,7 +244,43 @@ describe('deploymentResourcesViolation', () => {
         }
       }
     }
+    expect(deploymentResourcesViolation(manifest)).toContain('requests.cpu')
+  })
+
+  test('ok для resources.requests.cpu рядком "500m"', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: { containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '500m' } } }] }
+        }
+      }
+    }
     expect(deploymentResourcesViolation(manifest)).toBeNull()
+  })
+
+  test('ok для resources.requests.cpu числом 0.5', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: { containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: 0.5 } } }] }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest)).toBeNull()
+  })
+
+  test('помилка для resources.requests.cpu з порожнім рядком', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: { containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '' } } }] }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest)).toContain('requests.cpu')
   })
 })
 
@@ -920,5 +962,234 @@ describe('JSON6902 remove+add на той самий path (k8s.mdc)', () => {
   value: 1
 `
     expect(json6902PathsWithRemoveAndAddOnSamePath(collectJson6902OperationsFromPatchText(y))).toEqual([])
+  })
+})
+
+describe('k8sEnvSegmentFromRelPath / isDevLikeK8sEnvSegment', () => {
+  test('витягує сегмент після /k8s/', () => {
+    expect(k8sEnvSegmentFromRelPath('app/k8s/base/deploy.yaml')).toBe('base')
+    expect(k8sEnvSegmentFromRelPath('svc/k8s/tr-qa/kustomization.yaml')).toBe('tr-qa')
+    expect(k8sEnvSegmentFromRelPath('k8s/ua/deploy.yaml')).toBe('ua')
+  })
+
+  test('null, якщо немає /k8s/', () => {
+    expect(k8sEnvSegmentFromRelPath('src/app.ts')).toBeNull()
+  })
+
+  test('dev-like: base, dev, *-qa', () => {
+    expect(isDevLikeK8sEnvSegment('base')).toBe(true)
+    expect(isDevLikeK8sEnvSegment('dev')).toBe(true)
+    expect(isDevLikeK8sEnvSegment('tr-qa')).toBe(true)
+    expect(isDevLikeK8sEnvSegment('abc-qa')).toBe(true)
+  })
+
+  test('прод: решта', () => {
+    expect(isDevLikeK8sEnvSegment('ua')).toBe(false)
+    expect(isDevLikeK8sEnvSegment('ru')).toBe(false)
+    expect(isDevLikeK8sEnvSegment('prod')).toBe(false)
+    expect(isDevLikeK8sEnvSegment('')).toBe(false)
+    expect(isDevLikeK8sEnvSegment(null)).toBe(false)
+  })
+})
+
+describe('deploymentAppLabel', () => {
+  test('витягує spec.selector.matchLabels.app', () => {
+    expect(
+      deploymentAppLabel({
+        kind: 'Deployment',
+        spec: { selector: { matchLabels: { app: 'backend-api' } } }
+      })
+    ).toBe('backend-api')
+  })
+
+  test('null, якщо app відсутній', () => {
+    expect(deploymentAppLabel({ kind: 'Deployment', spec: { selector: { matchLabels: {} } } })).toBeNull()
+    expect(deploymentAppLabel({ kind: 'Deployment' })).toBeNull()
+  })
+})
+
+/**
+ * Канонічний мінімальний HPA, валідний у прод (для тестів).
+ * @param {Record<string, unknown>} overrides перекриття полів spec
+ */
+function makeHpa(overrides = {}) {
+  return {
+    apiVersion: 'autoscaling/v2',
+    kind: 'HorizontalPodAutoscaler',
+    metadata: { name: 'x' },
+    spec: {
+      scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'x' },
+      minReplicas: 2,
+      maxReplicas: 10,
+      metrics: [{ type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 70 } } }],
+      behavior: {
+        scaleUp: { policies: [{ type: 'Percent', value: 100, periodSeconds: 30 }] },
+        scaleDown: { policies: [{ type: 'Percent', value: 25, periodSeconds: 120 }] }
+      },
+      ...overrides
+    }
+  }
+}
+
+describe('hpaManifestViolations', () => {
+  test('прод: канонічний HPA — без порушень', () => {
+    expect(hpaManifestViolations(makeHpa(), 'x', false)).toEqual([])
+  })
+
+  test('dev-like: minReplicas === 1 — ок', () => {
+    expect(hpaManifestViolations(makeHpa({ minReplicas: 1, maxReplicas: 10 }), 'x', true)).toEqual([])
+  })
+
+  test('dev-like: minReplicas !== 1 — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ minReplicas: 2 }), 'x', true)
+    expect(errs.some(e => e.includes('minReplicas'))).toBe(true)
+  })
+
+  test('прод: minReplicas < 2 — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ minReplicas: 1 }), 'x', false)
+    expect(errs.some(e => e.includes('minReplicas'))).toBe(true)
+  })
+
+  test('прод: maxReplicas < 2 — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ minReplicas: 1, maxReplicas: 1 }), 'x', false)
+    expect(errs.some(e => e.includes('maxReplicas'))).toBe(true)
+  })
+
+  test('apiVersion != autoscaling/v2 — помилка', () => {
+    const m = makeHpa()
+    m.apiVersion = 'autoscaling/v1'
+    const errs = hpaManifestViolations(m, 'x', false)
+    expect(errs.some(e => e.includes('autoscaling/v2'))).toBe(true)
+  })
+
+  test('scaleTargetRef.name не збігається — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa(), 'other', false)
+    expect(errs.some(e => e.includes('scaleTargetRef.name'))).toBe(true)
+  })
+
+  test('відсутній behavior — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ behavior: undefined }), 'x', false)
+    expect(errs.some(e => e.includes('behavior'))).toBe(true)
+  })
+
+  test('порожній metrics — помилка', () => {
+    const errs = hpaManifestViolations(makeHpa({ metrics: [] }), 'x', false)
+    expect(errs.some(e => e.includes('metrics'))).toBe(true)
+  })
+})
+
+describe('pdbManifestViolations', () => {
+  const okPdb = {
+    apiVersion: 'policy/v1',
+    kind: 'PodDisruptionBudget',
+    metadata: { name: 'x' },
+    spec: { minAvailable: 1, selector: { matchLabels: { app: 'x' } } }
+  }
+
+  test('прод: канонічний PDB — без порушень', () => {
+    expect(pdbManifestViolations(okPdb, 'x', false)).toEqual([])
+  })
+
+  test('dev-like: minAvailable === 0 — ок', () => {
+    expect(
+      pdbManifestViolations(
+        {
+          apiVersion: 'policy/v1',
+          kind: 'PodDisruptionBudget',
+          metadata: { name: 'x' },
+          spec: { minAvailable: 0, selector: { matchLabels: { app: 'x' } } }
+        },
+        'x',
+        true
+      )
+    ).toEqual([])
+  })
+
+  test('dev-like: minAvailable !== 0 — помилка', () => {
+    const errs = pdbManifestViolations(okPdb, 'x', true)
+    expect(errs.some(e => e.includes('minAvailable'))).toBe(true)
+  })
+
+  test('прод: minAvailable < 1 — помилка', () => {
+    const errs = pdbManifestViolations(
+      {
+        apiVersion: 'policy/v1',
+        kind: 'PodDisruptionBudget',
+        metadata: { name: 'x' },
+        spec: { minAvailable: 0, selector: { matchLabels: { app: 'x' } } }
+      },
+      'x',
+      false
+    )
+    expect(errs.some(e => e.includes('minAvailable'))).toBe(true)
+  })
+
+  test('apiVersion != policy/v1 — помилка', () => {
+    const errs = pdbManifestViolations({ ...okPdb, apiVersion: 'policy/v1beta1' }, 'x', false)
+    expect(errs.some(e => e.includes('policy/v1'))).toBe(true)
+  })
+
+  test('matchLabels.app не збігається — помилка', () => {
+    const errs = pdbManifestViolations(okPdb, 'other', false)
+    expect(errs.some(e => e.includes('matchLabels.app'))).toBe(true)
+  })
+})
+
+describe('deploymentTopologySpreadConstraintsViolation', () => {
+  const canonical = {
+    maxSkew: 1,
+    topologyKey: 'kubernetes.io/hostname',
+    whenUnsatisfiable: 'ScheduleAnyway',
+    labelSelector: { matchLabels: { app: 'x' } }
+  }
+
+  test('null для не-Deployment', () => {
+    expect(deploymentTopologySpreadConstraintsViolation({ kind: 'Service' }, 'x')).toBeNull()
+  })
+
+  test('null, якщо канонічний запис присутній', () => {
+    expect(
+      deploymentTopologySpreadConstraintsViolation(
+        {
+          kind: 'Deployment',
+          spec: { template: { spec: { topologySpreadConstraints: [canonical] } } }
+        },
+        'x'
+      )
+    ).toBeNull()
+  })
+
+  test('помилка, якщо topologySpreadConstraints відсутні', () => {
+    const v = deploymentTopologySpreadConstraintsViolation(
+      { kind: 'Deployment', spec: { template: { spec: {} } } },
+      'x'
+    )
+    expect(v).toContain('topologySpreadConstraints')
+  })
+
+  test('помилка, якщо app не збігається', () => {
+    const v = deploymentTopologySpreadConstraintsViolation(
+      {
+        kind: 'Deployment',
+        spec: { template: { spec: { topologySpreadConstraints: [canonical] } } }
+      },
+      'other'
+    )
+    expect(v).toContain('other')
+  })
+
+  test('помилка, якщо whenUnsatisfiable інший', () => {
+    const v = deploymentTopologySpreadConstraintsViolation(
+      {
+        kind: 'Deployment',
+        spec: {
+          template: {
+            spec: { topologySpreadConstraints: [{ ...canonical, whenUnsatisfiable: 'DoNotSchedule' }] }
+          }
+        }
+      },
+      'x'
+    )
+    expect(v).toContain('ScheduleAnyway')
   })
 })
