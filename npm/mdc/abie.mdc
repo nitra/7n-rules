@@ -40,6 +40,8 @@ spec:
 
 ### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
 
+У **HTTPRoute** у шляху з **`…/k8s/base/…`** у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (перевірка в **`check-abie.mjs`**).
+
 Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** та **`ru/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
 
 ```yaml title="…/k8s/base/hr.yaml (фрагмент)"

@@ -29,6 +29,7 @@
  * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
  * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**,
  * якщо в тому ж **`kustomization.yaml`** згадується **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura + JWT).
+ * **HTTPRoute (base / dev):** у маніфесті **HTTPRoute** у шляху з сегментом **`base`** (наприклад **`…/k8s/base/hr.yaml`**) у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (канонічно порівняння без урахування регістру).
  * **Спільні бекенди (`auth-run-hl`, `file-link-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
  * у patch overlay **ua** та **ru** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** або **ru** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
  * Вибір **`op`** — **k8s.mdc**.
@@ -62,6 +63,9 @@ const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NA
 
 /** Очікуваний URL **`$schema`** для **hc.yaml** (abie.mdc). */
 export const ABIE_HC_SCHEMA_URL = 'https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json'
+
+/** Кореневий домен **`spec.hostnames`** для **HTTPRoute** у **`…/k8s/base/…`** (середовище dev, abie.mdc). */
+export const ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT = 'aiml.live'
 
 const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
 const LINE_SPLIT_RE = /\r?\n/u
@@ -189,6 +193,84 @@ export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizat
 export function isAbieK8sBaseYamlPath(rel) {
   const norm = rel.replaceAll('\\', '/')
   return BASE_SEGMENT_RE.test(norm)
+}
+
+/**
+ * Чи **hostname** дозволений для **HTTPRoute** у **base** (dev): **aiml.live**, **\*.aiml.live** або **\*.…\.aiml.live** (без урахування регістру).
+ * @param {string} hostname значення з **spec.hostnames**
+ * @returns {boolean} **true**, якщо hostname відповідає abie.mdc
+ */
+export function isAllowedAbieBaseDevHostname(hostname) {
+  if (typeof hostname !== 'string') {
+    return false
+  }
+  const h = hostname.trim().toLowerCase()
+  if (h === '') {
+    return false
+  }
+  const root = ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT
+  if (h === root) {
+    return true
+  }
+  if (h === `*.${root}`) {
+    return true
+  }
+  if (h.endsWith(`.${root}`)) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Повідомлення про недопустимі **spec.hostnames** у **HTTPRoute** у шляху **…/base/…** (abie.mdc).
+ * @param {unknown} obj корінь YAML-документа
+ * @param {string} rel відносний шлях від кореня репозиторію
+ * @returns {string[]} порожньо, якщо перевірка не застосовується або hostnames коректні
+ */
+export function abieBaseHttpRouteHostnamesErrors(obj, rel) {
+  if (!isAbieK8sBaseYamlPath(rel)) {
+    return []
+  }
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return []
+  }
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  if (rec.kind !== 'HTTPRoute') {
+    return []
+  }
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
+    return []
+  }
+  const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
+  if (hostnames === undefined) {
+    return []
+  }
+  /** @type {string[]} */
+  const hosts = []
+  if (Array.isArray(hostnames)) {
+    for (const h of hostnames) {
+      if (typeof h === 'string' && h.trim() !== '') {
+        hosts.push(h)
+      }
+    }
+  } else if (typeof hostnames === 'string' && hostnames.trim() !== '') {
+    hosts.push(hostnames)
+  }
+  if (hosts.length === 0) {
+    return []
+  }
+  const root = ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT
+  /** @type {string[]} */
+  const errors = []
+  for (const h of hosts) {
+    if (!isAllowedAbieBaseDevHostname(h)) {
+      errors.push(
+        `${rel}: HTTPRoute у base (dev): hostname "${h}" недопустимий — дозволені лише ${root} та піддомени, зокрема *.${root} (abie.mdc)`
+      )
+    }
+  }
+  return errors
 }
 
 /**
@@ -1050,7 +1132,8 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
       if (docs) {
         for (const doc of docs) {
           if (doc.errors.length === 0) {
-            const st = httpRouteDocSharedCrossNsBackendStats(doc.toJSON(), rel)
+            const json = doc.toJSON()
+            const st = httpRouteDocSharedCrossNsBackendStats(json, rel)
             refCount += st.refCount
             baseErrors.push(...st.errors)
           }
@@ -1502,6 +1585,60 @@ async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, c
   }
   passFn(`${rel}: HTTPRoute patch (${mode}) відповідає abie.mdc`)
   return true
+}
+
+/**
+ * Для кожного **HTTPRoute** у **`…/k8s/base/…`** з непорожніми **`spec.hostnames`** — лише **aiml.live** та піддомени (abie.mdc).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @returns {Promise<void>}
+ */
+async function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
+  let baseHttpRoutesWithHostnames = 0
+  for (const abs of yamlFilesAbs) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    if (isAbieK8sBaseYamlPath(rel)) {
+      const docs = await readAndParseYamlDocs(abs, rel, fail)
+      if (!docs) {
+        return
+      }
+      for (const doc of docs) {
+        if (doc.errors.length === 0) {
+          const json = doc.toJSON()
+          const errs = abieBaseHttpRouteHostnamesErrors(json, rel)
+          if (errs.length > 0) {
+            for (const e of errs) {
+              fail(e)
+            }
+            return
+          }
+          if (json !== null && typeof json === 'object' && !Array.isArray(json)) {
+            const rec = /** @type {Record<string, unknown>} */ (json)
+            if (rec.kind === 'HTTPRoute') {
+              const spec = rec.spec
+              if (spec !== null && typeof spec === 'object' && !Array.isArray(spec)) {
+                const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
+                if (Array.isArray(hostnames) && hostnames.some(h => typeof h === 'string' && h.trim() !== '')) {
+                  baseHttpRoutesWithHostnames++
+                } else if (typeof hostnames === 'string' && hostnames.trim() !== '') {
+                  baseHttpRoutesWithHostnames++
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (baseHttpRoutesWithHostnames > 0) {
+    passFn(
+      `HTTPRoute у …/k8s/base/…: spec.hostnames відповідають ${ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT} та піддоменам (abie.mdc)`
+    )
+  } else {
+    passFn('Немає HTTPRoute у …/k8s/base/… з непорожніми spec.hostnames — перевірку aiml.live пропущено')
+  }
 }
 
 /**
@@ -1958,6 +2095,9 @@ export async function check() {
 
   pass('Перевіряємо Service → NodePort у ru/kustomization (abie.mdc)')
   await ensureRuAbieServiceNodePortPatches(root, yamlFiles, fail, pass)
+
+  pass('Перевіряємо HTTPRoute spec.hostnames у …/k8s/base/… (aiml.live, abie.mdc)')
+  await ensureAbieBaseHttpRouteHostnames(root, yamlFiles, fail, pass)
 
   if (deploymentDirs.size > 0) {
     pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')

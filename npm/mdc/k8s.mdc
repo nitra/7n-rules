@@ -142,7 +142,7 @@ spec:
       namespace: dev
       sectionName: https
   hostnames:
-    - abie.cloud
+    - aiml.live
   rules:
     - matches:
         - path:

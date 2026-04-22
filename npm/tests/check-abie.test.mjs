@@ -5,9 +5,11 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT,
   ABIE_HC_SCHEMA_URL,
   ABIE_REQUIRED_IGNORE_BRANCHES,
   ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
+  abieBaseHttpRouteHostnamesErrors,
   abieOverlayK8sTreeHasDeployment,
   abieOverlayRequiresHttpRouteByVite,
   abiePackageDirFromK8sOverlay,
@@ -20,6 +22,7 @@ import {
   jsonPatchTextClearsHeadlessServiceClusterIPNone,
   jsonPatchTextSetsServiceTypeNodePort,
   isAbieK8sBaseYamlPath,
+  isAllowedAbieBaseDevHostname,
   isK8sYamlInAbiePackageExcludingUaRuOverlays,
   isRuKustomizationPath,
   isUaKustomizationPath,
@@ -118,6 +121,30 @@ describe('check-abie (допоміжні функції)', () => {
     expect(isAbieK8sBaseYamlPath(String.raw`pkg\k8s\base\a.yaml`)).toBe(true)
     expect(isAbieK8sBaseYamlPath('app/k8s/ua/kustomization.yaml')).toBe(false)
     expect(isAbieK8sBaseYamlPath('app/k8s/overlays/ru/foo.yaml')).toBe(false)
+  })
+
+  test('isAllowedAbieBaseDevHostname — aiml.live та піддомени', () => {
+    expect(isAllowedAbieBaseDevHostname('aiml.live')).toBe(true)
+    expect(isAllowedAbieBaseDevHostname('App.AimL.Live')).toBe(true)
+    expect(isAllowedAbieBaseDevHostname('*.aiml.live')).toBe(true)
+    expect(isAllowedAbieBaseDevHostname('api.foo.aiml.live')).toBe(true)
+    expect(isAllowedAbieBaseDevHostname('abie.app')).toBe(false)
+    expect(isAllowedAbieBaseDevHostname('notaiml.live')).toBe(false)
+    expect(isAllowedAbieBaseDevHostname('aiml.live.evil.test')).toBe(false)
+    expect(isAllowedAbieBaseDevHostname('')).toBe(false)
+    expect(ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT).toBe('aiml.live')
+  })
+
+  test('abieBaseHttpRouteHostnamesErrors — лише для HTTPRoute у …/base/', () => {
+    const ok = {
+      kind: 'HTTPRoute',
+      spec: { hostnames: ['aiml.live', '*.aiml.live', 'x.aiml.live'] }
+    }
+    expect(abieBaseHttpRouteHostnamesErrors(ok, 'app/k8s/base/hr.yaml')).toEqual([])
+    const bad = { kind: 'HTTPRoute', spec: { hostnames: ['abie.app'] } }
+    expect(abieBaseHttpRouteHostnamesErrors(bad, 'app/k8s/base/hr.yaml').length).toBe(1)
+    expect(abieBaseHttpRouteHostnamesErrors(bad, 'app/k8s/ua/kustomization.yaml')).toEqual([])
+    expect(abieBaseHttpRouteHostnamesErrors({ kind: 'Deployment' }, 'app/k8s/base/d.yaml')).toEqual([])
   })
 
   test('deploymentDocumentHasAbieBasePreemNodeSelector', () => {
@@ -628,6 +655,45 @@ describe('check-abie (інтеграція в тимчасовому катал�
       await writeJson('.n-cursor.json', { rules: ['abie'] })
       await ensureDir('.github/workflows')
       await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: HTTPRoute у base з hostnames не aiml.live — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      const hr = `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app-route
+spec:
+  hostnames:
+    - "abie.app"
+`
+      await writeFile(join('app/k8s/base/hr.yaml'), hr, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: HTTPRoute у base з hostnames aiml.live — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app/k8s/base')
+      const hr = `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: app-route
+spec:
+  hostnames:
+    - "app.aiml.live"
+    - "*.aiml.live"
+`
+      await writeFile(join('app/k8s/base/hr.yaml'), hr, 'utf8')
       expect(await check()).toBe(0)
     })
   })
