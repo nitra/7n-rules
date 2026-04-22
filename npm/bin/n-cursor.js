@@ -385,6 +385,20 @@ function skillDescriptionSafeForMarkdownInline(desc) {
 }
 
 /**
+ * YAML frontmatter для `.claude/commands/*.md`: поле `description` потрібне розширенню VSCode,
+ * щоб команди з’являлись у списку. Текст збігається з полем `description` у frontmatter `SKILL.md`.
+ * @param {string} descriptionRaw значення з `extractSkillDescription` (може бути порожнім)
+ * @returns {string} блок `---` … `---` і порожній рядок після
+ */
+function formatClaudeCommandFrontmatter(descriptionRaw) {
+  let text = skillDescriptionSafeForMarkdownInline(String(descriptionRaw || '').trim())
+  if (!text) {
+    text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
+  }
+  return `---\ndescription: >-\n  ${text}\n---\n\n`
+}
+
+/**
  * Розгортає в шаблоні блок Mustache {{#section}} … {{/section}} для масиву елементів
  * @param {string} template вихідний текст шаблону
  * @param {string} section ім'я секції (наприклад services)
@@ -683,7 +697,8 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
 
 /**
  * Синхронізує .claude/commands/n-<id>.md зі skills пакету.
- * Кожен файл містить посилання на відповідний cursor skill, а не копію інструкцій.
+ * У кожному файлі обов’язково YAML frontmatter з `description` (як у `SKILL.md`), інакше команди
+ * не з’являються у розширенні VSCode; далі — заголовок H1 лише з імені команди (без повтору опису) і посилання на `.cursor/skills/…/SKILL.md`.
  * @param {string[]} configSkills id без префікса n-
  * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
@@ -710,9 +725,9 @@ async function syncCommands(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR)
       try {
         const raw = await readFile(srcSkillMd, 'utf8')
         const descRaw = extractSkillDescription(raw)
-        const desc = descRaw ? skillDescriptionSafeForMarkdownInline(descRaw) : ''
-        const header = desc ? `# ${RULE_PREFIX}${id} — ${desc}\n\n` : ''
-        const body = `${header}Виконай інструкції зі скілу \`.cursor/skills/${destDirName}/SKILL.md\`.\n`
+        const frontmatter = formatClaudeCommandFrontmatter(descRaw || '')
+        const header = `# ${RULE_PREFIX}${id}\n\n`
+        const body = `${frontmatter}${header}Виконай інструкції зі скілу \`.cursor/skills/${destDirName}/SKILL.md\`.\n`
         await writeFile(destFile, body, 'utf8')
         console.log(`✅`)
         success++
@@ -754,7 +769,7 @@ async function removeOrphanManagedCommandFiles(commandsDir, configSkills) {
 
 /**
  * Синхронізує .claude/commands/{dirName}.md для всіх локальних скілів з .cursor/skills/
- * що не керуються пакетом (відсутні в configSkills).
+ * що не керуються пакетом (відсутні в configSkills). Frontmatter `description` — як у відповідному SKILL.md.
  * @param {string[]} configSkills id керованих skills (вже оброблені syncCommands)
  * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
  */
@@ -778,14 +793,15 @@ async function syncLocalOnlySkillCommands(configSkills) {
 
     process.stdout.write(`  ⬇  ${dirName} → ${COMMANDS_DIR}/${dirName}.md ... `)
     try {
-      let desc = ''
+      let descRaw = ''
       if (existsSync(skillMdPath)) {
         const raw = await readFile(skillMdPath, 'utf8')
         const parsed = extractSkillDescription(raw)
-        if (parsed) desc = skillDescriptionSafeForMarkdownInline(parsed)
+        if (parsed) descRaw = parsed
       }
-      const header = desc ? `# ${dirName} — ${desc}\n\n` : ''
-      const body = `${header}Виконай інструкції зі скілу \`${SKILLS_DIR}/${dirName}/SKILL.md\`.\n`
+      const frontmatter = formatClaudeCommandFrontmatter(descRaw)
+      const header = `# ${dirName}\n\n`
+      const body = `${frontmatter}${header}Виконай інструкції зі скілу \`${SKILLS_DIR}/${dirName}/SKILL.md\`.\n`
       await writeFile(destFile, body, 'utf8')
       console.log(`✅`)
       success++
