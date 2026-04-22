@@ -1,8 +1,9 @@
 ---
 name: n-abie-kustomize
 description: >-
-  Трансформація дерев k8s у структуру Kustomize (base + overlays): dev → base, без окремої dev/
-version: '1.0'
+  Трансформація дерев k8s у Kustomize (base + overlays): dev → base, без окремої dev/; директорія
+  users/ у середовищах не входить у kustomization (окремі маніфести між середовищами)
+version: '1.1'
 ---
 
 Спочатку знайди всі директорії `k8s/` у проєкті. Виконуй трансформацію лише для тих, у яких **немає** директорії `base/`. Якщо `base/` вже існує — пропускай цю директорію і рухайся далі.
@@ -24,3 +25,44 @@ README має бути в директорії **k8s**.
 Застарілі файли прибирай.
 
 Для overlays **ru** та **ua** `namespace` задавай у `kustomization.yaml` (без окремих patch лише на зміну namespace). Деталі — **n-k8s** / **abie** у `.cursor/rules/`, якщо ці правила увімкнені в проєкті.
+
+## Виключення: директорії `users/`
+
+Директорія `users/` у кожному середовищі — **окремий шар маніфестів**, який **не входить у Kustomize**. Так зроблено навмисно: вміст часто **різний між середовищами**, тож немає сенсу виносити його в `base` чи патчити через overlays.
+
+Правила:
+
+- Файли з `users/` **не додавай** до жодного `kustomization.yaml` (ні `base`, ні overlay) — вони **не підключаються** до kustomize.
+- Директорію `users/` **не переміщуй** у `base` — вона **залишається** в своєму середовищі (`dev`, `ua`, інше overlay тощо), поруч з `kustomization.yaml` цього середовища (або після рефакторингу — поруч з overlay, де вона була логічно прив’язана).
+- У файлах у `users/` **може не бути** `metadata.namespace` — це нормально, **не нав’язуй** namespace лише заради kustomize.
+- Якщо `users/` є в кількох середовищах з різним набором файлів (наприклад, 29 yaml у одному й інша кількість в іншому) — **залишай незалежними**, не намагайся уніфікувати через base.
+
+Приклад **до** трансформації (фрагмент):
+
+```
+k8s/db/
+├── dev/                         # namespace: dev
+│   ├── kustomization.yaml
+│   ├── cluster-db.yaml          # instances: 1, поля з # буде замінено через kustomize
+│   ├── secret-auth.yaml
+│   └── secret-source-db.yaml
+└── ua/                          # або інше середовище
+    ├── kustomization.yaml
+    └── users/
+        └── *.yaml               # без metadata.namespace; не в kustomization.resources
+```
+
+Приклад **після** трансформації (той самий принцип для `users/`):
+
+```
+k8s/db/
+├── base/
+│   ├── kustomization.yaml
+│   ├── cluster-db.yaml          # namespace: dev, поля з # буде замінено через kustomize
+│   ├── secret-auth.yaml
+│   └── secret-source-db.yaml
+└── ua/
+    ├── kustomization.yaml       # namespace, patches — без users/
+    └── users/                   # лишається тут; kustomize їх не бачить
+        └── *.yaml
+```
