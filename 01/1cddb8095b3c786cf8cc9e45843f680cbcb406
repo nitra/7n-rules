@@ -1,0 +1,44 @@
+npm/skills/abie-kustomize/SKILL.md
+  74c5769b85d0a163 28-30,32,34,39,57-64,67-68
+  d71c9875fe5b95ee 4-6,31,33,35-38,40-56,65-66
+npm/package.json
+  h_aeba97fd179f87 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.2",
+  "base_commit_sha": "011cddb8095b3c786cf8cc9e45843f680cbcb406",
+  "prompts": {
+    "74c5769b85d0a163": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2f50f8b7-869a-4232-bb7b-4eec97f0df6e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 24,
+      "total_deletions": 0,
+      "accepted_lines": 16,
+      "overriden_lines": 0
+    },
+    "d71c9875fe5b95ee": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d10e176f-3854-4723-8cbc-f97a405f7728",
+        "model": "default"
+      },
+      "human_author": "vitaliytv",
+      "messages": [],
+      "total_additions": 29,
+      "total_deletions": 11,
+      "accepted_lines": 28,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_aeba97fd179f87": {
+      "author": "vitaliytv"
+    }
+  }
+}
