@@ -1208,7 +1208,7 @@ describe('kustomizePatchModifiedPaths', () => {
   test('JSON6902 — шляхи з op/path', () => {
     const text = `- op: replace
   path: /spec/minReplicas
-  value: 3
+  value: 2
 - op: replace
   path: /spec/maxReplicas
   value: 10
