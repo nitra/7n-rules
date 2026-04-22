@@ -1647,7 +1647,7 @@ async function checkHcYamlFiles(root, deploymentDirs, pass, fail) {
 /**
  * Чи Deployment-документ містить контейнер із образом **`hasura/graphql-engine`** (abie.mdc nginx-sidecar).
  * @param {unknown} obj корінь YAML-документа
- * @returns {boolean}
+ * @returns {boolean} true якщо документ є Deployment із hasura/graphql-engine
  */
 function deploymentDocHasHasuraImage(obj) {
   if (!isDeploymentDoc(obj)) return false
@@ -1672,7 +1672,7 @@ function deploymentDocHasHasuraImage(obj) {
 /**
  * Чи Kustomization-документ містить у **`images[*].newName`** рядок **`hasura/graphql-engine`** (abie.mdc nginx-sidecar).
  * @param {unknown} obj корінь YAML-документа
- * @returns {boolean}
+ * @returns {boolean} true якщо є images[*].newName із hasura/graphql-engine
  */
 function kustomizationDocHasHasuraImageNewName(obj) {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return false
@@ -1685,6 +1685,50 @@ function kustomizationDocHasHasuraImageNewName(obj) {
     }
   }
   return false
+}
+
+/**
+ * Чи patch-запис у Kustomization має **target.kind === 'Deployment'**.
+ * @param {unknown} patchEntry елемент масиву **patches**
+ * @returns {boolean} true, якщо patch цілить на Deployment
+ */
+function isPatchTargetingDeployment(patchEntry) {
+  if (patchEntry === null || typeof patchEntry !== 'object' || Array.isArray(patchEntry)) return false
+  const pr = /** @type {Record<string, unknown>} */ (patchEntry)
+  const target = pr.target
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return false
+  return /** @type {Record<string, unknown>} */ (target).kind === 'Deployment'
+}
+
+/**
+ * Витягує текст **patch** із запису Kustomization, якщо він непорожній рядок.
+ * @param {unknown} patchEntry елемент масиву **patches**
+ * @returns {string | null} текст patch або null
+ */
+function extractPatchString(patchEntry) {
+  const pr = /** @type {Record<string, unknown>} */ (patchEntry)
+  const patchStr = pr.patch
+  if (typeof patchStr === 'string' && patchStr.trim() !== '') return patchStr
+  return null
+}
+
+/**
+ * Збирає тексти inline **patch** для **Deployment** з одного YAML-документа Kustomization.
+ * @param {import('yaml').Document} doc YAML-документ
+ * @param {string[]} out масив для збору результатів
+ */
+function collectDeploymentPatchTextsFromDoc(doc, out) {
+  if (doc.errors.length > 0) return
+  const root = doc.toJSON()
+  if (root === null || typeof root !== 'object' || Array.isArray(root)) return
+  const rec = /** @type {Record<string, unknown>} */ (root)
+  if (!Array.isArray(rec.patches)) return
+  for (const p of rec.patches) {
+    if (isPatchTargetingDeployment(p)) {
+      const text = extractPatchString(p)
+      if (text !== null) out.push(text)
+    }
+  }
 }
 
 /**
@@ -1707,23 +1751,20 @@ function collectDeploymentPatchTextsFromKustomization(raw) {
   /** @type {string[]} */
   const out = []
   for (const doc of docs) {
-    if (doc.errors.length > 0) continue
-    const root = doc.toJSON()
-    if (root === null || typeof root !== 'object' || Array.isArray(root)) continue
-    const rec = /** @type {Record<string, unknown>} */ (root)
-    if (!Array.isArray(rec.patches)) continue
-    for (const p of rec.patches) {
-      if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
-      const pr = /** @type {Record<string, unknown>} */ (p)
-      const target = pr.target
-      if (target === null || typeof target !== 'object' || Array.isArray(target)) continue
-      const tg = /** @type {Record<string, unknown>} */ (target)
-      if (tg.kind !== 'Deployment') continue
-      const patchStr = pr.patch
-      if (typeof patchStr === 'string' && patchStr.trim() !== '') out.push(patchStr)
-    }
+    collectDeploymentPatchTextsFromDoc(doc, out)
   }
   return out
+}
+
+/**
+ * Чи YAML-документ містить образ Hasura (Deployment або Kustomization images).
+ * @param {import('yaml').Document} doc YAML-документ
+ * @returns {boolean} true, якщо документ посилається на hasura/graphql-engine
+ */
+function yamlDocReferencesHasuraImage(doc) {
+  if (doc.errors.length > 0) return false
+  const obj = doc.toJSON()
+  return deploymentDocHasHasuraImage(obj) || kustomizationDocHasHasuraImageNewName(obj)
 }
 
 /**
@@ -1739,17 +1780,124 @@ async function collectHasuraK8sPackageDirs(root, yamlAbs) {
   for (const abs of yamlAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     const docs = await readAndParseYamlDocs(abs, rel, silentFail)
-    if (!docs) continue
-    for (const doc of docs) {
-      if (doc.errors.length > 0) continue
-      const obj = doc.toJSON()
-      if (deploymentDocHasHasuraImage(obj) || kustomizationDocHasHasuraImageNewName(obj)) {
-        const pkgDir = abiePackageDirFromK8sYamlRel(root, rel)
-        if (pkgDir) dirs.add(pkgDir)
-      }
+    if (docs && docs.some(doc => yamlDocReferencesHasuraImage(doc))) {
+      const pkgDir = abiePackageDirFromK8sYamlRel(root, rel)
+      if (pkgDir) dirs.add(pkgDir)
     }
   }
   return dirs
+}
+
+/**
+ * Якщо в дереві **k8s** є Deployment з **`hasura/graphql-engine`** і **`ru/kustomization.yaml`** містить
+ * **`HASURA_GRAPHQL_JWT_SECRET`** — вимагає **nginx-sidecar** (abie.mdc):
+ * **`ru/configmap-nginx.yaml`**, **`resources`** у kustomization, patch **Service -hl** (port 8081),
+ * patch **Deployment** (nginx-sidecar image + containerPort 8081), patch **HTTPRoute** (port 8081).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @returns {Promise<void>}
+ */
+/**
+ * Перевіряє nginx-sidecar вимоги у **ru/kustomization.yaml** для одного Hasura-пакета.
+ * @param {string} relPkg відносний шлях пакета
+ * @param {string} relRu відносний шлях до ru/kustomization.yaml
+ * @param {string} pkgAbs абсолютний шлях до пакета
+ * @param {string} ruRaw вміст ru/kustomization.yaml
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ */
+function validateNginxSidecarInRuKustomization(relPkg, relRu, pkgAbs, ruRaw, fail, passFn) {
+  // configmap-nginx.yaml must exist
+  const configmapNginxAbs = join(pkgAbs, 'k8s', 'ru', 'configmap-nginx.yaml')
+  if (!existsSync(configmapNginxAbs)) {
+    fail(`${relPkg}/k8s/ru: потрібен configmap-nginx.yaml з nginx.conf (nginx-sidecar для Hasura WebSocket, abie.mdc)`)
+    return
+  }
+  passFn(`${relPkg}/k8s/ru/configmap-nginx.yaml: існує`)
+  // kustomization resources must include configmap-nginx.yaml
+  if (!RESOURCES_CONFIGMAP_NGINX_RE.test(ruRaw)) {
+    fail(`${relRu}: у resources потрібен configmap-nginx.yaml (nginx-sidecar, abie.mdc)`)
+    return
+  }
+  passFn(`${relRu}: resources містить configmap-nginx.yaml`)
+  validateNginxSidecarPatches(relRu, ruRaw, fail, passFn)
+}
+
+/**
+ * Перевіряє наявність nginx-sidecar patch (Service -hl, Deployment, HTTPRoute) у **ru/kustomization.yaml**.
+ * @param {string} relRu відносний шлях до ru/kustomization.yaml
+ * @param {string} ruRaw вміст ru/kustomization.yaml
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ */
+function validateNginxSidecarPatches(relRu, ruRaw, fail, passFn) {
+  // Service -hl patch must include port: 8081 (proxy)
+  const svcPatchByName = collectAbieRuServicePatchTextByTargetNameFromRaw(ruRaw)
+  const hasHlWith8081 = [...svcPatchByName.entries()].some(
+    ([name, pt]) => name.endsWith('-hl') && PATCH_PROXY_PORT_8081_RE.test(pt)
+  )
+  if (!hasHlWith8081) {
+    fail(`${relRu}: у patch Service -hl потрібен port: 8081 (proxy) для nginx-sidecar (abie.mdc)`)
+    return
+  }
+  passFn(`${relRu}: Service -hl patch містить port 8081 (nginx-sidecar)`)
+  // Deployment patch must include nginx-sidecar (image nginx:*-alpine + containerPort: 8081)
+  const deployPatches = collectDeploymentPatchTextsFromKustomization(ruRaw)
+  const hasNginxSidecar = deployPatches.some(
+    pt => NGINX_SIDECAR_IMAGE_RE.test(pt) && NGINX_SIDECAR_CONTAINER_PORT_RE.test(pt)
+  )
+  if (!hasNginxSidecar) {
+    fail(`${relRu}: у patch Deployment потрібен nginx-sidecar (image nginx:…-alpine, containerPort: 8081) — abie.mdc`)
+    return
+  }
+  passFn(`${relRu}: Deployment patch містить nginx-sidecar (image + containerPort 8081)`)
+  // HTTPRoute patch must replace a backendRef port to 8081
+  const combined = getCombinedNginxRunPatchTextFromKustomization(ruRaw)
+  if (
+    !HTTPROUTE_BACKENDREF_PORT_8081_RE.test(combined) &&
+    !HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE.test(combined)
+  ) {
+    fail(
+      `${relRu}: у patch HTTPRoute потрібен JSON6902 з path /spec/rules/…/backendRefs/…/port та value: 8081 (nginx-sidecar, abie.mdc)`
+    )
+    return
+  }
+  passFn(`${relRu}: HTTPRoute patch замінює порт на 8081 (nginx-sidecar)`)
+}
+
+/**
+ * Обробляє один Hasura-пакет: читає **ru/kustomization.yaml** та перевіряє nginx-sidecar вимоги.
+ * @param {string} root корінь репозиторію
+ * @param {string} pkgAbs абсолютний шлях до пакета
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @returns {Promise<void>}
+ */
+async function checkNginxSidecarForHasuraPackage(root, pkgAbs, fail, passFn) {
+  const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
+  const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
+  if (!existsSync(ruAbs)) {
+    passFn(`${relPkg}/k8s: є Hasura Deployment, але немає ru/kustomization.yaml — nginx-sidecar не перевіряється`)
+    return
+  }
+  let ruRaw
+  try {
+    ruRaw = await readFile(ruAbs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${relPkg}/k8s/ru/kustomization.yaml: не вдалося прочитати (${msg})`)
+    return
+  }
+  if (!ruRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)) {
+    passFn(
+      `${relPkg}/k8s/ru/kustomization.yaml: немає ${HASURA_JWT_SECRET_IN_KUSTOMIZATION} — nginx-sidecar не вимагається (abie.mdc)`
+    )
+    return
+  }
+  const relRu = relative(root, ruAbs).replaceAll('\\', '/') || ruAbs
+  validateNginxSidecarInRuKustomization(relPkg, relRu, pkgAbs, ruRaw, fail, passFn)
 }
 
 /**
@@ -1770,74 +1918,7 @@ async function ensureAbieNginxSidecarForHasura(root, yamlFilesAbs, fail, passFn)
     return
   }
   for (const pkgAbs of [...hasuraPkgDirs].toSorted((a, b) => a.localeCompare(b))) {
-    const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
-    const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
-    if (!existsSync(ruAbs)) {
-      passFn(`${relPkg}/k8s: є Hasura Deployment, але немає ru/kustomization.yaml — nginx-sidecar не перевіряється`)
-      continue
-    }
-    let ruRaw
-    try {
-      ruRaw = await readFile(ruAbs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${relPkg}/k8s/ru/kustomization.yaml: не вдалося прочитати (${msg})`)
-      return
-    }
-    if (!ruRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)) {
-      passFn(
-        `${relPkg}/k8s/ru/kustomization.yaml: немає ${HASURA_JWT_SECRET_IN_KUSTOMIZATION} — nginx-sidecar не вимагається (abie.mdc)`
-      )
-      continue
-    }
-    const relRu = relative(root, ruAbs).replaceAll('\\', '/') || ruAbs
-    // configmap-nginx.yaml must exist
-    const configmapNginxAbs = join(pkgAbs, 'k8s', 'ru', 'configmap-nginx.yaml')
-    if (!existsSync(configmapNginxAbs)) {
-      fail(`${relPkg}/k8s/ru: потрібен configmap-nginx.yaml з nginx.conf (nginx-sidecar для Hasura WebSocket, abie.mdc)`)
-      return
-    }
-    passFn(`${relPkg}/k8s/ru/configmap-nginx.yaml: існує`)
-    // kustomization resources must include configmap-nginx.yaml
-    if (!RESOURCES_CONFIGMAP_NGINX_RE.test(ruRaw)) {
-      fail(`${relRu}: у resources потрібен configmap-nginx.yaml (nginx-sidecar, abie.mdc)`)
-      return
-    }
-    passFn(`${relRu}: resources містить configmap-nginx.yaml`)
-    // Service -hl patch must include port: 8081 (proxy)
-    const svcPatchByName = collectAbieRuServicePatchTextByTargetNameFromRaw(ruRaw)
-    const hasHlWith8081 = [...svcPatchByName.entries()].some(
-      ([name, pt]) => name.endsWith('-hl') && PATCH_PROXY_PORT_8081_RE.test(pt)
-    )
-    if (!hasHlWith8081) {
-      fail(`${relRu}: у patch Service -hl потрібен port: 8081 (proxy) для nginx-sidecar (abie.mdc)`)
-      return
-    }
-    passFn(`${relRu}: Service -hl patch містить port 8081 (nginx-sidecar)`)
-    // Deployment patch must include nginx-sidecar (image nginx:*-alpine + containerPort: 8081)
-    const deployPatches = collectDeploymentPatchTextsFromKustomization(ruRaw)
-    const hasNginxSidecar = deployPatches.some(
-      pt => NGINX_SIDECAR_IMAGE_RE.test(pt) && NGINX_SIDECAR_CONTAINER_PORT_RE.test(pt)
-    )
-    if (!hasNginxSidecar) {
-      fail(
-        `${relRu}: у patch Deployment потрібен nginx-sidecar (image nginx:…-alpine, containerPort: 8081) — abie.mdc`
-      )
-      return
-    }
-    passFn(`${relRu}: Deployment patch містить nginx-sidecar (image + containerPort 8081)`)
-    // HTTPRoute patch must replace a backendRef port to 8081
-    const combined = getCombinedNginxRunPatchTextFromKustomization(ruRaw)
-    if (
-      !HTTPROUTE_BACKENDREF_PORT_8081_RE.test(combined) &&
-      !HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE.test(combined)
-    ) {
-      fail(
-        `${relRu}: у patch HTTPRoute потрібен JSON6902 з path /spec/rules/…/backendRefs/…/port та value: 8081 (nginx-sidecar, abie.mdc)`
-      )
-      return
-    }
-    passFn(`${relRu}: HTTPRoute patch замінює порт на 8081 (nginx-sidecar)`)
+    await checkNginxSidecarForHasuraPackage(root, pkgAbs, fail, passFn)
   }
 }
 

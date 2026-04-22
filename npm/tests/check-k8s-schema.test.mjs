@@ -395,15 +395,15 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
 
 describe('isForbiddenAutoscalingV1Manifest', () => {
   test('true для autoscaling/v1', () => {
-    expect(
-      isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v1', kind: 'HorizontalPodAutoscaler' })
-    ).toBe(true)
+    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v1', kind: 'HorizontalPodAutoscaler' })).toBe(
+      true
+    )
   })
 
   test('false для autoscaling/v2', () => {
-    expect(
-      isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler' })
-    ).toBe(false)
+    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler' })).toBe(
+      false
+    )
   })
 
   test('false для не-autoscaling apiVersion', () => {
@@ -1013,6 +1013,7 @@ describe('deploymentAppLabel', () => {
 /**
  * Канонічний мінімальний HPA, валідний у прод (для тестів).
  * @param {Record<string, unknown>} overrides перекриття полів spec
+ * @returns {Record<string, unknown>} HPA manifest
  */
 function makeHpa(overrides = {}) {
   return {
@@ -1023,7 +1024,9 @@ function makeHpa(overrides = {}) {
       scaleTargetRef: { apiVersion: 'apps/v1', kind: 'Deployment', name: 'x' },
       minReplicas: 2,
       maxReplicas: 10,
-      metrics: [{ type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 70 } } }],
+      metrics: [
+        { type: 'Resource', resource: { name: 'cpu', target: { type: 'Utilization', averageUtilization: 70 } } }
+      ],
       behavior: {
         scaleUp: { policies: [{ type: 'Percent', value: 100, periodSeconds: 30 }] },
         scaleDown: { policies: [{ type: 'Percent', value: 25, periodSeconds: 120 }] }
@@ -1260,7 +1263,8 @@ describe('kustomizationPatchPathsByTargetKind', () => {
     const kust = {
       patches: [
         {
-          patch: 'apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: x\nspec:\n  maxReplicas: 5\n'
+          patch:
+            'apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: x\nspec:\n  maxReplicas: 5\n'
         }
       ]
     }

@@ -308,12 +308,12 @@ data:
 
 ### Прод-оверрайди у `kustomization.yaml`
 
-Оскільки `base/` (і dev-like середовища) тримають dev-значення (`1`/`1`/`0`), у **кожному** прод-оверлеї `kustomization.yaml` у `patches[]` **обов'язково** має бути перевизначення:
+Оскільки `base/` (і dev-like середовища) тримають dev-значення (`1`/`1`/`0`), у **кожному** прод-накладенні `kustomization.yaml` у `patches[]` **обов'язково** має бути перевизначення:
 
 - для `HorizontalPodAutoscaler`: `spec.minReplicas` **і** `spec.maxReplicas` (щоб у проді вийшло ≥2).
 - для `PodDisruptionBudget`: `spec.minAvailable` (щоб у проді вийшло ≥1).
 
-Формат patch — JSON6902 або Strategic Merge; `check k8s` перевіряє **наявність** оверрайду відповідного поля. Конкретне значення має задовольняти прод-мінімуми — це видно у вмісті patch і остаточно матеріалізується під час збірки Kustomize.
+Формат patch — JSON6902 або Strategic Merge; `check k8s` перевіряє **наявність** перевизначення відповідного поля. Конкретне значення має задовольняти прод-мінімуми — це видно у вмісті patch і остаточно матеріалізується під час збірки Kustomize.
 
 ```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
 patches:
@@ -349,8 +349,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend-api
-  minReplicas: 1 # dev-like; прод-оверлеї перевизначають на ≥ 2
-  maxReplicas: 1 # dev-like; прод-оверлеї перевизначають на ≥ 2
+  minReplicas: 1 # dev-like; прод-накладення перевизначають на ≥ 2
+  maxReplicas: 1 # dev-like; прод-накладення перевизначають на ≥ 2
   metrics:
     - type: Resource
       resource:
@@ -404,7 +404,7 @@ spec:
               app: backend-api
 ```
 
-В overlays для проду `minReplicas`, `maxReplicas`, `minAvailable` підіймаєш до прод-мінімумів через **Kustomize patches** або окремі `hpa.yaml` / `pdb.yaml` у каталозі overlay (тоді перевірка спрацьовує за їхнім середовищем).
+В overlays для прод-середовища `minReplicas`, `maxReplicas`, `minAvailable` підіймаєш до прод-мінімумів через **Kustomize patches** або окремі `hpa.yaml` / `pdb.yaml` у каталозі overlay (тоді перевірка спрацьовує за їхнім середовищем).
 
 ## HorizontalPodAutoscaler: `autoscaling/v2`
 

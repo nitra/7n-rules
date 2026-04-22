@@ -118,7 +118,7 @@ spec:
 YC ALB (gwin) має баг: якщо HTTPRoute-правило містить одночасно `URLRewrite` (ReplacePrefixMatch) і `upgrade_types: websocket` — ALB не обробляє WebSocket і повертає 404.
 <https://center.yandex.cloud/support/tickets/TX549394>
 
-Обхідний варіант: nginx-sidecar у поді, що сам виконує rewrite і проксіює WebSocket до Hasura.
+Обхідний варіант: nginx-sidecar у поді, що сам виконує rewrite і передає WebSocket до Hasura.
 
 **Умова:** в дереві `k8s` є Deployment з image `hasura/graphql-engine` (або `newName` на нього через `images:` у kustomization) **і** `ru/kustomization.yaml` містить `HASURA_GRAPHQL_JWT_SECRET` (patch на ConfigMap Hasura з JWT).
 
@@ -161,7 +161,7 @@ data:
             }
 
             # WebSocket: ALB не робить rewrite (URLRewrite + upgrade = bug YC ALB)
-            # nginx реврайтить /PREFIX/* → /* і проксіює до Hasura
+            # nginx переписує /PREFIX/* → /* і передає до Hasura
             location /PREFIX/ {
                 rewrite ^/PREFIX/(.*)$ /$1 break;
                 proxy_pass http://127.0.0.1:8080;
@@ -171,7 +171,7 @@ data:
                 proxy_set_header Host $host;
             }
 
-            # HTTP: ALB вже зробив prefix_rewrite → /, nginx просто проксіює
+            # HTTP: ALB вже зробив prefix_rewrite → /, nginx просто передає
             location / {
                 proxy_pass http://127.0.0.1:8080;
                 proxy_http_version 1.1;

@@ -266,6 +266,55 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
 }
 
 /**
+ * Перевіряє, чи on.pull_request.types у parsed YAML містить 'closed'.
+ * @param {Record<string, unknown>} root розібраний YAML workflow
+ * @returns {boolean} true, якщо тригер pull_request має тип closed
+ */
+function hasPullRequestClosedTrigger(root) {
+  const on = root.on
+  if (!on || typeof on !== 'object') return false
+  const pr = /** @type {Record<string, unknown>} */ (on)['pull_request']
+  if (!pr || typeof pr !== 'object') return false
+  const types = /** @type {Record<string, unknown>} */ (pr).types
+  return Array.isArray(types) && types.includes('closed')
+}
+
+/**
+ * Перевіряє, чи будь-який job у parsed YAML має if-умову з 'merged'.
+ * @param {Record<string, unknown>} root розібраний YAML workflow
+ * @returns {boolean} true, якщо хоча б один job містить умову merged
+ */
+function hasJobMergedCondition(root) {
+  const { jobs } = root
+  if (!jobs || typeof jobs !== 'object') return false
+  return Object.values(jobs).some(job => {
+    if (!job || typeof job !== 'object') return false
+    const ifCond = String(/** @type {Record<string, unknown>} */ (job).if ?? '')
+    return ifCond.includes('merged')
+  })
+}
+
+/**
+ * Перевіряє parsed YAML git-ai.yml: тригер closed та умова merged.
+ * @param {Record<string, unknown>} root розібраний YAML workflow
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+function validateGitAiParsedYaml(root, passFn, failFn) {
+  if (hasPullRequestClosedTrigger(root)) {
+    passFn('git-ai.yml: on.pull_request.types містить closed')
+  } else {
+    failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
+  }
+
+  if (hasJobMergedCondition(root)) {
+    passFn('git-ai.yml: job має умову merged')
+  } else {
+    failFn('git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)')
+  }
+}
+
+/**
  * Перевіряє git-ai.yml: тригер pull_request з types: [closed], умова merged у job, виклик git-ai.
  * @param {string} wfDir директорія workflows
  * @param {(msg: string) => void} passFn callback при успішній перевірці
@@ -278,46 +327,10 @@ async function checkGitAiWorkflow(wfDir, passFn, failFn) {
   const root = parseWorkflowYaml(content)
 
   if (root) {
-    // on.pull_request.types має містити 'closed'
-    const on = root.on
-    let hasPrClosed = false
-    if (on && typeof on === 'object') {
-      const pr = /** @type {Record<string, unknown>} */ (on)['pull_request']
-      if (pr && typeof pr === 'object') {
-        const types = /** @type {Record<string, unknown>} */ (pr).types
-        hasPrClosed = Array.isArray(types) && types.includes('closed')
-      }
-    }
-    if (hasPrClosed) {
-      passFn('git-ai.yml: on.pull_request.types містить closed')
-    } else {
-      failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
-    }
-
-    // Job if-умова: запускати лише при злитті PR
-    const jobs = root.jobs
-    let hasMergedCondition = false
-    if (jobs && typeof jobs === 'object') {
-      for (const job of Object.values(jobs)) {
-        if (job && typeof job === 'object') {
-          const ifCond = String(/** @type {Record<string, unknown>} */ (job).if ?? '')
-          if (ifCond.includes('merged')) {
-            hasMergedCondition = true
-          }
-        }
-      }
-    }
-    if (hasMergedCondition) {
-      passFn('git-ai.yml: job має умову merged')
-    } else {
-      failFn('git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)')
-    }
+    validateGitAiParsedYaml(root, passFn, failFn)
   }
 
-  // Крок викликає git-ai ci github run
-  const hasGitAiRun = root
-    ? anyRunStepIncludes(root, 'git-ai ci github run')
-    : content.includes('git-ai ci github run')
+  const hasGitAiRun = root ? anyRunStepIncludes(root, 'git-ai ci github run') : content.includes('git-ai ci github run')
   if (hasGitAiRun) {
     passFn('git-ai.yml: крок виконує git-ai ci github run')
   } else {
