@@ -1,5 +1,5 @@
 /**
- * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, Firebase Hosting у корені, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом, Service NodePort у ru.
+ * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, Firebase Hosting у підкаталозі 1-го рівня, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом, Service NodePort у ru.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -698,22 +698,34 @@ spec:
     })
   })
 
-  test('abie: firebase.json у корені — 1', async () => {
+  test('abie: firebase.json у підкаталозі першого рівня — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('app')
+      await writeFile(join('app', 'firebase.json'), '{}\n', 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: firebase.json лише в корені — 0', async () => {
     await withTmpCwd(async () => {
       await writeJson('.n-cursor.json', { rules: ['abie'] })
       await ensureDir('.github/workflows')
       await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
       await writeFile('firebase.json', '{}\n', 'utf8')
-      expect(await check()).toBe(1)
+      expect(await check()).toBe(0)
     })
   })
 
-  test('abie: директорія .firebase у корені — 1', async () => {
+  test('abie: директорія .firebase у підкаталозі першого рівня — 1', async () => {
     await withTmpCwd(async () => {
       await writeJson('.n-cursor.json', { rules: ['abie'] })
       await ensureDir('.github/workflows')
       await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
-      await ensureDir('.firebase')
+      await ensureDir('app')
+      await ensureDir(join('app', '.firebase'))
       expect(await check()).toBe(1)
     })
   })

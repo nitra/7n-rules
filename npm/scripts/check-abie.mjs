@@ -8,7 +8,8 @@
  * **`phpdocker-io/github-actions-delete-abandoned-branches`** у **`with.ignore_branches`** мають бути
  * **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно).
  *
- * **Firebase Hosting:** у корені репозиторію не має бути **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`**.
+ * **Firebase Hosting:** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; `node_modules` / `.git` пропускаються) не має бути
+ * **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`**; у **самому** корені репозиторію ці імена не перевіряються.
  *
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
@@ -38,7 +39,7 @@
  * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — **`op: remove`** для **`/spec/clusterIP`**; якщо в base **явно** задано **`spec.clusterIPs`** — також **`remove`** для **`/spec/clusterIPs`** (інакше **API** може залишити **`None`** для **NodePort**; без ключа **`clusterIPs`** у base **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
  */
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
@@ -49,6 +50,9 @@ import { flattenWorkflowSteps, getStepUses, parseWorkflowYaml } from './utils/gh
 import { walkDir } from './utils/walkDir.mjs'
 
 const CONFIG_FILE = '.n-cursor.json'
+
+/** Каталоги-діти в корені, які пропускаються при скануванні на артефакти Firebase Hosting (abie). */
+const ABIE_FIREBASE_HOSTING_SCAN_SKIP_TOP_DIR_NAMES = new Set(['.git', 'node_modules'])
 
 /** Маркер у kustomization.yaml: якщо зустрічається у файлі — для overlay ru у patch HTTPRoute потрібна анотація gwin…websocket. */
 const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
@@ -1679,27 +1683,46 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
 }
 
 /**
- * Перевіряє відсутність артефактів Firebase Hosting у корені репозиторію (abie.mdc).
+ * Перевіряє відсутність артефактів Firebase Hosting у **кожному** **підкаталозі першого рівня** від кореня
+ * (не в самому корені репозиторію) — abie.mdc. Каталоги **`.git`** і **`node_modules`** у скануванні пропускаються.
+ *
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} passFn успішне повідомлення
  * @param {(msg: string) => void} failFn повідомлення про порушення
- * @returns {void}
+ * @returns {Promise<void>}
  */
-function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
-  for (const name of ['.firebaserc', 'firebase.json']) {
-    const abs = join(root, name)
-    if (existsSync(abs)) {
-      failFn(`Знайдено заборонений файл Firebase Hosting: ${name} — видали його (abie.mdc)`)
-    } else {
-      passFn(`Немає ${name}`)
+async function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
+  let entries
+  try {
+    entries = await readdir(root, { withFileTypes: true })
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    failFn(`Не вдалося прочитати ${root} для перевірки Firebase Hosting: ${msg} (abie.mdc)`)
+    return
+  }
+  const topDirs = entries.filter(
+    e => e.isDirectory() && !ABIE_FIREBASE_HOSTING_SCAN_SKIP_TOP_DIR_NAMES.has(e.name)
+  )
+  let hasViolation = false
+  for (const e of topDirs) {
+    for (const name of ['.firebaserc', 'firebase.json']) {
+      const rel = join(e.name, name).replaceAll('\\', '/')
+      if (existsSync(join(root, e.name, name))) {
+        failFn(`Знайдено заборонений файл Firebase Hosting: ${rel} — видали його (abie.mdc)`)
+        hasViolation = true
+      }
+    }
+    if (existsSync(join(root, e.name, '.firebase'))) {
+      failFn(`Знайдено заборонену директорію: ${e.name}/.firebase/ — видали її (abie.mdc)`)
+      hasViolation = true
     }
   }
-  const firebaseDir = join(root, '.firebase')
-  if (existsSync(firebaseDir)) {
-    failFn('Знайдено директорію .firebase — видали її (abie.mdc)')
-  } else {
-    passFn('Немає .firebase/')
+  if (hasViolation) {
+    return
   }
+  passFn(
+    'Підкаталоги кореня (1-й рівень, без .git/node_modules): артефактів Firebase Hosting не знайдено (abie.mdc)'
+  )
 }
 
 /**
@@ -2075,7 +2098,7 @@ export async function check() {
   }
 
   pass('Правило abie увімкнено — виконуємо перевірки')
-  ensureNoFirebaseHostingArtifacts(root, pass, fail)
+  await ensureNoFirebaseHostingArtifacts(root, pass, fail)
   await checkCleanMergedBranch(root, pass, fail)
 
   const yamlFiles = await findK8sYamlFiles(root)
