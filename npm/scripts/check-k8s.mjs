@@ -79,6 +79,17 @@
  * з (`>=2`, `>=2`, `>=1`) не залишалися на dev-значеннях із base. Формат patch — JSON6902 або Strategic Merge;
  * наявність перевіряється через `kustomizationPatchPathsByTargetKind` (конкретне значення — у вмісті patch,
  * яке буде оцінено під час збірки Kustomize).
+ *
+ * **Існування шляхів у `kustomization.yaml`:** кожне локальне посилання (без `://`) з `resources` / `bases` /
+ * `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`,
+ * `replacements[].path` має вказувати на наявний у репозиторії файл (`.yaml` / `.yml`) або каталог; інакше
+ * помилка `check k8s` (k8s.mdc).
+ *
+ * **HPA / PDB тільки з Deployment у `base`:** у дереві Kustomize з `…/k8s/…/base/kustomization.yaml` не
+ * дозволяти `HorizontalPodAutoscaler` / `PodDisruptionBudget` у `resources` / `bases` / `components` / `crds`
+ * (рекурсивно), якщо в цьому ж дереві немає `Deployment`. У `kustomization.yaml` overlay, який підключає
+ * каталог `…/k8s/…/base`, не додавай окремі YAML-файли з HPA / PDB, поки в наслідуваному `base` у дереві
+ * не з’явиться `Deployment` (k8s.mdc).
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat, unlink } from 'node:fs/promises'
@@ -384,6 +395,122 @@ function pathsFromKustomizationObject(obj) {
     }
   }
   return out
+}
+
+/**
+ * Унікальні локальні шляхи з `kustomization.yaml` для перевірки існування на диску:
+ * як у `pathsFromKustomizationObject`, плюс **`patchesJson6902[].path`**, плюс **`configurations[]`**
+ * (рядки-шляхи) і **`replacements[].path`**, якщо задано.
+ * @param {unknown} obj корінь першого документа
+ * @returns {string[]}
+ */
+export function kustomizePathRefsForExistenceCheck(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    return []
+  }
+  const fromPaths = pathsFromKustomizationObject(obj)
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  const pj = rec.patchesJson6902
+  if (Array.isArray(pj)) {
+    for (const item of pj) {
+      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+        const pth = /** @type {Record<string, unknown>} */ (item).path
+        if (typeof pth === 'string' && pth.trim() !== '') {
+          fromPaths.push(pth.trim())
+        }
+      }
+    }
+  }
+  const configurations = rec.configurations
+  if (Array.isArray(configurations)) {
+    for (const c of configurations) {
+      if (typeof c === 'string' && c.trim() !== '') {
+        fromPaths.push(c.trim())
+      }
+    }
+  }
+  const replacements = rec.replacements
+  if (Array.isArray(replacements)) {
+    for (const r of replacements) {
+      if (r !== null && typeof r === 'object' && !Array.isArray(r)) {
+        const pth = /** @type {Record<string, unknown>} */ (r).path
+        if (typeof pth === 'string' && pth.trim() !== '') {
+          fromPaths.push(pth.trim())
+        }
+      }
+    }
+  }
+  return [...new Set(fromPaths)]
+}
+
+/**
+ * Перевіряє, що всі перелічені в `kustomization.yaml` локальні шляхи існують.
+ * @param {string} root корінь репо
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь
+ * @param {(msg: string) => void} fail callback
+ * @returns {Promise<void>}
+ */
+async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail) {
+  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+  const kust = await readFirstYamlObject(kustAbs)
+  if (kust === null) {
+    return
+  }
+  if (kust.kind !== 'Kustomization') {
+    return
+  }
+  const refs = kustomizePathRefsForExistenceCheck(kust)
+  const kustDir = dirname(resolve(kustAbs))
+  for (const r of refs) {
+    if (typeof r !== 'string' || r.includes('://') || r.trim() === '') {
+      continue
+    }
+    const target = resolve(kustDir, r.trim())
+    if (!resolvedFilePathIsUnderRoot(rootNorm, target)) {
+      fail(
+        `${rel}: посилання «${r}» виходить за межі репозиторію (resolve: ${(relative(rootNorm, target) || target).replaceAll('\\', '/')
+        }) (k8s.mdc)`
+      )
+      continue
+    }
+    /** @type {import('node:fs').Stats | undefined} */
+    let st
+    try {
+      st = await stat(target)
+    } catch {
+      st = undefined
+    }
+    if (st === undefined) {
+      fail(
+        `${rel}: посилання «${r}» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)`
+      )
+      continue
+    }
+    if (st.isFile()) {
+      if (!YAML_EXTENSION_RE.test(target)) {
+        fail(
+          `${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
+        )
+      }
+    } else if (!st.isDirectory()) {
+      fail(`${rel}: «${r}» — ні файл, ні каталог (k8s.mdc)`)
+    }
+  }
+}
+
+/**
+ * Усі `kustomization.yaml` під `k8s`: локальні `path` / ресурси мають існувати.
+ * @param {string} root
+ * @param {string[]} yamlFilesAbs
+ * @param {(msg: string) => void} fail
+ * @returns {Promise<void>}
+ */
+async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
+  const rootNorm = resolve(root)
+  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+    await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
+  }
 }
 
 /**
@@ -4108,6 +4235,287 @@ async function readFirstYamlObject(absPath) {
 }
 
 /**
+ * Чи відносний шлях вказує на `k8s/…/base/kustomization.yaml` (каталог `base` у дереві k8s).
+ * @param {string} rel POSIX-шлях
+ * @returns {boolean} true, якщо батьківський каталог — `…/…/base` у шляху з `k8s`
+ */
+function isK8sBaseKustomizationRelPath(rel) {
+  const n = rel.replaceAll('\\', '/')
+  const d = dirname(n).replaceAll('\\', '/')
+  if (basename(d) !== 'base') {
+    return false
+  }
+  return d.startsWith('k8s/') || d.includes('/k8s/')
+}
+
+/**
+ * Чи абсолютний шлях до каталогу — k8s-`base` (ідентифікуємо за тим, що `relative` від кореня
+ * містить сегмент `k8s` і basename каталогу — `base`).
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} dirAbs абсолютний шлях до каталогу
+ * @returns {boolean} true для `.../k8s/.../base` з `kustomization.yaml` у цьому каталозі
+ */
+function isUnderK8sPathRelToRoot(rootNorm, dirAbs) {
+  const rel = (relative(rootNorm, dirAbs) || '.').replaceAll('\\', '/')
+  if (rel === '' || rel === '.') {
+    return false
+  }
+  if (rel.startsWith('../') || rel === '..') {
+    return false
+  }
+  return rel === 'k8s' || rel.startsWith('k8s/') || rel.includes('/k8s/')
+}
+
+/**
+ * Чи файловий шлях усередині `dirAbs` (або збігається).
+ * @param {string} dirAbs каталог
+ * @param {string} fileAbs файл
+ * @returns {boolean} true, якщо файл — піддерево каталогу
+ */
+function isResolvedFileUnderDirectory(dirAbs, fileAbs) {
+  const b = resolve(dirAbs)
+  const f = resolve(fileAbs)
+  const r = relative(b, f).replaceAll('\\', '/')
+  if (r === '' || r === '.') {
+    return true
+  }
+  return !r.startsWith('../') && r !== '..'
+}
+
+/**
+ * За списку посилань kustomize повертає каталоги `.../base` з `kustomization.yaml` (наслідування base).
+ * @param {string} kustDir каталог kustomization.yaml
+ * @param {string[]} pathRefs тільки resources / bases / components / crds
+ * @param {string} rootNorm нормалізований корінь репо
+ * @returns {Promise<string[]>} абсолютні шляхи (без дедуплікації, якщо кілька однакових ref)
+ */
+async function k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootNorm) {
+  /** @type {string[]} */
+  const out = []
+  for (const ref of pathRefs) {
+    if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') {
+      continue
+    }
+    const resolved = resolve(kustDir, ref.trim())
+    if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+      continue
+    }
+    let st
+    try {
+      st = await stat(resolved)
+    } catch {
+      st = undefined
+    }
+    if (st === undefined || !st.isDirectory() || basename(resolved) !== 'base') {
+      continue
+    }
+    if (!existsSync(join(resolved, 'kustomization.yaml')) || !isUnderK8sPathRelToRoot(rootNorm, resolved)) {
+      continue
+    }
+    out.push(resolved)
+  }
+  return out
+}
+
+/**
+ * Аналізує `resources` / `bases` / `components` / `crds` kustomization: чи в дереві є
+ * `Deployment` / HPA / PDB.
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rootNorm корінь
+ * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} прапорці
+ */
+export async function kustomizeResourceTreeHpaPdbDeploymentFlags(kustAbs, rootNorm) {
+  /** @type {Set<string>} */
+  const visitedKustomization = new Set()
+  const desc = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visitedKustomization)
+  return {
+    hasDeployment: desc.some(d => d.kind === 'Deployment'),
+    hasHpa: desc.some(d => d.kind === 'HorizontalPodAutoscaler'),
+    hasPdb: desc.some(d => d.kind === 'PodDisruptionBudget')
+  }
+}
+
+/**
+ * Чи серед документів YAML-файлу є `HorizontalPodAutoscaler` або `PodDisruptionBudget`.
+ * @param {string} fileAbs абсолютний шлях
+ * @returns {Promise<boolean>} true, якщо такі kind знайдені
+ */
+async function yamlFileContainsHpaOrPdbDocument(fileAbs) {
+  const raw = await tryReadFileUtf8(fileAbs)
+  if (raw === undefined) {
+    return false
+  }
+  const docs = tryParseAllYamlDocs(raw)
+  if (docs === undefined) {
+    return false
+  }
+  for (const doc of docs) {
+    if (doc.errors.length > 0) {
+      continue
+    }
+    const o = doc.toJSON()
+    if (o === null || typeof o !== 'object' || Array.isArray(o)) {
+      continue
+    }
+    const k = /** @type {Record<string, unknown>} */ (o).kind
+    if (k === 'HorizontalPodAutoscaler' || k === 'PodDisruptionBudget') {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Для `…/k8s/…/base/kustomization.yaml`: HPA / PDB дозволені в дереві kustomize лише разом із Deployment.
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rel для повідомлень
+ * @param {(msg: string) => void} fail callback
+ * @param {(msg: string) => void} passFn success
+ * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags мемоізований аналіз дерева
+ * @returns {Promise<void>}
+ */
+async function verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, passFn, getTreeFlags) {
+  const { hasDeployment, hasHpa, hasPdb } = await getTreeFlags(kustAbs)
+  if (hasHpa || hasPdb) {
+    if (hasDeployment) {
+      passFn(
+        `${rel}: у дереві kustomize base є HPA/PDB і Deployment (k8s.mdc)`
+      )
+    } else {
+      fail(
+        `${rel}: у base є HorizontalPodAutoscaler і/або PodDisruptionBudget у resources/bases/…, але дерева kustomize не містить Deployment — HPA і PDB дозволені тільки разом із Deployment (k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
+ * `kustomization` overlay, що посилається на `…/k8s/…/base`, не може додавати HPA / PDB як окремі YAML,
+ * поки в наслідуваному base немає Deployment.
+ * @param {string} root нормалізований корінь репо
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rel для повідомлень
+ * @param {Record<string, unknown>} kustObj перший документ
+ * @param {(msg: string) => void} fail callback
+ * @param {(msg: string) => void} passFn success
+ * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags
+ * @returns {Promise<void>}
+ */
+async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
+  root,
+  kustAbs,
+  rel,
+  kustObj,
+  fail,
+  passFn,
+  getTreeFlags
+) {
+  const kustDir = dirname(kustAbs)
+  const pathRefs = resourcePathRefsFromKustomizationObject(kustObj)
+  const baseDirs = await k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, root)
+  if (baseDirs.length === 0) {
+    return
+  }
+
+  const anyBaseHasDep = await (async () => {
+    for (const baseDir of baseDirs) {
+      const { hasDeployment: h } = await getTreeFlags(join(baseDir, 'kustomization.yaml'))
+      if (h) {
+        return true
+      }
+    }
+    return false
+  })()
+  for (const ref of pathRefs) {
+    if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') {
+      continue
+    }
+    const fAbs = resolve(kustDir, ref.trim())
+    if (!resolvedFilePathIsUnderRoot(root, fAbs) || !existsSync(fAbs)) {
+      continue
+    }
+    let st
+    try {
+      st = await stat(fAbs)
+    } catch {
+      st = undefined
+    }
+    if (st === undefined) {
+      continue
+    }
+    if (!st.isFile() || !YAML_EXTENSION_RE.test(fAbs)) {
+      continue
+    }
+    const fUnderSomeBase = baseDirs.some(bd => isResolvedFileUnderDirectory(bd, fAbs))
+    if (fUnderSomeBase) {
+      continue
+    }
+    const hpaPdb = await yamlFileContainsHpaOrPdbDocument(fAbs)
+    if (!hpaPdb) {
+      continue
+    }
+    if (!anyBaseHasDep) {
+      fail(
+        `${rel}: посилання «${ref}» містить HorizontalPodAutoscaler і/або PodDisruptionBudget, а наслідуваний k8s/base не дає у дереві Deployment — прибери HPA/PDB або додай Deployment у base (k8s.mdc)`
+      )
+    } else {
+      passFn(
+        `${rel}: overlay-файл «${(relative(root, fAbs) || ref).replaceAll('\\', '/')}» з HPA/PDB, base містить Deployment (k8s.mdc)`
+      )
+    }
+  }
+}
+
+/**
+ * Перевіряє всі кастомізації: (1) у k8s/base дереві HPA/PDB тільки з Deployment; (2) overlay, що
+ * посилається на base, не додає HPA/PDB без Deployment у base.
+ * @param {string} root корінь репо
+ * @param {string[]} yamlFilesAbs yaml у k8s
+ * @param {(msg: string) => void} fail callback
+ * @param {(msg: string) => void} passFn pass
+ * @returns {Promise<void>}
+ */
+async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  /** @type {Map<string, Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>>} */
+  const treeFlagsMemo = new Map()
+  /**
+   * @param {string} kustPath
+   * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>}
+   */
+  const getTreeFlags = kustPath => {
+    const k = resolve(kustPath)
+    let p = treeFlagsMemo.get(k)
+    if (p === undefined) {
+      p = kustomizeResourceTreeHpaPdbDeploymentFlags(k, rootNorm)
+      treeFlagsMemo.set(k, p)
+    }
+    return p
+  }
+  const kustFiles = yamlFilesAbs.filter(abs => basename(abs).toLowerCase() === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
+    const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust === null) {
+      continue
+    }
+    if (isK8sBaseKustomizationRelPath(rel)) {
+      await verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, passFn, getTreeFlags)
+    } else {
+      await verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
+        rootNorm,
+        kustAbs,
+        rel,
+        kust,
+        fail,
+        passFn,
+        getTreeFlags
+      )
+    }
+  }
+}
+
+/**
  * Перевіряє прод-оверрайди HPA/PDB в одному kustomization.yaml.
  * @param {Record<string, unknown>} kust об'єкт kustomization
  * @param {string} rel відносний шлях для повідомлень
@@ -4376,7 +4784,11 @@ export async function check() {
 
   await validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFiles, fail)
 
+  await validateKustomizationPathRefsExistOnDisk(root, yamlFiles, fail)
+
   await validateKustomizationPatchTargetsResolved(root, yamlFiles, fail)
+
+  await validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFiles, fail, pass)
 
   await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 

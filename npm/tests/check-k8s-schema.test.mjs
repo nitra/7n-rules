@@ -45,6 +45,8 @@ import {
   kustomizeResourceDescriptorFromManifest,
   kustomizeResourceDescriptorsIdentityEqual,
   kustomizationSvcYamlMissingSvcHlViolation,
+  kustomizePathRefsForExistenceCheck,
+  kustomizeResourceTreeHpaPdbDeploymentFlags,
   shouldValidateKustomizePatchTarget,
   splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
@@ -1274,5 +1276,74 @@ describe('kustomizationPatchPathsByTargetKind', () => {
 
   test('без patches — порожня мапа', () => {
     expect(kustomizationPatchPathsByTargetKind({}).size).toBe(0)
+  })
+})
+
+describe('kustomizePathRefsForExistenceCheck', () => {
+  test('збирає patchesJson6902 і configurations', () => {
+    const k = {
+      kind: 'Kustomization',
+      resources: ['a.yaml'],
+      patchesJson6902: [{ path: 'json6902.yaml', target: { kind: 'Deployment', name: 'x' } }],
+      configurations: ['openapi.yaml'],
+      replacements: [{ path: 'rep.yaml' }]
+    }
+    const xs = kustomizePathRefsForExistenceCheck(k).sort()
+    expect(xs).toEqual(['a.yaml', 'json6902.yaml', 'openapi.yaml', 'rep.yaml'].sort())
+  })
+})
+
+describe('kustomizeResourceTreeHpaPdbDeploymentFlags', () => {
+  test('у base tree лише HPA — hasDeployment false', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-flags-'))
+    const k8sBase = join(root, 'k8s', 'base')
+    await mkdir(k8sBase, { recursive: true })
+    const hpa = `# yaml-language-server: $schema=x
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ap
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 15
+    scaleDown:
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 15
+`
+    const k = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - hpa.yaml
+`
+    await writeFile(join(k8sBase, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(k8sBase, 'kustomization.yaml'), k, 'utf8')
+    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(
+      join(k8sBase, 'kustomization.yaml'),
+      resolve(root)
+    )
+    expect(f.hasHpa).toBe(true)
+    expect(f.hasDeployment).toBe(false)
+    expect(f.hasPdb).toBe(false)
   })
 })
