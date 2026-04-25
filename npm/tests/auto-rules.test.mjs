@@ -25,6 +25,18 @@ const ALL_RULES = [
 
 const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint']
 
+/**
+ * @returns {Promise<Awaited<ReturnType<typeof detectAutoRulesAndSkills>>>}
+ */
+async function detectAutoRulesInCwd() {
+  return detectAutoRulesAndSkills({
+    root: process.cwd(),
+    availableRules: ALL_RULES,
+    availableSkills: ALL_SKILLS,
+    packageJsonParsed: JSON.parse(await Bun.file('package.json').text())
+  })
+}
+
 describe('detectAutoRulesAndSkills', () => {
   test('додає правила/skills за ознаками проєкту', async () => {
     await withTmpCwd(async () => {
@@ -42,12 +54,7 @@ describe('detectAutoRulesAndSkills', () => {
       await writeFile('src/query.js', 'const q = gql`query { ping }`\n', 'utf8')
       await writeFile('src/App.vue', '<script setup>const a = 1</script>\n', 'utf8')
 
-      const actual = await detectAutoRulesAndSkills({
-        root: process.cwd(),
-        availableRules: ALL_RULES,
-        availableSkills: ALL_SKILLS,
-        packageJsonParsed: JSON.parse(await Bun.file('package.json').text())
-      })
+      const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules).toEqual([
         'abie',
@@ -79,12 +86,7 @@ describe('detectAutoRulesAndSkills', () => {
       await writeFile('apps/web/main.js', 'console.log(1)\n', 'utf8')
       await writeFile('apps/web/App.vue', '<script setup></script>\n', 'utf8')
 
-      const actual = await detectAutoRulesAndSkills({
-        root: process.cwd(),
-        availableRules: ALL_RULES,
-        availableSkills: ALL_SKILLS,
-        packageJsonParsed: JSON.parse(await Bun.file('package.json').text())
-      })
+      const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('js-pino')).toBe(false)
       expect(actual.rules.includes('js-lint')).toBe(true)

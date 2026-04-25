@@ -8,25 +8,16 @@ import { check as checkDocker } from '../scripts/check-docker.mjs'
 import { check as checkK8s } from '../scripts/check-k8s.mjs'
 import { ensureDir, withTmpCwd } from './helpers.mjs'
 
-describe('check без цільових файлів', () => {
-  test('check-docker — 0, якщо немає Dockerfile', async () => {
-    await withTmpCwd(async () => {
-      expect(await checkDocker()).toBe(0)
-    })
-  })
+const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =
+  'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'
 
-  test('check-k8s — 0, якщо немає yaml під k8s', async () => {
-    await withTmpCwd(async () => {
-      expect(await checkK8s()).toBe(0)
-    })
-  })
-
-  test('check-k8s — 1, якщо kustomization з remove+add на той самий path', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('app/k8s/ua')
-      const depSchema =
-        'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'
-      const dep = `# yaml-language-server: $schema=${depSchema}
+/**
+ * Мінімальний Deployment з `$schema` yannh (спільний для інтеграційних сценаріїв check-k8s).
+ * @param {string} depSchema
+ * @returns {string}
+ */
+function minimalDeploymentWithSchema(depSchema) {
+  return `# yaml-language-server: $schema=${depSchema}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -46,6 +37,25 @@ spec:
           image: nginx:1.27
           resources: {}
 `
+}
+
+describe('check без цільових файлів', () => {
+  test('check-docker — 0, якщо немає Dockerfile', async () => {
+    await withTmpCwd(async () => {
+      expect(await checkDocker()).toBe(0)
+    })
+  })
+
+  test('check-k8s — 0, якщо немає yaml під k8s', async () => {
+    await withTmpCwd(async () => {
+      expect(await checkK8s()).toBe(0)
+    })
+  })
+
+  test('check-k8s — 1, якщо kustomization з remove+add на той самий path', async () => {
+    await withTmpCwd(async () => {
+      await ensureDir('app/k8s/ua')
+      const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
       const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -73,28 +83,7 @@ patches:
   test('check-k8s — 1, якщо patch.target вказує на неіснуючий ресурс', async () => {
     await withTmpCwd(async () => {
       await ensureDir('app/k8s/ua')
-      const depSchema =
-        'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'
-      const dep = `# yaml-language-server: $schema=${depSchema}
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: x
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: x
-  template:
-    metadata:
-      labels:
-        app: x
-    spec:
-      containers:
-        - name: c
-          image: nginx:1.27
-          resources: {}
-`
+      const dep = minimalDeploymentWithSchema(YANNH_DEPLOYMENT_APPS_V1_SCHEMA)
       const k = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

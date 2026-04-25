@@ -8,6 +8,24 @@ import { join } from 'node:path'
 import { check } from '../scripts/check-js-pino.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
+/**
+ * Monorepo `workspaces: ['pkg']` і мінімальний `pkg/package.json` з залежностями.
+ * @param {Record<string, string>} pkgDependencies
+ * @returns {Promise<void>}
+ */
+async function writeRootWithWorkspacePkg(pkgDependencies) {
+  await writeJson('package.json', {
+    name: 'r',
+    private: true,
+    workspaces: ['pkg']
+  })
+  await ensureDir('pkg')
+  await writeJson(join('pkg', 'package.json'), {
+    name: 'pkg',
+    dependencies: pkgDependencies
+  })
+}
+
 describe('check-js-pino (мінімальний проєкт)', () => {
   test('0, якщо немає workspace-пакетів окрім кореня', async () => {
     await withTmpCwd(async () => {
@@ -18,32 +36,14 @@ describe('check-js-pino (мінімальний проєкт)', () => {
 
   test('1, якщо в workspace-пакеті є bunyan', async () => {
     await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 'r',
-        private: true,
-        workspaces: ['pkg']
-      })
-      await ensureDir('pkg')
-      await writeJson(join('pkg', 'package.json'), {
-        name: 'pkg',
-        dependencies: { bunyan: '^1.8.0' }
-      })
+      await writeRootWithWorkspacePkg({ bunyan: '^1.8.0' })
       expect(await check()).toBe(1)
     })
   })
 
   test('1, якщо у джерелах workspace-пакета лишився import з @nitra/bunyan', async () => {
     await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 'r',
-        private: true,
-        workspaces: ['pkg']
-      })
-      await ensureDir('pkg')
-      await writeJson(join('pkg', 'package.json'), {
-        name: 'pkg',
-        dependencies: { '@nitra/pino': '^1.0.0' }
-      })
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(join('pkg', 'index.js'), `import log from '@nitra/bunyan'\nlog.info('start')\n`, 'utf8')
       expect(await check()).toBe(1)
     })
@@ -51,16 +51,7 @@ describe('check-js-pino (мінімальний проєкт)', () => {
 
   test('0, якщо джерела використовують лише @nitra/pino', async () => {
     await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 'r',
-        private: true,
-        workspaces: ['pkg']
-      })
-      await ensureDir('pkg')
-      await writeJson(join('pkg', 'package.json'), {
-        name: 'pkg',
-        dependencies: { '@nitra/pino': '^1.0.0' }
-      })
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(join('pkg', 'index.js'), `import log from '@nitra/pino'\nlog.info('start')\n`, 'utf8')
       expect(await check()).toBe(0)
     })
