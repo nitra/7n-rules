@@ -1,0 +1,34 @@
+npm/scripts/check-abie.mjs
+  74a7218bf1e70255 89,91,93,1149-1150
+npm/tests/check-abie.test.mjs
+  74a7218bf1e70255 340-349,384
+npm/mdc/abie.mdc
+  74a7218bf1e70255 39,63
+npm/package.json
+  h_9e4b254ff59432 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "80c4e8357085b02c2e9d3c4f5e591505a77855cc",
+  "prompts": {
+    "74a7218bf1e70255": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "85720565-ceb8-484d-ab4c-23423fecddf3",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 7,
+      "accepted_lines": 18,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
