@@ -1,0 +1,27 @@
+npm/tests/check-js-pino-fixture.test.mjs
+  14d647dd16963a7f 11-28,39,46,54
+npm/tests/check-empty-trees.test.mjs
+  14d647dd16963a7f 11-12,14-20,40-58,86
+npm/tests/auto-rules.test.mjs
+  14d647dd16963a7f 28-39,57,89
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "a1de49499fa802b1e035bdd94002f4d73069ee93",
+  "prompts": {
+    "14d647dd16963a7f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "11994c1c-af6d-4021-9b1b-06914ef5f8b6",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 69,
+      "total_deletions": 87,
+      "accepted_lines": 68,
+      "overriden_lines": 0
+    }
+  }
+}
