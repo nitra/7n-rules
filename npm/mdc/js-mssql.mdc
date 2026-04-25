@@ -1,0 +1,59 @@
+---
+description: Використання mssql в nodejs
+alwaysApply: true
+version: '1.1'
+---
+
+Якщо в проекті в будь-якому `package.json` в секції `dependencies` присутній пакет **`mssql`**,
+то його версія повинна бути не менше **12.5.0**.
+
+Потрібно використовувати connection pool (sql.ConnectionPool) як singleton, а НЕ створювати підключення на кожен запит.
+
+tagged template треба викликати на request-обʼєкті цього пулу:
+```javascript
+javascript// db.js
+import sql from 'mssql';
+
+let poolPromise;
+
+export function getPool() {
+  if (!poolPromise) {
+    const pool = new sql.ConnectionPool(config);
+    poolPromise = pool.connect().catch(err => {
+      poolPromise = undefined; // дозволити повторну спробу
+      throw err;
+    });
+  }
+  return poolPromise;
+}
+```
+
+```javascript
+// usage
+import { getPool } from './db.js';
+
+const pool = await getPool();
+const userId = 42;
+const status = 'active';
+
+// Tagged template на request — це працює
+const result = await pool.request().query`
+  SELECT * FROM users
+  WHERE id = ${userId} AND status = ${status}
+`;
+
+```
+
+Ключове: pool.request().query\...`— бекті́ки післяquery`, без круглих дужок. Це той самий tagged template, тільки контекст — конкретний пул, а не глобальний.
+
+Що НЕ робити
+javascript// ❌ Це не tagged template — це конкатенація рядка перед викликом
+```javascript
+await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
+// ↑ круглі дужки замість бекті́ків = звичайна інтерполяція = SQL injection
+```
+
+Різниця між query\...`іquery(`...`)` — критична. Перше безпечне, друге — діра.
+Потрібно використовувати перше. Потрібно шукати в коді друге і заміняти на перше.
+
+Перевірка: `npx @nitra/cursor check js-mssql`.

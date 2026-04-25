@@ -14,7 +14,7 @@ alwaysApply: false
 Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
 
 - **backend**: `mirror.gcr.io/library/alpine:*`
-- **frontend**: `mirror.gcr.io/library/nginx:*`
+- **frontend**: `mirror.gcr.io/library/nginx:*` aбо `mirror.gcr.io/openresty/openresty:*`
 
 Це гарантує, що результуючий образ містить лише runtime (alpine) або nginx, без build tooling і node_modules.
 

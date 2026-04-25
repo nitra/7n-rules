@@ -25,6 +25,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'ga',
   'graphql',
   'js-lint',
+  'js-mssql',
   'js-pino',
   'k8s',
   'nginx-default-tpl',
@@ -44,6 +45,54 @@ const VUE_RE = /\.vue$/iu
 const NGINX_DEFAULT_FILES = new Set(['default.conf.template', 'default.conf', 'nginx.conf'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 const DEFAULT_DISABLED_LIST = Object.freeze([])
+
+/**
+ * Чи є `mssql` у `dependencies` хоча б одного `package.json` у репозиторії.
+ * @param {string} root абсолютний шлях до кореня репозиторію
+ * @returns {Promise<boolean>} true, якщо знайдено `dependencies.mssql`
+ */
+async function hasMssqlDependencyInAnyPackageJson(root) {
+  let found = false
+
+  /**
+   * Рекурсивний обхід каталогу з пропуском службових директорій.
+   * @param {string} dir абсолютний шлях каталогу
+   * @returns {Promise<void>}
+   */
+  async function walk(dir) {
+    if (found) return
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (found) return
+      const absPath = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        const isIgnoredDir = IGNORED_DIR_NAMES.has(entry.name)
+        if (!isIgnoredDir) {
+          await walk(absPath)
+        }
+      } else if (entry.isFile() && entry.name === 'package.json') {
+        try {
+          const parsed = JSON.parse(await readFile(absPath, 'utf8'))
+          const deps = parsed?.dependencies
+          if (deps && typeof deps === 'object' && !Array.isArray(deps) && Object.prototype.hasOwnProperty.call(deps, 'mssql')) {
+            found = true
+            return
+          }
+        } catch {
+          /* ігноруємо пошкоджені/недоступні package.json */
+        }
+      }
+    }
+  }
+
+  await walk(root)
+  return found
+}
 
 /**
  * Фіксує ознаки, що залежать лише від імені підкаталогу.
@@ -295,6 +344,7 @@ export async function detectAutoRulesAndSkills({
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
   const isMonorepo = isMonorepoPackage(packageJsonParsed)
+  const hasMssqlDependency = await hasMssqlDependencyInAnyPackageJson(root)
 
   /** @type {string[]} */
   const detectedRules = []
@@ -332,6 +382,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasGaWorkflowsDir, id: 'ga' },
     { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
     { enabled: facts.hasJsLikeSource, id: 'js-lint' },
+    { enabled: hasMssqlDependency, id: 'js-mssql' },
     { enabled: facts.hasJsLikeSource && !(isMonorepo && facts.hasVueSource && facts.hasTempoDir), id: 'js-pino' },
     { enabled: facts.hasK8sDir, id: 'k8s' },
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },

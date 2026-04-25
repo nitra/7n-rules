@@ -19,6 +19,7 @@
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
@@ -53,6 +54,82 @@ const FORBIDDEN_BUN_PATTERNS = [
 
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
+
+/**
+ * Повертає true, якщо glob у GitHub Actions `on.*.paths` матчитсья хоча б на один tracked файл у репозиторії.
+ *
+ * Використовує `git ls-files` з pathspec-магiєю `:(glob)`, щоб не реалізовувати glob engine вручну
+ * і не сканувати файлову систему рекурсивно.
+ *
+ * @param {string} globPattern glob з workflow (наприклад "files/**" або "image-migration-new/**")
+ * @returns {boolean} true, якщо є хоча б один збіг
+ */
+function gitHasAnyTrackedFileMatchingGlob(globPattern) {
+  const p = String(globPattern ?? '').trim()
+  if (!p) return false
+  if (p.startsWith('!')) return true
+  try {
+    const out = execFileSync('git', ['ls-files', '-z', '--', `:(glob)${p}`], { encoding: 'utf8' })
+    return out.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Чи варто перевіряти glob з `on.*.paths` на наявність збігів у репозиторії.
+ *
+ * У багатьох workflow (особливо лінтерах) `paths` часто містить “широкі” шаблони по розширеннях
+ * (наприклад `*.vue`, `*.php`), які можуть бути відсутні в конкретному репозиторії й це ок.
+ * Запит цієї перевірки — ловити посилання на неіснуючі директорії/шляхи (типово `some-dir/**`).
+ *
+ * @param {string} p glob з workflow
+ * @returns {boolean} true, якщо треба валідувати наявність файлів
+ */
+function shouldValidateWorkflowPathsGlob(p) {
+  // Негативні патерни — лише виключають, їх існування не перевіряємо.
+  if (p.startsWith('!')) return false
+
+  // “Розширення-фільтри” (або brace-варіанти) пропускаємо: вони можуть бути заготовками.
+  if (p.includes('*.')) return false
+
+  return true
+}
+
+/**
+ * Валідує `on.push.paths` / `on.pull_request.paths`: кожен позитивний glob має мати збіги в репозиторії.
+ * @param {string} relPath шлях workflow для повідомлень
+ * @param {Record<string, unknown>} root parsed YAML workflow
+ * @param {(msg: string) => void} passFn pass
+ * @param {(msg: string) => void} failFn fail
+ */
+function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn) {
+  const on = getObjKey(root, 'on')
+  if (!on || typeof on !== 'object') return
+
+  /** @type {Array<[eventName: string, paths: unknown]>} */
+  const candidates = [
+    ['push', getObjKey(getObjKey(on, 'push'), 'paths')],
+    ['pull_request', getObjKey(getObjKey(on, 'pull_request'), 'paths')]
+  ]
+
+  for (const [eventName, paths] of candidates) {
+    if (!Array.isArray(paths)) continue
+    for (const raw of paths) {
+      const p = String(raw ?? '').trim()
+      if (!p) continue
+      if (!shouldValidateWorkflowPathsGlob(p)) {
+        passFn(`${relPath}: on.${eventName}.paths glob пропущено для перевірки існування: ${JSON.stringify(p)}`)
+        continue
+      }
+      if (gitHasAnyTrackedFileMatchingGlob(p)) {
+        passFn(`${relPath}: on.${eventName}.paths glob матчитсья: ${JSON.stringify(p)}`)
+      } else {
+        failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`)
+      }
+    }
+  }
+}
 
 /**
  * Безпечний доступ до вкладеного поля (лише для обʼєктів).
@@ -877,6 +954,10 @@ export async function check() {
     verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${f}`, content, fail, pass)
     verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
     verifyNoRunShellLineContinuationBackslash(`${wfDir}/${f}`, content, fail, pass)
+    const parsed = parseWorkflowYaml(content)
+    if (parsed) {
+      verifyWorkflowEventPathsGlobsExist(`${wfDir}/${f}`, parsed, pass, fail)
+    }
   }
 
   await checkCanonicalWorkflowsMatchRule(wfDir, pass, fail)

@@ -18,6 +18,8 @@ js-lint - якщо присутній хоч один js файл
 
 js-pino - якщо присутній хоч один js файл, не в монорепо проекті з vue та директорії tempo
 
+js-mssql - якщо в хоч одному package.json в секції dependencies присутній пакет mssql
+
 k8s - якщо присутня хоч одна директорія k8s
 
 nginx-default-tpl - якщо присутній хоч один файл з переліку - default.conf.template, default.conf, nginx.conf

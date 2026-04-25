@@ -7,10 +7,10 @@
  * Також перевіряє, що Dockerfile/Containerfile має **multistage build** і що фінальний stage
  * використовує мінімальний runtime-образ:
  * - backend: `mirror.gcr.io/library/alpine:*`
- * - frontend: `mirror.gcr.io/library/nginx:*`
+ * - frontend: `mirror.gcr.io/library/nginx:*` або `mirror.gcr.io/openresty/openresty:*`
  *
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
- * runtime (alpine) або nginx.
+ * runtime (alpine), nginx або openresty.
  *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
  * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
@@ -74,12 +74,16 @@ export function parseFromStages(fileContent) {
   return out
 }
 
-const RUNTIME_IMAGES = /** @type {const} */ (['mirror.gcr.io/library/alpine', 'mirror.gcr.io/library/nginx'])
+const RUNTIME_IMAGES = /** @type {const} */ ([
+  'mirror.gcr.io/library/alpine',
+  'mirror.gcr.io/library/nginx',
+  'mirror.gcr.io/openresty/openresty'
+])
 
 /**
  * Перевіряє базові вимоги до структури Dockerfile:
  * - multistage: мінімум 2 FROM
- * - фінальний FROM: alpine або nginx з mirror.gcr.io
+ * - фінальний FROM: alpine/nginx/openresty з mirror.gcr.io
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
