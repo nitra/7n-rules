@@ -7,11 +7,13 @@ import {
   anyRunStepIncludes,
   eventPathsIncludeExact,
   findForbiddenUsesOrRunPatterns,
+  findRunStepsWithShellLineContinuationBackslash,
   flattenWorkflowSteps,
   hasCheckoutBeforeLocalSetupBunDeps,
   parseWorkflowYaml,
   pushHasMainBranch,
   pushPathsIncludeNpmGlob,
+  runTextHasShellLineContinuationBackslash,
   verifyLintJsWorkflowStructure
 } from '../scripts/utils/gha-workflow.mjs'
 
@@ -101,5 +103,34 @@ describe('gha-workflow', () => {
 `
     const root = parseWorkflowYaml(y)
     expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'bun run lint-text')).toBe(true)
+  })
+
+  test('runTextHasShellLineContinuationBackslash / findRunStepsWithShellLineContinuationBackslash', () => {
+    expect(runTextHasShellLineContinuationBackslash('docker build \\\n  --push')).toBe(true)
+    expect(runTextHasShellLineContinuationBackslash('echo ok\nexit 0')).toBe(false)
+    const withBackslashRun = `jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          docker build \\
+          --push
+`
+    const badRoot = parseWorkflowYaml(withBackslashRun)
+    expect(badRoot).not.toBeNull()
+    const hit = findRunStepsWithShellLineContinuationBackslash(/** @type {Record<string, unknown>} */ (badRoot))
+    expect(hit).toEqual([{ jobId: 'build', stepIndex: 0 }])
+    const folded = `jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: >-
+          docker build
+          --push
+`
+    const goodRoot = parseWorkflowYaml(folded)
+    expect(
+      findRunStepsWithShellLineContinuationBackslash(/** @type {Record<string, unknown>} */ (goodRoot)).length
+    ).toBe(0)
   })
 })

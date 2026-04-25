@@ -3,6 +3,8 @@
  *
  * Використовується в check-ga, check-js-lint, check-text, check-style-lint, check-npm-module замість
  * пошуку підрядків у сирому тексті там, де важливі лише значення `uses:` та `run:` кроків.
+ *
+ * Для `run:` також виявляється shell-продовження рядка через `\\` перед переносом (антипатерн у ga.mdc).
  */
 import { parse } from 'yaml'
 
@@ -65,6 +67,36 @@ export function getStepRun(step) {
     return r.map(String).join('\n')
   }
   return ''
+}
+
+/** У тексті `run:` зіставляє `\\` одразу перед переносом рядка (типове shell-продовження в bash). */
+const RUN_SHELL_LINE_CONTINUATION_BACKSLASH_RE = /\\\r?\n/
+
+/**
+ * Чи містить значення `run:` shell-продовження рядка через зворотний сліш перед переносом (`… \\` + NL).
+ * У workflow такі конструкції замінюють на folded block `>-` без зворотних слішів (ga.mdc).
+ * @param {string} runText текст з `getStepRun`
+ * @returns {boolean} `true`, якщо знайдено `\\` перед новим рядком
+ */
+export function runTextHasShellLineContinuationBackslash(runText) {
+  return typeof runText === 'string' && runText.length > 0 && RUN_SHELL_LINE_CONTINUATION_BACKSLASH_RE.test(runText)
+}
+
+/**
+ * Повертає кроки, у яких `run:` містить заборонене shell-продовження через `\\`.
+ * @param {Record<string, unknown>} root корінь workflow
+ * @returns {{ jobId: string, stepIndex: number }[]}
+ */
+export function findRunStepsWithShellLineContinuationBackslash(root) {
+  /** @type {{ jobId: string, stepIndex: number }[]} */
+  const out = []
+  for (const { jobId, stepIndex, step } of flattenWorkflowSteps(root)) {
+    const run = getStepRun(step)
+    if (runTextHasShellLineContinuationBackslash(run)) {
+      out.push({ jobId, stepIndex })
+    }
+  }
+  return out
 }
 
 /**

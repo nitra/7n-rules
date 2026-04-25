@@ -4,11 +4,14 @@
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
  * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
  * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує npx `\@nitra/cursor`),
+ * `\.vscode/settings.json` — `editor.defaultFormatter` **oxc** для `[github-actions-workflow]`,
  * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
  *
  * Заборонено дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах
  * (oven-sh/setup-bun, actions/cache, bun install). Перевірки `uses`/`run` виконуються після **YAML parse**
  * (`yaml`), щоб не спрацьовувати на випадкові збіги в коментарях або поза кроками.
+ *
+ * У `run:` заборонено shell-продовження рядків через `\\` перед переносом; довгі команди — через folded block `>-`.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -19,6 +22,7 @@ import {
   anyRunStepIncludes,
   eventPathsIncludeExact,
   findForbiddenUsesOrRunPatterns,
+  findRunStepsWithShellLineContinuationBackslash,
   hasAnyStepUsesContaining,
   hasCheckoutBeforeLocalSetupBunDeps,
   parseWorkflowYaml
@@ -118,6 +122,31 @@ function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
 }
 
 /**
+ * У кроках `run` заборонено shell-продовження через `\\` перед переносом; замість `run: |` з `\\` використовуй `run: >-`.
+ * @param {string} relPath шлях для повідомлень
+ * @param {string} content вміст YAML
+ * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
+ * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ * @returns {void}
+ */
+function verifyNoRunShellLineContinuationBackslash(relPath, content, failFn, passFn) {
+  const root = parseWorkflowYaml(content)
+  if (!root) {
+    return
+  }
+  const hits = findRunStepsWithShellLineContinuationBackslash(root)
+  if (hits.length === 0) {
+    passFn(`${relPath}: run без shell-продовження через \\ (ga.mdc)`)
+    return
+  }
+  for (const h of hits) {
+    failFn(
+      `${relPath}: job ${h.jobId}, крок ${h.stepIndex + 1}: у run заборонено продовження рядків через зворотний сліш; довгі команди оформи як folded block (run: >-) без \\ на кінцях рядків (ga.mdc)`
+    )
+  }
+}
+
+/**
  * Перевіряє apply-workflow на наявність paths trigger.
  * @param {string} wfDir директорія workflows
  * @param {string[]} files список файлів у директорії
@@ -181,6 +210,46 @@ async function checkZizmor(passFn, failFn) {
   } else {
     failFn(`${zizmorPath}: додай policies ref-pin для unpinned-uses (ga.mdc)`)
   }
+}
+
+/**
+ * Перевіряє `.vscode/settings.json`: oxfmt/oxc як default formatter для GitHub Actions workflow (мова
+ * `github-actions-workflow` з розширення github.vscode-github-actions), узгоджено з oxc для yaml/workflow.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkVscodeSettingsForGa(passFn, failFn) {
+  const rel = '.vscode/settings.json'
+  if (!existsSync(rel)) {
+    failFn(`${rel} не існує — додай [github-actions-workflow].editor.defaultFormatter = oxc.oxc-vscode (ga.mdc)`)
+    return
+  }
+  let settings
+  try {
+    settings = JSON.parse(await readFile(rel, 'utf8'))
+  } catch {
+    failFn(`${rel}: невалідний JSON (ga.mdc)`)
+    return
+  }
+  if (!settings || typeof settings !== 'object') {
+    failFn(`${rel}: очікується об’єкт налаштувань (ga.mdc)`)
+    return
+  }
+  const block = /** @type {Record<string, unknown>} */ (settings)['[github-actions-workflow]']
+  if (!block || typeof block !== 'object' || block === null || Array.isArray(block)) {
+    failFn(
+      `${rel}: додай "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } (ga.mdc)`
+    )
+    return
+  }
+  const df = String(/** @type {Record<string, unknown>} */ (block)['editor.defaultFormatter'] ?? '')
+  if (df !== 'oxc.oxc-vscode') {
+    failFn(
+      `${rel}: [github-actions-workflow].editor.defaultFormatter має бути "oxc.oxc-vscode" (зараз: ${df || '∅'}) (ga.mdc)`
+    )
+    return
+  }
+  passFn(`${rel}: [github-actions-workflow] → oxc.oxc-vscode`)
 }
 
 /**
@@ -379,6 +448,8 @@ export async function check() {
     fail('.vscode/extensions.json не існує')
   }
 
+  await checkVscodeSettingsForGa(pass, fail)
+
   const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
   await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
 
@@ -386,6 +457,7 @@ export async function check() {
     const content = await readFile(join(wfDir, f), 'utf8')
     verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${f}`, content, fail, pass)
     verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
+    verifyNoRunShellLineContinuationBackslash(`${wfDir}/${f}`, content, fail, pass)
   }
 
   await checkZizmor(pass, fail)

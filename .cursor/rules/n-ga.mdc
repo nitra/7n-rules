@@ -149,7 +149,35 @@ jobs:
 }
 ```
 
+У **`.vscode/settings.json`** для мови **`github-actions-workflow`** (workflow з розширення GitHub Actions) задай **oxc** як formatter:
+
+```json
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  }
+```
+
 **ЗАБОРОНЕНО** дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах. Завжди використовуй локальний composite action.
+
+**Кроки `run`:** не розбивай команду shell-продовженням через зворотний сліш у кінці рядка (`… \` у `run: |`). Замість багаторядкового буквального блока з `\\` оформ довгу одну shell-команду як **folded block** `>-` (рядки з’єднаються в один рядок із пробілами).
+
+### Приклад run (НЕПРАВИЛЬНО — `\\` на кінцях)
+
+```yaml
+      - run: |
+          docker build \
+          --push \
+          --build-arg BRANCH=${{ github.ref_name }}
+```
+
+### Приклад run (ПРАВИЛЬНО — `>-`)
+
+```yaml
+      - run: >-
+          docker build
+          --push
+          --build-arg BRANCH=${{ github.ref_name }}
+```
 
 ### Приклад (НЕПРАВИЛЬНО)
 
