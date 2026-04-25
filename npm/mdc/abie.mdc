@@ -222,7 +222,7 @@ patches:
         path: /spec/template/spec/containers/-
         value:
           name: СЕРВІС-p
-          image: nginx:1.27-alpine
+          image: nginx:alpine
           ports:
             - containerPort: 8081
               protocol: TCP

@@ -85,7 +85,7 @@ export function runTextHasShellLineContinuationBackslash(runText) {
 /**
  * Повертає кроки, у яких `run:` містить заборонене shell-продовження через `\\`.
  * @param {Record<string, unknown>} root корінь workflow
- * @returns {{ jobId: string, stepIndex: number }[]}
+ * @returns {{ jobId: string, stepIndex: number }[]} список кроків із порушенням
  */
 export function findRunStepsWithShellLineContinuationBackslash(root) {
   /** @type {{ jobId: string, stepIndex: number }[]} */

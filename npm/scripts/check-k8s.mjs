@@ -402,7 +402,7 @@ function pathsFromKustomizationObject(obj) {
  * як у `pathsFromKustomizationObject`, плюс **`patchesJson6902[].path`**, плюс **`configurations[]`**
  * (рядки-шляхи) і **`replacements[].path`**, якщо задано.
  * @param {unknown} obj корінь першого документа
- * @returns {string[]}
+ * @returns {string[]} масив локальних шляхів для перевірки існування на диску
  */
 export function kustomizePathRefsForExistenceCheck(obj) {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
@@ -463,47 +463,44 @@ async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fa
   const refs = kustomizePathRefsForExistenceCheck(kust)
   const kustDir = dirname(resolve(kustAbs))
   for (const r of refs) {
-    if (typeof r !== 'string' || r.includes('://') || r.trim() === '') {
-      continue
-    }
-    const target = resolve(kustDir, r.trim())
-    if (!resolvedFilePathIsUnderRoot(rootNorm, target)) {
-      fail(
-        `${rel}: посилання «${r}» виходить за межі репозиторію (resolve: ${(relative(rootNorm, target) || target).replaceAll('\\', '/')
-        }) (k8s.mdc)`
-      )
-      continue
-    }
-    /** @type {import('node:fs').Stats | undefined} */
-    let st
-    try {
-      st = await stat(target)
-    } catch {
-      st = undefined
-    }
-    if (st === undefined) {
-      fail(
-        `${rel}: посилання «${r}» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)`
-      )
-      continue
-    }
-    if (st.isFile()) {
-      if (!YAML_EXTENSION_RE.test(target)) {
+    if (typeof r === 'string' && !r.includes('://') && r.trim() !== '') {
+      const target = resolve(kustDir, r.trim())
+      if (resolvedFilePathIsUnderRoot(rootNorm, target)) {
+        /** @type {import('node:fs').Stats | undefined} */
+        let st
+        try {
+          st = await stat(target)
+        } catch {
+          st = undefined
+        }
+        if (st === undefined) {
+          fail(
+            `${rel}: посилання «${r}» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)`
+          )
+        } else if (st.isFile()) {
+          if (!YAML_EXTENSION_RE.test(target)) {
+            fail(
+              `${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
+            )
+          }
+        } else if (!st.isDirectory()) {
+          fail(`${rel}: «${r}» — ні файл, ні каталог (k8s.mdc)`)
+        }
+      } else {
         fail(
-          `${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
+          `${rel}: посилання «${r}» виходить за межі репозиторію (resolve: ${(relative(rootNorm, target) || target).replaceAll('\\', '/')
+          }) (k8s.mdc)`
         )
       }
-    } else if (!st.isDirectory()) {
-      fail(`${rel}: «${r}» — ні файл, ні каталог (k8s.mdc)`)
     }
   }
 }
 
 /**
  * Усі `kustomization.yaml` під `k8s`: локальні `path` / ресурси мають існувати.
- * @param {string} root
- * @param {string[]} yamlFilesAbs
- * @param {(msg: string) => void} fail
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи YAML-файлів у k8s
+ * @param {(msg: string) => void} fail callback для повідомлень про помилки
  * @returns {Promise<void>}
  */
 async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
@@ -4293,26 +4290,26 @@ async function k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootN
   /** @type {string[]} */
   const out = []
   for (const ref of pathRefs) {
-    if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') {
-      continue
+    if (typeof ref === 'string' && !ref.includes('://') && ref.trim() !== '') {
+      const resolved = resolve(kustDir, ref.trim())
+      if (resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+        let st
+        try {
+          st = await stat(resolved)
+        } catch {
+          st = undefined
+        }
+        if (
+          st !== undefined
+          && st.isDirectory()
+          && basename(resolved) === 'base'
+          && existsSync(join(resolved, 'kustomization.yaml'))
+          && isUnderK8sPathRelToRoot(rootNorm, resolved)
+        ) {
+          out.push(resolved)
+        }
+      }
     }
-    const resolved = resolve(kustDir, ref.trim())
-    if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
-      continue
-    }
-    let st
-    try {
-      st = await stat(resolved)
-    } catch {
-      st = undefined
-    }
-    if (st === undefined || !st.isDirectory() || basename(resolved) !== 'base') {
-      continue
-    }
-    if (!existsSync(join(resolved, 'kustomization.yaml')) || !isUnderK8sPathRelToRoot(rootNorm, resolved)) {
-      continue
-    }
-    out.push(resolved)
   }
   return out
 }
@@ -4349,20 +4346,13 @@ async function yamlFileContainsHpaOrPdbDocument(fileAbs) {
   if (docs === undefined) {
     return false
   }
-  for (const doc of docs) {
-    if (doc.errors.length > 0) {
-      continue
-    }
+  return docs.some(doc => {
+    if (doc.errors.length > 0) return false
     const o = doc.toJSON()
-    if (o === null || typeof o !== 'object' || Array.isArray(o)) {
-      continue
-    }
+    if (o === null || typeof o !== 'object' || Array.isArray(o)) return false
     const k = /** @type {Record<string, unknown>} */ (o).kind
-    if (k === 'HorizontalPodAutoscaler' || k === 'PodDisruptionBudget') {
-      return true
-    }
-  }
-  return false
+    return k === 'HorizontalPodAutoscaler' || k === 'PodDisruptionBudget'
+  })
 }
 
 /**
@@ -4398,7 +4388,7 @@ async function verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, pa
  * @param {Record<string, unknown>} kustObj перший документ
  * @param {(msg: string) => void} fail callback
  * @param {(msg: string) => void} passFn success
- * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags
+ * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags функція отримання прапорців дерева kustomize
  * @returns {Promise<void>}
  */
 async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
@@ -4427,41 +4417,33 @@ async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
     return false
   })()
   for (const ref of pathRefs) {
-    if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') {
-      continue
-    }
-    const fAbs = resolve(kustDir, ref.trim())
-    if (!resolvedFilePathIsUnderRoot(root, fAbs) || !existsSync(fAbs)) {
-      continue
-    }
-    let st
-    try {
-      st = await stat(fAbs)
-    } catch {
-      st = undefined
-    }
-    if (st === undefined) {
-      continue
-    }
-    if (!st.isFile() || !YAML_EXTENSION_RE.test(fAbs)) {
-      continue
-    }
-    const fUnderSomeBase = baseDirs.some(bd => isResolvedFileUnderDirectory(bd, fAbs))
-    if (fUnderSomeBase) {
-      continue
-    }
-    const hpaPdb = await yamlFileContainsHpaOrPdbDocument(fAbs)
-    if (!hpaPdb) {
-      continue
-    }
-    if (!anyBaseHasDep) {
-      fail(
-        `${rel}: посилання «${ref}» містить HorizontalPodAutoscaler і/або PodDisruptionBudget, а наслідуваний k8s/base не дає у дереві Deployment — прибери HPA/PDB або додай Deployment у base (k8s.mdc)`
-      )
-    } else {
-      passFn(
-        `${rel}: overlay-файл «${(relative(root, fAbs) || ref).replaceAll('\\', '/')}» з HPA/PDB, base містить Deployment (k8s.mdc)`
-      )
+    if (typeof ref === 'string' && !ref.includes('://') && ref.trim() !== '') {
+      const fAbs = resolve(kustDir, ref.trim())
+      if (resolvedFilePathIsUnderRoot(root, fAbs) && existsSync(fAbs)) {
+        let st
+        try {
+          st = await stat(fAbs)
+        } catch {
+          st = undefined
+        }
+        if (st !== undefined && st.isFile() && YAML_EXTENSION_RE.test(fAbs)) {
+          const fUnderSomeBase = baseDirs.some(bd => isResolvedFileUnderDirectory(bd, fAbs))
+          if (!fUnderSomeBase) {
+            const hpaPdb = await yamlFileContainsHpaOrPdbDocument(fAbs)
+            if (hpaPdb) {
+              if (anyBaseHasDep) {
+                passFn(
+                  `${rel}: overlay-файл «${(relative(root, fAbs) || ref).replaceAll('\\', '/')}» з HPA/PDB, base містить Deployment (k8s.mdc)`
+                )
+              } else {
+                fail(
+                  `${rel}: посилання «${ref}» містить HorizontalPodAutoscaler і/або PodDisruptionBudget, а наслідуваний k8s/base не дає у дереві Deployment — прибери HPA/PDB або додай Deployment у base (k8s.mdc)`
+                )
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -4480,8 +4462,8 @@ async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs,
   /** @type {Map<string, Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>>} */
   const treeFlagsMemo = new Map()
   /**
-   * @param {string} kustPath
-   * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>}
+   * @param {string} kustPath абсолютний шлях до kustomization.yaml
+   * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} прапорці наявності ресурсів у дереві
    */
   const getTreeFlags = kustPath => {
     const k = resolve(kustPath)
@@ -4496,21 +4478,20 @@ async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs,
   for (const kustAbs of kustFiles) {
     const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
     const kust = await readFirstYamlObject(kustAbs)
-    if (kust === null) {
-      continue
-    }
-    if (isK8sBaseKustomizationRelPath(rel)) {
-      await verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, passFn, getTreeFlags)
-    } else {
-      await verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
-        rootNorm,
-        kustAbs,
-        rel,
-        kust,
-        fail,
-        passFn,
-        getTreeFlags
-      )
+    if (kust !== null) {
+      if (isK8sBaseKustomizationRelPath(rel)) {
+        await verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, passFn, getTreeFlags)
+      } else {
+        await verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
+          rootNorm,
+          kustAbs,
+          rel,
+          kust,
+          fail,
+          passFn,
+          getTreeFlags
+        )
+      }
     }
   }
 }

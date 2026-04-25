@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.7'
+version: '1.8'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -10,6 +10,13 @@ alwaysApply: false
 [hadolint](https://github.com/hadolint/hadolint) перевіряє Dockerfile на типові помилки та рекомендації (`FROM`, `RUN`, `COPY`, shell form тощо).
 
 Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginx`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/library/nginx`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/scripts/utils/docker-mirror.mjs`**.
+
+Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
+
+- **backend**: `mirror.gcr.io/library/alpine:*`
+- **frontend**: `mirror.gcr.io/library/nginx:*`
+
+Це гарантує, що результуючий образ містить лише runtime (alpine) або nginx, без build tooling і node_modules.
 
 ## Область
 

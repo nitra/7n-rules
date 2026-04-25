@@ -710,7 +710,7 @@ describe('expectedSchemaUrl', () => {
   })
 
   test('HTTPRoute v1beta1 — datree (GitHub Pages)', () => {
-    const doc = 'apiVersion: gateway.networking.k8s.io/v1beta1\nkind: HTTPRoute\nmetadata:\n  name: x\n'
+    const doc = 'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: x\n'
     const { expected } = expectedSchemaUrl('base/k8s/route-beta.yaml', doc)
     expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json')
   })
@@ -1338,10 +1338,7 @@ resources:
 `
     await writeFile(join(k8sBase, 'hpa.yaml'), hpa, 'utf8')
     await writeFile(join(k8sBase, 'kustomization.yaml'), k, 'utf8')
-    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(
-      join(k8sBase, 'kustomization.yaml'),
-      resolve(root)
-    )
+    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(join(k8sBase, 'kustomization.yaml'), resolve(root))
     expect(f.hasHpa).toBe(true)
     expect(f.hasDeployment).toBe(false)
     expect(f.hasPdb).toBe(false)
