@@ -1,0 +1,48 @@
+npm/tests/gha-workflow.test.mjs
+  fea5e5a185aeebc9 10,16,107-135
+npm/scripts/check-ga.mjs
+  fea5e5a185aeebc9 7,13-14,25,124-148,215-254,451-452,460
+.vscode/settings.json
+  fea5e5a185aeebc9 15-17
+npm/scripts/utils/gha-workflow.mjs
+  fea5e5a185aeebc9 6-7,72-101
+.cursor/rules/n-ga.mdc
+  fea5e5a185aeebc9 152-159,162-181
+npm/mdc/ga.mdc
+  fea5e5a185aeebc9 152-159,162-181
+npm/package.json
+  673aa80853042c38 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "e5565c040a979a4a9f2dccc599fde798195c8e3e",
+  "prompts": {
+    "673aa80853042c38": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d45dbfa1-b41f-400f-bf2b-4e8a3e9c240e",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 312,
+      "total_deletions": 65,
+      "accepted_lines": 248,
+      "overriden_lines": 0
+    },
+    "fea5e5a185aeebc9": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "57783bea-673f-426e-8781-94d26225e764",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 202,
+      "total_deletions": 8,
+      "accepted_lines": 198,
+      "overriden_lines": 0
+    }
+  }
+}
