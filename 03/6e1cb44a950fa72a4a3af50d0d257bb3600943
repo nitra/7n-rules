@@ -1,0 +1,56 @@
+npm/scripts/utils/docker-mirror.mjs
+  da0156958f7494a7 14-21,42,45,78,86-87,100,112-114,124,130,133,145
+npm/scripts/check-docker.mjs
+  da0156958f7494a7 27-28,69-71,77
+npm/scripts/check-k8s.mjs
+  14d647dd16963a7f 45-46,369-439,4851-4852
+  da0156958f7494a7 473-500,514-536,538-543,545-551,553-554,569,576,4364-4381,4395-4396,4457,4494-4496,4499,4504-4539,4574
+npm/tests/check-docker-mirror.test.mjs
+  da0156958f7494a7 6-12
+npm/scripts/check-abie.mjs
+  da0156958f7494a7 229-241,249-250,252,254,256-258,260-263,265,1582-1612,1623-1624,1626-1631,1697,1715
+.cspell.json
+  da0156958f7494a7 61-71
+npm/tests/check-k8s-schema.test.mjs
+  da0156958f7494a7 1347-1348
+  14d647dd16963a7f 26,859-919
+npm/package.json
+  14d647dd16963a7f 3
+npm/scripts/check-ga.mjs
+  da0156958f7494a7 139,144,240
+npm/mdc/k8s.mdc
+  14d647dd16963a7f 301-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "036e1cb44a950fa72a4a3af50d0d257bb3600943",
+  "prompts": {
+    "14d647dd16963a7f": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "11994c1c-af6d-4021-9b1b-06914ef5f8b6",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 144,
+      "total_deletions": 12,
+      "accepted_lines": 140,
+      "overriden_lines": 0
+    },
+    "da0156958f7494a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15a2f4af-51ec-4cca-8904-9fa34b77a704",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 339,
+      "total_deletions": 263,
+      "accepted_lines": 318,
+      "overriden_lines": 0
+    }
+  }
+}
