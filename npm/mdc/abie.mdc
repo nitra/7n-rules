@@ -36,7 +36,7 @@ spec:
 
 ## k8s: overlay **HTTPRoute** (**ua** / **ru**)
 
-За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** лише якщо в **тому ж** **`ru/kustomization.yaml`** є згадка **`HASURA_GRAPHQL_JWT_SECRET`** (типово patch на **ConfigMap** Hasura). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**, також дозволені префікси **`ua-*`** / **`ru-*`**, наприклад **`ua-b2b`**, **`ru-b2b`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** лише якщо в **тому ж** **`ru/kustomization.yaml`** є згадка **`HASURA_GRAPHQL_JWT_SECRET`** (типово patch на **ConfigMap** Hasura). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
 
@@ -60,7 +60,7 @@ spec:
           port: 8080
 ```
 
-У **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** або **`ru`**. Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
+У **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** / **`ru`** (також дозволені **`ua-*`** / **`ru-*`**). Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:

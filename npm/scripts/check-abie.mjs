@@ -86,10 +86,11 @@ const PATCH_PREEM_FALSE_RE = /\bpreem:\s*['"]?false['"]?\b/u
 const PATCH_YANDEX_PREEMPTIBLE_FALSE_RE = /yandex\.cloud\/preemptible:\s*['"]?false['"]?/u
 const TRAILING_SLASH_RE = /\/$/u
 const PATCH_HOSTNAMES_PATH_RE = /path:\s*\/spec\/hostnames\b/mu
+// Overlay namespaces: allow ua/ru and ua-*/ru-* (e.g. ua-b2b, ru-b2b).
 const PATCH_PARENT_REF_NS_UA_RE =
-  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/mu
+  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/imu
 const PATCH_PARENT_REF_NS_RU_RE =
-  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/mu
+  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/imu
 const WEBSOCKET_ANNOTATION_RE = /gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/mu
 const LEADING_EMPTY_LINE_RE = /^\s*\n/u
 const REMOVE_CLUSTER_IP_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIP\b/mu
@@ -1145,8 +1146,8 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
 function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) {
   const re =
     mode === 'ua'
-      ? /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua['"]?(?:\s|$)/gmu
-      : /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru['"]?(?:\s|$)/gmu
+      ? /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
+      : /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
   return [...combined.matchAll(re)].length
 }
 

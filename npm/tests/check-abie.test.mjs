@@ -337,6 +337,16 @@ patches:
     expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru', RU_KUSTOMIZATION_HTTPROUTE)).toBeNull()
   })
 
+  test('validateAbieNginxRunHttpRoutePatches — ua-* / ru-* (наприклад b2b) теж валідні', () => {
+    const uaB2b = UA_KUSTOMIZATION_HTTPROUTE.replace('\n        value: ua\n', '\n        value: ua-b2b\n')
+    const uaCombined = getCombinedNginxRunPatchTextFromKustomization(uaB2b)
+    expect(validateAbieNginxRunHttpRoutePatches(uaCombined, 'ua')).toBeNull()
+
+    const ruB2b = RU_KUSTOMIZATION_HTTPROUTE.replace('\n        value: ru\n', '\n        value: ru-b2b\n')
+    const ruCombined = getCombinedNginxRunPatchTextFromKustomization(ruB2b)
+    expect(validateAbieNginxRunHttpRoutePatches(ruCombined, 'ru', ruB2b)).toBeNull()
+  })
+
   test('ABIE_SHARED_CROSS_NS_BACKEND_NAMES — канонічні імена', () => {
     expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('auth-run-hl')
     expect(ABIE_SHARED_CROSS_NS_BACKEND_NAMES).toContain('file-link-hl')
@@ -371,7 +381,7 @@ patches:
         value: ua
       - op: replace
         path: /spec/rules/0/backendRefs/0/namespace
-        value: ua
+        value: ua-b2b
 `
     const c = getCombinedNginxRunPatchTextFromKustomization(raw)
     expect(validateAbieNginxRunHttpRoutePatches(c, 'ua', undefined, 1)).toBeNull()
