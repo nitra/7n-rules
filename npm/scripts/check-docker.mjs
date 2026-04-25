@@ -1,12 +1,17 @@
 /**
  * Запускає hadolint для Dockerfile / Containerfile у всьому репозиторії (див. docker.mdc).
  *
+ * Додатково переконуються, що образи `oven/bun`, `alpine`, `nginx`, `node` з Docker Hub
+ * вказуються через `mirror.gcr.io` (див. `utils/docker-mirror.mjs`).
+ *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
  * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
  * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
  */
+import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
+import { getMirrorGcrHint } from './utils/docker-mirror.mjs'
 import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -57,6 +62,12 @@ export async function check() {
 
   for (const abs of files) {
     const rel = posixRel(root, abs) || basename(abs)
+    const content = await readFile(abs, 'utf8')
+    const hint = getMirrorGcrHint(content)
+    if (hint) {
+      fail(`${rel} (mirror.gcr.io): ${hint}`)
+    }
+
     const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
     const tail = (stdout + stderr).trim()
     if (ok) {
