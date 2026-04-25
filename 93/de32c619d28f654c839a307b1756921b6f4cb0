@@ -1,0 +1,28 @@
+npm/scripts/check-ga.mjs
+  064c5b953f4bf0c0 10-13,32-34,54-388,668-675,757-788,842
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "93de32c619d28f654c839a307b1756921b6f4cb0",
+  "prompts": {
+    "064c5b953f4bf0c0": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d75c2e54-28cf-4bcc-b89f-a0bf5f997c55",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 384,
+      "total_deletions": 1,
+      "accepted_lines": 384,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
