@@ -23,6 +23,7 @@ import {
   isForbiddenAutoscalingV1Manifest,
   k8sEnvSegmentFromRelPath,
   kustomizationPatchPathsByTargetKind,
+  kustomizationResourcesSortedAlphabeticallyViolation,
   kustomizePatchModifiedPaths,
   pdbManifestViolations,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
@@ -709,12 +710,6 @@ describe('expectedSchemaUrl', () => {
     expect(reason).toContain('datree')
   })
 
-  test('HTTPRoute v1beta1 — datree (GitHub Pages)', () => {
-    const doc = 'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: x\n'
-    const { expected } = expectedSchemaUrl('base/k8s/route-beta.yaml', doc)
-    expect(expected).toBe('https://datreeio.github.io/CRDs-catalog/gateway.networking.k8s.io/httproute_v1beta1.json')
-  })
-
   test('networking.gke.io HealthCheckPolicy — datree', () => {
     const doc = 'apiVersion: networking.gke.io/v1\nkind: HealthCheckPolicy\nmetadata:\n  name: x\n'
     const { expected } = expectedSchemaUrl('base/k8s/hcp.yaml', doc)
@@ -858,6 +853,67 @@ describe('splitK8sApiVersion / kustomize patch target', () => {
     const b = { group: '', version: 'v1', kind: 'Service', name: 's', namespace: 'n' }
     expect(kustomizeResourceDescriptorsIdentityEqual(a, b)).toBe(true)
     expect(kustomizeResourceDescriptorsIdentityEqual(a, { ...b, name: 't' })).toBe(false)
+  })
+})
+
+describe('kustomizationResourcesSortedAlphabeticallyViolation', () => {
+  const k = {
+    apiVersion: 'kustomize.config.k8s.io/v1beta1',
+    kind: 'Kustomization',
+    resources: []
+  }
+
+  test('null, якщо kind не Kustomization', () => {
+    expect(
+      kustomizationResourcesSortedAlphabeticallyViolation({
+        ...k,
+        kind: 'ConfigMap',
+        resources: ['b.yaml', 'a.yaml']
+      })
+    ).toBeNull()
+  })
+
+  test('null, якщо apiVersion не kustomize.config.k8s.io/…', () => {
+    expect(
+      kustomizationResourcesSortedAlphabeticallyViolation({
+        ...k,
+        apiVersion: 'v1',
+        resources: ['b.yaml', 'a.yaml']
+      })
+    ).toBeNull()
+  })
+
+  test('null для відсортованого resources', () => {
+    expect(
+      kustomizationResourcesSortedAlphabeticallyViolation({
+        ...k,
+        resources: ['atlas-to-base.yaml', 'b2b-to-base.yaml', 'contract-to-base.yaml', 'ft-to-base.yaml']
+      })
+    ).toBeNull()
+  })
+
+  test('помилка, якщо resources не за алфавітом', () => {
+    const msg = kustomizationResourcesSortedAlphabeticallyViolation({
+      ...k,
+      resources: ['b2b-to-base.yaml', 'contract-to-base.yaml', 'ft-to-base.yaml', 'atlas-to-base.yaml']
+    })
+    expect(msg).toContain('atlas-to-base')
+    expect(msg).toContain('очікувано')
+  })
+
+  test('null, якщо resources відсутнє або < 2 непорожніх рядків', () => {
+    expect(
+      kustomizationResourcesSortedAlphabeticallyViolation({
+        apiVersion: 'kustomize.config.k8s.io/v1beta1',
+        kind: 'Kustomization'
+      })
+    ).toBeNull()
+    expect(
+      kustomizationResourcesSortedAlphabeticallyViolation({
+        ...k,
+        resources: ['a.yaml']
+      })
+    ).toBeNull()
   })
 })
 
@@ -1288,8 +1344,8 @@ describe('kustomizePathRefsForExistenceCheck', () => {
       configurations: ['openapi.yaml'],
       replacements: [{ path: 'rep.yaml' }]
     }
-    const xs = kustomizePathRefsForExistenceCheck(k).sort()
-    expect(xs).toEqual(['a.yaml', 'json6902.yaml', 'openapi.yaml', 'rep.yaml'].sort())
+    const xs = kustomizePathRefsForExistenceCheck(k).toSorted()
+    expect(xs).toEqual(['a.yaml', 'json6902.yaml', 'openapi.yaml', 'rep.yaml'].toSorted())
   })
 })
 

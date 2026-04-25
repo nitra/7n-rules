@@ -24,6 +24,8 @@ import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mj
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
+const NEWLINE_RE = /\r?\n/
+
 /**
  * @typedef {{
  *   line: number
@@ -59,30 +61,25 @@ export async function findDockerfilePaths(root) {
 
 /**
  * Витягує всі `FROM <image>` зі вмісту Dockerfile/Containerfile.
- *
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {FromStage[]} список знайдених FROM-інструкцій
  */
 export function parseFromStages(fileContent) {
   const out = []
-  const lines = fileContent.split(/\r?\n/)
-  for (let i = 0; i < lines.length; i++) {
-    const image = getFromImageToken(lines[i])
+  const lines = fileContent.split(NEWLINE_RE)
+  for (const [i, line] of lines.entries()) {
+    const image = getFromImageToken(line)
     if (image) out.push({ line: i + 1, image })
   }
   return out
 }
 
-const RUNTIME_IMAGES = /** @type {const} */ ([
-  'mirror.gcr.io/library/alpine',
-  'mirror.gcr.io/library/nginx'
-])
+const RUNTIME_IMAGES = /** @type {const} */ (['mirror.gcr.io/library/alpine', 'mirror.gcr.io/library/nginx'])
 
 /**
  * Перевіряє базові вимоги до структури Dockerfile:
  * - multistage: мінімум 2 FROM
  * - фінальний FROM: alpine або nginx з mirror.gcr.io
- *
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */

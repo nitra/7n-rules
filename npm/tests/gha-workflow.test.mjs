@@ -108,12 +108,12 @@ describe('gha-workflow', () => {
   test('runTextHasShellLineContinuationBackslash / findRunStepsWithShellLineContinuationBackslash', () => {
     expect(runTextHasShellLineContinuationBackslash('docker build \\\n  --push')).toBe(true)
     expect(runTextHasShellLineContinuationBackslash('echo ok\nexit 0')).toBe(false)
-    const withBackslashRun = `jobs:
+    const withBackslashRun = String.raw`jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          docker build \\
+          docker build \
           --push
 `
     const badRoot = parseWorkflowYaml(withBackslashRun)

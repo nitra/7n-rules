@@ -3,7 +3,13 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { getFromImageToken, getMirrorGcrHint, getRequiredMirrorGcrImage, normalizeHubRepoPath, isDockerHubStyleImageRef } from '../scripts/utils/docker-mirror.mjs'
+import {
+  getFromImageToken,
+  getMirrorGcrHint,
+  getRequiredMirrorGcrImage,
+  normalizeHubRepoPath,
+  isDockerHubStyleImageRef
+} from '../scripts/utils/docker-mirror.mjs'
 
 describe('getFromImageToken', () => {
   test('токен після змінних FROM', () => {

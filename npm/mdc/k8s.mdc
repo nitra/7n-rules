@@ -298,6 +298,8 @@ data:
 
 **Локальні шляхи в `kustomization.yaml`:** кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
 
+**Порядок `resources`:** у маніфесті з **`apiVersion: kustomize.config.k8s.io/…`**, **`kind: Kustomization`**, елементи **`resources:`** (лише непорожні рядки) мають бути **відсортовані за алфавітом (англ. локаль, як `localeCompare('en')` у `check-k8s.mjs`)**. Поля **`bases`**, **`components`**, **`crds`** цією перевіркою **не** впорядковуються.
+
 ### Env-залежні межі (за сегментом після `/k8s/`)
 
 **Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa` (напр. `tr-qa`):

@@ -226,55 +226,43 @@ export function isAllowedAbieBaseDevHostname(hostname) {
 }
 
 /**
+ * @param {unknown} hostnames значення поля spec.hostnames
+ * @returns {string[]} непорожні рядки-хости
+ */
+function collectAbieHostnames(hostnames) {
+  if (Array.isArray(hostnames)) {
+    return hostnames.filter(h => typeof h === 'string' && h.trim() !== '')
+  }
+  if (typeof hostnames === 'string' && hostnames.trim() !== '') {
+    return [hostnames]
+  }
+  return []
+}
+
+/**
  * Повідомлення про недопустимі **spec.hostnames** у **HTTPRoute** у шляху **…/base/…** (abie.mdc).
  * @param {unknown} obj корінь YAML-документа
  * @param {string} rel відносний шлях від кореня репозиторію
  * @returns {string[]} порожньо, якщо перевірка не застосовується або hostnames коректні
  */
 export function abieBaseHttpRouteHostnamesErrors(obj, rel) {
-  if (!isAbieK8sBaseYamlPath(rel)) {
-    return []
-  }
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
-    return []
-  }
+  if (!isAbieK8sBaseYamlPath(rel)) return []
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
   const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (rec.kind !== 'HTTPRoute') {
-    return []
-  }
+  if (rec.kind !== 'HTTPRoute') return []
   const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return []
-  }
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return []
   const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
-  if (hostnames === undefined) {
-    return []
-  }
-  /** @type {string[]} */
-  const hosts = []
-  if (Array.isArray(hostnames)) {
-    for (const h of hostnames) {
-      if (typeof h === 'string' && h.trim() !== '') {
-        hosts.push(h)
-      }
-    }
-  } else if (typeof hostnames === 'string' && hostnames.trim() !== '') {
-    hosts.push(hostnames)
-  }
-  if (hosts.length === 0) {
-    return []
-  }
+  if (hostnames === undefined) return []
+  const hosts = collectAbieHostnames(hostnames)
+  if (hosts.length === 0) return []
   const root = ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT
-  /** @type {string[]} */
-  const errors = []
-  for (const h of hosts) {
-    if (!isAllowedAbieBaseDevHostname(h)) {
-      errors.push(
+  return hosts
+    .filter(h => !isAllowedAbieBaseDevHostname(h))
+    .map(
+      h =>
         `${rel}: HTTPRoute у base (dev): hostname "${h}" недопустимий — дозволені лише ${root} та піддомени, зокрема *.${root} (abie.mdc)`
-      )
-    }
-  }
-  return errors
+    )
 }
 
 /**
@@ -1592,6 +1580,37 @@ async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, c
 }
 
 /**
+ * @param {unknown} json YAML-документ
+ * @returns {boolean} true, якщо HTTPRoute має непорожні spec.hostnames
+ */
+function httpRouteHasNonEmptyHostnames(json) {
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) return false
+  const rec = /** @type {Record<string, unknown>} */ (json)
+  if (rec.kind !== 'HTTPRoute') return false
+  const spec = rec.spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
+  const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
+  return collectAbieHostnames(hostnames).length > 0
+}
+
+/**
+ * @param {import('yaml').Document} doc YAML-документ з файлу
+ * @param {string} rel відносний шлях для повідомлень
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {{ hasErrors: boolean, hasHostnames: boolean }} результат обробки документа
+ */
+function processBaseHttpRouteDoc(doc, rel, fail) {
+  if (doc.errors.length !== 0) return { hasErrors: false, hasHostnames: false }
+  const json = doc.toJSON()
+  const errs = abieBaseHttpRouteHostnamesErrors(json, rel)
+  if (errs.length > 0) {
+    for (const e of errs) fail(e)
+    return { hasErrors: true, hasHostnames: false }
+  }
+  return { hasErrors: false, hasHostnames: httpRouteHasNonEmptyHostnames(json) }
+}
+
+/**
  * Для кожного **HTTPRoute** у **`…/k8s/base/…`** з непорожніми **`spec.hostnames`** — лише **aiml.live** та піддомени (abie.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
@@ -1601,39 +1620,15 @@ async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, c
  */
 async function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
   let baseHttpRoutesWithHostnames = 0
-  for (const abs of yamlFilesAbs) {
+  const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
+  for (const abs of baseFiles) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (isAbieK8sBaseYamlPath(rel)) {
-      const docs = await readAndParseYamlDocs(abs, rel, fail)
-      if (!docs) {
-        return
-      }
-      for (const doc of docs) {
-        if (doc.errors.length === 0) {
-          const json = doc.toJSON()
-          const errs = abieBaseHttpRouteHostnamesErrors(json, rel)
-          if (errs.length > 0) {
-            for (const e of errs) {
-              fail(e)
-            }
-            return
-          }
-          if (json !== null && typeof json === 'object' && !Array.isArray(json)) {
-            const rec = /** @type {Record<string, unknown>} */ (json)
-            if (rec.kind === 'HTTPRoute') {
-              const spec = rec.spec
-              if (spec !== null && typeof spec === 'object' && !Array.isArray(spec)) {
-                const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
-                if (Array.isArray(hostnames) && hostnames.some(h => typeof h === 'string' && h.trim() !== '')) {
-                  baseHttpRoutesWithHostnames++
-                } else if (typeof hostnames === 'string' && hostnames.trim() !== '') {
-                  baseHttpRoutesWithHostnames++
-                }
-              }
-            }
-          }
-        }
-      }
+    const docs = await readAndParseYamlDocs(abs, rel, fail)
+    if (!docs) return
+    for (const doc of docs) {
+      const { hasErrors, hasHostnames } = processBaseHttpRouteDoc(doc, rel, fail)
+      if (hasErrors) return
+      if (hasHostnames) baseHttpRoutesWithHostnames++
     }
   }
   if (baseHttpRoutesWithHostnames > 0) {
@@ -1685,7 +1680,6 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
 /**
  * Перевіряє відсутність артефактів Firebase Hosting у **кожному** **підкаталозі першого рівня** від кореня
  * (не в самому корені репозиторію) — abie.mdc. Каталоги **`.git`** і **`node_modules`** у скануванні пропускаються.
- *
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} passFn успішне повідомлення
  * @param {(msg: string) => void} failFn повідомлення про порушення
@@ -1700,9 +1694,7 @@ async function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
     failFn(`Не вдалося прочитати ${root} для перевірки Firebase Hosting: ${msg} (abie.mdc)`)
     return
   }
-  const topDirs = entries.filter(
-    e => e.isDirectory() && !ABIE_FIREBASE_HOSTING_SCAN_SKIP_TOP_DIR_NAMES.has(e.name)
-  )
+  const topDirs = entries.filter(e => e.isDirectory() && !ABIE_FIREBASE_HOSTING_SCAN_SKIP_TOP_DIR_NAMES.has(e.name))
   let hasViolation = false
   for (const e of topDirs) {
     for (const name of ['.firebaserc', 'firebase.json']) {
@@ -1720,9 +1712,7 @@ async function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
   if (hasViolation) {
     return
   }
-  passFn(
-    'Підкаталоги кореня (1-й рівень, без .git/node_modules): артефактів Firebase Hosting не знайдено (abie.mdc)'
-  )
+  passFn('Підкаталоги кореня (1-й рівень, без .git/node_modules): артефактів Firebase Hosting не знайдено (abie.mdc)')
 }
 
 /**

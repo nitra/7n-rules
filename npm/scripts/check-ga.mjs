@@ -136,12 +136,12 @@ function verifyNoRunShellLineContinuationBackslash(relPath, content, failFn, pas
   }
   const hits = findRunStepsWithShellLineContinuationBackslash(root)
   if (hits.length === 0) {
-    passFn(`${relPath}: run без shell-продовження через \\ (ga.mdc)`)
+    passFn(String.raw`${relPath}: run без shell-продовження через \ (ga.mdc)`)
     return
   }
   for (const h of hits) {
     failFn(
-      `${relPath}: job ${h.jobId}, крок ${h.stepIndex + 1}: у run заборонено продовження рядків через зворотний сліш; довгі команди оформи як folded block (run: >-) без \\ на кінцях рядків (ga.mdc)`
+      String.raw`${relPath}: job ${h.jobId}, крок ${h.stepIndex + 1}: у run заборонено продовження рядків через зворотний сліш; довгі команди оформи як folded block (run: >-) без \ на кінцях рядків (ga.mdc)`
     )
   }
 }
@@ -237,9 +237,7 @@ async function checkVscodeSettingsForGa(passFn, failFn) {
   }
   const block = /** @type {Record<string, unknown>} */ (settings)['[github-actions-workflow]']
   if (!block || typeof block !== 'object' || block === null || Array.isArray(block)) {
-    failFn(
-      `${rel}: додай "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } (ga.mdc)`
-    )
+    failFn(`${rel}: додай "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } (ga.mdc)`)
     return
   }
   const df = String(/** @type {Record<string, unknown>} */ (block)['editor.defaultFormatter'] ?? '')
