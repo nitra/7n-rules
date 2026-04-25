@@ -370,9 +370,9 @@ function pushStringPaths(arr, acc) {
 const KUSTOMIZE_CONFIG_API_PREFIX = 'kustomize.config.k8s.io/'
 
 /**
- * Чи послідовність непорожніх рядків зростаюча за `localeCompare` (en).
- * @param {string[]} paths
- * @returns {boolean}
+ * Чи послідовність непорожніх рядків відсортована за `localeCompare` (en, ascending).
+ * @param {string[]} paths рядки для перевірки
+ * @returns {boolean} `true` якщо послідовність відсортована
  */
 function stringPathsAreSortedEn(paths) {
   for (let i = 1; i < paths.length; i++) {
@@ -402,8 +402,7 @@ export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
   }
   /** @type {string[]} */
   const paths = []
-  for (let i = 0; i < res.length; i++) {
-    const item = res[i]
+  for (const [i, item] of res.entries()) {
     if (typeof item !== 'string') {
       return `Kustomization.resources[${i}] — очікується рядок-шлях (k8s.mdc)`
     }
@@ -412,7 +411,7 @@ export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
   }
   if (paths.length < 2) return null
   if (!stringPathsAreSortedEn(paths)) {
-    const want = [...paths].sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+    const want = paths.toSorted((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
     return `Kustomization.resources має бути за алфавітом (en). Зараз: ${paths.join(', ')}; очікувано: ${want.join(', ')} (k8s.mdc)`
   }
   return null
@@ -422,17 +421,18 @@ export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
  * Усі **`kustomization.yaml`**: **`resources`**, відсортовані за en.
  * @param {string} root корінь репо
  * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail
- * @returns {Promise<void>}
+ * @param {(msg: string) => void} fail функція для фіксації порушення
+ * @returns {Promise<void>} завершується після перевірки всіх kustomization.yaml
  */
 async function validateKustomizationResourcesSortedAlphabetically(root, yamlFilesAbs, fail) {
   for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
     const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
     const kust = await readFirstYamlObject(kustAbs)
-    if (kust === null) continue
-    const v = kustomizationResourcesSortedAlphabeticallyViolation(kust)
-    if (v !== null) {
-      fail(`${rel}: ${v}`)
+    if (kust !== null) {
+      const v = kustomizationResourcesSortedAlphabeticallyViolation(kust)
+      if (v !== null) {
+        fail(`${rel}: ${v}`)
+      }
     }
   }
 }

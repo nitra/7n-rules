@@ -10,8 +10,8 @@ import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
 /**
  * Monorepo `workspaces: ['pkg']` і мінімальний `pkg/package.json` з залежностями.
- * @param {Record<string, string>} pkgDependencies
- * @returns {Promise<void>}
+ * @param {Record<string, string>} pkgDependencies залежності workspace-пакета
+ * @returns {Promise<void>} завершується після запису файлів
  */
 async function writeRootWithWorkspacePkg(pkgDependencies) {
   await writeJson('package.json', {

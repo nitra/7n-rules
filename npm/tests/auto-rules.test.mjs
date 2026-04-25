@@ -26,7 +26,7 @@ const ALL_RULES = [
 const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint']
 
 /**
- * @returns {Promise<Awaited<ReturnType<typeof detectAutoRulesAndSkills>>>}
+ * @returns {Promise<Awaited<ReturnType<typeof detectAutoRulesAndSkills>>>} результат виявлення правил з поточної директорії
  */
 async function detectAutoRulesInCwd() {
   return detectAutoRulesAndSkills({

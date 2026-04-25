@@ -61,7 +61,7 @@ const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml',
  * @returns {unknown} значення поля або undefined
  */
 function getObjKey(obj, key) {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return undefined
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return
   return /** @type {Record<string, unknown>} */ (obj)[key]
 }
 
@@ -76,6 +76,32 @@ function isExactString(v, expected) {
 }
 
 /**
+ * Перевіряє крок dmvict/clean-workflow-runs@v1 у `clean-ga-workflows.yml`.
+ * @param {unknown} step0 перший крок workflow
+ * @param {(msg: string) => void} passFn pass
+ * @param {(msg: string) => void} failFn fail
+ */
+function validateCleanGaWorkflowsStep0(step0, passFn, failFn) {
+  if (!isExactString(getObjKey(step0, 'name'), 'Delete workflow runs')) {
+    failFn('clean-ga-workflows.yml: перший крок має мати name: Delete workflow runs (ga.mdc)')
+  }
+  if (!isExactString(getObjKey(step0, 'uses'), 'dmvict/clean-workflow-runs@v1')) {
+    failFn('clean-ga-workflows.yml: перший крок має uses: dmvict/clean-workflow-runs@v1 (ga.mdc)')
+  }
+  const withObj = getObjKey(step0, 'with')
+  const githubToken = ['$', '{{ github.token }}'].join('')
+  if (
+    getObjKey(withObj, 'token') === githubToken &&
+    getObjKey(withObj, 'save_period') === 31 &&
+    getObjKey(withObj, 'save_min_runs_number') === 0
+  ) {
+    passFn('clean-ga-workflows.yml: jobs/steps OK')
+  } else {
+    failFn('clean-ga-workflows.yml: with має містити token/save_period/save_min_runs_number як у ga.mdc')
+  }
+}
+
+/**
  * Перевіряє структуру workflow `clean-ga-workflows.yml` (ga.mdc).
  * @param {Record<string, unknown> | null} root parsed YAML
  * @param {(msg: string) => void} passFn pass
@@ -87,10 +113,10 @@ function validateCleanGaWorkflows(root, passFn, failFn) {
     return
   }
 
-  if (!isExactString(root.name, 'Clean action for removing completed workflow runs')) {
-    failFn('clean-ga-workflows.yml: name має бути "Clean action for removing completed workflow runs" (ga.mdc)')
-  } else {
+  if (isExactString(root.name, 'Clean action for removing completed workflow runs')) {
     passFn('clean-ga-workflows.yml: name OK')
+  } else {
+    failFn('clean-ga-workflows.yml: name має бути "Clean action for removing completed workflow runs" (ga.mdc)')
   }
 
   const on = root.on
@@ -101,10 +127,10 @@ function validateCleanGaWorkflows(root, passFn, failFn) {
     Array.isArray(schedule) &&
     schedule.some(v => v && typeof v === 'object' && /** @type {Record<string, unknown>} */ (v).cron === '0 1 16 * *')
 
-  if (!hasCron) {
-    failFn("clean-ga-workflows.yml: on.schedule має містити cron: '0 1 16 * *' (ga.mdc)")
-  } else {
+  if (hasCron) {
     passFn('clean-ga-workflows.yml: cron OK')
+  } else {
+    failFn("clean-ga-workflows.yml: on.schedule має містити cron: '0 1 16 * *' (ga.mdc)")
   }
 
   if (!wfDispatch || typeof wfDispatch !== 'object') {
@@ -136,21 +162,58 @@ function validateCleanGaWorkflows(root, passFn, failFn) {
     return
   }
 
-  if (!isExactString(getObjKey(step0, 'name'), 'Delete workflow runs')) {
-    failFn('clean-ga-workflows.yml: перший крок має мати name: Delete workflow runs (ga.mdc)')
+  validateCleanGaWorkflowsStep0(step0, passFn, failFn)
+}
+
+/**
+ * Перевіряє крок `phpdocker-io/github-actions-delete-abandoned-branches` у `clean-merged-branch.yml`.
+ * @param {unknown} step0 перший крок workflow
+ * @param {(msg: string) => void} failFn fail
+ */
+function validateCleanMergedBranchStep0(step0, failFn) {
+  if (!isExactString(getObjKey(step0, 'id'), 'delete_stuff')) {
+    failFn('clean-merged-branch.yml: перший крок має id: delete_stuff (ga.mdc)')
   }
-  if (!isExactString(getObjKey(step0, 'uses'), 'dmvict/clean-workflow-runs@v1')) {
-    failFn('clean-ga-workflows.yml: перший крок має uses: dmvict/clean-workflow-runs@v1 (ga.mdc)')
+  if (!isExactString(getObjKey(step0, 'uses'), 'phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3')) {
+    failFn('clean-merged-branch.yml: перший крок має uses як у ga.mdc')
   }
   const withObj = getObjKey(step0, 'with')
-  if (
-    !(getObjKey(withObj, 'token') === '${{ github.token }}' &&
-      getObjKey(withObj, 'save_period') === 31 &&
-      getObjKey(withObj, 'save_min_runs_number') === 0)
-  ) {
-    failFn('clean-ga-workflows.yml: with має містити token/save_period/save_min_runs_number як у ga.mdc')
+  const ghToken = ['$', '{{ github.token }}'].join('')
+  if (getObjKey(withObj, 'github_token') !== ghToken) {
+    failFn(['clean-merged-branch.yml: with.github_token має бути $', '{{ github.token }} (ga.mdc)'].join(''))
+  }
+  if (getObjKey(withObj, 'last_commit_age_days') !== 90) {
+    failFn('clean-merged-branch.yml: with.last_commit_age_days має бути 90 (ga.mdc)')
+  }
+  const ignoreBranches = String(getObjKey(withObj, 'ignore_branches') ?? '')
+  if (!(ignoreBranches.includes('main') && ignoreBranches.includes('dev'))) {
+    failFn('clean-merged-branch.yml: with.ignore_branches має містити main,dev (ga.mdc)')
+  }
+  if (getObjKey(withObj, 'dry_run') !== 'no') {
+    failFn('clean-merged-branch.yml: with.dry_run має бути no (ga.mdc)')
+  }
+}
+
+/**
+ * Перевіряє крок виводу в `clean-merged-branch.yml`.
+ * @param {unknown} step1 другий крок workflow
+ * @param {(msg: string) => void} passFn pass
+ * @param {(msg: string) => void} failFn fail
+ */
+function validateCleanMergedBranchStep1(step1, passFn, failFn) {
+  if (!isExactString(getObjKey(step1, 'name'), 'Get output')) {
+    failFn('clean-merged-branch.yml: другий крок має name: Get output (ga.mdc)')
+  }
+  const env = getObjKey(step1, 'env')
+  const deletedBranchesExpr = ['$', '{{ steps.delete_stuff.outputs.deleted_branches }}'].join('')
+  if (getObjKey(env, 'DELETED_BRANCHES') !== deletedBranchesExpr) {
+    failFn('clean-merged-branch.yml: env.DELETED_BRANCHES має бути як у ga.mdc')
+  }
+  const echoDeletedBranches = ['echo "Deleted branches: $', '{DELETED_BRANCHES}"'].join('')
+  if (String(getObjKey(step1, 'run') ?? '').includes(echoDeletedBranches)) {
+    passFn('clean-merged-branch.yml: jobs/steps OK')
   } else {
-    passFn('clean-ga-workflows.yml: jobs/steps OK')
+    failFn('clean-merged-branch.yml: run має echo Deleted branches як у ga.mdc')
   }
 }
 
@@ -166,10 +229,10 @@ function validateCleanMergedBranch(root, passFn, failFn) {
     return
   }
 
-  if (!isExactString(root.name, 'Clean abandoned branches')) {
-    failFn('clean-merged-branch.yml: name має бути "Clean abandoned branches" (ga.mdc)')
-  } else {
+  if (isExactString(root.name, 'Clean abandoned branches')) {
     passFn('clean-merged-branch.yml: name OK')
+  } else {
+    failFn('clean-merged-branch.yml: name має бути "Clean abandoned branches" (ga.mdc)')
   }
 
   const on = root.on
@@ -179,10 +242,10 @@ function validateCleanMergedBranch(root, passFn, failFn) {
     Array.isArray(schedule) &&
     schedule.some(v => v && typeof v === 'object' && /** @type {Record<string, unknown>} */ (v).cron === '0 1 15 * *')
 
-  if (!hasCron) {
-    failFn("clean-merged-branch.yml: on.schedule має містити cron: '0 1 15 * *' (ga.mdc)")
-  } else {
+  if (hasCron) {
     passFn('clean-merged-branch.yml: cron OK')
+  } else {
+    failFn("clean-merged-branch.yml: on.schedule має містити cron: '0 1 15 * *' (ga.mdc)")
   }
 
   if (!wfDispatch || typeof wfDispatch !== 'object') {
@@ -197,7 +260,7 @@ function validateCleanMergedBranch(root, passFn, failFn) {
   }
 
   const perm = getObjKey(job, 'permissions')
-  if (!(getObjKey(perm, 'contents') === 'write')) {
+  if (getObjKey(perm, 'contents') !== 'write') {
     failFn('clean-merged-branch.yml: permissions мають бути contents: write (ga.mdc)')
   }
 
@@ -212,47 +275,39 @@ function validateCleanMergedBranch(root, passFn, failFn) {
     failFn('clean-merged-branch.yml: перший крок невалідний (ga.mdc)')
     return
   }
-
-  if (!isExactString(getObjKey(step0, 'id'), 'delete_stuff')) {
-    failFn('clean-merged-branch.yml: перший крок має id: delete_stuff (ga.mdc)')
-  }
-  if (!isExactString(getObjKey(step0, 'uses'), 'phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3')) {
-    failFn('clean-merged-branch.yml: перший крок має uses як у ga.mdc')
-  }
-  const withObj = getObjKey(step0, 'with')
-  if (getObjKey(withObj, 'github_token') !== '${{ github.token }}') {
-    failFn('clean-merged-branch.yml: with.github_token має бути ${{ github.token }} (ga.mdc)')
-  }
-  if (getObjKey(withObj, 'last_commit_age_days') !== 90) {
-    failFn('clean-merged-branch.yml: with.last_commit_age_days має бути 90 (ga.mdc)')
-  }
-
-  const ignoreBranches = String(getObjKey(withObj, 'ignore_branches') ?? '')
-  if (!(ignoreBranches.includes('main') && ignoreBranches.includes('dev'))) {
-    failFn('clean-merged-branch.yml: with.ignore_branches має містити main,dev (ga.mdc)')
-  }
-
-  if (getObjKey(withObj, 'dry_run') !== 'no') {
-    failFn('clean-merged-branch.yml: with.dry_run має бути no (ga.mdc)')
-  }
+  validateCleanMergedBranchStep0(step0, failFn)
 
   const step1 = steps[1]
   if (!step1 || typeof step1 !== 'object') {
     failFn('clean-merged-branch.yml: другий крок невалідний (ga.mdc)')
     return
   }
+  validateCleanMergedBranchStep1(step1, passFn, failFn)
+}
 
-  if (!isExactString(getObjKey(step1, 'name'), 'Get output')) {
-    failFn('clean-merged-branch.yml: другий крок має name: Get output (ga.mdc)')
+/**
+ * Перевіряє тригери `on.push` / `on.pull_request` у `lint-ga.yml`.
+ * @param {unknown} on корінь `on:` з YAML
+ * @param {(msg: string) => void} failFn fail
+ */
+function validateLintGaOnTriggers(on, failFn) {
+  const push = getObjKey(on, 'push')
+  const pr = getObjKey(on, 'pull_request')
+  const pushBranches = getObjKey(push, 'branches')
+  const pushPaths = getObjKey(push, 'paths')
+  const prBranches = getObjKey(pr, 'branches')
+
+  if (!Array.isArray(pushBranches) || !(pushBranches.includes('dev') && pushBranches.includes('main'))) {
+    failFn('lint-ga.yml: on.push.branches має містити dev і main (ga.mdc)')
   }
-  const env = getObjKey(step1, 'env')
-  if (getObjKey(env, 'DELETED_BRANCHES') !== '${{ steps.delete_stuff.outputs.deleted_branches }}') {
-    failFn('clean-merged-branch.yml: env.DELETED_BRANCHES має бути як у ga.mdc')
+  if (!Array.isArray(prBranches) || !(prBranches.includes('dev') && prBranches.includes('main'))) {
+    failFn('lint-ga.yml: on.pull_request.branches має містити dev і main (ga.mdc)')
   }
-  if (!String(getObjKey(step1, 'run') ?? '').includes('echo "Deleted branches: ${DELETED_BRANCHES}"')) {
-    failFn('clean-merged-branch.yml: run має echo Deleted branches як у ga.mdc')
-  } else {
-    passFn('clean-merged-branch.yml: jobs/steps OK')
+  if (
+    !Array.isArray(pushPaths) ||
+    !(pushPaths.includes('.github/actions/**') && pushPaths.includes('.github/workflows/**'))
+  ) {
+    failFn('lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)')
   }
 }
 
@@ -272,25 +327,10 @@ function validateLintGaWorkflowStructure(root, passFn, failFn) {
     failFn('lint-ga.yml: name має бути "Lint GA" (ga.mdc)')
   }
 
-  const on = root.on
-  const push = getObjKey(on, 'push')
-  const pr = getObjKey(on, 'pull_request')
-  const pushBranches = getObjKey(push, 'branches')
-  const pushPaths = getObjKey(push, 'paths')
-  const prBranches = getObjKey(pr, 'branches')
-
-  if (!Array.isArray(pushBranches) || !(pushBranches.includes('dev') && pushBranches.includes('main'))) {
-    failFn('lint-ga.yml: on.push.branches має містити dev і main (ga.mdc)')
-  }
-  if (!Array.isArray(prBranches) || !(prBranches.includes('dev') && prBranches.includes('main'))) {
-    failFn('lint-ga.yml: on.pull_request.branches має містити dev і main (ga.mdc)')
-  }
-  if (!Array.isArray(pushPaths) || !(pushPaths.includes('.github/actions/**') && pushPaths.includes('.github/workflows/**'))) {
-    failFn('lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)')
-  }
+  validateLintGaOnTriggers(root.on, failFn)
 
   const conc = getObjKey(root, 'concurrency')
-  if (!(getObjKey(conc, 'cancel-in-progress') === true)) {
+  if (getObjKey(conc, 'cancel-in-progress') !== true) {
     failFn('lint-ga.yml: concurrency.cancel-in-progress має бути true (ga.mdc)')
   }
 
@@ -305,7 +345,7 @@ function validateLintGaWorkflowStructure(root, passFn, failFn) {
     failFn('lint-ga.yml: runs-on має бути ubuntu-latest (ga.mdc)')
   }
   const perm = getObjKey(job, 'permissions')
-  if (!(getObjKey(perm, 'contents') === 'read')) {
+  if (getObjKey(perm, 'contents') !== 'read') {
     failFn('lint-ga.yml: permissions мають бути contents: read (ga.mdc)')
   }
 
@@ -316,22 +356,22 @@ function validateLintGaWorkflowStructure(root, passFn, failFn) {
   }
 
   const flat = flattenWorkflowSteps(root)
-  const usesList = flat.map(s => getStepUses(s.step))
+  const usesList = new Set(flat.map(s => getStepUses(s.step)))
   const runBlob = flat.map(s => getStepRun(s.step)).join('\n')
 
-  if (!usesList.includes('actions/checkout@v6')) {
+  if (!usesList.has('actions/checkout@v6')) {
     failFn('lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)')
   }
-  if (!usesList.includes('./.github/actions/setup-bun-deps')) {
+  if (!usesList.has('./.github/actions/setup-bun-deps')) {
     failFn('lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)')
   }
-  if (!usesList.includes('astral-sh/setup-uv@v8.0.0')) {
+  if (!usesList.has('astral-sh/setup-uv@v8.0.0')) {
     failFn('lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)')
   }
-  if (!runBlob.includes('bun run lint-ga')) {
-    failFn('lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)')
-  } else {
+  if (runBlob.includes('bun run lint-ga')) {
     passFn('lint-ga.yml: структура jobs/steps OK')
+  } else {
+    failFn('lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)')
   }
 }
 
@@ -370,7 +410,7 @@ function validateGitAiWorkflowStructure(root, passFn, failFn) {
   }
 
   const perm = getObjKey(job, 'permissions')
-  if (!(getObjKey(perm, 'contents') === 'write')) {
+  if (getObjKey(perm, 'contents') !== 'write') {
     failFn('git-ai.yml: permissions мають бути contents: write (ga.mdc)')
   }
 
@@ -379,10 +419,10 @@ function validateGitAiWorkflowStructure(root, passFn, failFn) {
   if (!runBlob.includes('curl -fsSL https://usegitai.com/install.sh | bash')) {
     failFn('git-ai.yml: має встановлювати git-ai через curl | bash (ga.mdc)')
   }
-  if (!runBlob.includes('git-ai ci github run')) {
-    failFn('git-ai.yml: має виконувати git-ai ci github run (ga.mdc)')
-  } else {
+  if (runBlob.includes('git-ai ci github run')) {
     passFn('git-ai.yml: структура jobs/steps OK')
+  } else {
+    failFn('git-ai.yml: має виконувати git-ai ci github run (ga.mdc)')
   }
 }
 

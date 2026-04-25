@@ -13,8 +13,8 @@ const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =
 
 /**
  * Мінімальний Deployment з `$schema` yannh (спільний для інтеграційних сценаріїв check-k8s).
- * @param {string} depSchema
- * @returns {string}
+ * @param {string} depSchema URL схеми для `# yaml-language-server: $schema=…`
+ * @returns {string} YAML-рядок мінімального Deployment
  */
 function minimalDeploymentWithSchema(depSchema) {
   return `# yaml-language-server: $schema=${depSchema}
