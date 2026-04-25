@@ -1,0 +1,60 @@
+npm/scripts/check-ga.mjs
+  4901cef993f17351 22,58-133,957-960
+npm/mdc/js-mssql.mdc
+  4901cef993f17351 7-9,59
+  h_9e4b254ff59432 1-6,10-58
+npm/scripts/utils/mssql-pool-scan.mjs
+  4901cef993f17351 6-9,120-137,167-185,187-196
+  eacd13013a86f456 1-5,10-119,138-166,186,197-208
+npm/scripts/check-docker.mjs
+  eacd13013a86f456 10,13,77-81,86
+npm/scripts/auto-rules.mjs
+  4901cef993f17351 28,49-96,347,385
+npm/package.json
+  h_9e4b254ff59432 3
+npm/bin/auto-rules.md
+  h_9e4b254ff59432 21-22
+npm/scripts/check-js-mssql.mjs
+  eacd13013a86f456 6-9,16-17,19-20,47-64,165-174,176-184,191-194,198
+  4901cef993f17351 1-5,10-15,18,21-46,65-164,175,185-190,195-197,199-203
+npm/mdc/docker.mdc
+  h_9e4b254ff59432 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "edb572d1239c88579126bcdcd3a5960fe8dfb948",
+  "prompts": {
+    "4901cef993f17351": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cec6a795-c368-4001-ba7a-266247cc13fe",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 353,
+      "total_deletions": 14,
+      "accepted_lines": 340,
+      "overriden_lines": 0
+    },
+    "eacd13013a86f456": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ed998eac-19cc-4976-b8bb-21ea35f7d289",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 267,
+      "total_deletions": 56,
+      "accepted_lines": 215,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
