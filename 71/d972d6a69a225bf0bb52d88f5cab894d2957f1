@@ -1,0 +1,60 @@
+npm/scripts/auto-rules.mjs
+  255b25f045c43000 24,123,134-136,190,270,285,397
+npm/package.json
+  7aa101fbbfd57e35 3
+npm/mdc/capacitor.mdc
+  h_9e4b254ff59432 1-6,8
+  7aa101fbbfd57e35 7,9-18
+npm/scripts/check-k8s.mjs
+  7aa101fbbfd57e35 26-27,98,1566-1632,4891-4892
+npm/mdc/k8s.mdc
+  7aa101fbbfd57e35 419-420
+npm/tests/check-k8s-schema.test.mjs
+  7aa101fbbfd57e35 38,170-203
+npm/bin/auto-rules.md
+  h_9e4b254ff59432 11-12
+npm/tests/auto-rules.test.mjs
+  255b25f045c43000 13,52,64
+npm/scripts/check-capacitor.mjs
+  7aa101fbbfd57e35 1-350
+npm/tests/check-capacitor.test.mjs
+  7aa101fbbfd57e35 1-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "71d972d6a69a225bf0bb52d88f5cab894d2957f1",
+  "prompts": {
+    "255b25f045c43000": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "9210efb7-b28a-48a0-a05c-ce91e02b0b5c",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 13,
+      "total_deletions": 1,
+      "accepted_lines": 12,
+      "overriden_lines": 0
+    },
+    "7aa101fbbfd57e35": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bdad5651-5cf9-404c-9aac-91993b9aae1b",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 853,
+      "total_deletions": 266,
+      "accepted_lines": 591,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
