@@ -1,0 +1,75 @@
+npm/mdc/capacitor.mdc
+  7aa101fbbfd57e35 16-20,22-38
+  h_9e4b254ff59432 21
+npm/tests/check-text-fixture.test.mjs
+  3cf302d3b2c8bfcc 54-62
+npm/scripts/check-docker.mjs
+  e437f5e0de38a487 8-11,19,89-90,95-113,139,155-156
+npm/mdc/docker.mdc
+  e437f5e0de38a487 16-20,22
+  h_9e4b254ff59432 188,190-191
+npm/tests/check-docker-multistage.test.mjs
+  e437f5e0de38a487 2,52-112,127-128
+npm/scripts/check-text.mjs
+  3cf302d3b2c8bfcc 8,35-45,399-406
+npm/scripts/check-capacitor.mjs
+  e437f5e0de38a487 386,395
+  7aa101fbbfd57e35 17-22,46,50,59-66,173-188,212,292-298,300-301,327-385,387-394,396-432,469-472,475
+npm/package.json
+  e437f5e0de38a487 3
+.cspell.json
+  3cf302d3b2c8bfcc 4-12
+npm/tests/check-capacitor.test.mjs
+  7aa101fbbfd57e35 12-13,33-38,98-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1ba3c3ae19b4b79fa04a874112e1515d770ed2eb",
+  "prompts": {
+    "3cf302d3b2c8bfcc": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "44d613eb-8c21-4b20-8700-e671a48797e8",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 45,
+      "total_deletions": 9,
+      "accepted_lines": 38,
+      "overriden_lines": 0
+    },
+    "7aa101fbbfd57e35": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bdad5651-5cf9-404c-9aac-91993b9aae1b",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 321,
+      "total_deletions": 140,
+      "accepted_lines": 213,
+      "overriden_lines": 0
+    },
+    "e437f5e0de38a487": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "6a24275e-230c-4432-88bd-aba8af1d03fe",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 116,
+      "total_deletions": 33,
+      "accepted_lines": 103,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
