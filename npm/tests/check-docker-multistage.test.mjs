@@ -42,7 +42,7 @@ describe('getMultistageAndRuntimeHint', () => {
       [
         'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
         'RUN bun x',
-        'FROM mirror.gcr.io/library/nginx:alpine',
+        'FROM mirror.gcr.io/library/nginx:alpine-slim',
         'COPY --from=build-env /app/dist /usr/share/nginx/html'
       ].join('\n')
     )

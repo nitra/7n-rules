@@ -18,6 +18,9 @@
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
  * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
  *
+ * Для `mirror.gcr.io/library/nginx` у будь-якому `FROM` очікується тег `alpine-slim` (docker.mdc:
+ * мінімальні образи), не `latest` / `alpine` / інші.
+ *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
  * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
  * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
@@ -35,6 +38,8 @@ const BUN_INSTALL_RE = /\bbun\s+(?:install|i)\b/iu
 const BUN_BUILD_COMPILE_RE = /\bbun\s+build\b[^\n]*\s--compile\b/iu
 const BUN_WORD_RE = /\bbun\b/iu
 const USER_LINE_RE = /^\s*USER\s+([^\s#]+)/iu
+
+const NGINX_MIRROR_PREFIX = 'mirror.gcr.io/library/nginx'
 
 /**
  * @typedef {{
@@ -204,6 +209,30 @@ export function getBunCompileHint(fileContent) {
 }
 
 /**
+ * Перевіряє, що для `mirror.gcr.io/library/nginx` у `FROM` вказано тег `alpine-slim` (docker.mdc).
+ *
+ * @param {string} fileContent вміст Dockerfile/Containerfile
+ * @returns {string | null} повідомлення помилки або null
+ */
+export function getNginxAlpineSlimTagHint(fileContent) {
+  for (const { line, image } of parseFromStages(fileContent)) {
+    const noDigest = (image.split('@')[0] || '').trim()
+    const d = noDigest.toLowerCase()
+    if (!d.startsWith(`${NGINX_MIRROR_PREFIX}:`) && d !== NGINX_MIRROR_PREFIX) {
+      continue
+    }
+    if (d === NGINX_MIRROR_PREFIX) {
+      return `рядок ${line}: \`FROM mirror.gcr.io/library/nginx\` має явний тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз без тега (типово latest)`
+    }
+    const tag = noDigest.slice(NGINX_MIRROR_PREFIX.length + 1)
+    if (tag.toLowerCase() !== 'alpine-slim') {
+      return `рядок ${line}: для nginx потрібен тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз: \`${tag}\``
+    }
+  }
+  return null
+}
+
+/**
  * Перевіряє вимогу "non-root" у фінальному runtime stage (docker.mdc).
  *
  * Очікування:
@@ -280,6 +309,11 @@ export async function check() {
     const nonRootHint = getNonRootRuntimeHint(content)
     if (nonRootHint) {
       fail(`${rel} (non-root): ${nonRootHint}`)
+    }
+
+    const nginxSlimHint = getNginxAlpineSlimTagHint(content)
+    if (nginxSlimHint) {
+      fail(`${rel} (nginx tag): ${nginxSlimHint}`)
     }
 
     const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)

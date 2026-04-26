@@ -106,7 +106,7 @@ describe('check-nginx-default-tpl (мінімальний проєкт)', () => 
       await writeFile(
         'Dockerfile',
         [
-          'FROM nginx:alpine',
+          'FROM nginx:alpine-slim',
           "RUN find /usr/share/nginx/html -type f -name '*.js' -exec gzip -k {} +",
           'RUN envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf',
           ''

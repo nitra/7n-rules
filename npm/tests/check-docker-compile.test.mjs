@@ -58,10 +58,9 @@ describe('getBunCompileHint', () => {
         'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
         'RUN bun install',
         'RUN bun run build',
-        'FROM mirror.gcr.io/library/nginx:alpine'
+        'FROM mirror.gcr.io/library/nginx:alpine-slim'
       ].join('\n')
     )
     expect(h).toBe(null)
   })
 })
-
