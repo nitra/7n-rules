@@ -14,10 +14,12 @@
  * варто задати явний діапазон, наприклад **`^8.0.0`**. Якщо оголошено `capacitor.config.*` без жодного
  * **`@capacitor/core`** у дереві `package.json` — також помилка.
  *
- * **iOS лише через SPM (Swift Package Manager):** якщо в корні є каталог **`ios/`** — у ньому **не** має
- * бути файлів **Podfile** (CocoaPods) **поза** каталогом **Pods** (тобто не використовувати **Podfile**
- * у вихідному iOS-шарі; присутній **Podfile** — порушення). Якщо **немає** `ios/` — вимогу iOS у цьому
- * прогоні пропущено.
+ * **iOS:** зазвичай **без** **Podfile** поза **Pods** (тільки **SPM**). **@nitra/**-плагіни за політикою **SPM** —
+ * їх **не** перелічуємо й **не** перевіряємо. Якщо **Podfile** є, його можна зареєструвати як **виняток**
+ * (див. **capacitor.mdc**): у кореневому **`package.json`** або
+ * **`capacitor.config.json` / `capacitor.config.ts` / `capacitor.config.mjs`**, об’єкт **nitra** з
+ * **`iosCocoaPodsBecausePluginsLackSpm: true`** (або **`iosCocoaPodsAllowed: true`**); тоді **Podfile** **не** fail.
+ * Якщо **`ios/`** **немає** — iOS-умови не застосовуються.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -41,9 +43,11 @@ const IGNORED_DIRS_FOR_PACKAGE_JSON = new Set([
 ])
 
 /** `||` у діапазоні npm-версій */
+// eslint-disable-next-line sonarjs/slow-regex -- короткі **semver**-підрядки у **package.json**
 const NPM_OR_PARTS_RE = /\s*\|\|\s*/
 
 /** `a - b` (діапазон діапазонів) */
+// eslint-disable-next-line sonarjs/slow-regex -- форма **X - Y** у **npm**-range
 const NPM_HYPHEN_RANGE_RE = /^(.+?)\s+-\s+(.+)$/
 
 const FIRST_VERSION_NUM_RE = /^(?:v)?(\d+)/i
@@ -51,6 +55,14 @@ const FIRST_VERSION_NUM_RE = /^(?:v)?(\d+)/i
 const PREFIX_GEQ_RE = /^>=\s*/u
 const PREFIX_GT_RE = /^>\s*/u
 const STRIP_CARET_TILDE_EQ_RE = /^[=^~]+\s*/u
+
+/**
+ * Початок блока **nitra: {** у **.ts** / **.mjs** (**capacitor.config**; ключ **nitra**).
+ */
+const RE_NITRA_CONFIG_OBJECT_LEAD_IN = /\bnitra\b\s*:\s*\{|[\u0027"]nitra[\u0027"]\s*:\s*\{/
+
+const RE_COCOAPODS_EXEMPT_SPM = /\biosCocoaPodsBecausePluginsLackSpm\s*:\s*true\b/
+const RE_COCOAPODS_EXEMPT_ALLOW = /\biosCocoaPodsAllowed\s*:\s*true\b/
 
 /**
  * Мінімальний **major** (нижня межа) для **однієї** OR-частини діапазону npm (без `||` всередині).
@@ -159,6 +171,22 @@ function reportOneCapacitorCoreRange(fail, pass, rel, range) {
 }
 
 /**
+ * @param {string} rel відносний шлях `package.json`
+ * @param {Record<string, unknown>} obj `dependencies` / `devDependencies` / **…**
+ * @param {{ byPath: Map<string, string>, anyCapacitor: boolean }} out накопичувач **@capacitor** у дереві
+ */
+function recordCapacitorFromDependencyObject(rel, obj, out) {
+  for (const [name, val] of Object.entries(obj)) {
+    if (typeof name === 'string' && name.startsWith('@capacitor/')) {
+      out.anyCapacitor = true
+    }
+    if (name === '@capacitor/core' && typeof val === 'string' && val !== '') {
+      out.byPath.set(rel, val)
+    }
+  }
+}
+
+/**
  * @param {string} absPath шлях до `package.json`
  * @param {string} root корінь репозиторію
  * @param {{ byPath: Map<string, string>, anyCapacitor: boolean }} out накопичувач **byPath** і **anyCapacitor**
@@ -181,15 +209,7 @@ export async function recordCapacitorFromOnePackageJson(absPath, root, out) {
   for (const block of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
     const rec = pkg?.[block]
     if (rec !== null && rec !== undefined && typeof rec === 'object' && !Array.isArray(rec)) {
-      const obj = /** @type {Record<string, unknown>} */ (rec)
-      for (const [name, val] of Object.entries(obj)) {
-        if (typeof name === 'string' && name.startsWith('@capacitor/')) {
-          out.anyCapacitor = true
-        }
-        if (name === '@capacitor/core' && typeof val === 'string' && val !== '') {
-          out.byPath.set(rel, val)
-        }
-      }
+      recordCapacitorFromDependencyObject(rel, /** @type {Record<string, unknown>} */ (rec), out)
     }
   }
 }
@@ -269,17 +289,17 @@ export async function walkIosForPodfileSkipPods(root, dir, onPodfileRelative) {
     return false
   }
   for (const e of entries) {
-    if (e.name !== 'Pods' && e.name !== 'build' && e.name !== 'DerivedData') {
+    if (e.name === 'Pods' || e.name === 'build' || e.name === 'DerivedData') {
+      // skip
+    } else if (e.isFile() === true && e.name === 'Podfile') {
       const abs = join(dir, e.name)
-      if (e.isFile() && e.name === 'Podfile') {
-        onPodfileRelative((relative(root, abs) || abs).replaceAll('\\', '/'))
+      onPodfileRelative((relative(root, abs) || abs).replaceAll('\\', '/'))
+      return true
+    } else if (e.isDirectory() === true) {
+      const abs = join(dir, e.name)
+      const found = await walkIosForPodfileSkipPods(root, abs, onPodfileRelative)
+      if (found === true) {
         return true
-      }
-      if (e.isDirectory()) {
-        const found = await walkIosForPodfileSkipPods(root, abs, onPodfileRelative)
-        if (found) {
-          return true
-        }
       }
     }
   }
@@ -302,6 +322,112 @@ export async function findFirstPodfileUnderIosExcludingPods(root) {
     }
   })
   return first
+}
+
+/**
+ * Чи дозволяє об’єкт **nitra** використання **Podfile** (CocoaPods) на iOS (див. **capacitor.mdc**; **@nitra/**
+ * **SPM** **не** аналізуємо).
+ * @param {unknown} o об’єкт **nitra** з **package.json** / **capacitor.config**
+ * @returns {boolean} **true** якщо **Podfile** дозволено (один з прапорів **true**)
+ */
+export function nitrAObjectAllowsIosCocoaPods(o) {
+  if (o === null || o === undefined || typeof o !== 'object' || Array.isArray(o)) {
+    return false
+  }
+  const r = /** @type {Record<string, unknown>} */ (o)
+  if (r.iosCocoaPodsBecausePluginsLackSpm === true) {
+    return true
+  }
+  if (r.iosCocoaPodsAllowed === true) {
+    return true
+  }
+  return false
+}
+
+/**
+ * Витягає вихідний текст тіла **{ ... }** після **nitra:** / **"nitra":** у **config**-файлі (**ts** / **mjs**)
+ * (перша відповідність, баланс фігурних дужок).
+ * @param {string} source вміст **.ts** / **.mjs** config
+ * @returns {string | null} фрагмент **`{...}`** після **nitra:** або **null**
+ */
+function extractNitraObjectBodySource(source) {
+  const m = RE_NITRA_CONFIG_OBJECT_LEAD_IN.exec(source)
+  if (!m) {
+    return null
+  }
+  const openBrace = m.index + m[0].length - 1
+  let d = 0
+  for (let i = openBrace; i < source.length; i += 1) {
+    const c = source[i]
+    if (c === '{') {
+      d += 1
+    } else if (c === '}') {
+      d -= 1
+      if (d === 0) {
+        return source.slice(openBrace, i + 1)
+      }
+    }
+  }
+  return null
+}
+
+/**
+ * @param {string} objectBody фрагмент **`{ ... }`** (текст)
+ * @returns {boolean} **true**, якщо в тілі є **iosCocoaPods**…**:** **true**
+ */
+function nitraObjectBodyStringAllowsCocoaPodsExempt(objectBody) {
+  return (
+    RE_COCOAPODS_EXEMPT_SPM.test(objectBody) === true || RE_COCOAPODS_EXEMPT_ALLOW.test(objectBody) === true
+  )
+}
+
+/**
+ * @param {string} absPath повний шлях до **JSON**-файла
+ * @returns {Promise<boolean>} **true**, якщо `obj.nitra` (ключ **nitra** у JSON) — виняток
+ */
+async function pathJsonShowsNitraCocoapodsExempt(absPath) {
+  if (existsSync(absPath) !== true) {
+    return false
+  }
+  try {
+    const t = await readFile(absPath, 'utf8')
+    const j = /** @type {Record<string, unknown>} */ (JSON.parse(t))
+    return nitrAObjectAllowsIosCocoaPods(j['nitra']) === true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<boolean>} **true**, якщо **.ts** / **.mjs** містить валідний виняток **nitra**
+ */
+async function capacitorConfigTsMjsNitraCocoapodsExempt(root) {
+  for (const name of ['capacitor.config.ts', 'capacitor.config.mjs']) {
+    const p = join(root, name)
+    if (existsSync(p) === true) {
+      const text = await readFile(p, 'utf8')
+      const body = extractNitraObjectBodySource(text)
+      if (body !== null && nitraObjectBodyStringAllowsCocoaPodsExempt(body) === true) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+/**
+ * @param {string} root корінь репозиторію (**process.cwd()** у **check**)
+ * @returns {Promise<boolean>} **true** якщо **Podfile** виправдано **nitra**-конфігом
+ */
+async function isIosCocoaPodsExemptByNitraConfig(root) {
+  if ((await pathJsonShowsNitraCocoapodsExempt(join(root, 'package.json'))) === true) {
+    return true
+  }
+  if ((await pathJsonShowsNitraCocoapodsExempt(join(root, 'capacitor.config.json'))) === true) {
+    return true
+  }
+  return capacitorConfigTsMjsNitraCocoapodsExempt(root)
 }
 
 /**
@@ -340,9 +466,13 @@ export async function check() {
     } else {
       pass('каталог ios/ не знайдено — вимогу iOS/SPM пропущено')
     }
+  } else if ((await isIosCocoaPodsExemptByNitraConfig(root)) === true) {
+    pass(
+      `iOS: Podfile «${podfileRel}» — дозволено виняток (nitra.iosCocoaPodsBecausePluginsLackSpm / iosCocoaPodsAllowed, capacitor.mdc)`
+    )
   } else {
     fail(
-      `iOS: знайдено Podfile «${podfileRel}» — для Capacitor використовуй лише SPM, без CocoaPods (прибери Podfile, capacitor.mdc)`
+      `iOS: знайдено Podfile «${podfileRel}» — для Capacitor використовуй лише SPM, без CocoaPods, або додай виняток nitra (capacitor.mdc)`
     )
   }
 

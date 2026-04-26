@@ -51,7 +51,15 @@ describe('check-text (мінімальний проєкт)', () => {
       await writeJson('.cspell.json', {
         version: '0.2',
         language: 'en,nitra',
-        ignorePaths: ['node_modules'],
+        ignorePaths: [
+          '**/node_modules/**',
+          '**/vscode-extension/**',
+          '**/.git/**',
+          '.vscode',
+          'report',
+          '*.svg',
+          '**/k8s/**/*.yaml',
+        ],
         import: ['@nitra/cspell-dict/cspell-ext.json'],
         words: []
       })

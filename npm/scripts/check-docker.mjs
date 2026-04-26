@@ -5,8 +5,10 @@
  * вказуються через `mirror.gcr.io` (див. `utils/docker-mirror.mjs`).
  *
  * Також перевіряє, що Dockerfile/Containerfile має **multistage build** і що фінальний stage
- * використовує мінімальний runtime-образ:
- * - backend: `mirror.gcr.io/library/alpine:*`
+ * використовує дозволений runtime-образ (див. docker.mdc):
+ * - backend: `mirror.gcr.io/library/alpine:*`, `scratch`, `mirror.gcr.io/library/debian:` з тегом, що
+ *   містить `slim` (не повний `debian:bookworm`), за винятком PHP/Python — `mirror.gcr.io/library/php:*` або
+ *   `mirror.gcr.io/library/python:*`
  * - frontend: `mirror.gcr.io/library/nginx:*` або `mirror.gcr.io/openresty/openresty:*`
  *
  * Якщо в Dockerfile є крок `bun install` і це не frontend-образ (фінальний stage — alpine),
@@ -14,7 +16,7 @@
  * фінальному stage не повинно залишатися build tooling (Bun/Node).
  *
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
- * runtime (alpine), nginx або openresty.
+ * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
  *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
  * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
@@ -84,9 +86,30 @@ export function parseFromStages(fileContent) {
 
 const RUNTIME_IMAGES = /** @type {const} */ ([
   'mirror.gcr.io/library/alpine',
+  'mirror.gcr.io/library/php',
+  'mirror.gcr.io/library/python',
   'mirror.gcr.io/library/nginx',
   'mirror.gcr.io/openresty/openresty'
 ])
+
+/** @type {RegExp} */
+const DEBIAN_VIA_MIRROR_RE = /^mirror\.gcr\.io\/library\/debian:(.+)$/i
+
+/**
+ * Чи ref фінального `FROM` відповідає дозволеним у docker.mdc (multistage / runtime).
+ * @param {string} lastLower ref без digest, lower case
+ * @returns {boolean}
+ */
+function isAllowedFinalRuntimeImage(lastLower) {
+  if (lastLower === 'scratch' || lastLower.startsWith('scratch:')) {
+    return true
+  }
+  const deb = lastLower.match(DEBIAN_VIA_MIRROR_RE)
+  if (deb) {
+    return deb[1].toLowerCase().includes('slim')
+  }
+  return RUNTIME_IMAGES.some(img => lastLower.startsWith(`${img}:`) || lastLower === img)
+}
 
 /**
  * Розбиває Dockerfile на stages за `FROM` (порожній масив, якщо FROM немає).
@@ -113,7 +136,7 @@ export function splitDockerfileStages(fileContent) {
 /**
  * Перевіряє базові вимоги до структури Dockerfile:
  * - multistage: мінімум 2 FROM
- * - фінальний FROM: alpine/nginx/openresty з mirror.gcr.io
+ * - фінальний FROM: дозволені образи в docker.mdc (alpine, scratch, debian slim, php, python, nginx, openresty, …)
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
@@ -129,9 +152,8 @@ export function getMultistageAndRuntimeHint(fileContent) {
   const lastImage = (last?.image || '').split('@')[0] || ''
   const lastLower = lastImage.toLowerCase()
 
-  const okRuntime = RUNTIME_IMAGES.some(img => lastLower.startsWith(`${img}:`) || lastLower === img)
-  if (!okRuntime) {
-    return `фінальний FROM має бути ${RUNTIME_IMAGES.join(' або ')} (runtime stage), зараз: ${last?.image} (рядок ${last?.line})`
+  if (!isAllowedFinalRuntimeImage(lastLower)) {
+    return `фінальний FROM має бути дозволеним runtime-образом (див. docker.mdc: multistage), зараз: ${last?.image} (рядок ${last?.line})`
   }
 
   return null

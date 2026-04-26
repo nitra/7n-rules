@@ -1,5 +1,5 @@
 /**
- * Тести вимоги multistage build і мінімального runtime stage (alpine/nginx).
+ * Тести вимоги multistage build і дозволеного фінального runtime stage (alpine, nginx, scratch, debian slim, …).
  */
 import { describe, expect, test } from 'bun:test'
 
@@ -49,6 +49,67 @@ describe('getMultistageAndRuntimeHint', () => {
     expect(h).toBe(null)
   })
 
+  test('ok: multistage + final php (виняток)', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/library/php:8.3-cli AS build-env',
+        'RUN composer install',
+        'FROM mirror.gcr.io/library/php:8.3-fpm',
+        'COPY --from=build-env /app /var/www/html'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
+
+  test('ok: multistage + final python (виняток)', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/library/python:3.12 AS build-env',
+        'RUN pip install -r requirements.txt',
+        'FROM mirror.gcr.io/library/python:3.12-slim',
+        'COPY --from=build-env /app /app'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
+
+  test('ok: multistage + final scratch', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun build --compile --outfile /app/a ./x.js',
+        'FROM scratch',
+        'COPY --from=build-env /app/a /a'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
+
+  test('ok: multistage + final debian bookworm-slim', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun build --compile --outfile /app/a ./x.js',
+        'FROM mirror.gcr.io/library/debian:bookworm-slim',
+        'RUN apt-get update',
+        'COPY --from=build-env /app/a /usr/local/bin/a'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
+
+  test('fail: final debian без slim (не bookworm-slim)', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun x',
+        'FROM mirror.gcr.io/library/debian:bookworm',
+        'COPY --from=build-env /x /x'
+      ].join('\n')
+    )
+    expect(h).toContain('дозволеним runtime-образом')
+  })
+
   test('fail: single stage', () => {
     const h = getMultistageAndRuntimeHint(['FROM mirror.gcr.io/oven/bun:alpine', 'RUN bun run start'].join('\n'))
     expect(h).toContain('мінімум 2 інструкції FROM')
@@ -63,7 +124,7 @@ describe('getMultistageAndRuntimeHint', () => {
         'CMD ["bun","./app"]'
       ].join('\n')
     )
-    expect(h).toContain('фінальний FROM має бути')
-    expect(h).toContain('mirror.gcr.io/library/alpine')
+    expect(h).toContain('дозволеним runtime-образом')
+    expect(h).toContain('oven/bun')
   })
 })

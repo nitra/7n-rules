@@ -9,7 +9,8 @@ import {
   capacitorVersionRangeMinMajor,
   check,
   isCapacitorCoreVersionAtLeast8,
-  findFirstPodfileUnderIosExcludingPods
+  findFirstPodfileUnderIosExcludingPods,
+  nitrAObjectAllowsIosCocoaPods
 } from '../scripts/check-capacitor.mjs'
 import { withTmpCwd, writeJson, ensureDir } from './helpers.mjs'
 
@@ -28,6 +29,12 @@ describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
   })
   test('^9.0.0 — ok', () => {
     expect(isCapacitorCoreVersionAtLeast8('^9.0.0')).toBe(true)
+  })
+  test('nitrAObjectAllowsIosCocoaPods', () => {
+    expect(nitrAObjectAllowsIosCocoaPods({ iosCocoaPodsBecausePluginsLackSpm: true })).toBe(true)
+    expect(nitrAObjectAllowsIosCocoaPods({ iosCocoaPodsAllowed: true })).toBe(true)
+    expect(nitrAObjectAllowsIosCocoaPods({})).toBe(false)
+    expect(nitrAObjectAllowsIosCocoaPods(null)).toBe(false)
   })
   test('capacitorVersionRangeMinMajor: >=8.0.0 <9', () => {
     expect(capacitorVersionRangeMinMajor('>=8.0.0 <9.0.0')).toBe(8)
@@ -85,6 +92,38 @@ describe('check (інтеграція)', () => {
       await ensureDir('ios')
       await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
       expect(await check()).toBe(1)
+    })
+  })
+
+  test('0 — ios/Podfile з винятком nitra у package.json', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' },
+        nitra: { iosCocoaPodsBecausePluginsLackSpm: true }
+      })
+      await ensureDir('ios')
+      await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0 — ios/Podfile з винятком у capacitor.config.mjs', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeFile(
+        'capacitor.config.mjs',
+        `const c = { appId: "a", nitra: { iosCocoaPodsBecausePluginsLackSpm: true } }\nexport default c\n`,
+        'utf8'
+      )
+      await ensureDir('ios')
+      await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
+      expect(await check()).toBe(0)
     })
   })
 

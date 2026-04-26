@@ -5,6 +5,7 @@
  * VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
  * відсутність Prettier у конфігах і залежностях.
  *
+ * cspell: `.cspell.json` з обовʼязковим набором `ignorePaths` (клон text.mdc: node_modules, vscode, git, report, svg, k8s yaml);
  * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json); у кореневих **`devDependencies`**
  * дозволені лише **`@nitra/*`** (як у bun.mdc), зокрема **`@nitra/cspell-dict` ^2.0.0+**; без імпорту **`@cspell/dict-*`** у `.cspell.json`, заборона
  * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
@@ -30,6 +31,17 @@ const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
 
 /** Мінімальні glob-и в `ignorePatterns` у `.oxfmtrc.json` (text.mdc). */
 const OXFMT_REQUIRED_IGNORE_PATTERNS = ['**/hasura/metadata/**', '**/schema.graphql']
+
+/** Канонічні записи `ignorePaths` у `.cspell.json` (text.mdc) — кожен має бути присутнім. */
+const CSPELL_REQUIRED_IGNORE_PATHS = [
+  '**/node_modules/**',
+  '**/vscode-extension/**',
+  '**/.git/**',
+  '.vscode',
+  'report',
+  '*.svg',
+  '**/k8s/**/*.yaml',
+]
 
 /**
  * Чи діапазон версії `@nitra/cspell-dict` у package.json означає лінію 2.0.0+ (з цієї версії словники входять у пакет).
@@ -383,6 +395,14 @@ async function checkCspellConfig(pass, fail) {
     pass('.cspell.json містить ignorePaths')
   } else {
     fail('.cspell.json не містить ignorePaths')
+  }
+  if (Array.isArray(cfg.ignorePaths)) {
+    const missing = CSPELL_REQUIRED_IGNORE_PATHS.filter(p => !cfg.ignorePaths.includes(p))
+    if (missing.length === 0) {
+      pass(`.cspell.json ignorePaths містить усі обовʼязкові glob-и з text.mdc`)
+    } else {
+      fail(`.cspell.json ignorePaths бракує за замовчанням: ${missing.join(', ')} (див. text.mdc)`)
+    }
   }
 }
 

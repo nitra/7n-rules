@@ -13,10 +13,13 @@ alwaysApply: false
 
 Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
 
-- **backend**: `mirror.gcr.io/library/alpine:*`
-- **frontend**: `mirror.gcr.io/library/nginx:*` aбо `mirror.gcr.io/openresty/openresty:*`
+- **backend (типово)**: `mirror.gcr.io/library/alpine:*`
+- **ультра-легкі (glibc / одна статична збірка)**: `scratch` — тільки як `FROM scratch` (офіційний порожній базовий шар), коли весь **runtime** уже в `COPY --from=…`
+- **glibc, Debian (slim)**: `mirror.gcr.io/library/debian:*` **лише** з тегом, у якому є `slim` (наприклад `bookworm-slim`, `trixie-slim`), а не `bookworm` без `slim`
+- **виняток (інтерпретовані стеки)**: `mirror.gcr.io/library/php:*` або `mirror.gcr.io/library/python:*` — якщо сервіс має крутитися в офіційному runtime PHP чи Python, а не як один бінарник на Alpine; інакше лишай **alpine** у фінальному stage
+- **frontend**: `mirror.gcr.io/library/nginx:*` або `mirror.gcr.io/openresty/openresty:*`
 
-Це гарантує, що результуючий образ містить лише runtime (alpine) або nginx, без build tooling і node_modules.
+Це стримує зайвий build tooling (Bun, **node_modules** зі збірки) у фінальному образі; для **alpine** / **nginx** / **openresty** у **runtime** лишаються лише відповідні вимоги, для **php** / **python** (виняток) — цільовий інтерпретований **stack**; **scratch** і **debian** з тегом **`*slim*`** — коли glibc і мінімальне оточення Debian важливіші за musl в **alpine**.
 
 ## компіляція
 
@@ -182,7 +185,10 @@ jobs:
 ```yaml title=".hadolint.yaml"
 ignored:
   - DL3007
+  - DL3018
 ```
+Де DL3007 - «Не використовуй тег latest у FROM»
+Де DL3018 - «Піни версії пакетів у apk add»
 
 Якщо немає файлів у межах відповідного набору (**`lint-docker`** або **`check docker`**) — перевірка пропускається (exit 0).
 
