@@ -1,0 +1,42 @@
+npm/mdc/abie.mdc
+  h_9e4b254ff59432 225
+npm/scripts/check-docker.mjs
+  22deda7ed8f8929e 21-23,42-43,211-234,314-318
+npm/tests/check-docker-nginx-slim.test.mjs
+  22deda7ed8f8929e 1-42
+npm/tests/check-rule-fixtures.test.mjs
+  h_9e4b254ff59432 109
+npm/tests/check-docker-multistage.test.mjs
+  h_9e4b254ff59432 45
+npm/package.json
+  22deda7ed8f8929e 3
+npm/mdc/docker.mdc
+  h_9e4b254ff59432 24-27
+npm/tests/check-docker-compile.test.mjs
+  h_9e4b254ff59432 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "06f69a9e1258d3ecf571dffb804335b17980e36e",
+  "prompts": {
+    "22deda7ed8f8929e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "10d1beaf-d579-49aa-9803-e5fabb14098a",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 84,
+      "total_deletions": 8,
+      "accepted_lines": 77,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
