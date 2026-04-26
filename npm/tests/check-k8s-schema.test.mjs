@@ -35,6 +35,7 @@ import {
   metadataNamespaceForbiddenViolation,
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
+  replaceBatchV1beta1ApiVersionInYamlText,
   ruKustomizationHasHealthCheckDeletePatch,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
   serviceForbiddenGcpAnnotationsViolation,
@@ -163,6 +164,40 @@ patches:
 
   test('false без $patch: delete', () => {
     expect(ruKustomizationHasHealthCheckDeletePatch('kind: HealthCheckPolicy')).toBe(false)
+  })
+})
+
+describe('replaceBatchV1beta1ApiVersionInYamlText', () => {
+  test('замінює apiVersion: batch/v1beta1 на batch/v1', () => {
+    const y = 'apiVersion: batch/v1beta1\nkind: CronJob\n'
+    const { changed, content } = replaceBatchV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(true)
+    expect(content).toBe('apiVersion: batch/v1\nkind: CronJob\n')
+  })
+
+  test('у multi-doc обох документах', () => {
+    const y = 'apiVersion: batch/v1beta1\n---\napiVersion: batch/v1beta1\n'
+    const { content } = replaceBatchV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: batch/v1\n---\napiVersion: batch/v1\n')
+  })
+
+  test('у лапках', () => {
+    const y = 'apiVersion: "batch/v1beta1"\n'
+    const { content } = replaceBatchV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: batch/v1\n')
+  })
+
+  test('не змінює # коментар', () => {
+    const y = '# apiVersion: batch/v1beta1\n'
+    const { changed, content } = replaceBatchV1beta1ApiVersionInYamlText(y)
+    expect(changed).toBe(false)
+    expect(content).toBe(y)
+  })
+
+  test('зберігає CRLF', () => {
+    const y = 'apiVersion: batch/v1beta1\r\n'
+    const { content } = replaceBatchV1beta1ApiVersionInYamlText(y)
+    expect(content).toBe('apiVersion: batch/v1\r\n')
   })
 })
 

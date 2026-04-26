@@ -23,6 +23,8 @@
  *
  * **`kind: Ingress`** заборонено (потрібен перехід на Gateway API).
  * **`apiVersion: autoscaling/v1`** заборонено (мігруй **HorizontalPodAutoscaler** на **`autoscaling/v2`**).
+ * Рядок **`apiVersion: batch/v1beta1`** (CronJob, Job) **автоматично** переписується на **`apiVersion: batch/v1`**
+ * (окрім рядків-коментарів і рядків, де після значення йде наприклад `# …`).
  *
  * Файли під **`k8s`**, де всі YAML-документи — лише **`kind: BackendConfig`**, **видаляються** автоматично.
  * Якщо **BackendConfig** змішано з іншими ресурсами в одному файлі — перевірка завершується помилкою (розділи маніфести).
@@ -93,7 +95,7 @@
  * не з’явиться `Deployment` (k8s.mdc).
  */
 import { existsSync } from 'node:fs'
-import { readFile, readdir, stat, unlink } from 'node:fs/promises'
+import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
@@ -1557,6 +1559,73 @@ async function removeBackendConfigOnlyK8sYamlFiles(root, fail, pass) {
       }
     } catch (error) {
       fail(`${rel}: не вдалося прочитати для перевірки BackendConfig (${error.message})`)
+    }
+  }
+}
+
+/**
+ * Один рядок YAML: якщо це `apiVersion` зі значенням **`batch/v1beta1`**, повертає той самий рядок із **`batch/v1`**
+ * (з тими самими відступами/пробілами після `apiVersion:`, крім випадків з лапками — нормалізується до `apiVersion: batch/v1`).
+ * Рядки, що після trim починаються з `#`, не змінюються.
+ * @param {string} line
+ * @returns {string}
+ */
+function rewriteLineBatchV1beta1ApiVersion(line) {
+  const t = line.trimStart()
+  if (t.startsWith('#')) {
+    return line
+  }
+  const m = line.match(/^(\s*apiVersion:\s*)(?:"|')?batch\/v1beta1(?:"|')?(\s*)$/)
+  if (m) {
+    return `${m[1]}batch/v1${m[2]}`
+  }
+  return line
+}
+
+/**
+ * У повному тексті YAML замінює всі **цілі** рядки `apiVersion: batch/v1beta1` (за потреби в лапках) на `apiVersion: batch/v1`.
+ * Зберігає **CRLF** / **LF** як у вихідному рядку.
+ * @param {string} raw вміст файлу
+ * @returns {{ changed: boolean, content: string }}
+ */
+export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
+  const eol = raw.includes('\r\n') ? '\r\n' : '\n'
+  const lines = raw.split(/\r?\n/)
+  let changed = false
+  const out = lines.map(line => {
+    const n = rewriteLineBatchV1beta1ApiVersion(line)
+    if (n !== line) {
+      changed = true
+    }
+    return n
+  })
+  if (!changed) {
+    return { changed: false, content: raw }
+  }
+  return { changed: true, content: out.join(eol) }
+}
+
+/**
+ * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує **`replaceBatchV1beta1ApiVersionInYamlText`**.
+ * @param {string} root корінь репозиторію
+ * @param {(msg: string) => void} fail
+ * @param {(msg: string) => void} pass
+ * @returns {Promise<void>}
+ */
+async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, fail, pass) {
+  const yamlFiles = await findK8sYamlFiles(root)
+  for (const abs of yamlFiles) {
+    const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
+    try {
+      const raw = await readFile(abs, 'utf8')
+      const { changed, content } = replaceBatchV1beta1ApiVersionInYamlText(raw)
+      if (changed) {
+        await writeFile(abs, content, 'utf8')
+        pass(`${rel}: оновлено apiVersion batch/v1beta1 → batch/v1 (k8s.mdc)`)
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати/записати при заміні batch/v1beta1 → batch/v1 (${msg})`)
     }
   }
 }
@@ -4818,6 +4887,8 @@ export async function check() {
   const { pass, fail } = reporter
 
   const root = process.cwd()
+
+  await rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, fail, pass)
 
   await removeBackendConfigOnlyK8sYamlFiles(root, fail, pass)
 

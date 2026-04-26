@@ -10,6 +10,7 @@ import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected } from '../script
 const ALL_RULES = [
   'abie',
   'bun',
+  'capacitor',
   'docker',
   'ga',
   'graphql',
@@ -48,6 +49,7 @@ describe('detectAutoRulesAndSkills', () => {
       await ensureDir('npm')
       await ensureDir('k8s')
       await ensureDir('src')
+      await writeFile('capacitor.config.json', '{}\n', 'utf8')
       await writeFile('Dockerfile', 'FROM oven/bun:alpine\n', 'utf8')
       await writeFile('default.conf', 'server {}\n', 'utf8')
       await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
@@ -59,6 +61,7 @@ describe('detectAutoRulesAndSkills', () => {
       expect(actual.rules).toEqual([
         'abie',
         'bun',
+        'capacitor',
         'docker',
         'ga',
         'graphql',

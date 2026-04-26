@@ -416,6 +416,8 @@ spec:
 
 У маніфестах під **`k8s`** заборонено **`apiVersion: autoscaling/v1`** (legacy HPA з єдиною метрикою CPU). Мігруй **HorizontalPodAutoscaler** на **`autoscaling/v2`**: поле **`spec.metrics`** (замість **`spec.targetCPUUtilizationPercentage`**) з **`type: Resource`** і **`target.type: Utilization`** / **`AverageUtilization`** — підтримує декілька метрик і зовнішні метрики. `check k8s` падає на будь-якому документі з **`apiVersion: autoscaling/v1`**.
 
+Ресурси **batch** (наприклад **CronJob**, **Job**): застаріле **`apiVersion: batch/v1beta1`** у файлах під **`k8s` під час `check k8s` переписується** на **`apiVersion: batch/v1`**.
+
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
 apiVersion: autoscaling/v2

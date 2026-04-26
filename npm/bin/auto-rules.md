@@ -8,6 +8,8 @@ abie - якщо в кореневому package.json в секції "repository
 
 bun - якщо в корені проекту є package.json
 
+capacitor - якщо в проекті є хоч один файл capacitor.config.json
+
 docker - якщо в проекті є хоч один Dockerfile
 
 ga - якщо присутня директорія .github/workflows

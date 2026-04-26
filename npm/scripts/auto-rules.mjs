@@ -21,6 +21,7 @@ import {
 export const AUTO_RULE_ORDER = Object.freeze([
   'abie',
   'bun',
+  'capacitor',
   'docker',
   'ga',
   'graphql',
@@ -119,6 +120,7 @@ function updateDirFacts(dirName, facts) {
  * @param {string} fileName базове імʼя файлу
  * @param {string} relPath шлях відносно кореня
  * @param {{
+ *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
@@ -129,6 +131,9 @@ function updateDirFacts(dirName, facts) {
  * @returns {void}
  */
 function updateFileFacts(fileName, relPath, facts) {
+  if (fileName === 'capacitor.config.json') {
+    facts.hasCapacitorConfig = true
+  }
   if (fileName === 'Dockerfile' || fileName.startsWith('Dockerfile.')) {
     facts.hasDockerfile = true
   }
@@ -182,6 +187,7 @@ async function updateGqlFactFromFile(absPath, relPath, facts) {
  * @param {string} absPath абсолютний шлях до файлу
  * @param {string} root абсолютний шлях кореня
  * @param {{
+ *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasGqlTaggedTemplates: boolean,
  *   hasJsLikeSource: boolean,
@@ -261,6 +267,7 @@ export function isMonorepoPackage(packageJson) {
  * Обходить дерево проєкту, збираючи факти для автоувімкнення правил.
  * @param {string} root абсолютний шлях кореня репозиторію
  * @returns {Promise<{
+ *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasGaWorkflowsDir: boolean,
  *   hasGqlTaggedTemplates: boolean,
@@ -275,6 +282,7 @@ export function isMonorepoPackage(packageJson) {
  */
 export async function collectAutoRuleFacts(root) {
   const facts = {
+    hasCapacitorConfig: false,
     hasDockerfile: false,
     hasGaWorkflowsDir: existsSync(join(root, '.github', 'workflows')),
     hasGqlTaggedTemplates: false,
@@ -386,6 +394,7 @@ export async function detectAutoRulesAndSkills({
   const autoRuleChecks = [
     { enabled: isAbie, id: 'abie' },
     { enabled: packageJsonExists, id: 'bun' },
+    { enabled: facts.hasCapacitorConfig, id: 'capacitor' },
     { enabled: facts.hasDockerfile, id: 'docker' },
     { enabled: facts.hasGaWorkflowsDir, id: 'ga' },
     { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
