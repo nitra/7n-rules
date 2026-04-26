@@ -18,6 +18,71 @@ alwaysApply: false
 
 Це гарантує, що результуючий образ містить лише runtime (alpine) або nginx, без build tooling і node_modules.
 
+## компіляція
+
+Якщо проект має bun install крок, та не є фронтенд проектом (тобто не має bun build крок), то потрібно щоб була компіляція коду, і далі у фінальному образі був тільки бінарник і Цей образ не містив компілятора, npm, Bun — тільки runtime libs. Наприклад:
+
+```dockerfile
+FROM mirror.gcr.io/oven/bun:alpine AS build-env
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY package.json .
+COPY bunfig.toml .
+
+RUN bun install --production
+
+COPY ./src ./src
+
+# Компілюємо в бінарник
+RUN bun build --compile --outfile app ./src/index.js
+
+FROM mirror.gcr.io/library/alpine:latest
+
+# (libstdc++ libgcc) для Bun runtime, (tzdata) для часового поясу
+RUN apk add --no-cache libstdc++ libgcc tzdata
+
+WORKDIR /app
+
+COPY --from=build-env /app/app ./app
+
+CMD ["./app"]
+```
+
+## не превілейований образ
+
+Для всих образів потрібно щоб використовувся non root принцип, наприклад:
+
+```dockerfile
+# Stage 1
+FROM oven/bun:alpine AS build-env
+WORKDIR /app
+COPY package.json bunfig.toml .
+RUN bun install --production
+COPY ./src ./src
+RUN bun build --compile --outfile app ./src/index.js
+
+# Stage 2
+FROM alpine:latest
+RUN apk add --no-cache libstdc++ libgcc tzdata
+
+# ✅ Додати non-root user
+RUN addgroup -g 1000 app && adduser -D -u 1000 -G app app
+
+WORKDIR /app
+
+# ✅ Змінити власника файлу
+COPY --from=build-env --chown=app:app /app/app ./app
+
+# ✅ Запускати як non-root
+USER app
+
+CMD ["./app"]
+
+```
+
 ## Область
 
 - Усі файли з іменем **`Dockerfile`** або **`Dockerfile.*`** (наприклад `Dockerfile.prod`) у репозиторії, крім ігнорованих каталогів (`node_modules`, `.git`, `dist`, …) — як у **`check-docker.mjs`**.

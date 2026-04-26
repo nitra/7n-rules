@@ -30,6 +30,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'k8s',
   'nginx-default-tpl',
   'npm-module',
+  'php',
   'style-lint',
   'text',
   'vue'
@@ -42,6 +43,7 @@ const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
 const JS_LIKE_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx)$/iu
 const STYLE_RE = /\.(?:css|vue)$/iu
 const VUE_RE = /\.vue$/iu
+const PHP_RE = /\.php$/iu
 const NGINX_DEFAULT_FILES = new Set(['default.conf.template', 'default.conf', 'nginx.conf'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 const DEFAULT_DISABLED_LIST = Object.freeze([])
@@ -79,7 +81,7 @@ async function hasMssqlDependencyInAnyPackageJson(root) {
         try {
           const parsed = JSON.parse(await readFile(absPath, 'utf8'))
           const deps = parsed?.dependencies
-          if (deps && typeof deps === 'object' && !Array.isArray(deps) && Object.prototype.hasOwnProperty.call(deps, 'mssql')) {
+          if (deps && typeof deps === 'object' && !Array.isArray(deps) && Object.hasOwn(deps, 'mssql')) {
             found = true
             return
           }
@@ -120,6 +122,7 @@ function updateDirFacts(dirName, facts) {
  *   hasDockerfile: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
+ *   hasPhpSource: boolean,
  *   hasVueOrCssSource: boolean,
  *   hasVueSource: boolean
  * }} facts агреговані факти
@@ -137,6 +140,9 @@ function updateFileFacts(fileName, relPath, facts) {
   }
   if (VUE_RE.test(relPath)) {
     facts.hasVueSource = true
+  }
+  if (PHP_RE.test(relPath)) {
+    facts.hasPhpSource = true
   }
   if (STYLE_RE.test(relPath)) {
     facts.hasVueOrCssSource = true
@@ -262,6 +268,7 @@ export function isMonorepoPackage(packageJson) {
  *   hasK8sDir: boolean,
  *   hasNginxDefaultTplFile: boolean,
  *   hasTempoDir: boolean,
+ *   hasPhpSource: boolean,
  *   hasVueSource: boolean,
  *   hasVueOrCssSource: boolean
  * }>} агреговані факти
@@ -275,6 +282,7 @@ export async function collectAutoRuleFacts(root) {
     hasK8sDir: false,
     hasNginxDefaultTplFile: false,
     hasTempoDir: false,
+    hasPhpSource: false,
     hasVueSource: false,
     hasVueOrCssSource: false
   }
@@ -387,6 +395,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasK8sDir, id: 'k8s' },
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },
     { enabled: npmDirExists, id: 'npm-module' },
+    { enabled: facts.hasPhpSource, id: 'php' },
     { enabled: facts.hasVueOrCssSource, id: 'style-lint' }
   ]
   for (const item of autoRuleChecks) {

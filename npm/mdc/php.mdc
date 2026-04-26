@@ -1,0 +1,132 @@
+---
+description: PHP
+alwaysApply: true
+version: '1.0'
+---
+
+Весь код повинен відповідати PHP 8.5, перевіряти за допомогою PHPCompatibility, конвертувати за допомогою Rector.
+
+Код повинен бути добре документований за допомогою phpDoc-ів:
+
+```php
+/** @param array<int, string> $items */
+function process($items) {
+    foreach ($items as $id => $name) {
+        // PHPStan знає, що $id — int, $name — string
+    }
+}
+```
+
+## Потрібно додати до lint-php
+
+### PHP_CodeSniffer (phpcs) і пакет `squizlabs/php_codesniffer`
+
+Стиль, базові ризики, за потреби окремі стандарти. Для **SQL injection**, **XSS**, **небезпечні функції** — PHPCS + **php-security-audit** (стандарт `Security`).
+
+```bash
+phpcs --standard=Security app/
+```
+
+### PHPStan
+
+Статичний аналіз типів і смертельних слабких місць; **PHPStan Taint Analysis** (`phpstan/phpstan-taint-analysis`) — для потоку даних (taint) у стилі security-аналізу.
+
+```bash
+vendor/bin/phpstan analyse
+# після підключення розширення taint — у phpstan.neon/ neon.dist
+```
+
+### PHP-CS-Fixer
+
+Форматтер/фіксер коду; у **lint** зазвичай перевірка без змін (`--dry-run`).
+
+```bash
+vendor/bin/php-cs-fixer fix --dry-run --diff
+```
+
+### Psalm
+
+Альтернативний/додатковий аналізатор; **Psalm Security Plugin** (`vimeo/psalm` + пакет на кшталт `psalm/plugin-security` залежно від вибраної збірки) — для security-орієнтованих правил.
+
+```bash
+vendor/bin/psalm
+```
+
+### `composer audit`
+
+Перевірка відомих вразливостей залежностей за даними **Packagist/security-advisories**.
+
+```bash
+composer audit
+```
+
+## lint-php
+
+`composer`-інструмененти не мають єдиного CLI, який сам обходить репозиторій, тому `lint-php` зручно делегувати у JS-скрипт-обгортку (як `lint-docker`, `lint-k8s`).
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint-php": "bun ./npm/scripts/run-php.mjs"
+  }
+}
+```
+
+Скрипт `run-php.mjs`:
+
+- якщо `composer.json` у корені відсутній — вихід 0 (перевірка пропущена);
+- якщо `composer.json` є, але `composer` не знайдено в PATH — це помилка;
+- `composer audit` — обовʼязковий;
+- `vendor/bin/php-cs-fixer`, `vendor/bin/phpcs`, `vendor/bin/phpstan`, `vendor/bin/psalm` — запускаються лише якщо встановлені (інакше крок пропускається з повідомленням).
+
+## CI: `.github/workflows/lint-php.yml`
+
+```yaml title=".github/workflows/lint-php.yml"
+name: Lint PHP
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpstan.neon'
+      - 'phpstan.neon.dist'
+      - 'psalm.xml'
+      - '.github/workflows/lint-php.yml'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  php:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Lint PHP
+        run: bun run lint-php
+```
