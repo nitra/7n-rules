@@ -98,6 +98,25 @@ spec:
 
 В $SERVICE_NAME повинно бути вказано ім'я сервісу, яке буде використовуватися в k8s.
 
+В Dockerfile фінальний stage повинен використовувати образ `mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim`. Щоб скопіювати файли з правильними правами, тимчасово переходимо до root:
+
+```dockerfile
+FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim
+
+USER root
+
+COPY --from=build-env /app/default.conf /etc/nginx/conf.d/default.conf
+COPY --from=build-env /app/dist /usr/share/nginx/html
+
+RUN find /usr/share/nginx/html -type f \( \
+  -name '*.js' -o -name '*.css' -o -name '*.map' -o -name '*.xml' -o \
+  -name '*.webmanifest' -o -name '*.html' -o -name '*.wasm' -o -name '*.ttf' \
+  \) -exec gzip -k {} \; && \
+  chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d
+
+USER nginx
+```
+
 В Dockerfile потрібно додати команду для стиснення файлів, які потім використовуватимуться з `gzip_static on`:
 
 ```dockerfile
@@ -120,6 +139,39 @@ RUN NAMES=$(sed -nE '/^\s*[#;]/d; /^\s*$/d; s/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=.*
 ```
 
 Якщо у конфігураційних файлах *.ini є змінні які відсутні в default.conf.template, то їх потрібно вилучити.
+
+В k8s контейнер з `nginx-unprivileged` потребує `securityContext` та `emptyDir` volumes для каталогів, куди nginx пише за замовчуванням:
+
+```yaml
+spec:
+  containers:
+    - name: nginx
+      image: mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim
+      ports:
+        - containerPort: 8080
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+      volumeMounts:
+        - name: cache
+          mountPath: /var/cache/nginx
+        - name: run
+          mountPath: /var/run
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: cache
+      emptyDir: {}
+    - name: run
+      emptyDir: {}
+    - name: tmp
+      emptyDir: {}
+```
 
 в файлі .vscode/extensions.json є налаштування для NGINX Configuration Language Support:
 

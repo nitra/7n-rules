@@ -37,13 +37,28 @@ describe('getMultistageAndRuntimeHint', () => {
     expect(h).toBe(null)
   })
 
-  test('ok: multistage + final nginx', () => {
+  test('ok: multistage + final library/nginx', () => {
     const h = getMultistageAndRuntimeHint(
       [
         'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
         'RUN bun x',
         'FROM mirror.gcr.io/library/nginx:alpine-slim',
         'COPY --from=build-env /app/dist /usr/share/nginx/html'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
+
+  test('ok: multistage + final nginx-unprivileged', () => {
+    const h = getMultistageAndRuntimeHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun run build',
+        'FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim',
+        'USER root',
+        'COPY --from=build-env /app/dist /usr/share/nginx/html',
+        'RUN chown -R nginx:nginx /usr/share/nginx/html',
+        'USER nginx'
       ].join('\n')
     )
     expect(h).toBe(null)

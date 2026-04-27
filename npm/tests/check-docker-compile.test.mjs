@@ -63,4 +63,20 @@ describe('getBunCompileHint', () => {
     )
     expect(h).toBe(null)
   })
+
+  test('skip: bun install, але фінальний stage nginx-unprivileged (frontend)', () => {
+    const h = getBunCompileHint(
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
+        'RUN bun install',
+        'RUN bun run build',
+        'FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim',
+        'USER root',
+        'COPY --from=build-env /app/dist /usr/share/nginx/html',
+        'RUN chown -R nginx:nginx /usr/share/nginx/html',
+        'USER nginx'
+      ].join('\n')
+    )
+    expect(h).toBe(null)
+  })
 })

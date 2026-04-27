@@ -9,7 +9,8 @@
  * - backend: `mirror.gcr.io/library/alpine:*`, `scratch`, `mirror.gcr.io/library/debian:` з тегом, що
  *   містить `slim` (не повний `debian:bookworm`), за винятком PHP/Python — `mirror.gcr.io/library/php:*` або
  *   `mirror.gcr.io/library/python:*`
- * - frontend: `mirror.gcr.io/library/nginx:*` або `mirror.gcr.io/openresty/openresty:*`
+ * - frontend: `mirror.gcr.io/nginxinc/nginx-unprivileged:*` (preferred) або `mirror.gcr.io/library/nginx:*`,
+ *   `mirror.gcr.io/openresty/openresty:*`
  *
  * Якщо в Dockerfile є крок `bun install` і це не frontend-образ (фінальний stage — alpine),
  * то очікується компіляція в один бінарник через `bun build --compile` у build stage, а у
@@ -18,8 +19,10 @@
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
  * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
  *
- * Для `mirror.gcr.io/library/nginx` у будь-якому `FROM` очікується тег `alpine-slim` (docker.mdc:
- * мінімальні образи), не `latest` / `alpine` / інші.
+ * Для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged`, `mirror.gcr.io/library/nginx`) у
+ * будь-якому `FROM` очікується тег `alpine-slim` (docker.mdc: мінімальні образи), не `latest` /
+ * `alpine` / інші. `nginx-unprivileged` запускається від не-root користувача (uid=101) без явного
+ * `USER` у Dockerfile — перевірка non-root для нього пропускається.
  *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
  * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
@@ -40,6 +43,7 @@ const BUN_WORD_RE = /\bbun\b/iu
 const USER_LINE_RE = /^\s*USER\s+([^\s#]+)/iu
 
 const NGINX_MIRROR_PREFIX = 'mirror.gcr.io/library/nginx'
+const NGINX_UNPRIVILEGED_MIRROR_PREFIX = 'mirror.gcr.io/nginxinc/nginx-unprivileged'
 
 /**
  * @typedef {{
@@ -94,6 +98,7 @@ const RUNTIME_IMAGES = /** @type {const} */ ([
   'mirror.gcr.io/library/php',
   'mirror.gcr.io/library/python',
   'mirror.gcr.io/library/nginx',
+  'mirror.gcr.io/nginxinc/nginx-unprivileged',
   'mirror.gcr.io/openresty/openresty'
 ])
 
@@ -103,7 +108,7 @@ const DEBIAN_VIA_MIRROR_RE = /^mirror\.gcr\.io\/library\/debian:(.+)$/i
 /**
  * Чи ref фінального `FROM` відповідає дозволеним у docker.mdc (multistage / runtime).
  * @param {string} lastLower ref без digest, lower case
- * @returns {boolean}
+ * @returns {boolean} true, якщо образ дозволений як фінальний runtime
  */
 function isAllowedFinalRuntimeImage(lastLower) {
   if (lastLower === 'scratch' || lastLower.startsWith('scratch:')) {
@@ -189,7 +194,9 @@ export function getBunCompileHint(fileContent) {
   const hasBunInstall = BUN_INSTALL_RE.test(fileContent)
   const isFinalAlpine = lastLower.startsWith('mirror.gcr.io/library/alpine:')
   const isFinalFrontend =
-    lastLower.startsWith('mirror.gcr.io/library/nginx:') || lastLower.startsWith('mirror.gcr.io/openresty/openresty:')
+    lastLower.startsWith('mirror.gcr.io/library/nginx:') ||
+    lastLower.startsWith(`${NGINX_UNPRIVILEGED_MIRROR_PREFIX}:`) ||
+    lastLower.startsWith('mirror.gcr.io/openresty/openresty:')
 
   if (!hasBunInstall) return null
   if (!isFinalAlpine) return null
@@ -209,24 +216,26 @@ export function getBunCompileHint(fileContent) {
 }
 
 /**
- * Перевіряє, що для `mirror.gcr.io/library/nginx` у `FROM` вказано тег `alpine-slim` (docker.mdc).
+ * Перевіряє, що для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged` або
+ * `mirror.gcr.io/library/nginx`) у `FROM` вказано тег `alpine-slim` (docker.mdc).
  *
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
 export function getNginxAlpineSlimTagHint(fileContent) {
+  const prefixes = [NGINX_UNPRIVILEGED_MIRROR_PREFIX, NGINX_MIRROR_PREFIX]
   for (const { line, image } of parseFromStages(fileContent)) {
     const noDigest = (image.split('@')[0] || '').trim()
     const d = noDigest.toLowerCase()
-    if (!d.startsWith(`${NGINX_MIRROR_PREFIX}:`) && d !== NGINX_MIRROR_PREFIX) {
-      continue
-    }
-    if (d === NGINX_MIRROR_PREFIX) {
-      return `рядок ${line}: \`FROM mirror.gcr.io/library/nginx\` має явний тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз без тега (типово latest)`
-    }
-    const tag = noDigest.slice(NGINX_MIRROR_PREFIX.length + 1)
-    if (tag.toLowerCase() !== 'alpine-slim') {
-      return `рядок ${line}: для nginx потрібен тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз: \`${tag}\``
+    const prefix = prefixes.find(p => d.startsWith(`${p}:`) || d === p)
+    if (prefix) {
+      if (d === prefix) {
+        return `рядок ${line}: \`FROM ${prefix}\` має явний тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз без тега (типово latest)`
+      }
+      const tag = noDigest.slice(prefix.length + 1)
+      if (tag.toLowerCase() !== 'alpine-slim') {
+        return `рядок ${line}: для nginx потрібен тег \`alpine-slim\` (docker.mdc: мінімальні образи), зараз: \`${tag}\``
+      }
     }
   }
   return null
@@ -247,6 +256,8 @@ export function getNonRootRuntimeHint(fileContent) {
   if (stages.length === 0) return null
 
   const last = stages.at(-1)
+  const lastImage = (last?.from.image || '').split('@')[0] || ''
+  const lastLower = lastImage.toLowerCase()
   const lastStageContent = last?.stageContent || ''
 
   /** @type {string | null} */
@@ -259,6 +270,8 @@ export function getNonRootRuntimeHint(fileContent) {
   }
 
   if (!lastUserToken) {
+    // nginx-unprivileged вже запускається від uid=101 (nginx) без явного USER у Dockerfile
+    if (lastLower.startsWith(`${NGINX_UNPRIVILEGED_MIRROR_PREFIX}:`)) return null
     return 'у фінальному stage має бути `USER <non-root>` (наприклад `USER app`) — принцип non-root (docker.mdc: не превілейований образ)'
   }
 

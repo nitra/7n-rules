@@ -110,14 +110,15 @@ export function normalizeHubRepoPath(imageToken) {
 }
 
 const HUB_REPOS_REQUIRING_MIRROR = /** @type {const} */ (
-  new Set(['oven/bun', 'library/alpine', 'library/nginx', 'library/node'])
+  new Set(['oven/bun', 'library/alpine', 'library/nginx', 'library/node', 'nginxinc/nginx-unprivileged'])
 )
 
 const EXPECTED_MIRROR = /** @type {const} */ ({
   'oven/bun': 'mirror.gcr.io/oven/bun',
   'library/alpine': 'mirror.gcr.io/library/alpine',
   'library/nginx': 'mirror.gcr.io/library/nginx',
-  'library/node': 'mirror.gcr.io/library/node'
+  'library/node': 'mirror.gcr.io/library/node',
+  'nginxinc/nginx-unprivileged': 'mirror.gcr.io/nginxinc/nginx-unprivileged'
 })
 
 /**

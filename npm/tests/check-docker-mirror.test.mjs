@@ -59,11 +59,15 @@ describe('getRequiredMirrorGcrImage', () => {
     expect(getRequiredMirrorGcrImage('alpine:3.20')).toBe('mirror.gcr.io/library/alpine')
     expect(getRequiredMirrorGcrImage('nginx:1')).toBe('mirror.gcr.io/library/nginx')
     expect(getRequiredMirrorGcrImage('oven/bun:alpine')).toBe('mirror.gcr.io/oven/bun')
+    expect(getRequiredMirrorGcrImage('nginxinc/nginx-unprivileged:alpine-slim')).toBe(
+      'mirror.gcr.io/nginxinc/nginx-unprivileged'
+    )
   })
 
   test('для дзеркала — null', () => {
     expect(getRequiredMirrorGcrImage('mirror.gcr.io/library/node:20')).toBe(null)
     expect(getRequiredMirrorGcrImage('mirror.gcr.io/oven/bun:alpine')).toBe(null)
+    expect(getRequiredMirrorGcrImage('mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim')).toBe(null)
   })
 
   test('інші Hub-образи — null', () => {
@@ -80,5 +84,14 @@ describe('getMirrorGcrHint', () => {
 
   test('ok для дзеркала', () => {
     expect(getMirrorGcrHint('FROM mirror.gcr.io/library/node:20\n')).toBe(null)
+  })
+
+  test('помилка: nginxinc/nginx-unprivileged без дзеркала', () => {
+    const h = getMirrorGcrHint('FROM nginxinc/nginx-unprivileged:alpine-slim\n')
+    expect(h).toContain('mirror.gcr.io/nginxinc/nginx-unprivileged')
+  })
+
+  test('ok: mirror.gcr.io/nginxinc/nginx-unprivileged', () => {
+    expect(getMirrorGcrHint('FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim\n')).toBe(null)
   })
 })
