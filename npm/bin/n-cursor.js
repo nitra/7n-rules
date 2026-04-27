@@ -552,6 +552,20 @@ async function removeOrphanManagedSkillDirs(skillsRoot, configSkills) {
 }
 
 /**
+ * Рендерить коротку секцію для CLAUDE.md: не розпаралелювати лінт (ESLint) між shells/субагентами.
+ * @returns {string[]} рядки для вставки (з порожнім рядком на початку)
+ */
+function buildClaudeLintParallelismSectionLines() {
+  return [
+    '',
+    '## Лінт і ESLint (без паралельних запусків)',
+    '',
+    'Щоб не запускати **кілька** одночасних **`eslint`** (і не перевантажувати диск/CPU), **заборонено** стартувати `bun run lint` / `lint-js` / `eslint` **паралельно** в різних Bash-задачах, **фонових** shells чи **субагентах** (Task тощо). Має бути **один** послідовний прогон на сесію; команда **`/n-lint`** — **не** ділити на паралельні підзадачі. Деталі: `.cursor/skills/n-lint/SKILL.md`.',
+    '',
+  ]
+}
+
+/**
  * Рендерить секцію Skills для CLAUDE.md з урахуванням наявних slash-команд.
  * @returns {Promise<string[]>} готові рядки секції (або порожній масив)
  */
@@ -609,6 +623,8 @@ async function syncClaudeMd(ignore) {
   for (const mdcFile of mdcFiles) {
     lines.push(`@${RULES_DIR}/${mdcFile}`)
   }
+
+  lines.push(...buildClaudeLintParallelismSectionLines())
 
   const skillsSectionLines = await buildClaudeSkillsSectionLines()
   lines.push(...skillsSectionLines, '')
