@@ -1,0 +1,49 @@
+npm/scripts/utils/mssql-pool-scan.mjs
+  1f3cf5c67e51cedf 10-15,23,144-199,263-345
+npm/scripts/check-js-mssql.mjs
+  1f3cf5c67e51cedf 18,20,177,179,189-194,201-206,212-214,218-219
+npm/scripts/check-vue.mjs
+  a948949fc8861eea 7-9,121-126
+npm/package.json
+  h_9e4b254ff59432 3
+npm/mdc/js-mssql.mdc
+  1f3cf5c67e51cedf 7-13,17-18,56-59,69-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "6279fcc367e93d10339a79e794ff0f2917c75084",
+  "prompts": {
+    "1f3cf5c67e51cedf": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cd1e78e7-645d-402e-8629-765c85ae179b",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 278,
+      "total_deletions": 3,
+      "accepted_lines": 278,
+      "overriden_lines": 0
+    },
+    "a948949fc8861eea": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "95a573b4-eb1e-45fc-ad11-9f00035ab9b6",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 10,
+      "total_deletions": 0,
+      "accepted_lines": 10,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
