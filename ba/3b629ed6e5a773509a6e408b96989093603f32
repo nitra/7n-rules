@@ -1,0 +1,27 @@
+npm/mdc/vue.mdc
+  d79ed3508f4fe7c7 4,114
+npm/scripts/check-vue.mjs
+  d79ed3508f4fe7c7 27-118,202-204,273-276,307,329-343,345
+npm/package.json
+  d79ed3508f4fe7c7 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "ba3b629ed6e5a773509a6e408b96989093603f32",
+  "prompts": {
+    "d79ed3508f4fe7c7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "87d76a75-f369-418e-8360-566b96a6187c",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 120,
+      "total_deletions": 15,
+      "accepted_lines": 119,
+      "overriden_lines": 0
+    }
+  }
+}
