@@ -1,7 +1,7 @@
 ---
 description: Vue
 alwaysApply: true
-version: '1.2'
+version: '1.3'
 ---
 
 # Vue 3 Composition API — правила для .cursorrules
@@ -111,6 +111,7 @@ const additionalInstructions = `
 - Якість коду: **ESLint** + **eslint-plugin-vue**; форматування — **oxfmt**, див. `text.mdc`.
 - Збірка та dev-сервер — **Vite**
 - **Vue Devtools** для дебагу; продакшен-збірка — **`vite build`**, оптимізація асетів і кешування на рівні деплою / CDN.
+- **esbuild заборонено:** у проєкті не має бути залежності `esbuild` і згадок `esbuild` у конфігах/коді. Якщо десь є налаштування або інструкції під `esbuild` — заміни на **rolldown**.
 
 ### CI/CD
 

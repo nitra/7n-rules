@@ -24,6 +24,98 @@ import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
 const MAJOR_VERSION_RE = /(\d+)/
+const ESBUILD_RE = /\besbuild\b/
+
+/**
+ * Визначає, чи можна сканувати файл як текст на згадки `esbuild`.
+ * @param {string} relPosix відносний шлях у posix-форматі
+ * @returns {boolean} true якщо файл варто перевірити
+ */
+function isEsbuildScanFile(relPosix) {
+  if (
+    relPosix.startsWith('node_modules/') ||
+    relPosix.startsWith('dist/') ||
+    relPosix.startsWith('build/') ||
+    relPosix.startsWith('coverage/') ||
+    relPosix.startsWith('.git/')
+  ) {
+    return false
+  }
+
+  const lower = relPosix.toLowerCase()
+  if (
+    lower === 'bun.lock' ||
+    lower === 'bun.lockb' ||
+    lower === 'package-lock.json' ||
+    lower === 'yarn.lock' ||
+    lower === 'pnpm-lock.yaml'
+  ) {
+    return false
+  }
+
+  return (
+    lower.endsWith('.js') ||
+    lower.endsWith('.mjs') ||
+    lower.endsWith('.cjs') ||
+    lower.endsWith('.ts') ||
+    lower.endsWith('.tsx') ||
+    lower.endsWith('.vue') ||
+    lower.endsWith('.json') ||
+    lower.endsWith('.jsonc') ||
+    lower.endsWith('.yaml') ||
+    lower.endsWith('.yml') ||
+    lower.endsWith('.md') ||
+    lower.endsWith('.mdc')
+  )
+}
+
+/**
+ * Сканує дерево пакета на згадки `esbuild` і підказує заміну на `rolldown`.
+ * @param {string} rootDir відносний шлях до пакета
+ * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string} prefix параметр prefix
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkEsbuildMentions(rootDir, absPackageRoot, prefix, passFn, fail) {
+  /** @type {{ rel: string; line: number; snippet: string }[]} */
+  const hits = []
+
+  await walkDir(absPackageRoot, absPath => {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    if (!isEsbuildScanFile(rel)) return
+    hits.push({ rel, line: 0, snippet: '' })
+  })
+
+  // ми використали hits як буфер шляхів; зараз перетворимо на реальні співпадіння
+  /** @type {{ rel: string; line: number; snippet: string }[]} */
+  const matches = []
+  for (const { rel } of hits) {
+    const content = await readFile(join(absPackageRoot, rel), 'utf8')
+    if (!ESBUILD_RE.test(content)) continue
+
+    const lines = content.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      if (ESBUILD_RE.test(lines[i])) {
+        matches.push({ rel, line: i + 1, snippet: lines[i].trim() })
+        if (matches.length >= 30) break
+      }
+    }
+    if (matches.length >= 30) break
+  }
+
+  if (matches.length === 0) {
+    passFn(`${prefix}немає згадок 'esbuild' у джерелах пакета (очікується rolldown)`)
+    return
+  }
+
+  for (const m of matches) {
+    fail(`${prefix}${m.rel}:${m.line} — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: ${m.snippet}`)
+  }
+  if (matches.length >= 30) {
+    fail(`${prefix}показано перші 30 збігів 'esbuild' (замінити на 'rolldown')`)
+  }
+}
 
 /**
  * Формує зрозумілий для людини підпис пакета для повідомлень перевірки.
@@ -107,6 +199,9 @@ async function checkViteConfig(rootDir, prefix, passFn, fail) {
     return
   }
   const content = await readFile(join(rootDir, viteConfig), 'utf8')
+  if (ESBUILD_RE.test(content)) {
+    fail(`${prefix}${viteConfig} містить 'esbuild' — заміни на 'rolldown'`)
+  }
   const checks = [
     { token: 'VueMacros', ok: `${viteConfig} використовує VueMacros`, err: `${viteConfig} не містить VueMacros` },
     { token: 'AutoImport', ok: `${viteConfig} використовує AutoImport`, err: `${viteConfig} не містить AutoImport` }
@@ -175,6 +270,10 @@ async function checkVuePackage(rootDir, fail, passFn) {
   const devDeps = pkg.devDependencies || {}
   const allDeps = { ...deps, ...devDeps }
 
+  if (allDeps.esbuild) {
+    fail(`${prefix}esbuild заборонено (знайдено: ${allDeps.esbuild}). Замінити на rolldown та прибрати esbuild.`)
+  }
+
   checkRequiredDep(deps, 'vue', prefix, passFn, fail, 'vue відсутній в dependencies')
   checkViteVersion(devDeps, prefix, passFn, fail)
   checkRequiredDep(
@@ -205,6 +304,7 @@ async function checkVuePackage(rootDir, fail, passFn) {
 
   await checkViteConfig(rootDir, prefix, passFn, fail)
   await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
+  await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
 }
 
 /**
@@ -214,17 +314,6 @@ async function checkVuePackage(rootDir, fail, passFn) {
 export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-
-  if (existsSync('.vscode/extensions.json')) {
-    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    if (ext.recommendations?.includes('Vue.volar')) {
-      pass('extensions.json містить Vue.volar')
-    } else {
-      fail('extensions.json не містить Vue.volar — додай до recommendations')
-    }
-  } else {
-    fail('.vscode/extensions.json не існує')
-  }
 
   const roots = await getMonorepoPackageRootDirs()
   /** @type {string[]} */
@@ -237,8 +326,23 @@ export async function check() {
     }
   }
 
+  if (vueRoots.length > 0) {
+    if (existsSync('.vscode/extensions.json')) {
+      const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
+      if (ext.recommendations?.includes('Vue.volar')) {
+        pass('extensions.json містить Vue.volar')
+      } else {
+        fail('extensions.json не містить Vue.volar — додай до recommendations')
+      }
+    } else {
+      fail('.vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)')
+    }
+  } else {
+    pass('Vue.volar: пропущено (у repo немає пакетів з vue у dependencies)')
+  }
+
   if (vueRoots.length === 0) {
-    fail('vue не знайдено в dependencies жодного пакета (корінь репо та каталоги з кореневого workspaces)')
+    pass('vue не знайдено в dependencies жодного пакета (перевірка vue пропущена)')
     return reporter.getExitCode()
   }
 
