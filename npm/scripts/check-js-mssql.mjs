@@ -15,7 +15,9 @@ import { join, relative, sep } from 'node:path'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   findMssqlPerRequestConnectionInText,
+  findSharedMssqlRequestInText,
   findUnsafeMssqlQueryTemplateCallInText,
+  findUnsafeMssqlDynamicSqlListInText,
   isMssqlScanSourceFile
 } from './utils/mssql-pool-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -172,7 +174,9 @@ export async function check() {
     }
 
     let violations = 0
+    let sharedRequestViolations = 0
     let unsafeQueryCalls = 0
+    let unsafeDynamicSqlLists = 0
     for (const absPath of sourcePaths) {
       const rel = relative(repoRoot, absPath).split('\\').join('/')
       const content = await readFile(absPath, 'utf8')
@@ -182,10 +186,22 @@ export async function check() {
           `js-mssql: ${rel}:${v.line} — не створюй new sql.ConnectionPool(...) на кожен запит; використовуй singleton sql.ConnectionPool: ${v.snippet}`
         )
       }
+      for (const v of findSharedMssqlRequestInText(content, rel)) {
+        sharedRequestViolations++
+        fail(
+          `js-mssql: ${rel}:${v.line} — заборонено шарити Request (наприклад export const request = pool.request()); створюй pool.request() щоразу заново (js-mssql.mdc): ${v.snippet}`
+        )
+      }
       for (const v of findUnsafeMssqlQueryTemplateCallInText(content, rel)) {
         unsafeQueryCalls++
         fail(
           `js-mssql: ${rel}:${v.line} — заборонено query(\`...\`): це не tagged template; використовуй pool.request().query\`...\` (js-mssql.mdc): ${v.snippet}`
+        )
+      }
+      for (const v of findUnsafeMssqlDynamicSqlListInText(content, rel)) {
+        unsafeDynamicSqlLists++
+        fail(
+          `js-mssql: ${rel}:${v.line} — заборонено підставляти у SQL динамічні списки через .join(',') (типово IN (...) / VALUES (...)); використовуй TVP (sql.Table) + JOIN/INSERT (js-mssql.mdc): ${v.snippet}`
         )
       }
     }
@@ -193,8 +209,14 @@ export async function check() {
     if (violations === 0) {
       pass('js-mssql: немає створення new sql.ConnectionPool(...) всередині функцій (singleton pool)')
     }
+    if (sharedRequestViolations === 0) {
+      pass('js-mssql: немає shared Request (export const request = pool.request())')
+    }
     if (unsafeQueryCalls === 0) {
       pass('js-mssql: немає небезпечних викликів query(`...`) (потрібно query`...`)')
+    }
+    if (unsafeDynamicSqlLists === 0) {
+      pass("js-mssql: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")
     }
   }
 

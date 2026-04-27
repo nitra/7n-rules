@@ -221,6 +221,47 @@ export default defineConfig({
 
 Потрібно використовувати vite-plugin-vue-layouts-next для автоматичного імпортування layout компонентів.
 
+## npm_lifecycle_event
+
+у більшості проектів в файлі vite.config.js 
+є  конструкція виду
+
+switch (process.env.npm_lifecycle_event) {
+  case 'start-remote-tr': {
+
+вона перестала працювати з новим Bun (і за цього не буде працювати bun start-remote-dev та інші)
+
+і тепер її нада обрамити в функцію, наприклад
+
+```javascript title="vite.config.js"
+function getProxy(mode) {
+  const proxy = {}
+
+  switch (mode) {
+    case 'remote-tr': {
+      proxy['^/auth/.*'] = 'https://tr.efes.cloud'
+      proxy['/file-link/'] = 'https://tr.efes.cloud'
+      break
+    }
+    default: {
+      proxy['^/auth/.*'] = 'https://dev.efes.cloud'
+      proxy['/file-link/'] = 'https://dev.efes.cloud'
+    }
+  }
+  return proxy
+}
+```
+
+і викликати всередині 
+
+```javascript title="vite.config.js"
+export default defineConfig(({ mode, command }) => {
+...
+   server: {
+      proxy: getProxy(mode)
+    }
+```
+
 ## Перевірка
 
 `npx @nitra/cursor check vue` — перевіряє залежності, `vite.config`, а також обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue`; дозволені лише type-only та side-effect `import 'vue'`. Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/scripts/utils/vue-forbidden-imports.mjs`).

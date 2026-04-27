@@ -4,10 +4,17 @@ alwaysApply: true
 version: '1.1'
 ---
 
-Якщо в проекті в будь-якому `package.json` в секції `dependencies` присутній пакет **`mssql`**,
-то його версія повинна бути не менше **12.5.0**.
+## Підтримувана версія SQL Server
+
+Правило орієнтоване на **SQL Server 2019**.
+
+## Версія пакета `mssql`
+
+Якщо в проекті в будь-якому `package.json` в секції `dependencies` присутній пакет **`mssql`**, то його версія повинна бути не менше **12.5.0**.
 
 Потрібно використовувати connection pool (sql.ConnectionPool) як singleton, а НЕ створювати підключення на кожен запит.
+
+## Як виконувати запити (безпечно)
 
 tagged template треба викликати на request-обʼєкті цього пулу:
 ```javascript
@@ -46,7 +53,10 @@ const result = await pool.request().query`
 
 Ключове: pool.request().query\...`— бекті́ки післяquery`, без круглих дужок. Це той самий tagged template, тільки контекст — конкретний пул, а не глобальний.
 
-Що НЕ робити
+## Що НЕ робити
+
+### Не робити `query(\`...\`)`
+
 javascript// ❌ Це не tagged template — це конкатенація рядка перед викликом
 ```javascript
 await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
@@ -55,5 +65,99 @@ await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
 
 Різниця між query\...`іquery(`...`)` — критична. Перше безпечне, друге — діра.
 Потрібно використовувати перше. Потрібно шукати в коді друге і заміняти на перше.
+
+### Не шарити `Request` між запитами
+
+Заборонено робити singleton `request` на рівні модуля на кшталт:
+
+```javascript
+// ❌ НЕ МОЖНА
+export const request = pool.request();
+```
+
+`Request` має створюватися **щоразу заново**:
+
+```javascript
+// ✅ МОЖНА
+const request = pool.request();
+```
+
+Це особливо важливо для **TVP** (табличні параметри) та будь-яких `.input(...)`.
+
+## TVP дозволений і рекомендований (SQL Server 2019)
+
+Для списків значень та пар ключів **найкращий** шлях по безпеці/продуктивності — **TVP** (table-valued parameters).
+
+### 1) `IN (...)` для кодів → `JOIN` на TVP
+
+Замість складання SQL-рядка:
+
+```javascript
+// ❌ НЕ МОЖНА: динамічний список у SQL
+await pool.request().query`
+  SELECT *
+  FROM promo.SomeTable t
+  WHERE t.ExternalCode IN (${codes.map(c => `'${c}'`).join(',')})
+`;
+```
+
+Роби TVP з 1 колонкою:
+
+- створити `new sql.Table()`
+- `columns.add('ExternalCode', sql.NVarChar(N))`
+- `rows.add(code)` після `trim()` + валідації
+- `request.input('codes', table)`
+- в SQL: `JOIN @codes c ON c.ExternalCode = t.ExternalCode`
+
+Плюси:
+
+- 0% SQL injection
+- текст SQL **не росте** від довжини масиву
+- SQL Server часто оптимізує `JOIN` краще, ніж гігантський `IN (...)`
+
+### 2) `DELETE ... VALUES (...)` / `MERGE ... VALUES (...)` → TVP з 2 колонками
+
+Замість генерації списку рядків `(...),(...),...` у SQL (навіть якщо воно “через tagged template”):
+
+- сформуй TVP-таблицю `@Pairs` з колонками:
+  - `PromoActivitiesId` (INT або BIGINT — як у схемі БД)
+  - `SupplierOutletId` (INT або BIGINT — як у схемі БД)
+
+Delete:
+
+```sql
+DELETE abi
+FROM promo.ActivitiesByOutlet abi
+JOIN @Pairs p
+  ON p.PromoActivitiesId = abi.PromoActivitiesId
+ AND p.SupplierOutletId = abi.SupplierOutletId;
+```
+
+Insert (без `MERGE`, простіше і безпечніше):
+
+```sql
+INSERT INTO promo.ActivitiesByOutlet (PromoActivitiesId, SupplierOutletId, Status)
+SELECT p.PromoActivitiesId, p.SupplierOutletId, 2
+FROM @Pairs p
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM promo.ActivitiesByOutlet abi
+  WHERE abi.PromoActivitiesId = p.PromoActivitiesId
+    AND abi.SupplierOutletId = p.SupplierOutletId
+);
+```
+
+Плюси:
+
+- не збираєш SQL-рядок із даних
+- менше шансів упіймати edge-case `MERGE` (у SQL Server історично багато “сюрпризів”)
+
+## Мінімальна валідація перед наповненням TVP
+
+Навіть з TVP потрібно:
+
+- `ExternalCode`: `typeof === 'string'`, `trim()`, довжина `<= N` (під схему), відкинути пусті.
+- ліміт на кількість елементів (наприклад 5k/10k — залежить від вашого потоку).
+- `supplierId`/ID: число/BigInt, валідне та скінченне.
 
 Перевірка: `npx @nitra/cursor check js-mssql`.

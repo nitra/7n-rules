@@ -4,6 +4,9 @@
  * Версії Vite та плагінів, vue-macros, auto-import, layouts, вміст `vite.config`;
  * у репозиторії — рекомендацію розширення Vue.volar.
  *
+ * У `vite.config.*` заборонено використовувати `process.env.npm_lifecycle_event` (Bun не підставляє його як npm),
+ * натомість використовуй `mode` з `defineConfig(({ mode }) => ...)`.
+ *
  * Заборонені явні value-імпорти з `vue` у джерелах пакета — сканування `.vue`/`.ts`/`.js` тощо
  * через **oxc-parser** (`module.staticImports`; див. `utils/vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
  */
@@ -114,6 +117,13 @@ async function checkViteConfig(rootDir, prefix, passFn, fail) {
     } else {
       fail(`${prefix}${err}`)
     }
+  }
+
+  if (content.includes('process.env.npm_lifecycle_event')) {
+    fail(
+      `${prefix}${viteConfig} використовує process.env.npm_lifecycle_event — у Bun це не працює. ` +
+        `Перенеси логіку на mode (defineConfig(({ mode }) => ...)) і передавай mode в helper-функції.`
+    )
   }
 }
 

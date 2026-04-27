@@ -7,6 +7,12 @@
  * виклик з інтерполяцією рядка, який може призвести до SQL injection. Натомість має
  * використовуватись tagged template `query\`...\`` (див. js-mssql.mdc).
  *
+ * Додатково знаходить:
+ * - shared `Request` (наприклад `export const request = pool.request()`), який не можна
+ *   повторно використовувати між запитами.
+ * - небезпечні “динамічні списки” в SQL, коли в TemplateLiteral/TaggedTemplateExpression
+ *   підставляють рядки, зібрані через `.join(',')` (типово для `IN (...)` або `VALUES (...)`).
+ *
  * Семантика береться з **oxc-parser** по AST, щоб не покладатися на regex.
  * Якщо файл не парситься або містить синтаксичні помилки — повертаємо порожній
  * результат (спочатку треба полагодити синтаксис, потім перезапустити перевірку).
@@ -14,6 +20,7 @@
 import { parseSync } from 'oxc-parser'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
+const SQL_LIST_CONTEXT_RE = /\b(in|values)\b\s*\(/iu
 
 /**
  * Мова для Oxc за шляхом файлу (розширення).
@@ -135,6 +142,62 @@ function isUnsafeQueryCallWithTemplateLiteral(node) {
 }
 
 /**
+ * Чи це `something.request()` (наприклад `pool.request()`), яку не можна шарити між запитами.
+ * @param {unknown} node AST node
+ * @returns {boolean} true, якщо це CallExpression з `.request()`
+ */
+function isRequestFactoryCall(node) {
+  if (!node || node.type !== 'CallExpression') return false
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression') return false
+  if (callee.computed) return false
+  const prop = callee.property
+  return !!prop && prop.type === 'Identifier' && prop.name === 'request'
+}
+
+/**
+ * Чи це `.join(...)` виклик (часто використовується для динамічних списків в SQL).
+ * @param {unknown} node AST node
+ * @returns {boolean} true, якщо це CallExpression `*.join(...)`
+ */
+function isJoinCall(node) {
+  if (!node || node.type !== 'CallExpression') return false
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression') return false
+  if (callee.computed) return false
+  const prop = callee.property
+  return !!prop && prop.type === 'Identifier' && prop.name === 'join'
+}
+
+/**
+ * Повертає текст quasis у TemplateLiteral (без expressions).
+ * @param {unknown} template TemplateLiteral
+ * @returns {string} обʼєднаний текст
+ */
+function templateQuasisText(template) {
+  if (!template || template.type !== 'TemplateLiteral') return ''
+  const quasis = template.quasis
+  if (!Array.isArray(quasis) || quasis.length === 0) return ''
+  let out = ''
+  for (const q of quasis) {
+    if (!q || typeof q !== 'object') continue
+    const value = q.value
+    if (!value || typeof value !== 'object') continue
+    if (typeof value.raw === 'string') out += value.raw
+  }
+  return out
+}
+
+/**
+ * Чи виглядає TemplateLiteral як SQL-контекст зі списком (IN/VALUES (...)).
+ * @param {unknown} template TemplateLiteral
+ * @returns {boolean} true, якщо текст містить `IN (` або `VALUES (`
+ */
+function isSqlListContextTemplate(template) {
+  return SQL_LIST_CONTEXT_RE.test(templateQuasisText(template))
+}
+
+/**
  * Знаходить створення `ConnectionPool` всередині функцій.
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang` (наприклад `pkg/src/db.ts`)
@@ -194,6 +257,92 @@ export function findUnsafeMssqlQueryTemplateCallInText(content, virtualPath = 's
       })
     }
   })
+  return out
+}
+
+/**
+ * Знаходить shared Request (`export const request = pool.request()` та подібні), які не можна
+ * повторно використовувати між запитами.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findSharedMssqlRequestInText(content, virtualPath = 'scan.ts') {
+  const lang = langFromPath(virtualPath || 'scan.ts')
+  let result
+  try {
+    result = parseSync(virtualPath, content, { lang, sourceType: 'module' })
+  } catch {
+    return []
+  }
+  if (result.errors?.length) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+  walkAstWithAncestors(result.program, [], node => {
+    if (node.type !== 'VariableDeclarator') return
+    const id = node.id
+    const init = node.init
+    if (!id || id.type !== 'Identifier') return
+    if (id.name !== 'request') return
+    if (!init || typeof init !== 'object') return
+    if (!isRequestFactoryCall(init)) return
+
+    out.push({
+      line: offsetToLine(content, node.start),
+      snippet: normalizeSnippet(content.slice(node.start, node.end))
+    })
+  })
+  return out
+}
+
+/**
+ * Знаходить небезпечні динамічні списки в SQL, коли у TemplateLiteral/TaggedTemplateExpression
+ * підставляють рядки, зібрані через `.join(...)` у контексті `IN (...)` або `VALUES (...)`.
+ *
+ * Цей патерн небезпечний навіть якщо зовні використовується tagged template, бо в запит
+ * потрапляє “готовий шматок SQL”, а не параметризовані значення.
+ *
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findUnsafeMssqlDynamicSqlListInText(content, virtualPath = 'scan.ts') {
+  const lang = langFromPath(virtualPath || 'scan.ts')
+  let result
+  try {
+    result = parseSync(virtualPath, content, { lang, sourceType: 'module' })
+  } catch {
+    return []
+  }
+  if (result.errors?.length) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+  walkAstWithAncestors(result.program, [], node => {
+    /** @type {unknown} */
+    let template = null
+
+    if (node.type === 'TemplateLiteral') {
+      template = node
+    } else if (node.type === 'TaggedTemplateExpression') {
+      template = node.quasi
+    }
+
+    if (!template || typeof template !== 'object' || template.type !== 'TemplateLiteral') return
+    if (!isSqlListContextTemplate(template)) return
+    const expressions = template.expressions
+    if (!Array.isArray(expressions) || expressions.length === 0) return
+
+    const hasJoin = expressions.some(expr => isJoinCall(expr))
+    if (!hasJoin) return
+
+    out.push({
+      line: offsetToLine(content, template.start),
+      snippet: normalizeSnippet(content.slice(template.start, template.end))
+    })
+  })
+
   return out
 }
 
