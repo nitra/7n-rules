@@ -1,0 +1,32 @@
+npm/package.json
+  h_9e4b254ff59432 3
+npm/scripts/check-docker.mjs
+  b7c49167e0ccc2cb 12,21-22,214-215,220,285,298-299,301-302,304-314,316-317,319-320,322-323,325-338
+npm/mdc/docker.mdc
+  b7c49167e0ccc2cb 12,20,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "e159ec8fe9aea751a9de8ffac42fa91e0fee3638",
+  "prompts": {
+    "b7c49167e0ccc2cb": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "ec58a558-1ede-4b5e-a9bd-f43dac6bbe26",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 48,
+      "total_deletions": 52,
+      "accepted_lines": 48,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
