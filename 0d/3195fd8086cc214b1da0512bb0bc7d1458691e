@@ -1,0 +1,44 @@
+npm/tests/check-docker-mirror.test.mjs
+  e2fc74782f00db6b 62-64,70,88-96
+npm/tests/check-docker-compile.test.mjs
+  e2fc74782f00db6b 66-81
+npm/tests/check-docker-nginx-slim.test.mjs
+  e2fc74782f00db6b 9,17-28,32-35,37,40,46,51,55-64
+.cursor/rules/n-nginx-default-tpl.mdc
+  e2fc74782f00db6b 101-119,143-175
+npm/scripts/check-docker.mjs
+  e2fc74782f00db6b 12-13,22-25,46,101,111,197-199,219-220,226,230-238,259-260,273-274
+npm/package.json
+  h_9e4b254ff59432 3
+npm/tests/check-docker-multistage.test.mjs
+  e2fc74782f00db6b 40,52-61
+npm/scripts/utils/docker-mirror.mjs
+  e2fc74782f00db6b 113,120-121
+npm/tests/check-docker-nonroot.test.mjs
+  e2fc74782f00db6b 62-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0d3195fd8086cc214b1da0512bb0bc7d1458691e",
+  "prompts": {
+    "e2fc74782f00db6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b67a9c08-9e42-4ddc-9d54-c08e23db5ee2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 619,
+      "total_deletions": 879,
+      "accepted_lines": 258,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
