@@ -1,0 +1,29 @@
+npm/package.json
+  a948949fc8861eea 3
+npm/bin/n-cursor.js
+  a948949fc8861eea 555-567,627-628
+npm/skills/lint/SKILL.md
+  a948949fc8861eea 50-70
+.cursor/skills/n-lint/SKILL.md
+  a948949fc8861eea 50-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "616553b419d379faea94df9613d8ad83ccbfdeb0",
+  "prompts": {
+    "a948949fc8861eea": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "95a573b4-eb1e-45fc-ad11-9f00035ab9b6",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 65,
+      "total_deletions": 14,
+      "accepted_lines": 52,
+      "overriden_lines": 0
+    }
+  }
+}
