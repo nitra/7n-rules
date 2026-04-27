@@ -9,8 +9,7 @@
  * - backend: `mirror.gcr.io/library/alpine:*`, `scratch`, `mirror.gcr.io/library/debian:` з тегом, що
  *   містить `slim` (не повний `debian:bookworm`), за винятком PHP/Python — `mirror.gcr.io/library/php:*` або
  *   `mirror.gcr.io/library/python:*`
- * - frontend: `mirror.gcr.io/nginxinc/nginx-unprivileged:*` (preferred) або `mirror.gcr.io/library/nginx:*`,
- *   `mirror.gcr.io/openresty/openresty:*`
+ * - frontend: `mirror.gcr.io/nginxinc/nginx-unprivileged:*`, `mirror.gcr.io/openresty/openresty:*`
  *
  * Якщо в Dockerfile є крок `bun install` і це не frontend-образ (фінальний stage — alpine),
  * то очікується компіляція в один бінарник через `bun build --compile` у build stage, а у
@@ -19,8 +18,8 @@
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
  * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
  *
- * Для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged`, `mirror.gcr.io/library/nginx`) у
- * будь-якому `FROM` очікується тег `alpine-slim` (docker.mdc: мінімальні образи), не `latest` /
+ * Для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged`) у будь-якому `FROM` очікується
+ * тег `alpine-slim` (docker.mdc: мінімальні образи), не `latest` /
  * `alpine` / інші. `nginx-unprivileged` запускається від не-root користувача (uid=101) без явного
  * `USER` у Dockerfile — перевірка non-root для нього пропускається.
  *
@@ -42,7 +41,6 @@ const BUN_BUILD_COMPILE_RE = /\bbun\s+build\b[^\n]*\s--compile\b/iu
 const BUN_WORD_RE = /\bbun\b/iu
 const USER_LINE_RE = /^\s*USER\s+([^\s#]+)/iu
 
-const NGINX_MIRROR_PREFIX = 'mirror.gcr.io/library/nginx'
 const NGINX_UNPRIVILEGED_MIRROR_PREFIX = 'mirror.gcr.io/nginxinc/nginx-unprivileged'
 
 /**
@@ -97,7 +95,6 @@ const RUNTIME_IMAGES = /** @type {const} */ ([
   'mirror.gcr.io/library/alpine',
   'mirror.gcr.io/library/php',
   'mirror.gcr.io/library/python',
-  'mirror.gcr.io/library/nginx',
   'mirror.gcr.io/nginxinc/nginx-unprivileged',
   'mirror.gcr.io/openresty/openresty'
 ])
@@ -179,7 +176,6 @@ export function getMultistageAndRuntimeHint(fileContent) {
  * Очікування:
  * - у build stage є `bun build --compile`;
  * - у фінальному stage немає викликів `bun` (залишків build tooling).
- *
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
@@ -194,7 +190,6 @@ export function getBunCompileHint(fileContent) {
   const hasBunInstall = BUN_INSTALL_RE.test(fileContent)
   const isFinalAlpine = lastLower.startsWith('mirror.gcr.io/library/alpine:')
   const isFinalFrontend =
-    lastLower.startsWith('mirror.gcr.io/library/nginx:') ||
     lastLower.startsWith(`${NGINX_UNPRIVILEGED_MIRROR_PREFIX}:`) ||
     lastLower.startsWith('mirror.gcr.io/openresty/openresty:')
 
@@ -216,14 +211,13 @@ export function getBunCompileHint(fileContent) {
 }
 
 /**
- * Перевіряє, що для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged` або
- * `mirror.gcr.io/library/nginx`) у `FROM` вказано тег `alpine-slim` (docker.mdc).
- *
+ * Перевіряє, що для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged`) у `FROM` вказано
+ * тег `alpine-slim` (docker.mdc).
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
 export function getNginxAlpineSlimTagHint(fileContent) {
-  const prefixes = [NGINX_UNPRIVILEGED_MIRROR_PREFIX, NGINX_MIRROR_PREFIX]
+  const prefixes = [NGINX_UNPRIVILEGED_MIRROR_PREFIX]
   for (const { line, image } of parseFromStages(fileContent)) {
     const noDigest = (image.split('@')[0] || '').trim()
     const d = noDigest.toLowerCase()
@@ -247,7 +241,6 @@ export function getNginxAlpineSlimTagHint(fileContent) {
  * Очікування:
  * - у фінальному stage має бути інструкція `USER <name|uid>`;
  * - користувач не має бути `root` і не має бути `0`.
- *
  * @param {string} fileContent вміст Dockerfile/Containerfile
  * @returns {string | null} повідомлення помилки або null
  */
@@ -289,7 +282,7 @@ export function getNonRootRuntimeHint(fileContent) {
  */
 export async function check() {
   const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+  const { pass } = reporter
 
   const root = process.cwd()
   const files = await findDockerfilePaths(root)
@@ -302,42 +295,45 @@ export async function check() {
   pass(`Знайдено файлів для hadolint: ${files.length}`)
 
   for (const abs of files) {
-    const rel = posixRel(root, abs) || basename(abs)
-    const content = await readFile(abs, 'utf8')
-    const hint = getMirrorGcrHint(content)
-    if (hint) {
-      fail(`${rel} (mirror.gcr.io): ${hint}`)
-    }
-
-    const multistageHint = getMultistageAndRuntimeHint(content)
-    if (multistageHint) {
-      fail(`${rel} (multistage): ${multistageHint}`)
-    }
-
-    const compileHint = getBunCompileHint(content)
-    if (compileHint) {
-      fail(`${rel} (compile): ${compileHint}`)
-    }
-
-    const nonRootHint = getNonRootRuntimeHint(content)
-    if (nonRootHint) {
-      fail(`${rel} (non-root): ${nonRootHint}`)
-    }
-
-    const nginxSlimHint = getNginxAlpineSlimTagHint(content)
-    if (nginxSlimHint) {
-      fail(`${rel} (nginx tag): ${nginxSlimHint}`)
-    }
-
-    const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
-    const tail = (stdout + stderr).trim()
-    if (ok) {
-      pass(`${rel} (${via})`)
-    } else {
-      const detail = tail ? `:\n${tail}` : ''
-      fail(`${rel} (${via})${detail}`)
-    }
+    await checkDockerfile(reporter, root, abs)
   }
 
   return reporter.getExitCode()
+}
+
+/**
+ * Перевіряє один Dockerfile/Containerfile: mirror.gcr.io, multistage/runtime, compile/non-root/nginx tag і hadolint.
+ * @param {ReturnType<typeof createCheckReporter>} reporter репортер перевірок
+ * @param {string} root корінь репозиторію
+ * @param {string} abs абсолютний шлях до Dockerfile/Containerfile
+ * @returns {Promise<void>}
+ */
+async function checkDockerfile(reporter, root, abs) {
+  const { pass, fail } = reporter
+  const rel = posixRel(root, abs) || basename(abs)
+  const content = await readFile(abs, 'utf8')
+
+  const hint = getMirrorGcrHint(content)
+  if (hint) fail(`${rel} (mirror.gcr.io): ${hint}`)
+
+  const multistageHint = getMultistageAndRuntimeHint(content)
+  if (multistageHint) fail(`${rel} (multistage): ${multistageHint}`)
+
+  const compileHint = getBunCompileHint(content)
+  if (compileHint) fail(`${rel} (compile): ${compileHint}`)
+
+  const nonRootHint = getNonRootRuntimeHint(content)
+  if (nonRootHint) fail(`${rel} (non-root): ${nonRootHint}`)
+
+  const nginxSlimHint = getNginxAlpineSlimTagHint(content)
+  if (nginxSlimHint) fail(`${rel} (nginx tag): ${nginxSlimHint}`)
+
+  const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
+  const tail = (stdout + stderr).trim()
+  if (ok) {
+    pass(`${rel} (${via})`)
+  } else {
+    const detail = tail ? `:\n${tail}` : ''
+    fail(`${rel} (${via})${detail}`)
+  }
 }

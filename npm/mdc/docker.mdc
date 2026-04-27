@@ -9,7 +9,7 @@ alwaysApply: false
 
 [hadolint](https://github.com/hadolint/hadolint) перевіряє Dockerfile на типові помилки та рекомендації (`FROM`, `RUN`, `COPY`, shell form тощо).
 
-Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginx`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/library/nginx`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/scripts/utils/docker-mirror.mjs`**.
+Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/scripts/utils/docker-mirror.mjs`**.
 
 Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
 
@@ -17,13 +17,13 @@ alwaysApply: false
 - **ультра-легкі (glibc / одна статична збірка)**: `scratch` — тільки як `FROM scratch` (офіційний порожній базовий шар), коли весь **runtime** уже в `COPY --from=…`
 - **glibc, Debian (slim)**: `mirror.gcr.io/library/debian:*` **лише** з тегом, у якому є `slim` (наприклад `bookworm-slim`, `trixie-slim`), а не `bookworm` без `slim`
 - **виняток (інтерпретовані стеки)**: `mirror.gcr.io/library/php:*` або `mirror.gcr.io/library/python:*` — якщо сервіс має крутитися в офіційному runtime PHP чи Python, а не як один бінарник на Alpine; інакше лишай **alpine** у фінальному stage
-- **frontend**: `mirror.gcr.io/library/nginx:*` або `mirror.gcr.io/openresty/openresty:*`
+- **frontend**: `mirror.gcr.io/nginxinc/nginx-unprivileged:*` або `mirror.gcr.io/openresty/openresty:*`
 
 Це стримує зайвий build tooling (Bun, **node_modules** зі збірки) у фінальному образі; для **alpine** / **nginx** / **openresty** у **runtime** лишаються лише відповідні вимоги, для **php** / **python** (виняток) — цільовий інтерпретований **stack**; **scratch** і **debian** з тегом **`*slim*`** — коли glibc і мінімальне оточення Debian важливіші за musl в **alpine**.
 
 ## Мінімальні образи
 
-Якщо використовується nginx, то намагайся щоб тег був `alpine-slim`
+Якщо використовується nginx, то **використовуй** `mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim` (і не `latest` / `alpine`).
 
 ## компіляція
 
