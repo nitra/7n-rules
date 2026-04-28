@@ -4804,25 +4804,58 @@ function checkProdOverridesInKustomization(kust, rel, fail, passFn) {
 }
 
 /**
+ * Чи прод-оверлей **реально потребує** overrides для HPA/PDB.
+ *
+ * Overrides потрібні лише якщо оверлей (non-dev-like) посилається на `…/k8s/…/base` і у **base**-дереві
+ * одночасно є:
+ * - `Deployment` (у шарі `…/k8s/…/base/`), і
+ * - `HorizontalPodAutoscaler` і/або `PodDisruptionBudget`.
+ *
+ * Тоді base зазвичай тримає dev-like значення (`1`/`1`/`0`), і прод-оверлей має їх підняти (див. k8s.mdc).
+ * @param {string} rootNorm нормалізований корінь репозиторію
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @returns {Promise<boolean>} true якщо потрібні overrides, інакше false
+ */
+export async function prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs) {
+  const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+  const segment = k8sEnvSegmentFromRelPath(rel)
+  if (segment === null || isDevLikeK8sEnvSegment(segment)) return false
+
+  const kust = await readFirstYamlObject(kustAbs)
+  if (kust === null) return false
+
+  const kustDir = dirname(kustAbs)
+  const pathRefs = resourcePathRefsFromKustomizationObject(kust)
+  const baseDirs = await k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootNorm)
+  if (baseDirs.length === 0) return false
+
+  const flags = await Promise.all(
+    baseDirs.map(bd => kustomizeResourceTreeHpaPdbDeploymentFlags(join(bd, 'kustomization.yaml'), rootNorm))
+  )
+
+  return flags.some(f => f.hasDeployment && (f.hasHpa || f.hasPdb))
+}
+
+/**
  * Для прод kustomization.yaml вимагає patches, що перевизначають **`/spec/minReplicas`** і **`/spec/maxReplicas`**
- * на **HorizontalPodAutoscaler**, а також **`/spec/minAvailable`** на **PodDisruptionBudget**. Не застосовується
- * до dev-like (base / dev / *-qa) — там ці значення беруть з base (див. k8s.mdc).
+ * на **HorizontalPodAutoscaler**, а також **`/spec/minAvailable`** на **PodDisruptionBudget**.
+ *
+ * Не застосовується до dev-like (base / dev / *-qa).
+ *
+ * Також **не застосовується**, якщо оверлей не наслідує base з Deployment + HPA/PDB (див. `prodOverlayNeedsHpaPdbOverrides`).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
 async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
   const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
-    const rel = relative(root, kustAbs).replaceAll('\\', '/')
-    const segment = k8sEnvSegmentFromRelPath(rel)
-    if (segment !== null && !isDevLikeK8sEnvSegment(segment)) {
-      const kust = await readFirstYamlObject(kustAbs)
-      if (kust !== null) {
-        checkProdOverridesInKustomization(kust, rel, fail, passFn)
-      }
-    }
+    const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+    if (!(await prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs))) continue
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust !== null) checkProdOverridesInKustomization(kust, rel, fail, passFn)
   }
 }
 

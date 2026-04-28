@@ -50,6 +50,7 @@ import {
   kustomizationSvcYamlMissingSvcHlViolation,
   kustomizePathRefsForExistenceCheck,
   kustomizeResourceTreeHpaPdbDeploymentFlags,
+  prodOverlayNeedsHpaPdbOverrides,
   shouldValidateKustomizePatchTarget,
   splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
@@ -1520,5 +1521,156 @@ resources:
     await writeFile(join(k8sBase, 'kustomization.yaml'), k, 'utf8')
     const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(join(k8sBase, 'kustomization.yaml'), resolve(root))
     expect(f.hasDeployment).toBe(true)
+  })
+})
+
+describe('prodOverlayNeedsHpaPdbOverrides', () => {
+  test('false для prod overlay, якщо base не містить Deployment+HPA/PDB', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-0-'))
+    const baseDir = join(root, 'k8s', 'base')
+    const prodDir = join(root, 'k8s', 'prod')
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(prodDir, { recursive: true })
+
+    const cron = `# yaml-language-server: $schema=x
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: ap
+              image: x:y
+`
+    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - cron.yaml
+`
+    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../base
+`
+
+    await writeFile(join(baseDir, 'cron.yaml'), cron, 'utf8')
+    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
+    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
+
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(false)
+  })
+
+  test('true для prod overlay, якщо base має Deployment і HPA/PDB', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-1-'))
+    const baseDir = join(root, 'k8s', 'base')
+    const prodDir = join(root, 'k8s', 'prod')
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(prodDir, { recursive: true })
+
+    const dep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ap
+  template:
+    metadata:
+      labels:
+        app: ap
+    spec:
+      containers:
+        - name: ap
+          image: x:y
+          resources:
+            requests:
+              cpu: "0.5"
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ap
+`
+    const hpa = `# yaml-language-server: $schema=x
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ap
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 15
+    scaleDown:
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 15
+`
+    const pdb = `# yaml-language-server: $schema=x
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: ap
+`
+    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deployment.yaml
+  - hpa.yaml
+  - pdb.yaml
+`
+    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../base
+`
+
+    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
+    await writeFile(join(baseDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(baseDir, 'pdb.yaml'), pdb, 'utf8')
+    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
+    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
+
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(true)
   })
 })

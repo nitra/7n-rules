@@ -314,7 +314,7 @@ data:
 
 ### Прод-оверрайди у `kustomization.yaml`
 
-Оскільки `base/` (і dev-like середовища) тримають dev-значення (`1`/`1`/`0`), у **кожному** прод-накладенні `kustomization.yaml` у `patches[]` **обов'язково** має бути перевизначення:
+Оскільки `base/` (і dev-like середовища) тримають dev-значення (`1`/`1`/`0`), у **кожному** прод-накладенні `kustomization.yaml` у `patches[]` **обов'язково** має бути перевизначення **лише якщо** цей оверлей наслідує base-дерево, де є **Deployment** і **HPA/PDB** (тобто base реально дає dev-like HPA/PDB, які треба підняти в проді):
 
 - для `HorizontalPodAutoscaler`: `spec.minReplicas` **і** `spec.maxReplicas` (щоб у проді вийшло ≥2).
 - для `PodDisruptionBudget`: `spec.minAvailable` (щоб у проді вийшло ≥1).
