@@ -307,7 +307,6 @@ export function findSharedMssqlRequestInText(content, virtualPath = 'scan.ts') {
  *
  * Цей патерн небезпечний навіть якщо зовні використовується tagged template, бо в запит
  * потрапляє “готовий шматок SQL”, а не параметризовані значення.
- *
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang`
  * @returns {{ line: number, snippet: string }[]} список порушень
@@ -372,6 +371,24 @@ function isLiteralNumericArrayExpression(node) {
 }
 
 /**
+ * Чи це безпосередній виклик числового парсера (parseInt/parseFloat/Number/BigInt)
+ * або обʼєктний доступ до них (наприклад `Number.parseInt(...)`).
+ * @param {Record<string, unknown>} node AST CallExpression
+ * @returns {boolean} true, якщо callee — числовий парсер
+ */
+function isNumericParseCallExpression(node) {
+  if (node.type !== 'CallExpression') return false
+  const callee = node.callee
+  if (!callee) return false
+  if (callee.type === 'Identifier' && NUMERIC_PARSE_FN_NAMES.has(callee.name)) return true
+  if (callee.type === 'MemberExpression' && !callee.computed) {
+    const prop = callee.property
+    return !!prop && prop.type === 'Identifier' && NUMERIC_PARSE_FN_NAMES.has(prop.name)
+  }
+  return false
+}
+
+/**
  * Чи містить піддерево виклик числового парсера (parseInt/parseFloat/Number/BigInt)
  * або унарний `+` (приведення до Number). Це сигнал, що значення гарантовано числове
  * і не може містити SQL-метасимволи.
@@ -380,20 +397,9 @@ function isLiteralNumericArrayExpression(node) {
  */
 function subtreeHasNumericParseCall(node) {
   if (!node || typeof node !== 'object') return false
-  if (Array.isArray(node)) return node.some(subtreeHasNumericParseCall)
+  if (Array.isArray(node)) return node.some(item => subtreeHasNumericParseCall(item))
 
-  if (node.type === 'CallExpression') {
-    const callee = node.callee
-    if (callee && callee.type === 'Identifier' && NUMERIC_PARSE_FN_NAMES.has(callee.name)) {
-      return true
-    }
-    if (callee && callee.type === 'MemberExpression' && !callee.computed) {
-      const prop = callee.property
-      if (prop && prop.type === 'Identifier' && NUMERIC_PARSE_FN_NAMES.has(prop.name)) {
-        return true
-      }
-    }
-  }
+  if (isNumericParseCallExpression(node)) return true
   if (node.type === 'UnaryExpression' && node.operator === '+') return true
 
   for (const key of Object.keys(node)) {
@@ -426,7 +432,6 @@ function collectVariableDeclarators(programNode) {
  *
  * Якщо для Identifier немає видимого init (наприклад параметр функції чи import),
  * вираз вважається не парсованим — потрібен явний парсер на місці підстановки.
- *
  * @param {unknown} expr вираз з template.expressions
  * @param {Array<Record<string, unknown>>} declarators VariableDeclarator-и файлу
  * @param {Set<string>} [seen] іменa Identifier-ів, що вже трасуються (анти-цикл)
@@ -461,19 +466,52 @@ function isInListExpressionParsed(expr, declarators, seen = new Set()) {
 }
 
 /**
- * Знаходить підстановки `IN (${expr})` у TemplateLiteral, де `expr` не пройшов числовий парсер.
- *
- * Навіть у безпечному `pool.request().query\`...\`` краще явно парсити значення (parseInt/
- * Number/BigInt/parseFloat) та фільтрувати NaN — це гарантує, що жодний елемент не може
- * містити SQL-метасимволи, навіть якщо колись query-функція або обгортка зміняться. У
- * небезпечних контекстах (наприклад `pool.query(String.raw\`...\`)`) це єдиний бар'єр від SQL
- * injection.
- *
- * Випадки `${arr.join(',')}` свідомо ігноруються — їх ловить
- * {@link findUnsafeMssqlDynamicSqlListInText}.
- *
+ * Сирий текст quasi-елемента TemplateLiteral на позиції перед expressions[i].
+ * @param {unknown} q quasi-елемент TemplateLiteral
+ * @returns {string} `q.value.raw` або порожній рядок, якщо структура не підходить
+ */
+function quasiRawText(q) {
+  return q && typeof q === 'object' && q.value && typeof q.value === 'object' && typeof q.value.raw === 'string'
+    ? q.value.raw
+    : ''
+}
+
+/**
+ * Збирає порушення для одного TemplateLiteral вузла: знаходить expressions, що
+ * стоять одразу після `IN (` без числового парсера значень.
+ * @param {Record<string, unknown>} node TemplateLiteral
  * @param {string} content вихідний код
- * @param {string} [virtualPath] шлях для вибору `lang`
+ * @param {Array<Record<string, unknown>>} declarators VariableDeclarator-и для трасування
+ * @param {{ line: number, snippet: string }[]} out буфер результатів
+ */
+function collectInListUnparsedFromTemplate(node, content, declarators, out) {
+  if (node.type !== 'TemplateLiteral') return
+  const quasis = node.quasis
+  const expressions = node.expressions
+  if (!Array.isArray(quasis) || !Array.isArray(expressions) || expressions.length === 0) return
+
+  for (const [i, expr] of expressions.entries()) {
+    if (!IN_PLACEHOLDER_END_RE.test(quasiRawText(quasis[i]))) continue
+    if (!expr || typeof expr !== 'object') continue
+    if (isJoinCall(expr)) continue
+    if (isInListExpressionParsed(expr, declarators)) continue
+
+    const startOffset = typeof expr.start === 'number' ? expr.start : node.start
+    out.push({
+      line: offsetToLine(content, startOffset),
+      snippet: normalizeSnippet(content.slice(node.start, node.end))
+    })
+  }
+}
+
+/**
+ * Знаходить підстановки IN (вираз) у TemplateLiteral, де вираз не пройшов числовий парсер.
+ *
+ * Навіть у безпечному tagged template pool.request().query краще явно парсити значення (parseInt,
+ * Number, BigInt, parseFloat) та фільтрувати NaN. Див. також findUnsafeMssqlDynamicSqlListInText для
+ * випадків arr.join у списках.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору мови парсера (lang)
  * @returns {{ line: number, snippet: string }[]} список порушень
  */
 export function findUnsafeMssqlInListUnparsedInText(content, virtualPath = 'scan.ts') {
@@ -490,32 +528,7 @@ export function findUnsafeMssqlInListUnparsedInText(content, virtualPath = 'scan
 
   /** @type {{ line: number, snippet: string }[]} */
   const out = []
-  walkAstWithAncestors(result.program, [], node => {
-    if (node.type !== 'TemplateLiteral') return
-    const quasis = node.quasis
-    const expressions = node.expressions
-    if (!Array.isArray(quasis) || !Array.isArray(expressions) || expressions.length === 0) return
-
-    for (let i = 0; i < expressions.length; i++) {
-      const q = quasis[i]
-      const rawText =
-        q && typeof q === 'object' && q.value && typeof q.value === 'object' && typeof q.value.raw === 'string'
-          ? q.value.raw
-          : ''
-      if (!IN_PLACEHOLDER_END_RE.test(rawText)) continue
-
-      const expr = expressions[i]
-      if (!expr || typeof expr !== 'object') continue
-      if (isJoinCall(expr)) continue
-      if (isInListExpressionParsed(expr, declarators)) continue
-
-      const startOffset = typeof expr.start === 'number' ? expr.start : node.start
-      out.push({
-        line: offsetToLine(content, startOffset),
-        snippet: normalizeSnippet(content.slice(node.start, node.end))
-      })
-    }
-  })
+  walkAstWithAncestors(result.program, [], node => collectInListUnparsedFromTemplate(node, content, declarators, out))
 
   return out
 }

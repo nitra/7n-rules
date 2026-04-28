@@ -278,7 +278,7 @@ export function findUnsafeBunSqlDynamicSqlListInText(content, virtualPath = 'sca
  * Скан по сирому тексту — без AST, щоб бути дешевим: викликається на кожному
  * JS/TS-файлі при зборі ознак для авто-детекту правил.
  * @param {string} content вміст файлу
- * @returns {boolean}
+ * @returns {boolean} true, якщо є імпорт sql або SQL з модуля bun
  */
 export function textHasBunSqlImport(content) {
   return BUN_SQL_IMPORT_RE.test(content)

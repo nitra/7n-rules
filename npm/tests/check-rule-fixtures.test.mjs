@@ -31,7 +31,7 @@ async function setupMinimalVueAppWorkspace(opts = {}) {
   await ensureDir('app')
   await writeJson(join('app', 'package.json'), {
     name: 'app',
-    dependencies: { vue: '^3.5.0' },
+    dependencies: { vue: '^3.6.12' },
     devDependencies: {
       vite: '^8.0.0',
       '@vitejs/plugin-vue': '^6.0.0',

@@ -57,10 +57,32 @@ const DEFAULT_DISABLED_LIST = Object.freeze([])
  * Чи містить текст джерела імпорт імені `sql` або `SQL` з `"bun"` (після витягування `<script>` у `.vue`).
  * @param {string} content вміст файлу
  * @param {string} relativePath шлях posix відносно кореня
- * @returns {boolean}
+ * @returns {boolean} true, якщо знайдено `import { sql }` або `import { SQL }` з `"bun"`
  */
 function sourceContentHasBunSqlImport(content, relativePath) {
   return textHasBunSqlImport(contentForVueImportScan(content, relativePath))
+}
+
+/**
+ * Зчитує `package.json` і додає в `found` усі ключі з `wanted`, що присутні в `dependencies`.
+ * @param {string} absPath абсолютний шлях до package.json
+ * @param {Set<string>} wanted множина ключів-цілей
+ * @param {Set<string>} found буфер знайдених ключів
+ * @returns {Promise<void>}
+ */
+async function collectFoundDependencyKeysFromPackageJson(absPath, wanted, found) {
+  try {
+    const parsed = JSON.parse(await readFile(absPath, 'utf8'))
+    const deps = parsed?.dependencies
+    if (!deps || typeof deps !== 'object' || Array.isArray(deps)) return
+    for (const key of wanted) {
+      if (Object.hasOwn(deps, key)) {
+        found.add(key)
+      }
+    }
+  } catch {
+    /* ігноруємо пошкоджені/недоступні package.json */
+  }
 }
 
 /**
@@ -75,14 +97,31 @@ async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKey
   const found = new Set()
 
   /**
+   * Обробка одного запису з readdir: рекурсія в підкаталог або зчитування package.json.
+   * @param {import('node:fs').Dirent} entry елемент readdir
+   * @param {string} dir абсолютний шлях каталогу-власника entry
+   * @returns {Promise<void>}
+   */
+  async function processEntry(entry, dir) {
+    const absPath = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (!IGNORED_DIR_NAMES.has(entry.name)) {
+        await walk(absPath)
+      }
+      return
+    }
+    if (entry.isFile() && entry.name === 'package.json') {
+      await collectFoundDependencyKeysFromPackageJson(absPath, wanted, found)
+    }
+  }
+
+  /**
    * Рекурсивний обхід каталогу з пропуском службових директорій.
    * @param {string} dir абсолютний шлях каталогу
    * @returns {Promise<void>}
    */
   async function walk(dir) {
-    if (found.size === wanted.size) {
-      return
-    }
+    if (found.size === wanted.size) return
     let entries
     try {
       entries = await readdir(dir, { withFileTypes: true })
@@ -90,30 +129,8 @@ async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKey
       return
     }
     for (const entry of entries) {
-      if (found.size === wanted.size) {
-        return
-      }
-      const absPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        const isIgnoredDir = IGNORED_DIR_NAMES.has(entry.name)
-        if (!isIgnoredDir) {
-          await walk(absPath)
-        }
-      } else if (entry.isFile() && entry.name === 'package.json') {
-        try {
-          const parsed = JSON.parse(await readFile(absPath, 'utf8'))
-          const deps = parsed?.dependencies
-          if (deps && typeof deps === 'object' && !Array.isArray(deps)) {
-            for (const key of wanted) {
-              if (Object.hasOwn(deps, key)) {
-                found.add(key)
-              }
-            }
-          }
-        } catch {
-          /* ігноруємо пошкоджені/недоступні package.json */
-        }
-      }
+      if (found.size === wanted.size) return
+      await processEntry(entry, dir)
     }
   }
 
@@ -210,7 +227,7 @@ async function updateGqlFactFromFile(absPath, relPath, facts) {
  * Чи сканувати файл на імпорт `sql`/`SQL` з `bun` (ті самі розширення й skip, що для gql).
  * @param {string} relPath шлях posix відносно кореня
  * @param {{ hasBunSqlImport: boolean }} facts агреговані факти
- * @returns {boolean}
+ * @returns {boolean} true, якщо файл варто сканувати
  */
 function shouldScanFileForBunSql(relPath, facts) {
   return !facts.hasBunSqlImport && isGqlScanSourceFile(relPath) && !shouldSkipFileForGqlScan(relPath)

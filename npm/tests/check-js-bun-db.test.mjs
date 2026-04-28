@@ -55,14 +55,12 @@ describe('check-js-bun-db', () => {
       await ensureDir('src')
       await writeFile(
         'src/db.ts',
-        [
-          "import { SQL, sql } from 'bun'",
-          'export const db = new SQL(process.env.DATABASE_URL)',
-          'export async function getUser(id: number) {',
-          '  return sql`SELECT * FROM users WHERE id = ${id}`',
-          '}',
-          ''
-        ].join('\n'),
+        `import { SQL, sql } from 'bun'
+export const db = new SQL(process.env.DATABASE_URL)
+export async function getUser(id: number) {
+  return sql\`SELECT * FROM users WHERE id = \${id}\`
+}
+`,
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -75,14 +73,12 @@ describe('check-js-bun-db', () => {
       await ensureDir('src')
       await writeFile(
         'src/db.ts',
-        [
-          "import { SQL } from 'bun'",
-          'export function getUser(id: number) {',
-          '  const db = new SQL(process.env.DATABASE_URL)',
-          '  return db`SELECT * FROM users WHERE id = ${id}`',
-          '}',
-          ''
-        ].join('\n'),
+        `import { SQL } from 'bun'
+export function getUser(id: number) {
+  const db = new SQL(process.env.DATABASE_URL)
+  return db\`SELECT * FROM users WHERE id = \${id}\`
+}
+`,
         'utf8'
       )
       expect(await check()).toBe(1)
@@ -95,13 +91,11 @@ describe('check-js-bun-db', () => {
       await ensureDir('src')
       await writeFile(
         'src/db.ts',
-        [
-          "import { sql } from 'bun'",
-          'export async function find(id: number) {',
-          '  return sql.unsafe(`SELECT * FROM users WHERE id = ${id}`)',
-          '}',
-          ''
-        ].join('\n'),
+        `import { sql } from 'bun'
+export async function find(id: number) {
+  return sql.unsafe(\`SELECT * FROM users WHERE id = \${id}\`)
+}
+`,
         'utf8'
       )
       expect(await check()).toBe(1)
@@ -114,11 +108,9 @@ describe('check-js-bun-db', () => {
       await ensureDir('src')
       await writeFile(
         'src/db.ts',
-        [
-          "import { sql } from 'bun'",
-          "export const ping = () => sql.unsafe('SELECT 1')",
-          ''
-        ].join('\n'),
+        `import { sql } from 'bun'
+export const ping = () => sql.unsafe('SELECT 1')
+`,
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -131,13 +123,11 @@ describe('check-js-bun-db', () => {
       await ensureDir('src')
       await writeFile(
         'src/db.ts',
-        [
-          "import { sql } from 'bun'",
-          'export async function findMany(ids: number[]) {',
-          "  return sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`",
-          '}',
-          ''
-        ].join('\n'),
+        `import { sql } from 'bun'
+export async function findMany(ids: number[]) {
+  return sql\`SELECT * FROM users WHERE id IN (\${ids.join(',')})\`
+}
+`,
         'utf8'
       )
       expect(await check()).toBe(1)

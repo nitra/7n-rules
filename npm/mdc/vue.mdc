@@ -156,7 +156,7 @@ export default {
   "private": true,
   "type": "module",
   "dependencies": {
-    "vue": "^3.5.0"
+    "vue": "^3.6.12"
   },
   "devDependencies": {
     "vite": "^8.0.0",
@@ -224,7 +224,7 @@ export default defineConfig({
 
 ## npm_lifecycle_event
 
-у більшості проектів в файлі vite.config.js 
+у більшості проектів в файлі vite.config.js
 є  конструкція виду
 
 switch (process.env.npm_lifecycle_event) {
@@ -253,7 +253,7 @@ function getProxy(mode) {
 }
 ```
 
-і викликати всередині 
+і викликати всередині
 
 ```javascript title="vite.config.js"
 export default defineConfig(({ mode, command }) => {

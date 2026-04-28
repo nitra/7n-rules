@@ -32,6 +32,7 @@ import {
   isClusterScopedKubernetesKind,
   isK8sBaseManifestYamlPath,
   isForbiddenK8sDevPath,
+  isK8sYamlUnderBaseDirectory,
   metadataNamespaceForbiddenViolation,
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
@@ -1384,6 +1385,20 @@ describe('kustomizePathRefsForExistenceCheck', () => {
   })
 })
 
+describe('isK8sYamlUnderBaseDirectory', () => {
+  test('true для будь-якого yaml під …/k8s/…/base/', () => {
+    expect(isK8sYamlUnderBaseDirectory('k8s/foo/base/deploy.yaml')).toBe(true)
+    expect(isK8sYamlUnderBaseDirectory('app/k8s/foo/base/deploy.yaml')).toBe(true)
+    expect(isK8sYamlUnderBaseDirectory('app/k8s/foo/base/deployment.yaml')).toBe(true)
+    expect(isK8sYamlUnderBaseDirectory('k8s/base/cronjob.yaml')).toBe(true)
+  })
+
+  test('false поза шаром base після k8s', () => {
+    expect(isK8sYamlUnderBaseDirectory('app/k8s/prod/deploy.yaml')).toBe(false)
+    expect(isK8sYamlUnderBaseDirectory('other/deploy.yaml')).toBe(false)
+  })
+})
+
 describe('kustomizeResourceTreeHpaPdbDeploymentFlags', () => {
   test('у base tree лише HPA — hasDeployment false', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-flags-'))
@@ -1433,5 +1448,77 @@ resources:
     expect(f.hasHpa).toBe(true)
     expect(f.hasDeployment).toBe(false)
     expect(f.hasPdb).toBe(false)
+  })
+
+  test('Deployment у deployment.yaml під base — hasDeployment true', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-flags-dep-'))
+    const k8sBase = join(root, 'k8s', 'base')
+    await mkdir(k8sBase, { recursive: true })
+    const dep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ap
+  template:
+    metadata:
+      labels:
+        app: ap
+    spec:
+      containers:
+        - name: ap
+          image: x:y
+`
+    const k = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deployment.yaml
+`
+    await writeFile(join(k8sBase, 'deployment.yaml'), dep, 'utf8')
+    await writeFile(join(k8sBase, 'kustomization.yaml'), k, 'utf8')
+    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(join(k8sBase, 'kustomization.yaml'), resolve(root))
+    expect(f.hasDeployment).toBe(true)
+  })
+
+  test('Deployment у deploy.yaml — hasDeployment true', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-flags-good-'))
+    const k8sBase = join(root, 'k8s', 'base')
+    await mkdir(k8sBase, { recursive: true })
+    const dep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ap
+  template:
+    metadata:
+      labels:
+        app: ap
+    spec:
+      containers:
+        - name: ap
+          image: x:y
+`
+    const k = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deploy.yaml
+`
+    await writeFile(join(k8sBase, 'deploy.yaml'), dep, 'utf8')
+    await writeFile(join(k8sBase, 'kustomization.yaml'), k, 'utf8')
+    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(join(k8sBase, 'kustomization.yaml'), resolve(root))
+    expect(f.hasDeployment).toBe(true)
   })
 })

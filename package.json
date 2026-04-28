@@ -23,7 +23,7 @@
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0",
     "@nitra/cursor": "workspace:*",
-    "@nitra/eslint-config": "^3.6.0"
+    "@nitra/eslint-config": "^3.6.14"
   },
   "engines": {
     "node": ">=24"

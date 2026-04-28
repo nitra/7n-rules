@@ -1,6 +1,8 @@
 /**
  * Допоміжні перевірки та канонічний рядок lint-js для check-js-lint.mjs.
  */
+import { readFileSync } from 'node:fs'
+
 import { describe, expect, test } from 'bun:test'
 
 import {
@@ -8,8 +10,11 @@ import {
   isCanonicalLintJs,
   nitraEslintConfigDeclaresE18eTransitive,
   normalizeLintJsScript,
-  verifyOxlintRcE18e
+  OXLINT_CANONICAL_JSON_PATH,
+  verifyOxlintRcAgainstCanonical
 } from '../scripts/check-js-lint.mjs'
+
+const canonicalOxlint = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
 
 describe('normalizeLintJsScript / isCanonicalLintJs', () => {
   test('канонічний lint-js приймається', () => {
@@ -28,31 +33,45 @@ describe('normalizeLintJsScript / isCanonicalLintJs', () => {
 })
 
 describe('nitraEslintConfigDeclaresE18eTransitive', () => {
-  test('^3.5.0 і workspace — ok; ^3.4.0 — ні', () => {
-    expect(nitraEslintConfigDeclaresE18eTransitive('^3.5.0')).toBe(true)
+  test('^3.6.12 і workspace — ok; ^3.4.0 — ні', () => {
+    expect(nitraEslintConfigDeclaresE18eTransitive('^3.6.12')).toBe(true)
     expect(nitraEslintConfigDeclaresE18eTransitive('workspace:*')).toBe(true)
     expect(nitraEslintConfigDeclaresE18eTransitive('^3.4.3')).toBe(false)
   })
 })
 
-describe('verifyOxlintRcE18e', () => {
-  test('канонічний фрагмент js-lint — ok', () => {
-    const v = verifyOxlintRcE18e({
-      jsPlugins: ['@e18e/eslint-plugin'],
-      rules: { 'e18e/prefer-includes': 'error' }
-    })
+describe('verifyOxlintRcAgainstCanonical', () => {
+  test('канон збігається сам із собою', () => {
+    const v = verifyOxlintRcAgainstCanonical(canonicalOxlint, canonicalOxlint)
     expect(v.ok).toBe(true)
     expect(v.failures).toHaveLength(0)
   })
 
-  test('без jsPlugins або без правила — не ok', () => {
-    expect(verifyOxlintRcE18e({ rules: { 'e18e/prefer-includes': 'error' } }).ok).toBe(false)
-    expect(verifyOxlintRcE18e({ jsPlugins: ['@e18e/eslint-plugin'], rules: {} }).ok).toBe(false)
-    expect(
-      verifyOxlintRcE18e({
+  test('інший severity правила — не ok', () => {
+    const bad = {
+      ...canonicalOxlint,
+      rules: { .../** @type {Record<string, string>} */ (canonicalOxlint.rules), eqeqeq: 'off' }
+    }
+    const v = verifyOxlintRcAgainstCanonical(bad, canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures.some(f => f.includes('eqeqeq'))).toBe(true)
+  })
+
+  test('без jsPlugins як у каноні — не ok', () => {
+    const rest = { ...canonicalOxlint }
+    delete rest.jsPlugins
+    const v = verifyOxlintRcAgainstCanonical(rest, canonicalOxlint)
+    expect(v.ok).toBe(false)
+  })
+
+  test('мінімальний фрагмент без повного канону — не ok', () => {
+    const v = verifyOxlintRcAgainstCanonical(
+      {
         jsPlugins: ['@e18e/eslint-plugin'],
-        rules: { 'e18e/prefer-includes': 'deny' }
-      }).ok
-    ).toBe(false)
+        rules: { 'e18e/prefer-includes': 'error' }
+      },
+      canonicalOxlint
+    )
+    expect(v.ok).toBe(false)
   })
 })

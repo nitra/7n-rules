@@ -70,6 +70,42 @@ function isEsbuildScanFile(relPosix) {
 }
 
 /**
+ * Збирає `esbuild`-матчі по рядках одного файлу, поки буфер не досягне ліміту.
+ * @param {string} rel relative path
+ * @param {string} content вміст файлу
+ * @param {{ rel: string; line: number; snippet: string }[]} matches буфер для збору матчів
+ * @param {number} maxMatches максимум елементів у буфері
+ */
+function appendEsbuildLineMatches(rel, content, matches, maxMatches) {
+  const lines = content.split('\n')
+  for (const [i, line] of lines.entries()) {
+    if (matches.length >= maxMatches) return
+    if (ESBUILD_RE.test(line)) {
+      matches.push({ rel, line: i + 1, snippet: line.trim() })
+    }
+  }
+}
+
+/**
+ * Перебирає вибрані файли пакета і збирає до `maxMatches` згадок `esbuild`.
+ * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {{ rel: string }[]} files перелік відносних шляхів
+ * @param {number} maxMatches максимум знайдених матчів
+ * @returns {Promise<{ rel: string; line: number; snippet: string }[]>} зібрані матчі
+ */
+async function collectEsbuildMatchesInFiles(absPackageRoot, files, maxMatches) {
+  /** @type {{ rel: string; line: number; snippet: string }[]} */
+  const matches = []
+  for (const { rel } of files) {
+    if (matches.length >= maxMatches) break
+    const content = await readFile(join(absPackageRoot, rel), 'utf8')
+    if (!ESBUILD_RE.test(content)) continue
+    appendEsbuildLineMatches(rel, content, matches, maxMatches)
+  }
+  return matches
+}
+
+/**
  * Сканує дерево пакета на згадки `esbuild` і підказує заміну на `rolldown`.
  * @param {string} rootDir відносний шлях до пакета
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
@@ -78,31 +114,16 @@ function isEsbuildScanFile(relPosix) {
  * @param {(msg: string) => void} fail callback при помилці
  */
 async function checkEsbuildMentions(rootDir, absPackageRoot, prefix, passFn, fail) {
-  /** @type {{ rel: string; line: number; snippet: string }[]} */
-  const hits = []
-
+  /** @type {{ rel: string }[]} */
+  const candidates = []
   await walkDir(absPackageRoot, absPath => {
     const rel = relative(absPackageRoot, absPath).split('\\').join('/')
     if (!isEsbuildScanFile(rel)) return
-    hits.push({ rel, line: 0, snippet: '' })
+    candidates.push({ rel })
   })
 
-  // ми використали hits як буфер шляхів; зараз перетворимо на реальні співпадіння
-  /** @type {{ rel: string; line: number; snippet: string }[]} */
-  const matches = []
-  for (const { rel } of hits) {
-    const content = await readFile(join(absPackageRoot, rel), 'utf8')
-    if (!ESBUILD_RE.test(content)) continue
-
-    const lines = content.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-      if (ESBUILD_RE.test(lines[i])) {
-        matches.push({ rel, line: i + 1, snippet: lines[i].trim() })
-        if (matches.length >= 30) break
-      }
-    }
-    if (matches.length >= 30) break
-  }
+  const maxMatches = 30
+  const matches = await collectEsbuildMatchesInFiles(absPackageRoot, candidates, maxMatches)
 
   if (matches.length === 0) {
     passFn(`${prefix}немає згадок 'esbuild' у джерелах пакета (очікується rolldown)`)
@@ -112,8 +133,8 @@ async function checkEsbuildMentions(rootDir, absPackageRoot, prefix, passFn, fai
   for (const m of matches) {
     fail(`${prefix}${m.rel}:${m.line} — знайдено 'esbuild'. Замінити на 'rolldown'. Фрагмент: ${m.snippet}`)
   }
-  if (matches.length >= 30) {
-    fail(`${prefix}показано перші 30 збігів 'esbuild' (замінити на 'rolldown')`)
+  if (matches.length >= maxMatches) {
+    fail(`${prefix}показано перші ${maxMatches} збігів 'esbuild' (замінити на 'rolldown')`)
   }
 }
 
@@ -308,6 +329,42 @@ async function checkVuePackage(rootDir, fail, passFn) {
 }
 
 /**
+ * Збирає корені пакетів, у яких у `dependencies` є `vue`.
+ * @param {string[]} roots усі корені пакетів monorepo
+ * @returns {Promise<string[]>} перелік пакетів з vue у dependencies
+ */
+async function collectVueRoots(roots) {
+  /** @type {string[]} */
+  const vueRoots = []
+  for (const r of roots) {
+    const p = join(r, 'package.json')
+    if (!existsSync(p)) continue
+    const pkg = JSON.parse(await readFile(p, 'utf8'))
+    if (pkg.dependencies?.vue) vueRoots.push(r)
+  }
+  return vueRoots
+}
+
+/**
+ * Перевіряє наявність рекомендації `Vue.volar` у `.vscode/extensions.json`.
+ * @param {(msg: string) => void} pass pass callback
+ * @param {(msg: string) => void} fail fail callback
+ * @returns {Promise<void>}
+ */
+async function checkVueVolarRecommendation(pass, fail) {
+  if (!existsSync('.vscode/extensions.json')) {
+    fail('.vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)')
+    return
+  }
+  const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
+  if (ext.recommendations?.includes('Vue.volar')) {
+    pass('extensions.json містить Vue.volar')
+  } else {
+    fail('extensions.json не містить Vue.volar — додай до recommendations')
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам vue.mdc (корінь і всі workspace-пакети з `vue` у dependencies).
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -316,35 +373,15 @@ export async function check() {
   const { pass, fail } = reporter
 
   const roots = await getMonorepoPackageRootDirs()
-  /** @type {string[]} */
-  const vueRoots = []
-  for (const r of roots) {
-    const p = join(r, 'package.json')
-    if (existsSync(p)) {
-      const pkg = JSON.parse(await readFile(p, 'utf8'))
-      if (pkg.dependencies?.vue) vueRoots.push(r)
-    }
-  }
-
-  if (vueRoots.length > 0) {
-    if (existsSync('.vscode/extensions.json')) {
-      const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-      if (ext.recommendations?.includes('Vue.volar')) {
-        pass('extensions.json містить Vue.volar')
-      } else {
-        fail('extensions.json не містить Vue.volar — додай до recommendations')
-      }
-    } else {
-      fail('.vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)')
-    }
-  } else {
-    pass('Vue.volar: пропущено (у repo немає пакетів з vue у dependencies)')
-  }
+  const vueRoots = await collectVueRoots(roots)
 
   if (vueRoots.length === 0) {
+    pass('Vue.volar: пропущено (у repo немає пакетів з vue у dependencies)')
     pass('vue не знайдено в dependencies жодного пакета (перевірка vue пропущена)')
     return reporter.getExitCode()
   }
+
+  await checkVueVolarRecommendation(pass, fail)
 
   for (const r of vueRoots) {
     await checkVuePackage(r, fail, pass)

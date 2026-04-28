@@ -3,6 +3,7 @@
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-bun.mdc
 @.cursor/rules/n-ga.mdc
+@.cursor/rules/n-js-bun-db.mdc
 @.cursor/rules/n-js-lint.mdc
 @.cursor/rules/n-js-pino.mdc
 @.cursor/rules/n-nginx-default-tpl.mdc

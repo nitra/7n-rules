@@ -285,7 +285,7 @@ async function checkTemplateFile(abs, root, passFn, failFn) {
   }
 
   const dir = dirname(abs)
-  let iniNames = []
+  let iniNames
   try {
     const dirEntries = await readdir(dir)
     iniNames = dirEntries.filter(n => n.endsWith('.ini'))

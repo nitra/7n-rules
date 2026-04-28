@@ -67,9 +67,10 @@
  * **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (приймається булеве `true`
  * або рядок `"true"`, без регістрової залежності).
  *
- * **HPA / PDB / topologySpreadConstraints для кожного Deployment:** у каталозі з **`Deployment`** поруч
- * обов'язкові **`hpa.yaml`** (`autoscaling/v2`, `HorizontalPodAutoscaler`, `scaleTargetRef.name` = ім'я Deployment)
- * і **`pdb.yaml`** (`policy/v1`, `PodDisruptionBudget`, `selector.matchLabels.app` = мітка `app` Deployment).
+ * **HPA / PDB / topologySpreadConstraints:** для кожного **`Deployment`** у шарі **`…/k8s/…/base/`** (будь-який
+ * `.yaml` у цьому каталозі, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у тому ж каталозі поруч обов'язкові
+ * **`hpa.yaml`**, **`pdb.yaml`** та канонічні **topologySpreadConstraints**. Workload-и без Deployment (**CronJob**
+ * тощо) та каталоги поза **`…/base/`** цим блоком не охоплюються.
  * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — `minReplicas === 1`,
  * `maxReplicas === 1`, `minAvailable === 0`; **прод** (решта) — `minReplicas >= 2`, `maxReplicas >= 2`,
  * `minAvailable >= 1`. Сам Deployment має мати у `spec.template.spec.topologySpreadConstraints` запис
@@ -88,11 +89,11 @@
  * `replacements[].path` має вказувати на наявний у репозиторії файл (`.yaml` / `.yml`) або каталог; інакше
  * помилка `check k8s` (k8s.mdc).
  *
- * **HPA / PDB тільки з Deployment у `base`:** у дереві Kustomize з `…/k8s/…/base/kustomization.yaml` не
+ * **HPA / PDB тільки з Deployment у шарі base:** у дереві Kustomize з `…/k8s/…/base/kustomization.yaml` не
  * дозволяти `HorizontalPodAutoscaler` / `PodDisruptionBudget` у `resources` / `bases` / `components` / `crds`
- * (рекурсивно), якщо в цьому ж дереві немає `Deployment`. У `kustomization.yaml` overlay, який підключає
- * каталог `…/k8s/…/base`, не додавай окремі YAML-файли з HPA / PDB, поки в наслідуваному `base` у дереві
- * не з’явиться `Deployment` (k8s.mdc).
+ * (рекурсивно), якщо в цьому ж дереві немає документа **`Deployment`** у жодному YAML під **`…/k8s/…/base/`**. У
+ * `kustomization.yaml` overlay, який підключає каталог `…/k8s/…/base`, не додавай окремі YAML-файли з HPA / PDB,
+ * поки в наслідуваному `base` у дереві не з’явиться такий Deployment (k8s.mdc).
  */
 import { existsSync } from 'node:fs'
 import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
@@ -117,6 +118,21 @@ const HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES = new Set([
   HASURA_GRAPHQL_ENGINE_IMAGE,
   `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`
 ])
+
+/**
+ * Чи відносний POSIX-шлях від кореня репо вказує на YAML під **`…/k8s/…/base/…`** (після сегмента **`k8s`** у шляху
+ * є каталог **`base`**). Тут очікуються маніфести шару **base**, включно з будь-яким файлом із **`kind: Deployment`**
+ * (наприклад **`deploy.yaml`**, **`deployment.yaml`**).
+ * @param {string} relPosix шлях через `/`
+ * @returns {boolean} true, якщо шлях лежить у каталозі `…/k8s/…/base/`
+ */
+export function isK8sYamlUnderBaseDirectory(relPosix) {
+  const parts = relPosix.replaceAll('\\', '/').split('/').filter(Boolean)
+  const k = parts.indexOf('k8s')
+  if (k === -1) return false
+  const dirs = parts.slice(k + 1, -1)
+  return dirs.includes('base')
+}
 
 /**
  * Ключі анотацій GKE (NEG / BackendConfig) у **Service** — заборонені (узгоджено з k8s.mdc).
@@ -280,6 +296,7 @@ const K8S_BASE_SEGMENT_RE = /(^|\/)k8s\/base\//u
 const OXLINT_SCHEMA_MODELINE_RE = /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u
 const HTTPS_SCHEMA_RE = /^https:/iu
 const HASURA_GRAPHQL_ENGINE_RE = /(^|\/)hasura\/graphql-engine(?::|$)/u
+const BATCH_V1BETA1_API_VERSION_LINE_RE = /^(\s*apiVersion:\s*)["']?batch\/v1beta1["']?(\s*)$/u
 
 /**
  * Чи містить шлях сегмент директорії `k8s` (рівно ця назва компонента).
@@ -1014,6 +1031,110 @@ async function readK8sYamlDocumentRootsForInventory(abs) {
 }
 
 /**
+ * Збирає абсолютні шляхи до YAML-файлів із дерева **`resources` / `bases` / `components` / `crds`** (рекурсивно
+ * через вкладені **kustomization.yaml**). Дублює обхід **`collectResourceDescriptorsForKustomizationWalk`**, але
+ * повертає лише шляхи файлів — для перевірки наявності **`Deployment`** у YAML під **`…/k8s/…/base/`**.
+ * @param {string} kustAbs абсолютний шлях до **kustomization.yaml**
+ * @param {string} rootNorm нормалізований абсолютний корінь репозиторію
+ * @param {Set<string>} visitedKustomization нормалізовані абсолютні шляхи відвіданих **kustomization.yaml**
+ * @returns {Promise<string[]>} список абсолютних шляхів до `.yaml` / `.yml`
+ */
+async function collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visitedKustomization) {
+  const normKust = resolve(kustAbs)
+  if (visitedKustomization.has(normKust)) {
+    return []
+  }
+  visitedKustomization.add(normKust)
+
+  let raw
+  try {
+    raw = await readFile(normKust, 'utf8')
+  } catch {
+    return []
+  }
+  const lines = toLines(raw)
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+
+  /** @type {import('yaml').Document[] | undefined} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch {
+    return []
+  }
+  const first = docs[0]?.toJSON()
+  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
+    return []
+  }
+  const kustDir = dirname(normKust)
+  const pathRefs = resourcePathRefsFromKustomizationObject(first)
+
+  /** @type {string[]} */
+  const out = []
+
+  /**
+   * @param {string} ref шлях з resources/bases/…
+   * @returns {Promise<void>}
+   */
+  async function handleResourcePathRef(ref) {
+    if (typeof ref !== 'string' || ref.includes('://')) {
+      return
+    }
+    const resolved = resolve(kustDir, ref)
+    if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
+      return
+    }
+    /** @type {import('node:fs').Stats | undefined} */
+    let st
+    try {
+      st = await stat(resolved)
+    } catch {
+      st = undefined
+    }
+    if (st === undefined) {
+      return
+    }
+    if (st.isFile() && YAML_EXTENSION_RE.test(resolved)) {
+      out.push(resolved)
+      return
+    }
+    if (!st.isDirectory()) {
+      return
+    }
+    const childK = existsSync(join(resolved, 'kustomization.yaml')) ? join(resolved, 'kustomization.yaml') : null
+    if (childK !== null) {
+      const sub = await collectYamlAbsPathsFromKustomizationTree(childK, rootNorm, visitedKustomization)
+      out.push(...sub)
+    }
+  }
+
+  for (const ref of pathRefs) {
+    await handleResourcePathRef(ref)
+  }
+
+  return out
+}
+
+/**
+ * Чи в дереві kustomization є **`Deployment`** у будь-якому YAML під **`…/k8s/…/base/`** (умова для HPA/PDB у k8s.mdc).
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rootNorm корінь репо
+ * @returns {Promise<boolean>} true, якщо дерево містить Deployment у шарі base
+ */
+async function kustomizationTreeHasDeploymentUnderK8sBase(kustAbs, rootNorm) {
+  const visited = new Set()
+  const paths = await collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visited)
+  const rootResolved = resolve(rootNorm)
+  for (const abs of paths) {
+    const rel = (relative(rootResolved, abs) || '').replaceAll('\\', '/')
+    if (!isK8sYamlUnderBaseDirectory(rel)) continue
+    const roots = await readK8sYamlDocumentRootsForInventory(abs)
+    if (roots.some(o => o.kind === 'Deployment')) return true
+  }
+  return false
+}
+
+/**
  * Збирає дескриптори ресурсів з **`resources` / `bases` / `components` / `crds`** для одного дерева kustomization.
  * Повторний вхід у той самий **`kustomization.yaml`** дає порожній внесок (як у **`collectKustomizeManagedRelPaths`**).
  * @param {string} kustAbs абсолютний шлях до **kustomization.yaml**
@@ -1243,7 +1364,7 @@ async function resolveExistingYamlFileUnderRoot(kustDir, pathStr, rootNorm) {
     return null
   }
   /** @type {import('node:fs').Stats | null} */
-  let st = null
+  let st
   try {
     st = await stat(resolved)
   } catch {
@@ -1375,8 +1496,8 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
   }
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {import('yaml').Document[] | null} */
-  let docs = null
+  /** @type {import('yaml').Document[]} */
+  let docs
   try {
     docs = parseAllDocuments(body)
   } catch {
@@ -1567,15 +1688,15 @@ async function removeBackendConfigOnlyK8sYamlFiles(root, fail, pass) {
  * Один рядок YAML: якщо це `apiVersion` зі значенням **`batch/v1beta1`**, повертає той самий рядок із **`batch/v1`**
  * (з тими самими відступами/пробілами після `apiVersion:`, крім випадків з лапками — нормалізується до `apiVersion: batch/v1`).
  * Рядки, що після trim починаються з `#`, не змінюються.
- * @param {string} line
- * @returns {string}
+ * @param {string} line один рядок YAML
+ * @returns {string} той самий рядок або з заміною apiVersion batch/v1beta1 на batch/v1
  */
 function rewriteLineBatchV1beta1ApiVersion(line) {
   const t = line.trimStart()
   if (t.startsWith('#')) {
     return line
   }
-  const m = line.match(/^(\s*apiVersion:\s*)(?:"|')?batch\/v1beta1(?:"|')?(\s*)$/)
+  const m = line.match(BATCH_V1BETA1_API_VERSION_LINE_RE)
   if (m) {
     return `${m[1]}batch/v1${m[2]}`
   }
@@ -1586,11 +1707,11 @@ function rewriteLineBatchV1beta1ApiVersion(line) {
  * У повному тексті YAML замінює всі **цілі** рядки `apiVersion: batch/v1beta1` (за потреби в лапках) на `apiVersion: batch/v1`.
  * Зберігає **CRLF** / **LF** як у вихідному рядку.
  * @param {string} raw вміст файлу
- * @returns {{ changed: boolean, content: string }}
+ * @returns {{ changed: boolean, content: string }} прапорець зміни та оновлений текст
  */
 export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n'
-  const lines = raw.split(/\r?\n/)
+  const lines = raw.split(YAML_LINE_SPLIT_RE)
   let changed = false
   const out = lines.map(line => {
     const n = rewriteLineBatchV1beta1ApiVersion(line)
@@ -1608,8 +1729,8 @@ export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
 /**
  * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує **`replaceBatchV1beta1ApiVersionInYamlText`**.
  * @param {string} root корінь репозиторію
- * @param {(msg: string) => void} fail
- * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail колбек повідомлення про помилку
+ * @param {(msg: string) => void} pass колбек успішного повідомлення
  * @returns {Promise<void>}
  */
 async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, fail, pass) {
@@ -1893,7 +2014,7 @@ function failIfJson6902RemoveAddConflictOnSamePath(rel, label, patchText, fail) 
  */
 async function auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fail) {
   /** @type {import('node:fs').Stats | null} */
-  let st = null
+  let st
   try {
     st = await stat(resolved)
   } catch {
@@ -2010,8 +2131,8 @@ async function auditJson6902OneKustomizationYamlFile(root, rootNorm, kustAbs, fa
   }
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {import('yaml').Document[] | null} */
-  let docs = null
+  /** @type {import('yaml').Document[]} */
+  let docs
   try {
     docs = parseAllDocuments(body)
   } catch {
@@ -4480,8 +4601,9 @@ export async function kustomizeResourceTreeHpaPdbDeploymentFlags(kustAbs, rootNo
   /** @type {Set<string>} */
   const visitedKustomization = new Set()
   const desc = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visitedKustomization)
+  const hasDeployment = await kustomizationTreeHasDeploymentUnderK8sBase(kustAbs, rootNorm)
   return {
-    hasDeployment: desc.some(d => d.kind === 'Deployment'),
+    hasDeployment,
     hasHpa: desc.some(d => d.kind === 'HorizontalPodAutoscaler'),
     hasPdb: desc.some(d => d.kind === 'PodDisruptionBudget')
   }
@@ -4854,9 +4976,9 @@ async function extractDeploymentsFromFile(filePath) {
 }
 
 /**
- * Для кожного **Deployment** під `k8s/` перевіряє: у тому ж каталозі повинні бути
- * `hpa.yaml` (валідний `autoscaling/v2`) і `pdb.yaml` (валідний `policy/v1`), а сам Deployment
- * повинен мати канонічні **topologySpreadConstraints**. Env-залежні межі (`minReplicas`,
+ * Для кожного **Deployment** у шарі **`…/k8s/…/base/`** (будь-який YAML у відповідному каталозі) перевіряє:
+ * у тому ж каталозі повинні бути `hpa.yaml` (валідний `autoscaling/v2`) і `pdb.yaml` (валідний `policy/v1`),
+ * а сам Deployment — канонічні **topologySpreadConstraints**. Env-залежні межі (`minReplicas`,
  * `minAvailable`) — за сегментом після `/k8s/`: `base` / `dev` / `*-qa` = dev-like, решта — прод.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
@@ -4864,17 +4986,24 @@ async function extractDeploymentsFromFile(filePath) {
  * @param {(msg: string) => void} passFn callback при успіху
  */
 async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, passFn) {
-  /** @type {Set<string>} */
-  const seenDirs = new Set()
+  const rootNorm = resolve(root)
+  /** @type {Map<string, Record<string, unknown>[]>} */
+  const deploymentsByDir = new Map()
   for (const abs of yamlFilesAbs) {
+    const rel = (relative(rootNorm, abs) || abs).replaceAll('\\', '/')
+    if (!isK8sYamlUnderBaseDirectory(rel)) continue
+    const deployments = await extractDeploymentsFromFile(abs)
+    if (deployments.length === 0) continue
     const dir = dirname(abs)
-    if (!seenDirs.has(dir)) {
-      const deployments = await extractDeploymentsFromFile(abs)
-      if (deployments.length > 0) {
-        seenDirs.add(dir)
-        await validateDeploymentsInDir(deployments, dir, root, fail, passFn)
-      }
+    const merged = deploymentsByDir.get(dir)
+    if (merged === undefined) {
+      deploymentsByDir.set(dir, [...deployments])
+    } else {
+      merged.push(...deployments)
     }
+  }
+  for (const [dir, deployments] of deploymentsByDir) {
+    await validateDeploymentsInDir(deployments, dir, rootNorm, fail, passFn)
   }
 }
 

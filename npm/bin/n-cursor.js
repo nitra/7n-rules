@@ -1036,6 +1036,7 @@ async function runChecks(requestedRules) {
     const scriptPath = join(BUNDLED_SCRIPTS_DIR, `check-${rule}.mjs`)
     console.log(`📋 ${rule}:`)
     try {
+      // eslint-disable-next-line no-unsanitized/method -- rule валідовано проти available, scriptPath будується з фіксованої BUNDLED_SCRIPTS_DIR
       const { check } = await import(scriptPath)
       const code = await check()
       if (code !== 0) totalFailed++

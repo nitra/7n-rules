@@ -77,7 +77,7 @@ async function findAllSourcePathsForBunSqlScan(repoRoot) {
  * Перевіряє, чи в кореневому `package.json` присутні заборонені пакети у `dependencies`.
  * @param {string[]} pkgJsonPaths абсолютні шляхи всіх `package.json` у репо
  * @param {string} repoRoot абсолютний шлях до кореня
- * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter
+ * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter колбеки pass і fail з перевірки
  * @returns {Promise<number>} кількість знайдених порушень
  */
 async function checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter) {
@@ -114,7 +114,7 @@ async function checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter) {
  * Сканує JS/TS-джерела на небезпечні патерни Bun SQL.
  * @param {string[]} sourcePaths абсолютні шляхи джерел
  * @param {string} repoRoot абсолютний шлях до кореня
- * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter
+ * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter колбеки pass і fail з перевірки
  * @returns {Promise<{ hasBunSqlImport: boolean, perRequest: number, unsafeCall: number, dynamicList: number }>}
  *   `hasBunSqlImport` — чи знайдено хоч один `import { sql|SQL } from 'bun'` у джерелах;
  *   решта — кількість порушень кожного типу.
@@ -203,7 +203,7 @@ export async function check() {
     pass('js-bun-db: немає створення new SQL(...) всередині функцій (singleton на рівні модуля)')
   }
   if (unsafeCall === 0) {
-    pass('js-bun-db: немає небезпечних викликів sql.unsafe(`...${...}...`)')
+    pass('js-bun-db: немає небезпечних викликів sql.unsafe з інтерполяцією в шаблонному рядку')
   }
   if (dynamicList === 0) {
     pass("js-bun-db: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")

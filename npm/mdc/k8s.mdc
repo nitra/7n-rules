@@ -288,13 +288,13 @@ data:
 
 ## Deployment: обов'язкові `hpa.yaml`, `pdb.yaml`, `topologySpreadConstraints`
 
-Для **кожного** `kind: Deployment` під **`k8s/`** у тому ж каталозі мають бути **`hpa.yaml`** (HPA) і **`pdb.yaml`** (PDB), а сам Deployment — мати канонічні **`spec.template.spec.topologySpreadConstraints`**. Скрипт звіряє прив'язку за іменами:
+Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у **тому ж каталозі** мають бути **`hpa.yaml`** (HPA) і **`pdb.yaml`** (PDB), а сам Deployment — канонічні **`spec.template.spec.topologySpreadConstraints`**. Інші workload-и (**CronJob**, **Job** тощо) або каталоги без шару **`base`** цими вимогами не охоплюються — **`check k8s`** їх не змушує додавати HPA/PDB поруч. Скрипт звіряє прив’язку за іменами:
 
 - **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
 - **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
 
-**Kustomize `base` і overlay:** у дереві, зібраному з `k8s/…/base/kustomization.yaml` (`resources` / `bases` / `components` / `crds`, рекурсивно), **HorizontalPodAutoscaler** і **PodDisruptionBudget** допустимі **лише якщо** в тому ж дереві kustomize є **Deployment**. У `kustomization.yaml` overlay, який підключає цей `base` (наприклад, `../base` у `resources`), не додавай окремі YAML-файли з HPA / PDB, доки в наслідуваному `base` у дереві не з’явиться `Deployment`. Перевіряє **`check-k8s.mjs`**.
+**Kustomize `base` і overlay:** у дереві, зібраному з `k8s/…/base/kustomization.yaml` (`resources` / `bases` / `components` / `crds`, рекурсивно), **HorizontalPodAutoscaler** і **PodDisruptionBudget** допустимі **лише якщо** в тому ж дереві kustomize є хоча б один **`Deployment`** у YAML під **`…/k8s/…/base/`**. У `kustomization.yaml` overlay, який підключає цей `base` (наприклад, `../base` у `resources`), не додавай окремі YAML-файли з HPA / PDB, доки в наслідуваному `base` у дереві не з’явиться такий Deployment. Перевіряє **`check-k8s.mjs`**.
 
 **Локальні шляхи в `kustomization.yaml`:** кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
 

@@ -1,16 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "unicorn",
-    "oxc",
-    "import",
-    "jsdoc",
-    "promise",
-    "node"
-  ],
-  "jsPlugins": [
-    "@e18e/eslint-plugin"
-  ],
+  "plugins": ["unicorn", "oxc", "import", "jsdoc", "promise", "node"],
+  "jsPlugins": ["@e18e/eslint-plugin"],
   "categories": {},
   "rules": {
     "e18e/prefer-includes": "error",
@@ -392,8 +383,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": [
-    "npm/types/**",
-    "demo/node/rules-demo.js"
-  ]
+  "ignorePatterns": []
 }

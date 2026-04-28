@@ -2,17 +2,23 @@
  * Перевіряє лінт JavaScript за правилом js-lint.mdc.
  *
  * Канонічний `lint-js`, flat ESLint з getConfig і ignore для auto-imports, рекомендації VSCode,
- * `.oxlintrc.json` з `jsPlugins` (`@e18e/eslint-plugin`) і правилом `e18e/prefer-includes: error`,
- * `@nitra/eslint-config` у devDependencies мінімум **3.5.0** (транзитивний `@e18e/eslint-plugin` для oxlint), `.jscpd.json`
- * (gitignore, exitCode, reporters, minLines), workflow `lint-js.yml` (checkout@v6, setup-bun-deps,
- * bunx без --fix), без prettier, `engines.node` >= 24, `"type": "module"` у кореневому
- * і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
+ * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/scripts/utils/oxlint-canonical.json`):
+ * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
+ * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.6.12** (транзитивний
+ * `@e18e/eslint-plugin` для oxlint), `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow
+ * `lint-js.yml` (checkout@v6, setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24,
+ * `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+
+/** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
+export const OXLINT_CANONICAL_JSON_PATH = join(dirname(fileURLToPath(import.meta.url)), 'utils', 'oxlint-canonical.json')
 
 /** Очікуваний локальний скрипт. */
 export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'
@@ -43,9 +49,9 @@ export function isCanonicalLintJs(script) {
 }
 
 /**
- * Чи діапазон `@nitra/eslint-config` у `package.json` передбачає версію з транзитивним `@e18e/eslint-plugin` (>=3.5.0).
+ * Чи діапазон `@nitra/eslint-config` у `package.json` передбачає версію з транзитивним `@e18e/eslint-plugin` (>=3.6.12).
  * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
- * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.5.0
+ * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.6.12
  */
 export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
   const s = String(versionSpec).trim()
@@ -64,29 +70,97 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
 }
 
 /**
- * Перевіряє потрібні поля `.oxlintrc.json` для розширення e18e (js-lint.mdc).
- * @param {unknown} cfg корінь JSON-конфігурації oxlint
- * @returns {{ ok: boolean, failures: string[] }} `ok` і перелік повідомлень для `fail`
+ * Рекурсивне порівняння фрагментів канону oxlint (масиви — порядок як у каноні; об’єкти — той самий набір ключів і вкладеність).
+ * @param {unknown} actual значення з `.oxlintrc.json`
+ * @param {unknown} expected значення з канону
+ * @returns {boolean} true, якщо значення збігаються за правилами канону
  */
-export function verifyOxlintRcE18e(cfg) {
+function deepEqualOxlintCanonical(actual, expected) {
+  if (expected === null || typeof expected !== 'object') {
+    return actual === expected
+  }
+  if (Array.isArray(expected)) {
+    return Array.isArray(actual) && JSON.stringify(actual) === JSON.stringify(expected)
+  }
+  if (typeof actual !== 'object' || actual === null || Array.isArray(actual)) {
+    return false
+  }
+  const exp = /** @type {Record<string, unknown>} */ (expected)
+  const act = /** @type {Record<string, unknown>} */ (actual)
+  const expKeys = Object.keys(exp)
+  const actKeys = Object.keys(act)
+  if (expKeys.length !== actKeys.length) {
+    return false
+  }
+  for (const k of expKeys) {
+    if (!(k in act) || !deepEqualOxlintCanonical(act[k], exp[k])) {
+      return false
+    }
+  }
+  return true
+}
+
+/**
+ * Безпечний доступ як до plain-object запису.
+ * @param {unknown} v будь-яке значення
+ * @returns {Record<string, unknown>} запис або пустий обʼєкт, якщо `v` не plain-object
+ */
+function asRecordOrEmpty(v) {
+  return v && typeof v === 'object' && !Array.isArray(v) ? /** @type {Record<string, unknown>} */ (v) : {}
+}
+
+/**
+ * Звіряє блок `rules`: кожне правило з канону має точне збіжне значення в actual.
+ * @param {unknown} expected канонічне значення для `rules`
+ * @param {unknown} actual поточне значення для `rules`
+ * @param {string[]} failures буфер для помилок
+ */
+function compareOxlintRules(expected, actual, failures) {
+  const er = asRecordOrEmpty(expected)
+  const ar = asRecordOrEmpty(actual)
+  for (const ruleKey of Object.keys(er)) {
+    if (ar[ruleKey] !== er[ruleKey]) {
+      failures.push(
+        `.oxlintrc.json: rules["${ruleKey}"] очікується ${JSON.stringify(er[ruleKey])}, зараз ${JSON.stringify(ar[ruleKey])}`
+      )
+    }
+  }
+}
+
+/**
+ * Перевіряє `.oxlintrc.json` проти канону пакета `@nitra/cursor` (усі правила з канону та інші поля з `oxlint-canonical.json`).
+ * Додаткові ключі лише в `rules` дозволені; інші поля мають збігатися з каноном.
+ * @param {unknown} cfg корінь JSON з `.oxlintrc.json`
+ * @param {unknown} canonical розпарений `oxlint-canonical.json`
+ * @returns {{ ok: boolean, failures: string[] }} статус і повідомлення для `fail`
+ */
+export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
   const failures = []
   if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
     return { ok: false, failures: ['.oxlintrc.json: корінь має бути значенням типу object'] }
   }
-  const o = /** @type {Record<string, unknown>} */ (cfg)
-  const jsPlugins = o.jsPlugins
-  if (!Array.isArray(jsPlugins) || !jsPlugins.includes('@e18e/eslint-plugin')) {
-    failures.push('.oxlintrc.json: jsPlugins має містити "@e18e/eslint-plugin"')
+  if (!canonical || typeof canonical !== 'object' || Array.isArray(canonical)) {
+    return { ok: false, failures: ['внутрішня помилка: канон oxlint має бути object'] }
   }
-  const rules = o.rules
-  if (!rules || typeof rules !== 'object' || Array.isArray(rules)) {
-    failures.push('.oxlintrc.json: поле rules має бути значенням типу object')
-  } else {
-    const r = /** @type {Record<string, unknown>} */ (rules)
-    if (r['e18e/prefer-includes'] !== 'error') {
-      failures.push('.oxlintrc.json: у rules має бути "e18e/prefer-includes": "error"')
+  const o = /** @type {Record<string, unknown>} */ (cfg)
+  const c = /** @type {Record<string, unknown>} */ (canonical)
+
+  for (const key of Object.keys(c)) {
+    const expected = c[key]
+    const actual = o[key]
+
+    if (key === 'rules') {
+      compareOxlintRules(expected, actual, failures)
+      continue
+    }
+
+    if (!deepEqualOxlintCanonical(actual, expected)) {
+      failures.push(
+        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @nitra/cursor (npm/scripts/utils/oxlint-canonical.json)`
+      )
     }
   }
+
   return { ok: failures.length === 0, failures }
 }
 
@@ -96,7 +170,7 @@ export function verifyOxlintRcE18e(cfg) {
  * @param {(msg: string) => void} failFn callback при помилці
  */
 async function checkEslintConfig(passFn, failFn) {
-  let eslintPath = ''
+  let eslintPath
   if (existsSync('eslint.config.js')) {
     eslintPath = 'eslint.config.js'
     passFn('eslint.config.js існує')
@@ -157,10 +231,12 @@ function checkPackageJsonLintDeps(pkg, passFn, failFn) {
   if (nitraEslint) {
     passFn('@nitra/eslint-config є в devDependencies')
     if (nitraEslintConfigDeclaresE18eTransitive(nitraEslint)) {
-      passFn('@nitra/eslint-config: мінімум 3.5.0 (транзитивний @e18e/eslint-plugin для oxlint jsPlugins, js-lint.mdc)')
+      passFn(
+        '@nitra/eslint-config: мінімум 3.6.12 (транзитивний @e18e/eslint-plugin для oxlint jsPlugins, js-lint.mdc)'
+      )
     } else {
       failFn(
-        '@nitra/eslint-config: онови до мінімум "^3.5.0" — з цієї версії постачається @e18e/eslint-plugin для .oxlintrc.json (js-lint.mdc)'
+        '@nitra/eslint-config: онови до мінімум "^3.6.12" — з цієї версії постачається @e18e/eslint-plugin для .oxlintrc.json (js-lint.mdc)'
       )
     }
   } else {
@@ -269,9 +345,16 @@ async function checkOxlintRc(passFn, failFn) {
     return
   }
   passFn('.oxlintrc.json існує')
-  const oxV = verifyOxlintRcE18e(oxCfg)
+  let canonical
+  try {
+    canonical = JSON.parse(await readFile(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
+  } catch {
+    failFn('внутрішня помилка: не вдалося прочитати канон oxlint з пакета @nitra/cursor')
+    return
+  }
+  const oxV = verifyOxlintRcAgainstCanonical(oxCfg, canonical)
   if (oxV.ok) {
-    passFn('.oxlintrc.json: jsPlugins з @e18e/eslint-plugin і e18e/prefer-includes: error')
+    passFn('.oxlintrc.json збігається з каноном oxlint (@nitra/cursor)')
   } else {
     for (const msg of oxV.failures) {
       failFn(msg)

@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.14'
+version: '1.15'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.5.0`** (з ним транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
+**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.6.12`** (з ним транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -25,7 +25,7 @@ version: '1.14'
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.5.0"
+    "@nitra/eslint-config": "^3.6.12"
   },
   "engines": {
     "node": ">=24"
@@ -33,7 +33,9 @@ version: '1.14'
 }
 ```
 
-У корені має бути **`.oxlintrc.json`** з підключенням **`@e18e/eslint-plugin`** через **`jsPlugins`** і правилом **`e18e/prefer-includes`** зі значенням **`error`**. Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.5.0**), oxlint підвантажує його з **`node_modules`**.
+У корені має бути **`.oxlintrc.json`**, який **збігається з каноном** oxlint з пакета **`@nitra/cursor`**: файл **`npm/scripts/utils/oxlint-canonical.json`** (plugins, jsPlugins з **`@e18e/eslint-plugin`**, categories, повний набір **rules** із канону — додаткові записи в **`rules`** дозволені; також **`settings`**, **`env`**, **`globals`**, **`ignorePatterns`**). Оновити можна з репозиторію пакета або скопіювавши файл після **`bun ./scripts/utils/rebuild-oxlint-canonical.mjs`** (джерело правил — **`oxlint-rules.tsv`** + скелет **`oxlint-canonical-skeleton.json`**). Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.6.12**), oxlint підвантажує його з **`node_modules`**.
+
+Мінімум для розуміння структури (реальний корінь конфігу має збігатися з каноном повністю):
 
 ```json title=".oxlintrc.json (фрагмент)"
 {

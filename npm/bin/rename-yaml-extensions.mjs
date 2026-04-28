@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 
 /**
  * CLI для перейменування розширень YAML (k8s та `.github`). Бізнес-логіка — у **`scripts/rename-yaml-extensions.mjs`**.

@@ -108,7 +108,7 @@ async function runBunInstall(projectRoot) {
   } catch (error) {
     const exitCode = typeof error?.code === 'number' ? error.code : null
     if (exitCode !== null && exitCode !== 0) {
-      throw new Error(`bun i завершився з кодом ${exitCode}`)
+      throw new Error(`bun i завершився з кодом ${exitCode}`, { cause: error })
     }
     throw error
   }

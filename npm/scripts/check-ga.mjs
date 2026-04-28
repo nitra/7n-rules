@@ -60,7 +60,6 @@ const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml',
  *
  * Використовує `git ls-files` з pathspec-магiєю `:(glob)`, щоб не реалізовувати glob engine вручну
  * і не сканувати файлову систему рекурсивно.
- *
  * @param {string} globPattern glob з workflow (наприклад "files/**" або "image-migration-new/**")
  * @returns {boolean} true, якщо є хоча б один збіг
  */
@@ -69,6 +68,7 @@ function gitHasAnyTrackedFileMatchingGlob(globPattern) {
   if (!p) return false
   if (p.startsWith('!')) return true
   try {
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
     const out = execFileSync('git', ['ls-files', '-z', '--', `:(glob)${p}`], { encoding: 'utf8' })
     return out.length > 0
   } catch {
@@ -82,7 +82,6 @@ function gitHasAnyTrackedFileMatchingGlob(globPattern) {
  * У багатьох workflow (особливо лінтерах) `paths` часто містить “широкі” шаблони по розширеннях
  * (наприклад `*.vue`, `*.php`), які можуть бути відсутні в конкретному репозиторії й це ок.
  * Запит цієї перевірки — ловити посилання на неіснуючі директорії/шляхи (типово `some-dir/**`).
- *
  * @param {string} p glob з workflow
  * @returns {boolean} true, якщо треба валідувати наявність файлів
  */
@@ -94,6 +93,28 @@ function shouldValidateWorkflowPathsGlob(p) {
   if (p.includes('*.')) return false
 
   return true
+}
+
+/**
+ * Перевіряє один glob з `on.<event>.paths` на наявність збігів у репо.
+ * @param {string} relPath шлях workflow для повідомлень
+ * @param {string} eventName назва події (push / pull_request)
+ * @param {unknown} raw сирий елемент масиву paths
+ * @param {(msg: string) => void} passFn pass
+ * @param {(msg: string) => void} failFn fail
+ */
+function verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn) {
+  const p = String(raw ?? '').trim()
+  if (!p) return
+  if (!shouldValidateWorkflowPathsGlob(p)) {
+    passFn(`${relPath}: on.${eventName}.paths glob пропущено для перевірки існування: ${JSON.stringify(p)}`)
+    return
+  }
+  if (gitHasAnyTrackedFileMatchingGlob(p)) {
+    passFn(`${relPath}: on.${eventName}.paths glob матчитсья: ${JSON.stringify(p)}`)
+  } else {
+    failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`)
+  }
 }
 
 /**
@@ -116,17 +137,7 @@ function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn) {
   for (const [eventName, paths] of candidates) {
     if (!Array.isArray(paths)) continue
     for (const raw of paths) {
-      const p = String(raw ?? '').trim()
-      if (!p) continue
-      if (!shouldValidateWorkflowPathsGlob(p)) {
-        passFn(`${relPath}: on.${eventName}.paths glob пропущено для перевірки існування: ${JSON.stringify(p)}`)
-        continue
-      }
-      if (gitHasAnyTrackedFileMatchingGlob(p)) {
-        passFn(`${relPath}: on.${eventName}.paths glob матчитсья: ${JSON.stringify(p)}`)
-      } else {
-        failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`)
-      }
+      verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn)
     }
   }
 }
@@ -138,8 +149,9 @@ function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn) {
  * @returns {unknown} значення поля або undefined
  */
 function getObjKey(obj, key) {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return
-  return /** @type {Record<string, unknown>} */ (obj)[key]
+  return obj && typeof obj === 'object' && !Array.isArray(obj)
+    ? /** @type {Record<string, unknown>} */ (obj)[key]
+    : undefined
 }
 
 /**
