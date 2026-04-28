@@ -1,0 +1,57 @@
+npm/mdc/js-bun-db.mdc
+  8fdb892db746377c 4,100-114
+  7f688617c45e4898 75-90
+npm/scripts/utils/bun-sql-scan.mjs
+  7f688617c45e4898 30-180,290-363
+npm/scripts/check-js-bun-db.mjs
+  7f688617c45e4898 23,129,159-177,180,212,232-233
+npm/scripts/utils/mssql-pool-scan.mjs
+  7f688617c45e4898 40-145,491-531,561-584
+npm/mdc/js-mssql.mdc
+  8fdb892db746377c 4,57-72
+  7f688617c45e4898 186-190,201,205
+.cursor/rules/n-js-bun-db.mdc
+  8fdb892db746377c 84-100
+npm/scripts/check-js-mssql.mjs
+  7f688617c45e4898 22,207-220,244-246,268-269
+npm/package.json
+  h_9e4b254ff59432 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7a1b4dbd34307d065e67dc63abce76093062bde8",
+  "prompts": {
+    "7f688617c45e4898": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "40e5190c-9e70-4fe4-b981-97009985e29b",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 532,
+      "total_deletions": 66,
+      "accepted_lines": 469,
+      "overriden_lines": 0
+    },
+    "8fdb892db746377c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "d2547e00-c267-49a5-8288-f76bb8f33771",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 2,
+      "accepted_lines": 53,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
