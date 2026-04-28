@@ -22,94 +22,19 @@
  */
 import { parseSync } from 'oxc-parser'
 
+import {
+  isFunctionNode,
+  isJoinCall,
+  isSqlListContextTemplate,
+  langFromPath,
+  normalizeSnippet,
+  offsetToLine,
+  walkAstWithAncestors
+} from './ast-scan-utils.mjs'
+
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
-const SQL_LIST_CONTEXT_RE = /\b(in|values)\b\s*\(/iu
 const IN_PLACEHOLDER_END_RE = /\bin\s*\(\s*$/iu
 const NUMERIC_PARSE_FN_NAMES = new Set(['parseInt', 'parseFloat', 'Number', 'BigInt'])
-
-/**
- * Мова для Oxc за шляхом файлу (розширення).
- * @param {string} filePath віртуальний або реальний шлях до файлу
- * @returns {'js' | 'jsx' | 'ts' | 'tsx'} значення опції `lang` для `parseSync`
- */
-function langFromPath(filePath) {
-  const lower = filePath.toLowerCase()
-  if (lower.endsWith('.tsx')) return 'tsx'
-  if (lower.endsWith('.ts') || lower.endsWith('.mts') || lower.endsWith('.cts')) return 'ts'
-  if (lower.endsWith('.jsx')) return 'jsx'
-  return 'js'
-}
-
-/**
- * Номер рядка (1-based) за зміщенням у буфері.
- * @param {string} content повний текст файлу
- * @param {number} offset байтове зміщення початку фрагмента
- * @returns {number} номер рядка від 1
- */
-function offsetToLine(content, offset) {
-  let line = 1
-  const n = Math.min(offset, content.length)
-  for (let i = 0; i < n; i++) {
-    if (content.codePointAt(i) === 10) line++
-  }
-  return line
-}
-
-/**
- * Стискає пробіли для повідомлення про порушення.
- * @param {string} s фрагмент коду
- * @returns {string} скорочений однорядковий рядок
- */
-function normalizeSnippet(s) {
-  return s.replaceAll(/\s+/g, ' ').trim().slice(0, 180)
-}
-
-/**
- * Чи є вузол функцією.
- * @param {unknown} node AST node
- * @returns {boolean} true, якщо це будь-який вузол-функція
- */
-function isFunctionNode(node) {
-  return (
-    !!node &&
-    typeof node === 'object' &&
-    typeof node.type === 'string' &&
-    (node.type === 'FunctionDeclaration' ||
-      node.type === 'FunctionExpression' ||
-      node.type === 'ArrowFunctionExpression')
-  )
-}
-
-/**
- * Рекурсивний обхід AST з предками, щоб визначати контекст (всередині функції чи ні).
- * @param {unknown} node поточний вузол
- * @param {unknown[]} ancestors масив предків від кореня до parent
- * @param {(n: Record<string, unknown>, ancestors: unknown[]) => void} visit відвідувач для вузлів з `type`
- * @returns {void}
- */
-function walkAstWithAncestors(node, ancestors, visit) {
-  if (!node || typeof node !== 'object') return
-  if (Array.isArray(node)) {
-    for (const item of node) walkAstWithAncestors(item, ancestors, visit)
-    return
-  }
-
-  const rec = /** @type {Record<string, unknown>} */ (node)
-  if (typeof rec.type === 'string') {
-    visit(rec, ancestors)
-    ancestors = [...ancestors, rec]
-  }
-
-  for (const key of Object.keys(node)) {
-    if (key === 'parent') {
-      continue
-    }
-    const v = rec[key]
-    if (v && typeof v === 'object') {
-      walkAstWithAncestors(v, ancestors, visit)
-    }
-  }
-}
 
 /**
  * Чи це `new sql.ConnectionPool(...)` або `new mssql.ConnectionPool(...)`.
@@ -158,48 +83,6 @@ function isRequestFactoryCall(node) {
   if (callee.computed) return false
   const prop = callee.property
   return !!prop && prop.type === 'Identifier' && prop.name === 'request'
-}
-
-/**
- * Чи це `.join(...)` виклик (часто використовується для динамічних списків в SQL).
- * @param {unknown} node AST node
- * @returns {boolean} true, якщо це CallExpression `*.join(...)`
- */
-function isJoinCall(node) {
-  if (!node || node.type !== 'CallExpression') return false
-  const callee = node.callee
-  if (!callee || callee.type !== 'MemberExpression') return false
-  if (callee.computed) return false
-  const prop = callee.property
-  return !!prop && prop.type === 'Identifier' && prop.name === 'join'
-}
-
-/**
- * Повертає текст quasis у TemplateLiteral (без expressions).
- * @param {unknown} template TemplateLiteral
- * @returns {string} обʼєднаний текст
- */
-function templateQuasisText(template) {
-  if (!template || template.type !== 'TemplateLiteral') return ''
-  const quasis = template.quasis
-  if (!Array.isArray(quasis) || quasis.length === 0) return ''
-  let out = ''
-  for (const q of quasis) {
-    if (!q || typeof q !== 'object') continue
-    const value = q.value
-    if (!value || typeof value !== 'object') continue
-    if (typeof value.raw === 'string') out += value.raw
-  }
-  return out
-}
-
-/**
- * Чи виглядає TemplateLiteral як SQL-контекст зі списком (IN/VALUES (...)).
- * @param {unknown} template TemplateLiteral
- * @returns {boolean} true, якщо текст містить `IN (` або `VALUES (`
- */
-function isSqlListContextTemplate(template) {
-  return SQL_LIST_CONTEXT_RE.test(templateQuasisText(template))
 }
 
 /**
@@ -449,13 +332,7 @@ function isInListExpressionParsed(expr, declarators, seen = new Set()) {
     const inits = declarators
       .filter(d => {
         const id = d.id
-        return (
-          !!id &&
-          typeof id === 'object' &&
-          id.type === 'Identifier' &&
-          id.name === expr.name &&
-          !!d.init
-        )
+        return !!id && typeof id === 'object' && id.type === 'Identifier' && id.name === expr.name && !!d.init
       })
       .map(d => d.init)
     if (inits.length === 0) return false
@@ -541,4 +418,3 @@ export function findUnsafeMssqlInListUnparsedInText(content, virtualPath = 'scan
 export function isMssqlScanSourceFile(relativePathPosix) {
   return SOURCE_FILE_RE.test(relativePathPosix) && !relativePathPosix.endsWith('.d.ts')
 }
-

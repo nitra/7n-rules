@@ -58,7 +58,7 @@ describe('check-text (мінімальний проєкт)', () => {
           '.vscode',
           'report',
           '*.svg',
-          '**/k8s/**/*.yaml',
+          '**/k8s/**/*.yaml'
         ],
         import: ['@nitra/cspell-dict/cspell-ext.json'],
         words: []

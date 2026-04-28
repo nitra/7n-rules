@@ -189,8 +189,10 @@ jobs:
 ```yaml title=".hadolint.yaml"
 ignored:
   - DL3007
+  - DL3008
   - DL3018
 ```
+
 Де DL3007 - «Не використовуй тег latest у FROM»
 Де DL3018 - «Піни версії пакетів у apk add»
 

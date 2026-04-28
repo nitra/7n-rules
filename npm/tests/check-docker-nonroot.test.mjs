@@ -99,4 +99,3 @@ describe('getNonRootRuntimeHint', () => {
     expect(h).toContain('root')
   })
 })
-

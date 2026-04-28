@@ -18,7 +18,11 @@ import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-wo
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
-export const OXLINT_CANONICAL_JSON_PATH = join(dirname(fileURLToPath(import.meta.url)), 'utils', 'oxlint-canonical.json')
+export const OXLINT_CANONICAL_JSON_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'utils',
+  'oxlint-canonical.json'
+)
 
 /** Очікуваний локальний скрипт. */
 export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'

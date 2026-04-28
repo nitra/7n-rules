@@ -17,6 +17,7 @@ version: '1.2'
 ## Як виконувати запити (безпечно)
 
 tagged template треба викликати на request-обʼєкті цього пулу:
+
 ```javascript
 javascript// db.js
 import sql from 'mssql';
@@ -58,6 +59,7 @@ const result = await pool.request().query`
 ### Не робити `query(\`...\`)`
 
 javascript// ❌ Це не tagged template — це конкатенація рядка перед викликом
+
 ```javascript
 await pool.request().query(`SELECT * FROM users WHERE id = ${userId}`);
 // ↑ круглі дужки замість бекті́ків = звичайна інтерполяція = SQL injection

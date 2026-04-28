@@ -77,4 +77,3 @@ export async function check() {
   await checkWorkflow(reporter)
   return reporter.getExitCode()
 }
-

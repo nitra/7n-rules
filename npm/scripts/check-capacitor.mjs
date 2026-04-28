@@ -376,9 +376,7 @@ function extractNitraObjectBodySource(source) {
  * @returns {boolean} **true**, якщо в тілі є **iosCocoaPods**…**:** **true**
  */
 function nitraObjectBodyStringAllowsCocoaPodsExempt(objectBody) {
-  return (
-    RE_COCOAPODS_EXEMPT_SPM.test(objectBody) === true || RE_COCOAPODS_EXEMPT_ALLOW.test(objectBody) === true
-  )
+  return RE_COCOAPODS_EXEMPT_SPM.test(objectBody) === true || RE_COCOAPODS_EXEMPT_ALLOW.test(objectBody) === true
 }
 
 /**
@@ -443,7 +441,9 @@ export async function check() {
   const { byPath, anyCapacitor } = acc
 
   if (!isCapacitorRelevantForCheck(root, anyCapacitor)) {
-    pass('Capacitor не виявлено (без capacitor.config у корені, без @capacitor/ у package.json) — check capacitor пропущено')
+    pass(
+      'Capacitor не виявлено (без capacitor.config у корені, без @capacitor/ у package.json) — check capacitor пропущено'
+    )
     return getExitCode()
   }
 

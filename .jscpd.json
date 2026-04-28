@@ -7,6 +7,7 @@
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
     ".github/actions/setup-bun-deps/action.yml",
-    "npm/github-actions/setup-bun-deps/action.yml"
+    "npm/github-actions/setup-bun-deps/action.yml",
+    "npm/scripts/utils/oxlint-canonical.json"
   ]
 }

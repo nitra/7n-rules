@@ -11,44 +11,10 @@
  */
 import { parseSync } from 'oxc-parser'
 
+import { langFromPath, offsetToLine } from './ast-scan-utils.mjs'
+
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
 const FORBIDDEN_MODULES = new Set(['@nitra/bunyan', 'bunyan'])
-
-/**
- * Мова для Oxc за шляхом файлу (розширення).
- * @param {string} filePath віртуальний або реальний шлях до файлу
- * @returns {'js' | 'jsx' | 'ts' | 'tsx'} значення опції `lang` для `parseSync`
- */
-function langFromPath(filePath) {
-  const lower = filePath.toLowerCase()
-  if (lower.endsWith('.tsx')) {
-    return 'tsx'
-  }
-  if (lower.endsWith('.ts') || lower.endsWith('.mts') || lower.endsWith('.cts')) {
-    return 'ts'
-  }
-  if (lower.endsWith('.jsx')) {
-    return 'jsx'
-  }
-  return 'js'
-}
-
-/**
- * Номер рядка (1-based) за зміщенням у буфері.
- * @param {string} content повний текст файлу
- * @param {number} offset байтове зміщення початку фрагмента
- * @returns {number} номер рядка від 1
- */
-function offsetToLine(content, offset) {
-  let line = 1
-  const n = Math.min(offset, content.length)
-  for (let i = 0; i < n; i++) {
-    if (content.codePointAt(i) === 10) {
-      line++
-    }
-  }
-  return line
-}
 
 /**
  * Стискає пробіли для повідомлення про порушення.

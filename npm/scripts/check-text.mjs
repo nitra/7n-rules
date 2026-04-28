@@ -40,7 +40,7 @@ const CSPELL_REQUIRED_IGNORE_PATHS = [
   '.vscode',
   'report',
   '*.svg',
-  '**/k8s/**/*.yaml',
+  '**/k8s/**/*.yaml'
 ]
 
 /**
