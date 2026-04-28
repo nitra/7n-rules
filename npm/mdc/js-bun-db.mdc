@@ -1,0 +1,118 @@
+---
+description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
+alwaysApply: true
+version: '1.1'
+---
+
+## Підтримувані версії баз даних
+
+PostgreSQL 18+, MariaDB 10.6+ (сумісний з MySQL-протоколом, підключаємось як `mysql://`).
+
+## Заміна на Bun native SQL
+
+Якщо в проєкті використовуються бібліотеки `pg` або `mysql2`, їх потрібно замінити на Bun native SQL: <https://bun.com/docs/runtime/sql>.
+
+- Видалити з `dependencies`: `pg`, `pg-pool`, `pg-native`, `mysql`, `mysql2`.
+- Видалити з коду: усі `import` / `require` цих пакетів та власні обгортки над ними.
+- Замінити на `import { sql, SQL } from 'bun'` — Bun має вбудований клієнт із пулом, prepared statements та tagged templates.
+
+## Підключення (singleton + env)
+
+Дефолтний експорт `sql` з `'bun'` сам читає змінні середовища (`DATABASE_URL`, `POSTGRES_URL`, `MYSQL_URL`, `PGHOST`/`PGUSER`/... та `MYSQL_HOST`/`MYSQL_USER`/...) і керує пулом — окремий `Pool` як у `pg` створювати не треба.
+
+Для явного конфігу — `new SQL(...)` як **singleton** на рівні модуля, а не на кожен запит:
+
+```javascript
+// db.js
+import { SQL } from 'bun'
+
+export const sql = new SQL({
+  url: process.env.DATABASE_URL,
+  max: 20,
+  idleTimeout: 30,
+  connectionTimeout: 10
+})
+```
+
+Connection string обирає адаптер автоматично:
+
+- `postgres://...` / `postgresql://...` → PostgreSQL
+- `mysql://...` / `mysql2://...` → MySQL/MariaDB
+- `sqlite://...` / `file://...` / `:memory:` → SQLite
+
+## Як виконувати запити (безпечно)
+
+Тільки **tagged template** з `${...}` — Bun сам біндить позиційні параметри й захищає від SQL injection:
+
+```javascript
+import { sql } from 'bun'
+
+const userId = 42
+const status = 'active'
+
+const users = await sql`
+  SELECT * FROM users
+  WHERE id = ${userId} AND status = ${status}
+`
+```
+
+Об'єктний INSERT/UPDATE та `IN (...)` — через helper `sql(...)`:
+
+```javascript
+const user = { name: 'Alice', email: 'a@example.com' }
+
+const [created] = await sql`
+  INSERT INTO users ${sql(user)}
+  RETURNING *
+`
+
+await sql`UPDATE users SET ${sql(user, 'name', 'email')} WHERE id = ${created.id}`
+
+const ids = [1, 2, 3]
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
+Транзакції — через `sql.begin` (auto-commit/rollback), вкладені — через `tx.savepoint`:
+
+```javascript
+await sql.begin(async tx => {
+  await tx`INSERT INTO users ${sql(user)}`
+  await tx`UPDATE accounts SET balance = balance - ${100} WHERE user_id = ${user.id}`
+})
+```
+
+## Що НЕ робити
+
+### Не використовувати `sql.unsafe(...)` з конкатенацією
+
+```javascript
+// ❌ конкатенація даних у SQL — SQL injection
+await sql.unsafe(`SELECT * FROM users WHERE id = ${userId}`)
+
+// ❌ навіть у tagged template — динамічний список через .join(',')
+await sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`
+```
+
+`sql.unsafe(text, params)` допустимий лише для **статичного** SQL без даних від користувача (наприклад, разовий DDL-скрипт), і обов'язково з масивом параметрів — ніяких `${...}` у самому рядку.
+
+Для динамічних списків — `sql([...])` або `sql(rows, 'colA', 'colB')`, **не** `.join(',')`.
+
+### Не створювати підключення на кожен запит
+
+```javascript
+// ❌ нове підключення/інстанс на кожен виклик
+function getUser(id) {
+  const sql = new SQL(process.env.DATABASE_URL)
+  return sql`SELECT * FROM users WHERE id = ${id}`
+}
+```
+
+`new SQL(...)` має створюватись **один раз** на рівні модуля. Bun сам тримає пул (`max`, `idleTimeout`, `maxLifetime`) — окремих `Pool`/`Client` як у `pg` не потрібно.
+
+### Не лишати `pg` / `mysql2` поряд із Bun SQL
+
+Якщо в коді з'явився `import { sql } from 'bun'`, то `pg` та `mysql2` мають бути прибрані і з `dependencies`, і з імпортів — щоб не лишалось двох паралельних шляхів до БД.
+
+## Перевірка
+
+`npx @nitra/cursor check js-bun-db`.

@@ -18,6 +18,7 @@ import {
   findSharedMssqlRequestInText,
   findUnsafeMssqlQueryTemplateCallInText,
   findUnsafeMssqlDynamicSqlListInText,
+  findUnsafeMssqlInListUnparsedInText,
   isMssqlScanSourceFile
 } from './utils/mssql-pool-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -177,6 +178,7 @@ export async function check() {
     let sharedRequestViolations = 0
     let unsafeQueryCalls = 0
     let unsafeDynamicSqlLists = 0
+    let unparsedInLists = 0
     for (const absPath of sourcePaths) {
       const rel = relative(repoRoot, absPath).split('\\').join('/')
       const content = await readFile(absPath, 'utf8')
@@ -204,6 +206,12 @@ export async function check() {
           `js-mssql: ${rel}:${v.line} — заборонено підставляти у SQL динамічні списки через .join(',') (типово IN (...) / VALUES (...)); використовуй TVP (sql.Table) + JOIN/INSERT (js-mssql.mdc): ${v.snippet}`
         )
       }
+      for (const v of findUnsafeMssqlInListUnparsedInText(content, rel)) {
+        unparsedInLists++
+        fail(
+          `js-mssql: ${rel}:${v.line} — у SQL IN (\${...}) значення мають бути попередньо приведені числовим парсером (parseInt/Number/BigInt/parseFloat) і відфільтровані від NaN, інакше можливий SQL injection (js-mssql.mdc): ${v.snippet}`
+        )
+      }
     }
 
     if (violations === 0) {
@@ -217,6 +225,9 @@ export async function check() {
     }
     if (unsafeDynamicSqlLists === 0) {
       pass("js-mssql: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")
+    }
+    if (unparsedInLists === 0) {
+      pass('js-mssql: немає підстановок IN (${...}) без числового парсера значень')
     }
   }
 

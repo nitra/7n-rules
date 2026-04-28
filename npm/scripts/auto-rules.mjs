@@ -1,7 +1,8 @@
 /**
  * Автовизначення правил і skills для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
  *
- * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source, кореневий
+ * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
+ * залежності `mssql` / `pg` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
  * `package.json`) та повертає ідентифікатори правил і skills, які потрібно автододати.
  *
  * Також враховує винятки `disable-rules` і `disable-skills`: елементи з цих списків не
@@ -11,11 +12,13 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'
 
+import { textHasBunSqlImport } from './utils/bun-sql-scan.mjs'
 import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
 } from './utils/graphql-gql-scan.mjs'
+import { contentForVueImportScan } from './utils/vue-forbidden-imports.mjs'
 
 /** Порядок автододавання правил відповідно до `auto-rules.md`. */
 export const AUTO_RULE_ORDER = Object.freeze([
@@ -27,6 +30,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'graphql',
   'js-lint',
   'js-mssql',
+  'js-bun-db',
   'js-pino',
   'k8s',
   'nginx-default-tpl',
@@ -50,12 +54,25 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 const DEFAULT_DISABLED_LIST = Object.freeze([])
 
 /**
- * Чи є `mssql` у `dependencies` хоча б одного `package.json` у репозиторії.
- * @param {string} root абсолютний шлях до кореня репозиторію
- * @returns {Promise<boolean>} true, якщо знайдено `dependencies.mssql`
+ * Чи містить текст джерела імпорт імені `sql` або `SQL` з `"bun"` (після витягування `<script>` у `.vue`).
+ * @param {string} content вміст файлу
+ * @param {string} relativePath шлях posix відносно кореня
+ * @returns {boolean}
  */
-async function hasMssqlDependencyInAnyPackageJson(root) {
-  let found = false
+function sourceContentHasBunSqlImport(content, relativePath) {
+  return textHasBunSqlImport(contentForVueImportScan(content, relativePath))
+}
+
+/**
+ * Збирає, які з переданих ключів присутні в `dependencies` хоча б одного `package.json`.
+ * @param {string} root абсолютний шлях до кореня репозиторію
+ * @param {string[]} dependencyKeys імена залежностей (наприклад `mssql`, `pg`)
+ * @returns {Promise<Set<string>>} множина знайдених ключів
+ */
+async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKeys) {
+  const wanted = new Set(dependencyKeys)
+  /** @type {Set<string>} */
+  const found = new Set()
 
   /**
    * Рекурсивний обхід каталогу з пропуском службових директорій.
@@ -63,7 +80,9 @@ async function hasMssqlDependencyInAnyPackageJson(root) {
    * @returns {Promise<void>}
    */
   async function walk(dir) {
-    if (found) return
+    if (found.size === wanted.size) {
+      return
+    }
     let entries
     try {
       entries = await readdir(dir, { withFileTypes: true })
@@ -71,7 +90,9 @@ async function hasMssqlDependencyInAnyPackageJson(root) {
       return
     }
     for (const entry of entries) {
-      if (found) return
+      if (found.size === wanted.size) {
+        return
+      }
       const absPath = join(dir, entry.name)
       if (entry.isDirectory()) {
         const isIgnoredDir = IGNORED_DIR_NAMES.has(entry.name)
@@ -82,9 +103,12 @@ async function hasMssqlDependencyInAnyPackageJson(root) {
         try {
           const parsed = JSON.parse(await readFile(absPath, 'utf8'))
           const deps = parsed?.dependencies
-          if (deps && typeof deps === 'object' && !Array.isArray(deps) && Object.hasOwn(deps, 'mssql')) {
-            found = true
-            return
+          if (deps && typeof deps === 'object' && !Array.isArray(deps)) {
+            for (const key of wanted) {
+              if (Object.hasOwn(deps, key)) {
+                found.add(key)
+              }
+            }
           }
         } catch {
           /* ігноруємо пошкоджені/недоступні package.json */
@@ -183,10 +207,39 @@ async function updateGqlFactFromFile(absPath, relPath, facts) {
 }
 
 /**
+ * Чи сканувати файл на імпорт `sql`/`SQL` з `bun` (ті самі розширення й skip, що для gql).
+ * @param {string} relPath шлях posix відносно кореня
+ * @param {{ hasBunSqlImport: boolean }} facts агреговані факти
+ * @returns {boolean}
+ */
+function shouldScanFileForBunSql(relPath, facts) {
+  return !facts.hasBunSqlImport && isGqlScanSourceFile(relPath) && !shouldSkipFileForGqlScan(relPath)
+}
+
+/**
+ * Оновлює ознаку `hasBunSqlImport` за вмістом файлу.
+ * @param {string} absPath абсолютний шлях до файлу
+ * @param {string} relPath шлях posix відносно кореня
+ * @param {{ hasBunSqlImport: boolean }} facts агреговані факти
+ * @returns {Promise<void>}
+ */
+async function updateBunSqlFactFromFile(absPath, relPath, facts) {
+  try {
+    const content = await readFile(absPath, 'utf8')
+    if (sourceContentHasBunSqlImport(content, relPath)) {
+      facts.hasBunSqlImport = true
+    }
+  } catch {
+    /* ігноруємо пошкоджені/недоступні файли */
+  }
+}
+
+/**
  * Обробляє файл під час обходу дерева.
  * @param {string} absPath абсолютний шлях до файлу
  * @param {string} root абсолютний шлях кореня
  * @param {{
+ *   hasBunSqlImport: boolean,
  *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasGqlTaggedTemplates: boolean,
@@ -203,6 +256,9 @@ async function processFileEntry(absPath, root, facts) {
   updateFileFacts(fileName, rel, facts)
   if (shouldScanFileForGql(rel, facts)) {
     await updateGqlFactFromFile(absPath, rel, facts)
+  }
+  if (shouldScanFileForBunSql(rel, facts)) {
+    await updateBunSqlFactFromFile(absPath, rel, facts)
   }
 }
 
@@ -270,6 +326,7 @@ export function isMonorepoPackage(packageJson) {
  *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasGaWorkflowsDir: boolean,
+ *   hasBunSqlImport: boolean,
  *   hasGqlTaggedTemplates: boolean,
  *   hasJsLikeSource: boolean,
  *   hasK8sDir: boolean,
@@ -282,6 +339,7 @@ export function isMonorepoPackage(packageJson) {
  */
 export async function collectAutoRuleFacts(root) {
   const facts = {
+    hasBunSqlImport: false,
     hasCapacitorConfig: false,
     hasDockerfile: false,
     hasGaWorkflowsDir: existsSync(join(root, '.github', 'workflows')),
@@ -360,7 +418,9 @@ export async function detectAutoRulesAndSkills({
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
   const isMonorepo = isMonorepoPackage(packageJsonParsed)
-  const hasMssqlDependency = await hasMssqlDependencyInAnyPackageJson(root)
+  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'mysql2'])
+  const hasMssqlDependency = depHits.has('mssql')
+  const hasJsBunDbSignal = depHits.has('pg') || depHits.has('mysql2') || facts.hasBunSqlImport
 
   /** @type {string[]} */
   const detectedRules = []
@@ -400,6 +460,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
     { enabled: facts.hasJsLikeSource, id: 'js-lint' },
     { enabled: hasMssqlDependency, id: 'js-mssql' },
+    { enabled: hasJsBunDbSignal, id: 'js-bun-db' },
     { enabled: facts.hasJsLikeSource && !(isMonorepo && facts.hasVueSource && facts.hasTempoDir), id: 'js-pino' },
     { enabled: facts.hasK8sDir, id: 'k8s' },
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },

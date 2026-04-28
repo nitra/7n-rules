@@ -15,6 +15,8 @@ const ALL_RULES = [
   'ga',
   'graphql',
   'js-lint',
+  'js-mssql',
+  'js-bun-db',
   'js-pino',
   'k8s',
   'nginx-default-tpl',
@@ -94,6 +96,34 @@ describe('detectAutoRulesAndSkills', () => {
       expect(actual.rules.includes('js-pino')).toBe(false)
       expect(actual.rules.includes('js-lint')).toBe(true)
       expect(actual.rules.includes('vue')).toBe(true)
+    })
+  })
+
+  test('додає js-bun-db при pg у dependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'pg-app',
+        dependencies: {
+          pg: '^8.13.0'
+        }
+      })
+      await ensureDir('src')
+      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-db')).toBe(true)
+    })
+  })
+
+  test('додає js-bun-db при імпорті sql з bun', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'sql-app' })
+      await writeFile('db.ts', 'import { sql } from "bun"\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-db')).toBe(true)
     })
   })
 })
