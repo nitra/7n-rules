@@ -37,6 +37,113 @@ const IN_PLACEHOLDER_END_RE = /\bin\s*\(\s*$/iu
 const NUMERIC_PARSE_FN_NAMES = new Set(['parseInt', 'parseFloat', 'Number', 'BigInt'])
 
 /**
+ * Чи містить тест if-умови перевірку “список порожній”.
+ * Підтримує базові форми:
+ * - `if (!ids.length) ...`
+ * - `if (ids.length === 0) ...` / `<= 0` / `< 1`
+ *
+ * @param {unknown} test IfStatement.test
+ * @param {string} name імʼя змінної списку
+ * @returns {boolean}
+ */
+function isEmptyListTest(test, name) {
+  if (!test || typeof test !== 'object') return false
+
+  if (test.type === 'UnaryExpression' && test.operator === '!') {
+    const arg = test.argument
+    if (!arg || typeof arg !== 'object') return false
+    if (arg.type === 'MemberExpression' && !arg.computed) {
+      const obj = arg.object
+      const prop = arg.property
+      return !!obj && obj.type === 'Identifier' && obj.name === name && !!prop && prop.type === 'Identifier' && prop.name === 'length'
+    }
+  }
+
+  if (test.type === 'BinaryExpression') {
+    const { left, right, operator } = test
+    const isLen = node =>
+      !!node &&
+      typeof node === 'object' &&
+      node.type === 'MemberExpression' &&
+      !node.computed &&
+      node.object &&
+      node.object.type === 'Identifier' &&
+      node.object.name === name &&
+      node.property &&
+      node.property.type === 'Identifier' &&
+      node.property.name === 'length'
+    const isZero = node =>
+      !!node &&
+      typeof node === 'object' &&
+      ((node.type === 'NumericLiteral' && node.value === 0) || (node.type === 'Literal' && node.value === 0))
+
+    if (!['===', '==', '<=', '<'].includes(operator)) return false
+    if (isLen(left) && isZero(right)) return true
+    // допускаємо `0 === ids.length` теж
+    if (isZero(left) && isLen(right) && (operator === '===' || operator === '==')) return true
+  }
+
+  return false
+}
+
+/**
+ * Чи є в consequent (або в його BlockStatement) ThrowStatement.
+ * @param {unknown} consequent IfStatement.consequent
+ * @returns {boolean}
+ */
+function consequentHasThrow(consequent) {
+  if (!consequent || typeof consequent !== 'object') return false
+  if (consequent.type === 'ThrowStatement') return true
+  if (consequent.type === 'BlockStatement' && Array.isArray(consequent.body)) {
+    return consequent.body.some(s => s && typeof s === 'object' && s.type === 'ThrowStatement')
+  }
+  return false
+}
+
+/**
+ * Шукає “guard” `if (empty) throw` перед statementIndex у межах того ж BlockStatement.
+ * @param {unknown} block BlockStatement
+ * @param {number} statementIndex індекс statement, перед яким шукаємо guard
+ * @param {string} name імʼя змінної списку
+ * @returns {boolean}
+ */
+function hasEmptyGuardBefore(block, statementIndex, name) {
+  if (!block || typeof block !== 'object' || block.type !== 'BlockStatement') return false
+  const body = block.body
+  if (!Array.isArray(body)) return false
+  for (let i = 0; i < statementIndex; i++) {
+    const st = body[i]
+    if (!st || typeof st !== 'object') continue
+    if (st.type !== 'IfStatement') continue
+    if (!isEmptyListTest(st.test, name)) continue
+    if (!consequentHasThrow(st.consequent)) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * Знаходить найближчий enclosing BlockStatement і statement всередині нього.
+ * @param {unknown[]} ancestors ancestors масив з walkAstWithAncestors
+ * @returns {{ block: unknown, index: number } | null}
+ */
+function findEnclosingBlockAndStatementIndex(ancestors) {
+  if (!Array.isArray(ancestors) || ancestors.length === 0) return null
+
+  // statement — перший зверху вузол, який лежить у block.body
+  // шукаємо пару (block, statement), де statement ∈ block.body
+  for (let i = ancestors.length - 1; i >= 1; i--) {
+    const maybeStatement = ancestors[i]
+    const maybeBlock = ancestors[i - 1]
+    if (!maybeBlock || typeof maybeBlock !== 'object' || maybeBlock.type !== 'BlockStatement') continue
+    if (!Array.isArray(maybeBlock.body)) continue
+    const idx = maybeBlock.body.indexOf(maybeStatement)
+    if (idx !== -1) return { block: maybeBlock, index: idx }
+  }
+  return null
+}
+
+/**
  * Чи це `new sql.ConnectionPool(...)` або `new mssql.ConnectionPool(...)`.
  * @param {unknown} node AST node
  * @returns {boolean} true, якщо це створення ConnectionPool
@@ -382,6 +489,47 @@ function collectInListUnparsedFromTemplate(node, content, declarators, out) {
 }
 
 /**
+ * Збирає порушення для одного TemplateLiteral: якщо у `IN (${...})`:
+ * - `${...}` не є Identifier (значення не винесені у змінну);
+ * - або це Identifier, але перед запитом немає guard `if (empty) throw`.
+ *
+ * @param {Record<string, unknown>} node TemplateLiteral
+ * @param {unknown[]} ancestors ancestors від walkAstWithAncestors
+ * @param {string} content вихідний код
+ * @param {{ line: number, snippet: string, reason: 'not_var' | 'missing_guard', name?: string }[]} out буфер результатів
+ */
+function collectInListMissingEmptyGuardFromTemplate(node, ancestors, content, out) {
+  if (node.type !== 'TemplateLiteral') return
+  const quasis = node.quasis
+  const expressions = node.expressions
+  if (!Array.isArray(quasis) || !Array.isArray(expressions) || expressions.length === 0) return
+
+  for (const [i, expr] of expressions.entries()) {
+    if (!IN_PLACEHOLDER_END_RE.test(quasiRawText(quasis[i]))) continue
+    if (!expr || typeof expr !== 'object') continue
+
+    if (expr.type !== 'Identifier' || typeof expr.name !== 'string') {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end)),
+        reason: 'not_var'
+      })
+      continue
+    }
+
+    const place = findEnclosingBlockAndStatementIndex(ancestors)
+    if (!place || !hasEmptyGuardBefore(place.block, place.index, expr.name)) {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end)),
+        reason: 'missing_guard',
+        name: expr.name
+      })
+    }
+  }
+}
+
+/**
  * Знаходить підстановки IN (вираз) у TemplateLiteral, де вираз не пройшов числовий парсер.
  *
  * Навіть у безпечному tagged template pool.request().query краще явно парсити значення (parseInt,
@@ -407,6 +555,33 @@ export function findUnsafeMssqlInListUnparsedInText(content, virtualPath = 'scan
   const out = []
   walkAstWithAncestors(result.program, [], node => collectInListUnparsedFromTemplate(node, content, declarators, out))
 
+  return out
+}
+
+/**
+ * Знаходить підстановки списків у `IN (${...})`, які:
+ * - не винесені в окрему змінну (в `${...}` стоїть не Identifier);
+ * - або винесені, але перед запитом немає перевірки на пустоту з `throw`.
+ *
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору мови парсера (lang)
+ * @returns {{ line: number, snippet: string, reason: 'not_var' | 'missing_guard', name?: string }[]} список порушень
+ */
+export function findUnsafeMssqlInListMissingEmptyGuardInText(content, virtualPath = 'scan.ts') {
+  const lang = langFromPath(virtualPath || 'scan.ts')
+  let result
+  try {
+    result = parseSync(virtualPath, content, { lang, sourceType: 'module' })
+  } catch {
+    return []
+  }
+  if (result.errors?.length) return []
+
+  /** @type {{ line: number, snippet: string, reason: 'not_var' | 'missing_guard', name?: string }[]} */
+  const out = []
+  walkAstWithAncestors(result.program, [], (node, ancestors) =>
+    collectInListMissingEmptyGuardFromTemplate(node, ancestors, content, out)
+  )
   return out
 }
 

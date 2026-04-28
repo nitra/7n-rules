@@ -27,6 +27,157 @@ import {
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const BUN_SQL_IMPORT_RE = /\bimport\s*\{[\s\S]*?\b(sql|SQL)\b[\s\S]*?\}\s*from\s*["']bun["']/u
+const IN_PLACEHOLDER_END_RE = /\bin\s*(\(\s*)?$/iu
+
+/**
+ * @param {unknown} node AST node
+ * @param {string} name імʼя змінної
+ * @returns {boolean} true, якщо це MemberExpression `${name}.length`
+ */
+function isLengthMember(node, name) {
+  return (
+    !!node &&
+    typeof node === 'object' &&
+    node.type === 'MemberExpression' &&
+    !node.computed &&
+    node.object &&
+    node.object.type === 'Identifier' &&
+    node.object.name === name &&
+    node.property &&
+    node.property.type === 'Identifier' &&
+    node.property.name === 'length'
+  )
+}
+
+/**
+ * @param {unknown} node AST node
+ * @returns {boolean} true, якщо це числовий 0-літерал
+ */
+function isZeroNumberLiteral(node) {
+  return (
+    !!node &&
+    typeof node === 'object' &&
+    ((node.type === 'NumericLiteral' && node.value === 0) || (node.type === 'Literal' && node.value === 0))
+  )
+}
+
+/**
+ * @param {unknown} node AST node
+ * @returns {boolean} true, якщо це Identifier з імʼям `sql`
+ */
+function isSqlHelperIdentifier(node) {
+  return !!node && typeof node === 'object' && node.type === 'Identifier' && node.name === 'sql'
+}
+
+/**
+ * Витягає імʼя змінної списку для `IN ...`:
+ * - `${ids}` → `ids`
+ * - `${sql(ids)}` → `ids`
+ * @param {unknown} expr template expression
+ * @returns {{ name: string } | { error: 'not_var' } | { error: 'sql_helper_not_var' }} імʼя змінної або причина відмови
+ */
+function extractInListVarNameFromExpr(expr) {
+  if (!expr || typeof expr !== 'object') return { error: 'not_var' }
+  if (expr.type === 'Identifier' && typeof expr.name === 'string') return { name: expr.name }
+
+  if (expr.type === 'CallExpression' && isSqlHelperIdentifier(expr.callee)) {
+    const args = expr.arguments
+    if (!Array.isArray(args) || args.length === 0) return { error: 'sql_helper_not_var' }
+    const first = args[0]
+    if (first && typeof first === 'object' && first.type === 'Identifier' && typeof first.name === 'string') {
+      return { name: first.name }
+    }
+    return { error: 'sql_helper_not_var' }
+  }
+
+  return { error: 'not_var' }
+}
+
+/**
+ * Чи містить тест if-умови перевірку “список порожній”.
+ * Підтримує базові форми:
+ * - `if (!ids.length) ...`
+ * - `if (ids.length === 0) ...` / `<= 0` / `< 1`
+ * @param {unknown} test IfStatement.test
+ * @param {string} name імʼя змінної списку
+ * @returns {boolean} true, якщо це перевірка на пустоту списку
+ */
+function isEmptyListTest(test, name) {
+  if (!test || typeof test !== 'object') return false
+
+  if (test.type === 'UnaryExpression' && test.operator === '!') {
+    const arg = test.argument
+    if (!arg || typeof arg !== 'object') return false
+    return isLengthMember(arg, name)
+  }
+
+  if (test.type === 'BinaryExpression') {
+    const { left, right, operator } = test
+    if (!['===', '==', '<=', '<'].includes(operator)) return false
+    if (isLengthMember(left, name) && isZeroNumberLiteral(right)) return true
+    // допускаємо `0 === ids.length` теж
+    if (isZeroNumberLiteral(left) && isLengthMember(right, name) && (operator === '===' || operator === '==')) return true
+  }
+
+  return false
+}
+
+/**
+ * Чи є в consequent (або в його BlockStatement) ThrowStatement.
+ * @param {unknown} consequent IfStatement.consequent
+ * @returns {boolean} true, якщо consequent містить throw
+ */
+function consequentHasThrow(consequent) {
+  if (!consequent || typeof consequent !== 'object') return false
+  if (consequent.type === 'ThrowStatement') return true
+  if (consequent.type === 'BlockStatement' && Array.isArray(consequent.body)) {
+    return consequent.body.some(s => s && typeof s === 'object' && s.type === 'ThrowStatement')
+  }
+  return false
+}
+
+/**
+ * Шукає “guard” `if (empty) throw` перед statementIndex у межах того ж BlockStatement.
+ * @param {unknown} block BlockStatement
+ * @param {number} statementIndex індекс statement, перед яким шукаємо guard
+ * @param {string} name імʼя змінної списку
+ * @returns {boolean} true, якщо guard знайдено
+ */
+function hasEmptyGuardBefore(block, statementIndex, name) {
+  if (!block || typeof block !== 'object' || block.type !== 'BlockStatement') return false
+  const body = block.body
+  if (!Array.isArray(body)) return false
+  for (let i = 0; i < statementIndex; i++) {
+    const st = body[i]
+    if (!st || typeof st !== 'object') continue
+    if (st.type !== 'IfStatement') continue
+    if (!isEmptyListTest(st.test, name)) continue
+    if (!consequentHasThrow(st.consequent)) continue
+    return true
+  }
+  return false
+}
+
+/**
+ * Знаходить найближчий enclosing BlockStatement і statement всередині нього.
+ * @param {unknown[]} ancestors ancestors масив з walkAstWithAncestors
+ * @returns {{ block: unknown, index: number } | null} block+індекс statement або null
+ */
+function findEnclosingBlockAndStatementIndex(ancestors) {
+  if (!Array.isArray(ancestors) || ancestors.length === 0) return null
+
+  // statement — перший зверху вузол, який лежить у block.body
+  // шукаємо пару (block, statement), де statement ∈ block.body
+  for (let i = ancestors.length - 1; i >= 1; i--) {
+    const maybeStatement = ancestors[i]
+    const maybeBlock = ancestors[i - 1]
+    if (!maybeBlock || typeof maybeBlock !== 'object' || maybeBlock.type !== 'BlockStatement') continue
+    if (!Array.isArray(maybeBlock.body)) continue
+    const idx = maybeBlock.body.indexOf(maybeStatement)
+    if (idx !== -1) return { block: maybeBlock, index: idx }
+  }
+  return null
+}
 
 /**
  * Чи це `new SQL(...)` (Identifier callee з імʼям `SQL`).
@@ -136,6 +287,80 @@ export function findUnsafeBunSqlDynamicSqlListInText(content, virtualPath = 'sca
       snippet: normalizeSnippet(content.slice(template.start, template.end))
     })
   })
+  return out
+}
+
+/**
+ * Збирає порушення для одного TemplateLiteral вузла: `IN ... ${...}` потребує
+ * змінної + guard `if (empty) throw`.
+ * @param {Record<string, unknown>} template TemplateLiteral
+ * @param {unknown[]} ancestors ancestors з walkAstWithAncestors
+ * @param {string} content вихідний код
+ * @param {{ line: number, snippet: string, reason: 'not_var' | 'sql_helper_not_var' | 'missing_guard', name?: string }[]} out буфер результатів
+ */
+function collectInListGuardViolationsFromTemplate(template, ancestors, content, out) {
+  const expressions = template.expressions
+  const quasis = template.quasis
+  if (!Array.isArray(expressions) || expressions.length === 0) return
+  if (!Array.isArray(quasis) || quasis.length === 0) return
+
+  for (const [i, expr] of expressions.entries()) {
+    const q = quasis[i]
+    const raw =
+      q && typeof q === 'object' && q.value && typeof q.value === 'object' && typeof q.value.raw === 'string' ? q.value.raw : ''
+    if (!IN_PLACEHOLDER_END_RE.test(raw)) continue
+
+    const extracted = extractInListVarNameFromExpr(expr)
+    if ('error' in extracted) {
+      out.push({
+        line: offsetToLine(content, template.start),
+        snippet: normalizeSnippet(content.slice(template.start, template.end)),
+        reason: extracted.error
+      })
+      continue
+    }
+
+    const place = findEnclosingBlockAndStatementIndex(ancestors)
+    if (!place || !hasEmptyGuardBefore(place.block, place.index, extracted.name)) {
+      out.push({
+        line: offsetToLine(content, template.start),
+        snippet: normalizeSnippet(content.slice(template.start, template.end)),
+        reason: 'missing_guard',
+        name: extracted.name
+      })
+    }
+  }
+}
+
+/**
+ * Знаходить підстановки списків у `IN (...)`, які:
+ * - не винесені в окрему змінну (в `${...}` стоїть не Identifier або `sql(<non-Identifier>)`);
+ * - або винесені, але перед запитом немає перевірки на пустоту з `throw`.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string, reason: 'not_var' | 'sql_helper_not_var' | 'missing_guard', name?: string }[]} список порушень
+ */
+export function findUnsafeBunSqlInListMissingEmptyGuardInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string, reason: 'not_var' | 'sql_helper_not_var' | 'missing_guard', name?: string }[]} */
+  const out = []
+
+  walkAstWithAncestors(program, [], (node, ancestors) => {
+    /** @type {unknown} */
+    let template = null
+    if (node.type === 'TemplateLiteral') {
+      template = node
+    } else if (node.type === 'TaggedTemplateExpression') {
+      template = node.quasi
+    }
+
+    if (!template || typeof template !== 'object' || template.type !== 'TemplateLiteral') return
+    if (!isSqlListContextTemplate(template)) return
+    collectInListGuardViolationsFromTemplate(template, ancestors, content, out)
+  })
+
   return out
 }
 

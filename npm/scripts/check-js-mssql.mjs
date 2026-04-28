@@ -19,6 +19,7 @@ import {
   findUnsafeMssqlQueryTemplateCallInText,
   findUnsafeMssqlDynamicSqlListInText,
   findUnsafeMssqlInListUnparsedInText,
+  findUnsafeMssqlInListMissingEmptyGuardInText,
   isMssqlScanSourceFile
 } from './utils/mssql-pool-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -203,6 +204,20 @@ function scanMssqlOneSourceFile(rel, content, counters, fail) {
       `js-mssql: ${rel}:${v.line} — у SQL IN (\${...}) значення мають бути попередньо приведені числовим парсером (parseInt/Number/BigInt/parseFloat) і відфільтровані від NaN, інакше можливий SQL injection (js-mssql.mdc): ${v.snippet}`
     )
   }
+  for (const v of findUnsafeMssqlInListMissingEmptyGuardInText(content, rel)) {
+    counters.inListGuardViolations++
+    if (v.reason === 'missing_guard') {
+      fail(
+        `js-mssql: ${rel}:${v.line} — перед IN-списком ${JSON.stringify(v.name)} потрібна перевірка на пустоту з throw ` +
+          `(наприклад if (!${v.name}.length) throw ...), інакше можливі некоректні запити (js-mssql.mdc): ${v.snippet}`
+      )
+    } else {
+      fail(
+        `js-mssql: ${rel}:${v.line} — значення для IN (\${...}) у template literal треба винести в окрему змінну ` +
+          `і перевірити на пустоту (throw), не підставляти вираз напряму (js-mssql.mdc): ${v.snippet}`
+      )
+    }
+  }
 }
 
 /**
@@ -226,6 +241,9 @@ function reportZeroMssqlSourceViolations(counters, pass) {
   if (counters.unparsedInLists === 0) {
     pass(`js-mssql: немає підстановок IN (\${...}) без числового парсера значень`)
   }
+  if (counters.inListGuardViolations === 0) {
+    pass('js-mssql: усі IN-списки винесені у змінні та мають перевірку на пустоту з throw')
+  }
 }
 
 /**
@@ -247,7 +265,8 @@ async function auditMssqlSources(repoRoot, pass, fail) {
     sharedRequestViolations: 0,
     unsafeQueryCalls: 0,
     unsafeDynamicSqlLists: 0,
-    unparsedInLists: 0
+    unparsedInLists: 0,
+    inListGuardViolations: 0
   }
   for (const absPath of sourcePaths) {
     const rel = relative(repoRoot, absPath).split('\\').join('/')

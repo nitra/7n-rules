@@ -1,7 +1,7 @@
 ---
 description: Використання mssql в nodejs
 alwaysApply: true
-version: '1.2'
+version: '1.3'
 ---
 
 ## Підтримувана версія SQL Server
@@ -53,6 +53,23 @@ const result = await pool.request().query`
 ```
 
 Ключове: pool.request().query\...`— бекті́ки післяquery`, без круглих дужок. Це той самий tagged template, тільки контекст — конкретний пул, а не глобальний.
+
+## Коментар під час виправлення SQL injection
+
+Коли виправляєш місце з потенційним **SQL injection** (наприклад, заміна `query(\`...\`)` на `query\`...\`` або прибирання динамічних списків/конкатенації), **додай поруч короткий коментар** з описом причини.
+
+Вимоги до коментаря:
+
+- вказати **що було небезпечно** (звичайна інтерполяція в рядок, конкатенація, динамічний список);
+- вказати **чому новий варіант безпечний** (tagged template / параметризація / TVP);
+- 1–2 рядки, без дублювання очевидного.
+
+Приклад:
+
+```javascript
+// SQLi fix: query`...` (tagged template) параметризує значення; query(`...`) небезпечний через інтерполяцію.
+await pool.request().query`SELECT * FROM users WHERE id = ${userId}`
+```
 
 ## Що НЕ робити
 
@@ -166,6 +183,11 @@ WHERE NOT EXISTS (
 
 Якщо `IN (...)` все ж використовується (а не `JOIN` на TVP), значення в `${...}` **обовʼязково** мають бути попередньо приведені числовим парсером і відфільтровані від `NaN`. Це знімає будь-яку можливість SQL injection: SQL-метасимволи в `Number`/`parseInt(...)` перетворюються на `NaN` і відсіюються.
 
+Додатково:
+
+- значення для `IN (${...})` потрібно **винести в окрему змінну** перед запитом (не підставляти вираз напряму в `${...}`);
+- цю змінну потрібно **перевірити на пустоту** і якщо список порожній — **throw error** (щоб не виконувати некоректний запит).
+
 ```javascript
 // ❌ НЕ МОЖНА: значення з req.body / зовнішнього джерела без парсингу
 const outIds = pgQ.rows.flatMap(x => x.req_body.Orders.map(o => o.OutletId))
@@ -176,9 +198,11 @@ await pool.query(/* sql */ String.raw`
 
 ```javascript
 // ✅ МОЖНА: parseInt + filter(!isNaN) гарантує, що в SQL потраплять лише числа
+// і перед запитом робимо guard на пустоту, щоб не виконувати некоректний SQL.
 const outIds = pgQ.rows
   .flatMap(x => x.req_body.Orders.map(o => parseInt(o.OutletId)))
   .filter(n => !isNaN(n))
+if (!outIds.length) throw new Error('outIds is empty')
 await pool.request().query`
   SELECT ... WHERE so.OutletId IN (${outIds})
 `

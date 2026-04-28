@@ -20,6 +20,7 @@ import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   findBunSqlPerRequestConnectionInText,
   findUnsafeBunSqlDynamicSqlListInText,
+  findUnsafeBunSqlInListMissingEmptyGuardInText,
   findUnsafeBunSqlUnsafeCallInText,
   isBunSqlScanSourceFile,
   textHasBunSqlImport
@@ -125,6 +126,7 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
   let perRequest = 0
   let unsafeCall = 0
   let dynamicList = 0
+  let inListGuard = 0
 
   for (const absPath of sourcePaths) {
     const rel = relative(repoRoot, absPath).split('\\').join('/')
@@ -154,9 +156,28 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
           `у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): ${v.snippet}`
       )
     }
+    for (const v of findUnsafeBunSqlInListMissingEmptyGuardInText(content, rel)) {
+      inListGuard++
+      if (v.reason === 'missing_guard') {
+        fail(
+          `js-bun-db: ${rel}:${v.line} — перед IN-списком ${JSON.stringify(v.name)} потрібна перевірка на пустоту ` +
+            `з throw (наприклад if (!${v.name}.length) throw ...), інакше можливі некоректні запити (js-bun-db.mdc): ${v.snippet}`
+        )
+      } else if (v.reason === 'sql_helper_not_var') {
+        fail(
+          `js-bun-db: ${rel}:${v.line} — IN-список у \${sql(...)} має підставлятись зі змінної (Identifier) ` +
+            `після валідації на пустоту + throw (js-bun-db.mdc): ${v.snippet}`
+        )
+      } else {
+        fail(
+          `js-bun-db: ${rel}:${v.line} — значення для IN (...) у template literal треба винести в окрему змінну ` +
+            `і перевірити на пустоту (throw), не підставляти вираз напряму (js-bun-db.mdc): ${v.snippet}`
+        )
+      }
+    }
   }
 
-  return { hasBunSqlImport, perRequest, unsafeCall, dynamicList }
+  return { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard }
 }
 
 /**
@@ -188,7 +209,7 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList } = await scanSourcesForBunSqlPatterns(
+  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard } = await scanSourcesForBunSqlPatterns(
     sourcePaths,
     repoRoot,
     reporter
@@ -207,6 +228,9 @@ export async function check() {
   }
   if (dynamicList === 0) {
     pass("js-bun-db: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")
+  }
+  if (inListGuard === 0) {
+    pass('js-bun-db: усі IN-списки винесені у змінні та мають перевірку на пустоту з throw')
   }
 
   return reporter.getExitCode()

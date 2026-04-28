@@ -1,7 +1,7 @@
 ---
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 alwaysApply: true
-version: '1.1'
+version: '1.2'
 ---
 
 ## Підтримувані версії баз даних
@@ -72,6 +72,22 @@ const ids = [1, 2, 3]
 await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
 ```
 
+## `IN (...)`: значення з template literal — тільки через змінну + guard на пустоту
+
+Якщо список для `IN (...)` підставляється через `${...}` у template literal, його **потрібно**:
+
+- винести в **окрему змінну** (не підставляти вираз напряму в `${...}`);
+- **перевірити на пустоту** перед запитом і **throw** (щоб не виконувати некоректний SQL або запит з неочікуваною семантикою).
+
+Приклад:
+
+```javascript
+const ids = inputIds.map(Number).filter(n => Number.isFinite(n))
+if (!ids.length) throw new Error('ids is empty')
+
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
 Транзакції — через `sql.begin` (auto-commit/rollback), вкладені — через `tx.savepoint`:
 
 ```javascript
@@ -79,6 +95,23 @@ await sql.begin(async tx => {
   await tx`INSERT INTO users ${sql(user)}`
   await tx`UPDATE accounts SET balance = balance - ${100} WHERE user_id = ${user.id}`
 })
+```
+
+## Коментар під час виправлення SQL injection
+
+Коли виправляєш місце з потенційним **SQL injection** (наприклад, заміна конкатенації/`.join(',')` на `sql(ids)` або перехід з `sql.unsafe(...)` на tagged template), **додай поруч короткий коментар** з описом причини.
+
+Вимоги до коментаря:
+
+- пояснити **що саме було небезпечно** (конкатенація, підмішування user input, динамічний `IN (...)`, тощо);
+- пояснити **чому новий варіант безпечний** (параметризація через tagged template / `sql(...)`);
+- без “романів”: 1–2 рядки, достатньо для ревʼю.
+
+Приклад:
+
+```javascript
+// SQLi fix: не конкатенуємо значення в `IN (...)`; Bun parameterize через `sql(ids)`.
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
 ```
 
 ## Що НЕ робити
