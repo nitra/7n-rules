@@ -1,0 +1,29 @@
+npm/mdc/k8s.mdc
+  c5158e9e0ace422c 317
+npm/tests/check-k8s-schema.test.mjs
+  c5158e9e0ace422c 53,1526-1674
+npm/package.json
+  c5158e9e0ace422c 3
+npm/scripts/check-k8s.mjs
+  c5158e9e0ace422c 4807-4838,4841-4845,4852,4855-4858
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "767714cc8bafbc780d0213e7f9d5db2231de914c",
+  "prompts": {
+    "c5158e9e0ace422c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "90390f84-2c7f-46c8-ab26-75872ea51df9",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 197,
+      "total_deletions": 12,
+      "accepted_lines": 197,
+      "overriden_lines": 0
+    }
+  }
+}
