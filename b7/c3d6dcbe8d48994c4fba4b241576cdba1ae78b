@@ -1,0 +1,64 @@
+npm/scripts/utils/bunyan-imports.mjs
+  60a7fde83169b50c 14-15
+npm/mdc/js-mssql.mdc
+  60a7fde83169b50c 20,62
+npm/skills/lint/SKILL.md
+  60a7fde83169b50c 56
+npm/scripts/utils/ast-scan-utils.mjs
+  60a7fde83169b50c 1-154
+.cursor/skills/n-lint/SKILL.md
+  60a7fde83169b50c 56
+npm/scripts/check-js-lint.mjs
+  60a7fde83169b50c 21-25
+.cspell.json
+  60a7fde83169b50c 79-134
+npm/scripts/check-capacitor.mjs
+  60a7fde83169b50c 379,444-446
+npm/tests/check-text-fixture.test.mjs
+  60a7fde83169b50c 61
+npm/scripts/check-text.mjs
+  60a7fde83169b50c 43
+npm/mdc/docker.mdc
+  60a7fde83169b50c 195
+  h_9e4b254ff59432 192
+.claude/settings.json
+  60a7fde83169b50c 3
+.n-cursor.json
+  60a7fde83169b50c 3-4
+.oxlintrc.json
+  h_9e4b254ff59432 386
+  60a7fde83169b50c 3-4
+npm/scripts/utils/bun-sql-scan.mjs
+  60a7fde83169b50c 18-26
+npm/bin/n-cursor.js
+  60a7fde83169b50c 564
+npm/scripts/utils/mssql-pool-scan.mjs
+  60a7fde83169b50c 25-34,335
+.jscpd.json
+  60a7fde83169b50c 10-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "b7c3d6dcbe8d48994c4fba4b241576cdba1ae78b",
+  "prompts": {
+    "60a7fde83169b50c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a91be8b3-cf70-4ebb-82b4-95e79ef769d3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 345,
+      "total_deletions": 364,
+      "accepted_lines": 344,
+      "overriden_lines": 1
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
