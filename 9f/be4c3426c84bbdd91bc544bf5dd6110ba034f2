@@ -1,0 +1,29 @@
+npm/scripts/check-k8s.mjs
+  06a235add073a22e 92-98,109,5050-5497,5521-5522
+npm/mdc/k8s.mdc
+  06a235add073a22e 3,269-288
+npm/tests/check-k8s-images.test.mjs
+  06a235add073a22e 1-497
+npm/package.json
+  06a235add073a22e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "9fbe4c3426c84bbdd91bc544bf5dd6110ba034f2",
+  "prompts": {
+    "06a235add073a22e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb624437-f47e-478f-bfb2-dc88097e0c7f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 7019,
+      "total_deletions": 12,
+      "accepted_lines": 977,
+      "overriden_lines": 0
+    }
+  }
+}
