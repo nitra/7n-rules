@@ -1,0 +1,33 @@
+npm/bin/n-cursor.js
+  deefb7da3435e8b2 21,49,429,433,436,443,657-658
+npm/AGENTS.template.md
+  deefb7da3435e8b2 21-28
+npm/README.md
+  deefb7da3435e8b2 66,117-121,128
+npm/scripts/build-agents-commands.mjs
+  deefb7da3435e8b2 1-88
+npm/tests/agents-md-commands.test.mjs
+  deefb7da3435e8b2 1-53
+npm/package.json
+  deefb7da3435e8b2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "69c39252b537f54f2112ebdbc9399454a974d77f",
+  "prompts": {
+    "deefb7da3435e8b2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "deb1eaad-1534-4ef1-aa6a-a95b5a25790e",
+        "model": "default"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 165,
+      "total_deletions": 6,
+      "accepted_lines": 165,
+      "overriden_lines": 0
+    }
+  }
+}
