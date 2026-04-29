@@ -18,6 +18,7 @@
  *
  * Файл AGENTS.md у корені: щоразу повністю перезаписується змістом з AGENTS.template.md
  * пакету; список правил у шаблоні будується з файлів *.mdc у .cursor/rules поточного проєкту.
+ * Секція команд — з кореневого package.json (scripts) та фіксовані рядки про CLI синхрону/перевірок.
  *
  * Після завантаження: у .cursor/rules видаляються файли *.mdc з префіксом «n-» (керовані
  * пакетом), яких немає у списку rules у .n-cursor.json. Інші .mdc у цій директорії залишаються.
@@ -45,6 +46,7 @@ import { basename, dirname, join } from 'node:path'
 import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
+import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
 import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected, normalizeIdList } from '../scripts/auto-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
@@ -424,19 +426,21 @@ function expandMustacheSection(template, section, items, prop) {
 }
 
 /**
- * Підставляє у вміст AGENTS.template.md список шляхів до файлів правил і skills
+ * Підставляє у вміст AGENTS.template.md список шляхів до файлів правил, skills і команд з package.json
  * @param {string} templateText вміст AGENTS.template.md
  * @param {string[]} mdcBasenames імена файлів (*.mdc) з .cursor/rules
  * @param {{ name: string }[]} skillItems рядки для секції Skills
+ * @param {{ name: string }[]} commandItems рядки для секції commands
  * @returns {string} готовий markdown для AGENTS.md
  */
-function renderAgentsTemplate(templateText, mdcBasenames, skillItems) {
+function renderAgentsTemplate(templateText, mdcBasenames, skillItems, commandItems) {
   let result = templateText
   const serviceItems = mdcBasenames.map(mdcName => ({
     name: `- ${RULES_DIR}/${mdcName}`
   }))
   result = expandMustacheSection(result, 'services', serviceItems, 'name')
   result = expandMustacheSection(result, 'skills', skillItems, 'name')
+  result = expandMustacheSection(result, 'commands', commandItems, 'name')
   return result
 }
 
@@ -650,7 +654,8 @@ async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
   const templateText = await readFile(agentsTemplatePath, 'utf8')
   const mdcFiles = await listProjectRulesMdcFiles()
   const skillItems = await buildSkillBulletItems()
-  const body = renderAgentsTemplate(templateText, mdcFiles, skillItems)
+  const commandItems = await buildAgentsCommandBulletItems(cwd())
+  const body = renderAgentsTemplate(templateText, mdcFiles, skillItems, commandItems)
   const agentsPath = join(cwd(), AGENTS_FILE)
   const hadFile = existsSync(agentsPath)
   const out = body.endsWith('\n') ? body : `${body}\n`

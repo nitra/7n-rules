@@ -8,6 +8,7 @@ This file is the entry point for all AI agents working with this repository.
 
 The primary development rules are stored in the Cursor rules directory:
 
+
 - .cursor/rules/dev-dep.mdc
 
 - .cursor/rules/n-bun.mdc
@@ -28,7 +29,9 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/scripts.mdc
 
+
 ## Skills
+
 
 - `.cursor/skills/mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc: максимум перевірюваної логіки й деталей — у check-{id}.mjs з зрозумілими коментарями/JSDoc; у .mdc залишати людинозрозумілий зміст без дублювання алгоритму перевірки
 
@@ -37,6 +40,35 @@ The primary development rules are stored in the Cursor rules directory:
 - `.cursor/skills/n-lint/SKILL.md` — Запустити кореневий bun run lint, виправити порушення й підтвердити чистий вихід
 
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
+
+
+## Commands
+
+Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
+
+
+- **Залежності**: `bun i`
+
+- **test**: `bun run test`
+
+- **lint**: `bun run lint`
+
+- **lint-js**: `bun run lint-js`
+
+- **lint-text**: `bun run lint-text`
+
+- **lint-ga**: `bun run lint-ga`
+
+- **lint-k8s**: `bun run lint-k8s`
+
+- **lint-docker**: `bun run lint-docker`
+
+- **start**: `bun run start`
+
+- **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
+
+- **Перевірки правил (programmatic)**: `npx @nitra/cursor check`
+
 
 ## Instructions for all agents
 

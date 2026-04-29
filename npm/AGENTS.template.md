@@ -18,6 +18,14 @@ The primary development rules are stored in the Cursor rules directory:
 {{name}}
 {{/skills}}
 
+## Commands
+
+Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
+
+{{#commands}}
+{{name}}
+{{/commands}}
+
 ## Instructions for all agents
 
 Before making changes, read the relevant rule files for the area you are working on.

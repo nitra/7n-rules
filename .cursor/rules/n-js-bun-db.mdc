@@ -1,7 +1,7 @@
 ---
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 alwaysApply: true
-version: '1.1'
+version: '1.2'
 ---
 
 ## Підтримувані версії баз даних
@@ -69,6 +69,22 @@ const [created] = await sql`
 await sql`UPDATE users SET ${sql(user, 'name', 'email')} WHERE id = ${created.id}`
 
 const ids = [1, 2, 3]
+await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
+```
+
+## `IN (...)`: значення з template literal — тільки через змінну + guard на пустоту
+
+Якщо список для `IN (...)` підставляється через `${...}` у template literal, його **потрібно**:
+
+- винести в **окрему змінну** (не підставляти вираз напряму в `${...}`);
+- **перевірити на пустоту** перед запитом і **throw** (щоб не виконувати некоректний SQL або запит з неочікуваною семантикою).
+
+Приклад:
+
+```javascript
+const ids = inputIds.map(Number).filter(n => Number.isFinite(n))
+if (!ids.length) throw new Error('ids is empty')
+
 await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
 ```
 
