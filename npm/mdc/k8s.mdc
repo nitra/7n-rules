@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.25'
+version: '1.26'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -265,6 +265,26 @@ data:
 ### Міграція зі старої структури
 
 - Після перенесення маніфестів у **`base`** та overlays і перевірки (**`check k8s`**, **`lint-k8s`**) **видали** застарілі файли та директорії, які замінені новою схемою (дубльовані копії, колишні шляхи без Kustomize), щоб у репозиторії не залишалося зайвих або суперечливих маніфестів.
+
+### Зміна image — через `images:`, не через `patches[]`
+
+Підміну image у Pod-шаблоні Deployment в overlay роби директивою `images:`, а не JSON6902-патчем `op: replace` на `/spec/template/spec/containers/<N>/image`. `images:` — канонічний механізм Kustomize (матчить за іменем образу, не за індексом контейнера, тож стійкий до перестановки).
+
+- У **`name`** — те, що **дослівно** стоїть у `image:` у base (або в попередньому шарі) **без тегу**: інакше підміна не спрацює. Тег у `name` зайвий — Kustomize матчить лише за іменем.
+- **`newName`** — кінцеве ім'я образу (як правило, збігається з `name`); `**newTag**` — тег для прода. Якщо `newTag` дорівнює тегу, який вже в base, його можна не вказувати.
+- **`digest`** (`@sha256:…`) у `name` / `newName` не чіпай — це не тег.
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+images:
+  - name: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newName: europe-west4-docker.pkg.dev/abie-ua/c/apply-on-invoice-discount
+    newTag: v2025-04-29
+```
+
+**`check k8s` автоматично** для кожного `kustomization.yaml`:
+
+1. конвертує JSON6902-патч `op: replace` на `/spec/template/spec/containers/<N>/image` (target `kind: Deployment`) у запис `images:` (резолвить оригінальний image у base через `resources:` / `bases` / `components` / `crds`); якщо в `patches[]` залишається лише ця операція — патч прибирається повністю;
+2. чистить існуючий блок `images:` — зрізає `:tag` з `name` і видаляє `newTag`, який збігається з відрізаним тегом.
 
 ## Ingress → Gateway API (GKE)
 
