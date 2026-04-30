@@ -74,4 +74,80 @@ describe('check-js-run (мінімальний проєкт)', () => {
       expect(await check()).toBe(0)
     })
   })
+
+  test("1, якщо import { SQL } from 'bun' поза src/conn/", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import { SQL } from 'bun'\nimport { checkEnv } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: process.env.PG_CONN })\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test("0, якщо import { SQL } from 'bun' у src/conn/", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
+      await writeFile(
+        join('pkg', 'src', 'conn', 'pg.js'),
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test("враховує package.json#imports['#conn/*']", async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'r', private: true, workspaces: ['pkg'] })
+      await ensureDir('pkg')
+      await writeJson(join('pkg', 'package.json'), {
+        name: 'pkg',
+        dependencies: { '@nitra/pino': '^1.0.0' },
+        imports: { '#conn/*': './lib/connections/*' }
+      })
+      await mkdir(join('pkg', 'lib', 'connections'), { recursive: true })
+      await writeFile(
+        join('pkg', 'lib', 'connections', 'pg.js'),
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('1, якщо process.env.X без checkEnv', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(join('pkg', 'index.js'), `console.log(process.env.SECRET)\n`, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('0, якщо process.env.X закрите checkEnv', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import { checkEnv } from '@nitra/check-env'\ncheckEnv(['SECRET'])\nconsole.log(process.env.SECRET)\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0, якщо process.env.X закрите ignore-коментарем', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `// @nitra/cursor ignore-next-line checkEnv\nconsole.log(process.env.OPTIONAL)\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
 })

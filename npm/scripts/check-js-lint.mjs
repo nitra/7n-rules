@@ -7,7 +7,7 @@
  * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.6.12** (транзитивний
  * `@e18e/eslint-plugin` для oxlint), `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow
  * `lint-js.yml` (checkout@v6, setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24,
- * `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
+ * `engines.bun` >= 1.3, `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -264,38 +264,62 @@ function checkPackageJsonTypeModule(label, pkg, passFn, failFn) {
 }
 
 /**
- * `"type": "module"` у кожного workspace з package.json.
+ * `"type": "module"`, `engines.node >= 24` і `engines.bun >= 1.3` у кожному workspace `package.json`.
  * @param {unknown[]} workspaces поле workspaces з package.json
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
-async function checkWorkspacePackagesTypeModule(workspaces, passFn, failFn) {
+async function checkWorkspacePackages(workspaces, passFn, failFn) {
   for (const ws of workspaces) {
     const wsPkgPath = `${ws}/package.json`
     if (existsSync(wsPkgPath)) {
       const wsPkg = JSON.parse(await readFile(wsPkgPath, 'utf8'))
       checkPackageJsonTypeModule(wsPkgPath, wsPkg, passFn, failFn)
+      checkEnginesNode(wsPkgPath, wsPkg, passFn, failFn)
+      checkEnginesBun(wsPkgPath, wsPkg, passFn, failFn)
     }
   }
 }
 
 /**
  * engines.node >= 24.
+ * @param {string} label шлях або назва пакета для повідомлень
  * @param {{ engines?: { node?: string } }} pkg розпарсений package.json
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
-function checkEnginesNode(pkg, passFn, failFn) {
+function checkEnginesNode(label, pkg, passFn, failFn) {
   const nodeEngine = pkg.engines?.node
   if (nodeEngine) {
     const firstNumeric = String(nodeEngine).split(NON_DIGITS_RE).find(Boolean)
     if (firstNumeric && Number(firstNumeric) >= 24) {
-      passFn(`engines.node: "${nodeEngine}"`)
+      passFn(`${label}: engines.node "${nodeEngine}"`)
     } else {
-      failFn(`engines.node: "${nodeEngine}" — має бути >=24`)
+      failFn(`${label}: engines.node "${nodeEngine}" — має бути >=24`)
     }
   } else {
-    failFn('package.json не містить engines.node — додай: "engines": { "node": ">=24" }')
+    failFn(`${label} не містить engines.node — додай: "engines": { "node": ">=24" }`)
+  }
+}
+
+/**
+ * engines.bun >= 1.3.
+ * @param {string} label шлях або назва пакета для повідомлень
+ * @param {{ engines?: { bun?: string } }} pkg розпарсений package.json
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+function checkEnginesBun(label, pkg, passFn, failFn) {
+  const bunEngine = pkg.engines?.bun
+  if (bunEngine) {
+    const [major, minor] = String(bunEngine).split(NON_DIGITS_RE).filter(Boolean).map(Number)
+    if (Number.isFinite(major) && Number.isFinite(minor) && (major > 1 || (major === 1 && minor >= 3))) {
+      passFn(`${label}: engines.bun "${bunEngine}"`)
+    } else {
+      failFn(`${label}: engines.bun "${bunEngine}" — має бути >=1.3`)
+    }
+  } else {
+    failFn(`${label} не містить engines.bun — додай: "engines": { "bun": ">=1.3" }`)
   }
 }
 
@@ -311,7 +335,7 @@ async function checkPackageJsonJsLint(passFn, failFn) {
   checkPackageJsonTypeModule('package.json', pkg, passFn, failFn)
 
   const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
-  await checkWorkspacePackagesTypeModule(workspaces, passFn, failFn)
+  await checkWorkspacePackages(workspaces, passFn, failFn)
 
   const lintJs = pkg.scripts?.['lint-js']
   if (lintJs) {
@@ -328,7 +352,8 @@ async function checkPackageJsonJsLint(passFn, failFn) {
   }
 
   checkPackageJsonLintDeps(pkg, passFn, failFn)
-  checkEnginesNode(pkg, passFn, failFn)
+  checkEnginesNode('package.json', pkg, passFn, failFn)
+  checkEnginesBun('package.json', pkg, passFn, failFn)
 }
 
 /**
