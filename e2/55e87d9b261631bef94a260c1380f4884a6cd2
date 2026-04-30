@@ -1,0 +1,158 @@
+.cursor/rules/n-js-run.mdc
+  a0b9db608b91fe57 124
+.cursor/rules/n-js-lint.mdc
+  8b3d23b29c4fdb8e 4,7,28,33,138,142-168
+npm/tests/conn-imports-scan.test.mjs
+  d80bf0cba601e033 29-32,39-41
+npm/mdc/hasura.mdc
+  h_9e4b254ff59432 2,4,8,10,12,14,16,18,20,22,24,29
+  bb3b4df22a6617b8 7,9,11,13,15,17,19,21,23,25-28,30-31
+npm/mdc/npm-module.mdc
+  d4699395d648f114 4,52-59
+npm/scripts/check-k8s.mjs
+  d80bf0cba601e033 5059,5079,5084,5111-5154,5161,5167-5199,5201-5202,5207,5211,5215-5216,5218-5225,5229-5232,5234-5236,5238-5253,5256-5264,5266-5270,5272,5274-5276,5278-5279,5281-5294,5296-5307,5317,5320-5360,5363-5364,5366-5371,5374-5379,5385-5386,5388-5397,5414-5415,5420-5457,5479-5524,5545,5551-5574,5579,5581,5583-5587,5595-5596,5598-5607,5619,5621-5622,5625-5660,5662-5668,5670,5689,5706-5726,5728-5748,5750-5752
+npm/tests/check-k8s-images.test.mjs
+  d80bf0cba601e033 257-271,277-280,282
+npm/scripts/check-js-lint.mjs
+  8b3d23b29c4fdb8e 7-8,57-58,60,62,75,239,241,245
+npm/tests/check-hasura.test.mjs
+  bb3b4df22a6617b8 1-147
+npm/scripts/utils/check-env-scan.mjs
+  d80bf0cba601e033 14,132,164-208,239-250,252,254-268,270-274,282-285,287-290,292
+npm/mdc/js-mssql.mdc
+  h_9e4b254ff59432 29
+npm/scripts/check-js-run.mjs
+  d80bf0cba601e033 19,159,181-216,218-228
+npm/mdc/js-lint.mdc
+  8b3d23b29c4fdb8e 4,7,28,33,147-171
+npm/tests/check-env-scan.test.mjs
+  d80bf0cba601e033 16-19,39,57-60,70-73,80-84,99-102
+npm/package.json
+  h_9e4b254ff59432 3
+  d4699395d648f114 33-34
+npm/scripts/check-npm-module.mjs
+  d4699395d648f114 12-14,39-41,203-210,213-249,394-395
+  8b3d23b29c4fdb8e 211-212
+npm/tests/auto-rules.test.mjs
+  94872ac460675b36 17,128-154
+npm/scripts/build-agents-commands.mjs
+  d80bf0cba601e033 60,80-85
+npm/CHANGELOG.md
+  d4699395d648f114 1-12,14-17
+  bb3b4df22a6617b8 13,18
+.cspell.json
+  8b3d23b29c4fdb8e 61
+  d80bf0cba601e033 135-164
+npm/scripts/check-js-bun-db.mjs
+  d80bf0cba601e033 127,136-137,139-170,172-176,178-201
+npm/scripts/utils/conn-imports-scan.mjs
+  d80bf0cba601e033 23-33,43,70
+npm/mdc/js-run.mdc
+  h_9e4b254ff59432 62,103
+  d80bf0cba601e033 55
+npm/scripts/check-hasura.mjs
+  bb3b4df22a6617b8 1-219
+npm/tests/check-js-lint.test.mjs
+  8b3d23b29c4fdb8e 11,35-40
+npm/scripts/utils/bun-sql-scan.mjs
+  d80bf0cba601e033 119-120,311-313
+npm/tests/check-js-run-fixture.test.mjs
+  h_9e4b254ff59432 83,96,115
+npm/scripts/auto-rules.mjs
+  d80bf0cba601e033 145-161,174,193-200,531-532
+  94872ac460675b36 6-7,32,50,323-341,351,369,438,455,571
+npm/bin/auto-rules.md
+  h_9e4b254ff59432 19-20
+npm/scripts/utils/mssql-pool-scan.mjs
+  d80bf0cba601e033 40-89,97,102,105,113,129,149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "e255e87d9b261631bef94a260c1380f4884a6cd2",
+  "prompts": {
+    "8b3d23b29c4fdb8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2436ed65-b0cc-4712-84d2-1bd9ce5f4487",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 10192,
+      "total_deletions": 808,
+      "accepted_lines": 99,
+      "overriden_lines": 1
+    },
+    "94872ac460675b36": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c57e17cd-5004-4e3f-b426-4ac988349a19",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 915,
+      "total_deletions": 1,
+      "accepted_lines": 57,
+      "overriden_lines": 0
+    },
+    "a0b9db608b91fe57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1743d165-5625-40dd-a7ee-73be7b40aeaf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 14,
+      "overriden_lines": 1
+    },
+    "bb3b4df22a6617b8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81f7df77-0589-445d-a745-054e61ca8308",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 1412,
+      "total_deletions": 58,
+      "accepted_lines": 390,
+      "overriden_lines": 12
+    },
+    "d4699395d648f114": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c95118e-18c7-4b40-a84d-26393870d6f0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 3,
+      "accepted_lines": 80,
+      "overriden_lines": 0
+    },
+    "d80bf0cba601e033": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ee0a831-7cec-42af-aa3a-61bb8c7a6dd8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 982,
+      "total_deletions": 459,
+      "accepted_lines": 963,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
