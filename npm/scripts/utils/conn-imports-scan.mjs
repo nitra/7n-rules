@@ -20,7 +20,17 @@ import { langFromPath, normalizeSnippet, offsetToLine } from './ast-scan-utils.m
 import { parseSync } from 'oxc-parser'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
-const TRAILING_SLASH_RE = /\/+$/u
+
+/**
+ * Прибирає хвостові `/` зі шляху без використання regex (щоб не тригерити slow-regex попередження).
+ * @param {string} s рядок зі шляхом
+ * @returns {string} `s` без хвостових `/`
+ */
+function stripTrailingSlashes(s) {
+  let end = s.length
+  while (end > 0 && s.codePointAt(end - 1) === 47) end--
+  return end === s.length ? s : s.slice(0, end)
+}
 
 /**
  * Нормалізує шлях до posix без хвостових слешів.
@@ -30,7 +40,7 @@ const TRAILING_SLASH_RE = /\/+$/u
 function toPosixDir(p) {
   let s = String(p).replaceAll('\\', '/').trim()
   if (s.startsWith('./')) s = s.slice(2)
-  return s.replace(TRAILING_SLASH_RE, '')
+  return stripTrailingSlashes(s)
 }
 
 /**
@@ -57,7 +67,7 @@ export function resolveConnDirFromPackageJson(pkgJson) {
   // Прибираємо хвіст `*`, потім слеші
   let s = toPosixDir(raw)
   if (s.endsWith('/*')) s = s.slice(0, -2)
-  return s.replace(TRAILING_SLASH_RE, '') || fallback
+  return stripTrailingSlashes(s) || fallback
 }
 
 /**

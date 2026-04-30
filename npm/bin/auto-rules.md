@@ -16,6 +16,8 @@ ga - якщо присутня директорія .github/workflows
 
 graphql - якщо хоч в одному js або vue файлі присутній gql` темплейт літерал
 
+hasura - якщо в директорії присутній config.yaml, який містить рядок `metadata_directory: metadata`
+
 js-lint - якщо присутній хоч один js файл
 
 js-run - якщо це вкладена директорія з package.json (не в корені) та в devDependencies немає vite

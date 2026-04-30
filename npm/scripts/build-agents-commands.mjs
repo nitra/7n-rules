@@ -57,9 +57,7 @@ async function readPackageScripts(projectRoot) {
  */
 export async function buildAgentsCommandBulletItems(projectRoot) {
   const scripts = await readPackageScripts(projectRoot)
-  const items = /** @type {{ name: string }[]} */ ([])
-
-  items.push({ name: `- **Залежності**: \`bun i\`` })
+  const items = /** @type {{ name: string }[]} */ ([{ name: `- **Залежності**: \`bun i\`` }])
 
   const added = new Set()
 
@@ -79,10 +77,12 @@ export async function buildAgentsCommandBulletItems(projectRoot) {
     added.add(key)
   }
 
-  items.push({
-    name: `- **Оновити правила та ${AGENTS_MD}** (після змін у правилах/шаблоні CLI): \`npx ${PACKAGE_NAME}\``
-  })
-  items.push({ name: `- **Перевірки правил (programmatic)**: \`npx ${PACKAGE_NAME} check\`` })
+  items.push(
+    {
+      name: `- **Оновити правила та ${AGENTS_MD}** (після змін у правилах/шаблоні CLI): \`npx ${PACKAGE_NAME}\``
+    },
+    { name: `- **Перевірки правил (programmatic)**: \`npx ${PACKAGE_NAME} check\`` }
+  )
 
   return items
 }

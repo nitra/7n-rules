@@ -16,7 +16,6 @@ package.json
 readme.md
 ```
 
-
 ## Використання @nitra/pino
 
 Проект використовує @nitra/pino для логування.
@@ -53,13 +52,14 @@ import { GraphQLClient } from '@nitra/graphql-request'
 ```
 
 так виглядатиме підключення до PostgreSQL в коді:
+
 ```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
 import { checkEnv, env } from '@nitra/check-env'
 import { SQL } from 'bun'
 
 checkEnv(['PG_CONN'])
 
-export const pool = new SQL({ url: env.PG_CONN })
+export const db = new SQL({ url: env.PG_CONN })
 
 ```
 
@@ -80,7 +80,6 @@ export const graphQLClientSmart = new GraphQLClient(env.QL, {
 })
 ```
 
-
 а в коді повинно бути використано:
 
 ```js
@@ -91,12 +90,9 @@ import { pool } from '#conn/pg.js'
 import { gql, graphQLClient } from '@nitra/graphql-request'
 ```
 
-
-
 ## CheckEnv
 
 Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
-
 
 ```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
 import { checkEnv, env } from '@nitra/check-env'
@@ -104,10 +100,9 @@ import { SQL } from 'bun'
 
 checkEnv(['PG_CONN'])
 
-export const pool = new SQL({ url: env.PG_CONN })
+export const db = new SQL({ url: env.PG_CONN })
 
 ```
-
 
 ## process.env
 
@@ -126,7 +121,6 @@ console.log(env.OPTIONAL_ENV_VAR)
 Тимчасово приглушити перевірку для конкретного рядка можна коментарем
 `// @nitra/cursor ignore-next-line checkEnv` безпосередньо перед використанням
 (escape-hatch для legacy-коду, не для нових файлів).
-
 
 ## Перевірка
 

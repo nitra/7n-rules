@@ -124,11 +124,8 @@ async function checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter) {
  */
 async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
   const { fail } = reporter
+  const counts = { perRequest: 0, unsafeCall: 0, dynamicList: 0, inListGuard: 0 }
   let hasBunSqlImport = false
-  let perRequest = 0
-  let unsafeCall = 0
-  let dynamicList = 0
-  let inListGuard = 0
 
   for (const absPath of sourcePaths) {
     const rel = relative(repoRoot, absPath).split('\\').join('/')
@@ -136,50 +133,72 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
     if (!hasBunSqlImport && textHasBunSqlImport(content)) {
       hasBunSqlImport = true
     }
-
-    for (const v of findBunSqlPerRequestConnectionInText(content, rel)) {
-      perRequest++
-      fail(
-        `js-bun-db: ${rel}:${v.line} — не створюй new SQL(...) всередині функцій; ` +
-          `тримай singleton на рівні модуля (js-bun-db.mdc): ${v.snippet}`
-      )
-    }
-    for (const v of findUnsafeBunSqlUnsafeCallInText(content, rel)) {
-      unsafeCall++
-      fail(
-        `js-bun-db: ${rel}:${v.line} — sql.unsafe(\`...\${...}...\`) недопустимо: ` +
-          `використовуй tagged template sql\`...\${value}...\` або sql.unsafe('static', [params]) (js-bun-db.mdc): ${v.snippet}`
-      )
-    }
-    for (const v of findUnsafeBunSqlDynamicSqlListInText(content, rel)) {
-      dynamicList++
-      fail(
-        `js-bun-db: ${rel}:${v.line} — заборонено підставляти у SQL динамічні списки через .join(',') ` +
-          `у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): ${v.snippet}`
-      )
-    }
-    for (const v of findUnsafeBunSqlInListMissingEmptyGuardInText(content, rel)) {
-      inListGuard++
-      if (v.reason === 'missing_guard') {
-        fail(
-          `js-bun-db: ${rel}:${v.line} — перед IN-списком ${JSON.stringify(v.name)} потрібна перевірка на пустоту ` +
-            `з throw (наприклад if (!${v.name}.length) throw ...), інакше можливі некоректні запити (js-bun-db.mdc): ${v.snippet}`
-        )
-      } else if (v.reason === 'sql_helper_not_var') {
-        fail(
-          `js-bun-db: ${rel}:${v.line} — IN-список у \${sql(...)} має підставлятись зі змінної (Identifier) ` +
-            `після валідації на пустоту + throw (js-bun-db.mdc): ${v.snippet}`
-        )
-      } else {
-        fail(
-          `js-bun-db: ${rel}:${v.line} — значення для IN (...) у template literal треба винести в окрему змінну ` +
-            `і перевірити на пустоту (throw), не підставляти вираз напряму (js-bun-db.mdc): ${v.snippet}`
-        )
-      }
-    }
+    scanFileForBunSqlPatterns(content, rel, fail, counts)
   }
 
-  return { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard }
+  return { hasBunSqlImport, ...counts }
+}
+
+/**
+ * Сканує один файл усіма AST-сканерами bun-sql і реєструє знайдені порушення.
+ * @param {string} content вміст файлу
+ * @param {string} rel posix-шлях відносно `repoRoot`
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number }} counts акумулятори
+ * @returns {void}
+ */
+function scanFileForBunSqlPatterns(content, rel, fail, counts) {
+  for (const v of findBunSqlPerRequestConnectionInText(content, rel)) {
+    counts.perRequest++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — не створюй new SQL(...) всередині функцій; ` +
+        `тримай singleton на рівні модуля (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findUnsafeBunSqlUnsafeCallInText(content, rel)) {
+    counts.unsafeCall++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — sql.unsafe(\`...\${...}...\`) недопустимо: ` +
+        `використовуй tagged template sql\`...\${value}...\` або sql.unsafe('static', [params]) (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findUnsafeBunSqlDynamicSqlListInText(content, rel)) {
+    counts.dynamicList++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — заборонено підставляти у SQL динамічні списки через .join(',') ` +
+        `у IN (...) / VALUES (...); використовуй sql([...]) (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findUnsafeBunSqlInListMissingEmptyGuardInText(content, rel)) {
+    counts.inListGuard++
+    fail(messageForBunSqlInListGuard(rel, v))
+  }
+}
+
+/**
+ * Будує повідомлення `fail` для порушення `findUnsafeBunSqlInListMissingEmptyGuardInText`
+ * залежно від `reason` (різні діагностики однакового сімейства).
+ * @param {string} rel posix-шлях відносно кореня репо
+ * @param {{ line: number, snippet: string, name?: string, reason: string }} v порушення
+ * @returns {string} готове повідомлення для `fail`
+ */
+function messageForBunSqlInListGuard(rel, v) {
+  if (v.reason === 'missing_guard') {
+    return (
+      `js-bun-db: ${rel}:${v.line} — перед IN-списком ${JSON.stringify(v.name)} потрібна перевірка на пустоту ` +
+      `з throw (наприклад if (!${v.name}.length) throw ...), інакше можливі некоректні запити (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  if (v.reason === 'sql_helper_not_var') {
+    return (
+      `js-bun-db: ${rel}:${v.line} — IN-список у \${sql(...)} має підставлятись зі змінної (Identifier) ` +
+      `після валідації на пустоту + throw (js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  return (
+    `js-bun-db: ${rel}:${v.line} — значення для IN (...) у template literal треба винести в окрему змінну ` +
+    `і перевірити на пустоту (throw), не підставляти вираз напряму (js-bun-db.mdc): ${v.snippet}`
+  )
 }
 
 /**

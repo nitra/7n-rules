@@ -1,7 +1,7 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.7'
+version: '1.8'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
@@ -48,6 +48,14 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 У робочій копії не повинно бути більше одного незбереженого в **git** підвищення **build**-версії за раз.
 
 **Підказка:** щоб не дублювати bump і бачити різницю зі збереженим деревом, перевір `git status npm/package.json` або `git diff HEAD -- npm/package.json` перед другим підвищенням у тій самій гілці / наборі змін.
+
+## CHANGELOG
+
+Разом із підвищенням **build**-версії в **`npm/package.json`** оновлюй **`npm/CHANGELOG.md`** — додавай новий запис із номером версії та коротким описом змін у модулі. Без оновлення `CHANGELOG.md` зміни в `npm/` зливати в `main` не можна.
+
+Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/) (новіші версії зверху, мова — українська). Кожен запис починається з рядка `## [версія] - YYYY-MM-DD` і має одну або кілька секцій: `### Added`, `### Changed`, `### Fixed`, `### Removed`.
+
+Файл **`CHANGELOG.md`** має бути в масиві **`files`** у **`npm/package.json`**, щоб публікувався разом із пакетом.
 
 ## npm publish
 

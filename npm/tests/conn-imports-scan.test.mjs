@@ -26,14 +26,19 @@ describe('conn-imports-scan: classify imports', () => {
   })
 
   test("import { GraphQLClient } from '@nitra/graphql-request' — порушення", () => {
-    const hits = findConnFactoryImportsInText(`import { GraphQLClient } from '@nitra/graphql-request'\n`, 'pkg/src/x.ts')
+    const hits = findConnFactoryImportsInText(
+      `import { GraphQLClient } from '@nitra/graphql-request'\n`,
+      'pkg/src/x.ts'
+    )
     expect(hits.length).toBe(1)
     expect(hits[0].module).toBe('@nitra/graphql-request')
     expect(hits[0].specifier).toBe('GraphQLClient')
   })
 
   test("import { gql } from '@nitra/graphql-request' — без порушення", () => {
-    expect(findConnFactoryImportsInText(`import { gql } from '@nitra/graphql-request'\n`, 'pkg/src/x.ts').length).toBe(0)
+    expect(findConnFactoryImportsInText(`import { gql } from '@nitra/graphql-request'\n`, 'pkg/src/x.ts').length).toBe(
+      0
+    )
   })
 
   test("import { spawn } from 'bun' — без порушення", () => {

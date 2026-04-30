@@ -8,7 +8,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   CANONICAL_LINT_JS,
   isCanonicalLintJs,
-  nitraEslintConfigDeclaresE18eTransitive,
+  nitraEslintConfigMeetsMinVersion,
   normalizeLintJsScript,
   OXLINT_CANONICAL_JSON_PATH,
   verifyOxlintRcAgainstCanonical
@@ -32,11 +32,12 @@ describe('normalizeLintJsScript / isCanonicalLintJs', () => {
   })
 })
 
-describe('nitraEslintConfigDeclaresE18eTransitive', () => {
-  test('^3.6.12 і workspace — ok; ^3.4.0 — ні', () => {
-    expect(nitraEslintConfigDeclaresE18eTransitive('^3.6.12')).toBe(true)
-    expect(nitraEslintConfigDeclaresE18eTransitive('workspace:*')).toBe(true)
-    expect(nitraEslintConfigDeclaresE18eTransitive('^3.4.3')).toBe(false)
+describe('nitraEslintConfigMeetsMinVersion', () => {
+  test('^3.8.0 і workspace — ok; нижчі версії — ні', () => {
+    expect(nitraEslintConfigMeetsMinVersion('^3.8.0')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('workspace:*')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('^3.6.12')).toBe(false)
+    expect(nitraEslintConfigMeetsMinVersion('^3.4.3')).toBe(false)
   })
 })
 

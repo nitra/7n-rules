@@ -1,14 +1,126 @@
 ---
-description: Використання @nitra/pino
+description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 alwaysApply: true
 version: '1.1'
 ---
+
+## Структура проекту
+
+Рекомендується використовувати таку структуру проекту:
+
+```
+k8s/ # тут всі файли для деплойменту в Kubernetes, включаючи kustomize
+src/ # тут всі файли необхідні для роботи проекту
+Dockerfile
+package.json
+readme.md
+```
+
+## Використання @nitra/pino
 
 Проект використовує @nitra/pino для логування.
 Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
 
 В **/k8s/base/configmap.yaml повинен бути заданий OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'
 а в директоріях з kustomize повинні бути перевизначені значення OTEL_RESOURCE_ATTRIBUTES і в них service.namespace повинен відповідати namespace, в якому знаходиться дана директорія.
+
+## Внутрішні аліаси
+
+Якщо в проекті є підключення до баз даних, зовнішніх graphql на кшталт:
+
+```js
+import { SQL } from 'bun'
+
+// або
+
+import sql from 'mssql'
+
+// або
+
+import { GraphQLClient } from '@nitra/graphql-request'
+```
+
+то ці підключення повинні бути винесені в окремий файл, наприклад `/src/conn/pg.js`, в package.json повинні бути додано аліас:
+
+```json
+{
+  "imports": {
+    "#conn/*": "./src/conn/*"
+  },
+}
+
+```
+
+так виглядатиме підключення до PostgreSQL в коді:
+
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
+import { checkEnv, env } from '@nitra/check-env'
+import { SQL } from 'bun'
+
+checkEnv(['PG_CONN'])
+
+export const db = new SQL({ url: env.PG_CONN })
+
+```
+
+а так до GraphQL:
+
+```js
+import { checkEnv, env } from '@nitra/check-env'
+import { GraphQLClient } from '@nitra/graphql-request'
+
+checkEnv(['QL', 'X_HASURA_ADMIN_SECRET'])
+
+export { gql } from '@nitra/graphql-request'
+
+export const graphQLClientSmart = new GraphQLClient(env.QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+а в коді повинно бути використано:
+
+```js
+import { pool } from '#conn/pg.js'
+
+// або
+
+import { gql, graphQLClient } from '@nitra/graphql-request'
+```
+
+## CheckEnv
+
+Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
+
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
+import { checkEnv, env } from '@nitra/check-env'
+import { SQL } from 'bun'
+
+checkEnv(['PG_CONN'])
+
+export const db = new SQL({ url: env.PG_CONN })
+
+```
+
+## process.env
+
+Прямий доступ до `process.env.X` у коді заборонений — його треба замінити на `env`:
+
+- **обов'язкова змінна** — `import { checkEnv, env } from '@nitra/check-env'` плюс `checkEnv(['X'])`
+  у тому ж файлі (приклад див. вище в розділі **CheckEnv**);
+- **опційна змінна** — `import { env } from 'node:process'`:
+
+```javascript title="Опційна змінна — env з node:process"
+import { env } from 'node:process'
+
+console.log(env.OPTIONAL_ENV_VAR)
+```
+
+Тимчасово приглушити перевірку для конкретного рядка можна коментарем
+`// @nitra/cursor ignore-next-line checkEnv` безпосередньо перед використанням
+(escape-hatch для legacy-коду, не для нових файлів).
 
 ## Перевірка
 

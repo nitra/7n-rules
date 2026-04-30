@@ -4,7 +4,8 @@
  * Канонічний `lint-js`, flat ESLint з getConfig і ignore для auto-imports, рекомендації VSCode,
  * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/scripts/utils/oxlint-canonical.json`):
  * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
- * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.6.12** (транзитивний
+ * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.8.0** (з цієї версії
+ * правило `no-restricted-syntax` для `ForInStatement` забороняє `for...in`; також тягне транзитивний
  * `@e18e/eslint-plugin` для oxlint), `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow
  * `lint-js.yml` (checkout@v6, setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24,
  * `engines.bun` >= 1.3, `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
@@ -53,11 +54,12 @@ export function isCanonicalLintJs(script) {
 }
 
 /**
- * Чи діапазон `@nitra/eslint-config` у `package.json` передбачає версію з транзитивним `@e18e/eslint-plugin` (>=3.6.12).
+ * Чи діапазон `@nitra/eslint-config` у `package.json` задовольняє мінімум `>= 3.8.0`
+ * (заборона `for...in` через `no-restricted-syntax` + транзитивний `@e18e/eslint-plugin` для oxlint).
  * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
- * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.6.12
+ * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.8.0
  */
-export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
+export function nitraEslintConfigMeetsMinVersion(versionSpec) {
   const s = String(versionSpec).trim()
   if (s.startsWith('workspace:')) {
     return true
@@ -70,7 +72,7 @@ export function nitraEslintConfigDeclaresE18eTransitive(versionSpec) {
   if ([major, minor, patch].some(n => Number.isNaN(n))) {
     return false
   }
-  return major > 3 || (major === 3 && minor > 5) || (major === 3 && minor === 5 && patch >= 0)
+  return major > 3 || (major === 3 && minor >= 8 && patch >= 0)
 }
 
 /**
@@ -234,13 +236,13 @@ function checkPackageJsonLintDeps(pkg, passFn, failFn) {
   const nitraEslint = pkg.devDependencies?.['@nitra/eslint-config']
   if (nitraEslint) {
     passFn('@nitra/eslint-config є в devDependencies')
-    if (nitraEslintConfigDeclaresE18eTransitive(nitraEslint)) {
+    if (nitraEslintConfigMeetsMinVersion(nitraEslint)) {
       passFn(
-        '@nitra/eslint-config: мінімум 3.6.12 (транзитивний @e18e/eslint-plugin для oxlint jsPlugins, js-lint.mdc)'
+        '@nitra/eslint-config: мінімум 3.8.0 (no-restricted-syntax для ForInStatement + @e18e/eslint-plugin транзитивно, js-lint.mdc)'
       )
     } else {
       failFn(
-        '@nitra/eslint-config: онови до мінімум "^3.6.12" — з цієї версії постачається @e18e/eslint-plugin для .oxlintrc.json (js-lint.mdc)'
+        '@nitra/eslint-config: онови до мінімум "^3.8.0" — з цієї версії правило no-restricted-syntax забороняє for...in (плюс транзитивний @e18e/eslint-plugin для oxlint, js-lint.mdc)'
       )
     }
   } else {

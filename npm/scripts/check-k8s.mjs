@@ -5056,7 +5056,7 @@ async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, pas
  *
  * Тег визначається лише по **останній** двокрапці; якщо після неї є `/` — це порт реєстру, не тег.
  * @param {string} image рядок image
- * @returns {{ name: string, tag: string | null, hasDigest: boolean }}
+ * @returns {{ name: string, tag: string | null, hasDigest: boolean }} ім'я (з реєстром/портом), тег (null якщо немає), та чи є digest
  */
 export function splitImageNameTagDigest(image) {
   if (image.includes('@')) {
@@ -5076,12 +5076,12 @@ export function splitImageNameTagDigest(image) {
 /**
  * Розпаковує YAML-скаляр з оточуючими лапками (single або double). Інші стилі (block scalar) — повертає як є.
  * @param {string} raw сирий рядок-значення без trailing whitespace/comment
- * @returns {{ unquoted: string, quote: '' | "'" | '"' }}
+ * @returns {{ unquoted: string, quote: '' | "'" | '"' }} текст без лапок та сам стиль лапок (порожній, якщо їх не було)
  */
 function parseQuotedYamlScalar(raw) {
   if (raw.length >= 2) {
     const first = raw.charAt(0)
-    const last = raw.charAt(raw.length - 1)
+    const last = raw.at(-1)
     if (first === '"' && last === '"') {
       return { unquoted: raw.slice(1, -1), quote: '"' }
     }
@@ -5108,47 +5108,66 @@ function requoteYamlScalar(value, quote) {
 const KUSTOMIZATION_IMAGES_KEY_RE = /^images:\s*(?:#.*)?$/u
 /** Regex: початок елемента масиву (`-` з відступом). Групує сам відступ перед `-`. */
 const KUSTOMIZATION_LIST_ITEM_RE = /^(\s*)-\s/u
-/** Regex: значення поля (name / newName / newTag) у рядку, з опційним `- ` префіксом. */
-const KUSTOMIZATION_IMAGE_FIELD_RE = /^(\s*(?:-\s+)?)(name|newName|newTag):(\s+)(\S.*?)(\s*(?:#.*)?)$/u
+/**
+ * Regex: значення поля (name / newName / newTag) у рядку, з опційним `- ` префіксом.
+ * Захоплює увесь хвіст рядка одним капчером `valueWithTrailing`; коментар і trailing-пробіли
+ * розбираються після матчу через {@link splitYamlValueAndTrailing} — це уникає вкладеного
+ * `?` (lazy) + `?` (опційний хвіст), на який реагує `sonarjs/slow-regex`.
+ */
+const KUSTOMIZATION_IMAGE_FIELD_RE = /^(\s*(?:-\s+)?)(name|newName|newTag):(\s+)(\S[^\n]*)$/u
+
+/**
+ * Розщеплює правий бік YAML-рядка `<value>[<пробіли>#<comment>]` на «чистий» value та trailing
+ * (пробіли + коментар), без використання regex з backtracking.
+ * @param {string} valueWithTrailing «сирий» хвіст рядка після `<key>:<sep>`
+ * @returns {{ value: string, trailing: string }} розбиті частини
+ */
+function splitYamlValueAndTrailing(valueWithTrailing) {
+  const hashIdx = findCommentStart(valueWithTrailing)
+  const upTo = hashIdx === -1 ? valueWithTrailing.length : hashIdx
+  let valueEnd = upTo
+  while (valueEnd > 0) {
+    const code = valueWithTrailing.codePointAt(valueEnd - 1)
+    if (code !== 32 && code !== 9 && code !== 10 && code !== 13) break
+    valueEnd--
+  }
+  const value = valueWithTrailing.slice(0, valueEnd)
+  return { value, trailing: valueWithTrailing.slice(valueEnd) }
+}
+
+/**
+ * Знаходить індекс стартового `#`-коментаря: перший `#`, перед яким є пробіл (інакше `#`
+ * — частина значення). Повертає -1, якщо коментаря немає.
+ * @param {string} s рядок (хвіст YAML-рядка)
+ * @returns {number} індекс стартового `#` або -1
+ */
+function findCommentStart(s) {
+  for (let i = 0; i < s.length; i++) {
+    if (s.codePointAt(i) !== 35) continue
+    if (i === 0) return i
+    const prev = s.codePointAt(i - 1)
+    if (prev === 32 || prev === 9) return i
+  }
+  return -1
+}
+/** Regex: рядок у блоці `images:` починається з пробілу/таба (належить блоку). */
+const KUSTOMIZATION_BLOCK_INDENT_RE = /^\s/u
 
 /**
  * Автофікс блоку `images:` у kustomization.yaml: зрізає `:tag` з `name` (digest `@…` не чіпає)
  * і видаляє `newTag`, який збігається зі зрізаним тегом. Працює рядково, зберігаючи коментарі
  * й форматування.
  * @param {string} raw вміст файлу
- * @returns {{ changed: boolean, content: string }}
+ * @returns {{ changed: boolean, content: string }} прапорець, чи були зміни, та (за потреби) очищений текст
  */
 export function cleanupKustomizationImagesInYamlText(raw) {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n'
   const lines = raw.split(YAML_LINE_SPLIT_RE)
 
-  let imagesStart = -1
-  for (let i = 0; i < lines.length; i++) {
-    if (KUSTOMIZATION_IMAGES_KEY_RE.test(lines[i])) {
-      imagesStart = i + 1
-      break
-    }
-  }
-  if (imagesStart === -1) return { changed: false, content: raw }
+  const imagesRange = findImagesBlockRange(lines)
+  if (imagesRange === null) return { changed: false, content: raw }
 
-  let imagesEnd = lines.length
-  for (let i = imagesStart; i < lines.length; i++) {
-    const l = lines[i]
-    if (l === '' || /^\s/u.test(l) || /^#/u.test(l)) continue
-    imagesEnd = i
-    break
-  }
-
-  /** @type {Array<{ start: number, end: number }>} */
-  const entries = []
-  let curStart = -1
-  for (let i = imagesStart; i < imagesEnd; i++) {
-    if (KUSTOMIZATION_LIST_ITEM_RE.test(lines[i])) {
-      if (curStart >= 0) entries.push({ start: curStart, end: i })
-      curStart = i
-    }
-  }
-  if (curStart >= 0) entries.push({ start: curStart, end: imagesEnd })
+  const entries = splitImagesBlockEntries(lines, imagesRange.start, imagesRange.end)
 
   /** @type {Map<number, string>} */
   const replacements = new Map()
@@ -5156,52 +5175,136 @@ export function cleanupKustomizationImagesInYamlText(raw) {
   const removals = new Set()
   let changed = false
 
-  for (const { start, end } of entries) {
-    /** @type {string | null} */
-    let strippedTag = null
-    let nameProcessed = false
-    /** @type {{ lineIdx: number, value: string } | null} */
-    let newTagInfo = null
-    let newTagProcessed = false
-
-    for (let i = start; i < end; i++) {
-      const m = lines[i].match(KUSTOMIZATION_IMAGE_FIELD_RE)
-      if (m === null) continue
-      const [, prefix, key, sep, valueRaw, trailing] = m
-      if (key === 'name' && !nameProcessed) {
-        nameProcessed = true
-        const { unquoted, quote } = parseQuotedYamlScalar(valueRaw)
-        const split = splitImageNameTagDigest(unquoted)
-        if (split.tag !== null) {
-          const newLine = `${prefix}name:${sep}${requoteYamlScalar(split.name, quote)}${trailing}`
-          if (newLine !== lines[i]) {
-            replacements.set(i, newLine)
-            changed = true
-          }
-          strippedTag = split.tag
-        }
-      } else if (key === 'newTag' && !newTagProcessed) {
-        newTagProcessed = true
-        const { unquoted } = parseQuotedYamlScalar(valueRaw)
-        newTagInfo = { lineIdx: i, value: unquoted }
-      }
-    }
-
-    if (newTagInfo !== null && strippedTag !== null && newTagInfo.value === strippedTag) {
-      removals.add(newTagInfo.lineIdx)
-      changed = true
-    }
+  for (const entry of entries) {
+    if (processImagesEntry(lines, entry, replacements, removals)) changed = true
   }
 
   if (!changed) return { changed: false, content: raw }
 
   /** @type {string[]} */
   const out = []
-  for (let i = 0; i < lines.length; i++) {
+  for (const [i, line] of lines.entries()) {
     if (removals.has(i)) continue
-    out.push(replacements.has(i) ? replacements.get(i) : lines[i])
+    out.push(replacements.has(i) ? replacements.get(i) : line)
   }
   return { changed: true, content: out.join(eol) }
+}
+
+/**
+ * Знаходить діапазон рядків YAML, що належать блоку `images:` верхнього рівня.
+ * @param {string[]} lines рядки файлу
+ * @returns {{ start: number, end: number } | null} `start` — перший рядок ПІСЛЯ ключа `images:`,
+ *   `end` — перший рядок не з блоку (виключно), або null, якщо ключа немає
+ */
+function findImagesBlockRange(lines) {
+  let imagesStart = -1
+  for (const [i, line] of lines.entries()) {
+    if (KUSTOMIZATION_IMAGES_KEY_RE.test(line)) {
+      imagesStart = i + 1
+      break
+    }
+  }
+  if (imagesStart === -1) return null
+  let imagesEnd = lines.length
+  for (let i = imagesStart; i < lines.length; i++) {
+    const l = lines[i]
+    if (l === '' || KUSTOMIZATION_BLOCK_INDENT_RE.test(l) || l.startsWith('#')) continue
+    imagesEnd = i
+    break
+  }
+  return { start: imagesStart, end: imagesEnd }
+}
+
+/**
+ * Розбиває діапазон рядків блоку `images:` на елементи списку (`- name: …`).
+ * @param {string[]} lines рядки файлу
+ * @param {number} blockStart перший рядок блоку (включно)
+ * @param {number} blockEnd перший рядок не з блоку (виключно)
+ * @returns {Array<{ start: number, end: number }>} діапазони рядків кожного елемента
+ */
+function splitImagesBlockEntries(lines, blockStart, blockEnd) {
+  /** @type {Array<{ start: number, end: number }>} */
+  const entries = []
+  let curStart = -1
+  for (let i = blockStart; i < blockEnd; i++) {
+    if (!KUSTOMIZATION_LIST_ITEM_RE.test(lines[i])) continue
+    if (curStart >= 0) entries.push({ start: curStart, end: i })
+    curStart = i
+  }
+  if (curStart >= 0) entries.push({ start: curStart, end: blockEnd })
+  return entries
+}
+
+/**
+ * Обробляє один елемент `images[]`: збирає `name` (зрізає :tag) і `newTag` (видаляє, якщо
+ * збігається зі зрізаним). Записує плановані заміни/видалення в передані колекції.
+ * @param {string[]} lines рядки файлу
+ * @param {{ start: number, end: number }} entry діапазон рядків елемента
+ * @param {Map<number, string>} replacements буфер замін «номер_рядка → новий рядок»
+ * @param {Set<number>} removals буфер видалень «номер_рядка»
+ * @returns {boolean} true, якщо для цього елемента запланована хоча б одна зміна
+ */
+function processImagesEntry(lines, entry, replacements, removals) {
+  /** @type {string | null} */
+  let strippedTag = null
+  let nameProcessed = false
+  /** @type {{ lineIdx: number, value: string } | null} */
+  let newTagInfo = null
+  let newTagProcessed = false
+  let changed = false
+
+  for (let i = entry.start; i < entry.end; i++) {
+    const parsed = parseImagesEntryLine(lines[i])
+    if (parsed === null) continue
+    if (parsed.key === 'name' && !nameProcessed) {
+      nameProcessed = true
+      const result = applyNameStripTag(lines[i], parsed)
+      if (result.replacement !== null) {
+        replacements.set(i, result.replacement)
+        changed = true
+      }
+      strippedTag = result.strippedTag
+    } else if (parsed.key === 'newTag' && !newTagProcessed) {
+      newTagProcessed = true
+      const { unquoted } = parseQuotedYamlScalar(parsed.value)
+      newTagInfo = { lineIdx: i, value: unquoted }
+    }
+  }
+
+  if (newTagInfo !== null && strippedTag !== null && newTagInfo.value === strippedTag) {
+    removals.add(newTagInfo.lineIdx)
+    changed = true
+  }
+  return changed
+}
+
+/**
+ * Парсить рядок YAML-поля `name|newName|newTag`, повертає його складники або null, якщо рядок
+ * не відповідає формату.
+ * @param {string} line рядок YAML
+ * @returns {{ prefix: string, key: 'name' | 'newName' | 'newTag', sep: string, value: string, trailing: string } | null}
+ *   Розібрані поля або null
+ */
+function parseImagesEntryLine(line) {
+  const m = line.match(KUSTOMIZATION_IMAGE_FIELD_RE)
+  if (m === null) return null
+  const [, prefix, key, sep, valueWithTrailing] = m
+  const { value, trailing } = splitYamlValueAndTrailing(valueWithTrailing)
+  return { prefix, key: /** @type {'name' | 'newName' | 'newTag'} */ (key), sep, value, trailing }
+}
+
+/**
+ * Якщо `value` містить тег — повертає новий рядок без тега та сам тег. Інакше — null/null.
+ * @param {string} originalLine оригінальний рядок YAML
+ * @param {{ prefix: string, sep: string, value: string, trailing: string }} parsed розібрані складники
+ * @returns {{ replacement: string | null, strippedTag: string | null }} планована заміна (або null) і зрізаний тег
+ */
+function applyNameStripTag(originalLine, parsed) {
+  const { unquoted, quote } = parseQuotedYamlScalar(parsed.value)
+  const split = splitImageNameTagDigest(unquoted)
+  if (split.tag === null) return { replacement: null, strippedTag: null }
+  const newLine = `${parsed.prefix}name:${parsed.sep}${requoteYamlScalar(split.name, quote)}${parsed.trailing}`
+  return { replacement: newLine === originalLine ? null : newLine, strippedTag: split.tag }
 }
 
 /** Regex: JSON6902 path для image окремого контейнера у Pod-шаблоні Deployment. */
@@ -5211,47 +5314,87 @@ const KUSTOMIZATION_DEPLOYMENT_CONTAINER_IMAGE_PATH_RE = /^\/spec\/template\/spe
  * Якщо `patchObj` — JSON6902 з єдиною операцією `replace` на шляху image-контейнера у `Deployment`,
  * повертає `{ deployName, containerIndex, newImage }`. Інакше null.
  * @param {unknown} patchObj елемент масиву `patches[]`
- * @returns {{ deployName: string, containerIndex: number, newImage: string } | null}
+ * @returns {{ deployName: string, containerIndex: number, newImage: string } | null} інформація про патч або null, якщо це не очікувана JSON6902-операція
  */
 export function imageReplaceDeploymentPatchInfo(patchObj) {
-  if (patchObj === null || typeof patchObj !== 'object' || Array.isArray(patchObj)) return null
-  const pr = /** @type {Record<string, unknown>} */ (patchObj)
-  const target = pr.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
-  const t = /** @type {Record<string, unknown>} */ (target)
-  if (t.kind !== 'Deployment') return null
-  if (typeof t.name !== 'string' || t.name.trim() === '') return null
+  const pr = asPlainObject(patchObj)
+  if (pr === null) return null
+  const deployName = deploymentTargetName(pr.target)
+  if (deployName === null) return null
   if (typeof pr.patch !== 'string') return null
 
+  const parsedArr = tryParseSingleJson6902Array(pr.patch)
+  if (parsedArr === null) return null
+  const op = asPlainObject(parsedArr[0])
+  if (op === null) return null
+
+  const containerIndex = singleImageReplaceContainerIndex(op)
+  if (containerIndex === null) return null
+  if (typeof op.value !== 'string' || op.value.trim() === '') return null
+
+  return {
+    deployName,
+    containerIndex,
+    newImage: op.value.trim()
+  }
+}
+
+/**
+ * Перевіряє, що значення — це plain-object (не null, не масив), і повертає його з типом
+ * `Record<string, unknown>` або null. Скорочує перевірки на початку гілок.
+ * @param {unknown} value будь-що з YAML/JSON
+ * @returns {Record<string, unknown> | null} вузол як plain-object або null
+ */
+function asPlainObject(value) {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null
+  return /** @type {Record<string, unknown>} */ (value)
+}
+
+/**
+ * Перевіряє, що `target` — це Deployment з непорожнім ім'ям, і повертає це ім'я (trimmed).
+ * @param {unknown} target значення `patches[i].target`
+ * @returns {string | null} ім'я Deployment або null
+ */
+function deploymentTargetName(target) {
+  const t = asPlainObject(target)
+  if (t === null) return null
+  if (t.kind !== 'Deployment') return null
+  if (typeof t.name !== 'string' || t.name.trim() === '') return null
+  return t.name.trim()
+}
+
+/**
+ * Парсить `patch`-рядок як YAML-масив з рівно однією операцією JSON6902.
+ * @param {string} patch текст YAML-масиву JSON6902-операцій
+ * @returns {unknown[] | null} масив однієї операції або null
+ */
+function tryParseSingleJson6902Array(patch) {
   let parsedArr
   try {
-    for (const d of parseAllDocuments(pr.patch.trim())) {
-      if (d.errors.length === 0) {
-        const j = d.toJSON()
-        if (Array.isArray(j)) {
-          parsedArr = j
-          break
-        }
+    for (const d of parseAllDocuments(patch.trim())) {
+      if (d.errors.length !== 0) continue
+      const j = d.toJSON()
+      if (Array.isArray(j)) {
+        parsedArr = j
+        break
       }
     }
   } catch {
     return null
   }
-  if (!Array.isArray(parsedArr) || parsedArr.length !== 1) return null
-  const op = parsedArr[0]
-  if (op === null || typeof op !== 'object' || Array.isArray(op)) return null
-  const oo = /** @type {Record<string, unknown>} */ (op)
-  if (typeof oo.op !== 'string' || oo.op.toLowerCase() !== 'replace') return null
-  if (typeof oo.path !== 'string') return null
-  const m = oo.path.match(KUSTOMIZATION_DEPLOYMENT_CONTAINER_IMAGE_PATH_RE)
-  if (m === null) return null
-  if (typeof oo.value !== 'string' || oo.value.trim() === '') return null
+  return Array.isArray(parsedArr) && parsedArr.length === 1 ? parsedArr : null
+}
 
-  return {
-    deployName: t.name.trim(),
-    containerIndex: Number(m[1]),
-    newImage: oo.value.trim()
-  }
+/**
+ * Якщо операція — `op: replace` на шляху контейнера-image, повертає індекс контейнера.
+ * @param {Record<string, unknown>} op об'єкт операції JSON6902
+ * @returns {number | null} індекс контейнера у `containers[N]` або null
+ */
+function singleImageReplaceContainerIndex(op) {
+  if (typeof op.op !== 'string' || op.op.toLowerCase() !== 'replace') return null
+  if (typeof op.path !== 'string') return null
+  const m = op.path.match(KUSTOMIZATION_DEPLOYMENT_CONTAINER_IMAGE_PATH_RE)
+  return m === null ? null : Number(m[1])
 }
 
 /**
@@ -5268,27 +5411,48 @@ async function findDeploymentContainerImageInFile(absPath, deployName, container
   if (docs === undefined) return null
   for (const d of docs) {
     if (d.errors.length !== 0) continue
-    const o = d.toJSON()
-    if (o === null || typeof o !== 'object' || Array.isArray(o)) continue
-    const oo = /** @type {Record<string, unknown>} */ (o)
-    if (oo.kind !== 'Deployment') continue
-    const meta = oo.metadata
-    if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) continue
-    if (/** @type {Record<string, unknown>} */ (meta).name !== deployName) continue
-    const spec = oo.spec
-    if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) continue
-    const tmpl = /** @type {Record<string, unknown>} */ (spec).template
-    if (tmpl === null || typeof tmpl !== 'object' || Array.isArray(tmpl)) continue
-    const podSpec = /** @type {Record<string, unknown>} */ (tmpl).spec
-    if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec)) continue
-    const containers = /** @type {Record<string, unknown>} */ (podSpec).containers
-    if (!Array.isArray(containers) || containerIndex < 0 || containerIndex >= containers.length) continue
-    const c = containers[containerIndex]
-    if (c === null || typeof c !== 'object' || Array.isArray(c)) continue
-    const img = /** @type {Record<string, unknown>} */ (c).image
-    if (typeof img === 'string' && img.trim() !== '') return img.trim()
+    const img = imageFromDeploymentDoc(d.toJSON(), deployName, containerIndex)
+    if (img !== null) return img
   }
   return null
+}
+
+/**
+ * Витягує `containers[N].image` з YAML-документа, якщо він — Deployment з відповідним іменем.
+ * @param {unknown} doc розпаршений YAML як plain JS-обʼєкт
+ * @param {string} deployName очікуване `metadata.name` Deployment
+ * @param {number} containerIndex індекс контейнера у `spec.template.spec.containers[]`
+ * @returns {string | null} обрізаний `image` або null
+ */
+function imageFromDeploymentDoc(doc, deployName, containerIndex) {
+  const oo = asPlainObject(doc)
+  if (oo === null || oo.kind !== 'Deployment') return null
+  const meta = asPlainObject(oo.metadata)
+  if (meta === null || meta.name !== deployName) return null
+  const containers = containersOfDeployment(oo)
+  if (containers === null) return null
+  if (containerIndex < 0 || containerIndex >= containers.length) return null
+  const c = asPlainObject(containers[containerIndex])
+  if (c === null) return null
+  const img = c.image
+  if (typeof img === 'string' && img.trim() !== '') return img.trim()
+  return null
+}
+
+/**
+ * Витягує `spec.template.spec.containers` з обʼєкта Deployment (або null, якщо структура неповна).
+ * @param {Record<string, unknown>} deployment plain-object документу Deployment
+ * @returns {unknown[] | null} масив контейнерів або null
+ */
+function containersOfDeployment(deployment) {
+  const spec = asPlainObject(deployment.spec)
+  if (spec === null) return null
+  const tmpl = asPlainObject(spec.template)
+  if (tmpl === null) return null
+  const podSpec = asPlainObject(tmpl.spec)
+  if (podSpec === null) return null
+  const containers = podSpec.containers
+  return Array.isArray(containers) ? containers : null
 }
 
 /**
@@ -5312,24 +5476,52 @@ async function walkKustomizationForDeploymentImage(kustAbs, rootNorm, deployName
   const refs = pathsFromKustomizationObject(obj)
 
   for (const ref of refs) {
-    if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') continue
-    const resolved = resolve(kustDir, ref.trim())
-    if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) continue
-    let st
-    try {
-      st = await stat(resolved)
-    } catch {
-      continue
-    }
-    if (st.isFile() && YAML_EXTENSION_RE.test(resolved)) {
-      const img = await findDeploymentContainerImageInFile(resolved, deployName, containerIndex)
-      if (img !== null) return img
-    } else if (st.isDirectory()) {
-      const childK = join(resolved, 'kustomization.yaml')
-      if (existsSync(childK)) {
-        const img = await walkKustomizationForDeploymentImage(childK, rootNorm, deployName, containerIndex, visited)
-        if (img !== null) return img
-      }
+    const resolved = normalizeKustomizationRef(ref, kustDir, rootNorm)
+    if (resolved === null) continue
+    const img = await imageFromResolvedKustomizationRef(resolved, rootNorm, deployName, containerIndex, visited)
+    if (img !== null) return img
+  }
+  return null
+}
+
+/**
+ * Перевіряє та нормалізує посилання `resources[]/components[]/bases[]` з kustomization.yaml.
+ * Пропускає неприйнятні (URL, порожні, поза межами репо) посилання.
+ * @param {unknown} ref значення з масиву посилань
+ * @param {string} kustDir абсолютний каталог поточної kustomization
+ * @param {string} rootNorm нормалізований корінь репо
+ * @returns {string | null} абсолютний резолвлений шлях або null, якщо посилання треба пропустити
+ */
+function normalizeKustomizationRef(ref, kustDir, rootNorm) {
+  if (typeof ref !== 'string' || ref.includes('://') || ref.trim() === '') return null
+  const resolved = resolve(kustDir, ref.trim())
+  return resolvedFilePathIsUnderRoot(rootNorm, resolved) ? resolved : null
+}
+
+/**
+ * Намагається отримати image для `<deployName>:<containerIndex>` з резолвленого посилання
+ * (файл або підкаталог з kustomization.yaml).
+ * @param {string} resolvedAbs абсолютний шлях файлу або каталогу
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {string} deployName ім'я Deployment
+ * @param {number} containerIndex індекс контейнера
+ * @param {Set<string>} visited нормалізовані відвідані kustomization.yaml
+ * @returns {Promise<string | null>} знайдений image або null
+ */
+async function imageFromResolvedKustomizationRef(resolvedAbs, rootNorm, deployName, containerIndex, visited) {
+  let st
+  try {
+    st = await stat(resolvedAbs)
+  } catch {
+    return null
+  }
+  if (st.isFile() && YAML_EXTENSION_RE.test(resolvedAbs)) {
+    return findDeploymentContainerImageInFile(resolvedAbs, deployName, containerIndex)
+  }
+  if (st.isDirectory()) {
+    const childK = join(resolvedAbs, 'kustomization.yaml')
+    if (existsSync(childK)) {
+      return walkKustomizationForDeploymentImage(childK, rootNorm, deployName, containerIndex, visited)
     }
   }
   return null
@@ -5350,30 +5542,49 @@ async function walkKustomizationForDeploymentImage(kustAbs, rootNorm, deployName
  * 5. Записує файл назад через `Document.toString()`.
  * @param {string} kustAbs абсолютний шлях до kustomization.yaml
  * @param {string} rootNorm нормалізований корінь репо
- * @returns {Promise<{ changed: boolean, content?: string, errors: string[] }>}
+ * @returns {Promise<{ changed: boolean, content?: string, errors: string[] }>} прапорець змін, новий вміст (за наявності) і список нефатальних помилок під час конвертації
  */
 export async function convertImagePatchesToImagesInKustomization(kustAbs, rootNorm) {
   const raw = await tryReadFileUtf8(kustAbs)
   if (raw === undefined) return { changed: false, errors: [] }
 
+  const parsed = parseKustomizationWithPatches(raw)
+  if (parsed === null) return { changed: false, errors: [] }
+  const { doc, candidates } = parsed
+  if (candidates.length === 0) return { changed: false, errors: [] }
+
+  const { conversions, errors } = await buildPatchToImageConversions(kustAbs, rootNorm, candidates)
+  if (conversions.length === 0) return { changed: false, errors }
+
+  if (!applyConversionsToDoc(doc, conversions)) return { changed: false, errors }
+
+  const content = doc.toString()
+  if (content === raw) return { changed: false, errors }
+  return { changed: true, content, errors }
+}
+
+/**
+ * Парсить kustomization.yaml як Document і повертає його разом зі списком кандидатів-патчів
+ * (`patches[i]` що відповідає `image-replace` для Deployment). Повертає null, якщо документ не
+ * розпарсився, не є Kustomization або не має масиву `patches:`.
+ * @param {string} raw текст файлу
+ * @returns {{ doc: ReturnType<typeof parseDocument>, candidates: Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }> } | null}
+ *   document і список кандидатів, або null
+ */
+function parseKustomizationWithPatches(raw) {
   let doc
   try {
     doc = parseDocument(raw)
   } catch {
-    return { changed: false, errors: [] }
+    return null
   }
-  if (doc.errors.length > 0) return { changed: false, errors: [] }
+  if (doc.errors.length > 0) return null
 
-  const obj = doc.toJSON()
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
-    return { changed: false, errors: [] }
-  }
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (rec.kind !== 'Kustomization') return { changed: false, errors: [] }
-  if (typeof rec.apiVersion !== 'string' || !rec.apiVersion.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) {
-    return { changed: false, errors: [] }
-  }
-  if (!Array.isArray(rec.patches)) return { changed: false, errors: [] }
+  const rec = asPlainObject(doc.toJSON())
+  if (rec === null) return null
+  if (rec.kind !== 'Kustomization') return null
+  if (typeof rec.apiVersion !== 'string' || !rec.apiVersion.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) return null
+  if (!Array.isArray(rec.patches)) return null
 
   /** @type {Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }>} */
   const candidates = []
@@ -5381,56 +5592,82 @@ export async function convertImagePatchesToImagesInKustomization(kustAbs, rootNo
     const info = imageReplaceDeploymentPatchInfo(p)
     if (info !== null) candidates.push({ index: i, info })
   }
-  if (candidates.length === 0) return { changed: false, errors: [] }
+  return { doc, candidates }
+}
 
+/**
+ * Для кожного кандидата шукає базовий image у дереві resources та формує запис конвертації
+ * (або повідомлення про помилку, чому конвертація неможлива).
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }>} candidates кандидати з `patches[]`
+ * @returns {Promise<{ conversions: Array<{ index: number, name: string, newName: string, newTag: string | null }>, errors: string[] }>}
+ *   результати конвертації та зібрані нефатальні помилки
+ */
+async function buildPatchToImageConversions(kustAbs, rootNorm, candidates) {
   /** @type {Array<{ index: number, name: string, newName: string, newTag: string | null }>} */
   const conversions = []
   /** @type {string[]} */
   const errors = []
 
   for (const { index, info } of candidates) {
-    /** @type {Set<string>} */
-    const visited = new Set()
     const baseImage = await walkKustomizationForDeploymentImage(
       kustAbs,
       rootNorm,
       info.deployName,
       info.containerIndex,
-      visited
+      new Set()
     )
-    if (baseImage === null) {
-      errors.push(
-        `patches[${index}]: не знайдено Deployment ${info.deployName}.containers[${info.containerIndex}].image у дереві resources — конвертацію патча в images: пропущено (k8s.mdc)`
-      )
-      continue
-    }
-    const baseSplit = splitImageNameTagDigest(baseImage)
-    if (baseSplit.hasDigest) {
-      errors.push(
-        `patches[${index}]: base image для ${info.deployName} містить digest (${baseImage}) — автоконвертацію патча пропущено (k8s.mdc)`
-      )
-      continue
-    }
-    const newSplit = splitImageNameTagDigest(info.newImage)
-    if (newSplit.hasDigest) {
-      errors.push(
-        `patches[${index}]: значення патча для ${info.deployName} містить digest (${info.newImage}) — автоконвертацію пропущено (k8s.mdc)`
-      )
-      continue
-    }
-    const finalNewTag = newSplit.tag !== null && newSplit.tag !== baseSplit.tag ? newSplit.tag : null
-    conversions.push({
-      index,
-      name: baseSplit.name,
-      newName: newSplit.name,
-      newTag: finalNewTag
-    })
+    const conversion = buildConversionForCandidate(index, info, baseImage, errors)
+    if (conversion !== null) conversions.push(conversion)
   }
 
-  if (conversions.length === 0) return { changed: false, errors }
+  return { conversions, errors }
+}
 
+/**
+ * Будує одну конвертацію `patches[index]` → `images[]` запис з відповідним `newTag`.
+ * Якщо щось не так (немає baseImage, digest у base/new) — додає текст у `errors` і повертає null.
+ * @param {number} index індекс патча в `patches[]`
+ * @param {{ deployName: string, containerIndex: number, newImage: string }} info результат `imageReplaceDeploymentPatchInfo`
+ * @param {string | null} baseImage знайдений базовий image або null
+ * @param {string[]} errors буфер нефатальних помилок (мутується)
+ * @returns {{ index: number, name: string, newName: string, newTag: string | null } | null} запис конвертації або null
+ */
+function buildConversionForCandidate(index, info, baseImage, errors) {
+  if (baseImage === null) {
+    errors.push(
+      `patches[${index}]: не знайдено Deployment ${info.deployName}.containers[${info.containerIndex}].image у дереві resources — конвертацію патча в images: пропущено (k8s.mdc)`
+    )
+    return null
+  }
+  const baseSplit = splitImageNameTagDigest(baseImage)
+  if (baseSplit.hasDigest) {
+    errors.push(
+      `patches[${index}]: base image для ${info.deployName} містить digest (${baseImage}) — автоконвертацію патча пропущено (k8s.mdc)`
+    )
+    return null
+  }
+  const newSplit = splitImageNameTagDigest(info.newImage)
+  if (newSplit.hasDigest) {
+    errors.push(
+      `patches[${index}]: значення патча для ${info.deployName} містить digest (${info.newImage}) — автоконвертацію пропущено (k8s.mdc)`
+    )
+    return null
+  }
+  const finalNewTag = newSplit.tag !== null && newSplit.tag !== baseSplit.tag ? newSplit.tag : null
+  return { index, name: baseSplit.name, newName: newSplit.name, newTag: finalNewTag }
+}
+
+/**
+ * Видаляє конвертовані елементи з `patches:` (за потреби — і сам ключ) і дописує `images:`.
+ * @param {ReturnType<typeof parseDocument>} doc документ kustomization.yaml
+ * @param {Array<{ index: number, name: string, newName: string, newTag: string | null }>} conversions конвертації
+ * @returns {boolean} true, якщо мутації відбулися (документ можна серіалізувати)
+ */
+function applyConversionsToDoc(doc, conversions) {
   const patchesNode = doc.get('patches', true)
-  if (!isSeq(patchesNode)) return { changed: false, errors }
+  if (!isSeq(patchesNode)) return false
 
   const removeIdx = new Set(conversions.map(c => c.index))
   for (let i = patchesNode.items.length - 1; i >= 0; i--) {
@@ -5445,15 +5682,11 @@ export async function convertImagePatchesToImagesInKustomization(kustAbs, rootNo
     imagesNode = doc.createNode([])
     doc.set('images', imagesNode)
   }
-
   for (const { name, newName, newTag } of conversions) {
     const entry = newTag === null ? { name, newName } : { name, newName, newTag }
     imagesNode.add(doc.createNode(entry))
   }
-
-  const content = doc.toString()
-  if (content === raw) return { changed: false, errors }
-  return { changed: true, content, errors }
+  return true
 }
 
 /**
@@ -5470,28 +5703,53 @@ async function autofixKustomizationImagesYaml(root, yamlFilesAbs, fail, pass) {
   const kusts = yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
   for (const kustAbs of kusts) {
     const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-    try {
-      const r = await convertImagePatchesToImagesInKustomization(kustAbs, rootNorm)
-      for (const err of r.errors) fail(`${rel}: ${err}`)
-      if (r.changed && r.content !== undefined) {
-        await writeFile(kustAbs, r.content, 'utf8')
-        pass(`${rel}: image-replace patch(es) конвертовано в images: (k8s.mdc)`)
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося конвертувати image-replace patches → images: (${msg})`)
+    await runImagePatchToImagesConversion(kustAbs, rel, rootNorm, fail, pass)
+    await runKustomizationImagesCleanup(kustAbs, rel, fail, pass)
+  }
+}
+
+/**
+ * Прогон автоконвертації `patches[].image-replace` → `images:` для одного kustomization.yaml.
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rel posix-шлях відносно кореня репо (для повідомлень)
+ * @param {string} rootNorm нормалізований корінь репо
+ * @param {(msg: string) => void} fail колбек повідомлення про помилку
+ * @param {(msg: string) => void} pass колбек успішного повідомлення
+ * @returns {Promise<void>} завершується після конвертації або реєстрації помилки
+ */
+async function runImagePatchToImagesConversion(kustAbs, rel, rootNorm, fail, pass) {
+  try {
+    const r = await convertImagePatchesToImagesInKustomization(kustAbs, rootNorm)
+    for (const err of r.errors) fail(`${rel}: ${err}`)
+    if (r.changed && r.content !== undefined) {
+      await writeFile(kustAbs, r.content, 'utf8')
+      pass(`${rel}: image-replace patch(es) конвертовано в images: (k8s.mdc)`)
     }
-    try {
-      const raw = await readFile(kustAbs, 'utf8')
-      const r = cleanupKustomizationImagesInYamlText(raw)
-      if (r.changed) {
-        await writeFile(kustAbs, r.content, 'utf8')
-        pass(`${rel}: images: cleanup — зрізано :tag з name й видалено надлишкове newTag (k8s.mdc)`)
-      }
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${rel}: не вдалося очистити images: (${msg})`)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося конвертувати image-replace patches → images: (${msg})`)
+  }
+}
+
+/**
+ * Прогон чистильника `images:` (зрізає `:tag` з name й видаляє надлишковий `newTag`).
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @param {string} rel posix-шлях відносно кореня репо (для повідомлень)
+ * @param {(msg: string) => void} fail колбек повідомлення про помилку
+ * @param {(msg: string) => void} pass колбек успішного повідомлення
+ * @returns {Promise<void>} завершується після очищення або реєстрації помилки
+ */
+async function runKustomizationImagesCleanup(kustAbs, rel, fail, pass) {
+  try {
+    const raw = await readFile(kustAbs, 'utf8')
+    const r = cleanupKustomizationImagesInYamlText(raw)
+    if (r.changed) {
+      await writeFile(kustAbs, r.content, 'utf8')
+      pass(`${rel}: images: cleanup — зрізано :tag з name й видалено надлишкове newTag (k8s.mdc)`)
     }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${rel}: не вдалося очистити images: (${msg})`)
   }
 }
 

@@ -16,7 +16,7 @@
  *    з `@nitra/check-env` (для обов'язкових змінних, із `checkEnv([...])`) або з
  *    `node:process` (для опційних). Коли `env` імпортовано з `@nitra/check-env`,
  *    кожен `env.X` має бути закритий літеральним викликом `checkEnv(['X', ...])`
- *    у тому ж файлі або коментарем `// @nitra/cursor ignore-next-line checkEnv`
+ *    у тому ж файлі або коментарем `// \@nitra/cursor ignore-next-line checkEnv`
  *    на попередньому рядку (див. `utils/check-env-scan.mjs`).
  */
 import { existsSync } from 'node:fs'
@@ -156,22 +156,7 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
 async function checkWorkspacePackage(rootDir, fail, passFn) {
   const label = `[${rootDir}] `
   const absPackageRoot = join(process.cwd(), rootDir)
-  /** @type {unknown} */
-  let pkgJson = null
-  const pkgPath = join(rootDir, 'package.json')
-  if (existsSync(pkgPath)) {
-    pkgJson = JSON.parse(await readFile(pkgPath, 'utf8'))
-    const deps = /** @type {Record<string, unknown>} */ (pkgJson).dependencies
-    const devDeps = /** @type {Record<string, unknown>} */ (pkgJson).devDependencies
-    const allDeps = { ...(deps || {}), ...(devDeps || {}) }
-
-    if (allDeps['@nitra/bunyan']) {
-      fail(`${label}@nitra/bunyan знайдено — замінити на @nitra/pino`)
-    }
-    if (allDeps.bunyan) {
-      fail(`${label}bunyan знайдено — замінити на @nitra/pino`)
-    }
-  }
+  const pkgJson = await loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail)
 
   const importViolations = await checkBunyanImports(absPackageRoot, label, fail)
   if (importViolations === 0) {
@@ -193,19 +178,54 @@ async function checkWorkspacePackage(rootDir, fail, passFn) {
     )
   }
 
+  await checkOtelConfigmap(rootDir, label, fail, passFn)
+}
+
+/**
+ * Завантажує `package.json` пакета (якщо є) і реєструє порушення для bunyan-залежностей.
+ * @param {string} rootDir відносний шлях workspace
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<unknown>} розпарсений package.json або null
+ */
+async function loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail) {
+  const pkgPath = join(rootDir, 'package.json')
+  if (!existsSync(pkgPath)) return null
+  const pkgJson = JSON.parse(await readFile(pkgPath, 'utf8'))
+  const deps = /** @type {Record<string, unknown>} */ (pkgJson).dependencies
+  const devDeps = /** @type {Record<string, unknown>} */ (pkgJson).devDependencies
+  const allDeps = { ...deps, ...devDeps }
+  if (allDeps['@nitra/bunyan']) {
+    fail(`${label}@nitra/bunyan знайдено — замінити на @nitra/pino`)
+  }
+  if (allDeps.bunyan) {
+    fail(`${label}bunyan знайдено — замінити на @nitra/pino`)
+  }
+  return pkgJson
+}
+
+/**
+ * Перевіряє вміст `k8s/base/configmap.yaml` пакета на наявність OTEL_RESOURCE_ATTRIBUTES
+ * з обов'язковими `service.name=` та `service.namespace=` всередині.
+ * @param {string} rootDir відносний шлях workspace
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn успішне повідомлення
+ * @returns {Promise<void>} завершується після перевірки configmap
+ */
+async function checkOtelConfigmap(rootDir, label, fail, passFn) {
   const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
-  if (existsSync(configmapPath)) {
-    const content = await readFile(configmapPath, 'utf8')
-    if (content.includes('OTEL_RESOURCE_ATTRIBUTES')) {
-      passFn(`${label}k8s/base/configmap.yaml містить OTEL_RESOURCE_ATTRIBUTES`)
-      if (content.includes('service.name=') && content.includes('service.namespace=')) {
-        passFn(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
-      } else {
-        fail(`${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`)
-      }
-    } else {
-      fail(`${label}k8s/base/configmap.yaml не містить OTEL_RESOURCE_ATTRIBUTES`)
-    }
+  if (!existsSync(configmapPath)) return
+  const content = await readFile(configmapPath, 'utf8')
+  if (!content.includes('OTEL_RESOURCE_ATTRIBUTES')) {
+    fail(`${label}k8s/base/configmap.yaml не містить OTEL_RESOURCE_ATTRIBUTES`)
+    return
+  }
+  passFn(`${label}k8s/base/configmap.yaml містить OTEL_RESOURCE_ATTRIBUTES`)
+  if (content.includes('service.name=') && content.includes('service.namespace=')) {
+    passFn(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
+  } else {
+    fail(`${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`)
   }
 }
 

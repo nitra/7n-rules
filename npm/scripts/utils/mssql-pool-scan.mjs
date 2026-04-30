@@ -37,59 +37,80 @@ const IN_PLACEHOLDER_END_RE = /\bin\s*\(\s*$/iu
 const NUMERIC_PARSE_FN_NAMES = new Set(['parseInt', 'parseFloat', 'Number', 'BigInt'])
 
 /**
+ * Чи є вузол літералом числа `0` (як NumericLiteral, так і generic Literal).
+ * @param {unknown} node AST-вузол
+ * @returns {boolean} true для `0`
+ */
+function isZeroLiteral(node) {
+  return (
+    !!node &&
+    typeof node === 'object' &&
+    ((node.type === 'NumericLiteral' && node.value === 0) || (node.type === 'Literal' && node.value === 0))
+  )
+}
+
+/**
+ * Чи `node` — це MemberExpression `name.length` (некомп'ютерований Identifier.Identifier).
+ * @param {unknown} node AST-вузол
+ * @param {string} name очікуване імʼя змінної-власника
+ * @returns {boolean} true для `<name>.length`
+ */
+function isLengthMemberOf(node, name) {
+  return (
+    !!node &&
+    typeof node === 'object' &&
+    node.type === 'MemberExpression' &&
+    !node.computed &&
+    !!node.object &&
+    node.object.type === 'Identifier' &&
+    node.object.name === name &&
+    !!node.property &&
+    node.property.type === 'Identifier' &&
+    node.property.name === 'length'
+  )
+}
+
+const EMPTY_LIST_BINARY_OPERATORS = new Set(['===', '==', '<=', '<'])
+const EMPTY_LIST_REVERSED_OPERATORS = new Set(['===', '=='])
+
+/**
+ * Чи `BinaryExpression`-тест з оператором з {@link EMPTY_LIST_BINARY_OPERATORS}
+ * порівнює `<name>.length` з літералом `0` (у будь-якому порядку для `===`/`==`).
+ * @param {Record<string, unknown>} test BinaryExpression вузол
+ * @param {string} name імʼя змінної списку
+ * @returns {boolean} true для умов виду `name.length === 0`, `name.length <= 0`, `0 === name.length` тощо
+ */
+function isEmptyListBinaryTest(test, name) {
+  const { left, right, operator } = test
+  if (!EMPTY_LIST_BINARY_OPERATORS.has(operator)) return false
+  if (isLengthMemberOf(left, name) && isZeroLiteral(right)) return true
+  return EMPTY_LIST_REVERSED_OPERATORS.has(operator) && isZeroLiteral(left) && isLengthMemberOf(right, name)
+}
+
+/**
  * Чи містить тест if-умови перевірку “список порожній”.
  * Підтримує базові форми:
  * - `if (!ids.length) ...`
  * - `if (ids.length === 0) ...` / `<= 0` / `< 1`
- *
  * @param {unknown} test IfStatement.test
  * @param {string} name імʼя змінної списку
- * @returns {boolean}
+ * @returns {boolean} true, якщо тест перевіряє, що `name` — порожній масив
  */
 function isEmptyListTest(test, name) {
   if (!test || typeof test !== 'object') return false
-
   if (test.type === 'UnaryExpression' && test.operator === '!') {
-    const arg = test.argument
-    if (!arg || typeof arg !== 'object') return false
-    if (arg.type === 'MemberExpression' && !arg.computed) {
-      const obj = arg.object
-      const prop = arg.property
-      return !!obj && obj.type === 'Identifier' && obj.name === name && !!prop && prop.type === 'Identifier' && prop.name === 'length'
-    }
+    return isLengthMemberOf(test.argument, name)
   }
-
   if (test.type === 'BinaryExpression') {
-    const { left, right, operator } = test
-    const isLen = node =>
-      !!node &&
-      typeof node === 'object' &&
-      node.type === 'MemberExpression' &&
-      !node.computed &&
-      node.object &&
-      node.object.type === 'Identifier' &&
-      node.object.name === name &&
-      node.property &&
-      node.property.type === 'Identifier' &&
-      node.property.name === 'length'
-    const isZero = node =>
-      !!node &&
-      typeof node === 'object' &&
-      ((node.type === 'NumericLiteral' && node.value === 0) || (node.type === 'Literal' && node.value === 0))
-
-    if (!['===', '==', '<=', '<'].includes(operator)) return false
-    if (isLen(left) && isZero(right)) return true
-    // допускаємо `0 === ids.length` теж
-    if (isZero(left) && isLen(right) && (operator === '===' || operator === '==')) return true
+    return isEmptyListBinaryTest(test, name)
   }
-
   return false
 }
 
 /**
  * Чи є в consequent (або в його BlockStatement) ThrowStatement.
  * @param {unknown} consequent IfStatement.consequent
- * @returns {boolean}
+ * @returns {boolean} true, якщо гілка consequent містить `throw`
  */
 function consequentHasThrow(consequent) {
   if (!consequent || typeof consequent !== 'object') return false
@@ -105,7 +126,7 @@ function consequentHasThrow(consequent) {
  * @param {unknown} block BlockStatement
  * @param {number} statementIndex індекс statement, перед яким шукаємо guard
  * @param {string} name імʼя змінної списку
- * @returns {boolean}
+ * @returns {boolean} true, якщо знайдено guard `if (empty(name)) throw` до statementIndex
  */
 function hasEmptyGuardBefore(block, statementIndex, name) {
   if (!block || typeof block !== 'object' || block.type !== 'BlockStatement') return false
@@ -125,7 +146,7 @@ function hasEmptyGuardBefore(block, statementIndex, name) {
 /**
  * Знаходить найближчий enclosing BlockStatement і statement всередині нього.
  * @param {unknown[]} ancestors ancestors масив з walkAstWithAncestors
- * @returns {{ block: unknown, index: number } | null}
+ * @returns {{ block: unknown, index: number } | null} пара (BlockStatement, індекс statement) або null
  */
 function findEnclosingBlockAndStatementIndex(ancestors) {
   if (!Array.isArray(ancestors) || ancestors.length === 0) return null
@@ -492,7 +513,6 @@ function collectInListUnparsedFromTemplate(node, content, declarators, out) {
  * Збирає порушення для одного TemplateLiteral: якщо у `IN (${...})`:
  * - `${...}` не є Identifier (значення не винесені у змінну);
  * - або це Identifier, але перед запитом немає guard `if (empty) throw`.
- *
  * @param {Record<string, unknown>} node TemplateLiteral
  * @param {unknown[]} ancestors ancestors від walkAstWithAncestors
  * @param {string} content вихідний код
@@ -562,7 +582,6 @@ export function findUnsafeMssqlInListUnparsedInText(content, virtualPath = 'scan
  * Знаходить підстановки списків у `IN (${...})`, які:
  * - не винесені в окрему змінну (в `${...}` стоїть не Identifier);
  * - або винесені, але перед запитом немає перевірки на пустоту з `throw`.
- *
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору мови парсера (lang)
  * @returns {{ line: number, snippet: string, reason: 'not_var' | 'missing_guard', name?: string }[]} список порушень

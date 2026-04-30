@@ -254,30 +254,32 @@ describe('imageReplaceDeploymentPatchInfo', () => {
   })
 })
 
-describe('convertImagePatchesToImagesInKustomization (e2e)', () => {
-  /**
-   * @param {string} prefix префікс для тимчасового каталогу
-   * @returns {Promise<{ root: string, baseDir: string, prodDir: string }>}
-   */
-  async function setupKustTree(prefix) {
-    const root = await mkdtemp(join(tmpdir(), prefix))
-    const baseDir = join(root, 'k8s/base')
-    const prodDir = join(root, 'k8s/prod')
-    await mkdir(baseDir, { recursive: true })
-    await mkdir(prodDir, { recursive: true })
-    await writeFile(
-      join(baseDir, 'kustomization.yaml'),
-      `apiVersion: kustomize.config.k8s.io/v1beta1
+/**
+ * Створює тимчасовий kustomize-кореневий каталог із `k8s/base` (мінімальний kustomization.yaml)
+ * та `k8s/prod` (порожній). Використовується e2e-тестами `convertImagePatchesToImagesInKustomization`.
+ * @param {string} prefix префікс для тимчасового каталогу
+ * @returns {Promise<{ root: string, baseDir: string, prodDir: string }>} абсолютні шляхи до тимчасового кореня і двох каталогів kustomize
+ */
+async function setupKustTree(prefix) {
+  const root = await mkdtemp(join(tmpdir(), prefix))
+  const baseDir = join(root, 'k8s/base')
+  const prodDir = join(root, 'k8s/prod')
+  await mkdir(baseDir, { recursive: true })
+  await mkdir(prodDir, { recursive: true })
+  await writeFile(
+    join(baseDir, 'kustomization.yaml'),
+    `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: app-ns
 resources:
   - deploy.yaml
 `,
-      'utf8'
-    )
-    return { root, baseDir, prodDir }
-  }
+    'utf8'
+  )
+  return { root, baseDir, prodDir }
+}
 
+describe('convertImagePatchesToImagesInKustomization (e2e)', () => {
   test('конвертує одиничний image-replace patch у images:', async () => {
     const { root, baseDir, prodDir } = await setupKustTree('k8s-img-conv-1-')
     await writeFile(

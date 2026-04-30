@@ -116,7 +116,8 @@ function isEmptyListTest(test, name) {
     if (!['===', '==', '<=', '<'].includes(operator)) return false
     if (isLengthMember(left, name) && isZeroNumberLiteral(right)) return true
     // допускаємо `0 === ids.length` теж
-    if (isZeroNumberLiteral(left) && isLengthMember(right, name) && (operator === '===' || operator === '==')) return true
+    if (isZeroNumberLiteral(left) && isLengthMember(right, name) && (operator === '===' || operator === '=='))
+      return true
   }
 
   return false
@@ -307,7 +308,9 @@ function collectInListGuardViolationsFromTemplate(template, ancestors, content, 
   for (const [i, expr] of expressions.entries()) {
     const q = quasis[i]
     const raw =
-      q && typeof q === 'object' && q.value && typeof q.value === 'object' && typeof q.value.raw === 'string' ? q.value.raw : ''
+      q && typeof q === 'object' && q.value && typeof q.value === 'object' && typeof q.value.raw === 'string'
+        ? q.value.raw
+        : ''
     if (!IN_PLACEHOLDER_END_RE.test(raw)) continue
 
     const extracted = extractInListVarNameFromExpr(expr)

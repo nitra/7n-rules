@@ -1,0 +1,31 @@
+---
+description: Правила для директорії з hasura graphql-engine
+alwaysApply: true
+version: '1.0'
+---
+
+## Підключення для оновлення метаданих у CI (Nitra та Abinbevefes)
+
+У `*.env` для атрибута `HASURA_GRAPHQL_ENDPOINT` підключення має бути **усередині кластера**, а не через публічний домен — інакше CI кладе метадані через зовнішній бекенд і ламає перевипуск/міграції.
+
+Приклад **неправильного** значення:
+
+```env
+HASURA_GRAPHQL_ENDPOINT=https://napitkivmeste.tech/contract/ql
+```
+
+Правильне значення:
+
+```env
+HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080
+```
+
+де `contract-h` — це `metadata.name` сервісу з `hasura/k8s/base/svc-hl.yaml`, а `ua-contract` — `metadata.name` namespace з `hasura/k8s/base/namespace.yaml`.
+
+Правило застосовується для проєктів **nitra** (у кореневому `package.json` `"repository": "https://github.com/nitra/*"`) і **abie** (`"repository": "https://github.com/abinbevefes/*"`); для інших репозиторіїв перевірка пропускається.
+
+## Перевірка
+
+`npx @nitra/cursor check hasura`
+
+Деталі алгоритму — у `check-hasura.mjs`.

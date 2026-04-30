@@ -3,7 +3,8 @@
  *
  * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
  * залежності `mssql` / `pg` / `pg-format` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
- * `package.json`) та повертає ідентифікатори правил і skills, які потрібно автододати.
+ * `package.json`, `config.yaml` з рядком `metadata_directory: metadata` для hasura)
+ * та повертає ідентифікатори правил і skills, які потрібно автододати.
  *
  * Також враховує винятки `disable-rules` і `disable-skills`: елементи з цих списків не
  * додаються автоматично.
@@ -28,6 +29,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'docker',
   'ga',
   'graphql',
+  'hasura',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -45,6 +47,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
 export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
 
 const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
+const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
 const JS_LIKE_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx)$/iu
 const STYLE_RE = /\.(?:css|vue)$/iu
 const VUE_RE = /\.vue$/iu
@@ -139,6 +142,24 @@ async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKey
 }
 
 /**
+ * Перевіряє один package.json: повертає true, якщо в `devDependencies` немає `vite`.
+ * @param {string} absPath абсолютний шлях до package.json
+ * @returns {Promise<boolean>} true, якщо vite відсутній у devDependencies
+ */
+async function packageJsonLacksViteDevDependency(absPath) {
+  try {
+    const parsed = JSON.parse(await readFile(absPath, 'utf8'))
+    const devDeps = parsed?.devDependencies
+    if (!devDeps || typeof devDeps !== 'object' || Array.isArray(devDeps)) {
+      return true
+    }
+    return !Object.hasOwn(devDeps, 'vite')
+  } catch {
+    return false
+  }
+}
+
+/**
  * Перевіряє, чи існує хоча б один вкладений `package.json` (не кореневий),
  * у якому в `devDependencies` відсутня залежність `vite`.
  * @param {string} root абсолютний шлях до кореня репозиторію
@@ -148,27 +169,9 @@ async function hasNestedPackageJsonWithoutViteDevDependency(root) {
   let result = false
 
   /**
-   * Перевіряє один package.json: повертає true, якщо в `devDependencies` немає `vite`.
-   * @param {string} absPath абсолютний шлях до package.json
-   * @returns {Promise<boolean>} true, якщо vite відсутній у devDependencies
-   */
-  async function packageJsonLacksViteDevDependency(absPath) {
-    try {
-      const parsed = JSON.parse(await readFile(absPath, 'utf8'))
-      const devDeps = parsed?.devDependencies
-      if (!devDeps || typeof devDeps !== 'object' || Array.isArray(devDeps)) {
-        return true
-      }
-      return !Object.hasOwn(devDeps, 'vite')
-    } catch {
-      return false
-    }
-  }
-
-  /**
    * Рекурсивний обхід каталогу з пропуском службових директорій.
    * @param {string} dir абсолютний шлях каталогу
-   * @returns {Promise<void>}
+   * @returns {Promise<void>} завершується після обходу всього піддерева або встановлення `result`
    */
   async function walk(dir) {
     if (result) return
@@ -187,11 +190,14 @@ async function hasNestedPackageJsonWithoutViteDevDependency(root) {
         }
         continue
       }
-      if (entry.isFile() && entry.name === 'package.json' && absPath !== join(root, 'package.json')) {
-        if (await packageJsonLacksViteDevDependency(absPath)) {
-          result = true
-          return
-        }
+      if (
+        entry.isFile() &&
+        entry.name === 'package.json' &&
+        absPath !== join(root, 'package.json') &&
+        (await packageJsonLacksViteDevDependency(absPath))
+      ) {
+        result = true
+        return
       }
     }
   }
@@ -314,6 +320,26 @@ async function updateBunSqlFactFromFile(absPath, relPath, facts) {
 }
 
 /**
+ * Оновлює ознаку `hasHasuraConfig`, якщо файл — `config.yaml` із рядком
+ * `metadata_directory: metadata` (маркер hasura graphql-engine).
+ * @param {string} absPath абсолютний шлях до файлу
+ * @param {string} fileName базове імʼя файлу
+ * @param {{ hasHasuraConfig: boolean }} facts агреговані факти
+ * @returns {Promise<void>}
+ */
+async function updateHasuraFactFromFile(absPath, fileName, facts) {
+  if (facts.hasHasuraConfig || fileName !== 'config.yaml') return
+  try {
+    const content = await readFile(absPath, 'utf8')
+    if (content.includes(HASURA_CONFIG_MARKER)) {
+      facts.hasHasuraConfig = true
+    }
+  } catch {
+    /* ігноруємо пошкоджені/недоступні файли */
+  }
+}
+
+/**
  * Обробляє файл під час обходу дерева.
  * @param {string} absPath абсолютний шлях до файлу
  * @param {string} root абсолютний шлях кореня
@@ -322,6 +348,7 @@ async function updateBunSqlFactFromFile(absPath, relPath, facts) {
  *   hasCapacitorConfig: boolean,
  *   hasDockerfile: boolean,
  *   hasGqlTaggedTemplates: boolean,
+ *   hasHasuraConfig: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
  *   hasVueOrCssSource: boolean,
@@ -339,6 +366,7 @@ async function processFileEntry(absPath, root, facts) {
   if (shouldScanFileForBunSql(rel, facts)) {
     await updateBunSqlFactFromFile(absPath, rel, facts)
   }
+  await updateHasuraFactFromFile(absPath, fileName, facts)
 }
 
 /**
@@ -407,6 +435,7 @@ export function isMonorepoPackage(packageJson) {
  *   hasGaWorkflowsDir: boolean,
  *   hasBunSqlImport: boolean,
  *   hasGqlTaggedTemplates: boolean,
+ *   hasHasuraConfig: boolean,
  *   hasJsLikeSource: boolean,
  *   hasK8sDir: boolean,
  *   hasNginxDefaultTplFile: boolean,
@@ -423,6 +452,7 @@ export async function collectAutoRuleFacts(root) {
     hasDockerfile: false,
     hasGaWorkflowsDir: existsSync(join(root, '.github', 'workflows')),
     hasGqlTaggedTemplates: false,
+    hasHasuraConfig: false,
     hasJsLikeSource: false,
     hasK8sDir: false,
     hasNginxDefaultTplFile: false,
@@ -496,10 +526,10 @@ export async function detectAutoRulesAndSkills({
       : null
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
-  const isMonorepo = isMonorepoPackage(packageJsonParsed)
   const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'pg-format', 'mysql2'])
   const hasMssqlDependency = depHits.has('mssql')
-  const hasJsBunDbSignal = depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
+  const hasJsBunDbSignal =
+    depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
   const hasNestedNodePackage = await hasNestedPackageJsonWithoutViteDevDependency(root)
 
   /** @type {string[]} */
@@ -538,6 +568,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasDockerfile, id: 'docker' },
     { enabled: facts.hasGaWorkflowsDir, id: 'ga' },
     { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
+    { enabled: facts.hasHasuraConfig, id: 'hasura' },
     { enabled: facts.hasJsLikeSource, id: 'js-lint' },
     { enabled: hasMssqlDependency, id: 'js-mssql' },
     { enabled: hasJsBunDbSignal, id: 'js-bun-db' },

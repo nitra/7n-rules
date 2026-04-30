@@ -11,7 +11,7 @@
  *     (порядок не важливий, кілька викликів зливаються в один список).
  *
  * Обидва контракти можна точково «приглушити» коментарем-маркером
- * `// @nitra/cursor ignore-next-line checkEnv` на рядку безпосередньо перед
+ * `// \@nitra/cursor ignore-next-line checkEnv` на рядку безпосередньо перед
  * порушенням — це залишається сумісним escape-hatch для legacy-коду.
  *
  * Семантика береться з **oxc-parser** через `parseProgramOrNull`: regex по тілу
@@ -129,7 +129,7 @@ function hasCheckEnvImport(programNode) {
 }
 
 /**
- * Чи закритий рядок ignore-коментарем `// @nitra/cursor ignore-next-line checkEnv`.
+ * Чи закритий рядок ignore-коментарем `// \@nitra/cursor ignore-next-line checkEnv`.
  * @param {string[]} lines рядки файлу (split за \n, без CR)
  * @param {number} oneBasedLine 1-based номер рядка з порушенням
  * @returns {boolean} true, якщо попередній рядок містить маркер
@@ -162,6 +162,51 @@ function isEnvIdentifierMember(node) {
  */
 
 /**
+ * Чи parent — це MemberExpression, у якому `node` (process.env) є об'єктом доступу.
+ * @param {unknown} parent ancestor вузла
+ * @param {unknown} node перевіряємий вузол `process.env`
+ * @returns {boolean} true для `process.env.X` / `process.env['X']`
+ */
+function isParentEnvMember(parent, node) {
+  return !!parent && typeof parent === 'object' && parent.type === 'MemberExpression' && parent.object === node
+}
+
+/**
+ * Чи parent — це VariableDeclarator виду `const { ... } = <node>`.
+ * @param {unknown} parent ancestor вузла
+ * @param {unknown} node перевіряємий вузол (process.env або Identifier `env`)
+ * @returns {boolean} true для `const { ... } = node`
+ */
+function isParentObjectPatternDeclarator(parent, node) {
+  return (
+    !!parent &&
+    typeof parent === 'object' &&
+    parent.type === 'VariableDeclarator' &&
+    parent.init === node &&
+    !!parent.id &&
+    parent.id.type === 'ObjectPattern' &&
+    Array.isArray(parent.id.properties)
+  )
+}
+
+/**
+ * Чи node — це VariableDeclarator виду `const { ... } = env`, де `env` — Identifier.
+ * @param {Record<string, unknown>} node AST-вузол
+ * @returns {boolean} true для `const { ... } = env`
+ */
+function isEnvObjectPatternDeclarator(node) {
+  return (
+    node.type === 'VariableDeclarator' &&
+    !!node.init &&
+    node.init.type === 'Identifier' &&
+    node.init.name === 'env' &&
+    !!node.id &&
+    node.id.type === 'ObjectPattern' &&
+    Array.isArray(node.id.properties)
+  )
+}
+
+/**
  * Перебирає AST і для кожного знайденого доступу до `process.env` чи `env`
  * (де `env` — імпорт з `@nitra/check-env`) реєструє порушення відповідного типу.
  * @param {unknown} program корінь AST
@@ -191,34 +236,42 @@ function collectViolations(program, content, lines, checkedNames, envFromCheckEn
     out.push({ kind, name, line })
   }
 
-  walkAstWithAncestors(program, [], (node, ancestors) => {
-    // 1. process.env.X — завжди порушення (рекомендуємо замінити на env)
-    if (isProcessEnvAccess(node)) {
-      const parent = ancestors[ancestors.length - 1]
-      if (parent && typeof parent === 'object' && parent.type === 'MemberExpression' && parent.object === node) {
-        const envName = envNameFromMember(parent)
-        if (envName) report('process-env', envName, offsetToLine(content, parent.start))
-      }
-      if (
-        parent &&
-        typeof parent === 'object' &&
-        parent.type === 'VariableDeclarator' &&
-        parent.init === node &&
-        parent.id &&
-        parent.id.type === 'ObjectPattern' &&
-        Array.isArray(parent.id.properties)
-      ) {
-        for (const p of parent.id.properties) {
-          const name = staticPropertyName(p)
-          if (name) report('process-env', name, offsetToLine(content, p.start ?? parent.start))
-        }
-      }
-      return
+  /**
+   * Реєструє порушення для всіх статичних ключів ObjectPattern (`const { A, B } = …`).
+   * @param {Record<string, unknown>} declarator VariableDeclarator з ObjectPattern у `id`
+   * @param {'process-env' | 'check-env-missing-checkEnv'} kind тип порушення
+   * @param {(name: string) => boolean} skipName предикат «пропустити це ім'я» (наприклад, вже у checkEnv)
+   */
+  function reportObjectPatternKeys(declarator, kind, skipName) {
+    const fallbackOffset = declarator.start
+    for (const p of declarator.id.properties) {
+      const name = staticPropertyName(p)
+      if (!name || skipName(name)) continue
+      report(kind, name, offsetToLine(content, p.start ?? fallbackOffset))
     }
+  }
 
-    // 2. env.X — порушення лише якщо env імпортовано з @nitra/check-env і немає checkEnv
-    if (!envFromCheckEnv) return
+  /**
+   * Обробка `process.env`-доступу: і `parent.X`, і деструктуризація.
+   * @param {unknown} node AST-вузол `process.env`
+   * @param {unknown[]} ancestors стек предків з walkAstWithAncestors
+   */
+  function handleProcessEnv(node, ancestors) {
+    const parent = ancestors.at(-1)
+    if (isParentEnvMember(parent, node)) {
+      const envName = envNameFromMember(parent)
+      if (envName) report('process-env', envName, offsetToLine(content, parent.start))
+    }
+    if (isParentObjectPatternDeclarator(parent, node)) {
+      reportObjectPatternKeys(parent, 'process-env', () => false)
+    }
+  }
 
+  /**
+   * Обробка вузлів, що стосуються `env` з `@nitra/check-env`.
+   * @param {Record<string, unknown>} node AST-вузол
+   */
+  function handleCheckEnvAccess(node) {
     if (isEnvIdentifierMember(node)) {
       const envName = envNameFromMember(node)
       if (envName && !checkedNames.has(envName)) {
@@ -226,24 +279,17 @@ function collectViolations(program, content, lines, checkedNames, envFromCheckEn
       }
       return
     }
-
-    // const { X, Y } = env — теж потребує checkEnv для кожного імені
-    if (
-      node.type === 'VariableDeclarator' &&
-      node.init &&
-      node.init.type === 'Identifier' &&
-      node.init.name === 'env' &&
-      node.id &&
-      node.id.type === 'ObjectPattern' &&
-      Array.isArray(node.id.properties)
-    ) {
-      for (const p of node.id.properties) {
-        const name = staticPropertyName(p)
-        if (name && !checkedNames.has(name)) {
-          report('check-env-missing-checkEnv', name, offsetToLine(content, p.start ?? node.start))
-        }
-      }
+    if (isEnvObjectPatternDeclarator(node)) {
+      reportObjectPatternKeys(node, 'check-env-missing-checkEnv', name => checkedNames.has(name))
     }
+  }
+
+  walkAstWithAncestors(program, [], (node, ancestors) => {
+    if (isProcessEnvAccess(node)) {
+      handleProcessEnv(node, ancestors)
+      return
+    }
+    if (envFromCheckEnv) handleCheckEnvAccess(node)
   })
 
   return out
@@ -266,7 +312,6 @@ function staticPropertyName(property) {
 
 /**
  * Знаходить порушення правила «process.env / CheckEnv» у файлі.
- *
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang` парсера
  * @returns {EnvViolation[]} список порушень із типом, іменем змінної та рядком

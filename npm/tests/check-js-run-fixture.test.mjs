@@ -80,7 +80,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(
         join('pkg', 'index.js'),
-        `import { SQL } from 'bun'\nimport { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
+        `import { SQL } from 'bun'\nimport { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(1)
@@ -93,7 +93,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
       await writeFile(
         join('pkg', 'src', 'conn', 'pg.js'),
-        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -112,7 +112,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await mkdir(join('pkg', 'lib', 'connections'), { recursive: true })
       await writeFile(
         join('pkg', 'lib', 'connections', 'pg.js'),
-        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(0)

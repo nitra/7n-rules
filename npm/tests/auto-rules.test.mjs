@@ -14,6 +14,7 @@ const ALL_RULES = [
   'docker',
   'ga',
   'graphql',
+  'hasura',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -121,6 +122,33 @@ describe('detectAutoRulesAndSkills', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
+    })
+  })
+
+  test('додає hasura, коли config.yaml містить metadata_directory: metadata', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'hasura-app' })
+      await ensureDir('hasura')
+      await writeFile(
+        'hasura/config.yaml',
+        'version: 3\nendpoint: http://localhost:8080\nmetadata_directory: metadata\n',
+        'utf8'
+      )
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('hasura')).toBe(true)
+    })
+  })
+
+  test('не додає hasura для config.yaml без маркера', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'plain-yaml-app' })
+      await writeFile('config.yaml', 'foo: bar\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('hasura')).toBe(false)
     })
   })
 
