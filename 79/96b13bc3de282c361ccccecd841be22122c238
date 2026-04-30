@@ -1,0 +1,57 @@
+docs/programmatic-checks-for-llm.md
+  a0b9db608b91fe57 132
+npm/tests/auto-rules.test.mjs
+  a0b9db608b91fe57 20,126-165
+.cursor/rules/n-js-run.mdc
+  a0b9db608b91fe57 15
+CLAUDE.md
+  a0b9db608b91fe57 8
+.n-cursor.json
+  a0b9db608b91fe57 3
+npm/scripts/check-k8s.mjs
+  a0b9db608b91fe57 2597,2681
+npm/scripts/utils/bunyan-imports.mjs
+  a0b9db608b91fe57 3
+npm/bin/auto-rules.md
+  h_9e4b254ff59432 21
+npm/tests/check-js-run-fixture.test.mjs
+  a0b9db608b91fe57 1-77
+npm/tests/integration-repo-checks.test.mjs
+  a0b9db608b91fe57 15,37
+npm/scripts/check-js-run.mjs
+  a0b9db608b91fe57 1-120
+AGENTS.md
+  a0b9db608b91fe57 22
+npm/mdc/js-run.mdc
+  h_9e4b254ff59432 1-3,5-8,11,14-17
+  a0b9db608b91fe57 4,9-10,12-13
+npm/tests/bunyan-imports.test.mjs
+  a0b9db608b91fe57 2
+npm/scripts/auto-rules.mjs
+  a0b9db608b91fe57 34,141-202,503,544
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7996b13bc3de282c361ccccecd841be22122c238",
+  "prompts": {
+    "a0b9db608b91fe57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1743d165-5625-40dd-a7ee-73be7b40aeaf",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 463,
+      "total_deletions": 62,
+      "accepted_lines": 454,
+      "overriden_lines": 1
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
