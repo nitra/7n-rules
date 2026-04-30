@@ -33,6 +33,16 @@ describe('check-js-bun-db', () => {
     })
   })
 
+  test('помилка: dependencies.pg-format у кореневому package.json', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 't',
+        dependencies: { 'pg-format': '^1.0.4' }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
+
   test('помилка: dependencies.mysql2 у workspace-пакеті', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {

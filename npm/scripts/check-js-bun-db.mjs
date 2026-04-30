@@ -2,8 +2,10 @@
  * Перевіряє правило js-bun-db.mdc.
  *
  * 1) У жодному `package.json` (включно з workspace-пакетами) у `dependencies` не повинно
- *    бути `pg` чи `mysql2` — ці бібліотеки треба замінити на Bun native SQL
+ *    бути `pg`, `pg-format` чи `mysql2` — ці бібліотеки треба замінити на Bun native SQL
  *    (`import { sql, SQL } from 'bun'`, https://bun.com/docs/runtime/sql).
+ *    `pg-format` — ручне форматування SQL через escape; tagged template Bun SQL
+ *    параметризує значення нативно і не лишає простору для injection.
  *
  * 2) Якщо в коді використовується Bun SQL (імпорт `sql`/`SQL` з `'bun'`), додатково
  *    перевіряє небезпечні патерни:
@@ -28,7 +30,7 @@ import {
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Імена забороненої залежності у будь-якому `package.json`. */
-const FORBIDDEN_DEPENDENCIES = Object.freeze(['pg', 'mysql2'])
+const FORBIDDEN_DEPENDENCIES = Object.freeze(['pg', 'pg-format', 'mysql2'])
 
 /**
  * @param {unknown} v parsed JSON

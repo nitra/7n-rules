@@ -116,6 +116,23 @@ describe('detectAutoRulesAndSkills', () => {
     })
   })
 
+  test('додає js-bun-db при pg-format у dependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'pg-format-app',
+        dependencies: {
+          'pg-format': '^1.0.4'
+        }
+      })
+      await ensureDir('src')
+      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-db')).toBe(true)
+    })
+  })
+
   test('додає js-bun-db при імпорті sql з bun', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 'sql-app' })

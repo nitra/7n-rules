@@ -2,7 +2,7 @@
  * Автовизначення правил і skills для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
  *
  * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
- * залежності `mssql` / `pg` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
+ * залежності `mssql` / `pg` / `pg-format` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
  * `package.json`) та повертає ідентифікатори правил і skills, які потрібно автододати.
  *
  * Також враховує винятки `disable-rules` і `disable-skills`: елементи з цих списків не
@@ -435,9 +435,9 @@ export async function detectAutoRulesAndSkills({
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
   const isMonorepo = isMonorepoPackage(packageJsonParsed)
-  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'mysql2'])
+  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'pg-format', 'mysql2'])
   const hasMssqlDependency = depHits.has('mssql')
-  const hasJsBunDbSignal = depHits.has('pg') || depHits.has('mysql2') || facts.hasBunSqlImport
+  const hasJsBunDbSignal = depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
 
   /** @type {string[]} */
   const detectedRules = []
