@@ -37,7 +37,7 @@ describe('getMultistageAndRuntimeHint', () => {
     expect(h).toBe(null)
   })
 
-  test('ok: multistage + final library/nginx', () => {
+  test('fail: final library/nginx заборонений — потрібен nginxinc/nginx-unprivileged (docker.mdc)', () => {
     const h = getMultistageAndRuntimeHint(
       [
         'FROM mirror.gcr.io/oven/bun:alpine AS build-env',
@@ -46,7 +46,8 @@ describe('getMultistageAndRuntimeHint', () => {
         'COPY --from=build-env /app/dist /usr/share/nginx/html'
       ].join('\n')
     )
-    expect(h).toBe(null)
+    expect(h).toContain('дозволеним runtime-образом')
+    expect(h).toContain('library/nginx')
   })
 
   test('ok: multistage + final nginx-unprivileged', () => {

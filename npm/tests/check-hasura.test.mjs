@@ -10,7 +10,8 @@ import { withTmpCwd, writeJson } from './helpers.mjs'
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL', () => {
-    const r = parseInternalHasuraEndpoint("https://contract-h.ua-contract.svc.abie-ua.internal:8080")
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
+    const r = parseInternalHasuraEndpoint('http://contract-h.ua-contract.svc.abie-ua.internal:8080')
     expect(r).toEqual({
       ok: true,
       service: 'contract-h',
@@ -29,17 +30,22 @@ describe('parseInternalHasuraEndpoint', () => {
   })
 
   test('вимагає явний порт', () => {
-    expect(parseInternalHasuraEndpoint("https://h.ns.svc.cl.internal").ok).toBe(false)
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- негативний кейс для http:// формату
+    expect(parseInternalHasuraEndpoint('http://h.ns.svc.cl.internal').ok).toBe(false)
   })
 })
 
 describe('isEnvFile', () => {
   test('базові форми', () => {
-    expect(isEnvFile('.env')).toBe(true)
     expect(isEnvFile('dev.env')).toBe(true)
     expect(isEnvFile('hasura/production.env')).toBe(true)
     expect(isEnvFile('package.json')).toBe(false)
     expect(isEnvFile('env.json')).toBe(false)
+  })
+
+  test('файл .env без імені — виключення з правила', () => {
+    expect(isEnvFile('.env')).toBe(false)
+    expect(isEnvFile('hasura/.env')).toBe(false)
   })
 })
 
@@ -141,6 +147,14 @@ describe('check-hasura', () => {
   test('пропуск без env-файлів', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't', repository: 'https://github.com/nitra/foo' })
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('файл .env без імені ігнорується навіть з поганим URL', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', repository: 'https://github.com/nitra/foo' })
+      await writeFile('.env', 'HASURA_GRAPHQL_ENDPOINT=https://napitkivmeste.tech/contract/ql\n', 'utf8')
       expect(await check()).toBe(0)
     })
   })

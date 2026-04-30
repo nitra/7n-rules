@@ -18,8 +18,9 @@
  * звіряються конкретні `<service>` і `<namespace>` з ними.
  *
  * Скануються всі файли `*.env` (наприклад `dev.env`, `production.env`); файл
- * `.env` без префікса також враховується. Пропускаються `node_modules`,
- * `.git`, `dist`, `coverage`, `.turbo`, `.next` (як у `walkDir`).
+ * `.env` без імені — виключення з правила (локальний файл розробника), його
+ * не перевіряємо. Пропускаються `node_modules`, `.git`, `dist`, `coverage`,
+ * `.turbo`, `.next` (як у `walkDir`).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -40,6 +41,7 @@ const HASURA_NAMESPACE_FILE = `${HASURA_BASE_DIR}/namespace.yaml`
 
 const ENV_FILE_RE = /\.env$/u
 const HASURA_ENDPOINT_LINE_RE = /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
+const INTERNAL_HASURA_URL_RE = /^http:\/\/([^./]+)\.([^./]+)\.svc\.([^./]+)\.internal:(\d+)\/?$/u
 
 /**
  * Розбір значення `HASURA_GRAPHQL_ENDPOINT` як внутрішнього кластерного URL.
@@ -47,11 +49,10 @@ const HASURA_ENDPOINT_LINE_RE = /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT
  * `<service>.<namespace>.svc.<cluster>.internal` та явного порту.
  * @param {string} url значення з `.env` (без огорнутих лапок)
  * @returns {{ ok: true, service: string, namespace: string, cluster: string, port: string } | { ok: false }}
- *   деталі URL або фейл, якщо формат не відповідає внутрішньому кластерному URL
+ *   розібрані сегменти або `{ ok: false }`, якщо формат не відповідає внутрішньому кластерному URL
  */
 export function parseInternalHasuraEndpoint(url) {
-  const trimmed = url.trim()
-  const m = trimmed.match(/^http:\/\/([^./]+)\.([^./]+)\.svc\.([^./]+)\.internal:(\d+)\/?$/u)
+  const m = url.trim().match(INTERNAL_HASURA_URL_RE)
   if (!m) {
     return { ok: false }
   }
@@ -84,12 +85,17 @@ async function readYamlMetadataName(absPath, kind) {
 }
 
 /**
- * Чи відносний шлях вказує на `*.env` (включно з `.env`).
+ * Чи відносний шлях вказує на `*.env`, який треба перевіряти hasura.mdc.
+ * Файл рівно `.env` (без імені) — виключення з правила (локальний файл
+ * розробника, hasura.mdc його не зачіпає), тому повертає false.
  * @param {string} relPath posix-шлях відносно кореня
- * @returns {boolean} true для файлів виду `.env`, `dev.env`, `nitra.env`
+ * @returns {boolean} true для `dev.env`, `nitra.env`; false для `.env`
  */
 export function isEnvFile(relPath) {
-  return ENV_FILE_RE.test(relPath)
+  if (!ENV_FILE_RE.test(relPath)) {
+    return false
+  }
+  return basename(relPath) !== '.env'
 }
 
 /**
@@ -127,9 +133,10 @@ async function checkEnvFile(relPath, expected, reporter) {
   const value = m[1].trim()
   const parsed = parseInternalHasuraEndpoint(value)
   if (!parsed.ok) {
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL (TLS не використовується)
+    const example = 'http://<service>.<namespace>.svc.<cluster>.internal:<port>'
     fail(
-      `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ` +
-        `https://<service>.<namespace>.svc.<cluster>.internal:<port> (hasura.mdc)`
+      `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`
     )
     return
   }

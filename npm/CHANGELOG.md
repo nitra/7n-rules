@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.158] - 2026-05-01
+
+### Changed
+
+- `check-hasura.mjs`: файл `.env` без імені (локальний файл розробника) виключено з перевірки `HASURA_GRAPHQL_ENDPOINT` — скануються лише `*.env` із префіксом (`dev.env`, `production.env` тощо).
+- `hasura.mdc`: явно зафіксовано виключення для `.env` без імені.
+
 ## [1.8.157] - 2026-04-30
 
 ### Added
