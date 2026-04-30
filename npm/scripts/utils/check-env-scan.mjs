@@ -1,29 +1,40 @@
 /**
- * AST-сканер для правила CheckEnv (js-run.mdc).
+ * AST-сканер правила «process.env / CheckEnv» (js-run.mdc).
  *
- * Кожне використання `process.env.X` у JS/TS-коді має бути «закрите» одним з двох способів:
- *  - перед використанням у тому ж файлі викликано `checkEnv(['X', ...])` з пакету `@nitra/check-env`;
- *  - на рядку безпосередньо перед `process.env.X` стоїть коментар-маркер
- *    `// @nitra/cursor ignore-next-line checkEnv` (роздільники пробілів довільні; саме слово
- *    `checkEnv` чутливе до регістру, як в усіх прикладах документа).
+ * Правило в .mdc формулює два контракти:
+ *  1. Прямий доступ до `process.env.X` має бути замінено на `env` — з пакета
+ *     `@nitra/check-env` (для обов'язкових змінних, із викликом `checkEnv([...])`)
+ *     або з `node:process` (для опційних). Тому будь-яке `process.env.X` сканер
+ *     завжди реєструє як порушення з порадою про конкретну заміну.
+ *  2. Якщо у файл імпортовано `env` саме з `@nitra/check-env`, то кожне `env.X`
+ *     має бути закрите літеральним викликом `checkEnv(['X', ...])` у тому ж файлі
+ *     (порядок не важливий, кілька викликів зливаються в один список).
  *
- * Семантика береться з **oxc-parser** через `parseProgramOrNull`: regex по тілу файлу не
- * використовується, лише сирий текст рядка з коментарем перевіряється на маркер. Якщо
- * файл не парситься — повертаємо порожній результат, спочатку треба полагодити синтаксис.
+ * Обидва контракти можна точково «приглушити» коментарем-маркером
+ * `// @nitra/cursor ignore-next-line checkEnv` на рядку безпосередньо перед
+ * порушенням — це залишається сумісним escape-hatch для legacy-коду.
  *
- * Покриті форми доступу до `process.env`:
- *  - `process.env.X` (звичайний MemberExpression);
- *  - `process.env['X']` (computed з рядковим літералом);
- *  - `const { X, Y } = process.env` (ObjectPattern; ім'я з ключа);
- *  - `const { X: alias } = process.env` (ім'я з ключа, не з alias).
+ * Семантика береться з **oxc-parser** через `parseProgramOrNull`: regex по тілу
+ * файлу не використовується, лише сирий текст рядка з коментарем перевіряється
+ * на маркер. Якщо файл не парситься — повертаємо порожній результат, спочатку
+ * треба полагодити синтаксис.
  *
- * Якщо ключ обчислюваний (наприклад, `process.env[varName]`) — пропускаємо без помилки,
+ * Покриті форми доступу:
+ *  - `process.env.X` / `process.env['X']` (як MemberExpression);
+ *  - `const { X, Y } = process.env` (ObjectPattern; ім'я з ключа, не з alias);
+ *  - аналогічно для `env.X` / `env['X']` / `const { X } = env`,
+ *    де `env` має бути імпортований з `@nitra/check-env` (інакше ігноруємо —
+ *    це може бути локальна змінна чи `env` з `node:process`).
+ *
+ * Якщо ключ обчислюваний (`process.env[varName]`) — пропускаємо без помилки,
  * бо за статичним AST неможливо встановити, яка саме змінна оточення використовується.
  */
 import { offsetToLine, parseProgramOrNull, walkAstWithAncestors } from './ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const IGNORE_DIRECTIVE_RE = /\/\/\s*@nitra\/cursor\s+ignore-next-line\s+checkEnv\b/u
+
+const CHECK_ENV_PACKAGE = '@nitra/check-env'
 
 /**
  * Чи є цей вузол виразом `process.env`.
@@ -46,8 +57,8 @@ function isProcessEnvAccess(node) {
 }
 
 /**
- * Витягує ім'я ENV з MemberExpression-вузла `process.env.X` або `process.env['X']`.
- * @param {Record<string, unknown>} node MemberExpression, чий object — `process.env`
+ * Витягує ім'я ENV з MemberExpression `obj.X` або `obj['X']`.
+ * @param {Record<string, unknown>} node MemberExpression, чий object — `process.env` або `env`
  * @returns {string | null} ім'я змінної оточення або null, якщо ключ не статичний
  */
 function envNameFromMember(node) {
@@ -88,9 +99,39 @@ function collectCheckedEnvNames(programNode) {
 }
 
 /**
+ * Чи імпортовано локальний ідентифікатор `env` саме з `@nitra/check-env`.
+ * Перевіряє ImportDeclaration на specifier {imported.name === 'env', local.name === 'env'}.
+ * Aliased-варіанти (`{ env as x }`) свідомо не підтримуються — у наших правилах
+ * приклади завжди використовують канонічне ім'я `env`.
+ * @param {unknown} programNode корінь AST
+ * @returns {boolean} true, якщо у файлі є `import { env } from '@nitra/check-env'`
+ */
+function hasCheckEnvImport(programNode) {
+  let found = false
+  walkAstWithAncestors(programNode, [], node => {
+    if (found) return
+    if (node.type !== 'ImportDeclaration') return
+    const source = node.source
+    if (!source || typeof source !== 'object' || source.value !== CHECK_ENV_PACKAGE) return
+    const specifiers = node.specifiers
+    if (!Array.isArray(specifiers)) return
+    for (const s of specifiers) {
+      if (!s || typeof s !== 'object' || s.type !== 'ImportSpecifier') continue
+      const imported = s.imported
+      const local = s.local
+      if (!imported || imported.name !== 'env') continue
+      if (!local || local.name !== 'env') continue
+      found = true
+      return
+    }
+  })
+  return found
+}
+
+/**
  * Чи закритий рядок ignore-коментарем `// @nitra/cursor ignore-next-line checkEnv`.
  * @param {string[]} lines рядки файлу (split за \n, без CR)
- * @param {number} oneBasedLine 1-based номер рядка з `process.env.X`
+ * @param {number} oneBasedLine 1-based номер рядка з порушенням
  * @returns {boolean} true, якщо попередній рядок містить маркер
  */
 function hasIgnoreDirective(lines, oneBasedLine) {
@@ -100,48 +141,64 @@ function hasIgnoreDirective(lines, oneBasedLine) {
 }
 
 /**
- * Знаходить всі доступи до `process.env.<NAME>`, які не покриті ні літеральним
- * `checkEnv([...])` у тому ж файлі, ні коментарем-маркером безпосередньо перед.
- *
- * @param {string} content вихідний код
- * @param {string} [virtualPath] шлях для вибору `lang` парсера
- * @returns {{ line: number, name: string }[]} список порушень
+ * Чи є вузол MemberExpression виду `env.X` / `env['X']`, де `env` — Identifier
+ * (в AST oxc-parser globals і локальні імпорти не розрізняються — фільтр джерела
+ * робиться на рівні `hasCheckEnvImport`).
+ * @param {unknown} node AST вузол
+ * @returns {boolean} true, якщо це `env.<...>`
  */
-export function findUncheckedProcessEnvInText(content, virtualPath = 'scan.ts') {
-  const program = parseProgramOrNull(content, virtualPath)
-  if (!program) return []
+function isEnvIdentifierMember(node) {
+  if (!node || typeof node !== 'object' || node.type !== 'MemberExpression') return false
+  const obj = node.object
+  return !!obj && obj.type === 'Identifier' && obj.name === 'env'
+}
 
-  const checked = collectCheckedEnvNames(program)
-  const lines = content.split('\n').map(s => (s.endsWith('\r') ? s.slice(0, -1) : s))
+/**
+ * @typedef {{
+ *   line: number,
+ *   name: string,
+ *   kind: 'process-env' | 'check-env-missing-checkEnv'
+ * }} EnvViolation
+ */
 
-  /** @type {{ line: number, name: string }[]} */
+/**
+ * Перебирає AST і для кожного знайденого доступу до `process.env` чи `env`
+ * (де `env` — імпорт з `@nitra/check-env`) реєструє порушення відповідного типу.
+ * @param {unknown} program корінь AST
+ * @param {string} content вихідний код (для offset → line)
+ * @param {string[]} lines split-рядки content (для ignore-маркера)
+ * @param {Set<string>} checkedNames імена, закриті літеральним `checkEnv([...])`
+ * @param {boolean} envFromCheckEnv чи імпортовано `env` саме з `@nitra/check-env`
+ * @returns {EnvViolation[]} список порушень (відсортований за порядком зустрічі в AST)
+ */
+function collectViolations(program, content, lines, checkedNames, envFromCheckEnv) {
+  /** @type {EnvViolation[]} */
   const out = []
   /** @type {Set<string>} */
   const reported = new Set()
 
   /**
-   * Реєструє порушення з дедуплікацією за «name@line».
+   * Реєструє порушення з дедуплікацією за «kind|name|line» і урахуванням ignore-маркера.
+   * @param {'process-env' | 'check-env-missing-checkEnv'} kind тип порушення
    * @param {string} name ім'я ENV
    * @param {number} line 1-based рядок
    */
-  function report(name, line) {
-    if (checked.has(name)) return
+  function report(kind, name, line) {
     if (hasIgnoreDirective(lines, line)) return
-    const key = `${name}@${line}`
+    const key = `${kind}|${name}|${line}`
     if (reported.has(key)) return
     reported.add(key)
-    out.push({ name, line })
+    out.push({ kind, name, line })
   }
 
   walkAstWithAncestors(program, [], (node, ancestors) => {
+    // 1. process.env.X — завжди порушення (рекомендуємо замінити на env)
     if (isProcessEnvAccess(node)) {
       const parent = ancestors[ancestors.length - 1]
-      // process.env.X / process.env['X']
       if (parent && typeof parent === 'object' && parent.type === 'MemberExpression' && parent.object === node) {
         const envName = envNameFromMember(parent)
-        if (envName) report(envName, offsetToLine(content, parent.start))
+        if (envName) report('process-env', envName, offsetToLine(content, parent.start))
       }
-      // const { X, Y } = process.env  → беремо імена з ObjectPattern
       if (
         parent &&
         typeof parent === 'object' &&
@@ -152,21 +209,77 @@ export function findUncheckedProcessEnvInText(content, virtualPath = 'scan.ts') 
         Array.isArray(parent.id.properties)
       ) {
         for (const p of parent.id.properties) {
-          if (!p || typeof p !== 'object' || p.type !== 'Property') continue
-          if (p.computed) continue
-          const key = p.key
-          if (!key || typeof key !== 'object') continue
-          /** @type {string | null} */
-          let name = null
-          if (key.type === 'Identifier' && typeof key.name === 'string') name = key.name
-          else if (key.type === 'Literal' && typeof key.value === 'string') name = key.value
-          if (name) report(name, offsetToLine(content, p.start ?? parent.start))
+          const name = staticPropertyName(p)
+          if (name) report('process-env', name, offsetToLine(content, p.start ?? parent.start))
+        }
+      }
+      return
+    }
+
+    // 2. env.X — порушення лише якщо env імпортовано з @nitra/check-env і немає checkEnv
+    if (!envFromCheckEnv) return
+
+    if (isEnvIdentifierMember(node)) {
+      const envName = envNameFromMember(node)
+      if (envName && !checkedNames.has(envName)) {
+        report('check-env-missing-checkEnv', envName, offsetToLine(content, node.start))
+      }
+      return
+    }
+
+    // const { X, Y } = env — теж потребує checkEnv для кожного імені
+    if (
+      node.type === 'VariableDeclarator' &&
+      node.init &&
+      node.init.type === 'Identifier' &&
+      node.init.name === 'env' &&
+      node.id &&
+      node.id.type === 'ObjectPattern' &&
+      Array.isArray(node.id.properties)
+    ) {
+      for (const p of node.id.properties) {
+        const name = staticPropertyName(p)
+        if (name && !checkedNames.has(name)) {
+          report('check-env-missing-checkEnv', name, offsetToLine(content, p.start ?? node.start))
         }
       }
     }
   })
 
   return out
+}
+
+/**
+ * Витягує статичне ім'я з вузла Property у ObjectPattern.
+ * @param {unknown} property AST-вузол ObjectPattern.properties[i]
+ * @returns {string | null} ім'я ключа або null
+ */
+function staticPropertyName(property) {
+  if (!property || typeof property !== 'object' || property.type !== 'Property') return null
+  if (property.computed) return null
+  const key = property.key
+  if (!key || typeof key !== 'object') return null
+  if (key.type === 'Identifier' && typeof key.name === 'string') return key.name
+  if (key.type === 'Literal' && typeof key.value === 'string') return key.value
+  return null
+}
+
+/**
+ * Знаходить порушення правила «process.env / CheckEnv» у файлі.
+ *
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang` парсера
+ * @returns {EnvViolation[]} список порушень із типом, іменем змінної та рядком
+ */
+export function findUncheckedProcessEnvInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  const checked = collectCheckedEnvNames(program)
+  const envFromCheckEnv = hasCheckEnvImport(program)
+  const lines = content.split('\n').map(s => (s.endsWith('\r') ? s.slice(0, -1) : s))
+
+  return collectViolations(program, content, lines, checked, envFromCheckEnv)
 }
 
 /**

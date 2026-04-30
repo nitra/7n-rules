@@ -80,7 +80,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(
         join('pkg', 'index.js'),
-        `import { SQL } from 'bun'\nimport { checkEnv } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: process.env.PG_CONN })\n`,
+        `import { SQL } from 'bun'\nimport { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['PG_CONN'])\nexport const pool = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(1)
@@ -119,7 +119,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test('1, якщо process.env.X без checkEnv', async () => {
+  test('1, якщо у workspace використано пряме process.env.X (треба замінити на env)', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(join('pkg', 'index.js'), `console.log(process.env.SECRET)\n`, 'utf8')
@@ -127,7 +127,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test('0, якщо process.env.X закрите checkEnv', async () => {
+  test("1, якщо process.env.X закрите checkEnv — все одно треба замінити на env з '@nitra/check-env'", async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(
@@ -135,11 +135,35 @@ describe('check-js-run (мінімальний проєкт)', () => {
         `import { checkEnv } from '@nitra/check-env'\ncheckEnv(['SECRET'])\nconsole.log(process.env.SECRET)\n`,
         'utf8'
       )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test("0, якщо обов'язкова env прийшла з '@nitra/check-env' з checkEnv", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import { checkEnv, env } from '@nitra/check-env'\ncheckEnv(['SECRET'])\nconsole.log(env.SECRET)\n`,
+        'utf8'
+      )
       expect(await check()).toBe(0)
     })
   })
 
-  test('0, якщо process.env.X закрите ignore-коментарем', async () => {
+  test("0, якщо опційна env прийшла з 'node:process'", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import { env } from 'node:process'\nconsole.log(env.OPTIONAL)\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0, якщо процесний доступ закритий ignore-коментарем (escape-hatch)', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await writeFile(

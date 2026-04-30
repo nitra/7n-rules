@@ -12,10 +12,12 @@
  *    дозволені лише у каталозі conn (за замовчуванням `src/conn/`; за наявності
  *    `package.json#imports['#conn/*']` — у його цільовому каталозі); поза ним — порушення
  *    (див. `utils/conn-imports-scan.mjs`);
- *  - «CheckEnv»: кожне `process.env.X` (включно з `process.env['X']` і деструктуризацією
- *    `const { X } = process.env`) має бути закрите літеральним викликом `checkEnv(['X', ...])`
- *    у тому ж файлі або коментарем `// @nitra/cursor ignore-next-line checkEnv` на попередньому
- *    рядку (див. `utils/check-env-scan.mjs`).
+ *  - «process.env / CheckEnv»: пряме `process.env.X` має бути замінено на `env` —
+ *    з `@nitra/check-env` (для обов'язкових змінних, із `checkEnv([...])`) або з
+ *    `node:process` (для опційних). Коли `env` імпортовано з `@nitra/check-env`,
+ *    кожен `env.X` має бути закритий літеральним викликом `checkEnv(['X', ...])`
+ *    у тому ж файлі або коментарем `// @nitra/cursor ignore-next-line checkEnv`
+ *    на попередньому рядку (див. `utils/check-env-scan.mjs`).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -134,9 +136,11 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
     const content = await readFile(absPath, 'utf8')
     for (const v of findUncheckedProcessEnvInText(content, rel)) {
       violations++
-      fail(
-        `${label}${rel}:${v.line} — process.env.${v.name} без checkEnv(['${v.name}']) (або '// @nitra/cursor ignore-next-line checkEnv' попереду)`
-      )
+      const message =
+        v.kind === 'process-env'
+          ? `${label}${rel}:${v.line} — process.env.${v.name}: заміни на env з '@nitra/check-env' (обов'язкова змінна + checkEnv(['${v.name}'])) або з 'node:process' (опційна)`
+          : `${label}${rel}:${v.line} — env.${v.name} (з '@nitra/check-env') без checkEnv(['${v.name}']) (або '// @nitra/cursor ignore-next-line checkEnv' попереду)`
+      fail(message)
     }
   }
   return violations
@@ -184,7 +188,9 @@ async function checkWorkspacePackage(rootDir, fail, passFn) {
 
   const envViolations = await checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail)
   if (envViolations === 0) {
-    passFn(`${label}усі process.env.* закриті checkEnv(['…']) або '// @nitra/cursor ignore-next-line checkEnv'`)
+    passFn(
+      `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`
+    )
   }
 
   const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
