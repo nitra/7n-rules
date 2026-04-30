@@ -31,7 +31,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'js-lint',
   'js-mssql',
   'js-bun-db',
-  'js-pino',
+  'js-run',
   'k8s',
   'nginx-default-tpl',
   'npm-module',
@@ -136,6 +136,68 @@ async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKey
 
   await walk(root)
   return found
+}
+
+/**
+ * Перевіряє, чи існує хоча б один вкладений `package.json` (не кореневий),
+ * у якому в `devDependencies` відсутня залежність `vite`.
+ * @param {string} root абсолютний шлях до кореня репозиторію
+ * @returns {Promise<boolean>} true, якщо знайдено вкладений package.json без `vite` у devDependencies
+ */
+async function hasNestedPackageJsonWithoutViteDevDependency(root) {
+  let result = false
+
+  /**
+   * Перевіряє один package.json: повертає true, якщо в `devDependencies` немає `vite`.
+   * @param {string} absPath абсолютний шлях до package.json
+   * @returns {Promise<boolean>} true, якщо vite відсутній у devDependencies
+   */
+  async function packageJsonLacksViteDevDependency(absPath) {
+    try {
+      const parsed = JSON.parse(await readFile(absPath, 'utf8'))
+      const devDeps = parsed?.devDependencies
+      if (!devDeps || typeof devDeps !== 'object' || Array.isArray(devDeps)) {
+        return true
+      }
+      return !Object.hasOwn(devDeps, 'vite')
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Рекурсивний обхід каталогу з пропуском службових директорій.
+   * @param {string} dir абсолютний шлях каталогу
+   * @returns {Promise<void>}
+   */
+  async function walk(dir) {
+    if (result) return
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      if (result) return
+      const absPath = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!IGNORED_DIR_NAMES.has(entry.name)) {
+          await walk(absPath)
+        }
+        continue
+      }
+      if (entry.isFile() && entry.name === 'package.json' && absPath !== join(root, 'package.json')) {
+        if (await packageJsonLacksViteDevDependency(absPath)) {
+          result = true
+          return
+        }
+      }
+    }
+  }
+
+  await walk(root)
+  return result
 }
 
 /**
@@ -438,6 +500,7 @@ export async function detectAutoRulesAndSkills({
   const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'pg-format', 'mysql2'])
   const hasMssqlDependency = depHits.has('mssql')
   const hasJsBunDbSignal = depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
+  const hasNestedNodePackage = await hasNestedPackageJsonWithoutViteDevDependency(root)
 
   /** @type {string[]} */
   const detectedRules = []
@@ -478,7 +541,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasJsLikeSource, id: 'js-lint' },
     { enabled: hasMssqlDependency, id: 'js-mssql' },
     { enabled: hasJsBunDbSignal, id: 'js-bun-db' },
-    { enabled: facts.hasJsLikeSource && !(isMonorepo && facts.hasVueSource && facts.hasTempoDir), id: 'js-pino' },
+    { enabled: hasNestedNodePackage, id: 'js-run' },
     { enabled: facts.hasK8sDir, id: 'k8s' },
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },
     { enabled: npmDirExists, id: 'npm-module' },

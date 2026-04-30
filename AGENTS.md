@@ -19,7 +19,7 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-js-lint.mdc
 
-- .cursor/rules/n-js-pino.mdc
+- .cursor/rules/n-js-run.mdc
 
 - .cursor/rules/n-nginx-default-tpl.mdc
 

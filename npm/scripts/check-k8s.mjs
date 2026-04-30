@@ -2594,7 +2594,7 @@ async function readFirstDocByKindFromFile(filePath, kind) {
 }
 
 /**
- * Знаходить перший документ **Deployment** серед YAML-файлів каталогу (для перевірки імені ConfigMap, js-pino.mdc).
+ * Знаходить перший документ **Deployment** серед YAML-файлів каталогу (для перевірки імені ConfigMap, js-run.mdc).
  * @param {string} dirPath абсолютний шлях до каталогу
  * @returns {Promise<Record<string, unknown> | null>} об'єкт Deployment або null
  */
@@ -2678,7 +2678,7 @@ function collectConfigMapRefsFromVolumes(volumes, names) {
 /**
  * Збирає унікальні імена **ConfigMap**, на які посилається **Deployment**
  * через `spec.template.spec.containers[*].envFrom[*].configMapRef.name`
- * та `spec.template.spec.volumes[*].configMap.name` (для перевірки js-pino.mdc).
+ * та `spec.template.spec.volumes[*].configMap.name` (для перевірки js-run.mdc).
  * @param {Record<string, unknown>} deployment об'єкт Deployment
  * @returns {Set<string>} унікальні імена ConfigMap
  */

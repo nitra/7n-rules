@@ -1,5 +1,5 @@
 /**
- * Модульні тести для сканування заборонених імпортів `@nitra/bunyan` / `bunyan` (js-pino.mdc),
+ * Модульні тести для сканування заборонених імпортів `@nitra/bunyan` / `bunyan` (js-run.mdc),
  * парсер — oxc-parser.
  */
 import { describe, expect, test } from 'bun:test'

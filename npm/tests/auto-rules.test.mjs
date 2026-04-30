@@ -17,7 +17,7 @@ const ALL_RULES = [
   'js-lint',
   'js-mssql',
   'js-bun-db',
-  'js-pino',
+  'js-run',
   'k8s',
   'nginx-default-tpl',
   'npm-module',
@@ -68,7 +68,6 @@ describe('detectAutoRulesAndSkills', () => {
         'ga',
         'graphql',
         'js-lint',
-        'js-pino',
         'k8s',
         'nginx-default-tpl',
         'npm-module',
@@ -77,25 +76,6 @@ describe('detectAutoRulesAndSkills', () => {
         'vue'
       ])
       expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint'])
-    })
-  })
-
-  test('не додає js-pino для монорепо з vue і tempo', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 'mono',
-        workspaces: ['apps/*']
-      })
-      await ensureDir('tempo')
-      await ensureDir('apps/web')
-      await writeFile('apps/web/main.js', 'console.log(1)\n', 'utf8')
-      await writeFile('apps/web/App.vue', '<script setup></script>\n', 'utf8')
-
-      const actual = await detectAutoRulesInCwd()
-
-      expect(actual.rules.includes('js-pino')).toBe(false)
-      expect(actual.rules.includes('js-lint')).toBe(true)
-      expect(actual.rules.includes('vue')).toBe(true)
     })
   })
 
@@ -141,6 +121,46 @@ describe('detectAutoRulesAndSkills', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
+    })
+  })
+
+  test('додає js-run для вкладеного package.json без vite у devDependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'root' })
+      await ensureDir('services/api')
+      await writeJson('services/api/package.json', {
+        name: 'api',
+        devDependencies: { typescript: '^5.0.0' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-run')).toBe(true)
+    })
+  })
+
+  test('не додає js-run, коли вкладений package.json має vite у devDependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'root' })
+      await ensureDir('apps/web')
+      await writeJson('apps/web/package.json', {
+        name: 'web',
+        devDependencies: { vite: '^5.0.0' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-run')).toBe(false)
+    })
+  })
+
+  test('не додає js-run, якщо є лише кореневий package.json', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'root' })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-run')).toBe(false)
     })
   })
 })

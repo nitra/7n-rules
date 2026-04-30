@@ -5,7 +5,7 @@
 @.cursor/rules/n-ga.mdc
 @.cursor/rules/n-js-bun-db.mdc
 @.cursor/rules/n-js-lint.mdc
-@.cursor/rules/n-js-pino.mdc
+@.cursor/rules/n-js-run.mdc
 @.cursor/rules/n-nginx-default-tpl.mdc
 @.cursor/rules/n-npm-module.mdc
 @.cursor/rules/n-text.mdc

@@ -12,4 +12,4 @@ version: '1.1'
 
 ## Перевірка
 
-`npx @nitra/cursor check js-pino`
+`npx @nitra/cursor check js-run`

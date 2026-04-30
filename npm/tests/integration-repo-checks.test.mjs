@@ -12,7 +12,7 @@ import { check as checkGa } from '../scripts/check-ga.mjs'
 import { check as checkGraphql } from '../scripts/check-graphql.mjs'
 import { check as checkJsLint } from '../scripts/check-js-lint.mjs'
 import { check as checkText } from '../scripts/check-text.mjs'
-import { check as checkJsPino } from '../scripts/check-js-pino.mjs'
+import { check as checkJsRun } from '../scripts/check-js-run.mjs'
 import { check as checkK8s } from '../scripts/check-k8s.mjs'
 import { check as checkNpmModule } from '../scripts/check-npm-module.mjs'
 
@@ -34,7 +34,7 @@ describe('check-* на реальному репозиторії', () => {
       expect(await checkNpmModule()).toBe(0)
       expect(await checkDocker()).toBe(0)
       expect(await checkK8s()).toBe(0)
-      expect(await checkJsPino()).toBe(0)
+      expect(await checkJsRun()).toBe(0)
     } finally {
       process.chdir(prev)
     }

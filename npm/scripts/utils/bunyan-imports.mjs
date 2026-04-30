@@ -1,6 +1,6 @@
 /**
  * Знаходить імпорти з `@nitra/bunyan` (і застарілого `bunyan`) у джерелах — їх треба замінити
- * на `@nitra/pino` згідно з js-pino.mdc.
+ * на `@nitra/pino` згідно з js-run.mdc.
  *
  * Семантика береться з **oxc-parser** (`module.staticImports`) — без regex по тілу файлу.
  * Додатково по AST програми ловимо `require('@nitra/bunyan')` і динамічний `import('@nitra/bunyan')`,

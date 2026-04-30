@@ -1,5 +1,5 @@
 /**
- * Для кожного workspace-пакета перевіряє правило js-pino.mdc.
+ * Для кожного workspace-пакета перевіряє правило js-run.mdc.
  *
  * Заборона `@nitra/bunyan` / `bunyan` як у залежностях `package.json`, так і в коді
  * (`import` / `require` / динамічний `import()`); наявність `OTEL_RESOURCE_ATTRIBUTES`
@@ -54,7 +54,7 @@ async function checkBunyanImports(absPackageRoot, label, fail) {
 }
 
 /**
- * Перевіряє відповідність правилам js-pino.mdc для одного workspace-пакета.
+ * Перевіряє відповідність правилам js-run.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
@@ -97,7 +97,7 @@ async function checkWorkspacePackage(rootDir, fail, passFn) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам js-pino.mdc лише для workspace-пакетів (не корінь репо).
+ * Перевіряє відповідність проєкту правилам js-run.mdc лише для workspace-пакетів (не корінь репо).
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
@@ -108,7 +108,7 @@ export async function check() {
   const workspaceRoots = roots.filter(r => r !== '.')
 
   if (workspaceRoots.length === 0) {
-    pass('js-pino: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено')
+    pass('js-run: немає workspace-пакетів у кореневому package.json — перевірку залежностей і k8s у пакетах пропущено')
     return reporter.getExitCode()
   }
 

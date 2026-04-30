@@ -1,11 +1,11 @@
 /**
- * Тести check-js-pino на workspace-пакетах.
+ * Тести check-js-run на workspace-пакетах.
  */
 import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../scripts/check-js-pino.mjs'
+import { check } from '../scripts/check-js-run.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
 /**
@@ -26,7 +26,7 @@ async function writeRootWithWorkspacePkg(pkgDependencies) {
   })
 }
 
-describe('check-js-pino (мінімальний проєкт)', () => {
+describe('check-js-run (мінімальний проєкт)', () => {
   test('0, якщо немає workspace-пакетів окрім кореня', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 'r', private: true })
