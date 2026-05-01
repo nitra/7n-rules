@@ -95,7 +95,7 @@ export function getUser(id: number) {
     })
   })
 
-  test('помилка: sql.unsafe з інтерпольованим TemplateLiteral', async () => {
+  test('помилка: sql.unsafe без маркера allow-unsafe (інтерпольований TemplateLiteral)', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't' })
       await ensureDir('src')
@@ -112,7 +112,7 @@ export async function find(id: number) {
     })
   })
 
-  test('успіх: sql.unsafe зі статичним рядком і параметрами', async () => {
+  test('помилка: sql.unsafe без маркера allow-unsafe (навіть статичний рядок)', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't' })
       await ensureDir('src')
@@ -123,7 +123,56 @@ export const ping = () => sql.unsafe('SELECT 1')
 `,
         'utf8'
       )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('успіх: sql.unsafe з маркером allow-unsafe на тому ж рядку', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не tagged template
+`,
+        'utf8'
+      )
       expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: sql.unsafe з маркером allow-unsafe на попередньому рядку (DDL)', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+const TABLE = 'users_2026'
+export async function migrate() {
+  // allow-unsafe: DDL — назву таблиці параметризувати не можна
+  return sql.unsafe(\`CREATE TABLE \${TABLE} (id int)\`)
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('помилка: маркер allow-unsafe без причини', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
     })
   })
 

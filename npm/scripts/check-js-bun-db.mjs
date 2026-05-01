@@ -10,7 +10,11 @@
  * 2) Якщо в коді використовується Bun SQL (імпорт `sql`/`SQL` з `'bun'`), додатково
  *    перевіряє небезпечні патерни:
  *    - `new SQL(...)` всередині функції (пул має бути singleton на рівні модуля).
- *    - `sql.unsafe(\`...${expr}...\`)` (інтерполяція даних у `unsafe` ламає параметризацію).
+ *    - Будь-який `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
+ *      на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено;
+ *      допустимий лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL,
+ *      коли значення контролюється кодом (не user input) — в інших випадках
+ *      переробляємо на tagged template `sql\`...\${value}...\``.
  *    - Динамічні SQL-списки через `.join(',')` у `IN (...)` / `VALUES (...)`
  *      (треба `sql([...])`).
  */
@@ -21,9 +25,9 @@ import { join, relative, sep } from 'node:path'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   findBunSqlPerRequestConnectionInText,
+  findBunSqlUnsafeUseWithoutAllowMarkerInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
-  findUnsafeBunSqlUnsafeCallInText,
   isBunSqlScanSourceFile,
   textHasBunSqlImport
 } from './utils/bun-sql-scan.mjs'
@@ -155,11 +159,14 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
         `тримай singleton на рівні модуля (js-bun-db.mdc): ${v.snippet}`
     )
   }
-  for (const v of findUnsafeBunSqlUnsafeCallInText(content, rel)) {
+  for (const v of findBunSqlUnsafeUseWithoutAllowMarkerInText(content, rel)) {
     counts.unsafeCall++
     fail(
-      `js-bun-db: ${rel}:${v.line} — sql.unsafe(\`...\${...}...\`) недопустимо: ` +
-        `використовуй tagged template sql\`...\${value}...\` або sql.unsafe('static', [params]) (js-bun-db.mdc): ${v.snippet}`
+      `js-bun-db: ${rel}:${v.line} — sql.unsafe(...) заборонено за замовчуванням; ` +
+        `допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням, ` +
+        `інакше переробити на tagged template sql\`...\${value}...\`. ` +
+        `Якщо випадок легітимний — додай маркер "// allow-unsafe: <причина>" на тому ж рядку або рядком вище ` +
+        `(js-bun-db.mdc): ${v.snippet}`
     )
   }
   for (const v of findUnsafeBunSqlDynamicSqlListInText(content, rel)) {
@@ -245,7 +252,7 @@ export async function check() {
     pass('js-bun-db: немає створення new SQL(...) всередині функцій (singleton на рівні модуля)')
   }
   if (unsafeCall === 0) {
-    pass('js-bun-db: немає небезпечних викликів sql.unsafe з інтерполяцією в шаблонному рядку')
+    pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// allow-unsafe: <причина>"')
   }
   if (dynamicList === 0) {
     pass("js-bun-db: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")

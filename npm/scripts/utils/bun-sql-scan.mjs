@@ -4,9 +4,11 @@
  * Знаходить:
  * - `new SQL(...)` всередині функції — пул має бути singleton на рівні модуля,
  *   а не на кожен виклик handler-а.
- * - Виклик `sql.unsafe(\`...${expr}...\`)` з даними у TemplateLiteral —
- *   `sql.unsafe` приймає лише статичний SQL (плюс масив параметрів); інтерполяція
- *   у текст руйнує параметризацію і відкриває SQL injection.
+ * - Будь-який виклик `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
+ *   на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено: дозволено
+ *   тільки якщо значення контролюється кодом (не user input) і потрібно підставити
+ *   назву таблиці/колонки або dynamic SQL/DDL. Інакше — переробити на tagged template
+ *   `sql\`...\${value}...\``. Маркер фіксує цю причину для ревʼюера.
  * - Динамічні SQL-списки у tagged template `sql\`... IN (${arr.join(',')}) ...\``:
  *   навіть «через tagged template» у запит потрапляє готовий шматок SQL замість
  *   параметризованих значень — треба `sql([...])`.
@@ -21,6 +23,7 @@ import {
   isSqlListContextTemplate,
   normalizeSnippet,
   offsetToLine,
+  parseProgramAndCommentsOrNull,
   parseProgramOrNull,
   walkAstWithAncestors
 } from './ast-scan-utils.mjs'
@@ -28,6 +31,9 @@ import {
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const BUN_SQL_IMPORT_RE = /\bimport\s*\{[\s\S]*?\b(sql|SQL)\b[\s\S]*?\}\s*from\s*["']bun["']/u
 const IN_PLACEHOLDER_END_RE = /\bin\s*(\(\s*)?$/iu
+// `// allow-unsafe: <reason>` — `allow-unsafe`, двокрапка, **непорожня** причина.
+// Без причини маркер не приймається: ціль — лишити слід для ревʼюера, а не «німий» прапорець.
+const ALLOW_UNSAFE_MARKER_RE = /\ballow-unsafe\s*:\s*\S+/u
 
 /**
  * @param {unknown} node AST node
@@ -192,23 +198,46 @@ function isNewSqlConstructor(node) {
 }
 
 /**
- * Чи це виклик `<obj>.unsafe(...)` з TemplateLiteral як першим аргументом і expressions усередині нього.
- * Допустимий лише `sql.unsafe('static text', [params])`; з `${...}` у TemplateLiteral — небезпечно.
+ * Чи це виклик `<obj>.unsafe(...)` (будь-який обʼєкт, не тільки `sql`).
+ * Файл сканується лише якщо є `import { sql|SQL } from 'bun'`, тож у практиці це
+ * або `sql.unsafe`, або `tx.unsafe` всередині `sql.begin(async tx => ...)` —
+ * обидва однаково небезпечні, тому розрізняти імʼя обʼєкта не треба.
  * @param {unknown} node AST node
- * @returns {boolean} true для небезпечного `sql.unsafe(\`... ${x} ...\`)`
+ * @returns {boolean} true для будь-якого `<obj>.unsafe(...)`
  */
-function isUnsafeCallWithInterpolatedTemplate(node) {
+function isUnsafeCall(node) {
   if (!node || node.type !== 'CallExpression') return false
   const callee = node.callee
   if (!callee || callee.type !== 'MemberExpression' || callee.computed) return false
   const prop = callee.property
-  if (!prop || prop.type !== 'Identifier' || prop.name !== 'unsafe') return false
-  const args = node.arguments
-  if (!Array.isArray(args) || args.length === 0) return false
-  const first = args[0]
-  if (!first || first.type !== 'TemplateLiteral') return false
-  const expressions = first.expressions
-  return Array.isArray(expressions) && expressions.length > 0
+  return !!prop && prop.type === 'Identifier' && prop.name === 'unsafe'
+}
+
+/**
+ * Чи є біля виклику `<obj>.unsafe(...)` маркер-коментар `// allow-unsafe: <reason>`
+ * (або `/* allow-unsafe: <reason> *\/`) на тому ж рядку, що й початок виклику,
+ * або на рядку, що передує початку виклику. Це навмисно строга суміжність:
+ * відірваний коментар через порожній рядок не зараховується — щоб маркер
+ * стояв саме біля виклику, а не «загубився десь вище».
+ * @param {{ start: number }} callNode виклик `<obj>.unsafe(...)`
+ * @param {{ type: 'Line' | 'Block', value: string, start: number, end: number }[]} comments коментарі з парсера
+ * @param {string} content вихідний код
+ * @returns {boolean} true, якщо маркер знайдено
+ */
+function hasAllowUnsafeMarkerNear(callNode, comments, content) {
+  const callStartLine = offsetToLine(content, callNode.start)
+  for (const c of comments) {
+    if (!c || (c.type !== 'Line' && c.type !== 'Block')) continue
+    if (typeof c.value !== 'string' || !ALLOW_UNSAFE_MARKER_RE.test(c.value)) continue
+    const startLine = offsetToLine(content, c.start)
+    const endLine = offsetToLine(content, c.end)
+    // trailing-коментар на тому ж рядку (`sql.unsafe(...) // allow-unsafe: ...`)
+    if (startLine === callStartLine) return true
+    // коментар на рядку, що безпосередньо передує виклику — для блокових
+    // коментарів важливим є саме `endLine`, бо block може займати кілька рядків.
+    if (endLine === callStartLine - 1) return true
+  }
+  return false
 }
 
 /**
@@ -236,19 +265,28 @@ export function findBunSqlPerRequestConnectionInText(content, virtualPath = 'sca
 }
 
 /**
- * Знаходить виклики `sql.unsafe(\`...${...}...\`)` (TemplateLiteral з expressions).
+ * Знаходить виклики `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
+ * на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено: дозволено
+ * лише коли значення контролюється кодом (не user input) і потрібно підставити те, що
+ * не можна параметризувати — назву таблиці/колонки або dynamic SQL/DDL. У всіх інших
+ * випадках — переробити на tagged template `sql\`...\${value}...\``.
+ *
+ * Маркер-коментар фіксує причину для ревʼюера й одночасно слугує opt-in: без нього
+ * перевірка падає, навіть якщо у `unsafe` лежить статичний рядок без інтерполяції.
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang`
  * @returns {{ line: number, snippet: string }[]} список порушень
  */
-export function findUnsafeBunSqlUnsafeCallInText(content, virtualPath = 'scan.ts') {
-  const program = parseProgramOrNull(content, virtualPath)
-  if (!program) return []
+export function findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath = 'scan.ts') {
+  const parsed = parseProgramAndCommentsOrNull(content, virtualPath)
+  if (!parsed) return []
+  const { program, comments } = parsed
 
   /** @type {{ line: number, snippet: string }[]} */
   const out = []
   walkAstWithAncestors(program, [], node => {
-    if (!isUnsafeCallWithInterpolatedTemplate(node)) return
+    if (!isUnsafeCall(node)) return
+    if (hasAllowUnsafeMarkerNear(node, comments, content)) return
     out.push({
       line: offsetToLine(content, node.start),
       snippet: normalizeSnippet(content.slice(node.start, node.end))

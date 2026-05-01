@@ -113,6 +113,29 @@ export function parseProgramOrNull(content, virtualPath) {
 }
 
 /**
+ * Парсить файл і повертає `{ program, comments }` або null. Окремий вхід для перевірок,
+ * яким потрібні коментарі (наприклад, маркер `// allow-unsafe: ...` біля виклику) —
+ * базовий `parseProgramOrNull` свідомо лишається без коментарів, щоб не змінювати API.
+ * @param {string} content вихідний код
+ * @param {string} virtualPath шлях для вибору `lang` (також для діагностики)
+ * @returns {{ program: unknown, comments: { type: 'Line' | 'Block', value: string, start: number, end: number }[] } | null}
+ */
+export function parseProgramAndCommentsOrNull(content, virtualPath) {
+  const lang = langFromPath(virtualPath || 'scan.ts')
+  let result
+  try {
+    result = parseSync(virtualPath || 'scan.ts', content, { lang, sourceType: 'module' })
+  } catch {
+    return null
+  }
+  if (result.errors?.length) return null
+  return {
+    program: result.program,
+    comments: Array.isArray(result.comments) ? result.comments : []
+  }
+}
+
+/**
  * Чи це `.join(...)` виклик (типово для динамічних списків у SQL).
  * @param {unknown} node AST node
  * @returns {boolean} true, якщо це CallExpression `*.join(...)`

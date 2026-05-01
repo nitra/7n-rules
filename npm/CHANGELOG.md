@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.160] - 2026-05-01
+
+### Changed
+
+- `js-bun-db.mdc` (v1.4): `sql.unsafe(...)` тепер заборонено за замовчуванням — допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням; інакше переробляємо на tagged template `sql\`...${value}...\``. Кожен легітимний виклик має супроводжуватись маркером `// allow-unsafe: <причина>` на тому ж рядку або рядком вище.
+- `check-js-bun-db.mjs`: замість вузької перевірки `sql.unsafe(\`...${expr}...\`)` тепер сканер `findBunSqlUnsafeUseWithoutAllowMarkerInText` падає на будь-якому `<obj>.unsafe(...)` без маркера-коментаря з непорожньою причиною (line- або block-коментар на тому ж рядку чи безпосередньо перед викликом).
+- `ast-scan-utils.mjs`: додано `parseProgramAndCommentsOrNull` — окремий вхід для перевірок, яким потрібні коментарі поряд з AST.
+
 ## [1.8.159] - 2026-05-01
 
 ### Added

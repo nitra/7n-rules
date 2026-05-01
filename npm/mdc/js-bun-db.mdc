@@ -1,7 +1,7 @@
 ---
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 alwaysApply: true
-version: '1.3'
+version: '1.4'
 ---
 
 ## Підтримувані версії баз даних
@@ -116,21 +116,42 @@ await sql.begin(async tx => {
 await sql`SELECT * FROM users WHERE id IN ${sql(ids)}`
 ```
 
-## Що НЕ робити
+## `sql.unsafe(...)` за замовчуванням заборонено
 
-### Не використовувати `sql.unsafe(...)` з конкатенацією
+Будь-який виклик `sql.unsafe(...)` (так само `tx.unsafe(...)` всередині `sql.begin`) **заборонено**, окрім випадків, коли **обидві** умови виконані:
+
+1. значення підставляється з **коду** — константа, конфіг, whitelist; **не з user input**;
+2. треба підставити те, що **не можна параметризувати** через tagged template:
+   - назву **таблиці**,
+   - назву **колонки**,
+   - **dynamic SQL / DDL** (`CREATE`, `ALTER`, `DROP`, multi-statement migration, серверні `SET`/`SHOW` і подібне).
+
+В усіх інших випадках — переробити на звичайний tagged template `sql\`...\${value}...\``: значення біндяться як параметри й injection не лишається.
+
+Кожен легітимний `sql.unsafe(...)` має супроводжуватись **маркером-коментарем** з причиною — на тому ж рядку (trailing) або на рядку безпосередньо перед викликом. Маркер — opt-in для перевірки `js-bun-db` і слід для ревʼюера:
 
 ```javascript
-// ❌ конкатенація даних у SQL — SQL injection
+// allow-unsafe: DDL — назву таблиці параметризувати не можна
+await sql.unsafe(`CREATE TABLE ${tableName} (id int)`)
+
+await sql.unsafe('SELECT pg_advisory_lock($1)', [lockId]) // allow-unsafe: pg_advisory_lock — окремий шлях, без tagged template
+```
+
+Формат маркера: `allow-unsafe: <непорожня причина>` у line- або block-коментарі. Без причини (`// allow-unsafe:`) і без маркера взагалі — **fail** перевірки.
+
+❌ Заборонені кейси (треба переробити на tagged template):
+
+```javascript
+// ❌ дані від користувача — параметризуй через tagged template
 await sql.unsafe(`SELECT * FROM users WHERE id = ${userId}`)
 
 // ❌ навіть у tagged template — динамічний список через .join(',')
 await sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`
 ```
 
-`sql.unsafe(text, params)` допустимий лише для **статичного** SQL без даних від користувача (наприклад, разовий DDL-скрипт), і обов'язково з масивом параметрів — ніяких `${...}` у самому рядку.
-
 Для динамічних списків — `sql([...])` або `sql(rows, 'colA', 'colB')`, **не** `.join(',')`.
+
+## Що НЕ робити
 
 ### Не створювати підключення на кожен запит
 
