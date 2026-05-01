@@ -176,6 +176,94 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
     })
   })
 
+  test('помилка: pool.connect() без маркера у файлі з Bun SQL', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+declare const pool: { connect(): Promise<void> }
+export async function getOne() {
+  await pool.connect()
+  return sql\`SELECT 1\`
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('помилка: client.end() без маркера у файлі з Bun SQL', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/shutdown.ts',
+        `import { sql } from 'bun'
+declare const client: { end(): Promise<void> }
+export const close = () => client.end()
+export const ping = () => sql\`SELECT 1\`
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('успіх: sql.end() у graceful shutdown з маркером allow-pg-leftover', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/shutdown.ts',
+        `import { sql } from 'bun'
+export async function shutdown() {
+  // allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
+  await sql.end()
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: .connect() з trailing-маркером allow-pg-leftover (WebSocket)', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/ws.ts',
+        `import { sql } from 'bun'
+declare const ws: { connect(url: string): void }
+export async function boot(url: string) {
+  ws.connect(url) // allow-pg-leftover: WebSocket, не pg
+  return sql\`SELECT 1\`
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: .end() у не-Bun-SQL файлі не флагається', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/stream.ts',
+        `declare const stream: { end(): void }
+export const stop = () => stream.end()
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
   test("помилка: динамічний список через .join(',') у IN(...)", async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't' })

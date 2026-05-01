@@ -34,6 +34,14 @@ const IN_PLACEHOLDER_END_RE = /\bin\s*(\(\s*)?$/iu
 // `// allow-unsafe: <reason>` — `allow-unsafe`, двокрапка, **непорожня** причина.
 // Без причини маркер не приймається: ціль — лишити слід для ревʼюера, а не «німий» прапорець.
 const ALLOW_UNSAFE_MARKER_RE = /\ballow-unsafe\s*:\s*\S+/u
+// `// allow-pg-leftover: <reason>` — opt-in для виправданих `.connect()` / `.end()`
+// у файлах з Bun SQL (наприклад, `sql.end()` у graceful shutdown або `.connect()`
+// на сторонньому об'єкті, що випадково ділить імʼя методу з `pg`).
+const ALLOW_PG_LEFTOVER_MARKER_RE = /\ballow-pg-leftover\s*:\s*\S+/u
+// pg-API, які не потрібні з Bun SQL: pool/client життєвий цикл вручну.
+// `release` не входить — Bun SQL такого методу не має, а `.connect()` / `.end()`
+// формально існують і там, тому опт-аут маркером лишається доречним.
+const PG_LEFTOVER_METHOD_NAMES = new Set(['connect', 'end'])
 
 /**
  * @param {unknown} node AST node
@@ -214,30 +222,49 @@ function isUnsafeCall(node) {
 }
 
 /**
- * Чи є біля виклику `<obj>.unsafe(...)` маркер-коментар `// allow-unsafe: <reason>`
- * (або `/* allow-unsafe: <reason> *\/`) на тому ж рядку, що й початок виклику,
- * або на рядку, що передує початку виклику. Це навмисно строга суміжність:
- * відірваний коментар через порожній рядок не зараховується — щоб маркер
+ * Чи є біля виклику маркер-коментар, що матчиться на `markerRe`, на тому ж рядку,
+ * що й початок виклику, або на рядку, що передує початку виклику. Це навмисно строга
+ * суміжність: відірваний коментар через порожній рядок не зараховується — щоб маркер
  * стояв саме біля виклику, а не «загубився десь вище».
- * @param {{ start: number }} callNode виклик `<obj>.unsafe(...)`
+ *
+ * Використовується для opt-in маркерів типу `// allow-unsafe: ...` і `// allow-pg-leftover: ...`.
+ * @param {{ start: number }} callNode виклик
  * @param {{ type: 'Line' | 'Block', value: string, start: number, end: number }[]} comments коментарі з парсера
  * @param {string} content вихідний код
+ * @param {RegExp} markerRe регекс, що валідує текст маркера в `comment.value`
  * @returns {boolean} true, якщо маркер знайдено
  */
-function hasAllowUnsafeMarkerNear(callNode, comments, content) {
+function hasMarkerCommentNear(callNode, comments, content, markerRe) {
   const callStartLine = offsetToLine(content, callNode.start)
   for (const c of comments) {
     if (!c || (c.type !== 'Line' && c.type !== 'Block')) continue
-    if (typeof c.value !== 'string' || !ALLOW_UNSAFE_MARKER_RE.test(c.value)) continue
+    if (typeof c.value !== 'string' || !markerRe.test(c.value)) continue
     const startLine = offsetToLine(content, c.start)
     const endLine = offsetToLine(content, c.end)
-    // trailing-коментар на тому ж рядку (`sql.unsafe(...) // allow-unsafe: ...`)
+    // trailing-коментар на тому ж рядку (`<call> // marker: ...`)
     if (startLine === callStartLine) return true
     // коментар на рядку, що безпосередньо передує виклику — для блокових
     // коментарів важливим є саме `endLine`, бо block може займати кілька рядків.
     if (endLine === callStartLine - 1) return true
   }
   return false
+}
+
+/**
+ * Чи це pg-leftover виклик: `<obj>.connect(...)` або `<obj>.end(...)`. Bun SQL пулом
+ * керує сам — і `.connect()`, і `.end()` у файлах з Bun SQL зазвичай зайві, тож такі
+ * виклики прапоруються (з opt-in маркером для рідкісних легітимних випадків).
+ * @param {unknown} node AST node
+ * @returns {{ name: 'connect' | 'end' } | null} ім'я pg-leftover методу або null
+ */
+function asPgLeftoverCall(node) {
+  if (!node || node.type !== 'CallExpression') return null
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression' || callee.computed) return null
+  const prop = callee.property
+  if (!prop || prop.type !== 'Identifier' || typeof prop.name !== 'string') return null
+  if (!PG_LEFTOVER_METHOD_NAMES.has(prop.name)) return null
+  return { name: /** @type {'connect' | 'end'} */ (prop.name) }
 }
 
 /**
@@ -286,10 +313,43 @@ export function findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath
   const out = []
   walkAstWithAncestors(program, [], node => {
     if (!isUnsafeCall(node)) return
-    if (hasAllowUnsafeMarkerNear(node, comments, content)) return
+    if (hasMarkerCommentNear(node, comments, content, ALLOW_UNSAFE_MARKER_RE)) return
     out.push({
       line: offsetToLine(content, node.start),
       snippet: normalizeSnippet(content.slice(node.start, node.end))
+    })
+  })
+  return out
+}
+
+/**
+ * Знаходить pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` без маркера
+ * `// allow-pg-leftover: <reason>` у файлах, де **в цьому ж файлі** є `import { sql|SQL } from 'bun'`.
+ *
+ * Скоп навмисно вузький: ці метод-імена занадто загальні (WebSocket, Stream, інші бібліотеки),
+ * тож сканер обмежений файлами, що вже використовують Bun SQL — там pg-залишок є явним
+ * багом міграції. У не-Bun-SQL файлах прапоратися не буде, навіть якщо проєкт у цілому
+ * мігрував.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string, methodName: 'connect' | 'end' }[]} список порушень
+ */
+export function findBunSqlPgLeftoverCallInText(content, virtualPath = 'scan.ts') {
+  if (!textHasBunSqlImport(content)) return []
+  const parsed = parseProgramAndCommentsOrNull(content, virtualPath)
+  if (!parsed) return []
+  const { program, comments } = parsed
+
+  /** @type {{ line: number, snippet: string, methodName: 'connect' | 'end' }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    const m = asPgLeftoverCall(node)
+    if (!m) return
+    if (hasMarkerCommentNear(node, comments, content, ALLOW_PG_LEFTOVER_MARKER_RE)) return
+    out.push({
+      line: offsetToLine(content, node.start),
+      snippet: normalizeSnippet(content.slice(node.start, node.end)),
+      methodName: m.name
     })
   })
   return out

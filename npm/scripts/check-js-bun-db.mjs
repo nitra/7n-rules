@@ -15,6 +15,9 @@
  *      допустимий лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL,
  *      коли значення контролюється кодом (не user input) — в інших випадках
  *      переробляємо на tagged template `sql\`...\${value}...\``.
+ *    - pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` у файлах, що
+ *      імпортують Bun SQL: пулом керує Bun, життєвий цикл вручну не потрібен.
+ *      Opt-out — маркер `// allow-pg-leftover: <reason>`.
  *    - Динамічні SQL-списки через `.join(',')` у `IN (...)` / `VALUES (...)`
  *      (треба `sql([...])`).
  */
@@ -25,6 +28,7 @@ import { join, relative, sep } from 'node:path'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
   findBunSqlPerRequestConnectionInText,
+  findBunSqlPgLeftoverCallInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
@@ -128,7 +132,7 @@ async function checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter) {
  */
 async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
   const { fail } = reporter
-  const counts = { perRequest: 0, unsafeCall: 0, dynamicList: 0, inListGuard: 0 }
+  const counts = { perRequest: 0, unsafeCall: 0, dynamicList: 0, inListGuard: 0, pgLeftover: 0 }
   let hasBunSqlImport = false
 
   for (const absPath of sourcePaths) {
@@ -148,7 +152,7 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
  * @param {string} content вміст файлу
  * @param {string} rel posix-шлях відносно `repoRoot`
  * @param {(msg: string) => void} fail callback при помилці
- * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number }} counts акумулятори
+ * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number }} counts акумулятори
  * @returns {void}
  */
 function scanFileForBunSqlPatterns(content, rel, fail, counts) {
@@ -166,6 +170,15 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
         `допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням, ` +
         `інакше переробити на tagged template sql\`...\${value}...\`. ` +
         `Якщо випадок легітимний — додай маркер "// allow-unsafe: <причина>" на тому ж рядку або рядком вище ` +
+        `(js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findBunSqlPgLeftoverCallInText(content, rel)) {
+    counts.pgLeftover++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — pg-leftover виклик .${v.methodName}(...): Bun SQL пулом керує сам, ` +
+        `видали зайвий .connect()/.end() або, якщо випадок легітимний (graceful shutdown тощо), ` +
+        `додай маркер "// allow-pg-leftover: <причина>" на тому ж рядку або рядком вище ` +
         `(js-bun-db.mdc): ${v.snippet}`
     )
   }
@@ -237,11 +250,8 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard } = await scanSourcesForBunSqlPatterns(
-    sourcePaths,
-    repoRoot,
-    reporter
-  )
+  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard, pgLeftover } =
+    await scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter)
 
   if (!hasBunSqlImport) {
     pass("js-bun-db: Bun SQL не використовується в коді (немає import { sql|SQL } from 'bun')")
@@ -253,6 +263,12 @@ export async function check() {
   }
   if (unsafeCall === 0) {
     pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// allow-unsafe: <причина>"')
+  }
+  if (pgLeftover === 0) {
+    pass(
+      'js-bun-db: немає pg-leftover викликів .connect()/.end() у файлах з Bun SQL ' +
+        '(або всі вони мають маркер "// allow-pg-leftover: <причина>")'
+    )
   }
   if (dynamicList === 0) {
     pass("js-bun-db: немає небезпечних динамічних SQL-списків через .join(',') у IN/VALUES")

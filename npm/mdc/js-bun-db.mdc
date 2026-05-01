@@ -1,7 +1,7 @@
 ---
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 alwaysApply: true
-version: '1.4'
+version: '1.5'
 ---
 
 ## Підтримувані версії баз даних
@@ -150,6 +150,34 @@ await sql`SELECT * FROM users WHERE id IN (${ids.join(',')})`
 ```
 
 Для динамічних списків — `sql([...])` або `sql(rows, 'colA', 'colB')`, **не** `.join(',')`.
+
+## Прибирати pg-leftover виклики (`.connect()`, `.end()`)
+
+У файлах з Bun SQL (`import { sql, SQL } from 'bun'`) залишки від `pg` — `pool.connect()`, `client.end()`, `pool.end()` — мають бути видалені. Bun SQL пулом керує сам: на першому запиті підключається, idle/lifetime закриває за конфігом — окремий життєвий цикл вручну не потрібен.
+
+```javascript
+// ❌ pg-leftover: ручний lifecycle, який Bun SQL робить за тебе
+const client = await pool.connect()
+try {
+  await client.query('...')
+} finally {
+  await client.end()
+}
+
+// ✅ Bun SQL — без явних .connect()/.end()
+await sql`...`
+```
+
+Якщо виклик дійсно потрібен (наприклад, `sql.end()` у graceful shutdown або `.connect()` на сторонньому об'єкті, що випадково ділить імʼя методу), додай маркер `// allow-pg-leftover: <причина>` на тому ж рядку (trailing) або на рядку безпосередньо перед викликом:
+
+```javascript
+// allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
+await sql.end()
+
+ws.connect(url) // allow-pg-leftover: WebSocket, не pg
+```
+
+Формат маркера: `allow-pg-leftover: <непорожня причина>` у line- або block-коментарі. Без маркера й без причини — **fail** перевірки.
 
 ## Що НЕ робити
 
