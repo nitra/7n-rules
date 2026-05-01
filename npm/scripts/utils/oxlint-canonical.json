@@ -1,7 +1,17 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["unicorn", "oxc", "import", "jsdoc", "promise", "node", "vue"],
-  "jsPlugins": ["@e18e/eslint-plugin"],
+  "plugins": [
+    "unicorn",
+    "oxc",
+    "import",
+    "jsdoc",
+    "promise",
+    "node",
+    "vue"
+  ],
+  "jsPlugins": [
+    "@e18e/eslint-plugin"
+  ],
   "categories": {},
   "rules": {
     "e18e/prefer-includes": "error",
@@ -383,5 +393,8 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": []
+  "ignorePatterns": [
+    "**/schema.graphql",
+    "**/auto-imports.d.ts"
+  ]
 }

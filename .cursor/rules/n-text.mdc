@@ -82,7 +82,7 @@ version: '1.25'
 
 ```json title=".oxfmtrc.json"
 {
-  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql"],
+  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"],
   "arrowParens": "avoid",
   "printWidth": 120,
   "bracketSpacing": true,
@@ -104,7 +104,7 @@ version: '1.25'
 }
 ```
 
-Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`** та **`**/schema.graphql`**; інші glob-и додавай за потреби (згенеровані каталоги тощо).
+Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`**, **`**/schema.graphql`** і **`**/auto-imports.d.ts`**; інші glob-и додавай за потреби (згенеровані каталоги тощо) — канон задає мінімум, локальні розширення дозволені.
 
 Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього.
 

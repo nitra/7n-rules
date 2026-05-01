@@ -134,6 +134,30 @@ function compareOxlintRules(expected, actual, failures) {
 }
 
 /**
+ * Звіряє блок `ignorePatterns`: кожен патерн із канону має бути присутній в actual; додаткові локальні
+ * патерни дозволені (канон задає мінімум, проєкт може розширити).
+ * @param {unknown} expected канонічний масив `ignorePatterns`
+ * @param {unknown} actual поточний `ignorePatterns` із `.oxlintrc.json`
+ * @param {string[]} failures буфер для помилок
+ */
+function compareOxlintIgnorePatterns(expected, actual, failures) {
+  if (!Array.isArray(expected)) {
+    return
+  }
+  if (!Array.isArray(actual)) {
+    failures.push('.oxlintrc.json: поле "ignorePatterns" має бути масивом (канон задає мінімум, додаткові патерни дозволені)')
+    return
+  }
+  const set = new Set(actual)
+  const missing = expected.filter(p => !set.has(p))
+  if (missing.length > 0) {
+    failures.push(
+      `.oxlintrc.json: ignorePatterns має містити канонічні патерни — додай: ${missing.map(p => JSON.stringify(p)).join(', ')}`
+    )
+  }
+}
+
+/**
  * Перевіряє `.oxlintrc.json` проти канону пакета `@nitra/cursor` (усі правила з канону та інші поля з `oxlint-canonical.json`).
  * Додаткові ключі лише в `rules` дозволені; інші поля мають збігатися з каноном.
  * @param {unknown} cfg корінь JSON з `.oxlintrc.json`
@@ -157,6 +181,11 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 
     if (key === 'rules') {
       compareOxlintRules(expected, actual, failures)
+      continue
+    }
+
+    if (key === 'ignorePatterns') {
+      compareOxlintIgnorePatterns(expected, actual, failures)
       continue
     }
 

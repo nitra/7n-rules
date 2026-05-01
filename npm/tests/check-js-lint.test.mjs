@@ -75,4 +75,24 @@ describe('verifyOxlintRcAgainstCanonical', () => {
     )
     expect(v.ok).toBe(false)
   })
+
+  test('додаткові локальні ignorePatterns дозволені — ok', () => {
+    const extended = {
+      ...canonicalOxlint,
+      ignorePatterns: [...canonicalOxlint.ignorePatterns, '**/generated/**', '**/dist/**']
+    }
+    const v = verifyOxlintRcAgainstCanonical(extended, canonicalOxlint)
+    expect(v.ok).toBe(true)
+    expect(v.failures).toHaveLength(0)
+  })
+
+  test('відсутній канонічний патерн в ignorePatterns — не ok', () => {
+    const stripped = {
+      ...canonicalOxlint,
+      ignorePatterns: canonicalOxlint.ignorePatterns.slice(1)
+    }
+    const v = verifyOxlintRcAgainstCanonical(stripped, canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures.some(f => f.includes('ignorePatterns'))).toBe(true)
+  })
 })

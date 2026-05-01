@@ -33,7 +33,7 @@ describe('check-text (мінімальний проєкт)', () => {
         ...oxfmtBlock
       })
       await writeJson('.oxfmtrc.json', {
-        ignorePatterns: ['**/hasura/metadata/**', '**/schema.graphql'],
+        ignorePatterns: ['**/hasura/metadata/**', '**/schema.graphql', '**/auto-imports.d.ts'],
         arrowParens: 'avoid',
         printWidth: 120,
         bracketSpacing: true,

@@ -29,8 +29,8 @@ const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)/
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
 
-/** Мінімальні glob-и в `ignorePatterns` у `.oxfmtrc.json` (text.mdc). */
-const OXFMT_REQUIRED_IGNORE_PATTERNS = ['**/hasura/metadata/**', '**/schema.graphql']
+/** Мінімальні glob-и в `ignorePatterns` у `.oxfmtrc.json` (text.mdc) — додаткові патерни локально дозволені. */
+const OXFMT_REQUIRED_IGNORE_PATTERNS = ['**/hasura/metadata/**', '**/schema.graphql', '**/auto-imports.d.ts']
 
 /** Канонічні записи `ignorePaths` у `.cspell.json` (text.mdc) — кожен має бути присутнім. */
 const CSPELL_REQUIRED_IGNORE_PATHS = [
@@ -211,7 +211,7 @@ async function checkOxfmtRc(passFn, failFn) {
     const set = new Set(cfg.ignorePatterns)
     const missingPatterns = OXFMT_REQUIRED_IGNORE_PATTERNS.filter(p => !set.has(p))
     if (missingPatterns.length === 0) {
-      passFn('.oxfmtrc.json: ignorePatterns містить hasura/metadata та schema.graphql')
+      passFn('.oxfmtrc.json: ignorePatterns містить hasura/metadata, schema.graphql і auto-imports.d.ts')
     } else {
       failFn(
         `.oxfmtrc.json ignorePatterns: додай відсутні елементи: ${missingPatterns.join(', ')} (канонічний приклад у text.mdc)`

@@ -383,5 +383,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": []
+  "ignorePatterns": ["**/schema.graphql", "**/auto-imports.d.ts"]
 }
