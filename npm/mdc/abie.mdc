@@ -1,10 +1,10 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.15'
+version: '1.16'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, **`.github/actionlint.yaml`** із мітками **`self-hosted-runner`** **ua** / **dev** / **ru** (створюється автоматично за відсутності), а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
@@ -335,6 +335,18 @@ spec:
 ## Firebase Hosting
 
 У **кожному** підкаталозі, що лежить **безпосередньо** в корені репозиторію, не тримати конфіг і кеш **Firebase Hosting**: у таких каталогах не повинно бути **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`** (у **самому** корені репозиторію ці імена перевіркою abie **не** розглядаються; `node_modules` / `.git` зі скану вилучаються).
+
+## actionlint: self-hosted-runner labels
+
+У **`.github/actionlint.yaml`** має бути блок **`self-hosted-runner.labels`** з присутніми мітками **`ua`**, **`dev`**, **`ru`**. Якщо файлу немає — **`npx @nitra/cursor check abie`** створює його з канонічним вмістом. Інші мітки, інший порядок та формат лапок дозволені — перевіряється лише наявність трьох обов'язкових міток (деталі — **`check-abie.mjs`**).
+
+```yaml title=".github/actionlint.yaml"
+self-hosted-runner:
+  labels:
+    - 'ua'
+    - 'dev'
+    - 'ru'
+```
 
 ## Git branches
 

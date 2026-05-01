@@ -2,14 +2,16 @@
  * Тести check-abie.mjs: умовне ввімкнення через .n-cursor.json, Firebase Hosting у підкаталозі 1-го рівня, ignore_branches, hc.yaml, base preem, HTTPRoute (Vite-пакети), overlay nodeSelector за пакетом, Service NodePort у ru.
  */
 import { describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT,
   ABIE_HC_SCHEMA_URL,
+  ABIE_REQUIRED_ACTIONLINT_LABELS,
   ABIE_REQUIRED_IGNORE_BRANCHES,
   ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
   abieBaseHttpRouteHostnamesErrors,
+  abieMissingActionlintLabels,
   abieOverlayK8sTreeHasDeployment,
   abieOverlayRequiresHttpRouteByVite,
   abiePackageDirFromK8sOverlay,
@@ -31,6 +33,7 @@ import {
   serviceDocumentBaseDeclaresClusterIPsField,
   serviceDocumentRequiresRuClusterIPNoneRemoval,
   kustomizationHasAbieNginxRunHttpRoutePatch,
+  parseActionlintSelfHostedLabels,
   parseCleanMergedIgnoreBranches,
   validateAbieHcYaml,
   validateAbieNginxRunHttpRoutePatches,
@@ -650,6 +653,22 @@ ${patchClusterIpAndClusterIps
 `
     expect(getAbieRuServiceNodePortPatchErrors(ruHlBoth, hlBothTargets)).toEqual([])
   })
+
+  test('parseActionlintSelfHostedLabels — повертає масив рядків і null без блоку', () => {
+    expect(parseActionlintSelfHostedLabels(`self-hosted-runner:\n  labels:\n    - 'ua'\n    - dev\n`)).toEqual([
+      'ua',
+      'dev'
+    ])
+    expect(parseActionlintSelfHostedLabels('runner-label:\n  - ua\n')).toBeNull()
+    expect(parseActionlintSelfHostedLabels('self-hosted-runner: {}\n')).toBeNull()
+  })
+
+  test('abieMissingActionlintLabels — список відсутніх обов\'язкових міток', () => {
+    expect(abieMissingActionlintLabels(['ua', 'dev', 'ru'])).toEqual([])
+    expect(abieMissingActionlintLabels(['ua', 'dev', 'ru', 'extra'])).toEqual([])
+    expect(abieMissingActionlintLabels(['ua'])).toEqual(['dev', 'ru'])
+    expect(abieMissingActionlintLabels([])).toEqual([...ABIE_REQUIRED_ACTIONLINT_LABELS])
+  })
 })
 
 describe('check-abie (інтеграція в тимчасовому каталозі)', () => {
@@ -1152,6 +1171,51 @@ patches:
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
       expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: відсутній .github/actionlint.yaml — створюється з канонічним вмістом, exit 0', async () => {
+    await withTmpCwd(async dir => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      expect(await check()).toBe(0)
+      const created = await readFile(join(dir, '.github/actionlint.yaml'), 'utf8')
+      expect(parseActionlintSelfHostedLabels(created)).toEqual(['ua', 'dev', 'ru'])
+    })
+  })
+
+  test('abie: .github/actionlint.yaml із потрібними мітками + extra — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await writeFile(
+        join('.github/actionlint.yaml'),
+        'self-hosted-runner:\n  labels:\n    - ua\n    - dev\n    - ru\n    - extra\n',
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: .github/actionlint.yaml без частини обов\'язкових міток — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await writeFile(join('.github/actionlint.yaml'), 'self-hosted-runner:\n  labels:\n    - ua\n', 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: .github/actionlint.yaml без блоку self-hosted-runner — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await writeFile(join('.github/actionlint.yaml'), 'runner-label:\n  - ua\n', 'utf8')
+      expect(await check()).toBe(1)
     })
   })
 })
