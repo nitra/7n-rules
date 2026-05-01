@@ -738,10 +738,10 @@ async function checkLintGaScript(passFn, failFn) {
     return
   }
   passFn('package.json містить lint-ga')
-  if (lg.includes('node-actionlint')) {
-    passFn('lint-ga викликає node-actionlint')
+  if (lg.includes('github-actionlint')) {
+    passFn('lint-ga викликає github-actionlint')
   } else {
-    failFn('lint-ga має містити bunx node-actionlint (ga.mdc)')
+    failFn('lint-ga має містити bunx github-actionlint (ga.mdc)')
   }
   if (lg.includes('zizmor') && lg.includes('--offline')) {
     passFn('lint-ga викликає zizmor з --offline')

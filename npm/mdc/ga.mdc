@@ -231,11 +231,11 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 ```
 
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [node-actionlint](https://www.npmjs.com/package/node-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Скрипт у корені:
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Скрипт у корені:
 
 ```json title="package.json"
 "scripts": {
-  "lint-ga": "bunx node-actionlint && uvx zizmor --offline --collect=workflows ."
+  "lint-ga": "bunx github-actionlint && uvx zizmor --offline --collect=workflows ."
 }
 ```
 
