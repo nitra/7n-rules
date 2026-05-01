@@ -1,0 +1,31 @@
+npm/mdc/abie.mdc
+  873ce74128ab3f8f 4,7,339-350
+npm/tests/check-abie.test.mjs
+  873ce74128ab3f8f 5,10,14,36,656-671,1176-1220
+npm/scripts/check-abie.mjs
+  873ce74128ab3f8f 42,121-134,1734-1761,1763-1809,2181
+npm/CHANGELOG.md
+  873ce74128ab3f8f 7-12
+npm/package.json
+  873ce74128ab3f8f 3,52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "04056846d894a8c3f1eedc4d518a380d6d2d5684",
+  "prompts": {
+    "873ce74128ab3f8f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6d2f0594-cf7c-47c7-a529-ed340620c5b2",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 4128,
+      "total_deletions": 47,
+      "accepted_lines": 186,
+      "overriden_lines": 13
+    }
+  }
+}
