@@ -1,0 +1,35 @@
+npm/tests/check-js-bun-db.test.mjs
+  d246dc0dd6d234de 179-266
+npm/package.json
+  d246dc0dd6d234de 3
+npm/CHANGELOG.md
+  d246dc0dd6d234de 7-13
+npm/scripts/check-js-bun-db.mjs
+  d246dc0dd6d234de 18-20,31,135,155,176-184,253-254,267-271
+npm/scripts/utils/bun-sql-scan.mjs
+  d246dc0dd6d234de 37-44,225-227,229-231,234,237,241,244,253-269,316,325-352
+npm/mdc/js-bun-db.mdc
+  d246dc0dd6d234de 4,154-181
+.cursor/rules/n-js-bun-db.mdc
+  d246dc0dd6d234de 4,154-181
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c3bc38a8d6e35eb0de1648befce8624e274cd3f7",
+  "prompts": {
+    "d246dc0dd6d234de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bda4d9e4-0cfd-461a-99b9-166bd168eba2",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 246,
+      "total_deletions": 19,
+      "accepted_lines": 246,
+      "overriden_lines": 0
+    }
+  }
+}
