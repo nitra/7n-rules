@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.159] - 2026-05-01
+
+### Added
+
+- Інтеграція з Claude Code: новий каталог `npm/.claude-template/` із `settings.template.json` (Stop hook + permissions allowlist), `npm-CLAUDE.md` (path-scoped нагадування для роботи в `npm/`) і slash-команду `/n-check`.
+- `sync-claude-config.mjs`: під час `npx @nitra/cursor` синхронізує `.claude/settings.json` (merge — користувацькі поля зберігаються, наші hooks ідентифікуються маркером і перезаписуються), `npm/CLAUDE.md` і slash-команди checks.
+- Subcommand `npx @nitra/cursor stop-hook` — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active=true` для захисту від рекурсії, інакше викликає `check`).
+- Поле `claude-config` у `.n-cursor.json` (default `true`) для опт-ауту.
+- Тести `npm/tests/sync-claude-config.test.mjs` — merge allow-list/hooks, інтеграція, ідемпотентність, опт-аут (12 кейсів).
+
+### Changed
+
+- `npm/schemas/n-cursor.json`: додано опис поля `claude-config`.
+- `npm/package.json`: `.claude-template` додано в масив `files`, щоб публікувався з пакетом.
+
 ## [1.8.158] - 2026-05-01
 
 ### Changed

@@ -9,6 +9,13 @@
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує AGENTS.md)
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
+ *   `npx \@nitra/cursor stop-hook`   — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active`,
+ *                                     інакше викликає `check`); прописується автоматично в `.claude/settings.json`
+ *
+ * Claude Code інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
+ * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
+ * `npm/CLAUDE.md` (path-scoped нагадування для роботи в `npm/`) і slash-команди checks (`/n-check`).
+ * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
@@ -48,7 +55,9 @@ import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
 import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected, normalizeIdList } from '../scripts/auto-rules.mjs'
+import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
@@ -1097,6 +1106,7 @@ async function runSync() {
   const config = await runSyncStep('❌ ', () => readConfig({ bundledMdcDir, bundledSkillsDir }))
 
   const { rules, skills, version, ignore } = config
+  const claudeConfigEnabled = config['claude-config'] !== false
   const bundledVer = await readBundledVersionAt(effectivePackageRoot)
   if (bundledVer) {
     const line =
@@ -1160,6 +1170,25 @@ async function runSync() {
     syncClaudeMd(/** @type {string[] | undefined} */ (ignore))
   )
 
+  await runSyncStep('❌ Не вдалося синхронізувати Claude-конфіг: ', async () => {
+    const result = await syncClaudeConfig({
+      projectRoot: cwd(),
+      bundledPackageRoot: effectivePackageRoot,
+      enabled: claudeConfigEnabled
+    })
+    if (!claudeConfigEnabled) {
+      console.log('🤖 Claude-конфіг: пропущено (claude-config: false у .n-cursor.json)')
+      return
+    }
+    const parts = []
+    if (result.settings) parts.push('.claude/settings.json')
+    if (result.npmClaudeMd) parts.push('npm/CLAUDE.md')
+    if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
+    if (parts.length > 0) {
+      console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
+    }
+  })
+
   console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
   if (failCount > 0) {
     throw new Error(`Не вдалося завантажити ${failCount} з ${rules.length} правил`)
@@ -1185,6 +1214,14 @@ try {
 
       break
     }
+    case 'stop-hook': {
+      // Викликається з .claude/settings.json як Stop hook Claude Code.
+      // Прокидає `check` і поважає stop_hook_active, щоб не зациклюватись.
+      const code = await runStopHookCli()
+      process.exitCode = code
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1193,7 +1230,9 @@ try {
     }
     default: {
       console.error(`❌ Невідома команда: ${command}`)
-      console.error(`   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions`)
+      console.error(
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook`
+      )
       process.exitCode = 1
     }
   }

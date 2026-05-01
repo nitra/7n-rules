@@ -54,6 +54,11 @@
     "version": {
       "type": "string",
       "description": "Застаріле поле, ігнорується CLI. Правила завжди копіюються з каталогу mdc/ установленого пакету (node_modules або кеш npx); змініть версію через оновлення залежності."
+    },
+    "claude-config": {
+      "type": "boolean",
+      "description": "Чи синхронізувати `.claude/settings.json` (hooks + permissions, merge зі збереженням користувацьких полів), `npm/CLAUDE.md` (path-scoped нагадування для роботи в `npm/`) і slash-команди checks. За замовчуванням true.",
+      "default": true
     }
   },
   "required": ["rules"]
