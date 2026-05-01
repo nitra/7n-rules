@@ -1,0 +1,45 @@
+.cursor/rules/n-text.mdc
+  c7c92274db2a5672 85,107
+npm/scripts/utils/oxlint-canonical-skeleton.json
+  c7c92274db2a5672 26
+npm/scripts/check-text.mjs
+  c7c92274db2a5672 32-33,214
+npm/mdc/js-lint.mdc
+  c7c92274db2a5672 33
+npm/mdc/text.mdc
+  c7c92274db2a5672 85,107
+.oxlintrc.json
+  c7c92274db2a5672 386
+npm/scripts/check-js-lint.mjs
+  c7c92274db2a5672 137-159,187-191
+npm/tests/check-js-lint.test.mjs
+  c7c92274db2a5672 78-97
+npm/package.json
+  c7c92274db2a5672 3
+.cursor/rules/n-js-lint.mdc
+  c7c92274db2a5672 33
+npm/tests/check-text-fixture.test.mjs
+  c7c92274db2a5672 36
+npm/CHANGELOG.md
+  c7c92274db2a5672 7-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "c2a3260a955958b341a1497c67629227519d00b0",
+  "prompts": {
+    "c7c92274db2a5672": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37c12cb9-c326-476c-9745-b3578505b562",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 2226,
+      "total_deletions": 15,
+      "accepted_lines": 120,
+      "overriden_lines": 1
+    }
+  }
+}
