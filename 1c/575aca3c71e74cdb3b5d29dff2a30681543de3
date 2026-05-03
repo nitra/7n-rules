@@ -1,0 +1,52 @@
+demo/.gitignore
+  178ddab8b9da7422 1-4
+demo/package.json
+  h_9e4b254ff59432 4,6,8,16,21
+  178ddab8b9da7422 1-3,5,7,9-15,17-20,22-27
+demo/src/main.js
+  178ddab8b9da7422 1-5
+demo/vite.config.js
+  178ddab8b9da7422 1-18
+demo/src/App.vue
+  178ddab8b9da7422 1-50
+demo/index.html
+  178ddab8b9da7422 1-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "1c575aca3c71e74cdb3b5d29dff2a30681543de3",
+  "prompts": {
+    "178ddab8b9da7422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dda86a5d-c45f-441b-b086-638d0d8dc665",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 1411,
+      "total_deletions": 163,
+      "accepted_lines": 234,
+      "overriden_lines": 17
+    },
+    "2ba59c9491f525f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "971379dc-2395-4857-be3f-c4d0f863f8c8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 659,
+      "total_deletions": 27,
+      "accepted_lines": 632,
+      "overriden_lines": 0
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
