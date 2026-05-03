@@ -1,0 +1,27 @@
+{
+  "name": "demo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Пісочниця для тестування правил n-cursor (Vue 3 + Vite). Не публікується.",
+  "type": "module",
+  "scripts": {
+    "start": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.5.33"
+  },
+  "devDependencies": {
+    "@nitra/cursor": "^1.8.169",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "unplugin-auto-import": "^0.17.0",
+    "vite": "^8.0.0",
+    "vite-plugin-vue-layouts-next": "^1.0.0",
+    "vue-macros": "^3.0.0"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
+  }
+}
