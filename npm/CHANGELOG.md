@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.168] - 2026-05-03
+
+### Added
+
+- `lint-ga.mjs`: до preflight на `shellcheck` додано preflight на [`uv`](https://docs.astral.sh/uv/) (постачає `uvx` для `uvx zizmor`). Якщо `uv` відсутній у `PATH` — `n-cursor lint-ga` падає з exit 1 і підказками `brew install uv` / `curl -LsSf https://astral.sh/uv/install.sh | sh` / `pip install uv`. Обидва preflight’и повідомляються незалежно: якщо нема одночасно й `shellcheck`, і `uv`, користувач одразу бачить обидві підказки, а не лише першу.
+- `lint-ga.mjs`: винесено внутрішній `PreflightDep` із `bin`/`winBins`/`explanation`/`install`/`successMsg` — однотипний pattern для додавання нових залежностей у preflight без копіпасти.
+
 ## [1.8.167] - 2026-05-03
 
 ### Added

@@ -1,7 +1,7 @@
 ---
 description: Правила форматів для .github/workflows
 alwaysApply: true
-version: '1.5'
+version: '1.6'
 ---
 
 У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**, **`git-ai.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
@@ -243,9 +243,11 @@ jobs:
 
 CLI виконує:
 
-1. Перевірку наявності [`shellcheck`](https://www.shellcheck.net/) у `PATH` — без нього `actionlint` мовчки пропускає shell-перевірки в `run:` блоках, тож локальний прогін зеленіє, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає на тих самих workflow. Якщо бінарника немає — `bun lint-ga` падає одразу, до запуску `actionlint`. Встановлення: `brew install shellcheck` (macOS), `sudo apt-get install -y shellcheck` (Debian/Ubuntu), `sudo pacman -S shellcheck` (Arch).
-2. `bunx github-actionlint`.
-3. `uvx zizmor --offline --collect=workflows .`.
+1. Preflight на [`shellcheck`](https://www.shellcheck.net/) у `PATH` — без нього `actionlint` мовчки пропускає shell-перевірки в `run:` блоках, тож локальний прогін зеленіє, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає на тих самих workflow. Встановлення: `brew install shellcheck` (macOS), `sudo apt-get install -y shellcheck` (Debian/Ubuntu), `sudo pacman -S shellcheck` (Arch).
+2. Preflight на [`uv`](https://docs.astral.sh/uv/) у `PATH` — постачає `uvx`, без якого не запуститься `uvx zizmor`. Встановлення: `brew install uv` (macOS), `curl -LsSf https://astral.sh/uv/install.sh | sh` (universal), `pip install uv`.
+3. Якщо хоча б один preflight не пройшов — exit 1 (підказки для всіх відсутніх залежностей друкуються разом, а не лише для першої).
+4. `bunx github-actionlint`.
+5. `uvx zizmor --offline --collect=workflows .`.
 
 **`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
 
