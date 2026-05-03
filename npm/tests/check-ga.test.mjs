@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from '../scripts/check-ga.mjs'
-import { ensureDir, withShellcheckStubInPath, withTmpCwd, writeJson } from './helpers.mjs'
+import { ensureDir, withBinRemovedFromPath, withShellcheckStubInPath, withTmpCwd, writeJson } from './helpers.mjs'
 
 /**
  * Готує мінімальний макет проєкту з `.github/workflows/`, `.github/actions/setup-bun-deps/action.yml`,
@@ -173,22 +173,24 @@ describe('check-ga: shellcheck в PATH', () => {
   test('exit 1 і повідомлення про shellcheck/brew, коли його немає', async () => {
     await withTmpCwd(async () => {
       await setupCanonicalGaProject()
-      const logs = []
-      const origLog = console.log
-      console.log = (...args) => {
-        logs.push(args.join(' '))
-      }
-      try {
-        // PATH очищаємо лише мінімально — шлях до bun/git лишаємо, інакше check-ga не зможе викликати git ls-files;
-        // достатньо, щоб у PATH не було жодного `shellcheck`. На локальній macOS-машині розробника його зазвичай нема.
-        const exit = await check()
-        expect(exit).toBe(1)
-        const blob = logs.join('\n')
-        expect(blob).toContain('shellcheck')
-        expect(blob).toMatch(/brew install shellcheck/)
-      } finally {
-        console.log = origLog
-      }
+      // Активно вилучаємо з PATH каталоги з shellcheck, щоб тест був стабільним і на машинах,
+      // де користувач уже зробив `brew install shellcheck` (а саме до цього пушить наша підказка).
+      await withBinRemovedFromPath('shellcheck', async () => {
+        const logs = []
+        const origLog = console.log
+        console.log = (...args) => {
+          logs.push(args.join(' '))
+        }
+        try {
+          const exit = await check()
+          expect(exit).toBe(1)
+          const blob = logs.join('\n')
+          expect(blob).toContain('shellcheck')
+          expect(blob).toMatch(/brew install shellcheck/)
+        } finally {
+          console.log = origLog
+        }
+      })
     })
   })
 })

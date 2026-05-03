@@ -15,6 +15,7 @@ const ALL_RULES = [
   'ga',
   'graphql',
   'hasura',
+  'image',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -68,6 +69,7 @@ describe('detectAutoRulesAndSkills', () => {
         'docker',
         'ga',
         'graphql',
+        'image',
         'js-lint',
         'k8s',
         'nginx-default-tpl',
@@ -189,6 +191,51 @@ describe('detectAutoRulesAndSkills', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('js-run')).toBe(false)
+    })
+  })
+
+  test('AUTO_RULE_DEPENDENCIES: image додається разом з vue', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'app' })
+      await ensureDir('src')
+      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('vue')).toBe(true)
+      expect(actual.rules.includes('image')).toBe(true)
+    })
+  })
+
+  test('AUTO_RULE_DEPENDENCIES: image НЕ додається, якщо vue не активне', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'app' })
+      await ensureDir('src')
+      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('vue')).toBe(false)
+      expect(actual.rules.includes('image')).toBe(false)
+    })
+  })
+
+  test('AUTO_RULE_DEPENDENCIES: disable-rules vue → image теж не додається', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'app' })
+      await ensureDir('src')
+      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+
+      const actual = await detectAutoRulesAndSkills({
+        root: process.cwd(),
+        availableRules: ALL_RULES,
+        availableSkills: ALL_SKILLS,
+        packageJsonParsed: { name: 'app' },
+        disableRules: ['vue']
+      })
+
+      expect(actual.rules.includes('vue')).toBe(false)
+      expect(actual.rules.includes('image')).toBe(false)
     })
   })
 })

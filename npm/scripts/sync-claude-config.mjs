@@ -91,7 +91,7 @@ export function mergeHooks(existing, fromTemplate) {
   /** @type {Record<string, HookGroup[]>} */
   const out = {}
   for (const [event, groups] of Object.entries(existing ?? {})) {
-    out[event] = Array.isArray(groups) ? groups.slice() : []
+    out[event] = Array.isArray(groups) ? [...groups] : []
   }
   for (const [event, templateGroups] of Object.entries(fromTemplate ?? {})) {
     const existingGroups = (out[event] ?? []).filter(g => !isManagedHookGroup(g))
@@ -111,10 +111,10 @@ export function mergeHooks(existing, fromTemplate) {
  */
 export function mergeSettings(existing, template) {
   /** @type {ClaudeSettings} */
-  const merged = { ...(existing ?? {}) }
+  const merged = { ...existing }
   const mergedAllow = mergeAllowList(existing?.permissions?.allow, template.permissions?.allow)
   if (mergedAllow.length > 0) {
-    merged.permissions = { ...(existing?.permissions ?? {}), allow: mergedAllow }
+    merged.permissions = { ...existing?.permissions, allow: mergedAllow }
   }
   const mergedHooks = mergeHooks(existing?.hooks, template.hooks)
   if (Object.keys(mergedHooks).length > 0) {
@@ -132,12 +132,12 @@ export function mergeSettings(existing, template) {
  */
 async function readJsonOrUndefined(path) {
   if (!existsSync(path)) {
-    return undefined
+    return
   }
   try {
     return JSON.parse(await readFile(path, 'utf8'))
   } catch {
-    return undefined
+    return
   }
 }
 

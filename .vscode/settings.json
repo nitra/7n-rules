@@ -62,6 +62,9 @@
   },
   "oxc.path.oxlint": "/opt/homebrew/bin/oxlint",
   "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt",
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
   "files.associations": {
     "*.mdc": "markdown"
   }

@@ -3,6 +3,8 @@
     "dbaeumer.vscode-eslint",
     "github.vscode-github-actions",
     "oxc.oxc-vscode",
-    "DavidAnson.vscode-markdownlint"
+    "DavidAnson.vscode-markdownlint",
+    "Vue.volar",
+    "stylelint.vscode-stylelint"
   ]
 }

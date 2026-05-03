@@ -30,6 +30,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'ga',
   'graphql',
   'hasura',
+  'image',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -45,6 +46,17 @@ export const AUTO_RULE_ORDER = Object.freeze([
 
 /** Порядок автододавання skills відповідно до `auto-rules.md`. */
 export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
+
+/**
+ * Граф залежностей між правилами (`auto-rules.md` синтаксис `rule - [other]`).
+ * Ключ варто автододати, коли всі правила-залежності вже додані до конфігу — щоб
+ * не дублювати вихідну умову, достатньо описати її у залежності.
+ */
+export const AUTO_RULE_DEPENDENCIES = Object.freeze(
+  /** @type {Record<string, readonly string[]>} */ ({
+    image: Object.freeze(['vue'])
+  })
+)
 
 const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
 const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
@@ -494,6 +506,30 @@ export async function collectAutoRuleFacts(root) {
 }
 
 /**
+ * Транзитивно розгортає правила за `AUTO_RULE_DEPENDENCIES`: повторно проходить
+ * усіма парами «правило → залежності» доки на одному з проходів не зʼявляється
+ * нове додавання. Це дозволяє ланцюги (`a → b → c`) і не вимагає від автора правил
+ * стежити за порядком викликів `addRule`.
+ * @param {string[]} detectedRules уже зібрані id правил (мутується через addRule)
+ * @param {(ruleId: string) => void} addRule callback із спільної фабрики (поважає `disable-rules` і дублі)
+ * @returns {void}
+ */
+function resolveRuleDependencies(detectedRules, addRule) {
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const [ruleId, deps] of Object.entries(AUTO_RULE_DEPENDENCIES)) {
+      if (detectedRules.includes(ruleId)) continue
+      if (deps.every(d => detectedRules.includes(d))) {
+        const before = detectedRules.length
+        addRule(ruleId)
+        if (detectedRules.length > before) changed = true
+      }
+    }
+  }
+}
+
+/**
  * Визначає авто-правила та skills згідно з `auto-rules.md`.
  * @param {object} params параметри аналізу
  * @param {string} params.root абсолютний шлях до кореня репозиторію
@@ -588,6 +624,7 @@ export async function detectAutoRulesAndSkills({
   if (facts.hasVueSource) {
     addRule('vue')
   }
+  resolveRuleDependencies(detectedRules, addRule)
 
   const autoSkillChecks = [
     { enabled: isAbie, id: 'abie-kustomize' },

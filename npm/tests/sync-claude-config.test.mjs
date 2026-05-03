@@ -64,8 +64,8 @@ describe('mergeAllowList', () => {
 
   test('обробляє undefined по обидва боки', () => {
     expect(mergeAllowList(undefined, ['x'])).toEqual(['x'])
-    expect(mergeAllowList(['x'], undefined)).toEqual(['x'])
-    expect(mergeAllowList(undefined, undefined)).toEqual([])
+    expect(mergeAllowList(['x'])).toEqual(['x'])
+    expect(mergeAllowList()).toEqual([])
   })
 })
 

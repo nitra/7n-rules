@@ -1,6 +1,7 @@
 /**
  * Допоміжні функції для тестів скриптів пакета `@nitra/cursor`: тимчасові каталоги та запис JSON.
  */
+import { existsSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { delimiter, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -68,5 +69,35 @@ export async function withShellcheckStubInPath(fn) {
       env.PATH = prevPath
     }
     await rm(dir, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Виконує `fn` із `PATH`, з якого видалені всі каталоги, що містять виконуваний `<bin>`.
+ * Залишок `PATH` не змінюємо — git/bun лишаються доступними. Після `fn` оригінальний `PATH` повертаємо.
+ *
+ * Потрібно для негативних тестів («fail, коли інструмента нема»), що мають працювати на машинах,
+ * де користувач уже встановив цей інструмент глобально (наприклад, `brew install shellcheck`).
+ * @param {string} bin ім'я виконуваного файлу (на Windows додасться `.exe`)
+ * @param {() => void | Promise<void>} fn тестовий код, що очікує відсутність бінарника в PATH
+ * @returns {Promise<void>}
+ */
+export async function withBinRemovedFromPath(bin, fn) {
+  const isWin = platform === 'win32'
+  const candidates = isWin ? [`${bin}.exe`, bin] : [bin]
+  const prevPath = env.PATH
+  const filtered = (prevPath ?? '')
+    .split(delimiter)
+    .filter(d => d && !candidates.some(name => existsSync(join(d, name))))
+    .join(delimiter)
+  env.PATH = filtered
+  try {
+    await fn()
+  } finally {
+    if (prevPath === undefined) {
+      delete env.PATH
+    } else {
+      env.PATH = prevPath
+    }
   }
 }

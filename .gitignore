@@ -1,3 +1,5 @@
 node_modules/
 
 *.secret
+
+.minify-image-cache.tsv

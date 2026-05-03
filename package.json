@@ -6,6 +6,7 @@
   "bugs": "https://github.com/n/cursor/issues",
   "license": "MIT",
   "workspaces": [
+    "demo",
     "npm"
   ],
   "type": "module",
@@ -13,17 +14,23 @@
     "test": "bun test npm/tests",
     "start": "bun ./npm/bin/n-cursor.js",
     "dump-schema": "bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql",
-    "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && oxfmt .",
+    "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && bun run lint-style && bun run lint-image && oxfmt .",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .",
     "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",
     "lint-ga": "n-cursor lint-ga",
     "lint-k8s": "bun ./npm/scripts/run-k8s.mjs",
-    "lint-docker": "bun ./npm/scripts/run-docker.mjs"
+    "lint-docker": "bun ./npm/scripts/run-docker.mjs",
+    "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
+    "lint-image": "npx @nitra/minify-image --src=. --write --avif"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0",
     "@nitra/cursor": "workspace:*",
-    "@nitra/eslint-config": "^3.8.0"
+    "@nitra/eslint-config": "^3.8.0",
+    "@nitra/stylelint-config": "^1.4.0"
+  },
+  "stylelint": {
+    "extends": "@nitra/stylelint-config"
   },
   "engines": {
     "node": ">=24",

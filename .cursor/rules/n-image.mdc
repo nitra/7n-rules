@@ -1,0 +1,42 @@
+---
+description: Оптимізація зображень через @nitra/minify-image у локальному lint
+alwaysApply: true
+version: '1.1'
+---
+
+CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) запускається через `npx` (як `markdownlint-cli2` у text.mdc) і **не** додається в `dependencies` / `devDependencies`. Скрипт `lint-image` у кореневому `package.json` — це **estimate**-режим (без `--write`): він рахує потенційну економію та не змінює файли. Якщо проєкт обрав авто-оптимізацію — дозволено `--write` (тоді на диску зʼявляється кеш-файл).
+
+Перевірка лише локальна — у CI `lint-image` не запускаємо (sharp/svgo тягнуть бінарні залежності, цінність на ubuntu-runner-ах нижча за час прогону). Окремий workflow `lint-image.yml` створювати не треба.
+
+## `package.json`
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-image && oxfmt .",
+    "lint-image": "npx @nitra/minify-image --src=."
+  }
+}
+```
+
+Якщо в `package.json` уже є агрегований `lint`, додай у його ланцюжок `bun run lint-image` (як `bun run lint-text`, `bun run lint-js`, `bun run lint-ga`). Так розробник, що локально гонить `bun run lint`, перед комітом одразу бачить, чи зросли зображення.
+
+Альтернатива з авто-оптимізацією — `npx @nitra/minify-image --src=. --write` (за бажанням `--avif`). У такому випадку обовʼязково ігноруй кеш-файл (див. нижче).
+
+## `.gitignore`
+
+CLI з прапорцем `--write` створює `.minify-image-cache.tsv` у корені сканованого каталогу — TSV з рядком на кожне зображення (`<rel-path>\t<mtime>\t<originalSize>\t<size>`). Файл **переписується** на кожному запуску, тому консервативний дефолт для бібліотек / застосунків — ігнорувати:
+
+```text title=".gitignore"
+.minify-image-cache.tsv
+```
+
+Якщо проєкт усе ж комітить кеш — це теж дозволено правилом, але тоді він має бути в `files` у `package.json` (для опублікованих npm-пакетів) або просто відсутній у `.gitignore`. Замовчування — рядок у `.gitignore`.
+
+## Заборонені залежності
+
+`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` кореневого `package.json` — CLI запускається лише через `npx` (так само, як `markdownlint-cli2` у text.mdc). Якщо потрібен явний пін — використай резолвер версій npm у самому виклику (`npx @nitra/minify-image@^3 --src=.`).
+
+## Перевірка
+
+`npx @nitra/cursor check image` (охоплює `lint-image` у `package.json`, агрегований `lint` і `.minify-image-cache.tsv` у `.gitignore`).

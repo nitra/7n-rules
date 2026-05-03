@@ -206,18 +206,56 @@ function checkViteVersion(devDeps, prefix, passFn, fail) {
 }
 
 /**
+ * Витягує текст аргументів першого виклику `AutoImport(` з vite.config зі збалансованими дужками.
+ * Повертає `null`, якщо виклик не знайдено або дужки не збалансовані (тоді перевірка `'vue'`
+ * у списку `imports` пропускається — інші чек-сигнали все одно спрацюють).
+ * @param {string} content повний текст vite.config
+ * @returns {string | null} текст усередині `AutoImport(...)` без зовнішніх дужок, або `null`
+ */
+function extractAutoImportCallArgs(content) {
+  const marker = 'AutoImport('
+  const idx = content.indexOf(marker)
+  if (idx === -1) return null
+  const start = idx + marker.length
+  let depth = 1
+  for (let i = start; i < content.length; i++) {
+    const ch = content[i]
+    if (ch === '(') depth++
+    else if (ch === ')') {
+      depth--
+      if (depth === 0) return content.slice(start, i)
+    }
+  }
+  return null
+}
+
+/**
+ * Чи передано `'vue'` (або `"vue"`) як рядковий елемент у `imports` всередині виклику `AutoImport(...)`.
+ * Без auto-import-ів `vue` забороняти явні value-імпорти `from 'vue'` небезпечно — їх видалення
+ * зламає код, бо `ref` / `createApp` тощо більше нікому надати.
+ * @param {string} content повний текст vite.config
+ * @returns {boolean} true, якщо `AutoImport({ imports: [..., 'vue', ...] })` сконфігуровано
+ */
+function viteConfigHasVueInAutoImports(content) {
+  const args = extractAutoImportCallArgs(content)
+  if (args === null) return false
+  return args.includes("'vue'") || args.includes('"vue"')
+}
+
+/**
  * Перевіряє vite.config на наявність VueMacros і AutoImport.
  * @param {string} rootDir параметр rootDir
  * @param {string} prefix параметр prefix
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<{ hasVueAutoImport: boolean }>} ознака успішно сконфігурованого vue-auto-import (для checkVueImportViolations)
  */
 async function checkViteConfig(rootDir, prefix, passFn, fail) {
   const configFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
   const viteConfig = configFiles.find(f => existsSync(join(rootDir, f)))
   if (!viteConfig) {
     fail(`${prefix}немає vite.config.js|ts|mjs у каталозі пакета`)
-    return
+    return { hasVueAutoImport: false }
   }
   const content = await readFile(join(rootDir, viteConfig), 'utf8')
   if (ESBUILD_RE.test(content)) {
@@ -235,23 +273,48 @@ async function checkViteConfig(rootDir, prefix, passFn, fail) {
     }
   }
 
+  const hasVueAutoImport = viteConfigHasVueInAutoImports(content)
+  if (content.includes('AutoImport(')) {
+    if (hasVueAutoImport) {
+      passFn(`${prefix}${viteConfig}: AutoImport({ imports: [..., 'vue', ...] }) — value-імпорти з 'vue' покриті`)
+    } else {
+      fail(
+        `${prefix}${viteConfig}: AutoImport не містить 'vue' у imports — додай 'vue' (інакше прибирати ` +
+          `value-імпорти на кшталт \`import { ref } from 'vue'\` небезпечно: ref/createApp тощо нікому буде надати)`
+      )
+    }
+  }
+
   if (content.includes('process.env.npm_lifecycle_event')) {
     fail(
       `${prefix}${viteConfig} використовує process.env.npm_lifecycle_event — у Bun це не працює. ` +
         `Перенеси логіку на mode (defineConfig(({ mode }) => ...)) і передавай mode в helper-функції.`
     )
   }
+
+  return { hasVueAutoImport }
 }
 
 /**
  * Сканує джерела пакета на заборонені value-імпорти з vue.
+ *
+ * Якщо `unplugin-auto-import` не сконфігурований на `'vue'` у `vite.config`, явні value-імпорти
+ * формально не заборонені — їх видалення зламає код. У цьому випадку перевірка пропускається,
+ * а fail про відсутній `'vue'` у `AutoImport.imports` уже зареєстровано в `checkViteConfig`.
  * @param {string} rootDir параметр rootDir
  * @param {string} absPackageRoot параметр absPackageRoot
  * @param {string} prefix параметр prefix
+ * @param {boolean} hasVueAutoImport чи `AutoImport({ imports: [..., 'vue', ...] })` сконфігуровано
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-async function checkVueImportViolations(rootDir, absPackageRoot, prefix, passFn, fail) {
+async function checkVueImportViolations(rootDir, absPackageRoot, hasVueAutoImport, prefix, passFn, fail) {
+  if (!hasVueAutoImport) {
+    passFn(
+      `${prefix}value-імпорти з 'vue' не заборонені — спершу додай 'vue' до AutoImport.imports у vite.config`
+    )
+    return
+  }
   /** @type {string[]} */
   const sourcePaths = []
   await walkDir(absPackageRoot, absPath => {
@@ -323,8 +386,8 @@ async function checkVuePackage(rootDir, fail, passFn) {
     'vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next'
   )
 
-  await checkViteConfig(rootDir, prefix, passFn, fail)
-  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
+  const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
+  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), hasVueAutoImport, prefix, passFn, fail)
   await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
 }
 

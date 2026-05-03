@@ -2,7 +2,7 @@
  * Тести check-vue, check-style-lint, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
  */
 import { describe, expect, test } from 'bun:test'
-import { copyFile, writeFile } from 'node:fs/promises'
+import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -42,7 +42,7 @@ async function setupMinimalVueAppWorkspace(opts = {}) {
   })
   await writeFile(
     join('app', 'vite.config.js'),
-    `import Vue from '@vitejs/plugin-vue'\n// VueMacros\n// AutoImport\nexport default { plugins: [Vue()] }\n`,
+    `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })]\n}\n`,
     'utf8'
   )
   if (opts.forbiddenVueImport) {
@@ -63,6 +63,33 @@ describe('check-vue (мінімальний проєкт)', () => {
     await withTmpCwd(async () => {
       await setupMinimalVueAppWorkspace({ forbiddenVueImport: true })
       expect(await checkVue()).toBe(1)
+    })
+  })
+
+  test('помилка: AutoImport є, але `vue` не у його imports (видалити value-імпорти небезпечно)', async () => {
+    await withTmpCwd(async () => {
+      await setupMinimalVueAppWorkspace()
+      await writeFile(
+        join('app', 'vite.config.js'),
+        `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['pinia'] })]\n}\n`,
+        'utf8'
+      )
+      expect(await checkVue()).toBe(1)
+    })
+  })
+
+  test('AutoImport без `vue` → value-імпорти з `vue` не оголошуються забороненими', async () => {
+    await withTmpCwd(async () => {
+      await setupMinimalVueAppWorkspace({ forbiddenVueImport: true })
+      await writeFile(
+        join('app', 'vite.config.js'),
+        `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['pinia'] })]\n}\n`,
+        'utf8'
+      )
+      const exit = await checkVue()
+      const sourceContent = await readFile(join('app', 'src', 'bad.ts'), 'utf8')
+      expect(exit).toBe(1)
+      expect(sourceContent.includes("from 'vue'")).toBe(true)
     })
   })
 })
