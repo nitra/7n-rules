@@ -15,6 +15,7 @@ import { check as checkText } from '../scripts/check-text.mjs'
 import { check as checkJsRun } from '../scripts/check-js-run.mjs'
 import { check as checkK8s } from '../scripts/check-k8s.mjs'
 import { check as checkNpmModule } from '../scripts/check-npm-module.mjs'
+import { withShellcheckStubInPath } from './helpers.mjs'
 
 const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
@@ -25,16 +26,18 @@ describe('check-* на реальному репозиторії', () => {
     const prev = process.cwd()
     process.chdir(REPO_ROOT)
     try {
-      expect(await checkAbie()).toBe(0)
-      expect(await checkBun()).toBe(0)
-      expect(await checkGa()).toBe(0)
-      expect(await checkGraphql()).toBe(0)
-      expect(await checkJsLint()).toBe(0)
-      expect(await checkText()).toBe(0)
-      expect(await checkNpmModule()).toBe(0)
-      expect(await checkDocker()).toBe(0)
-      expect(await checkK8s()).toBe(0)
-      expect(await checkJsRun()).toBe(0)
+      await withShellcheckStubInPath(async () => {
+        expect(await checkAbie()).toBe(0)
+        expect(await checkBun()).toBe(0)
+        expect(await checkGa()).toBe(0)
+        expect(await checkGraphql()).toBe(0)
+        expect(await checkJsLint()).toBe(0)
+        expect(await checkText()).toBe(0)
+        expect(await checkNpmModule()).toBe(0)
+        expect(await checkDocker()).toBe(0)
+        expect(await checkK8s()).toBe(0)
+        expect(await checkJsRun()).toBe(0)
+      })
     } finally {
       process.chdir(prev)
     }

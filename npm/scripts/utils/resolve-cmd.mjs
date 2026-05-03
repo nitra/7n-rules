@@ -14,7 +14,9 @@ import { platform } from 'node:process'
  */
 export function resolveCmd(cmd) {
   const whichCmd = platform === 'win32' ? 'where' : 'which'
-  const result = spawnSync(whichCmd, [cmd], { encoding: 'utf8' })
+  // Явно передаємо `process.env`, інакше Bun вмикає snapshot оточення на старті процесу
+  // і не бачить змін `process.env.PATH` у runtime (типова ситуація — підстановка стабів у тестах).
+  const result = spawnSync(whichCmd, [cmd], { encoding: 'utf8', env: process.env })
   if (result.status !== 0 || result.error) {
     return null
   }

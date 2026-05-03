@@ -1,7 +1,7 @@
 ---
 description: Правила форматів для .github/workflows
 alwaysApply: true
-version: '1.3'
+version: '1.5'
 ---
 
 У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**, **`git-ai.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.
@@ -231,13 +231,21 @@ jobs:
       - uses: ./.github/actions/setup-bun-deps
 ```
 
-**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Скрипт у корені:
+**Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Канонічний скрипт у корені делегує виконання CLI `n-cursor lint-ga` (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`:
 
 ```json title="package.json"
 "scripts": {
-  "lint-ga": "bunx github-actionlint && uvx zizmor --offline --collect=workflows ."
+  "lint-ga": "n-cursor lint-ga"
 }
 ```
+
+> Не використовуй `npx --no @nitra/cursor lint-ga` — `bun run` автоматично транслює `npx` у `bun x`, а `bun x` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання. Виклик через bin-ім’я `n-cursor` працює і у `bun run`, і у `npm run`.
+
+CLI виконує:
+
+1. Перевірку наявності [`shellcheck`](https://www.shellcheck.net/) у `PATH` — без нього `actionlint` мовчки пропускає shell-перевірки в `run:` блоках, тож локальний прогін зеленіє, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає на тих самих workflow. Якщо бінарника немає — `bun lint-ga` падає одразу, до запуску `actionlint`. Встановлення: `brew install shellcheck` (macOS), `sudo apt-get install -y shellcheck` (Debian/Ubuntu), `sudo pacman -S shellcheck` (Arch).
+2. `bunx github-actionlint`.
+3. `uvx zizmor --offline --collect=workflows .`.
 
 **`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
 

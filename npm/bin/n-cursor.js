@@ -11,6 +11,8 @@
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor stop-hook`   — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active`,
  *                                     інакше викликає `check`); прописується автоматично в `.claude/settings.json`
+ *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
+ *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
  *
  * Claude Code інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
@@ -57,6 +59,7 @@ import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.
 import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected, normalizeIdList } from '../scripts/auto-rules.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { runLintGaCli } from '../scripts/lint-ga.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -1222,6 +1225,12 @@ try {
 
       break
     }
+    case 'lint-ga': {
+      // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor (ga.mdc).
+      process.exitCode = runLintGaCli()
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1231,7 +1240,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga`
       )
       process.exitCode = 1
     }

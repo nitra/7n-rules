@@ -35,6 +35,7 @@ import {
   getStepUses,
   parseWorkflowYaml
 } from './utils/gha-workflow.mjs'
+import { resolveCmd } from './utils/resolve-cmd.mjs'
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]
@@ -738,16 +739,43 @@ async function checkLintGaScript(passFn, failFn) {
     return
   }
   passFn('package.json містить lint-ga')
-  if (lg.includes('github-actionlint')) {
-    passFn('lint-ga викликає github-actionlint')
+  // Канонічний скрипт делегує виконання CLI `n-cursor lint-ga` (bin з `@nitra/cursor`) — там preflight
+  // на shellcheck + послідовно `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
+  // Виклик через bin-ім’я `n-cursor`, а не `npx --no @nitra/cursor`, бо `bun run` транслює `npx` у `bun x`,
+  // а `bun x @nitra/cursor` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання.
+  if (/\bn-cursor\s+lint-ga\b/.test(lg)) {
+    passFn('lint-ga делегує CLI n-cursor lint-ga (preflight shellcheck + actionlint + zizmor)')
   } else {
-    failFn('lint-ga має містити bunx github-actionlint (ga.mdc)')
+    failFn(
+      'lint-ga має бути "n-cursor lint-ga" — CLI робить preflight shellcheck перед actionlint/zizmor (ga.mdc)'
+    )
   }
-  if (lg.includes('zizmor') && lg.includes('--offline')) {
-    passFn('lint-ga викликає zizmor з --offline')
-  } else {
-    failFn('lint-ga має містити zizmor і --offline (ga.mdc)')
+}
+
+/**
+ * Перевіряє наявність локального `shellcheck` у PATH. `actionlint` (`bunx github-actionlint`)
+ * запускає shell-перевірки в кроках `run:` workflow тільки коли `shellcheck` доступний; інакше
+ * мовчки пропускає SC-правила, через що локальний `bun lint-ga` зелений, а CI на ubuntu-latest
+ * (де shellcheck передвстановлений) падає. Тому відсутність бінарника локально — `fail`.
+ *
+ * Кросплатформно: `resolveCmd` використовує `which`/`where` і однаково знаходить `shellcheck`
+ * та `shellcheck.exe` на Windows.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+function checkShellcheckInstalled(passFn, failFn) {
+  if (resolveCmd('shellcheck')) {
+    passFn('shellcheck встановлений локально, actionlint виконуватиме SC-правила, як у CI')
+    return
   }
+  failFn(
+    [
+      'shellcheck не знайдено в PATH — actionlint без нього мовчки пропускає shell-перевірки в run: блоках,',
+      'тому локальний `bun lint-ga` буде зелений, а CI на ubuntu-latest (де shellcheck передвстановлений) падатиме.',
+      'Встанови: macOS — `brew install shellcheck`; Debian/Ubuntu — `sudo apt-get install -y shellcheck`;',
+      'Arch — `sudo pacman -S shellcheck` (ga.mdc)'
+    ].join(' ')
+  )
 }
 
 /**
@@ -978,6 +1006,7 @@ export async function check() {
   await checkLintGaScript(pass, fail)
   await checkLintGaWorkflow(wfDir, pass, fail)
   await checkGitAiWorkflow(wfDir, pass, fail)
+  checkShellcheckInstalled(pass, fail)
 
   return reporter.getExitCode()
 }
