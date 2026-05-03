@@ -1,0 +1,88 @@
+npm/scripts/check-image.mjs
+  2ba59c9491f525f7 1-167
+CLAUDE.md
+  2ba59c9491f525f7 6,12,14
+npm/tests/sync-claude-config.test.mjs
+  2ba59c9491f525f7 67-68
+package.json
+  2ba59c9491f525f7 17,22-24,29-33
+.gitignore
+  2ba59c9491f525f7 4-5
+.vscode/extensions.json
+  2ba59c9491f525f7 6-8
+.n-cursor.json
+  2ba59c9491f525f7 3-20
+npm/scripts/sync-claude-config.mjs
+  2ba59c9491f525f7 94,114,117,135,140
+npm/tests/check-ga.test.mjs
+  178ddab8b9da7422 11,176-193
+npm/package.json
+  2ba59c9491f525f7 3,52
+AGENTS.md
+  2ba59c9491f525f7 18-19,30-31,34
+.stylelintignore
+  2ba59c9491f525f7 1
+npm/tests/check-rule-fixtures.test.mjs
+  2ba59c9491f525f7 5,45,68-94
+.vscode/settings.json
+  2ba59c9491f525f7 65-67
+npm/scripts/check-vue.mjs
+  2ba59c9491f525f7 209-244,251,258,276-287,294-295,300-303,307,311-317,389-390
+npm/mdc/vue.mdc
+  2ba59c9491f525f7 4
+npm/tests/check-image.test.mjs
+  2ba59c9491f525f7 1-164
+npm/CHANGELOG.md
+  2ba59c9491f525f7 7-14
+npm/tests/helpers.mjs
+  178ddab8b9da7422 4,74-103
+npm/bin/auto-rules.md
+  2ba59c9491f525f7 7-8,23-24
+npm/tests/auto-rules.test.mjs
+  2ba59c9491f525f7 18,72,196-240
+.github/workflows/lint-style.yml
+  2ba59c9491f525f7 1-39
+npm/scripts/auto-rules.mjs
+  2ba59c9491f525f7 33,50-60,508-531,627
+npm/mdc/image.mdc
+  2ba59c9491f525f7 1,3-42
+  h_9e4b254ff59432 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "08682c72fe735f639d774281b340cc7c05b1f532",
+  "prompts": {
+    "178ddab8b9da7422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dda86a5d-c45f-441b-b086-638d0d8dc665",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 123,
+      "overriden_lines": 0
+    },
+    "2ba59c9491f525f7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "971379dc-2395-4857-be3f-c4d0f863f8c8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 375,
+      "total_deletions": 361,
+      "accepted_lines": 664,
+      "overriden_lines": 1
+    }
+  },
+  "humans": {
+    "h_9e4b254ff59432": {
+      "author": "Vitalii Tverdokhlib"
+    }
+  }
+}
