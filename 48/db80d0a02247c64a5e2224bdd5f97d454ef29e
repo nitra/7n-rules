@@ -1,0 +1,49 @@
+CLAUDE.md
+  178ddab8b9da7422 18
+npm/tests/helpers.mjs
+  178ddab8b9da7422 4-5,7,44-72
+npm/scripts/check-ga.mjs
+  178ddab8b9da7422 38,742-747,749-751,753-769,771-778,1009
+npm/tests/integration-repo-checks.test.mjs
+  178ddab8b9da7422 18,29-40
+AGENTS.md
+  178ddab8b9da7422 11,32,35,44,49
+npm/CHANGELOG.md
+  178ddab8b9da7422 7-23
+.cursor/rules/n-ga.mdc
+  178ddab8b9da7422 4,234,238,242-248
+npm/package.json
+  178ddab8b9da7422 3,52
+npm/bin/n-cursor.js
+  178ddab8b9da7422 14-15,62,1228-1233,1243
+npm/scripts/lint-ga.mjs
+  178ddab8b9da7422 1-85
+npm/tests/lint-ga.test.mjs
+  178ddab8b9da7422 1-45
+npm/mdc/ga.mdc
+  178ddab8b9da7422 4,234,238,242-249
+npm/scripts/utils/resolve-cmd.mjs
+  178ddab8b9da7422 17-19
+npm/tests/check-ga.test.mjs
+  178ddab8b9da7422 1-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "48db80d0a02247c64a5e2224bdd5f97d454ef29e",
+  "prompts": {
+    "178ddab8b9da7422": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dda86a5d-c45f-441b-b086-638d0d8dc665",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "Vitalii Tverdokhlib",
+      "messages": [],
+      "total_additions": 610,
+      "total_deletions": 173,
+      "accepted_lines": 489,
+      "overriden_lines": 13
+    }
+  }
+}
