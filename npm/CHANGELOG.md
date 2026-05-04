@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.172] - 2026-05-04
+
+### Changed
+
+- `auto-rules.md` / `auto-rules.mjs`: правило `php` тепер автоувімкається за наявністю `composer.json` у корені, а не за будь-яким `*.php` файлом у дереві. Прибрано константу `PHP_RE`, факт `hasPhpSource` і його збір у `updateFileFacts`/`collectAutoRuleFacts`; натомість у `detectAutoRulesAndSkills` додано прапорець `composerJsonExists` (за аналогією з `packageJsonExists` / `npmDirExists`).
+
 ## [1.8.171] - 2026-05-04
 
 ### Removed

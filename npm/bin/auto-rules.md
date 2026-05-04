@@ -36,7 +36,7 @@ nginx-default-tpl - якщо присутній хоч один файл з пе
 
 npm-module - якщо в корені присутня директорія npm
 
-php - якщо присутній хоч один php файл
+php - якщо в корені є composer.json
 
 style-lint - якщо присутній хоч один vue або css файл
 
