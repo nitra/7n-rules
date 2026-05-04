@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 # Stop hook: extract ADR/Runbook/Knowledge drafts from session transcript.
-# Runs async; uses `claude --bare -p` (skips hooks → no recursion).
+# Runs async. Recursion guard: env var prevents the inner `claude -p` from
+# re-triggering this hook (the inner session inherits CAPTURE_DECISIONS_RUNNING=1).
 set -euo pipefail
+
+if [[ -n "${CAPTURE_DECISIONS_RUNNING:-}" ]]; then
+  exit 0
+fi
+export CAPTURE_DECISIONS_RUNNING=1
 
 INPUT=$(cat)
 TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
@@ -15,7 +21,10 @@ mkdir -p "$INBOX" "$LOG_DIR"
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
+log "fired: $SESSION_ID"
+
 if [[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]]; then
+  log "  → no transcript path"
   exit 0
 fi
 
@@ -73,11 +82,16 @@ EOF
 )
 
 RESPONSE=$(printf '%s\n%s\n' "$PROMPT" "$TRANSCRIPT" \
-  | claude --bare -p --model haiku 2>>"$LOG" || true)
+  | claude -p --model haiku 2>>"$LOG" || true)
 
 RESPONSE_TRIMMED=$(printf '%s' "$RESPONSE" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 
-if [[ -z "$RESPONSE_TRIMMED" || "$RESPONSE_TRIMMED" == "NONE" ]] || ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## \['; then
+if [[ -z "$RESPONSE_TRIMMED" ]]; then
+  log "  → empty response from claude"
+  exit 0
+fi
+if [[ "$RESPONSE_TRIMMED" == "NONE" ]] || ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## \['; then
+  log "  → no decisions"
   exit 0
 fi
 

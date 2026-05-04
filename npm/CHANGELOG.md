@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.171] - 2026-05-04
+
+### Removed
+
+- `abie.mdc` (v1.17) / `check-abie.mjs`: прибрано перевірку `.github/actionlint.yaml` (мітки `self-hosted-runner` `ua` / `dev` / `ru`). Видалено константи `ABIE_REQUIRED_ACTIONLINT_LABELS`, шаблон файлу та функції `parseActionlintSelfHostedLabels`, `abieMissingActionlintLabels`, `ensureAbieActionlintConfig`; знято відповідні юніт- та інтеграційні тести. Файл `.github/actionlint.yaml` більше не створюється і не валідовується правилом abie.
+
 ## [1.8.170] - 2026-05-03
 
 ### Changed

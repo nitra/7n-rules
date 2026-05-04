@@ -39,7 +39,7 @@
  * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — **`op: remove`** для **`/spec/clusterIP`**; якщо в base **явно** задано **`spec.clusterIPs`** — також **`remove`** для **`/spec/clusterIPs`** (інакше **API** може залишити **`None`** для **NodePort**; без ключа **`clusterIPs`** у base **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
  */
 import { existsSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
@@ -117,20 +117,6 @@ const HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE =
 
 /** Гілки, які мають бути в **`ignore_branches`** за abie.mdc. */
 export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
-
-/** Канонічний шлях до конфігу actionlint у репо (abie.mdc). */
-const ABIE_ACTIONLINT_PATH = '.github/actionlint.yaml'
-
-/** Канонічний вміст **`.github/actionlint.yaml`**, який ми створюємо за відсутності файлу (abie.mdc). */
-const ABIE_ACTIONLINT_TEMPLATE = `self-hosted-runner:
-  labels:
-    - 'ua'
-    - 'dev'
-    - 'ru'
-`
-
-/** Мітки **`self-hosted-runner.labels`**, які мають бути присутні в **`.github/actionlint.yaml`** (abie.mdc). */
-export const ABIE_REQUIRED_ACTIONLINT_LABELS = Object.freeze(['ua', 'dev', 'ru'])
 
 /**
  * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім'ям файлу) — специфіка abie overlay.
@@ -1731,83 +1717,6 @@ async function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
 }
 
 /**
- * Витягує мітки **`self-hosted-runner.labels`** з тексту `.github/actionlint.yaml`.
- * @param {string} raw повний вміст файлу (YAML)
- * @returns {string[] | null} масив рядків-міток або null, якщо ключа/масиву не знайдено
- */
-export function parseActionlintSelfHostedLabels(raw) {
-  let docs
-  try {
-    docs = parseAllDocuments(raw)
-  } catch {
-    return null
-  }
-  for (const doc of docs) {
-    if (doc.errors.length > 0) continue
-    const root = doc.toJSON()
-    if (root === null || typeof root !== 'object' || Array.isArray(root)) continue
-    const block = /** @type {Record<string, unknown>} */ (root)['self-hosted-runner']
-    if (block === null || typeof block !== 'object' || Array.isArray(block)) continue
-    const labels = /** @type {Record<string, unknown>} */ (block).labels
-    if (!Array.isArray(labels)) continue
-    return labels.filter(l => typeof l === 'string')
-  }
-  return null
-}
-
-/**
- * Які з **`ABIE_REQUIRED_ACTIONLINT_LABELS`** відсутні в наданому списку міток (abie.mdc).
- * @param {string[]} labels мітки **`self-hosted-runner.labels`**
- * @returns {string[]} відсутні мітки (порожньо — все ок)
- */
-export function abieMissingActionlintLabels(labels) {
-  const present = new Set(labels.map(l => l.trim()))
-  return ABIE_REQUIRED_ACTIONLINT_LABELS.filter(r => !present.has(r))
-}
-
-/**
- * Гарантує наявність **`.github/actionlint.yaml`** із потрібними мітками **`self-hosted-runner`** (abie.mdc):
- * створює файл із канонічним вмістом, якщо його немає; якщо є — звіряє мітки.
- * @param {string} root корінь репозиторію
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- */
-async function ensureAbieActionlintConfig(root, pass, fail) {
-  const abs = join(root, ABIE_ACTIONLINT_PATH)
-  if (!existsSync(abs)) {
-    try {
-      await mkdir(dirname(abs), { recursive: true })
-      await writeFile(abs, ABIE_ACTIONLINT_TEMPLATE, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${ABIE_ACTIONLINT_PATH}: не вдалося створити (${msg}) — abie.mdc`)
-      return
-    }
-    pass(`${ABIE_ACTIONLINT_PATH}: створено з self-hosted-runner.labels [ua, dev, ru] (abie.mdc)`)
-    return
-  }
-  let raw
-  try {
-    raw = await readFile(abs, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${ABIE_ACTIONLINT_PATH}: не вдалося прочитати (${msg}) — abie.mdc`)
-    return
-  }
-  const labels = parseActionlintSelfHostedLabels(raw)
-  if (labels === null) {
-    fail(`${ABIE_ACTIONLINT_PATH}: не знайдено self-hosted-runner.labels — додай мітки ua, dev, ru (abie.mdc)`)
-    return
-  }
-  const missing = abieMissingActionlintLabels(labels)
-  if (missing.length > 0) {
-    fail(`${ABIE_ACTIONLINT_PATH}: у self-hosted-runner.labels бракує ${missing.join(', ')} (abie.mdc)`)
-    return
-  }
-  pass(`${ABIE_ACTIONLINT_PATH}: self-hosted-runner.labels містить ua, dev, ru (abie.mdc)`)
-}
-
-/**
  * Перевіряє clean-merged-branch.yml на ignore_branches.
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} pass callback при успішній перевірці
@@ -2178,7 +2087,6 @@ export async function check() {
   pass('Правило abie увімкнено — виконуємо перевірки')
   await ensureNoFirebaseHostingArtifacts(root, pass, fail)
   await checkCleanMergedBranch(root, pass, fail)
-  await ensureAbieActionlintConfig(root, pass, fail)
 
   const yamlFiles = await findK8sYamlFiles(root)
   const deploymentDirs = await collectDeploymentDirs(root, yamlFiles, fail)
