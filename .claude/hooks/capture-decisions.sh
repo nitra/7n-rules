@@ -16,7 +16,6 @@ mkdir -p "$INBOX" "$LOG_DIR"
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
 if [[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]]; then
-  log "skip: no transcript ($SESSION_ID)"
   exit 0
 fi
 
@@ -40,7 +39,6 @@ if (( ${#TRANSCRIPT} > MAX_CHARS )); then
 fi
 
 if [[ -z "$TRANSCRIPT" ]]; then
-  log "skip: empty transcript ($SESSION_ID)"
   exit 0
 fi
 
@@ -80,7 +78,6 @@ RESPONSE=$(printf '%s\n%s\n' "$PROMPT" "$TRANSCRIPT" \
 RESPONSE_TRIMMED=$(printf '%s' "$RESPONSE" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 
 if [[ -z "$RESPONSE_TRIMMED" || "$RESPONSE_TRIMMED" == "NONE" ]] || ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## \['; then
-  log "no-decisions: $SESSION_ID"
   exit 0
 fi
 
