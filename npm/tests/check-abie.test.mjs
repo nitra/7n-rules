@@ -211,6 +211,21 @@ describe('check-abie (допоміжні функції)', () => {
     expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
   })
 
+  test('validateAbieHcYaml — допустимий нестандартний requestPath від кореня', () => {
+    const y = HC_MIN.replace('requestPath: /healthz', 'requestPath: /IsAlive')
+    expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
+  })
+
+  test('validateAbieHcYaml — requestPath без / на початку', () => {
+    const bad = HC_MIN.replace('requestPath: /healthz', 'requestPath: healthz')
+    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('requestPath')
+  })
+
+  test('validateAbieHcYaml — порожній requestPath', () => {
+    const bad = HC_MIN.replace('requestPath: /healthz', "requestPath: ''")
+    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('requestPath')
+  })
+
   const UA_KUSTOMIZATION_NODE_SELECTOR_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 patches:

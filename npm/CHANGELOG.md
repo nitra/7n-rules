@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.179] - 2026-05-05
+
+### Changed
+
+- `abie` (`check-abie.mjs` / `mdc/abie.mdc`): `httpHealthCheck.requestPath` у `HealthCheckPolicy` (`hc.yaml`) тепер допускає будь-який непорожній шлях від кореня — рядок, що починається з `/` (`/healthz`, `/IsAlive`, `/api/live` тощо), замість жорсткої вимоги `/healthz`. Решта вимог незмінна: `type: HTTP`, `port: 8080`, `targetRef` на headless Service з суфіксом `-hl`. Канонічно рекомендується `/healthz`, але правило не блокує сервіси з власним liveness endpoint. JSDoc у `check-abie.mjs` і опис у `mdc/abie.mdc` приведено у відповідність до коду. Тести: 3 нові кейси у `check-abie.test.mjs` (нестандартний `/IsAlive`, відсутній лідируючий `/`, порожній рядок).
+
 ## [1.8.178] - 2026-05-05
 
 ### Added

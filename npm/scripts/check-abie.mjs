@@ -13,7 +13,7 @@
  *
  * **k8s:** якщо під деревом із сегментом **`k8s`** є YAML з **`kind: Deployment`**, у тій самій директорії
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
- * як у abie.mdc, **`/healthz`**, порт **8080**, **`targetRef`** на **headless Service** (ім'я з суфіксом **`-hl`**):
+ * як у abie.mdc, **`requestPath`** — непорожній шлях від кореня (рядок, що починається з **`/`**: **`/healthz`**, **`/IsAlive`**, **`/api/live`** тощо), порт **8080**, **`targetRef`** на **headless Service** (ім'я з суфіксом **`-hl`**):
  * якщо **`metadata.name`** уже закінчується на **`-hl`**, **`targetRef.name`** має збігатися з ним; інакше **`targetRef.name`** = **`${metadata.name}-hl`**.
  * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc** (наприклад **HttpBackendGroup** `alb.yc.io/v1alpha1` — **без** modeline).
  * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
@@ -1324,7 +1324,10 @@ function validateAbieHcPolicy(policy, relPath) {
   if (httpHc === null || typeof httpHc !== 'object' || Array.isArray(httpHc)) {
     return `${relPath}: відсутній httpHealthCheck (abie.mdc)`
   }
-  if (httpHc.requestPath !== '/healthz') return `${relPath}: httpHealthCheck.requestPath має бути /healthz (abie.mdc)`
+  const requestPath = typeof httpHc.requestPath === 'string' ? httpHc.requestPath.trim() : ''
+  if (requestPath === '' || !requestPath.startsWith('/')) {
+    return `${relPath}: httpHealthCheck.requestPath має бути непорожнім шляхом від кореня (рядок, що починається з /) (abie.mdc)`
+  }
   if (httpHc.port !== 8080) return `${relPath}: httpHealthCheck.port має бути 8080 (abie.mdc)`
   const targetRef = specRec.targetRef
   if (targetRef === null || typeof targetRef !== 'object' || Array.isArray(targetRef)) {
