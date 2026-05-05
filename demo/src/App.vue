@@ -20,7 +20,11 @@ import welcomeImage from './assets/welcome.png'
   align-items: center;
   gap: 16px;
   padding: 48px 16px;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
   text-align: center;
 }
 
