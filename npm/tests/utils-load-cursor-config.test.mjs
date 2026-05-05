@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
-import { join, sep } from 'node:path'
+import { sep } from 'node:path'
 
 import { withTmpCwd, writeJson } from './helpers.mjs'
 import { loadCursorIgnorePaths } from '../scripts/utils/load-cursor-config.mjs'

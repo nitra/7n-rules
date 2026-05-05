@@ -11,25 +11,27 @@
  *   `npx --no @nitra/cursor stop-hook`
  */
 import { spawn } from 'node:child_process'
+import { once } from 'node:events'
 
 /**
  * Зчитує stdin до EOF як utf8 рядок. Якщо stdin порожній (TTY) — повертає '' одразу.
  * @returns {Promise<string>} вміст stdin
  */
-function readStdin() {
-  return new Promise(resolve => {
-    if (process.stdin.isTTY) {
-      resolve('')
-      return
-    }
-    let data = ''
-    process.stdin.setEncoding('utf8')
-    process.stdin.on('data', chunk => {
-      data += chunk
-    })
-    process.stdin.on('end', () => resolve(data))
-    process.stdin.on('error', () => resolve(data))
+async function readStdin() {
+  if (process.stdin.isTTY) {
+    return ''
+  }
+  process.stdin.setEncoding('utf8')
+  const chunks = []
+  process.stdin.on('data', chunk => {
+    chunks.push(chunk)
   })
+  try {
+    await once(process.stdin, 'end')
+  } catch {
+    // 'error' на stdin — повертаємо те, що встигли зібрати
+  }
+  return chunks.join('')
 }
 
 /**
@@ -60,12 +62,12 @@ export async function runStopHookCli() {
   if (isRecursiveStopHookCall(stdin)) {
     return 0
   }
-  return new Promise(resolve => {
-    const child = spawn('npx', ['--no', '@nitra/cursor', 'check'], { stdio: 'inherit' })
-    child.on('exit', code => resolve(code ?? 1))
-    child.on('error', err => {
-      process.stderr.write(`stop-hook: не вдалося запустити npx @nitra/cursor check — ${err.message}\n`)
-      resolve(1)
-    })
-  })
+  const child = spawn('npx', ['--no', '@nitra/cursor', 'check'], { stdio: 'inherit' })
+  try {
+    const [code] = await once(child, 'exit')
+    return code ?? 1
+  } catch (error) {
+    process.stderr.write(`stop-hook: не вдалося запустити npx @nitra/cursor check — ${error.message}\n`)
+    return 1
+  }
 }

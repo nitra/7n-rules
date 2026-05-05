@@ -33,13 +33,20 @@ function changelogWithVersion(version, date = '2026-05-05') {
   return `# Changelog\n\n## [${version}] - ${date}\n\n### Added\n\n- ...\n`
 }
 
-/** Стаб getPublishedVersion: повертає мапу name → version, або null для відсутніх. */
+/**
+ * Стаб getPublishedVersion: повертає мапу name → version, або null для відсутніх.
+ * @param {Record<string, string>} map мапа `name → version` для віддавання як «опубліковані».
+ * @returns {(name: string) => Promise<string | null>} async-стаб з тією ж сигнатурою, що і `getPublishedVersion`.
+ */
 function publishedStub(map) {
-  return async name => (Object.hasOwn(map, name) ? map[name] : null)
+  return name => Promise.resolve(Object.hasOwn(map, name) ? map[name] : null)
 }
 
-/** Завжди-null стаб (registry недосяжний / пакет не публікувався). */
-const offlineStub = async () => null
+/**
+ * Завжди-null стаб (registry недосяжний / пакет не публікувався).
+ * @returns {Promise<null>} завжди резолвиться у `null`, імітуючи недоступність npm-реєстру.
+ */
+const offlineStub = () => Promise.resolve(null)
 
 describe('check-changelog (npm-published mode)', () => {
   test('локальна version = опублікованій → pass без вимог', async () => {

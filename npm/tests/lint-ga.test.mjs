@@ -26,7 +26,9 @@ async function withIsolatedPath(fn) {
   const origErr = console.error
   const origLog = console.log
   console.error = (...args) => errs.push(args.join(' '))
-  console.log = () => {}
+  console.log = () => {
+    // suppress test output noise
+  }
   try {
     const code = fn()
     return { code, errBlob: errs.join('\n') }
