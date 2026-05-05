@@ -22,6 +22,7 @@ import {
   findUnsafeMssqlInListMissingEmptyGuardInText,
   isMssqlScanSourceFile
 } from './utils/mssql-pool-scan.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const VERSION_PREFIX_RE = /^[\^~>=<]+\s*/u
@@ -35,14 +36,18 @@ const MIN_MSSQL_VERSION = { major: 12, minor: 5, patch: 0 }
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
  */
-async function findAllPackageJsonPaths(repoRoot) {
+async function findAllPackageJsonPaths(repoRoot, ignorePaths) {
   /** @type {string[]} */
   const paths = []
-  await walkDir(repoRoot, absPath => {
-    if (absPath.endsWith(`${sep}package.json`)) {
-      paths.push(absPath)
-    }
-  })
+  await walkDir(
+    repoRoot,
+    absPath => {
+      if (absPath.endsWith(`${sep}package.json`)) {
+        paths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
   paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
   return paths
 }
@@ -52,15 +57,19 @@ async function findAllPackageJsonPaths(repoRoot) {
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
  */
-async function findAllSourcePathsForMssqlScan(repoRoot) {
+async function findAllSourcePathsForMssqlScan(repoRoot, ignorePaths) {
   /** @type {string[]} */
   const paths = []
-  await walkDir(repoRoot, absPath => {
-    const rel = relative(repoRoot, absPath).split('\\').join('/')
-    if (isMssqlScanSourceFile(rel)) {
-      paths.push(absPath)
-    }
-  })
+  await walkDir(
+    repoRoot,
+    absPath => {
+      const rel = relative(repoRoot, absPath).split('\\').join('/')
+      if (isMssqlScanSourceFile(rel)) {
+        paths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
   paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
   return paths
 }
@@ -253,8 +262,8 @@ function reportZeroMssqlSourceViolations(counters, pass) {
  * @param {(msg: string) => void} fail fail callback
  * @returns {Promise<void>}
  */
-async function auditMssqlSources(repoRoot, pass, fail) {
-  const sourcePaths = await findAllSourcePathsForMssqlScan(repoRoot)
+async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
+  const sourcePaths = await findAllSourcePathsForMssqlScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {
     pass('js-mssql: немає JS/TS файлів для скану singleton ConnectionPool')
     return
@@ -291,7 +300,8 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot)
+  const ignorePaths = await loadCursorIgnorePaths(repoRoot)
+  const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot, ignorePaths)
   if (pkgJsonPaths.length === 0) {
     pass('js-mssql: package.json не знайдено — перевірку пропущено')
     return reporter.getExitCode()
@@ -307,7 +317,7 @@ export async function check() {
     pass(`js-mssql: всі знайдені dependencies.mssql відповідають мінімальній версії 12.5.0 (${found})`)
   }
 
-  await auditMssqlSources(repoRoot, pass, fail)
+  await auditMssqlSources(repoRoot, ignorePaths, pass, fail)
 
   return reporter.getExitCode()
 }

@@ -17,6 +17,7 @@ import {
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
 } from './utils/graphql-gql-scan.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Очікуваний файл GraphQL Config у корені (graphql.mdc). */
@@ -33,16 +34,20 @@ export const REQUIRED_DUMP_SCHEMA_SCRIPT =
  * @param {string} root абсолютний шлях кореня
  * @returns {Promise<string[]>} список кандидатів
  */
-async function collectScanCandidates(root) {
+async function collectScanCandidates(root, ignorePaths) {
   /** @type {string[]} */
   const candidates = []
-  await walkDir(root, absPath => {
-    const rel = relative(root, absPath).split('\\').join('/')
-    if (shouldSkipFileForGqlScan(rel) || !isGqlScanSourceFile(rel)) {
-      return
-    }
-    candidates.push(absPath)
-  })
+  await walkDir(
+    root,
+    absPath => {
+      const rel = relative(root, absPath).split('\\').join('/')
+      if (shouldSkipFileForGqlScan(rel) || !isGqlScanSourceFile(rel)) {
+        return
+      }
+      candidates.push(absPath)
+    },
+    ignorePaths
+  )
   return candidates
 }
 
@@ -148,7 +153,8 @@ export async function check() {
   const { pass, fail } = reporter
 
   const root = process.cwd()
-  const candidates = await collectScanCandidates(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const candidates = await collectScanCandidates(root, ignorePaths)
   const hits = await collectGqlHits(root, candidates)
 
   if (hits.length === 0) {

@@ -25,6 +25,7 @@ import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
@@ -216,16 +217,20 @@ function packageHasAvifDisabled(pkg) {
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>}
  */
-async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, pass, fail) {
+async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, pass, fail) {
   const absRoot = join(process.cwd(), packageRoot)
   const label = packageRoot === '.' ? 'корінь' : packageRoot
   /** @type {string[]} */
   const vueFiles = []
-  await walkDir(absRoot, absPath => {
-    if (!absPath.endsWith('.vue')) return
-    if (otherRootsAbs.some(other => absPath.startsWith(`${other}/`))) return
-    vueFiles.push(absPath)
-  })
+  await walkDir(
+    absRoot,
+    absPath => {
+      if (!absPath.endsWith('.vue')) return
+      if (otherRootsAbs.some(other => absPath.startsWith(`${other}/`))) return
+      vueFiles.push(absPath)
+    },
+    ignorePaths
+  )
   if (vueFiles.length === 0) return
 
   let violations = 0
@@ -262,7 +267,7 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, pass, fa
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>}
  */
-async function checkVueAvifImports(pass, fail) {
+async function checkVueAvifImports(ignorePaths, pass, fail) {
   const roots = await getMonorepoPackageRootDirs()
   const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
   for (const root of roots) {
@@ -274,7 +279,7 @@ async function checkVueAvifImports(pass, fail) {
       continue
     }
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
-    await checkVueAvifImportsInPackage(root, otherRootsAbs, pass, fail)
+    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, pass, fail)
   }
 }
 
@@ -314,7 +319,8 @@ export async function check() {
     await checkHashCacheNotIgnored(pass, fail)
     await checkLegacyCacheRemoved(pass, fail)
   }
-  await checkVueAvifImports(pass, fail)
+  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  await checkVueAvifImports(ignorePaths, pass, fail)
 
   return reporter.getExitCode()
 }

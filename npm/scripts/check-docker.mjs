@@ -33,6 +33,7 @@ import { basename } from 'node:path'
 import { getMirrorGcrHint, getFromImageToken } from './utils/docker-mirror.mjs'
 import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const NEWLINE_RE = /\r?\n/
@@ -65,14 +66,19 @@ export function isDockerfileName(name) {
 /**
  * Збирає абсолютні шляхи до Dockerfile / Containerfile від кореня cwd.
  * @param {string} root корінь репозиторію
+ * @param {string[]} [ignorePaths=[]] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
-export async function findDockerfilePaths(root) {
+export async function findDockerfilePaths(root, ignorePaths = []) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, p => {
-    if (isDockerfileName(basename(p))) out.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (isDockerfileName(basename(p))) out.push(p)
+    },
+    ignorePaths
+  )
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -285,7 +291,8 @@ export async function check() {
   const { pass } = reporter
 
   const root = process.cwd()
-  const files = await findDockerfilePaths(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const files = await findDockerfilePaths(root, ignorePaths)
 
   if (files.length === 0) {
     pass('Немає Dockerfile / Containerfile — перевірку hadolint пропущено')

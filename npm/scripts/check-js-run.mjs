@@ -36,6 +36,7 @@ import {
   isInsideConnDir,
   resolveConnDirFromPackageJson
 } from './utils/conn-imports-scan.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
@@ -56,15 +57,19 @@ function relPosix(absPackageRoot, absPath) {
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<number>} кількість знайдених порушень
  */
-async function checkBunyanImports(absPackageRoot, label, fail) {
+async function checkBunyanImports(absPackageRoot, ignorePaths, label, fail) {
   /** @type {string[]} */
   const sourcePaths = []
-  await walkDir(absPackageRoot, absPath => {
-    const rel = relPosix(absPackageRoot, absPath)
-    if (!shouldSkipFileForBunyanScan(rel) && isBunyanScanSourceFile(rel)) {
-      sourcePaths.push(absPath)
-    }
-  })
+  await walkDir(
+    absPackageRoot,
+    absPath => {
+      const rel = relPosix(absPackageRoot, absPath)
+      if (!shouldSkipFileForBunyanScan(rel) && isBunyanScanSourceFile(rel)) {
+        sourcePaths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
 
   let violations = 0
   for (const absPath of sourcePaths) {
@@ -83,13 +88,17 @@ async function checkBunyanImports(absPackageRoot, label, fail) {
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
  * @returns {Promise<string[]>} абсолютні шляхи до файлів
  */
-async function collectSourceFiles(absPackageRoot) {
+async function collectSourceFiles(absPackageRoot, ignorePaths) {
   /** @type {string[]} */
   const out = []
-  await walkDir(absPackageRoot, absPath => {
-    const rel = relPosix(absPackageRoot, absPath)
-    if (isCheckEnvScanSourceFile(rel)) out.push(absPath)
-  })
+  await walkDir(
+    absPackageRoot,
+    absPath => {
+      const rel = relPosix(absPackageRoot, absPath)
+      if (isCheckEnvScanSourceFile(rel)) out.push(absPath)
+    },
+    ignorePaths
+  )
   return out
 }
 
@@ -153,17 +162,17 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок цього пакета
  */
-async function checkWorkspacePackage(rootDir, fail, passFn) {
+async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
   const label = `[${rootDir}] `
   const absPackageRoot = join(process.cwd(), rootDir)
   const pkgJson = await loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail)
 
-  const importViolations = await checkBunyanImports(absPackageRoot, label, fail)
+  const importViolations = await checkBunyanImports(absPackageRoot, ignorePaths, label, fail)
   if (importViolations === 0) {
     passFn(`${label}немає імпортів '@nitra/bunyan' / 'bunyan' у джерелах`)
   }
 
-  const sourcePaths = await collectSourceFiles(absPackageRoot)
+  const sourcePaths = await collectSourceFiles(absPackageRoot, ignorePaths)
 
   const connViolations = await checkConnImports(absPackageRoot, sourcePaths, pkgJson, label, fail)
   if (connViolations === 0) {
@@ -245,8 +254,9 @@ export async function check() {
     return reporter.getExitCode()
   }
 
+  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
   for (const r of workspaceRoots) {
-    await checkWorkspacePackage(r, fail, pass)
+    await checkWorkspacePackage(r, ignorePaths, fail, pass)
   }
 
   return reporter.getExitCode()

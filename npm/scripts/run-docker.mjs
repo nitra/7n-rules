@@ -12,6 +12,7 @@ import { basename } from 'node:path'
 import { isRunAsCli } from './cli-entry.mjs'
 import { lintDockerfileWithHadolint, posixRel } from './utils/docker-hadolint.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /**
@@ -30,12 +31,16 @@ export function isLintDockerfileName(name) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
-export async function findLintDockerfilePaths(root) {
+export async function findLintDockerfilePaths(root, ignorePaths = []) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, p => {
-    if (isLintDockerfileName(basename(p))) out.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (isLintDockerfileName(basename(p))) out.push(p)
+    },
+    ignorePaths
+  )
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -48,7 +53,8 @@ async function main() {
   const { pass, fail } = reporter
 
   const root = process.cwd()
-  const files = await findLintDockerfilePaths(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const files = await findLintDockerfilePaths(root, ignorePaths)
 
   if (files.length === 0) {
     pass('lint-docker: немає Dockerfile / *.Dockerfile — hadolint пропущено')

@@ -19,6 +19,7 @@ import { basename, dirname, join, relative } from 'node:path'
 
 import { findDockerfilePaths } from './check-docker.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const LINE_SPLIT_RE = /\r?\n/u
@@ -36,15 +37,19 @@ const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
  * @param {string} root корінь cwd
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до шаблонів
  */
-export async function findDefaultConfTemplatePaths(root) {
+export async function findDefaultConfTemplatePaths(root, ignorePaths = []) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, p => {
-    if (basename(p) !== 'default.conf.template') return
-    const rel = relative(root, p).replaceAll('\\', '/')
-    if (rel.includes('tests/fixtures/')) return
-    out.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (basename(p) !== 'default.conf.template') return
+      const rel = relative(root, p).replaceAll('\\', '/')
+      if (rel.includes('tests/fixtures/')) return
+      out.push(p)
+    },
+    ignorePaths
+  )
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -54,12 +59,16 @@ export async function findDefaultConfTemplatePaths(root) {
  * @param {string} root корінь обходу (зазвичай cwd репозиторію)
  * @returns {Promise<{ renamed: string[], overwritten: string[] }>} відносні шляхи до обробленого **default.tpl.conf** (для звіту)
  */
-export async function migrateDefaultTplConfFiles(root) {
+export async function migrateDefaultTplConfFiles(root, ignorePaths = []) {
   /** @type {string[]} */
   const oldPaths = []
-  await walkDir(root, p => {
-    if (basename(p) === 'default.tpl.conf') oldPaths.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (basename(p) === 'default.tpl.conf') oldPaths.push(p)
+    },
+    ignorePaths
+  )
   oldPaths.sort((a, b) => a.localeCompare(b))
 
   /** @type {string[]} */
@@ -316,8 +325,8 @@ async function checkTemplateFile(abs, root, passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
-async function checkDockerfiles(root, passFn, failFn) {
-  const dockerPaths = await findDockerfilePaths(root)
+async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
+  const dockerPaths = await findDockerfilePaths(root, ignorePaths)
   if (dockerPaths.length === 0) {
     failFn(
       'Є default.conf.template, але немає Dockerfile / Containerfile — додай gzip для статики та envsubst (див. nginx-default-tpl.mdc)'
@@ -380,8 +389,9 @@ export async function check() {
   const { pass, fail } = reporter
 
   const root = process.cwd()
+  const ignorePaths = await loadCursorIgnorePaths(root)
 
-  const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root)
+  const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root, ignorePaths)
   for (const rel of tplRenamed) {
     pass(`Перейменовано default.tpl.conf → default.conf.template: ${rel}`)
   }
@@ -389,7 +399,7 @@ export async function check() {
     pass(`Перезаписано default.conf.template змістом default.tpl.conf: ${rel}`)
   }
 
-  const templates = await findDefaultConfTemplatePaths(root)
+  const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
 
   if (templates.length === 0) {
     pass('Немає default.conf.template — перевірку nginx-default-tpl пропущено')
@@ -402,7 +412,7 @@ export async function check() {
     await checkTemplateFile(abs, root, pass, fail)
   }
 
-  await checkDockerfiles(root, pass, fail)
+  await checkDockerfiles(root, ignorePaths, pass, fail)
   await checkVscodeNginx(pass, fail)
 
   return reporter.getExitCode()

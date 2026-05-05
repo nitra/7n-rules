@@ -35,6 +35,7 @@ import {
   isBunSqlScanSourceFile,
   textHasBunSqlImport
 } from './utils/bun-sql-scan.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Імена забороненої залежності у будь-якому `package.json`. */
@@ -54,14 +55,18 @@ function asObject(v) {
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
  */
-async function findAllPackageJsonPaths(repoRoot) {
+async function findAllPackageJsonPaths(repoRoot, ignorePaths) {
   /** @type {string[]} */
   const paths = []
-  await walkDir(repoRoot, absPath => {
-    if (absPath.endsWith(`${sep}package.json`)) {
-      paths.push(absPath)
-    }
-  })
+  await walkDir(
+    repoRoot,
+    absPath => {
+      if (absPath.endsWith(`${sep}package.json`)) {
+        paths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
   paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
   return paths
 }
@@ -71,15 +76,19 @@ async function findAllPackageJsonPaths(repoRoot) {
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
  */
-async function findAllSourcePathsForBunSqlScan(repoRoot) {
+async function findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths) {
   /** @type {string[]} */
   const paths = []
-  await walkDir(repoRoot, absPath => {
-    const rel = relative(repoRoot, absPath).split('\\').join('/')
-    if (isBunSqlScanSourceFile(rel)) {
-      paths.push(absPath)
-    }
-  })
+  await walkDir(
+    repoRoot,
+    absPath => {
+      const rel = relative(repoRoot, absPath).split('\\').join('/')
+      if (isBunSqlScanSourceFile(rel)) {
+        paths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
   paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
   return paths
 }
@@ -236,7 +245,8 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot)
+  const ignorePaths = await loadCursorIgnorePaths(repoRoot)
+  const pkgJsonPaths = await findAllPackageJsonPaths(repoRoot, ignorePaths)
   if (pkgJsonPaths.length === 0) {
     pass('js-bun-db: package.json не знайдено — перевірку пропущено')
     return reporter.getExitCode()
@@ -244,7 +254,7 @@ export async function check() {
 
   await checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter)
 
-  const sourcePaths = await findAllSourcePathsForBunSqlScan(repoRoot)
+  const sourcePaths = await findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {
     pass('js-bun-db: немає JS/TS файлів для скану патернів Bun SQL')
     return reporter.getExitCode()

@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process'
 import { basename, dirname } from 'node:path'
 
 import { isRunAsCli } from './cli-entry.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
@@ -60,15 +61,19 @@ export function k8sRootFromFile(absFile) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до каталогів `k8s`
  */
-export async function findK8sRoots(root) {
+export async function findK8sRoots(root, ignorePaths = []) {
   /** @type {Set<string>} */
   const roots = new Set()
-  await walkDir(root, p => {
-    if (!pathHasK8sSegment(p)) return
-    if (!YAML_EXT_RE.test(p)) return
-    const k8sRoot = k8sRootFromFile(p)
-    if (k8sRoot) roots.add(k8sRoot)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (!pathHasK8sSegment(p)) return
+      if (!YAML_EXT_RE.test(p)) return
+      const k8sRoot = k8sRootFromFile(p)
+      if (k8sRoot) roots.add(k8sRoot)
+    },
+    ignorePaths
+  )
   return [...roots].toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -134,7 +139,8 @@ function runKubescape(dirs) {
  */
 async function main() {
   const root = process.cwd()
-  const dirs = await findK8sRoots(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const dirs = await findK8sRoots(root, ignorePaths)
 
   if (dirs.length === 0) {
     console.log('run-k8s: немає *.yaml під k8s — kubeconform і kubescape пропущено')

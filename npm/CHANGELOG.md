@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.173] - 2026-05-04
+
+### Added
+
+- `.n-cursor.json` поле `ignore` (`schemas/n-cursor.json`): тепер не лише сигнал для AI, а й керує обходом усіх `check-*.mjs` / `run-*.mjs` — перелічені каталоги повністю виключаються з `walkDir`, як `node_modules` чи `.git`. Дозволяє безпечно тримати vendored Helm-чарти, генеровані маніфести, legacy-дерева у репо без false-positive’ів від check-скриптів. Розширено опис у схемі (стандартні виключення додавати не треба) і README отримав секцію «Виключення цілих дерев».
+- `scripts/utils/load-cursor-config.mjs`: нова утиліта `loadCursorIgnorePaths(root)` — читає поле `ignore` з `.n-cursor.json` і нормалізує до абсолютних posix-шляхів без trailing-slash; пропускає не-рядки та порожні елементи; повертає `[]`, якщо файлу/поля нема або JSON невалідний.
+- `scripts/utils/walkDir.mjs`: третій аргумент `ignorePaths` (за замовчуванням `[]`) — каталоги, які пропускаються разом з усім вмістом. Збіг — за повним шляхом (точний або з префіксом `/`), а не за basename, тож `postgres-master-test/` не пропускається коли в ignore лише `postgres-master/`. Стандартні пропуски (`node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`) працюють як раніше.
+
+### Changed
+
+- Усі скрипти, що обходять FS через `walkDir`, тепер на початку `check()` зчитують `loadCursorIgnorePaths(root)` і передають третім аргументом: `check-abie`, `check-docker`, `check-graphql`, `check-hasura`, `check-image`, `check-js-bun-db`, `check-js-mssql`, `check-js-run`, `check-k8s`, `check-nginx-default-tpl`, `check-npm-module`, `check-vue`, плюс `run-docker`, `run-k8s` і `rename-yaml-extensions`. Wrapper-функції (`findDockerfilePaths`, `findK8sYamlFiles`, `findLintDockerfilePaths`, `findK8sRoots`, `findDefaultConfTemplatePaths`, `migrateDefaultTplConfFiles`) отримали опційний параметр `ignorePaths` для прозорого пробросу.
+
 ## [1.8.172] - 2026-05-04
 
 ### Changed

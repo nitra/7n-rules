@@ -30,6 +30,7 @@ import { parseAllDocuments } from 'yaml'
 
 import { getRepositoryUrl } from './auto-rules.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const NITRA_REPOSITORY_URL_MARKER = 'https://github.com/nitra/'
@@ -103,15 +104,19 @@ export function isEnvFile(relPath) {
  * @param {string} root абсолютний шлях кореня
  * @returns {Promise<string[]>} відсортовані posix-шляхи відносно кореня
  */
-async function collectEnvFiles(root) {
+async function collectEnvFiles(root, ignorePaths) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, absPath => {
-    const rel = relative(root, absPath).split('\\').join('/')
-    if (isEnvFile(rel)) {
-      out.push(rel)
-    }
-  })
+  await walkDir(
+    root,
+    absPath => {
+      const rel = relative(root, absPath).split('\\').join('/')
+      if (isEnvFile(rel)) {
+        out.push(rel)
+      }
+    },
+    ignorePaths
+  )
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -206,7 +211,8 @@ export async function check() {
     namespace: await readYamlMetadataName(join(root, HASURA_NAMESPACE_FILE), 'Namespace')
   }
 
-  const envFiles = await collectEnvFiles(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const envFiles = await collectEnvFiles(root, ignorePaths)
   if (envFiles.length === 0) {
     pass('Не знайдено жодного *.env файла — нічого перевіряти')
     return reporter.getExitCode()

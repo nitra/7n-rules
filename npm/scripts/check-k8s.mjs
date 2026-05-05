@@ -109,6 +109,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
@@ -1581,16 +1582,21 @@ export function baseKustomizationNamespaceViolation(obj) {
 /**
  * Збирає всі `*.yaml` та `*.yml` під деревом від кореня cwd, якщо шлях містить сегмент `k8s` (для `.yml` далі — помилка перейменування).
  * @param {string} root корінь репозиторію (cwd)
+ * @param {string[]} [ignorePaths=[]] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
  */
-async function findK8sYamlFiles(root) {
+async function findK8sYamlFiles(root, ignorePaths = []) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, p => {
-    if (!pathHasK8sSegment(p)) return
-    if (!YAML_EXTENSION_RE.test(p)) return
-    out.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (!pathHasK8sSegment(p)) return
+      if (!YAML_EXTENSION_RE.test(p)) return
+      out.push(p)
+    },
+    ignorePaths
+  )
 
   return out.toSorted((a, b) => a.localeCompare(b))
 }
@@ -1659,12 +1665,13 @@ export function classifyBackendConfigManifestPresence(body) {
 /**
  * Видаляє під **`k8s`** YAML-файли, що містять **лише** ресурси **BackendConfig**; змішані файли — `fail`.
  * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail реєстрація порушення
  * @param {(msg: string) => void} pass реєстрація успіху
  * @returns {Promise<void>}
  */
-async function removeBackendConfigOnlyK8sYamlFiles(root, fail, pass) {
-  const yamlFiles = await findK8sYamlFiles(root)
+async function removeBackendConfigOnlyK8sYamlFiles(root, ignorePaths, fail, pass) {
+  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
   for (const abs of yamlFiles) {
     const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
     try {
@@ -1736,12 +1743,13 @@ export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
 /**
  * Проходить усі `*.yaml` / `*.yml` під сегментом `k8s` і на диску застосовує **`replaceBatchV1beta1ApiVersionInYamlText`**.
  * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail колбек повідомлення про помилку
  * @param {(msg: string) => void} pass колбек успішного повідомлення
  * @returns {Promise<void>}
  */
-async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, fail, pass) {
-  const yamlFiles = await findK8sYamlFiles(root)
+async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass) {
+  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
   for (const abs of yamlFiles) {
     const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
     try {
@@ -5762,12 +5770,13 @@ export async function check() {
   const { pass, fail } = reporter
 
   const root = process.cwd()
+  const ignorePaths = await loadCursorIgnorePaths(root)
 
-  await rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, fail, pass)
+  await rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass)
 
-  await removeBackendConfigOnlyK8sYamlFiles(root, fail, pass)
+  await removeBackendConfigOnlyK8sYamlFiles(root, ignorePaths, fail, pass)
 
-  const yamlFiles = await findK8sYamlFiles(root)
+  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
 
   if (yamlFiles.length === 0) {
     pass('Немає *.yaml під k8s — перевірку $schema пропущено')

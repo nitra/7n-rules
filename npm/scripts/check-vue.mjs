@@ -20,6 +20,7 @@ import {
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
 } from './utils/vue-forbidden-imports.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
@@ -113,14 +114,18 @@ async function collectEsbuildMatchesInFiles(absPackageRoot, files, maxMatches) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-async function checkEsbuildMentions(rootDir, absPackageRoot, prefix, passFn, fail) {
+async function checkEsbuildMentions(rootDir, absPackageRoot, ignorePaths, prefix, passFn, fail) {
   /** @type {{ rel: string }[]} */
   const candidates = []
-  await walkDir(absPackageRoot, absPath => {
-    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
-    if (!isEsbuildScanFile(rel)) return
-    candidates.push({ rel })
-  })
+  await walkDir(
+    absPackageRoot,
+    absPath => {
+      const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+      if (!isEsbuildScanFile(rel)) return
+      candidates.push({ rel })
+    },
+    ignorePaths
+  )
 
   const maxMatches = 30
   const matches = await collectEsbuildMatchesInFiles(absPackageRoot, candidates, maxMatches)
@@ -308,7 +313,7 @@ async function checkViteConfig(rootDir, prefix, passFn, fail) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-async function checkVueImportViolations(rootDir, absPackageRoot, hasVueAutoImport, prefix, passFn, fail) {
+async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, hasVueAutoImport, prefix, passFn, fail) {
   if (!hasVueAutoImport) {
     passFn(
       `${prefix}value-імпорти з 'vue' не заборонені — спершу додай 'vue' до AutoImport.imports у vite.config`
@@ -317,12 +322,16 @@ async function checkVueImportViolations(rootDir, absPackageRoot, hasVueAutoImpor
   }
   /** @type {string[]} */
   const sourcePaths = []
-  await walkDir(absPackageRoot, absPath => {
-    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
-    if (!shouldSkipFileForVueImportScan(rel) && isVueImportScanSourceFile(rel)) {
-      sourcePaths.push(absPath)
-    }
-  })
+  await walkDir(
+    absPackageRoot,
+    absPath => {
+      const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+      if (!shouldSkipFileForVueImportScan(rel) && isVueImportScanSourceFile(rel)) {
+        sourcePaths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
 
   let importViolations = 0
   for (const absPath of sourcePaths) {
@@ -347,7 +356,7 @@ async function checkVueImportViolations(rootDir, absPackageRoot, hasVueAutoImpor
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
  */
-async function checkVuePackage(rootDir, fail, passFn) {
+async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
   const prefix = `[${packageLabel(rootDir)}] `
   const pkg = JSON.parse(await readFile(join(rootDir, 'package.json'), 'utf8'))
   const deps = pkg.dependencies || {}
@@ -387,8 +396,8 @@ async function checkVuePackage(rootDir, fail, passFn) {
   )
 
   const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
-  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), hasVueAutoImport, prefix, passFn, fail)
-  await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), prefix, passFn, fail)
+  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, hasVueAutoImport, prefix, passFn, fail)
+  await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
 }
 
 /**
@@ -446,8 +455,9 @@ export async function check() {
 
   await checkVueVolarRecommendation(pass, fail)
 
+  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
   for (const r of vueRoots) {
-    await checkVuePackage(r, fail, pass)
+    await checkVuePackage(r, ignorePaths, fail, pass)
   }
 
   return reporter.getExitCode()

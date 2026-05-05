@@ -14,6 +14,7 @@ import { rename } from 'node:fs/promises'
 import { cwd } from 'node:process'
 import { relative, resolve } from 'node:path'
 
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const K8S_YML_RE = /\.yml$/iu
@@ -69,37 +70,41 @@ export function replaceExtension(relPosix, newExt) {
  * @param {string} rootAbs абсолютний корінь репозиторію
  * @returns {Promise<Array<{ kind: 'k8s' | 'github', fromAbs: string, toAbs: string, relFrom: string, relTo: string }>>} відсортовані операції перейменування без запису на диск
  */
-async function collectRenameOps(rootAbs) {
+async function collectRenameOps(rootAbs, ignorePaths) {
   /** @type {Array<{ kind: 'k8s' | 'github', fromAbs: string, toAbs: string, relFrom: string, relTo: string }>} */
   const ops = []
 
-  await walkDir(rootAbs, fileAbs => {
-    const rel = posixRelFromRoot(rootAbs, fileAbs)
-    if (rel === null) return
-    if (pathMatchesK8sYml(rel)) {
-      const relTo = replaceExtension(rel, '.yaml')
-      if (relTo === rel) return
-      ops.push({
-        kind: 'k8s',
-        fromAbs: resolve(rootAbs, rel),
-        toAbs: resolve(rootAbs, relTo),
-        relFrom: rel,
-        relTo
-      })
-      return
-    }
-    if (pathMatchesGithubYaml(rel)) {
-      const relTo = replaceExtension(rel, '.yml')
-      if (relTo === rel) return
-      ops.push({
-        kind: 'github',
-        fromAbs: resolve(rootAbs, rel),
-        toAbs: resolve(rootAbs, relTo),
-        relFrom: rel,
-        relTo
-      })
-    }
-  })
+  await walkDir(
+    rootAbs,
+    fileAbs => {
+      const rel = posixRelFromRoot(rootAbs, fileAbs)
+      if (rel === null) return
+      if (pathMatchesK8sYml(rel)) {
+        const relTo = replaceExtension(rel, '.yaml')
+        if (relTo === rel) return
+        ops.push({
+          kind: 'k8s',
+          fromAbs: resolve(rootAbs, rel),
+          toAbs: resolve(rootAbs, relTo),
+          relFrom: rel,
+          relTo
+        })
+        return
+      }
+      if (pathMatchesGithubYaml(rel)) {
+        const relTo = replaceExtension(rel, '.yml')
+        if (relTo === rel) return
+        ops.push({
+          kind: 'github',
+          fromAbs: resolve(rootAbs, rel),
+          toAbs: resolve(rootAbs, relTo),
+          relFrom: rel,
+          relTo
+        })
+      }
+    },
+    ignorePaths
+  )
 
   ops.sort((a, b) => {
     const ko = (a.kind === 'k8s' ? 0 : 1) - (b.kind === 'k8s' ? 0 : 1)
@@ -119,7 +124,8 @@ async function collectRenameOps(rootAbs) {
 export async function renameYamlExtensions(root, options = {}) {
   const dryRun = options.dryRun === true
   const rootAbs = resolve(root)
-  const ops = await collectRenameOps(rootAbs)
+  const ignorePaths = await loadCursorIgnorePaths(rootAbs)
+  const ops = await collectRenameOps(rootAbs, ignorePaths)
 
   /** @type { { relFrom: string, relTo: string }[]} */
   const renamed = []

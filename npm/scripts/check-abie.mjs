@@ -47,6 +47,7 @@ import { parseAllDocuments } from 'yaml'
 import { pathHasK8sSegment, ruKustomizationHasHealthCheckDeletePatch } from './check-k8s.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { flattenWorkflowSteps, getStepUses, parseWorkflowYaml } from './utils/gha-workflow.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const CONFIG_FILE = '.n-cursor.json'
@@ -385,18 +386,22 @@ export function ignoreBranchesIncludesRequired(ignoreBranches, required) {
  * @param {string} root корінь репозиторію
  * @returns {Promise<string[]>} відсортовані шляхи
  */
-async function findK8sYamlFiles(root) {
+async function findK8sYamlFiles(root, ignorePaths = []) {
   /** @type {string[]} */
   const out = []
-  await walkDir(root, p => {
-    if (!pathHasK8sSegment(p)) {
-      return
-    }
-    if (!YAML_EXTENSION_RE.test(p)) {
-      return
-    }
-    out.push(p)
-  })
+  await walkDir(
+    root,
+    p => {
+      if (!pathHasK8sSegment(p)) {
+        return
+      }
+      if (!YAML_EXTENSION_RE.test(p)) {
+        return
+      }
+      out.push(p)
+    },
+    ignorePaths
+  )
   return [...out].toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -2088,7 +2093,8 @@ export async function check() {
   await ensureNoFirebaseHostingArtifacts(root, pass, fail)
   await checkCleanMergedBranch(root, pass, fail)
 
-  const yamlFiles = await findK8sYamlFiles(root)
+  const ignorePaths = await loadCursorIgnorePaths(root)
+  const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
   const deploymentDirs = await collectDeploymentDirs(root, yamlFiles, fail)
 
   if (deploymentDirs.size > 0) {

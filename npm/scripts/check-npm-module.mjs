@@ -26,6 +26,7 @@ import {
   pushHasMainBranch,
   pushPathsIncludeNpmGlob
 } from './utils/gha-workflow.mjs'
+import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
@@ -43,17 +44,21 @@ const CHANGELOG_PATH = 'npm/CHANGELOG.md'
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
  * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
  */
-async function npmSrcTreeHasJsFile() {
+async function npmSrcTreeHasJsFile(ignorePaths = []) {
   const root = 'npm/src'
   if (!existsSync(root)) {
     return false
   }
   let found = false
-  await walkDir(root, p => {
-    if (p.endsWith('.js')) {
-      found = true
-    }
-  })
+  await walkDir(
+    root,
+    p => {
+      if (p.endsWith('.js')) {
+        found = true
+      }
+    },
+    ignorePaths
+  )
   return found
 }
 
@@ -387,7 +392,8 @@ export async function check() {
 
   await checkNpmModuleBasicStructure(pass, fail)
 
-  const useSrcJsLayout = await npmSrcTreeHasJsFile()
+  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  const useSrcJsLayout = await npmSrcTreeHasJsFile(ignorePaths)
 
   await checkNpmPackageJson(useSrcJsLayout, pass, fail)
 
