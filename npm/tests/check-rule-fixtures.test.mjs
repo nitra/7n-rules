@@ -92,6 +92,32 @@ describe('check-vue (мінімальний проєкт)', () => {
       expect(sourceContent.includes("from 'vue'")).toBe(true)
     })
   })
+
+  test('помилка: імпорт Node-нативного модуля у .vue SFC', async () => {
+    await withTmpCwd(async () => {
+      await setupMinimalVueAppWorkspace()
+      await ensureDir(join('app', 'src'))
+      await writeFile(
+        join('app', 'src', 'NBad.vue'),
+        `<template><div /></template>\n<script setup lang="ts">\nimport { setTimeout as sleep } from 'node:timers/promises'\nawait sleep(1)\n</script>\n`,
+        'utf8'
+      )
+      expect(await checkVue()).toBe(1)
+    })
+  })
+
+  test('помилка: bare-built-in (fs) у .vue SFC', async () => {
+    await withTmpCwd(async () => {
+      await setupMinimalVueAppWorkspace()
+      await ensureDir(join('app', 'src'))
+      await writeFile(
+        join('app', 'src', 'NBad.vue'),
+        `<template><div /></template>\n<script setup>\nimport fs from 'fs'\nfs.readFileSync\n</script>\n`,
+        'utf8'
+      )
+      expect(await checkVue()).toBe(1)
+    })
+  })
 })
 
 describe('check-style-lint (мінімальний проєкт)', () => {

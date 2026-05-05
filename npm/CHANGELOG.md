@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.178] - 2026-05-05
+
+### Added
+
+- `vue` (mdc v1.4 → v1.5): у `.vue` SFC заборонено імпортувати Node-нативні модулі — як з префіксом `node:` (`node:timers/promises`, `node:fs` тощо), так і bare-ім’я вбудованого модуля Node (`fs`, `path`, `crypto`, `fs/promises` …). Vue SFC виконується у браузері, де Node API недоступне; такі імпорти ламають білд / рантайм. Логіку з Node API треба виносити у server-side утіліту (backend-пакет монорепо), а у компонентах використовувати браузерні замінники (`window.crypto`, `URL`, глобальний `setTimeout`, `AbortController` тощо). Правило торкається лише `.vue` файлів — `.ts`/`.js`-утіліти, що споживаються server-side, можуть імпортувати Node-built-ins без обмежень.
+- `check-vue.mjs`: нова гілка `checkVueNodeImportViolations` обходить `.vue` файли пакета (виключаючи `node_modules`/`dist`/…) і парсить `<script>` блоки тим самим **oxc-parser**’ом — для кожного `staticImport` перевіряє специфікатор через `isNodeBuiltinSpecifier(spec)` (префікс `node:` або bare-ім’я з `module.builtinModules`, з підтримкою підшляхів типу `fs/promises`). У повідомленні про fail виводиться `rel:line` і фрагмент import.
+- `vue-forbidden-imports.mjs`: експортовано `isNodeBuiltinSpecifier`, `findForbiddenNodeImportsInText`, `findForbiddenNodeImportsInVueFile` (для не-`.vue` повертає `[]`). Тести: 5 нових кейсів у `vue-forbidden-imports.test.mjs` (built-in detection / `node:` префікс / bare-built-in / лише script-блоки SFC / non-`.vue` skip) та 2 нові integration-кейси у `check-rule-fixtures.test.mjs` (fail при `node:timers/promises` і при bare `fs` у SFC).
+
 ## [1.8.177] - 2026-05-05
 
 ### Changed

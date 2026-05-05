@@ -1,5 +1,8 @@
 /**
- * Визначає явні імпорти з модуля `vue`, які суперечать vue.mdc (має працювати unplugin-auto-import).
+ * Визначає явні імпорти з модуля `vue`, які суперечать vue.mdc (має працювати unplugin-auto-import),
+ * а також заборонені імпорти Node-нативних модулів у `.vue` SFC (`node:*` префікс або bare ім’я
+ * вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Vue SFC виконується у браузері,
+ * де Node API недоступне, тож такі імпорти ламають збірку/рантайм.
  *
  * Аналіз import виконується через **oxc-parser** (`parseSync`, поле `module.staticImports`) — ESTree-сумісний
  * розбір без евристик по рядках. Дозволені лише side-effect `import 'vue'`, повністю type-only імпорти
@@ -8,7 +11,11 @@
  * Для `.vue` з шаблону витягуються лише теги `<script>` / `<script setup>` (регулярний вираз); далі той самий Oxc-парсинг
  * вмісту скрипта з віртуальним ім’ям `*.ts` для режиму TypeScript.
  */
+import { builtinModules } from 'node:module'
+
 import { parseSync } from 'oxc-parser'
+
+const NODE_BUILTIN_MODULES = new Set(builtinModules)
 
 const VUE_EXT_RE = /\.vue$/u
 const SOURCE_FILE_RE = /\.(vue|[cm]?[jt]sx?)$/
@@ -178,4 +185,83 @@ export function findForbiddenVueImportsInSourceFile(content, relativePath) {
   const scan = contentForVueImportScan(content, relativePath)
   const virtualPath = virtualPathForParse(relativePath)
   return findForbiddenVueImportsInText(scan, virtualPath)
+}
+
+/**
+ * Чи є рядок-специфікатор імпортом вбудованого Node-модуля.
+ * Покриває обидві форми: `node:fs`, `node:timers/promises` (явний префікс) і bare-ім’я
+ * вбудованого модуля (`fs`, `path`, `crypto` тощо), включно з підшляхами (`fs/promises`).
+ * @param {string} spec значення `moduleRequest.value` (специфікатор імпорту)
+ * @returns {boolean} `true`, якщо це Node-нативний модуль
+ */
+export function isNodeBuiltinSpecifier(spec) {
+  if (typeof spec !== 'string' || spec.length === 0) {
+    return false
+  }
+  if (spec.startsWith('node:')) {
+    return true
+  }
+  if (NODE_BUILTIN_MODULES.has(spec)) {
+    return true
+  }
+  const slashIdx = spec.indexOf('/')
+  if (slashIdx > 0) {
+    const head = spec.slice(0, slashIdx)
+    if (NODE_BUILTIN_MODULES.has(head)) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
+ * Знаходить заборонені імпорти Node-нативних модулів у вмісті (без `<template>`).
+ * Vue SFC виконується у браузері, тож будь-який Node API там недоступний — навіть type-only
+ * імпорти збивають з пантелику (краще тримати такий код у server-side утілітах).
+ * @param {string} content вихідний код (для `.vue` — вже витягнуті `<script>` блоки)
+ * @param {string} [virtualPath] шлях для вибору `lang` (наприклад віртуальний `*.ts` після `.vue`)
+ * @returns {{ line: number, snippet: string, specifier: string }[]} список порушень з номером рядка
+ */
+export function findForbiddenNodeImportsInText(content, virtualPath = 'scan.ts') {
+  const pathForLang = virtualPath || 'scan.ts'
+  const lang = langFromPath(pathForLang)
+  let result
+  try {
+    result = parseSync(pathForLang, content, { lang, sourceType: 'module' })
+  } catch {
+    return []
+  }
+  if (result.errors?.length) {
+    return []
+  }
+  /** @type {{ line: number, snippet: string, specifier: string }[]} */
+  const out = []
+  for (const imp of result.module.staticImports) {
+    const spec = imp.moduleRequest.value
+    if (isNodeBuiltinSpecifier(spec)) {
+      out.push({
+        line: offsetToLine(content, imp.start),
+        snippet: normalizeSnippet(content.slice(imp.start, imp.end)),
+        specifier: spec
+      })
+    }
+  }
+  return out
+}
+
+/**
+ * Знаходить заборонені імпорти Node-нативних модулів у `.vue` SFC.
+ * Сканує лише `<script>` блоки (template ігноруємо). Для не-`.vue` файлів повертає `[]` —
+ * композаблі/утіліти на Node-side можуть бути в `.ts`/`.js`, а правило стосується SFC.
+ * @param {string} content сирий вміст файлу
+ * @param {string} relativePath шлях відносно кореня пакета або репо
+ * @returns {{ line: number, snippet: string, specifier: string }[]} список порушень
+ */
+export function findForbiddenNodeImportsInVueFile(content, relativePath) {
+  if (!relativePath.endsWith('.vue')) {
+    return []
+  }
+  const scan = extractVueScriptBlocks(content)
+  const virtualPath = virtualPathForParse(relativePath)
+  return findForbiddenNodeImportsInText(scan, virtualPath)
 }

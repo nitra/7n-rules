@@ -127,8 +127,8 @@ async function workspaceHasChangesAgainstBase(baseRef, ws, subWorkspaces) {
   const pathspec = pathspecForWorkspace(ws, subWorkspaces)
   try {
     await execFileAsync('git', ['diff', '--quiet', baseRef, '--', ...pathspec])
-  } catch (err) {
-    const code = /** @type {{ code?: number }} */ (err).code
+  } catch (error) {
+    const code = /** @type {{ code?: number }} */ (error).code
     if (code === 1) return true
     return false
   }

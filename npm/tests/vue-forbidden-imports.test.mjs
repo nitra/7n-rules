@@ -6,8 +6,11 @@ import { describe, expect, test } from 'bun:test'
 import {
   contentForVueImportScan,
   extractVueScriptBlocks,
+  findForbiddenNodeImportsInText,
+  findForbiddenNodeImportsInVueFile,
   findForbiddenVueImportsInSourceFile,
   findForbiddenVueImportsInText,
+  isNodeBuiltinSpecifier,
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
 } from '../scripts/utils/vue-forbidden-imports.mjs'
@@ -72,5 +75,61 @@ const x = 1
   test('contentForVueImportScan', () => {
     expect(contentForVueImportScan('noop', 'a.ts')).toBe('noop')
     expect(contentForVueImportScan('<script>x</script>', 'a.vue')).toBe('x')
+  })
+})
+
+describe('vue-forbidden-imports — Node-native у .vue', () => {
+  test('isNodeBuiltinSpecifier', () => {
+    expect(isNodeBuiltinSpecifier('node:fs')).toBe(true)
+    expect(isNodeBuiltinSpecifier('node:timers/promises')).toBe(true)
+    expect(isNodeBuiltinSpecifier('fs')).toBe(true)
+    expect(isNodeBuiltinSpecifier('fs/promises')).toBe(true)
+    expect(isNodeBuiltinSpecifier('path')).toBe(true)
+    expect(isNodeBuiltinSpecifier('vue')).toBe(false)
+    expect(isNodeBuiltinSpecifier('vue-router')).toBe(false)
+    expect(isNodeBuiltinSpecifier('@nitra/consola')).toBe(false)
+    expect(isNodeBuiltinSpecifier('./local')).toBe(false)
+    expect(isNodeBuiltinSpecifier('')).toBe(false)
+  })
+
+  test('findForbiddenNodeImportsInText — node: префікс і bare-built-in', () => {
+    const src = `import { setTimeout as sleep } from 'node:timers/promises'
+import fs from 'fs'
+import { readFile } from 'fs/promises'
+import { useRouter } from 'vue-router'
+`
+    const hits = findForbiddenNodeImportsInText(src, 'x.ts')
+    expect(hits.length).toBe(3)
+    expect(hits[0].specifier).toBe('node:timers/promises')
+    expect(hits[1].specifier).toBe('fs')
+    expect(hits[2].specifier).toBe('fs/promises')
+  })
+
+  test('findForbiddenNodeImportsInVueFile — лише script у SFC', () => {
+    const sfc = `<template><div>fs</div></template>
+<script setup lang="ts">
+import { setTimeout as sleep } from 'node:timers/promises'
+import path from 'node:path'
+const x = 1
+</script>
+`
+    const hits = findForbiddenNodeImportsInVueFile(sfc, 'src/App.vue')
+    expect(hits.length).toBe(2)
+    expect(hits[0].specifier).toBe('node:timers/promises')
+    expect(hits[1].specifier).toBe('node:path')
+  })
+
+  test('findForbiddenNodeImportsInVueFile — non-.vue повертає []', () => {
+    const src = `import fs from 'node:fs'`
+    expect(findForbiddenNodeImportsInVueFile(src, 'foo.ts').length).toBe(0)
+  })
+
+  test('findForbiddenNodeImportsInVueFile — чистий SFC без імпортів', () => {
+    const sfc = `<template><div /></template>
+<script setup>
+const a = 1
+</script>
+`
+    expect(findForbiddenNodeImportsInVueFile(sfc, 'x.vue').length).toBe(0)
   })
 })

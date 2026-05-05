@@ -9,6 +9,10 @@
  *
  * Заборонені явні value-імпорти з `vue` у джерелах пакета — сканування `.vue`/`.ts`/`.js` тощо
  * через **oxc-parser** (`module.staticImports`; див. `utils/vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
+ *
+ * Окремо в `.vue` SFC заборонено імпорти Node-нативних модулів — `node:*` префікс або bare-ім’я
+ * вбудованого модуля Node (`fs`, `path`, `timers/promises` тощо). Vue SFC виконується у браузері,
+ * де Node API недоступне; такий код треба тримати у server-side утілітах.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -16,6 +20,7 @@ import { join, relative } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
+  findForbiddenNodeImportsInVueFile,
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
@@ -301,6 +306,49 @@ async function checkViteConfig(rootDir, prefix, passFn, fail) {
 }
 
 /**
+ * Сканує `.vue` SFC пакета на заборонені імпорти Node-нативних модулів
+ * (`node:*` префікс або bare-ім’я вбудованого модуля Node).
+ * @param {string} rootDir відносний шлях до пакета
+ * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string[]} ignorePaths шляхи, які треба пропускати при обході
+ * @param {string} prefix префікс повідомлень
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ */
+async function checkVueNodeImportViolations(rootDir, absPackageRoot, ignorePaths, prefix, passFn, fail) {
+  /** @type {string[]} */
+  const vuePaths = []
+  await walkDir(
+    absPackageRoot,
+    absPath => {
+      const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+      if (!shouldSkipFileForVueImportScan(rel) && rel.endsWith('.vue')) {
+        vuePaths.push(absPath)
+      }
+    },
+    ignorePaths
+  )
+
+  let nodeImportViolations = 0
+  for (const absPath of vuePaths) {
+    const rel = relative(absPackageRoot, absPath).split('\\').join('/')
+    const content = await readFile(absPath, 'utf8')
+    for (const v of findForbiddenNodeImportsInVueFile(content, rel)) {
+      nodeImportViolations++
+      fail(
+        `${prefix}${rel}:${v.line} — імпорт Node-нативного модуля '${v.specifier}' у .vue заборонено ` +
+          `(SFC виконується в браузері, Node API недоступне). Винеси логіку у server-side утіліту. Фрагмент: ${v.snippet}`
+      )
+    }
+  }
+  if (nodeImportViolations === 0) {
+    passFn(
+      `${prefix}немає імпортів Node-нативних модулів у .vue (проскановано ${ukFilesCountPhrase(vuePaths.length)})`
+    )
+  }
+}
+
+/**
  * Сканує джерела пакета на заборонені value-імпорти з vue.
  *
  * Якщо `unplugin-auto-import` не сконфігурований на `'vue'` у `vite.config`, явні value-імпорти
@@ -397,6 +445,7 @@ async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
 
   const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
   await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, hasVueAutoImport, prefix, passFn, fail)
+  await checkVueNodeImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
   await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
 }
 
