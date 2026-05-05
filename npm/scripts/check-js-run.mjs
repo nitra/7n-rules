@@ -53,6 +53,7 @@ function relPosix(absPackageRoot, absPath) {
 /**
  * Сканує джерела пакета на заборонені імпорти `@nitra/bunyan` / `bunyan`.
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {string} label префікс повідомлення `[<pkg>] `
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<number>} кількість знайдених порушень
@@ -86,6 +87,7 @@ async function checkBunyanImports(absPackageRoot, ignorePaths, label, fail) {
 /**
  * Збирає всі JS/TS-файли пакета (без node_modules, dist тощо).
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} абсолютні шляхи до файлів
  */
 async function collectSourceFiles(absPackageRoot, ignorePaths) {
@@ -158,6 +160,7 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
 /**
  * Перевіряє відповідність правилам js-run.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок цього пакета
@@ -166,6 +169,15 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
   const label = `[${rootDir}] `
   const absPackageRoot = join(process.cwd(), rootDir)
   const pkgJson = await loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail)
+
+  // Frontend-пакети (vite у devDependencies) виходять за межі js-run:
+  // браузерний бандл не має `node:process`, а `process.env.*` бандлер
+  // обробляє самостійно. Перевірку process.env / conn-аліасів пропускаємо,
+  // bunyan-залежність уже звірено в `loadPackageJsonAndCheckBunyanDeps`.
+  if (packageJsonHasViteDevDependency(pkgJson)) {
+    passFn(`${label}vite-пакет (frontend) — js-run пропущено (process.env / conn-aliases / OTEL configmap)`)
+    return
+  }
 
   const importViolations = await checkBunyanImports(absPackageRoot, ignorePaths, label, fail)
   if (importViolations === 0) {
@@ -188,6 +200,20 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
   }
 
   await checkOtelConfigmap(rootDir, label, fail, passFn)
+}
+
+/**
+ * Чи має пакет `vite` у `devDependencies` (маркер frontend-пакета — vite/quasar/capacitor SPA).
+ * Семантично ідентично `packageJsonLacksViteDevDependency` з `auto-rules.mjs`, але
+ * приймає вже розпарсений pkgJson.
+ * @param {unknown} pkgJson розпарсений `package.json` пакета (або null)
+ * @returns {boolean} true, якщо `vite` присутній у `devDependencies`
+ */
+function packageJsonHasViteDevDependency(pkgJson) {
+  if (!pkgJson || typeof pkgJson !== 'object' || Array.isArray(pkgJson)) return false
+  const devDeps = /** @type {Record<string, unknown>} */ (pkgJson).devDependencies
+  if (!devDeps || typeof devDeps !== 'object' || Array.isArray(devDeps)) return false
+  return Object.hasOwn(devDeps, 'vite')
 }
 
 /**

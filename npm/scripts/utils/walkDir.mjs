@@ -25,7 +25,7 @@ function toAbsPosix(p) {
  * Часткові збіги басенейму не враховуються (postgres-master-test ≠ postgres-master).
  * @param {string} dirAbsPosix абсолютний posix-шлях каталогу
  * @param {string[]} ignorePosix вже нормалізовані ignore-шляхи
- * @returns {boolean}
+ * @returns {boolean} `true`, якщо шлях слід пропустити (точний збіг або префікс з `/`)
  */
 function isIgnoredDir(dirAbsPosix, ignorePosix) {
   for (const ig of ignorePosix) {
@@ -39,8 +39,8 @@ function isIgnoredDir(dirAbsPosix, ignorePosix) {
  * Рекурсивно обходить каталог, пропускає типові артефакти збірки/залежностей та `ignorePaths`.
  * @param {string} dir абсолютний шлях
  * @param {(filePath: string) => void} onFile виклик для кожного файлу
- * @param {string[]} [ignorePaths=[]] шляхи каталогів (відносні від cwd або абсолютні), що повністю виключаються з обходу
- * @returns {Promise<void>}
+ * @param {string[]} [ignorePaths] шляхи каталогів (відносні від cwd або абсолютні), що повністю виключаються з обходу
+ * @returns {Promise<void>} резолвиться по завершенню обходу
  */
 export async function walkDir(dir, onFile, ignorePaths = []) {
   const ignorePosix = ignorePaths.map(toAbsPosix)
@@ -49,10 +49,10 @@ export async function walkDir(dir, onFile, ignorePaths = []) {
 
 /**
  * Внутрішній рекурсор. ignorePosix вже нормалізовано — не нормалізуємо повторно на кожному рівні.
- * @param {string} dir
- * @param {(filePath: string) => void} onFile
- * @param {string[]} ignorePosix
- * @returns {Promise<void>}
+ * @param {string} dir абсолютний шлях каталогу для обходу
+ * @param {(filePath: string) => void} onFile колбек, що викликається для кожного звичайного файлу
+ * @param {string[]} ignorePosix вже нормалізовані абсолютні posix-шляхи ігнорованих каталогів
+ * @returns {Promise<void>} резолвиться по завершенню рекурсії
  */
 async function walkDirInner(dir, onFile, ignorePosix) {
   if (ignorePosix.length > 0 && isIgnoredDir(toAbsPosix(dir), ignorePosix)) return

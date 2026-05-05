@@ -35,6 +35,7 @@ const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
 /**
  * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; шлях `tests/fixtures` не обходиться як проєктний шаблон.
  * @param {string} root корінь cwd
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до шаблонів
  */
 export async function findDefaultConfTemplatePaths(root, ignorePaths = []) {
@@ -57,6 +58,7 @@ export async function findDefaultConfTemplatePaths(root, ignorePaths = []) {
  * Знаходить у дереві від `root` усі **default.tpl.conf**. Якщо поруч немає **default.conf.template** —
  * перейменовує файл; якщо є — перезаписує **default.conf.template** вмістом **default.tpl.conf** і видаляє **default.tpl.conf**.
  * @param {string} root корінь обходу (зазвичай cwd репозиторію)
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<{ renamed: string[], overwritten: string[] }>} відносні шляхи до обробленого **default.tpl.conf** (для звіту)
  */
 export async function migrateDefaultTplConfFiles(root, ignorePaths = []) {
@@ -322,6 +324,7 @@ async function checkTemplateFile(abs, root, passFn, failFn) {
 /**
  * Перевіряє Dockerfile на наявність gzip та envsubst.
  * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */

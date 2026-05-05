@@ -32,6 +32,7 @@ export const REQUIRED_DUMP_SCHEMA_SCRIPT =
 /**
  * Збирає абсолютні шляхи source-файлів, які підлягають скануванню на gql templates.
  * @param {string} root абсолютний шлях кореня
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} список кандидатів
  */
 async function collectScanCandidates(root, ignorePaths) {

@@ -28,27 +28,27 @@ const TEMPLATE_DIR_NAME = '.claude-template'
 
 /**
  * @typedef {object} HookEntry
- * @property {string} type
- * @property {string} command
- * @property {number} [timeout]
+ * @property {string} type тип hook'а у форматі Claude Code (зазвичай `'command'`)
+ * @property {string} command команда, яку виконує Claude Code (наш маркер живе саме тут)
+ * @property {number} [timeout] опційний таймаут у секундах
  */
 
 /**
  * @typedef {object} HookGroup
- * @property {string} [matcher]
- * @property {HookEntry[]} hooks
+ * @property {string} [matcher] патерн (наприклад, `'.*'`) для звуження hook'а
+ * @property {HookEntry[]} hooks впорядкований список команд hook-групи
  */
 
 /**
  * @typedef {object} ClaudeSettings
- * @property {{ allow?: string[] }} [permissions]
- * @property {Record<string, HookGroup[]>} [hooks]
+ * @property {{ allow?: string[] }} [permissions] секція `permissions` із .claude/settings.json
+ * @property {Record<string, HookGroup[]>} [hooks] hooks за подіями (`Stop`, `PreToolUse`, ...)
  */
 
 /**
  * Чи hook-група містить лише наші managed-команди (за маркером).
- * @param {HookGroup} group
- * @returns {boolean}
+ * @param {HookGroup} group hook-група з .claude/settings.json
+ * @returns {boolean} `true`, якщо всі hooks мають маркер `MANAGED_HOOK_COMMAND_MARKER`
  */
 function isManagedHookGroup(group) {
   if (!group?.hooks?.length) {
@@ -60,9 +60,9 @@ function isManagedHookGroup(group) {
 /**
  * Зливає список allow-permissions: union існуючого і темплейтного без дублікатів,
  * порядок — спочатку існуючі (щоб не міняти користувацький порядок), потім нові.
- * @param {string[] | undefined} existing
- * @param {string[] | undefined} fromTemplate
- * @returns {string[]}
+ * @param {string[] | undefined} existing існуючий список з `.claude/settings.json` користувача
+ * @param {string[] | undefined} fromTemplate список з темплейту пакета `@nitra/cursor`
+ * @returns {string[]} об'єднаний список без дублікатів (порядок: існуючі, потім нові)
  */
 export function mergeAllowList(existing, fromTemplate) {
   const out = []
@@ -83,9 +83,9 @@ export function mergeAllowList(existing, fromTemplate) {
  * Зливає hooks-секцію: для кожної події в темплейті видаляємо managed-групи
  * з існуючої конфігурації і додаємо актуальні з темплейту. Немені події в
  * темплейті не чіпаються.
- * @param {Record<string, HookGroup[]> | undefined} existing
- * @param {Record<string, HookGroup[]> | undefined} fromTemplate
- * @returns {Record<string, HookGroup[]>}
+ * @param {Record<string, HookGroup[]> | undefined} existing поточна `hooks`-секція з .claude/settings.json
+ * @param {Record<string, HookGroup[]> | undefined} fromTemplate цільова `hooks`-секція з темплейту
+ * @returns {Record<string, HookGroup[]>} результат злиття (порожні події видаляються)
  */
 export function mergeHooks(existing, fromTemplate) {
   /** @type {Record<string, HookGroup[]>} */
@@ -105,9 +105,9 @@ export function mergeHooks(existing, fromTemplate) {
 
 /**
  * Повертає об'єднаний об'єкт settings.json.
- * @param {ClaudeSettings | undefined} existing
- * @param {ClaudeSettings} template
- * @returns {ClaudeSettings}
+ * @param {ClaudeSettings | undefined} existing існуючий вміст `.claude/settings.json` користувача (або undefined, якщо файла нема)
+ * @param {ClaudeSettings} template settings із темплейту пакета `@nitra/cursor`
+ * @returns {ClaudeSettings} результат merge-у (користувацькі поля збережено, наші перевизначено)
  */
 export function mergeSettings(existing, template) {
   /** @type {ClaudeSettings} */
@@ -127,8 +127,8 @@ export function mergeSettings(existing, template) {
 
 /**
  * Читає JSON-файл; якщо файл відсутній або не валідний — повертає `undefined`.
- * @param {string} path
- * @returns {Promise<ClaudeSettings | undefined>}
+ * @param {string} path абсолютний шлях до JSON-файлу
+ * @returns {Promise<ClaudeSettings | undefined>} розпарсений об'єкт або `undefined` (файл відсутній / невалідний)
  */
 async function readJsonOrUndefined(path) {
   if (!existsSync(path)) {
@@ -146,7 +146,7 @@ async function readJsonOrUndefined(path) {
  * користувацьких полів.
  * @param {string} projectRoot корінь проєкту, куди писати
  * @param {string} templateDir каталог `.claude-template/` усередині пакету
- * @returns {Promise<{ written: boolean, path: string }>}
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
 export async function syncClaudeSettings(projectRoot, templateDir) {
   const templatePath = join(templateDir, 'settings.template.json')
@@ -164,9 +164,9 @@ export async function syncClaudeSettings(projectRoot, templateDir) {
 
 /**
  * Копіює `npm/CLAUDE.md` з темплейту, якщо в проєкті є каталог `npm/`.
- * @param {string} projectRoot
- * @param {string} templateDir
- * @returns {Promise<{ written: boolean, path: string }>}
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету `@nitra/cursor`
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
 export async function syncNpmClaudeMd(projectRoot, templateDir) {
   if (!existsSync(join(projectRoot, 'npm'))) {
@@ -185,8 +185,8 @@ export async function syncNpmClaudeMd(projectRoot, templateDir) {
  * Копіює всі slash-команди з `templateDir/commands/` у `.claude/commands/`.
  * Команди ідентифікуються тим, що вони лежать у темплейті — не перетинаються
  * з командами скілів (n-fix, n-lint, ...).
- * @param {string} projectRoot
- * @param {string} templateDir
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету `@nitra/cursor`
  * @returns {Promise<string[]>} масив відносних шляхів записаних файлів
  */
 export async function syncClaudeCommands(projectRoot, templateDir) {
@@ -211,11 +211,11 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
 /**
  * Виконує повну синхронізацію Claude Code-конфігу з темплейту пакету в проєкт.
  * Використовується з `bin/n-cursor.js` після інших синків.
- * @param {object} options
+ * @param {object} options опції синку
  * @param {string} options.projectRoot корінь проєкту-споживача
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
- * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[] }>}
+ * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[] }>} прапорці записів settings/CLAUDE.md та список записаних slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled }) {
   if (!enabled) {

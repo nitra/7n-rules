@@ -36,6 +36,7 @@ const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
+ * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
  */
 async function npmSrcTreeHasJsFile(ignorePaths = []) {

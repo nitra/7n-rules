@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.180] - 2026-05-05
+
+### Changed
+
+- `js-run` (mdc v1.1 → v1.2): додано секцію **«Область застосування»** — правило явно не застосовується до frontend-пакетів (маркер `vite` у `devDependencies`). У браузерному бандлі немає `node:process`, тому заміна `process.env.X` на `import { env } from 'node:process'` ламає рантайм (`TypeError: Cannot read properties of undefined (reading 'X')`); для frontend замість `process.env.NODE_ENV` — `import.meta.env.MODE` / `import.meta.env.PROD`, інші ENV — лише `import.meta.env.VITE_*`. Передумова — інцидент у abie/b2b `site/`, де LLM-агент за правилом замінив `process.env.NODE_ENV` у `src/main.js` і вибив прод-бандл.
+- `check-js-run.mjs`: workspace-пакети з `vite` у `devDependencies` пропускаються — нова `packageJsonHasViteDevDependency(pkgJson)`, виклик одразу після `loadPackageJsonAndCheckBunyanDeps`. bunyan-залежність у `package.json` все одно перевіряється (бо це робиться до раннього виходу), але скан `process.env`, `#conn/*` і OTEL configmap для frontend-пакета не запускається. Тести: 2 нові кейси у `check-js-run-fixture.test.mjs` (vite-пакет з прямим `process.env` — pass; non-vite пакет з тим же кодом — fail).
+
 ## [1.8.179] - 2026-05-05
 
 ### Changed

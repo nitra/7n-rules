@@ -118,7 +118,7 @@ export function parseProgramOrNull(content, virtualPath) {
  * базовий `parseProgramOrNull` свідомо лишається без коментарів, щоб не змінювати API.
  * @param {string} content вихідний код
  * @param {string} virtualPath шлях для вибору `lang` (також для діагностики)
- * @returns {{ program: unknown, comments: { type: 'Line' | 'Block', value: string, start: number, end: number }[] } | null}
+ * @returns {{ program: unknown, comments: { type: 'Line' | 'Block', value: string, start: number, end: number }[] } | null} `program` + список коментарів, або `null` якщо парсер віддав помилки/exception
  */
 export function parseProgramAndCommentsOrNull(content, virtualPath) {
   const lang = langFromPath(virtualPath || 'scan.ts')

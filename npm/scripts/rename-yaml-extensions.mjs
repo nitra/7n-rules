@@ -68,6 +68,7 @@ export function replaceExtension(relPosix, newExt) {
 /**
  * Збирає операції перейменування (без виконання).
  * @param {string} rootAbs абсолютний корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<Array<{ kind: 'k8s' | 'github', fromAbs: string, toAbs: string, relFrom: string, relTo: string }>>} відсортовані операції перейменування без запису на диск
  */
 async function collectRenameOps(rootAbs, ignorePaths) {

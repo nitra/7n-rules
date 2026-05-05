@@ -66,7 +66,7 @@ export function isDockerfileName(name) {
 /**
  * Збирає абсолютні шляхи до Dockerfile / Containerfile від кореня cwd.
  * @param {string} root корінь репозиторію
- * @param {string[]} [ignorePaths=[]] шляхи каталогів, повністю виключених з обходу
+ * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
 export async function findDockerfilePaths(root, ignorePaths = []) {

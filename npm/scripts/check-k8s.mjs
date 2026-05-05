@@ -1636,7 +1636,7 @@ export function baseKustomizationNamespaceViolation(obj) {
 /**
  * Збирає всі `*.yaml` та `*.yml` під деревом від кореня cwd, якщо шлях містить сегмент `k8s` (для `.yml` далі — помилка перейменування).
  * @param {string} root корінь репозиторію (cwd)
- * @param {string[]} [ignorePaths=[]] шляхи каталогів, повністю виключених з обходу
+ * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
  */
 async function findK8sYamlFiles(root, ignorePaths = []) {

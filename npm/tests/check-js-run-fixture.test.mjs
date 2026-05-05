@@ -127,6 +127,37 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
+  test('0, якщо у workspace-пакеті є vite у devDependencies — js-run пропущено для нього', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'r',
+        private: true,
+        workspaces: ['site']
+      })
+      await ensureDir('site')
+      await writeJson(join('site', 'package.json'), {
+        name: 'site',
+        dependencies: {},
+        devDependencies: { vite: '^8.0.0' }
+      })
+      await mkdir(join('site', 'src'), { recursive: true })
+      await writeFile(
+        join('site', 'src', 'main.js'),
+        `const env = process.env.NODE_ENV\nconsole.log(env)\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('1, якщо у workspace-пакеті без vite є пряме process.env.X', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(join('pkg', 'index.js'), `console.log(process.env.PG_CONN)\n`, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
   test("1, якщо process.env.X закрите checkEnv — все одно треба замінити на env з '@nitra/check-env'", async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
