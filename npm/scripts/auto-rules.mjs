@@ -26,6 +26,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'abie',
   'bun',
   'capacitor',
+  'changelog',
   'docker',
   'ga',
   'graphql',
@@ -54,6 +55,7 @@ export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
  */
 export const AUTO_RULE_DEPENDENCIES = Object.freeze(
   /** @type {Record<string, readonly string[]>} */ ({
+    changelog: Object.freeze(['bun']),
     image: Object.freeze(['vue'])
   })
 )

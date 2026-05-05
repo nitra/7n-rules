@@ -38,6 +38,8 @@
  * кожен **Service** — **`spec.clusterIP: None`** та ім’я на **`-hl`**. У маршрутах **Gateway API**
  * (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**, група **`gateway.networking.k8s.io`**)
  * посилання **`backendRefs` / `backendRef`** на **Service** мають вказувати лише сервіси з суфіксом **`-hl`** у **`name`**.
+ * Поле **`namespace`** у **`backendRef`**, що збігається з **`metadata.namespace`** самого маршруту, — надлишкове:
+ * прибери його, бо за замовчуванням Gateway API резолвить backend у тому ж namespace, що й маршрут (див. k8s.mdc).
  * **HealthCheckPolicy** (**`networking.gke.io/v1`**, GKE): **`spec.targetRef`** на **Service** — **`name`** з суфіксом **`-hl`** (див. k8s.mdc).
  * Якщо **`kustomization.yaml`** посилається на **`svc.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**,
  * **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** файлі має бути посилання на відповідний **`svc-hl.yaml`**
@@ -54,6 +56,11 @@
  * має існувати відповідний ресурс у зібраному з **`resources`**, **`bases`**, **`components`**, **`crds`** каталозі (рекурсивно для підкаталогів з **`kustomization.yaml`**).
  * Для **`patchesStrategicMerge`** і для **`patches[].path`** без **`target`** і без inline **`patch`** (зовнішній strategic-merge)
  * кожен YAML-документ з кореневим **`kind`** і **`metadata.name`** також звіряється з цим каталогом.
+ *
+ * **Зайві `group` / `version` у `patches[].target` / `patchesJson6902[].target`:** якщо в інвентарі **`resources`** /
+ * **`bases`** / **`components`** / **`crds`** (рекурсивно) за **`kind`** + **`name`** немає колізії між різними
+ * API-групами/версіями, поля **`group`** і **`version`** у **`target`** треба прибрати — Kustomize резолвить ціль
+ * за **GVK + name**, а зайві поля ламаються мовчки під час змін API (k8s.mdc «patches[].target: лише kind і name»).
  *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
@@ -1324,6 +1331,52 @@ function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
 }
 
 /**
+ * Зайві **`group`** / **`version`** у **`patches[].target`** / **`patchesJson6902[].target`**: якщо в інвентарі за **`kind`** + **`name`** немає колізії між різними API-групами/версіями, ці поля треба прибрати (k8s.mdc «patches[].target: лише kind і name»).
+ * @param {string} rel відносний шлях до kustomization.yaml
+ * @param {Record<string, unknown>} first корінь Kustomization
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар resources/bases/…
+ * @param {(msg: string) => void} fail реєстрація помилки
+ * @returns {void}
+ */
+function failIfExplicitPatchTargetsHaveRedundantGroupVersion(rel, first, catalog, fail) {
+  for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
+    if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+      continue
+    }
+    const t = /** @type {Record<string, unknown>} */ (target)
+    const kind = typeof t.kind === 'string' ? t.kind.trim() : ''
+    const name = typeof t.name === 'string' ? t.name.trim() : ''
+    if (kind === '' || name === '') {
+      continue
+    }
+    if (patchTargetUsesSelector(t)) {
+      continue
+    }
+    const tgtGroup = typeof t.group === 'string' ? t.group.trim() : ''
+    const tgtVersion = typeof t.version === 'string' ? t.version.trim() : ''
+    if (tgtGroup === '' && tgtVersion === '') {
+      continue
+    }
+    const matchingByKindName = catalog.filter(r => r.kind === kind && r.name === name)
+    const distinctGvk = new Set(matchingByKindName.map(r => `${r.group}/${r.version}`))
+    if (distinctGvk.size > 1) {
+      continue
+    }
+    /** @type {string[]} */
+    const redundant = []
+    if (tgtGroup !== '') {
+      redundant.push('group')
+    }
+    if (tgtVersion !== '') {
+      redundant.push('version')
+    }
+    fail(
+      `${rel}: ${section}[${index}].target — прибери зайві поля ${redundant.join(', ')}; для kind=${kind}, name=${name} в інвентарі немає колізії між різними API-групами/версіями (див. k8s.mdc «patches[].target: лише kind і name»)`
+    )
+  }
+}
+
+/**
  * Документи з YAML-файлу мають мати дескриптор у **catalog** (інвентар resources).
  * @param {string} rel відносний шлях до kustomization.yaml
  * @param {string} resolvedAbs абсолютний шлях до patch-файлу
@@ -1525,6 +1578,7 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
   const kustDir = dirname(resolve(kustAbs))
   const kustNs = typeof rec.namespace === 'string' && rec.namespace.trim() !== '' ? rec.namespace.trim() : ''
   failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail)
+  failIfExplicitPatchTargetsHaveRedundantGroupVersion(rel, first, catalog, fail)
   await failIfPathOnlyPatchesNotInCatalog(rel, rec.patches, kustDir, rootNorm, root, catalog, kustNs, fail)
   await failIfStrategicMergePatchesNotInCatalog(
     rel,
@@ -2880,7 +2934,49 @@ export function collectGatewayApiRouteBackendServiceNames(spec) {
 }
 
 /**
- * Один документ: маршрут Gateway API має посилатися на **Service** з суфіксом **`-hl`**.
+ * Збирає **`backendRef`** до **Service** з полем **`namespace`**, що збігається з namespace маршруту.
+ *
+ * Поле **`namespace`** у такому **`backendRef`** надлишкове: за замовчуванням Gateway API резолвить backend
+ * у тому ж namespace, що й сам маршрут (див. k8s.mdc). Зайві поля у YAML — джерело розсинхрону між середовищами.
+ * @param {unknown} spec значення **`spec`** маршруту
+ * @param {string} routeNs **`metadata.namespace`** маршруту (непорожній рядок)
+ * @returns {string[]} імена backend-сервісів з надлишковим **`namespace`** (можливі дублікати)
+ */
+export function collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, routeNs) {
+  /** @type {string[]} */
+  const out = []
+
+  /**
+   * @param {unknown} node вузол для обходу
+   * @returns {void}
+   */
+  function walk(node) {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const x of node) {
+        walk(x)
+      }
+      return
+    }
+    if (typeof node !== 'object') return
+    if (isGatewayApiBackendRefToService(node)) {
+      const o = /** @type {Record<string, unknown>} */ (node)
+      if (typeof o.namespace === 'string' && o.namespace === routeNs) {
+        out.push(String(o.name))
+      }
+    }
+    for (const v of Object.values(node)) {
+      walk(v)
+    }
+  }
+
+  walk(spec)
+  return out
+}
+
+/**
+ * Один документ: маршрут Gateway API має посилатися на **Service** з суфіксом **`-hl`**;
+ * у **`backendRef`** не має дублюватися **`namespace`**, що збігається з **`metadata.namespace`** маршруту.
  * @param {string} rel відносний шлях до файлу
  * @param {number} docIndex 1-based індекс документа
  * @param {Record<string, unknown>} rec корінь маніфесту
@@ -2904,6 +3000,18 @@ function failIfGatewayRouteUsesNonHeadlessService(rel, docIndex, rec, fail) {
       fail(
         `${rel}: Gateway API ${kind} (документ ${docIndex}): backendRef до Service має вказувати headless-сервіс з суфіксом «${SVC_HL_NAME_SUFFIX}» у name (зараз: «${svcName}»; див. k8s.mdc)`
       )
+    }
+  }
+  const meta = rec.metadata
+  if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
+    const routeNs = /** @type {Record<string, unknown>} */ (meta).namespace
+    if (typeof routeNs === 'string' && routeNs !== '') {
+      const redundant = collectGatewayApiRouteBackendRefsWithRedundantNamespace(rec.spec, routeNs)
+      for (const svcName of redundant) {
+        fail(
+          `${rel}: Gateway API ${kind} (документ ${docIndex}): backendRef «${svcName}» має namespace «${routeNs}», що збігається з metadata.namespace маршруту — прибери поле namespace з backendRef (див. k8s.mdc)`
+        )
+      }
     }
   }
 }

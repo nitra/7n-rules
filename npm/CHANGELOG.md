@@ -4,7 +4,36 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.8.173] - 2026-05-04
+## [1.8.177] - 2026-05-05
+
+### Changed
+
+- `changelog` (mdc v2.0): тепер дві моделі бази порівняння на рівні воркспейсу. **npm-published** (`name` + `files` + не `private: true`) — порівняння з опублікованою версією через `npm view <name> version` (git не задіяний; покриває кейс прямих комітів у `main` поза PR-flow). **local-only** (приватні / без `files`) — PR-scoped через `git merge-base <dev> HEAD`, що коректно обробляє: feature-гілку (видно лише унікальні коміти), `main` після merge `dev → main` (diff порожній → правило мовчить), direct-commit на `main` поза PR (ловиться як зміна, що потребує bump). Якщо реєстр недосяжний (офлайн / пакет не публікувався) — fail-safe pass, щоб локальна розробка не блокувалась.
+- `check-changelog.mjs`: повний рефактор. Експорт `check(opts?)` з опційним `getPublishedVersion` для підстановки в тестах (CLI калить без аргументів — використовується дефолтний `npm view`-виклик з 10s таймаутом). Класифікація воркспейсів через `isNpmPublishable(pkg)`; для published — `checkPublishedWorkspace`, для local-only — окрема `runLocalOnlyChecks` із власною skip-логікою (no-git / on dev / no dev ref / no merge-base) і `resolveMergeBase(baseRef)` через `git merge-base`. Спільна `verifyChangelogEntry` для обох режимів.
+- `n-changelog.mdc` / `mdc/changelog.mdc` (v1.1 → 2.0): переписано під дві моделі з прикладами кейсів.
+- Тести `check-changelog.test.mjs`: 16 кейсів (раніше 11) — npm-mode (sync / out-of-sync / no CHANGELOG / no entry / files без `CHANGELOG.md` / offline), local-only skip-логіка, merge-base сценарії (feature-гілка, `main` після merge `dev → main`, direct-commit на `main`), змішаний режим.
+
+## [1.8.176] - 2026-05-05
+
+### Changed
+
+- `changelog` стало єдиним правилом про CHANGELOG для всіх воркспейсів — включно з `npm/`. У `check-npm-module.mjs` прибрано `checkChangelog()` (і константу `CHANGELOG_PATH`); відповідну секцію `## CHANGELOG` видалено з `mdc/npm-module.mdc` (v1.9). Логіка перевірки `npm/CHANGELOG.md` лишилася незмінна за наповненням, але тепер вона PR-scoped (порівняння з `dev`), тож на feature-гілці bump і запис достатньо зробити **один раз — як суму по PR**, без bump-шуму в проміжних комітах.
+- `check-changelog.mjs`: додано перевірку `files`-масиву — якщо `<ws>/package.json` його оголошує, у ньому має бути `"CHANGELOG.md"` (приватні воркспейси без `files` цей пункт пропускають). Прибрано `SKIP_WORKSPACE = 'npm'` — `npm/` тепер у звичайному циклі. Хелпер `readPackageJsonOrNull` об'єднує читання `package.json` (раніше було два окремі читачі — `version` і `files`).
+- `auto-rules.mjs` / `auto-rules.md`: `changelog` переведено на `AUTO_RULE_DEPENDENCIES = ['bun']` (раніше — пряма умова `packageJsonExists`); тепер послідовно з рештою правил.
+- `npm/.claude-template/npm-CLAUDE.md` (і згенерований `npm/CLAUDE.md`): оновлено — посилається на `n-changelog.mdc`, явно згадує `files: ["CHANGELOG.md"]`, наголошує на PR-scoped логіці.
+- Тести `check-changelog.test.mjs`: кейс `npm/ пропускається` замінено на `npm/ перевіряється з files=["CHANGELOG.md"]`; додано окремий кейс fail при `files` без `CHANGELOG.md`.
+
+## [1.8.175] - 2026-05-05
+
+### Added
+
+- `k8s.mdc` / `check-k8s.mjs`: у маршрутах Gateway API (**HTTPRoute**, **GRPCRoute**, **TCPRoute**, **TLSRoute**, **UDPRoute**, група `gateway.networking.k8s.io`) забороняється поле `namespace` у `spec.rules[*].backendRefs[*]` (і однини `backendRef`), якщо його значення збігається з `metadata.namespace` самого маршруту. За замовчуванням Gateway API резолвить backend у тому ж namespace, що й маршрут — дублювання у `backendRef` мертве й заважає Kustomize-overlay, що міняє namespace маршруту. Cross-namespace backendRef (з відмінним `namespace`) правило не торкається. Експортовано `collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, routeNs)`; перевіряється усередині існуючого `failIfGatewayRouteUsesNonHeadlessService` (той самий обхід дерева, що й для headless-перевірки). Додано приклад «погано/добре» у `k8s.mdc` і відповідні юніт-тести.
+
+## [1.8.174] - 2026-05-05
+
+### Added
+
+- Нове правило `changelog` (`mdc/changelog.mdc` + `scripts/check-changelog.mjs`): для «звичайних» Bun-монорепо проєктів вимагає, щоб у кожному workspace, який змінився відносно базової гілки `dev`, у поточному PR було підвищено `version` у `<ws>/package.json` і додано запис `## [version] - YYYY-MM-DD` у `<ws>/CHANGELOG.md` (Keep a Changelog 1.1.0). Перевірка PR-scoped: на самій гілці `dev` пропускається; на feature-гілці bump і запис достатньо зробити **один раз — як суму по всьому PR**, без бамп-шуму в проміжних комітах. Воркспейс `npm/` пропускається — його CHANGELOG покриває окреме правило `npm-module`. У `auto-rules.md` / `auto-rules.mjs` `changelog` додано до автодетекту з умовою «у корені є `package.json`» і до `AUTO_RULE_ORDER` між `capacitor` і `docker`.
 
 ### Added
 

@@ -1,5 +1,8 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
+  "disable-rules": [
+    "changelog"
+  ],
   "rules": [
     "bun",
     "ga",

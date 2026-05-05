@@ -40,6 +40,7 @@ import {
   ruKustomizationHasHealthCheckDeletePatch,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
   serviceForbiddenGcpAnnotationsViolation,
+  collectGatewayApiRouteBackendRefsWithRedundantNamespace,
   collectGatewayApiRouteBackendServiceNames,
   collectJson6902OperationsFromPatchText,
   json6902PathsWithRemoveAndAddOnSamePath,
@@ -1011,6 +1012,52 @@ describe('collectGatewayApiRouteBackendServiceNames', () => {
       ]
     })
     expect(names).toEqual(['app-hl'])
+  })
+})
+
+describe('collectGatewayApiRouteBackendRefsWithRedundantNamespace', () => {
+  test('фіксує backendRef з namespace, що збігається з namespace маршруту', () => {
+    const names = collectGatewayApiRouteBackendRefsWithRedundantNamespace(
+      {
+        rules: [
+          {
+            backendRefs: [{ name: 'auth-hl', namespace: 'dev-b2b', port: 8080 }]
+          }
+        ]
+      },
+      'dev-b2b'
+    )
+    expect(names).toEqual(['auth-hl'])
+  })
+
+  test('не фіксує backendRef без namespace', () => {
+    const names = collectGatewayApiRouteBackendRefsWithRedundantNamespace(
+      {
+        rules: [{ backendRefs: [{ name: 'auth-hl', port: 8080 }] }]
+      },
+      'dev-b2b'
+    )
+    expect(names).toEqual([])
+  })
+
+  test('не фіксує backendRef з іншим namespace (cross-namespace)', () => {
+    const names = collectGatewayApiRouteBackendRefsWithRedundantNamespace(
+      {
+        rules: [{ backendRefs: [{ name: 'auth-hl', namespace: 'shared', port: 8080 }] }]
+      },
+      'dev-b2b'
+    )
+    expect(names).toEqual([])
+  })
+
+  test('обходить однину backendRef', () => {
+    const names = collectGatewayApiRouteBackendRefsWithRedundantNamespace(
+      {
+        rules: [{ backendRef: { name: 'x-hl', namespace: 'dev', port: 80 } }]
+      },
+      'dev'
+    )
+    expect(names).toEqual(['x-hl'])
   })
 })
 

@@ -214,6 +214,41 @@ spec:
 
 **Точні умови та повідомлення `fail`** — верхній JSDoc **`npm/scripts/check-k8s.mjs`**.
 
+### Gateway API: не дублюй namespace у `backendRef`
+
+У маршрутах Gateway API (**HTTPRoute**, **GRPCRoute**, **TCPRoute**, **TLSRoute**, **UDPRoute**) у `spec.rules[*].backendRefs[*]` **не** додавай поле **`namespace`**, якщо його значення збігається з **`metadata.namespace`** самого маршруту. За замовчуванням Gateway API резолвить backend у тому ж namespace, що й маршрут, тож такий рядок — мертвий: він плутає під час перенесень між середовищами і ламається мовчки, якщо overlay змінює namespace маршруту через Kustomize, а в backendRef залишився старий рядок. Прибери поле — поведінка не зміниться. **`check k8s`** падає на такому збігу.
+
+```yaml
+# ❌ погано — namespace дублює metadata.namespace маршруту
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-site
+  namespace: dev-b2b
+spec:
+  rules:
+    - backendRefs:
+        - name: auth-hl
+          namespace: dev-b2b # ← прибери
+          port: 8080
+```
+
+```yaml
+# ✅ добре — namespace лише в metadata
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: admin-site
+  namespace: dev-b2b
+spec:
+  rules:
+    - backendRefs:
+        - name: auth-hl
+          port: 8080
+```
+
+Якщо backend **дійсно** живе в іншому namespace — поле **`namespace`** у `backendRef` обов'язкове (і потрібен `ReferenceGrant` у тому namespace); правило цього випадку не торкається.
+
 ## ConfigMap: ім'я збігається з Deployment
 
 Якщо в `k8s/base/` є **`configmap.yaml`** і **Deployment**, і цей Deployment посилається рівно на **один** ConfigMap — `metadata.name` ConfigMap має збігатися з `metadata.name` Deployment. Точні умови перевірки — **`check-k8s.mjs`**.
@@ -473,6 +508,28 @@ patches:
         value:
           preem: "false"
 ```
+
+### `patches[].target`: лише `kind` і `name`
+
+У `patches[].target` залишай **тільки** **`kind`** і **`name`** — поля **`group`** і **`version`** прибирай. Kustomize резолвить ціль за GVK+name; `group`/`version` — звужувальні фільтри, потрібні лише за реальної колізії `kind+name` між різними API-групами або версіями. У межах одного namespace apiserver зберігає об'єкт у єдиному storage-GVK, тож для звичайних маніфестів така колізія неможлива, і `group`/`version` у `target` — мертвий шум, який ламається мовчки під час змін API (наприклад, перехід `v1beta1` → `v1`).
+
+```yaml
+# ❌ зайві group / version
+patches:
+  - target:
+      group: gateway.networking.k8s.io
+      version: v1beta1
+      kind: Gateway
+      name: gw
+
+# ✅
+patches:
+  - target:
+      kind: Gateway
+      name: gw
+```
+
+**Виняток:** залишай `group` / `version`, лише якщо в дереві overlay реально співіснують ресурси з однаковими `kind`+`name`, але різними API-групами/версіями (наприклад, дві CRD з одним `kind`). У такому разі вкажи мінімальний набір полів, потрібний для дисамбігуації.
 
 ## Перевірка
 

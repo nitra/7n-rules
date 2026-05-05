@@ -9,9 +9,6 @@
  * Якщо таких файлів немає — layout через `npm/tsconfig.emit-types.json`: поле `types` має вказувати на існуючий
  * файл під `./types/…`, у hk — `tsc -p tsconfig.emit-types.json`, у JSON-конфігу — потрібні compilerOptions для emit.
  *
- * Окремо перевіряється `npm/CHANGELOG.md`: файл існує, є в `files` у `npm/package.json` і містить запис
- * для поточної версії (формат `## [X.Y.Z] - YYYY-MM-DD`, Keep a Changelog).
- *
  * Поля workflow перевіряються після **YAML parse**, щоб не плутати з коментарями.
  */
 import { existsSync } from 'node:fs'
@@ -36,9 +33,6 @@ const TYPES_INDEX = './types/index.d.ts'
 
 /** Файл проєкту TypeScript для emit без каталогу `src` (див. npm-module.mdc) */
 const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
-
-/** Шлях до `CHANGELOG.md` в каталозі npm-модуля */
-const CHANGELOG_PATH = 'npm/CHANGELOG.md'
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
@@ -206,53 +200,6 @@ async function checkNpmPackageJson(useSrcJsLayout, passFn, failFn) {
 }
 
 /**
- * Чи містить текст `CHANGELOG.md` запис заголовка для конкретної версії
- * у форматі Keep a Changelog: `## [X.Y.Z]` (з опційним `- YYYY-MM-DD`).
- * @param {string} text вміст `CHANGELOG.md`
- * @param {string} version номер версії з `npm/package.json`
- * @returns {boolean} `true`, якщо знайдено заголовок версії
- */
-function changelogHasVersionEntry(text, version) {
-  const escaped = version.replaceAll(/[.+*?^$()[\]{}|\\]/g, String.raw`\$&`)
-  const re = new RegExp(String.raw`^##\s+\[${escaped}\]`, 'm')
-  return re.test(text)
-}
-
-/**
- * Перевіряє наявність і вміст `npm/CHANGELOG.md`, а також що він є в `files` у `npm/package.json`.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkChangelog(passFn, failFn) {
-  if (!existsSync(CHANGELOG_PATH)) {
-    failFn(`Відсутній ${CHANGELOG_PATH} (npm-module.mdc: CHANGELOG)`)
-    return
-  }
-  passFn(`${CHANGELOG_PATH} існує`)
-
-  if (existsSync('npm/package.json')) {
-    const npmPkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
-    if (Array.isArray(npmPkg.files) && npmPkg.files.includes('CHANGELOG.md')) {
-      passFn('npm/package.json: files містить "CHANGELOG.md"')
-    } else {
-      failFn('npm/package.json: масив files має містити "CHANGELOG.md"')
-    }
-
-    const version = typeof npmPkg.version === 'string' ? npmPkg.version : null
-    if (version) {
-      const text = await readFile(CHANGELOG_PATH, 'utf8')
-      if (changelogHasVersionEntry(text, version)) {
-        passFn(`${CHANGELOG_PATH}: знайдено запис для версії ${version}`)
-      } else {
-        failFn(
-          `${CHANGELOG_PATH}: відсутній запис для поточної версії ${version} (формат Keep a Changelog: "## [${version}] - YYYY-MM-DD")`
-        )
-      }
-    }
-  }
-}
-
-/**
  * Перевіряє npm/tsconfig.emit-types.json.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
@@ -396,8 +343,6 @@ export async function check() {
   const useSrcJsLayout = await npmSrcTreeHasJsFile(ignorePaths)
 
   await checkNpmPackageJson(useSrcJsLayout, pass, fail)
-
-  await checkChangelog(pass, fail)
 
   if (!useSrcJsLayout) {
     await checkEmitTypesConfig(pass, fail)

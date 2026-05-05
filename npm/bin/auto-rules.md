@@ -12,6 +12,8 @@ bun - якщо в корені проекту є package.json
 
 capacitor - якщо в проекті є хоч один файл capacitor.config.json
 
+changelog - [bun]
+
 docker - якщо в проекті є хоч один Dockerfile
 
 ga - якщо присутня директорія .github/workflows
