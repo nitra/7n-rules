@@ -51,7 +51,7 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 ## CHANGELOG
 
-Окреме правило **`changelog`** ([n-changelog.mdc](n-changelog.mdc)) вимагає `npm/CHANGELOG.md` із записом для поточної версії (Keep a Changelog) і присутність `"CHANGELOG.md"` у масиві `files` у `npm/package.json`. Логіка — PR-scoped (сума по гілці vs `dev`).
+Окреме правило **`changelog`** ([changelog.mdc](changelog.mdc)) вимагає `npm/CHANGELOG.md` із записом для поточної версії (Keep a Changelog) і присутність `"CHANGELOG.md"` у масиві `files` у `npm/package.json`. Логіка — PR-scoped (сума по гілці vs `dev`).
 
 ## npm publish
 
