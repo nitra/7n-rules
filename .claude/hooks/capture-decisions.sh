@@ -28,17 +28,35 @@ if [[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]]; then
   exit 0
 fi
 
-# Extract role+text from JSONL transcript (skip tool noise to keep prompt small).
+# Extract role + text + thinking + tool_use names from JSONL transcript.
+# We keep reasoning/decisions visible to the analyzer but drop large tool outputs.
 TRANSCRIPT=$(jq -r '
   select(.type == "user" or .type == "assistant")
   | .message as $m
   | ($m.role // .type) as $role
   | ($m.content
       | if type == "string" then .
-        else (map(select(.type == "text") | .text) | join("\n"))
-        end) as $txt
-  | select($txt | length > 0)
-  | "[" + $role + "]\n" + $txt
+        else (
+          map(
+            if .type == "text" then .text
+            elif .type == "thinking" then "[thinking]\n" + (.thinking // "")
+            elif .type == "tool_use" then
+              "[tool: " + .name + "]" +
+              (if .input then
+                " " + (.input | tostring | .[0:300])
+              else "" end)
+            elif .type == "tool_result" then
+              "[tool_result] " + (
+                (.content
+                  | if type == "string" then . else (map(select(.type=="text") | .text) | join(" ")) end
+                ) // "" | .[0:300]
+              )
+            else "" end
+          ) | map(select(length > 0)) | join("\n")
+        )
+        end) as $body
+  | select($body | length > 0)
+  | "[" + $role + "]\n" + $body
 ' "$TRANSCRIPT_PATH" 2>/dev/null || true)
 
 # Cap input size to keep latency/cost predictable.
@@ -52,29 +70,33 @@ if [[ -z "$TRANSCRIPT" ]]; then
 fi
 
 PROMPT=$(cat <<'EOF'
-You analyze a Claude Code session transcript and extract durable knowledge worth saving as ADR / Runbook / Knowledge drafts.
+You analyze a Claude Code session transcript and produce a durable knowledge artifact (ADR, Runbook, or Knowledge note) capturing what was done and why.
+
+LANGUAGE: Write the ENTIRE output in Ukrainian. This applies to the title, all section content, prose, and rationale. Keep code identifiers, file paths, commands, and tool or library names in their original form (do not translate `walkDir`, `package.json`, `npm`, etc.) — only translate the natural-language prose around them. Section labels themselves stay in Ukrainian per the template below.
+
+IMPORTANT: by "decision" we mean the design choice expressed in the session — even if the user pre-specified it in their brief. The user dictating the approach IS the decision; capture it, including the rationale they gave or that became apparent during implementation. Do NOT return NONE just because the user gave detailed instructions upfront.
 
 OUTPUT RULES:
-- If NO clear architectural decision, runbook-worthy procedure, or non-obvious knowledge was established, output the single token: NONE
-- Otherwise, emit one or more markdown blocks in this exact shape (no preamble, no trailing prose):
+- Emit one or more markdown blocks in this exact shape (no preamble, no trailing prose):
 
-## [ADR|Runbook|Knowledge] <short title>
-**Context:** <what triggered this — 1-2 sentences>
-**Decision/Procedure/Fact:** <what was decided / the steps / the fact>
-**Rationale:** <why this over alternatives>
-**Alternatives considered:** <list, or "none discussed">
+## [ADR|Runbook|Knowledge] <короткий заголовок українською>
+**Контекст:** <яка проблема / ситуація це спричинила — 1-2 речення>
+**Рішення/Процедура/Факт:** <що було зроблено — конкретно: змінені файли, введена семантика, кроки>
+**Обґрунтування:** <чому саме такий підхід — з ТЗ користувача або міркувань асистента>
+**Розглянуті альтернативи:** <перелік явно обговорених, або «не обговорювалися»>
+**Зачіпає:** <файли, модулі, публічні API, конфіги>
 
-WHAT COUNTS:
-- ADR: a tradeoff was discussed and a choice made (library, pattern, architecture)
-- Runbook: a non-trivial sequence of steps to reproduce/fix/operate something
-- Knowledge: a non-obvious constraint, gotcha, or invariant uncovered
+WHEN TO PICK EACH TYPE:
+- ADR: a design choice (library, schema, pattern, semantics of a field/API). Most substantive code work qualifies.
+- Runbook: a procedure to operate, fix, deploy, or reproduce something.
+- Knowledge: a non-obvious constraint, gotcha, or invariant uncovered (without a corresponding code change).
 
-WHAT DOES NOT COUNT (output NONE):
-- Routine code edits, typo fixes, lint passes
-- Obvious answers to direct questions
-- Work that anyone could derive by reading the diff
+OUTPUT NONE ONLY IF the session is genuinely trivial:
+- A single typo fix, comment edit, or lint cleanup with no design content
+- A pure question/answer with no code change and no surprising fact
+- An aborted/empty session
 
-Be conservative. NONE is the right answer most of the time.
+When in doubt, emit a block. Capturing too much is acceptable; missing real work is not.
 
 TRANSCRIPT FOLLOWS:
 ---
@@ -82,16 +104,22 @@ EOF
 )
 
 RESPONSE=$(printf '%s\n%s\n' "$PROMPT" "$TRANSCRIPT" \
-  | claude -p --model haiku 2>>"$LOG" || true)
+  | claude -p --model sonnet 2>>"$LOG" || true)
 
 RESPONSE_TRIMMED=$(printf '%s' "$RESPONSE" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+
+log "  → response length: ${#RESPONSE_TRIMMED}, first 200: ${RESPONSE_TRIMMED:0:200}"
 
 if [[ -z "$RESPONSE_TRIMMED" ]]; then
   log "  → empty response from claude"
   exit 0
 fi
-if [[ "$RESPONSE_TRIMMED" == "NONE" ]] || ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## \['; then
-  log "  → no decisions"
+if [[ "$RESPONSE_TRIMMED" == "NONE" ]]; then
+  log "  → NONE"
+  exit 0
+fi
+if ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## '; then
+  log "  → response missing '## ' header"
   exit 0
 fi
 
