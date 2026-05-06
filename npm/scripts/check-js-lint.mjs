@@ -145,7 +145,9 @@ function compareOxlintIgnorePatterns(expected, actual, failures) {
     return
   }
   if (!Array.isArray(actual)) {
-    failures.push('.oxlintrc.json: поле "ignorePatterns" має бути масивом (канон задає мінімум, додаткові патерни дозволені)')
+    failures.push(
+      '.oxlintrc.json: поле "ignorePatterns" має бути масивом (канон задає мінімум, додаткові патерни дозволені)'
+    )
     return
   }
   const set = new Set(actual)

@@ -59,6 +59,7 @@ export function k8sRootFromFile(absFile) {
 /**
  * Унікальні корені `k8s` за наявності `*.yaml` під деревом cwd.
  * @param {string} root корінь репозиторію
+ * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до каталогів `k8s`
  */
 export async function findK8sRoots(root, ignorePaths = []) {

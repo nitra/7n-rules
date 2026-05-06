@@ -10,9 +10,10 @@
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { join, relative, sep } from 'node:path'
+import { join, relative } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { findAllPackageJsonPaths } from './utils/find-package-json-paths.mjs'
 import {
   findMssqlPerRequestConnectionInText,
   findSharedMssqlRequestInText,
@@ -32,29 +33,9 @@ const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)/u
 const MIN_MSSQL_VERSION = { major: 12, minor: 5, patch: 0 }
 
 /**
- * Знаходить всі `package.json` у репозиторії (крім пропущених директорій у walkDir).
- * @param {string} repoRoot абсолютний шлях до кореня репозиторію
- * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
- */
-async function findAllPackageJsonPaths(repoRoot, ignorePaths) {
-  /** @type {string[]} */
-  const paths = []
-  await walkDir(
-    repoRoot,
-    absPath => {
-      if (absPath.endsWith(`${sep}package.json`)) {
-        paths.push(absPath)
-      }
-    },
-    ignorePaths
-  )
-  paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
-  return paths
-}
-
-/**
  * Збирає абсолютні шляхи JS/TS джерел у репозиторії для скану mssql.
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} абсолютні шляхи, відсортовані за відносним шляхом
  */
 async function findAllSourcePathsForMssqlScan(repoRoot, ignorePaths) {
@@ -258,9 +239,10 @@ function reportZeroMssqlSourceViolations(counters, pass) {
 /**
  * Аудит усіх JS/TS-джерел репо щодо безпечного використання mssql.
  * @param {string} repoRoot корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} pass pass callback
  * @param {(msg: string) => void} fail fail callback
- * @returns {Promise<void>}
+ * @returns {Promise<void>} резолвиться по завершенню аудиту всіх знайдених джерел
  */
 async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
   const sourcePaths = await findAllSourcePathsForMssqlScan(repoRoot, ignorePaths)

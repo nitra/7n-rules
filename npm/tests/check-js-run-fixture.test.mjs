@@ -141,11 +141,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
         devDependencies: { vite: '^8.0.0' }
       })
       await mkdir(join('site', 'src'), { recursive: true })
-      await writeFile(
-        join('site', 'src', 'main.js'),
-        `const env = process.env.NODE_ENV\nconsole.log(env)\n`,
-        'utf8'
-      )
+      await writeFile(join('site', 'src', 'main.js'), `const env = process.env.NODE_ENV\nconsole.log(env)\n`, 'utf8')
       expect(await check()).toBe(0)
     })
   })

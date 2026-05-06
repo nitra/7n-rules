@@ -6,7 +6,8 @@ import globals from 'globals'
 export default [
   { ignores: ['**/auto-imports.d.ts', 'docs/**'] },
   ...getConfig({
-    node: ['npm']
+    node: ['npm'],
+    vue: ['demo']
   }),
   {
     files: ['npm/**/*.{mjs,cjs}'],

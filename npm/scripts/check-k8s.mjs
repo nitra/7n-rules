@@ -1339,41 +1339,42 @@ function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
  * @returns {void}
  */
 function failIfExplicitPatchTargetsHaveRedundantGroupVersion(rel, first, catalog, fail) {
-  for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
-    if (target === null || typeof target !== 'object' || Array.isArray(target)) {
-      continue
-    }
-    const t = /** @type {Record<string, unknown>} */ (target)
-    const kind = typeof t.kind === 'string' ? t.kind.trim() : ''
-    const name = typeof t.name === 'string' ? t.name.trim() : ''
-    if (kind === '' || name === '') {
-      continue
-    }
-    if (patchTargetUsesSelector(t)) {
-      continue
-    }
-    const tgtGroup = typeof t.group === 'string' ? t.group.trim() : ''
-    const tgtVersion = typeof t.version === 'string' ? t.version.trim() : ''
-    if (tgtGroup === '' && tgtVersion === '') {
-      continue
-    }
-    const matchingByKindName = catalog.filter(r => r.kind === kind && r.name === name)
-    const distinctGvk = new Set(matchingByKindName.map(r => `${r.group}/${r.version}`))
-    if (distinctGvk.size > 1) {
-      continue
-    }
-    /** @type {string[]} */
-    const redundant = []
-    if (tgtGroup !== '') {
-      redundant.push('group')
-    }
-    if (tgtVersion !== '') {
-      redundant.push('version')
-    }
+  for (const entry of extractExplicitPatchTargetsFromKustomization(first)) {
+    const violation = describePatchTargetRedundancy(entry, catalog)
+    if (violation === null) continue
+    const { section, index, kind, name, redundant } = violation
     fail(
       `${rel}: ${section}[${index}].target — прибери зайві поля ${redundant.join(', ')}; для kind=${kind}, name=${name} в інвентарі немає колізії між різними API-групами/версіями (див. k8s.mdc «patches[].target: лише kind і name»)`
     )
   }
+}
+
+/**
+ * Аналізує один patch.target: повертає опис надлишкових полів `group`/`version`,
+ * якщо в інвентарі для пари (kind, name) немає колізії GVK; інакше `null`.
+ * @param {{ section: string, index: number, target: unknown }} entry елемент із `extractExplicitPatchTargetsFromKustomization`
+ * @param {KustomizeResourceDescriptor[]} catalog інвентар resources/bases/…
+ * @returns {{ section: string, index: number, kind: string, name: string, redundant: string[] } | null} опис порушення або `null`
+ */
+function describePatchTargetRedundancy(entry, catalog) {
+  const { section, index, target } = entry
+  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
+  const t = /** @type {Record<string, unknown>} */ (target)
+  const kind = typeof t.kind === 'string' ? t.kind.trim() : ''
+  const name = typeof t.name === 'string' ? t.name.trim() : ''
+  if (kind === '' || name === '') return null
+  if (patchTargetUsesSelector(t)) return null
+  const tgtGroup = typeof t.group === 'string' ? t.group.trim() : ''
+  const tgtVersion = typeof t.version === 'string' ? t.version.trim() : ''
+  if (tgtGroup === '' && tgtVersion === '') return null
+  const matchingByKindName = catalog.filter(r => r.kind === kind && r.name === name)
+  const distinctGvk = new Set(matchingByKindName.map(r => `${r.group}/${r.version}`))
+  if (distinctGvk.size > 1) return null
+  /** @type {string[]} */
+  const redundant = []
+  if (tgtGroup !== '') redundant.push('group')
+  if (tgtVersion !== '') redundant.push('version')
+  return { section, index, kind, name, redundant }
 }
 
 /**

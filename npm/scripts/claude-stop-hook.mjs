@@ -62,6 +62,7 @@ export async function runStopHookCli() {
   if (isRecursiveStopHookCall(stdin)) {
     return 0
   }
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- npx як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
   const child = spawn('npx', ['--no', '@nitra/cursor', 'check'], { stdio: 'inherit' })
   try {
     const [code] = await once(child, 'exit')

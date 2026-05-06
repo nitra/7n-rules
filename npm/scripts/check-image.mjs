@@ -187,9 +187,7 @@ async function checkLegacyCacheRemoved(pass, fail) {
   }
   const lines = await readGitignoreLines()
   if (lines && lines.includes(LEGACY_CACHE_FILENAME)) {
-    fail(
-      `.gitignore: прибери застарілий рядок \`${LEGACY_CACHE_FILENAME}\` — split-cache 3.2.0 його не використовує`
-    )
+    fail(`.gitignore: прибери застарілий рядок \`${LEGACY_CACHE_FILENAME}\` — split-cache 3.2.0 його не використовує`)
     return
   }
   pass(`${LEGACY_CACHE_FILENAME} відсутній (міграція на split-cache завершена)`)
@@ -203,7 +201,9 @@ async function checkLegacyCacheRemoved(pass, fail) {
  */
 function packageHasAvifDisabled(pkg) {
   const cfg = pkg[PKG_CONFIG_FIELD]
-  return Boolean(cfg && typeof cfg === 'object' && /** @type {Record<string, unknown>} */ (cfg)['disable-avif'] === true)
+  return Boolean(
+    cfg && typeof cfg === 'object' && /** @type {Record<string, unknown>} */ (cfg)['disable-avif'] === true
+  )
 }
 
 /**
@@ -213,9 +213,10 @@ function packageHasAvifDisabled(pkg) {
  * один раз (інакше при обході кореня `.` ми б повторно зайшли в `demo/` і подвоїли звіти).
  * @param {string} packageRoot відносний шлях до кореня пакета (наприклад `'.'` або `'demo'`)
  * @param {string[]} otherRootsAbs абсолютні шляхи інших workspace-коренів — їх піддерева пропускаємо
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>}
+ * @returns {Promise<void>} резолвиться по завершенню перевірки одного пакета
  */
 async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, pass, fail) {
   const absRoot = join(process.cwd(), packageRoot)
@@ -263,9 +264,10 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
  * Сканує всі workspace-пакети: для кожного перевіряє opt-out і за потреби викликає
  * перевірку Vue-imports. Перевірка пропускається, якщо в репозиторії немає workspaces
  * або немає `.vue`-файлів — тоді `image` правило не для цього проєкту.
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>}
+ * @returns {Promise<void>} резолвиться по завершенню перевірки всіх workspace-пакетів
  */
 async function checkVueAvifImports(ignorePaths, pass, fail) {
   const roots = await getMonorepoPackageRootDirs()
@@ -275,7 +277,9 @@ async function checkVueAvifImports(ignorePaths, pass, fail) {
     if (!existsSync(pkgPath)) continue
     const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
     if (packageHasAvifDisabled(pkg)) {
-      pass(`[${root === '.' ? 'корінь' : root}] avif-import enforcement вимкнено через "@nitra/minify-image.disable-avif"`)
+      pass(
+        `[${root === '.' ? 'корінь' : root}] avif-import enforcement вимкнено через "@nitra/minify-image.disable-avif"`
+      )
       continue
     }
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')

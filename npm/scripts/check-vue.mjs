@@ -115,6 +115,7 @@ async function collectEsbuildMatchesInFiles(absPackageRoot, files, maxMatches) {
  * Сканує дерево пакета на згадки `esbuild` і підказує заміну на `rolldown`.
  * @param {string} rootDir відносний шлях до пакета
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {string} prefix параметр prefix
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
@@ -342,9 +343,7 @@ async function checkVueNodeImportViolations(rootDir, absPackageRoot, ignorePaths
     }
   }
   if (nodeImportViolations === 0) {
-    passFn(
-      `${prefix}немає імпортів Node-нативних модулів у .vue (проскановано ${ukFilesCountPhrase(vuePaths.length)})`
-    )
+    passFn(`${prefix}немає імпортів Node-нативних модулів у .vue (проскановано ${ukFilesCountPhrase(vuePaths.length)})`)
   }
 }
 
@@ -354,18 +353,17 @@ async function checkVueNodeImportViolations(rootDir, absPackageRoot, ignorePaths
  * Якщо `unplugin-auto-import` не сконфігурований на `'vue'` у `vite.config`, явні value-імпорти
  * формально не заборонені — їх видалення зламає код. У цьому випадку перевірка пропускається,
  * а fail про відсутній `'vue'` у `AutoImport.imports` уже зареєстровано в `checkViteConfig`.
- * @param {string} rootDir параметр rootDir
- * @param {string} absPackageRoot параметр absPackageRoot
- * @param {string} prefix параметр prefix
+ * @param {string} rootDir відносний шлях до пакета
+ * @param {string} absPackageRoot абсолютний шлях до кореня пакета
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {boolean} hasVueAutoImport чи `AutoImport({ imports: [..., 'vue', ...] })` сконфігуровано
+ * @param {string} prefix префікс повідомлення `[<pkg>] `
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
 async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, hasVueAutoImport, prefix, passFn, fail) {
   if (!hasVueAutoImport) {
-    passFn(
-      `${prefix}value-імпорти з 'vue' не заборонені — спершу додай 'vue' до AutoImport.imports у vite.config`
-    )
+    passFn(`${prefix}value-імпорти з 'vue' не заборонені — спершу додай 'vue' до AutoImport.imports у vite.config`)
     return
   }
   /** @type {string[]} */
@@ -400,6 +398,7 @@ async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, ha
 /**
  * Перевіряє залежності та vite.config одного Vue-пакета.
  * @param {string} rootDir відносний шлях до пакета
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
@@ -444,7 +443,15 @@ async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
   )
 
   const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
-  await checkVueImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, hasVueAutoImport, prefix, passFn, fail)
+  await checkVueImportViolations(
+    rootDir,
+    join(process.cwd(), rootDir),
+    ignorePaths,
+    hasVueAutoImport,
+    prefix,
+    passFn,
+    fail
+  )
   await checkVueNodeImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
   await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
 }

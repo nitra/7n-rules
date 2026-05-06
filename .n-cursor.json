@@ -1,8 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "disable-rules": [
-    "changelog"
-  ],
+  "disable-rules": ["changelog"],
   "rules": [
     "bun",
     "ga",
@@ -16,9 +14,5 @@
     "text",
     "vue"
   ],
-  "skills": [
-    "fix",
-    "lint",
-    "publish-telegram"
-  ]
+  "skills": ["fix", "lint", "publish-telegram"]
 }

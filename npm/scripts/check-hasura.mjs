@@ -102,6 +102,7 @@ export function isEnvFile(relPath) {
 /**
  * Збирає всі `*.env` файли в дереві, окрім службових каталогів.
  * @param {string} root абсолютний шлях кореня
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані posix-шляхи відносно кореня
  */
 async function collectEnvFiles(root, ignorePaths) {

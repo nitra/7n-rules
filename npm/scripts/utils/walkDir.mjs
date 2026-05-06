@@ -17,7 +17,9 @@ import { isAbsolute, join, resolve, sep } from 'node:path'
  */
 function toAbsPosix(p) {
   const abs = isAbsolute(p) ? p : resolve(p)
-  return abs.split(sep).join('/').replace(/\/+$/, '')
+  let posix = abs.split(sep).join('/')
+  while (posix.endsWith('/')) posix = posix.slice(0, -1)
+  return posix
 }
 
 /**
@@ -43,7 +45,7 @@ function isIgnoredDir(dirAbsPosix, ignorePosix) {
  * @returns {Promise<void>} резолвиться по завершенню обходу
  */
 export async function walkDir(dir, onFile, ignorePaths = []) {
-  const ignorePosix = ignorePaths.map(toAbsPosix)
+  const ignorePosix = ignorePaths.map(p => toAbsPosix(p))
   await walkDirInner(dir, onFile, ignorePosix)
 }
 

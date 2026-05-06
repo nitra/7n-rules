@@ -665,7 +665,6 @@ ${patchClusterIpAndClusterIps
 `
     expect(getAbieRuServiceNodePortPatchErrors(ruHlBoth, hlBothTargets)).toEqual([])
   })
-
 })
 
 describe('check-abie (інтеграція в тимчасовому каталозі)', () => {
@@ -1170,7 +1169,6 @@ patches:
       expect(await check()).toBe(0)
     })
   })
-
 })
 
 describe('isAbieRuleEnabled', () => {

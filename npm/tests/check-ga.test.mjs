@@ -10,6 +10,8 @@ import { writeFile } from 'node:fs/promises'
 import { check } from '../scripts/check-ga.mjs'
 import { ensureDir, withBinRemovedFromPath, withShellcheckStubInPath, withTmpCwd, writeJson } from './helpers.mjs'
 
+const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
+
 /**
  * Готує мінімальний макет проєкту з `.github/workflows/`, `.github/actions/setup-bun-deps/action.yml`,
  * `.github/zizmor.yml`, `.vscode/extensions.json` + `settings.json`, `package.json` зі скриптом `lint-ga`,
@@ -156,7 +158,9 @@ jobs:
 
   // check-ga валідує `on.*.paths` через `git ls-files`; без git-репо ці перевірки падають,
   // тож ініціалізуємо порожнє локальне репо й трекаємо щойно створені файли.
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
   execFileSync('git', ['init', '-q', '--initial-branch=main'])
+  // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
   execFileSync('git', ['add', '-A'])
 }
 
@@ -186,7 +190,7 @@ describe('check-ga: shellcheck в PATH', () => {
           expect(exit).toBe(1)
           const blob = logs.join('\n')
           expect(blob).toContain('shellcheck')
-          expect(blob).toMatch(/brew install shellcheck/)
+          expect(blob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
         } finally {
           console.log = origLog
         }

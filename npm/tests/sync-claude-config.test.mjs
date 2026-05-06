@@ -45,11 +45,7 @@ async function setupTemplate(cwdAbs, tpl = {}) {
     'utf8'
   )
   await writeFile(join(cwdAbs, TEMPLATE_REL, 'npm-CLAUDE.md'), tpl.npmClaudeMd ?? '# npm scoped\n', 'utf8')
-  await writeFile(
-    join(cwdAbs, TEMPLATE_REL, 'commands', 'n-check.md'),
-    tpl.commandNCheck ?? '# n-check stub\n',
-    'utf8'
-  )
+  await writeFile(join(cwdAbs, TEMPLATE_REL, 'commands', 'n-check.md'), tpl.commandNCheck ?? '# n-check stub\n', 'utf8')
   return pkgRoot
 }
 

@@ -18,7 +18,6 @@ import { resolveCmd } from './utils/resolve-cmd.mjs'
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
- *
  * @typedef {object} PreflightDep
  * @property {string} bin ім'я виконуваного файлу (на Windows додається `.exe` за потреби)
  * @property {string[]} winBins альтернативні імена на Windows (`shellcheck.exe`); якщо нема — fallback на `bin`

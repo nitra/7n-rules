@@ -9,6 +9,8 @@ import { sep } from 'node:path'
 import { withTmpCwd, writeJson } from './helpers.mjs'
 import { loadCursorIgnorePaths } from '../scripts/utils/load-cursor-config.mjs'
 
+const TRAILING_SLASH_RE = /\/$/
+
 /**
  * @param {string} p posix-шлях
  * @returns {string} платформозалежний шлях для побудови очікуваного абсолютного шляху
@@ -56,12 +58,8 @@ describe('loadCursorIgnorePaths', () => {
         ignore: ['vendor/chart', 'postgres-master/', 'a/b/c']
       })
       const out = await loadCursorIgnorePaths(dir)
-      const expectedDir = dir.split(sep).join('/').replace(/\/+$/, '')
-      expect(out).toEqual([
-        `${expectedDir}/vendor/chart`,
-        `${expectedDir}/postgres-master`,
-        `${expectedDir}/a/b/c`
-      ])
+      const expectedDir = dir.split(sep).join('/').replace(TRAILING_SLASH_RE, '')
+      expect(out).toEqual([`${expectedDir}/vendor/chart`, `${expectedDir}/postgres-master`, `${expectedDir}/a/b/c`])
     })
   })
 
@@ -72,7 +70,7 @@ describe('loadCursorIgnorePaths', () => {
         ignore: ['vendor', '', '   ', 42, null, { x: 1 }, 'ok']
       })
       const out = await loadCursorIgnorePaths(dir)
-      const expectedDir = dir.split(sep).join('/').replace(/\/+$/, '')
+      const expectedDir = dir.split(sep).join('/').replace(TRAILING_SLASH_RE, '')
       expect(out).toEqual([`${expectedDir}/vendor`, `${expectedDir}/ok`])
     })
   })
@@ -82,7 +80,7 @@ describe('loadCursorIgnorePaths', () => {
       const abs = nativeJoin(dir, 'absolute-target')
       await writeJson('.n-cursor.json', { rules: [], ignore: [abs] })
       const out = await loadCursorIgnorePaths(dir)
-      const expected = abs.split(sep).join('/').replace(/\/+$/, '')
+      const expected = abs.split(sep).join('/').replace(TRAILING_SLASH_RE, '')
       expect(out).toEqual([expected])
     })
   })

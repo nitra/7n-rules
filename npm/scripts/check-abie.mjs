@@ -384,6 +384,7 @@ export function ignoreBranchesIncludesRequired(ignoreBranches, required) {
 /**
  * Збирає абсолютні шляхи до **.yaml** / **.yml** під деревом, де є сегмент **k8s**.
  * @param {string} root корінь репозиторію
+ * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані шляхи
  */
 async function findK8sYamlFiles(root, ignorePaths = []) {

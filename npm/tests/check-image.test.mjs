@@ -349,11 +349,7 @@ describe('check-image', () => {
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
       await writeJson('app/package.json', { name: 'app' })
-      await writeFile(
-        join('app/src', 'App.vue'),
-        `<script setup>\nimport hero from './hero.png'\n</script>\n`,
-        'utf8'
-      )
+      await writeFile(join('app/src', 'App.vue'), `<script setup>\nimport hero from './hero.png'\n</script>\n`, 'utf8')
       const logs = []
       const origLog = console.log
       console.log = msg => logs.push(String(msg))

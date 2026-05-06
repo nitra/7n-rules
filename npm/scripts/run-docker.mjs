@@ -29,6 +29,7 @@ export function isLintDockerfileName(name) {
 /**
  * Збирає абсолютні шляхи для lint-docker.
  * @param {string} root корінь репозиторію
+ * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи
  */
 export async function findLintDockerfilePaths(root, ignorePaths = []) {

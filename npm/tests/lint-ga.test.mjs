@@ -12,6 +12,13 @@ import { env } from 'node:process'
 
 import { runLintGaCli } from '../scripts/lint-ga.mjs'
 
+const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
+const APT_INSTALL_SHELLCHECK_RE = /apt-get install -y shellcheck/
+const PACMAN_INSTALL_SHELLCHECK_RE = /pacman -S shellcheck/
+const UV_WORD_RE = /\buv\b/
+const BREW_INSTALL_UV_RE = /brew install uv/
+const ASTRAL_UV_RE = /astral\.sh\/uv/
+
 /**
  * Ізолює PATH у порожньому каталозі на час `fn`, перехоплює console.error/log і повертає виведене
  * в stderr-блобі та результат `runLintGaCli`.
@@ -48,23 +55,23 @@ describe('runLintGaCli', () => {
     const { code, errBlob } = await withIsolatedPath(runLintGaCli)
     expect(code).toBe(1)
     expect(errBlob).toContain('shellcheck')
-    expect(errBlob).toMatch(/brew install shellcheck/)
-    expect(errBlob).toMatch(/apt-get install -y shellcheck/)
-    expect(errBlob).toMatch(/pacman -S shellcheck/)
+    expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
+    expect(errBlob).toMatch(APT_INSTALL_SHELLCHECK_RE)
+    expect(errBlob).toMatch(PACMAN_INSTALL_SHELLCHECK_RE)
   })
 
   test('exit 1 + підказка astral.sh/uv, коли uv відсутній у PATH', async () => {
     const { code, errBlob } = await withIsolatedPath(runLintGaCli)
     expect(code).toBe(1)
-    expect(errBlob).toMatch(/\buv\b/)
-    expect(errBlob).toMatch(/brew install uv/)
-    expect(errBlob).toMatch(/astral\.sh\/uv/)
+    expect(errBlob).toMatch(UV_WORD_RE)
+    expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
+    expect(errBlob).toMatch(ASTRAL_UV_RE)
   })
 
   test('обидва preflight’и повідомляються незалежно — підказка для uv не зникає, якщо shellcheck впав першим', async () => {
     const { errBlob } = await withIsolatedPath(runLintGaCli)
     // Один прогін має містити обидві підказки (а не вийти одразу після першого fail).
-    expect(errBlob).toMatch(/brew install shellcheck/)
-    expect(errBlob).toMatch(/brew install uv/)
+    expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
+    expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
   })
 })

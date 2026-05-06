@@ -43,6 +43,8 @@ const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/
 /** Типові конфіги MegaLinter у корені репо */
 const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
 
+const N_CURSOR_LINT_GA_RE = /\bn-cursor\s+lint-ga\b/
+
 /** Локальні composite setup-bun-deps (ga.mdc). */
 const SETUP_BUN_PATTERNS = ['./.github/actions/setup-bun-deps', './npm/github-actions/setup-bun-deps']
 
@@ -743,12 +745,10 @@ async function checkLintGaScript(passFn, failFn) {
   // на shellcheck + послідовно `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
   // Виклик через bin-ім’я `n-cursor`, а не `npx --no @nitra/cursor`, бо `bun run` транслює `npx` у `bun x`,
   // а `bun x @nitra/cursor` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання.
-  if (/\bn-cursor\s+lint-ga\b/.test(lg)) {
+  if (N_CURSOR_LINT_GA_RE.test(lg)) {
     passFn('lint-ga делегує CLI n-cursor lint-ga (preflight shellcheck + actionlint + zizmor)')
   } else {
-    failFn(
-      'lint-ga має бути "n-cursor lint-ga" — CLI робить preflight shellcheck перед actionlint/zizmor (ga.mdc)'
-    )
+    failFn('lint-ga має бути "n-cursor lint-ga" — CLI робить preflight shellcheck перед actionlint/zizmor (ga.mdc)')
   }
 }
 

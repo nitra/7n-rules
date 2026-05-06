@@ -19,7 +19,11 @@ import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
 const execFileAsync = promisify(execFile)
 
-/** Викликає `git` із заглушеним global config (для CI). */
+/**
+ * Викликає `git` із заглушеним global config (для CI).
+ * @param {string[]} args аргументи `git`-команди
+ * @returns {Promise<void>} резолвиться по завершенню `git`-команди
+ */
 async function git(args) {
   await execFileAsync(
     'git',
@@ -28,7 +32,12 @@ async function git(args) {
   )
 }
 
-/** Стандартний шаблон CHANGELOG.md із записом для версії. */
+/**
+ * Стандартний шаблон CHANGELOG.md із записом для версії.
+ * @param {string} version версія для запису у форматі Keep a Changelog
+ * @param {string} [date] дата запису у форматі `YYYY-MM-DD` (за замовчуванням `'2026-05-05'`)
+ * @returns {string} вміст CHANGELOG.md з одним записом
+ */
 function changelogWithVersion(version, date = '2026-05-05') {
   return `# Changelog\n\n## [${version}] - ${date}\n\n### Added\n\n- ...\n`
 }

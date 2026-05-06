@@ -41,7 +41,7 @@ const NPM_VIEW_TIMEOUT_MS = 10_000
 /**
  * Тихо запускає `git` і повертає stdout або `null` при будь-якій помилці.
  * @param {string[]} args аргументи `git`
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} stdout процесу або `null` при будь-якій помилці виконання
  */
 async function gitOrNull(args) {
   try {
@@ -54,7 +54,7 @@ async function gitOrNull(args) {
 
 /**
  * Чи робочий каталог — git-репозиторій.
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} `true`, якщо `git rev-parse --is-inside-work-tree` повернув `true`
  */
 async function isInsideGitRepo() {
   const out = await gitOrNull(['rev-parse', '--is-inside-work-tree'])
@@ -63,7 +63,7 @@ async function isInsideGitRepo() {
 
 /**
  * Назва поточної гілки (або `HEAD` для detached state).
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} назва гілки чи `'HEAD'`, або `null` (поза git / помилка)
  */
 async function currentBranchName() {
   const out = await gitOrNull(['rev-parse', '--abbrev-ref', 'HEAD'])
@@ -73,7 +73,7 @@ async function currentBranchName() {
 /**
  * Знаходить ref для базової гілки. Перевага локальному `dev`, далі `origin/dev`. Повертає `null`,
  * якщо жоден не існує.
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} назва ref-а (`dev` чи `origin/dev`) або `null`, якщо жоден не знайдено
  */
 async function resolveBaseRef() {
   for (const ref of [BASE_BRANCH, `origin/${BASE_BRANCH}`]) {
@@ -88,8 +88,8 @@ async function resolveBaseRef() {
 /**
  * Точка розгалуження поточної гілки від `baseRef`. На feature-гілці = коли вона відгалузилась;
  * на `main` після merge `dev → main` = поточний `dev`. Повертає `null`, якщо merge-base нема.
- * @param {string} baseRef
- * @returns {Promise<string | null>}
+ * @param {string} baseRef SHA або ref-name бази (зазвичай `dev` / `origin/dev`)
+ * @returns {Promise<string | null>} SHA точки розгалуження або `null`, якщо merge-base нема
  */
 async function resolveMergeBase(baseRef) {
   const out = await gitOrNull(['merge-base', baseRef, 'HEAD'])
@@ -104,9 +104,9 @@ async function resolveMergeBase(baseRef) {
  * Для кореня `.` — це точка плюс magic-виключення кожного підворкспейсу через `:(exclude)<sub>/`,
  * щоб зміни всередині sub-workspace не вважалися змінами кореня.
  * Для звичайного воркспейсу — просто `<ws>/`.
- * @param {string} ws
- * @param {string[]} subWorkspaces
- * @returns {string[]}
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня, інакше — відносний шлях, як у `workspaces`)
+ * @param {string[]} subWorkspaces усі під-воркспейси (зокрема для `'.'` потрібно виключити їх)
+ * @returns {string[]} pathspec для git: масив, що передається після `--`
  */
 function pathspecForWorkspace(ws, subWorkspaces) {
   if (ws !== '.') return [`${ws}/`]
@@ -119,9 +119,9 @@ function pathspecForWorkspace(ws, subWorkspaces) {
  * `git diff --quiet <baseRef> -- <pathspec>` ловить committed-зміни на цій гілці й незбережені
  * правки tracked-файлів. Untracked-файли — `git ls-files --others --exclude-standard`.
  * @param {string} baseRef SHA або ref-name (зокрема merge-base)
- * @param {string} ws
- * @param {string[]} subWorkspaces
- * @returns {Promise<boolean>}
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @param {string[]} subWorkspaces усі під-воркспейси для коректного формування pathspec кореня
+ * @returns {Promise<boolean>} `true`, якщо в межах воркспейсу є будь-які зміни (committed або untracked)
  */
 async function workspaceHasChangesAgainstBase(baseRef, ws, subWorkspaces) {
   const pathspec = pathspecForWorkspace(ws, subWorkspaces)
@@ -129,8 +129,7 @@ async function workspaceHasChangesAgainstBase(baseRef, ws, subWorkspaces) {
     await execFileAsync('git', ['diff', '--quiet', baseRef, '--', ...pathspec])
   } catch (error) {
     const code = /** @type {{ code?: number }} */ (error).code
-    if (code === 1) return true
-    return false
+    return code === 1
   }
   const untracked = await gitOrNull(['ls-files', '--others', '--exclude-standard', '--', ...pathspec])
   return typeof untracked === 'string' && untracked.trim().length > 0
@@ -138,9 +137,9 @@ async function workspaceHasChangesAgainstBase(baseRef, ws, subWorkspaces) {
 
 /**
  * Версія з `<ws>/package.json` на `baseRef` або `null`.
- * @param {string} baseRef
- * @param {string} ws
- * @returns {Promise<string | null>}
+ * @param {string} baseRef SHA або ref-name (зазвичай merge-base) для `git show`
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @returns {Promise<string | null>} значення поля `version` або `null`, якщо файла нема / JSON некоректний
  */
 async function readBaseVersion(baseRef, ws) {
   const wsPath = ws === '.' ? 'package.json' : `${ws}/package.json`
@@ -156,9 +155,9 @@ async function readBaseVersion(baseRef, ws) {
 
 /**
  * Чи містить текст `CHANGELOG.md` запис `## [version]` (з опційним `- YYYY-MM-DD`).
- * @param {string} text
- * @param {string} version
- * @returns {boolean}
+ * @param {string} text вміст CHANGELOG.md
+ * @param {string} version версія, яку шукаємо у форматі Keep a Changelog
+ * @returns {boolean} `true`, якщо запис для `version` знайдено
  */
 function changelogHasVersionEntry(text, version) {
   const escaped = version.replaceAll(/[.+*?^$()[\]{}|\\]/g, String.raw`\$&`)
@@ -168,8 +167,8 @@ function changelogHasVersionEntry(text, version) {
 
 /**
  * Зчитує `<ws>/package.json`. `null`, якщо файл відсутній або JSON некоректний.
- * @param {string} ws
- * @returns {Promise<Record<string, unknown> | null>}
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @returns {Promise<Record<string, unknown> | null>} розпарсений `package.json` або `null`
  */
 async function readPackageJsonOrNull(ws) {
   const path = join(ws, 'package.json')
@@ -186,8 +185,8 @@ async function readPackageJsonOrNull(ws) {
 
 /**
  * Воркспейс публікується в npm: має непорожній `name`, не `private: true`, і має масив `files`.
- * @param {Record<string, unknown> | null} pkg
- * @returns {boolean}
+ * @param {Record<string, unknown> | null} pkg розпарсений `package.json` (або `null`)
+ * @returns {boolean} `true`, якщо пакет придатний для публікації в npm
  */
 function isNpmPublishable(pkg) {
   if (!pkg) return false
@@ -199,8 +198,8 @@ function isNpmPublishable(pkg) {
 /**
  * Опублікована версія пакета в npm-реєстрі. `null` — пакет не знайдено / нема мережі / помилка.
  * Дефолтна імплементація — `npm view <name> version` із таймаутом, щоб не блокуватись офлайн.
- * @param {string} name
- * @returns {Promise<string | null>}
+ * @param {string} name повна назва пакета (включно зі скоупом)
+ * @returns {Promise<string | null>} опублікована версія або `null` (нема пакета / офлайн)
  */
 async function defaultGetPublishedVersion(name) {
   try {
@@ -214,10 +213,10 @@ async function defaultGetPublishedVersion(name) {
 
 /**
  * Перевіряє масив `files` у `<ws>/package.json`: якщо оголошено — має містити `"CHANGELOG.md"`.
- * @param {Record<string, unknown> | null} pkg
- * @param {string} ws
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {Record<string, unknown> | null} pkg розпарсений `package.json` воркспейсу
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
  */
 function checkFilesArrayContainsChangelog(pkg, ws, pass, fail) {
   if (!pkg || !Array.isArray(pkg.files)) return
@@ -231,10 +230,10 @@ function checkFilesArrayContainsChangelog(pkg, ws, pass, fail) {
 
 /**
  * Перевіряє наявність запису у `<ws>/CHANGELOG.md` для версії `version`.
- * @param {string} ws
- * @param {string} version
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @param {string} version версія, для якої очікується запис
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<boolean>} `false`, якщо файл відсутній або немає запису
  */
 async function verifyChangelogEntry(ws, version, pass, fail) {
@@ -257,11 +256,11 @@ async function verifyChangelogEntry(ws, version, pass, fail) {
  * npm-published режим: порівнює локальну `version` з опублікованою в реєстрі. Якщо вони
  * відрізняються — вимагає запис у CHANGELOG і `"CHANGELOG.md"` у `files`. Якщо реєстр недосяжний,
  * правило fail-safe пасує (щоб офлайн-розробка не блокувалась).
- * @param {string} ws
- * @param {Record<string, unknown>} pkg
- * @param {(name: string) => Promise<string | null>} getPublishedVersion
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @param {Record<string, unknown>} pkg розпарсений `package.json` воркспейсу
+ * @param {(name: string) => Promise<string | null>} getPublishedVersion стаб/реальна функція отримання опублікованої версії
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
  */
 async function checkPublishedWorkspace(ws, pkg, getPublishedVersion, pass, fail) {
   const label = ws === '.' ? '<root>' : ws
@@ -289,10 +288,10 @@ async function checkPublishedWorkspace(ws, pkg, getPublishedVersion, pass, fail)
  * local-only режим: PR-scoped перевірка проти `dev` через `git merge-base`. Викликається лише
  * для воркспейсів, де є реальні зміни щодо merge-base.
  * @param {string} mergeBase SHA точки розгалуження
- * @param {string} ws
- * @param {Record<string, unknown> | null} pkg
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {string} ws шлях воркспейсу (`'.'` для кореня)
+ * @param {Record<string, unknown> | null} pkg розпарсений `package.json` воркспейсу (або `null`)
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
  */
 async function checkLocalOnlyChangedWorkspace(mergeBase, ws, pkg, pass, fail) {
   const label = ws === '.' ? '<root>' : ws
@@ -315,12 +314,12 @@ async function checkLocalOnlyChangedWorkspace(mergeBase, ws, pkg, pass, fail) {
 
 /**
  * Виконує local-only перевірку для всіх workspace-ів, у яких немає npm-published режиму.
- * @param {string[]} localOnlyWorkspaces
- * @param {Map<string, Record<string, unknown> | null>} pkgByWs
- * @param {string[]} subWorkspaces
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
- * @returns {Promise<void>}
+ * @param {string[]} localOnlyWorkspaces список шляхів local-only воркспейсів
+ * @param {Map<string, Record<string, unknown> | null>} pkgByWs мапа: шлях воркспейсу → розпарсений `package.json` (або `null`)
+ * @param {string[]} subWorkspaces усі під-воркспейси (для коректного pathspec кореня)
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<void>} резолвиться по завершенню перевірок усіх local-only воркспейсів
  */
 async function runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, pass, fail) {
   if (localOnlyWorkspaces.length === 0) return
@@ -358,7 +357,7 @@ async function runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, p
 
 /**
  * Перевіряє відповідність проєкту правилу changelog.mdc.
- * @param {object} [opts]
+ * @param {object} [opts] опції перевірки
  * @param {(name: string) => Promise<string | null>} [opts.getPublishedVersion] перевизначення для тестів
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */

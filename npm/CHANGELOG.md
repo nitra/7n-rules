@@ -4,6 +4,20 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.181] - 2026-05-06
+
+### Changed
+
+- `scripts/utils/find-package-json-paths.mjs`: винесено спільну `findAllPackageJsonPaths(repoRoot, ignorePaths)` з `check-js-bun-db.mjs` і `check-js-mssql.mjs`, щоб усунути jscpd-дублювання. Самі check-скрипти тепер імпортують її, як інші утиліти з `utils/`.
+- `scripts/utils/walkDir.mjs` / `scripts/utils/load-cursor-config.mjs`: trimming trailing-slash переписано з регулярки `/\\/+$/` на `while (s.endsWith('/'))`, щоб уникнути попередження `sonarjs/slow-regex` (потенційний backtracking) — поведінка не змінилась.
+- `scripts/check-k8s.mjs`: `failIfExplicitPatchTargetsHaveRedundantGroupVersion` рефакторено — логіка одного запису винесена в новий хелпер `describePatchTargetRedundancy`, основна функція тепер просто будує повідомлення з результату (зменшено sonarjs/cognitive-complexity 24→<15, поведінка не змінилась).
+- `scripts/claude-stop-hook.mjs`: `readStdin` і `runStopHookCli` переписані з `new Promise(resolve => …)` на `events.once(stream, 'end' | 'exit')` — підказка `eslint-plugin-promise/avoid-new`, поведінка не змінилась.
+
+### Fixed
+
+- `scripts/utils/bun-sql-scan.mjs`: у JSDoc `findBunSqlUnsafeUseWithoutAllowMarkerInText` прибрано вкладений приклад із backslash-backtick (`sql\\`...\\${value}...\\``), який ламав парсер коментарів oxlint і призводив до false-positive `eslint-plugin-jsdoc(require-param)`/`(require-returns)` на функції з валідним JSDoc — текст переписано без екранованих backtick-ів.
+- Десятки `eslint-plugin-jsdoc` правил у `npm/scripts/**` та `npm/tests/**`: додано відсутні описи `@param` / `@returns` (включно зі спільним `ignorePaths`-аргументом у нових сигнатурах walkDir-обгорток), прибрано неприпустимі дефолтні значення в JSDoc (`[name=...]`) — без зміни поведінки.
+
 ## [1.8.180] - 2026-05-05
 
 ### Changed
@@ -55,9 +69,6 @@
 ### Added
 
 - Нове правило `changelog` (`mdc/changelog.mdc` + `scripts/check-changelog.mjs`): для «звичайних» Bun-монорепо проєктів вимагає, щоб у кожному workspace, який змінився відносно базової гілки `dev`, у поточному PR було підвищено `version` у `<ws>/package.json` і додано запис `## [version] - YYYY-MM-DD` у `<ws>/CHANGELOG.md` (Keep a Changelog 1.1.0). Перевірка PR-scoped: на самій гілці `dev` пропускається; на feature-гілці bump і запис достатньо зробити **один раз — як суму по всьому PR**, без бамп-шуму в проміжних комітах. Воркспейс `npm/` пропускається — його CHANGELOG покриває окреме правило `npm-module`. У `auto-rules.md` / `auto-rules.mjs` `changelog` додано до автодетекту з умовою «у корені є `package.json`» і до `AUTO_RULE_ORDER` між `capacitor` і `docker`.
-
-### Added
-
 - `.n-cursor.json` поле `ignore` (`schemas/n-cursor.json`): тепер не лише сигнал для AI, а й керує обходом усіх `check-*.mjs` / `run-*.mjs` — перелічені каталоги повністю виключаються з `walkDir`, як `node_modules` чи `.git`. Дозволяє безпечно тримати vendored Helm-чарти, генеровані маніфести, legacy-дерева у репо без false-positive’ів від check-скриптів. Розширено опис у схемі (стандартні виключення додавати не треба) і README отримав секцію «Виключення цілих дерев».
 - `scripts/utils/load-cursor-config.mjs`: нова утиліта `loadCursorIgnorePaths(root)` — читає поле `ignore` з `.n-cursor.json` і нормалізує до абсолютних posix-шляхів без trailing-slash; пропускає не-рядки та порожні елементи; повертає `[]`, якщо файлу/поля нема або JSON невалідний.
 - `scripts/utils/walkDir.mjs`: третій аргумент `ignorePaths` (за замовчуванням `[]`) — каталоги, які пропускаються разом з усім вмістом. Збіг — за повним шляхом (точний або з префіксом `/`), а не за basename, тож `postgres-master-test/` не пропускається коли в ignore лише `postgres-master/`. Стандартні пропуски (`node_modules`, `.git`, `dist`, `coverage`, `.turbo`, `.next`) працюють як раніше.
@@ -154,8 +165,8 @@
 
 ### Changed
 
-- `js-bun-db.mdc` (v1.4): `sql.unsafe(...)` тепер заборонено за замовчуванням — допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням; інакше переробляємо на tagged template `sql\`...${value}...\``. Кожен легітимний виклик має супроводжуватись маркером `// allow-unsafe: <причина>` на тому ж рядку або рядком вище.
-- `check-js-bun-db.mjs`: замість вузької перевірки `sql.unsafe(\`...${expr}...\`)` тепер сканер `findBunSqlUnsafeUseWithoutAllowMarkerInText` падає на будь-якому `<obj>.unsafe(...)` без маркера-коментаря з непорожньою причиною (line- або block-коментар на тому ж рядку чи безпосередньо перед викликом).
+- `js-bun-db.mdc` (v1.4): `sql.unsafe(...)` тепер заборонено за замовчуванням — допустимо лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL з code-controlled значенням; інакше переробляємо на tagged template `sql\`...${value}...\``. Кожен легітимний виклик має супроводжуватись маркером`// allow-unsafe: <причина>` на тому ж рядку або рядком вище.
+- `check-js-bun-db.mjs`: замість вузької перевірки `sql.unsafe` із tagged-template і інтерполяцією тепер сканер `findBunSqlUnsafeUseWithoutAllowMarkerInText` падає на будь-якому `obj.unsafe(...)` без маркера-коментаря з непорожньою причиною (line- або block-коментар на тому ж рядку чи безпосередньо перед викликом).
 - `ast-scan-utils.mjs`: додано `parseProgramAndCommentsOrNull` — окремий вхід для перевірок, яким потрібні коментарі поряд з AST.
 
 ## [1.8.159] - 2026-05-01

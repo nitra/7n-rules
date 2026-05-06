@@ -20,7 +20,9 @@ const CONFIG_FILE = '.n-cursor.json'
 function toAbsPosix(root, p) {
   const trimmed = String(p).trim()
   const abs = isAbsolute(trimmed) ? trimmed : resolve(root, trimmed)
-  return abs.split(sep).join('/').replace(/\/+$/, '')
+  let posix = abs.split(sep).join('/')
+  while (posix.endsWith('/')) posix = posix.slice(0, -1)
+  return posix
 }
 
 /**

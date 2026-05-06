@@ -6,6 +6,7 @@
   "ignore": [
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
+    "npm/.claude-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
     "npm/scripts/utils/oxlint-canonical.json"
