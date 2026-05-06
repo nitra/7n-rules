@@ -202,3 +202,114 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 })
+
+/**
+ * Підготовка монорепо з одним workspace-пакетом `cron-jobs/foo` (без vite/bunyan/conn-проблем)
+ * і workflow-файлом за заданою назвою/вмістом.
+ * @param {string} workflowName ім'я файлу всередині `.github/workflows/`
+ * @param {string} workflowContent YAML-вміст workflow
+ * @returns {Promise<void>}
+ */
+async function writeRepoWithCronJobAndWorkflow(workflowName, workflowContent) {
+  await writeJson('package.json', {
+    name: 'r',
+    private: true,
+    workspaces: ['cron-jobs/foo']
+  })
+  await ensureDir(join('cron-jobs', 'foo'))
+  await writeJson(join('cron-jobs', 'foo', 'package.json'), {
+    name: 'foo',
+    dependencies: { '@nitra/pino': '^1.0.0' }
+  })
+  await mkdir(join('.github', 'workflows'), { recursive: true })
+  await writeFile(join('.github', 'workflows', workflowName), workflowContent, 'utf8')
+}
+
+describe('check-js-run: depcheck у path-scoped workflow', () => {
+  test('0, якщо нема .github/workflows', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0, якщо workflow без paths: (глобальний lint)', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'lint-js.yml',
+        `name: Lint JS\non:\n  push:\n    branches: [main]\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n`
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0, якщо paths глобальні (**/*.js, не зачіпає конкретний пакет)', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'lint-js.yml',
+        `name: Lint JS\non:\n  push:\n    paths:\n      - '**/*.js'\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n`
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('1, якщо paths обмежено пакетом, але немає кроку depcheck', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo build\n`
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('1, якщо depcheck є, але working-directory неправильна', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx depcheck --ignores="graphql,bun"\n        working-directory: cron-jobs/bar\n`
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('1, якщо depcheck без --ignores', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx depcheck\n        working-directory: cron-jobs/foo\n`
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('1, якщо --ignores не містить bun', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx depcheck --ignores="graphql"\n        working-directory: cron-jobs/foo\n`
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('0, якщо depcheck коректний (graphql,bun у будь-якому порядку, з extra)', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx depcheck --ignores="bun,extra,graphql"\n        working-directory: cron-jobs/foo\n`
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0, якщо paths цілить вкладений каталог пакета (cron-jobs/foo/src/**)', async () => {
+    await withTmpCwd(async () => {
+      await writeRepoWithCronJobAndWorkflow(
+        'foo.yml',
+        `name: foo\non:\n  push:\n    paths:\n      - 'cron-jobs/foo/src/**'\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx depcheck --ignores="graphql,bun"\n        working-directory: cron-jobs/foo\n`
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+})

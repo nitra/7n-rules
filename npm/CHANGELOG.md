@@ -4,6 +4,27 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.184] - 2026-05-06
+
+### Added
+
+- `check-js-run.mjs`: програмна перевірка нового правила «depcheck у GitHub Actions з path-фільтром». Для кожного backend workspace-пакета сканується `.github/workflows/*.yml`; якщо `on.push.paths` або `on.pull_request.paths` містить glob, що починається з `<rootDir>/`, у job очікується крок `npx depcheck` з `working-directory: <rootDir>` і `--ignores`, що містить мінімум `graphql,bun` (інші значення допустимі). Логіка — у новому `scripts/utils/depcheck-workflow.mjs` (парсинг `--ignores="…"` з підтримкою single/double-quote і unquoted формату; класифікація `missing` / `wrong-cwd` / `missing-ignores`).
+- `check-js-run-fixture.test.mjs`: 9 нових кейсів — нема `.github/workflows/`, глобальні paths без скоупу пакета, scoped-paths без depcheck (fail), depcheck з неправильним `working-directory` (fail), без `--ignores` (fail), `--ignores` без `bun` (fail), валідний з extra-ignores (pass), вкладений `cron-jobs/foo/src/**` як scope (pass).
+- `.github/workflows/npm-publish.yml`: додано власний крок `npx depcheck --ignores="graphql,bun,bun:test,@nitra/cursor"` з `working-directory: npm`, щоб репо `@nitra/cursor` саме відповідало новому правилу js-run (`paths: ['npm/**']` обмежено пакетом `npm`); extra-ignores потрібні для self-reference `@nitra/cursor` у devDependencies та для `bun:test` як bun-built-in.
+
+## [1.8.183] - 2026-05-06
+
+### Changed
+
+- `ga` (mdc v1.6 → v1.7): додано **універсальну** вимогу — кожен workflow у `.github/workflows/*.yml` обов'язково містить блок `concurrency` з `group: ${{ github.ref }}-${{ github.workflow }}` і `cancel-in-progress: true`. Без винятків — scheduled cleanup-воркфлоу, `pull_request: types: [closed]`, publish-воркфлоу теж. Канонічні приклади у правилі (`clean-ga-workflows.yml`, `clean-merged-branch.yml`, `git-ai.yml`) оновлено й тепер містять цей блок.
+- `check-ga.mjs`: нова перевірка `verifyConcurrencyBlock` — запускається на кожному `*.yml` у `.github/workflows/` і структурно перевіряє рівно два поля (`concurrency.group` дорівнює канонічному рядку, `concurrency.cancel-in-progress === true`); відсутність блоку, інший `group` або `cancel-in-progress: false` — fail. Спільний `validateConcurrencyOnRoot` додано в усі канонічні структурні валідатори (clean-ga-workflows, clean-merged-branch, lint-ga, git-ai), щоб ці workflow перевірялися й через шаблонну, і через універсальну логіку.
+
+## [1.8.182] - 2026-05-06
+
+### Changed
+
+- `js-run` (mdc v1.2 → v1.3): додано секцію **«depcheck у GitHub Actions з path-фільтром»** — якщо в `.github/workflows/*.yml` тригер `paths:` обмежено каталогом одного backend-пакета (наприклад `cron-jobs/refund-loyalty-points/**`), у job має бути крок `npx depcheck --ignores="graphql,bun"` з `working-directory`, що вказує на той самий каталог. Список `--ignores` обов'язково містить мінімум `graphql,bun` (peer-залежність GraphQL та рантайм Bun, які depcheck не розпізнає коректно), але може бути розширений значеннями через кому без пробілів. Не застосовується до глобальних workflow без `paths:` або з кореневими `**/*.js` патернами.
+
 ## [1.8.181] - 2026-05-06
 
 ### Changed

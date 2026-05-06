@@ -17,7 +17,11 @@
  *    `node:process` (для опційних). Коли `env` імпортовано з `@nitra/check-env`,
  *    кожен `env.X` має бути закритий літеральним викликом `checkEnv(['X', ...])`
  *    у тому ж файлі або коментарем `// \@nitra/cursor ignore-next-line checkEnv`
- *    на попередньому рядку (див. `utils/check-env-scan.mjs`).
+ *    на попередньому рядку (див. `utils/check-env-scan.mjs`);
+ *  - «depcheck у GitHub Actions з path-фільтром»: для кожного workflow з `paths:`,
+ *    обмеженим каталогом цього пакета (`<rootDir>/...`), має бути крок
+ *    `npx depcheck --ignores="graphql,bun"` (плюс інші, за потреби) з
+ *    `working-directory: <rootDir>` (див. `utils/depcheck-workflow.mjs`).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -30,6 +34,7 @@ import {
 } from './utils/bunyan-imports.mjs'
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './utils/check-env-scan.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { findDepcheckViolationsForPackage, readAllWorkflowFiles } from './utils/depcheck-workflow.mjs'
 import {
   findConnFactoryImportsInText,
   isConnImportsScanSourceFile,
@@ -161,11 +166,12 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
  * Перевіряє відповідність правилам js-run.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {{ relPath: string, content: string }[]} workflows кешований список workflow-файлів репо
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок цього пакета
  */
-async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
+async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, passFn) {
   const label = `[${rootDir}] `
   const absPackageRoot = join(process.cwd(), rootDir)
   const pkgJson = await loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail)
@@ -200,6 +206,33 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
   }
 
   await checkOtelConfigmap(rootDir, label, fail, passFn)
+
+  checkDepcheckInWorkflows(rootDir, workflows, label, fail, passFn)
+}
+
+/**
+ * Перевіряє правило «depcheck у workflow» для одного пакета.
+ *
+ * Для кожного `.github/workflows/*.yml`, чий `paths:` обмежено до `<rootDir>/...`,
+ * має бути крок `npx depcheck --ignores="graphql,bun"` з `working-directory: <rootDir>`.
+ * Якщо в репо немає каталогу `.github/workflows`, перевірка no-op.
+ * @param {string} rootDir відносний шлях workspace-пакета
+ * @param {{ relPath: string, content: string }[]} workflows кешований список workflow-файлів
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn успішне повідомлення
+ * @returns {void}
+ */
+function checkDepcheckInWorkflows(rootDir, workflows, label, fail, passFn) {
+  if (workflows.length === 0) return
+  const violations = findDepcheckViolationsForPackage(workflows, rootDir.replace(/\\/g, '/'))
+  if (violations.length === 0) {
+    passFn(`${label}depcheck у path-scoped workflow налаштовано (або відсутній path-scoped workflow для пакета)`)
+    return
+  }
+  for (const v of violations) {
+    fail(`${label}${v}`)
+  }
 }
 
 /**
@@ -281,8 +314,9 @@ export async function check() {
   }
 
   const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  const workflows = await readAllWorkflowFiles(process.cwd())
   for (const r of workspaceRoots) {
-    await checkWorkspacePackage(r, ignorePaths, fail, pass)
+    await checkWorkspacePackage(r, ignorePaths, workflows, fail, pass)
   }
 
   return reporter.getExitCode()

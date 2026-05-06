@@ -58,6 +58,9 @@ const FORBIDDEN_BUN_PATTERNS = [
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
 
+/** Канонічне значення `concurrency.group` (ga.mdc). Збирається з фрагментів, щоб не плодити expression-токени в коді. */
+const EXPECTED_CONCURRENCY_GROUP = ['$', '{{ github.ref }}-$', '{{ github.workflow }}'].join('')
+
 /**
  * Повертає true, якщо glob у GitHub Actions `on.*.paths` матчитсья хоча б на один tracked файл у репозиторії.
  *
@@ -231,6 +234,8 @@ function validateCleanGaWorkflows(root, passFn, failFn) {
     passFn('clean-ga-workflows.yml: workflow_dispatch OK')
   }
 
+  validateConcurrencyOnRoot('clean-ga-workflows.yml', root, passFn, failFn)
+
   const jobs = getObjKey(root, 'jobs')
   const job = getObjKey(jobs, 'cleanup_old_workflows')
   if (!job) {
@@ -344,6 +349,8 @@ function validateCleanMergedBranch(root, passFn, failFn) {
     failFn('clean-merged-branch.yml: має бути workflow_dispatch: {} (ga.mdc)')
   }
 
+  validateConcurrencyOnRoot('clean-merged-branch.yml', root, passFn, failFn)
+
   const jobs = getObjKey(root, 'jobs')
   const job = getObjKey(jobs, 'cleanup_old_branches')
   if (!job) {
@@ -421,10 +428,7 @@ function validateLintGaWorkflowStructure(root, passFn, failFn) {
 
   validateLintGaOnTriggers(root.on, failFn)
 
-  const conc = getObjKey(root, 'concurrency')
-  if (getObjKey(conc, 'cancel-in-progress') !== true) {
-    failFn('lint-ga.yml: concurrency.cancel-in-progress має бути true (ga.mdc)')
-  }
+  validateConcurrencyOnRoot('lint-ga.yml', root, passFn, failFn)
 
   const jobs = getObjKey(root, 'jobs')
   const job = getObjKey(jobs, 'lint-ga')
@@ -490,6 +494,8 @@ function validateGitAiWorkflowStructure(root, passFn, failFn) {
     failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
   }
 
+  validateConcurrencyOnRoot('git-ai.yml', root, passFn, failFn)
+
   const jobs = getObjKey(root, 'jobs')
   const job = getObjKey(jobs, 'git-ai')
   if (!job) {
@@ -516,6 +522,60 @@ function validateGitAiWorkflowStructure(root, passFn, failFn) {
   } else {
     failFn('git-ai.yml: має виконувати git-ai ci github run (ga.mdc)')
   }
+}
+
+/**
+ * Перевіряє блок `concurrency` на вже розпарсеному корені workflow (ga.mdc).
+ *
+ * Використовується в канонічних структурних валідаторах (clean-ga-workflows, clean-merged-branch,
+ * lint-ga, git-ai), де root уже отримано через `parseWorkflowYaml`. Логіка ідентична
+ * `verifyConcurrencyBlock`, але без повторного парсингу.
+ * @param {string} relPath шлях для повідомлень
+ * @param {Record<string, unknown>} root parsed YAML workflow
+ * @param {(msg: string) => void} passFn pass
+ * @param {(msg: string) => void} failFn fail
+ * @returns {void}
+ */
+function validateConcurrencyOnRoot(relPath, root, passFn, failFn) {
+  const conc = getObjKey(root, 'concurrency')
+  if (!conc || typeof conc !== 'object') {
+    failFn(
+      `${relPath}: відсутня секція concurrency — додай concurrency.group: ${EXPECTED_CONCURRENCY_GROUP} і cancel-in-progress: true (ga.mdc)`
+    )
+    return
+  }
+  const group = getObjKey(conc, 'group')
+  const cancel = getObjKey(conc, 'cancel-in-progress')
+  if (group !== EXPECTED_CONCURRENCY_GROUP) {
+    failFn(`${relPath}: concurrency.group має бути ${EXPECTED_CONCURRENCY_GROUP} (ga.mdc)`)
+    return
+  }
+  if (cancel !== true) {
+    failFn(`${relPath}: concurrency.cancel-in-progress має бути true (ga.mdc)`)
+    return
+  }
+  passFn(`${relPath}: concurrency блок OK`)
+}
+
+/**
+ * Перевіряє, що workflow містить блок `concurrency` з канонічними `group` і `cancel-in-progress: true` (ga.mdc).
+ *
+ * Без винятків — застосовується до всіх workflow у `.github/workflows/*.yml`, включно з scheduled cleanup,
+ * `pull_request: types: [closed]` та publish-воркфлоу. Делегує логіку `validateConcurrencyOnRoot`,
+ * додаючи лише крок парсингу YAML; якщо парсинг провалився — мовчки виходить (синтаксичні проблеми
+ * ловлять інші перевірки).
+ * @param {string} relPath шлях для повідомлень
+ * @param {string} content вміст YAML
+ * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
+ * @param {(msg: string) => void} passFn реєструє успішну перевірку
+ * @returns {void}
+ */
+function verifyConcurrencyBlock(relPath, content, failFn, passFn) {
+  const root = parseWorkflowYaml(content)
+  if (!root) {
+    return
+  }
+  validateConcurrencyOnRoot(relPath, root, passFn, failFn)
 }
 
 /**
@@ -994,6 +1054,7 @@ export async function check() {
     verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${f}`, content, fail, pass)
     verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
     verifyNoRunShellLineContinuationBackslash(`${wfDir}/${f}`, content, fail, pass)
+    verifyConcurrencyBlock(`${wfDir}/${f}`, content, fail, pass)
     const parsed = parseWorkflowYaml(content)
     if (parsed) {
       verifyWorkflowEventPathsGlobsExist(`${wfDir}/${f}`, parsed, pass, fail)

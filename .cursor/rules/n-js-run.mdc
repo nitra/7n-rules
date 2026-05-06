@@ -1,8 +1,20 @@
 ---
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 alwaysApply: true
-version: '1.1'
+version: '1.3'
 ---
+
+## Область застосування
+
+Правило стосується **виключно backend Node.js workspace-пакетів** (jobs, GraphQL/HTTP-сервери, CLI). **Не застосовується** до frontend-пакетів, які бандляться в браузер: маркер — наявність `vite` у `devDependencies` пакета (`site/`, мобільні Capacitor-пакети, будь-яка Vue/Quasar SPA).
+
+У браузерному середовищі:
+
+- немає `node:process` — імпорт `import { env } from 'node:process'` resolve'иться у `undefined`, і `env.X` падає з `TypeError: Cannot read properties of undefined`;
+- `process.env.X` у джерелах пакета відсутнє в рантаймі — Vite або взагалі не підставляє його, або підставляє лише `process.env.NODE_ENV`;
+- усі змінні оточення для frontend задаються через `VITE_*` і доступні як `import.meta.env.VITE_X` (типобезпечно через `vite-check-env`); режим — `import.meta.env.MODE` / `import.meta.env.PROD`.
+
+Тому **у frontend-пакетах не торкайся `process.env.*`** і **не додавай** `import { env } from 'node:process'`. Якщо натрапив на `process.env.NODE_ENV` у frontend-коді — заміна, якщо взагалі потрібна, лише на `import.meta.env.MODE`.
 
 ## Структура проекту
 
@@ -108,6 +120,8 @@ export const db = new SQL({ url: env.PG_CONN })
 
 Прямий доступ до `process.env.X` у коді заборонений — його треба замінити на `env`:
 
+> Стосується лише backend-пакетів (див. **Область застосування**). У frontend-пакетах (`vite` у `devDependencies`) — **не змінюй** `process.env.*` і **не додавай** імпорт `node:process`.
+
 - **обов'язкова змінна** — `import { checkEnv, env } from '@nitra/check-env'` плюс `checkEnv(['X'])`
   у тому ж файлі (приклад див. вище в розділі **CheckEnv**);
 - **опційна змінна** — `import { env } from 'node:process'`:
@@ -121,6 +135,26 @@ console.log(env.OPTIONAL_ENV_VAR)
 Тимчасово приглушити перевірку для конкретного рядка можна коментарем
 `// @nitra/cursor ignore-next-line checkEnv` безпосередньо перед використанням
 (escape-hatch для legacy-коду, не для нових файлів).
+
+## depcheck у GitHub Actions з path-фільтром
+
+Якщо в `.github/workflows/*.yml` є тригер з `paths:`, який обмежує запуск workflow змінами в каталозі конкретного backend-пакета, в job цього workflow має бути крок `npx depcheck` з `working-directory`, який вказує на той самий каталог пакета. Це гарантує, що декларація залежностей у `package.json` пакета відповідає реальним імпортам — інакше можна випадково зламати білд після видалення «зайвої» залежності, яка насправді використовується через побічний імпорт.
+
+Список `--ignores` **обов'язково** містить як мінімум `graphql,bun` (це ті, які `depcheck` не вміє коректно розпізнавати: `graphql` — peer-залежність, що часто використовується без прямого імпорту в коді; `bun` — рантайм, не npm-пакет). За потреби список можна розширити іншими модулями, специфічними для пакета — список значень розділяється комою без пробілів.
+
+```yaml title="Приклад: workflow для cron-jobs/refund-loyalty-points"
+on:
+  push:
+    paths:
+      - 'cron-jobs/refund-loyalty-points/**'
+
+# …
+
+      - run: npx depcheck --ignores="graphql,bun"
+        working-directory: cron-jobs/refund-loyalty-points
+```
+
+Правило не застосовується до workflow без `paths:` або з `paths:`, який не звужує тригер до одного backend-пакета (наприклад, кореневі `lint-*.yml` з глобальними `**/*.js`).
 
 ## Перевірка
 
