@@ -1,19 +1,29 @@
 /**
  * Тести check-image у ізольованих тимчасових каталогах (split-cache 3.2.0).
  *
- * Покриває: повний успіх, відсутні прапорці `--src=.`/`--write`/`--avif`,
- * `.n-minify-image.tsv` у `.gitignore` (помилка), наявність застарілого
- * `.minify-image-cache.tsv` (помилка), заборона `@nitra/minify-image` у залежностях,
- * AVIF-імпорти у `.vue`. CI-workflow правило не вимагає — лінт зображень тільки локальний.
+ * Покриває: повний успіх, відсутні прапорці `--src=.`/`--write`, заборона `--avif`
+ * у `lint-image` (його ставить лише `check image`), `.n-minify-image.tsv` у `.gitignore`
+ * (помилка), наявність застарілого `.minify-image-cache.tsv` (помилка), заборона
+ * `@nitra/minify-image` у залежностях, AVIF-імпорти у `.vue`, прибирання AVIF-сиріт.
+ * CI-workflow правило не вимагає — лінт зображень тільки локальний.
  */
-import { describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { env } from 'node:process'
 
 import { check } from '../scripts/check-image.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
-const CANONICAL_LINT_IMAGE = 'npx @nitra/minify-image --src=. --write --avif'
+const CANONICAL_LINT_IMAGE = 'npx @nitra/minify-image --src=. --write'
+
+beforeAll(() => {
+  env.NITRA_CURSOR_NO_AVIF_RUN = '1'
+})
+afterAll(() => {
+  delete env.NITRA_CURSOR_NO_AVIF_RUN
+})
 
 /**
  * Створює мінімальний валідний проєкт під image-правило в поточному cwd.
@@ -32,7 +42,7 @@ async function setupValidImageProject() {
 }
 
 describe('check-image', () => {
-  test('успіх: канонічний `--src=. --write --avif` без застарілих файлів', async () => {
+  test('успіх: канонічний `--src=. --write` (без --avif) без застарілих файлів', async () => {
     await withTmpCwd(async () => {
       await setupValidImageProject()
       expect(await check()).toBe(0)
@@ -79,7 +89,7 @@ describe('check-image', () => {
         private: true,
         scripts: {
           lint: 'bun run lint-image && oxfmt .',
-          'lint-image': 'npx @nitra/minify-image --write --avif'
+          'lint-image': 'npx @nitra/minify-image --write'
         }
       })
       expect(await check()).toBe(1)
@@ -101,7 +111,7 @@ describe('check-image', () => {
     })
   })
 
-  test('помилка: lint-image без --avif', async () => {
+  test('помилка: lint-image з забороненим --avif (його ставить лише `check image`)', async () => {
     await withTmpCwd(async () => {
       await setupValidImageProject()
       await writeJson('package.json', {
@@ -109,7 +119,7 @@ describe('check-image', () => {
         private: true,
         scripts: {
           lint: 'bun run lint-image && oxfmt .',
-          'lint-image': 'npx @nitra/minify-image --src=. --write'
+          'lint-image': 'npx @nitra/minify-image --src=. --write --avif'
         }
       })
       expect(await check()).toBe(1)
@@ -332,6 +342,58 @@ describe('check-image', () => {
         'utf8'
       )
       expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: AVIF-сирота без посилань у .vue видаляється', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'App.vue'), `<template><div/></template>\n`, 'utf8')
+      await writeFile(join('app/src', 'orphan.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'orphan.png.avif'), 'fake-avif', 'utf8')
+      expect(await check()).toBe(0)
+      expect(existsSync(join('app/src', 'orphan.png.avif'))).toBe(false)
+      expect(existsSync(join('app/src', 'orphan.png'))).toBe(true)
+    })
+  })
+
+  test('успіх: raster-імпорт з реальним .avif-сусідом авто-переписується на .avif', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'hero.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'hero.png.avif'), 'fake-avif', 'utf8')
+      await writeFile(
+        join('app/src', 'App.vue'),
+        `<script setup>\nimport hero from './hero.png'\n</script>\n<template><img :src="hero"/></template>\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('app/src', 'App.vue'), 'utf8')
+      expect(updated).toContain(`'./hero.png.avif'`)
+      expect(updated).not.toContain(`'./hero.png'`)
+      expect(existsSync(join('app/src', 'hero.png.avif'))).toBe(true)
     })
   })
 

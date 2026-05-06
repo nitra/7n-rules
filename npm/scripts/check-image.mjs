@@ -4,7 +4,9 @@
  *
  * Очікування:
  * - у кореневому `package.json` є скрипт `lint-image`, який викликає `npx @nitra/minify-image`
- *   з обовʼязковими `--src=.`, `--write` і `--avif` (авто-оптимізація з AVIF-двійниками);
+ *   з обовʼязковими `--src=.` і `--write`. Прапорець `--avif` у `lint-image` заборонений —
+ *   AVIF-генерацію виконує `check image` (інакше `bun run lint` плодив би `.avif` для
+ *   зображень, що ніде не вживаються);
  * - якщо в `package.json` є агрегований скрипт `lint`, він викликає `bun run lint-image`
  *   (симетрично до `lint-text`, `lint-js`, `lint-ga`);
  * - `@nitra/minify-image` не оголошений у `dependencies`/`devDependencies` —
@@ -14,15 +16,25 @@
  *   `node_modules/.cache/@nitra/minify-image/mtime.tsv` авто-gitignored через `node_modules/`,
  *   окремої перевірки не вимагає;
  * - застарілий `.minify-image-cache.tsv` (з версій < 3.2) видалений з кореня — інакше
- *   проєкт лишається у напівпереміщеному стані;
- * - у `.vue` файлах raster-імпорти (`.png` / `.jpg` / `.jpeg` / `.gif`) посилаються на
- *   AVIF-двійники (`...png.avif` тощо), оскільки `--avif` гарантує їх наявність поряд із
- *   оригіналами. Можна вимкнути на рівні воркспейс-пакета через `"@nitra/minify-image": {
- *   "disable-avif": true }` у його `package.json`.
+ *   проєкт лишається у напівпереміщеному стані.
+ *
+ * Дії під час `check image` (на додачу до валідацій):
+ * 1. `npx @nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
+ * 2. У кожному workspace-пакеті переписує raster-посилання у `.vue`/`.html` на `.avif`
+ *    (де AVIF-двійник реально існує на диску). Pakety з `"@nitra/minify-image": {
+ *    "disable-avif": true }` у `package.json` пропускаються.
+ * 3. Прибирає AVIF-сироти — `<name>.<ext>.avif`, на які не лишилось жодного посилання
+ *    у `.vue`/`.html` репозиторію, видаляються (умова правила: «AVIF лишається лише
+ *    там, де заміна вдалася»).
+ *
+ * Якщо raster-посилання у `.vue`/`.html` не вдалось переписати (наприклад, оригіналу
+ * нема на диску → `.avif` теж не згенерувався) — фейл на конкретний файл, як раніше.
  */
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import { env } from 'node:process'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
@@ -59,18 +71,27 @@ const VUE_RASTER_IMPORT_RE = /import\s+\w[\w$]*\s+from\s+['"]([^'"\n]+\.(?:png|j
 const VUE_RASTER_STATIC_SRC_RE = /(?<![:\-_.])\bsrc\s*=\s*['"]([^'"\s]+\.(?:png|jpe?g|gif))['"]/giu
 
 /**
+ * Регексп для готових AVIF-посилань у `.vue`/`.html` (як `import x from '...png.avif'`,
+ * так і `<img src="....png.avif" />`). Потрібен лише для збору множини «живих» AVIF —
+ * щоб після авто-заміни знати, які `<...>.avif` файли ще на щось посилаються, а які
+ * є сиротами і підлягають видаленню.
+ */
+const VUE_AVIF_REF_RE = /['"]([^'"\s]+\.(?:png|jpe?g|gif)\.avif)['"]/giu
+
+/**
  * Перевіряє скрипт `lint-image` у `package.json`.
  *
- * Має містити виклик `npx @nitra/minify-image` з обовʼязковими прапорцями `--src=.`,
- * `--write` (авто-оптимізація на місці) і `--avif` (AVIF-двійники для PNG/JPEG/GIF).
- * Без `--write`/`--avif` лінт лише оцінює економію — для проєктних коммітів цього мало.
+ * Має містити виклик `npx @nitra/minify-image` з обовʼязковими прапорцями `--src=.`
+ * і `--write` (авто-оптимізація на місці). Прапорець `--avif` у `lint-image`
+ * заборонений — AVIF-генерацію виконує `check image`, інакше `bun run lint` плодить
+ * `.avif` для зображень, що ніде не вживаються.
  * @param {string|undefined} lintImage значення `scripts['lint-image']`
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void}
  */
 function checkLintImageScript(lintImage, pass, fail) {
-  const canonical = `npx ${MINIFY_PACKAGE_NAME} --src=. --write --avif`
+  const canonical = `npx ${MINIFY_PACKAGE_NAME} --src=. --write`
   if (typeof lintImage !== 'string' || !lintImage.trim()) {
     fail(`package.json: додай скрипт "lint-image" з \`${canonical}\` (image.mdc)`)
     return
@@ -82,13 +103,18 @@ function checkLintImageScript(lintImage, pass, fail) {
   /** @type {{ flag: string, variants: string[], hint: string }[]} */
   const requiredFlags = [
     { flag: '--src=.', variants: ['--src=.', '--src .'], hint: '`--src=.`' },
-    { flag: '--write', variants: ['--write'], hint: '`--write` (авто-оптимізація на місці)' },
-    { flag: '--avif', variants: ['--avif'], hint: '`--avif` (AVIF-двійники для PNG/JPEG/GIF)' }
+    { flag: '--write', variants: ['--write'], hint: '`--write` (авто-оптимізація на місці)' }
   ]
   const missing = requiredFlags.filter(f => !f.variants.some(v => lintImage.includes(v)))
   if (missing.length > 0) {
     fail(
       `package.json: lint-image має містити ${missing.map(f => f.hint).join(', ')} — канонічний виклик: \`${canonical}\` (image.mdc)`
+    )
+    return
+  }
+  if (lintImage.includes('--avif')) {
+    fail(
+      `package.json: прибери \`--avif\` з lint-image — AVIF-генерацію виконує \`npx @nitra/cursor check image\` (image.mdc). Канонічний виклик: \`${canonical}\``
     )
     return
   }
@@ -207,56 +233,111 @@ function packageHasAvifDisabled(pkg) {
 }
 
 /**
- * Сканує `.vue` файли одного workspace-пакета на raster-імпорти, що ще не використовують `.avif`.
+ * Резолвить шлях зображення з імпорта/атрибуту відносно файла, що його містить, до абсолютного
+ * шляху файла на диску. Шляхи, що не починаються з `.` чи `/`, не резолвимо (alias-resolver
+ * Vite/тощо невідомий тут — залишаємо такі посилання як є).
+ * @param {string} importPath шлях у `import x from '...'` або `src="..."`
+ * @param {string} sourceAbsPath абсолютний шлях файла з посиланням
+ * @returns {string|null} абсолютний шлях зображення або `null`, якщо резолвити не можемо
+ */
+function resolveImagePath(importPath, sourceAbsPath) {
+  if (importPath.startsWith('.')) {
+    return join(sourceAbsPath, '..', importPath)
+  }
+  if (importPath.startsWith('/')) {
+    return join(process.cwd(), importPath)
+  }
+  return null
+}
+
+/**
+ * Сканує `.vue` і `.html` файли одного workspace-пакета: де можемо, переписує raster-посилання
+ * на `<path>.avif`, де не можемо — фейлимо. Повертає множину `.avif`-двійників, на які
+ * лишилось живе посилання після проходу — потрібно для подальшого прибирання сиріт.
+ *
+ * Заміна виконується ТІЛЬКИ якщо AVIF-двійник реально існує на диску. Якщо AVIF немає
+ * (наприклад, оригіналу теж немає, тож `--avif` його не згенерував) — фейл, як раніше.
  *
  * Файли, що належать іншим workspace-пакетам, ігноруються — кожен пакет перевіряється рівно
  * один раз (інакше при обході кореня `.` ми б повторно зайшли в `demo/` і подвоїли звіти).
  * @param {string} packageRoot відносний шлях до кореня пакета (наприклад `'.'` або `'demo'`)
  * @param {string[]} otherRootsAbs абсолютні шляхи інших workspace-коренів — їх піддерева пропускаємо
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {Set<string>} usedAvifAbs мутабельна множина абсолютних шляхів `.avif`, що мають
+ * хоч одне посилання у `.vue`/`.html` (доповнюється у цій функції)
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>} резолвиться по завершенню перевірки одного пакета
  */
-async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, pass, fail) {
+async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, pass, fail) {
   const absRoot = join(process.cwd(), packageRoot)
   const label = packageRoot === '.' ? 'корінь' : packageRoot
   /** @type {string[]} */
-  const vueFiles = []
+  const targetFiles = []
   await walkDir(
     absRoot,
     absPath => {
-      if (!absPath.endsWith('.vue')) return
+      if (!absPath.endsWith('.vue') && !absPath.endsWith('.html')) return
       if (otherRootsAbs.some(other => absPath.startsWith(`${other}/`))) return
-      vueFiles.push(absPath)
+      targetFiles.push(absPath)
     },
     ignorePaths
   )
-  if (vueFiles.length === 0) return
+  if (targetFiles.length === 0) return
 
   let violations = 0
-  for (const absPath of vueFiles) {
+  let replacements = 0
+  for (const absPath of targetFiles) {
     const rel = relative(process.cwd(), absPath).split('\\').join('/')
-    const content = await readFile(absPath, 'utf8')
-    for (const match of content.matchAll(VUE_RASTER_IMPORT_RE)) {
-      violations++
-      const importPath = match[1]
-      fail(
-        `[${label}] ${rel}: import з '${importPath}' має посилатись на AVIF-двійник '${importPath}.avif' ` +
-          `(lint-image --avif створює його поряд). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
-      )
+    const original = await readFile(absPath, 'utf8')
+    let updated = original
+
+    /**
+     * @param {RegExp} regex з групою 1 = шлях до зображення
+     * @param {(srcPath: string) => string} renderFailure повідомлення помилки
+     */
+    const processMatches = (regex, renderFailure) => {
+      updated = updated.replaceAll(regex, (full, importPath) => {
+        const newImportPath = `${importPath}.avif`
+        const replaced = full.replace(importPath, newImportPath)
+        const imageAbs = resolveImagePath(importPath, absPath)
+        if (imageAbs && existsSync(`${imageAbs}.avif`)) {
+          replacements++
+          usedAvifAbs.add(`${imageAbs}.avif`)
+          return replaced
+        }
+        violations++
+        fail(renderFailure(importPath))
+        return full
+      })
     }
-    for (const match of content.matchAll(VUE_RASTER_STATIC_SRC_RE)) {
-      violations++
-      const srcPath = match[1]
-      fail(
+
+    processMatches(
+      VUE_RASTER_IMPORT_RE,
+      importPath =>
+        `[${label}] ${rel}: import з '${importPath}' має посилатись на AVIF-двійник '${importPath}.avif' ` +
+        `(\`npx @nitra/cursor check image\` створює його поряд, якщо оригінал є на диску). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
+    )
+    processMatches(
+      VUE_RASTER_STATIC_SRC_RE,
+      srcPath =>
         `[${label}] ${rel}: пряме \`src="${srcPath}"\` у шаблоні має використовувати AVIF-двійник \`src="${srcPath}.avif"\` ` +
-          `(або винеси у import + \`:src="..."\`). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
-      )
+        `(або винеси у import + \`:src="..."\`). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
+    )
+
+    for (const match of updated.matchAll(VUE_AVIF_REF_RE)) {
+      const avifPath = match[1]
+      const avifAbs = resolveImagePath(avifPath, absPath)
+      if (avifAbs) usedAvifAbs.add(avifAbs)
+    }
+
+    if (updated !== original) {
+      await writeFile(absPath, updated, 'utf8')
     }
   }
   if (violations === 0) {
-    pass(`[${label}] усі raster-посилання у .vue вже на .avif (або відсутні)`)
+    const summary = replacements > 0 ? `усі raster-посилання у .vue/.html переписано на .avif (замін: ${replacements})` : 'усі raster-посилання у .vue/.html вже на .avif (або відсутні)'
+    pass(`[${label}] ${summary}`)
   }
 }
 
@@ -265,11 +346,13 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
  * перевірку Vue-imports. Перевірка пропускається, якщо в репозиторії немає workspaces
  * або немає `.vue`-файлів — тоді `image` правило не для цього проєкту.
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {Set<string>} usedAvifAbs мутабельна множина абсолютних шляхів `.avif`-двійників,
+ * на які лишилось хоча б одне посилання у `.vue`/`.html` (заповнюється у викликаних функціях)
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>} резолвиться по завершенню перевірки всіх workspace-пакетів
  */
-async function checkVueAvifImports(ignorePaths, pass, fail) {
+async function checkVueAvifImports(ignorePaths, usedAvifAbs, pass, fail) {
   const roots = await getMonorepoPackageRootDirs()
   const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
   for (const root of roots) {
@@ -283,7 +366,85 @@ async function checkVueAvifImports(ignorePaths, pass, fail) {
       continue
     }
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
-    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, pass, fail)
+    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, usedAvifAbs, pass, fail)
+  }
+}
+
+/**
+ * Чи є в репозиторії хоч один raster-файл, який мав би сенс конвертувати у AVIF.
+ * Якщо немає — `npx @nitra/minify-image` нема що робити, тож зайвий запуск пропускаємо
+ * (важливо у тестах: фікстурні `.png`-імпорти посилаються на неіснуючі файли, тож
+ * minify-image все одно нічого не згенерує — а зайвий npx-спавн повільний і робить шум).
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<boolean>} `true`, якщо знайдено принаймні один `.png/.jpe?g/.gif`
+ */
+async function hasAnyRasterImage(ignorePaths) {
+  let found = false
+  await walkDir(
+    process.cwd(),
+    absPath => {
+      if (found) return
+      if (/\.(?:png|jpe?g|gif)$/iu.test(absPath)) found = true
+    },
+    ignorePaths
+  )
+  return found
+}
+
+/**
+ * Запускає `npx @nitra/minify-image --src=. --write --avif` для генерації AVIF-двійників.
+ *
+ * Виклик best-effort: якщо мережа/кеш недоступні чи бінарника нема — лог-варн без падіння
+ * перевірки (валідації package.json і vue-refs все одно прогоняться, vue-refs на
+ * відсутні `.avif` фейлять окремо). У тестах та інших ізольованих середовищах npx
+ * можна вимкнути через `NITRA_CURSOR_NO_AVIF_RUN=1` — тоді ця функція no-op.
+ * @returns {void}
+ */
+function runAvifGeneration() {
+  if (env.NITRA_CURSOR_NO_AVIF_RUN === '1') return
+  const result = spawnSync('npx', [MINIFY_PACKAGE_NAME, '--src=.', '--write', '--avif'], {
+    stdio: 'inherit',
+    env
+  })
+  if (result.error) {
+    console.log(
+      `  ⚠️  не вдалося запустити \`npx ${MINIFY_PACKAGE_NAME} --avif\`: ${result.error.message} — vue/html-перевірка покаже файли, для яких не вистачає .avif`
+    )
+    return
+  }
+  if (typeof result.status === 'number' && result.status !== 0) {
+    console.log(
+      `  ⚠️  \`npx ${MINIFY_PACKAGE_NAME} --avif\` завершився з кодом ${result.status} — vue/html-перевірка покаже файли, для яких не вистачає .avif`
+    )
+  }
+}
+
+/**
+ * Видаляє AVIF-сироти — `<...>.avif` файли, на які не лишилось жодного посилання
+ * у `.vue`/`.html` репозиторію. Реалізує умову правила: «AVIF лишається лише там,
+ * де заміна реально вдалася».
+ * @param {Set<string>} usedAvifAbs абсолютні шляхи `.avif`, що мають живі посилання
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @returns {Promise<void>} резолвиться після видалення всіх сиріт
+ */
+async function cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass) {
+  /** @type {string[]} */
+  const orphans = []
+  await walkDir(
+    process.cwd(),
+    absPath => {
+      if (!absPath.endsWith('.avif')) return
+      if (usedAvifAbs.has(absPath)) return
+      orphans.push(absPath)
+    },
+    ignorePaths
+  )
+  for (const absPath of orphans) {
+    await unlink(absPath)
+  }
+  if (orphans.length > 0) {
+    pass(`видалено AVIF-сиріт без посилань у .vue/.html: ${orphans.length}`)
   }
 }
 
@@ -308,9 +469,10 @@ async function checkPackageJsonImage(pass, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилам `image.mdc` (split-cache 3.2.0):
- * `lint-image` через `npx @nitra/minify-image --src=. --write --avif`, агрегований `lint`,
+ * `lint-image` через `npx @nitra/minify-image --src=. --write` (без `--avif`!), агрегований `lint`,
  * `.n-minify-image.tsv` НЕ в `.gitignore` (committed source of truth), застарілий
- * `.minify-image-cache.tsv` видалений, AVIF-імпорти у `.vue` файлах. CI-workflow
+ * `.minify-image-cache.tsv` видалений. Окремо виконуються дії: запуск AVIF-генерації,
+ * авто-заміна raster-посилань у `.vue`/`.html`, видалення AVIF-сиріт. CI-workflow
  * для image не вимагається — лінт зображень виконується лише локально.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -324,7 +486,15 @@ export async function check() {
     await checkLegacyCacheRemoved(pass, fail)
   }
   const ignorePaths = await loadCursorIgnorePaths(process.cwd())
-  await checkVueAvifImports(ignorePaths, pass, fail)
+
+  if (await hasAnyRasterImage(ignorePaths)) {
+    runAvifGeneration()
+  }
+
+  /** @type {Set<string>} */
+  const usedAvifAbs = new Set()
+  await checkVueAvifImports(ignorePaths, usedAvifAbs, pass, fail)
+  await cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass)
 
   return reporter.getExitCode()
 }

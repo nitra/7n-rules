@@ -21,7 +21,7 @@
     "lint-k8s": "bun ./npm/scripts/run-k8s.mjs",
     "lint-docker": "bun ./npm/scripts/run-docker.mjs",
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
-    "lint-image": "npx @nitra/minify-image --src=. --write --avif"
+    "lint-image": "npx @nitra/minify-image --src=. --write"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0",

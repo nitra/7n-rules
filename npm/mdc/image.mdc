@@ -1,10 +1,10 @@
 ---
 description: Оптимізація зображень через @nitra/minify-image у локальному lint
 alwaysApply: true
-version: '1.4'
+version: '1.5'
 ---
 
-CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **3.2.0**) запускається через `npx` (як `markdownlint-cli2` у text.mdc) і **не** додається в `dependencies` / `devDependencies`. Канонічний `lint-image` — авто-оптимізація з прапорцями `--write --avif`: стискає raster/SVG на місці й створює AVIF-двійники (`<name>.<ext>.avif`) поряд з кожним PNG/JPEG/GIF. Split-cache робить повторні прогони дешевими — і локально, і після `git clone`.
+CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **3.2.0**) запускається через `npx` (як `markdownlint-cli2` у text.mdc) і **не** додається в `dependencies` / `devDependencies`. Канонічний `lint-image` — авто-оптимізація з прапорцем `--write`: стискає raster/SVG на місці. **AVIF-генерація (`--avif`) у `lint-image` заборонена** — її виконує лише `npx @nitra/cursor check image`, який заодно прибирає AVIF-сироти (див. секцію «AVIF-імпорти у `.vue`»). Split-cache робить повторні прогони дешевими — і локально, і після `git clone`.
 
 Перевірка лише локальна — у CI `lint-image` не запускаємо (sharp/svgo тягнуть бінарні залежності, цінність на ubuntu-runner-ах нижча за час прогону). Окремий workflow `lint-image.yml` створювати не треба.
 
@@ -14,12 +14,12 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 {
   "scripts": {
     "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-image && oxfmt .",
-    "lint-image": "npx @nitra/minify-image --src=. --write --avif"
+    "lint-image": "npx @nitra/minify-image --src=. --write"
   }
 }
 ```
 
-Якщо в `package.json` уже є агрегований `lint`, додай у його ланцюжок `bun run lint-image` (як `bun run lint-text`, `bun run lint-js`, `bun run lint-ga`). Так розробник, що локально гонить `bun run lint`, перед фіксацією одразу бачить, чи зросли зображення, і отримує свіжі AVIF-двійники.
+Якщо в `package.json` уже є агрегований `lint`, додай у його ланцюжок `bun run lint-image` (як `bun run lint-text`, `bun run lint-js`, `bun run lint-ga`). Так розробник, що локально гонить `bun run lint`, перед фіксацією одразу бачить, чи зросли зображення.
 
 ## Split-cache
 
@@ -47,13 +47,19 @@ rm -f .minify-image-cache.tsv
 # прибери відповідний рядок з .gitignore, якщо був
 ```
 
-AVIF-двійники (`<name>.<ext>.avif`) **зберігаємо в git** — це готові артефакти для віддачі браузеру (без них ефект від `--avif` втрачається на чистому checkout-і).
+AVIF-двійники (`<name>.<ext>.avif`) **зберігаємо в git** — це готові артефакти для віддачі браузеру (без них ефект від AVIF втрачається на чистому checkout-і).
 
 ## AVIF-імпорти у `.vue`
 
-Раз `--avif` гарантує `<name>.<ext>.avif` поряд з кожним PNG/JPEG/GIF, у `.vue` файлах потрібно посилатись саме на AVIF-двійник, а не на оригінал:
+AVIF-двійники (`<name>.<ext>.avif`) генерує **виключно** `npx @nitra/cursor check image` — у `lint-image` прапорець `--avif` заборонений (інакше `bun run lint` плодить непотрібні `.avif` для зображень, що ніде не використовуються). Перевірка робить три кроки в порядку:
 
-```vue title="App.vue (правильно)"
+1. Запускає `npx @nitra/minify-image --src=. --write --avif` — генерує `<name>.<ext>.avif` поряд з кожним PNG/JPEG/GIF.
+2. Сканує `.vue` (а також `.html`) файли в кожному workspace-пакеті (root + workspaces) і автоматично переписує raster-посилання на AVIF-двійник у двох формах:
+   - **Імпорт-пов'язані** — `import x from '...png|jpg|jpeg|gif'` (далі `:src="x"` у шаблоні);
+   - **Прямі статичні** — `<img src="...png" />` у `<template>` (Vite перетворює такий шлях на asset-імпорт на етапі збірки, тож вимога та сама).
+3. Видаляє AVIF-сироти: ходить по всіх `<...>.avif` у репозиторії; якщо на двійник не лишилось жодного посилання у `.vue`/`.html` — файл видаляється. **AVIF на диску лишається лише там, де заміна реально відбулась** — тому невикористані оригінали не накопичують `.avif`-«хвости».
+
+```vue title="App.vue (після check image)"
 <script setup>
 import welcomeImage from './assets/welcome.png.avif'
 </script>
@@ -63,18 +69,9 @@ import welcomeImage from './assets/welcome.png.avif'
 </template>
 ```
 
-```vue title="App.vue (неправильно — втрачає AVIF)"
-<script setup>
-import welcomeImage from './assets/welcome.png'
-</script>
-```
-
-Перевірка `check image` сканує `.vue` файли в кожному workspace-пакеті (root + workspaces) і вимагає AVIF-двійник для двох форм:
-
-1. **Імпорт-пов'язані** — `import x from '...png|jpg|jpeg|gif'` (далі `:src="x"` у шаблоні).
-2. **Прямі статичні** — `<img src="...png" />` у `<template>` (Vite перетворює такий шлях на asset-імпорт на етапі збірки, тож вимога та сама).
-
 Реактивне `:src="..."` (з JS-виразом — змінною, тернарником, викликом тощо) **не сканується** — значення обчислюється у рантаймі й шлях туди потрапляє через імпорт або інший резолвинг, який ловить імпорт-перевірка вище. SVG не торкаємо (vector → AVIF безглуздо). Атрибути `data-src=`, `obj.src=` у `<script>` тощо також пропускаються.
+
+Якщо raster-посилання у `.vue`/`.html` не вдалось переписати (наприклад, оригіналу немає на диску, тож і `.avif` не згенерувався) — `check image` падає з помилкою на конкретний файл, як раніше.
 
 ### Опт-аут для конкретного пакета
 
@@ -92,8 +89,8 @@ import welcomeImage from './assets/welcome.png'
 
 ## Заборонені залежності
 
-`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` кореневого `package.json` — CLI запускається лише через `npx` (так само, як `markdownlint-cli2` у text.mdc). Якщо потрібен явний пін — закладай діапазон версій npm у самому виклику (`npx @nitra/minify-image@^3 --src=. --write --avif`).
+`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` кореневого `package.json` — CLI запускається лише через `npx` (так само, як `markdownlint-cli2` у text.mdc). Якщо потрібен явний пін — закладай діапазон версій npm у самому виклику (`npx @nitra/minify-image@^3 --src=. --write`).
 
 ## Перевірка
 
-`npx @nitra/cursor check image` (охоплює `lint-image` з обовʼязковими `--src=.`, `--write`, `--avif`, агрегований `lint`, `.n-minify-image.tsv` НЕ в `.gitignore` (має бути в git), відсутність застарілого `.minify-image-cache.tsv` у корені, AVIF-імпорти у `.vue` файлах кожного workspace-пакета).
+`npx @nitra/cursor check image` (охоплює `lint-image` з обовʼязковими `--src=.`, `--write` і **забороненим** `--avif`; агрегований `lint`; `.n-minify-image.tsv` НЕ в `.gitignore` — має бути в git; відсутність застарілого `.minify-image-cache.tsv` у корені; запуск AVIF-генерації + авто-заміна raster-посилань на `.avif` у `.vue`/`.html` кожного workspace-пакета + прибирання AVIF-сиріт).

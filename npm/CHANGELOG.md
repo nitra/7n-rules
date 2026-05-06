@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.185] - 2026-05-06
+
+### Changed
+
+- `image` (mdc v1.4 → v1.5): прапорець `--avif` у `lint-image` тепер **заборонений** (інакше `bun run lint` плодив би `.avif` для зображень, що ніде не вживаються); канонічний `lint-image` — `npx @nitra/minify-image --src=. --write`. AVIF-генерацію виконує **виключно** `npx @nitra/cursor check image`. Секцію «AVIF-імпорти у `.vue`» переписано: тепер вона документує триетапну логіку `check image` — (1) запуск `npx @nitra/minify-image --src=. --write --avif`, (2) авто-заміна raster-посилань у `.vue`/`.html` на `.avif` у кожному workspace-пакеті, (3) прибирання AVIF-сиріт (файли `.avif` без жодного посилання у `.vue`/`.html` видаляються — AVIF лишається лише там, де заміна реально вдалася).
+- `check-image.mjs`: `checkLintImageScript` більше не вимагає `--avif`, натомість фейлить за його наявністю; додано `runAvifGeneration` (best-effort `npx ... --avif`, опт-аут через `NITRA_CURSOR_NO_AVIF_RUN=1` для тестів), `cleanupOrphanAvifs` (видаляє `<...>.avif` без живого посилання), `hasAnyRasterImage`, `resolveImagePath`. `checkVueAvifImportsInPackage` тепер не лише валідує, а й переписує raster-посилання на `.avif` (коли AVIF-двійник реально існує на диску); якщо `.avif` нема — фейл, як раніше. Сканування поширено на `.html` файли (раніше було тільки `.vue`).
+- `tests/check-image.test.mjs`: `CANONICAL_LINT_IMAGE` без `--avif`; кейс «без `--avif`» перейменовано/перекинуто на «з забороненим `--avif`»; додано тести на orphan-cleanup (`.avif` без посилань видаляється) та авто-заміну raster-імпорту, коли `.avif`-сусід реально існує.
+
 ## [1.8.184] - 2026-05-06
 
 ### Added
