@@ -4,6 +4,34 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.188] - 2026-05-07
+
+### Changed
+
+- `vue` (mdc v1.6 → v1.7): для Volar/асетів канонічно лише **`jsconfig.json`** у корені пакета — прибрано альтернативу з `tsconfig.json`. `check-vue.mjs`: перевіряється лише наявність `jsconfig.json`.
+
+## [1.8.187] - 2026-05-07
+
+### Added
+
+- `check-vue.mjs`: перевірка `src/vite-env.d.ts` з `/// <reference types="vite/client" />` та наявності `jsconfig.json` або `tsconfig.json` у корені кожного Vue-пакета (типи для імпортів асетів у `.vue`).
+
+### Changed
+
+- `vue` (mdc v1.5 → v1.6): секція **«Vite client types (Volar, імпорти асетів)»** — обов’язкові `vite-env.d.ts`, jsconfig/tsconfig; застереження щодо вузького `compilerOptions.types`. Оновлено блок **«Перевірка»**.
+
+## [1.8.186] - 2026-05-07
+
+### Added
+
+- `check-js-run.mjs` + `scripts/utils/promise-settimeout-scan.mjs`: програмна перевірка нової секції js-run «Паузи через setTimeout». AST-сканер на `oxc-parser` ловить `new Promise(resolve => setTimeout(resolve, ms))` (з `await` чи без, arrow та function expression, concise та block body, тривіально загорнутий callback `() => resolve()`). Паттерни з передачею значення (`r => setTimeout(() => r(value), ms)`), іншим callback-ом замість resolve, або з додатковими стейтментами в блоці — поза правилом (це не «чиста» пауза).
+- `tests/promise-settimeout-scan.test.mjs`: 13 модульних тестів (await/без, block-body, function expression, обгорнутий callback, false-positive guards, multiline номер рядка, кілька входжень, фільтр розширень).
+- `tests/check-js-run-fixture.test.mjs`: 2 інтеграційні кейси на `check()` — fail при `await new Promise(r => setTimeout(r, ms))` у workspace-пакеті, pass при `await setTimeout(ms)` з `node:timers/promises`.
+
+### Changed
+
+- `js-run` (mdc v1.3 → v1.4): додано секцію **«Паузи через setTimeout»** — заборонено `await new Promise(resolve => setTimeout(resolve, ms))`, замість цього треба `await setTimeout(ms)` з `node:timers/promises`. Зауваження про затінення глобального `setTimeout` у тому ж файлі (за потреби callback-варіант імпортувати під іншим іменем, наприклад `setTimeoutCb` з `node:timers`).
+
 ## [1.8.185] - 2026-05-06
 
 ### Changed

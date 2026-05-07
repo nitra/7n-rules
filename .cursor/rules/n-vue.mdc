@@ -1,7 +1,7 @@
 ---
 description: Vue
 alwaysApply: true
-version: '1.5'
+version: '1.7'
 ---
 
 # Vue 3 Composition API — правила для .cursorrules
@@ -208,6 +208,45 @@ export default defineConfig({
 })
 ```
 
+## Vite client types (Volar, імпорти асетів)
+
+Без типів **Vite** редактор (Volar / TypeScript) не знає, що імпорт статичного файлу (`import url from './hero.avif'`, `*.png`, `*.svg` тощо) відповідає модулю з `string` URL. Тоді у `.vue` з’являється помилка на кшталт **Cannot find module '…' or its corresponding type declarations**.
+
+У **кожному** workspace-пакеті з **Vue + Vite** обов’язково:
+
+1. **`src/vite-env.d.ts`** — рівно з посиланням на клієнтські типи Vite (одного рядка достатньо):
+
+```ts title="src/vite-env.d.ts"
+/// <reference types="vite/client" />
+```
+
+Так підтягуються декларації з `vite/client.d.ts` (`declare module '*.avif'`, `*.png`, …).
+
+2. **Корінь пакета:** **`jsconfig.json`** із **`include`**, що охоплює `src` (наприклад `"include": ["src/**/*"]`), щоб мова служби бачила `vite-env.d.ts` і SFC.
+
+Мінімальний приклад для JS-пакета:
+
+```json title="jsconfig.json"
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "preserve",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowJs": true
+  },
+  "include": ["src/**/*"]
+}
+```
+
+**Не** звужуй без потреби **`compilerOptions.types`** до `["vite/client"]`: це може відрізати інші пакети з `@types` і зламати інші підказки. Достатньо `/// <reference types="vite/client" />` у `vite-env.d.ts` і коректного `include`.
+
 ## Тести
 
 Проекту повинен бути покритий тестами E2E за допомогою Playwright.
@@ -287,4 +326,4 @@ import path from 'node:path'
 
 ## Перевірка
 
-`npx @nitra/cursor check vue` — перевіряє залежності, `vite.config`, а також обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім’я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/scripts/utils/vue-forbidden-imports.mjs`).
+`npx @nitra/cursor check vue` — перевіряє залежності, `vite.config`, наявність **`src/vite-env.d.ts`** з `/// <reference types="vite/client" />` та **`jsconfig.json`** у корені Vue-пакета; обходить джерела Vue-пакета (`.vue`, `.ts`, `.js` тощо) на заборонені value-імпорти з модуля `vue` (дозволені лише type-only та side-effect `import 'vue'`) і додатково сканує `.vue` SFC на імпорти Node-нативних модулів (`node:*` префікс або bare-ім’я вбудованого модуля Node — `fs`, `path`, `timers/promises` тощо). Імпорти аналізуються через **oxc-parser** (`module.staticImports`); для `.vue` вміст `<script>` витягується з SFC, далі той самий парсер (логіка в `npm/scripts/utils/vue-forbidden-imports.mjs`).

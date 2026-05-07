@@ -1,5 +1,5 @@
 <script setup>
-import welcomeImage from './assets/welcome.png'
+import welcomeImage from './assets/welcome.png.avif'
 </script>
 
 <template>

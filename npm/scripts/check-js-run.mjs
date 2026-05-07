@@ -21,7 +21,10 @@
  *  - «depcheck у GitHub Actions з path-фільтром»: для кожного workflow з `paths:`,
  *    обмеженим каталогом цього пакета (`<rootDir>/...`), має бути крок
  *    `npx depcheck --ignores="graphql,bun"` (плюс інші, за потреби) з
- *    `working-directory: <rootDir>` (див. `utils/depcheck-workflow.mjs`).
+ *    `working-directory: <rootDir>` (див. `utils/depcheck-workflow.mjs`);
+ *  - «Паузи через setTimeout»: `new Promise(resolve => setTimeout(resolve, ms))` (з/без `await`)
+ *    треба замінити на `await setTimeout(ms)` з `node:timers/promises`
+ *    (див. `utils/promise-settimeout-scan.mjs`).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -42,6 +45,10 @@ import {
   resolveConnDirFromPackageJson
 } from './utils/conn-imports-scan.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import {
+  findPromiseSetTimeoutInText,
+  isPromiseSetTimeoutScanSourceFile
+} from './utils/promise-settimeout-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
@@ -163,6 +170,30 @@ async function checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail) {
 }
 
 /**
+ * Сканує джерела пакета на паттерн `new Promise(resolve => setTimeout(resolve, ms))`.
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @param {string[]} sourcePaths абсолютні шляхи до файлів
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<number>} кількість порушень
+ */
+async function checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, fail) {
+  let violations = 0
+  for (const absPath of sourcePaths) {
+    const rel = relPosix(absPackageRoot, absPath)
+    if (!isPromiseSetTimeoutScanSourceFile(rel)) continue
+    const content = await readFile(absPath, 'utf8')
+    for (const v of findPromiseSetTimeoutInText(content, rel)) {
+      violations++
+      fail(
+        `${label}${rel}:${v.line} — заміни 'new Promise(r => setTimeout(r, ms))' на 'await setTimeout(ms)' з 'node:timers/promises': ${v.snippet}`
+      )
+    }
+  }
+  return violations
+}
+
+/**
  * Перевіряє відповідність правилам js-run.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
@@ -203,6 +234,11 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
     passFn(
       `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`
     )
+  }
+
+  const pauseViolations = await checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, fail)
+  if (pauseViolations === 0) {
+    passFn(`${label}немає 'new Promise(r => setTimeout(r, ms))' — паузи через 'node:timers/promises'`)
   }
 
   await checkOtelConfigmap(rootDir, label, fail, passFn)

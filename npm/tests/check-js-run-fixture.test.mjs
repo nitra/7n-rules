@@ -201,6 +201,30 @@ describe('check-js-run (мінімальний проєкт)', () => {
       expect(await check()).toBe(0)
     })
   })
+
+  test('1, якщо у workspace-пакеті є await new Promise(r => setTimeout(r, ms))', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `export async function pause() {\n  await new Promise(resolve => setTimeout(resolve, 500))\n}\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test("0, якщо паузу зроблено через setTimeout з 'node:timers/promises'", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await writeFile(
+        join('pkg', 'index.js'),
+        `import { setTimeout } from 'node:timers/promises'\n\nexport async function pause() {\n  await setTimeout(500)\n}\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
 })
 
 /**

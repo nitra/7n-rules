@@ -4,6 +4,9 @@
  * Версії Vite та плагінів, vue-macros, auto-import, layouts, вміст `vite.config`;
  * у репозиторії — рекомендацію розширення Vue.volar.
  *
+ * У кожному Vue+Vite-пакеті очікується `src/vite-env.d.ts` з `/// <reference types="vite/client" />`
+ * та `jsconfig.json` у корені пакета (типи для імпортів асетів у `.vue`).
+ *
  * У `vite.config.*` заборонено використовувати `process.env.npm_lifecycle_event` (Bun не підставляє його як npm),
  * натомість використовуй `mode` з `defineConfig(({ mode }) => ...)`.
  *
@@ -31,6 +34,9 @@ import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
 const MAJOR_VERSION_RE = /(\d+)/
 const ESBUILD_RE = /\besbuild\b/
+
+/** Регулярний вираз для triple-slash `reference types="vite/client"` у `src/vite-env.d.ts`. */
+const VITE_CLIENT_REFERENCE_RE = /\/\/\/\s*<reference\s+types\s*=\s*["']vite\/client["']\s*\/>/
 
 /**
  * Визначає, чи можна сканувати файл як текст на згадки `esbuild`.
@@ -202,6 +208,43 @@ function checkRequiredDep(deps, name, prefix, passFn, fail, hint = `${name} ві
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
+/**
+ * Перевіряє `src/vite-env.d.ts` і наявність `jsconfig.json` для підтягування типів асетів Vite у IDE.
+ * @param {string} rootDir відносний шлях до кореня пакета
+ * @param {string} prefix префікс повідомлень
+ * @param {(msg: string) => void} passFn успіх
+ * @param {(msg: string) => void} fail помилка
+ * @returns {Promise<void>}
+ */
+async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail) {
+  const envRel = join(rootDir, 'src/vite-env.d.ts')
+  if (!existsSync(envRel)) {
+    fail(
+      `${prefix}немає src/vite-env.d.ts — додай файл з рядком /// <reference types="vite/client" /> ` +
+        `(інакше TS/Volar не бачать типів для імпортів асетів: png, avif, css як URL).`
+    )
+    return
+  }
+  const envContent = await readFile(envRel, 'utf8')
+  if (!VITE_CLIENT_REFERENCE_RE.test(envContent)) {
+    fail(
+      `${prefix}src/vite-env.d.ts має містити /// <reference types="vite/client" /> ` +
+        `(без цього імпорти статичних файлів у .vue дають «Cannot find module … type declarations»).`
+    )
+    return
+  }
+  passFn(`${prefix}src/vite-env.d.ts посилається на vite/client`)
+
+  if (!existsSync(join(rootDir, 'jsconfig.json'))) {
+    fail(
+      `${prefix}немає jsconfig.json у корені пакета — додай файл з "include": ["src/**/*"] тощо, ` +
+        `щоб IDE підхопила vite-env.d.ts і .vue.`
+    )
+    return
+  }
+  passFn(`${prefix}jsconfig.json присутній`)
+}
+
 function checkViteVersion(devDeps, prefix, passFn, fail) {
   const v = devDeps.vite
   if (!v) {
@@ -441,6 +484,8 @@ async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
     fail,
     'vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next'
   )
+
+  await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail)
 
   const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
   await checkVueImportViolations(

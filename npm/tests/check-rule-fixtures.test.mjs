@@ -45,8 +45,25 @@ async function setupMinimalVueAppWorkspace(opts = {}) {
     `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })]\n}\n`,
     'utf8'
   )
+  await ensureDir(join('app', 'src'))
+  await writeFile(join('app', 'src', 'vite-env.d.ts'), `/// <reference types="vite/client" />\n`, 'utf8')
+  await writeJson(join('app', 'jsconfig.json'), {
+    compilerOptions: {
+      target: 'ESNext',
+      module: 'ESNext',
+      moduleResolution: 'bundler',
+      lib: ['ESNext', 'DOM', 'DOM.Iterable'],
+      jsx: 'preserve',
+      strict: true,
+      noEmit: true,
+      skipLibCheck: true,
+      resolveJsonModule: true,
+      isolatedModules: true,
+      allowJs: true
+    },
+    include: ['src/**/*']
+  })
   if (opts.forbiddenVueImport) {
-    await ensureDir(join('app', 'src'))
     await writeFile(join('app', 'src', 'bad.ts'), `import { ref } from 'vue'\n`, 'utf8')
   }
 }
@@ -62,6 +79,15 @@ describe('check-vue (мінімальний проєкт)', () => {
   test('помилка: явний value-імпорт з vue у джерелі пакета', async () => {
     await withTmpCwd(async () => {
       await setupMinimalVueAppWorkspace({ forbiddenVueImport: true })
+      expect(await checkVue()).toBe(1)
+    })
+  })
+
+  test('помилка: немає src/vite-env.d.ts з reference на vite/client', async () => {
+    await withTmpCwd(async () => {
+      await setupMinimalVueAppWorkspace()
+      const { unlink } = await import('node:fs/promises')
+      await unlink(join('app', 'src', 'vite-env.d.ts'))
       expect(await checkVue()).toBe(1)
     })
   })
