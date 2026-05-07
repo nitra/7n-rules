@@ -1,0 +1,80 @@
+demo/src/App.vue
+  s_9c2b3281d39ca7::t_b648214c1d4a9f 2
+npm/tests/check-js-run-fixture.test.mjs
+  s_9c2b3281d39ca7::t_497246c82def40 204-227
+docs/adr/_inbox/20260507-040908-3225fb23.md
+  s_9c2b3281d39ca7::t_b648214c1d4a9f 1-12
+npm/mdc/js-run.mdc
+  s_9c2b3281d39ca7::t_be5dbfa93e5f6e 4
+  s_9c2b3281d39ca7::t_f34c4be6dabead 141
+  s_9c2b3281d39ca7::t_2516a98dc7c71c 139-140,142-150
+npm/tests/check-rule-fixtures.test.mjs
+  s_3890f356a4772d::t_480acfd4426cf9 48-65
+  s_3890f356a4772d::t_523ca9879c0e5d 86-94
+demo/src/vite-env.d.ts
+  s_3890f356a4772d::t_2a416a13b6aca7 1
+npm/tests/promise-settimeout-scan.test.mjs
+  s_9c2b3281d39ca7::t_d49bc5c0408998 1-114
+npm/package.json
+  s_3890f356a4772d::t_ddbb40359720c7 3
+npm/scripts/utils/promise-settimeout-scan.mjs
+  s_9c2b3281d39ca7::t_26e3f00d0acd18 1-129
+npm/scripts/check-vue.mjs
+  s_3890f356a4772d::t_0c845801c8ae5b 8
+  s_3890f356a4772d::t_567ddda5148668 7,9
+  s_3890f356a4772d::t_1329537cd6c31c 211,213-237,239,242-244,246-247
+  s_3890f356a4772d::t_528fe528e91561 38
+  s_3890f356a4772d::t_c0e05a2f7e905a 39-40
+  s_3890f356a4772d::t_6333c50d043c9a 238,240-241,245
+  s_3890f356a4772d::t_c8f1367ffecc30 488-489
+  s_3890f356a4772d::t_2b356c631792a3 212
+demo/jsconfig.json
+  s_3890f356a4772d::t_6f6a14a71740cf 1-12,14-16
+  s_3890f356a4772d::t_13cbe11e2bdaec 13
+npm/CHANGELOG.md
+  s_9c2b3281d39ca7::t_91f4c5fdd14be4 25-30
+  s_9c2b3281d39ca7::t_a93c67d045049e 23-24,31-34
+  s_3890f356a4772d::t_a1e336bc843205 7-12
+  s_3890f356a4772d::t_5f0f01218740ed 13-22
+docs/adr/_inbox/20260507-041654-39b017e9.md
+  s_9c2b3281d39ca7::t_b648214c1d4a9f 1-17
+.cursor/rules/n-vue.mdc
+  s_3890f356a4772d::t_f666e280555b4e 4
+  s_3890f356a4772d::t_48c4a753449909 211-224,226-249
+  s_3890f356a4772d::t_db07a2c5ba8c60 329
+  s_3890f356a4772d::t_3770d4bd19941b 225
+npm/mdc/vue.mdc
+  s_3890f356a4772d::t_d5438bc2274e66 329
+  s_3890f356a4772d::t_9e3ef1adcfd845 225
+  s_3890f356a4772d::t_64f70428f3b23d 211-224,226-249
+  s_3890f356a4772d::t_1db91c6b51cd9f 4
+npm/scripts/check-js-run.mjs
+  s_9c2b3281d39ca7::t_b993eb4e2b393a 173-195
+  s_9c2b3281d39ca7::t_0b8b08a080ba4b 239-243
+  s_9c2b3281d39ca7::t_8c9c6ee5a7f22b 48-51
+  s_9c2b3281d39ca7::t_ac3c9f91549926 24-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "6070681cb7c0cfec4d2e547a5e547f79a6f550b1",
+  "prompts": {},
+  "sessions": {
+    "s_3890f356a4772d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3b99fbb0-38fc-4fb0-8d10-6878b6bb38dc",
+        "model": "default"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9c2b3281d39ca7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3225fb23-4d4e-4db5-a827-aaa4747b4027",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
