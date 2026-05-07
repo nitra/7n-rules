@@ -17,7 +17,9 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-ga.mdc
 
-- .cursor/rules/n-image.mdc
+- .cursor/rules/n-image-avif.mdc
+
+- .cursor/rules/n-image-compress.mdc
 
 - .cursor/rules/n-js-bun-db.mdc
 

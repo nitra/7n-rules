@@ -16,7 +16,8 @@ const ALL_RULES = [
   'ga',
   'graphql',
   'hasura',
-  'image',
+  'image-avif',
+  'image-compress',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -71,7 +72,8 @@ describe('detectAutoRulesAndSkills', () => {
         'docker',
         'ga',
         'graphql',
-        'image',
+        'image-avif',
+        'image-compress',
         'js-lint',
         'k8s',
         'nginx-default-tpl',
@@ -196,7 +198,7 @@ describe('detectAutoRulesAndSkills', () => {
     })
   })
 
-  test('AUTO_RULE_DEPENDENCIES: image додається разом з vue', async () => {
+  test('AUTO_RULE_DEPENDENCIES: image-compress додається разом з bun, image-avif — разом з vue', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 'app' })
       await ensureDir('src')
@@ -205,11 +207,12 @@ describe('detectAutoRulesAndSkills', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('vue')).toBe(true)
-      expect(actual.rules.includes('image')).toBe(true)
+      expect(actual.rules.includes('image-compress')).toBe(true)
+      expect(actual.rules.includes('image-avif')).toBe(true)
     })
   })
 
-  test('AUTO_RULE_DEPENDENCIES: image НЕ додається, якщо vue не активне', async () => {
+  test('AUTO_RULE_DEPENDENCIES: image-avif НЕ додається без vue, image-compress — додається', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 'app' })
       await ensureDir('src')
@@ -218,11 +221,12 @@ describe('detectAutoRulesAndSkills', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('vue')).toBe(false)
-      expect(actual.rules.includes('image')).toBe(false)
+      expect(actual.rules.includes('image-avif')).toBe(false)
+      expect(actual.rules.includes('image-compress')).toBe(true)
     })
   })
 
-  test('AUTO_RULE_DEPENDENCIES: disable-rules vue → image теж не додається', async () => {
+  test('AUTO_RULE_DEPENDENCIES: disable-rules vue → image-avif теж не додається', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 'app' })
       await ensureDir('src')
@@ -237,7 +241,27 @@ describe('detectAutoRulesAndSkills', () => {
       })
 
       expect(actual.rules.includes('vue')).toBe(false)
-      expect(actual.rules.includes('image')).toBe(false)
+      expect(actual.rules.includes('image-avif')).toBe(false)
+    })
+  })
+
+  test('AUTO_RULE_DEPENDENCIES: disable-rules image-compress → image-avif теж не додається', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'app' })
+      await ensureDir('src')
+      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+
+      const actual = await detectAutoRulesAndSkills({
+        root: process.cwd(),
+        availableRules: ALL_RULES,
+        availableSkills: ALL_SKILLS,
+        packageJsonParsed: { name: 'app' },
+        disableRules: ['image-compress']
+      })
+
+      expect(actual.rules.includes('vue')).toBe(true)
+      expect(actual.rules.includes('image-compress')).toBe(false)
+      expect(actual.rules.includes('image-avif')).toBe(false)
     })
   })
 })

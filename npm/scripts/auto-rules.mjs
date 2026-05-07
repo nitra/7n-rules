@@ -31,7 +31,8 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'ga',
   'graphql',
   'hasura',
-  'image',
+  'image-avif',
+  'image-compress',
   'js-lint',
   'js-mssql',
   'js-bun-db',
@@ -56,7 +57,8 @@ export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
 export const AUTO_RULE_DEPENDENCIES = Object.freeze(
   /** @type {Record<string, readonly string[]>} */ ({
     changelog: Object.freeze(['bun']),
-    image: Object.freeze(['vue'])
+    'image-avif': Object.freeze(['vue', 'image-compress']),
+    'image-compress': Object.freeze(['bun'])
   })
 )
 

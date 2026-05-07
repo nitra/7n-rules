@@ -4,6 +4,34 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.197] - 2026-05-07
+
+### Changed
+
+- `image` правило розщеплене на два самостійні: **`image-compress`** (валідація `lint-image` / `.gitignore` / залежностей — стиснення raster/SVG через `@nitra/minify-image`) і **`image-avif`** (генерація AVIF-двійників, переписування raster-посилань у `.vue`/`.html` на `.avif`, прибирання AVIF-сиріт). Це дозволяє тримати компресію всюди, а AVIF — лише там, де його підтримка гарантована (адмінки), вимикаючи його для публічних сайтів через `disable-rules: ["image-avif"]` у `.n-cursor.json` чи опт-аут на рівні пакета (`"@nitra/minify-image": { "disable-avif": true }` у `package.json` сайту).
+- `auto-rules.md` / `auto-rules.mjs`: автодетект `image-compress - [bun]` (всюди, де є `package.json`), `image-avif - [vue, image-compress]` (лише для проєктів з `.vue`-файлами і вже активним `image-compress`).
+- Видалено `npm/scripts/check-image.mjs` і `npm/mdc/image.mdc` — їх замінили `check-image-compress.mjs` + `check-image-avif.mjs` і `image-compress.mdc` + `image-avif.mdc`.
+- Канонічний `lint-image` залишається без `--avif` (його перевіряє `image-compress`); `npx @nitra/cursor check image-avif` тепер є самостійною командою для AVIF-pipeline.
+
+### Added
+
+- `tests/auto-rules.test.mjs`: тест на `disable-rules: ["image-compress"]` → `image-avif` теж не додається (транзитивна залежність).
+
+## [1.8.194] - 2026-05-07
+
+### Fixed
+
+- `check-image.mjs`: резолвер `resolveImagePath` був інлайн-наївний (`/path` → `<cwd>/<path>`, голий шлях → `null`), що в реальних Quasar/Vite-проєктах давало 0 rewrite-ів і помилковий ріст `failedRefs`. Замінено на `resolveImageCandidates`, який повертає **впорядкований список кандидатів**:
+  - `./x.png` / `../x.png` → відносно файла-джерела;
+  - `/x.png` → `<packageRoot>/public/x.png`, потім `<packageRoot>/x.png`, потім `<cwd>/x.png` (legacy fallback);
+  - голий шлях з принаймні одним `/` (`assets/img.png`, `start-page-ua/logo.png`) → відносно файла-джерела + `<packageRoot>/public/<path>` (Quasar-конвенція);
+  - bare без `/` → alias resolver невідомий, посилання тихо пропускаємо (без fail).
+- `check-image.mjs`: `cleanupOrphanAvifs` тепер пропускає `.avif` у каталогах артефактів збірки (`build`, `android`, `ios`, `.output`, `.nuxt`, `.cache`) — раніше cleanup міг затирати продукт `bun run build` чи Capacitor sync.
+
+### Added
+
+- `tests/check-image.test.mjs`: 4 нових кейси — Quasar-style `src="/api-page/1.png"` через `<pkg>/public/`; `<img src="assets/images/x.png">` у `.html` через relative-to-source; `src="start-page-ua/logo.png"` у `.vue` через `<pkg>/public/`; cleanup не чіпає AVIF у `build/`/`android/`/`ios/`/`.output/`/`.nuxt/`/`.cache/`.
+
 ## [1.8.193] - 2026-05-07
 
 ### Fixed

@@ -358,7 +358,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
  */
 function checkDepcheckInWorkflows(rootDir, workflows, label, fail, passFn) {
   if (workflows.length === 0) return
-  const violations = findDepcheckViolationsForPackage(workflows, rootDir.replace(/\\/g, '/'))
+  const violations = findDepcheckViolationsForPackage(workflows, rootDir.replaceAll('\\', '/'))
   if (violations.length === 0) {
     passFn(`${label}depcheck у path-scoped workflow налаштовано (або відсутній path-scoped workflow для пакета)`)
     return

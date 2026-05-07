@@ -1,11 +1,12 @@
 /**
- * Тести check-image у ізольованих тимчасових каталогах (split-cache 3.2.0).
+ * Тести check-image-avif у ізольованих тимчасових каталогах.
  *
- * Покриває: повний успіх, відсутні прапорці `--src=.`/`--write`, заборона `--avif`
- * у `lint-image` (його ставить лише `check image`), `.n-minify-image.tsv` у `.gitignore`
- * (помилка), наявність застарілого `.minify-image-cache.tsv` (помилка), заборона
- * `@nitra/minify-image` у залежностях, AVIF-імпорти у `.vue`, прибирання AVIF-сиріт.
- * CI-workflow правило не вимагає — лінт зображень тільки локальний.
+ * Покриває AVIF-етап: генерацію `--avif` (best-effort, у тестах вимкнена через
+ * `NITRA_CURSOR_NO_AVIF_RUN=1`), переписування raster-посилань у `.vue`/`.html` на
+ * `<...>.avif`, прибирання AVIF-сиріт, опт-аут пакета через
+ * `"@nitra/minify-image": { "disable-avif": true }`.
+ *
+ * Валідації `lint-image`/деps/`.gitignore` тестує `check-image-compress.test.mjs`.
  */
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -13,10 +14,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { env } from 'node:process'
 
-import { check } from '../scripts/check-image.mjs'
+import { check } from '../scripts/check-image-avif.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
-
-const CANONICAL_LINT_IMAGE = 'npx @nitra/minify-image --src=. --write'
 
 beforeAll(() => {
   env.NITRA_CURSOR_NO_AVIF_RUN = '1'
@@ -25,172 +24,13 @@ afterAll(() => {
   delete env.NITRA_CURSOR_NO_AVIF_RUN
 })
 
-/**
- * Створює мінімальний валідний проєкт під image-правило в поточному cwd.
- * @returns {Promise<void>}
- */
-async function setupValidImageProject() {
-  await writeJson('package.json', {
-    name: 'image-fixture',
-    private: true,
-    scripts: {
-      lint: 'bun run lint-image && oxfmt .',
-      'lint-image': CANONICAL_LINT_IMAGE
-    }
-  })
-  await writeFile('.gitignore', 'node_modules/\n', 'utf8')
-}
-
-describe('check-image', () => {
-  test('успіх: канонічний `--src=. --write` (без --avif) без застарілих файлів', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      expect(await check()).toBe(0)
-    })
-  })
-
-  test('успіх: відсутній агрегований `lint` — перевірку пропущено', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: { 'lint-image': CANONICAL_LINT_IMAGE }
-      })
-      expect(await check()).toBe(0)
-    })
-  })
-
-  test('успіх: `.n-minify-image.tsv` існує і не в .gitignore', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.n-minify-image.tsv', 'src/hero.png\tabc123\t1024\t800\n', 'utf8')
-      expect(await check()).toBe(0)
-    })
-  })
-
-  test('помилка: відсутній скрипт lint-image', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: { lint: 'oxfmt .' }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: lint-image без --src=.', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': 'npx @nitra/minify-image --write'
-        }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: lint-image без --write', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': 'npx @nitra/minify-image --src=.'
-        }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: lint-image з забороненим --avif (його ставить лише `check image`)', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': 'npx @nitra/minify-image --src=. --write --avif'
-        }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: `.n-minify-image.tsv` у .gitignore (має бути в git)', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.gitignore', 'node_modules/\n.n-minify-image.tsv\n', 'utf8')
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: застарілий `.minify-image-cache.tsv` лежить у корені', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.minify-image-cache.tsv', 'src/hero.png\t1700000000000\t1024\t800\n', 'utf8')
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: застарілий рядок `.minify-image-cache.tsv` лишився у .gitignore', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.gitignore', 'node_modules/\n.minify-image-cache.tsv\n', 'utf8')
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: @nitra/minify-image у devDependencies', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        },
-        devDependencies: { '@nitra/minify-image': '^3.0.0' }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: агрегований lint без `bun run lint-image`', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeJson('package.json', {
-        name: 'image-fixture',
-        private: true,
-        scripts: {
-          lint: 'bun run lint-text && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
+describe('check-image-avif', () => {
   test('помилка: .vue імпортує raster без .avif (workspace)', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -209,11 +49,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -232,11 +68,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -258,11 +90,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -281,11 +109,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -304,11 +128,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -327,11 +147,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -350,11 +166,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -375,11 +187,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -400,11 +208,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -444,11 +248,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -469,11 +269,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -493,16 +289,108 @@ describe('check-image', () => {
     })
   })
 
+  test('успіх: Quasar-style `src="/api-page/1.png"` резолвиться через `<pkg>/public/...`', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['site']
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('site/src/pages')
+      await ensureDir('site/public/api-page')
+      await writeJson('site/package.json', { name: 'site' })
+      await writeFile(join('site/public/api-page', '1.png'), 'fake', 'utf8')
+      await writeFile(join('site/public/api-page', '1.png.avif'), 'fake', 'utf8')
+      await writeFile(
+        join('site/src/pages', 'x.vue'),
+        `<template>\n  <q-img src="/api-page/1.png" />\n</template>\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('site/src/pages', 'x.vue'), 'utf8')
+      expect(updated).toContain(`src="/api-page/1.png.avif"`)
+      expect(existsSync(join('site/public/api-page', '1.png.avif'))).toBe(true)
+    })
+  })
+
+  test('успіх: голий шлях у `.html` (`assets/images/x.png`) резолвиться відносно файла', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['docs']
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('docs/guide/assets/images')
+      await writeJson('docs/package.json', { name: 'docs' })
+      await writeFile(join('docs/guide/assets/images', 'x.png'), 'fake', 'utf8')
+      await writeFile(join('docs/guide/assets/images', 'x.png.avif'), 'fake', 'utf8')
+      await writeFile(
+        join('docs/guide', 'docs-page.html'),
+        `<html><body>\n  <img src="assets/images/x.png" />\n</body></html>\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('docs/guide', 'docs-page.html'), 'utf8')
+      expect(updated).toContain(`src="assets/images/x.png.avif"`)
+      expect(existsSync(join('docs/guide/assets/images', 'x.png.avif'))).toBe(true)
+    })
+  })
+
+  test('успіх: `src="start-page-ua/logo.png"` резолвиться через `<pkg>/public/start-page-ua/logo.png`', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['site']
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('site/src/components/login')
+      await ensureDir('site/public/start-page-ua')
+      await writeJson('site/package.json', { name: 'site' })
+      await writeFile(join('site/public/start-page-ua', 'logo.png'), 'fake', 'utf8')
+      await writeFile(join('site/public/start-page-ua', 'logo.png.avif'), 'fake', 'utf8')
+      await writeFile(
+        join('site/src/components/login', 'X.vue'),
+        `<template>\n  <img src="start-page-ua/logo.png" />\n</template>\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('site/src/components/login', 'X.vue'), 'utf8')
+      expect(updated).toContain(`src="start-page-ua/logo.png.avif"`)
+      expect(existsSync(join('site/public/start-page-ua', 'logo.png.avif'))).toBe(true)
+    })
+  })
+
+  test('успіх: cleanup не чіпає AVIF у `build/`, `android/`, `ios/`, `.output/`, `.nuxt/`, `.cache/`', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app']
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'App.vue'), `<template><div/></template>\n`, 'utf8')
+      for (const dir of ['build', 'android', 'ios', '.output', '.nuxt', '.cache']) {
+        await ensureDir(`app/${dir}`)
+        await writeFile(join(`app/${dir}`, 'artifact.png.avif'), 'fake', 'utf8')
+      }
+      expect(await check()).toBe(0)
+      for (const dir of ['build', 'android', 'ios', '.output', '.nuxt', '.cache']) {
+        expect(existsSync(join(`app/${dir}`, 'artifact.png.avif'))).toBe(true)
+      }
+    })
+  })
+
   test('успіх: AVIF-сирота без посилань у .vue видаляється', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -521,11 +409,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
@@ -550,11 +434,7 @@ describe('check-image', () => {
       await writeJson('package.json', {
         name: 'mono',
         private: true,
-        workspaces: ['app'],
-        scripts: {
-          lint: 'bun run lint-image && oxfmt .',
-          'lint-image': CANONICAL_LINT_IMAGE
-        }
+        workspaces: ['app']
       })
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')

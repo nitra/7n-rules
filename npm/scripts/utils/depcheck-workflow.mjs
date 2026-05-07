@@ -37,7 +37,7 @@ const IGNORES_FLAG_RE = /--ignores\s*=?\s*(?:"([^"]*)"|'([^']*)'|([^\s"']+))/u
  * @returns {boolean} `true`, якщо знайдено хоча б один підходящий glob
  */
 export function workflowHasPathsScopedToPackage(root, pkgRoot) {
-  const prefix = `${pkgRoot.replace(/\\/g, '/').replace(/\/+$/, '')}/`
+  const prefix = `${pkgRoot.replaceAll('\\', '/').replace(/\/+$/, '')}/`
   const on = root?.on
   if (!on || typeof on !== 'object') return false
   for (const event of /** @type {const} */ (['push', 'pull_request'])) {
@@ -85,8 +85,8 @@ export function extractDepcheckArgs(runText) {
 export function stepWorkingDirectoryEquals(step, pkgRoot) {
   const wd = step['working-directory']
   if (typeof wd !== 'string') return false
-  const norm = wd.replace(/\\/g, '/').replace(/\/+$/, '')
-  const expected = pkgRoot.replace(/\\/g, '/').replace(/\/+$/, '')
+  const norm = wd.replaceAll('\\', '/').replace(/\/+$/, '')
+  const expected = pkgRoot.replaceAll('\\', '/').replace(/\/+$/, '')
   return norm === expected
 }
 
