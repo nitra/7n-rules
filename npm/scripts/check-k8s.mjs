@@ -5626,10 +5626,14 @@ function applyNameStripTag(originalLine, parsed) {
 const KUSTOMIZATION_DEPLOYMENT_CONTAINER_IMAGE_PATH_RE = /^\/spec\/template\/spec\/containers\/(\d+)\/image$/u
 
 /**
- * Якщо `patchObj` — JSON6902 з єдиною операцією `replace` на шляху image-контейнера у `Deployment`,
- * повертає `{ deployName, containerIndex, newImage }`. Інакше null.
+ * Якщо `patchObj` — JSON6902 для `kind: Deployment`, повертає всі image-replace ops
+ * у його `patch:` разом із `opIndex` (позиція в масиві ops) і `totalOps` (загальна довжина).
  * @param {unknown} patchObj елемент масиву `patches[]`
- * @returns {{ deployName: string, containerIndex: number, newImage: string } | null} інформація про патч або null, якщо це не очікувана JSON6902-операція
+ * @returns {{
+ *   deployName: string,
+ *   totalOps: number,
+ *   ops: Array<{ containerIndex: number, newImage: string, opIndex: number }>
+ * } | null} інформація про image-replace ops у патчі або null
  */
 export function imageReplaceDeploymentPatchInfo(patchObj) {
   const pr = asPlainObject(patchObj)
@@ -5638,20 +5642,21 @@ export function imageReplaceDeploymentPatchInfo(patchObj) {
   if (deployName === null) return null
   if (typeof pr.patch !== 'string') return null
 
-  const parsedArr = tryParseSingleJson6902Array(pr.patch)
+  const parsedArr = tryParseJson6902Array(pr.patch)
   if (parsedArr === null) return null
-  const op = asPlainObject(parsedArr[0])
-  if (op === null) return null
 
-  const containerIndex = singleImageReplaceContainerIndex(op)
-  if (containerIndex === null) return null
-  if (typeof op.value !== 'string' || op.value.trim() === '') return null
-
-  return {
-    deployName,
-    containerIndex,
-    newImage: op.value.trim()
+  /** @type {Array<{ containerIndex: number, newImage: string, opIndex: number }>} */
+  const ops = []
+  for (let i = 0; i < parsedArr.length; i++) {
+    const op = asPlainObject(parsedArr[i])
+    if (op === null) continue
+    const containerIndex = singleImageReplaceContainerIndex(op)
+    if (containerIndex === null) continue
+    if (typeof op.value !== 'string' || op.value.trim() === '') continue
+    ops.push({ containerIndex, newImage: op.value.trim(), opIndex: i })
   }
+  if (ops.length === 0) return null
+  return { deployName, totalOps: parsedArr.length, ops }
 }
 
 /**
@@ -5679,11 +5684,11 @@ function deploymentTargetName(target) {
 }
 
 /**
- * Парсить `patch`-рядок як YAML-масив з рівно однією операцією JSON6902.
+ * Парсить `patch`-рядок як YAML-масив JSON6902-операцій (≥ 1 елемент).
  * @param {string} patch текст YAML-масиву JSON6902-операцій
- * @returns {unknown[] | null} масив однієї операції або null
+ * @returns {unknown[] | null} масив операцій або null
  */
-function tryParseSingleJson6902Array(patch) {
+function tryParseJson6902Array(patch) {
   let parsedArr
   try {
     for (const d of parseAllDocuments(patch.trim())) {
@@ -5697,7 +5702,7 @@ function tryParseSingleJson6902Array(patch) {
   } catch {
     return null
   }
-  return Array.isArray(parsedArr) && parsedArr.length === 1 ? parsedArr : null
+  return Array.isArray(parsedArr) && parsedArr.length >= 1 ? parsedArr : null
 }
 
 /**
@@ -5880,11 +5885,17 @@ export async function convertImagePatchesToImagesInKustomization(kustAbs, rootNo
 
 /**
  * Парсить kustomization.yaml як Document і повертає його разом зі списком кандидатів-патчів
- * (`patches[i]` що відповідає `image-replace` для Deployment). Повертає null, якщо документ не
- * розпарсився, не є Kustomization або не має масиву `patches:`.
+ * (по одному кандидату на кожну image-replace op у `patches[i].patch` — патч може містити кілька).
+ * Повертає null, якщо документ не розпарсився, не є Kustomization або не має масиву `patches:`.
  * @param {string} raw текст файлу
- * @returns {{ doc: ReturnType<typeof parseDocument>, candidates: Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }> } | null}
- *   document і список кандидатів, або null
+ * @returns {{
+ *   doc: ReturnType<typeof parseDocument>,
+ *   candidates: Array<{
+ *     index: number,
+ *     totalOps: number,
+ *     info: { deployName: string, containerIndex: number, newImage: string, opIndex: number }
+ *   }>
+ * } | null} document і список кандидатів, або null
  */
 function parseKustomizationWithPatches(raw) {
   let doc
@@ -5901,11 +5912,23 @@ function parseKustomizationWithPatches(raw) {
   if (typeof rec.apiVersion !== 'string' || !rec.apiVersion.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) return null
   if (!Array.isArray(rec.patches)) return null
 
-  /** @type {Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }>} */
+  /** @type {Array<{ index: number, totalOps: number, info: { deployName: string, containerIndex: number, newImage: string, opIndex: number } }>} */
   const candidates = []
   for (const [i, p] of rec.patches.entries()) {
     const info = imageReplaceDeploymentPatchInfo(p)
-    if (info !== null) candidates.push({ index: i, info })
+    if (info === null) continue
+    for (const op of info.ops) {
+      candidates.push({
+        index: i,
+        totalOps: info.totalOps,
+        info: {
+          deployName: info.deployName,
+          containerIndex: op.containerIndex,
+          newImage: op.newImage,
+          opIndex: op.opIndex
+        }
+      })
+    }
   }
   return { doc, candidates }
 }
@@ -5915,17 +5938,17 @@ function parseKustomizationWithPatches(raw) {
  * (або повідомлення про помилку, чому конвертація неможлива).
  * @param {string} kustAbs абсолютний шлях до kustomization.yaml
  * @param {string} rootNorm нормалізований корінь репо
- * @param {Array<{ index: number, info: { deployName: string, containerIndex: number, newImage: string } }>} candidates кандидати з `patches[]`
- * @returns {Promise<{ conversions: Array<{ index: number, name: string, newName: string, newTag: string | null }>, errors: string[] }>}
+ * @param {Array<{ index: number, totalOps: number, info: { deployName: string, containerIndex: number, newImage: string, opIndex: number } }>} candidates кандидати з `patches[]`
+ * @returns {Promise<{ conversions: Array<{ index: number, opIndex: number, totalOps: number, name: string, newName: string, newTag: string | null }>, errors: string[] }>}
  *   результати конвертації та зібрані нефатальні помилки
  */
 async function buildPatchToImageConversions(kustAbs, rootNorm, candidates) {
-  /** @type {Array<{ index: number, name: string, newName: string, newTag: string | null }>} */
+  /** @type {Array<{ index: number, opIndex: number, totalOps: number, name: string, newName: string, newTag: string | null }>} */
   const conversions = []
   /** @type {string[]} */
   const errors = []
 
-  for (const { index, info } of candidates) {
+  for (const { index, totalOps, info } of candidates) {
     const baseImage = await walkKustomizationForDeploymentImage(
       kustAbs,
       rootNorm,
@@ -5934,7 +5957,7 @@ async function buildPatchToImageConversions(kustAbs, rootNorm, candidates) {
       new Set()
     )
     const conversion = buildConversionForCandidate(index, info, baseImage, errors)
-    if (conversion !== null) conversions.push(conversion)
+    if (conversion !== null) conversions.push({ ...conversion, opIndex: info.opIndex, totalOps })
   }
 
   return { conversions, errors }
@@ -5944,7 +5967,7 @@ async function buildPatchToImageConversions(kustAbs, rootNorm, candidates) {
  * Будує одну конвертацію `patches[index]` → `images[]` запис з відповідним `newTag`.
  * Якщо щось не так (немає baseImage, digest у base/new) — додає текст у `errors` і повертає null.
  * @param {number} index індекс патча в `patches[]`
- * @param {{ deployName: string, containerIndex: number, newImage: string }} info результат `imageReplaceDeploymentPatchInfo`
+ * @param {{ deployName: string, containerIndex: number, newImage: string, opIndex: number }} info один із записів `imageReplaceDeploymentPatchInfo().ops` (плюс `deployName` патча)
  * @param {string | null} baseImage знайдений базовий image або null
  * @param {string[]} errors буфер нефатальних помилок (мутується)
  * @returns {{ index: number, name: string, newName: string, newTag: string | null } | null} запис конвертації або null
@@ -5975,19 +5998,43 @@ function buildConversionForCandidate(index, info, baseImage, errors) {
 }
 
 /**
- * Видаляє конвертовані елементи з `patches:` (за потреби — і сам ключ) і дописує `images:`.
+ * Застосовує конвертації до Document: для кожного `patches[i]` або видаляє патч цілком (коли всі
+ * його ops конвертовано), або переписує inline `patch:`, лишаючи решту ops без коментарів.
+ * Допише `images:` з усіма конвертованими записами.
  * @param {ReturnType<typeof parseDocument>} doc документ kustomization.yaml
- * @param {Array<{ index: number, name: string, newName: string, newTag: string | null }>} conversions конвертації
+ * @param {Array<{ index: number, opIndex: number, totalOps: number, name: string, newName: string, newTag: string | null }>} conversions конвертації
  * @returns {boolean} true, якщо мутації відбулися (документ можна серіалізувати)
  */
 function applyConversionsToDoc(doc, conversions) {
   const patchesNode = doc.get('patches', true)
   if (!isSeq(patchesNode)) return false
 
-  const removeIdx = new Set(conversions.map(c => c.index))
-  for (let i = patchesNode.items.length - 1; i >= 0; i--) {
-    if (removeIdx.has(i)) patchesNode.delete(i)
+  /** @type {Map<number, { totalOps: number, opIdx: number[] }>} */
+  const byPatch = new Map()
+  for (const c of conversions) {
+    const slot = byPatch.get(c.index) ?? { totalOps: c.totalOps, opIdx: [] }
+    slot.opIdx.push(c.opIndex)
+    byPatch.set(c.index, slot)
   }
+
+  const sortedIdx = [...byPatch.keys()].sort((a, b) => b - a)
+  for (const i of sortedIdx) {
+    const slot = byPatch.get(i)
+    if (slot === undefined) continue
+    const { totalOps, opIdx } = slot
+    if (opIdx.length === totalOps) {
+      patchesNode.delete(i)
+      continue
+    }
+    const patchEntry = patchesNode.get(i, true)
+    if (patchEntry === undefined || patchEntry === null) continue
+    const patchScalar = patchEntry.get('patch', true)
+    if (patchScalar === undefined || patchScalar === null || typeof patchScalar.value !== 'string') continue
+    const rewritten = rewriteInlinePatchWithoutOps(patchScalar.value, opIdx)
+    if (rewritten === null) continue
+    patchScalar.value = rewritten
+  }
+
   if (patchesNode.items.length === 0) {
     doc.delete('patches')
   }
@@ -6002,6 +6049,35 @@ function applyConversionsToDoc(doc, conversions) {
     imagesNode.add(doc.createNode(entry))
   }
   return true
+}
+
+/**
+ * Видаляє ops за списком індексів з inline `patch:` (текст YAML-масиву JSON6902-ops)
+ * і повертає переписаний текст. Зберігає block-style. Повертає null, якщо не вдалося розпарсити
+ * або після видалення не лишилось ops.
+ * @param {string} patchText текст YAML-масиву ops (literal block scalar)
+ * @param {number[]} opIndices індекси ops, які треба видалити
+ * @returns {string | null} переписаний текст або null
+ */
+function rewriteInlinePatchWithoutOps(patchText, opIndices) {
+  let inner
+  try {
+    inner = parseDocument(patchText)
+  } catch {
+    return null
+  }
+  if (inner.errors.length > 0) return null
+  const seq = inner.contents
+  if (!isSeq(seq)) return null
+
+  const toRemove = [...new Set(opIndices)].sort((a, b) => b - a)
+  for (const i of toRemove) {
+    if (i < 0 || i >= seq.items.length) return null
+    seq.delete(i)
+  }
+  if (seq.items.length === 0) return null
+  seq.flow = false
+  return inner.toString().replace(/\n+$/u, '')
 }
 
 /**

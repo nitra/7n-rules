@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.16'
+version: '1.17'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.8.0`** (з цієї версії правило `no-restricted-syntax` забороняє `for...in`; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
+**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -25,7 +25,7 @@ version: '1.16'
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.8.0"
+    "@nitra/eslint-config": "^3.9.2"
   }
 }
 ```

@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.26'
+version: '1.27'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -318,7 +318,7 @@ images:
 
 **`check k8s` автоматично** для кожного `kustomization.yaml`:
 
-1. конвертує JSON6902-патч `op: replace` на `/spec/template/spec/containers/<N>/image` (target `kind: Deployment`) у запис `images:` (резолвить оригінальний image у base через `resources:` / `bases` / `components` / `crds`); якщо в `patches[]` залишається лише ця операція — патч прибирається повністю;
+1. конвертує кожну JSON6902-операцію `op: replace` на `/spec/template/spec/containers/<N>/image` (target `kind: Deployment`) у запис `images:` (резолвить оригінальний image у base через `resources:` / `bases` / `components` / `crds`). Якщо у `patches[i].patch` після конвертації не залишилось ops — патч прибирається повністю; інакше у `patches[i].patch` залишаються лише не-image ops у вихідному порядку;
 2. чистить існуючий блок `images:` — зрізає `:tag` з `name` і видаляє `newTag`, який збігається з відрізаним тегом.
 
 ## Ingress → Gateway API (GKE)

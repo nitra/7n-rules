@@ -4,8 +4,9 @@
  * Канонічний `lint-js`, flat ESLint з getConfig і ignore для auto-imports, рекомендації VSCode,
  * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/scripts/utils/oxlint-canonical.json`):
  * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
- * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.8.0** (з цієї версії
- * правило `no-restricted-syntax` для `ForInStatement` забороняє `for...in`; також тягне транзитивний
+ * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.9.2** (з 3.8.0 правило
+ * `no-restricted-syntax` для `ForInStatement` забороняє `for...in`; з 3.9.2 у `getConfig` вбудовано
+ * ignore для ADR-каталогів — локально цей glob додавати не потрібно; також тягне транзитивний
  * `@e18e/eslint-plugin` для oxlint), `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow
  * `lint-js.yml` (checkout@v6, setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24,
  * `engines.bun` >= 1.3, `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
@@ -54,10 +55,11 @@ export function isCanonicalLintJs(script) {
 }
 
 /**
- * Чи діапазон `@nitra/eslint-config` у `package.json` задовольняє мінімум `>= 3.8.0`
- * (заборона `for...in` через `no-restricted-syntax` + транзитивний `@e18e/eslint-plugin` для oxlint).
+ * Чи діапазон `@nitra/eslint-config` у `package.json` задовольняє мінімум `>= 3.9.2`
+ * (заборона `for...in` через `no-restricted-syntax` з 3.8.0 + вбудований ignore для ADR-каталогів
+ * у `getConfig` з 3.9.2 + транзитивний `@e18e/eslint-plugin` для oxlint).
  * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
- * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.8.0
+ * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.9.2
  */
 export function nitraEslintConfigMeetsMinVersion(versionSpec) {
   const s = String(versionSpec).trim()
@@ -72,7 +74,7 @@ export function nitraEslintConfigMeetsMinVersion(versionSpec) {
   if ([major, minor, patch].some(n => Number.isNaN(n))) {
     return false
   }
-  return major > 3 || (major === 3 && minor >= 8 && patch >= 0)
+  return major > 3 || (major === 3 && (minor > 9 || (minor === 9 && patch >= 2)))
 }
 
 /**
@@ -269,11 +271,11 @@ function checkPackageJsonLintDeps(pkg, passFn, failFn) {
     passFn('@nitra/eslint-config є в devDependencies')
     if (nitraEslintConfigMeetsMinVersion(nitraEslint)) {
       passFn(
-        '@nitra/eslint-config: мінімум 3.8.0 (no-restricted-syntax для ForInStatement + @e18e/eslint-plugin транзитивно, js-lint.mdc)'
+        '@nitra/eslint-config: мінімум 3.9.2 (no-restricted-syntax для ForInStatement з 3.8.0 + вбудований ignore "**/adr/**" з 3.9.2 + @e18e/eslint-plugin транзитивно, js-lint.mdc)'
       )
     } else {
       failFn(
-        '@nitra/eslint-config: онови до мінімум "^3.8.0" — з цієї версії правило no-restricted-syntax забороняє for...in (плюс транзитивний @e18e/eslint-plugin для oxlint, js-lint.mdc)'
+        '@nitra/eslint-config: онови до мінімум "^3.9.2" — з 3.9.2 у getConfig вбудовано ignore для "**/adr/**" (ADR-документи не валідуються), плюс транзитивний @e18e/eslint-plugin для oxlint і заборона for...in з 3.8.0 (js-lint.mdc)'
       )
     }
   } else {

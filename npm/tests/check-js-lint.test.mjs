@@ -33,9 +33,14 @@ describe('normalizeLintJsScript / isCanonicalLintJs', () => {
 })
 
 describe('nitraEslintConfigMeetsMinVersion', () => {
-  test('^3.8.0 і workspace — ok; нижчі версії — ні', () => {
-    expect(nitraEslintConfigMeetsMinVersion('^3.8.0')).toBe(true)
+  test('>= 3.9.2 і workspace — ok; нижчі версії — ні', () => {
+    expect(nitraEslintConfigMeetsMinVersion('^3.9.2')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('^3.9.10')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('^3.10.0')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('^4.0.0')).toBe(true)
     expect(nitraEslintConfigMeetsMinVersion('workspace:*')).toBe(true)
+    expect(nitraEslintConfigMeetsMinVersion('^3.9.1')).toBe(false)
+    expect(nitraEslintConfigMeetsMinVersion('^3.8.0')).toBe(false)
     expect(nitraEslintConfigMeetsMinVersion('^3.6.12')).toBe(false)
     expect(nitraEslintConfigMeetsMinVersion('^3.4.3')).toBe(false)
   })

@@ -53,7 +53,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
-import { cwd } from 'node:process'
+import { cwd, env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
@@ -1133,7 +1133,7 @@ async function readBundledVersionAt(packageRoot) {
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен (інакше викликає `process.exit`)
  */
 async function reexecIfPackageVersionChanged(effectivePackageRoot) {
-  if (process.env.NITRA_CURSOR_REEXEC === '1') {
+  if (env.NITRA_CURSOR_REEXEC === '1') {
     return
   }
   if (effectivePackageRoot === BUNDLED_PACKAGE_ROOT) {
@@ -1155,7 +1155,7 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot) {
   )
   const result = spawnSync(process.execPath, [newBinPath, ...process.argv.slice(2)], {
     stdio: 'inherit',
-    env: { ...process.env, NITRA_CURSOR_REEXEC: '1' }
+    env: { ...env, NITRA_CURSOR_REEXEC: '1' }
   })
   if (result.error) {
     throw result.error
