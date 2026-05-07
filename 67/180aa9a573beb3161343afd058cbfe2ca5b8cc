@@ -1,0 +1,68 @@
+npm/scripts/check-k8s.mjs
+  s_2f87278b4e42fa::t_81eb7c8f7353e6 5629-5630,5632-5636,5645,5648-5656,5658-5659
+  s_2f87278b4e42fa::t_b04b70ec9dd083 5888-5889,5891-5898,5915,5919-5931
+  s_2f87278b4e42fa::t_cf38ed57eb27bd 5941-5942,5946,5951,5960
+  s_2f87278b4e42fa::t_d0d63c6273d30b 5970
+  s_2f87278b4e42fa::t_8c2b8158b82e9b 6001-6003,6005,6012-6035,6037,6054-6080
+  s_2f87278b4e42fa::t_82c4d56f065a2f 5687,5689,5691,5705
+npm/tests/check-k8s-images.test.mjs
+  s_2f87278b4e42fa::t_b05a64b1587470 523-780
+  s_2f87278b4e42fa::t_cbd7d61fe4d10d 194-195,219,229-253,275-276
+npm/package.json
+  s_2f87278b4e42fa::t_bbb3ad0d3b9ebc 3
+.oxfmtrc.json
+  s_4a52a4a1e3b578::t_f1c38bee2f061a 2
+package.json
+  s_4a52a4a1e3b578::t_27568e300780eb 30
+npm/scripts/check-js-lint.mjs
+  s_4a52a4a1e3b578::t_34dd1866238857 8-9
+  s_4a52a4a1e3b578::t_43bce931b97d89 58,62,77
+  s_4a52a4a1e3b578::t_53bd2fbcd29380 59-60
+  s_4a52a4a1e3b578::t_14a642bb0a47f4 274,278
+  s_4a52a4a1e3b578::t_84ba6c38f7adf3 7
+npm/CHANGELOG.md
+  s_4a52a4a1e3b578::t_5756c0abc6f7dd 14
+  s_2f87278b4e42fa::t_d12767938c3f71 7-12,15-19
+  s_4a52a4a1e3b578::t_5bd9be64daeafc 13
+.cspell.json
+  s_4a52a4a1e3b578::t_886d3629c4f1ac 11-12
+.cursor/rules/n-js-lint.mdc
+  s_4a52a4a1e3b578::t_f6fdcaa580fc51 28
+  s_4a52a4a1e3b578::t_b8eb636e79efb8 4,7
+npm/tests/check-js-lint.test.mjs
+  s_4a52a4a1e3b578::t_0ebb4f1a050331 36-40,42-43
+npm/bin/n-cursor.js
+  s_4a52a4a1e3b578::t_47337276f67a88 1136
+  s_4a52a4a1e3b578::t_7fd6136789573a 1158
+  s_4a52a4a1e3b578::t_dc95375f3259ba 56
+npm/mdc/k8s.mdc
+  s_2f87278b4e42fa::t_96f5d34485f0d5 3
+  s_2f87278b4e42fa::t_a174751a2ba51f 321
+npm/mdc/js-lint.mdc
+  s_4a52a4a1e3b578::t_5bd9be64daeafc 28
+  s_4a52a4a1e3b578::t_ce44dd4cfa7d96 4,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "67180aa9a573beb3161343afd058cbfe2ca5b8cc",
+  "prompts": {},
+  "sessions": {
+    "s_2f87278b4e42fa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9656539c-3c11-4c18-9110-8a514d383da1",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4a52a4a1e3b578": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ffec3de3-1e9f-4bfd-aa90-dcb2460bb24d",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
