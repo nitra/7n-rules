@@ -9,11 +9,15 @@ This file is the entry point for all AI agents working with this repository.
 The primary development rules are stored in the Cursor rules directory:
 
 
+- .cursor/rules/conftest.mdc
+
 - .cursor/rules/dev-dep.mdc
 
 - .cursor/rules/n-adr.mdc
 
 - .cursor/rules/n-bun.mdc
+
+- .cursor/rules/n-changelog.mdc
 
 - .cursor/rules/n-ga.mdc
 
@@ -76,6 +80,8 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **start**: `bun run start`
 
 - **lint-image**: `bun run lint-image`
+
+- **lint-rego**: `bun run lint-rego`
 
 - **lint-style**: `bun run lint-style`
 

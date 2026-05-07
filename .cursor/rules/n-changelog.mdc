@@ -1,0 +1,64 @@
+---
+description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння
+alwaysApply: true
+version: '2.0'
+---
+
+Bun monorepo: у кожному workspace із кореневого `package.json.workspaces` (плюс кореневий пакет, плюс `npm/`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій. Правило `npm-module` відповідає лише за публікацію типів і workflow, а CHANGELOG — за цим правилом.
+
+## Дві моделі бази порівняння
+
+Правило за **`<ws>/package.json`** автоматично визначає режим перевірки:
+
+### npm-published воркспейс
+
+Якщо в `<ws>/package.json` є непорожнє `name`, **не** `private: true` і оголошено масив `files` — workspace публікується в npm. База — **опублікована версія в реєстрі** (`npm view <name> version`):
+
+1. Якщо локальна `version` дорівнює опублікованій — ще нічого не зрелізнуто, перевірка мовчить.
+2. Якщо локальна `version` відрізняється від опублікованої — потрібен запис у `<ws>/CHANGELOG.md` для локальної версії (формат `## [версія] - YYYY-MM-DD`) і `"CHANGELOG.md"` у `files`.
+3. Якщо реєстр недосяжний (офлайн / пакет ще не публікувався) — fail-safe pass із поясненням, щоб локальна розробка не блокувалася.
+
+Git у цьому режимі не використовується — порівнюється поточний стан робочої копії з тим, що насправді в npm. Це покриває кейс «прямі коміти в `main` поза PR-flow» автоматично, бо неопубліковані зміни одразу видно.
+
+### local-only воркспейс
+
+Якщо workspace приватний (`private: true`) або без `files` (apps, services, internal-only пакети) — база = **гілка `dev`**, точніше `git merge-base <dev> HEAD`:
+
+1. На самій гілці `dev` правило не активне.
+2. На feature-гілці merge-base = точка розгалуження від `dev` → видно лише унікальні коміти цієї гілки. Bump + запис у `CHANGELOG.md` потрібні **раз на весь PR — як сума по гілці**, без bump-шуму в проміжних комітах.
+3. На `main` після merge `dev → main` merge-base = поточний `dev` → diff порожній → правило мовчить.
+4. Direct-commit на `main` поза PR-flow ловиться як зміна, що потребує bump + запис у `CHANGELOG.md`.
+
+Якщо не git-репо, або `dev`/`origin/dev` не існує — local-only перевірка пропускається.
+
+## Формат CHANGELOG.md
+
+[Keep a Changelog 1.1.0](https://keepachangelog.com/uk/1.1.0/), мова — українська, новіші версії зверху.
+
+```md title="<ws>/CHANGELOG.md"
+# Changelog
+
+Усі помітні зміни цього пакета документуються тут.
+
+Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
+
+## [1.2.3] - 2026-05-05
+
+### Added
+
+- ...
+
+### Changed
+
+- ...
+
+### Fixed
+
+- ...
+```
+
+Секції — підмножина `### Added`, `### Changed`, `### Fixed`, `### Removed` (одна або кілька).
+
+## Перевірка
+
+`npx @nitra/cursor check changelog`

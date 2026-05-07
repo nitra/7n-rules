@@ -1,9 +1,9 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "disable-rules": ["changelog"],
   "rules": [
     "adr",
     "bun",
+    "changelog",
     "ga",
     "image-avif",
     "image-compress",
@@ -16,5 +16,9 @@
     "text",
     "vue"
   ],
-  "skills": ["fix", "lint", "publish-telegram"]
+  "skills": [
+    "fix",
+    "lint",
+    "publish-telegram"
+  ]
 }

@@ -1,5 +1,5 @@
 ---
-description: Автозбір ADR/Runbook/Knowledge-чернеток із Stop-хука Claude Code (capture-decisions)
+description: Автоматичний збір ADR/Runbook/Knowledge-чернеток із Stop-хука Claude Code (capture-decisions)
 alwaysApply: true
 version: '1.0'
 ---
