@@ -1,0 +1,51 @@
+.cursor/rules/n-npm-module.mdc
+  s_3890f356a4772d::t_791bbc47d93063 4
+  s_3890f356a4772d::t_251b8f797d0546 50-53,60
+  s_3890f356a4772d::t_47f166cd4f51fa 105
+.cursor/rules/n-js-run.mdc
+  s_3890f356a4772d::t_8e828aadd3bcac 31-49
+  s_3890f356a4772d::t_223066c3e46b4c 4
+  s_3890f356a4772d::t_7adfff3d54bbcc 192
+npm/scripts/check-js-run.mjs
+  s_3890f356a4772d::t_22c7580b3834f2 27-28,31
+  s_3890f356a4772d::t_93f952136b170d 29
+  s_3890f356a4772d::t_a908ba8530983f 57-149
+  s_3890f356a4772d::t_e57287d0bcd356 314-315
+npm/tests/check-js-run-fixture.test.mjs
+  s_3890f356a4772d::t_e6b8a72380555e 11-22
+  s_3890f356a4772d::t_5dcf7e4faf61c8 106,116-134
+npm/CHANGELOG.md
+  s_3890f356a4772d::t_6d82a0164820c7 7-16
+  s_3890f356a4772d::t_e95c31ff3d23a5 17-23
+npm/package.json
+  s_3890f356a4772d::t_b0f1a04e96a915 3
+npm/scripts/check-npm-module.mjs
+  s_3890f356a4772d::t_3ca0c88aa616d0 247-362
+  s_3890f356a4772d::t_48bf9438993f54 35-36,39-40
+  s_3890f356a4772d::t_4c2aa86a0e6ac6 13-16,18,22
+  s_3890f356a4772d::t_3bc5af91e89c35 501-503
+npm/mdc/js-run.mdc
+  s_3890f356a4772d::t_8b70a8038c6834 31-49
+  s_3890f356a4772d::t_8c316cae821224 192
+  s_3890f356a4772d::t_fe9f109452d47a 4
+npm/mdc/npm-module.mdc
+  s_3890f356a4772d::t_cbd36fa2c2e7ba 4
+  s_3890f356a4772d::t_2fce51a9d59f16 50-53,60
+  s_3890f356a4772d::t_0793933ea441cd 105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "60a5f194b4960c26e8183cb1e387895d590000cb",
+  "prompts": {},
+  "sessions": {
+    "s_3890f356a4772d": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "3b99fbb0-38fc-4fb0-8d10-6878b6bb38dc",
+        "model": "default"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
