@@ -251,12 +251,25 @@ function resolveImagePath(importPath, sourceAbsPath) {
 }
 
 /**
+ * Аґреговані лічильники по проходу `check image`:
+ *   - `rewrittenRefs` — скільки конкретних посилань (по одному на match) переписано на `.avif`;
+ *   - `rewrittenFiles` — у скількох `.vue`/`.html` файлах хоч одне посилання змінилося;
+ *   - `failedRefs` — скільки конкретних посилань не вдалося переписати (`.avif` не існував).
+ * @typedef {object} RewriteStats
+ * @property {number} rewrittenRefs
+ * @property {number} rewrittenFiles
+ * @property {number} failedRefs
+ */
+
+/**
  * Сканує `.vue` і `.html` файли одного workspace-пакета: де можемо, переписує raster-посилання
- * на `<path>.avif`, де не можемо — фейлимо. Повертає множину `.avif`-двійників, на які
- * лишилось живе посилання після проходу — потрібно для подальшого прибирання сиріт.
+ * на `<path>.avif`, де не можемо — фейлимо. Доповнює `usedAvifAbs` шляхами AVIF-двійників, на
+ * які лишилось живе посилання, і `stats` лічильниками rewrite/fail для глобального підсумку.
  *
  * Заміна виконується ТІЛЬКИ якщо AVIF-двійник реально існує на диску. Якщо AVIF немає
  * (наприклад, оригіналу теж немає, тож `--avif` його не згенерував) — фейл, як раніше.
+ * Запис файла відбувається ОДРАЗУ після обробки одного файла (write-then-fail): провал на
+ * наступному файлі НЕ відкочує вже записані зміни попередніх.
  *
  * Файли, що належать іншим workspace-пакетам, ігноруються — кожен пакет перевіряється рівно
  * один раз (інакше при обході кореня `.` ми б повторно зайшли в `demo/` і подвоїли звіти).
@@ -265,11 +278,11 @@ function resolveImagePath(importPath, sourceAbsPath) {
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {Set<string>} usedAvifAbs мутабельна множина абсолютних шляхів `.avif`, що мають
  * хоч одне посилання у `.vue`/`.html` (доповнюється у цій функції)
- * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {RewriteStats} stats глобальні лічильники, що мутуються тут
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>} резолвиться по завершенню перевірки одного пакета
  */
-async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, pass, fail) {
+async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail) {
   const absRoot = join(process.cwd(), packageRoot)
   const label = packageRoot === '.' ? 'корінь' : packageRoot
   /** @type {string[]} */
@@ -285,8 +298,6 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
   )
   if (targetFiles.length === 0) return
 
-  let violations = 0
-  let replacements = 0
   for (const absPath of targetFiles) {
     const rel = relative(process.cwd(), absPath).split('\\').join('/')
     const original = await readFile(absPath, 'utf8')
@@ -302,11 +313,11 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
         const replaced = full.replace(importPath, newImportPath)
         const imageAbs = resolveImagePath(importPath, absPath)
         if (imageAbs && existsSync(`${imageAbs}.avif`)) {
-          replacements++
+          stats.rewrittenRefs++
           usedAvifAbs.add(`${imageAbs}.avif`)
           return replaced
         }
-        violations++
+        stats.failedRefs++
         fail(renderFailure(importPath))
         return full
       })
@@ -333,11 +344,8 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
 
     if (updated !== original) {
       await writeFile(absPath, updated, 'utf8')
+      stats.rewrittenFiles++
     }
-  }
-  if (violations === 0) {
-    const summary = replacements > 0 ? `усі raster-посилання у .vue/.html переписано на .avif (замін: ${replacements})` : 'усі raster-посилання у .vue/.html вже на .avif (або відсутні)'
-    pass(`[${label}] ${summary}`)
   }
 }
 
@@ -345,16 +353,25 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
  * Сканує всі workspace-пакети: для кожного перевіряє opt-out і за потреби викликає
  * перевірку Vue-imports. Перевірка пропускається, якщо в репозиторії немає workspaces
  * або немає `.vue`-файлів — тоді `image` правило не для цього проєкту.
+ *
+ * Повертає список абсолютних коренів пакетів, у яких ввімкнено opt-out (`disable-avif: true`).
+ * Це окремий результат, бо AVIF всередині такого пакета НЕ можна вважати «сиротою» лише
+ * на підставі відсутності посилань у його `.vue`/`.html` (ми взагалі не сканували його
+ * шаблони) — інакше cleanup помилково затирав би AVIF, що використовуються через alias /
+ * runtime-обчислений шлях / зовнішні посилання, які тут не видно.
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {Set<string>} usedAvifAbs мутабельна множина абсолютних шляхів `.avif`-двійників,
  * на які лишилось хоча б одне посилання у `.vue`/`.html` (заповнюється у викликаних функціях)
+ * @param {RewriteStats} stats глобальні лічильники rewrite/fail (мутуються нижче)
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>} резолвиться по завершенню перевірки всіх workspace-пакетів
+ * @returns {Promise<string[]>} абсолютні шляхи коренів пакетів з активним opt-out
  */
-async function checkVueAvifImports(ignorePaths, usedAvifAbs, pass, fail) {
+async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) {
   const roots = await getMonorepoPackageRootDirs()
   const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
+  /** @type {string[]} */
+  const optedOutAbs = []
   for (const root of roots) {
     const pkgPath = join(root, 'package.json')
     if (!existsSync(pkgPath)) continue
@@ -363,11 +380,13 @@ async function checkVueAvifImports(ignorePaths, usedAvifAbs, pass, fail) {
       pass(
         `[${root === '.' ? 'корінь' : root}] avif-import enforcement вимкнено через "@nitra/minify-image.disable-avif"`
       )
+      optedOutAbs.push(absRootsByRel.get(root) ?? join(process.cwd(), root))
       continue
     }
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
-    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, usedAvifAbs, pass, fail)
+    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail)
   }
+  return optedOutAbs
 }
 
 /**
@@ -423,12 +442,18 @@ function runAvifGeneration() {
  * Видаляє AVIF-сироти — `<...>.avif` файли, на які не лишилось жодного посилання
  * у `.vue`/`.html` репозиторію. Реалізує умову правила: «AVIF лишається лише там,
  * де заміна реально вдалася».
+ *
+ * AVIF файли всередині opt-out пакетів (`disable-avif: true`) пропускаються — ми не
+ * сканували їх шаблони, тож не маємо права вважати їх AVIF сиротами. Це гарантує
+ * ідемпотентність повторного `check image` для пакетів, що навмисно вимкнули правило
+ * (наприклад, мобільний бандл, де AVIF підтримка не гарантована).
  * @param {Set<string>} usedAvifAbs абсолютні шляхи `.avif`, що мають живі посилання
+ * @param {string[]} optedOutAbs абсолютні шляхи коренів пакетів з опт-аутом —
+ * `.avif` під ними не вважаємо сиротами і не видаляємо
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @returns {Promise<void>} резолвиться після видалення всіх сиріт
+ * @returns {Promise<number>} кількість видалених сиріт
  */
-async function cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass) {
+async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths) {
   /** @type {string[]} */
   const orphans = []
   await walkDir(
@@ -436,6 +461,7 @@ async function cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass) {
     absPath => {
       if (!absPath.endsWith('.avif')) return
       if (usedAvifAbs.has(absPath)) return
+      if (optedOutAbs.some(root => absPath === root || absPath.startsWith(`${root}/`))) return
       orphans.push(absPath)
     },
     ignorePaths
@@ -443,9 +469,7 @@ async function cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass) {
   for (const absPath of orphans) {
     await unlink(absPath)
   }
-  if (orphans.length > 0) {
-    pass(`видалено AVIF-сиріт без посилань у .vue/.html: ${orphans.length}`)
-  }
+  return orphans.length
 }
 
 /**
@@ -493,8 +517,16 @@ export async function check() {
 
   /** @type {Set<string>} */
   const usedAvifAbs = new Set()
-  await checkVueAvifImports(ignorePaths, usedAvifAbs, pass, fail)
-  await cleanupOrphanAvifs(usedAvifAbs, ignorePaths, pass)
+  /** @type {RewriteStats} */
+  const stats = { rewrittenRefs: 0, rewrittenFiles: 0, failedRefs: 0 }
+  const optedOutAbs = await checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail)
+  const orphansDeleted = await cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths)
+
+  pass(
+    `image: rewrote ${stats.rewrittenRefs} reference${stats.rewrittenRefs === 1 ? '' : 's'} in ${stats.rewrittenFiles} file${stats.rewrittenFiles === 1 ? '' : 's'}; ` +
+      `deleted ${orphansDeleted} orphan AVIF${orphansDeleted === 1 ? '' : 's'}; ` +
+      `failed to rewrite ${stats.failedRefs} reference${stats.failedRefs === 1 ? '' : 's'}`
+  )
 
   return reporter.getExitCode()
 }

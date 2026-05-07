@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.193] - 2026-05-07
+
+### Fixed
+
+- `check-image.mjs`: cleanup AVIF-сиріт більше не зачіпає `.avif` файли всередині пакетів з опт-аутом (`"@nitra/minify-image": { "disable-avif": true }`). Раніше: пакет з опт-аутом не сканувався на refs → його `.avif` потрапляли у список «сиріт» і видалялись, навіть якщо насправді використовувалися через alias / runtime-обчислений шлях. Тепер `checkVueAvifImports` повертає список абсолютних коренів opt-out пакетів, а `cleanupOrphanAvifs` пропускає `.avif` під ними.
+- `check-image.mjs`: запис у `.vue`/`.html` тепер строго послідовний з cleanup (write-then-cleanup): перший виконує `checkVueAvifImports` (per-file `writeFile` після обробки), і тільки після цього `cleanupOrphanAvifs` читає вже оновлені `usedAvifAbs` і видаляє лише дійсних сиріт.
+- `check-image.mjs`: введено агреговані лічильники `RewriteStats` (`rewrittenRefs` / `rewrittenFiles` / `failedRefs`) і єдиний фінальний рядок-підсумок `image: rewrote N references in M files; deleted K orphan AVIFs; failed to rewrite L references` — раніше підсумок дублювався per-package і не виокремлював orphan-cleanup vs failed-rewrites.
+
+### Added
+
+- `tests/check-image.test.mjs`: 5 нових кейсів — статичний `<img src="a.png">` авто-переписується (за наявності `a.png` і `a.png.avif`); реактивне `:src="dyn"` залишається незмінним і orphan AVIF видаляється; змішані форми у одному файлі (статичний + import + реактивний + `data-src=`) — переписуються лише покривані; opt-out пакет — AVIF всередині не вважається сиротою; ідемпотентність повторного `check image` на чистому стані.
+
 ## [1.8.192] - 2026-05-07
 
 ### Added

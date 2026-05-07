@@ -345,6 +345,154 @@ describe('check-image', () => {
     })
   })
 
+  test('успіх: статичний `<img src="a.png">` авто-переписується на `.png.avif` коли обидва файли існують', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'a.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'a.png.avif'), 'fake-avif', 'utf8')
+      await writeFile(join('app/src', 'App.vue'), `<template>\n  <img src="./a.png" alt="a" />\n</template>\n`, 'utf8')
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('app/src', 'App.vue'), 'utf8')
+      expect(updated).toContain(`src="./a.png.avif"`)
+      expect(updated).not.toMatch(/src="\.\/a\.png"/)
+      expect(existsSync(join('app/src', 'a.png.avif'))).toBe(true)
+    })
+  })
+
+  test('успіх: реактивне `:src="dyn"` залишається; orphan .avif без посилань видаляється', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'lonely.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'lonely.png.avif'), 'fake-avif', 'utf8')
+      const vue = `<script setup>\nconst dyn = computed(() => '/whatever')\n</script>\n<template>\n  <img :src="dyn" alt="dynamic" />\n</template>\n`
+      await writeFile(join('app/src', 'App.vue'), vue, 'utf8')
+      expect(await check()).toBe(0)
+      expect(await readFile(join('app/src', 'App.vue'), 'utf8')).toBe(vue)
+      expect(existsSync(join('app/src', 'lonely.png.avif'))).toBe(false)
+      expect(existsSync(join('app/src', 'lonely.png'))).toBe(true)
+    })
+  })
+
+  test('успіх: змішані форми у одному файлі — переписуються лише покривані', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'static.png'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'static.png.avif'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'imp.png'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'imp.png.avif'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'reactive.png'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'reactive.png.avif'), 'fake', 'utf8')
+      const vue =
+        `<script setup>\n` +
+        `import imp from './imp.png'\n` +
+        `const url = './reactive.png'\n` +
+        `</script>\n` +
+        `<template>\n` +
+        `  <img src="./static.png" />\n` +
+        `  <img :src="imp" />\n` +
+        `  <img :src="url" />\n` +
+        `  <img data-src="./reactive.png" />\n` +
+        `</template>\n`
+      await writeFile(join('app/src', 'App.vue'), vue, 'utf8')
+      expect(await check()).toBe(0)
+      const updated = await readFile(join('app/src', 'App.vue'), 'utf8')
+      expect(updated).toContain(`src="./static.png.avif"`)
+      expect(updated).toContain(`import imp from './imp.png.avif'`)
+      expect(updated).toContain(`const url = './reactive.png'`)
+      expect(updated).toContain(`data-src="./reactive.png"`)
+      expect(existsSync(join('app/src', 'reactive.png.avif'))).toBe(false)
+      expect(existsSync(join('app/src', 'static.png.avif'))).toBe(true)
+      expect(existsSync(join('app/src', 'imp.png.avif'))).toBe(true)
+    })
+  })
+
+  test('успіх: opt-out пакет — AVIF всередині не вважається сиротою і не видаляється', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', {
+        name: 'app',
+        '@nitra/minify-image': { 'disable-avif': true }
+      })
+      await writeFile(join('app/src', 'kept.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'kept.png.avif'), 'fake-avif', 'utf8')
+      await writeFile(join('app/src', 'App.vue'), `<template><div/></template>\n`, 'utf8')
+      expect(await check()).toBe(0)
+      expect(existsSync(join('app/src', 'kept.png.avif'))).toBe(true)
+    })
+  })
+
+  test('ідемпотентність: другий прогін на чистому стані не змінює файли і не видаляє AVIF', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'mono',
+        private: true,
+        workspaces: ['app'],
+        scripts: {
+          lint: 'bun run lint-image && oxfmt .',
+          'lint-image': CANONICAL_LINT_IMAGE
+        }
+      })
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await ensureDir('app/src')
+      await writeJson('app/package.json', { name: 'app' })
+      await writeFile(join('app/src', 'hero.png'), 'fake', 'utf8')
+      await writeFile(join('app/src', 'hero.png.avif'), 'fake', 'utf8')
+      const vue = `<script setup>\nimport hero from './hero.png.avif'\n</script>\n<template><img :src="hero"/></template>\n`
+      await writeFile(join('app/src', 'App.vue'), vue, 'utf8')
+      expect(await check()).toBe(0)
+      const after1 = await readFile(join('app/src', 'App.vue'), 'utf8')
+      expect(after1).toBe(vue)
+      expect(existsSync(join('app/src', 'hero.png.avif'))).toBe(true)
+      expect(await check()).toBe(0)
+      const after2 = await readFile(join('app/src', 'App.vue'), 'utf8')
+      expect(after2).toBe(vue)
+      expect(existsSync(join('app/src', 'hero.png.avif'))).toBe(true)
+    })
+  })
+
   test('успіх: AVIF-сирота без посилань у .vue видаляється', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
