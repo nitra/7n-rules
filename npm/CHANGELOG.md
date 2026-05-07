@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.198] - 2026-05-07
+
+### Changed
+
+- `image-compress` (mdc v1.0 → v1.1): мінімум `@nitra/minify-image` піднято з **3.2.0** до **3.3.1**. У `3.3.1` upstream CLI порівнює sha1 raster-сорсу зі збереженим у `.n-minify-image.tsv` і автоматично перегенеровує `<source>.avif` при зміні контенту оригіналу — раніше stale `.avif` лишався поки розробник не видаляв його вручну. Додано пояснювальний абзац у правило.
+- `image-avif` (mdc v1.0 → v1.1): крок 1 (`npx @nitra/minify-image --src=. --write --avif`) явно требує ≥ 3.3.1 і документує, що sha1-перевірка для регенерації застарілого AVIF тепер живе у CLI; `@nitra/cursor` цю логіку **не дублює**.
+
 ## [1.8.197] - 2026-05-07
 
 ### Changed

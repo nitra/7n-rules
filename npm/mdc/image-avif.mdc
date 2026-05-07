@@ -1,12 +1,12 @@
 ---
 description: AVIF-двійники для raster-зображень з ув'язуванням у .vue/.html
 alwaysApply: true
-version: '1.0'
+version: '1.1'
 ---
 
 AVIF-двійники (`<name>.<ext>.avif`) генерує **виключно** `npx @nitra/cursor check image-avif` — у `lint-image` прапорець `--avif` заборонений (це валідує правило `image-compress`). Перевірка робить три кроки в порядку:
 
-1. Запускає `npx @nitra/minify-image --src=. --write --avif` — генерує `<name>.<ext>.avif` поряд з кожним PNG/JPEG/GIF.
+1. Запускає `npx @nitra/minify-image --src=. --write --avif` (≥ **3.3.1**) — генерує `<name>.<ext>.avif` поряд з кожним PNG/JPEG/GIF. **Перегенерація при оновленні оригіналу:** з 3.3.1 CLI порівнює sha1 кожного raster-сорсу зі збереженим у `.n-minify-image.tsv` і автоматично перезаписує `<source>.avif`, якщо оригінал відредагували після останнього прогону. `@nitra/cursor` цю логіку не дублює — sha1-кеш живе всередині `@nitra/minify-image`.
 2. Сканує `.vue` (а також `.html`) файли в кожному workspace-пакеті (root + workspaces) і автоматично переписує raster-посилання на AVIF-двійник у двох формах:
    - **Імпорт-пов'язані** — `import x from '...png|jpg|jpeg|gif'` (далі `:src="x"` у шаблоні);
    - **Прямі статичні** — `<img src="...png" />` у `<template>` (Vite перетворює такий шлях на asset-імпорт на етапі збірки, тож вимога та сама).
