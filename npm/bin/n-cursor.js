@@ -49,6 +49,7 @@
  * `node_modules/@nitra/cursor`, якщо пакет з’явився після встановлення.
  */
 
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readdir, readFile, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
@@ -1123,6 +1124,46 @@ async function readBundledVersionAt(packageRoot) {
 }
 
 /**
+ * Якщо `upgradeNitraCursorToLatestAndBunInstall` встановив у `node_modules/@nitra/cursor` версію,
+ * відмінну від тієї, з якої стартував поточний процес (наприклад, з npx-кешу), запускає бінар нової
+ * версії через `spawnSync` і завершує поточний процес із успадкованим exit-кодом. Re-exec потрібен,
+ * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRulesAndSkills тощо) і нова логіка
+ * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
+ * @param {string} effectivePackageRoot шлях, повернутий `upgradeNitraCursorToLatestAndBunInstall`
+ * @returns {Promise<void>} повертається лише якщо re-exec не потрібен (інакше викликає `process.exit`)
+ */
+async function reexecIfPackageVersionChanged(effectivePackageRoot) {
+  if (process.env.NITRA_CURSOR_REEXEC === '1') {
+    return
+  }
+  if (effectivePackageRoot === BUNDLED_PACKAGE_ROOT) {
+    return
+  }
+  const currentVersion = await readBundledVersionAt(BUNDLED_PACKAGE_ROOT)
+  const installedVersion = await readBundledVersionAt(effectivePackageRoot)
+  if (!currentVersion || !installedVersion || currentVersion === installedVersion) {
+    return
+  }
+  const newBinPath = join(effectivePackageRoot, 'bin', 'n-cursor.js')
+  if (!existsSync(newBinPath)) {
+    return
+  }
+  console.log(
+    `🔁 Перезапуск ${PACKAGE_NAME}: процес стартував на ${currentVersion}, ` +
+      `після self-upgrade встановлено ${installedVersion}.\n` +
+      `   Re-exec свіжого бінаря, щоб підхопити нову логіку (RULE_MIGRATIONS, auto-detect тощо).\n`
+  )
+  const result = spawnSync(process.execPath, [newBinPath, ...process.argv.slice(2)], {
+    stdio: 'inherit',
+    env: { ...process.env, NITRA_CURSOR_REEXEC: '1' }
+  })
+  if (result.error) {
+    throw result.error
+  }
+  process.exit(typeof result.status === 'number' ? result.status : 1)
+}
+
+/**
  * Копіює правила з каталогу `mdc/` установленого пакету та синхронізує `.cursor/rules`
  * @returns {Promise<void>}
  */
@@ -1133,6 +1174,8 @@ async function runSync() {
   const effectivePackageRoot = await runSyncStep(`❌ Не вдалося оновити ${PACKAGE_NAME} або виконати bun i: `, () =>
     upgradeNitraCursorToLatestAndBunInstall(projectRoot, BUNDLED_PACKAGE_ROOT)
   )
+
+  await reexecIfPackageVersionChanged(effectivePackageRoot)
 
   const bundledMdcDir = join(effectivePackageRoot, 'mdc')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')

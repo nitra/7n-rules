@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.202] - 2026-05-07
+
+### Added
+
+- `bin/n-cursor.js`: новий хелпер `reexecIfPackageVersionChanged(effectivePackageRoot)` і його виклик у `runSync` одразу після `upgradeNitraCursorToLatestAndBunInstall`. Якщо self-upgrade встановив у `node_modules/@nitra/cursor` версію, відмінну від тієї, з якої стартував поточний процес (типово — npx-кеш), CLI спавнить `process.execPath <newBin> <args…>` через `spawnSync` (`stdio: 'inherit'`), додає в env `NITRA_CURSOR_REEXEC=1` і завершується з exit-кодом дочірнього процесу. Обґрунтування: ES-модулі (`RULE_MIGRATIONS`, `detectAutoRulesAndSkills`, списки правил) уже завантажені у V8 і нова логіка з-під свіжо встановленого пакета без re-exec невидима для поточного запуску — `import()` не вирішує цього, бо процес виконується з `bin/` у npx-кеші, а не з `node_modules/`. Захист від нескінченного циклу — раннє повернення при `process.env.NITRA_CURSOR_REEXEC === '1'`; додатково нічого не робить, якщо `effectivePackageRoot === BUNDLED_PACKAGE_ROOT` (реального апгрейду не сталося), якщо `version` не вдалося прочитати з обох `package.json`, або якщо у новому корені відсутній `bin/n-cursor.js`. `runChecks` свідомо не патчиться — він не виконує self-upgrade, тож версія процесу і пакета там завжди узгоджені. Імпорт `spawnSync` із `node:child_process` — єдина нова зовнішня залежність.
+
 ## [1.8.201] - 2026-05-07
 
 ### Changed
