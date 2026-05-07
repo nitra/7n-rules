@@ -8,6 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  ADR_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
   mergeHooks,
@@ -28,6 +29,7 @@ const TEMPLATE_REL = 'pkg/.claude-template'
 async function setupTemplate(cwdAbs, tpl = {}) {
   const pkgRoot = join(cwdAbs, 'pkg')
   await mkdir(join(cwdAbs, TEMPLATE_REL, 'commands'), { recursive: true })
+  await mkdir(join(cwdAbs, TEMPLATE_REL, 'hooks'), { recursive: true })
   const settings = tpl.settings ?? {
     permissions: { allow: ['Bash(bun *)'] },
     hooks: {
@@ -46,6 +48,11 @@ async function setupTemplate(cwdAbs, tpl = {}) {
   )
   await writeFile(join(cwdAbs, TEMPLATE_REL, 'npm-CLAUDE.md'), tpl.npmClaudeMd ?? '# npm scoped\n', 'utf8')
   await writeFile(join(cwdAbs, TEMPLATE_REL, 'commands', 'n-check.md'), tpl.commandNCheck ?? '# n-check stub\n', 'utf8')
+  await writeFile(
+    join(cwdAbs, TEMPLATE_REL, 'hooks', 'capture-decisions.sh'),
+    tpl.captureDecisionsSh ?? '#!/usr/bin/env bash\nexit 0\n',
+    'utf8'
+  )
   return pkgRoot
 }
 
@@ -193,8 +200,85 @@ describe('syncClaudeConfig (інтеграція)', () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: false })
-      expect(result).toEqual({ settings: false, npmClaudeMd: false, commands: [] })
+      expect(result).toEqual({ settings: false, npmClaudeMd: false, commands: [], adrHook: false })
       expect(existsSync(join(cwdAbs, '.claude/settings.json'))).toBe(false)
+    })
+  })
+
+  test('без правила "adr": ADR-hook не копіюється і не з\'являється у settings.json', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['bun', 'text']
+      })
+      expect(result.adrHook).toBe(false)
+      expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(false)
+      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
+      expect(hasAdr).toBe(false)
+    })
+  })
+
+  test('з правилом "adr": копіюється скрипт і додається managed-група у Stop', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs, { captureDecisionsSh: '#!/usr/bin/env bash\necho adr-canonical\n' })
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr', 'text']
+      })
+      expect(result.adrHook).toBe(true)
+      const scriptContent = await readFile('.claude/hooks/capture-decisions.sh', 'utf8')
+      expect(scriptContent).toBe('#!/usr/bin/env bash\necho adr-canonical\n')
+      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const adrGroup = settings.hooks.Stop.find(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
+      expect(adrGroup).toBeTruthy()
+      expect(adrGroup.hooks[0].command).toContain('$CLAUDE_PROJECT_DIR')
+      expect(adrGroup.hooks[0].async).toBe(true)
+      expect(adrGroup.hooks[0].timeout).toBe(180)
+      const lintGroup = settings.hooks.Stop.find(g => g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER)))
+      expect(lintGroup).toBeTruthy()
+    })
+  })
+
+  test('видалення "adr" з rules: ADR managed-група прибирається з settings, скрипт лишається на диску', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr']
+      })
+      expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(true)
+      await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: []
+      })
+      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
+      expect(hasAdr).toBe(false)
+      // Скрипт лишається — користувач прибирає вручну, щоб не втратити кастомізації.
+      expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(true)
+    })
+  })
+
+  test('повторний sync з "adr" не дублює managed ADR-групу', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const adrCount = settings.hooks.Stop.filter(g =>
+        g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
+      ).length
+      expect(adrCount).toBe(1)
     })
   })
 })

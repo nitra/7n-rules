@@ -1,30 +1,53 @@
 /**
  * Синхронізує конфігурацію Claude Code (`.claude/settings.json`, `npm/CLAUDE.md`,
- * slash-команди для checks) у поточний проєкт із темплейтів пакету
+ * slash-команди для checks, ADR Stop-hook) у поточний проєкт із темплейтів пакету
  * `npm/.claude-template/`.
  *
  * Архітектура:
  * - `settings.json` — **merge**: користувацькі поля зберігаються; наші hooks
- *   ідентифікуються командою-маркером (`MANAGED_HOOK_COMMAND_MARKER`) і
+ *   ідентифікуються командою-маркером (`MANAGED_HOOK_COMMAND_MARKERS`) і
  *   перезаписуються; permissions.allow зливається через union (із дедублікацією).
  * - `npm/CLAUDE.md` — **fully owned**: завжди перезаписується; пропускається,
  *   якщо в проєкті немає каталогу `npm/`.
  * - `.claude/commands/n-check.md` — fully owned slash-команда.
+ * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR Stop-hook;
+ *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
+ *   присутнє `adr` (правило вмикається вручну). Якщо правила немає, керована
+ *   ADR-група в hooks так само автоматично прибирається з settings.json.
  *
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер у command нашого managed-hook'а — за ним відрізняємо свої записи від користувацьких */
+/** Маркер lint Stop-hook'а (`npx --no @nitra/cursor stop-hook`). */
 export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
+/** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта. */
+export const ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
+/** Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких. */
+export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([MANAGED_HOOK_COMMAND_MARKER, ADR_HOOK_COMMAND_MARKER])
 
 const CLAUDE_DIR = '.claude'
 const CLAUDE_SETTINGS_FILE = `${CLAUDE_DIR}/settings.json`
 const CLAUDE_COMMANDS_DIR = `${CLAUDE_DIR}/commands`
+const CLAUDE_HOOKS_DIR = `${CLAUDE_DIR}/hooks`
+const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const NPM_CLAUDE_MD_FILE = 'npm/CLAUDE.md'
 const TEMPLATE_DIR_NAME = '.claude-template'
+
+/** Канонічна група hooks для ADR Stop-hook'а — додається в settings, коли `adr` у `rules`. */
+const ADR_STOP_HOOK_GROUP = Object.freeze({
+  matcher: '',
+  hooks: Object.freeze([
+    Object.freeze({
+      type: 'command',
+      command: `bash "$CLAUDE_PROJECT_DIR/${ADR_HOOK_COMMAND_MARKER}"`,
+      async: true,
+      timeout: 180
+    })
+  ])
+})
 
 /**
  * @typedef {object} HookEntry
@@ -46,15 +69,17 @@ const TEMPLATE_DIR_NAME = '.claude-template'
  */
 
 /**
- * Чи hook-група містить лише наші managed-команди (за маркером).
+ * Чи hook-група містить лише наші managed-команди (за будь-яким із маркерів пакета).
  * @param {HookGroup} group hook-група з .claude/settings.json
- * @returns {boolean} `true`, якщо всі hooks мають маркер `MANAGED_HOOK_COMMAND_MARKER`
+ * @returns {boolean} `true`, якщо всі hooks мають маркер з `MANAGED_HOOK_COMMAND_MARKERS`
  */
 function isManagedHookGroup(group) {
   if (!group?.hooks?.length) {
     return false
   }
-  return group.hooks.every(h => typeof h?.command === 'string' && h.command.includes(MANAGED_HOOK_COMMAND_MARKER))
+  return group.hooks.every(
+    h => typeof h?.command === 'string' && MANAGED_HOOK_COMMAND_MARKERS.some(marker => h.command.includes(marker))
+  )
 }
 
 /**
@@ -104,19 +129,38 @@ export function mergeHooks(existing, fromTemplate) {
 }
 
 /**
+ * Будує копію темплейту із додатковою ADR Stop hook-групою у `Stop`.
+ * Темплейт залишається незмінним; повертається новий об'єкт з доданою групою.
+ * @param {ClaudeSettings} template вихідний темплейт із `.claude-template/settings.template.json`
+ * @returns {ClaudeSettings} копія з доданою ADR-групою у `hooks.Stop`
+ */
+function templateWithAdrHook(template) {
+  /** @type {Record<string, HookGroup[]>} */
+  const hooks = {}
+  for (const [event, groups] of Object.entries(template.hooks ?? {})) {
+    hooks[event] = Array.isArray(groups) ? [...groups] : []
+  }
+  hooks.Stop = [...(hooks.Stop ?? []), /** @type {HookGroup} */ (ADR_STOP_HOOK_GROUP)]
+  return { ...template, hooks }
+}
+
+/**
  * Повертає об'єднаний об'єкт settings.json.
  * @param {ClaudeSettings | undefined} existing існуючий вміст `.claude/settings.json` користувача (або undefined, якщо файла нема)
  * @param {ClaudeSettings} template settings із темплейту пакета `@nitra/cursor`
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додати ADR Stop-hook групу до managed-hooks (коли в `.n-cursor.json` `rules` присутнє `adr`)
  * @returns {ClaudeSettings} результат merge-у (користувацькі поля збережено, наші перевизначено)
  */
-export function mergeSettings(existing, template) {
+export function mergeSettings(existing, template, options = {}) {
+  const effectiveTemplate = options.includeAdrHook ? templateWithAdrHook(template) : template
   /** @type {ClaudeSettings} */
   const merged = { ...existing }
-  const mergedAllow = mergeAllowList(existing?.permissions?.allow, template.permissions?.allow)
+  const mergedAllow = mergeAllowList(existing?.permissions?.allow, effectiveTemplate.permissions?.allow)
   if (mergedAllow.length > 0) {
     merged.permissions = { ...existing?.permissions, allow: mergedAllow }
   }
-  const mergedHooks = mergeHooks(existing?.hooks, template.hooks)
+  const mergedHooks = mergeHooks(existing?.hooks, effectiveTemplate.hooks)
   if (Object.keys(mergedHooks).length > 0) {
     merged.hooks = mergedHooks
   } else {
@@ -146,9 +190,11 @@ async function readJsonOrUndefined(path) {
  * користувацьких полів.
  * @param {string} projectRoot корінь проєкту, куди писати
  * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додавати ADR Stop-hook (правило `adr` увімкнене у `rules`)
  * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
-export async function syncClaudeSettings(projectRoot, templateDir) {
+export async function syncClaudeSettings(projectRoot, templateDir, options = {}) {
   const templatePath = join(templateDir, 'settings.template.json')
   if (!existsSync(templatePath)) {
     return { written: false, path: '' }
@@ -156,10 +202,31 @@ export async function syncClaudeSettings(projectRoot, templateDir) {
   const template = /** @type {ClaudeSettings} */ (JSON.parse(await readFile(templatePath, 'utf8')))
   const settingsPath = join(projectRoot, CLAUDE_SETTINGS_FILE)
   const existing = await readJsonOrUndefined(settingsPath)
-  const merged = mergeSettings(existing, template)
+  const merged = mergeSettings(existing, template, options)
   await mkdir(join(projectRoot, CLAUDE_DIR), { recursive: true })
   await writeFile(settingsPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
   return { written: true, path: CLAUDE_SETTINGS_FILE }
+}
+
+/**
+ * Копіює канонічний `.claude/hooks/capture-decisions.sh` з темплейту пакета.
+ * Файл повністю керується пакетом — на кожен sync перезаписується (як setup-bun-deps).
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
+ */
+export async function syncAdrHookScript(projectRoot, templateDir) {
+  const templatePath = join(templateDir, 'hooks', ADR_HOOK_SCRIPT_NAME)
+  if (!existsSync(templatePath)) {
+    return { written: false, path: '' }
+  }
+  const content = await readFile(templatePath, 'utf8')
+  const hooksDir = join(projectRoot, CLAUDE_HOOKS_DIR)
+  await mkdir(hooksDir, { recursive: true })
+  const destPath = join(hooksDir, ADR_HOOK_SCRIPT_NAME)
+  await writeFile(destPath, content, 'utf8')
+  await chmod(destPath, 0o755)
+  return { written: true, path: `${CLAUDE_HOOKS_DIR}/${ADR_HOOK_SCRIPT_NAME}` }
 }
 
 /**
@@ -215,18 +282,21 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.projectRoot корінь проєкту-споживача
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
- * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[] }>} прапорці записів settings/CLAUDE.md та список записаних slash-команд
+ * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
+ * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean }>} прапорці записів settings/CLAUDE.md/ADR-hook та список записаних slash-команд
  */
-export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled }) {
+export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
-    return { settings: false, npmClaudeMd: false, commands: [] }
+    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false }
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
   if (!existsSync(templateDir)) {
-    return { settings: false, npmClaudeMd: false, commands: [] }
+    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false }
   }
-  const settings = await syncClaudeSettings(projectRoot, templateDir)
+  const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
+  const adrHook = includeAdrHook ? await syncAdrHookScript(projectRoot, templateDir) : { written: false, path: '' }
+  const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const npmClaudeMd = await syncNpmClaudeMd(projectRoot, templateDir)
   const commands = await syncClaudeCommands(projectRoot, templateDir)
-  return { settings: settings.written, npmClaudeMd: npmClaudeMd.written, commands }
+  return { settings: settings.written, npmClaudeMd: npmClaudeMd.written, commands, adrHook: adrHook.written }
 }

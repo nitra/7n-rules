@@ -1,7 +1,7 @@
 ---
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 alwaysApply: true
-version: '1.3'
+version: '1.4'
 ---
 
 ## Область застосування
@@ -135,6 +135,18 @@ console.log(env.OPTIONAL_ENV_VAR)
 Тимчасово приглушити перевірку для конкретного рядка можна коментарем
 `// @nitra/cursor ignore-next-line checkEnv` безпосередньо перед використанням
 (escape-hatch для legacy-коду, не для нових файлів).
+
+## Паузи через setTimeout
+
+Заборонено робити паузи через `await new Promise(resolve => setTimeout(resolve, ms))` — таку обгортку треба замінити на promise-варіант `setTimeout` з `node:timers/promises`:
+
+```javascript title="Замість new Promise + setTimeout"
+import { setTimeout } from 'node:timers/promises'
+
+await setTimeout(500)
+```
+
+Імпорт `setTimeout` з `node:timers/promises` затіняє глобальний таймер у файлі — якщо в тому ж файлі потрібен callback-варіант, імпортуй його під іншим іменем (наприклад, `import { setTimeout as setTimeoutCb } from 'node:timers'`).
 
 ## depcheck у GitHub Actions з path-фільтром
 

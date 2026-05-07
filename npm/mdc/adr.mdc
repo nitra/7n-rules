@@ -1,0 +1,86 @@
+---
+description: Автоматичний збір ADR/Runbook/Knowledge-чернеток із Stop-хука Claude Code (capture-decisions)
+alwaysApply: true
+version: '1.0'
+---
+
+Правило вмикається **вручну** — додай `"adr"` у масив `rules` файлу `.n-cursor.json`. У `auto-rules.md` його немає, бо корисність залежить від робочого процесу команди (не кожен проєкт хоче літати ADR-чернеткам у `docs/`).
+
+Коли правило увімкнене, **`npx @nitra/cursor`** автоматично:
+
+- копіює канонічний bash-скрипт у **`.claude/hooks/capture-decisions.sh`** (executable, повністю керується пакетом — на кожен sync перезаписується);
+- додає managed-групу у **`hooks.Stop`** в **`.claude/settings.json`**, яка викликає цей скрипт асинхронно (`async: true`, `timeout: 180`);
+- ці зміни — додаткові до lint Stop-hook (`@nitra/cursor stop-hook`); обидві групи живуть поряд у `Stop`.
+
+## Що робить механізм
+
+Stop-hook Claude Code зчитує JSONL-транскрипт сесії (через `jq`), витягає текст, `thinking`-блоки та назви `tool_use`-викликів, передає компактний дайджест у LLM CLI з промптом українською і записує результат у **`docs/adr/_inbox/<timestamp>-<session>.md`**, якщо модель повернула блок з шапкою `## ADR|Runbook|Knowledge …`. Якщо модель повернула `NONE` (тривіальна сесія) — нічого не пишеться. Рекурсію з внутрішнього виклику моделі блокує env-var `CAPTURE_DECISIONS_RUNNING=1`.
+
+## LLM CLI: claude → cursor-agent fallback
+
+Скрипт сам обирає доступний CLI (порядок фіксований):
+
+1. **`claude`** (Anthropic Claude Code CLI) — `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` (default `sonnet`).
+2. **`cursor-agent`** (Cursor IDE CLI) — `cursor-agent -p --mode ask --output-format text --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` (default `claude-4.6-sonnet-medium`).
+3. Жодного CLI у `PATH` — скрипт виходить з кодом `0` і нічого не пише.
+
+`--mode ask` для cursor-agent навмисно: режим Q&A read-only, без shell/edit-інструментів — для класифікації сесії інструменти не потрібні. Моделі можна перевизначити через ENV: `CAPTURE_DECISIONS_CLAUDE_MODEL`, `CAPTURE_DECISIONS_CURSOR_MODEL`.
+
+## Структура каталогу
+
+```text
+docs/adr/
+└── _inbox/                         # чернетки, що пишуться Stop-хуком
+    └── YYYYMMDD-HHMMSS-<sid>.md    # session_id (перші 8 символів)
+.claude/hooks/
+├── capture-decisions.sh            # auto-synced з пакета
+└── capture-decisions.log           # лог запусків (НЕ коміти)
+```
+
+`.gitignore` повинен містити рядок **`.claude/hooks/capture-decisions.log`**, щоб лог не потрапляв у git.
+
+`docs/adr/_inbox/` — це робоча скринька; чернетки звідти переносяться у структуровані ADR-файли вручну (під час оглядів) або тримаються як архів сесій. Каталог сам створюється скриптом, тому пустим у git тримати не потрібно.
+
+## Stop-hook у `.claude/settings.json`
+
+Канонічний запис, який вставляє sync (поряд із lint stop-hook):
+
+```json title=".claude/settings.json"
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no @nitra/cursor stop-hook",
+            "timeout": 60
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/capture-decisions.sh\"",
+            "async": true,
+            "timeout": 180
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Обидві групи ідентифікуються пакетом за маркером у `command` (`@nitra/cursor stop-hook` і `.claude/hooks/capture-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, ADR-група автоматично видаляється на наступному `npx @nitra/cursor`.
+
+## Локальні vs project-shared налаштування
+
+Stop-hook ADR живе у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
+
+## Перевірка
+
+`npx @nitra/cursor check adr`

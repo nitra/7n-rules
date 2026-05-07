@@ -4,6 +4,20 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.189] - 2026-05-07
+
+### Added
+
+- Нове правило `adr` (вмикається **вручну** через `.n-cursor.json` `rules`): автоматичне копіювання канонічного `.claude/hooks/capture-decisions.sh` з пакета та керована Stop-група у `.claude/settings.json`, яка викликає скрипт асинхронно (`async: true`, timeout `180`s). Скрипт зчитує JSONL-транскрипт сесії, передає дайджест у LLM CLI і пише чернетки ADR/Runbook/Knowledge у `docs/adr/_inbox/`.
+- `capture-decisions.sh`: fallback `claude` → `cursor-agent` (LLM CLI). Якщо `claude` відсутній, береться `cursor-agent -p --mode ask --output-format text`. Моделі задаються через ENV `CAPTURE_DECISIONS_CLAUDE_MODEL` (default `sonnet`) і `CAPTURE_DECISIONS_CURSOR_MODEL` (default `claude-4.6-sonnet-medium`).
+- `check-adr.mjs`: програмна перевірка наявності та канонічності `.claude/hooks/capture-decisions.sh`, ADR-групи у `.claude/settings.json`, відсутності дубля у `.claude/settings.local.json`, ігнорування `.claude/hooks/capture-decisions.log` у `.gitignore`, інформативно — наявність бодай одного LLM CLI (`claude`/`cursor-agent`) у `PATH`.
+- `tests/check-adr.test.mjs` (7 кейсів) і нові кейси у `tests/sync-claude-config.test.mjs`: copy + Stop-merge + ідемпотентність + автоматичне видалення managed-групи при видаленні `adr` з `rules`.
+
+### Changed
+
+- `sync-claude-config.mjs`: `MANAGED_HOOK_COMMAND_MARKERS` (масив) замість одиничного маркера; `mergeSettings(existing, template, { includeAdrHook })`; `syncClaudeConfig` приймає `rules` і умовно копіює ADR Stop-hook script + додає managed-групу до Stop. `syncClaudeConfig` повертає додатковий прапорець `adrHook`.
+- `bin/n-cursor.js`: передає `rules` у `syncClaudeConfig` і логує `.claude/hooks/capture-decisions.sh` у підсумку Claude-конфіга.
+
 ## [1.8.188] - 2026-05-07
 
 ### Changed
