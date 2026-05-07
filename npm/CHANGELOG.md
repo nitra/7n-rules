@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.192] - 2026-05-07
+
+### Added
+
+- `run-shellcheck-text.mjs`: для `lint-text` — перевірка наявності `shellcheck`/`patch`, авто-виправлення через `shellcheck -f diff` + `patch -p1`, фінальний прогін по tracked `*.sh` (git) або `**/*.sh` без `node_modules`.
+- `text` (mdc v1.25 → v1.26): **shellcheck** у ланцюжку `lint-text`, рекомендація **`timonwong.shellcheck`**, тригер workflow **`**/*.sh`**; тести `run-shellcheck-text.test.mjs`.
+
+### Changed
+
+- `check-text.mjs`: `lint-text` має містити `run-shellcheck-text.mjs`; `extensions.json` — `timonwong.shellcheck`.
+
 ## [1.8.191] - 2026-05-07
 
 ### Added

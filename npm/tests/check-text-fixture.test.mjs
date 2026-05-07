@@ -20,7 +20,7 @@ describe('check-text (мінімальний проєкт)', () => {
       )
       await ensureDir('.vscode')
       await writeJson('.vscode/extensions.json', {
-        recommendations: ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode']
+        recommendations: ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode', 'timonwong.shellcheck']
       })
       const oxfmtBlock = Object.fromEntries(
         ['css', 'html', 'javascript', 'json', 'typescript', 'vue'].map(lang => [
@@ -82,7 +82,7 @@ description: test
         },
         scripts: {
           'lint-text':
-            'npx cspell . && bunx markdownlint-cli2 --fix "**/*.md" "**/*.mdc" && bun ./npm/scripts/run-v8r.mjs'
+            'npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix "**/*.md" "**/*.mdc" && bun ./npm/scripts/run-v8r.mjs'
         }
       })
       await ensureDir('.github/workflows')

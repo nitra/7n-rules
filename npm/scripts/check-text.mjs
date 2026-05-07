@@ -10,7 +10,7 @@
  * дозволені лише **`@nitra/*`** (як у bun.mdc), зокрема **`@nitra/cspell-dict` ^2.0.0+**; без імпорту **`@cspell/dict-*`** у `.cspell.json`, заборона
  * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
  * `.v8rignore` (vscode JSON),
- * workflow `lint-text.yml`, розширення VSCode (markdownlint, oxc).
+ * workflow `lint-text.yml`, розширення VSCode (markdownlint, oxc, shellcheck), `run-shellcheck-text.mjs` у `lint-text`.
  *
  * Якщо є `.cursor/rules/n-text.mdc` і/або `npm/mdc/text.mdc` — перевіряє наявність абзацу про український
  * апостроф (U+0027 vs U+2019) і приклад з символом U+2019 у тексті.
@@ -121,7 +121,7 @@ async function checkVscodeTextExtensions(passFn, failFn) {
   try {
     const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
     const rec = ext.recommendations
-    for (const id of ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode']) {
+    for (const id of ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode', 'timonwong.shellcheck']) {
       if (Array.isArray(rec) && rec.includes(id)) {
         passFn(`extensions.json містить ${id}`)
       } else {
@@ -329,15 +329,16 @@ function checkLintTextScript(lintText, passFn, failFn) {
   const ok =
     lt &&
     lt.includes('cspell') &&
+    lt.includes('run-shellcheck-text.mjs') &&
     lt.includes('bunx markdownlint-cli2') &&
     lt.includes('**/*.mdc') &&
     v8rTextOk &&
     (!globsRequired || globsOk)
   if (ok) {
-    passFn('package.json: lint-text — v8r: run-v8r.mjs (один виклик або чотири) або чотири bunx v8r з || [ $? -eq 98 ]')
+    passFn('package.json: lint-text — shellcheck (run-shellcheck-text.mjs), v8r: run-v8r.mjs або чотири bunx v8r')
   } else {
     failFn(
-      'package.json: lint-text — v8r: bun ./…/run-v8r.mjs або чотири (bunx v8r "<glob>" || [ $? -eq 98 ]) для json/yml/yaml/toml (див. n-text.mdc)'
+      'package.json: lint-text — додай bun ./…/run-shellcheck-text.mjs; v8r: bun ./…/run-v8r.mjs або чотири (bunx v8r "<glob>" || [ $? -eq 98 ]) (див. n-text.mdc)'
     )
   }
 }
@@ -407,7 +408,7 @@ async function checkCspellConfig(pass, fail) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам text.mdc (oxfmt, cspell, markdownlint через bunx, v8r)
+ * Перевіряє відповідність проєкту правилам text.mdc (oxfmt, cspell, shellcheck у lint-text, markdownlint через bunx, v8r)
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {

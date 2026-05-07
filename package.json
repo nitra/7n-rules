@@ -16,7 +16,7 @@
     "dump-schema": "bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql",
     "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && bun run lint-style && bun run lint-image && oxfmt .",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .",
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",
+    "lint-text": "npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",
     "lint-ga": "n-cursor lint-ga",
     "lint-k8s": "bun ./npm/scripts/run-k8s.mjs",
     "lint-docker": "bun ./npm/scripts/run-docker.mjs",

@@ -1,10 +1,10 @@
 ---
-description: Обробка та перевірка текстових файлів, oxfmt, cspell, markdownlint-cli2, v8r, CI
+description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.25'
+version: '1.26'
 ---
 
-**oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint**, workflow **`lint-text`**.
+**oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
 
 ```json title=".vscode/extensions.json"
 {
@@ -13,6 +13,7 @@ version: '1.25'
     "github.vscode-github-actions",
     "oxc.oxc-vscode",
     "DavidAnson.vscode-markdownlint",
+    "timonwong.shellcheck",
     "redhat.vscode-yaml",
     "irongeek.vscode-env"
   ]
@@ -112,12 +113,14 @@ version: '1.25'
 
 **`package.json`:** скрипт **`lint-text`** і devDependencies **`@nitra/cspell-dict`** (**`^2.0.0`** або новіший у лінії 2.x) — з **2.0.0** у пакет транзитивно входять типові **`@cspell/dict-*`**, тому **не** додавай їх окремо в корінь. **`markdownlint-cli2`** викликай у `lint-text` лише через **`bunx markdownlint-cli2`**, не додавай пакет до devDependencies. **`v8r`** лише через **`bunx v8r`** (зазвичай **`bunx v8r`**), не в devDependencies. Окремий пакет **`markdownlint`** не потрібний.
 
+**shellcheck:** інструмент лише в **`PATH`** (як у **ga.mdc** для `lint-ga`), **не** додавай до `dependencies` / `devDependencies`. Якщо `shellcheck` відсутній — встанови локально (**macOS:** `brew install shellcheck`; **Debian/Ubuntu:** `sudo apt-get install -y shellcheck`; **Arch:** `sudo pacman -S shellcheck`). У **`lint-text`** після **`cspell`** викликай **`bun ./npm/scripts/run-shellcheck-text.mjs`** (у споживачі після синку — `node_modules/@nitra/cursor/scripts/run-shellcheck-text.mjs`): під капотом циклічно **`shellcheck -f diff`** і **`patch -p1`** для авто-виправлень, потім повний прогін **`shellcheck`** по всіх tracked `*.sh` (у git) або по `**/*.sh` без `node_modules`. Потрібен також **`patch`** у `PATH` (на macOS зазвичай уже є).
+
 У v8r **немає** прапорця тихого режиму; рекомендовано скрипт **`run-v8r.mjs`** з репозиторію пакета `@nitra/cursor` (`npm/scripts/run-v8r.mjs`): один виклик у `lint-text` — під капотом послідовні **`bunx v8r`** для кожного типу (**json**, **json5**, **yml**, **yaml**, **toml**), бо один процес v8r з кількома глобами падає з **98**, якщо хоч один glob порожній, і тоді інші розширення не перевіряються. Вивід при кодах **0** і **98** не показується. Каталог схем **`schemas/v8r-catalog.json`** пакета `@nitra/cursor` скрипт підставляє в v8r сам. За бажання можна передати власні glob-и аргументами скрипта. Шлях до скрипта: `./npm/scripts/…`, `./scripts/…` після копіювання, або `node_modules/@nitra/cursor/scripts/…`.
 
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
+    "lint-text": "npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
@@ -185,6 +188,7 @@ on:
       - '**/*.go'
       - '**/*.py'
       - '**/*.php'
+      - '**/*.sh'
 
   pull_request:
     branches:
@@ -232,7 +236,7 @@ jobs:
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
+    "lint-text": "npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
@@ -249,7 +253,7 @@ jobs:
 ```json title="package.json"
 {
   "scripts": {
-    "lint-text": "npx cspell . && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
+    "lint-text": "npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0"
@@ -291,4 +295,4 @@ jobs:
 
 ## Перевірка
 
-`npx @nitra/cursor check text` (охоплює oxfmt, cspell, markdownlint, v8r, CI для `lint-text`)
+`npx @nitra/cursor check text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`)

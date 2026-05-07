@@ -26,6 +26,7 @@ on:
       - '**/*.go'
       - '**/*.py'
       - '**/*.php'
+      - '**/*.sh'
 
   pull_request:
     branches:
