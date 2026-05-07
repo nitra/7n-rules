@@ -1,0 +1,36 @@
+---
+description: Always use modern rego.v1 syntax for OPA/Rego policies
+globs:
+  - "**/*.rego"
+alwaysApply: true
+---
+
+- Always use `import rego.v1`
+- Never generate legacy Rego v0 syntax
+- Prefer:
+  - `deny contains msg if { ... }`
+  - `allow if { ... }`
+- Avoid:
+  - `deny[msg] { ... }`
+  - legacy implicit set rules
+- Use modern Rego syntax compatible with current OPA and Conftest versions
+- Prefer explicit and readable policy structure
+
+## Перевірка
+
+Лінт Rego-полісі робиться через [regal](https://docs.styra.com/regal) — він якраз і ловить v0-синтаксис, неявні set-rules та інші відхилення від `rego.v1`.
+
+Канонічна команда (запускається кореневим `bun run lint`):
+
+```bash
+bun run lint-rego
+```
+
+Скрипт делегує до `bun ./npm/scripts/lint-rego.mjs`, який робить preflight на наявність `regal` у `PATH` і виконує `regal lint` по всіх `*.rego` у репозиторії (зокрема `npm/policy/`).
+
+Встановлення `regal`:
+
+- macOS: `brew install regal`
+- Інші платформи / способи: <https://docs.styra.com/regal#installation>
+
+Якщо `regal` відсутній у `PATH`, скрипт завершиться з кодом 1 і надрукує підказку зі встановленням — як `lint-ga` з `shellcheck` / `uv`.

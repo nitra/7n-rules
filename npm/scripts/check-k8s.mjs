@@ -49,6 +49,13 @@
  * завжди має бути непорожнє поле **`namespace:`** (перевірка, якщо файл існує). У **`apiVersion: kustomize.config.k8s.io/…`**, **`kind: Kustomization`**
  * перелік **`resources:`** (лише непорожні рядки) має бути відсортовано за алфавітом (**en**, `localeCompare`).
  *
+ * **Структурний сорт `patches[]` у kustomization.yaml:** масив **`patches`** має бути відсортовано за tuple
+ * **`[target.kind, target.name, target.namespace, path]`** (`localeCompare('en', base)`). Поля **`group`** / **`version`**
+ * у tuple не входять — для них діє правило «patches[].target: лише kind і name». Додатково: вміст
+ * **inline `patches[i].patch`** (literal block scalar — масив JSON6902-операцій) має бути відсортовано за **`path`**,
+ * але **лише** якщо всі операції — **`add`** / **`replace`** і всі **`path`** попарно дизʼюнктні (жоден не префікс іншого).
+ * Інакше порядок не чіпається — `move` / `copy` / `test` / `remove` чи спільні шляхи можуть бути семантично залежні (RFC 6902).
+ *
  * **Inline JSON6902** у **`patches`** (і зовнішні файли з **`patches[].path`** під **`k8s`**, якщо вміст — масив JSON Patch): не допускається пара **`remove`** і **`add`**
  * на один і той самий **`path`** у межах одного фрагмента — потрібен **`op: replace`** (k8s.mdc). **check-k8s** це перевіряє.
  *
@@ -467,6 +474,197 @@ async function validateKustomizationResourcesSortedAlphabetically(root, yamlFile
       if (v !== null) {
         fail(`${rel}: ${v}`)
       }
+    }
+  }
+}
+
+/**
+ * Лексичне порівняння двох тuplіе рядків через `localeCompare('en', { sensitivity: 'base' })`.
+ * Менший за довжиною список доповнюється порожніми рядками.
+ * @param {string[]} a перший tuple
+ * @param {string[]} b другий tuple
+ * @returns {number} `< 0` якщо `a` менший, `> 0` якщо більший, `0` — рівні
+ */
+function compareStringTuplesEn(a, b) {
+  const n = Math.max(a.length, b.length)
+  for (let i = 0; i < n; i++) {
+    const av = a[i] ?? ''
+    const bv = b[i] ?? ''
+    const c = av.localeCompare(bv, 'en', { sensitivity: 'base' })
+    if (c !== 0) return c
+  }
+  return 0
+}
+
+/**
+ * Чи послідовність tuple-ключів відсортована за `compareStringTuplesEn`.
+ * @param {string[][]} tuples масив tuple-ключів у порядку, як у файлі
+ * @returns {boolean} true, якщо порядок неспадний
+ */
+function stringTuplesAreSortedEn(tuples) {
+  for (let i = 1; i < tuples.length; i++) {
+    if (compareStringTuplesEn(tuples[i - 1], tuples[i]) > 0) return false
+  }
+  return true
+}
+
+/**
+ * Tuple-ключ для сортування одного запису `patches[]` Kustomization.
+ * Порядок ключів: `target.kind` → `target.name` → `target.namespace` → `path`. Відсутні поля = `''`
+ * (порожні раніше за заповнені у `localeCompare` — стабільний детермінізм).
+ * Поля `target.group` / `target.version` навмисно не входять у ключ — у repo діє правило
+ * «patches[].target: лише kind і name», тому опертися на них не можна.
+ * @param {unknown} patchItem елемент масиву `patches[]`
+ * @returns {string[]} tuple для порівняння
+ */
+function kustomizationPatchSortKey(patchItem) {
+  if (patchItem === null || typeof patchItem !== 'object' || Array.isArray(patchItem)) {
+    return ['', '', '', '']
+  }
+  const rec = /** @type {Record<string, unknown>} */ (patchItem)
+  const t = rec.target
+  /** @type {Record<string, unknown>} */
+  const target = t !== null && typeof t === 'object' && !Array.isArray(t) ? /** @type {Record<string, unknown>} */ (t) : {}
+  const kind = typeof target.kind === 'string' ? target.kind : ''
+  const name = typeof target.name === 'string' ? target.name : ''
+  const ns = typeof target.namespace === 'string' ? target.namespace : ''
+  const path = typeof rec.path === 'string' ? rec.path : ''
+  return [kind, name, ns, path]
+}
+
+/**
+ * Короткий ярлик запису `patches[]` для звітів («kind/name», або «path=…», або «#i»).
+ * @param {unknown} patchItem елемент масиву
+ * @param {number} i індекс у масиві (для fallback)
+ * @returns {string} людинозрозумілий ярлик
+ */
+function kustomizationPatchLabel(patchItem, i) {
+  const [kind, name, , path] = kustomizationPatchSortKey(patchItem)
+  if (kind && name) return `${kind}/${name}`
+  if (path) return `path=${path}`
+  return `#${i}`
+}
+
+/**
+ * Порушення сорту **`patches[]`**: лише для **`kustomize.config.k8s.io/…`**, **`kind: Kustomization`**.
+ * Сортування за tuple `[target.kind, target.name, target.namespace, path]` (`localeCompare('en', base)`).
+ * @param {unknown} obj корінь першого YAML-документа kustomization.yaml
+ * @returns {string | null} причина або `null`, якщо обмеження не застосовується чи порядок ОК
+ */
+export function kustomizationPatchesSortedViolation(obj) {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null
+  const rec = /** @type {Record<string, unknown>} */ (obj)
+  if (rec.kind !== 'Kustomization') return null
+  const av = rec.apiVersion
+  if (typeof av !== 'string' || !av.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) return null
+  const patches = rec.patches
+  if (patches === undefined) return null
+  if (!Array.isArray(patches)) {
+    return 'Kustomization.patches має бути масивом (k8s.mdc)'
+  }
+  if (patches.length < 2) return null
+  const keys = patches.map(p => kustomizationPatchSortKey(p))
+  if (stringTuplesAreSortedEn(keys)) return null
+  const order = patches.map((p, i) => ({ p, i, key: keys[i] }))
+  order.sort((a, b) => compareStringTuplesEn(a.key, b.key) || a.i - b.i)
+  const have = patches.map((p, i) => kustomizationPatchLabel(p, i)).join(', ')
+  const want = order.map(x => kustomizationPatchLabel(x.p, x.i)).join(', ')
+  return `Kustomization.patches має бути за алфавітом (target.kind → target.name → target.namespace → path). Зараз: ${have}; очікувано: ${want} (k8s.mdc)`
+}
+
+/** Чи рядок виглядає як JSON-Pointer-шлях `/…` (порожнє і `/` теж приймаються — `/` = корінь). */
+const JSON_POINTER_RE = /^\/[^\s]*$|^$|^\/$/u
+
+/**
+ * Чи кожен `path` у наборі — окремий вузол JSON-Pointer (немає прямого префікс-збігу типу `/spec` vs `/spec/replicas`).
+ * Однакові `path` теж вважаються «недизʼюнктними». Реалізація: `O(n²)` достатня для розмірів реальних patch-наборів.
+ * @param {string[]} paths шляхи у тому ж порядку, що й у файлі
+ * @returns {boolean} true, якщо всі шляхи попарно дизʼюнктні
+ */
+function jsonPointerPathsAreDisjoint(paths) {
+  for (let i = 0; i < paths.length; i++) {
+    for (let j = 0; j < paths.length; j++) {
+      if (i === j) continue
+      if (paths[i] === paths[j]) return false
+      if (paths[j].startsWith(`${paths[i]}/`)) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Парсить рядок JSON6902-патчa в плоский масив операцій `{ op, path }` (без значень).
+ * Повертає `null`, якщо це не YAML-масив об'єктів з полями `op`/`path` як рядки.
+ * @param {string} raw тіло inline `patch:` (literal block scalar)
+ * @returns {{ op: string, path: string }[] | null} нормалізований список ops або `null` за невідповідного формату
+ */
+function parseJson6902OpsFromText(raw) {
+  let parsed
+  try {
+    parsed = parseDocument(raw).toJSON()
+  } catch {
+    return null
+  }
+  if (!Array.isArray(parsed)) return null
+  /** @type {{ op: string, path: string }[]} */
+  const out = []
+  for (const item of parsed) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) return null
+    const rec = /** @type {Record<string, unknown>} */ (item)
+    if (typeof rec.op !== 'string' || typeof rec.path !== 'string') return null
+    out.push({ op: rec.op, path: rec.path })
+  }
+  return out
+}
+
+/**
+ * Порушення сорту inline JSON6902-ops у одному `patches[i].patch`.
+ * Сортуємо **тільки** «безпечний» набір: всі `op ∈ { add, replace }` і всі `path` дизʼюнктні
+ * (немає префікс-зв'язку між шляхами). Інакше повертаємо `null` — порядок зберігаємо як у файлі,
+ * бо `move`/`copy`/`test`/`remove` чи спільні шляхи можуть бути семантично залежні (RFC 6902).
+ * @param {string} patchText вміст literal block (inline `patch:`)
+ * @returns {string | null} опис порушення або `null`
+ */
+export function kustomizationInlinePatchOpsSortedViolation(patchText) {
+  const ops = parseJson6902OpsFromText(patchText)
+  if (ops === null) return null
+  if (ops.length < 2) return null
+  for (const o of ops) {
+    if (o.op !== 'add' && o.op !== 'replace') return null
+    if (!JSON_POINTER_RE.test(o.path)) return null
+  }
+  const paths = ops.map(o => o.path)
+  if (!jsonPointerPathsAreDisjoint(paths)) return null
+  /** @type {string[][]} */
+  const keys = paths.map(p => [p])
+  if (stringTuplesAreSortedEn(keys)) return null
+  const want = paths.toSorted((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+  return `inline patch (JSON6902) має бути за алфавітом по path. Зараз: ${paths.join(', ')}; очікувано: ${want.join(', ')} (k8s.mdc)`
+}
+
+/**
+ * Усі **`kustomization.yaml`**: `patches[]` відсортовано за `[target.kind, target.name, …]`,
+ * а вміст inline `patches[i].patch` (де всі ops — `add`/`replace` і шляхи дизʼюнктні) — за `path`.
+ * @param {string} root корінь репо
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail функція для фіксації порушення
+ * @returns {Promise<void>} завершується після перевірки всіх kustomization.yaml
+ */
+async function validateKustomizationPatchesStructuralSort(root, yamlFilesAbs, fail) {
+  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust === null) continue
+    const outer = kustomizationPatchesSortedViolation(kust)
+    if (outer !== null) fail(`${rel}: ${outer}`)
+    const patches = kust.patches
+    if (!Array.isArray(patches)) continue
+    for (const [i, p] of patches.entries()) {
+      if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+      const rec = /** @type {Record<string, unknown>} */ (p)
+      if (typeof rec.patch !== 'string') continue
+      const v = kustomizationInlinePatchOpsSortedViolation(rec.patch)
+      if (v !== null) fail(`${rel}: patches[${i}] (${kustomizationPatchLabel(p, i)}): ${v}`)
     }
   }
 }
@@ -5915,6 +6113,8 @@ export async function check() {
   await validateKustomizationPathRefsExistOnDisk(root, yamlFiles, fail)
 
   await validateKustomizationResourcesSortedAlphabetically(root, yamlFiles, fail)
+
+  await validateKustomizationPatchesStructuralSort(root, yamlFiles, fail)
 
   await validateKustomizationPatchTargetsResolved(root, yamlFiles, fail)
 

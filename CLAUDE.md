@@ -1,5 +1,6 @@
 <!-- Цей файл генерується автоматично через `npx @nitra/cursor`. Не редагуй вручну. -->
 
+@.cursor/rules/conftest.mdc
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-adr.mdc
 @.cursor/rules/n-bun.mdc

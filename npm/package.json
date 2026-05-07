@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.8.199",
+  "version": "1.8.200",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -27,6 +27,7 @@
     "mdc",
     "bin",
     "github-actions",
+    "policy",
     "schemas",
     "scripts",
     "skills",

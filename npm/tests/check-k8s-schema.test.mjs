@@ -24,6 +24,8 @@ import {
   k8sEnvSegmentFromRelPath,
   kustomizationPatchPathsByTargetKind,
   kustomizationResourcesSortedAlphabeticallyViolation,
+  kustomizationPatchesSortedViolation,
+  kustomizationInlinePatchOpsSortedViolation,
   kustomizePatchModifiedPaths,
   pdbManifestViolations,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
@@ -952,6 +954,136 @@ describe('kustomizationResourcesSortedAlphabeticallyViolation', () => {
         resources: ['a.yaml']
       })
     ).toBeNull()
+  })
+})
+
+describe('kustomizationPatchesSortedViolation', () => {
+  const k = {
+    apiVersion: 'kustomize.config.k8s.io/v1beta1',
+    kind: 'Kustomization'
+  }
+
+  test('null, якщо kind не Kustomization', () => {
+    expect(
+      kustomizationPatchesSortedViolation({
+        ...k,
+        kind: 'ConfigMap',
+        patches: [{ target: { kind: 'A', name: 'b' } }, { target: { kind: 'A', name: 'a' } }]
+      })
+    ).toBeNull()
+  })
+
+  test('null, якщо patches відсутнє або < 2', () => {
+    expect(kustomizationPatchesSortedViolation({ ...k })).toBeNull()
+    expect(
+      kustomizationPatchesSortedViolation({ ...k, patches: [{ target: { kind: 'A', name: 'b' } }] })
+    ).toBeNull()
+  })
+
+  test('null для відсортованих patches за target.kind/name', () => {
+    expect(
+      kustomizationPatchesSortedViolation({
+        ...k,
+        patches: [
+          { target: { kind: 'HorizontalPodAutoscaler', name: 'api' } },
+          { target: { kind: 'PodDisruptionBudget', name: 'api' } },
+          { target: { kind: 'ReferenceGrant', name: 'apruv-to-base' } },
+          { target: { kind: 'ReferenceGrant', name: 'atlas-to-base' } }
+        ]
+      })
+    ).toBeNull()
+  })
+
+  test('помилка, якщо patches не за алфавітом (приклад із k8s.mdc)', () => {
+    const msg = kustomizationPatchesSortedViolation({
+      ...k,
+      patches: [
+        { target: { kind: 'ReferenceGrant', name: 'atlas-to-base' } },
+        { target: { kind: 'ReferenceGrant', name: 'apruv-to-base' } }
+      ]
+    })
+    expect(msg).toContain('очікувано')
+    expect(msg).toContain('ReferenceGrant/apruv-to-base')
+    expect(msg).toContain('ReferenceGrant/atlas-to-base')
+    expect(msg.indexOf('очікувано')).toBeLessThan(msg.lastIndexOf('apruv-to-base'))
+  })
+
+  test('тайбрейкер за target.namespace', () => {
+    expect(
+      kustomizationPatchesSortedViolation({
+        ...k,
+        patches: [
+          { target: { kind: 'ConfigMap', name: 'app', namespace: 'b' } },
+          { target: { kind: 'ConfigMap', name: 'app', namespace: 'a' } }
+        ]
+      })
+    ).not.toBeNull()
+  })
+
+  test('тайбрейкер за path (зовнішній strategic-merge без target)', () => {
+    expect(
+      kustomizationPatchesSortedViolation({
+        ...k,
+        patches: [{ path: 'b.yaml' }, { path: 'a.yaml' }]
+      })
+    ).not.toBeNull()
+  })
+
+  test('помилка, якщо patches не масив', () => {
+    expect(kustomizationPatchesSortedViolation({ ...k, patches: 'oops' })).toContain('масивом')
+  })
+})
+
+describe('kustomizationInlinePatchOpsSortedViolation', () => {
+  test('null, якщо < 2 операцій', () => {
+    expect(
+      kustomizationInlinePatchOpsSortedViolation('- op: replace\n  path: /spec/maxReplicas\n  value: 10\n')
+    ).toBeNull()
+  })
+
+  test('null, якщо текст не масив YAML-операцій', () => {
+    expect(kustomizationInlinePatchOpsSortedViolation('foo: bar\n')).toBeNull()
+    expect(kustomizationInlinePatchOpsSortedViolation('not yaml: : :')).toBeNull()
+  })
+
+  test('null для відсортованого add/replace набору', () => {
+    const text =
+      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n' +
+      '- op: add\n  path: /spec/minReplicas\n  value: 2\n'
+    expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
+  })
+
+  test('помилка для приклада з k8s.mdc (add minReplicas → replace maxReplicas)', () => {
+    const text =
+      '- op: add\n  path: /spec/minReplicas\n  value: 2\n' +
+      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
+    const msg = kustomizationInlinePatchOpsSortedViolation(text)
+    expect(msg).toContain('/spec/maxReplicas')
+    expect(msg).toContain('/spec/minReplicas')
+    expect(msg.indexOf('очікувано')).toBeGreaterThan(-1)
+    const want = msg.slice(msg.indexOf('очікувано'))
+    expect(want.indexOf('/spec/maxReplicas')).toBeLessThan(want.indexOf('/spec/minReplicas'))
+  })
+
+  test('null, якщо є op ∉ {add, replace} (move/test/remove/copy — порядок семантичний)', () => {
+    const text =
+      '- op: test\n  path: /spec/minReplicas\n  value: 1\n' +
+      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
+    expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
+  })
+
+  test('null, якщо path-и не дизʼюнктні (один префікс іншого)', () => {
+    const text =
+      '- op: add\n  path: /spec/template/spec/containers\n  value: []\n' +
+      '- op: replace\n  path: /spec/template\n  value: {}\n'
+    expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
+  })
+
+  test('null, якщо path-и однакові (повтор)', () => {
+    const text =
+      '- op: add\n  path: /spec/x\n  value: 1\n' +
+      '- op: replace\n  path: /spec/x\n  value: 2\n'
+    expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
   })
 })
 

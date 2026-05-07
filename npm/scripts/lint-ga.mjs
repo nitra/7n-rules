@@ -1,6 +1,11 @@
 /**
  * CLI-обгортка над канонічним `lint-ga` (ga.mdc): робить preflight на `shellcheck` і `uv` (для `uvx`),
- * тоді послідовно виконує `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
+ * тоді послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` і
+ * (PoC) `conftest test` на структуру канонічних workflow проти Rego-полісі з `npm/policy/ga/`.
+ *
+ * Conftest-крок навмисно **не** додається в preflight: якщо бінарник не встановлений, виводимо `ℹ`
+ * повідомлення й продовжуємо з кодом 0. Структурні перевірки тих самих workflow паралельно живуть у
+ * `npm/scripts/check-ga.mjs`, тож відсутність conftest не пропускає порушення мовчки.
  *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
  * `run:` блоках, коли `shellcheck` відсутній у PATH; локально `bun lint-ga` лишається зеленим, а CI
@@ -11,10 +16,28 @@
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
  */
+import { existsSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { dirname, join } from 'node:path'
 import { platform } from 'node:process'
+import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from './utils/resolve-cmd.mjs'
+
+/** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиту директорію policy/. */
+const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+
+/** Шлях до Rego-полісі (PoC: лише clean-ga-workflows). У npm-tarball публікується через `files` у package.json. */
+const GA_POLICY_DIR = join(PACKAGE_ROOT, 'policy', 'ga')
+
+/**
+ * Workflow-файли, для яких маємо відповідну Rego-полісі. PoC: один файл; інші підтягуватимемо в міру міграції
+ * перевірок із `npm/scripts/check-ga.mjs`.
+ * @type {Array<{ workflow: string, label: string }>}
+ */
+const CONFTEST_TARGETS = [
+  { workflow: '.github/workflows/clean-ga-workflows.yml', label: 'clean-ga-workflows.yml structure' }
+]
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
@@ -153,5 +176,51 @@ export function runLintGaCli() {
   if (actionlintCode !== 0) return actionlintCode
 
   const zizmorCode = runStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
-  return zizmorCode
+  if (zizmorCode !== 0) return zizmorCode
+
+  return runConftestStep()
+}
+
+/**
+ * PoC-крок: запускає conftest на YAML workflow проти Rego-полісі з пакету (`policy/ga/`).
+ *
+ * Поведінка fallback:
+ * - якщо `conftest` не знайдено в PATH — друкуємо `ℹ` повідомлення з підказкою встановлення й
+ *   повертаємо 0 (тобто конфтест поки що **не** є обовʼязковою залежністю lint-ga; перевірки лежать
+ *   паралельно в `check-ga.mjs`, і `npx @nitra/cursor check ga` все одно їх запустить);
+ * - якщо `conftest` є й полісі-каталог відсутній (нетипова інсталяція) — також `ℹ` skip;
+ * - якщо є цільовий workflow і conftest — запускаємо `conftest test <workflow> -p <policy-dir>` і
+ *   повертаємо його exit-код, щоб порушення зупиняли lint-ga, як це робить actionlint/zizmor.
+ *
+ * Локальний `conftest` встановлюється через `brew install conftest` / `go install ...` — деталі в
+ * https://www.conftest.dev/install/.
+ * @returns {number} 0 — OK або skip, інакше — exit-код conftest
+ */
+function runConftestStep() {
+  const conftestBin = resolveCmd('conftest')
+  if (!conftestBin) {
+    console.log(
+      '\nℹ conftest не знайдено в PATH — пропускаю PoC-перевірку структури workflow через Rego-полісі.\n' +
+        '   Встанови, щоб запустити її локально: brew install conftest (macOS) або https://www.conftest.dev/install/'
+    )
+    return 0
+  }
+
+  if (!existsSync(GA_POLICY_DIR)) {
+    console.log(`\nℹ Каталог Rego-полісі не знайдено (${GA_POLICY_DIR}) — пропускаю conftest.`)
+    return 0
+  }
+
+  for (const target of CONFTEST_TARGETS) {
+    if (!existsSync(target.workflow)) continue
+    const code = runStep(`conftest (${target.label})`, conftestBin, [
+      'test',
+      target.workflow,
+      '-p',
+      GA_POLICY_DIR,
+      '--no-color'
+    ])
+    if (code !== 0) return code
+  }
+  return 0
 }

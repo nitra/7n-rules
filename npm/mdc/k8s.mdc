@@ -531,6 +531,52 @@ patches:
 
 **Виняток:** залишай `group` / `version`, лише якщо в дереві overlay реально співіснують ресурси з однаковими `kind`+`name`, але різними API-групами/версіями (наприклад, дві CRD з одним `kind`). У такому разі вкажи мінімальний набір полів, потрібний для дисамбігуації.
 
+### Структурний сорт `patches[]` і inline JSON6902
+
+`patches[]` у `kustomization.yaml` має бути відсортовано за tuple **`target.kind` → `target.name` → `target.namespace` → `path`** (`localeCompare('en', { sensitivity: 'base' })`). Це робить діфи передбачуваними і прибирає «гойдання» порядку при додаванні нових цілей. Поля `target.group` / `target.version` у tuple не входять — для них діє правило «patches[].target: лише kind і name».
+
+```yaml
+# ❌ atlas йде перед apruv
+patches:
+  - target:
+      kind: ReferenceGrant
+      name: atlas-to-base
+  - target:
+      kind: ReferenceGrant
+      name: apruv-to-base
+
+# ✅
+patches:
+  - target:
+      kind: ReferenceGrant
+      name: apruv-to-base
+  - target:
+      kind: ReferenceGrant
+      name: atlas-to-base
+```
+
+Усередині кожного inline `patches[i].patch` (literal block scalar — масив JSON6902-операцій) операції теж сортуються за **`path`**, **але лише** коли набір «безпечний»: усі ops — `add` / `replace` і всі `path` попарно дизʼюнктні (жоден не префікс іншого, наприклад `/spec` і `/spec/replicas`). Інакше порядок не чіпається — у `move` / `copy` / `test` / `remove` чи на спільних шляхах послідовність ops семантично значуща (RFC 6902), і пересорт ламає логіку.
+
+```yaml
+# ❌ minReplicas перед maxReplicas (за алфавітом max < min)
+patch: |-
+  - op: add
+    path: /spec/minReplicas
+    value: 2
+  - op: replace
+    path: /spec/maxReplicas
+    value: 10
+
+# ✅
+patch: |-
+  - op: replace
+    path: /spec/maxReplicas
+    value: 10
+  - op: add
+    path: /spec/minReplicas
+    value: 2
+```
+
 ## Перевірка
 
 **`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.

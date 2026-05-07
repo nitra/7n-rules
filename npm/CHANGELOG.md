@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.200] - 2026-05-07
+
+### Added
+
+- `policy/ga/clean-ga-workflows.rego` + новий PoC-крок у `scripts/lint-ga.mjs`: запускає `conftest test` на `.github/workflows/clean-ga-workflows.yml` проти Rego-полісі (структура `name` / `on` / `concurrency` / `jobs.cleanup_old_workflows.steps[0]`). Якщо `conftest` не в PATH — `ℹ` skip без помилки (паралельні JS-перевірки в `check-ga.mjs` залишаються джерелом істини). Додав `policy` у `files` пакету.
+- `check-k8s.mjs`: структурний сорт `patches[]` у `kustomization.yaml` за tuple `[target.kind, target.name, target.namespace, path]` (`localeCompare('en', base)`); поля `target.group` / `target.version` у tuple не входять (діє правило «patches[].target: лише kind і name»). Додатково: вміст inline `patches[i].patch` (literal block scalar — масив JSON6902) сортується за `path`, **але лише** коли всі ops — `add` / `replace` і всі `path` попарно дизʼюнктні (жоден не префікс іншого) — інакше порядок не чіпається, бо `move` / `copy` / `test` / `remove` чи спільні шляхи семантично залежні (RFC 6902). Експортовані чисті валідатори: `kustomizationPatchesSortedViolation`, `kustomizationInlinePatchOpsSortedViolation`.
+- `tests/check-k8s-schema.test.mjs`: тести на обидва нові валідатори (приклад із `k8s.mdc`: `ReferenceGrant atlas/apruv` → `apruv/atlas`; `add /spec/minReplicas` + `replace /spec/maxReplicas` → пересорт за `path`; пропуск для `test` / `move` / `copy` / `remove` і недизʼюнктних шляхів типу `/spec` vs `/spec/template`).
+- `mdc/k8s.mdc`: розділ «Структурний сорт `patches[]` і inline JSON6902» з обома прикладами «❌/✅».
+
 ## [1.8.199] - 2026-05-07
 
 ### Added
