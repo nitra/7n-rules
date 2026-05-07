@@ -4,6 +4,19 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.201] - 2026-05-07
+
+### Changed
+
+- `check-hasura.mjs`: `INTERNAL_HASURA_URL_RE` тепер приймає **обидва** кластерні DNS-суфікси у `HASURA_GRAPHQL_ENDPOINT` — `<cluster>.internal` (GKE/GCP, наприклад `abie-dev` / `abie-ua`) **і** `cluster.local` (стандартний k8s / Yandex Cloud). Раніше regex вимагав літеральний `.internal` у кінці, тож URL виду `http://apruv-h-hl.ru-apruv.svc.cluster.local:8080` (типовий для YC-кластера ru) помилково відхилявся. `parseInternalHasuraEndpoint` для YC повертає `cluster: 'cluster.local'` як повний суфікс, для GKE — ім'я кластера без `.internal` (зворотньо сумісно з попередньою поведінкою). Текст помилки в `checkEnvFile` оновлено — згадує обидва допустимі формати.
+- `abie.mdc` (v1.17 → v1.19): нова секція «Внутрішньокластерні URL у env-файлах (dev / ua / ru)». Правило стосується **будь-якого** internal URL у env-файлах abie-проєкту — не лише `HASURA_GRAPHQL_ENDPOINT`, а й KVCMS, `auth-run-hl`, `file-link-hl` тощо. Таблиця `dev.env` / `ua.env` / `ru.env` → namespace-префікс + DNS-суфікс кластера (dev → `abie-dev.internal` + `dev-…`, ua → `abie-ua.internal` + `ua-…`, ru → `cluster.local` + `ru-…`); приклади з двома сервісами в одному файлі (Hasura + KVCMS). Загальне правило про **внутрішній** URL замість публічного домену для `HASURA_GRAPHQL_ENDPOINT` лишається у `hasura.mdc` (для nitra та abie).
+
+### Added
+
+- `check-abie.mjs`: новий валідатор `validateAbieEnvInternalUrls` (`String.prototype.matchAll` за `ABIE_INTERNAL_URL_GLOBAL_RE`) і helper `abieEnvNameFromBasename`. У функції `check()` додано крок `ensureAbieEnvFilesMatchClusterDns`, що сканує всі `*.env`-файли (basename `dev.env` / `ua.env` / `ru.env` опційно з провідною крапкою; `.env` без імені пропускається — як у `check-hasura.mjs`) і для **кожного** знайденого URL виду `http://<svc>.<ns>.svc.<dns>` перевіряє відповідність DNS-суфікса й namespace-префікса середовищу env-файла. Помилки додаються через `fail`, без зупинки на першому файлі — звіт показує всі порушення в усіх env-файлах одразу.
+- `tests/check-hasura.test.mjs`: тести `parseInternalHasuraEndpoint` для GKE-style `abie-dev.internal` / `abie-ua.internal` та YC-style `cluster.local`; негативний кейс на сторонній суфікс (`svc.example.com`); інтеграційний тест `check()` для `hasura/.ru.env` з `cluster.local`.
+- `tests/check-abie.test.mjs`: 7 unit-тестів на `abieEnvNameFromBasename` і `validateAbieEnvInternalUrls` (узгоджений dev/ua/ru, URL без порту, dev URL у ua-файлі, internal-суфікс у ru-файлі, ігнорування зовнішніх `https://` / `localhost`, кілька URL з різними порушеннями) і 4 інтеграційні (`.dev.env`+`.ua.env`+`.ru.env` узгоджені — 0; ua з dev URL у KVCMS — 1; ru з `.internal` замість `cluster.local` — 1; `.env` без імені пропускається).
+
 ## [1.8.200] - 2026-05-07
 
 ### Added

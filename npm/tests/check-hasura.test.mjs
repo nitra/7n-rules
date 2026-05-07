@@ -9,13 +9,46 @@ import { check, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint 
 import { withTmpCwd, writeJson } from './helpers.mjs'
 
 describe('parseInternalHasuraEndpoint', () => {
-  test('валідний внутрішній URL', () => {
+  test('валідний внутрішній URL (GKE-style з .internal)', () => {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
     const r = parseInternalHasuraEndpoint('http://contract-h.ua-contract.svc.abie-ua.internal:8080')
     expect(r).toEqual({
       ok: true,
       service: 'contract-h',
       namespace: 'ua-contract',
+      cluster: 'abie-ua',
+      port: '8080'
+    })
+  })
+
+  test('валідний внутрішній URL (Yandex Cloud, cluster.local)', () => {
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
+    const r = parseInternalHasuraEndpoint('http://apruv-h-hl.ru-apruv.svc.cluster.local:8080')
+    expect(r).toEqual({
+      ok: true,
+      service: 'apruv-h-hl',
+      namespace: 'ru-apruv',
+      cluster: 'cluster.local',
+      port: '8080'
+    })
+  })
+
+  test('абі-кластери для dev і ua (.internal)', () => {
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
+    const dev = parseInternalHasuraEndpoint('http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080')
+    expect(dev).toEqual({
+      ok: true,
+      service: 'apruv-h-hl',
+      namespace: 'dev-apruv',
+      cluster: 'abie-dev',
+      port: '8080'
+    })
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
+    const ua = parseInternalHasuraEndpoint('http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080')
+    expect(ua).toEqual({
+      ok: true,
+      service: 'apruv-h-hl',
+      namespace: 'ua-apruv',
       cluster: 'abie-ua',
       port: '8080'
     })
@@ -32,6 +65,11 @@ describe('parseInternalHasuraEndpoint', () => {
   test('вимагає явний порт', () => {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- негативний кейс для http:// формату
     expect(parseInternalHasuraEndpoint('http://h.ns.svc.cl.internal').ok).toBe(false)
+  })
+
+  test('відхиляє неочікувані суфікси (svc.example.com)', () => {
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- негативний кейс
+    expect(parseInternalHasuraEndpoint('http://h.ns.svc.example.com:8080').ok).toBe(false)
   })
 })
 
@@ -81,6 +119,19 @@ describe('check-hasura', () => {
       await writeFile(
         'production.env',
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080\n',
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: cluster.local (Yandex Cloud) у ru.env', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', repository: 'https://github.com/abinbevefes/foo' })
+      await mkdir('hasura', { recursive: true })
+      await writeFile(
+        join('hasura', '.ru.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080\n',
         'utf8'
       )
       expect(await check()).toBe(0)

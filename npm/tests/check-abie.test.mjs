@@ -10,6 +10,7 @@ import {
   ABIE_REQUIRED_IGNORE_BRANCHES,
   ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
   abieBaseHttpRouteHostnamesErrors,
+  abieEnvNameFromBasename,
   abieOverlayK8sTreeHasDeployment,
   abieOverlayRequiresHttpRouteByVite,
   abiePackageDirFromK8sOverlay,
@@ -32,6 +33,7 @@ import {
   serviceDocumentRequiresRuClusterIPNoneRemoval,
   kustomizationHasAbieNginxRunHttpRoutePatch,
   parseCleanMergedIgnoreBranches,
+  validateAbieEnvInternalUrls,
   validateAbieHcYaml,
   validateAbieNginxRunHttpRoutePatches,
   check,
@@ -665,6 +667,66 @@ ${patchClusterIpAndClusterIps
 `
     expect(getAbieRuServiceNodePortPatchErrors(ruHlBoth, hlBothTargets)).toEqual([])
   })
+
+  test('abieEnvNameFromBasename — лише dev/ua/ru (з опційною провідною крапкою)', () => {
+    expect(abieEnvNameFromBasename('dev.env')).toBe('dev')
+    expect(abieEnvNameFromBasename('.dev.env')).toBe('dev')
+    expect(abieEnvNameFromBasename('ua.env')).toBe('ua')
+    expect(abieEnvNameFromBasename('.ua.env')).toBe('ua')
+    expect(abieEnvNameFromBasename('ru.env')).toBe('ru')
+    expect(abieEnvNameFromBasename('.ru.env')).toBe('ru')
+    expect(abieEnvNameFromBasename('production.env')).toBeNull()
+    expect(abieEnvNameFromBasename('.env')).toBeNull()
+    expect(abieEnvNameFromBasename('dev.env.example')).toBeNull()
+  })
+
+  test('validateAbieEnvInternalUrls — узгоджений dev URL (Hasura + KVCMS) — без помилок', () => {
+    const env = `# eslint-disable
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080
+KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
+`
+    expect(validateAbieEnvInternalUrls(env, 'dev')).toEqual([])
+  })
+
+  test('validateAbieEnvInternalUrls — ua URL (без порту також ловиться)', () => {
+    const env = `KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal\n`
+    expect(validateAbieEnvInternalUrls(env, 'ua')).toEqual([])
+  })
+
+  test('validateAbieEnvInternalUrls — ru URL (cluster.local)', () => {
+    const env = `HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080\n`
+    expect(validateAbieEnvInternalUrls(env, 'ru')).toEqual([])
+  })
+
+  test('validateAbieEnvInternalUrls — некоректний кластер для env (dev URL у .ua.env) — fail', () => {
+    const env = `KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080\n`
+    const errs = validateAbieEnvInternalUrls(env, 'ua')
+    expect(errs.length).toBeGreaterThanOrEqual(2) // і DNS, і namespace prefix
+    expect(errs.some(e => e.includes('abie-ua.internal'))).toBe(true)
+    expect(errs.some(e => e.includes('ua-'))).toBe(true)
+  })
+
+  test('validateAbieEnvInternalUrls — ru-файл, але URL з .internal — fail', () => {
+    const env = `KVCMS_URL=http://kvcms-hl.ru-apruv.svc.abie-ru.internal:8080\n`
+    const errs = validateAbieEnvInternalUrls(env, 'ru')
+    // namespace prefix OK (ru-), але DNS не той
+    expect(errs.length).toBe(1)
+    expect(errs[0]).toContain('cluster.local')
+  })
+
+  test('validateAbieEnvInternalUrls — не торкається публічних/зовнішніх URL', () => {
+    const env = `EXTERNAL=https://napitkivmeste.tech/contract/ql\nLOCAL=http://localhost:8080\n`
+    expect(validateAbieEnvInternalUrls(env, 'dev')).toEqual([])
+  })
+
+  test('validateAbieEnvInternalUrls — кілька URL з різними порушеннями', () => {
+    const env = `A=http://a-hl.dev-foo.svc.abie-dev.internal:8080
+B=http://b-hl.ua-foo.svc.abie-ua.internal:8080
+`
+    // У ru.env обидва URL мусять помилитись (DNS і namespace prefix)
+    const errs = validateAbieEnvInternalUrls(env, 'ru')
+    expect(errs.length).toBe(4) // 2 URL × 2 проблеми (DNS + namespace)
+  })
 })
 
 describe('check-abie (інтеграція в тимчасовому каталозі)', () => {
@@ -1166,6 +1228,81 @@ patches:
         path: /spec/clusterIPs
 `
       await writeFile(join('app/k8s/ru/kustomization.yaml'), ruK, 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: env-файли .dev.env / .ua.env / .ru.env з узгодженим cluster DNS — 0', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('hasura')
+      await writeFile(
+        join('hasura/.dev.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080\n' +
+          'KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080\n',
+        'utf8'
+      )
+      await writeFile(
+        join('hasura/.ua.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080\n' +
+          'KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080\n',
+        'utf8'
+      )
+      await writeFile(
+        join('hasura/.ru.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080\n' +
+          'KVCMS_URL=http://kvcms-hl.ru-apruv.svc.cluster.local:8080\n',
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('abie: .ua.env з URL до dev-кластера — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('hasura')
+      // KVCMS показує на dev-кластер замість ua → fail
+      await writeFile(
+        join('hasura/.ua.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080\n' +
+          'KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080\n',
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: .ru.env з URL до .internal (а не cluster.local) — 1', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      await ensureDir('hasura')
+      await writeFile(
+        join('hasura/.ru.env'),
+        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.abie-ru.internal:8080\n',
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('abie: .env без імені — пропускається (як у hasura.mdc)', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('.n-cursor.json', { rules: ['abie'] })
+      await ensureDir('.github/workflows')
+      await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
+      // .env без імені (локальний для розробника) — не сканується
+      await writeFile(
+        '.env',
+        'HASURA_GRAPHQL_ENDPOINT=http://x-hl.zzz.svc.totally-wrong.internal:8080\n',
+        'utf8'
+      )
       expect(await check()).toBe(0)
     })
   })

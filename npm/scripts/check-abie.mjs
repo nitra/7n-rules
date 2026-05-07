@@ -37,10 +37,17 @@
  *
  * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
  * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — **`op: remove`** для **`/spec/clusterIP`**; якщо в base **явно** задано **`spec.clusterIPs`** — також **`remove`** для **`/spec/clusterIPs`** (інакше **API** може залишити **`None`** для **NodePort**; без ключа **`clusterIPs`** у base **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
+ *
+ * **env→cluster DNS:** abie живе у трьох різних кластерах (GKE dev/ua + YC ru), тож DNS-суфікс і namespace-префікс у будь-якому
+ * **внутрішньокластерному** URL виду `http://<svc>.<ns>.svc.<dns>` мають відповідати імені env-файла. Скануються всі `*.env` файли,
+ * basename яких збігається з `dev.env` / `ua.env` / `ru.env` (опційно з провідною крапкою — `.dev.env` тощо). Для кожного знайденого
+ * internal URL у файлі (не лише `HASURA_GRAPHQL_ENDPOINT`, а й KVCMS, auth-run, file-link тощо) валідатор `validateAbieEnvInternalUrls`
+ * вимагає: для `dev.env` — DNS `abie-dev.internal` і namespace починається з `dev-`; для `ua.env` — `abie-ua.internal` + `ua-`;
+ * для `ru.env` — `cluster.local` + `ru-`. Файл `.env` без імені (локальний для розробника) виключено зі сканування — як і у `check-hasura.mjs`.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { dirname, join, relative } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
@@ -118,6 +125,73 @@ const HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE =
 
 /** Гілки, які мають бути в **`ignore_branches`** за abie.mdc. */
 export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
+
+/**
+ * Регекс basename env-файлу abie: `dev.env` / `ua.env` / `ru.env`, опційно з провідною крапкою (`.dev.env` тощо).
+ * Файл рівно `.env` (без імені) — виключення з правила: локальний файл розробника, `check-abie` його не сканує
+ * (так само як `check-hasura`, див. `isEnvFile`).
+ */
+const ABIE_ENV_FILE_BASENAME_RE = /^\.?(dev|ua|ru)\.env$/u
+
+/**
+ * Глобальний регекс кластерного internal URL у тексті env-файлу.
+ * Використовується з `String.prototype.matchAll`, тому має флаг `g`.
+ * Дозволяє два DNS-формати: `<cluster>.internal` (GKE) і `cluster.local` (YC / стандартний k8s).
+ * Порт необов'язковий — у KVCMS-конфігах інколи лежить URL без порту (8080 додається сервісом за замовчуванням).
+ */
+const ABIE_INTERNAL_URL_GLOBAL_RE =
+  /\bhttp:\/\/([a-z0-9][a-z0-9-]*)\.([a-z0-9][a-z0-9-]*)\.svc\.((?:[a-z0-9][a-z0-9-]*\.internal)|cluster\.local)(?::\d+)?(?:\/[^\s"'`]*)?/giu
+
+/**
+ * Очікуваний кластерний DNS-суфікс і namespace-префікс для кожного env-файлу abie.
+ * `dev` / `ua` живуть у GKE з власним `<cluster>.internal`; `ru` — у YC, де DNS-суфікс
+ * стандартний `cluster.local` (без імені кластера).
+ */
+const ABIE_ENV_CLUSTER_DNS_MAP = Object.freeze({
+  dev: Object.freeze({ clusterDns: 'abie-dev.internal', namespacePrefix: 'dev-' }),
+  ua: Object.freeze({ clusterDns: 'abie-ua.internal', namespacePrefix: 'ua-' }),
+  ru: Object.freeze({ clusterDns: 'cluster.local', namespacePrefix: 'ru-' })
+})
+
+/**
+ * Дістає ім'я env (`dev` / `ua` / `ru`) з basename env-файлу abie.
+ * Для не-abie env-файлів (наприклад `production.env`, `.env` без імені) повертає `null`.
+ * @param {string} basenameOfEnvFile basename файла (без шляху)
+ * @returns {('dev' | 'ua' | 'ru') | null} ім'я env або `null`
+ */
+export function abieEnvNameFromBasename(basenameOfEnvFile) {
+  const m = basenameOfEnvFile.match(ABIE_ENV_FILE_BASENAME_RE)
+  return m ? /** @type {'dev' | 'ua' | 'ru'} */ (m[1]) : null
+}
+
+/**
+ * Сканує вміст env-файлу abie і повертає помилки невідповідності кластерного DNS / namespace
+ * для кожного знайденого internal URL. URL шукається глобально (`matchAll`), тож одне й те саме
+ * порушення в кількох змінних дасть стільки ж окремих помилок.
+ * @param {string} content вміст env-файлу (UTF-8)
+ * @param {'dev' | 'ua' | 'ru'} envName ім'я env, отримане з `abieEnvNameFromBasename`
+ * @returns {string[]} порожній масив, якщо все OK; інакше — список повідомлень про порушення
+ */
+export function validateAbieEnvInternalUrls(content, envName) {
+  const expected = ABIE_ENV_CLUSTER_DNS_MAP[envName]
+  if (!expected) return []
+  /** @type {string[]} */
+  const errors = []
+  for (const match of content.matchAll(ABIE_INTERNAL_URL_GLOBAL_RE)) {
+    const [fullUrl, , namespace, clusterDns] = match
+    if (clusterDns !== expected.clusterDns) {
+      errors.push(
+        `${fullUrl}: кластерний DNS "${clusterDns}" не відповідає env "${envName}" (очікується "${expected.clusterDns}")`
+      )
+    }
+    if (!namespace.startsWith(expected.namespacePrefix)) {
+      errors.push(
+        `${fullUrl}: namespace "${namespace}" не починається з "${expected.namespacePrefix}" (env "${envName}")`
+      )
+    }
+  }
+  return errors
+}
 
 /**
  * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім'ям файлу) — специфіка abie overlay.
@@ -2079,6 +2153,70 @@ async function ensureAbieNginxSidecarForHasura(root, yamlFilesAbs, fail, passFn)
 }
 
 /**
+ * Збирає всі `*.env` файли в дереві (за виключенням `node_modules`, `.git` та інших службових каталогів),
+ * basename яких — abie env-файл (`dev.env` / `ua.env` / `ru.env` опційно з провідною крапкою). Файл `.env`
+ * без імені виключається — як і у `check-hasura.mjs`.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи env-файлів abie
+ */
+async function collectAbieEnvFiles(root, ignorePaths) {
+  /** @type {string[]} */
+  const out = []
+  await walkDir(
+    root,
+    absPath => {
+      if (abieEnvNameFromBasename(basename(absPath)) !== null) {
+        out.push(absPath)
+      }
+    },
+    ignorePaths
+  )
+  return out.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Сканує всі `*.env` файли abie (`.dev.env` / `.ua.env` / `.ru.env`) і для кожного знайденого
+ * **внутрішньокластерного** URL (`http://<svc>.<ns>.svc.<dns>`) перевіряє, що DNS-суфікс і namespace-префікс
+ * відповідають середовищу env-файла. Не лише `HASURA_GRAPHQL_ENDPOINT`, а й будь-який сервіс у env (KVCMS,
+ * `auth-run-hl`, `file-link-hl` тощо) мусить мати кластер, що відповідає env: dev → `abie-dev.internal`,
+ * ua → `abie-ua.internal`, ru → `cluster.local`.
+ * @param {string} root корінь репозиторію
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {(msg: string) => void} pass успішне повідомлення
+ * @param {(msg: string) => void} fail повідомлення про порушення
+ * @returns {Promise<void>}
+ */
+async function ensureAbieEnvFilesMatchClusterDns(root, ignorePaths, pass, fail) {
+  const envFiles = await collectAbieEnvFiles(root, ignorePaths)
+  if (envFiles.length === 0) {
+    pass('Не знайдено dev.env / ua.env / ru.env у репозиторії — перевірку env→cluster DNS пропущено (abie.mdc)')
+    return
+  }
+  for (const abs of envFiles) {
+    const rel = relative(root, abs).replaceAll('\\', '/') || abs
+    const envName = abieEnvNameFromBasename(basename(abs))
+    if (envName === null) continue
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${rel}: не вдалося прочитати (${msg})`)
+      continue
+    }
+    const errors = validateAbieEnvInternalUrls(raw, envName)
+    if (errors.length === 0) {
+      pass(`${rel}: усі внутрішні URL відповідають env "${envName}" (abie.mdc)`)
+    } else {
+      for (const err of errors) {
+        fail(`${rel}: ${err} (abie.mdc)`)
+      }
+    }
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам abie.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -2128,6 +2266,9 @@ export async function check() {
 
   pass('Перевіряємо nginx-sidecar для Hasura WebSocket у ru (abie.mdc)')
   await ensureAbieNginxSidecarForHasura(root, yamlFiles, fail, pass)
+
+  pass('Перевіряємо env→cluster DNS у dev.env / ua.env / ru.env (abie.mdc)')
+  await ensureAbieEnvFilesMatchClusterDns(root, ignorePaths, pass, fail)
 
   return reporter.getExitCode()
 }

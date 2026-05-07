@@ -1,7 +1,7 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.17'
+version: '1.19'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
@@ -331,6 +331,46 @@ spec:
       nodeSelector:
         preem: 'true' # буде замінено через kustomize
 ```
+
+## Внутрішньокластерні URL у env-файлах (dev / ua / ru)
+
+Правило стосується **будь-якого** внутрішньокластерного URL у env-файлах abie-проєкту, а не лише `HASURA_GRAPHQL_ENDPOINT`. Це може бути URL до Hasura, KVCMS, `auth-run-hl`, `file-link-hl` чи будь-якого іншого Service у кластері — у всіх випадках DNS-суфікс і namespace-префікс мають відповідати **середовищу** з імені env-файлу.
+
+abie-проєкти живуть у **трьох різних кластерах** (dev / ua у GKE, ru у Yandex Cloud), тож DNS-суфікс і namespace у URL відрізняються між `*.env`-файлами:
+
+| env-файл (basename) | namespace-префікс у URL | DNS-суфікс кластера | примітка |
+| --- | --- | --- | --- |
+| `dev.env`, `.dev.env` | `dev-…` | `abie-dev.internal` | GKE-кластер dev |
+| `ua.env`, `.ua.env` | `ua-…` | `abie-ua.internal` | GKE-кластер ua |
+| `ru.env`, `.ru.env` | `ru-…` | `cluster.local` | YC-кластер ru, стандартний k8s DNS |
+
+Канонічна форма URL — `http://<service>.<namespace>.svc.<cluster-dns-suffix>:<port>`. Для GKE (dev / ua) суфікс — `<cluster>.internal`; для YC (ru) — фіксований `cluster.local` (у YC у DNS сервісу немає окремого імені кластера).
+
+Приклади для одного env-файлу з двома сервісами (Hasura + KVCMS):
+
+```env title="hasura/.dev.env"
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080
+KVCMS_URL=http://kvcms-hl.dev-apruv.svc.abie-dev.internal:8080
+```
+
+```env title="hasura/.ua.env"
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080
+KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
+```
+
+```env title="hasura/.ru.env"
+HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080
+KVCMS_URL=http://kvcms-hl.ru-apruv.svc.cluster.local:8080
+```
+
+`<namespace>` (наприклад `dev-apruv` / `ua-apruv` / `ru-apruv`) — `metadata.name` цільового namespace після kustomize-overlay для відповідного середовища; `<service>` — `metadata.name` headless Service (`-hl`) того сервісу, до якого йде URL.
+
+**Перевірка `check-abie.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` / `ru.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
+
+- DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal` / `cluster.local`;
+- namespace починався з `dev-` / `ua-` / `ru-` відповідно.
+
+Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `check-hasura.mjs` приймає обидва кластерні DNS-формати (`<cluster>.internal` і `cluster.local`).
 
 ## Firebase Hosting
 

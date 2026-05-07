@@ -7,10 +7,11 @@
  * вказує на `https://github.com/nitra/...` або `https://github.com/abinbevefes/...`
  * (інші репозиторії пропускаються без помилок — як у check-abie).
  *
- * Очікуваний формат URL:
- *   `http://<service>.<namespace>.svc.<cluster>.internal:<port>`
- *
- * приклад: `http://contract-h.ua-contract.svc.abie-ua.internal:8080`
+ * Очікуваний формат URL — два варіанти кластерного DNS-суфікса:
+ *  - GKE / GCP: `http://<service>.<namespace>.svc.<cluster>.internal:<port>`
+ *    приклад: `http://contract-h.ua-contract.svc.abie-ua.internal:8080`
+ *  - стандартний k8s / Yandex Cloud: `http://<service>.<namespace>.svc.cluster.local:<port>`
+ *    приклад: `http://apruv-h-hl.ru-apruv.svc.cluster.local:8080`
  *
  * Сегменти беруться з `hasura/k8s/base/svc-hl.yaml` (`metadata.name` —
  * має закінчуватись на `-h`, headless-сервіс) і `hasura/k8s/base/namespace.yaml`
@@ -42,12 +43,20 @@ const HASURA_NAMESPACE_FILE = `${HASURA_BASE_DIR}/namespace.yaml`
 
 const ENV_FILE_RE = /\.env$/u
 const HASURA_ENDPOINT_LINE_RE = /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
-const INTERNAL_HASURA_URL_RE = /^http:\/\/([^./]+)\.([^./]+)\.svc\.([^./]+)\.internal:(\d+)\/?$/u
+// Дозволяємо два DNS-суфікси кластера: `<name>.internal` (GKE/GCP) і `cluster.local`
+// (стандартний k8s / Yandex Cloud). У YC namespace.yaml + cluster mode дають коротший суфікс.
+const INTERNAL_HASURA_URL_RE =
+  /^http:\/\/([^./]+)\.([^./]+)\.svc\.((?:[^./:]+\.internal)|cluster\.local):(\d+)\/?$/u
+const CLUSTER_LOCAL_SUFFIX = 'cluster.local'
+const INTERNAL_DNS_SUFFIX = '.internal'
 
 /**
  * Розбір значення `HASURA_GRAPHQL_ENDPOINT` як внутрішнього кластерного URL.
- * Дозволяє лише `http://` (TLS усередині кластера зайвий), вимагає сегментів
- * `<service>.<namespace>.svc.<cluster>.internal` та явного порту.
+ * Дозволяє лише `http://` (TLS усередині кластера зайвий) та обидва кластерні
+ * DNS-суфікси: `<cluster>.internal` (GKE/GCP) і `cluster.local`
+ * (стандартний k8s / Yandex Cloud). Поле `cluster` для GKE містить ім'я
+ * кластера без `.internal` (наприклад `abie-ua`); для YC — повний суфікс
+ * `cluster.local` (бо своєї «назви кластера» в DNS немає).
  * @param {string} url значення з `.env` (без огорнутих лапок)
  * @returns {{ ok: true, service: string, namespace: string, cluster: string, port: string } | { ok: false }}
  *   розібрані сегменти або `{ ok: false }`, якщо формат не відповідає внутрішньому кластерному URL
@@ -57,7 +66,9 @@ export function parseInternalHasuraEndpoint(url) {
   if (!m) {
     return { ok: false }
   }
-  return { ok: true, service: m[1], namespace: m[2], cluster: m[3], port: m[4] }
+  const suffix = m[3]
+  const cluster = suffix.endsWith(INTERNAL_DNS_SUFFIX) ? suffix.slice(0, -INTERNAL_DNS_SUFFIX.length) : suffix
+  return { ok: true, service: m[1], namespace: m[2], cluster, port: m[4] }
 }
 
 /**
@@ -140,7 +151,7 @@ async function checkEnvFile(relPath, expected, reporter) {
   const parsed = parseInternalHasuraEndpoint(value)
   if (!parsed.ok) {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL (TLS не використовується)
-    const example = 'http://<service>.<namespace>.svc.<cluster>.internal:<port>'
+    const example = 'http://<service>.<namespace>.svc.<cluster>.internal:<port> або http://<service>.<namespace>.svc.cluster.local:<port>'
     fail(
       `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`
     )
