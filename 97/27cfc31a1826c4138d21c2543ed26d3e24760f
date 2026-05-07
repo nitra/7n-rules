@@ -1,0 +1,53 @@
+npm/scripts/run-shellcheck-text.mjs
+  s_301759b80188d6::t_bfbeba4cb90e49 1-4,6-11,14-193
+  s_301759b80188d6::t_96f3deb70b3bd4 12-13
+  s_301759b80188d6::t_cbc33d28df17f3 5
+npm/scripts/check-text.mjs
+  s_301759b80188d6::t_188a52ffbd6c9e 124
+  s_301759b80188d6::t_dcd2fe92ee2a9a 13
+  s_301759b80188d6::t_3d4122a9201e1d 411
+  s_301759b80188d6::t_273a2c6d830e91 332,338,341
+.github/workflows/lint-text.yml
+  s_301759b80188d6::t_3bed9336da252c 29
+npm/mdc/text.mdc
+  s_301759b80188d6::t_e5b8cb1feab5f3 298
+  s_301759b80188d6::t_6413df7d507f83 123,239,256
+  s_301759b80188d6::t_7c3cb1bda16f3c 116-117
+  s_301759b80188d6::t_bf6a50244e3dcb 4,7
+  s_301759b80188d6::t_f93224eb216975 16
+  s_301759b80188d6::t_1332b9a2758a2c 191
+npm/package.json
+  s_301759b80188d6::t_6b1b58f75425f6 3
+.cursor/rules/n-text.mdc
+  s_301759b80188d6::t_99e8f6856603e4 2
+  s_301759b80188d6::t_ca178889a1e8a0 4,7,16,116-117,123,191,239,256,298
+npm/CHANGELOG.md
+  s_301759b80188d6::t_22bfe2ba9732b4 7-17
+npm/tests/run-shellcheck-text.test.mjs
+  s_301759b80188d6::t_d0910ed554eb66 1-41
+npm/tests/check-text-fixture.test.mjs
+  s_301759b80188d6::t_f519dc26f02f43 85
+  s_301759b80188d6::t_b4b60b7fa3de20 23
+package.json
+  s_301759b80188d6::t_8877bb9418cd33 19
+.vscode/extensions.json
+  s_301759b80188d6::t_8ab1c373e00e05 7
+.cspell.json
+  s_301759b80188d6::t_8e4f2fe9cb1da3 140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "9727cfc31a1826c4138d21c2543ed26d3e24760f",
+  "prompts": {},
+  "sessions": {
+    "s_301759b80188d6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "b09e07b2-ec89-48db-8333-034fe3ab0bbd",
+        "model": "default"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
