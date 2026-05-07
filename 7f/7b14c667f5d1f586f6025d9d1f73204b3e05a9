@@ -1,0 +1,45 @@
+npm/scripts/check-hasura.mjs
+  s_d11d0ddb6df086::t_cf0af0d7fd1b51 46-51,55-59,69-71
+  s_d11d0ddb6df086::t_2c62d6894c3ff1 10-14
+  s_d11d0ddb6df086::t_61089c15e40e1a 154
+npm/package.json
+  s_d11d0ddb6df086::t_16e2214f8486bc 3
+npm/CHANGELOG.md
+  s_d11d0ddb6df086::t_98ec65c8fdd47e 12,16-18
+  s_d11d0ddb6df086::t_bcfb2af469e271 7-11,13-15,19
+npm/scripts/check-abie.mjs
+  s_d11d0ddb6df086::t_8f3583accff2a9 50
+  s_d11d0ddb6df086::t_bdf9e57534bbab 40-46
+  s_d11d0ddb6df086::t_74b675903576da 2156-2218
+  s_d11d0ddb6df086::t_b8081e481c7c2d 130-195
+  s_d11d0ddb6df086::t_61b64d045c7b69 2270-2272
+npm/tests/check-hasura.test.mjs
+  s_d11d0ddb6df086::t_4af7702f674cc8 128,131,133
+  s_d11d0ddb6df086::t_6fc8079e5a12dd 129-130,132,134-140
+  s_d11d0ddb6df086::t_8804448b154274 12,24-56,69-72
+npm/mdc/abie.mdc
+  s_d11d0ddb6df086::t_502728f350f236 4
+  s_d11d0ddb6df086::t_b1eb50ca497a6d 336,338,340,346,348,350-352,354-357,359-362,364,372,374
+  s_d11d0ddb6df086::t_9860cc7e65f16b 335,337,339,341-345,347,349,353,358,363,365-371,373
+npm/tests/check-abie.test.mjs
+  s_d11d0ddb6df086::t_79363897315da2 13
+  s_d11d0ddb6df086::t_255379a49119e4 670-729
+  s_d11d0ddb6df086::t_8a31fa471334a3 36
+  s_d11d0ddb6df086::t_61157a7e8ea8df 1234-1308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "7f7b14c667f5d1f586f6025d9d1f73204b3e05a9",
+  "prompts": {},
+  "sessions": {
+    "s_d11d0ddb6df086": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "22a23882-19fe-47c2-b3bf-4d613f4db1b8",
+        "model": "default"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
