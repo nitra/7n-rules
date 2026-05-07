@@ -1,0 +1,62 @@
+AGENTS.md
+  s_6163ca096870de::t_a1df67ebc3a845 11,14-15,40,43,52,57
+npm/scripts/check-adr.mjs
+  s_6163ca096870de::t_5259d9e4d16fe9 226
+  s_6163ca096870de::t_8b6b269d589dd6 1-225,227-248
+npm/mdc/adr.mdc
+  s_6163ca096870de::t_8f8d1e73567ccb 1,3-86
+  s_6163ca096870de::t_9791b9c7dcbf59 2
+.cursor/rules/n-js-run.mdc
+  s_6163ca096870de::t_a1df67ebc3a845 4,139-149
+npm/scripts/sync-claude-config.mjs
+  s_6163ca096870de::t_1410299bdad20e 285-286,288,290,294,296-298,301
+  s_6163ca096870de::t_9751f20af18a3e 132-146,151-152,155-156,159,163
+  s_6163ca096870de::t_897d123c127f82 3,8,13-16,21,24,26-29,34-35,39-50
+  s_6163ca096870de::t_e11108a721cd68 72,74,80-82
+  s_6163ca096870de::t_23011d63a5f33f 193-194,197,205,211-229
+npm/.claude-template/hooks/capture-decisions.sh
+  s_6163ca096870de::t_517f696ae8aafa 1-154
+.cursor/rules/n-ga.mdc
+  s_6163ca096870de::t_a1df67ebc3a845 4,9-18,31-34,64-67,140-142
+npm/tests/sync-claude-config.test.mjs
+  s_6163ca096870de::t_6e8faefa09d83b 203,207-281
+  s_6163ca096870de::t_a197b8ccd8f42f 11
+  s_6163ca096870de::t_bb6d256cf1da46 32,51-55
+npm/CHANGELOG.md
+  s_6163ca096870de::t_227fdbacbd199a 7-10,12-13,15-18,20
+  s_6163ca096870de::t_6f5d3b9ce97d0b 11,14,19
+npm/bin/n-cursor.js
+  s_6163ca096870de::t_61d692000a62c5 1180-1181,1191
+.cursor/rules/n-adr.mdc
+  s_6163ca096870de::t_a1df67ebc3a845 1-86
+CLAUDE.md
+  s_6163ca096870de::t_a1df67ebc3a845 4
+.claude/hooks/capture-decisions.sh
+  s_6163ca096870de::t_a1df67ebc3a845 3,5-12,114-128,135
+.claude/settings.json
+  s_6163ca096870de::t_a1df67ebc3a845 25-35
+.n-cursor.json
+  s_6163ca096870de::t_fb3d3c1d62815e 5
+npm/tests/check-adr.test.mjs
+  s_6163ca096870de::t_0af4597c898d7d 1-3,5-71,73-122
+  s_6163ca096870de::t_2e1674b7d6e35c 4
+  s_6163ca096870de::t_e3d6826e02353f 72
+npm/package.json
+  s_6163ca096870de::t_d3c4ff6704ae3d 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.1",
+  "base_commit_sha": "cf6ef4dc12645b81ed166d8ba9ab693e6aacba82",
+  "prompts": {},
+  "sessions": {
+    "s_6163ca096870de": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "42a829a9-dbb2-4ffc-bace-1b3a6046c1f8",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
