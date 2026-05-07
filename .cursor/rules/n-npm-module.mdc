@@ -1,7 +1,7 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.9'
+version: '1.10'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
@@ -47,11 +47,17 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 У робочій копії не повинно бути більше одного незбереженого в **git** підвищення **build**-версії за раз.
 
+**Чеклист у тому ж наборі змін, що й правки під `npm/`:** `version` у **`npm/package.json`** → **+1**; зверху **`npm/CHANGELOG.md`** нова секція **`## [нова версія] - …`**; у секції лише те, що входить у цей реліз.
+
+**Антипатерн:** не дописувати нові bullet-и в уже існуючу секцію **`## [X.Y.Z]`**, якщо паралельно не піднімаєш **`version`** до нового номера й не створюєш **нову** секцію зверху. Інакше змішуються різні релізи в одному номері, а `check npm-module` / `check changelog` гірше ловлять порушення.
+
 **Підказка:** щоб не дублювати bump і бачити різницю зі збереженим деревом, перевір `git status npm/package.json` або `git diff HEAD -- npm/package.json` перед другим підвищенням у тій самій гілці / наборі змін.
 
 ## CHANGELOG
 
 Окреме правило **`changelog`** ([changelog.mdc](changelog.mdc)) вимагає `npm/CHANGELOG.md` із записом для поточної версії (Keep a Changelog) і присутність `"CHANGELOG.md"` у масиві `files` у `npm/package.json`. Логіка — PR-scoped (сума по гілці vs `dev`).
+
+Найновіша версія — **перша** секція **`## [version]`** у файлі (зверху після заголовка). Вона **має збігатися** з полем **`version`** у **`npm/package.json`** — це перевіряє **`npx @nitra/cursor check npm-module`**.
 
 ## npm publish
 
@@ -96,4 +102,4 @@ jobs:
 
 ## Перевірка
 
-`npx @nitra/cursor check npm-module`
+`npx @nitra/cursor check npm-module` — зокрема узгодженість першої секції **`npm/CHANGELOG.md`** з **`version`** у **`npm/package.json`** і нагадування про bump при незакомічених змінах під **`npm/`** (через `git`).

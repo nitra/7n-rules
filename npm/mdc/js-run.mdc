@@ -1,7 +1,7 @@
 ---
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 alwaysApply: true
-version: '1.4'
+version: '1.5'
 ---
 
 ## Область застосування
@@ -27,6 +27,25 @@ Dockerfile
 package.json
 readme.md
 ```
+
+## `jsconfig.json` (редактор / перевірка типів)
+
+Якщо в **backend** workspace-пакеті (без `vite` у `devDependencies`) є каталог **`src/`**, у **корені цього пакета** має бути **`jsconfig.json`**. Якщо файлу ще немає — створи його з таким вмістом (канон js-run):
+
+```json title="jsconfig.json"
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "esnext",
+    "checkJs": false
+  },
+  "include": ["src/**/*"]
+}
+```
+
+Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов’язковий і має збігатися з каноном.
 
 ## Використання @nitra/pino
 
@@ -170,4 +189,4 @@ on:
 
 ## Перевірка
 
-`npx @nitra/cursor check js-run`
+`npx @nitra/cursor check js-run` — зокрема для кожного backend workspace-пакета з каталогом **`src/`** перевіряє наявність **`jsconfig.json`** і збіг вмісту з каноном вище.

@@ -8,6 +8,18 @@ import { join } from 'node:path'
 import { check } from '../scripts/check-js-run.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 
+/** Канонічний jsconfig для backend-пакетів із `src/` (js-run.mdc). */
+const CANONICAL_BACKEND_JSCONFIG = {
+  compilerOptions: {
+    lib: ['esnext'],
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    target: 'esnext',
+    checkJs: false
+  },
+  include: ['src/**/*']
+}
+
 /**
  * Monorepo `workspaces: ['pkg']` і мінімальний `pkg/package.json` з залежностями.
  * @param {Record<string, string>} pkgDependencies залежності workspace-пакета
@@ -91,12 +103,35 @@ describe('check-js-run (мінімальний проєкт)', () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
+      await writeJson(join('pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
       await writeFile(
         join('pkg', 'src', 'conn', 'pg.js'),
         `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(0)
+    })
+  })
+
+  test('1, якщо є src/ у backend-пакеті, але немає jsconfig.json', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await mkdir(join('pkg', 'src'), { recursive: true })
+      await writeFile(join('pkg', 'src', 'app.js'), `export const x = 1\n`, 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('1, якщо jsconfig.json не збігається з каноном js-run', async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await mkdir(join('pkg', 'src'), { recursive: true })
+      await writeFile(join('pkg', 'src', 'app.js'), `export const x = 1\n`, 'utf8')
+      await writeJson(join('pkg', 'jsconfig.json'), {
+        compilerOptions: { module: 'ESNext', moduleResolution: 'bundler', target: 'esnext' },
+        include: ['src/**/*']
+      })
+      expect(await check()).toBe(1)
     })
   })
 

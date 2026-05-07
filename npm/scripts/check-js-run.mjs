@@ -24,9 +24,11 @@
  *    `working-directory: <rootDir>` (див. `utils/depcheck-workflow.mjs`);
  *  - «Паузи через setTimeout»: `new Promise(resolve => setTimeout(resolve, ms))` (з/без `await`)
  *    треба замінити на `await setTimeout(ms)` з `node:timers/promises`
- *    (див. `utils/promise-settimeout-scan.mjs`).
+ *    (див. `utils/promise-settimeout-scan.mjs`);
+ *  - «jsconfig.json»: у backend-пакеті з каталогом `src/` у корені має бути `jsconfig.json`,
+ *    вміст якого збігається з каноном js-run.mdc (NodeNext і include на дерево `src`).
  */
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
@@ -51,6 +53,99 @@ import {
 } from './utils/promise-settimeout-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
+
+/** Канонічний `jsconfig.json` для backend workspace-пакетів із каталогом `src/` (js-run.mdc). */
+const CANONICAL_BACKEND_JSCONFIG = Object.freeze({
+  compilerOptions: Object.freeze({
+    lib: Object.freeze(['esnext']),
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    target: 'esnext',
+    checkJs: false
+  }),
+  include: Object.freeze(['src/**/*'])
+})
+
+/**
+ * Глибока рівність для JSON-подібних значень (масиви — порядок важливий).
+ * @param {unknown} a
+ * @param {unknown} b
+ * @returns {boolean}
+ */
+function deepEqualJson(a, b) {
+  if (a === b) return true
+  if (a === null || b === null || typeof a !== typeof b) return false
+  if (typeof a !== 'object') return false
+  if (Array.isArray(a) !== Array.isArray(b)) return false
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false
+    for (const [i, v] of a.entries()) {
+      if (!deepEqualJson(v, b[i])) return false
+    }
+    return true
+  }
+  const ao = /** @type {Record<string, unknown>} */ (a)
+  const bo = /** @type {Record<string, unknown>} */ (b)
+  const keysA = Object.keys(ao).sort()
+  const keysB = Object.keys(bo).sort()
+  if (keysA.length !== keysB.length) return false
+  for (const [i, k] of keysA.entries()) {
+    if (k !== keysB[i]) return false
+    if (!deepEqualJson(ao[k], bo[k])) return false
+  }
+  return true
+}
+
+/**
+ * Чи існує непорожній за змістом маркер каталогу `src/` (рекомендована структура js-run).
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @returns {boolean}
+ */
+function backendPackageHasSrcDir(absPackageRoot) {
+  const srcPath = join(absPackageRoot, 'src')
+  try {
+    return statSync(srcPath).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Перевіряє `jsconfig.json` для backend-пакетів із `src/`.
+ * @param {string} rootDir відносний шлях workspace
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @param {string} label префікс `[pkg] `
+ * @param {(msg: string) => void} fail
+ * @param {(msg: string) => void} passFn
+ * @returns {Promise<void>}
+ */
+async function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn) {
+  if (!backendPackageHasSrcDir(absPackageRoot)) return
+
+  const jcPath = join(rootDir, 'jsconfig.json')
+  if (!existsSync(jcPath)) {
+    fail(
+      `${label}є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc ` +
+        `(NodeNext, include: src/**/*).`
+    )
+    return
+  }
+  let parsed
+  try {
+    parsed = JSON.parse(await readFile(jcPath, 'utf8'))
+  } catch {
+    fail(`${label}jsconfig.json не вдалося розпарсити як JSON`)
+    return
+  }
+  if (!deepEqualJson(parsed, CANONICAL_BACKEND_JSCONFIG)) {
+    fail(
+      `${label}jsconfig.json не збігається з каноном js-run.mdc — заміни на шаблон з правила ` +
+        `(compilerOptions: lib esnext, module/moduleResolution NodeNext, target esnext, checkJs false; include: src/**/*).`
+    )
+    return
+  }
+  passFn(`${label}jsconfig.json узгоджено з js-run (пакет з src/)`)
+}
 
 /**
  * Перетворює абсолютний шлях у posix-формі відносно кореня пакета.
@@ -215,6 +310,8 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
     passFn(`${label}vite-пакет (frontend) — js-run пропущено (process.env / conn-aliases / OTEL configmap)`)
     return
   }
+
+  await checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn)
 
   const importViolations = await checkBunyanImports(absPackageRoot, ignorePaths, label, fail)
   if (importViolations === 0) {

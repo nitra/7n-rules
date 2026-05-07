@@ -10,10 +10,16 @@
  * файл під `./types/…`, у hk — `tsc -p tsconfig.emit-types.json`, у JSON-конфігу — потрібні compilerOptions для emit.
  *
  * Поля workflow перевіряються після **YAML parse**, щоб не плутати з коментарями.
+ *
+ * Версія та CHANGELOG: перший заголовок `## [version]` у `npm/CHANGELOG.md` має збігатися з `version` у
+ * `npm/package.json` (найсвіжіший реліз зверху). Якщо в git є незакомічені зміни під `npm/`, `version` у робочому
+ * файлі має відрізнятися від `HEAD` — інакше типовий пропуск bump після правок у пакеті.
  */
+import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
+import { promisify } from 'node:util'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
@@ -26,7 +32,12 @@ import {
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
+const execFileAsync = promisify(execFile)
+
 const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
+
+/** Перший заголовок релізу у Keep a Changelog (`## [1.2.3]`). */
+const CHANGELOG_FIRST_VERSION_RE = /^## \[([^\]]+)\]/m
 
 /** Канонічний entrypoint типів для пакетів із вихідним `.js` під каталогом `npm/src` */
 const TYPES_INDEX = './types/index.d.ts'
@@ -233,6 +244,122 @@ async function checkEmitTypesConfig(passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
+/**
+ * Чи виконано `git` у корені робочого дерева.
+ * @returns {Promise<boolean>}
+ */
+async function gitInsideWorkTree() {
+  try {
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' })
+    return stdout.trim() === 'true'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Список незакомічених шляхів під `npm/` відносно `HEAD`.
+ * @returns {Promise<string[] | null>} шляхи або `null`, якщо `git` недоступний
+ */
+async function gitDiffNameOnlyNpm() {
+  try {
+    const { stdout } = await execFileAsync('git', ['diff', '--name-only', 'HEAD', '--', 'npm'], { encoding: 'utf8' })
+    return stdout.trim().split('\n').filter(Boolean)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Поле `version` з `npm/package.json` на заданому git-ref (`HEAD:npm/package.json`).
+ * @param {string} refPath на кшталт `HEAD:npm/package.json`
+ * @returns {Promise<string | null>}
+ */
+async function gitShowNpmPackageVersionAt(refPath) {
+  try {
+    const { stdout } = await execFileAsync('git', ['show', refPath], { encoding: 'utf8' })
+    const m = stdout.match(/"version":\s*"([^"]+)"/)
+    return m ? m[1] : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Версія з першого заголовка `## […]` у тексті CHANGELOG.
+ * @param {string} changelogText
+ * @returns {string | null}
+ */
+function firstChangelogSectionVersion(changelogText) {
+  const m = changelogText.match(CHANGELOG_FIRST_VERSION_RE)
+  return m ? m[1] : null
+}
+
+/**
+ * Перший реліз у CHANGELOG має збігатися з `version` у `npm/package.json`.
+ * @param {(msg: string) => void} passFn
+ * @param {(msg: string) => void} failFn
+ * @returns {Promise<void>}
+ */
+async function checkChangelogTopMatchesPackageVersion(passFn, failFn) {
+  if (!existsSync('npm/CHANGELOG.md') || !existsSync('npm/package.json')) return
+  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+  const ver = typeof pkg.version === 'string' ? pkg.version : null
+  if (!ver) {
+    failFn('npm/package.json: відсутнє поле version')
+    return
+  }
+  const cl = await readFile('npm/CHANGELOG.md', 'utf8')
+  const first = firstChangelogSectionVersion(cl)
+  if (!first) {
+    failFn('npm/CHANGELOG.md: не знайдено жодного заголовка ## [version]')
+    return
+  }
+  if (first !== ver) {
+    failFn(
+      `npm/CHANGELOG.md: перша секція [${first}] не збігається з npm/package.json version "${ver}" ` +
+        '(зверху має бути найсвіжіший реліз і той самий номер — npm-module.mdc).'
+    )
+    return
+  }
+  passFn(`npm/CHANGELOG.md: перша секція [${first}] збігається з npm/package.json`)
+}
+
+/**
+ * Незакомічені зміни під `npm/` вимагають підвищення `version` відносно `HEAD`.
+ * @param {(msg: string) => void} passFn
+ * @param {(msg: string) => void} failFn
+ * @returns {Promise<void>}
+ */
+async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
+  if (!(await gitInsideWorkTree())) {
+    passFn('npm-module: git недоступний або поза work tree — перевірку незакоміченого bump пропущено')
+    return
+  }
+  const changed = await gitDiffNameOnlyNpm()
+  if (changed === null) {
+    passFn('npm-module: git diff під npm/ недоступний — пропущено')
+    return
+  }
+  if (changed.length === 0) return
+
+  const headVer = await gitShowNpmPackageVersionAt('HEAD:npm/package.json')
+  if (headVer === null) return
+
+  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+  const cur = typeof pkg.version === 'string' ? pkg.version : null
+  if (!cur) return
+
+  if (cur === headVer) {
+    failFn(
+      `Незакомічені зміни під npm/ (${changed.join(', ')}), але "version" у npm/package.json лишився ${cur} ` +
+        '(як у HEAD). Підвищ version (+1) і додай секцію ## [нова версія] зверху CHANGELOG (npm-module.mdc).'
+    )
+    return
+  }
+  passFn(`npm/: незакомічені зміни під npm/ узгоджені з підвищенням version (${headVer} → ${cur})`)
+}
+
 async function checkPublishWorkflow(passFn, failFn) {
   const publishWf = '.github/workflows/npm-publish.yml'
   if (!existsSync(publishWf)) {
@@ -370,6 +497,9 @@ export async function check() {
   }
 
   await checkPublishWorkflow(pass, fail)
+
+  await checkChangelogTopMatchesPackageVersion(pass, fail)
+  await checkDirtyNpmRequiresVersionBump(pass, fail)
 
   return reporter.getExitCode()
 }

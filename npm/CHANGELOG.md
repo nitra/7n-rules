@@ -4,6 +4,23 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.191] - 2026-05-07
+
+### Added
+
+- `check-npm-module.mjs`: перший заголовок **`## [version]`** у `npm/CHANGELOG.md` має збігатися з **`version`** у `npm/package.json` (найсвіжіший реліз зверху — Keep a Changelog); якщо є незакомічені зміни під **`npm/`**, `version` у робочому `npm/package.json` має відрізнятися від **`HEAD`** (інакше ризик дописати новий функціонал без bump).
+
+### Changed
+
+- `npm-module` (mdc v1.9 → v1.10): розширено **«Build версія»** і **«CHANGELOG»** — чеклист для агента, заборона дописувати нові пункти в уже існуючу секцію релізу замість нового номера; впорядковано `CHANGELOG` (1.8.190 перед 1.8.189).
+
+## [1.8.190] - 2026-05-07
+
+### Added
+
+- `js-run` (mdc v1.4 → v1.5): секція **`jsconfig.json`** — канонічний файл для backend-пакетів із каталогом **`src/`** (NodeNext, `include: ['src/**/*']`); для пакетів без `src/` вимога не діє.
+- `check-js-run.mjs`: перевірка наявності та вмісту `jsconfig.json`, якщо в workspace-пакеті (без vite) є **`src/`**; тести у `check-js-run-fixture.test.mjs`.
+
 ## [1.8.189] - 2026-05-07
 
 ### Added
