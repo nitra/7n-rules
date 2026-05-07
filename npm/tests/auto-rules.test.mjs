@@ -5,7 +5,12 @@ import { describe, expect, test } from 'bun:test'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 import { writeFile } from 'node:fs/promises'
 
-import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected } from '../scripts/auto-rules.mjs'
+import {
+  detectAutoRulesAndSkills,
+  detectLegacyRuleIds,
+  mergeConfigWithAutoDetected,
+  migrateRuleIds
+} from '../scripts/auto-rules.mjs'
 
 const ALL_RULES = [
   'abie',
@@ -283,5 +288,65 @@ describe('mergeConfigWithAutoDetected', () => {
     expect(merged.skills).toEqual(['lint'])
     expect(merged['disable-rules']).toEqual(['js-lint'])
     expect(merged['disable-skills']).toEqual(['fix'])
+  })
+
+  test('міграція legacy `image` у `rules` → `image-compress` + `image-avif`', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: {
+        rules: ['text', 'image', 'vue'],
+        skills: ['lint']
+      },
+      detectedRules: [],
+      detectedSkills: []
+    })
+
+    expect(merged.rules).toEqual(['text', 'image-compress', 'image-avif', 'vue'])
+  })
+
+  test('міграція legacy `image` у `disable-rules` → обидва наступники вимкнено', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: {
+        rules: ['text'],
+        skills: [],
+        'disable-rules': ['image']
+      },
+      detectedRules: ['image-compress', 'image-avif'],
+      detectedSkills: []
+    })
+
+    expect(merged['disable-rules']).toEqual(['image-compress', 'image-avif'])
+    expect(merged.rules).toEqual(['text'])
+  })
+
+  test('legacy `image` поряд з вже наявним `image-compress` дедуплікується', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: {
+        rules: ['image-compress', 'image'],
+        skills: []
+      },
+      detectedRules: [],
+      detectedSkills: []
+    })
+
+    expect(merged.rules).toEqual(['image-compress', 'image-avif'])
+  })
+})
+
+describe('migrateRuleIds / detectLegacyRuleIds', () => {
+  test('migrateRuleIds замінює `image` на пару наступників, зберігаючи порядок', () => {
+    expect(migrateRuleIds(['text', 'image', 'vue'])).toEqual(['text', 'image-compress', 'image-avif', 'vue'])
+  })
+
+  test('migrateRuleIds дедуплікує, якщо новий id вже у списку', () => {
+    expect(migrateRuleIds(['image-compress', 'image', 'image-avif'])).toEqual(['image-compress', 'image-avif'])
+  })
+
+  test('migrateRuleIds не чіпає актуальні id', () => {
+    expect(migrateRuleIds(['bun', 'text', 'vue'])).toEqual(['bun', 'text', 'vue'])
+  })
+
+  test('detectLegacyRuleIds повертає лише id з RULE_MIGRATIONS', () => {
+    expect(detectLegacyRuleIds(['image', 'bun', 'image-compress'])).toEqual(['image'])
+    expect(detectLegacyRuleIds(['bun', 'text'])).toEqual([])
   })
 })

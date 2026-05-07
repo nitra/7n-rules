@@ -56,7 +56,13 @@ import { cwd } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
-import { detectAutoRulesAndSkills, mergeConfigWithAutoDetected, normalizeIdList } from '../scripts/auto-rules.mjs'
+import {
+  detectAutoRulesAndSkills,
+  detectLegacyRuleIds,
+  mergeConfigWithAutoDetected,
+  normalizeIdList,
+  RULE_MIGRATIONS
+} from '../scripts/auto-rules.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintGaCli } from '../scripts/lint-ga.mjs'
@@ -301,12 +307,38 @@ async function readConfig(paths = {}) {
   } catch {
     throw new Error(`Невірний JSON у файлі ${CONFIG_FILE}`)
   }
+  logRuleMigrationsIfAny(config)
   const normalized = await normalizeConfigWithAutoRules(config)
   if (JSON.stringify(normalized) !== JSON.stringify(config)) {
     await writeFile(configPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8')
     console.log(`📝 Оновлено ${CONFIG_FILE}: синхронізовано $schema та авто-додані rules/skills\n`)
   }
   return normalized
+}
+
+/**
+ * Якщо у `rules` чи `disable-rules` є застарілі rule-id з `RULE_MIGRATIONS`,
+ * виводить пояснювальний лог про автоматичну заміну (саму заміну виконує
+ * `migrateRuleIds` у `mergeConfigWithAutoDetected` — тут лише користувацька комунікація).
+ * @param {Record<string, unknown>} parsedConfig сирий обʼєкт `.n-cursor.json` після `JSON.parse`
+ * @returns {void}
+ */
+function logRuleMigrationsIfAny(parsedConfig) {
+  /** @type {Set<string>} */
+  const seen = new Set()
+  for (const key of /** @type {const} */ (['rules', 'disable-rules'])) {
+    const list = parsedConfig[key]
+    if (!Array.isArray(list)) continue
+    const legacy = detectLegacyRuleIds(normalizeIdList(list))
+    for (const id of legacy) seen.add(id)
+  }
+  if (seen.size === 0) return
+  console.log(`📦 Авто-міграція ${CONFIG_FILE}:`)
+  for (const id of seen) {
+    const replacement = RULE_MIGRATIONS[id].join(', ')
+    console.log(`   • ${id} → ${replacement}`)
+  }
+  console.log('')
 }
 
 /**

@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.199] - 2026-05-07
+
+### Added
+
+- `auto-rules.mjs`: автоматична міграція застарілих rule-id у `.n-cursor.json` через карту `RULE_MIGRATIONS`. Перший зареєстрований запис — `image` → `image-compress` + `image-avif` (split з 1.8.197). Застосовується і до `rules`, і до `disable-rules`, з дедуплікацією. CLI `n-cursor.js` логує `📦 Авто-міграція .n-cursor.json: image → image-compress, image-avif` перед нормалізацією, потім записує оновлений конфіг (як і раніше — лише якщо вміст реально змінився).
+- `tests/auto-rules.test.mjs`: тести `migrateRuleIds` (порядок, дедуплікація, no-op для актуальних id), `detectLegacyRuleIds`, `mergeConfigWithAutoDetected` з legacy `image` у `rules`/`disable-rules`/конфлікті з `image-compress`.
+
+### Changed
+
+- `n-cursor.js`: розширено імпорт з `auto-rules.mjs` (`detectLegacyRuleIds`, `RULE_MIGRATIONS`); виокремлено хелпер `logRuleMigrationsIfAny` (читає сирий конфіг, виводить пояснення, не мутує — мутацію виконує `migrateRuleIds` усередині `mergeConfigWithAutoDetected`). Завдяки цьому `npx @nitra/cursor` сам перебиває `image` на пару наступників — користувачу не треба руками правити `.n-cursor.json`.
+
 ## [1.8.198] - 2026-05-07
 
 ### Changed

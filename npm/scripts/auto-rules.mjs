@@ -50,6 +50,45 @@ export const AUTO_RULE_ORDER = Object.freeze([
 export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
 
 /**
+ * Карта міграції застарілих rule-id у `.n-cursor.json` на актуальні.
+ * Застосовується автоматично при читанні конфігу (як для `rules`, так і для `disable-rules`).
+ * Приклад: `image` → `image-compress` + `image-avif` (правило розщеплене у 1.8.197).
+ */
+export const RULE_MIGRATIONS = Object.freeze(
+  /** @type {Record<string, readonly string[]>} */ ({
+    image: Object.freeze(['image-compress', 'image-avif'])
+  })
+)
+
+/**
+ * Розгортає застарілі rule-id у списку згідно з `RULE_MIGRATIONS`. Зберігає порядок,
+ * дедуплікує. Чистий хелпер: не мутує вхід, не логує.
+ * @param {string[]} ids нормалізований список id (як з `normalizeIdList`)
+ * @returns {string[]} список з legacy-id, заміненими на нові; решта без змін
+ */
+export function migrateRuleIds(ids) {
+  /** @type {string[]} */
+  const out = []
+  for (const id of ids) {
+    const replacement = Object.hasOwn(RULE_MIGRATIONS, id) ? RULE_MIGRATIONS[id] : [id]
+    for (const newId of replacement) {
+      if (!out.includes(newId)) out.push(newId)
+    }
+  }
+  return out
+}
+
+/**
+ * Повертає лише ті legacy rule-id зі списку, для яких є запис у `RULE_MIGRATIONS`.
+ * Використовується для людинозрозумілого логування міграції при синхронізації CLI.
+ * @param {string[]} ids нормалізований список id
+ * @returns {string[]} legacy id, які потребуватимуть заміни у `migrateRuleIds`
+ */
+export function detectLegacyRuleIds(ids) {
+  return ids.filter(id => Object.hasOwn(RULE_MIGRATIONS, id))
+}
+
+/**
  * Граф залежностей між правилами (`auto-rules.md` синтаксис `rule - [other]`).
  * Ключ варто автододати, коли всі правила-залежності вже додані до конфігу — щоб
  * не дублювати вихідну умову, достатньо описати її у залежності.
@@ -649,9 +688,9 @@ export async function detectAutoRulesAndSkills({
  * @returns {{ rules: string[], skills: string[] } & Record<string, unknown>} новий нормалізований конфіг
  */
 export function mergeConfigWithAutoDetected({ config, detectedRules, detectedSkills }) {
-  const existingRules = normalizeIdList(config.rules)
+  const existingRules = migrateRuleIds(normalizeIdList(config.rules))
   const existingSkills = normalizeIdList(config.skills)
-  const disableRules = normalizeIdList(config['disable-rules'])
+  const disableRules = migrateRuleIds(normalizeIdList(config['disable-rules']))
   const disableSkills = normalizeIdList(config['disable-skills'])
 
   const rules = [...existingRules]
