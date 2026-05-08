@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.206] - 2026-05-08
+
+### Added
+
+- `mdc/rego.mdc` (нова версія 1.1, з 1.0): VS Code-секція з рекомендованим розширенням `tsandall.opa` (LSP від автора OPA: підсвічування, hover, go-to-definition, format-on-save через `opa fmt`), `.vscode/extensions.json` і `.vscode/settings.json` сніпети для `[rego]` (`editor.defaultFormatter: tsandall.opa`, `formatOnSave: true`); опис кроків `lint-rego` (preflight `opa`+`regal`, далі `opa check --strict` і `regal lint`); `package.json`-сніпет зі скриптом `lint-rego`; install-команди (`brew install opa regal` + universal лінки); приклад `.regal/config.yaml`. Раніше файл містив лише placeholder `npx @nitra/cursor check rego`.
+
+### Changed
+
+- `scripts/lint-rego.mjs`: додано preflight на `opa` (поряд з `regal`) з install-hint `brew install opa` і покликом до VS Code-розширення `tsandall.opa`; до `regal lint` додано попередній крок `opa check --strict <targets>` (типи + строгий режим: мертвий код, неоднозначні правила, незадекларовані змінні) — `opa check` ловить compile-помилки, які `regal` навмисно лишає поза скоупом. Якщо хоч один з `opa`/`regal` відсутній у `PATH` — exit 1 ще до запуску, з підказкою встановлення для обох.
+
 ## [1.8.205] - 2026-05-08
 
 ### Added
@@ -132,7 +142,7 @@
 ### Added
 
 - `run-shellcheck-text.mjs`: для `lint-text` — перевірка наявності `shellcheck`/`patch`, авто-виправлення через `shellcheck -f diff` + `patch -p1`, фінальний прогін по tracked `*.sh` (git) або `**/*.sh` без `node_modules`.
-- `text` (mdc v1.25 → v1.26): **shellcheck** у ланцюжку `lint-text`, рекомендація **`timonwong.shellcheck`**, тригер workflow **`**/*.sh`**; тести `run-shellcheck-text.test.mjs`.
+- `text` (mdc v1.25 → v1.26): **shellcheck** у ланцюжку `lint-text`, рекомендація **`timonwong.shellcheck`**, тригер workflow **`**/\*.sh`**; тести `run-shellcheck-text.test.mjs`.
 
 ### Changed
 

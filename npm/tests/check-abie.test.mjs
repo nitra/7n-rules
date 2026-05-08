@@ -1298,11 +1298,7 @@ patches:
       await ensureDir('.github/workflows')
       await writeFile(join('.github/workflows/clean-merged-branch.yml'), CLEAN_MERGED_MIN, 'utf8')
       // .env без імені (локальний для розробника) — не сканується
-      await writeFile(
-        '.env',
-        'HASURA_GRAPHQL_ENDPOINT=http://x-hl.zzz.svc.totally-wrong.internal:8080\n',
-        'utf8'
-      )
+      await writeFile('.env', 'HASURA_GRAPHQL_ENDPOINT=http://x-hl.zzz.svc.totally-wrong.internal:8080\n', 'utf8')
       expect(await check()).toBe(0)
     })
   })

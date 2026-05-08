@@ -41,6 +41,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'nginx-default-tpl',
   'npm-module',
   'php',
+  'rego',
   'style-lint',
   'text',
   'vue'
@@ -104,6 +105,7 @@ export const AUTO_RULE_DEPENDENCIES = Object.freeze(
 const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
 const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
 const JS_LIKE_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx)$/iu
+const REGO_RE = /\.rego$/iu
 const STYLE_RE = /\.(?:css|vue)$/iu
 const VUE_RE = /\.vue$/iu
 const NGINX_DEFAULT_FILES = new Set(['default.conf.template', 'default.conf', 'nginx.conf'])
@@ -287,6 +289,7 @@ function updateDirFacts(dirName, facts) {
  *   hasDockerfile: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
+ *   hasRegoFile: boolean,
  *   hasVueOrCssSource: boolean,
  *   hasVueSource: boolean
  * }} facts агреговані факти
@@ -310,6 +313,9 @@ function updateFileFacts(fileName, relPath, facts) {
   }
   if (STYLE_RE.test(relPath)) {
     facts.hasVueOrCssSource = true
+  }
+  if (REGO_RE.test(relPath)) {
+    facts.hasRegoFile = true
   }
 }
 
@@ -401,6 +407,7 @@ async function updateHasuraFactFromFile(absPath, fileName, facts) {
  *   hasHasuraConfig: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
+ *   hasRegoFile: boolean,
  *   hasVueOrCssSource: boolean,
  *   hasVueSource: boolean
  * }} facts агреговані факти
@@ -489,6 +496,7 @@ export function isMonorepoPackage(packageJson) {
  *   hasJsLikeSource: boolean,
  *   hasK8sDir: boolean,
  *   hasNginxDefaultTplFile: boolean,
+ *   hasRegoFile: boolean,
  *   hasTempoDir: boolean,
  *   hasVueSource: boolean,
  *   hasVueOrCssSource: boolean
@@ -505,6 +513,7 @@ export async function collectAutoRuleFacts(root) {
     hasJsLikeSource: false,
     hasK8sDir: false,
     hasNginxDefaultTplFile: false,
+    hasRegoFile: false,
     hasTempoDir: false,
     hasVueSource: false,
     hasVueOrCssSource: false
@@ -650,6 +659,7 @@ export async function detectAutoRulesAndSkills({
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },
     { enabled: npmDirExists, id: 'npm-module' },
     { enabled: composerJsonExists, id: 'php' },
+    { enabled: facts.hasRegoFile, id: 'rego' },
     { enabled: facts.hasVueOrCssSource, id: 'style-lint' }
   ]
   for (const item of autoRuleChecks) {

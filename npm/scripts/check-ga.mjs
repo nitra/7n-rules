@@ -470,7 +470,6 @@ function checkShellcheckInstalled(passFn, failFn) {
   )
 }
 
-
 /**
  * Перевіряє розширення workflow-файлів і наявність обов'язкових workflow.
  * @param {string} wfDir шлях до директорії workflows

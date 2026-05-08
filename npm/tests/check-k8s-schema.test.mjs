@@ -975,9 +975,7 @@ describe('kustomizationPatchesSortedViolation', () => {
 
   test('null, якщо patches відсутнє або < 2', () => {
     expect(kustomizationPatchesSortedViolation({ ...k })).toBeNull()
-    expect(
-      kustomizationPatchesSortedViolation({ ...k, patches: [{ target: { kind: 'A', name: 'b' } }] })
-    ).toBeNull()
+    expect(kustomizationPatchesSortedViolation({ ...k, patches: [{ target: { kind: 'A', name: 'b' } }] })).toBeNull()
   })
 
   test('null для відсортованих patches за target.kind/name', () => {
@@ -1048,15 +1046,13 @@ describe('kustomizationInlinePatchOpsSortedViolation', () => {
 
   test('null для відсортованого add/replace набору', () => {
     const text =
-      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n' +
-      '- op: add\n  path: /spec/minReplicas\n  value: 2\n'
+      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n' + '- op: add\n  path: /spec/minReplicas\n  value: 2\n'
     expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
   })
 
   test('помилка для приклада з k8s.mdc (add minReplicas → replace maxReplicas)', () => {
     const text =
-      '- op: add\n  path: /spec/minReplicas\n  value: 2\n' +
-      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
+      '- op: add\n  path: /spec/minReplicas\n  value: 2\n' + '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
     const msg = kustomizationInlinePatchOpsSortedViolation(text)
     expect(msg).toContain('/spec/maxReplicas')
     expect(msg).toContain('/spec/minReplicas')
@@ -1067,8 +1063,7 @@ describe('kustomizationInlinePatchOpsSortedViolation', () => {
 
   test('null, якщо є op ∉ {add, replace} (move/test/remove/copy — порядок семантичний)', () => {
     const text =
-      '- op: test\n  path: /spec/minReplicas\n  value: 1\n' +
-      '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
+      '- op: test\n  path: /spec/minReplicas\n  value: 1\n' + '- op: replace\n  path: /spec/maxReplicas\n  value: 10\n'
     expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
   })
 
@@ -1080,9 +1075,7 @@ describe('kustomizationInlinePatchOpsSortedViolation', () => {
   })
 
   test('null, якщо path-и однакові (повтор)', () => {
-    const text =
-      '- op: add\n  path: /spec/x\n  value: 1\n' +
-      '- op: replace\n  path: /spec/x\n  value: 2\n'
+    const text = '- op: add\n  path: /spec/x\n  value: 1\n' + '- op: replace\n  path: /spec/x\n  value: 2\n'
     expect(kustomizationInlinePatchOpsSortedViolation(text)).toBeNull()
   })
 })

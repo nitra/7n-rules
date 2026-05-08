@@ -11,31 +11,22 @@ import {
 
 describe('promise-settimeout-scan (oxc)', () => {
   test('await new Promise(r => setTimeout(r, 500)) — порушення', () => {
-    const hits = findPromiseSetTimeoutInText(
-      `await new Promise(resolve => setTimeout(resolve, 500))\n`,
-      'x.ts'
-    )
+    const hits = findPromiseSetTimeoutInText(`await new Promise(resolve => setTimeout(resolve, 500))\n`, 'x.ts')
     expect(hits.length).toBe(1)
     expect(hits[0].line).toBe(1)
   })
 
   test('без await — все одно порушення (інших легітимних застосувань паттерна нема)', () => {
-    const hits = findPromiseSetTimeoutInText(
-      `const p = new Promise(r => setTimeout(r, 100))\n`,
-      'x.js'
-    )
+    const hits = findPromiseSetTimeoutInText(`const p = new Promise(r => setTimeout(r, 100))\n`, 'x.js')
     expect(hits.length).toBe(1)
   })
 
   test('block-body форма: new Promise(r => { setTimeout(r, 1000) })', () => {
-    const hits = findPromiseSetTimeoutInText(
-      `await new Promise(r => { setTimeout(r, 1000) })\n`,
-      'x.ts'
-    )
+    const hits = findPromiseSetTimeoutInText(`await new Promise(r => { setTimeout(r, 1000) })\n`, 'x.ts')
     expect(hits.length).toBe(1)
   })
 
-  test("function expression: new Promise(function (r) { setTimeout(r, 50) })", () => {
+  test('function expression: new Promise(function (r) { setTimeout(r, 50) })', () => {
     const hits = findPromiseSetTimeoutInText(
       `await new Promise(function (resolve) { setTimeout(resolve, 50) })\n`,
       'x.ts'
@@ -44,20 +35,12 @@ describe('promise-settimeout-scan (oxc)', () => {
   })
 
   test('обгорнутий arrow: new Promise(r => setTimeout(() => r(), 200))', () => {
-    const hits = findPromiseSetTimeoutInText(
-      `await new Promise(r => setTimeout(() => r(), 200))\n`,
-      'x.ts'
-    )
+    const hits = findPromiseSetTimeoutInText(`await new Promise(r => setTimeout(() => r(), 200))\n`, 'x.ts')
     expect(hits.length).toBe(1)
   })
 
   test('імпорт promise-варіанта setTimeout — без порушень', () => {
-    const src = [
-      `import { setTimeout } from 'node:timers/promises'`,
-      ``,
-      `await setTimeout(500)`,
-      ``
-    ].join('\n')
+    const src = [`import { setTimeout } from 'node:timers/promises'`, ``, `await setTimeout(500)`, ``].join('\n')
     expect(findPromiseSetTimeoutInText(src, 'x.ts').length).toBe(0)
   })
 
@@ -82,13 +65,7 @@ describe('promise-settimeout-scan (oxc)', () => {
   })
 
   test('multiline зберігає номер рядка початку NewExpression', () => {
-    const src = [
-      `// header`,
-      `await new Promise(`,
-      `  resolve => setTimeout(resolve, 1000)`,
-      `)`,
-      ``
-    ].join('\n')
+    const src = [`// header`, `await new Promise(`, `  resolve => setTimeout(resolve, 1000)`, `)`, ``].join('\n')
     const hits = findPromiseSetTimeoutInText(src, 'x.ts')
     expect(hits.length).toBe(1)
     expect(hits[0].line).toBe(2)
@@ -104,7 +81,7 @@ describe('promise-settimeout-scan (oxc)', () => {
     expect(hits.length).toBe(2)
   })
 
-  test('isPromiseSetTimeoutScanSourceFile — JS/TS-сім\'я, без .d.ts', () => {
+  test("isPromiseSetTimeoutScanSourceFile — JS/TS-сім'я, без .d.ts", () => {
     expect(isPromiseSetTimeoutScanSourceFile('src/a.ts')).toBe(true)
     expect(isPromiseSetTimeoutScanSourceFile('src/a.mjs')).toBe(true)
     expect(isPromiseSetTimeoutScanSourceFile('src/a.tsx')).toBe(true)

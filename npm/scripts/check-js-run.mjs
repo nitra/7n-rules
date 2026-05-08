@@ -47,10 +47,7 @@ import {
   resolveConnDirFromPackageJson
 } from './utils/conn-imports-scan.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
-import {
-  findPromiseSetTimeoutInText,
-  isPromiseSetTimeoutScanSourceFile
-} from './utils/promise-settimeout-scan.mjs'
+import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from './utils/promise-settimeout-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 

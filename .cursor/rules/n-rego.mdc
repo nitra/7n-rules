@@ -1,0 +1,77 @@
+---
+description: Opa, Rego — інструментарій (VS Code, lint-rego)
+version: '1.1'
+globs: "**/*.rego"
+alwaysApply: false
+---
+
+# Rego (opa)
+
+Синтаксичні правила (`rego.v1`, `import rego.v1`, заборона legacy v0) — у `conftest.mdc` (alwaysApply). Цей файл — про **інструментарій**: VS Code, лінтери, форматування.
+
+## VS Code
+
+Розширення `tsandall.opa` (від автора OPA): підсвічування, hover, go-to-definition, оцінка виразів і `format-on-save` через `opa fmt`. Працює лише за наявності `opa` у `PATH` — встановити нижче.
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["tsandall.opa"]
+}
+```
+
+```json title=".vscode/settings.json"
+{
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.formatOnSave": true
+  }
+}
+```
+
+`opa.checkOnSave` за замовчуванням увімкнено в розширенні — діагностика від `opa check` показується в редакторі, тож синтаксичні/типові помилки видно одразу, без запуску `lint-rego`.
+
+## Перевірка
+
+```bash
+bun run lint-rego
+```
+
+Скрипт делегує до `bun ./npm/scripts/lint-rego.mjs`. Послідовність:
+
+1. **preflight** — наявність `opa` і `regal` у `PATH`; якщо хоча б одного нема — exit 1 з підказкою встановлення;
+2. `opa check --strict <targets>` — компіляція з типами та `--strict` (мертвий код, неоднозначні правила, незадекларовані змінні);
+3. `regal lint <targets>` — статичний лінтер Rego ([Styra Regal](https://docs.styra.com/regal)): ловить v0-синтаксис, неявні set-rules і відхилення від `rego.v1`, плюс bugs/idiomatic/style-правила.
+
+Цілі — `npm/policy/` (де живуть Rego-полісі пакета). Інші *.rego поза деревом додай у `LINT_TARGETS` у `lint-rego.mjs`.
+
+### Встановлення інструментів
+
+- macOS: `brew install opa regal`
+- Linux/Windows:
+  - opa — <https://www.openpolicyagent.org/docs/latest/#1-download-opa>
+  - regal — <https://docs.styra.com/regal#installation>
+
+Обидва — лише в `PATH`, **не** додавай у `dependencies` / `devDependencies` (як `shellcheck` у `text.mdc`).
+
+### `package.json`
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint-rego": "bun ./npm/scripts/lint-rego.mjs"
+  }
+}
+```
+
+У кореневому `lint` (з `text.mdc` і дотичних) включай `bun run lint-rego` — щоб локальний прогін співпадав з CI.
+
+## Конфіг regal
+
+У корені — `.regal/config.yaml`. Дозволено вимикати окремі правила під специфіку репо (наприклад, conftest-полісі — `deny`-правила як де-факто entrypoint-и):
+
+```yaml title=".regal/config.yaml"
+rules:
+  idiomatic:
+    no-defined-entrypoint:
+      level: ignore
+```

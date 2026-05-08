@@ -68,7 +68,10 @@ async function checkHookScript(reporter) {
     fail(`канонічний скрипт у пакеті не знайдено: ${BUNDLED_HOOK_PATH} — перевстанови @nitra/cursor`)
     return
   }
-  const [project, bundled] = await Promise.all([readFile(PROJECT_HOOK_PATH, 'utf8'), readFile(BUNDLED_HOOK_PATH, 'utf8')])
+  const [project, bundled] = await Promise.all([
+    readFile(PROJECT_HOOK_PATH, 'utf8'),
+    readFile(BUNDLED_HOOK_PATH, 'utf8')
+  ])
   if (project === bundled) {
     pass(`${PROJECT_HOOK_PATH} збігається з канонічним`)
   } else {

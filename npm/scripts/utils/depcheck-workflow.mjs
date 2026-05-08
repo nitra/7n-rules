@@ -19,11 +19,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import {
-  flattenWorkflowSteps,
-  getStepRun,
-  parseWorkflowYaml
-} from './gha-workflow.mjs'
+import { flattenWorkflowSteps, getStepRun, parseWorkflowYaml } from './gha-workflow.mjs'
 
 const WORKFLOWS_DIR_REL = '.github/workflows'
 const REQUIRED_IGNORES = ['graphql', 'bun']
@@ -122,7 +118,7 @@ export function evaluateDepcheckStepForPackage(root, pkgRoot) {
   // Усі знайдені кроки існують, але жоден не має повного списку обов'язкових ignores —
   // повертаємо missing з першого, щоб дати конкретний фідбек.
   const firstMissing = REQUIRED_IGNORES.filter(
-    req => !((parseDepcheckIgnoresArg(stepsForThisPackage[0].args) ?? []).includes(req))
+    req => !(parseDepcheckIgnoresArg(stepsForThisPackage[0].args) ?? []).includes(req)
   )
   return { kind: 'missing-ignores', missing: firstMissing }
 }

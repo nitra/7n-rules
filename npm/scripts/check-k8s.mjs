@@ -524,7 +524,8 @@ function kustomizationPatchSortKey(patchItem) {
   const rec = /** @type {Record<string, unknown>} */ (patchItem)
   const t = rec.target
   /** @type {Record<string, unknown>} */
-  const target = t !== null && typeof t === 'object' && !Array.isArray(t) ? /** @type {Record<string, unknown>} */ (t) : {}
+  const target =
+    t !== null && typeof t === 'object' && !Array.isArray(t) ? /** @type {Record<string, unknown>} */ (t) : {}
   const kind = typeof target.kind === 'string' ? target.kind : ''
   const name = typeof target.name === 'string' ? target.name : ''
   const ns = typeof target.namespace === 'string' ? target.namespace : ''

@@ -85,10 +85,7 @@ export function listShellScriptPaths(cwd) {
 
   const fromGlob = globSync('**/*.sh', {
     cwd,
-    exclude: p =>
-      p.includes('node_modules') ||
-      p.startsWith(`node_modules/`) ||
-      p.split('/').includes('node_modules')
+    exclude: p => p.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')
   })
   return [...new Set(fromGlob.map(p => p.replaceAll('\\', '/')))].sort()
 }

@@ -45,8 +45,7 @@ const ENV_FILE_RE = /\.env$/u
 const HASURA_ENDPOINT_LINE_RE = /^[ \t]*(?:export[ \t]+)?HASURA_GRAPHQL_ENDPOINT[ \t]*=[ \t]*['"]?([^'"\r\n#]+)/mu
 // Дозволяємо два DNS-суфікси кластера: `<name>.internal` (GKE/GCP) і `cluster.local`
 // (стандартний k8s / Yandex Cloud). У YC namespace.yaml + cluster mode дають коротший суфікс.
-const INTERNAL_HASURA_URL_RE =
-  /^http:\/\/([^./]+)\.([^./]+)\.svc\.((?:[^./:]+\.internal)|cluster\.local):(\d+)\/?$/u
+const INTERNAL_HASURA_URL_RE = /^http:\/\/([^./]+)\.([^./]+)\.svc\.((?:[^./:]+\.internal)|cluster\.local):(\d+)\/?$/u
 const CLUSTER_LOCAL_SUFFIX = 'cluster.local'
 const INTERNAL_DNS_SUFFIX = '.internal'
 
@@ -151,7 +150,8 @@ async function checkEnvFile(relPath, expected, reporter) {
   const parsed = parseInternalHasuraEndpoint(value)
   if (!parsed.ok) {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL (TLS не використовується)
-    const example = 'http://<service>.<namespace>.svc.<cluster>.internal:<port> або http://<service>.<namespace>.svc.cluster.local:<port>'
+    const example =
+      'http://<service>.<namespace>.svc.<cluster>.internal:<port> або http://<service>.<namespace>.svc.cluster.local:<port>'
     fail(
       `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`
     )

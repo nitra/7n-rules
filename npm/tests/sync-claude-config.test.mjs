@@ -240,7 +240,9 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(adrGroup.hooks[0].command).toContain('$CLAUDE_PROJECT_DIR')
       expect(adrGroup.hooks[0].async).toBe(true)
       expect(adrGroup.hooks[0].timeout).toBe(180)
-      const lintGroup = settings.hooks.Stop.find(g => g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER)))
+      const lintGroup = settings.hooks.Stop.find(g =>
+        g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER))
+      )
       expect(lintGroup).toBeTruthy()
     })
   })
