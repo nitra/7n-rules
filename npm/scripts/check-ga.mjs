@@ -24,15 +24,11 @@ import { join } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import {
-  anyRunStepIncludes,
   eventPathsIncludeExact,
   findForbiddenUsesOrRunPatterns,
   findRunStepsWithShellLineContinuationBackslash,
   hasAnyStepUsesContaining,
   hasCheckoutBeforeLocalSetupBunDeps,
-  flattenWorkflowSteps,
-  getStepRun,
-  getStepUses,
   parseWorkflowYaml
 } from './utils/gha-workflow.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
@@ -158,156 +154,6 @@ function getObjKey(obj, key) {
   return obj && typeof obj === 'object' && !Array.isArray(obj)
     ? /** @type {Record<string, unknown>} */ (obj)[key]
     : undefined
-}
-
-/**
- * Очікує, що значення є рядком рівно `expected`.
- * @param {unknown} v значення
- * @param {string} expected очікуваний рядок
- * @returns {boolean} true, якщо збігається
- */
-function isExactString(v, expected) {
-  return typeof v === 'string' && v === expected
-}
-
-/**
- * Перевіряє тригери `on.push` / `on.pull_request` у `lint-ga.yml`.
- * @param {unknown} on корінь `on:` з YAML
- * @param {(msg: string) => void} failFn fail
- */
-function validateLintGaOnTriggers(on, failFn) {
-  const push = getObjKey(on, 'push')
-  const pr = getObjKey(on, 'pull_request')
-  const pushBranches = getObjKey(push, 'branches')
-  const pushPaths = getObjKey(push, 'paths')
-  const prBranches = getObjKey(pr, 'branches')
-
-  if (!Array.isArray(pushBranches) || !(pushBranches.includes('dev') && pushBranches.includes('main'))) {
-    failFn('lint-ga.yml: on.push.branches має містити dev і main (ga.mdc)')
-  }
-  if (!Array.isArray(prBranches) || !(prBranches.includes('dev') && prBranches.includes('main'))) {
-    failFn('lint-ga.yml: on.pull_request.branches має містити dev і main (ga.mdc)')
-  }
-  if (
-    !Array.isArray(pushPaths) ||
-    !(pushPaths.includes('.github/actions/**') && pushPaths.includes('.github/workflows/**'))
-  ) {
-    failFn('lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)')
-  }
-}
-
-/**
- * Перевіряє структуру workflow `lint-ga.yml` (ga.mdc).
- * @param {Record<string, unknown> | null} root parsed YAML
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateLintGaWorkflowStructure(root, passFn, failFn) {
-  if (!root) {
-    failFn('lint-ga.yml: YAML не вдалося розібрати (ga.mdc)')
-    return
-  }
-
-  if (!isExactString(root.name, 'Lint GA')) {
-    failFn('lint-ga.yml: name має бути "Lint GA" (ga.mdc)')
-  }
-
-  validateLintGaOnTriggers(root.on, failFn)
-
-  validateConcurrencyOnRoot('lint-ga.yml', root, passFn, failFn)
-
-  const jobs = getObjKey(root, 'jobs')
-  const job = getObjKey(jobs, 'lint-ga')
-  if (!job) {
-    failFn('lint-ga.yml: jobs.lint-ga відсутній (ga.mdc)')
-    return
-  }
-
-  if (!isExactString(getObjKey(job, 'runs-on'), 'ubuntu-latest')) {
-    failFn('lint-ga.yml: runs-on має бути ubuntu-latest (ga.mdc)')
-  }
-  const perm = getObjKey(job, 'permissions')
-  if (getObjKey(perm, 'contents') !== 'read') {
-    failFn('lint-ga.yml: permissions мають бути contents: read (ga.mdc)')
-  }
-
-  const steps = getObjKey(job, 'steps')
-  if (!Array.isArray(steps) || steps.length === 0) {
-    failFn('lint-ga.yml: jobs.lint-ga.steps відсутні (ga.mdc)')
-    return
-  }
-
-  const flat = flattenWorkflowSteps(root)
-  const usesList = new Set(flat.map(s => getStepUses(s.step)))
-  const runBlob = flat.map(s => getStepRun(s.step)).join('\n')
-
-  if (!usesList.has('actions/checkout@v6')) {
-    failFn('lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)')
-  }
-  if (!usesList.has('./.github/actions/setup-bun-deps')) {
-    failFn('lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)')
-  }
-  if (!usesList.has('astral-sh/setup-uv@v8.0.0')) {
-    failFn('lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)')
-  }
-  if (runBlob.includes('bun run lint-ga')) {
-    passFn('lint-ga.yml: структура jobs/steps OK')
-  } else {
-    failFn('lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)')
-  }
-}
-
-/**
- * Перевіряє структуру workflow `git-ai.yml` (ga.mdc).
- * @param {Record<string, unknown> | null} root parsed YAML
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateGitAiWorkflowStructure(root, passFn, failFn) {
-  if (!root) {
-    failFn('git-ai.yml: YAML не вдалося розібрати (ga.mdc)')
-    return
-  }
-
-  if (!isExactString(root.name, 'Git AI')) {
-    failFn('git-ai.yml: name має бути "Git AI" (ga.mdc)')
-  }
-
-  const on = root.on
-  const pr = getObjKey(on, 'pull_request')
-  const types = getObjKey(pr, 'types')
-  if (!Array.isArray(types) || !types.includes('closed')) {
-    failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
-  }
-
-  validateConcurrencyOnRoot('git-ai.yml', root, passFn, failFn)
-
-  const jobs = getObjKey(root, 'jobs')
-  const job = getObjKey(jobs, 'git-ai')
-  if (!job) {
-    failFn('git-ai.yml: jobs.git-ai відсутній (ga.mdc)')
-    return
-  }
-
-  if (!String(getObjKey(job, 'if') ?? '').includes('github.event.pull_request.merged == true')) {
-    failFn('git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)')
-  }
-
-  const perm = getObjKey(job, 'permissions')
-  if (getObjKey(perm, 'contents') !== 'write') {
-    failFn('git-ai.yml: permissions мають бути contents: write (ga.mdc)')
-  }
-
-  const flat = flattenWorkflowSteps(root)
-  const runBlob = flat.map(s => getStepRun(s.step)).join('\n')
-  if (!runBlob.includes('curl -fsSL https://usegitai.com/install.sh | bash')) {
-    failFn('git-ai.yml: має встановлювати git-ai через curl | bash (ga.mdc)')
-  }
-  if (runBlob.includes('git-ai ci github run')) {
-    passFn('git-ai.yml: структура jobs/steps OK')
-  } else {
-    failFn('git-ai.yml: має виконувати git-ai ci github run (ga.mdc)')
-  }
 }
 
 /**
@@ -624,32 +470,6 @@ function checkShellcheckInstalled(passFn, failFn) {
   )
 }
 
-/**
- * Перевіряє lint-ga.yml workflow.
- * @param {string} wfDir директорія workflows
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkLintGaWorkflow(wfDir, passFn, failFn) {
-  const lintGaWf = join(wfDir, 'lint-ga.yml')
-  if (!existsSync(lintGaWf)) return
-  const lgContent = await readFile(lintGaWf, 'utf8')
-  const root = parseWorkflowYaml(lgContent)
-  const hasBunRun = root ? anyRunStepIncludes(root, 'bun run lint-ga') : lgContent.includes('bun run lint-ga')
-  const hasSetupUv = root
-    ? hasAnyStepUsesContaining(root, ['astral-sh/setup-uv']) || lgContent.includes('astral-sh/setup-uv')
-    : lgContent.includes('astral-sh/setup-uv')
-  if (hasBunRun) {
-    passFn('lint-ga.yml викликає bun run lint-ga')
-  } else {
-    failFn('lint-ga.yml: крок має містити bun run lint-ga')
-  }
-  if (hasSetupUv) {
-    passFn('lint-ga.yml містить astral-sh/setup-uv')
-  } else {
-    failFn('lint-ga.yml: додай astral-sh/setup-uv для uvx zizmor (ga.mdc)')
-  }
-}
 
 /**
  * Перевіряє розширення workflow-файлів і наявність обов'язкових workflow.
@@ -681,105 +501,6 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
     } else {
       fail(`Відсутній ${wfDir}/${f}`)
     }
-  }
-}
-
-/**
- * Перевіряє, чи on.pull_request.types у parsed YAML містить 'closed'.
- * @param {Record<string, unknown>} root розібраний YAML workflow
- * @returns {boolean} true, якщо тригер pull_request має тип closed
- */
-function hasPullRequestClosedTrigger(root) {
-  const on = root.on
-  if (!on || typeof on !== 'object') return false
-  const pr = /** @type {Record<string, unknown>} */ (on)['pull_request']
-  if (!pr || typeof pr !== 'object') return false
-  const types = /** @type {Record<string, unknown>} */ (pr).types
-  return Array.isArray(types) && types.includes('closed')
-}
-
-/**
- * Перевіряє, чи будь-який job у parsed YAML має if-умову з 'merged'.
- * @param {Record<string, unknown>} root розібраний YAML workflow
- * @returns {boolean} true, якщо хоча б один job містить умову merged
- */
-function hasJobMergedCondition(root) {
-  const { jobs } = root
-  if (!jobs || typeof jobs !== 'object') return false
-  return Object.values(jobs).some(job => {
-    if (!job || typeof job !== 'object') return false
-    const ifCond = String(/** @type {Record<string, unknown>} */ (job).if ?? '')
-    return ifCond.includes('merged')
-  })
-}
-
-/**
- * Перевіряє parsed YAML git-ai.yml: тригер closed та умова merged.
- * @param {Record<string, unknown>} root розібраний YAML workflow
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function validateGitAiParsedYaml(root, passFn, failFn) {
-  if (hasPullRequestClosedTrigger(root)) {
-    passFn('git-ai.yml: on.pull_request.types містить closed')
-  } else {
-    failFn('git-ai.yml: on.pull_request.types має містити closed (ga.mdc)')
-  }
-
-  if (hasJobMergedCondition(root)) {
-    passFn('git-ai.yml: job має умову merged')
-  } else {
-    failFn('git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)')
-  }
-}
-
-/**
- * Перевіряє git-ai.yml: тригер pull_request з types: [closed], умова merged у job, виклик git-ai.
- * @param {string} wfDir директорія workflows
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkGitAiWorkflow(wfDir, passFn, failFn) {
-  const gitAiWf = join(wfDir, 'git-ai.yml')
-  if (!existsSync(gitAiWf)) return
-  const content = await readFile(gitAiWf, 'utf8')
-  const root = parseWorkflowYaml(content)
-
-  if (root) {
-    validateGitAiParsedYaml(root, passFn, failFn)
-  }
-
-  const hasGitAiRun = root ? anyRunStepIncludes(root, 'git-ai ci github run') : content.includes('git-ai ci github run')
-  if (hasGitAiRun) {
-    passFn('git-ai.yml: крок виконує git-ai ci github run')
-  } else {
-    failFn('git-ai.yml: крок має містити git-ai ci github run (ga.mdc)')
-  }
-}
-
-/**
- * Перевіряє, що “канонічні” workflows відповідають ga.mdc (структура і значення).
- *
- * Структурні валідатори `clean-ga-workflows.yml` і `clean-merged-branch.yml` мігровано в Rego-полісі
- * під `npm/policy/ga/clean_ga_workflows/` та `npm/policy/ga/clean_merged_branch/` (виконує conftest з
- * `bun run lint-ga`). Тут лишаються `lint-ga.yml` і `git-ai.yml` — їх перенесення в наступних ітераціях.
- * @param {string} wfDir директорія workflows
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-async function checkCanonicalWorkflowsMatchRule(wfDir, passFn, failFn) {
-  const paths = {
-    lintGa: join(wfDir, 'lint-ga.yml'),
-    gitAi: join(wfDir, 'git-ai.yml')
-  }
-
-  if (existsSync(paths.lintGa)) {
-    const c = await readFile(paths.lintGa, 'utf8')
-    validateLintGaWorkflowStructure(parseWorkflowYaml(c), passFn, failFn)
-  }
-  if (existsSync(paths.gitAi)) {
-    const c = await readFile(paths.gitAi, 'utf8')
-    validateGitAiWorkflowStructure(parseWorkflowYaml(c), passFn, failFn)
   }
 }
 
@@ -841,12 +562,8 @@ export async function check() {
     }
   }
 
-  await checkCanonicalWorkflowsMatchRule(wfDir, pass, fail)
-
   await checkZizmor(pass, fail)
   await checkLintGaScript(pass, fail)
-  await checkLintGaWorkflow(wfDir, pass, fail)
-  await checkGitAiWorkflow(wfDir, pass, fail)
   checkShellcheckInstalled(pass, fail)
 
   return reporter.getExitCode()

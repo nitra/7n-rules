@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.205] - 2026-05-08
+
+### Added
+
+- `npm/policy/ga/lint_ga/lint_ga.rego` — порт `validateLintGaWorkflowStructure` + `validateLintGaOnTriggers`: `name` / `on.push.branches∋{dev,main}` / `on.pull_request.branches∋{dev,main}` / `on.push.paths∋{.github/actions/**,.github/workflows/**}` / `concurrency` / `jobs.lint-ga.runs-on` / `jobs.lint-ga.permissions.contents=read` / `steps` non-empty / `uses` set містить `actions/checkout@v6`, `./.github/actions/setup-bun-deps`, `astral-sh/setup-uv@v8.0.0` / `run` blob містить `bun run lint-ga`.
+- `npm/policy/ga/git_ai/git_ai.rego` — порт `validateGitAiWorkflowStructure`: `name` / `on.pull_request.types∋closed` / `concurrency` / `jobs.git-ai.if` містить `merged == true` / `permissions.contents=write` / `run` blob містить `curl … usegitai.com … bash` і `git-ai ci github run`.
+
+### Changed
+
+- `scripts/lint-ga.mjs`: `CONFTEST_TARGETS` тепер охоплює всі 4 канонічні GA-workflow — `clean-ga-workflows.yml`, `clean-merged-branch.yml`, `lint-ga.yml`, `git-ai.yml` — кожен зі своїм `--namespace ga.<name>`.
+- `scripts/check-ga.mjs`: видалено `validateLintGaWorkflowStructure`, `validateLintGaOnTriggers`, `validateGitAiWorkflowStructure`, `validateGitAiParsedYaml`, `hasPullRequestClosedTrigger`, `hasJobMergedCondition`, `checkLintGaWorkflow`, `checkGitAiWorkflow`, `checkCanonicalWorkflowsMatchRule`, локальний `isExactString` і відповідні імпорти `anyRunStepIncludes`/`flattenWorkflowSteps`/`getStepRun`/`getStepUses`. Файл скоротився з 1074 → 570 рядків (≈47%) — структурні перевірки канонічних GA-workflow повністю мігрували в conftest. У JS лишилися: file-existence (zizmor.yml, .vscode/settings.json, setup-bun-deps), `package.json` script `lint-ga`, MegaLinter-зачистка, `verifyConcurrencyBlock` для всіх workflow без винятків (включно з не-канонічними), `verifyNoDirectBunOrCache`, `verifyCheckoutBeforeLocalSetupBunDeps`, paths-globs через `git ls-files`, preflight `shellcheck`.
+
 ## [1.8.204] - 2026-05-07
 
 ### Changed

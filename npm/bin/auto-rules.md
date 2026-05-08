@@ -42,6 +42,8 @@ npm-module - якщо в корені присутня директорія npm
 
 php - якщо в корені є composer.json
 
+rego - якщо в проекті є хоч один rego
+
 style-lint - якщо присутній хоч один vue або css файл
 
 text - завжди

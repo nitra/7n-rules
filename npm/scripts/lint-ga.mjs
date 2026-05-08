@@ -46,6 +46,16 @@ const CONFTEST_TARGETS = [
     workflow: '.github/workflows/clean-merged-branch.yml',
     namespace: 'ga.clean_merged_branch',
     label: 'clean-merged-branch.yml structure'
+  },
+  {
+    workflow: '.github/workflows/lint-ga.yml',
+    namespace: 'ga.lint_ga',
+    label: 'lint-ga.yml structure'
+  },
+  {
+    workflow: '.github/workflows/git-ai.yml',
+    namespace: 'ga.git_ai',
+    label: 'git-ai.yml structure'
   }
 ]
 
