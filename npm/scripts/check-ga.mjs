@@ -4,18 +4,15 @@
  * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
  * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
  * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує npx `\@nitra/cursor`),
- * `\.vscode/settings.json` — `editor.defaultFormatter` **oxc** для `[github-actions-workflow]`,
- * перед `uses: ./…/setup-bun-deps` у workflow — `actions/checkout` (runner інакше не бачить локальний action).
+ * `\.vscode/settings.json` — `editor.defaultFormatter` **oxc** для `[github-actions-workflow]`.
  *
- * Також перевіряє, що ключові workflow (`clean-ga-workflows.yml`, `clean-merged-branch.yml`, `lint-ga.yml`, `git-ai.yml`)
- * мають структуру й значення, узгоджені з `npm/mdc/ga.mdc`. Для цих файлів перевірка виконується структурно
- * (після YAML parse), щоб не залежати від форматування/відступів.
- *
- * Заборонено дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах
- * (oven-sh/setup-bun, actions/cache, bun install). Перевірки `uses`/`run` виконуються після **YAML parse**
- * (`yaml`), щоб не спрацьовувати на випадкові збіги в коментарях або поза кроками.
- *
- * У `run:` заборонено shell-продовження рядків через `\\` перед переносом; довгі команди — через folded block `>-`.
+ * Структурні поля 4 канонічних workflow (`clean-ga-workflows.yml`, `clean-merged-branch.yml`,
+ * `lint-ga.yml`, `git-ai.yml`) і УНІВЕРСАЛЬНІ перевірки для всіх `.github/workflows/*.yml`
+ * (`concurrency`, заборонені `oven-sh/setup-bun` / `actions/cache` / `bun install` у `uses`/`run`,
+ * shell-продовження `\` у `run`, обов'язковий `actions/checkout@v6` перед локальним
+ * `setup-bun-deps`) — у Rego-полісі під `npm/policy/ga/` і запускаються через
+ * `bun run lint-ga` (`runConftestStep` у `lint-ga.mjs`). Тут лишилася лише git-залежна
+ * перевірка `on.*.paths` glob-ів через `git ls-files :(glob)`.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -23,14 +20,7 @@ import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
-import {
-  eventPathsIncludeExact,
-  findForbiddenUsesOrRunPatterns,
-  findRunStepsWithShellLineContinuationBackslash,
-  hasAnyStepUsesContaining,
-  hasCheckoutBeforeLocalSetupBunDeps,
-  parseWorkflowYaml
-} from './utils/gha-workflow.mjs'
+import { eventPathsIncludeExact, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
@@ -41,21 +31,8 @@ const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-
 
 const N_CURSOR_LINT_GA_RE = /\bn-cursor\s+lint-ga\b/
 
-/** Локальні composite setup-bun-deps (ga.mdc). */
-const SETUP_BUN_PATTERNS = ['./.github/actions/setup-bun-deps', './npm/github-actions/setup-bun-deps']
-
-/** Заборонені підрядки лише в кроках uses/run. */
-const FORBIDDEN_BUN_PATTERNS = [
-  { pattern: 'oven-sh/setup-bun', msg: 'використовуй .github/actions/setup-bun-deps замість oven-sh/setup-bun' },
-  { pattern: 'actions/cache', msg: 'використовуй .github/actions/setup-bun-deps замість actions/cache' },
-  { pattern: 'bun install', msg: 'використовуй .github/actions/setup-bun-deps замість bun install' }
-]
-
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
-
-/** Канонічне значення `concurrency.group` (ga.mdc). Збирається з фрагментів, щоб не плодити expression-токени в коді. */
-const EXPECTED_CONCURRENCY_GROUP = ['$', '{{ github.ref }}-$', '{{ github.workflow }}'].join('')
 
 /**
  * Повертає true, якщо glob у GitHub Actions `on.*.paths` матчитсья хоча б на один tracked файл у репозиторії.
@@ -154,162 +131,6 @@ function getObjKey(obj, key) {
   return obj && typeof obj === 'object' && !Array.isArray(obj)
     ? /** @type {Record<string, unknown>} */ (obj)[key]
     : undefined
-}
-
-/**
- * Перевіряє блок `concurrency` на вже розпарсеному корені workflow (ga.mdc).
- *
- * Використовується в канонічних структурних валідаторах (clean-ga-workflows, clean-merged-branch,
- * lint-ga, git-ai), де root уже отримано через `parseWorkflowYaml`. Логіка ідентична
- * `verifyConcurrencyBlock`, але без повторного парсингу.
- * @param {string} relPath шлях для повідомлень
- * @param {Record<string, unknown>} root parsed YAML workflow
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- * @returns {void}
- */
-function validateConcurrencyOnRoot(relPath, root, passFn, failFn) {
-  const conc = getObjKey(root, 'concurrency')
-  if (!conc || typeof conc !== 'object') {
-    failFn(
-      `${relPath}: відсутня секція concurrency — додай concurrency.group: ${EXPECTED_CONCURRENCY_GROUP} і cancel-in-progress: true (ga.mdc)`
-    )
-    return
-  }
-  const group = getObjKey(conc, 'group')
-  const cancel = getObjKey(conc, 'cancel-in-progress')
-  if (group !== EXPECTED_CONCURRENCY_GROUP) {
-    failFn(`${relPath}: concurrency.group має бути ${EXPECTED_CONCURRENCY_GROUP} (ga.mdc)`)
-    return
-  }
-  if (cancel !== true) {
-    failFn(`${relPath}: concurrency.cancel-in-progress має бути true (ga.mdc)`)
-    return
-  }
-  passFn(`${relPath}: concurrency блок OK`)
-}
-
-/**
- * Перевіряє, що workflow містить блок `concurrency` з канонічними `group` і `cancel-in-progress: true` (ga.mdc).
- *
- * Без винятків — застосовується до всіх workflow у `.github/workflows/*.yml`, включно з scheduled cleanup,
- * `pull_request: types: [closed]` та publish-воркфлоу. Делегує логіку `validateConcurrencyOnRoot`,
- * додаючи лише крок парсингу YAML; якщо парсинг провалився — мовчки виходить (синтаксичні проблеми
- * ловлять інші перевірки).
- * @param {string} relPath шлях для повідомлень
- * @param {string} content вміст YAML
- * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
- * @param {(msg: string) => void} passFn реєструє успішну перевірку
- * @returns {void}
- */
-function verifyConcurrencyBlock(relPath, content, failFn, passFn) {
-  const root = parseWorkflowYaml(content)
-  if (!root) {
-    return
-  }
-  validateConcurrencyOnRoot(relPath, root, passFn, failFn)
-}
-
-/**
- * Якщо workflow викликає локальний setup-bun-deps, раніше у файлі має бути `actions/checkout@v…` (ga.mdc).
- * Fallback: сирий текст, якщо YAML не вдається розібрати.
- * @param {string} relPath шлях для повідомлень
- * @param {string} content вміст YAML
- * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
- * @param {(msg: string) => void} passFn реєструє успішну перевірку
- * @returns {void}
- */
-function verifyCheckoutBeforeLocalSetupBunDeps(relPath, content, failFn, passFn) {
-  const root = parseWorkflowYaml(content)
-  if (root) {
-    if (!hasAnyStepUsesContaining(root, SETUP_BUN_PATTERNS)) {
-      return
-    }
-    if (!hasCheckoutBeforeLocalSetupBunDeps(root, SETUP_BUN_PATTERNS)) {
-      failFn(
-        `${relPath}: перед локальним setup-bun-deps потрібен крок actions/checkout@v6 — інакше runner не знайде action.yml (ga.mdc)`
-      )
-      return
-    }
-    passFn(`${relPath}: перед setup-bun-deps є checkout`)
-    return
-  }
-  let idxSetup = -1
-  for (const p of SETUP_BUN_PATTERNS) {
-    const i = content.indexOf(p)
-    if (i !== -1 && (idxSetup === -1 || i < idxSetup)) {
-      idxSetup = i
-    }
-  }
-  if (idxSetup === -1) {
-    return
-  }
-  const idxCheckout = content.indexOf('actions/checkout@v')
-  if (idxCheckout === -1 || idxCheckout > idxSetup) {
-    failFn(
-      `${relPath}: перед локальним setup-bun-deps потрібен крок actions/checkout@v6 — інакше runner не знайде action.yml (ga.mdc)`
-    )
-    return
-  }
-  passFn(`${relPath}: перед setup-bun-deps є checkout`)
-}
-
-/**
- * Перевіряє заборонені кроки Bun/cache/install у `uses` та `run`.
- * @param {string} relPath шлях для повідомлень
- * @param {string} content вміст YAML
- * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
- * @param {(msg: string) => void} passFn реєструє успішну перевірку
- * @returns {void}
- */
-function verifyNoDirectBunOrCache(relPath, content, failFn, passFn) {
-  const root = parseWorkflowYaml(content)
-  if (root) {
-    const hits = findForbiddenUsesOrRunPatterns(root, FORBIDDEN_BUN_PATTERNS)
-    if (hits.length === 0) {
-      passFn(`${relPath}: не містить заборонених кроків setup-bun/cache/install`)
-    } else {
-      for (const h of hits) {
-        failFn(`${relPath}: ${h.msg} (ga.mdc)`)
-      }
-    }
-    return
-  }
-  let foundForbidden = false
-  for (const { pattern, msg } of FORBIDDEN_BUN_PATTERNS) {
-    if (content.includes(pattern)) {
-      failFn(`${relPath}: ${msg} (ga.mdc)`)
-      foundForbidden = true
-    }
-  }
-  if (!foundForbidden) {
-    passFn(`${relPath}: не містить заборонених кроків setup-bun/cache/install`)
-  }
-}
-
-/**
- * У кроках `run` заборонено shell-продовження через `\\` перед переносом; замість `run: |` з `\\` використовуй `run: >-`.
- * @param {string} relPath шлях для повідомлень
- * @param {string} content вміст YAML
- * @param {(msg: string) => void} failFn реєструє порушення (exit 1)
- * @param {(msg: string) => void} passFn реєструє успішну перевірку
- * @returns {void}
- */
-function verifyNoRunShellLineContinuationBackslash(relPath, content, failFn, passFn) {
-  const root = parseWorkflowYaml(content)
-  if (!root) {
-    return
-  }
-  const hits = findRunStepsWithShellLineContinuationBackslash(root)
-  if (hits.length === 0) {
-    passFn(String.raw`${relPath}: run без shell-продовження через \ (ga.mdc)`)
-    return
-  }
-  for (const h of hits) {
-    failFn(
-      String.raw`${relPath}: job ${h.jobId}, крок ${h.stepIndex + 1}: у run заборонено продовження рядків через зворотний сліш; довгі команди оформи як folded block (run: >-) без \ на кінцях рядків (ga.mdc)`
-    )
-  }
 }
 
 /**
@@ -549,12 +370,13 @@ export async function check() {
   const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
   await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
 
+  // Універсальні структурні перевірки (concurrency, заборонені setup-bun/cache,
+  // shell line-continuation `\`, checkout перед локальним setup-bun-deps)
+  // перенесено в Rego (`npm/policy/ga/workflow_common/`); їх запускає
+  // `bun run lint-ga` через conftest. Тут лишилася лише git-залежна перевірка
+  // `on.push.paths` glob-ів (вимагає `git ls-files`).
   for (const f of ymlWorkflows) {
     const content = await readFile(join(wfDir, f), 'utf8')
-    verifyCheckoutBeforeLocalSetupBunDeps(`${wfDir}/${f}`, content, fail, pass)
-    verifyNoDirectBunOrCache(`${wfDir}/${f}`, content, fail, pass)
-    verifyNoRunShellLineContinuationBackslash(`${wfDir}/${f}`, content, fail, pass)
-    verifyConcurrencyBlock(`${wfDir}/${f}`, content, fail, pass)
     const parsed = parseWorkflowYaml(content)
     if (parsed) {
       verifyWorkflowEventPathsGlobsExist(`${wfDir}/${f}`, parsed, pass, fail)

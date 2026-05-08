@@ -9,7 +9,8 @@
 # Решта логіки `check-hasura.mjs` (звірення `HASURA_GRAPHQL_ENDPOINT` в `.env`-файлах
 # з `<service>.<namespace>.svc.<cluster>` через regex по всьому дереву репо, gating
 # на `repository` у кореневому `package.json`) — у JS: вона потребує текстового
-# парсингу `.env`-файлів, обходу дерева й cross-file resolution.
+# парсингу `.env`-файлів, обходу дерева й cross-file resolution. JS authoritative;
+# ця Rego — додатковий gate (JS неявно перевіряє суфікс через звірку URL).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

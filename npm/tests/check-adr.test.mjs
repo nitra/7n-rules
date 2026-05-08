@@ -74,27 +74,10 @@ describe('check-adr (інтеграція)', () => {
     })
   })
 
-  test('1 — settings.json без ADR-групи', async () => {
-    await withTmpCwd(async () => {
-      await setupValidProject()
-      await writeJson('.claude/settings.json', {
-        hooks: {
-          Stop: [
-            { matcher: '', hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook', timeout: 60 }] }
-          ]
-        }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('1 — settings.local.json дублює ADR-hook', async () => {
-    await withTmpCwd(async () => {
-      await setupValidProject()
-      await writeJson('.claude/settings.local.json', makeValidSettings())
-      expect(await check()).toBe(1)
-    })
-  })
+  // Перевірки структури `.claude/settings.json` (наявність Stop-hook з
+  // `capture-decisions.sh`) і дубля у `.claude/settings.local.json` тепер у Rego
+  // (`npm/policy/adr/settings_json/`, `npm/policy/adr/settings_local_json/`).
+  // JS-перевірка лише наявність файлу.
 
   test('1 — .gitignore не покриває capture-decisions.log', async () => {
     await withTmpCwd(async () => {

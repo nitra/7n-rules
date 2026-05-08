@@ -8,7 +8,8 @@
 #
 # Cross-file gating (саме шлях `…/base/…` визначає, чи застосовувати правило)
 # — у JS: conftest викликаємо лише на YAML-ах з base/. Тут — лише валідація вмісту
-# `spec.hostnames`.
+# `spec.hostnames`. JS authoritative (`check-abie.mjs`) — ця Rego гейт для
+# одиничного YAML.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

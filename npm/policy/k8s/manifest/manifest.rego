@@ -20,6 +20,8 @@
 # HPA/PDB/topologySpreadConstraints за каталогом, BackendConfig-сепарація,
 # yaml-language-server schema modeline, namespace-перевірки за деревом
 # `…/k8s/base/`) лишається у `check-k8s.mjs`: вона потребує файлової системи.
+# JS authoritative (`check-k8s.mjs` робить ці ж пер-документні перевірки в ширшому
+# контексті); ця Rego — швидкий gate для одиничного маніфеста.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

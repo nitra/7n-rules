@@ -16,7 +16,6 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { parseWorkflowYaml, verifyLintJsWorkflowStructure } from './utils/gha-workflow.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
@@ -34,7 +33,6 @@ export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vsc
 
 const WHITESPACE_RE = /\s+/gu
 const NON_DIGITS_RE = /\D+/u
-const OXLINT_FIX_RE = /bunx\s+oxlint[^\n]*--fix/u
 
 /**
  * Нормалізує рядок скрипта для порівняння (зайві пробіли).
@@ -247,41 +245,11 @@ async function checkEslintConfig(passFn, failFn) {
   }
 }
 
-/**
- * Перевіряє залежності lint-js у package.json (prettier, `@nitra/eslint-config`).
- * @param {{ dependencies?: Record<string, string>, devDependencies?: Record<string, string> }} pkg parsed package.json
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function checkPackageJsonLintDeps(pkg, passFn, failFn) {
-  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
-  if (allDeps.prettier) {
-    failFn('package.json: видали залежність prettier (oxfmt замість prettier, js-lint.mdc)')
-  } else {
-    passFn('package.json не містить prettier')
-  }
-  if (allDeps['@nitra/prettier-config']) {
-    failFn('package.json: видали @nitra/prettier-config (js-lint.mdc)')
-  } else {
-    passFn('package.json не містить @nitra/prettier-config')
-  }
-
-  const nitraEslint = pkg.devDependencies?.['@nitra/eslint-config']
-  if (nitraEslint) {
-    passFn('@nitra/eslint-config є в devDependencies')
-    if (nitraEslintConfigMeetsMinVersion(nitraEslint)) {
-      passFn(
-        '@nitra/eslint-config: мінімум 3.9.2 (no-restricted-syntax для ForInStatement з 3.8.0 + вбудований ignore "**/adr/**" з 3.9.2 + @e18e/eslint-plugin транзитивно, js-lint.mdc)'
-      )
-    } else {
-      failFn(
-        '@nitra/eslint-config: онови до мінімум "^3.9.2" — з 3.9.2 у getConfig вбудовано ignore для "**/adr/**" (ADR-документи не валідуються), плюс транзитивний @e18e/eslint-plugin для oxlint і заборона for...in з 3.8.0 (js-lint.mdc)'
-      )
-    }
-  } else {
-    failFn('@nitra/eslint-config відсутній в devDependencies — додай: bun add -d @nitra/eslint-config')
-  }
-}
+// Перевірки `prettier` / `@nitra/prettier-config` у залежностях (text.mdc) і
+// `@nitra/eslint-config ≥ 3.9.2` тепер у Rego: відповідно
+// `npm/policy/text/package_json/` і `npm/policy/js_lint/package_json/`. Тут
+// лишилася лише workspace-ітерація для `type: "module"` і engines, бо js_lint
+// Rego запускається лише на кореневому `package.json`.
 
 /**
  * Перевіряє, що package.json має `"type": "module"`.
@@ -359,36 +327,18 @@ function checkEnginesBun(label, pkg, passFn, failFn) {
 }
 
 /**
- * Перевіряє package.json на lint-js, prettier, eslint-config, engines.node.
+ * Workspace-ітерація: для кожного workspace `package.json` перевіряємо
+ * `type: "module"` і `engines.{node,bun}`. Кореневий `package.json` ці поля
+ * валідує `npm/policy/js_lint/package_json/`; lint-js скрипт і `@nitra/eslint-config`
+ * — теж у Rego.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
 async function checkPackageJsonJsLint(passFn, failFn) {
   if (!existsSync('package.json')) return
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-
-  checkPackageJsonTypeModule('package.json', pkg, passFn, failFn)
-
   const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
   await checkWorkspacePackages(workspaces, passFn, failFn)
-
-  const lintJs = pkg.scripts?.['lint-js']
-  if (lintJs) {
-    passFn('package.json містить скрипт lint-js')
-    if (isCanonicalLintJs(String(lintJs))) {
-      passFn(`lint-js збігається з каноном: ${CANONICAL_LINT_JS}`)
-    } else {
-      failFn(
-        `lint-js має бути рівно: "${CANONICAL_LINT_JS}" (див. js-lint.mdc / check-js-lint.mjs). Зараз: ${JSON.stringify(normalizeLintJsScript(String(lintJs)))}`
-      )
-    }
-  } else {
-    failFn(`package.json не містить скрипт "lint-js" — додай: ${JSON.stringify(CANONICAL_LINT_JS)}`)
-  }
-
-  checkPackageJsonLintDeps(pkg, passFn, failFn)
-  checkEnginesNode('package.json', pkg, passFn, failFn)
-  checkEnginesBun('package.json', pkg, passFn, failFn)
 }
 
 /**
@@ -457,67 +407,16 @@ async function checkVscodeExtensions(passFn, failFn) {
 }
 
 /**
- * Перевіряє lint-js.yml workflow (fallback — текстовий пошук).
- * @param {string} content вміст workflow файлу
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function checkLintJsWorkflowFallback(content, passFn, failFn) {
-  const checks = [
-    ['actions/checkout@v6', 'lint-js.yml: потрібен крок actions/checkout@v6 (ga.mdc)'],
-    ['persist-credentials: false', 'lint-js.yml: checkout з persist-credentials: false'],
-    ['./.github/actions/setup-bun-deps', 'lint-js.yml: потрібен uses: ./.github/actions/setup-bun-deps'],
-    ['bunx oxlint', 'lint-js.yml: у run має бути bunx oxlint'],
-    ['bunx eslint .', 'lint-js.yml: у run має бути bunx eslint . (без --fix у CI)'],
-    ['bunx jscpd .', 'lint-js.yml: у run має бути bunx jscpd .']
-  ]
-  for (const [needle, errMsg] of checks) {
-    if (content.includes(needle)) {
-      passFn(`lint-js.yml містить: ${needle}`)
-    } else {
-      failFn(errMsg)
-    }
-  }
-  if (content.includes('bunx oxlint') && OXLINT_FIX_RE.test(content)) {
-    failFn('lint-js.yml: у CI не використовуй bunx oxlint --fix (лише bunx oxlint)')
-  }
-  if (content.includes('eslint --fix')) {
-    failFn('lint-js.yml: у CI не використовуй eslint --fix (лише bunx eslint .)')
-  }
-}
-
-/**
- * Перевіряє вміст lint-js.yml через YAML або fallback.
- * @param {string} content вміст файлу
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function checkLintJsYmlContent(content, passFn, failFn) {
-  const root = parseWorkflowYaml(content)
-  if (root) {
-    const v = verifyLintJsWorkflowStructure(root)
-    if (v.ok) {
-      passFn('lint-js.yml: кроки checkout, setup-bun-deps, oxlint/eslint/jscpd (YAML + кроки)')
-    } else {
-      for (const msg of v.failures) {
-        failFn(`lint-js.yml: ${msg}`)
-      }
-    }
-  } else {
-    checkLintJsWorkflowFallback(content, passFn, failFn)
-  }
-}
-
-/**
- * Перевіряє lint-js.yml і lint.yml workflow.
+ * FS-existence для `lint-js.yml` + cross-file перевірка, що `lint.yml` (якщо існує)
+ * не дублює лінт JS-кроки. Структуру `lint-js.yml` (`actions/checkout@v6`,
+ * `persist-credentials: false`, `setup-bun-deps`, `bunx oxlint/eslint/jscpd .`,
+ * заборона `--fix` у CI) валідує `npm/policy/js_lint/lint_js_yml/`.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
 async function checkLintJsWorkflows(passFn, failFn) {
   if (existsSync('.github/workflows/lint-js.yml')) {
-    const content = await readFile('.github/workflows/lint-js.yml', 'utf8')
-    passFn('lint-js.yml існує')
-    checkLintJsYmlContent(content, passFn, failFn)
+    passFn('.github/workflows/lint-js.yml є (структуру перевіряє bun run lint-conftest → js_lint.lint_js_yml)')
   } else {
     failFn('.github/workflows/lint-js.yml не існує — створи його (див. check-js-lint.mjs / js-lint.mdc)')
   }

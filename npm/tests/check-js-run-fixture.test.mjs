@@ -46,7 +46,10 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test('1, якщо в workspace-пакеті є bunyan', async () => {
+  // `bunyan` / `@nitra/bunyan` у dependencies/devDependencies тепер у Rego
+  // (`npm/policy/js_run/package_json/`); JS-перевірка через AST-скан коду лишилася.
+
+  test.skip('1, якщо в workspace-пакеті є bunyan', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ bunyan: '^1.8.0' })
       expect(await check()).toBe(1)
@@ -122,7 +125,10 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test('1, якщо jsconfig.json не збігається з каноном js-run', async () => {
+  // Структуру `jsconfig.json` тепер валідує Rego (`npm/policy/js_run/jsconfig/`);
+  // JS-перевірка лише наявність файлу.
+
+  test.skip('1, якщо jsconfig.json не збігається з каноном js-run', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await mkdir(join('pkg', 'src'), { recursive: true })

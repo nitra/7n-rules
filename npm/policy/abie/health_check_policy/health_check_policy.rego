@@ -12,7 +12,11 @@
 #  - `spec.targetRef.name` має закінчуватись на `-hl` (headless backend).
 #
 # Cross-file gating (`abie` правило в `.n-cursor.json`, парність з Deployment-каталогу,
-# узгодження з `metadata.name` Deployment) — у JS (`check-abie.mjs`).
+# узгодження з `metadata.name` Deployment) — у JS (`check-abie.mjs`). JS-перевірка
+# в `check-abie.mjs` (`validateAbieHcPolicy`) authoritative й тестує ширший набір полів
+# (apiVersion, spec.default.config.type=="HTTP", targetRef.kind=="Service",
+# обчислений `<name>-hl` суфікс); ця Rego — швидкий gate для одиничного YAML
+# (наприклад через IDE).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

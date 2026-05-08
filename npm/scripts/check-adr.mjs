@@ -23,9 +23,7 @@ import { createCheckReporter } from './utils/check-reporter.mjs'
 
 const PROJECT_HOOK_PATH = '.claude/hooks/capture-decisions.sh'
 const PROJECT_SETTINGS_PATH = '.claude/settings.json'
-const PROJECT_LOCAL_SETTINGS_PATH = '.claude/settings.local.json'
 const PROJECT_LOG_PATH = '.claude/hooks/capture-decisions.log'
-const HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -81,93 +79,18 @@ async function checkHookScript(reporter) {
 }
 
 /**
- * Знаходить у `hooks.Stop` групу, де `command` будь-якого hook-а містить маркер.
- * @param {unknown} settings розпарсений `.claude/settings.json`
- * @returns {boolean} `true`, якщо знайдено хоч одну групу з маркером
+ * FS-existence для project-shared `.claude/settings.json` і
+ * `.claude/settings.local.json`. Структуру (`hooks.Stop[]` містить групу з
+ * `capture-decisions.sh`; `settings.local.json` не дублює) валідують
+ * `npm/policy/adr/settings_json/` і `npm/policy/adr/settings_local_json/`.
+ * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер
  */
-function settingsHaveAdrHookGroup(settings) {
-  if (!settings || typeof settings !== 'object') {
-    return false
-  }
-  const hooks = /** @type {Record<string, unknown>} */ (settings).hooks
-  if (!hooks || typeof hooks !== 'object') {
-    return false
-  }
-  const stopGroups = /** @type {Record<string, unknown>} */ (hooks).Stop
-  if (!Array.isArray(stopGroups)) {
-    return false
-  }
-  return stopGroups.some(group => {
-    const inner = group && typeof group === 'object' ? /** @type {Record<string, unknown>} */ (group).hooks : null
-    if (!Array.isArray(inner)) {
-      return false
-    }
-    return inner.some(h => {
-      const cmd = h && typeof h === 'object' ? /** @type {Record<string, unknown>} */ (h).command : null
-      return typeof cmd === 'string' && cmd.includes(HOOK_COMMAND_MARKER)
-    })
-  })
-}
-
-/**
- * Зчитує JSON-файл або повертає `undefined`, якщо файл відсутній чи невалідний.
- * @param {string} path відносний шлях до JSON-файлу
- * @returns {Promise<unknown | undefined>} розпарсений вміст або `undefined`
- */
-async function readJsonOrUndefined(path) {
-  if (!existsSync(path)) {
-    return
-  }
-  try {
-    return JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return
-  }
-}
-
-/**
- * Перевіряє project-shared `.claude/settings.json` на наявність ADR Stop-hook'а.
- * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
- * @returns {Promise<void>}
- */
-async function checkProjectSettings(reporter) {
+function checkProjectSettings(reporter) {
   const { pass, fail } = reporter
-  const settings = await readJsonOrUndefined(PROJECT_SETTINGS_PATH)
-  if (settings === undefined) {
-    fail(`${PROJECT_SETTINGS_PATH} не існує або невалідний — запусти \`npx @nitra/cursor\``)
-    return
-  }
-  if (settingsHaveAdrHookGroup(settings)) {
-    pass(`${PROJECT_SETTINGS_PATH} містить ADR Stop-hook (capture-decisions.sh)`)
+  if (existsSync(PROJECT_SETTINGS_PATH)) {
+    pass(`${PROJECT_SETTINGS_PATH} є (Stop-hook перевіряє bun run lint-conftest → adr.settings_json)`)
   } else {
-    fail(
-      `${PROJECT_SETTINGS_PATH}: у hooks.Stop немає групи з \`${HOOK_COMMAND_MARKER}\` — переконайся, що "adr" у rules і запусти \`npx @nitra/cursor\``
-    )
-  }
-}
-
-/**
- * Перевіряє, що `.claude/settings.local.json` не дублює ADR Stop-hook (project-shared — джерело правди).
- * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
- * @returns {Promise<void>}
- */
-async function checkLocalSettingsNoDuplicate(reporter) {
-  const { pass, fail } = reporter
-  if (!existsSync(PROJECT_LOCAL_SETTINGS_PATH)) {
-    pass(`${PROJECT_LOCAL_SETTINGS_PATH} відсутній — дубля немає`)
-    return
-  }
-  const local = await readJsonOrUndefined(PROJECT_LOCAL_SETTINGS_PATH)
-  if (local === undefined) {
-    pass(`${PROJECT_LOCAL_SETTINGS_PATH} нечитабельний — дубля немає`)
-    return
-  }
-  if (settingsHaveAdrHookGroup(local)) {
-    fail(
-      `${PROJECT_LOCAL_SETTINGS_PATH} містить дубль ADR Stop-hook (capture-decisions.sh) — прибери, бо project-shared settings.json уже керує цим`
-    )
-  } else {
-    pass(`${PROJECT_LOCAL_SETTINGS_PATH} не дублює ADR Stop-hook`)
+    fail(`${PROJECT_SETTINGS_PATH} не існує — запусти \`npx @nitra/cursor\``)
   }
 }
 
@@ -244,8 +167,7 @@ function checkLlmCliAvailable(reporter) {
 export async function check() {
   const reporter = createCheckReporter()
   await checkHookScript(reporter)
-  await checkProjectSettings(reporter)
-  await checkLocalSettingsNoDuplicate(reporter)
+  checkProjectSettings(reporter)
   await checkGitignore(reporter)
   checkLlmCliAvailable(reporter)
   return reporter.getExitCode()

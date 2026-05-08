@@ -4,6 +4,90 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.209] - 2026-05-08
+
+### Removed
+
+- Дедуплікація JS-перевірок, що вже покриті Rego-полісі (запускаються через
+  `bun run lint-conftest`):
+  - `npm/scripts/check-bun.mjs` — без `checkBunfigHoisted`, `checkDevDependencies`,
+    `checkLintAggregate`, перевірок `pkg.packageManager` і кореневого
+    `pkg.dependencies`. Лишилася FS-existence (`bun.lock`, `bunfig.toml`,
+    `package.json`, заборонені lockfile, директорія `.yarn/`) і cross-file гейт
+    `lint-docker` / `lint-k8s` від `.n-cursor.json:rules`.
+  - `npm/scripts/check-php.mjs` — без перевірок `lint-php` скрипта і `run` у
+    `lint-php.yml`. Лишилися FS-existence для `composer.json`, `package.json`,
+    `lint-php.yml`.
+  - `npm/scripts/check-style-lint.mjs` — без перевірок `lint-style` через
+    `npx stylelint`, `@nitra/stylelint-config` у `devDependencies`,
+    `stylelint.extends`, `npx stylelint` у `lint-style.yml`. Лишилися VSCode-
+    конфіги, `.stylelintignore`, FS-existence workflow і альтернатива зовнішнього
+    конфіг-файлу `stylelint`.
+  - `npm/scripts/check-graphql.mjs` — без `checkPackageDumpSchemaScript` (структура
+    `scripts.dump-schema`); решта логіки (gql AST-скан, `.graphqlrc.yml`,
+    VSCode-розширення) лишилася.
+  - `npm/scripts/check-image-compress.mjs` — без `checkLintImageScript`,
+    `checkLintAggregateIncludesImage`, `checkMinifyImageNotInDeps`. Лишилися
+    `.n-minify-image.tsv` НЕ в `.gitignore` і видалення застарілого
+    `.minify-image-cache.tsv`.
+  - `npm/scripts/check-js-bun-db.mjs` — без `checkForbiddenDependencies`
+    (`pg`/`pg-format`/`mysql2`); AST-скан коду (`new SQL(...)` всередині функції,
+    `unsafe()` без маркера, динамічні `IN (…)`) лишився.
+  - `npm/scripts/check-text.mjs` — без `checkOxfmtRc`, `checkCspellConfig`,
+    `checkCspellJsonDictImports`, `checkMarkdownlintConfig`, `prettier`/`@nitra/cspell-dict`/`markdownlint-cli2`/`@nitra/*` гейт у
+    `checkPackageJsonTextDepsUsage`. Лишилися VSCode-конфіги, `.v8rignore`,
+    Prettier-файли в корені, абзац про український апостроф у `.mdc`,
+    складна валідація скрипта `lint-text` і виклик `bun run lint-text` у
+    workflow.
+  - `npm/scripts/check-vue.mjs` — без `checkViteVersion` (vite ≥ 8). AST-скан коду
+    і vite-config-перевірки лишилися.
+  - `npm/scripts/check-npm-module.mjs` — без `checkNpmTypesField`,
+    `emitTypesConfigIssues`, перевірок полів `npm-publish.yml`,
+    `workspaces ∋ "npm"` у кореневому `package.json`. Лишилися FS-existence,
+    наявність файлу зі шляху `types`, hk.pkl-перевірки, CHANGELOG-version-match,
+    git-dirty-bump.
+  - `npm/scripts/check-js-lint.mjs` — без `checkPackageJsonLintDeps`
+    (prettier-залежність, `@nitra/eslint-config ≥ 3.9.2`),
+    `checkPackageJsonTypeModule` для root, `checkEnginesNode/Bun` для root,
+    канонічний `lint-js`-скрипт, валідація `lint-js.yml` (`verifyLintJsWorkflowStructure`
+    + fallback). Лишилися — `.oxlintrc.json` canonical-snapshot, VSCode-розширення,
+    workspace-ітерація для `type: "module"` і engines, дубль JS-кроків у `lint.yml`,
+    `.jscpd.json`. Прибрано непотрібні імпорти `parseWorkflowYaml`,
+    `verifyLintJsWorkflowStructure` і `OXLINT_FIX_RE`.
+  - `npm/scripts/check-js-run.mjs` — без перевірок `bunyan` / `@nitra/bunyan` у
+    залежностях, canonical `jsconfig.json` через `deepEqualJson`,
+    `OTEL_RESOURCE_ATTRIBUTES` у `configmap.yaml`. Лишилися AST-скан коду
+    (bunyan, conn-aliases, process.env, setTimeout) і FS-existence для
+    `jsconfig.json` / `configmap.yaml`. Прибрано `CANONICAL_BACKEND_JSCONFIG`,
+    `deepEqualJson`.
+  - `npm/scripts/check-adr.mjs` — без `settingsHaveAdrHookGroup`,
+    `checkProjectSettings` структурного порівняння і
+    `checkLocalSettingsNoDuplicate`. Лишилися hash-порівняння bash-скрипта,
+    `.gitignore`-патерн, LLM CLI у PATH, FS-existence settings.json.
+    Прибрано `HOOK_COMMAND_MARKER`, `PROJECT_LOCAL_SETTINGS_PATH` (для
+    settings.local — Rego policy gating).
+  - `npm/scripts/check-ga.mjs` — без `verifyConcurrencyBlock`,
+    `verifyNoDirectBunOrCache`, `verifyNoRunShellLineContinuationBackslash`,
+    `verifyCheckoutBeforeLocalSetupBunDeps`, `validateConcurrencyOnRoot`. Тепер
+    усі workflow-структурні перевірки виконуються через conftest у `lint-ga.mjs`
+    (`ga.workflow_common`); лишилася лише git-залежна перевірка `on.*.paths`
+    glob-ів через `git ls-files :(glob)`. Прибрано константи
+    `SETUP_BUN_PATTERNS`, `FORBIDDEN_BUN_PATTERNS`, `EXPECTED_CONCURRENCY_GROUP`
+    і непотрібні імпорти з `gha-workflow.mjs`.
+
+### Changed
+
+- Тести `check-bun.test.mjs`, `check-image-compress.test.mjs`,
+  `check-js-bun-db.test.mjs`, `check-js-run-fixture.test.mjs`,
+  `check-adr.test.mjs` — прибрано / `skip` тести, що дублювали Rego-полісі;
+  лишилися лише FS / cross-file сценарії.
+- `npm/policy/{capacitor,js_mssql,abie,k8s,hasura}/**/*.rego` — у заголовках
+  policy-файлів додано позначку, що JS-чек у відповідному `check-*.mjs`
+  лишається authoritative (повна semver-семантика з OR-діапазонами для
+  `capacitor`/`js-mssql`; ширший набір полів і cross-file Kustomize-контекст
+  для `abie`/`k8s`; cross-file env-DNS-резолюція для `hasura`). Rego там — швидкий
+  гейт для одиничного файлу (наприклад через IDE).
+
 ## [1.8.208] - 2026-05-08
 
 ### Added
