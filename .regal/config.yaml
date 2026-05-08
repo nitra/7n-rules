@@ -1,0 +1,10 @@
+# Конфіг regal (https://docs.styra.com/regal/configuration).
+#
+# Відключаємо `idiomatic.no-defined-entrypoint`: для conftest-полісі (npm/policy/) `deny`-правила
+# є де-факто entrypoint-ами — конфтест їх збирає за іменем, без `# METADATA / entrypoint: true`
+# анотацій. Включене за замовчуванням, регалівське правило виглядає як ритуальний коментар без
+# семантики; вимикаємо проєктно.
+rules:
+  idiomatic:
+    no-defined-entrypoint:
+      level: ignore

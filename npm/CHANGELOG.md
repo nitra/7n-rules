@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.204] - 2026-05-07
+
+### Changed
+
+- Реструктурував `npm/policy/ga/` під namespaced sub-packages, які проходять regal: `ga/clean_ga_workflows/clean_ga_workflows.rego` та новий `ga/clean_merged_branch/clean_merged_branch.rego` (порт `validateCleanMergedBranch` з check-ga.mjs — `name` / `cron 0 1 15 * *` / `workflow_dispatch` / `concurrency` / `jobs.cleanup_old_branches` / step0 `phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3` з token / age=90 / ignore_branches main,dev / `dry_run: false` (YAML 1.1) / step1 `Get output` + `DELETED_BRANCHES` env + echo).
+- `scripts/lint-ga.mjs`: `CONFTEST_TARGETS` тепер містить `clean-ga-workflows.yml` і `clean-merged-branch.yml`, conftest викликаємо з `--namespace ga.<name>` для ізоляції правил між workflow.
+- `scripts/check-ga.mjs`: видалено `validateCleanGaWorkflows*` і `validateCleanMergedBranch*` — їх повністю покриває conftest у `lint-ga`. `checkCanonicalWorkflowsMatchRule` тепер валідує лише `lint-ga.yml` і `git-ai.yml` (наступні кандидати на міграцію).
+
+### Added
+
+- `.regal/config.yaml` у корені — вимикає `idiomatic.no-defined-entrypoint` (для conftest-полісі `deny`-правила є де-факто entrypoint-ами, формальна анотація не несе семантики).
+
 ## [1.8.203] - 2026-05-07
 
 ### Changed

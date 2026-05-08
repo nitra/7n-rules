@@ -16,6 +16,10 @@ alwaysApply: true
 - Use modern Rego syntax compatible with current OPA and Conftest versions
 - Prefer explicit and readable policy structure
 
+## Пріоритет conftest для задач перевірки
+
+Якщо задачу, яку просить користувач, можна вирішити через conftest-політику (Rego) — її потрібно вирішувати саме так, а не через ad-hoc скрипти (bash/JS/Python тощо). Conftest-політики є канонічним способом перевірок у цьому репозиторії, тож перед написанням власного валідатора слід оцінити, чи не лягає задача на нову/існуючу `*.rego` поліси у `npm/policy/`.
+
 ## Перевірка
 
 Лінт Rego-полісі робиться через [regal](https://docs.styra.com/regal) — він якраз і ловить v0-синтаксис, неявні set-rules та інші відхилення від `rego.v1`.

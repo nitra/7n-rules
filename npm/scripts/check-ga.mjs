@@ -171,220 +171,6 @@ function isExactString(v, expected) {
 }
 
 /**
- * Перевіряє крок dmvict/clean-workflow-runs@v1 у `clean-ga-workflows.yml`.
- * @param {unknown} step0 перший крок workflow
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateCleanGaWorkflowsStep0(step0, passFn, failFn) {
-  if (!isExactString(getObjKey(step0, 'name'), 'Delete workflow runs')) {
-    failFn('clean-ga-workflows.yml: перший крок має мати name: Delete workflow runs (ga.mdc)')
-  }
-  if (!isExactString(getObjKey(step0, 'uses'), 'dmvict/clean-workflow-runs@v1')) {
-    failFn('clean-ga-workflows.yml: перший крок має uses: dmvict/clean-workflow-runs@v1 (ga.mdc)')
-  }
-  const withObj = getObjKey(step0, 'with')
-  const githubToken = ['$', '{{ github.token }}'].join('')
-  if (
-    getObjKey(withObj, 'token') === githubToken &&
-    getObjKey(withObj, 'save_period') === 31 &&
-    getObjKey(withObj, 'save_min_runs_number') === 0
-  ) {
-    passFn('clean-ga-workflows.yml: jobs/steps OK')
-  } else {
-    failFn('clean-ga-workflows.yml: with має містити token/save_period/save_min_runs_number як у ga.mdc')
-  }
-}
-
-/**
- * Перевіряє структуру workflow `clean-ga-workflows.yml` (ga.mdc).
- * @param {Record<string, unknown> | null} root parsed YAML
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateCleanGaWorkflows(root, passFn, failFn) {
-  if (!root) {
-    failFn('clean-ga-workflows.yml: YAML не вдалося розібрати (ga.mdc)')
-    return
-  }
-
-  if (isExactString(root.name, 'Clean action for removing completed workflow runs')) {
-    passFn('clean-ga-workflows.yml: name OK')
-  } else {
-    failFn('clean-ga-workflows.yml: name має бути "Clean action for removing completed workflow runs" (ga.mdc)')
-  }
-
-  const on = root.on
-  const schedule = getObjKey(on, 'schedule')
-  const wfDispatch = getObjKey(on, 'workflow_dispatch')
-
-  const hasCron =
-    Array.isArray(schedule) &&
-    schedule.some(v => v && typeof v === 'object' && /** @type {Record<string, unknown>} */ (v).cron === '0 1 16 * *')
-
-  if (hasCron) {
-    passFn('clean-ga-workflows.yml: cron OK')
-  } else {
-    failFn("clean-ga-workflows.yml: on.schedule має містити cron: '0 1 16 * *' (ga.mdc)")
-  }
-
-  if (!wfDispatch || typeof wfDispatch !== 'object') {
-    failFn('clean-ga-workflows.yml: має бути workflow_dispatch: {} (ga.mdc)')
-  } else {
-    passFn('clean-ga-workflows.yml: workflow_dispatch OK')
-  }
-
-  validateConcurrencyOnRoot('clean-ga-workflows.yml', root, passFn, failFn)
-
-  const jobs = getObjKey(root, 'jobs')
-  const job = getObjKey(jobs, 'cleanup_old_workflows')
-  if (!job) {
-    failFn('clean-ga-workflows.yml: jobs.cleanup_old_workflows відсутній (ga.mdc)')
-    return
-  }
-
-  if (!isExactString(getObjKey(job, 'runs-on'), 'ubuntu-latest')) {
-    failFn('clean-ga-workflows.yml: runs-on має бути ubuntu-latest (ga.mdc)')
-  }
-
-  const perm = getObjKey(job, 'permissions')
-  if (!(getObjKey(perm, 'actions') === 'write' && getObjKey(perm, 'contents') === 'read')) {
-    failFn('clean-ga-workflows.yml: permissions мають бути actions: write, contents: read (ga.mdc)')
-  }
-
-  const steps = getObjKey(job, 'steps')
-  const step0 = Array.isArray(steps) ? steps[0] : null
-  if (!step0 || typeof step0 !== 'object') {
-    failFn('clean-ga-workflows.yml: steps має містити крок з dmvict/clean-workflow-runs@v1 (ga.mdc)')
-    return
-  }
-
-  validateCleanGaWorkflowsStep0(step0, passFn, failFn)
-}
-
-/**
- * Перевіряє крок `phpdocker-io/github-actions-delete-abandoned-branches` у `clean-merged-branch.yml`.
- * @param {unknown} step0 перший крок workflow
- * @param {(msg: string) => void} failFn fail
- */
-function validateCleanMergedBranchStep0(step0, failFn) {
-  if (!isExactString(getObjKey(step0, 'id'), 'delete_stuff')) {
-    failFn('clean-merged-branch.yml: перший крок має id: delete_stuff (ga.mdc)')
-  }
-  if (!isExactString(getObjKey(step0, 'uses'), 'phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3')) {
-    failFn('clean-merged-branch.yml: перший крок має uses як у ga.mdc')
-  }
-  const withObj = getObjKey(step0, 'with')
-  const ghToken = ['$', '{{ github.token }}'].join('')
-  if (getObjKey(withObj, 'github_token') !== ghToken) {
-    failFn(['clean-merged-branch.yml: with.github_token має бути $', '{{ github.token }} (ga.mdc)'].join(''))
-  }
-  if (getObjKey(withObj, 'last_commit_age_days') !== 90) {
-    failFn('clean-merged-branch.yml: with.last_commit_age_days має бути 90 (ga.mdc)')
-  }
-  const ignoreBranches = String(getObjKey(withObj, 'ignore_branches') ?? '')
-  if (!(ignoreBranches.includes('main') && ignoreBranches.includes('dev'))) {
-    failFn('clean-merged-branch.yml: with.ignore_branches має містити main,dev (ga.mdc)')
-  }
-  if (getObjKey(withObj, 'dry_run') !== 'no') {
-    failFn('clean-merged-branch.yml: with.dry_run має бути no (ga.mdc)')
-  }
-}
-
-/**
- * Перевіряє крок виводу в `clean-merged-branch.yml`.
- * @param {unknown} step1 другий крок workflow
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateCleanMergedBranchStep1(step1, passFn, failFn) {
-  if (!isExactString(getObjKey(step1, 'name'), 'Get output')) {
-    failFn('clean-merged-branch.yml: другий крок має name: Get output (ga.mdc)')
-  }
-  const env = getObjKey(step1, 'env')
-  const deletedBranchesExpr = ['$', '{{ steps.delete_stuff.outputs.deleted_branches }}'].join('')
-  if (getObjKey(env, 'DELETED_BRANCHES') !== deletedBranchesExpr) {
-    failFn('clean-merged-branch.yml: env.DELETED_BRANCHES має бути як у ga.mdc')
-  }
-  const echoDeletedBranches = ['echo "Deleted branches: $', '{DELETED_BRANCHES}"'].join('')
-  if (String(getObjKey(step1, 'run') ?? '').includes(echoDeletedBranches)) {
-    passFn('clean-merged-branch.yml: jobs/steps OK')
-  } else {
-    failFn('clean-merged-branch.yml: run має echo Deleted branches як у ga.mdc')
-  }
-}
-
-/**
- * Перевіряє структуру workflow `clean-merged-branch.yml` (ga.mdc).
- * @param {Record<string, unknown> | null} root parsed YAML
- * @param {(msg: string) => void} passFn pass
- * @param {(msg: string) => void} failFn fail
- */
-function validateCleanMergedBranch(root, passFn, failFn) {
-  if (!root) {
-    failFn('clean-merged-branch.yml: YAML не вдалося розібрати (ga.mdc)')
-    return
-  }
-
-  if (isExactString(root.name, 'Clean abandoned branches')) {
-    passFn('clean-merged-branch.yml: name OK')
-  } else {
-    failFn('clean-merged-branch.yml: name має бути "Clean abandoned branches" (ga.mdc)')
-  }
-
-  const on = root.on
-  const schedule = getObjKey(on, 'schedule')
-  const wfDispatch = getObjKey(on, 'workflow_dispatch')
-  const hasCron =
-    Array.isArray(schedule) &&
-    schedule.some(v => v && typeof v === 'object' && /** @type {Record<string, unknown>} */ (v).cron === '0 1 15 * *')
-
-  if (hasCron) {
-    passFn('clean-merged-branch.yml: cron OK')
-  } else {
-    failFn("clean-merged-branch.yml: on.schedule має містити cron: '0 1 15 * *' (ga.mdc)")
-  }
-
-  if (!wfDispatch || typeof wfDispatch !== 'object') {
-    failFn('clean-merged-branch.yml: має бути workflow_dispatch: {} (ga.mdc)')
-  }
-
-  validateConcurrencyOnRoot('clean-merged-branch.yml', root, passFn, failFn)
-
-  const jobs = getObjKey(root, 'jobs')
-  const job = getObjKey(jobs, 'cleanup_old_branches')
-  if (!job) {
-    failFn('clean-merged-branch.yml: jobs.cleanup_old_branches відсутній (ga.mdc)')
-    return
-  }
-
-  const perm = getObjKey(job, 'permissions')
-  if (getObjKey(perm, 'contents') !== 'write') {
-    failFn('clean-merged-branch.yml: permissions мають бути contents: write (ga.mdc)')
-  }
-
-  const steps = getObjKey(job, 'steps')
-  if (!Array.isArray(steps) || steps.length < 2) {
-    failFn('clean-merged-branch.yml: steps має містити 2 кроки як у ga.mdc')
-    return
-  }
-
-  const step0 = steps[0]
-  if (!step0 || typeof step0 !== 'object') {
-    failFn('clean-merged-branch.yml: перший крок невалідний (ga.mdc)')
-    return
-  }
-  validateCleanMergedBranchStep0(step0, failFn)
-
-  const step1 = steps[1]
-  if (!step1 || typeof step1 !== 'object') {
-    failFn('clean-merged-branch.yml: другий крок невалідний (ga.mdc)')
-    return
-  }
-  validateCleanMergedBranchStep1(step1, passFn, failFn)
-}
-
-/**
  * Перевіряє тригери `on.push` / `on.pull_request` у `lint-ga.yml`.
  * @param {unknown} on корінь `on:` з YAML
  * @param {(msg: string) => void} failFn fail
@@ -973,26 +759,20 @@ async function checkGitAiWorkflow(wfDir, passFn, failFn) {
 
 /**
  * Перевіряє, що “канонічні” workflows відповідають ga.mdc (структура і значення).
+ *
+ * Структурні валідатори `clean-ga-workflows.yml` і `clean-merged-branch.yml` мігровано в Rego-полісі
+ * під `npm/policy/ga/clean_ga_workflows/` та `npm/policy/ga/clean_merged_branch/` (виконує conftest з
+ * `bun run lint-ga`). Тут лишаються `lint-ga.yml` і `git-ai.yml` — їх перенесення в наступних ітераціях.
  * @param {string} wfDir директорія workflows
  * @param {(msg: string) => void} passFn pass
  * @param {(msg: string) => void} failFn fail
  */
 async function checkCanonicalWorkflowsMatchRule(wfDir, passFn, failFn) {
   const paths = {
-    cleanGa: join(wfDir, 'clean-ga-workflows.yml'),
-    cleanMerged: join(wfDir, 'clean-merged-branch.yml'),
     lintGa: join(wfDir, 'lint-ga.yml'),
     gitAi: join(wfDir, 'git-ai.yml')
   }
 
-  if (existsSync(paths.cleanGa)) {
-    const c = await readFile(paths.cleanGa, 'utf8')
-    validateCleanGaWorkflows(parseWorkflowYaml(c), passFn, failFn)
-  }
-  if (existsSync(paths.cleanMerged)) {
-    const c = await readFile(paths.cleanMerged, 'utf8')
-    validateCleanMergedBranch(parseWorkflowYaml(c), passFn, failFn)
-  }
   if (existsSync(paths.lintGa)) {
     const c = await readFile(paths.lintGa, 'utf8')
     validateLintGaWorkflowStructure(parseWorkflowYaml(c), passFn, failFn)

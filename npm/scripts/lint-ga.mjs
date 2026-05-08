@@ -27,16 +27,26 @@ import { resolveCmd } from './utils/resolve-cmd.mjs'
 /** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиту директорію policy/. */
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
-/** Шлях до Rego-полісі (PoC: лише clean-ga-workflows). У npm-tarball публікується через `files` у package.json. */
+/** Шлях до кореня Rego-полісі для GA. У npm-tarball публікується через `files: ["policy"]` у package.json. */
 const GA_POLICY_DIR = join(PACKAGE_ROOT, 'policy', 'ga')
 
 /**
- * Workflow-файли, для яких маємо відповідну Rego-полісі. PoC: один файл; інші підтягуватимемо в міру міграції
- * перевірок із `npm/scripts/check-ga.mjs`.
- * @type {Array<{ workflow: string, label: string }>}
+ * Workflow-файли, для яких маємо відповідну Rego-полісі. Кожен таргет посилається на під-пакет
+ * `ga.<name>` у `policy/ga/<name>/<name>.rego`; conftest викликаємо з `--namespace`, щоб правила
+ * іншого workflow не застосовувалися до чужого файлу.
+ * @type {Array<{ workflow: string, namespace: string, label: string }>}
  */
 const CONFTEST_TARGETS = [
-  { workflow: '.github/workflows/clean-ga-workflows.yml', label: 'clean-ga-workflows.yml structure' }
+  {
+    workflow: '.github/workflows/clean-ga-workflows.yml',
+    namespace: 'ga.clean_ga_workflows',
+    label: 'clean-ga-workflows.yml structure'
+  },
+  {
+    workflow: '.github/workflows/clean-merged-branch.yml',
+    namespace: 'ga.clean_merged_branch',
+    label: 'clean-merged-branch.yml structure'
+  }
 ]
 
 /**
@@ -218,6 +228,8 @@ function runConftestStep() {
       target.workflow,
       '-p',
       GA_POLICY_DIR,
+      '--namespace',
+      target.namespace,
       '--no-color'
     ])
     if (code !== 0) return code
