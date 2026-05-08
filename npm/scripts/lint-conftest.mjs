@@ -1,0 +1,351 @@
+/**
+ * Прогоняє `conftest test` по всіх Rego-полісі з `npm/policy/` (окрім `ga/*`,
+ * які вже виконуються через `lint-ga.mjs`).
+ *
+ * Кожна полісі має свій namespace, опційний `rule` (id у `.n-cursor.json:rules`,
+ * інакше таргет пропускається — як гейтинг у `check-*.mjs`), і список цільових
+ * файлів — single-file або walk-предикат для дерева. Якщо цільових файлів немає
+ * або правило не активне — таргет мовчки пропускається.
+ *
+ * Поведінка fallback:
+ *  - якщо `conftest` не в `PATH` — друкуємо `ℹ` повідомлення з підказкою
+ *    встановлення і повертаємо 0 (структурні JS-перевірки в `check-*.mjs`
+ *    лишаються паралельно). Те саме рішення — у `lint-ga.mjs`.
+ *  - якщо `npm/policy/` не існує (нетипова інсталяція) — також `ℹ` skip.
+ *
+ * Перший ненульовий exit-код conftest — повертаємо як результат, але всі
+ * наступні таргети все одно виконуємо, щоб одразу побачити повний список
+ * порушень (а не виправляти по одному).
+ *
+ * Експортовано окремо `runLintConftestCli` — використовується з
+ * `bin/n-cursor.js` як підкоманда `lint-conftest`.
+ */
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { dirname, join, sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { resolveCmd } from './utils/resolve-cmd.mjs'
+
+/** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиту директорію policy/. */
+const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+
+/** Шлях до кореня Rego-полісі. У npm-tarball публікується через `files: ["policy"]`. */
+const POLICY_DIR = join(PACKAGE_ROOT, 'policy')
+
+/**
+ * Опис одного таргета: namespace + спосіб розвʼязати цільові файли.
+ *
+ * `single` — конкретний файл відносно cwd, перевіряється `existsSync`-ом.
+ * `walk` — рекурсивний обхід від cwd із простим суфікс-предикатом
+ * (наприклад `name === 'package.json'`). Глибокі ігнори — як у `walkDir`
+ * в інших скриптах: `node_modules`, `.git`, `dist`, `coverage`, `build`,
+ * `.turbo`, `.next`. Не використовуємо bun Glob, щоб не плодити залежності
+ * за межами `node:fs`.
+ *
+ * @typedef {{
+ *   namespace: string,
+ *   policyDir: string,
+ *   rule?: string,
+ *   single?: string,
+ *   walk?: { match: (relPosix: string) => boolean }
+ * }} ConftestTarget
+ */
+
+/**
+ * Зчитує `rules` з `.n-cursor.json` у cwd. Повертає множину рядків — або `null`,
+ * якщо файлу немає чи поле некоректне (тоді гейтинг вимикаємо — як у `check-bun.mjs`).
+ * @param {string} cwd корінь репо
+ * @returns {Set<string> | null} множина активних правил або null
+ */
+function loadActiveCursorRules(cwd) {
+  const path = join(cwd, '.n-cursor.json')
+  if (!existsSync(path)) return null
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8'))
+    if (!Array.isArray(raw?.rules)) return null
+    return new Set(raw.rules.map(String))
+  } catch {
+    return null
+  }
+}
+
+const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', 'build', '.turbo', '.next'])
+
+/** @type {ConftestTarget[]} */
+const TARGETS = [
+  // ── bun ─────────────────────────────────────────────────────────────────
+  { namespace: 'bun.bunfig', policyDir: 'bun', rule: 'bun', single: 'bunfig.toml' },
+  { namespace: 'bun.package_json', policyDir: 'bun', rule: 'bun', single: 'package.json' },
+
+  // ── text ────────────────────────────────────────────────────────────────
+  { namespace: 'text.oxfmtrc', policyDir: 'text', rule: 'text', single: '.oxfmtrc.json' },
+  { namespace: 'text.cspell', policyDir: 'text', rule: 'text', single: '.cspell.json' },
+  { namespace: 'text.markdownlint', policyDir: 'text', rule: 'text', single: '.markdownlint-cli2.jsonc' },
+  { namespace: 'text.package_json', policyDir: 'text', rule: 'text', single: 'package.json' },
+
+  // ── style-lint ──────────────────────────────────────────────────────────
+  { namespace: 'style_lint.package_json', policyDir: 'style_lint', rule: 'style-lint', single: 'package.json' },
+  {
+    namespace: 'style_lint.lint_style_yml',
+    policyDir: 'style_lint',
+    rule: 'style-lint',
+    single: '.github/workflows/lint-style.yml'
+  },
+
+  // ── php ─────────────────────────────────────────────────────────────────
+  { namespace: 'php.package_json', policyDir: 'php', rule: 'php', single: 'package.json' },
+  {
+    namespace: 'php.lint_php_yml',
+    policyDir: 'php',
+    rule: 'php',
+    single: '.github/workflows/lint-php.yml'
+  },
+
+  // ── npm-module ──────────────────────────────────────────────────────────
+  {
+    namespace: 'npm_module.root_package_json',
+    policyDir: 'npm_module',
+    rule: 'npm-module',
+    single: 'package.json'
+  },
+  {
+    namespace: 'npm_module.npm_package_json',
+    policyDir: 'npm_module',
+    rule: 'npm-module',
+    single: 'npm/package.json'
+  },
+  {
+    namespace: 'npm_module.emit_types_config',
+    policyDir: 'npm_module',
+    rule: 'npm-module',
+    single: 'npm/tsconfig.emit-types.json'
+  },
+  {
+    namespace: 'npm_module.npm_publish_yml',
+    policyDir: 'npm_module',
+    rule: 'npm-module',
+    single: '.github/workflows/npm-publish.yml'
+  },
+
+  // ── js-lint ─────────────────────────────────────────────────────────────
+  { namespace: 'js_lint.package_json', policyDir: 'js_lint', rule: 'js-lint', single: 'package.json' },
+  {
+    namespace: 'js_lint.lint_js_yml',
+    policyDir: 'js_lint',
+    rule: 'js-lint',
+    single: '.github/workflows/lint-js.yml'
+  },
+
+  // ── graphql / image-compress / capacitor ────────────────────────────────
+  { namespace: 'graphql.package_json', policyDir: 'graphql', rule: 'graphql', single: 'package.json' },
+  {
+    namespace: 'image_compress.package_json',
+    policyDir: 'image_compress',
+    rule: 'image-compress',
+    single: 'package.json'
+  },
+  {
+    namespace: 'capacitor.package_json',
+    policyDir: 'capacitor',
+    rule: 'capacitor',
+    single: 'package.json'
+  },
+
+  // ── hasura ──────────────────────────────────────────────────────────────
+  {
+    namespace: 'hasura.svc_hl',
+    policyDir: 'hasura',
+    rule: 'hasura',
+    single: 'hasura/k8s/base/svc-hl.yaml'
+  },
+
+  // ── adr ─────────────────────────────────────────────────────────────────
+  { namespace: 'adr.settings_json', policyDir: 'adr', rule: 'adr', single: '.claude/settings.json' },
+  {
+    namespace: 'adr.settings_local_json',
+    policyDir: 'adr',
+    rule: 'adr',
+    single: '.claude/settings.local.json'
+  },
+
+  // ── multi-file (walk) ───────────────────────────────────────────────────
+  // Усі `package.json` у дереві (включно з workspace-пакетами).
+  {
+    namespace: 'js_mssql.package_json',
+    policyDir: 'js_mssql',
+    rule: 'js-mssql',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
+  },
+  {
+    namespace: 'js_bun_db.package_json',
+    policyDir: 'js_bun_db',
+    rule: 'js-bun-db',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
+  },
+  {
+    namespace: 'js_run.package_json',
+    policyDir: 'js_run',
+    rule: 'js-run',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
+  },
+  {
+    namespace: 'vue.package_json',
+    policyDir: 'vue',
+    rule: 'vue',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
+  },
+
+  // ConfigMap у `…/k8s/base/configmap.yaml` будь-де у дереві.
+  {
+    namespace: 'js_run.configmap',
+    policyDir: 'js_run',
+    rule: 'js-run',
+    walk: { match: rel => /(^|\/)k8s\/[^/]+\/configmap\.yaml$/.test(rel) }
+  },
+
+  // Усі YAML у дереві з сегментом `k8s` — пер-документні структурні правила.
+  {
+    namespace: 'k8s.manifest',
+    policyDir: 'k8s',
+    rule: 'k8s',
+    walk: { match: rel => /(^|\/)k8s\//.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
+  },
+
+  // abie HealthCheckPolicy: `hc.yaml` у дереві k8s.
+  {
+    namespace: 'abie.health_check_policy',
+    policyDir: 'abie',
+    rule: 'abie',
+    walk: { match: rel => /(^|\/)k8s\/.+\/hc\.yaml$/.test(rel) }
+  },
+
+  // abie HTTPRoute у `base/`.
+  {
+    namespace: 'abie.http_route_base',
+    policyDir: 'abie',
+    rule: 'abie',
+    walk: { match: rel => /(^|\/)k8s\/.*base\/.*hr\.yaml$/.test(rel) }
+  }
+]
+
+/**
+ * Рекурсивно збирає відносні (posix) шляхи від cwd, які матчаться предикатом.
+ * Глибокі ігнори — `SKIP_DIR_NAMES`. Не йде у симлінки, помилки stat — мовчки skip.
+ * @param {string} root абсолютний корінь обходу
+ * @param {(relPosix: string) => boolean} match предикат на відносний posix-шлях
+ * @returns {string[]} список відносних posix-шляхів
+ */
+function collectFiles(root, match) {
+  /** @type {string[]} */
+  const out = []
+  /** @param {string} dirAbs */
+  function visit(dirAbs) {
+    /** @type {import('node:fs').Dirent[]} */
+    let entries
+    try {
+      entries = readdirSync(dirAbs, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const e of entries) {
+      if (e.isSymbolicLink()) continue
+      const abs = join(dirAbs, e.name)
+      if (e.isDirectory()) {
+        if (SKIP_DIR_NAMES.has(e.name)) continue
+        visit(abs)
+        continue
+      }
+      if (!e.isFile()) continue
+      const rel = abs.slice(root.length + 1).split(sep).join('/')
+      if (match(rel)) out.push(rel)
+    }
+  }
+  visit(root)
+  return out
+}
+
+/**
+ * Розвʼязує файлові цілі для одного таргета щодо cwd.
+ * @param {ConftestTarget} target опис таргета
+ * @param {string} cwd корінь репозиторію
+ * @returns {string[]} список абсолютних / відносних шляхів
+ */
+function resolveTargetFiles(target, cwd) {
+  if (target.single) {
+    return existsSync(join(cwd, target.single)) ? [target.single] : []
+  }
+  if (target.walk) {
+    return collectFiles(cwd, target.walk.match)
+  }
+  return []
+}
+
+/**
+ * Запускає conftest на одному таргеті. Повертає exit-код (0 — OK, 1+ — помилки).
+ *
+ * При відсутніх цільових файлах — мовчки повертає 0 (правило неактуальне для repo).
+ * Логує заголовок з namespace і кількістю файлів, як `lint-ga.mjs`.
+ * @param {string} conftestBin абсолютний шлях до бінарника conftest
+ * @param {ConftestTarget} target опис таргета
+ * @param {string[]} files список файлів для перевірки (відносні до cwd)
+ * @returns {number} exit-код
+ */
+function runConftestForTarget(conftestBin, target, files) {
+  const policyAbs = join(POLICY_DIR, target.policyDir)
+  if (!existsSync(policyAbs)) {
+    return 0
+  }
+  console.log(`\n▶ conftest (${target.namespace} — ${files.length} файл(ів))`)
+  const r = spawnSync(
+    conftestBin,
+    ['test', ...files, '-p', policyAbs, '--namespace', target.namespace, '--no-color'],
+    { stdio: 'inherit', env: process.env }
+  )
+  if (r.error) {
+    console.error(`❌ Не вдалося запустити conftest: ${r.error.message}`)
+    return 1
+  }
+  return r.status ?? 1
+}
+
+/**
+ * Запускає `conftest test` по всіх таргетах із `TARGETS`. Перший ненульовий exit-код
+ * запамʼятовується, але цикл йде до кінця, щоб користувач побачив усі порушення.
+ *
+ * Якщо `conftest` не знайдено в PATH — друкує `ℹ` повідомлення і повертає 0
+ * (структурні перевірки в `check-*.mjs` лишаються паралельно).
+ * @returns {number} 0 — все OK або skip; інакше — перший ненульовий exit-код
+ */
+export function runLintConftestCli() {
+  const conftestBin = resolveCmd('conftest')
+  if (!conftestBin) {
+    console.log(
+      'ℹ conftest не знайдено в PATH — пропускаю Rego-перевірки.\n' +
+        '  Встанови, щоб запустити локально: brew install conftest (macOS) або https://www.conftest.dev/install/'
+    )
+    return 0
+  }
+  if (!existsSync(POLICY_DIR)) {
+    console.log(`ℹ Каталог Rego-полісі не знайдено (${POLICY_DIR}) — пропускаю conftest.`)
+    return 0
+  }
+
+  const cwd = process.cwd()
+  const activeRules = loadActiveCursorRules(cwd)
+  let firstFailureCode = 0
+  for (const target of TARGETS) {
+    if (target.rule && activeRules && !activeRules.has(target.rule)) continue
+    const files = resolveTargetFiles(target, cwd)
+    if (files.length === 0) continue
+    const code = runConftestForTarget(conftestBin, target, files)
+    if (code !== 0 && firstFailureCode === 0) {
+      firstFailureCode = code
+    }
+  }
+  return firstFailureCode
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  process.exit(runLintConftestCli())
+}

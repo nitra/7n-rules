@@ -20,20 +20,11 @@ import rego.v1
 # interpolation. Збираємо очікувані рядки з фрагментів через `concat`, як це
 # зроблено в check-ga.mjs, щоб і Rego-парсер, і людина-читач не плуталися.
 
-expected_concurrency_group := concat("", ["$", "{{ github.ref }}-$", "{{ github.workflow }}"])
-
 expected_github_token := concat("", ["$", "{{ github.token }}"])
 
 expected_name := "Clean action for removing completed workflow runs"
 
 expected_cron := "0 1 16 * *"
-
-# Шаблон повідомлення про відсутню `concurrency`-секцію — винесено через `concat`,
-# щоб дотриматися regal style/line-length.
-concurrency_missing_template := concat(" ", [
-	"clean-ga-workflows.yml: відсутня секція concurrency —",
-	"додай concurrency.group: %s і cancel-in-progress: true (ga.mdc)",
-])
 
 # ── Аліаси на input ────────────────────────────────────────────────────────
 #
@@ -60,23 +51,6 @@ deny contains msg if {
 deny contains msg if {
 	not has_workflow_dispatch
 	msg := "clean-ga-workflows.yml: має бути workflow_dispatch: {} (ga.mdc)"
-}
-
-deny contains msg if {
-	not is_object(input.concurrency)
-	msg := sprintf(concurrency_missing_template, [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency.group != expected_concurrency_group
-	msg := sprintf("clean-ga-workflows.yml: concurrency.group має бути %s (ga.mdc)", [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency["cancel-in-progress"] != true
-	msg := "clean-ga-workflows.yml: concurrency.cancel-in-progress має бути true (ga.mdc)"
 }
 
 deny contains msg if {

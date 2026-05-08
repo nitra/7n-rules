@@ -7,6 +7,13 @@
  * повідомлення й продовжуємо з кодом 0. Структурні перевірки тих самих workflow паралельно живуть у
  * `npm/scripts/check-ga.mjs`, тож відсутність conftest не пропускає порушення мовчки.
  *
+ * Conftest проганяється у двох режимах:
+ * 1) per-workflow polysi (`ga.<name>`) — для канонічних `clean-ga-workflows`, `clean-merged-branch`,
+ *    `lint-ga`, `git-ai`, що мають фіксовані поля (cron, ім'я кроку тощо);
+ * 2) `ga.workflow_common` — універсальні правила (concurrency, заборонені setup-bun/cache/install у
+ *    кроках, shell line-continuation у `run:`, checkout перед локальним setup-bun-deps), які
+ *    застосовуються до **кожного** `.github/workflows/*.yml`.
+ *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
  * `run:` блоках, коли `shellcheck` відсутній у PATH; локально `bun lint-ga` лишається зеленим, а CI
  * на ubuntu-latest (де shellcheck передвстановлений) падає. Preflight робить цю різницю явною.
@@ -16,7 +23,7 @@
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
 import { platform } from 'node:process'
@@ -244,5 +251,35 @@ function runConftestStep() {
     ])
     if (code !== 0) return code
   }
-  return 0
+
+  return runConftestWorkflowCommon(conftestBin)
+}
+
+/**
+ * Прогоняє `ga.workflow_common` на кожному `.github/workflows/*.yml` — універсальні перевірки
+ * (concurrency, заборонені setup-bun/cache/install, shell line-continuation, checkout перед
+ * локальним setup-bun-deps). Якщо директорії немає або файлів немає — мовчки skip.
+ *
+ * Викликаємо conftest на всіх файлах одним прогоном (`conftest test <files...>`) — швидше, ніж
+ * по одному, і summary-лог зрозуміліший. Перший ненульовий exit-код повертаємо як результат.
+ * @param {string} conftestBin абсолютний шлях до бінарника conftest
+ * @returns {number} 0 — OK, інакше exit-код conftest
+ */
+function runConftestWorkflowCommon(conftestBin) {
+  const wfDir = '.github/workflows'
+  if (!existsSync(wfDir)) return 0
+  const ymlFiles = readdirSync(wfDir)
+    .filter(f => f.endsWith('.yml'))
+    .map(f => join(wfDir, f))
+  if (ymlFiles.length === 0) return 0
+
+  return runStep('conftest (workflow_common — усі workflow)', conftestBin, [
+    'test',
+    ...ymlFiles,
+    '-p',
+    GA_POLICY_DIR,
+    '--namespace',
+    'ga.workflow_common',
+    '--no-color'
+  ])
 }

@@ -4,6 +4,35 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.207] - 2026-05-08
+
+### Added
+
+- `npm/policy/ga/workflow_common/workflow_common.rego` — універсальні Rego-перевірки для **кожного** `.github/workflows/*.yml`: блок `concurrency` (group / cancel-in-progress), заборонені `oven-sh/setup-bun` / `actions/cache` / `bun install` у `uses`/`run` будь-якого кроку, заборонене shell-продовження `\` перед NL у `run:`, обовʼязковий `actions/checkout@…` перед локальним composite-action `setup-bun-deps`. Підключено в `lint-ga.mjs` як один прогін `conftest test <…all yml…> --namespace ga.workflow_common`.
+- `npm/policy/bun/{bunfig,package_json}/*.rego` — порт `check-bun.mjs` (TOML і JSON-частина): `[install].linker == "hoisted"` у `bunfig.toml`; у кореневому `package.json` без `packageManager`, без `dependencies`, у `devDependencies` лише `@nitra/*`; агрегований `lint`-скрипт покриває всі `lint-*` через `bun run` і завершується `&& oxfmt .`.
+- `npm/policy/text/{oxfmtrc,cspell,markdownlint,package_json}/*.rego` — порт `check-text.mjs`: `.oxfmtrc.json` обовʼязкові ключі і канонічні значення; `.cspell.json` `version "0.2"`, `language`, імпорт `@nitra/cspell-dict`, заборона `@cspell/dict-*`, обовʼязкові `ignorePaths`; `.markdownlint-cli2.jsonc` `gitignore: true`; `package.json` без Prettier, `@nitra/cspell-dict ^2.0.0+`, без `markdownlint-cli2` у залежностях.
+- `npm/policy/style_lint/{package_json,lint_style_yml}/*.rego` — порт `check-style-lint.mjs`: скрипт `lint-style` через `npx stylelint`, `@nitra/stylelint-config` у `devDependencies`, `stylelint.extends == "@nitra/stylelint-config"`; у `lint-style.yml` хоча б один `run` з `npx stylelint`.
+- `npm/policy/php/{package_json,lint_php_yml}/*.rego` — порт `check-php.mjs`: скрипт `lint-php` у `package.json`; у `lint-php.yml` хоча б один `run` з `bun run lint-php`.
+- `npm/policy/npm_module/{root_package_json,npm_package_json,emit_types_config,npm_publish_yml}/*.rego` — порт `check-npm-module.mjs`: `workspaces ∋ "npm"` у кореневому `package.json`; у `npm/package.json` `types` відповідає одному з канонічних патернів і `files ∋ "types"`; `npm/tsconfig.emit-types.json` має канонічні `compilerOptions`; `.github/workflows/npm-publish.yml` має `on.push.paths ∋ "npm/**"`, `branches ∋ "main"`, `permissions.id-token: write` і крок `JS-DevTools/npm-publish` з `with.package: npm/package.json`.
+- `npm/policy/k8s/manifest/manifest.rego` — порт пер-документних структурних правил `check-k8s.mjs`: `kind: Ingress` заборонено (Gateway API), `apiVersion: autoscaling/v1` заборонено (HPA → v2), у `kind: Service` заборонені анотації `cloud.google.com/neg` / `cloud.google.com/backend-config`, у `kind: Deployment` кожен контейнер `containers`+`initContainers` має непорожнє `resources.requests.cpu`. Cross-file Kustomize-логіка (svc/svc-hl, HPA/PDB, namespace base, kustomization patches) лишається в JS.
+- `npm/policy/js_lint/{package_json,lint_js_yml}/*.rego` — порт `check-js-lint.mjs`: канонічний `lint-js`, `@nitra/eslint-config ≥ 3.9.2`, `engines.node ≥ 24`, `engines.bun ≥ 1.3`, `type: "module"`; у `lint-js.yml` `actions/checkout@v6` з `persist-credentials: false`, `setup-bun-deps`, `bunx oxlint/eslint/jscpd .`, без `--fix` у CI.
+- `npm/policy/js_mssql/package_json/package_json.rego` — порт `check-js-mssql.mjs`: `dependencies.mssql ≥ 12.5.0` (підтримує `^12.5.0`, `>=12.5.0`, `workspace:*`).
+- `npm/policy/js_bun_db/package_json/package_json.rego` — порт `check-js-bun-db.mjs`: у `dependencies` заборонені `pg`, `pg-format`, `mysql2`.
+- `npm/policy/js_run/{package_json,jsconfig,configmap}/*.rego` — порт `check-js-run.mjs`: заборона `bunyan` / `@nitra/bunyan` у залежностях; `jsconfig.json` має канонічні `compilerOptions` і `include`; у k8s ConfigMap `OTEL_RESOURCE_ATTRIBUTES` містить `service.name=` і `service.namespace=`.
+- `npm/policy/vue/package_json/package_json.rego` — порт `check-vue.mjs`: якщо `dependencies.vue` присутній, у `devDependencies` має бути `vite` мажорної версії ≥ 8.
+- `npm/policy/graphql/package_json/package_json.rego` — порт `check-graphql.mjs`: `scripts.dump-schema` точно відповідає канонічному.
+- `npm/policy/image_compress/package_json/package_json.rego` — порт `check-image-compress.mjs`: `lint-image` викликає `npx @nitra/minify-image --src=. --write` без `--avif`; агрегований `lint` містить `bun run lint-image`; `@nitra/minify-image` НЕ у `dependencies`/`devDependencies`.
+- `npm/policy/hasura/svc_hl/svc_hl.rego` — порт `check-hasura.mjs` (мінімум): у `hasura/k8s/base/svc-hl.yaml` Service з `metadata.name` має закінчуватись на `-h`.
+- `npm/policy/adr/{settings_json,settings_local_json}/*.rego` — порт `check-adr.mjs`: `.claude/settings.json` має містити Stop-hook з командою `.claude/hooks/capture-decisions.sh`; `.claude/settings.local.json` (якщо існує) — НЕ повинен мати дубля цього хука.
+- `npm/policy/capacitor/package_json/package_json.rego` — порт `check-capacitor.mjs`: `dependencies['@capacitor/core']` мажорна ≥ 8 (підтримує `workspace:*`).
+- `npm/policy/abie/{health_check_policy,http_route_base}/*.rego` — порт `check-abie.mjs`: `HealthCheckPolicy` (`networking.gke.io/v1`) має непорожній `requestPath` зі слешем, `port: 8080`, `targetRef.name` закінчується на `-hl`; `HTTPRoute` у `…/base/…` приймає лише hostnames у домені `aiml.live`.
+- `npm/scripts/lint-conftest.mjs` (+ `bun run lint-conftest` у `package.json`) — єдиний раннер conftest по всіх нових polysi: для кожного namespace — single-file або walk-предикат, з gating-ом по `.n-cursor.json:rules`, як у `check-*.mjs`. Викликається в кореневому `lint` після `lint-rego`.
+
+### Changed
+
+- `npm/policy/ga/{lint_ga,clean_ga_workflows,clean_merged_branch,git_ai}/*.rego`: прибрано дублікати правил `concurrency` (group / cancel-in-progress / missing) — їх покриває `ga.workflow_common`. Заодно усунено мовчазний баг `not is_object(input.concurrency)` (коли поля немає, повертає `undefined`, не `true`); у `workflow_common` через `object.get(input, "concurrency", false)` дає визначене значення. Канонічна тригер-група `expected_concurrency_group` теж видалена з кожної per-workflow polysi.
+- `npm/scripts/lint-ga.mjs`: до існуючих per-workflow conftest-таргетів додано фінальний прогін `ga.workflow_common` одним викликом `conftest test <усі .yml> --namespace ga.workflow_common`. Імпорт `readdirSync` з `node:fs` для перерахунку workflow-файлів.
+
 ## [1.8.206] - 2026-05-08
 
 ### Added

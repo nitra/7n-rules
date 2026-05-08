@@ -32,7 +32,6 @@ import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
-const MAJOR_VERSION_RE = /(\d+)/
 const ESBUILD_RE = /\besbuild\b/
 
 /** Регулярний вираз для triple-slash `reference types="vite/client"` у `src/vite-env.d.ts`. */
@@ -246,28 +245,6 @@ async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail) 
 }
 
 /**
- * Перевіряє мажорну версію `vite` у devDependencies (повинна бути ≥ 8).
- * @param {Record<string, string>} devDeps секція `devDependencies` пакета
- * @param {string} prefix префікс `[pkg] ` для повідомлень репортера
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при виявленому порушенні
- * @returns {void}
- */
-function checkViteVersion(devDeps, prefix, passFn, fail) {
-  const v = devDeps.vite
-  if (!v) {
-    fail(`${prefix}vite відсутній в devDependencies`)
-    return
-  }
-  const match = v.match(MAJOR_VERSION_RE)
-  if (match && Number(match[1]) >= 8) {
-    passFn(`${prefix}vite >= 8: ${v}`)
-  } else {
-    fail(`${prefix}vite має бути >= 8, знайдено: ${v}`)
-  }
-}
-
-/**
  * Витягує текст аргументів першого виклику `AutoImport(` з vite.config зі збалансованими дужками.
  * Повертає `null`, якщо виклик не знайдено або дужки не збалансовані (тоді перевірка `'vue'`
  * у списку `imports` пропускається — інші чек-сигнали все одно спрацюють).
@@ -466,7 +443,9 @@ async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
   }
 
   checkRequiredDep(deps, 'vue', prefix, passFn, fail, 'vue відсутній в dependencies')
-  checkViteVersion(devDeps, prefix, passFn, fail)
+  // `vite >= 8` перенесено в Rego (`npm/policy/vue/package_json/`); запуск
+  // через `bun run lint-conftest`. Залишені вимоги — present-/missing-deps
+  // (vue-macros, unplugin-auto-import, тощо) — у самому JS-чекері.
   checkRequiredDep(
     devDeps,
     '@vitejs/plugin-vue',

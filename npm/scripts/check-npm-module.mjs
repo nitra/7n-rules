@@ -39,6 +39,9 @@ const TYPES_FILE_RE = /^\.\/types\/.+\.d\.(ts|mts)$/
 /** Перший заголовок релізу у Keep a Changelog (`## [1.2.3]`). */
 const CHANGELOG_FIRST_VERSION_RE = /^## \[([^\]]+)\]/m
 
+/** Поле `version` у текстовому зрізі `package.json` (для `git show HEAD:npm/package.json`). */
+const PACKAGE_JSON_VERSION_RE = /"version":\s*"([^"]+)"/u
+
 /** Канонічний entrypoint типів для пакетів із вихідним `.js` під каталогом `npm/src` */
 const TYPES_INDEX = './types/index.d.ts'
 

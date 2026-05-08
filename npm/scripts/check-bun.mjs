@@ -1,54 +1,30 @@
 /**
  * Перевіряє відповідність репозиторію правилам Bun (bun.mdc).
  *
- * Очікує наявність `bun.lock`, `bunfig.toml` з `linker = "hoisted"` у секції `[install]`,
- * забороняє lockfile та артефакти yarn/pnpm, директорію `.yarn` і поле `packageManager`
- * у кореневому `package.json`.
+ * **Що тут лишилося** (FS / cross-file — не покривається conftest):
+ *  - наявність `bun.lock`, `bunfig.toml`, `package.json` у корені (FS-existence);
+ *  - заборонені lockfile та артефакти yarn/pnpm (`package-lock.json`, `yarn.lock`,
+ *    `pnpm-lock.yaml`, `.yarnrc.yml`, директорія `.yarn/`);
+ *  - якщо в `.n-cursor.json` у `rules` є `docker` або `k8s`, у кореневому
+ *    `package.json` має бути відповідний скрипт `lint-docker` / `lint-k8s`
+ *    (cross-file: два JSON-файли).
  *
- * У кореневому `package.json` не має бути поля **`dependencies`**; у **`devDependencies`** дозволені лише
- * пакети **`@nitra/*`** (наприклад **`@nitra/cspell-dict`**, **`@nitra/eslint-config`**).
- *
- * Якщо в `.n-cursor.json` у `rules` є `docker` або `k8s`, вимагає у кореневому `package.json`
- * відповідно скриптів `lint-docker` / `lint-k8s` (див. docker.mdc, k8s.mdc).
- *
- * Якщо в кореневому `package.json` є скрипти з префіксом `lint-`, перевіряє наявність агрегованого
- * скрипта `lint`, у якому через `bun run <ім’я>` викликаються всі такі скрипти, і що рядок `lint`
- * закінчується на `&& oxfmt .`.
+ * **Що покрила Rego** (`bun run lint-conftest`):
+ *  - `npm/policy/bun/bunfig/` — `[install].linker == "hoisted"` у `bunfig.toml`;
+ *  - `npm/policy/bun/package_json/` — відсутність `packageManager` / `dependencies`
+ *    у кореневому `package.json`, у `devDependencies` лише `@nitra/*`, агрегований
+ *    `lint`-скрипт покриває всі `lint-*` через `bun run` і завершується `&& oxfmt .`.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
-const OXFMT_END_RE = /&&[ \t]+oxfmt[ \t]+\.[ \t]*$/
-/** Пробіли/таби без `\s` (уникаємо super-linear backtracking у sonarjs/slow-regex). */
-const HOISTED_LINKER_RE = /^[ \t]*linker[ \t]*=[ \t]*"hoisted"[ \t]*$/m
-const INSTALL_SECTION_RE = /^[ \t]*\[install\][ \t]*$/m
-
-/**
- * Перевіряє `bunfig.toml` на секцію `[install]` з `linker = "hoisted"`.
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер
- */
-async function checkBunfigHoisted(reporter) {
-  const { pass, fail } = reporter
-  if (!existsSync('bunfig.toml')) {
-    fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
-    return
-  }
-  const content = await readFile('bunfig.toml', 'utf8')
-  if (!INSTALL_SECTION_RE.test(content)) {
-    fail('bunfig.toml: відсутня секція [install] (bun.mdc)')
-    return
-  }
-  if (HOISTED_LINKER_RE.test(content)) {
-    pass('bunfig.toml: [install] linker = "hoisted"')
-  } else {
-    fail('bunfig.toml: у секції [install] має бути linker = "hoisted" (bun.mdc)')
-  }
-}
-
 /**
  * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише **`@nitra/*`**).
+ *
+ * Залишилася як експорт для `check-text.mjs` і тестів — `bun.package_json` Rego
+ * робить ту саму перевірку для check-runner-а.
  * @param {string} name ключ з поля `devDependencies`
  * @returns {boolean} true, якщо префікс дозволений
  */
@@ -73,66 +49,6 @@ async function loadNCursorRules() {
     return new Set(list.map(String))
   } catch {
     return new Set()
-  }
-}
-
-/**
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
- * @param {Record<string, unknown>} pkg розібраний package.json
- */
-function checkDevDependencies(reporter, pkg) {
-  const { pass, fail } = reporter
-  const dev = pkg.devDependencies
-  if (dev === undefined) {
-    pass('Кореневий package.json без devDependencies')
-    return
-  }
-  if (dev === null || typeof dev !== 'object' || Array.isArray(dev)) {
-    fail(
-      'Кореневий package.json: `devDependencies` має бути object з ключами пакетів і діапазонами версій (не null, не масив)'
-    )
-    return
-  }
-  const bad = Object.keys(/** @type {object} */ (dev)).filter(n => !isAllowedRootDevDependency(n))
-  if (bad.length > 0) {
-    fail(`Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${bad.join(', ')} (bun.mdc)`)
-    return
-  }
-  const n = Object.keys(/** @type {object} */ (dev)).length
-  pass(
-    n === 0
-      ? 'Кореневі devDependencies порожні або відсутні (лише @nitra/*)'
-      : `Кореневі devDependencies: лише @nitra/* (${n} пак.)`
-  )
-}
-
-/**
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
- * @param {Record<string, string>} scripts scripts з package.json
- */
-function checkLintAggregate(reporter, scripts) {
-  const { pass, fail } = reporter
-  const lintPrefixed = Object.keys(scripts).filter(name => name.startsWith('lint-'))
-  if (lintPrefixed.length === 0) return
-  const aggregate = typeof scripts.lint === 'string' ? scripts.lint : ''
-  if (!aggregate.trim()) {
-    const scriptList = lintPrefixed.map(s => `\`${s}\``).join(', ')
-    fail(
-      `У package.json є скрипти ${scriptList}, але немає агрегованого \`lint\` — додай скрипт, який запускає їх через \`bun run\``
-    )
-    return
-  }
-  const missing = lintPrefixed.filter(name => !aggregate.includes(`bun run ${name}`))
-  if (missing.length > 0) {
-    const missingList = missing.map(s => '`' + s + '`').join(', ')
-    fail(`Скрипт \`lint\` має викликати всі lint-* через bun run; відсутньо: ${missingList}`)
-    return
-  }
-  pass('package.json: агрегований `lint` покриває всі `lint-*` скрипти')
-  if (OXFMT_END_RE.test(aggregate.trim())) {
-    pass('package.json: `lint` завершується `&& oxfmt .`')
-  } else {
-    fail('Скрипт `lint` має закінчуватися на `&& oxfmt .`')
   }
 }
 
@@ -188,34 +104,22 @@ export async function check() {
     fail('Відсутній bun.lock — запусти bun i')
   }
 
-  await checkBunfigHoisted(reporter)
+  if (!existsSync('bunfig.toml')) {
+    fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
+  } else {
+    pass('bunfig.toml є (структуру перевіряє bun run lint-conftest → bun.bunfig)')
+  }
 
   const cursorRules = await loadNCursorRules()
 
   if (!existsSync('package.json')) {
+    fail('Відсутній package.json у корені')
     return reporter.getExitCode()
   }
 
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-  if (pkg.packageManager) {
-    fail(`package.json містить поле packageManager: "${pkg.packageManager}" — видали його`)
-  } else {
-    pass('package.json не містить packageManager')
-  }
-
-  if (pkg.dependencies === undefined) {
-    pass('Кореневий package.json без поля `dependencies`')
-  } else {
-    fail(
-      'Кореневий package.json не повинен містити поле `dependencies` — додай залежності в workspace-пакети (bun.mdc)'
-    )
-  }
-
-  checkDevDependencies(reporter, pkg)
-
   const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {}
   checkCursorRuleScripts(reporter, scripts, cursorRules)
-  checkLintAggregate(reporter, scripts)
 
   return reporter.getExitCode()
 }

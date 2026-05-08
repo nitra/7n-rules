@@ -1,61 +1,42 @@
 /**
  * Перевіряє текстовий стек і форматування за правилом text.mdc.
  *
- * oxfmt: `.oxfmtrc.json` з обовʼязковими ключами та масивом ignorePatterns (два канонічні glob-и з text.mdc для hasura metadata і schema.graphql),
- * VSCode (formatOnSave, defaultFormatter для js/ts/json/vue/css/html),
- * відсутність Prettier у конфігах і залежностях.
+ * **Що тут лишилося** (FS / VSCode-конфіги / markdown / лінт-скрипт):
+ *  - `.v8rignore` (текстовий формат, рядки шляхів);
+ *  - `.vscode/extensions.json` рекомендації (markdownlint, oxc, shellcheck) і
+ *    `.vscode/settings.json` (`editor.formatOnSave`, `[lang].editor.defaultFormatter`);
+ *  - наявність FS-файлів `.oxfmtrc.json`, `.cspell.json`, `.markdownlint-cli2.jsonc`,
+ *    `package.json` (саме *існування* — структуру вже валідує Rego);
+ *  - конфіги Prettier у корені (заборонено — FS);
+ *  - абзац про український апостроф у `.cursor/rules/n-text.mdc` /
+ *    `npm/mdc/text.mdc` (markdown-текст, не JSON/YAML);
+ *  - складна валідація скрипта `lint-text` (cspell, markdownlint, v8r у трьох
+ *    варіантах, run-shellcheck-text.mjs, обовʼязкові glob-и);
+ *  - workflow `lint-text.yml` має крок `bun run lint-text`.
  *
- * cspell: `.cspell.json` з обовʼязковим набором `ignorePaths` (клон text.mdc: node_modules, vscode, git, report, svg, k8s yaml);
- * cspell, markdownlint через `bunx markdownlint-cli2` у `lint-text` (без оголошення пакета в package.json); у кореневих **`devDependencies`**
- * дозволені лише **`@nitra/*`** (як у bun.mdc), зокрема **`@nitra/cspell-dict` ^2.0.0+**; без імпорту **`@cspell/dict-*`** у `.cspell.json`, заборона
- * `markdownlint-cli2` у dependencies/devDependencies, v8r (`run-v8r.mjs` або чотири `bunx v8r`),
- * `.v8rignore` (vscode JSON),
- * workflow `lint-text.yml`, розширення VSCode (markdownlint, oxc, shellcheck), `run-shellcheck-text.mjs` у `lint-text`.
- *
- * Якщо є `.cursor/rules/n-text.mdc` і/або `npm/mdc/text.mdc` — перевіряє наявність абзацу про український
- * апостроф (U+0027 vs U+2019) і приклад з символом U+2019 у тексті.
+ * **Що покрила Rego** (`bun run lint-conftest`):
+ *  - `npm/policy/text/oxfmtrc/` — обовʼязкові ключі `.oxfmtrc.json` і канонічні
+ *    значення (semi/singleQuote/tabWidth/useTabs/printWidth) + `ignorePatterns`
+ *    канонічні glob-и;
+ *  - `npm/policy/text/cspell/` — `.cspell.json` `version "0.2"`, `language`,
+ *    імпорт `@nitra/cspell-dict`, заборона `@cspell/dict-*`, обовʼязкові
+ *    `ignorePaths`;
+ *  - `npm/policy/text/markdownlint/` — `.markdownlint-cli2.jsonc` `gitignore: true`
+ *    (працює лише якщо файл — валідний JSON без коментарів);
+ *  - `npm/policy/text/package_json/` — заборона Prettier (`prettier` поле +
+ *    `prettier`/`@nitra/prettier-config` у залежностях), `@nitra/cspell-dict ^2.0.0+`
+ *    у `devDependencies`, заборона `markdownlint-cli2` у залежностях.
+ *  - `npm/policy/bun/package_json/` — у `devDependencies` лише `@nitra/*`
+ *    (раніше дублювалося тут).
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { isAllowedRootDevDependency } from './check-bun.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
-const WORKSPACE_STAR_RE = /^workspace:\*/
-const VERSION_PREFIX_RE = /^[\^~>=<]+\s*/
-const SEMVER_RE = /^(\d+)\.(\d+)\.(\d+)/
-
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
-
-/** Мінімальні glob-и в `ignorePatterns` у `.oxfmtrc.json` (text.mdc) — додаткові патерни локально дозволені. */
-const OXFMT_REQUIRED_IGNORE_PATTERNS = ['**/hasura/metadata/**', '**/schema.graphql', '**/auto-imports.d.ts']
-
-/** Канонічні записи `ignorePaths` у `.cspell.json` (text.mdc) — кожен має бути присутнім. */
-const CSPELL_REQUIRED_IGNORE_PATHS = [
-  '**/node_modules/**',
-  '**/vscode-extension/**',
-  '**/.git/**',
-  '.vscode',
-  'report',
-  '*.svg',
-  '**/k8s/**/*.yaml'
-]
-
-/**
- * Чи діапазон версії `@nitra/cspell-dict` у package.json означає лінію 2.0.0+ (з цієї версії словники входять у пакет).
- * @param {string|undefined} range наприклад "^2.0.0"
- * @returns {boolean} true якщо мажорна версія >= 2
- */
-function cspellDictVersionAtLeast200(range) {
-  if (typeof range !== 'string' || !range.trim()) return false
-  const cleaned = range.trim().replace(WORKSPACE_STAR_RE, '').replace(VERSION_PREFIX_RE, '')
-  const m = cleaned.match(SEMVER_RE)
-  if (!m) return false
-  const major = Number(m[1])
-  return major >= 2
-}
 
 /**
  * Перевіряє абзац про український апостроф у вмісті правила text.
@@ -74,8 +55,8 @@ function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
     failFn(`${filePath}: абзац про апостроф має містити позначки U+0027 та U+2019`)
     return
   }
-  if (!body.includes('\u2019')) {
-    failFn(`${filePath}: у прикладі має бути типографський символ U+2019 (\u2019)`)
+  if (!body.includes('’')) {
+    failFn(`${filePath}: у прикладі має бути типографський символ U+2019 (’)`)
     return
   }
   passFn(`${filePath}: абзац про український апостроф на місці`)
@@ -174,122 +155,38 @@ async function checkVscodeText(passFn, failFn) {
 }
 
 /**
- * Перевіряє .oxfmtrc.json.
+ * FS-existence стек текстових конфігів. Контент-валідація — у Rego
+ * (`text.oxfmtrc`, `text.cspell`, `text.markdownlint`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @returns {Promise<void>}
  */
-async function checkOxfmtRc(passFn, failFn) {
-  if (!existsSync('.oxfmtrc.json')) {
-    failFn('.oxfmtrc.json не існує — створи його')
-    return
-  }
-  const cfg = JSON.parse(await readFile('.oxfmtrc.json', 'utf8'))
-  const requiredKeys = [
-    'arrowParens',
-    'printWidth',
-    'bracketSpacing',
-    'bracketSameLine',
-    'semi',
-    'singleQuote',
-    'tabWidth',
-    'trailingComma',
-    'useTabs'
-  ]
-  const missing = requiredKeys.filter(k => !(k in cfg))
-  if (missing.length === 0) {
-    passFn('.oxfmtrc.json містить всі обовʼязкові ключі')
-  } else {
-    failFn(`.oxfmtrc.json відсутні ключі: ${missing.join(', ')}`)
-  }
-  if (cfg.semi !== false) failFn('.oxfmtrc.json: semi має бути false')
-  if (cfg.singleQuote !== true) failFn('.oxfmtrc.json: singleQuote має бути true')
-  if (cfg.tabWidth !== 2) failFn('.oxfmtrc.json: tabWidth має бути 2')
-  if (cfg.useTabs !== false) failFn('.oxfmtrc.json: useTabs має бути false')
-  if (cfg.printWidth !== 120) failFn('.oxfmtrc.json: printWidth має бути 120')
-
-  if (Array.isArray(cfg.ignorePatterns)) {
-    const set = new Set(cfg.ignorePatterns)
-    const missingPatterns = OXFMT_REQUIRED_IGNORE_PATTERNS.filter(p => !set.has(p))
-    if (missingPatterns.length === 0) {
-      passFn('.oxfmtrc.json: ignorePatterns містить hasura/metadata, schema.graphql і auto-imports.d.ts')
+function checkTextConfigsExistence(passFn, failFn) {
+  for (const [path, mdcRef] of [
+    ['.oxfmtrc.json', 'text.oxfmtrc'],
+    ['.cspell.json', 'text.cspell'],
+    ['.markdownlint-cli2.jsonc', 'text.markdownlint']
+  ]) {
+    if (existsSync(path)) {
+      passFn(`${path} є (структуру перевіряє bun run lint-conftest → ${mdcRef})`)
     } else {
-      failFn(
-        `.oxfmtrc.json ignorePatterns: додай відсутні елементи: ${missingPatterns.join(', ')} (канонічний приклад у text.mdc)`
-      )
+      failFn(`${path} не існує — створи згідно n-text.mdc`)
     }
-  } else {
-    failFn(`.oxfmtrc.json: додай масив ignorePatterns з ${OXFMT_REQUIRED_IGNORE_PATTERNS.join(', ')} (див. text.mdc)`)
   }
+  return Promise.resolve()
 }
 
 /**
- * Перевіряє залежності package.json для текстового стека.
- * @param {{ dependencies?: Record<string, string>, devDependencies?: Record<string, string>, prettier?: unknown }} pkg розібраний package.json
- * @param {Record<string, string>} devDeps devDependencies з package.json
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-function checkPackageJsonTextDepsUsage(pkg, devDeps, passFn, failFn) {
-  const allDeps = { ...pkg.dependencies, ...pkg.devDependencies }
-  for (const dep of ['prettier', '@nitra/prettier-config']) {
-    if (allDeps[dep]) failFn(`package.json містить залежність ${dep} — видали її`)
-  }
-  if (pkg.prettier) failFn('package.json містить поле "prettier" — видали його')
-
-  const nonNitraDev = Object.keys(devDeps).filter(n => !isAllowedRootDevDependency(n))
-  if (nonNitraDev.length > 0) {
-    failFn(
-      `Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: ${nonNitraDev.join(', ')} (bun.mdc)`
-    )
-  } else {
-    passFn('Кореневі devDependencies лише @nitra/*')
-  }
-
-  const cspellRange = devDeps['@nitra/cspell-dict']
-  if (!cspellRange) {
-    failFn('@nitra/cspell-dict у devDependencies обовʼязковий для cspell — bun add -d @nitra/cspell-dict@^2.0.0')
-  } else if (cspellDictVersionAtLeast200(cspellRange)) {
-    passFn('@nitra/cspell-dict ^2.0.0+')
-  } else {
-    failFn('@nitra/cspell-dict має бути ^2.0.0 або новіший (словники зібрані в пакеті з 2.x)')
-  }
-
-  if (devDeps['markdownlint-cli2'] || (pkg.dependencies || {})['markdownlint-cli2']) {
-    failFn(
-      'markdownlint-cli2 не додавай у dependencies/devDependencies — лише bunx у lint-text (n-text.mdc); прибери з package.json і bun i'
-    )
-  }
-}
-
-/**
- * Перевіряє відсутність прямих імпортів `@cspell/dict-*` у .cspell.json.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkCspellJsonDictImports(passFn, failFn) {
-  if (!existsSync('.cspell.json')) return
-  const cfg = JSON.parse(await readFile('.cspell.json', 'utf8'))
-  const dictImports = (cfg.import || []).filter(i => typeof i === 'string' && i.includes('@cspell/dict-'))
-  if (dictImports.length > 0) {
-    failFn(
-      `.cspell.json не має імпортувати @cspell/dict-* (${dictImports.join(', ')}) — використовуй лише @nitra/cspell-dict/cspell-ext.json`
-    )
-  } else {
-    passFn('.cspell.json без прямих імпортів @cspell/dict-*')
-  }
-}
-
-/**
- * Перевіряє package.json для текстового стека.
+ * Перевіряє package.json для текстового стека: складний `lint-text` скрипт і
+ * виклик `bun run lint-text` у відповідному workflow. Решта (Prettier-заборона,
+ * `@nitra/cspell-dict ^2.0.0+`, заборона `markdownlint-cli2` у залежностях,
+ * `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
 async function checkPackageJsonText(passFn, failFn) {
   if (!existsSync('package.json')) return
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-  const devDeps = pkg.devDependencies || {}
-
-  checkPackageJsonTextDepsUsage(pkg, devDeps, passFn, failFn)
   checkLintTextScript(pkg.scripts?.['lint-text'], passFn, failFn)
 
   if (existsSync('.github/workflows/lint-text.yml')) {
@@ -304,8 +201,6 @@ async function checkPackageJsonText(passFn, failFn) {
   } else {
     failFn('.github/workflows/lint-text.yml не існує — створи згідно n-text.mdc')
   }
-
-  await checkCspellJsonDictImports(passFn, failFn)
 }
 
 /**
@@ -344,71 +239,7 @@ function checkLintTextScript(lintText, passFn, failFn) {
 }
 
 /**
- * Перевіряє .markdownlint-cli2.jsonc.
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- */
-async function checkMarkdownlintConfig(pass, fail) {
-  if (!existsSync('.markdownlint-cli2.jsonc')) {
-    fail('.markdownlint-cli2.jsonc не існує — створи згідно n-text.mdc')
-    return
-  }
-  try {
-    const ml = JSON.parse(await readFile('.markdownlint-cli2.jsonc', 'utf8'))
-    pass('.markdownlint-cli2.jsonc існує і є валідним JSON')
-    if (ml.gitignore === true) {
-      pass('.markdownlint-cli2.jsonc: gitignore увімкнено')
-    } else {
-      fail('.markdownlint-cli2.jsonc: додай на верхньому рівні "gitignore": true (див. n-text.mdc)')
-    }
-  } catch {
-    fail('.markdownlint-cli2.jsonc — невалідний JSON; перевір синтаксис')
-  }
-}
-
-/**
- * Перевіряє .cspell.json на версію, мову, імпорт і ignorePaths.
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- */
-async function checkCspellConfig(pass, fail) {
-  if (!existsSync('.cspell.json')) {
-    fail('.cspell.json не існує — створи його')
-    return
-  }
-  const cfg = JSON.parse(await readFile('.cspell.json', 'utf8'))
-  if (cfg.version === '0.2') {
-    pass('.cspell.json version: 0.2')
-  } else {
-    fail('.cspell.json version має бути "0.2"')
-  }
-  if (cfg.language) {
-    pass(`.cspell.json language: "${cfg.language}"`)
-  } else {
-    fail('.cspell.json не містить поле language')
-  }
-  if ((cfg.import || []).some(i => i.includes('@nitra/cspell-dict'))) {
-    pass('.cspell.json імпортує @nitra/cspell-dict')
-  } else {
-    fail('.cspell.json не імпортує @nitra/cspell-dict/cspell-ext.json')
-  }
-  if (Array.isArray(cfg.ignorePaths)) {
-    pass('.cspell.json містить ignorePaths')
-  } else {
-    fail('.cspell.json не містить ignorePaths')
-  }
-  if (Array.isArray(cfg.ignorePaths)) {
-    const missing = CSPELL_REQUIRED_IGNORE_PATHS.filter(p => !cfg.ignorePaths.includes(p))
-    if (missing.length === 0) {
-      pass(`.cspell.json ignorePaths містить усі обовʼязкові glob-и з text.mdc`)
-    } else {
-      fail(`.cspell.json ignorePaths бракує за замовчанням: ${missing.join(', ')} (див. text.mdc)`)
-    }
-  }
-}
-
-/**
- * Перевіряє відповідність проєкту правилам text.mdc (oxfmt, cspell, shellcheck у lint-text, markdownlint через bunx, v8r)
+ * Перевіряє відповідність проєкту правилам text.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
@@ -417,14 +248,11 @@ export async function check() {
 
   await checkV8rIgnore(pass, fail)
   await checkVscodeText(pass, fail)
-  await checkOxfmtRc(pass, fail)
+  await checkTextConfigsExistence(pass, fail)
 
   for (const f of ['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', '.prettierrc.yml']) {
     if (existsSync(f)) fail(`Знайдено конфіг prettier: ${f} — видали його`)
   }
-
-  await checkMarkdownlintConfig(pass, fail)
-  await checkCspellConfig(pass, fail)
 
   const textRulePaths = ['.cursor/rules/n-text.mdc', 'npm/mdc/text.mdc'].filter(p => existsSync(p))
   if (textRulePaths.length === 0) {

@@ -1,11 +1,14 @@
 /**
- * Перевіряє правило graphql.mdc: наявність **`.graphqlrc.yml`**, рекомендації
- * **`graphql.vscode-graphql`** і скрипта **`dump-schema`** у кореневому
- * **`package.json`**, якщо у дереві є **`gql\`…\``**.
+ * Перевіряє правило graphql.mdc: наявність **`.graphqlrc.yml`** і рекомендації
+ * **`graphql.vscode-graphql`**, якщо у дереві є **`gql\`…\``**.
  *
  * Обхід репозиторію — **`walkDir`** від **`process.cwd()`** (пропуски як у інших check). Кандидати — **`.vue`** та **`.js`/`.ts`/`.jsx`/`.tsx`** тощо; пропуск **`.d.ts`**, **auto-imports.d.ts** тощо — **`shouldSkipFileForGqlScan`**.
  *
  * Виявлення **`gql`** — **oxc-parser** після витягування `<script>` з SFC (**`graphql-gql-scan.mjs`**). Якщо збігів немає — перевірка завершується успішно без вимог до конфігів.
+ *
+ * Перевірку `scripts.dump-schema == REQUIRED_DUMP_SCHEMA_SCRIPT` у `package.json`
+ * перенесено в Rego (`npm/policy/graphql/package_json/`); `bun run lint-conftest`
+ * запускає її окремо.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -25,9 +28,6 @@ export const GRAPHQL_RC_FILENAME = '.graphqlrc.yml'
 
 /** Розширення VS Code з graphql.mdc. */
 export const REQUIRED_GRAPHQL_VSCODE_EXTENSION = 'graphql.vscode-graphql'
-/** Команда dump-schema з graphql.mdc. */
-export const REQUIRED_DUMP_SCHEMA_SCRIPT =
-  "bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql"
 
 /**
  * Збирає абсолютні шляхи source-файлів, які підлягають скануванню на gql templates.
@@ -107,44 +107,6 @@ async function checkExtensionsRecommendation(pass, fail) {
 }
 
 /**
- * Перевіряє `package.json` і значення scripts.dump-schema.
- * @param {(msg: string) => void} pass success-репортер
- * @param {(msg: string) => void} fail fail-репортер
- * @returns {Promise<void>}
- */
-async function checkPackageDumpSchemaScript(pass, fail) {
-  if (!existsSync('package.json')) {
-    fail('Відсутній package.json у корені репозиторію')
-    return
-  }
-
-  let pkg
-  try {
-    pkg = JSON.parse(await readFile('package.json', 'utf8'))
-  } catch {
-    fail('package.json не є валідним JSON')
-    return
-  }
-
-  const scripts = pkg.scripts
-  if (!scripts || typeof scripts !== 'object' || Array.isArray(scripts)) {
-    fail('package.json: поле scripts має бути обʼєктом')
-    return
-  }
-
-  if (!Object.hasOwn(scripts, 'dump-schema')) {
-    fail('package.json: відсутній scripts.dump-schema (graphql.mdc)')
-    return
-  }
-
-  if (scripts['dump-schema'] === REQUIRED_DUMP_SCHEMA_SCRIPT) {
-    pass('package.json: scripts.dump-schema відповідає graphql.mdc')
-  } else {
-    fail(`package.json: scripts.dump-schema має бути "${REQUIRED_DUMP_SCHEMA_SCRIPT}" (graphql.mdc)`)
-  }
-}
-
-/**
  * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml, graphql.vscode-graphql
  * і scripts.dump-schema за наявності gql tagged templates.
  * @returns {Promise<number>} 0 — OK, 1 — порушення
@@ -176,7 +138,6 @@ export async function check() {
   }
 
   await checkExtensionsRecommendation(pass, fail)
-  await checkPackageDumpSchemaScript(pass, fail)
 
   return reporter.getExitCode()
 }

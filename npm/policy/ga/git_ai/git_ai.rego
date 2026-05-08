@@ -13,8 +13,6 @@ import rego.v1
 
 # ── Очікувані значення ─────────────────────────────────────────────────────
 
-expected_concurrency_group := concat("", ["$", "{{ github.ref }}-$", "{{ github.workflow }}"])
-
 expected_name := "Git AI"
 
 expected_if_substring := "github.event.pull_request.merged == true"
@@ -22,13 +20,6 @@ expected_if_substring := "github.event.pull_request.merged == true"
 expected_install_substring := "curl -fsSL https://usegitai.com/install.sh | bash"
 
 expected_run_substring := "git-ai ci github run"
-
-# Шаблон повідомлення про відсутню `concurrency`-секцію — через `concat` для
-# regal style/line-length.
-concurrency_missing_template := concat(" ", [
-	"git-ai.yml: відсутня секція concurrency —",
-	"додай concurrency.group: %s і cancel-in-progress: true (ga.mdc)",
-])
 
 # ── Аліаси на input ────────────────────────────────────────────────────────
 #
@@ -55,23 +46,6 @@ deny contains msg if {
 deny contains msg if {
 	not "closed" in {t | some t in gha_on.pull_request.types}
 	msg := "git-ai.yml: on.pull_request.types має містити closed (ga.mdc)"
-}
-
-deny contains msg if {
-	not is_object(input.concurrency)
-	msg := sprintf(concurrency_missing_template, [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency.group != expected_concurrency_group
-	msg := sprintf("git-ai.yml: concurrency.group має бути %s (ga.mdc)", [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency["cancel-in-progress"] != true
-	msg := "git-ai.yml: concurrency.cancel-in-progress має бути true (ga.mdc)"
 }
 
 deny contains msg if {

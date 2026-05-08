@@ -23,41 +23,8 @@ describe('check-js-bun-db', () => {
     })
   })
 
-  test('помилка: dependencies.pg у кореневому package.json', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 't',
-        dependencies: { pg: '^8.13.0' }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: dependencies.pg-format у кореневому package.json', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 't',
-        dependencies: { 'pg-format': '^1.0.4' }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
-
-  test('помилка: dependencies.mysql2 у workspace-пакеті', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
-        name: 'mono',
-        private: true,
-        workspaces: ['apps/*']
-      })
-      await ensureDir('apps/api')
-      await writeJson('apps/api/package.json', {
-        name: 'api',
-        dependencies: { mysql2: '^3.10.0' }
-      })
-      expect(await check()).toBe(1)
-    })
-  })
+  // Перевірки `dependencies.{pg, pg-format, mysql2}` тепер у Rego-полісі
+  // `npm/policy/js_bun_db/package_json/`; тестуються через conftest, не тут.
 
   test('успіх: Bun SQL використовується безпечно (singleton + tagged template)', async () => {
     await withTmpCwd(async () => {

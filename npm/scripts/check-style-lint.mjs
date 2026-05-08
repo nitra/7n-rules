@@ -1,71 +1,41 @@
 /**
  * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
  *
- * Очікування: `@nitra/stylelint-config`, `lint-style` через `npx stylelint`, `.stylelintignore`,
- * workflow `lint-style.yml` (у `run` — лише `npx stylelint`, не `bun run lint-style`), VSCode stylelint,
- * `css.validate` / `scss.validate` / `less.validate`: false.
+ * **Що тут лишилося** (FS / VSCode-конфіги — не покривається conftest):
+ *  - наявність зовнішнього файлу конфігу stylelint (`.stylelintrc.*`,
+ *    `stylelint.config.js`) як альтернатива полю `stylelint` у `package.json`
+ *    (cross-file: треба знати, чи є поле, чи немає);
+ *  - `.stylelintignore` у корені;
+ *  - `.vscode/extensions.json` recommendation `stylelint.vscode-stylelint`;
+ *  - `.vscode/settings.json` `css.validate` / `scss.validate` / `less.validate: false`.
+ *
+ * **Що покрила Rego** (`bun run lint-conftest`):
+ *  - `npm/policy/style_lint/package_json/` — скрипт `lint-style` через `npx stylelint`,
+ *    `@nitra/stylelint-config` у `devDependencies`, поле `stylelint.extends`;
+ *  - `npm/policy/style_lint/lint_style_yml/` — `npx stylelint` у `run` workflow.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
-import { anyRunStepIncludesStylelint, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 
 /**
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер для збору результатів
+ * Альтернатива полю `stylelint` у `package.json` — зовнішній файл конфігу. Якщо
+ * поля немає і файлу немає, фейлимося; якщо є хоч щось — пропускаємо. Поле
+ * `stylelint.extends == "@nitra/stylelint-config"` сам формат — у Rego.
+ * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер
  */
-async function checkPackageJson(reporter) {
+async function checkStylelintConfigPresence(reporter) {
   const { pass, fail } = reporter
   if (!existsSync('package.json')) return
   const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-
-  const lintStyle = pkg.scripts?.['lint-style']
-  if (lintStyle) {
-    pass('package.json містить скрипт lint-style')
-    if (String(lintStyle).includes('npx stylelint')) {
-      pass('lint-style викликає stylelint через npx')
-    } else {
-      fail("lint-style має викликати stylelint через npx — наприклад: npx stylelint '**/*.{css,scss,vue}' --fix")
-    }
-  } else {
-    fail('package.json не містить скрипт "lint-style"')
-  }
-
-  if (pkg.devDependencies?.['@nitra/stylelint-config']) {
-    pass('@nitra/stylelint-config є в devDependencies')
-  } else {
-    fail('@nitra/stylelint-config відсутній — bun add -d @nitra/stylelint-config')
-  }
-
-  const stylelintCfg = pkg.stylelint
+  const hasField = pkg.stylelint && typeof pkg.stylelint === 'object'
   const hasExternalCfg =
     existsSync('.stylelintrc.json') || existsSync('.stylelintrc.js') || existsSync('stylelint.config.js')
-  if (stylelintCfg?.extends === '@nitra/stylelint-config') {
-    pass('package.json stylelint extends @nitra/stylelint-config')
-  } else if (hasExternalCfg) {
-    pass('Окремий файл конфігу stylelint існує')
+  if (hasField || hasExternalCfg) {
+    pass('Конфіг stylelint є — у package.json або окремим файлом')
   } else {
     fail('Немає конфігу stylelint — додай "stylelint": { "extends": "@nitra/stylelint-config" } до package.json')
-  }
-}
-
-/**
- * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
- */
-async function checkStylelintWorkflow(reporter) {
-  const { pass, fail } = reporter
-  if (!existsSync('.github/workflows/lint-style.yml')) {
-    fail('.github/workflows/lint-style.yml не існує — створи його')
-    return
-  }
-  const content = await readFile('.github/workflows/lint-style.yml', 'utf8')
-  pass('lint-style.yml існує')
-  const root = parseWorkflowYaml(content)
-  const ok = root ? anyRunStepIncludesStylelint(root) : content.includes('npx stylelint')
-  if (ok) {
-    pass('lint-style.yml містить npx stylelint у кроці run')
-  } else {
-    fail("lint-style.yml має викликати stylelint у CI через npx — наприклад: npx stylelint '**/*.{css,scss,vue}' --fix")
   }
 }
 
@@ -104,7 +74,7 @@ export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  await checkPackageJson(reporter)
+  await checkStylelintConfigPresence(reporter)
 
   if (existsSync('.stylelintignore')) {
     pass('.stylelintignore існує')
@@ -112,7 +82,13 @@ export async function check() {
     fail('.stylelintignore не існує — створи з вмістом: dist/')
   }
 
-  await checkStylelintWorkflow(reporter)
+  const wfPath = '.github/workflows/lint-style.yml'
+  if (existsSync(wfPath)) {
+    pass(`${wfPath} є (структуру перевіряє bun run lint-conftest → style_lint.lint_style_yml)`)
+  } else {
+    fail(`${wfPath} не існує — створи його`)
+  }
+
   await checkVscodeStylelint(reporter)
 
   return reporter.getExitCode()

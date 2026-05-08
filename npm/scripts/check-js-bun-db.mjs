@@ -39,18 +39,6 @@ import { findAllPackageJsonPaths } from './utils/find-package-json-paths.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
-/** Імена забороненої залежності у будь-якому `package.json`. */
-const FORBIDDEN_DEPENDENCIES = Object.freeze(['pg', 'pg-format', 'mysql2'])
-
-/**
- * @param {unknown} v parsed JSON
- * @returns {Record<string, unknown>} object або {}
- */
-function asObject(v) {
-  if (!v || typeof v !== 'object' || Array.isArray(v)) return {}
-  return /** @type {Record<string, unknown>} */ (v)
-}
-
 /**
  * Збирає абсолютні шляхи JS/TS джерел у репозиторії для скану Bun SQL патернів.
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
@@ -72,43 +60,6 @@ async function findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths) {
   )
   paths.sort((a, b) => relative(repoRoot, a).localeCompare(relative(repoRoot, b)))
   return paths
-}
-
-/**
- * Перевіряє, чи в кореневому `package.json` присутні заборонені пакети у `dependencies`.
- * @param {string[]} pkgJsonPaths абсолютні шляхи всіх `package.json` у репо
- * @param {string} repoRoot абсолютний шлях до кореня
- * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter колбеки pass і fail з перевірки
- * @returns {Promise<number>} кількість знайдених порушень
- */
-async function checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter) {
-  const { pass, fail } = reporter
-  let bad = 0
-  for (const absPath of pkgJsonPaths) {
-    const rel = relative(repoRoot, absPath).split('\\').join('/')
-    let parsed
-    try {
-      parsed = JSON.parse(await readFile(absPath, 'utf8'))
-    } catch {
-      fail(`js-bun-db: ${rel} — невалідний JSON`)
-      bad++
-      continue
-    }
-    const deps = asObject(parsed.dependencies)
-    for (const name of FORBIDDEN_DEPENDENCIES) {
-      if (Object.hasOwn(deps, name)) {
-        bad++
-        fail(
-          `js-bun-db: ${rel}: dependencies.${name} — замінити на Bun native SQL ` +
-            `(import { sql, SQL } from 'bun', https://bun.com/docs/runtime/sql) (js-bun-db.mdc)`
-        )
-      }
-    }
-  }
-  if (bad === 0) {
-    pass(`js-bun-db: жоден package.json не містить ${FORBIDDEN_DEPENDENCIES.join(' / ')} у dependencies`)
-  }
-  return bad
 }
 
 /**
@@ -233,7 +184,9 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  await checkForbiddenDependencies(pkgJsonPaths, repoRoot, reporter)
+  // Перевірку `dependencies` (заборона `pg` / `pg-format` / `mysql2`) перенесено
+  // в Rego-полісі `npm/policy/js_bun_db/package_json/`; `bun run lint-conftest`
+  // запускає її по всіх workspace-`package.json`. Тут лишився лише AST-скан коду.
 
   const sourcePaths = await findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {

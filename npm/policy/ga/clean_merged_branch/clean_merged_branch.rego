@@ -16,8 +16,6 @@ import rego.v1
 # Шаблонні токени GitHub Actions (`${{ … }}`) збираємо з фрагментів через
 # `concat`, бо `{{` у Rego починає string interpolation.
 
-expected_concurrency_group := concat("", ["$", "{{ github.ref }}-$", "{{ github.workflow }}"])
-
 expected_github_token := concat("", ["$", "{{ github.token }}"])
 
 expected_deleted_branches_expr := concat("", ["$", "{{ steps.delete_stuff.outputs.deleted_branches }}"])
@@ -27,12 +25,6 @@ expected_echo_substring := concat("", ["echo \"Deleted branches: $", "{DELETED_B
 expected_name := "Clean abandoned branches"
 
 expected_cron := "0 1 15 * *"
-
-# Шаблони повідомлень — через `concat` для regal style/line-length.
-concurrency_missing_template := concat(" ", [
-	"clean-merged-branch.yml: відсутня секція concurrency —",
-	"додай concurrency.group: %s і cancel-in-progress: true (ga.mdc)",
-])
 
 # ── Аліаси на input ────────────────────────────────────────────────────────
 #
@@ -61,23 +53,6 @@ deny contains msg if {
 deny contains msg if {
 	not has_workflow_dispatch
 	msg := "clean-merged-branch.yml: має бути workflow_dispatch: {} (ga.mdc)"
-}
-
-deny contains msg if {
-	not is_object(input.concurrency)
-	msg := sprintf(concurrency_missing_template, [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency.group != expected_concurrency_group
-	msg := sprintf("clean-merged-branch.yml: concurrency.group має бути %s (ga.mdc)", [expected_concurrency_group])
-}
-
-deny contains msg if {
-	is_object(input.concurrency)
-	input.concurrency["cancel-in-progress"] != true
-	msg := "clean-merged-branch.yml: concurrency.cancel-in-progress має бути true (ga.mdc)"
 }
 
 deny contains msg if {
