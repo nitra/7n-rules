@@ -246,7 +246,7 @@ async function checkEmitTypesConfig(passFn, failFn) {
  */
 /**
  * Чи виконано `git` у корені робочого дерева.
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} true, якщо процес запущено в межах git work tree
  */
 async function gitInsideWorkTree() {
   try {
@@ -273,7 +273,7 @@ async function gitDiffNameOnlyNpm() {
 /**
  * Поле `version` з `npm/package.json` на заданому git-ref (`HEAD:npm/package.json`).
  * @param {string} refPath на кшталт `HEAD:npm/package.json`
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} значення поля `version` або `null`, якщо ref недоступний
  */
 async function gitShowNpmPackageVersionAt(refPath) {
   try {
@@ -287,8 +287,8 @@ async function gitShowNpmPackageVersionAt(refPath) {
 
 /**
  * Версія з першого заголовка `## […]` у тексті CHANGELOG.
- * @param {string} changelogText
- * @returns {string | null}
+ * @param {string} changelogText вміст файлу CHANGELOG.md
+ * @returns {string | null} версія з першої секції або `null`, якщо заголовка немає
  */
 function firstChangelogSectionVersion(changelogText) {
   const m = changelogText.match(CHANGELOG_FIRST_VERSION_RE)
@@ -297,8 +297,8 @@ function firstChangelogSectionVersion(changelogText) {
 
 /**
  * Перший реліз у CHANGELOG має збігатися з `version` у `npm/package.json`.
- * @param {(msg: string) => void} passFn
- * @param {(msg: string) => void} failFn
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при виявленому порушенні
  * @returns {Promise<void>}
  */
 async function checkChangelogTopMatchesPackageVersion(passFn, failFn) {
@@ -327,8 +327,8 @@ async function checkChangelogTopMatchesPackageVersion(passFn, failFn) {
 
 /**
  * Незакомічені зміни під `npm/` вимагають підвищення `version` відносно `HEAD`.
- * @param {(msg: string) => void} passFn
- * @param {(msg: string) => void} failFn
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при виявленому порушенні
  * @returns {Promise<void>}
  */
 async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
@@ -360,6 +360,12 @@ async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
   passFn(`npm/: незакомічені зміни під npm/ узгоджені з підвищенням version (${headVer} → ${cur})`)
 }
 
+/**
+ * Перевіряє npm-publish.yml workflow на наявність потрібних полів і кроків.
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при виявленому порушенні
+ * @returns {Promise<void>}
+ */
 async function checkPublishWorkflow(passFn, failFn) {
   const publishWf = '.github/workflows/npm-publish.yml'
   if (!existsSync(publishWf)) {

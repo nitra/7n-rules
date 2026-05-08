@@ -65,9 +65,9 @@ const CANONICAL_BACKEND_JSCONFIG = Object.freeze({
 
 /**
  * Глибока рівність для JSON-подібних значень (масиви — порядок важливий).
- * @param {unknown} a
- * @param {unknown} b
- * @returns {boolean}
+ * @param {unknown} a перше значення
+ * @param {unknown} b друге значення
+ * @returns {boolean} true, якщо значення структурно ідентичні
  */
 function deepEqualJson(a, b) {
   if (a === b) return true
@@ -83,8 +83,8 @@ function deepEqualJson(a, b) {
   }
   const ao = /** @type {Record<string, unknown>} */ (a)
   const bo = /** @type {Record<string, unknown>} */ (b)
-  const keysA = Object.keys(ao).sort()
-  const keysB = Object.keys(bo).sort()
+  const keysA = Object.keys(ao).toSorted()
+  const keysB = Object.keys(bo).toSorted()
   if (keysA.length !== keysB.length) return false
   for (const [i, k] of keysA.entries()) {
     if (k !== keysB[i]) return false
@@ -96,7 +96,7 @@ function deepEqualJson(a, b) {
 /**
  * Чи існує непорожній за змістом маркер каталогу `src/` (рекомендована структура js-run).
  * @param {string} absPackageRoot абсолютний корінь пакета
- * @returns {boolean}
+ * @returns {boolean} true, якщо `src/` існує і є каталогом
  */
 function backendPackageHasSrcDir(absPackageRoot) {
   const srcPath = join(absPackageRoot, 'src')
@@ -112,8 +112,8 @@ function backendPackageHasSrcDir(absPackageRoot) {
  * @param {string} rootDir відносний шлях workspace
  * @param {string} absPackageRoot абсолютний корінь пакета
  * @param {string} label префікс `[pkg] `
- * @param {(msg: string) => void} fail
- * @param {(msg: string) => void} passFn
+ * @param {(msg: string) => void} fail callback для повідомлень про порушення
+ * @param {(msg: string) => void} passFn callback для повідомлень про успішну перевірку
  * @returns {Promise<void>}
  */
 async function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn) {

@@ -68,7 +68,7 @@ describe('parseInternalHasuraEndpoint', () => {
   })
 
   test('відхиляє неочікувані суфікси (svc.example.com)', () => {
-    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- негативний кейс
+    // eslint-disable-next-line @microsoft/sdl/no-insecure-url -- негативний кейс
     expect(parseInternalHasuraEndpoint('http://h.ns.svc.example.com:8080').ok).toBe(false)
   })
 })

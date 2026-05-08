@@ -80,14 +80,14 @@ export function listShellScriptPaths(cwd) {
       return []
     }
     const files = ls.stdout.split('\0').filter(Boolean)
-    return [...new Set(files)].sort()
+    return new Set(files).toSorted()
   }
 
   const fromGlob = globSync('**/*.sh', {
     cwd,
     exclude: p => p.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')
   })
-  return [...new Set(fromGlob.map(p => p.replaceAll('\\', '/')))].sort()
+  return new Set(fromGlob.map(p => p.replaceAll('\\', '/'))).toSorted()
 }
 
 /**

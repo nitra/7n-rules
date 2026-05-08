@@ -16,7 +16,7 @@ describe('run-shellcheck-text.mjs', () => {
       await writeFile('a/b/x.sh', '#!/bin/bash\necho ok\n', 'utf8')
       await writeFile('root.sh', '#!/bin/sh\ntrue\n', 'utf8')
       const paths = listShellScriptPaths(process.cwd())
-      expect(paths.sort()).toEqual(['a/b/x.sh', 'root.sh'])
+      expect(paths.toSorted()).toEqual(['a/b/x.sh', 'root.sh'])
     })
   })
 

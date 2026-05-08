@@ -26,6 +26,7 @@ const PROJECT_SETTINGS_PATH = '.claude/settings.json'
 const PROJECT_LOCAL_SETTINGS_PATH = '.claude/settings.local.json'
 const PROJECT_LOG_PATH = '.claude/hooks/capture-decisions.log'
 const HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
+const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
 /** Канонічний bundled-скрипт у пакеті — джерело правди для звірки з проєктним. */
@@ -183,9 +184,9 @@ async function checkGitignore(reporter) {
   }
   const content = await readFile('.gitignore', 'utf8')
   const covers = content
-    .split(/\r?\n/u)
+    .split(EOL_RE)
     .map(l => l.trim())
-    .some(gitignoreLineCoversHookLog)
+    .some(line => gitignoreLineCoversHookLog(line))
   if (covers) {
     pass(`.gitignore покриває ${PROJECT_LOG_PATH}`)
   } else {

@@ -5648,8 +5648,8 @@ export function imageReplaceDeploymentPatchInfo(patchObj) {
 
   /** @type {Array<{ containerIndex: number, newImage: string, opIndex: number }>} */
   const ops = []
-  for (let i = 0; i < parsedArr.length; i++) {
-    const op = asPlainObject(parsedArr[i])
+  for (const [i, element] of parsedArr.entries()) {
+    const op = asPlainObject(element)
     if (op === null) continue
     const containerIndex = singleImageReplaceContainerIndex(op)
     if (containerIndex === null) continue
@@ -6018,7 +6018,7 @@ function applyConversionsToDoc(doc, conversions) {
     byPatch.set(c.index, slot)
   }
 
-  const sortedIdx = [...byPatch.keys()].sort((a, b) => b - a)
+  const sortedIdx = byPatch.keys().toSorted((a, b) => b - a)
   for (const i of sortedIdx) {
     const slot = byPatch.get(i)
     if (slot === undefined) continue
@@ -6071,7 +6071,7 @@ function rewriteInlinePatchWithoutOps(patchText, opIndices) {
   const seq = inner.contents
   if (!isSeq(seq)) return null
 
-  const toRemove = [...new Set(opIndices)].sort((a, b) => b - a)
+  const toRemove = new Set(opIndices).toSorted((a, b) => b - a)
   for (const i of toRemove) {
     if (i < 0 || i >= seq.items.length) return null
     seq.delete(i)

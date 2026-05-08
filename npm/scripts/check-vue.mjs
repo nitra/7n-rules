@@ -245,6 +245,14 @@ async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail) 
   passFn(`${prefix}jsconfig.json присутній`)
 }
 
+/**
+ * Перевіряє мажорну версію `vite` у devDependencies (повинна бути ≥ 8).
+ * @param {Record<string, string>} devDeps секція `devDependencies` пакета
+ * @param {string} prefix префікс `[pkg] ` для повідомлень репортера
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при виявленому порушенні
+ * @returns {void}
+ */
 function checkViteVersion(devDeps, prefix, passFn, fail) {
   const v = devDeps.vite
   if (!v) {
