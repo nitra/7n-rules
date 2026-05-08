@@ -30,6 +30,8 @@ import {
   findBunSqlPerRequestConnectionInText,
   findBunSqlPgLeftoverCallInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
+  findPgFormatLikeQueryWrapperInText,
+  findPgFormatShimDefinitionInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
   isBunSqlScanSourceFile,
@@ -67,13 +69,21 @@ async function findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths) {
  * @param {string[]} sourcePaths абсолютні шляхи джерел
  * @param {string} repoRoot абсолютний шлях до кореня
  * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter колбеки pass і fail з перевірки
- * @returns {Promise<{ hasBunSqlImport: boolean, perRequest: number, unsafeCall: number, dynamicList: number }>}
+ * @returns {Promise<{ hasBunSqlImport: boolean, perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number, pgFormatShim: number, queryWrapper: number }>}
  *   `hasBunSqlImport` — чи знайдено хоч один `import { sql|SQL } from 'bun'` у джерелах;
  *   решта — кількість порушень кожного типу.
  */
 async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
   const { fail } = reporter
-  const counts = { perRequest: 0, unsafeCall: 0, dynamicList: 0, inListGuard: 0, pgLeftover: 0 }
+  const counts = {
+    perRequest: 0,
+    unsafeCall: 0,
+    dynamicList: 0,
+    inListGuard: 0,
+    pgLeftover: 0,
+    pgFormatShim: 0,
+    queryWrapper: 0
+  }
   let hasBunSqlImport = false
 
   for (const absPath of sourcePaths) {
@@ -93,7 +103,7 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
  * @param {string} content вміст файлу
  * @param {string} rel posix-шлях відносно `repoRoot`
  * @param {(msg: string) => void} fail callback при помилці
- * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number }} counts акумулятори
+ * @param {{ perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number, pgFormatShim: number, queryWrapper: number }} counts акумулятори
  * @returns {void}
  */
 function scanFileForBunSqlPatterns(content, rel, fail, counts) {
@@ -133,6 +143,30 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
   for (const v of findUnsafeBunSqlInListMissingEmptyGuardInText(content, rel)) {
     counts.inListGuard++
     fail(messageForBunSqlInListGuard(rel, v))
+  }
+  for (const v of findPgFormatShimDefinitionInText(content, rel)) {
+    counts.pgFormatShim++
+    if (v.kind === 'format_function') {
+      fail(
+        `js-bun-db: ${rel}:${v.line} — функція ${JSON.stringify(v.name)} виглядає як pg-format-сумісний шим ` +
+          `(тіло містить %L / %I / %s). Видали шим і переведи всі call-site на tagged template ` +
+          `sql\`...\${value}...\` (js-bun-db.mdc): ${v.snippet}`
+      )
+    } else {
+      fail(
+        `js-bun-db: ${rel}:${v.line} — ${JSON.stringify(v.name)} — це pg-format-специфічний escape-хелпер; ` +
+          `з Bun SQL він не потрібен (параметризація через tagged template), видали і перепиши call-site ` +
+          `(js-bun-db.mdc): ${v.snippet}`
+      )
+    }
+  }
+  for (const v of findPgFormatLikeQueryWrapperInText(content, rel)) {
+    counts.queryWrapper++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — query(text, params)-обгортка над <obj>.unsafe(...) — це прихований ` +
+        `pg-сумісний шим. Видали обгортку (pgRead/pgWrite/db.query) і переведи всі call-site на tagged template ` +
+        `sql\`...\${value}...\` (js-bun-db.mdc): ${v.snippet}`
+    )
   }
 }
 
@@ -194,7 +228,7 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard, pgLeftover } =
+  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard, pgLeftover, pgFormatShim, queryWrapper } =
     await scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter)
 
   if (!hasBunSqlImport) {
@@ -219,6 +253,12 @@ export async function check() {
   }
   if (inListGuard === 0) {
     pass('js-bun-db: усі IN-списки винесені у змінні та мають перевірку на пустоту з throw')
+  }
+  if (pgFormatShim === 0) {
+    pass('js-bun-db: немає pg-format-сумісних шимів (format/quoteLiteral/quoteIdent/...) у файлах з Bun SQL')
+  }
+  if (queryWrapper === 0) {
+    pass('js-bun-db: немає query(text, params)-обгорток над unsafe(...) у файлах з Bun SQL')
   }
 
   return reporter.getExitCode()

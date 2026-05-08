@@ -4,6 +4,25 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.210] - 2026-05-08
+
+### Added
+
+- `js-bun-db` v1.6: правило тепер забороняє локальні pg-format-сумісні шими у
+  файлах з Bun SQL.
+  - Розділ `## pg-format: повне видалення, без шимів` у `npm/mdc/js-bun-db.mdc`:
+    типові ідіоми `format(...)` → tagged template, заборонений drop-in `format()`
+    і `pg`-сумісна `query(text, params)`-обгортка над `sql.unsafe(...)`.
+  - Два нові AST-детектори у `npm/scripts/utils/bun-sql-scan.mjs`:
+    `findPgFormatShimDefinitionInText` (функції `format` / `pgFormat` /
+    `sqlFormat` / `pgFmt` з `%L`/`%I`/`%s` у тілі, плюс `quoteLiteral` /
+    `quoteIdent` / `escapeLiteral` / `escapeIdent` без додаткової перевірки)
+    та `findPgFormatLikeQueryWrapperInText` (`{ query(text, params) { ...
+    <obj>.unsafe(...) ... } }`). Скан запускається лише у файлах з
+    `import { sql|SQL } from 'bun'`.
+  - `npm/scripts/check-js-bun-db.mjs` рапортує `pgFormatShim` / `queryWrapper` —
+    окремі лічильники й `pass`-рядки, без зміни існуючих перевірок.
+
 ## [1.8.209] - 2026-05-08
 
 ### Removed

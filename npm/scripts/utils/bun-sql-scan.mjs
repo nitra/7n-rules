@@ -25,6 +25,7 @@ import {
   offsetToLine,
   parseProgramAndCommentsOrNull,
   parseProgramOrNull,
+  templateQuasisText,
   walkAstWithAncestors
 } from './ast-scan-utils.mjs'
 
@@ -42,6 +43,18 @@ const ALLOW_PG_LEFTOVER_MARKER_RE = /\ballow-pg-leftover\s*:\s*\S+/u
 // `release` не входить — Bun SQL такого методу не має, а `.connect()` / `.end()`
 // формально існують і там, тому опт-аут маркером лишається доречним.
 const PG_LEFTOVER_METHOD_NAMES = new Set(['connect', 'end'])
+
+// pg-format placeholders — `%L` (literal), `%I` (identifier), `%s` (raw string).
+// Якщо у тілі функції з підозрілим іменем зустрічається такий літерал/regex —
+// це pg-format-сумісний шим (drop-in замінник pg-format поверх Bun SQL).
+const PG_FORMAT_PLACEHOLDER_RE = /%[LIs]/u
+// Імена функцій-кандидатів на pg-format-шим. Спрацьовує лише у поєднанні
+// з наявністю `%L` / `%I` / `%s` у тілі — щоб не плутати з невинним `format(date)`.
+const PG_FORMAT_SHIM_FUNC_NAMES = new Set(['format', 'pgFormat', 'sqlFormat', 'pgFmt'])
+// Імена quote/escape-хелперів — самі по собі сильний сигнал pg-format-шиму,
+// без додаткової перевірки тіла. Це pg-format-специфічні API, нерідко публікуються
+// як named export з модуля-обгортки.
+const QUOTE_HELPER_NAMES = new Set(['quoteLiteral', 'quoteIdent', 'escapeLiteral', 'escapeIdent'])
 
 /**
  * @param {unknown} node AST node
@@ -265,6 +278,185 @@ function asPgLeftoverCall(node) {
   if (!prop || prop.type !== 'Identifier' || typeof prop.name !== 'string') return null
   if (!PG_LEFTOVER_METHOD_NAMES.has(prop.name)) return null
   return { name: /** @type {'connect' | 'end'} */ (prop.name) }
+}
+
+/**
+ * Чи це CallExpression `<obj>.unsafe(...)` (для пошуку в тілі query-шиму).
+ * Дублює `isUnsafeCall` з основного скану, але локально — щоб не залежати
+ * від порядку оголошень у файлі.
+ * @param {unknown} node AST node
+ * @returns {boolean} true для `<obj>.unsafe(...)`
+ */
+function isUnsafeCallNode(node) {
+  if (!node || node.type !== 'CallExpression') return false
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression' || callee.computed) return false
+  const prop = callee.property
+  return !!prop && prop.type === 'Identifier' && prop.name === 'unsafe'
+}
+
+/**
+ * Чи містить піддерево вузла рядковий або regex-літерал з `%L` / `%I` / `%s`.
+ * Покриває:
+ * - `Literal` зі строковим `value`,
+ * - `StringLiteral` (oxc),
+ * - `TemplateLiteral` (через текст quasis),
+ * - `RegExpLiteral` / `Literal` з `regex.pattern`.
+ * @param {unknown} root корінь піддерева (зазвичай тіло функції)
+ * @returns {boolean} true, якщо знайдено pg-format-плейсхолдер
+ */
+function nodeContainsPgFormatPlaceholder(root) {
+  let found = false
+  walkAstWithAncestors(root, [], n => {
+    if (found) return
+    const t = n.type
+    if (t === 'Literal' || t === 'StringLiteral') {
+      if (typeof n.value === 'string' && PG_FORMAT_PLACEHOLDER_RE.test(n.value)) {
+        found = true
+        return
+      }
+      const regex = n.regex
+      if (regex && typeof regex.pattern === 'string' && PG_FORMAT_PLACEHOLDER_RE.test(regex.pattern)) {
+        found = true
+        return
+      }
+    }
+    if (t === 'RegExpLiteral' && typeof n.pattern === 'string' && PG_FORMAT_PLACEHOLDER_RE.test(n.pattern)) {
+      found = true
+      return
+    }
+    if (t === 'TemplateLiteral') {
+      if (PG_FORMAT_PLACEHOLDER_RE.test(templateQuasisText(n))) {
+        found = true
+      }
+    }
+  })
+  return found
+}
+
+/**
+ * Витягає (name, body) з вузла, що оголошує функцію верхнього рівня:
+ * - `function format(...) {...}`,
+ * - `const format = (...) => {...}` / `= function(...) {...}`.
+ * @param {Record<string, unknown>} node AST node
+ * @returns {{ name: string, body: unknown } | null} ім'я та тіло, або null
+ */
+function asNamedFunctionDecl(node) {
+  if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier') {
+    return { name: node.id.name, body: node.body }
+  }
+  if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier') {
+    const init = node.init
+    if (init && (init.type === 'ArrowFunctionExpression' || init.type === 'FunctionExpression')) {
+      return { name: node.id.name, body: init.body }
+    }
+  }
+  return null
+}
+
+/**
+ * Знаходить визначення pg-format-сумісних шимів у джерелі. Прапорує:
+ * - функції з іменами `format` / `pgFormat` / `sqlFormat` / `pgFmt`, у тілі яких
+ *   зустрічається літерал/regex з `%L` / `%I` / `%s` — це drop-in pg-format;
+ * - функції з іменами `quoteLiteral` / `quoteIdent` / `escapeLiteral` / `escapeIdent`
+ *   незалежно від тіла — це pg-format-специфічні API, не потрібні з Bun SQL.
+ *
+ * Скан запускається лише в файлах, де є `import { sql|SQL } from 'bun'`, щоб
+ * не плутати, наприклад, форматер дат чи URL-escape з SQL-шимом.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string, kind: 'format_function' | 'quote_helper', name: string }[]} список порушень
+ */
+export function findPgFormatShimDefinitionInText(content, virtualPath = 'scan.ts') {
+  if (!textHasBunSqlImport(content)) return []
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string, kind: 'format_function' | 'quote_helper', name: string }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    const decl = asNamedFunctionDecl(node)
+    if (!decl) return
+    /** @type {'format_function' | 'quote_helper' | null} */
+    let kind = null
+    if (QUOTE_HELPER_NAMES.has(decl.name)) {
+      kind = 'quote_helper'
+    } else if (PG_FORMAT_SHIM_FUNC_NAMES.has(decl.name) && nodeContainsPgFormatPlaceholder(decl.body)) {
+      kind = 'format_function'
+    }
+    if (!kind) return
+    out.push({
+      line: offsetToLine(content, node.start),
+      snippet: normalizeSnippet(content.slice(node.start, Math.min(node.end, node.start + 240))),
+      kind,
+      name: decl.name
+    })
+  })
+  return out
+}
+
+/**
+ * Знаходить pg-сумісні query-обгортки виду
+ * `{ query(text, params) { return <sql>.unsafe(text, params) } }`
+ * у файлах, що імпортують Bun SQL. Така обгортка маскує `unsafe` під
+ * «безпечним» ім'ям і повертає injection-поверхню в код.
+ *
+ * Спрацьовує, коли всі умови виконані:
+ * - вузол — `Property` з `key.name === 'query'` всередині `ObjectExpression`;
+ * - значення — функція з 1–2 параметрами, перший — Identifier з типовим
+ *   pg-іменем (`text` / `sql` / `query`);
+ * - у тілі функції є виклик `<obj>.unsafe(...)`.
+ *
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findPgFormatLikeQueryWrapperInText(content, virtualPath = 'scan.ts') {
+  if (!textHasBunSqlImport(content)) return []
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    if (node.type !== 'ObjectExpression') return
+    const properties = node.properties
+    if (!Array.isArray(properties)) return
+    for (const prop of properties) {
+      if (!prop || prop.type !== 'Property') continue
+      const key = prop.key
+      const keyName =
+        key && key.type === 'Identifier' ? key.name : key && key.type === 'Literal' ? key.value : null
+      if (keyName !== 'query') continue
+      const value = prop.value
+      if (!value || (value.type !== 'FunctionExpression' && value.type !== 'ArrowFunctionExpression')) continue
+      const params = value.params
+      const firstName = Array.isArray(params) && params[0]?.type === 'Identifier' ? params[0].name : null
+      const looksLikePgQuery =
+        Array.isArray(params) && params.length >= 1 && params.length <= 2 && /^(text|sql|query)$/u.test(firstName || '')
+      if (!looksLikePgQuery) continue
+      if (!nodeContainsUnsafeCall(value.body)) continue
+      out.push({
+        line: offsetToLine(content, prop.start),
+        snippet: normalizeSnippet(content.slice(prop.start, prop.end))
+      })
+    }
+  })
+  return out
+}
+
+/**
+ * Чи є у піддереві виклик `<obj>.unsafe(...)`.
+ * @param {unknown} root корінь піддерева
+ * @returns {boolean} true, якщо знайдено
+ */
+function nodeContainsUnsafeCall(root) {
+  let found = false
+  walkAstWithAncestors(root, [], n => {
+    if (found) return
+    if (isUnsafeCallNode(n)) found = true
+  })
+  return found
 }
 
 /**
