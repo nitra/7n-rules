@@ -68,6 +68,7 @@ const VUE_RASTER_STATIC_SRC_RE = /(?<![:\-_.])\bsrc\s*=\s*['"]([^'"\s]+\.(?:png|
  * є сиротами і підлягають видаленню.
  */
 const VUE_AVIF_REF_RE = /['"]([^'"\s]+\.(?:png|jpe?g|gif)\.avif)['"]/giu
+const RASTER_IMAGE_EXT_RE = /\.(?:png|jpe?g|gif)$/iu
 
 /**
  * Чи у `package.json` пакета вимкнено avif-перевірку Vue-імпортів.
@@ -113,8 +114,7 @@ function resolveImageCandidates(importPath, sourceAbsPath, packageRootAbs) {
     /** @type {string[]} */
     const candidates = []
     if (packageRootAbs) {
-      candidates.push(join(packageRootAbs, 'public', importPath))
-      candidates.push(join(packageRootAbs, importPath))
+      candidates.push(join(packageRootAbs, 'public', importPath), join(packageRootAbs, importPath))
     }
     candidates.push(join(process.cwd(), importPath))
     return candidates
@@ -291,7 +291,7 @@ async function hasAnyRasterImage(ignorePaths) {
     process.cwd(),
     absPath => {
       if (found) return
-      if (/\.(?:png|jpe?g|gif)$/iu.test(absPath)) found = true
+      if (RASTER_IMAGE_EXT_RE.test(absPath)) found = true
     },
     ignorePaths
   )
