@@ -12,6 +12,11 @@
  *    дозволені лише у каталозі conn (за замовчуванням `src/conn/`; за наявності
  *    `package.json#imports['#conn/*']` — у його цільовому каталозі); поза ним — порушення
  *    (див. `utils/conn-imports-scan.mjs`);
+ *  - «Нейминг та експорти у `#conn/`»: всередині conn-каталогу basename файла має відповідати
+ *    канону `ql-<id>` / `(pg|mysql)-(read|write)[-<id>]`; `export default` заборонений; має бути
+ *    іменований експорт з імʼям, що дорівнює camelCase від basename файла (`pg-write-contract.js`
+ *    → `export const pgWriteContract`); `index.*` як reexport-барель пропускаємо
+ *    (див. `utils/conn-file-rules.mjs`);
  *  - «process.env / CheckEnv»: пряме `process.env.X` має бути замінено на `env` —
  *    з `@nitra/check-env` (для обов'язкових змінних, із `checkEnv([...])`) або з
  *    `node:process` (для опційних). Коли `env` імпортовано з `@nitra/check-env`,
@@ -40,6 +45,7 @@ import {
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './utils/check-env-scan.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { findDepcheckViolationsForPackage, readAllWorkflowFiles } from './utils/depcheck-workflow.mjs'
+import { findConnFileRuleViolations, isConnFileRulesSourceFile } from './utils/conn-file-rules.mjs'
 import {
   findConnFactoryImportsInText,
   isConnImportsScanSourceFile,
@@ -50,48 +56,6 @@ import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from './utils/promise-settimeout-scan.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
-
-/** Канонічний `jsconfig.json` для backend workspace-пакетів із каталогом `src/` (js-run.mdc). */
-const CANONICAL_BACKEND_JSCONFIG = Object.freeze({
-  compilerOptions: Object.freeze({
-    lib: Object.freeze(['esnext']),
-    module: 'NodeNext',
-    moduleResolution: 'NodeNext',
-    target: 'esnext',
-    checkJs: false
-  }),
-  include: Object.freeze(['src/**/*'])
-})
-
-/**
- * Глибока рівність для JSON-подібних значень (масиви — порядок важливий).
- * @param {unknown} a перше значення
- * @param {unknown} b друге значення
- * @returns {boolean} true, якщо значення структурно ідентичні
- */
-function deepEqualJson(a, b) {
-  if (a === b) return true
-  if (a === null || b === null || typeof a !== typeof b) return false
-  if (typeof a !== 'object') return false
-  if (Array.isArray(a) !== Array.isArray(b)) return false
-  if (Array.isArray(a)) {
-    if (a.length !== b.length) return false
-    for (const [i, v] of a.entries()) {
-      if (!deepEqualJson(v, b[i])) return false
-    }
-    return true
-  }
-  const ao = /** @type {Record<string, unknown>} */ (a)
-  const bo = /** @type {Record<string, unknown>} */ (b)
-  const keysA = Object.keys(ao).toSorted()
-  const keysB = Object.keys(bo).toSorted()
-  if (keysA.length !== keysB.length) return false
-  for (const [i, k] of keysA.entries()) {
-    if (k !== keysB[i]) return false
-    if (!deepEqualJson(ao[k], bo[k])) return false
-  }
-  return true
-}
 
 /**
  * Чи існує непорожній за змістом маркер каталогу `src/` (рекомендована структура js-run).
@@ -108,40 +72,29 @@ function backendPackageHasSrcDir(absPackageRoot) {
 }
 
 /**
- * Перевіряє `jsconfig.json` для backend-пакетів із `src/`.
+ * FS-existence для `jsconfig.json` у backend-пакеті з каталогом `src/` (cross-file:
+ * наявність каталогу + файла). Структуру самого `jsconfig.json` (canonical
+ * compilerOptions і include) валідує `npm/policy/js_run/jsconfig/`; її прогоняє
+ * `bun run lint-conftest`.
  * @param {string} rootDir відносний шлях workspace
  * @param {string} absPackageRoot абсолютний корінь пакета
  * @param {string} label префікс `[pkg] `
  * @param {(msg: string) => void} fail callback для повідомлень про порушення
  * @param {(msg: string) => void} passFn callback для повідомлень про успішну перевірку
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn) {
+function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn) {
   if (!backendPackageHasSrcDir(absPackageRoot)) return
 
   const jcPath = join(rootDir, 'jsconfig.json')
-  if (!existsSync(jcPath)) {
+  if (existsSync(jcPath)) {
+    passFn(`${label}jsconfig.json є (структуру перевіряє bun run lint-conftest → js_run.jsconfig)`)
+  } else {
     fail(
       `${label}є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc ` +
         `(NodeNext, include: src/**/*).`
     )
-    return
   }
-  let parsed
-  try {
-    parsed = JSON.parse(await readFile(jcPath, 'utf8'))
-  } catch {
-    fail(`${label}jsconfig.json не вдалося розпарсити як JSON`)
-    return
-  }
-  if (!deepEqualJson(parsed, CANONICAL_BACKEND_JSCONFIG)) {
-    fail(
-      `${label}jsconfig.json не збігається з каноном js-run.mdc — заміни на шаблон з правила ` +
-        `(compilerOptions: lib esnext, module/moduleResolution NodeNext, target esnext, checkJs false; include: src/**/*).`
-    )
-    return
-  }
-  passFn(`${label}jsconfig.json узгоджено з js-run (пакет з src/)`)
 }
 
 /**
@@ -237,6 +190,52 @@ async function checkConnImports(absPackageRoot, sourcePaths, pkgJson, label, fai
 }
 
 /**
+ * Перевіряє правила нейминга та експортів для файлів усередині `#conn/`.
+ *
+ * Канон імені: `ql-<id>` для GraphQL, `(pg|mysql)-(read|write)[-<id>]` для БД (js-run.mdc,
+ * розділ «Нейминг файлів у `src/conn/`»). Експорт у файлі — лише іменований, з імʼям, що
+ * дорівнює camelCase від basename файла (`pg-write-contract.js` → `export const pgWriteContract`).
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @param {string[]} sourcePaths абсолютні шляхи до файлів пакета
+ * @param {unknown} pkgJson розпарсений package.json пакета (або null)
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<number>} кількість порушень
+ */
+async function checkConnFileNamingAndExports(absPackageRoot, sourcePaths, pkgJson, label, fail) {
+  const connDir = resolveConnDirFromPackageJson(pkgJson)
+  let violations = 0
+  for (const absPath of sourcePaths) {
+    const rel = relPosix(absPackageRoot, absPath)
+    if (!isInsideConnDir(rel, connDir)) continue
+    if (!isConnFileRulesSourceFile(rel)) continue
+    // пропускаємо реекспортний барель `index.*` (якщо знадобиться) і прихований .d.ts
+    const base = rel.slice(rel.lastIndexOf('/') + 1)
+    if (base.startsWith('index.')) continue
+
+    const content = await readFile(absPath, 'utf8')
+    for (const v of findConnFileRuleViolations(content, rel)) {
+      violations++
+      if (v.kind === 'name') {
+        fail(
+          `${label}${rel} — назва файла в '${connDir}/' не відповідає канону js-run: ` +
+            `'ql-<id>', 'pg-{read|write}[-<id>]' або 'mysql-{read|write}[-<id>]' (kebab-case, [a-z0-9-])`
+        )
+      } else if (v.kind === 'default-export') {
+        fail(`${label}${rel} — 'export default' заборонений у '${connDir}/'; зроби іменований експорт`)
+      } else {
+        const found = v.foundNames?.length ? v.foundNames.join(', ') : '—'
+        fail(
+          `${label}${rel} — очікується іменований експорт 'export const ${v.expectedName} = …' ` +
+            `(camelCase від назви файла); знайдено: ${found}`
+        )
+      }
+    }
+  }
+  return violations
+}
+
+/**
  * Перевіряє правило «CheckEnv» для пакета.
  * @param {string} absPackageRoot абсолютний корінь пакета
  * @param {string[]} sourcePaths абсолютні шляхи до файлів
@@ -323,6 +322,14 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
     passFn(`${label}імпорти підключень (bun#SQL / mssql / @nitra/graphql-request#GraphQLClient) лише в '${connDir}/'`)
   }
 
+  const connFileViolations = await checkConnFileNamingAndExports(absPackageRoot, sourcePaths, pkgJson, label, fail)
+  if (connFileViolations === 0) {
+    const connDir = resolveConnDirFromPackageJson(pkgJson)
+    passFn(
+      `${label}файли в '${connDir}/' дотримують канону js-run: нейминг (ql-/pg-/mysql-…) і іменований експорт у camelCase від basename`
+    )
+  }
+
   const envViolations = await checkProcessEnvUsage(absPackageRoot, sourcePaths, label, fail)
   if (envViolations === 0) {
     passFn(
@@ -390,15 +397,11 @@ async function loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail) {
   const pkgPath = join(rootDir, 'package.json')
   if (!existsSync(pkgPath)) return null
   const pkgJson = JSON.parse(await readFile(pkgPath, 'utf8'))
-  const deps = /** @type {Record<string, unknown>} */ (pkgJson).dependencies
-  const devDeps = /** @type {Record<string, unknown>} */ (pkgJson).devDependencies
-  const allDeps = { ...deps, ...devDeps }
-  if (allDeps['@nitra/bunyan']) {
-    fail(`${label}@nitra/bunyan знайдено — замінити на @nitra/pino`)
-  }
-  if (allDeps.bunyan) {
-    fail(`${label}bunyan знайдено — замінити на @nitra/pino`)
-  }
+  // Заборону `@nitra/bunyan` / `bunyan` у dependencies/devDependencies перенесено
+  // в Rego (`npm/policy/js_run/package_json/`); `bun run lint-conftest` запускає
+  // її по всіх workspace `package.json`. Тут лишилася лише AST-перевірка імпортів.
+  void label
+  void fail
   return pkgJson
 }
 
@@ -411,20 +414,15 @@ async function loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail) {
  * @param {(msg: string) => void} passFn успішне повідомлення
  * @returns {Promise<void>} завершується після перевірки configmap
  */
-async function checkOtelConfigmap(rootDir, label, fail, passFn) {
+function checkOtelConfigmap(rootDir, label, fail, passFn) {
   const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
   if (!existsSync(configmapPath)) return
-  const content = await readFile(configmapPath, 'utf8')
-  if (!content.includes('OTEL_RESOURCE_ATTRIBUTES')) {
-    fail(`${label}k8s/base/configmap.yaml не містить OTEL_RESOURCE_ATTRIBUTES`)
-    return
-  }
-  passFn(`${label}k8s/base/configmap.yaml містить OTEL_RESOURCE_ATTRIBUTES`)
-  if (content.includes('service.name=') && content.includes('service.namespace=')) {
-    passFn(`${label}OTEL_RESOURCE_ATTRIBUTES містить service.name та service.namespace`)
-  } else {
-    fail(`${label}OTEL_RESOURCE_ATTRIBUTES має містити service.name=<name>,service.namespace=<namespace>`)
-  }
+  // Перевірку `OTEL_RESOURCE_ATTRIBUTES` має містити `service.name=` /
+  // `service.namespace=` перенесено в Rego (`npm/policy/js_run/configmap/`);
+  // `bun run lint-conftest` запускає її на всіх `k8s/base/configmap.yaml`.
+  void label
+  void fail
+  passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — bun run lint-conftest → js_run.configmap)`)
 }
 
 /**

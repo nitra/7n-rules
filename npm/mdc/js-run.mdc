@@ -1,7 +1,7 @@
 ---
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 alwaysApply: true
-version: '1.5'
+version: '1.6'
 ---
 
 ## Область застосування
@@ -121,6 +121,47 @@ import { pool } from '#conn/pg.js'
 import { gql, graphQLClient } from '@nitra/graphql-request'
 ```
 
+### Нейминг файлів у `src/conn/`
+
+Назва файла в `src/conn/` має одразу повідомляти, **до чого** підключаємось і **в якому режимі**:
+
+- **GraphQL** — префікс `ql-`, далі ідентифікатор endpoint:
+  - `src/conn/ql-contract.js`
+  - `src/conn/ql-smart.js`
+- **PostgreSQL** — префікс `pg-`, далі тип підключення (репліка vs мастер): `read` або `write`:
+  - `src/conn/pg-read.js`
+  - `src/conn/pg-write.js`
+- **PostgreSQL до кількох БД** — додатково ідентифікатор підключення після типу:
+  - `src/conn/pg-read-smart.js`
+  - `src/conn/pg-write-contract.js`
+- **MySQL / MSSQL** — префікс `mysql-` за тією ж схемою (`mysql-read.js`, `mysql-write-<id>.js` тощо).
+
+Підключення до БД **обов'язково** має бути ідентифіковано як `read` (репліка) або `write` (мастер). Якщо з імені змінної оточення (наприклад, `env.PG_CONN`) це не очевидно — визнач режим за операціями в коді: якщо немає операцій зміни даних (`INSERT`/`UPDATE`/`DELETE`/DDL) — це `pg-read.js`, інакше `pg-write.js`.
+
+### Експорти у файлах `src/conn/`
+
+У файлах підключень **заборонений** `export default`. Експорт має бути **іменований** і збігатися з назвою файла в camelCase.
+
+Приклад — `src/conn/ql-smart.js`:
+
+```javascript title="❌ Так не можна"
+export default new GraphQLClient(env.SMART_QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.SMART_X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+```javascript title="✅ Канон: іменований експорт за іменем файла"
+export const qlSmart = new GraphQLClient(env.SMART_QL, {
+  headers: {
+    'X-Hasura-Admin-Secret': env.SMART_X_HASURA_ADMIN_SECRET
+  }
+})
+```
+
+Відповідно: `pg-read.js` → `export const pgRead = …`, `pg-write-contract.js` → `export const pgWriteContract = …`, `ql-contract.js` → `export const qlContract = …`.
+
 ## CheckEnv
 
 Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
@@ -189,4 +230,10 @@ on:
 
 ## Перевірка
 
-`npx @nitra/cursor check js-run` — зокрема для кожного backend workspace-пакета з каталогом **`src/`** перевіряє наявність **`jsconfig.json`** і збіг вмісту з каноном вище.
+`npx @nitra/cursor check js-run` — зокрема для кожного backend workspace-пакета з каталогом **`src/`** перевіряє наявність **`jsconfig.json`** і збіг вмісту з каноном вище. Додатково для файлів у каталозі `#conn/` (за замовчуванням `src/conn/`) перевіряється:
+
+- **basename файла** відповідає канону: `ql-<id>` (GraphQL) / `(pg|mysql)-(read|write)[-<id>]` (БД), kebab-case `[a-z0-9-]`;
+- **відсутній `export default`** — лише іменований експорт;
+- **імʼя експорту** дорівнює camelCase від basename (`pg-write-contract.js` → `export const pgWriteContract`).
+
+Файли `index.*` у conn-каталозі пропускаються як можливий reexport-барель.

@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.208] - 2026-05-08
+
+### Added
+
+- `mdc/js-run.mdc` (1.6, з 1.5): новий розділ «Нейминг файлів у `src/conn/`» — префікси `ql-` (GraphQL endpoint), `pg-`/`mysql-` з обовʼязковим `read`/`write` режимом і опційним ідентифікатором підключення для multi-БД (`pg-read-smart.js`, `pg-write-contract.js`); якщо режим не очевидний з імені env — визначати за наявністю операцій зміни даних. Також правило про експорти в `src/conn/`: заборонено `export default`, лише іменований експорт у camelCase від назви файла (`ql-smart.js` → `export const qlSmart`, `pg-write-contract.js` → `export const pgWriteContract`).
+- `scripts/utils/conn-file-rules.mjs` + інтеграція в `scripts/check-js-run.mjs` — для кожного файла всередині `#conn/` каталогу пакета перевіряє: (а) basename відповідає канону `ql-<id>` / `(pg|mysql)-(read|write)[-<id>]` (kebab-case `[a-z0-9-]`); (б) відсутній `export default`; (в) серед іменованих експортів є рівно `<camelCase(basename)>` (`pg-write-contract.js` → `pgWriteContract`). `index.*` пропускається як reexport-барель. Розпізнає `export const/let/var`, `export function`, `export class` і `export { x as Y }` через AST на oxc-parser.
+
 ## [1.8.207] - 2026-05-08
 
 ### Added
