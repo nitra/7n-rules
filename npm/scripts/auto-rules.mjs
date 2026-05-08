@@ -1,13 +1,16 @@
 /**
- * Автовизначення правил і skills для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
+ * Автовизначення правил для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
  *
  * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
  * залежності `mssql` / `pg` / `pg-format` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
  * `package.json`, `config.yaml` з рядком `metadata_directory: metadata` для hasura)
- * та повертає ідентифікатори правил і skills, які потрібно автододати.
+ * та повертає ідентифікатори правил, які потрібно автододати.
  *
- * Також враховує винятки `disable-rules` і `disable-skills`: елементи з цих списків не
- * додаються автоматично.
+ * Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
+ *
+ * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/bin/auto-skills.md`).
+ * `mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
+ * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -46,9 +49,6 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'text',
   'vue'
 ])
-
-/** Порядок автододавання skills відповідно до `auto-rules.md`. */
-export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint'])
 
 /**
  * Карта міграції застарілих rule-id у `.n-cursor.json` на актуальні.
@@ -575,29 +575,23 @@ function resolveRuleDependencies(detectedRules, addRule) {
 }
 
 /**
- * Визначає авто-правила та skills згідно з `auto-rules.md`.
+ * Визначає авто-правила згідно з `auto-rules.md`.
  * @param {object} params параметри аналізу
  * @param {string} params.root абсолютний шлях до кореня репозиторію
  * @param {string[]} params.availableRules перелік доступних правил з пакету
- * @param {string[]} params.availableSkills перелік доступних skills з пакету
  * @param {unknown} params.packageJsonParsed кореневий package.json (розпарсений) або null
  * @param {string[]} [params.disableRules] список `disable-rules` з конфігу
- * @param {string[]} [params.disableSkills] список `disable-skills` з конфігу
- * @returns {Promise<{ rules: string[], skills: string[] }>} списки id у стабільному порядку
+ * @returns {Promise<{ rules: string[] }>} список id у стабільному порядку (за `AUTO_RULE_ORDER`)
  */
-export async function detectAutoRulesAndSkills({
+export async function detectAutoRules({
   root,
   availableRules,
-  availableSkills,
   packageJsonParsed,
-  disableRules = DEFAULT_DISABLED_LIST,
-  disableSkills = DEFAULT_DISABLED_LIST
+  disableRules = DEFAULT_DISABLED_LIST
 }) {
   const facts = await collectAutoRuleFacts(root)
   const normalizedRules = new Set(availableRules.map(r => r.trim().toLowerCase()))
-  const normalizedSkills = new Set(availableSkills.map(s => s.trim().toLowerCase()))
   const disableRulesSet = new Set(disableRules)
-  const disableSkillsSet = new Set(disableSkills)
 
   const packageJsonExists = existsSync(join(root, 'package.json'))
   const npmDirExists = existsSync(join(root, 'npm'))
@@ -616,8 +610,6 @@ export async function detectAutoRulesAndSkills({
 
   /** @type {string[]} */
   const detectedRules = []
-  /** @type {string[]} */
-  const detectedSkills = []
 
   /**
    * Додає правило до результату, якщо воно доступне і не в disable-списку.
@@ -629,18 +621,6 @@ export async function detectAutoRulesAndSkills({
       return
     }
     detectedRules.push(ruleId)
-  }
-
-  /**
-   * Додає skill до результату, якщо він доступний і не в disable-списку.
-   * @param {string} skillId id skill
-   * @returns {void}
-   */
-  function addSkill(skillId) {
-    if (!normalizedSkills.has(skillId) || disableSkillsSet.has(skillId) || detectedSkills.includes(skillId)) {
-      return
-    }
-    detectedSkills.push(skillId)
   }
 
   const autoRuleChecks = [
@@ -673,20 +653,8 @@ export async function detectAutoRulesAndSkills({
   }
   resolveRuleDependencies(detectedRules, addRule)
 
-  const autoSkillChecks = [
-    { enabled: isAbie, id: 'abie-kustomize' },
-    { enabled: true, id: 'fix' },
-    { enabled: true, id: 'lint' }
-  ]
-  for (const item of autoSkillChecks) {
-    if (item.enabled) {
-      addSkill(item.id)
-    }
-  }
-
   const rules = AUTO_RULE_ORDER.filter(ruleId => detectedRules.includes(ruleId))
-  const skills = AUTO_SKILL_ORDER.filter(skillId => detectedSkills.includes(skillId))
-  return { rules, skills }
+  return { rules }
 }
 
 /**

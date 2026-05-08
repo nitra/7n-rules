@@ -58,12 +58,13 @@ import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
 import {
-  detectAutoRulesAndSkills,
+  detectAutoRules,
   detectLegacyRuleIds,
   mergeConfigWithAutoDetected,
   normalizeIdList,
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
+import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintGaCli } from '../scripts/lint-ga.mjs'
@@ -250,19 +251,22 @@ async function readConfig(paths = {}) {
     const rootPkg = await readRootPackageJsonSafe()
     const disableRules = normalizeIdList(parsedConfig['disable-rules'])
     const disableSkills = normalizeIdList(parsedConfig['disable-skills'])
-    const autoDetected = await detectAutoRulesAndSkills({
+    const autoDetectedRules = await detectAutoRules({
       root: cwd(),
       availableRules,
-      availableSkills,
       packageJsonParsed: rootPkg,
-      disableRules,
+      disableRules
+    })
+    const autoDetectedSkills = detectAutoSkills({
+      availableSkills,
+      detectedRules: autoDetectedRules.rules,
       disableSkills
     })
 
     const merged = mergeConfigWithAutoDetected({
       config: parsedConfig,
-      detectedRules: autoDetected.rules,
-      detectedSkills: autoDetected.skills
+      detectedRules: autoDetectedRules.rules,
+      detectedSkills: autoDetectedSkills.skills
     })
 
     const rest = Object.fromEntries(Object.entries(parsedConfig).filter(([k]) => k !== '$schema'))
@@ -283,16 +287,19 @@ async function readConfig(paths = {}) {
 
   if (!existsSync(configPath)) {
     const rootPkg = await readRootPackageJsonSafe()
-    const autoDetected = await detectAutoRulesAndSkills({
+    const autoDetectedRules = await detectAutoRules({
       root: cwd(),
       availableRules,
-      availableSkills,
       packageJsonParsed: rootPkg
+    })
+    const autoDetectedSkills = detectAutoSkills({
+      availableSkills,
+      detectedRules: autoDetectedRules.rules
     })
     const defaultConfig = sortConfigIdArrays({
       $schema: CONFIG_SCHEMA_URL,
-      rules: autoDetected.rules,
-      skills: autoDetected.skills
+      rules: autoDetectedRules.rules,
+      skills: autoDetectedSkills.skills
     })
     await writeFile(configPath, `${JSON.stringify(defaultConfig, null, 2)}\n`, 'utf8')
     console.log(
@@ -1127,7 +1134,7 @@ async function readBundledVersionAt(packageRoot) {
  * Якщо `upgradeNitraCursorToLatestAndBunInstall` встановив у `node_modules/@nitra/cursor` версію,
  * відмінну від тієї, з якої стартував поточний процес (наприклад, з npx-кешу), запускає бінар нової
  * версії через `spawnSync` і завершує поточний процес із успадкованим exit-кодом. Re-exec потрібен,
- * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRulesAndSkills тощо) і нова логіка
+ * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRules тощо) і нова логіка
  * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
  * @param {string} effectivePackageRoot шлях, повернутий `upgradeNitraCursorToLatestAndBunInstall`
  * @returns {Promise<void>} повертається лише якщо re-exec не потрібен (інакше викликає `process.exit`)

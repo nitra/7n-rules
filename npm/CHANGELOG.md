@@ -4,6 +4,42 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.212] - 2026-05-08
+
+### Changed
+
+- `npm/skills/taze/SKILL.md`: повний workflow замість шаблону-заглушки. Тепер
+  скіл бекапить `package.json`/`bun.lock`, виконує `bunx taze -w -r latest` +
+  `bun install`, виявляє major-стрибки порівнянням з бекапом, тягне breaking
+  changes з CHANGELOG модуля або git-діфу `node_modules` (з фолбеком на
+  встановлення старої версії в `/tmp`), шукає використання зачепленого API в
+  коді через `rg`, рефакторить несумісні місця (нетривіальні міграції — TODO),
+  прибирає тимчасові файли і віддає структурований звіт користувачу.
+
+## [1.8.211] - 2026-05-08
+
+### Added
+
+- Окремий шлях автодетекту для скілів — `npm/bin/auto-skills.md` +
+  `npm/scripts/auto-skills.mjs` (`detectAutoSkills`). Скіли отримують свій
+  словник умов (`skill - [rules]`), залежний від уже виявлених правил, тож не
+  дублюють файлові ознаки з `auto-rules.md`.
+- Нові авто-скіли: `publish-telegram` (завжди) і `taze` (за правилом `bun`).
+- `npm/tests/auto-skills.test.mjs` — окремі тести `detectAutoSkills`
+  (завжди-додавані, залежності від rule-id, `disable-skills`, фільтр за
+  `availableSkills`).
+
+### Changed
+
+- `npm/scripts/auto-rules.mjs`: `detectAutoRulesAndSkills` → `detectAutoRules`
+  (повертає лише `{ rules }`); прибрано `AUTO_SKILL_ORDER` і скіл-логіку.
+  `mergeConfigWithAutoDetected` лишається спільним і приймає вже виявлені
+  rules+skills, тож публічний контракт `.n-cursor.json` не змінився.
+- `npm/bin/n-cursor.js` тепер послідовно викликає `detectAutoRules` і
+  `detectAutoSkills` (скіли отримують `detectedRules` як вхід).
+- `npm/bin/auto-rules.md` залишає тільки правила; секція скілів винесена в
+  `auto-skills.md` з посиланням з `auto-rules.md`.
+
 ## [1.8.210] - 2026-05-08
 
 ### Added

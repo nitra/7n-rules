@@ -21,6 +21,7 @@
   "skills": [
     "fix",
     "lint",
-    "publish-telegram"
+    "publish-telegram",
+    "taze"
   ]
 }

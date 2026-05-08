@@ -1,12 +1,13 @@
 /**
- * Тести автодетекту правил/skills для `.n-cursor.json` за `auto-rules.md`.
+ * Тести автодетекту правил для `.n-cursor.json` за `auto-rules.md`.
+ * Тести для скілів — у `auto-skills.test.mjs`.
  */
 import { describe, expect, test } from 'bun:test'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
 import { writeFile } from 'node:fs/promises'
 
 import {
-  detectAutoRulesAndSkills,
+  detectAutoRules,
   detectLegacyRuleIds,
   mergeConfigWithAutoDetected,
   migrateRuleIds
@@ -35,22 +36,19 @@ const ALL_RULES = [
   'vue'
 ]
 
-const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint']
-
 /**
- * @returns {Promise<Awaited<ReturnType<typeof detectAutoRulesAndSkills>>>} результат виявлення правил з поточної директорії
+ * @returns {Promise<Awaited<ReturnType<typeof detectAutoRules>>>} результат виявлення правил з поточної директорії
  */
 async function detectAutoRulesInCwd() {
-  return detectAutoRulesAndSkills({
+  return detectAutoRules({
     root: process.cwd(),
     availableRules: ALL_RULES,
-    availableSkills: ALL_SKILLS,
     packageJsonParsed: JSON.parse(await Bun.file('package.json').text())
   })
 }
 
-describe('detectAutoRulesAndSkills', () => {
-  test('додає правила/skills за ознаками проєкту', async () => {
+describe('detectAutoRules', () => {
+  test('додає правила за ознаками проєкту', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'sample',
@@ -87,7 +85,6 @@ describe('detectAutoRulesAndSkills', () => {
         'text',
         'vue'
       ])
-      expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint'])
     })
   })
 
@@ -237,10 +234,9 @@ describe('detectAutoRulesAndSkills', () => {
       await ensureDir('src')
       await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
 
-      const actual = await detectAutoRulesAndSkills({
+      const actual = await detectAutoRules({
         root: process.cwd(),
         availableRules: ALL_RULES,
-        availableSkills: ALL_SKILLS,
         packageJsonParsed: { name: 'app' },
         disableRules: ['vue']
       })
@@ -256,10 +252,9 @@ describe('detectAutoRulesAndSkills', () => {
       await ensureDir('src')
       await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
 
-      const actual = await detectAutoRulesAndSkills({
+      const actual = await detectAutoRules({
         root: process.cwd(),
         availableRules: ALL_RULES,
-        availableSkills: ALL_SKILLS,
         packageJsonParsed: { name: 'app' },
         disableRules: ['image-compress']
       })
