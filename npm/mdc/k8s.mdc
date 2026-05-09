@@ -387,6 +387,8 @@ images:
 
 **Overlays** (`ua/`, `ru/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно.
 
+**`<pkg>/k8s/components/kustomization.yaml`** має `kind: Component` (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі. Прод-перезаписи (`/spec/minReplicas`, `/spec/maxReplicas`, `/spec/minAvailable`) живуть у `<env>/kustomization.yaml`, що підключає Component через `components:`. У самому Component patches не потрібні — він env-неутральний; **`check k8s`** не вимагає прод-патчів від `components/kustomization.yaml`.
+
 У **не-base** оверлеях (без `components/`) поруч із `Deployment` лишається звична схема: окремий **`hpa.yaml`** / **`pdb.yaml`**, якщо такі потрібні для цього середовища. **`check k8s`** звіряє прив'язку за іменами:
 
 - **`hpa.yaml`** (поза **`…/base/`**) — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.

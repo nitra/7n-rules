@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.220] - 2026-05-09
+
+### Fixed
+
+- **k8s / `prodOverlayHpaPdbOverrideNeeds`:** виключено Kustomize Component (`kind: Component`) з prod-overlay-перевірки. Раніше `<pkg>/k8s/components/kustomization.yaml` помилково тригерив `прод-оверлей має перевизначати spec.minReplicas/maxReplicas/minAvailable` — але Component є **джерелом** ресурсів для overlays, не overlay сам по собі. Прод-перезаписи живуть у `ru/` / `ua/` / `prod/` тощо, що підключають Component через `components:`. Додано ранній return за `kind: Component` у `npm/scripts/check-k8s.mjs`; уточнення додано до `npm/mdc/k8s.mdc` і регресійний тест у `npm/tests/check-k8s-schema.test.mjs`.
+
 ## [1.8.219] - 2026-05-09
 
 ### Added

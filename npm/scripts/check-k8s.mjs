@@ -5233,6 +5233,10 @@ function checkProdOverridesInKustomization(kust, rel, fail, passFn, needs) {
  * `hpa.yaml` / `pdb.yaml`. Тоді у `patches[]` обов'язкові JSON6902-патчі прод-значень: для **HPA** —
  * `/spec/minReplicas` і `/spec/maxReplicas` (мінімум 2), для **PDB** — `/spec/minAvailable` (мінімум 1).
  * Для dev-like (`base` / `dev` / `*-qa`) overrides не потрібні (k8s.mdc).
+ *
+ * **Виняток — Kustomize Component (`kind: Component`):** сам `…/k8s/…/components/kustomization.yaml`
+ * не overlay, а **джерело** ресурсів для overlays. Прод-перезаписи живуть у `<env>/kustomization.yaml`,
+ * що підключає Component через `components:`; у самому Component patches не потрібні (env-неутральний).
  * @param {string} rootNorm нормалізований корінь репозиторію
  * @param {string} kustAbs абсолютний шлях до kustomization.yaml
  * @returns {Promise<ProdOverlayHpaPdbOverrideNeeds>} прапорці потрібних перевизначень
@@ -5241,6 +5245,15 @@ export async function prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs) {
   const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
   const segment = k8sEnvSegmentFromRelPath(rel)
   if (segment === null || isDevLikeK8sEnvSegment(segment)) {
+    return { needsHpaReplicaPatches: false, needsPdbMinAvailablePatch: false }
+  }
+
+  // Kustomize Component (kind: Component) — джерело канонічних HPA/PDB для overlays,
+  // а не overlay сам по собі. Прод-перезаписи (/spec/minReplicas, /spec/maxReplicas,
+  // /spec/minAvailable) живуть у <env>/kustomization.yaml, що підключає Component
+  // через `components:`; у самому Component patches не потрібні (env-неутральний).
+  const kustDoc = await readFirstYamlObject(kustAbs)
+  if (kustDoc !== null && kustDoc.kind === 'Component') {
     return { needsHpaReplicaPatches: false, needsPdbMinAvailablePatch: false }
   }
 
