@@ -9,7 +9,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 
-const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint', 'publish-telegram', 'taze']
+const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
 
 describe('detectAutoSkills', () => {
   test('завжди-додавані скіли — без правил у конфігу', () => {
@@ -18,7 +18,7 @@ describe('detectAutoSkills', () => {
       detectedRules: []
     })
 
-    expect(actual.skills).toEqual(['fix', 'lint', 'publish-telegram'])
+    expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('abie-kustomize додається, коли правило abie виявлене', () => {
@@ -27,7 +27,7 @@ describe('detectAutoSkills', () => {
       detectedRules: ['abie']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'publish-telegram'])
+    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('taze додається разом з правилом bun', () => {
@@ -36,7 +36,7 @@ describe('detectAutoSkills', () => {
       detectedRules: ['bun']
     })
 
-    expect(actual.skills).toEqual(['fix', 'lint', 'publish-telegram', 'taze'])
+    expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
   test('повний набір: abie + bun → всі скіли у фіксованому порядку', () => {
@@ -45,7 +45,7 @@ describe('detectAutoSkills', () => {
       detectedRules: ['abie', 'bun']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'publish-telegram', 'taze'])
+    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
   test('disable-skills блокує автододавання', () => {
@@ -55,7 +55,7 @@ describe('detectAutoSkills', () => {
       disableSkills: ['fix', 'taze']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'lint', 'publish-telegram'])
+    expect(actual.skills).toEqual(['abie-kustomize', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('недоступні в пакеті скіли не додаються', () => {

@@ -4,6 +4,29 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.219] - 2026-05-09
+
+### Added
+
+- **skill `n-llm-patch`:** наповнено `npm/skills/llm-patch/SKILL.md` (та дзеркальну копію `.cursor/skills/n-llm-patch/SKILL.md`). Скіл готує самодостатній текстовий промпт для іншого Claude/Cursor-агента у цільовому проєкті: read-only аналіз CWD (`package.json`, `tree -L 2`, `README`, релевантні конфіги), формування єдиного markdown-блоку за шаблоном `Завдання → Контекст → Релевантні файли → Що треба зробити → Обмеження → Як перевірити`. Цільова LLM — Claude / Cursor agent; жодних змін у поточному репо, тимчасові артефакти — лише у `/tmp`.
+
+### Changed
+
+- **k8s / check-k8s:** канонічна структура HPA/PDB — через **Kustomize Component** з фіксованою назвою каталогу `components/` (sibling до `base/`). У `base/` HPA і PDB не існує: ні локальних `hpa.yaml` / `pdb.yaml`, ні через `resources` / `components`. Overlays підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень `/spec/minReplicas`, `/spec/maxReplicas`, `/spec/minAvailable`. Для кожного `Deployment` у `…/k8s/…/base/` тепер вимагається sibling каталог `…/k8s/…/components/` з валідним `kustomization.yaml` (`kind: Component`), `hpa.yaml` (dev-like `min=max=1`) і `pdb.yaml` (dev-like `minAvailable=0`).
+- **k8s / check-k8s:** заборона локальних `base/hpa.yaml` і `base/pdb.yaml` (file-existence для обох). Якщо в дереві base-kustomize лишилися HPA або PDB через `resources` / `components` — fail (`HPA/PDB заборонені у base — переведіть у components/`).
+- **k8s / check-k8s:** прод-overlay тригерить вимоги патчів `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB), коли overlay-tree містить HPA/PDB (тобто overlay підключив `components/`).
+- **k8s.mdc:** оновлено опис, приклади `components/kustomization.yaml`, `components/hpa.yaml`, `components/pdb.yaml` і прикладу прод-overlay із `components: [- ../components]` + JSON6902-патчами.
+
+### Removed
+
+- **k8s / check-k8s:** прибрано застарілий механізм `$patch: delete` для HorizontalPodAutoscaler у `base/kustomization.yaml`. Видалено функції `verifyK8sBaseKustomizeHpaDeletedWhenInherited`, `kustomizationDeclaresHpaStrategicDelete`, `patchTextDeclaresHpaStrategicDelete` і константи-регекспи `HPA_STRATEGIC_DELETE_RE`, `HPA_KIND_LINE_RE` як мертві. Відповідні тести оновлено / видалено.
+
+## [1.8.218] - 2026-05-09
+
+### Added
+
+- **auto-skills:** `llm-patch` додано як always-on скіл (без секції `[rules]` в `npm/bin/auto-skills.md`). Оновлено `AUTO_SKILL_ORDER` і `ALWAYS_ON_SKILLS` у `npm/scripts/auto-skills.mjs` та відповідні очікування у `npm/tests/auto-skills.test.mjs`. Сам вміст `npm/skills/llm-patch/SKILL.md` поки лишається стартовим — наповнюється окремо.
+
 ## [1.8.217] - 2026-05-09
 
 ### Added
@@ -28,7 +51,7 @@
 
 ### Fixed
 
-- **k8s / check-k8s:** конвертація image-replace patches → `images:` падала з `byPatch.keys(...).toSorted is not a function`, бо `Map.keys()` повертає ітератор без `toSorted`. Тепер ключі спершу матеріалізуються у масив (`[...byPatch.keys()].toSorted(...)`).
+- **k8s / check-k8s:** конвертація image-replace patches → `images:` падала з `byPatch.keys(...).toSorted is not a function` (а в `rewriteInlinePatchWithoutOps` — з `(intermediate value).toSorted is not a function`), бо `Map.keys()` повертає ітератор, а `Set` — не масив, і `toSorted` на них немає. Тепер ключі/елементи матеріалізуються у масив через spread (`[...byPatch.keys()].toSorted(...)`, `[...new Set(opIndices)].toSorted(...)`).
 
 ### Changed
 

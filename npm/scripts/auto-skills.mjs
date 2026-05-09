@@ -7,12 +7,12 @@
  * - `abie-kustomize - [abie]` — додається разом з правилом `abie`
  * - `taze - [bun]` — додається разом з правилом `bun`
  *
- * Скіли без секції `[rules]` у `auto-skills.md` (`fix`, `lint`, `publish-telegram`)
+ * Скіли без секції `[rules]` у `auto-skills.md` (`fix`, `lint`, `llm-patch`, `publish-telegram`)
  * додаються завжди, якщо доступні в пакеті й не у `disable-skills`.
  */
 
 /** Порядок автододавання skills відповідно до `auto-skills.md`. */
-export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint', 'publish-telegram', 'taze'])
+export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
 
 /**
  * Залежність скілів від правил (`auto-skills.md` синтаксис `skill - [rules]`).
@@ -26,7 +26,7 @@ export const AUTO_SKILL_RULE_DEPENDENCIES = Object.freeze(
 )
 
 /** Скіли без залежностей — додаються завжди (рядок «завжди» в `auto-skills.md`). */
-const ALWAYS_ON_SKILLS = Object.freeze(['fix', 'lint', 'publish-telegram'])
+const ALWAYS_ON_SKILLS = Object.freeze(['fix', 'lint', 'llm-patch', 'publish-telegram'])
 
 const DEFAULT_DISABLED_LIST = Object.freeze([])
 

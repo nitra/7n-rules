@@ -53,7 +53,7 @@ import {
   kustomizationSvcYamlMissingSvcHlViolation,
   kustomizePathRefsForExistenceCheck,
   kustomizeResourceTreeHpaPdbDeploymentFlags,
-  patchTextDeclaresHpaStrategicDelete,
+  validateComponentsForBaseDeployment,
   prodOverlayHpaPdbOverrideNeeds,
   prodOverlayNeedsHpaPdbOverrides,
   shouldValidateKustomizePatchTarget,
@@ -421,22 +421,6 @@ describe('deploymentResourcesViolation', () => {
       }
     }
     expect(deploymentResourcesViolation(manifest, false)).toContain('requests.cpu')
-  })
-})
-
-describe('patchTextDeclaresHpaStrategicDelete', () => {
-  test('true для strategic-merge delete HPA', () => {
-    const t = `$patch: delete
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: ap
-`
-    expect(patchTextDeclaresHpaStrategicDelete(t)).toBe(true)
-  })
-
-  test('false без $patch: delete', () => {
-    expect(patchTextDeclaresHpaStrategicDelete('kind: HorizontalPodAutoscaler\nmetadata:\n  name: x')).toBe(false)
   })
 })
 
@@ -1852,12 +1836,12 @@ resources:
     expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(false)
   })
 
-  test('true для prod overlay, якщо base має Deployment і HPA/PDB (HPA з компонента, без delete у base)', async () => {
+  test('true для prod overlay, що підключає sibling components/ з HPA і PDB', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-1-'))
-    const cmpDir = join(root, 'k8s', 'cmp-hpa')
+    const componentsDir = join(root, 'k8s', 'components')
     const baseDir = join(root, 'k8s', 'base')
     const prodDir = join(root, 'k8s', 'prod')
-    await mkdir(cmpDir, { recursive: true })
+    await mkdir(componentsDir, { recursive: true })
     await mkdir(baseDir, { recursive: true })
     await mkdir(prodDir, { recursive: true })
 
@@ -1897,7 +1881,231 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: ap
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ap
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+`
+    const pdb = `# yaml-language-server: $schema=x
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ap
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: ap
+`
+    const componentsK = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
+`
+    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deployment.yaml
+`
+    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../base
+components:
+  - ../components
+`
+
+    await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
+    await writeFile(join(componentsDir, 'kustomization.yaml'), componentsK, 'utf8')
+    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
+    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
+    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
+
+    const prodKust = join(prodDir, 'kustomization.yaml')
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
+    const needs = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
+    expect(needs.needsHpaReplicaPatches).toBe(true)
+    expect(needs.needsPdbMinAvailablePatch).toBe(true)
+  })
+
+  test('prodOverlayHpaPdbOverrideNeeds: лише PDB у overlay-дереві (без HPA) → needs PDB only', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-pdbonly-'))
+    const componentsDir = join(root, 'k8s', 'components')
+    const baseDir = join(root, 'k8s', 'base')
+    const prodDir = join(root, 'k8s', 'prod')
+    await mkdir(componentsDir, { recursive: true })
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(prodDir, { recursive: true })
+
+    const dep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ap
   namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ap
+  template:
+    metadata:
+      labels:
+        app: ap
+    spec:
+      containers:
+        - name: ap
+          image: x:y
+`
+    const pdb = `# yaml-language-server: $schema=x
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ap
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: ap
+`
+    const componentsK = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - pdb.yaml
+`
+    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deployment.yaml
+`
+    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../base
+components:
+  - ../components
+`
+
+    await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
+    await writeFile(join(componentsDir, 'kustomization.yaml'), componentsK, 'utf8')
+    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
+    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
+    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
+
+    const prodKust = join(prodDir, 'kustomization.yaml')
+    const n = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
+    expect(n.needsHpaReplicaPatches).toBe(false)
+    expect(n.needsPdbMinAvailablePatch).toBe(true)
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
+  })
+})
+
+describe('validateComponentsForBaseDeployment', () => {
+  /**
+   * Створює пару `fail`/`pass` колектори для асертів.
+   * @returns {{ fail: (m: string) => void, pass: (m: string) => void, fails: string[], passes: string[] }} лічильники повідомлень
+   */
+  const collectors = () => {
+    /** @type {string[]} */
+    const fails = []
+    /** @type {string[]} */
+    const passes = []
+    return {
+      fail: (m) => fails.push(m),
+      pass: (m) => passes.push(m),
+      fails,
+      passes
+    }
+  }
+
+  test('fail, якщо sibling components/ відсутній', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-comp-missing-'))
+    const baseDir = join(root, 'k8s', 'base')
+    await mkdir(baseDir, { recursive: true })
+    const c = collectors()
+    await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
+    expect(c.fails.some(m => m.includes('components/'))).toBe(true)
+  })
+
+  test('fail, якщо components/kustomization.yaml не Component', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-comp-kind-'))
+    const baseDir = join(root, 'k8s', 'base')
+    const componentsDir = join(root, 'k8s', 'components')
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(componentsDir, { recursive: true })
+    const wrongK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - hpa.yaml
+  - pdb.yaml
+`
+    await writeFile(join(componentsDir, 'kustomization.yaml'), wrongK, 'utf8')
+    const c = collectors()
+    await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
+    expect(c.fails.some(m => m.includes('kind') && m.includes('Component'))).toBe(true)
+  })
+
+  test('fail, якщо components/hpa.yaml відсутній', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-comp-no-hpa-'))
+    const baseDir = join(root, 'k8s', 'base')
+    const componentsDir = join(root, 'k8s', 'components')
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(componentsDir, { recursive: true })
+    const okK = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
+`
+    const pdb = `apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ap
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: ap
+`
+    await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
+    await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
+    const c = collectors()
+    await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
+    expect(c.fails.some(m => m.includes('hpa.yaml') && m.includes('відсутній'))).toBe(true)
+  })
+
+  test('pass для канонічного components/ з hpa.yaml і pdb.yaml', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-comp-ok-'))
+    const baseDir = join(root, 'k8s', 'base')
+    const componentsDir = join(root, 'k8s', 'components')
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(componentsDir, { recursive: true })
+    const okK = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
+`
+    const hpa = `apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ap
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
@@ -1924,103 +2132,46 @@ spec:
           value: 10
           periodSeconds: 15
 `
-    const pdb = `# yaml-language-server: $schema=x
-apiVersion: policy/v1
+    const pdb = `apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: ap
-  namespace: dev
 spec:
   minAvailable: 0
   selector:
     matchLabels:
       app: ap
 `
-    const cmpK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - hpa.yaml
-`
-    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - ../cmp-hpa
-  - deployment.yaml
-  - pdb.yaml
-`
-    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - ../base
-`
-
-    await writeFile(join(cmpDir, 'hpa.yaml'), hpa, 'utf8')
-    await writeFile(join(cmpDir, 'kustomization.yaml'), cmpK, 'utf8')
-    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
-    await writeFile(join(baseDir, 'pdb.yaml'), pdb, 'utf8')
-    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
-    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
-
-    const prodKust = join(prodDir, 'kustomization.yaml')
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
-    const needs = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
-    expect(needs.needsHpaReplicaPatches).toBe(true)
-    expect(needs.needsPdbMinAvailablePatch).toBe(true)
+    await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
+    await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
+    const c = collectors()
+    await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
+    expect(c.fails).toEqual([])
+    expect(c.passes.length).toBeGreaterThan(0)
   })
 
-  test('prodOverlayHpaPdbOverrideNeeds: без HPA patch якщо base має $patch delete для HPA', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-del-'))
-    const cmpDir = join(root, 'k8s', 'cmp-hpa')
+  test('fail, якщо HPA scaleTargetRef.name не дорівнює Deployment name', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-comp-mismatch-'))
     const baseDir = join(root, 'k8s', 'base')
-    const prodDir = join(root, 'k8s', 'prod')
-    await mkdir(cmpDir, { recursive: true })
+    const componentsDir = join(root, 'k8s', 'components')
     await mkdir(baseDir, { recursive: true })
-    await mkdir(prodDir, { recursive: true })
-
-    const dep = `# yaml-language-server: $schema=x
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ap
-  namespace: dev
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: ap
-  template:
-    metadata:
-      labels:
-        app: ap
-    spec:
-      containers:
-        - name: ap
-          image: x:y
-          resources:
-            requests:
-              cpu: '0.02'
-              memory: '128Mi'
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: ap
+    await mkdir(componentsDir, { recursive: true })
+    const okK = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - hpa.yaml
+  - pdb.yaml
 `
-    const hpa = `# yaml-language-server: $schema=x
-apiVersion: autoscaling/v2
+    const hpa = `apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: ap
-  namespace: dev
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: ap
+    name: other
   minReplicas: 1
   maxReplicas: 1
   metrics:
@@ -2031,59 +2182,21 @@ spec:
           type: Utilization
           averageUtilization: 50
 `
-    const pdb = `# yaml-language-server: $schema=x
-apiVersion: policy/v1
+    const pdb = `apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: ap
-  namespace: dev
 spec:
   minAvailable: 0
   selector:
     matchLabels:
       app: ap
 `
-    const cmpK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - hpa.yaml
-`
-    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - ../cmp-hpa
-  - deployment.yaml
-  - pdb.yaml
-patches:
-  - target:
-      kind: HorizontalPodAutoscaler
-      name: ap
-    patch: |-
-      $patch: delete
-      apiVersion: autoscaling/v2
-      kind: HorizontalPodAutoscaler
-      metadata:
-        name: ap
-`
-    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - ../base
-`
-
-    await writeFile(join(cmpDir, 'hpa.yaml'), hpa, 'utf8')
-    await writeFile(join(cmpDir, 'kustomization.yaml'), cmpK, 'utf8')
-    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
-    await writeFile(join(baseDir, 'pdb.yaml'), pdb, 'utf8')
-    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
-    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
-
-    const prodKust = join(prodDir, 'kustomization.yaml')
-    const n = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
-    expect(n.needsHpaReplicaPatches).toBe(false)
-    expect(n.needsPdbMinAvailablePatch).toBe(true)
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
+    await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
+    await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
+    const c = collectors()
+    await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
+    expect(c.fails.some(m => m.includes('hpa.yaml'))).toBe(true)
   })
 })

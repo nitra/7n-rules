@@ -10,6 +10,8 @@ abie-kustomize - [abie]
 
 fix - завжди
 
+llm-patch - завжди
+
 lint - завжди
 
 publish-telegram - завжди

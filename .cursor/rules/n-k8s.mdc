@@ -111,7 +111,7 @@ resources:
     memory: '128Mi'
 ```
 
-**HPA і PDB у base не тримаємо**: ні локальних `hpa.yaml` / `pdb.yaml` поруч із `Deployment`, ні через `resources` / `components` / `bases`. Канон — sibling каталог **`components/`** (Kustomize Component) поруч з `base/` (див. розділ нижче).
+**HPA у base не тримаємо** у локальному **`hpa.yaml`** поруч із `Deployment`. Якщо **HorizontalPodAutoscaler** потрапляє в дерево Kustomize з **`resources`** / **`components`** / **`bases`**, у **`…/base/kustomization.yaml`** додай strategic-merge patch з **`$patch: delete`** і **`kind: HorizontalPodAutoscaler`** (і **`metadata.name`**, що збігається з ресурсом, який треба прибрати). **`check k8s`** перевіряє наявність такого patch, коли в дереві base одночасно є **Deployment** і **HPA**.
 
 ### Поза base (оверлеї, окремі каталоги)
 
@@ -373,27 +373,17 @@ images:
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
-## Deployment: `topologySpreadConstraints`, HPA / PDB через `components/`
+## Deployment: `pdb.yaml`, `topologySpreadConstraints`, HPA поза dev-base
 
-Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) сам Deployment має канонічні **`spec.template.spec.topologySpreadConstraints`**, а **HPA і PDB** живуть у **sibling каталозі** **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`). У `base/` локальні `hpa.yaml` і `pdb.yaml` **заборонені** (file-existence error). У дереві base-kustomize HPA / PDB також **не дозволені** через `resources` / `components` / `bases`.
+Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у **тому ж каталозі** має бути **`pdb.yaml`** (PDB), а сам Deployment — канонічні **`spec.template.spec.topologySpreadConstraints`**. Локальний **`hpa.yaml`** у каталозі **`…/base/`** **заборонено** — для dev HPA з дерева Kustomize прибирається через **`$patch: delete`** у **`base/kustomization.yaml`** (див. розділ про **`resources.requests`** вище).
 
-**Канонічна структура `<pkg>/k8s/components/`** (sibling до `base/`):
-
-- **`kustomization.yaml`** — `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources: [hpa.yaml, pdb.yaml]`.
-- **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, **без** `metadata.namespace` (namespace задає kustomization-споживач), `spec.scaleTargetRef.name` **= `metadata.name`** Deployment з base, dev-like значення `minReplicas: 1`, `maxReplicas: 1`.
-- **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, **без** `metadata.namespace`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment, dev-like `minAvailable: 0`.
-
-Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
-
-**Overlays** (`ua/`, `ru/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно.
-
-У **не-base** оверлеях (без `components/`) поруч із `Deployment` лишається звична схема: окремий **`hpa.yaml`** / **`pdb.yaml`**, якщо такі потрібні для цього середовища. **`check k8s`** звіряє прив'язку за іменами:
+У **не-base** оверлеях поруч із `Deployment` лишається звична схема: окремий **`hpa.yaml`**, якщо потрібен HPA для цього середовища. **`check k8s`** звіряє прив’язку за іменами:
 
 - **`hpa.yaml`** (поза **`…/base/`**) — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
 - **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
 
-**Перевірка структури `components/`** (для кожного Deployment у `base/`): наявність каталогу, валідний `kustomization.yaml` як Component, `hpa.yaml` і `pdb.yaml` з відповідністю до Deployment-name / app-label. Алгоритм — функція `validateComponentsForBaseDeployment` у **`check-k8s.mjs`**.
+**Kustomize `base` і overlay:** у дереві, зібраному з `k8s/…/base/kustomization.yaml` (`resources` / `bases` / `components` / `crds`, рекурсивно), **HorizontalPodAutoscaler** і **PodDisruptionBudget** допустимі **лише якщо** в тому ж дереві kustomize є хоча б один **`Deployment`** у YAML під **`…/k8s/…/base/`**. Якщо після збору в дереві є і **Deployment**, і **HPA**, **base** `kustomization.yaml` має містити strategic-merge видалення **HorizontalPodAutoscaler** (`$patch: delete`). У `kustomization.yaml` overlay, який підключає цей `base`, не додавай окремі YAML-файли з HPA / PDB, доки в наслідуваному `base` у дереві не з’явиться такий Deployment. Перевіряє **`check-k8s.mjs`**.
 
 **Локальні шляхи в `kustomization.yaml`:** кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
 
@@ -413,21 +403,14 @@ images:
 
 ### Прод-оверрайди у `kustomization.yaml`
 
-У прод-накладенні `kustomization.yaml`, що підключає `components: [- ../components]` (тобто overlay-tree містить **HorizontalPodAutoscaler** і **PodDisruptionBudget**), у `patches[]` **обов'язкові** JSON6902-перевизначення прод-значень:
+У прод-накладенні `kustomization.yaml` у `patches[]` **обов’язкові** перевизначення залежно від того, що дає успадковане **base**-дерево:
 
-- **`HorizontalPodAutoscaler`**: `/spec/minReplicas` і `/spec/maxReplicas` (мінімум 2).
-- **`PodDisruptionBudget`**: `/spec/minAvailable` (мінімум 1).
+- **`PodDisruptionBudget`**: `spec.minAvailable` — якщо в base-дереві є **Deployment** і **PDB** (типово dev-like `0` → прод ≥1).
+- **`HorizontalPodAutoscaler`**: `spec.minReplicas` **і** `spec.maxReplicas` — **лише якщо** в base-дереві є **HPA**, який **не** прибирається в **base** через **`$patch: delete`**. Якщо base видаляє HPA для dev, у прод-оверлеї додай **HPA** окремим YAML у **`resources`** (або patches на ресурс, що з’являється з іншого шару) з прод-мінімумами.
 
 Формат patch — JSON6902 або Strategic Merge; `check k8s` перевіряє **наявність** відповідних JSON Pointer-ів у **`patches[]`**.
 
 ```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: prod
-resources:
-  - ../base
-components:
-  - ../components
 patches:
   - target:
       kind: HorizontalPodAutoscaler
@@ -448,17 +431,30 @@ patches:
         value: 1
 ```
 
-### Приклади `components/`
+### Приклад: прибрати HPA у `base/kustomization.yaml`
 
-```yaml title="k8s/components/kustomization.yaml"
-apiVersion: kustomize.config.k8s.io/v1alpha1
-kind: Component
+Якщо **HPA** підключений з **`../component`** (або іншого шляху в **`resources`**), а у dev він не потрібен:
+
+```yaml title="k8s/base/kustomization.yaml (фрагмент)"
 resources:
-  - hpa.yaml
+  - ../component
+  - deploy.yaml
   - pdb.yaml
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: backend-api
+    patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: backend-api
 ```
 
-```yaml title="k8s/components/hpa.yaml"
+### Приклади
+
+```yaml title="k8s/prod/hpa.yaml (або компонент з HPA — не в …/base/ локальному hpa.yaml)"
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -469,8 +465,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend-api
-  minReplicas: 1 # прод overlay підіймає до >= 2
-  maxReplicas: 1 # прод overlay підіймає до >= 2
+  minReplicas: 2
+  maxReplicas: 10
   metrics:
     - type: Resource
       resource:
@@ -498,14 +494,14 @@ spec:
       selectPolicy: Min
 ```
 
-```yaml title="k8s/components/pdb.yaml"
+```yaml title="k8s/base/pdb.yaml"
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/poddisruptionbudget-policy-v1.json
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
   name: backend-api
 spec:
-  minAvailable: 0 # прод overlay підіймає до >= 1
+  minAvailable: 0 # прод: >= 1
   selector:
     matchLabels:
       app: backend-api
@@ -531,7 +527,7 @@ spec:
               app: backend-api
 ```
 
-Точні умови та повідомлення `fail` — JSDoc на початку `npm/scripts/check-k8s.mjs` і функції `validateComponentsForBaseDeployment` / `prodOverlayHpaPdbOverrideNeeds`.
+В overlays для прод-середовища `minReplicas`, `maxReplicas`, `minAvailable` підіймаєш до прод-мінімумів через **Kustomize patches** або окремі `hpa.yaml` / `pdb.yaml` у каталозі overlay (тоді перевірка спрацьовує за їхнім середовищем).
 
 ## HorizontalPodAutoscaler: `autoscaling/v2`
 
