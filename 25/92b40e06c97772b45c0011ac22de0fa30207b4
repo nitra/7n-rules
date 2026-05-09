@@ -1,0 +1,100 @@
+.cursor/rules/n-js-run.mdc
+  s_251f3ac680bf09::t_4c618633cc3c38 4,124-165,234-240
+docs/adr/_inbox/20260509-131418-e5d7a5d2.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-29
+npm/tests/auto-skills.test.mjs
+  s_fdf5be63d4a5d0::t_46bee42d58d8ed 21,30,39,48,58
+  s_fdf5be63d4a5d0::t_74df2f8c824f45 12
+npm/package.json
+  s_251f3ac680bf09::t_8269eaab7179ba 3
+docs/adr/_inbox/20260509-130442-e5d7a5d2.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-21
+npm/skills/llm-patch/SKILL.md
+  s_fdf5be63d4a5d0::t_66d428b6b6dec7 4-5,7-198
+  h_74546f1f1ded3e 1-3,6
+npm/scripts/auto-skills.mjs
+  s_fdf5be63d4a5d0::t_0a976753669f6f 29
+  s_fdf5be63d4a5d0::t_e3b38ac0940167 10
+  s_fdf5be63d4a5d0::t_54d041af903174 15
+npm/tests/check-k8s-schema.test.mjs
+  s_251f3ac680bf09::t_506a12865a3cf9 56
+  s_251f3ac680bf09::t_1a639b6b028143 1839,1841,1844,1910-1911,1914,1927-1928,1931-1933,1945-1947,1950,1985-1986,1988,2001-2002,2005-2006
+  s_251f3ac680bf09::t_5bd913a91bdc76 2018-2202
+.cursor/skills/n-llm-patch/SKILL.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-198
+AGENTS.md
+  s_251f3ac680bf09::t_4c618633cc3c38 11,34-35,50,53,60-61,64-66,71,90-91
+.cursor/rules/n-k8s.mdc
+  s_251f3ac680bf09::t_4c618633cc3c38 1-702
+CLAUDE.md
+  s_251f3ac680bf09::t_4c618633cc3c38 14,27,36-37,40-41
+npm/mdc/k8s.mdc
+  s_251f3ac680bf09::t_4b4e494f8af5e1 114
+  s_251f3ac680bf09::t_517c82e1393087 376,378,380-390,396
+  s_251f3ac680bf09::t_b7c170661776d9 416,418-419,424-430,451,453-455,457,461,472-473,501,508,534
+.n-cursor.json
+  s_fdf5be63d4a5d0::t_6b5f88d2e020cc 21-27
+npm/bin/auto-skills.md
+  h_74546f1f1ded3e 13-14
+npm/CHANGELOG.md
+  s_fdf5be63d4a5d0::t_c8138690da6b3f 9-12
+  s_251f3ac680bf09::t_eb65bc145e43fb 7-8,13-23
+  s_fdf5be63d4a5d0::t_3cb4e71abe19ae 24-29
+.claude/commands/n-llm-patch.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-8
+.claude/commands/n-taze.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-8
+.cursor/rules/n-js-bun-db.mdc
+  s_251f3ac680bf09::t_4c618633cc3c38 4,21-72,252
+npm/scripts/check-k8s.mjs
+  s_251f3ac680bf09::t_67f825cf698023 5176
+  s_251f3ac680bf09::t_48a7a114fb733d 5541
+  s_251f3ac680bf09::t_3ea0abb44cc8f4 5049-5051,5054-5055,5059-5060,5063,5065-5066
+  s_251f3ac680bf09::t_1b2a6056f96e8e 120-124
+  s_251f3ac680bf09::t_d7882532c51937 5614-5616
+  s_251f3ac680bf09::t_ff429ddeb9bd9c 5392
+  s_251f3ac680bf09::t_b22c3f92487d25 4409-4419
+  s_251f3ac680bf09::t_d4ce0825da85d0 5229,5231-5235,5247-5250
+  s_251f3ac680bf09::t_61163a10bb7b53 5561,5566-5572,5576-5577,5589-5595
+  s_ed7ddce4d2af78::t_3146b143ce5a6f 6353
+  s_251f3ac680bf09::t_ea7eee372a92cb 87-97,103-105
+.cursor/skills/n-taze/SKILL.md
+  s_251f3ac680bf09::t_4c618633cc3c38 1-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "2592b40e06c97772b45c0011ac22de0fa30207b4",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_251f3ac680bf09": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "801b1049-fcbb-4bda-ada1-38afc3bf62ad",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ed7ddce4d2af78": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f49b8938-ed7d-4ac5-a6a6-11c28a1a3808",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_fdf5be63d4a5d0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e5d7a5d2-abb0-4216-9eab-7dd1979b2694",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
