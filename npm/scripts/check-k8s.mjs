@@ -479,7 +479,7 @@ async function validateKustomizationResourcesSortedAlphabetically(root, yamlFile
 }
 
 /**
- * Лексичне порівняння двох тuplіе рядків через `localeCompare('en', { sensitivity: 'base' })`.
+ * Лексичне порівняння двох tuple рядків через `localeCompare('en', { sensitivity: 'base' })`.
  * Менший за довжиною список доповнюється порожніми рядками.
  * @param {string[]} a перший tuple
  * @param {string[]} b другий tuple
@@ -594,7 +594,7 @@ function jsonPointerPathsAreDisjoint(paths) {
 }
 
 /**
- * Парсить рядок JSON6902-патчa в плоский масив операцій `{ op, path }` (без значень).
+ * Парсить рядок JSON6902-патча в плоский масив операцій `{ op, path }` (без значень).
  * Повертає `null`, якщо це не YAML-масив об'єктів з полями `op`/`path` як рядки.
  * @param {string} raw тіло inline `patch:` (literal block scalar)
  * @returns {{ op: string, path: string }[] | null} нормалізований список ops або `null` за невідповідного формату

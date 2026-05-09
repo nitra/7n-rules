@@ -4,6 +4,30 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.213] - 2026-05-09
+
+### Added
+
+- Нове правило `js-bun-redis` (`npm/mdc/js-bun-redis.mdc`): заміна `ioredis` /
+  `node-redis` (включно з кореневим `redis` v4 і підпакетами `@redis/*`) на
+  Bun native Redis (`import { redis } from 'bun'`,
+  <https://bun.com/docs/runtime/redis>).
+- AST-сканер `npm/scripts/utils/redis-imports.mjs` (`oxc-parser`) ловить
+  `import` / `require` / динамічний `import()` пакетів `ioredis`, `node-redis`,
+  `redis`, підшляхів `ioredis/...` / `redis/...` і `@redis/*`. Не зачіпає
+  сторонні `redis-*` (наприклад, `redis-mock`).
+- `npm/scripts/check-js-bun-redis.mjs` запускає AST-скан по JS/TS-джерелах і
+  доступний як `npx @nitra/cursor check js-bun-redis`.
+- Rego-полісі `npm/policy/js_bun_redis/package_json/` — заборона
+  `ioredis` / `node-redis` / `redis` / `@redis/*` у `dependencies` будь-якого
+  `package.json` у дереві; зареєстрована таргетом у
+  `npm/scripts/lint-conftest.mjs` (`bun run lint-conftest`).
+- Авто-увімкнення правила в `.n-cursor.json`: `npm/scripts/auto-rules.mjs`
+  додає `js-bun-redis`, якщо в `dependencies` хоч одного `package.json` є
+  `ioredis` або `node-redis` (умова — у `npm/bin/auto-rules.md`).
+- Тести: `npm/tests/redis-imports.test.mjs` (AST-сканер) і нові кейси у
+  `npm/tests/auto-rules.test.mjs` (детект `ioredis` / `node-redis`).
+
 ## [1.8.212] - 2026-05-08
 
 ### Changed
@@ -54,7 +78,7 @@
     `sqlFormat` / `pgFmt` з `%L`/`%I`/`%s` у тілі, плюс `quoteLiteral` /
     `quoteIdent` / `escapeLiteral` / `escapeIdent` без додаткової перевірки)
     та `findPgFormatLikeQueryWrapperInText` (`{ query(text, params) { ...
-    <obj>.unsafe(...) ... } }`). Скан запускається лише у файлах з
+<obj>.unsafe(...) ... } }`). Скан запускається лише у файлах з
     `import { sql|SQL } from 'bun'`.
   - `npm/scripts/check-js-bun-db.mjs` рапортує `pgFormatShim` / `queryWrapper` —
     окремі лічильники й `pass`-рядки, без зміни існуючих перевірок.
@@ -105,10 +129,10 @@
     (prettier-залежність, `@nitra/eslint-config ≥ 3.9.2`),
     `checkPackageJsonTypeModule` для root, `checkEnginesNode/Bun` для root,
     канонічний `lint-js`-скрипт, валідація `lint-js.yml` (`verifyLintJsWorkflowStructure`
-    + fallback). Лишилися — `.oxlintrc.json` canonical-snapshot, VSCode-розширення,
-    workspace-ітерація для `type: "module"` і engines, дубль JS-кроків у `lint.yml`,
-    `.jscpd.json`. Прибрано непотрібні імпорти `parseWorkflowYaml`,
-    `verifyLintJsWorkflowStructure` і `OXLINT_FIX_RE`.
+    - fallback). Лишилися — `.oxlintrc.json` canonical-snapshot, VSCode-розширення,
+      workspace-ітерація для `type: "module"` і engines, дубль JS-кроків у `lint.yml`,
+      `.jscpd.json`. Прибрано непотрібні імпорти `parseWorkflowYaml`,
+      `verifyLintJsWorkflowStructure` і `OXLINT_FIX_RE`.
   - `npm/scripts/check-js-run.mjs` — без перевірок `bunyan` / `@nitra/bunyan` у
     залежностях, canonical `jsconfig.json` через `deepEqualJson`,
     `OTEL_RESOURCE_ATTRIBUTES` у `configmap.yaml`. Лишилися AST-скан коду
@@ -220,7 +244,7 @@
 - `check-k8s.mjs` (автоконверт `image-replace` patches → `images:`): тепер працює і для `patches[i].patch` із **кількома** ops, а не лише з одинокою image-replace op. Сканує всі ops у патчі, конвертує **кожну** `op: replace` на `/spec/template/spec/containers/<N>/image` (target `kind: Deployment`) у запис `images:`; якщо всі ops патча конвертовано — `patches[i]` видаляється повністю; інакше inline `patch:` переписується через `parseDocument` без конвертованих ops зі збереженням block-literal scalar (`|-`) і вихідного порядку решти ops. Реалізовано через нові функції `tryParseJson6902Array` (≥ 1 op, замість `tryParseSingleJson6902Array`) і `rewriteInlinePatchWithoutOps`; `imageReplaceDeploymentPatchInfo` повертає `{ deployName, totalOps, ops: [{ containerIndex, newImage, opIndex }] }` (раніше — одиничний `{ deployName, containerIndex, newImage }` лише за `length === 1`); `applyConversionsToDoc` групує конвертації по індексу патча й вирізає ops або сам патч за потреби. Сортування решти ops після видалення лишається поза цією зміною — за нього відповідає окрема перевірка `kustomizationInlinePatchOpsSortedViolation`.
 - `mdc/k8s.mdc` (v1.26 → v1.27): уточнено крок 1 авто-перевірки в розділі «Зміна image — через `images:`, не через `patches[]`» — тепер описує і випадок, коли в `patches[i].patch` лишаються не-image ops (їх зберігає, у вихідному порядку, без коментарів).
 - `check-js-lint.mjs` + `mdc/js-lint.mdc` (v1.16 → v1.17): мінімум `@nitra/eslint-config` піднято з `^3.8.0` до `^3.9.2`. Обґрунтування: з 3.9.2 у `getConfig` вбудовано ignore для `**/adr/**`, тож ADR-документи не валідуються ESLint, і консьюмерам не треба додавати цей glob у `eslint.config.js` локально. `nitraEslintConfigMeetsMinVersion` тепер повертає `false` для діапазонів `^3.8.x`–`^3.9.1`; `workspace:*` лишається ok без змін. Pass/fail-повідомлення `checkPackageJsonLintDeps` оновлено під новий мінімум; `for...in`-бан з 3.8.0 згадується як накопичена відмінність. Тести `nitraEslintConfigMeetsMinVersion` розширено: `^3.9.2`/`^3.9.10`/`^3.10.0`/`^4.0.0` — ok; `^3.9.1`/`^3.8.0`/`^3.6.12`/`^3.4.3` — ні.
-- `bin/n-cursor.js` (`reexecIfPackageVersionChanged` + `spawnSync`-виклик): `process.env.NITRA_CURSOR_REEXEC` і `...process.env` замінено на `env.NITRA_CURSOR_REEXEC` і `...env` з `node:process` (`import { cwd, env } from 'node:process'`). Підстава: правило `js-run.mdc` забороняє прямий `process.env.*` у Node-коді; `NITRA_CURSOR_REEXEC` — опційна змінна (виставляється лише при re-exec), тож імпорт `env` з `node:process` (а не з `@nitra/check-env`) — канонічна форма для опційних. Поведінка не змінена; раніше `npm/scripts/check-js-run.mjs` помилявся на `bin/n-cursor.js:1136` (правило `process-env`), тепер intergation-test `check-* на реальному репозиторії` проходить.
+- `bin/n-cursor.js` (`reexecIfPackageVersionChanged` + `spawnSync`-виклик): `process.env.NITRA_CURSOR_REEXEC` і `...process.env` замінено на `env.NITRA_CURSOR_REEXEC` і `...env` з `node:process` (`import { cwd, env } from 'node:process'`). Підстава: правило `js-run.mdc` забороняє прямий `process.env.*` у Node-коді; `NITRA_CURSOR_REEXEC` — опційна змінна (виставляється лише при re-exec), тож імпорт `env` з `node:process` (а не з `@nitra/check-env`) — канонічна форма для опційних. Поведінка не змінена; раніше `npm/scripts/check-js-run.mjs` помилявся на `bin/n-cursor.js:1136` (правило `process-env`), тепер integration-test `check-* на реальному репозиторії` проходить.
 
 ### Added
 

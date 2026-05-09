@@ -184,6 +184,12 @@ const TARGETS = [
     walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
   },
   {
+    namespace: 'js_bun_redis.package_json',
+    policyDir: 'js_bun_redis',
+    rule: 'js-bun-redis',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
+  },
+  {
     namespace: 'js_run.package_json',
     policyDir: 'js_run',
     rule: 'js-run',
@@ -257,7 +263,10 @@ function collectFiles(root, match) {
         continue
       }
       if (!e.isFile()) continue
-      const rel = abs.slice(root.length + 1).split(sep).join('/')
+      const rel = abs
+        .slice(root.length + 1)
+        .split(sep)
+        .join('/')
       if (match(rel)) out.push(rel)
     }
   }
@@ -297,11 +306,10 @@ function runConftestForTarget(conftestBin, target, files) {
     return 0
   }
   console.log(`\n▶ conftest (${target.namespace} — ${files.length} файл(ів))`)
-  const r = spawnSync(
-    conftestBin,
-    ['test', ...files, '-p', policyAbs, '--namespace', target.namespace, '--no-color'],
-    { stdio: 'inherit', env: process.env }
-  )
+  const r = spawnSync(conftestBin, ['test', ...files, '-p', policyAbs, '--namespace', target.namespace, '--no-color'], {
+    stdio: 'inherit',
+    env: process.env
+  })
   if (r.error) {
     console.error(`❌ Не вдалося запустити conftest: ${r.error.message}`)
     return 1

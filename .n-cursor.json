@@ -18,10 +18,5 @@
     "text",
     "vue"
   ],
-  "skills": [
-    "fix",
-    "lint",
-    "publish-telegram",
-    "taze"
-  ]
+  "skills": ["fix", "lint", "publish-telegram", "taze"]
 }

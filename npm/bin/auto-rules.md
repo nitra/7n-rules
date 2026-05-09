@@ -34,6 +34,8 @@ js-mssql - якщо в хоч одному package.json в секції dependen
 
 js-bun-db - якщо в хоч одному package.json в секції dependencies присутній пакет pg, pg-format або mysql2 або є імпорт sql/SQL з Bun (приклад: import { sql } from "bun")
 
+js-bun-redis - якщо в хоч одному package.json в секції dependencies присутній пакет ioredis або node-redis
+
 k8s - якщо присутня хоч одна директорія k8s
 
 nginx-default-tpl - якщо присутній хоч один файл з переліку - default.conf.template, default.conf, nginx.conf

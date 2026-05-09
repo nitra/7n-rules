@@ -27,6 +27,7 @@ const ALL_RULES = [
   'js-lint',
   'js-mssql',
   'js-bun-db',
+  'js-bun-redis',
   'js-run',
   'k8s',
   'nginx-default-tpl',
@@ -130,6 +131,45 @@ describe('detectAutoRules', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
+    })
+  })
+
+  test('додає js-bun-redis при ioredis у dependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'ioredis-app',
+        dependencies: { ioredis: '^5.4.0' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-redis')).toBe(true)
+    })
+  })
+
+  test('додає js-bun-redis при node-redis у dependencies', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'node-redis-app',
+        dependencies: { 'node-redis': '^4.7.0' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-redis')).toBe(true)
+    })
+  })
+
+  test('не додає js-bun-redis, якщо redis-залежностей немає', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'no-redis-app',
+        dependencies: { lodash: '^4.17.21' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('js-bun-redis')).toBe(false)
     })
   })
 

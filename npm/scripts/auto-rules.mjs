@@ -2,9 +2,9 @@
  * Автовизначення правил для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
  *
  * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
- * залежності `mssql` / `pg` / `pg-format` / `mysql2` у `package.json`, імпорт `sql`/`SQL` з `bun`, кореневий
- * `package.json`, `config.yaml` з рядком `metadata_directory: metadata` для hasura)
- * та повертає ідентифікатори правил, які потрібно автододати.
+ * залежності `mssql` / `pg` / `pg-format` / `mysql2` / `ioredis` / `node-redis` у `package.json`,
+ * імпорт `sql`/`SQL` з `bun`, кореневий `package.json`, `config.yaml` з рядком
+ * `metadata_directory: metadata` для hasura) та повертає ідентифікатори правил, які потрібно автододати.
  *
  * Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
  *
@@ -39,6 +39,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'js-lint',
   'js-mssql',
   'js-bun-db',
+  'js-bun-redis',
   'js-run',
   'k8s',
   'nginx-default-tpl',
@@ -602,10 +603,18 @@ export async function detectAutoRules({
       : null
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
-  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, ['mssql', 'pg', 'pg-format', 'mysql2'])
+  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, [
+    'mssql',
+    'pg',
+    'pg-format',
+    'mysql2',
+    'ioredis',
+    'node-redis'
+  ])
   const hasMssqlDependency = depHits.has('mssql')
   const hasJsBunDbSignal =
     depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
+  const hasJsBunRedisSignal = depHits.has('ioredis') || depHits.has('node-redis')
   const hasNestedNodePackage = await hasNestedPackageJsonWithoutViteDevDependency(root)
 
   /** @type {string[]} */
@@ -634,6 +643,7 @@ export async function detectAutoRules({
     { enabled: facts.hasJsLikeSource, id: 'js-lint' },
     { enabled: hasMssqlDependency, id: 'js-mssql' },
     { enabled: hasJsBunDbSignal, id: 'js-bun-db' },
+    { enabled: hasJsBunRedisSignal, id: 'js-bun-redis' },
     { enabled: hasNestedNodePackage, id: 'js-run' },
     { enabled: facts.hasK8sDir, id: 'k8s' },
     { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },

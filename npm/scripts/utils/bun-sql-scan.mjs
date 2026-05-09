@@ -425,8 +425,7 @@ export function findPgFormatLikeQueryWrapperInText(content, virtualPath = 'scan.
     for (const prop of properties) {
       if (!prop || prop.type !== 'Property') continue
       const key = prop.key
-      const keyName =
-        key && key.type === 'Identifier' ? key.name : key && key.type === 'Literal' ? key.value : null
+      const keyName = key && key.type === 'Identifier' ? key.name : key && key.type === 'Literal' ? key.value : null
       if (keyName !== 'query') continue
       const value = prop.value
       if (!value || (value.type !== 'FunctionExpression' && value.type !== 'ArrowFunctionExpression')) continue

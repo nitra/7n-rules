@@ -1,5 +1,6 @@
 {
   "gitignore": true,
+  "ignores": ["**/adr/**"],
   "config": {
     "default": true,
     "MD013": false,

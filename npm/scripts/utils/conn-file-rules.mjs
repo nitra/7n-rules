@@ -100,7 +100,7 @@ function collectNamedExportNames(program) {
         (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') &&
         decl.id &&
         typeof decl.id === 'object' &&
-        typeof /** @type {Record<string, unknown>} */ (decl.id).name === 'string'
+        typeof (/** @type {Record<string, unknown>} */ (decl.id).name) === 'string'
       ) {
         out.push(/** @type {string} */ (/** @type {Record<string, unknown>} */ (decl.id).name))
       }
@@ -128,7 +128,11 @@ function hasDefaultExport(program) {
   const body = /** @type {Record<string, unknown>} */ (program).body
   if (!Array.isArray(body)) return false
   for (const node of body) {
-    if (node && typeof node === 'object' && /** @type {Record<string, unknown>} */ (node).type === 'ExportDefaultDeclaration') {
+    if (
+      node &&
+      typeof node === 'object' &&
+      /** @type {Record<string, unknown>} */ (node).type === 'ExportDefaultDeclaration'
+    ) {
       return true
     }
   }

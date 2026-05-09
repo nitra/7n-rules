@@ -1,0 +1,21 @@
+---
+description: Використання Redis/Valkey з Bun
+alwaysApply: true
+version: '1.0'
+---
+
+## Підтримувані версії redis
+
+Redis 7.2+
+
+## Заміна на Bun native Redis
+
+Якщо в проєкті використовуються бібліотеки `ioredis`, `node-redis`, їх потрібно замінити на Bun native Redis: <https://bun.com/docs/runtime/redis>.
+
+- Видалити з `dependencies`: `ioredis`, `node-redis`.
+- Видалити з коду: усі `import` / `require` цих пакетів та власні обгортки над ними.
+- Замінити на `import { redis } from 'bun'`
+
+## Перевірка
+
+`npx @nitra/cursor check js-bun-redis`.
