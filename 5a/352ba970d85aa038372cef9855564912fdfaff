@@ -1,0 +1,181 @@
+docs/adr/_inbox/20260506-093551-da393ab3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,18
+docs/adr/_inbox/20260506-092507-da393ab3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 8,11,17
+docs/adr/_inbox/20260507-163615-4ecd7f2f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260508-142512-0d94e08f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+npm/skills/taze/SKILL.md
+  s_cc36b61f043c00::t_df6584ee5c8f17 69
+  s_cc36b61f043c00::t_83c4826964c676 16
+docs/adr/_inbox/20260507-205432-ffec3de3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,33
+.n-cursor.json
+  s_cc36b61f043c00::t_df6584ee5c8f17 21
+docs/adr/_inbox/20260507-164125-4ecd7f2f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 24
+docs/adr/_inbox/20260507-171517-64b94d15.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+.cspell.json
+  s_cc36b61f043c00::t_b512c8b2e130cc 12-13
+  s_cc36b61f043c00::t_1c5b17cdd6a24f 292-431
+npm/tests/redis-imports.test.mjs
+  s_bb0ebe98ce824d::t_6d171cb5a1f1fb 1-84
+npm/tests/auto-rules.test.mjs
+  s_bb0ebe98ce824d::t_47f4a55b5abeb2 137-175
+  s_bb0ebe98ce824d::t_88ebeead937513 30
+docs/adr/_inbox/20260507-115045-a6a9c6d7.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,15,19
+docs/adr/_inbox/20260508-114536-f1272728.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,23
+docs/adr/_inbox/20260507-205127-ffec3de3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260506-114359-a6a9c6d7.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260507-164018-1f6be817.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,27
+docs/adr/_inbox/20260507-120328-a6a9c6d7.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 160,168,180,190
+npm/scripts/utils/bun-sql-scan.mjs
+  s_cc36b61f043c00::t_df6584ee5c8f17 428
+demo/CHANGELOG.md
+  s_cc36b61f043c00::t_942badb009cd8c 1-15
+docs/adr/_inbox/20260508-121404-dcc2513f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260507-051602-42a829a9.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,23
+docs/adr/_inbox/20260509-065404-5f3a61b3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 8,12
+  s_cc36b61f043c00::t_e6c136a9640edf 1-7,9-11,13-25
+.gitignore
+  s_cc36b61f043c00::t_7a82c09019db2b 2
+docs/adr/_inbox/20260508-102727-5bd4d71b.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 10,52
+docs/adr/_inbox/20260507-112230-a6a9c6d7.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 10,15,23
+docs/adr/_inbox/20260507-201705-ffec3de3.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260508-142654-1b14ee30.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260508-103728-6f4959b4.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+npm/mdc/js-bun-db.mdc
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 29
+npm/scripts/utils/redis-imports.mjs
+  s_bb0ebe98ce824d::t_3b47980d50043f 1-172
+docs/adr/_inbox/20260506-082556-b2d5af01.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+npm/mdc/js-bun-redis.mdc
+  h_74546f1f1ded3e 1-21
+docs/adr/_inbox/20260508-120841-dcc2513f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+npm/scripts/utils/conn-file-rules.mjs
+  s_cc36b61f043c00::t_df6584ee5c8f17 103,131-135
+package.json
+  s_cc36b61f043c00::t_194dc645488cb5 3
+docs/adr/_inbox/20260508-142911-1b14ee30.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260508-105810-f1272728.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,15,19
+npm/scripts/auto-rules.mjs
+  s_bb0ebe98ce824d::t_f4fd2178e174aa 5-7
+  s_bb0ebe98ce824d::t_1e81299ebfb043 606-613,617
+  s_bb0ebe98ce824d::t_547b86224c60df 646
+npm/policy/js_bun_redis/package_json/package_json.rego
+  s_cc36b61f043c00::t_e6c136a9640edf 1-37
+npm/scripts/auto-skills.mjs
+  s_cc36b61f043c00::t_df6584ee5c8f17 15
+npm/tests/check-image-avif.test.mjs
+  s_cc36b61f043c00::t_01888627432b5d 9
+docs/adr/_inbox/20260507-043905-42a829a9.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,22
+docs/adr/_inbox/20260507-165323-1f6be817.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 14
+docs/adr/_inbox/20260508-091654-64b94d15.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,23
+docs/adr/_inbox/20260508-125545-17e7fc53.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 36,38-41
+npm/CHANGELOG.md
+  s_bb0ebe98ce824d::t_dae60b8e1ca597 7-30
+  s_cc36b61f043c00::t_df6584ee5c8f17 81,132-135
+  s_cc36b61f043c00::t_9a89760dbe6f0e 247
+npm/scripts/check-hasura.mjs
+  s_cc36b61f043c00::t_df6584ee5c8f17 152
+docs/adr/_inbox/20260507-042058-3225fb23.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260509-073314-04b2495e.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260507-201049-9656539c.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,18,21,32
+docs/adr/_inbox/20260507-173531-64b94d15.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,23
+npm/bin/auto-rules.md
+  h_74546f1f1ded3e 37-38
+npm/scripts/lint-conftest.mjs
+  s_cc36b61f043c00::t_df6584ee5c8f17 266-269,309-312
+  s_bb0ebe98ce824d::t_0b95ebbe682b20 187-191
+npm/package.json
+  s_bb0ebe98ce824d::t_1a4f7a482ba4ac 3
+docs/adr/_inbox/20260507-171102-64b94d15.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 17
+npm/scripts/check-js-bun-redis.mjs
+  s_bb0ebe98ce824d::t_f31f1cf188bc71 1-18,20-92,94-98
+  s_cc36b61f043c00::t_df6584ee5c8f17 19,93
+npm/scripts/check-k8s.mjs
+  s_cc36b61f043c00::t_8dbda43420a210 482
+  s_cc36b61f043c00::t_2e178cc4bad114 597
+docs/adr/_inbox/20260507-113729-a6a9c6d7.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 21
+docs/adr/_inbox/20260507-165830-4ecd7f2f.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 16,24,35
+docs/adr/_inbox/20260507-144352-1f6be817.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 16
+docs/adr/_inbox/20260507-040908-3225fb23.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 8
+docs/adr/_inbox/20260507-170511-64b94d15.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 8
+docs/adr/_inbox/20260508-122834-f1272728.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,27
+CHANGELOG.md
+  s_cc36b61f043c00::t_a06061a8435926 1-11,13-16,18-20,22,25-47
+  s_cc36b61f043c00::t_4369a58aca7694 17
+  s_cc36b61f043c00::t_3d2abaf2bb8f83 21,23
+  s_cc36b61f043c00::t_540046bbf52426 12
+  s_cc36b61f043c00::t_09958a66fd01df 24
+docs/adr/_inbox/20260506-093930-2bb116da.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12
+docs/adr/_inbox/20260507-041537-3225fb23.md
+  s_cc36b61f043c00::t_ec7c8ab278d9f2 12,17
+.markdownlint-cli2.jsonc
+  s_cc36b61f043c00::t_97c8dbceea2e31 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "5a352ba970d85aa038372cef9855564912fdfaff",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_bb0ebe98ce824d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5f3a61b3-0046-4c40-aa90-477a54c546f4",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cc36b61f043c00": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "04b2495e-073f-4746-b20e-f759aced6c90",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
