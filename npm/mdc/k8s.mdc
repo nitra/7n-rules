@@ -96,19 +96,51 @@ jobs:
         run: bun run lint-k8s
 ```
 
-## Deployment: `resources.requests.cpu`
+## Deployment: `resources.requests` (CPU і memory)
 
-У **`Deployment`** у кожному **`containers`** має бути **`resources.requests.cpu`** — непорожнє значення (наприклад **`"500m"`**, **`"100m"`** або число на кшталт **`0.5`**). Це гарантує, що Kubernetes планує pod з мінімальним бюджетом CPU і коректно працює з HPA (CPU target %).
+У кожному контейнері **`Deployment`** обов’язкові **`resources.requests.cpu`** і **`resources.requests.memory`** (непорожні скаляри Kubernetes Quantity).
 
-Якщо для сервісу ще не обрано конкретне значення — став **`"0.5"`** як безпечний мінімум:
+### Шар **`…/k8s/…/base/…`** (dev / щільний packing)
+
+У **всіх** `Deployment` у файлах під **`…/k8s/…/base/…`** значення **жорстко фіксовані** (для **cpu** допускається число **`0.02`** у YAML):
 
 ```yaml
 resources:
   requests:
-    cpu: '0.5' # довільне значення; 0.5 — дефолт, якщо нічого специфічного ще не обрано
+    cpu: '0.02'
+    memory: '128Mi'
 ```
 
-**`check k8s`** перевіряє присутність і непорожність **`resources.requests.cpu`** у кожному документі **Deployment** під **`k8s`**. Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
+**HPA у base не тримаємо** у локальному **`hpa.yaml`** поруч із `Deployment`. Якщо **HorizontalPodAutoscaler** потрапляє в дерево Kustomize з **`resources`** / **`components`** / **`bases`**, у **`…/base/kustomization.yaml`** додай strategic-merge patch з **`$patch: delete`** і **`kind: HorizontalPodAutoscaler`** (і **`metadata.name`**, що збігається з ресурсом, який треба прибрати). **`check k8s`** перевіряє наявність такого patch, коли в дереві base одночасно є **Deployment** і **HPA**.
+
+### Поза base (оверлеї, окремі каталоги)
+
+Якщо ще не підібрано власні ліміти під сервіс, орієнтир для **`requests`**:
+
+```yaml
+resources:
+  requests:
+    cpu: '0.5'
+    memory: '512Mi'
+```
+
+У прод-оверлеях підіймай **`cpu` / `memory`** до реального споживання через **`patches`** або окремі фрагменти маніфестів. **`check k8s`** не вимагає саме **`0.5` / `512Mi`** поза base — лише непорожні **`requests.cpu`** і **`requests.memory`**.
+
+```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
+patches:
+  - target:
+      kind: Deployment
+      name: backend-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: '500m'
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 1Gi
+```
+
+Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
 
 Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег із константи **`HASURA_GRAPHQL_ENGINE_IMAGE`** у **`check-k8s.mjs`** (допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
 
@@ -341,15 +373,17 @@ images:
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
-## Deployment: обов'язкові `hpa.yaml`, `pdb.yaml`, `topologySpreadConstraints`
+## Deployment: `pdb.yaml`, `topologySpreadConstraints`, HPA поза dev-base
 
-Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у **тому ж каталозі** мають бути **`hpa.yaml`** (HPA) і **`pdb.yaml`** (PDB), а сам Deployment — канонічні **`spec.template.spec.topologySpreadConstraints`**. Інші workload-и (**CronJob**, **Job** тощо) або каталоги без шару **`base`** цими вимогами не охоплюються — **`check k8s`** їх не змушує додавати HPA/PDB поруч. Скрипт звіряє прив’язку за іменами:
+Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у **тому ж каталозі** має бути **`pdb.yaml`** (PDB), а сам Deployment — канонічні **`spec.template.spec.topologySpreadConstraints`**. Локальний **`hpa.yaml`** у каталозі **`…/base/`** **заборонено** — для dev HPA з дерева Kustomize прибирається через **`$patch: delete`** у **`base/kustomization.yaml`** (див. розділ про **`resources.requests`** вище).
 
-- **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
+У **не-base** оверлеях поруч із `Deployment` лишається звична схема: окремий **`hpa.yaml`**, якщо потрібен HPA для цього середовища. **`check k8s`** звіряє прив’язку за іменами:
+
+- **`hpa.yaml`** (поза **`…/base/`**) — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
 - **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
 
-**Kustomize `base` і overlay:** у дереві, зібраному з `k8s/…/base/kustomization.yaml` (`resources` / `bases` / `components` / `crds`, рекурсивно), **HorizontalPodAutoscaler** і **PodDisruptionBudget** допустимі **лише якщо** в тому ж дереві kustomize є хоча б один **`Deployment`** у YAML під **`…/k8s/…/base/`**. У `kustomization.yaml` overlay, який підключає цей `base` (наприклад, `../base` у `resources`), не додавай окремі YAML-файли з HPA / PDB, доки в наслідуваному `base` у дереві не з’явиться такий Deployment. Перевіряє **`check-k8s.mjs`**.
+**Kustomize `base` і overlay:** у дереві, зібраному з `k8s/…/base/kustomization.yaml` (`resources` / `bases` / `components` / `crds`, рекурсивно), **HorizontalPodAutoscaler** і **PodDisruptionBudget** допустимі **лише якщо** в тому ж дереві kustomize є хоча б один **`Deployment`** у YAML під **`…/k8s/…/base/`**. Якщо після збору в дереві є і **Deployment**, і **HPA**, **base** `kustomization.yaml` має містити strategic-merge видалення **HorizontalPodAutoscaler** (`$patch: delete`). У `kustomization.yaml` overlay, який підключає цей `base`, не додавай окремі YAML-файли з HPA / PDB, доки в наслідуваному `base` у дереві не з’явиться такий Deployment. Перевіряє **`check-k8s.mjs`**.
 
 **Локальні шляхи в `kustomization.yaml`:** кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
 
@@ -359,7 +393,7 @@ images:
 
 **Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa` (напр. `tr-qa`):
 
-- HPA: `minReplicas` — рівно **1**, `maxReplicas` — рівно **1** (у деві не масштабуємо).
+- У **зібраному** маніфесті (після Kustomize), якщо лишився **HPA**: `minReplicas` — рівно **1**, `maxReplicas` — рівно **1**.
 - PDB: `minAvailable` — рівно **0**.
 
 **Прод-середовища** — усе інше (будь-який overlay без суфікса `-qa`):
@@ -369,12 +403,12 @@ images:
 
 ### Прод-оверрайди у `kustomization.yaml`
 
-Оскільки `base/` (і dev-like середовища) тримають dev-значення (`1`/`1`/`0`), у **кожному** прод-накладенні `kustomization.yaml` у `patches[]` **обов'язково** має бути перевизначення **лише якщо** цей оверлей наслідує base-дерево, де є **Deployment** і **HPA/PDB** (тобто base реально дає dev-like HPA/PDB, які треба підняти в проді):
+У прод-накладенні `kustomization.yaml` у `patches[]` **обов’язкові** перевизначення залежно від того, що дає успадковане **base**-дерево:
 
-- для `HorizontalPodAutoscaler`: `spec.minReplicas` **і** `spec.maxReplicas` (щоб у проді вийшло ≥2).
-- для `PodDisruptionBudget`: `spec.minAvailable` (щоб у проді вийшло ≥1).
+- **`PodDisruptionBudget`**: `spec.minAvailable` — якщо в base-дереві є **Deployment** і **PDB** (типово dev-like `0` → прод ≥1).
+- **`HorizontalPodAutoscaler`**: `spec.minReplicas` **і** `spec.maxReplicas` — **лише якщо** в base-дереві є **HPA**, який **не** прибирається в **base** через **`$patch: delete`**. Якщо base видаляє HPA для dev, у прод-оверлеї додай **HPA** окремим YAML у **`resources`** (або patches на ресурс, що з’являється з іншого шару) з прод-мінімумами.
 
-Формат patch — JSON6902 або Strategic Merge; `check k8s` перевіряє **наявність** перевизначення відповідного поля. Конкретне значення має задовольняти прод-мінімуми — це видно у вмісті patch і остаточно матеріалізується під час збірки Kustomize.
+Формат patch — JSON6902 або Strategic Merge; `check k8s` перевіряє **наявність** відповідних JSON Pointer-ів у **`patches[]`**.
 
 ```yaml title="k8s/prod/kustomization.yaml (фрагмент)"
 patches:
@@ -397,9 +431,30 @@ patches:
         value: 1
 ```
 
+### Приклад: прибрати HPA у `base/kustomization.yaml`
+
+Якщо **HPA** підключений з **`../component`** (або іншого шляху в **`resources`**), а у dev він не потрібен:
+
+```yaml title="k8s/base/kustomization.yaml (фрагмент)"
+resources:
+  - ../component
+  - deploy.yaml
+  - pdb.yaml
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: backend-api
+    patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: backend-api
+```
+
 ### Приклади
 
-```yaml title="k8s/base/hpa.yaml"
+```yaml title="k8s/prod/hpa.yaml (або компонент з HPA — не в …/base/ локальному hpa.yaml)"
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/horizontalpodautoscaler-autoscaling-v2.json
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -410,8 +465,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: backend-api
-  minReplicas: 1 # dev-like; прод-накладення перевизначають на ≥ 2
-  maxReplicas: 1 # dev-like; прод-накладення перевизначають на ≥ 2
+  minReplicas: 2
+  maxReplicas: 10
   metrics:
     - type: Resource
       resource:
@@ -456,6 +511,13 @@ spec:
 spec:
   template:
     spec:
+      containers:
+        - name: backend-api
+          image: example.registry/backend-api:tag
+          resources:
+            requests:
+              cpu: '0.02'
+              memory: '128Mi'
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname

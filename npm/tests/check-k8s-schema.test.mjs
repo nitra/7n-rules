@@ -53,6 +53,8 @@ import {
   kustomizationSvcYamlMissingSvcHlViolation,
   kustomizePathRefsForExistenceCheck,
   kustomizeResourceTreeHpaPdbDeploymentFlags,
+  patchTextDeclaresHpaStrategicDelete,
+  prodOverlayHpaPdbOverrideNeeds,
   prodOverlayNeedsHpaPdbOverrides,
   shouldValidateKustomizePatchTarget,
   splitK8sApiVersion,
@@ -256,6 +258,7 @@ describe('pathHasK8sSegment', () => {
 describe('deploymentResourcesViolation', () => {
   test('null для не-Deployment', () => {
     expect(deploymentResourcesViolation({ kind: 'Service' })).toBeNull()
+    expect(deploymentResourcesViolation({ kind: 'Service' }, true)).toBeNull()
   })
 
   test('null без масиву containers', () => {
@@ -267,7 +270,7 @@ describe('deploymentResourcesViolation', () => {
       kind: 'Deployment',
       spec: { template: { spec: { containers: [{ name: 'app', image: 'x:y' }] } } }
     }
-    expect(deploymentResourcesViolation(manifest)).toContain('resources.requests.cpu')
+    expect(deploymentResourcesViolation(manifest)).toContain('resources.requests')
   })
 
   test('помилка для resources: {} (бракує requests.cpu)', () => {
@@ -292,7 +295,7 @@ describe('deploymentResourcesViolation', () => {
     expect(deploymentResourcesViolation(manifest)).toContain('requests.cpu')
   })
 
-  test('ok для resources.requests.cpu рядком "500m"', () => {
+  test('помилка без requests.memory (є cpu)', () => {
     const manifest = {
       kind: 'Deployment',
       spec: {
@@ -301,19 +304,103 @@ describe('deploymentResourcesViolation', () => {
         }
       }
     }
-    expect(deploymentResourcesViolation(manifest)).toBeNull()
+    expect(deploymentResourcesViolation(manifest, false)).toContain('requests.memory')
   })
 
-  test('ok для resources.requests.cpu числом 0.5', () => {
+  test('ok для resources.requests.cpu + memory поза base', () => {
     const manifest = {
       kind: 'Deployment',
       spec: {
         template: {
-          spec: { containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: 0.5 } } }] }
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '512Mi' } } }
+            ]
+          }
         }
       }
     }
-    expect(deploymentResourcesViolation(manifest)).toBeNull()
+    expect(deploymentResourcesViolation(manifest, false)).toBeNull()
+  })
+
+  test('ok для resources.requests.cpu числом 0.5 і memory', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: 0.5, memory: '512Mi' } } }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest, false)).toBeNull()
+  })
+
+  test('помилка у base, якщо cpu не 0.02', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '128Mi' } } }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest, true)).toContain('0.02')
+  })
+
+  test('помилка у base, якщо memory не 128Mi', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '512Mi' } } }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest, true)).toContain('128Mi')
+  })
+
+  test('ok для base з 0.02 та 128Mi', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128Mi' } } }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest, true)).toBeNull()
+  })
+
+  test('ok для base з 128mi (регістр Mi)', () => {
+    const manifest = {
+      kind: 'Deployment',
+      spec: {
+        template: {
+          spec: {
+            containers: [
+              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128mi' } } }
+            ]
+          }
+        }
+      }
+    }
+    expect(deploymentResourcesViolation(manifest, true)).toBeNull()
   })
 
   test('помилка для resources.requests.cpu з порожнім рядком', () => {
@@ -321,11 +408,35 @@ describe('deploymentResourcesViolation', () => {
       kind: 'Deployment',
       spec: {
         template: {
-          spec: { containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '' } } }] }
+          spec: {
+            containers: [
+              {
+                name: 'app',
+                image: 'x:y',
+                resources: { requests: { cpu: '', memory: '512Mi' } }
+              }
+            ]
+          }
         }
       }
     }
-    expect(deploymentResourcesViolation(manifest)).toContain('requests.cpu')
+    expect(deploymentResourcesViolation(manifest, false)).toContain('requests.cpu')
+  })
+})
+
+describe('patchTextDeclaresHpaStrategicDelete', () => {
+  test('true для strategic-merge delete HPA', () => {
+    const t = `$patch: delete
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ap
+`
+    expect(patchTextDeclaresHpaStrategicDelete(t)).toBe(true)
+  })
+
+  test('false без $patch: delete', () => {
+    expect(patchTextDeclaresHpaStrategicDelete('kind: HorizontalPodAutoscaler\nmetadata:\n  name: x')).toBe(false)
   })
 })
 
@@ -1741,10 +1852,12 @@ resources:
     expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(false)
   })
 
-  test('true для prod overlay, якщо base має Deployment і HPA/PDB', async () => {
+  test('true для prod overlay, якщо base має Deployment і HPA/PDB (HPA з компонента, без delete у base)', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-1-'))
+    const cmpDir = join(root, 'k8s', 'cmp-hpa')
     const baseDir = join(root, 'k8s', 'base')
     const prodDir = join(root, 'k8s', 'prod')
+    await mkdir(cmpDir, { recursive: true })
     await mkdir(baseDir, { recursive: true })
     await mkdir(prodDir, { recursive: true })
 
@@ -1769,7 +1882,8 @@ spec:
           image: x:y
           resources:
             requests:
-              cpu: "0.5"
+              cpu: '0.02'
+              memory: '128Mi'
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -1822,12 +1936,17 @@ spec:
     matchLabels:
       app: ap
 `
+    const cmpK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - hpa.yaml
+`
     const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: dev
 resources:
+  - ../cmp-hpa
   - deployment.yaml
-  - hpa.yaml
   - pdb.yaml
 `
     const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -1837,12 +1956,134 @@ resources:
   - ../base
 `
 
+    await writeFile(join(cmpDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(cmpDir, 'kustomization.yaml'), cmpK, 'utf8')
     await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
-    await writeFile(join(baseDir, 'hpa.yaml'), hpa, 'utf8')
     await writeFile(join(baseDir, 'pdb.yaml'), pdb, 'utf8')
     await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
     await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
 
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(true)
+    const prodKust = join(prodDir, 'kustomization.yaml')
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
+    const needs = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
+    expect(needs.needsHpaReplicaPatches).toBe(true)
+    expect(needs.needsPdbMinAvailablePatch).toBe(true)
+  })
+
+  test('prodOverlayHpaPdbOverrideNeeds: без HPA patch якщо base має $patch delete для HPA', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-del-'))
+    const cmpDir = join(root, 'k8s', 'cmp-hpa')
+    const baseDir = join(root, 'k8s', 'base')
+    const prodDir = join(root, 'k8s', 'prod')
+    await mkdir(cmpDir, { recursive: true })
+    await mkdir(baseDir, { recursive: true })
+    await mkdir(prodDir, { recursive: true })
+
+    const dep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ap
+  template:
+    metadata:
+      labels:
+        app: ap
+    spec:
+      containers:
+        - name: ap
+          image: x:y
+          resources:
+            requests:
+              cpu: '0.02'
+              memory: '128Mi'
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ap
+`
+    const hpa = `# yaml-language-server: $schema=x
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ap
+  minReplicas: 1
+  maxReplicas: 1
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+`
+    const pdb = `# yaml-language-server: $schema=x
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: ap
+  namespace: dev
+spec:
+  minAvailable: 0
+  selector:
+    matchLabels:
+      app: ap
+`
+    const cmpK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - hpa.yaml
+`
+    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../cmp-hpa
+  - deployment.yaml
+  - pdb.yaml
+patches:
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: ap
+    patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: ap
+`
+    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - ../base
+`
+
+    await writeFile(join(cmpDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(cmpDir, 'kustomization.yaml'), cmpK, 'utf8')
+    await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
+    await writeFile(join(baseDir, 'pdb.yaml'), pdb, 'utf8')
+    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
+    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
+
+    const prodKust = join(prodDir, 'kustomization.yaml')
+    const n = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
+    expect(n.needsHpaReplicaPatches).toBe(false)
+    expect(n.needsPdbMinAvailablePatch).toBe(true)
+    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
   })
 })

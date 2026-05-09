@@ -4,6 +4,31 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.216] - 2026-05-09
+
+### Changed
+
+- **k8s / check-k8s:** орієнтир **`DEFAULT_CONTAINER_MEMORY_REQUEST`** поза base — **`512Mi`** (замість **`512`**).
+
+## [1.8.215] - 2026-05-09
+
+### Changed
+
+- **k8s / check-k8s:** канон **`resources.requests.memory`** у шарі **`…/k8s/…/base/…`** — **`128Mi`** (замість **`128`**, щоб відповідати Quantity у Kubernetes); приймається **`Mi`** без урахування регістру.
+
+## [1.8.214] - 2026-05-09
+
+### Fixed
+
+- **k8s / check-k8s:** конвертація image-replace patches → `images:` падала з `byPatch.keys(...).toSorted is not a function`, бо `Map.keys()` повертає ітератор без `toSorted`. Тепер ключі спершу матеріалізуються у масив (`[...byPatch.keys()].toSorted(...)`).
+
+### Changed
+
+- **k8s / check-k8s:** у шарі **`…/k8s/…/base/…`** для **Deployment** жорстко **`resources.requests.cpu: '0.02'`** та **`memory: '128'`**; поза base обов’язкові **cpu** і **memory** (орієнтир **`0.5`** / **`512`** у підказках).
+- **k8s / check-k8s:** заборона **`hpa.yaml`** у каталозі **`…/base/`**; якщо HPA є в дереві base — вимагається strategic-merge **`$patch: delete`** для **HorizontalPodAutoscaler** у **`base/kustomization.yaml`**.
+- **k8s / check-k8s:** прод-оверлей вимагає patches на **HPA** (`minReplicas`/`maxReplicas`) лише якщо успадковане base **не** видаляє HPA через delete-patch; **PDB** **`minAvailable`** — якщо в base є PDB.
+- **k8s.mdc:** оновлено правила та приклади під цю модель.
+
 ## [1.8.213] - 2026-05-09
 
 ### Added

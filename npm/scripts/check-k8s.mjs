@@ -7,9 +7,11 @@
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
- * **`spec.template.spec.containers[]`** має бути ключ **`resources`** з непорожнім
- * **`resources.requests.cpu`** (рядок на кшталт **`"500m"`** або число; якщо значення ще не обрано —
- * рекомендоване за замовчуванням — **`DEFAULT_CONTAINER_CPU_REQUEST`** = **`"0.5"`**). Поле **`imagePullPolicy`**
+ * **`spec.template.spec.containers[]`** має бути **`resources.requests.cpu`** і **`resources.requests.memory`**
+ * (непорожні скаляри). У шарі **`…/k8s/…/base/…`** значення жорстко **`cpu: '0.02'`**, **`memory: '128Mi'`**
+ * (для **cpu** допускається число **`0.02`**). Поза base, якщо ще не підібрано власні
+ * ліміти — орієнтир **`DEFAULT_CONTAINER_CPU_REQUEST`** = **`"0.5"`**, **`DEFAULT_CONTAINER_MEMORY_REQUEST`**
+ * = **`"512Mi"`**. Поле **`imagePullPolicy`**
  * не перевіряється — діють типові правила Kubernetes (`:latest` або коли тег не вказано → **Always**,
  * інші теги → **IfNotPresent**). Якщо серед **`containers`** / **`initContainers`** є образ
  * **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`** (див. k8s.mdc).
@@ -82,21 +84,20 @@
  * або рядок `"true"`, без регістрової залежності).
  *
  * **HPA / PDB / topologySpreadConstraints:** для кожного **`Deployment`** у шарі **`…/k8s/…/base/`** (будь-який
- * `.yaml` у цьому каталозі, наприклад **`deploy.yaml`**, **`deployment.yaml`**) у тому ж каталозі поруч обов'язкові
- * **`hpa.yaml`**, **`pdb.yaml`** та канонічні **topologySpreadConstraints**. Workload-и без Deployment (**CronJob**
- * тощо) та каталоги поза **`…/base/`** цим блоком не охоплюються.
- * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — `minReplicas === 1`,
- * `maxReplicas === 1`, `minAvailable === 0`; **прод** (решта) — `minReplicas >= 2`, `maxReplicas >= 2`,
- * `minAvailable >= 1`. Сам Deployment має мати у `spec.template.spec.topologySpreadConstraints` запис
- * `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`,
- * `labelSelector.matchLabels.app` рівне `spec.selector.matchLabels.app` Deployment.
+ * `.yaml` у цьому каталозі) поруч обов’язкові **`pdb.yaml`** і канонічні **topologySpreadConstraints**. У каталозі
+ * **`…/base/`** не тримай **`hpa.yaml`** — для dev HPA прибирається з дерева Kustomize через strategic-merge patch
+ * з **`$patch: delete`** і **`kind: HorizontalPodAutoscaler`** у **`base/kustomization.yaml`** (якщо HPA тягнеться з
+ * `resources` / `components` / `bases`). Якщо в дереві base є і **Deployment**, і **HorizontalPodAutoscaler**, такий
+ * patch обов’язковий. **HPA** поруч із Deployment у **не-base** оверлеях — як раніше (див. k8s.mdc).
+ * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — для HPA, що лишився після
+ * збірки, `minReplicas === 1`, `maxReplicas === 1`, PDB `minAvailable === 0`; **прод** — `minReplicas >= 2`,
+ * `maxReplicas >= 2`, `minAvailable >= 1`.
  *
- * **Прод-оверрайди в kustomization.yaml:** для прод overlays (не dev-like) `kustomization.yaml` у своїх
- * inline `patches[]` повинен змінювати `/spec/minReplicas` і `/spec/maxReplicas` для
- * **HorizontalPodAutoscaler**, і `/spec/minAvailable` для **PodDisruptionBudget** — щоб прод-мінімуми
- * з (`>=2`, `>=2`, `>=1`) не залишалися на dev-значеннях із base. Формат patch — JSON6902 або Strategic Merge;
- * наявність перевіряється через `kustomizationPatchPathsByTargetKind` (конкретне значення — у вмісті patch,
- * яке буде оцінено під час збірки Kustomize).
+ * **Прод-оверрайди в kustomization.yaml:** для прод overlays (не dev-like) у `patches[]` потрібні перевизначення
+ * **`/spec/minReplicas`** і **`/spec/maxReplicas`** для **HorizontalPodAutoscaler** лише якщо успадковане base-дерево
+ * містить HPA **і** base **не** видаляє його через **`$patch: delete`**. **`/spec/minAvailable`** для **PDB** —
+ * якщо в base-дереві є Deployment і PDB. Формат patch — JSON6902 або Strategic Merge; наявність шляхів —
+ * `kustomizationPatchPathsByTargetKind`.
  *
  * **Існування шляхів у `kustomization.yaml`:** кожне локальне посилання (без `://`) з `resources` / `bases` /
  * `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`,
@@ -310,6 +311,10 @@ const KIND_FIELD_RE = /^\s*kind:\s*(\S+)\s*$/
 const TYPE_FIELD_RE = /^\s*type:\s*(\S+)\s*$/
 const YAML_DOC_SEPARATOR_LINE_RE = /^---\s*$/
 const HEALTHCHECK_DELETE_RE = /\$patch:\s*delete/u
+/** Strategic-merge patch видалення **HorizontalPodAutoscaler** у kustomization (k8s.mdc). */
+const HPA_STRATEGIC_DELETE_RE = /\$patch:\s*delete/u
+/** Рядок **kind:** для HPA у strategic-merge patch. */
+const HPA_KIND_LINE_RE = /^kind:\s*HorizontalPodAutoscaler\b/m
 const HEALTHCHECK_KIND_RE = /kind:\s*HealthCheckPolicy/u
 const METADATA_LINE_RE = /metadata:/u
 const NAME_NON_EMPTY_RE = /name:\s*\S+/u
@@ -2145,6 +2150,60 @@ export function ruKustomizationHasHealthCheckDeletePatch(raw) {
 }
 
 /**
+ * Чи вміст strategic-merge patch оголошує видалення **HorizontalPodAutoscaler** (`$patch: delete`, `kind:`).
+ * @param {string} text вміст поля **patch** або файлу merge
+ * @returns {boolean} true, якщо присутні **`$patch: delete`** і **`kind: HorizontalPodAutoscaler`**
+ */
+export function patchTextDeclaresHpaStrategicDelete(text) {
+  const t = typeof text === 'string' ? text : ''
+  if (!HPA_STRATEGIC_DELETE_RE.test(t)) return false
+  return HPA_KIND_LINE_RE.test(t)
+}
+
+/**
+ * Чи **kustomization.yaml** (inline **patches** / **patchesStrategicMerge**) містить strategic-merge видалення HPA.
+ * @param {string} kustAbs абсолютний шлях до **kustomization.yaml**
+ * @param {string} rootNorm нормалізований корінь репо
+ * @returns {Promise<boolean>} true, якщо знайдено patch видалення HPA
+ */
+async function kustomizationDeclaresHpaStrategicDelete(kustAbs, rootNorm) {
+  const kust = await readFirstYamlObject(kustAbs)
+  if (kust === null) return false
+  const kustDir = dirname(kustAbs)
+  const patches = kust.patches
+  if (Array.isArray(patches)) {
+    for (const p of patches) {
+      if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
+        const rec = /** @type {Record<string, unknown>} */ (p)
+        const inline = rec.patch
+        if (typeof inline === 'string' && patchTextDeclaresHpaStrategicDelete(inline)) return true
+        const pathRef = rec.path
+        if (typeof pathRef === 'string' && pathRef.trim() !== '') {
+          const abs = resolve(kustDir, pathRef.trim())
+          if (resolvedFilePathIsUnderRoot(rootNorm, abs)) {
+            const body = await tryReadFileUtf8(abs)
+            if (body !== undefined && patchTextDeclaresHpaStrategicDelete(body)) return true
+          }
+        }
+      }
+    }
+  }
+  const sm = kust.patchesStrategicMerge
+  if (Array.isArray(sm)) {
+    for (const ref of sm) {
+      if (typeof ref === 'string' && ref.trim() !== '') {
+        const abs = resolve(kustDir, ref.trim())
+        if (resolvedFilePathIsUnderRoot(rootNorm, abs)) {
+          const body = await tryReadFileUtf8(abs)
+          if (body !== undefined && patchTextDeclaresHpaStrategicDelete(body)) return true
+        }
+      }
+    }
+  }
+  return false
+}
+
+/**
  * Чи абсолютний шлях лежить усередині кореня репозиторію (без виходу через `..`).
  * @param {string} rootAbs абсолютний корінь
  * @param {string} fileAbs абсолютний шлях до файлу
@@ -2508,9 +2567,24 @@ function scanForbiddenManifestsInYamlDocuments(rel, body, fail) {
 }
 
 /**
- * Рекомендоване значення **`resources.requests.cpu`** за замовчуванням для підказки в повідомленнях (k8s.mdc).
+ * Рекомендоване **`resources.requests.cpu`** поза шарем base для підказок у повідомленнях (k8s.mdc).
  */
 export const DEFAULT_CONTAINER_CPU_REQUEST = '0.5'
+
+/**
+ * Рекомендоване **`resources.requests.memory`** поза шарем base для підказок у повідомленнях (k8s.mdc).
+ */
+export const DEFAULT_CONTAINER_MEMORY_REQUEST = '512Mi'
+
+/**
+ * Обов’язковий **`resources.requests.cpu`** у **`…/k8s/…/base/…`** (k8s.mdc).
+ */
+export const K8S_BASE_CONTAINER_CPU_REQUEST = '0.02'
+
+/**
+ * Обов’язковий **`resources.requests.memory`** у **`…/k8s/…/base/…`** (k8s.mdc).
+ */
+export const K8S_BASE_CONTAINER_MEMORY_REQUEST = '128Mi'
 
 /**
  * Чи значення `resources.requests.cpu` записане у валідному вигляді:
@@ -2525,20 +2599,59 @@ function isValidCpuRequestValue(cpu) {
 }
 
 /**
- * Перевірка поля **`resources`** для одного контейнера **Deployment**: вимагає не лише присутність
- * **`resources`**, а й непорожнє **`resources.requests.cpu`** (див. k8s.mdc). Якщо конкретне
- * значення ще не обрано — як безпечне за замовчуванням рекомендовано **`DEFAULT_CONTAINER_CPU_REQUEST`**.
+ * Чи значення `resources.requests.memory` записане у валідному вигляді (непорожній рядок або додатне число).
+ * @param {unknown} mem значення поля `resources.requests.memory`
+ * @returns {boolean} true, якщо значення прийнятне
+ */
+function isValidMemoryRequestValue(mem) {
+  if (typeof mem === 'string') return mem.trim() !== ''
+  if (typeof mem === 'number') return Number.isFinite(mem) && mem > 0
+  return false
+}
+
+/**
+ * Чи CPU у base-шарі збігається з каноном **`0.02`** (рядок або число).
+ * @param {unknown} cpu значення **requests.cpu**
+ * @returns {boolean} true, якщо дорівнює канону base
+ */
+function isBaseCanonCpuValue(cpu) {
+  if (typeof cpu === 'number' && Number.isFinite(cpu)) {
+    return cpu === 0.02
+  }
+  if (typeof cpu === 'string' && cpu.trim() !== '') {
+    const t = cpu.trim()
+    if (t === K8S_BASE_CONTAINER_CPU_REQUEST) return true
+    const n = Number(t)
+    return Number.isFinite(n) && n === 0.02
+  }
+  return false
+}
+
+/**
+ * Чи memory у base-шарі збігається з каноном **`128Mi`** (рядок Quantity; **`Mi`** без урахування регістру).
+ * @param {unknown} mem значення **requests.memory**
+ * @returns {boolean} true, якщо дорівнює канону base
+ */
+function isBaseCanonMemoryValue(mem) {
+  if (typeof mem !== 'string' || mem.trim() === '') return false
+  return /^128Mi$/iu.test(mem.trim())
+}
+
+/**
+ * Перевірка поля **`resources`** для одного контейнера **Deployment** (k8s.mdc): **requests.cpu** і **requests.memory**;
+ * у шарі **`…/k8s/…/base/…`** — жорстко **`0.02`** / **`128Mi`**.
  * @param {unknown} c елемент **containers[]**
  * @param {string} label підпис у повідомленні
+ * @param {boolean} inK8sBaseLayer файл маніфесту під **`…/k8s/…/base/…`**
  * @returns {string | null} текст порушення або null
  */
-function deploymentContainerResourcesViolation(c, label) {
+function deploymentContainerResourcesViolation(c, label, inK8sBaseLayer) {
   if (c === null || c === undefined || typeof c !== 'object' || Array.isArray(c)) {
     return null
   }
   const cont = /** @type {Record<string, unknown>} */ (c)
   if (!('resources' in cont)) {
-    return `контейнер "${label}": відсутнє поле resources — додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
+    return `контейнер "${label}": відсутнє поле resources — додай resources.requests.cpu та resources.requests.memory (поза base за замовчуванням cpu=${DEFAULT_CONTAINER_CPU_REQUEST}, memory=${DEFAULT_CONTAINER_MEMORY_REQUEST}; у base — cpu='${K8S_BASE_CONTAINER_CPU_REQUEST}', memory='${K8S_BASE_CONTAINER_MEMORY_REQUEST}') (див. k8s.mdc)`
   }
   const r = cont.resources
   if (r === null || typeof r !== 'object' || Array.isArray(r)) {
@@ -2547,14 +2660,28 @@ function deploymentContainerResourcesViolation(c, label) {
   const resources = /** @type {Record<string, unknown>} */ (r)
   const requests = resources.requests
   if (requests === null || requests === undefined || typeof requests !== 'object' || Array.isArray(requests)) {
-    return `контейнер "${label}": додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
+    return `контейнер "${label}": додай resources.requests.cpu та resources.requests.memory (поза base за замовчуванням cpu=${DEFAULT_CONTAINER_CPU_REQUEST}, memory=${DEFAULT_CONTAINER_MEMORY_REQUEST}) (див. k8s.mdc)`
   }
   const req = /** @type {Record<string, unknown>} */ (requests)
   if (!('cpu' in req)) {
-    return `контейнер "${label}": додай resources.requests.cpu (за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
+    return `контейнер "${label}": додай resources.requests.cpu (поза base за замовчуванням ${DEFAULT_CONTAINER_CPU_REQUEST}) (див. k8s.mdc)`
   }
   if (!isValidCpuRequestValue(req.cpu)) {
     return `контейнер "${label}": resources.requests.cpu має бути непорожнім значенням (наприклад "500m" або ${DEFAULT_CONTAINER_CPU_REQUEST}) (зараз: ${JSON.stringify(req.cpu)}) (див. k8s.mdc)`
+  }
+  if (!('memory' in req)) {
+    return `контейнер "${label}": додай resources.requests.memory (поза base за замовчуванням ${DEFAULT_CONTAINER_MEMORY_REQUEST}) (див. k8s.mdc)`
+  }
+  if (!isValidMemoryRequestValue(req.memory)) {
+    return `контейнер "${label}": resources.requests.memory має бути непорожнім значенням (наприклад "${DEFAULT_CONTAINER_MEMORY_REQUEST}") (зараз: ${JSON.stringify(req.memory)}) (див. k8s.mdc)`
+  }
+  if (inK8sBaseLayer) {
+    if (!isBaseCanonCpuValue(req.cpu)) {
+      return `контейнер "${label}": у шарі k8s/.../base resources.requests.cpu має бути рівно '${K8S_BASE_CONTAINER_CPU_REQUEST}' (допускається число 0.02) — зараз ${JSON.stringify(req.cpu)} (див. k8s.mdc)`
+    }
+    if (!isBaseCanonMemoryValue(req.memory)) {
+      return `контейнер "${label}": у шарі k8s/.../base resources.requests.memory має бути рівно '${K8S_BASE_CONTAINER_MEMORY_REQUEST}' (суфікс Mi без урахування регістру) — зараз ${JSON.stringify(req.memory)} (див. k8s.mdc)`
+    }
   }
   return null
 }
@@ -2562,9 +2689,10 @@ function deploymentContainerResourcesViolation(c, label) {
 /**
  * Чи порушує маніфест вимогу **`Deployment.spec.template.spec.containers[].resources`** (див. k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа як запис JavaScript
+ * @param {boolean} [inK8sBaseLayer] true, якщо файл лежить під **`…/k8s/…/base/…`**
  * @returns {string | null} текст порушення для `fail` або null, якщо перевірка не застосовується / ок
  */
-export function deploymentResourcesViolation(manifest) {
+export function deploymentResourcesViolation(manifest, inK8sBaseLayer = false) {
   if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
     return null
   const rec = /** @type {Record<string, unknown>} */ (manifest)
@@ -2584,7 +2712,7 @@ export function deploymentResourcesViolation(manifest) {
       typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
         ? c.name
         : `#${i + 1}`
-    const v = deploymentContainerResourcesViolation(c, label)
+    const v = deploymentContainerResourcesViolation(c, label, inK8sBaseLayer)
     if (v !== null) {
       return v
     }
@@ -3845,7 +3973,9 @@ function failIfK8sPolicyNamespaceRulesViolated(rel, docIndex, obj, skipMetaNs, i
  * @returns {void}
  */
 function failIfK8sPolicyResourceRulesViolated(rel, baseLower, docIndex, obj, fail) {
-  const resV = deploymentResourcesViolation(obj)
+  const relPosix = rel.replaceAll('\\', '/')
+  const inK8sBaseLayer = isK8sYamlUnderBaseDirectory(relPosix)
+  const resV = deploymentResourcesViolation(obj, inK8sBaseLayer)
   if (resV !== null) {
     fail(`${rel}: Deployment (документ ${docIndex}): ${resV}`)
   }
@@ -4978,6 +5108,38 @@ async function verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, pa
 }
 
 /**
+ * У **`…/k8s/…/base/kustomization.yaml`**: якщо з **resources** тягнеться HPA разом із Deployment,
+ * обов’язковий strategic-merge patch з **`$patch: delete`** для **HorizontalPodAutoscaler** (k8s.mdc).
+ * @param {string} kustAbs абсолютний шлях до **kustomization.yaml**
+ * @param {string} rel відносний шлях для повідомлень
+ * @param {string} rootNorm корінь репо
+ * @param {(msg: string) => void} fail callback
+ * @param {(msg: string) => void} passFn success
+ * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags
+ * @returns {Promise<void>}
+ */
+async function verifyK8sBaseKustomizeHpaDeletedWhenInherited(
+  kustAbs,
+  rel,
+  rootNorm,
+  fail,
+  passFn,
+  getTreeFlags
+) {
+  const { hasDeployment, hasHpa } = await getTreeFlags(kustAbs)
+  if (!hasDeployment || !hasHpa) {
+    return
+  }
+  if (await kustomizationDeclaresHpaStrategicDelete(kustAbs, rootNorm)) {
+    passFn(`${rel}: base kustomization містить $patch: delete для HorizontalPodAutoscaler (k8s.mdc)`)
+  } else {
+    fail(
+      `${rel}: у дереві base є HorizontalPodAutoscaler — додай у цей kustomization.yaml strategic-merge patch з $patch: delete та kind: HorizontalPodAutoscaler (k8s.mdc)`
+    )
+  }
+}
+
+/**
  * `kustomization` overlay, що посилається на `…/k8s/…/base`, не може додавати HPA / PDB як окремі YAML,
  * поки в наслідуваному base немає Deployment.
  * @param {string} root нормалізований корінь репо
@@ -5084,6 +5246,7 @@ async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs,
     if (kust !== null) {
       if (isK8sBaseKustomizationRelPath(rel)) {
         await verifyK8sBaseKustomizeHpaPdbNeedDeployment(kustAbs, rel, fail, passFn, getTreeFlags)
+        await verifyK8sBaseKustomizeHpaDeletedWhenInherited(kustAbs, rel, rootNorm, fail, passFn, getTreeFlags)
       } else {
         await verifyOverlayHpaPdbFileRefsRespectBaseDeployment(rootNorm, kustAbs, rel, kust, fail, passFn, getTreeFlags)
       }
@@ -5092,80 +5255,108 @@ async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs,
 }
 
 /**
- * Перевіряє прод-оверрайди HPA/PDB в одному kustomization.yaml.
+ * @typedef {{ needsHpaReplicaPatches: boolean, needsPdbMinAvailablePatch: boolean }} ProdOverlayHpaPdbOverrideNeeds
+ */
+
+/**
+ * Перевіряє наявність прод-оверрайдів у **kustomization.yaml** залежно від того, що успадковується з base.
  * @param {Record<string, unknown>} kust об'єкт kustomization
  * @param {string} rel відносний шлях для повідомлень
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
+ * @param {ProdOverlayHpaPdbOverrideNeeds} needs що саме має бути в **patches[]**
  */
-function checkProdOverridesInKustomization(kust, rel, fail, passFn) {
+function checkProdOverridesInKustomization(kust, rel, fail, passFn, needs) {
   const byKind = kustomizationPatchPathsByTargetKind(kust)
   const hpaPaths = byKind.get('HorizontalPodAutoscaler') ?? new Set()
   const pdbPaths = byKind.get('PodDisruptionBudget') ?? new Set()
   let ok = true
-  if (!hpaPaths.has('/spec/minReplicas')) {
-    fail(
-      `${rel}: прод-оверлей має перевизначати spec.minReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
-    )
-    ok = false
+  if (needs.needsHpaReplicaPatches) {
+    if (!hpaPaths.has('/spec/minReplicas')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.minReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
+    if (!hpaPaths.has('/spec/maxReplicas')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
   }
-  if (!hpaPaths.has('/spec/maxReplicas')) {
-    fail(
-      `${rel}: прод-оверлей має перевизначати spec.maxReplicas для HorizontalPodAutoscaler (мінімум 2 у проді) (k8s.mdc)`
-    )
-    ok = false
-  }
-  if (!pdbPaths.has('/spec/minAvailable')) {
-    fail(
-      `${rel}: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)`
-    )
-    ok = false
+  if (needs.needsPdbMinAvailablePatch) {
+    if (!pdbPaths.has('/spec/minAvailable')) {
+      fail(
+        `${rel}: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)`
+      )
+      ok = false
+    }
   }
   if (ok) {
-    passFn(`${rel}: прод-оверрайди HPA minReplicas/maxReplicas і PDB minAvailable присутні (k8s.mdc)`)
+    passFn(`${rel}: прод-оверрайди HPA/PDB за потреби присутні (k8s.mdc)`)
   }
 }
 
 /**
- * Чи прод-оверлей **реально потребує** overrides для HPA/PDB.
+ * Які прод-оверрайди потрібні для **kustomization.yaml** (не dev-like), що посилається на **…/k8s/…/base**.
  *
- * Overrides потрібні лише якщо оверлей (non-dev-like) посилається на `…/k8s/…/base` і у **base**-дереві
- * одночасно є:
- * - `Deployment` (у шарі `…/k8s/…/base/`), і
- * - `HorizontalPodAutoscaler` і/або `PodDisruptionBudget`.
+ * **HPA:** patches на **`minReplicas`/`maxReplicas`** лише якщо в base-дереві є HPA **і** base **не** містить
+ * strategic-merge **`$patch: delete`** для **HorizontalPodAutoscaler** (k8s.mdc).
  *
- * Тоді base зазвичай тримає dev-like значення (`1`/`1`/`0`), і прод-оверлей має їх підняти (див. k8s.mdc).
+ * **PDB:** **`minAvailable`** — якщо в base-дереві є Deployment і PDB.
  * @param {string} rootNorm нормалізований корінь репозиторію
  * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @returns {Promise<boolean>} true якщо потрібні overrides, інакше false
+ * @returns {Promise<ProdOverlayHpaPdbOverrideNeeds>} прапорці потрібних перевизначень
  */
-export async function prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs) {
+export async function prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs) {
   const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
   const segment = k8sEnvSegmentFromRelPath(rel)
-  if (segment === null || isDevLikeK8sEnvSegment(segment)) return false
+  if (segment === null || isDevLikeK8sEnvSegment(segment)) {
+    return { needsHpaReplicaPatches: false, needsPdbMinAvailablePatch: false }
+  }
 
   const kust = await readFirstYamlObject(kustAbs)
-  if (kust === null) return false
+  if (kust === null) return { needsHpaReplicaPatches: false, needsPdbMinAvailablePatch: false }
 
   const kustDir = dirname(kustAbs)
   const pathRefs = resourcePathRefsFromKustomizationObject(kust)
   const baseDirs = await k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootNorm)
-  if (baseDirs.length === 0) return false
+  if (baseDirs.length === 0) return { needsHpaReplicaPatches: false, needsPdbMinAvailablePatch: false }
 
-  const flags = await Promise.all(
-    baseDirs.map(bd => kustomizeResourceTreeHpaPdbDeploymentFlags(join(bd, 'kustomization.yaml'), rootNorm))
-  )
-
-  return flags.some(f => f.hasDeployment && (f.hasHpa || f.hasPdb))
+  let needsHpaReplicaPatches = false
+  let needsPdbMinAvailablePatch = false
+  for (const bd of baseDirs) {
+    const bk = join(bd, 'kustomization.yaml')
+    const f = await kustomizeResourceTreeHpaPdbDeploymentFlags(bk, rootNorm)
+    const baseDeletesHpa = await kustomizationDeclaresHpaStrategicDelete(bk, rootNorm)
+    if (f.hasDeployment && f.hasPdb) {
+      needsPdbMinAvailablePatch = true
+    }
+    if (f.hasDeployment && f.hasHpa && !baseDeletesHpa) {
+      needsHpaReplicaPatches = true
+    }
+  }
+  return { needsHpaReplicaPatches, needsPdbMinAvailablePatch }
 }
 
 /**
- * Для прод kustomization.yaml вимагає patches, що перевизначають **`/spec/minReplicas`** і **`/spec/maxReplicas`**
- * на **HorizontalPodAutoscaler**, а також **`/spec/minAvailable`** на **PodDisruptionBudget**.
+ * Чи прод-оверлей потребує **будь-яких** overrides HPA/PDB у **patches[]** (зведений прапорець).
+ * @param {string} rootNorm нормалізований корінь репозиторію
+ * @param {string} kustAbs абсолютний шлях до kustomization.yaml
+ * @returns {Promise<boolean>} true, якщо потрібен хоча б один тип оверрайду
+ */
+export async function prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs) {
+  const n = await prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs)
+  return n.needsHpaReplicaPatches || n.needsPdbMinAvailablePatch
+}
+
+/**
+ * Для прод kustomization.yaml вимагає **patches[]** за потреби: **`/spec/minReplicas`** і **`/spec/maxReplicas`**
+ * для **HorizontalPodAutoscaler** (якщо в успадкованому base лишився HPA без delete-patch), **`/spec/minAvailable`**
+ * для **PDB** (якщо в base є PDB).
  *
  * Не застосовується до dev-like (base / dev / *-qa).
- *
- * Також **не застосовується**, якщо оверлей не наслідує base з Deployment + HPA/PDB (див. `prodOverlayNeedsHpaPdbOverrides`).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
@@ -5176,9 +5367,10 @@ async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, pass
   const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
   for (const kustAbs of kustFiles) {
     const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
-    if (!(await prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs))) continue
+    const needs = await prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs)
+    if (!needs.needsHpaReplicaPatches && !needs.needsPdbMinAvailablePatch) continue
     const kust = await readFirstYamlObject(kustAbs)
-    if (kust !== null) checkProdOverridesInKustomization(kust, rel, fail, passFn)
+    if (kust !== null) checkProdOverridesInKustomization(kust, rel, fail, passFn, needs)
   }
 }
 
@@ -5272,12 +5464,22 @@ function validatePdbForDeployment(pdbDocs, deployName, appLabel, isDevLike, pdbR
  * @param {Record<string, unknown>} deployment об'єкт Deployment
  * @param {string} deployRel відносний шлях каталогу для повідомлень
  * @param {boolean} isDevLike чи середовище dev-like
+ * @param {boolean} isK8sBaseLayer чи каталог під **`…/k8s/…/base/`** (HPA поруч не вимагаємо — прибирається в kustomization)
  * @param {Record<string, unknown>[]} hpaDocs HPA-документи каталогу
  * @param {Record<string, unknown>[]} pdbDocs PDB-документи каталогу
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  */
-function validateSingleDeploymentHpaPdbTopology(deployment, deployRel, isDevLike, hpaDocs, pdbDocs, fail, passFn) {
+function validateSingleDeploymentHpaPdbTopology(
+  deployment,
+  deployRel,
+  isDevLike,
+  isK8sBaseLayer,
+  hpaDocs,
+  pdbDocs,
+  fail,
+  passFn
+) {
   const deployName = manifestMetadataName(deployment)
   const appLabel = deploymentAppLabel(deployment)
   if (deployName === null) {
@@ -5294,7 +5496,9 @@ function validateSingleDeploymentHpaPdbTopology(deployment, deployRel, isDevLike
   } else {
     fail(`${deployRel}: Deployment '${deployName}': ${tscViolation}`)
   }
-  validateHpaForDeployment(hpaDocs, deployName, isDevLike, `${deployRel}/${HPA_FILENAME}`, fail, passFn)
+  if (!isK8sBaseLayer) {
+    validateHpaForDeployment(hpaDocs, deployName, isDevLike, `${deployRel}/${HPA_FILENAME}`, fail, passFn)
+  }
   validatePdbForDeployment(pdbDocs, deployName, appLabel, isDevLike, `${deployRel}/${PDB_FILENAME}`, fail, passFn)
 }
 
@@ -5310,11 +5514,30 @@ async function validateDeploymentsInDir(deployments, dir, root, fail, passFn) {
   const relDir = relative(root, dir).replaceAll('\\', '/')
   const segment = k8sEnvSegmentFromRelPath(relDir + '/')
   const isDevLike = isDevLikeK8sEnvSegment(segment)
+  const isK8sBaseLayer = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
+  if (isK8sBaseLayer && deployments.length > 0) {
+    const hpaAbs = join(dir, HPA_FILENAME)
+    if (existsSync(hpaAbs)) {
+      const prefix = relDir === '' ? '.' : relDir
+      fail(
+        `${prefix}/${HPA_FILENAME}: у шарі k8s/.../base не тримай локальний hpa.yaml — прибери HorizontalPodAutoscaler через $patch: delete у base/kustomization.yaml (k8s.mdc)`
+      )
+    }
+  }
   const hpaDocs = await readDocsByKindInDir(dir, 'HorizontalPodAutoscaler', HPA_FILENAME)
   const pdbDocs = await readDocsByKindInDir(dir, 'PodDisruptionBudget', PDB_FILENAME)
   const deployRel = relDir === '' ? '.' : relDir
   for (const deployment of deployments) {
-    validateSingleDeploymentHpaPdbTopology(deployment, deployRel, isDevLike, hpaDocs, pdbDocs, fail, passFn)
+    validateSingleDeploymentHpaPdbTopology(
+      deployment,
+      deployRel,
+      isDevLike,
+      isK8sBaseLayer,
+      hpaDocs,
+      pdbDocs,
+      fail,
+      passFn
+    )
   }
 }
 
@@ -5333,9 +5556,9 @@ async function extractDeploymentsFromFile(filePath) {
 
 /**
  * Для кожного **Deployment** у шарі **`…/k8s/…/base/`** (будь-який YAML у відповідному каталозі) перевіряє:
- * у тому ж каталозі повинні бути `hpa.yaml` (валідний `autoscaling/v2`) і `pdb.yaml` (валідний `policy/v1`),
- * а сам Deployment — канонічні **topologySpreadConstraints**. Env-залежні межі (`minReplicas`,
- * `minAvailable`) — за сегментом після `/k8s/`: `base` / `dev` / `*-qa` = dev-like, решта — прод.
+ * заборона локального **`hpa.yaml`**; **`pdb.yaml`** (валідний `policy/v1`); канонічні **topologySpreadConstraints**.
+ * HPA для dev прибирається в **`base/kustomization.yaml`** через **`$patch: delete`** (див. `verifyK8sBaseKustomizeHpaDeletedWhenInherited`).
+ * Env-залежні межі — за сегментом після `/k8s/`: dev-like vs прод.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
@@ -6018,7 +6241,7 @@ function applyConversionsToDoc(doc, conversions) {
     byPatch.set(c.index, slot)
   }
 
-  const sortedIdx = byPatch.keys().toSorted((a, b) => b - a)
+  const sortedIdx = [...byPatch.keys()].toSorted((a, b) => b - a)
   for (const i of sortedIdx) {
     const slot = byPatch.get(i)
     if (slot === undefined) continue
