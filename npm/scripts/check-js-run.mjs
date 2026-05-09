@@ -13,7 +13,7 @@
  *    `package.json#imports['#conn/*']` — у його цільовому каталозі); поза ним — порушення
  *    (див. `utils/conn-imports-scan.mjs`);
  *  - «Нейминг та експорти у `#conn/`»: всередині conn-каталогу basename файла має відповідати
- *    канону `ql-<id>` / `(pg|mysql)-(read|write)[-<id>]`; `export default` заборонений; має бути
+ *    канону `ql-<id>` / `(pg|mysql|mssql)-(read|write)[-<id>]`; `export default` заборонений; має бути
  *    іменований експорт з імʼям, що дорівнює camelCase від basename файла (`pg-write-contract.js`
  *    → `export const pgWriteContract`); `index.*` як reexport-барель пропускаємо
  *    (див. `utils/conn-file-rules.mjs`);
@@ -192,7 +192,7 @@ async function checkConnImports(absPackageRoot, sourcePaths, pkgJson, label, fai
 /**
  * Перевіряє правила нейминга та експортів для файлів усередині `#conn/`.
  *
- * Канон імені: `ql-<id>` для GraphQL, `(pg|mysql)-(read|write)[-<id>]` для БД (js-run.mdc,
+ * Канон імені: `ql-<id>` для GraphQL, `(pg|mysql|mssql)-(read|write)[-<id>]` для БД (js-run.mdc,
  * розділ «Нейминг файлів у `src/conn/`»). Експорт у файлі — лише іменований, з імʼям, що
  * дорівнює camelCase від basename файла (`pg-write-contract.js` → `export const pgWriteContract`).
  * @param {string} absPackageRoot абсолютний корінь пакета
@@ -219,7 +219,8 @@ async function checkConnFileNamingAndExports(absPackageRoot, sourcePaths, pkgJso
       if (v.kind === 'name') {
         fail(
           `${label}${rel} — назва файла в '${connDir}/' не відповідає канону js-run: ` +
-            `'ql-<id>', 'pg-{read|write}[-<id>]' або 'mysql-{read|write}[-<id>]' (kebab-case, [a-z0-9-])`
+            `'ql-<id>', 'pg-{read|write}[-<id>]', 'mysql-{read|write}[-<id>]' або 'mssql-{read|write}[-<id>]' ` +
+            `(kebab-case, [a-z0-9-])`
         )
       } else if (v.kind === 'default-export') {
         fail(`${label}${rel} — 'export default' заборонений у '${connDir}/'; зроби іменований експорт`)
@@ -326,7 +327,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
   if (connFileViolations === 0) {
     const connDir = resolveConnDirFromPackageJson(pkgJson)
     passFn(
-      `${label}файли в '${connDir}/' дотримують канону js-run: нейминг (ql-/pg-/mysql-…) і іменований експорт у camelCase від basename`
+      `${label}файли в '${connDir}/' дотримують канону js-run: нейминг (ql-/pg-/mysql-/mssql-…) і іменований експорт у camelCase від basename`
     )
   }
 

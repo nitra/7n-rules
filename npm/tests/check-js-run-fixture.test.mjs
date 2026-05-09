@@ -116,6 +116,34 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
+  test("0, якщо src/conn/mssql-write.js з 'export const mssqlWrite'", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
+      await writeJson(join('pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
+      await writeFile(
+        join('pkg', 'src', 'conn', 'mssql-write.js'),
+        `import sql from 'mssql'\nexport const mssqlWrite = new sql.ConnectionPool({})\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test("1, якщо src/conn/mssql-write.js експортує не mssqlWrite, а mssqlWriter", async () => {
+    await withTmpCwd(async () => {
+      await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
+      await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
+      await writeJson(join('pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
+      await writeFile(
+        join('pkg', 'src', 'conn', 'mssql-write.js'),
+        `import sql from 'mssql'\nexport const mssqlWriter = new sql.ConnectionPool({})\n`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
   test('1, якщо є src/ у backend-пакеті, але немає jsconfig.json', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })

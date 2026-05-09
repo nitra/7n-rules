@@ -5,7 +5,8 @@
  * Канонічна назва файла:
  *  - GraphQL: `ql-<id>.{js|mjs|cjs|ts|mts|cts}` (id — kebab-case ідентифікатор endpoint);
  *  - PostgreSQL: `pg-{read|write}.{ext}` або `pg-{read|write}-<id>.{ext}` (id — для multi-БД);
- *  - MySQL/MSSQL: `mysql-{read|write}.{ext}` або `mysql-{read|write}-<id>.{ext}`.
+ *  - MySQL: `mysql-{read|write}.{ext}` або `mysql-{read|write}-<id>.{ext}`;
+ *  - MSSQL: `mssql-{read|write}.{ext}` або `mssql-{read|write}-<id>.{ext}`.
  *
  * Канонічний експорт — іменований, без `export default`. Імʼя константи має дорівнювати
  * camelCase від basename файла (`pg-write-contract` → `pgWriteContract`).
@@ -20,11 +21,11 @@ const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 /**
  * Канонічний шаблон імені файла в каталозі conn.
  *  - `ql-<id>` для GraphQL;
- *  - `(pg|mysql)-(read|write)(-<id>)?` для БД.
+ *  - `(pg|mysql|mssql)-(read|write)(-<id>)?` для БД.
  * `<id>` — починається з [a-z0-9], далі [a-z0-9-]*.
  */
 const CONN_FILENAME_RE =
-  /^(?:ql-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|(?:pg|mysql)-(?:read|write)(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?)\.([cm]?[jt]sx?)$/u
+  /^(?:ql-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|(?:pg|mysql|mssql)-(?:read|write)(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?)\.([cm]?[jt]sx?)$/u
 
 /**
  * Чи це файл, який сканується правилом «conn-file» (JS/TS-сімʼя, без `.d.ts`).

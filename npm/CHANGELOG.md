@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.217] - 2026-05-09
+
+### Added
+
+- **js-run / conn-нейминг:** префікс `mssql-` тепер прийнятний у `src/conn/` нарівні з `mysql-` (`mssql-read.js`, `mssql-write-<id>.js` тощо). Сам npm-пакет `mssql` і раніше згадувався у правилі (як драйвер для MS SQL Server), але філенейм ставився під спільний `mysql-` префікс — це плутало читачів коду, де `import sql from 'mssql'` сусідив з файлом `mysql-write.js`. Тепер MSSQL має власний префікс із власним camelCase-експортом (`mssql-write-b2b` → `mssqlWriteB2b`). **Backward-compat:** проєкти, що вже використовують `mysql-…` для MSSQL-файлів, валідні без змін; рекомендований, але не обов'язковий рефактор — `git mv` цих файлів на `mssql-…` і відповідне перейменування іменованого експорту (`mysqlWrite` → `mssqlWrite`) зі оновленням імпортів через `#conn/*`.
+- Регекс `CONN_FILENAME_RE` у `npm/scripts/utils/conn-file-rules.mjs` розширено до `(pg|mysql|mssql)-(read|write)(-<id>)?`; повідомлення про порушення в `npm/scripts/check-js-run.mjs` оновлено під чотири альтернативи; `mdc/js-run.mdc` має окремі пункти для MySQL і MSSQL.
+- Тести: `npm/tests/conn-file-rules.test.mjs` (юніт-тести `isConnFileNameValid` / `kebabToCamel` / `findConnFileRuleViolations` під `mssql-`) та два інтеграційні кейси у `npm/tests/check-js-run-fixture.test.mjs` (`mssql-write.js` з валідним і невалідним експортом).
+
 ## [1.8.216] - 2026-05-09
 
 ### Changed

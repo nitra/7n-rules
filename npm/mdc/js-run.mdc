@@ -134,7 +134,8 @@ import { gql, graphQLClient } from '@nitra/graphql-request'
 - **PostgreSQL до кількох БД** — додатково ідентифікатор підключення після типу:
   - `src/conn/pg-read-smart.js`
   - `src/conn/pg-write-contract.js`
-- **MySQL / MSSQL** — префікс `mysql-` за тією ж схемою (`mysql-read.js`, `mysql-write-<id>.js` тощо).
+- **MySQL** — префікс `mysql-` за тією ж схемою (`mysql-read.js`, `mysql-write-<id>.js` тощо).
+- **MSSQL** — префікс `mssql-` за тією ж схемою (`mssql-read.js`, `mssql-write-<id>.js` тощо). Хоча npm-пакет один (`mssql`), а драйвер MS SQL Server під капотом T-SQL — у файловій назві відрізняємо MS SQL Server від MySQL, бо це різні СУБД, різні діалекти, різні рантаймні залежності. Якщо проєкт історично використовує `mysql-…` для MSSQL-підключень — він валідний і далі (для backward-compat), але новий код пишемо з префіксом `mssql-`.
 
 Підключення до БД **обов'язково** має бути ідентифіковано як `read` (репліка) або `write` (мастер). Якщо з імені змінної оточення (наприклад, `env.PG_CONN`) це не очевидно — визнач режим за операціями в коді: якщо немає операцій зміни даних (`INSERT`/`UPDATE`/`DELETE`/DDL) — це `pg-read.js`, інакше `pg-write.js`.
 
@@ -232,7 +233,7 @@ on:
 
 `npx @nitra/cursor check js-run` — зокрема для кожного backend workspace-пакета з каталогом **`src/`** перевіряє наявність **`jsconfig.json`** і збіг вмісту з каноном вище. Додатково для файлів у каталозі `#conn/` (за замовчуванням `src/conn/`) перевіряється:
 
-- **basename файла** відповідає канону: `ql-<id>` (GraphQL) / `(pg|mysql)-(read|write)[-<id>]` (БД), kebab-case `[a-z0-9-]`;
+- **basename файла** відповідає канону: `ql-<id>` (GraphQL) / `(pg|mysql|mssql)-(read|write)[-<id>]` (БД), kebab-case `[a-z0-9-]`;
 - **відсутній `export default`** — лише іменований експорт;
 - **імʼя експорту** дорівнює camelCase від basename (`pg-write-contract.js` → `export const pgWriteContract`).
 
