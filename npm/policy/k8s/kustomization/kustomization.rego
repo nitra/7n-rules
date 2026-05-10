@@ -117,11 +117,11 @@ is_kustomization if {
 }
 
 resources_present if {
-	_ := input.resources
+	"resources" in object.keys(input)
 }
 
 patches_present if {
-	_ := input.patches
+	"patches" in object.keys(input)
 }
 
 # Список непорожніх рядкових шляхів resources у порядку файлу (для повідомлення).

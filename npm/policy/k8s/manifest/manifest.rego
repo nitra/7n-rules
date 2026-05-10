@@ -215,7 +215,8 @@ has_non_empty_cpu_request(container) if {
 
 # Чи у контейнера в реальності присутнє поле resources.requests.cpu (хай і порожнє).
 has_cpu_field(container) if {
-	_ := container.resources.requests.cpu
+	requests := object.get(object.get(container, "resources", {}), "requests", {})
+	"cpu" in object.keys(requests)
 }
 
 # Чи у контейнера є непорожнє resources.requests.memory (рядок або число > 0).
@@ -233,7 +234,8 @@ has_non_empty_memory_request(container) if {
 
 # Чи у контейнера в реальності присутнє поле resources.requests.memory.
 has_memory_field(container) if {
-	_ := container.resources.requests.memory
+	requests := object.get(object.get(container, "resources", {}), "requests", {})
+	"memory" in object.keys(requests)
 }
 
 # Чи рядок `image` посилається на репозиторій `hasura/graphql-engine` (з тегом
