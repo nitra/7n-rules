@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.222] - 2026-05-10
+
+### Added
+
+- **k8s / rego-полісі:** розширено `npm/policy/k8s/manifest/manifest.rego` (Deployment cpu+memory у `requests`, Hasura image pin із білим списком тегів, канонічний `topologySpreadConstraints` з мітки `app` самого Deployment). Додано `manifest_test.rego` із вхідними фікстурами; rego тестується через `conftest verify` (опційний крок у `bun run lint-rego`). JS у `check-k8s.mjs` лишається authoritative — нові правила Rego — швидкий gate для одиничного маніфеста.
+- **k8s / нові rego-пакети:** `npm/policy/k8s/gateway/` (Gateway API: backendRef з суфіксом `-hl`, redundant `namespace` у backendRef, HCP `targetRef.name` `-hl`); `npm/policy/k8s/kustomization/` (resources/patches алфавітне сортування, JSON6902 `remove`+`add` на той самий `path`); `npm/policy/k8s/svc_yaml/` (`Service.spec.type: ClusterIP`); `npm/policy/k8s/svc_hl_yaml/` (headless Service з суфіксом `-hl` і `clusterIP: None`); `npm/policy/k8s/base_kustomization/` (обов'язковий `namespace:`); `npm/policy/k8s/base_manifest/` (`metadata.namespace` у base, base-canon `cpu='0.02'`/`memory='128Mi'`); `npm/policy/k8s/kustomize_managed/` (заборона `metadata.namespace` у kustomize-managed файлах); `npm/policy/k8s/hasura_configmap/` (`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"`); `npm/policy/k8s/hasura_httproute/` (канон 4 правил Hasura: `/ql` Exact + `/ql/` Exact + PathPrefix + WebSocket); `npm/policy/k8s/hpa_pdb/` (структурний gate HPA/PDB: `apiVersion`, `behavior.scaleUp/Down`, `metrics`, `selector.matchLabels`). До кожного пакета додано `*_test.rego` фікстури.
+- **lint-rego:** додано опційний крок `conftest verify` у `npm/scripts/lint-rego.mjs` після `regal lint` для виконання `*_test.rego`. Якщо `conftest` не у PATH — крок мовчки пропускається з install-hint.
+
+### Changed
+
+- **lint-conftest:** `npm/scripts/lint-conftest.mjs` — `k8s.manifest` target тепер указує на `policyDir: 'k8s/manifest'` (вужчий policy-tree), додано targets для нових пакетів `k8s.gateway`, `k8s.hpa_pdb`, `k8s.kustomization`, `k8s.svc_yaml`, `k8s.svc_hl_yaml`, `k8s.base_kustomization`, `k8s.base_manifest`. Шляхові регекспи: `K8S_KUSTOMIZATION_PATH_RE`, `K8S_BASE_KUSTOMIZATION_PATH_RE`, `K8S_BASE_MANIFEST_PATH_RE`, `K8S_SVC_YAML_PATH_RE`, `K8S_SVC_HL_YAML_PATH_RE`. Пакети `kustomize_managed`, `hasura_configmap`, `hasura_httproute` потребують cross-file gating з `check-k8s.mjs` і не входять у `lint-conftest` walk-targets.
+- **n-k8s.mdc:** додано розділ «Швидкий gate через conftest (Rego)» зі списком rego-пакетів і опису того, що cross-file логіка (резолюція kustomize-tree, парність svc.yaml/svc-hl.yaml, прив'язка ConfigMap/HTTPRoute до Hasura-Deployment, HPA/PDB by directory, env-залежні межі min/maxReplicas) лишається у `check-k8s.mjs`.
+- **conftest.mdc (alwaysApply):** замість одного абзацу про «пріоритет conftest» — повний алгоритм рішення для нової перевірки: декізія-дерево (single-document → Rego за замовчуванням; cross-file/FS/autofix/text-pre-YAML → JS), workflow «спершу намалюй вхід → rego або гібрид», список «червоних прапорів» (Rego не вміє X — звір зі списком винятків). Мета: робити Rego default-вибором для нових перевірок.
+- **npm/.claude-template/npm-CLAUDE.md:** додано path-scoped нагадування «Перш ніж писати `check-*.mjs`» з посиланням на алгоритм у `conftest.mdc`. Регенеровано `npm/CLAUDE.md`.
+
 ## [1.8.221] - 2026-05-10
 
 ### Changed

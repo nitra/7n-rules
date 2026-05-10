@@ -48,6 +48,8 @@ rego - якщо в проекті є хоч один rego
 
 style-lint - якщо присутній хоч один vue або css файл
 
+tauri - - якщо в хоч в package.json в секції dependencies присутній пакет @tauri-apps/api
+
 text - завжди
 
 vue - якщо присутній хоч один vue файл

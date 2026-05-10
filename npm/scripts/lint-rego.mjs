@@ -1,13 +1,17 @@
 /**
  * Лінт Rego-полісі (`conftest.mdc` + `rego.mdc`): preflight на `opa` і `regal`,
- * далі послідовно `opa check --strict` і `regal lint`.
+ * далі послідовно `opa check --strict`, `regal lint` і опційний
+ * `conftest verify` (для `*_test.rego`-файлів) якщо conftest у PATH.
  *
- * Чому два інструменти:
+ * Чому два-три інструменти:
  * - `opa check --strict` — компіляція з типами і строгим режимом (мертвий код, неоднозначні
  *   правила, незадекларовані змінні). Ловить помилки, які `regal` навмисно лишає поза скоупом
  *   (він — про стиль і ідіоматичність, а не про компіляцію).
  * - `regal lint` (https://docs.styra.com/regal) — статичний лінтер Rego: ловить v0-синтаксис,
  *   неявні set-rules та інші відхилення від `rego.v1`, плюс bugs/idiomatic/performance-правила.
+ * - `conftest verify` (опційно) — виконує `test_*` правила у `*_test.rego` (юніт-тести політик).
+ *   Якщо conftest відсутній у PATH — пропускаємо без помилки (тести опційні в локальному середовищі;
+ *   у CI потрібно встановити conftest).
  *
  * Без preflight-у на бінарники лінт мовчки злетить з невиразним повідомленням від shell —
  * друкуємо явні install-hints (як це робить `lint-ga.mjs` для shellcheck/uv). `opa` додатково
@@ -16,7 +20,7 @@
  *
  * Цілі лінту: `npm/policy/` (місце, де поки що живуть Rego-полісі пакета `@nitra/cursor`).
  * Якщо в репозиторії з’являться інші *.rego поза цим деревом, додай шлях у `LINT_TARGETS` —
- * обидва інструменти приймають кілька шляхів і самі рекурсивно обходять директорії.
+ * усі три інструменти приймають кілька шляхів і самі рекурсивно обходять директорії.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -110,7 +114,18 @@ export function runLintRego(cwd = process.cwd()) {
   const opaCode = runStep(opa, ['check', '--strict', ...targets], root)
   if (opaCode !== 0) return opaCode
 
-  return runStep(regal, ['lint', ...targets], root)
+  const regalCode = runStep(regal, ['lint', ...targets], root)
+  if (regalCode !== 0) return regalCode
+
+  const conftest = resolveCmd('conftest')
+  if (!conftest) {
+    console.log(
+      'ℹ conftest не знайдено в PATH — пропускаю `conftest verify` (юніт-тести *_test.rego).\n' +
+        '  Встанови, щоб запустити локально: brew install conftest (macOS) або https://www.conftest.dev/install/'
+    )
+    return 0
+  }
+  return runStep(conftest, ['verify', ...targets.flatMap(t => ['-p', t])], root)
 }
 
 process.exitCode = runLintRego()

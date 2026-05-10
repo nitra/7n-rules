@@ -79,6 +79,16 @@ const K8S_DIR_PATH_RE = /(^|\/)k8s\//u
 const K8S_HC_YAML_PATH_RE = /(^|\/)k8s\/.+\/hc\.yaml$/u
 /** `…/k8s/…/base/…/hr.yaml` (HTTPRoute у base-шарі). */
 const K8S_BASE_HR_YAML_PATH_RE = /(^|\/)k8s\/.*base\/.*hr\.yaml$/u
+/** `kustomization.yaml` будь-де під сегментом `k8s/`. */
+const K8S_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/.*\/kustomization\.yaml$/u
+/** `…/k8s/.../base/.../kustomization.yaml`. */
+const K8S_BASE_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/.*base\/(?:.*\/)?kustomization\.yaml$/u
+/** Будь-який ресурсний `*.yaml` під сегментом `…/k8s/.../base/...`, окрім `kustomization.yaml`. */
+const K8S_BASE_MANIFEST_PATH_RE = /(^|\/)k8s\/.*base\//u
+/** `…/k8s/.../svc.yaml` (cluster-IP Service). */
+const K8S_SVC_YAML_PATH_RE = /(^|\/)k8s\/.+\/svc\.yaml$/u
+/** `…/k8s/.../svc-hl.yaml` (headless Service). */
+const K8S_SVC_HL_YAML_PATH_RE = /(^|\/)k8s\/.+\/svc-hl\.yaml$/u
 
 /** @type {ConftestTarget[]} */
 const TARGETS = [
@@ -221,9 +231,71 @@ const TARGETS = [
   // Усі YAML у дереві з сегментом `k8s` — пер-документні структурні правила.
   {
     namespace: 'k8s.manifest',
-    policyDir: 'k8s',
+    policyDir: 'k8s/manifest',
     rule: 'k8s',
     walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
+  },
+
+  // Gateway API + HealthCheckPolicy — застосовується до будь-якого YAML під k8s
+  // (правила перевіряють лише відповідні kind / apiVersion).
+  {
+    namespace: 'k8s.gateway',
+    policyDir: 'k8s/gateway',
+    rule: 'k8s',
+    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
+  },
+
+  // Структурні перевірки HPA / PDB (apiVersion / behavior / metrics / selector).
+  {
+    namespace: 'k8s.hpa_pdb',
+    policyDir: 'k8s/hpa_pdb',
+    rule: 'k8s',
+    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
+  },
+
+  // Kustomization-файли: resources sort, patches sort, JSON6902 conflicts.
+  {
+    namespace: 'k8s.kustomization',
+    policyDir: 'k8s/kustomization',
+    rule: 'k8s',
+    walk: { match: rel => K8S_KUSTOMIZATION_PATH_RE.test(rel) }
+  },
+
+  // svc.yaml — cluster-IP Service.
+  {
+    namespace: 'k8s.svc_yaml',
+    policyDir: 'k8s/svc_yaml',
+    rule: 'k8s',
+    walk: { match: rel => K8S_SVC_YAML_PATH_RE.test(rel) }
+  },
+
+  // svc-hl.yaml — headless Service з суфіксом `-hl`.
+  {
+    namespace: 'k8s.svc_hl_yaml',
+    policyDir: 'k8s/svc_hl_yaml',
+    rule: 'k8s',
+    walk: { match: rel => K8S_SVC_HL_YAML_PATH_RE.test(rel) }
+  },
+
+  // base/kustomization.yaml — обов'язкове непорожнє поле `namespace:`.
+  {
+    namespace: 'k8s.base_kustomization',
+    policyDir: 'k8s/base_kustomization',
+    rule: 'k8s',
+    walk: { match: rel => K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) }
+  },
+
+  // Ресурсні маніфести під `…/k8s/.../base/...` (окрім kustomization.yaml).
+  {
+    namespace: 'k8s.base_manifest',
+    policyDir: 'k8s/base_manifest',
+    rule: 'k8s',
+    walk: {
+      match: rel =>
+        K8S_BASE_MANIFEST_PATH_RE.test(rel) &&
+        !K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) &&
+        (rel.endsWith('.yaml') || rel.endsWith('.yml'))
+    }
   },
 
   // abie HealthCheckPolicy: `hc.yaml` у дереві k8s.

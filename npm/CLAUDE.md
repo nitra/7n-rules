@@ -21,6 +21,10 @@ npx @nitra/cursor check changelog
 npx @nitra/cursor check npm-module
 ```
 
+## Перш ніж писати `check-*.mjs`
+
+Перед створенням нового `npm/scripts/check-<rule>.mjs` оціни, чи задача лягає на rego-полісі. **Default — Rego**: пер-документні структурні перевірки (kind/apiVersion, поля, форма масивів) пишуться у `npm/policy/<rule>/<name>/<name>.rego` + `_test.rego`. JS — тільки для cross-file resolution, file-system access (`readdir`/`stat`), autofix/rewrite або парсингу до YAML-body. Гібрид (rego як швидкий gate + JS-оркестратор для cross-file) — нормальний патерн; референс — `npm/policy/k8s/*` ↔ `npm/scripts/check-k8s.mjs`. Деталі алгоритму рішення — `.cursor/rules/conftest.mdc` (alwaysApply).
+
 ## Джерело правил
 
 - `.cursor/rules/n-changelog.mdc` — правило про CHANGELOG (PR-scoped, для всіх воркспейсів)

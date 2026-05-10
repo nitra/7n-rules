@@ -16,9 +16,36 @@ alwaysApply: true
 - Use modern Rego syntax compatible with current OPA and Conftest versions
 - Prefer explicit and readable policy structure
 
-## Пріоритет conftest для задач перевірки
+## Пріоритет Rego (conftest) над JS
 
-Якщо задачу, яку просить користувач, можна вирішити через conftest-політику (Rego) — її потрібно вирішувати саме так, а не через ad-hoc скрипти (bash/JS/Python тощо). Conftest-політики є канонічним способом перевірок у цьому репозиторії, тож перед написанням власного валідатора слід оцінити, чи не лягає задача на нову/існуючу `*.rego` поліси у `npm/policy/`.
+Rego — **default** для нових перевірок у цьому репо. JS — fallback **лише** там, де rego об'єктивно не може. Conftest-полісі — канонічна форма перевірки структури у `@nitra/cursor`; ad-hoc-скрипти (bash/JS/Python) для пер-документних перевірок недопустимі.
+
+### Алгоритм рішення для нової перевірки
+
+Перед тим як писати `npm/scripts/check-*.mjs`, дай відповіді у такому порядку:
+
+1. **Це пер-документна перевірка одного YAML/JSON-документа?** (структура полів, kind/apiVersion, форма масивів, regex по значенню) → **пиши rego** у `npm/policy/<rule>/<name>/<name>.rego` + `<name>_test.rego`. Точка. JS-код для цього не потрібен.
+2. **Перевірка потребує одного з нижче — rego ці кейси не вміє, тому JS:**
+   - **cross-file resolution**: треба прочитати інші YAML / lookup між файлами (резолюція kustomize-tree, парність `svc.yaml`/`svc-hl.yaml`, прив'язка ConfigMap/HTTPRoute до Deployment у тому ж каталозі);
+   - **file-system access**: потрібен `readdir`, `stat`, перевірка existence шляху на диску;
+   - **autofix / rewrite**: треба змінити файл (`replace_all`, переписати YAML, перейменувати, видалити) — Rego read-only;
+   - **парсинг тексту до YAML-body**: yaml-language-server modeline (`# yaml-language-server: $schema=…`), regex по сирому файлу до парсингу;
+   - **стан між викликами / агрегація по дереву**: треба зібрати дані з усіх файлів і потім фейлити (узгодженість HPA/PDB по dir, env-залежні ліміти за сегментом шляху).
+3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Тоді **обидва**: rego — швидкий gate для одиничного маніфеста, JS — оркестратор для cross-file. JS authoritative; rego — копія підмножини правил для IDE / CI gate. Референс — `npm/policy/k8s/*` ↔ `npm/scripts/check-k8s.mjs`.
+
+### Workflow для нової перевірки
+
+1. Спершу намалюй вхід: один документ чи декілька? Файлова система потрібна?
+2. Якщо **один документ** — починаєш з `npm/policy/<rule>/<name>/<name>.rego` + `_test.rego` фікстури. JS не пишемо.
+3. Якщо **cross-file / FS / autofix** — пишеш JS у `npm/scripts/check-<rule>.mjs`. Опційно паралельно додаєш rego-частину для пер-документного шару (як у `check-k8s.mjs`).
+4. У JSDoc на початку `check-<rule>.mjs` фіксуй: «JS authoritative, rego-копія в `npm/policy/<…>` — швидкий gate». У rego-файлі — обернений напрямок: «JS authoritative, ця Rego — швидкий gate» (див. існуючі rego-полісі).
+5. Реєстрація: новий пакет додається в `TARGETS` `npm/scripts/lint-conftest.mjs` (намеспейс + path-pattern); якщо path-pattern неможливо описати regex'ом (cross-file gating), запуск conftest відбувається безпосередньо з `check-<rule>.mjs`.
+
+### Червоні прапори
+
+- «Це швидше у JS»: майже завжди ілюзія. Rego-полісі з 5 рядків + `_test.rego` пишеться за пару хвилин і дає IDE-інтеграцію (`tsandall.opa`).
+- «Rego не вміє X»: перевір список вище. Якщо X не у списку — швидше за все вміє (`walk`, `regex.match`, `yaml.unmarshal`, `object.get`).
+- «Я допишу в існуючий `check-*.mjs`» — спершу подивись, чи відповідний `npm/policy/<rule>/` уже є, і чи нова перевірка лягає туди як ще одне `deny contains`.
 
 ## Перевірка
 

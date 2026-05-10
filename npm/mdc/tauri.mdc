@@ -1,0 +1,20 @@
+---
+description: Tauri
+alwaysApply: true
+version: '1.0'
+---
+
+
+в файлі .vscode/extensions.json є налаштування для Vue:
+
+```json title=".vscode/extensions.json"
+{
+  "recommendations": ["tauri-apps.tauri-vscode",
+    "rust-lang.rust-analyzer"]
+}
+```
+
+
+## Перевірка
+
+`npx @nitra/cursor check tauri`
