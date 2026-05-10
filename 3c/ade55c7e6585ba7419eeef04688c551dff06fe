@@ -1,0 +1,22 @@
+npm/policy/k8s/manifest/manifest.rego
+  s_0b55b71d1b0ba9::t_33451e4d9e5d15 218-219
+  s_0b55b71d1b0ba9::t_2c85504e407439 237-238
+npm/policy/k8s/kustomization/kustomization.rego
+  s_0b55b71d1b0ba9::t_0fe254e6a2a9d2 120,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "3cade55c7e6585ba7419eeef04688c551dff06fe",
+  "prompts": {},
+  "sessions": {
+    "s_0b55b71d1b0ba9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ae74b3a7-a5a2-48c9-9c66-8ddbdb480d74",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
