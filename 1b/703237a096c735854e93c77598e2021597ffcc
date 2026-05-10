@@ -1,0 +1,125 @@
+npm/policy/k8s/gateway/gateway.rego
+  s_0b55b71d1b0ba9::t_d4233d0d052cdd 31,34,38-53
+  s_0b55b71d1b0ba9::t_5da505652445c8 114-115
+  s_0b55b71d1b0ba9::t_17e2ca501516e5 63
+  s_0b55b71d1b0ba9::t_9a3c42b0997984 142,144,147,149,151
+  s_0b55b71d1b0ba9::t_529d4b5c90352f 127,129-130
+  s_0b55b71d1b0ba9::t_352c9aca95dbdf 134
+  s_0b55b71d1b0ba9::t_4a9168a6d6c2a7 121-122,128
+  s_0b55b71d1b0ba9::t_67ca856069e53d 100,104,106-107
+  s_0b55b71d1b0ba9::t_24692cfbfa8c20 1-30,32-33,35-37,54-62,64-77,79-87,89-99,101-103,105,108-113,116-120,123-126,131-133,135-141,143,145-146,148,150
+  s_0b55b71d1b0ba9::t_024e47ebcbec71 78,88
+npm/policy/k8s/hpa_pdb/hpa_pdb_test.rego
+  s_0b55b71d1b0ba9::t_7418b1920bac31 1-101
+npm/policy/k8s/base_manifest/base_manifest.rego
+  s_0b55b71d1b0ba9::t_c9c4ecb8b8162d 106,115
+  s_0b55b71d1b0ba9::t_143c52803fe8c3 1-84,86,88-89,91,95-105,107-114,116-149,151-152,154
+  s_0b55b71d1b0ba9::t_074e907c785603 90
+  s_0b55b71d1b0ba9::t_b4801efbb03ad6 87,92-94
+  s_0b55b71d1b0ba9::t_8d09ba10aa20ef 150,153
+npm/scripts/lint-conftest.mjs
+  s_0b55b71d1b0ba9::t_b0b7a7c49f5a2d 82-91
+  s_0b55b71d1b0ba9::t_b1439ecbaeac6d 234,239-298
+npm/package.json
+  s_0b55b71d1b0ba9::t_0bac74bbafdcdb 3
+npm/policy/k8s/manifest/manifest_test.rego
+  s_0b55b71d1b0ba9::t_fb8b8ea485ae18 1-309
+npm/mdc/tauri.mdc
+  h_74546f1f1ded3e 1-20
+npm/CLAUDE.md
+  s_0b55b71d1b0ba9::t_47908434a5d3ab 24-27
+npm/policy/k8s/svc_hl_yaml/svc_hl_yaml_test.rego
+  s_0b55b71d1b0ba9::t_239e756189820b 1-42
+npm/policy/k8s/svc_hl_yaml/svc_hl_yaml.rego
+  s_0b55b71d1b0ba9::t_fe0c37a05395bb 20-24
+  s_0b55b71d1b0ba9::t_aef5aa3296ea86 27-34,41-48
+  s_0b55b71d1b0ba9::t_1ed6ae573bdbb5 36
+npm/policy/k8s/hasura_configmap/hasura_configmap.rego
+  s_0b55b71d1b0ba9::t_a279e41c1d7dab 31
+  s_0b55b71d1b0ba9::t_64ff89841d79dc 64
+  s_0b55b71d1b0ba9::t_be7594a47eaeab 41-43,49-52,57-58
+  s_0b55b71d1b0ba9::t_bf22073bd10e59 1-30,32-34,36-40,44-48,53-56,59-63,65-69
+  s_0b55b71d1b0ba9::t_c8e8512c800143 35
+npm/policy/k8s/svc_yaml/svc_yaml.rego
+  s_0b55b71d1b0ba9::t_65a9c2a8f9f682 1-20,22-25,29-31
+  s_0b55b71d1b0ba9::t_49bbbea60a1233 21,26-28
+npm/policy/k8s/manifest/manifest.rego
+  s_0b55b71d1b0ba9::t_2badc7feba9d0b 7,16-22,40-41,47-58,79-99,143-184,194,220-258,261-263,265-278
+  s_0b55b71d1b0ba9::t_99e50893c1be35 259-260,264
+  s_0b55b71d1b0ba9::t_19c688ed983aec 185-187
+npm/policy/k8s/gateway/gateway_test.rego
+  s_0b55b71d1b0ba9::t_795556b1542e8a 1-122
+npm/policy/k8s/kustomize_managed/kustomize_managed.rego
+  s_0b55b71d1b0ba9::t_018212a1373922 1-27,31
+  s_0b55b71d1b0ba9::t_5d0443e97ee5d7 28-30
+npm/policy/k8s/hasura_httproute/hasura_httproute_test.rego
+  s_0b55b71d1b0ba9::t_1c546f5fc2499b 1-148
+AGENTS.md
+  s_0b55b71d1b0ba9::t_47908434a5d3ab 11,52,55,68,73
+.cspell.json
+  s_0b55b71d1b0ba9::t_4313319a5b7d62 486-495
+npm/policy/k8s/base_kustomization/base_kustomization_test.rego
+  s_0b55b71d1b0ba9::t_80a06b6d02dc78 1-36
+npm/policy/k8s/hasura_configmap/hasura_configmap_test.rego
+  s_0b55b71d1b0ba9::t_94ae682debe9a3 9-10,16-17,28,32,36,40
+  s_0b55b71d1b0ba9::t_1d18fe989e87f2 1-8,11-15,18-27,29-31,33-35,37-39,41-49
+npm/policy/k8s/hpa_pdb/hpa_pdb.rego
+  s_0b55b71d1b0ba9::t_4f1db17a270cce 1-48,50-55,59-62,65,67-71,74,78-84,88-105,107-110,114-117,121-139
+  s_0b55b71d1b0ba9::t_d8a54c011e1e8c 49,56-58,63-64,66,72-73,75-77,85-87,106,111-113,118-120
+npm/policy/k8s/kustomization/kustomization_test.rego
+  s_0b55b71d1b0ba9::t_b26760d092873d 1-128
+npm/policy/k8s/base_manifest/base_manifest_test.rego
+  s_0b55b71d1b0ba9::t_cd5ba770779dff 1-94
+npm/policy/k8s/kustomize_managed/kustomize_managed_test.rego
+  s_0b55b71d1b0ba9::t_abe725ad806caa 1-30
+.cursor/rules/conftest.mdc
+  s_0b55b71d1b0ba9::t_fc5cc6964341d8 19,21-48
+npm/policy/k8s/kustomization/kustomization.rego
+  s_0b55b71d1b0ba9::t_6595ea4a4dd6ce 179-183
+  s_0b55b71d1b0ba9::t_120b74f7a30f00 75
+  s_0b55b71d1b0ba9::t_499cfe0165dfce 159
+  s_0b55b71d1b0ba9::t_74cb95d24cf67c 185
+  s_0b55b71d1b0ba9::t_5e99e6633c8c5e 195
+  s_0b55b71d1b0ba9::t_95eecbcdfe2838 138-143
+npm/bin/auto-rules.md
+  h_74546f1f1ded3e 51-52
+npm/policy/k8s/hasura_httproute/hasura_httproute.rego
+  s_0b55b71d1b0ba9::t_369992a9b4ba92 163-164
+  s_0b55b71d1b0ba9::t_c8cf031e916ab6 109-111
+  s_0b55b71d1b0ba9::t_bdae239d2757e8 151-152
+  s_0b55b71d1b0ba9::t_c2f952b0289444 179-186
+  s_0b55b71d1b0ba9::t_606c6f90d77fb6 60,65
+  s_0b55b71d1b0ba9::t_5025d4b7ab22a1 28-57,75-76,79-85,90-91,96-97,102-103,133-150,153-155,158-162,165-178,231-233,236-237,240-242,250,253-255,266,269-271,279
+  s_0b55b71d1b0ba9::t_80af5f40747a9c 156-157
+  s_0b55b71d1b0ba9::t_313ffb69140e23 1-27,58-59,61-64,66-74,77-78,86-89,92-95,98-101,104-108,112-115,187-230,234-235,238-239,243-249,251-252,256-265,267-268,272-278,280-298
+  s_0b55b71d1b0ba9::t_1e0a311f149bc4 116-132
+npm/scripts/lint-rego.mjs
+  s_0b55b71d1b0ba9::t_0bbb134908ccf2 117-128
+  s_0b55b71d1b0ba9::t_b2deed82135a72 3-4,6,12-14,23
+npm/CHANGELOG.md
+  s_0b55b71d1b0ba9::t_c9315b99dfcc81 7-18,21
+  s_0b55b71d1b0ba9::t_c2365baefe5b72 19-20
+CLAUDE.md
+  s_0b55b71d1b0ba9::t_47908434a5d3ab 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "1b703237a096c735854e93c77598e2021597ffcc",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_0b55b71d1b0ba9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ae74b3a7-a5a2-48c9-9c66-8ddbdb480d74",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
