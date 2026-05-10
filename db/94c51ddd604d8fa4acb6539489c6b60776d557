@@ -1,0 +1,153 @@
+npm/scripts/check-image-compress.mjs
+  s_df1ab22cafde9c::t_cf756334ff448b 14
+npm/scripts/utils/depcheck-workflow.mjs
+  s_df1ab22cafde9c::t_c28f61aa284cc7 26-29,33-41,47-50
+  s_df1ab22cafde9c::t_205298ee672254 107
+  s_df1ab22cafde9c::t_74dd11de53a763 42-46
+  s_df1ab22cafde9c::t_bbcbb00f720f1a 59
+CLAUDE.md
+  s_df1ab22cafde9c::t_aedfbe1287a9c3 8
+npm/scripts/lint-conftest.mjs
+  s_df1ab22cafde9c::t_822fb255765dd2 234
+  s_df1ab22cafde9c::t_3a26255a87e6eb 74-82
+  s_df1ab22cafde9c::t_dea5b80ca7aa06 218
+  s_df1ab22cafde9c::t_480f9cd4b4d349 242
+  s_df1ab22cafde9c::t_d3e8ad8a219a4f 256
+  s_df1ab22cafde9c::t_c30308642eb7ea 366
+  s_df1ab22cafde9c::t_ca80b6e21f4569 226
+npm/scripts/utils/bun-sql-scan.mjs
+  s_df1ab22cafde9c::t_c32715489915d1 59-61
+  s_df1ab22cafde9c::t_65b24941a33a48 291-294,296-300
+  s_df1ab22cafde9c::t_7b9233016b37b4 286-288
+  s_df1ab22cafde9c::t_a393202773cef8 333-334
+  s_df1ab22cafde9c::t_5fdb1d7e931061 424-427,429-430,437-463
+npm/scripts/sync-claude-config.mjs
+  s_df1ab22cafde9c::t_275ef82088b4c9 24
+npm/scripts/lint-ga.mjs
+  s_df1ab22cafde9c::t_24b35747477dd4 217
+AGENTS.md
+  s_df1ab22cafde9c::t_aedfbe1287a9c3 21-22
+npm/scripts/check-k8s.mjs
+  s_df1ab22cafde9c::t_c7a45c09125d74 6346-6359,6367-6368,6370-6371,6373,6375-6377,6382,6386,6388,6390-6392,6394-6405,6407-6408,6410-6412
+  s_df1ab22cafde9c::t_3b25cb5b58f77b 329-339
+  s_df1ab22cafde9c::t_f12366f4b0f485 6374,6393
+  s_df1ab22cafde9c::t_90eed981cfe7d3 5596,5612,5617-5650
+  s_df1ab22cafde9c::t_aec5e57c6c4dad 6413,6415
+  s_df1ab22cafde9c::t_283809d668c704 6450
+  s_df1ab22cafde9c::t_2fbaf451c7873f 5237-5241
+  s_df1ab22cafde9c::t_803f1764d8e9df 6409
+  s_df1ab22cafde9c::t_531d5c0be6e9f0 328
+  s_df1ab22cafde9c::t_69f177c26b58fa 680-698
+  s_df1ab22cafde9c::t_d7b666d048e4dc 6372
+  s_df1ab22cafde9c::t_40eec0fe48efd4 6414
+  s_df1ab22cafde9c::t_9ba881f4e6534b 2607
+npm/scripts/utils/ast-scan-utils.mjs
+  s_df1ab22cafde9c::t_4abaadbce398cb 178-205
+.n-cursor.json
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 7,22
+npm/tests/check-image-avif.test.mjs
+  s_df1ab22cafde9c::t_c7dd1683c343d9 27
+  s_df1ab22cafde9c::t_4dd0836224fcce 183
+  s_df1ab22cafde9c::t_f39d4cd794b2d0 28-29
+npm/CHANGELOG.md
+  s_df1ab22cafde9c::t_043162bb97139c 7-12
+npm/scripts/check-bun.mjs
+  s_df1ab22cafde9c::t_69d6ace80cdc78 107,109-110
+npm/scripts/auto-skills.mjs
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 15-22
+npm/scripts/check-php.mjs
+  s_df1ab22cafde9c::t_3e7f69c7ef8d9c 18,20,30,32-33
+npm/tests/conn-file-rules.test.mjs
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 7
+npm/tests/check-image-compress.test.mjs
+  s_df1ab22cafde9c::t_1d7c48e172bfb9 8
+npm/package.json
+  s_df1ab22cafde9c::t_b351aad5990009 3
+.cspell.json
+  s_df1ab22cafde9c::t_6fb209a4553f26 432-478
+  s_df1ab22cafde9c::t_f6ae1e5b6077ae 13
+npm/tests/check-js-run-fixture.test.mjs
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 133
+npm/scripts/run-shellcheck-text.mjs
+  s_df1ab22cafde9c::t_37b4875c14625f 68-70,75-85
+npm/tests/check-k8s-schema.test.mjs
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 316,330,344,358,372,386,2070-2071
+  s_df1ab22cafde9c::t_455c9f597da067 2060-2069,2072-2073,2075,2077
+npm/scripts/check-npm-module.mjs
+  s_df1ab22cafde9c::t_0fc8803a7a737d 198
+npm/mdc/ci4.mdc
+  s_df1ab22cafde9c::t_12584e944658c8 2,7-15,17-47
+  h_74546f1f1ded3e 1,3-6,48-51
+  s_df1ab22cafde9c::t_b17107ca843fd4 16
+npm/scripts/utils/bunyan-imports.mjs
+  s_df1ab22cafde9c::t_45947b041e9829 59
+  s_df1ab22cafde9c::t_2ebef4fe36a8ed 14-21,23
+.jscpd.json
+  s_df1ab22cafde9c::t_e78a70e97019a9 12
+  s_df1ab22cafde9c::t_c50566757d7c52 13-14
+npm/scripts/claude-stop-hook.mjs
+  s_df1ab22cafde9c::t_20433aa56b29cb 11
+  s_df1ab22cafde9c::t_0d5225f7af8d7b 3
+npm/bin/n-cursor.js
+  s_df1ab22cafde9c::t_ec7eb929050803 1140-1141
+  s_df1ab22cafde9c::t_257d97a161062f 1349-1354
+npm/scripts/check-changelog.mjs
+  s_df1ab22cafde9c::t_2b1bde49ee53db 163-164
+npm/skills/llm-patch/SKILL.md
+  s_df1ab22cafde9c::t_348bd7a908c080 170,194,209
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 91,93,126-128
+  s_df1ab22cafde9c::t_fdb4592f3ee51c 8-11
+  s_df1ab22cafde9c::t_87078cac939a22 99,130,169,206
+npm/scripts/check-js-run.mjs
+  s_df1ab22cafde9c::t_f3417780b2e018 321,325-326
+  s_df1ab22cafde9c::t_c6a9f0988be022 210,214,220-257
+  s_df1ab22cafde9c::t_e5b058c5c015b9 426-429,432,434
+  s_df1ab22cafde9c::t_7b4f4faa029ded 367
+  s_df1ab22cafde9c::t_639d953792067b 412-415,419,422
+npm/scripts/utils/conn-file-rules.mjs
+  s_df1ab22cafde9c::t_d9d40c18ea67d5 71
+  s_df1ab22cafde9c::t_54b38096380898 83-86
+  s_df1ab22cafde9c::t_72d7f720f5eee6 22-23,25-31
+  s_df1ab22cafde9c::t_b2e48face0aa4f 49,70
+npm/scripts/check-image-avif.mjs
+  s_df1ab22cafde9c::t_c177f134d9ffee 8
+  s_df1ab22cafde9c::t_e012940fcb79b2 30
+  s_df1ab22cafde9c::t_c5a79d0a20cbe2 283
+  s_df1ab22cafde9c::t_23bf2093b9aaf5 313-320
+  s_df1ab22cafde9c::t_7244d744a5e507 303
+  s_df1ab22cafde9c::t_4ab1eaeffdb373 37
+.cursor/skills/n-llm-patch/SKILL.md
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 91,93,126-128
+  s_df1ab22cafde9c::t_bafb1d38ee9033 99
+  s_df1ab22cafde9c::t_9d10676d0f1924 8-11
+  s_df1ab22cafde9c::t_348bd7a908c080 170,194,209
+  s_df1ab22cafde9c::t_87078cac939a22 130,169,206
+docs/superpowers/specs/2026-05-10-ci4-model-design.md
+  s_df1ab22cafde9c::t_7056ce8ba1e0e4 77-84,121-131,164-166,174-178,192-197
+npm/scripts/utils/redis-imports.mjs
+  s_df1ab22cafde9c::t_e81c44dd1be528 22-29
+  s_df1ab22cafde9c::t_7ee99e1689d893 91
+.markdownlint-cli2.jsonc
+  s_df1ab22cafde9c::t_2cf7d4991e171e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "db94c51ddd604d8fa4acb6539489c6b60776d557",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_df1ab22cafde9c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "861696eb-e680-4754-9beb-b0840a3b4eff",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
