@@ -214,7 +214,7 @@ export function runLintGaCli() {
  * Поведінка fallback:
  * - якщо `conftest` не знайдено в PATH — друкуємо `ℹ` повідомлення з підказкою встановлення й
  *   повертаємо 0 (тобто конфтест поки що **не** є обовʼязковою залежністю lint-ga; перевірки лежать
- *   паралельно в `check-ga.mjs`, і `npx @nitra/cursor check ga` все одно їх запустить);
+ *   паралельно в `check-ga.mjs`, і `npx \@nitra/cursor check ga` все одно їх запустить);
  * - якщо `conftest` є й полісі-каталог відсутній (нетипова інсталяція) — також `ℹ` skip;
  * - якщо є цільовий workflow і conftest — запускаємо `conftest test <workflow> -p <policy-dir>` і
  *   повертаємо його exit-код, щоб порушення зупиняли lint-ga, як це робить actionlint/zizmor.

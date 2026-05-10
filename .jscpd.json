@@ -9,6 +9,8 @@
     "npm/.claude-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
-    "npm/scripts/utils/oxlint-canonical.json"
+    "npm/scripts/utils/oxlint-canonical.json",
+    "docs/adr/_inbox/**",
+    "docs/superpowers/**"
   ]
 }

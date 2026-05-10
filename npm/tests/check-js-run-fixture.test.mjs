@@ -130,7 +130,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test("1, якщо src/conn/mssql-write.js експортує не mssqlWrite, а mssqlWriter", async () => {
+  test('1, якщо src/conn/mssql-write.js експортує не mssqlWrite, а mssqlWriter', async () => {
     await withTmpCwd(async () => {
       await writeRootWithWorkspacePkg({ '@nitra/pino': '^1.0.0' })
       await mkdir(join('pkg', 'src', 'conn'), { recursive: true })

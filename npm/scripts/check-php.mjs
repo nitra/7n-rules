@@ -15,9 +15,9 @@ import { createCheckReporter } from './utils/check-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам php.mdc.
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @returns {number} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
@@ -27,10 +27,10 @@ export async function check() {
     fail('composer.json не знайдено в корені — додай (php.mdc)')
   }
 
-  if (!existsSync('package.json')) {
-    fail('package.json не знайдено в корені — додай (php.mdc)')
-  } else {
+  if (existsSync('package.json')) {
     pass('package.json є (наявність lint-php перевіряє bun run lint-conftest → php.package_json)')
+  } else {
+    fail('package.json не знайдено в корені — додай (php.mdc)')
   }
 
   const wfPath = '.github/workflows/lint-php.yml'

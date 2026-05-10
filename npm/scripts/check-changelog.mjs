@@ -160,9 +160,8 @@ async function readBaseVersion(baseRef, ws) {
  * @returns {boolean} `true`, якщо запис для `version` знайдено
  */
 function changelogHasVersionEntry(text, version) {
-  const escaped = version.replaceAll(/[.+*?^$()[\]{}|\\]/g, String.raw`\$&`)
-  const re = new RegExp(String.raw`^##\s+\[${escaped}\]`, 'm')
-  return re.test(text)
+  const needle = `## [${version}]`
+  return text.startsWith(needle) || text.includes(`\n${needle}`)
 }
 
 /**

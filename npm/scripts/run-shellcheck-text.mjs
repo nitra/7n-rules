@@ -65,22 +65,25 @@ function printPatchInstallHints() {
  * @returns {string[]} відсортований масив шляхів відносно cwd
  */
 export function listShellScriptPaths(cwd) {
-  const gitOk = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
-    cwd,
-    encoding: 'utf8',
-    env: process.env
-  })
-  if (gitOk.status === 0 && gitOk.stdout.trim() === 'true') {
-    const ls = spawnSync('git', ['ls-files', '-z', '--', ':(glob)**/*.sh'], {
+  const gitPath = resolveCmd('git')
+  if (gitPath) {
+    const gitOk = spawnSync(gitPath, ['rev-parse', '--is-inside-work-tree'], {
       cwd,
       encoding: 'utf8',
       env: process.env
     })
-    if (ls.status !== 0) {
-      return []
+    if (gitOk.status === 0 && gitOk.stdout.trim() === 'true') {
+      const ls = spawnSync(gitPath, ['ls-files', '-z', '--', ':(glob)**/*.sh'], {
+        cwd,
+        encoding: 'utf8',
+        env: process.env
+      })
+      if (ls.status !== 0) {
+        return []
+      }
+      const files = ls.stdout.split('\0').filter(Boolean)
+      return new Set(files).toSorted()
     }
-    const files = ls.stdout.split('\0').filter(Boolean)
-    return new Set(files).toSorted()
   }
 
   const fromGlob = globSync('**/*.sh', {
@@ -114,51 +117,87 @@ export function runShellcheckText(cwd = process.cwd()) {
   }
 
   for (const rel of files) {
-    for (let round = 0; round < MAX_FIX_ROUNDS_PER_FILE; round++) {
-      const diffResult = spawnSync(shellcheck, ['-f', 'diff', rel], {
-        cwd: root,
-        encoding: 'utf8',
-        env: process.env,
-        maxBuffer: 10 * 1024 * 1024
-      })
-
-      if (diffResult.error) {
-        process.stderr.write(`${diffResult.error.message}\n`)
-        return 1
-      }
-
-      const code = diffResult.status ?? 1
-      const out = (diffResult.stdout ?? '').trim()
-      const err = (diffResult.stderr ?? '').trim()
-
-      if (code === 0) {
-        break
-      }
-
-      if (err.includes(NON_AUTOFIXABLE_HINT) || !out) {
-        break
-      }
-
-      const patchRun = spawnSync(patchBin, ['-p1'], {
-        cwd: root,
-        input: diffResult.stdout ?? '',
-        encoding: 'utf8',
-        env: process.env
-      })
-
-      if (patchRun.status !== 0) {
-        if (patchRun.stderr?.length) {
-          process.stderr.write(patchRun.stderr)
-        }
-        if (patchRun.stdout?.length) {
-          process.stderr.write(patchRun.stdout)
-        }
-        process.stderr.write(`run-shellcheck-text: patch не застосував diff для ${rel}\n`)
-        return 1
-      }
-    }
+    const fixCode = autofixOneFile(shellcheck, patchBin, root, rel)
+    if (fixCode !== 0) return fixCode
   }
 
+  return runFinalShellcheck(shellcheck, files, root)
+}
+
+/**
+ * Запускає до `MAX_FIX_ROUNDS_PER_FILE` ітерацій `shellcheck -f diff` + `patch` для одного файла.
+ * Виходить з 0 у випадках: shellcheck повернув 0, нема autofixable, або порожній diff.
+ * @param {string} shellcheck абсолютний шлях до shellcheck
+ * @param {string} patchBin абсолютний шлях до patch
+ * @param {string} root абсолютний робочий каталог (cwd для spawn)
+ * @param {string} rel відносний шлях файла від `root`
+ * @returns {number} 0 — OK; 1 — помилка spawn або patch
+ */
+function autofixOneFile(shellcheck, patchBin, root, rel) {
+  for (let round = 0; round < MAX_FIX_ROUNDS_PER_FILE; round++) {
+    const diffResult = spawnSync(shellcheck, ['-f', 'diff', rel], {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+      maxBuffer: 10 * 1024 * 1024
+    })
+    if (diffResult.error) {
+      process.stderr.write(`${diffResult.error.message}\n`)
+      return 1
+    }
+    if (shouldStopAutofixLoop(diffResult)) return 0
+    const patchCode = applyShellcheckDiff(patchBin, root, rel, diffResult.stdout ?? '')
+    if (patchCode !== 0) return patchCode
+  }
+  return 0
+}
+
+/**
+ * Чи треба зупинити цикл авто-фіксів: shellcheck повернув 0, або у stderr є пометка
+ * `none were auto-fixable`, або stdout порожній (нема дифу для застосування).
+ * @param {{ status: number | null, stdout?: string | null, stderr?: string | null }} diffResult результат spawnSync
+ * @returns {boolean} true — більше нічого фіксити
+ */
+function shouldStopAutofixLoop(diffResult) {
+  const code = diffResult.status ?? 1
+  if (code === 0) return true
+  const out = (diffResult.stdout ?? '').trim()
+  const err = (diffResult.stderr ?? '').trim()
+  return err.includes(NON_AUTOFIXABLE_HINT) || !out
+}
+
+/**
+ * Застосовує `shellcheck -f diff`-вивід через `patch -p1`. На помилку виливає stdout/stderr від patch
+ * у `process.stderr` (щоб користувач бачив, чому не застосувалося) і повертає 1.
+ * @param {string} patchBin абсолютний шлях до patch
+ * @param {string} root cwd для spawn
+ * @param {string} rel відносний шлях для повідомлення про помилку
+ * @param {string} diffStdout вміст unified-diff від shellcheck (input для patch)
+ * @returns {number} 0 — застосовано; 1 — помилка
+ */
+function applyShellcheckDiff(patchBin, root, rel, diffStdout) {
+  const patchRun = spawnSync(patchBin, ['-p1'], {
+    cwd: root,
+    input: diffStdout,
+    encoding: 'utf8',
+    env: process.env
+  })
+  if (patchRun.status === 0) return 0
+  if (patchRun.stderr?.length) process.stderr.write(patchRun.stderr)
+  if (patchRun.stdout?.length) process.stderr.write(patchRun.stdout)
+  process.stderr.write(`run-shellcheck-text: patch не застосував diff для ${rel}\n`)
+  return 1
+}
+
+/**
+ * Фінальний прогон `shellcheck` по всіх файлах — без `-f diff`, щоб отримати звичайний звіт.
+ * Будь-який ненульовий код shellcheck-а пробрасує як 1 (з виводом stdout/stderr на користувацькі stream-и).
+ * @param {string} shellcheck абсолютний шлях до shellcheck
+ * @param {string[]} files відносні шляхи файлів для перевірки
+ * @param {string} root cwd для spawn
+ * @returns {number} 0 — чисто; 1 — помилка spawn або зауваження shellcheck
+ */
+function runFinalShellcheck(shellcheck, files, root) {
   const finalRun = spawnSync(shellcheck, files, {
     cwd: root,
     encoding: 'utf8',
@@ -166,23 +205,14 @@ export function runShellcheckText(cwd = process.cwd()) {
     maxBuffer: 10 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe']
   })
-
   if (finalRun.error) {
     process.stderr.write(`${finalRun.error.message}\n`)
     return 1
   }
-
-  if (finalRun.status !== 0) {
-    if (finalRun.stdout?.length) {
-      process.stdout.write(finalRun.stdout)
-    }
-    if (finalRun.stderr?.length) {
-      process.stderr.write(finalRun.stderr)
-    }
-    return 1
-  }
-
-  return 0
+  if (finalRun.status === 0) return 0
+  if (finalRun.stdout?.length) process.stdout.write(finalRun.stdout)
+  if (finalRun.stderr?.length) process.stderr.write(finalRun.stderr)
+  return 1
 }
 
 if (isRunAsCli()) {

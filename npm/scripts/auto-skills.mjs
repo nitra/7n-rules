@@ -12,7 +12,14 @@
  */
 
 /** Порядок автододавання skills відповідно до `auto-skills.md`. */
-export const AUTO_SKILL_ORDER = Object.freeze(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
+export const AUTO_SKILL_ORDER = Object.freeze([
+  'abie-kustomize',
+  'fix',
+  'lint',
+  'llm-patch',
+  'publish-telegram',
+  'taze'
+])
 
 /**
  * Залежність скілів від правил (`auto-skills.md` синтаксис `skill - [rules]`).

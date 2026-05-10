@@ -207,33 +207,54 @@ async function checkConnFileNamingAndExports(absPackageRoot, sourcePaths, pkgJso
   let violations = 0
   for (const absPath of sourcePaths) {
     const rel = relPosix(absPackageRoot, absPath)
-    if (!isInsideConnDir(rel, connDir)) continue
-    if (!isConnFileRulesSourceFile(rel)) continue
-    // пропускаємо реекспортний барель `index.*` (якщо знадобиться) і прихований .d.ts
-    const base = rel.slice(rel.lastIndexOf('/') + 1)
-    if (base.startsWith('index.')) continue
-
+    if (!isConnFileToCheck(rel, connDir)) continue
     const content = await readFile(absPath, 'utf8')
     for (const v of findConnFileRuleViolations(content, rel)) {
       violations++
-      if (v.kind === 'name') {
-        fail(
-          `${label}${rel} — назва файла в '${connDir}/' не відповідає канону js-run: ` +
-            `'ql-<id>', 'pg-{read|write}[-<id>]', 'mysql-{read|write}[-<id>]' або 'mssql-{read|write}[-<id>]' ` +
-            `(kebab-case, [a-z0-9-])`
-        )
-      } else if (v.kind === 'default-export') {
-        fail(`${label}${rel} — 'export default' заборонений у '${connDir}/'; зроби іменований експорт`)
-      } else {
-        const found = v.foundNames?.length ? v.foundNames.join(', ') : '—'
-        fail(
-          `${label}${rel} — очікується іменований експорт 'export const ${v.expectedName} = …' ` +
-            `(camelCase від назви файла); знайдено: ${found}`
-        )
-      }
+      fail(formatConnFileViolation(v, label, rel, connDir))
     }
   }
   return violations
+}
+
+/**
+ * Чи `rel` — це conn-файл, який треба валідувати: під `connDir/`, з JS/TS-розширенням,
+ * не `index.*` (який є реекспортним барелем).
+ * @param {string} rel відносний шлях у posix-форматі
+ * @param {string} connDir каталог conn-файлів (наприклад `src/conn`)
+ * @returns {boolean} true, якщо файл потрібно перевірити
+ */
+function isConnFileToCheck(rel, connDir) {
+  if (!isInsideConnDir(rel, connDir)) return false
+  if (!isConnFileRulesSourceFile(rel)) return false
+  const base = rel.slice(rel.lastIndexOf('/') + 1)
+  return !base.startsWith('index.')
+}
+
+/**
+ * Будує повідомлення про конкретне порушення canon-у файла з `connDir/`.
+ * @param {{ kind: 'name' | 'default-export' | 'export-name', expectedName?: string, foundNames?: string[] }} v опис порушення
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {string} rel відносний шлях файла
+ * @param {string} connDir каталог conn-файлів
+ * @returns {string} повний текст повідомлення для `fail(...)`
+ */
+function formatConnFileViolation(v, label, rel, connDir) {
+  if (v.kind === 'name') {
+    return (
+      `${label}${rel} — назва файла в '${connDir}/' не відповідає канону js-run: ` +
+      `'ql-<id>', 'pg-{read|write}[-<id>]', 'mysql-{read|write}[-<id>]' або 'mssql-{read|write}[-<id>]' ` +
+      `(kebab-case, [a-z0-9-])`
+    )
+  }
+  if (v.kind === 'default-export') {
+    return `${label}${rel} — 'export default' заборонений у '${connDir}/'; зроби іменований експорт`
+  }
+  const found = v.foundNames?.length ? v.foundNames.join(', ') : '—'
+  return (
+    `${label}${rel} — очікується іменований експорт 'export const ${v.expectedName} = …' ` +
+    `(camelCase від назви файла); знайдено: ${found}`
+  )
 }
 
 /**
@@ -297,12 +318,12 @@ async function checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, f
 async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, passFn) {
   const label = `[${rootDir}] `
   const absPackageRoot = join(process.cwd(), rootDir)
-  const pkgJson = await loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail)
+  const pkgJson = await loadPackageJson(rootDir)
 
   // Frontend-пакети (vite у devDependencies) виходять за межі js-run:
   // браузерний бандл не має `node:process`, а `process.env.*` бандлер
-  // обробляє самостійно. Перевірку process.env / conn-аліасів пропускаємо,
-  // bunyan-залежність уже звірено в `loadPackageJsonAndCheckBunyanDeps`.
+  // обробляє самостійно. Перевірку process.env / conn-аліасів пропускаємо;
+  // bunyan-залежність валідується в Rego (`bun run lint-conftest`).
   if (packageJsonHasViteDevDependency(pkgJson)) {
     passFn(`${label}vite-пакет (frontend) — js-run пропущено (process.env / conn-aliases / OTEL configmap)`)
     return
@@ -343,7 +364,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, workflows, fail, pass
     passFn(`${label}немає 'new Promise(r => setTimeout(r, ms))' — паузи через 'node:timers/promises'`)
   }
 
-  await checkOtelConfigmap(rootDir, label, fail, passFn)
+  checkOtelConfigmap(rootDir, passFn)
 
   checkDepcheckInWorkflows(rootDir, workflows, label, fail, passFn)
 }
@@ -388,41 +409,31 @@ function packageJsonHasViteDevDependency(pkgJson) {
 }
 
 /**
- * Завантажує `package.json` пакета (якщо є) і реєструє порушення для bunyan-залежностей.
+ * Завантажує `package.json` пакета (якщо є). Заборону `@nitra/bunyan` / `bunyan`
+ * у dependencies/devDependencies перенесено в Rego (`npm/policy/js_run/package_json/`);
+ * `bun run lint-conftest` запускає її по всіх workspace `package.json`. Тут лишилася
+ * лише AST-перевірка імпортів.
  * @param {string} rootDir відносний шлях workspace
- * @param {string} label префікс повідомлення `[<pkg>] `
- * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<unknown>} розпарсений package.json або null
  */
-async function loadPackageJsonAndCheckBunyanDeps(rootDir, label, fail) {
+async function loadPackageJson(rootDir) {
   const pkgPath = join(rootDir, 'package.json')
   if (!existsSync(pkgPath)) return null
-  const pkgJson = JSON.parse(await readFile(pkgPath, 'utf8'))
-  // Заборону `@nitra/bunyan` / `bunyan` у dependencies/devDependencies перенесено
-  // в Rego (`npm/policy/js_run/package_json/`); `bun run lint-conftest` запускає
-  // її по всіх workspace `package.json`. Тут лишилася лише AST-перевірка імпортів.
-  void label
-  void fail
-  return pkgJson
+  return JSON.parse(await readFile(pkgPath, 'utf8'))
 }
 
 /**
- * Перевіряє вміст `k8s/base/configmap.yaml` пакета на наявність OTEL_RESOURCE_ATTRIBUTES
- * з обов'язковими `service.name=` та `service.namespace=` всередині.
+ * Перевіряє наявність `k8s/base/configmap.yaml` пакета. Структуру (наявність
+ * `OTEL_RESOURCE_ATTRIBUTES` з обов'язковими `service.name=` / `service.namespace=`)
+ * перенесено в Rego (`npm/policy/js_run/configmap/`); `bun run lint-conftest`
+ * запускає її на всіх `k8s/base/configmap.yaml`.
  * @param {string} rootDir відносний шлях workspace
- * @param {string} label префікс повідомлення `[<pkg>] `
- * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn успішне повідомлення
- * @returns {Promise<void>} завершується після перевірки configmap
+ * @returns {void}
  */
-function checkOtelConfigmap(rootDir, label, fail, passFn) {
+function checkOtelConfigmap(rootDir, passFn) {
   const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
   if (!existsSync(configmapPath)) return
-  // Перевірку `OTEL_RESOURCE_ATTRIBUTES` має містити `service.name=` /
-  // `service.namespace=` перенесено в Rego (`npm/policy/js_run/configmap/`);
-  // `bun run lint-conftest` запускає її на всіх `k8s/base/configmap.yaml`.
-  void label
-  void fail
   passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — bun run lint-conftest → js_run.configmap)`)
 }
 

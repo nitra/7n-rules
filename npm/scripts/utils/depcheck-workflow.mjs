@@ -23,8 +23,31 @@ import { flattenWorkflowSteps, getStepRun, parseWorkflowYaml } from './gha-workf
 
 const WORKFLOWS_DIR_REL = '.github/workflows'
 const REQUIRED_IGNORES = ['graphql', 'bun']
-const DEPCHECK_RUN_RE = /(?:^|[\s;&|])npx\s+depcheck\b([^\n]*)/u
-const IGNORES_FLAG_RE = /--ignores\s*=?\s*(?:"([^"]*)"|'([^']*)'|([^\s"']+))/u
+// `npx depcheck` як ціла команда у одному рядку shell-скрипту.
+// `[^\n]*` обмежено явним `\n`-stop'ом — `*` не може backtrack-нутися за межі рядка.
+const DEPCHECK_RUN_RE = /(?:^|[\s;&|])npx[ \t]+depcheck\b([^\n]*)/u
+// `--ignores=…` або `--ignores …` з трьома формами значення (двійкові, одинарні, без лапок).
+// Розділювач — або `=` з опційними пробілами, або один+ пробіл. Альтернативи значення
+// не перетинаються (стартують з різних символів), тож backtrack-у між ними нема.
+const IGNORES_FLAG_RE = /--ignores(?:=[ \t]*|[ \t]+)(?:"([^"]*)"|'([^']*)'|([^\s"']+))/u
+
+/**
+ * Нормалізує шлях: бекслеші → forward, обрізає trailing-слеші. Без regex-у на trailing,
+ * щоб не тригерити `sonarjs/slow-regex` на `\/+$`.
+ * @param {string} p вхідний шлях
+ * @returns {string} нормалізований шлях
+ */
+function normalizePath(p) {
+  let end = p.length
+  while (end > 0) {
+    const cp = p.codePointAt(end - 1)
+    if (cp !== 47 && cp !== 92) break
+    end--
+  }
+  let out = end === p.length ? p : p.slice(0, end)
+  if (out.includes('\\')) out = out.replaceAll('\\', '/')
+  return out
+}
 
 /**
  * Чи містить workflow.on[event].paths хоча б один patten, що починається з `<pkgRoot>/`.
@@ -33,7 +56,7 @@ const IGNORES_FLAG_RE = /--ignores\s*=?\s*(?:"([^"]*)"|'([^']*)'|([^\s"']+))/u
  * @returns {boolean} `true`, якщо знайдено хоча б один підходящий glob
  */
 export function workflowHasPathsScopedToPackage(root, pkgRoot) {
-  const prefix = `${pkgRoot.replaceAll('\\', '/').replace(/\/+$/, '')}/`
+  const prefix = `${normalizePath(pkgRoot)}/`
   const on = root?.on
   if (!on || typeof on !== 'object') return false
   for (const event of /** @type {const} */ (['push', 'pull_request'])) {
@@ -81,9 +104,7 @@ export function extractDepcheckArgs(runText) {
 export function stepWorkingDirectoryEquals(step, pkgRoot) {
   const wd = step['working-directory']
   if (typeof wd !== 'string') return false
-  const norm = wd.replaceAll('\\', '/').replace(/\/+$/, '')
-  const expected = pkgRoot.replaceAll('\\', '/').replace(/\/+$/, '')
-  return norm === expected
+  return normalizePath(wd) === normalizePath(pkgRoot)
 }
 
 /**

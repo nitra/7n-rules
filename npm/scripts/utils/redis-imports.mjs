@@ -19,7 +19,14 @@
  */
 import { parseSync } from 'oxc-parser'
 
-import { langFromPath, normalizeSnippet, offsetToLine } from './ast-scan-utils.mjs'
+import {
+  dynamicImportModule,
+  langFromPath,
+  normalizeSnippet,
+  offsetToLine,
+  requireCallModule,
+  walkAstWithAncestors
+} from './ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const FORBIDDEN_MODULE_NAMES = new Set([
@@ -46,55 +53,6 @@ const FORBIDDEN_MODULE_NAMES = new Set([
 function isForbiddenRedisModule(mod) {
   if (FORBIDDEN_MODULE_NAMES.has(mod)) return true
   return mod.startsWith('ioredis/') || mod.startsWith('redis/') || mod.startsWith('@redis/')
-}
-
-/**
- * Перевіряє, чи це виклик `require('<module>')` з рядковим аргументом.
- * @param {Record<string, unknown> | null | undefined} node вузол AST
- * @returns {string | null} ім'я модуля з аргументу, інакше `null`
- */
-function requireCallModule(node) {
-  if (!node || node.type !== 'CallExpression') return null
-  const callee = node.callee
-  if (!callee || callee.type !== 'Identifier' || callee.name !== 'require') return null
-  const arg = node.arguments?.[0]
-  if (!arg || arg.type !== 'Literal' || typeof arg.value !== 'string') return null
-  return arg.value
-}
-
-/**
- * Перевіряє, чи це динамічний `import('<module>')` з рядковим аргументом.
- * @param {Record<string, unknown> | null | undefined} node вузол AST
- * @returns {string | null} ім'я модуля, інакше `null`
- */
-function dynamicImportModule(node) {
-  if (!node || node.type !== 'ImportExpression') return null
-  const src = node.source
-  if (!src || src.type !== 'Literal' || typeof src.value !== 'string') return null
-  return src.value
-}
-
-/**
- * Простий рекурсивний обхід AST: заходимо в усі обʼєкти/масиви, щоб знайти require/import-вузли.
- * @param {unknown} node корінь або під-вузол AST
- * @param {(n: unknown) => void} visit виклик для кожного обʼєкта-вузла
- * @returns {void}
- */
-function walkAst(node, visit) {
-  if (!node || typeof node !== 'object') return
-  if (Array.isArray(node)) {
-    for (const item of node) walkAst(item, visit)
-    return
-  }
-  if (typeof node.type === 'string') {
-    visit(node)
-  }
-  for (const key of Object.keys(node)) {
-    if (key !== 'parent') {
-      const v = node[key]
-      if (v && typeof v === 'object') walkAst(v, visit)
-    }
-  }
 }
 
 /**
@@ -130,7 +88,7 @@ export function findRedisImportsInText(content, virtualPath = 'scan.ts') {
     }
   }
 
-  walkAst(result.program, node => {
+  walkAstWithAncestors(result.program, [], node => {
     const reqMod = requireCallModule(node)
     if (reqMod && isForbiddenRedisModule(reqMod)) {
       out.push({

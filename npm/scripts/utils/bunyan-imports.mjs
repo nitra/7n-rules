@@ -11,68 +11,17 @@
  */
 import { parseSync } from 'oxc-parser'
 
-import { langFromPath, offsetToLine } from './ast-scan-utils.mjs'
+import {
+  dynamicImportModule,
+  langFromPath,
+  normalizeSnippet,
+  offsetToLine,
+  requireCallModule,
+  walkAstWithAncestors
+} from './ast-scan-utils.mjs'
 
-const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
+const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const FORBIDDEN_MODULES = new Set(['@nitra/bunyan', 'bunyan'])
-
-/**
- * Стискає пробіли для повідомлення про порушення.
- * @param {string} s фрагмент коду
- * @returns {string} скорочений однорядковий рядок
- */
-function normalizeSnippet(s) {
-  return s.replaceAll(/\s+/g, ' ').trim().slice(0, 160)
-}
-
-/**
- * Перевіряє, чи це виклик `require('<module>')` з рядковим аргументом.
- * @param {Record<string, unknown> | null | undefined} node вузол AST
- * @returns {string | null} ім'я модуля з аргументу, інакше `null`
- */
-function requireCallModule(node) {
-  if (!node || node.type !== 'CallExpression') return null
-  const callee = node.callee
-  if (!callee || callee.type !== 'Identifier' || callee.name !== 'require') return null
-  const arg = node.arguments?.[0]
-  if (!arg || arg.type !== 'Literal' || typeof arg.value !== 'string') return null
-  return arg.value
-}
-
-/**
- * Перевіряє, чи це динамічний `import('<module>')` з рядковим аргументом.
- * @param {Record<string, unknown> | null | undefined} node вузол AST
- * @returns {string | null} ім'я модуля, інакше `null`
- */
-function dynamicImportModule(node) {
-  if (!node || node.type !== 'ImportExpression') return null
-  const src = node.source
-  if (!src || src.type !== 'Literal' || typeof src.value !== 'string') return null
-  return src.value
-}
-
-/**
- * Простий рекурсивний обхід AST: заходимо в усі об'єкти/масиви, щоб знайти require/import-вузли.
- * @param {unknown} node корінь або під-вузол AST
- * @param {(n: unknown) => void} visit виклик для кожного об'єкта-вузла
- * @returns {void}
- */
-function walkAst(node, visit) {
-  if (!node || typeof node !== 'object') return
-  if (Array.isArray(node)) {
-    for (const item of node) walkAst(item, visit)
-    return
-  }
-  if (typeof node.type === 'string') {
-    visit(node)
-  }
-  for (const key of Object.keys(node)) {
-    if (key !== 'parent') {
-      const v = node[key]
-      if (v && typeof v === 'object') walkAst(v, visit)
-    }
-  }
-}
 
 /**
  * Знаходить заборонені імпорти/require з `@nitra/bunyan` у тексті.
@@ -107,7 +56,7 @@ export function findBunyanImportsInText(content, virtualPath = 'scan.ts') {
     }
   }
 
-  walkAst(result.program, node => {
+  walkAstWithAncestors(result.program, [], node => {
     const reqMod = requireCallModule(node)
     if (reqMod && FORBIDDEN_MODULES.has(reqMod)) {
       out.push({

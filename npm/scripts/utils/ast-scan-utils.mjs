@@ -175,3 +175,31 @@ export function templateQuasisText(template) {
 export function isSqlListContextTemplate(template) {
   return SQL_LIST_CONTEXT_RE.test(templateQuasisText(template))
 }
+
+/**
+ * Перевіряє, чи це виклик `require('<module>')` з рядковим аргументом.
+ * Спільне для сканерів імпортів (`bunyan-imports`, `redis-imports`, ...).
+ * @param {Record<string, unknown> | null | undefined} node вузол AST
+ * @returns {string | null} ім'я модуля з аргументу, інакше `null`
+ */
+export function requireCallModule(node) {
+  if (!node || node.type !== 'CallExpression') return null
+  const callee = node.callee
+  if (!callee || callee.type !== 'Identifier' || callee.name !== 'require') return null
+  const arg = node.arguments?.[0]
+  if (!arg || arg.type !== 'Literal' || typeof arg.value !== 'string') return null
+  return arg.value
+}
+
+/**
+ * Перевіряє, чи це динамічний `import('<module>')` з рядковим аргументом.
+ * Спільне для сканерів імпортів.
+ * @param {Record<string, unknown> | null | undefined} node вузол AST
+ * @returns {string | null} ім'я модуля, інакше `null`
+ */
+export function dynamicImportModule(node) {
+  if (!node || node.type !== 'ImportExpression') return null
+  const src = node.source
+  if (!src || src.type !== 'Literal' || typeof src.value !== 'string') return null
+  return src.value
+}

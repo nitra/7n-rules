@@ -4,6 +4,7 @@
     "adr",
     "bun",
     "changelog",
+    "ci4",
     "ga",
     "image-avif",
     "image-compress",
@@ -18,11 +19,5 @@
     "text",
     "vue"
   ],
-  "skills": [
-    "fix",
-    "lint",
-    "llm-patch",
-    "publish-telegram",
-    "taze"
-  ]
+  "skills": ["fix", "lint", "llm-patch", "publish-telegram", "taze"]
 }

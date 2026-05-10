@@ -24,6 +24,9 @@ afterAll(() => {
   delete env.NITRA_CURSOR_NO_AVIF_RUN
 })
 
+/** Шукає у тексті App.vue залишок `src="./a.png"` без `.avif` — після rewrite його не має лишатися. */
+const ORIGINAL_PNG_SRC_RE = /src="\.\/a\.png"/u
+
 describe('check-image-avif', () => {
   test('помилка: .vue імпортує raster без .avif (workspace)', async () => {
     await withTmpCwd(async () => {
@@ -177,7 +180,7 @@ describe('check-image-avif', () => {
       expect(await check()).toBe(0)
       const updated = await readFile(join('app/src', 'App.vue'), 'utf8')
       expect(updated).toContain(`src="./a.png.avif"`)
-      expect(updated).not.toMatch(/src="\.\/a\.png"/)
+      expect(updated).not.toMatch(ORIGINAL_PNG_SRC_RE)
       expect(existsSync(join('app/src', 'a.png.avif'))).toBe(true)
     })
   })

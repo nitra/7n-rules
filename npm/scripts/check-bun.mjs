@@ -104,10 +104,10 @@ export async function check() {
     fail('Відсутній bun.lock — запусти bun i')
   }
 
-  if (!existsSync('bunfig.toml')) {
-    fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
-  } else {
+  if (existsSync('bunfig.toml')) {
     pass('bunfig.toml є (структуру перевіряє bun run lint-conftest → bun.bunfig)')
+  } else {
+    fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
   }
 
   const cursorRules = await loadNCursorRules()

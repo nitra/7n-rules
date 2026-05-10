@@ -313,9 +313,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '512Mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '512Mi' } } }]
           }
         }
       }
@@ -329,9 +327,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: 0.5, memory: '512Mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: 0.5, memory: '512Mi' } } }]
           }
         }
       }
@@ -345,9 +341,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '128Mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '500m', memory: '128Mi' } } }]
           }
         }
       }
@@ -361,9 +355,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '512Mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '512Mi' } } }]
           }
         }
       }
@@ -377,9 +369,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128Mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128Mi' } } }]
           }
         }
       }
@@ -393,9 +383,7 @@ describe('deploymentResourcesViolation', () => {
       spec: {
         template: {
           spec: {
-            containers: [
-              { name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128mi' } } }
-            ]
+            containers: [{ name: 'app', image: 'x:y', resources: { requests: { cpu: '0.02', memory: '128mi' } } }]
           }
         }
       }
@@ -2069,24 +2057,24 @@ resources:
   })
 })
 
-describe('validateComponentsForBaseDeployment', () => {
-  /**
-   * Створює пару `fail`/`pass` колектори для асертів.
-   * @returns {{ fail: (m: string) => void, pass: (m: string) => void, fails: string[], passes: string[] }} лічильники повідомлень
-   */
-  const collectors = () => {
-    /** @type {string[]} */
-    const fails = []
-    /** @type {string[]} */
-    const passes = []
-    return {
-      fail: (m) => fails.push(m),
-      pass: (m) => passes.push(m),
-      fails,
-      passes
-    }
+/**
+ * Створює пару `fail`/`pass` колектори для асертів `validateComponentsForBaseDeployment`.
+ * @returns {{ fail: (m: string) => void, pass: (m: string) => void, fails: string[], passes: string[] }} лічильники повідомлень
+ */
+const collectors = () => {
+  /** @type {string[]} */
+  const fails = []
+  /** @type {string[]} */
+  const passes = []
+  return {
+    fail: m => fails.push(m),
+    pass: m => passes.push(m),
+    fails,
+    passes
   }
+}
 
+describe('validateComponentsForBaseDeployment', () => {
   test('fail, якщо sibling components/ відсутній', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-comp-missing-'))
     const baseDir = join(root, 'k8s', 'base')

@@ -3,9 +3,9 @@
  * ув'язування `.avif`-двійників з посиланнями у `.vue`/`.html`.
  *
  * Дії під час `check image-avif`:
- * 1. `npx @nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
+ * 1. `npx \@nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
  * 2. У кожному workspace-пакеті переписує raster-посилання у `.vue`/`.html` на `.avif`
- *    (де AVIF-двійник реально існує на диску). Pakety з `"@nitra/minify-image": {
+ *    (де AVIF-двійник реально існує на диску). Pakety з `"\@nitra/minify-image": {
  *    "disable-avif": true }` у `package.json` пропускаються.
  * 3. Прибирає AVIF-сироти — `<name>.<ext>.avif`, на які не лишилось жодного посилання
  *    у `.vue`/`.html` репозиторію, видаляються (умова правила: «AVIF лишається лише
@@ -27,13 +27,14 @@ import { env } from 'node:process'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { resolveCmd } from './utils/resolve-cmd.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from './utils/workspaces.mjs'
 
 /** Імʼя CLI-пакета, який генерує AVIF. */
 const MINIFY_PACKAGE_NAME = '@nitra/minify-image'
 
-/** Поле в `package.json` для конфігу @nitra/minify-image (наприклад, `disable-avif`). */
+/** Поле в `package.json` для конфігу `\@nitra/minify-image` (наприклад, `disable-avif`). */
 const PKG_CONFIG_FIELD = '@nitra/minify-image'
 
 /**
@@ -279,7 +280,7 @@ async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) 
 
 /**
  * Чи є в репозиторії хоч один raster-файл, який мав би сенс конвертувати у AVIF.
- * Якщо немає — `npx @nitra/minify-image` нема що робити, тож зайвий запуск пропускаємо
+ * Якщо немає — `npx \@nitra/minify-image` нема що робити, тож зайвий запуск пропускаємо
  * (важливо у тестах: фікстурні `.png`-імпорти посилаються на неіснуючі файли, тож
  * minify-image все одно нічого не згенерує — а зайвий npx-спавн повільний і робить шум).
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
@@ -299,7 +300,7 @@ async function hasAnyRasterImage(ignorePaths) {
 }
 
 /**
- * Запускає `npx @nitra/minify-image --src=. --write --avif` для генерації AVIF-двійників.
+ * Запускає `npx \@nitra/minify-image --src=. --write --avif` для генерації AVIF-двійників.
  *
  * Виклик best-effort: якщо мережа/кеш недоступні чи бінарника нема — лог-варн без падіння
  * перевірки (валідації package.json і vue-refs все одно прогоняться, vue-refs на
@@ -309,7 +310,14 @@ async function hasAnyRasterImage(ignorePaths) {
  */
 function runAvifGeneration() {
   if (env.NITRA_CURSOR_NO_AVIF_RUN === '1') return
-  const result = spawnSync('npx', [MINIFY_PACKAGE_NAME, '--src=.', '--write', '--avif'], {
+  const npxPath = resolveCmd('npx')
+  if (!npxPath) {
+    console.log(
+      `  ⚠️  'npx' не знайдено в PATH — пропускаємо генерацію AVIF; vue/html-перевірка покаже файли, для яких не вистачає .avif`
+    )
+    return
+  }
+  const result = spawnSync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--write', '--avif'], {
     stdio: 'inherit',
     env
   })

@@ -1137,7 +1137,8 @@ async function readBundledVersionAt(packageRoot) {
  * бо ES-модулі вже завантажені у V8 (RULE_MIGRATIONS, detectAutoRules тощо) і нова логіка
  * без повної заміни процесу не підхопиться. Захист від нескінченного циклу — env `NITRA_CURSOR_REEXEC=1`.
  * @param {string} effectivePackageRoot шлях, повернутий `upgradeNitraCursorToLatestAndBunInstall`
- * @returns {Promise<void>} повертається лише якщо re-exec не потрібен (інакше викликає `process.exit`)
+ * @returns {Promise<void>} повертається лише якщо re-exec не потрібен; інакше кидає `ReexecHandoff`,
+ *   який ловить top-level catch і прокидає exit-код у `process.exitCode`
  */
 async function reexecIfPackageVersionChanged(effectivePackageRoot) {
   if (env.NITRA_CURSOR_REEXEC === '1') {
@@ -1167,7 +1168,23 @@ async function reexecIfPackageVersionChanged(effectivePackageRoot) {
   if (result.error) {
     throw result.error
   }
-  process.exit(typeof result.status === 'number' ? result.status : 1)
+  throw new ReexecHandoff(typeof result.status === 'number' ? result.status : 1)
+}
+
+/**
+ * Сентинельна помилка, яку кидає `reexecIfPackageVersionChanged` після успішного re-exec.
+ * Top-level catch розпізнає її й виставляє `process.exitCode = code` без stack-trace —
+ * процес тоді коректно завершується з тим самим кодом, що й child re-exec-у.
+ */
+class ReexecHandoff extends Error {
+  /**
+   * @param {number} code exit-код, який повернув child-процес
+   */
+  constructor(code) {
+    super('reexec-handoff')
+    this.name = 'ReexecHandoff'
+    this.code = code
+  }
 }
 
 /**
@@ -1329,6 +1346,10 @@ try {
       process.exitCode = 1
     }
   }
-} catch {
-  process.exitCode = 1
+} catch (error) {
+  if (error instanceof ReexecHandoff) {
+    process.exitCode = error.code
+  } else {
+    process.exitCode = 1
+  }
 }

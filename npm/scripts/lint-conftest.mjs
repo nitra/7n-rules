@@ -42,7 +42,6 @@ const POLICY_DIR = join(PACKAGE_ROOT, 'policy')
  * в інших скриптах: `node_modules`, `.git`, `dist`, `coverage`, `build`,
  * `.turbo`, `.next`. Не використовуємо bun Glob, щоб не плодити залежності
  * за межами `node:fs`.
- *
  * @typedef {{
  *   namespace: string,
  *   policyDir: string,
@@ -71,6 +70,15 @@ function loadActiveCursorRules(cwd) {
 }
 
 const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', 'build', '.turbo', '.next'])
+
+/** `…/k8s/<env>/configmap.yaml` (configmap безпосередньо у directory `k8s/<…>`). */
+const K8S_CONFIGMAP_PATH_RE = /(^|\/)k8s\/[^/]+\/configmap\.yaml$/u
+/** Будь-який шлях під сегментом `k8s/`. */
+const K8S_DIR_PATH_RE = /(^|\/)k8s\//u
+/** `…/k8s/<…>/hc.yaml` (HealthCheckPolicy будь-де під k8s). */
+const K8S_HC_YAML_PATH_RE = /(^|\/)k8s\/.+\/hc\.yaml$/u
+/** `…/k8s/…/base/…/hr.yaml` (HTTPRoute у base-шарі). */
+const K8S_BASE_HR_YAML_PATH_RE = /(^|\/)k8s\/.*base\/.*hr\.yaml$/u
 
 /** @type {ConftestTarget[]} */
 const TARGETS = [
@@ -207,7 +215,7 @@ const TARGETS = [
     namespace: 'js_run.configmap',
     policyDir: 'js_run',
     rule: 'js-run',
-    walk: { match: rel => /(^|\/)k8s\/[^/]+\/configmap\.yaml$/.test(rel) }
+    walk: { match: rel => K8S_CONFIGMAP_PATH_RE.test(rel) }
   },
 
   // Усі YAML у дереві з сегментом `k8s` — пер-документні структурні правила.
@@ -215,7 +223,7 @@ const TARGETS = [
     namespace: 'k8s.manifest',
     policyDir: 'k8s',
     rule: 'k8s',
-    walk: { match: rel => /(^|\/)k8s\//.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
+    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
   },
 
   // abie HealthCheckPolicy: `hc.yaml` у дереві k8s.
@@ -223,7 +231,7 @@ const TARGETS = [
     namespace: 'abie.health_check_policy',
     policyDir: 'abie',
     rule: 'abie',
-    walk: { match: rel => /(^|\/)k8s\/.+\/hc\.yaml$/.test(rel) }
+    walk: { match: rel => K8S_HC_YAML_PATH_RE.test(rel) }
   },
 
   // abie HTTPRoute у `base/`.
@@ -231,7 +239,7 @@ const TARGETS = [
     namespace: 'abie.http_route_base',
     policyDir: 'abie',
     rule: 'abie',
-    walk: { match: rel => /(^|\/)k8s\/.*base\/.*hr\.yaml$/.test(rel) }
+    walk: { match: rel => K8S_BASE_HR_YAML_PATH_RE.test(rel) }
   }
 ]
 
@@ -245,7 +253,7 @@ const TARGETS = [
 function collectFiles(root, match) {
   /** @type {string[]} */
   const out = []
-  /** @param {string} dirAbs */
+  /** @param {string} dirAbs абсолютний шлях каталогу для рекурсивного обходу */
   function visit(dirAbs) {
     /** @type {import('node:fs').Dirent[]} */
     let entries
@@ -355,5 +363,5 @@ export function runLintConftestCli() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  process.exit(runLintConftestCli())
+  process.exitCode = runLintConftestCli()
 }

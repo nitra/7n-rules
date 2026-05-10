@@ -1,6 +1,6 @@
 {
   "gitignore": true,
-  "ignores": ["**/adr/**"],
+  "ignores": ["**/adr/**", "docs/superpowers/**"],
   "config": {
     "default": true,
     "MD013": false,

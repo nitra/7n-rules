@@ -11,7 +11,7 @@
  *
  * **Що покрила Rego** (`bun run lint-conftest`,
  * `npm/policy/image_compress/package_json/`):
- *  - `scripts.lint-image` викликає `npx @nitra/minify-image --src=. --write`
+ *  - `scripts.lint-image` викликає `npx \@nitra/minify-image --src=. --write`
  *    без `--avif` (AVIF — окреме правило `image-avif`);
  *  - агрегований `lint` (якщо є) містить `bun run lint-image`;
  *  - `@nitra/minify-image` НЕ у `dependencies` / `devDependencies` (через `npx`).

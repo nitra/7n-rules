@@ -21,7 +21,7 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер lint Stop-hook'а (`npx --no @nitra/cursor stop-hook`). */
+/** Маркер lint Stop-hook'а (`npx --no \@nitra/cursor stop-hook`). */
 export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
 /** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта. */
 export const ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'

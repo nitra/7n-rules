@@ -19,13 +19,16 @@ import { parseProgramOrNull } from './ast-scan-utils.mjs'
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 
 /**
- * Канонічний шаблон імені файла в каталозі conn.
- *  - `ql-<id>` для GraphQL;
- *  - `(pg|mysql|mssql)-(read|write)(-<id>)?` для БД.
- * `<id>` — починається з [a-z0-9], далі [a-z0-9-]*.
+ * Канонічний шаблон імені GraphQL-файла: `ql-<id>.<ext>`.
+ * `<id>` — kebab без leading/trailing-`-`, починається/закінчується на `[a-z0-9]`.
  */
-const CONN_FILENAME_RE =
-  /^(?:ql-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?|(?:pg|mysql|mssql)-(?:read|write)(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?)\.([cm]?[jt]sx?)$/u
+const CONN_FILENAME_QL_RE = /^ql-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.[cm]?[jt]sx?$/u
+/**
+ * Канонічний шаблон імені файла БД-підключення: `(pg|mysql|mssql)-(read|write)(-<id>)?.<ext>`.
+ * `<id>` — за тими ж правилами, що й для `ql-`. Розділили з GraphQL-формою, щоб
+ * не множити комплексність regex (sonarjs/regex-complexity).
+ */
+const CONN_FILENAME_DB_RE = /^(?:pg|mysql|mssql)-(?:read|write)(?:-[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)?\.[cm]?[jt]sx?$/u
 
 /**
  * Чи це файл, який сканується правилом «conn-file» (JS/TS-сімʼя, без `.d.ts`).
@@ -43,7 +46,7 @@ export function isConnFileRulesSourceFile(relativePathPosix) {
  */
 function basenameNoExt(relativePathPosix) {
   const last = relativePathPosix.lastIndexOf('/')
-  const base = last >= 0 ? relativePathPosix.slice(last + 1) : relativePathPosix
+  const base = last === -1 ? relativePathPosix : relativePathPosix.slice(last + 1)
   const dot = base.lastIndexOf('.')
   return dot > 0 ? base.slice(0, dot) : base
 }
@@ -64,8 +67,71 @@ export function kebabToCamel(kebab) {
  */
 export function isConnFileNameValid(relativePathPosix) {
   const last = relativePathPosix.lastIndexOf('/')
-  const base = last >= 0 ? relativePathPosix.slice(last + 1) : relativePathPosix
-  return CONN_FILENAME_RE.test(base)
+  const base = last === -1 ? relativePathPosix : relativePathPosix.slice(last + 1)
+  return CONN_FILENAME_QL_RE.test(base) || CONN_FILENAME_DB_RE.test(base)
+}
+
+/**
+ * Витягує імена з `export const/let/var X = …` (включно з кількома declarators у одному `export const a, b`).
+ * @param {Record<string, unknown>} decl AST `VariableDeclaration`
+ * @returns {string[]} імена змінних
+ */
+function namesFromVariableDeclaration(decl) {
+  if (!Array.isArray(decl.declarations)) return []
+  /** @type {string[]} */
+  const out = []
+  for (const d of decl.declarations) {
+    const id = /** @type {Record<string, unknown> | null} */ (d?.id ?? null)
+    if (id && id.type === 'Identifier' && typeof id.name === 'string') out.push(id.name)
+  }
+  return out
+}
+
+/**
+ * Витягує імʼя з `export function X` / `export class X`.
+ * @param {Record<string, unknown>} decl AST `FunctionDeclaration` або `ClassDeclaration`
+ * @returns {string | null} імʼя або `null`, якщо id-вузол анонімний
+ */
+function nameFromFnOrClassDeclaration(decl) {
+  if (decl.type !== 'FunctionDeclaration' && decl.type !== 'ClassDeclaration') return null
+  const id = /** @type {Record<string, unknown> | null} */ (decl.id ?? null)
+  if (!id || typeof id !== 'object') return null
+  return typeof id.name === 'string' ? id.name : null
+}
+
+/**
+ * Витягує експортоване імʼя з одного `ExportSpecifier` (`export { X }` / `export { X as Y }`).
+ * @param {Record<string, unknown> | null | undefined} specifier AST `ExportSpecifier`
+ * @returns {string | null} імʼя або `null`
+ */
+function nameFromExportSpecifier(specifier) {
+  const exported = /** @type {Record<string, unknown> | null} */ (specifier?.exported ?? null)
+  if (!exported) return null
+  if (exported.type === 'Identifier' && typeof exported.name === 'string') return exported.name
+  if (typeof exported.value === 'string') return exported.value
+  return null
+}
+
+/**
+ * Імена з одного `ExportNamedDeclaration` — або з вкладеного `declaration`, або зі списку `specifiers`.
+ * @param {Record<string, unknown>} rec AST `ExportNamedDeclaration`
+ * @returns {string[]} імена цього експортного вузла
+ */
+function namesFromNamedExport(rec) {
+  const decl = /** @type {Record<string, unknown> | null} */ (rec.declaration ?? null)
+  if (decl) {
+    if (decl.type === 'VariableDeclaration') return namesFromVariableDeclaration(decl)
+    const fnOrClass = nameFromFnOrClassDeclaration(decl)
+    return fnOrClass ? [fnOrClass] : []
+  }
+  if (!Array.isArray(rec.specifiers)) return []
+  /** @type {string[]} */
+  const out = []
+  for (const s of rec.specifiers) {
+    const name = nameFromExportSpecifier(/** @type {Record<string, unknown> | null} */ (s ?? null))
+    if (name) out.push(name)
+  }
+  return out
 }
 
 /**
@@ -87,34 +153,7 @@ function collectNamedExportNames(program) {
     if (!node || typeof node !== 'object') continue
     const rec = /** @type {Record<string, unknown>} */ (node)
     if (rec.type !== 'ExportNamedDeclaration') continue
-    const decl = /** @type {Record<string, unknown> | null} */ (rec.declaration ?? null)
-    if (decl) {
-      // export const X = ... / export let / export var
-      if (decl.type === 'VariableDeclaration' && Array.isArray(decl.declarations)) {
-        for (const d of decl.declarations) {
-          const id = /** @type {Record<string, unknown> | null} */ (d?.id ?? null)
-          if (id && id.type === 'Identifier' && typeof id.name === 'string') out.push(id.name)
-        }
-      }
-      // export function X / export class X
-      if (
-        (decl.type === 'FunctionDeclaration' || decl.type === 'ClassDeclaration') &&
-        decl.id &&
-        typeof decl.id === 'object' &&
-        typeof (/** @type {Record<string, unknown>} */ (decl.id).name) === 'string'
-      ) {
-        out.push(/** @type {string} */ (/** @type {Record<string, unknown>} */ (decl.id).name))
-      }
-    } else if (Array.isArray(rec.specifiers)) {
-      // export { X } / export { X as Y }
-      for (const s of rec.specifiers) {
-        const exported = /** @type {Record<string, unknown> | null} */ (s?.exported ?? null)
-        if (!exported) continue
-        // ESTree: Identifier (name) або Literal (value), залежно від спеки
-        if (exported.type === 'Identifier' && typeof exported.name === 'string') out.push(exported.name)
-        else if (typeof exported.value === 'string') out.push(exported.value)
-      }
-    }
+    out.push(...namesFromNamedExport(rec))
   }
   return out
 }

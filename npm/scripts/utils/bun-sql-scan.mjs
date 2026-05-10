@@ -56,6 +56,9 @@ const PG_FORMAT_SHIM_FUNC_NAMES = new Set(['format', 'pgFormat', 'sqlFormat', 'p
 // як named export з модуля-обгортки.
 const QUOTE_HELPER_NAMES = new Set(['quoteLiteral', 'quoteIdent', 'escapeLiteral', 'escapeIdent'])
 
+// Імена першого параметра pg-style query-обгортки (`function query(text, params)` тощо).
+const PG_QUERY_FIRST_PARAM_RE = /^(text|sql|query)$/u
+
 /**
  * @param {unknown} node AST node
  * @param {string} name імʼя змінної
@@ -280,19 +283,21 @@ function asPgLeftoverCall(node) {
   return { name: /** @type {'connect' | 'end'} */ (prop.name) }
 }
 
+// Локальний alias на `isUnsafeCall` — щоб у nodeContainsUnsafeCall (під query-шимом)
+// був семантично-говорящий call-site, але без дубля логіки з основним сканом.
+const isUnsafeCallNode = isUnsafeCall
+
 /**
- * Чи це CallExpression `<obj>.unsafe(...)` (для пошуку в тілі query-шиму).
- * Дублює `isUnsafeCall` з основного скану, але локально — щоб не залежати
- * від порядку оголошень у файлі.
- * @param {unknown} node AST node
- * @returns {boolean} true для `<obj>.unsafe(...)`
+ * Витягує ім'я ключа з AST `Property.key`. Підтримує `Identifier` (`{ foo: … }`)
+ * та `Literal` (`{ 'foo': … }` / `{ 5: … }`); інші форми (computed expression тощо) — `null`.
+ * @param {unknown} key AST `Property.key`
+ * @returns {string | number | null} ім'я ключа або null
  */
-function isUnsafeCallNode(node) {
-  if (!node || node.type !== 'CallExpression') return false
-  const callee = node.callee
-  if (!callee || callee.type !== 'MemberExpression' || callee.computed) return false
-  const prop = callee.property
-  return !!prop && prop.type === 'Identifier' && prop.name === 'unsafe'
+function propertyKeyName(key) {
+  if (!key || typeof key !== 'object') return null
+  if (key.type === 'Identifier' && typeof key.name === 'string') return key.name
+  if (key.type === 'Literal' && (typeof key.value === 'string' || typeof key.value === 'number')) return key.value
+  return null
 }
 
 /**
@@ -325,10 +330,8 @@ function nodeContainsPgFormatPlaceholder(root) {
       found = true
       return
     }
-    if (t === 'TemplateLiteral') {
-      if (PG_FORMAT_PLACEHOLDER_RE.test(templateQuasisText(n))) {
-        found = true
-      }
+    if (t === 'TemplateLiteral' && PG_FORMAT_PLACEHOLDER_RE.test(templateQuasisText(n))) {
+      found = true
     }
   })
   return found
@@ -406,7 +409,6 @@ export function findPgFormatShimDefinitionInText(content, virtualPath = 'scan.ts
  * - значення — функція з 1–2 параметрами, перший — Identifier з типовим
  *   pg-іменем (`text` / `sql` / `query`);
  * - у тілі функції є виклик `<obj>.unsafe(...)`.
- *
  * @param {string} content вихідний код
  * @param {string} [virtualPath] шлях для вибору `lang`
  * @returns {{ line: number, snippet: string }[]} список порушень
@@ -419,29 +421,46 @@ export function findPgFormatLikeQueryWrapperInText(content, virtualPath = 'scan.
   /** @type {{ line: number, snippet: string }[]} */
   const out = []
   walkAstWithAncestors(program, [], node => {
-    if (node.type !== 'ObjectExpression') return
-    const properties = node.properties
-    if (!Array.isArray(properties)) return
-    for (const prop of properties) {
-      if (!prop || prop.type !== 'Property') continue
-      const key = prop.key
-      const keyName = key && key.type === 'Identifier' ? key.name : key && key.type === 'Literal' ? key.value : null
-      if (keyName !== 'query') continue
-      const value = prop.value
-      if (!value || (value.type !== 'FunctionExpression' && value.type !== 'ArrowFunctionExpression')) continue
-      const params = value.params
-      const firstName = Array.isArray(params) && params[0]?.type === 'Identifier' ? params[0].name : null
-      const looksLikePgQuery =
-        Array.isArray(params) && params.length >= 1 && params.length <= 2 && /^(text|sql|query)$/u.test(firstName || '')
-      if (!looksLikePgQuery) continue
-      if (!nodeContainsUnsafeCall(value.body)) continue
+    if (node.type !== 'ObjectExpression' || !Array.isArray(node.properties)) return
+    for (const prop of node.properties) {
+      const queryProp = asPgFormatLikeQueryProp(prop)
+      if (!queryProp) continue
       out.push({
-        line: offsetToLine(content, prop.start),
-        snippet: normalizeSnippet(content.slice(prop.start, prop.end))
+        line: offsetToLine(content, queryProp.start),
+        snippet: normalizeSnippet(content.slice(queryProp.start, queryProp.end))
       })
     }
   })
   return out
+}
+
+/**
+ * Чи є цей вузол `Property` тим самим pg-сумісним `{ query(text, params) { … unsafe … } }`?
+ * Повертає сам `prop` (для зручного `start`/`end`) або `null`.
+ * @param {unknown} prop AST вузол `Property`
+ * @returns {{ start: number, end: number } | null} `prop` як власний рекорд або `null`
+ */
+function asPgFormatLikeQueryProp(prop) {
+  if (!prop || typeof prop !== 'object' || prop.type !== 'Property') return null
+  if (propertyKeyName(prop.key) !== 'query') return null
+  const value = prop.value
+  if (!value || (value.type !== 'FunctionExpression' && value.type !== 'ArrowFunctionExpression')) return null
+  if (!hasPgQuerySignature(value.params)) return null
+  if (!nodeContainsUnsafeCall(value.body)) return null
+  return { start: prop.start, end: prop.end }
+}
+
+/**
+ * Чи виглядає сигнатура функції як pg-style `query(text, params?)`: 1–2 параметри,
+ * перший — Identifier з типовим pg-іменем (`text` / `sql` / `query`).
+ * @param {unknown} params AST `params` (масив)
+ * @returns {boolean} true, якщо схоже на pg-обгортку
+ */
+function hasPgQuerySignature(params) {
+  if (!Array.isArray(params) || params.length < 1 || params.length > 2) return false
+  const first = params[0]
+  if (!first || first.type !== 'Identifier' || typeof first.name !== 'string') return false
+  return PG_QUERY_FIRST_PARAM_RE.test(first.name)
 }
 
 /**

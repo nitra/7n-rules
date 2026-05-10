@@ -33,9 +33,6 @@ const CHANGELOG_FIRST_VERSION_RE = /^## \[([^\]]+)\]/m
 /** Поле `version` у текстовому зрізі `package.json` (для `git show HEAD:npm/package.json`). */
 const PACKAGE_JSON_VERSION_RE = /"version":\s*"([^"]+)"/u
 
-/** Канонічний entrypoint типів для пакетів із вихідним `.js` під каталогом `npm/src` */
-const TYPES_INDEX = './types/index.d.ts'
-
 /** Файл проєкту TypeScript для emit без каталогу `src` (див. npm-module.mdc) */
 const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
 
@@ -198,7 +195,7 @@ async function gitDiffNameOnlyNpm() {
 async function gitShowNpmPackageVersionAt(refPath) {
   try {
     const { stdout } = await execFileAsync('git', ['show', refPath], { encoding: 'utf8' })
-    const m = stdout.match(/"version":\s*"([^"]+)"/)
+    const m = stdout.match(PACKAGE_JSON_VERSION_RE)
     return m ? m[1] : null
   } catch {
     return null

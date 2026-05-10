@@ -325,6 +325,18 @@ const K8S_BASE_SEGMENT_RE = /(^|\/)k8s\/base\//u
 const OXLINT_SCHEMA_MODELINE_RE = /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u
 const HTTPS_SCHEMA_RE = /^https:/iu
 const HASURA_GRAPHQL_ENGINE_RE = /(^|\/)hasura\/graphql-engine(?::|$)/u
+const BASE_CANON_MEMORY_RE = /^128Mi$/iu
+
+/**
+ * Видаляє хвостові символи `\n` зі стрічки без regex (щоб не тригерити sonarjs/slow-regex).
+ * @param {string} s стрічка YAML/тексту
+ * @returns {string} стрічка без trailing newlines
+ */
+function stripTrailingNewlines(s) {
+  let end = s.length
+  while (end > 0 && s.codePointAt(end - 1) === 10) end--
+  return end === s.length ? s : s.slice(0, end)
+}
 const BATCH_V1BETA1_API_VERSION_LINE_RE = /^(\s*apiVersion:\s*)["']?batch\/v1beta1["']?(\s*)$/u
 
 /**
@@ -665,15 +677,25 @@ async function validateKustomizationPatchesStructuralSort(root, yamlFilesAbs, fa
     if (kust === null) continue
     const outer = kustomizationPatchesSortedViolation(kust)
     if (outer !== null) fail(`${rel}: ${outer}`)
-    const patches = kust.patches
-    if (!Array.isArray(patches)) continue
-    for (const [i, p] of patches.entries()) {
-      if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
-      const rec = /** @type {Record<string, unknown>} */ (p)
-      if (typeof rec.patch !== 'string') continue
-      const v = kustomizationInlinePatchOpsSortedViolation(rec.patch)
-      if (v !== null) fail(`${rel}: patches[${i}] (${kustomizationPatchLabel(p, i)}): ${v}`)
-    }
+    if (!Array.isArray(kust.patches)) continue
+    validateInlinePatchesSorted(rel, kust.patches, fail)
+  }
+}
+
+/**
+ * Перевіряє, що inline-`patch:` (рядок YAML/JSON) у кожному `patches[i]` має ops у канонічному порядку
+ * (`add`/`replace` за `path`). Чужі форми (без `patch`-стрічки, з `target` без inline-блока) пропускаються.
+ * @param {string} rel відносний шлях `kustomization.yaml` для повідомлень
+ * @param {unknown[]} patches масив `kust.patches` (рекордів)
+ * @param {(msg: string) => void} fail callback при порушенні
+ */
+function validateInlinePatchesSorted(rel, patches, fail) {
+  for (const [i, p] of patches.entries()) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+    const rec = /** @type {Record<string, unknown>} */ (p)
+    if (typeof rec.patch !== 'string') continue
+    const v = kustomizationInlinePatchOpsSortedViolation(rec.patch)
+    if (v !== null) fail(`${rel}: patches[${i}] (${kustomizationPatchLabel(p, i)}): ${v}`)
   }
 }
 
@@ -2582,7 +2604,7 @@ function isBaseCanonCpuValue(cpu) {
  */
 function isBaseCanonMemoryValue(mem) {
   if (typeof mem !== 'string' || mem.trim() === '') return false
-  return /^128Mi$/iu.test(mem.trim())
+  return BASE_CANON_MEMORY_RE.test(mem.trim())
 }
 
 /**
@@ -5212,13 +5234,11 @@ function checkProdOverridesInKustomization(kust, rel, fail, passFn, needs) {
       ok = false
     }
   }
-  if (needs.needsPdbMinAvailablePatch) {
-    if (!pdbPaths.has('/spec/minAvailable')) {
-      fail(
-        `${rel}: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)`
-      )
-      ok = false
-    }
+  if (needs.needsPdbMinAvailablePatch && !pdbPaths.has('/spec/minAvailable')) {
+    fail(
+      `${rel}: прод-оверлей має перевизначати spec.minAvailable для PodDisruptionBudget (мінімум 1 у проді) (k8s.mdc)`
+    )
+    ok = false
   }
   if (ok) {
     passFn(`${rel}: прод-оверрайди HPA/PDB за потреби присутні (k8s.mdc)`)
@@ -5573,18 +5593,7 @@ async function validateDeploymentsInDir(deployments, dir, root, fail, passFn) {
   const isK8sBaseLayer = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
   const deployRel = relDir === '' ? '.' : relDir
   if (isK8sBaseLayer && deployments.length > 0) {
-    const hpaAbs = join(dir, HPA_FILENAME)
-    if (existsSync(hpaAbs)) {
-      fail(
-        `${deployRel}/${HPA_FILENAME}: у шарі k8s/.../base не тримай локальний hpa.yaml — HPA живе у sibling components/ (k8s.mdc)`
-      )
-    }
-    const pdbAbs = join(dir, PDB_FILENAME)
-    if (existsSync(pdbAbs)) {
-      fail(
-        `${deployRel}/${PDB_FILENAME}: у шарі k8s/.../base не тримай локальний pdb.yaml — PDB живе у sibling components/ (k8s.mdc)`
-      )
-    }
+    failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail)
   }
   const hpaDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'HorizontalPodAutoscaler', HPA_FILENAME)
   const pdbDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'PodDisruptionBudget', PDB_FILENAME)
@@ -5600,13 +5609,45 @@ async function validateDeploymentsInDir(deployments, dir, root, fail, passFn) {
       passFn
     )
     if (isK8sBaseLayer) {
-      const deployName = manifestMetadataName(deployment)
-      const appLabel = deploymentAppLabel(deployment)
-      if (deployName !== null && appLabel !== null) {
-        await validateComponentsForBaseDeployment(dir, deployName, appLabel, root, fail, passFn)
-      }
+      await validateBaseLayerComponentsIfNamed(deployment, dir, root, fail, passFn)
     }
   }
+}
+
+/**
+ * У шарі `…/k8s/…/base/` забороняє локальні `hpa.yaml` / `pdb.yaml` (вони мають жити у sibling `components/`).
+ * @param {string} dir абсолютний каталог Deployment-маніфесту
+ * @param {string} deployRel відносний шлях для повідомлень (`.` якщо корінь репо)
+ * @param {(msg: string) => void} fail callback при порушенні
+ */
+function failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail) {
+  if (existsSync(join(dir, HPA_FILENAME))) {
+    fail(
+      `${deployRel}/${HPA_FILENAME}: у шарі k8s/.../base не тримай локальний hpa.yaml — HPA живе у sibling components/ (k8s.mdc)`
+    )
+  }
+  if (existsSync(join(dir, PDB_FILENAME))) {
+    fail(
+      `${deployRel}/${PDB_FILENAME}: у шарі k8s/.../base не тримай локальний pdb.yaml — PDB живе у sibling components/ (k8s.mdc)`
+    )
+  }
+}
+
+/**
+ * Якщо у Deployment є `metadata.name` і `spec.selector.matchLabels.app` — викликає
+ * `validateComponentsForBaseDeployment` для звірки sibling-`components/`. Без цих ключів
+ * каталог `components/` неможливо звʼязати з конкретним Deployment, тож пропускаємо мовчки.
+ * @param {Record<string, unknown>} deployment AST документа Deployment
+ * @param {string} dir абсолютний каталог Deployment-маніфесту
+ * @param {string} root абсолютний корінь репо
+ * @param {(msg: string) => void} fail callback при порушенні
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateBaseLayerComponentsIfNamed(deployment, dir, root, fail, passFn) {
+  const deployName = manifestMetadataName(deployment)
+  const appLabel = deploymentAppLabel(deployment)
+  if (deployName === null || appLabel === null) return
+  await validateComponentsForBaseDeployment(dir, deployName, appLabel, root, fail, passFn)
 }
 
 /**
@@ -6302,6 +6343,20 @@ function applyConversionsToDoc(doc, conversions) {
   const patchesNode = doc.get('patches', true)
   if (!isSeq(patchesNode)) return false
 
+  applyPatchConversionsToPatchesNode(patchesNode, groupConversionsByPatchIndex(conversions))
+  if (patchesNode.items.length === 0) {
+    doc.delete('patches')
+  }
+  appendConvertedImagesNode(doc, conversions)
+  return true
+}
+
+/**
+ * Згруповує конвертації за індексом `patches[i]` і збирає `opIdx`-список ops, які треба видалити.
+ * @param {Array<{ index: number, opIndex: number, totalOps: number }>} conversions конвертації
+ * @returns {Map<number, { totalOps: number, opIdx: number[] }>} згруповане
+ */
+function groupConversionsByPatchIndex(conversions) {
   /** @type {Map<number, { totalOps: number, opIdx: number[] }>} */
   const byPatch = new Map()
   for (const c of conversions) {
@@ -6309,39 +6364,61 @@ function applyConversionsToDoc(doc, conversions) {
     slot.opIdx.push(c.opIndex)
     byPatch.set(c.index, slot)
   }
+  return byPatch
+}
 
+/**
+ * Застосовує згруповані конвертації до `patches:` Sequence: видаляє повністю-конвертовані
+ * patches або переписує inline `patch:` без конвертованих ops. Іде в порядку спадання
+ * індексів, щоб зберегти стабільність вилучень з масиву.
+ * @param {import('yaml').YAMLSeq & { get(i: number, keep: true): unknown, delete(i: number): void, items: unknown[] }} patchesNode YAML Seq (звужено через `isSeq` у caller-і)
+ * @param {Map<number, { totalOps: number, opIdx: number[] }>} byPatch згруповані конвертації
+ */
+function applyPatchConversionsToPatchesNode(patchesNode, byPatch) {
   const sortedIdx = [...byPatch.keys()].toSorted((a, b) => b - a)
   for (const i of sortedIdx) {
     const slot = byPatch.get(i)
     if (slot === undefined) continue
-    const { totalOps, opIdx } = slot
-    if (opIdx.length === totalOps) {
+    if (slot.opIdx.length === slot.totalOps) {
       patchesNode.delete(i)
       continue
     }
-    const patchEntry = patchesNode.get(i, true)
-    if (patchEntry === undefined || patchEntry === null) continue
-    const patchScalar = patchEntry.get('patch', true)
-    if (patchScalar === undefined || patchScalar === null || typeof patchScalar.value !== 'string') continue
-    const rewritten = rewriteInlinePatchWithoutOps(patchScalar.value, opIdx)
-    if (rewritten === null) continue
-    patchScalar.value = rewritten
+    rewriteInlinePatchAtIndex(patchesNode, i, slot.opIdx)
   }
+}
 
-  if (patchesNode.items.length === 0) {
-    doc.delete('patches')
-  }
+/**
+ * Переписує inline `patch:` у `patches[i]`, видаляючи ops зі списку. Якщо вузол не знайдено
+ * або переписування не вдалося — залишає Document без змін.
+ * @param {import('yaml').YAMLSeq & { get(i: number, keep: true): unknown, delete(i: number): void, items: unknown[] }} patchesNode YAML Seq (звужено через `isSeq` у caller-і)
+ * @param {number} i індекс у `patches:`
+ * @param {number[]} opIdx індекси ops для видалення
+ */
+function rewriteInlinePatchAtIndex(patchesNode, i, opIdx) {
+  const patchEntry = patchesNode.get(i, true)
+  if (patchEntry === undefined || patchEntry === null) return
+  const patchScalar = patchEntry.get('patch', true)
+  if (patchScalar === undefined || patchScalar === null || typeof patchScalar.value !== 'string') return
+  const rewritten = rewriteInlinePatchWithoutOps(patchScalar.value, opIdx)
+  if (rewritten === null) return
+  patchScalar.value = rewritten
+}
 
-  let imagesNode = doc.get('images', true)
-  if (!isSeq(imagesNode)) {
-    imagesNode = doc.createNode([])
+/**
+ * Дописує `images:` Seq у Document результатами конвертацій (створює, якщо немає).
+ * @param {import('yaml').Document} doc YAML Document
+ * @param {Array<{ name: string, newName: string, newTag: string | null }>} conversions конвертації
+ */
+function appendConvertedImagesNode(doc, conversions) {
+  const existing = doc.get('images', true)
+  const imagesNode = isSeq(existing) ? existing : doc.createNode([])
+  if (existing !== imagesNode) {
     doc.set('images', imagesNode)
   }
   for (const { name, newName, newTag } of conversions) {
     const entry = newTag === null ? { name, newName } : { name, newName, newTag }
     imagesNode.add(doc.createNode(entry))
   }
-  return true
 }
 
 /**
@@ -6370,7 +6447,7 @@ function rewriteInlinePatchWithoutOps(patchText, opIndices) {
   }
   if (seq.items.length === 0) return null
   seq.flow = false
-  return inner.toString().replace(/\n+$/u, '')
+  return stripTrailingNewlines(inner.toString())
 }
 
 /**
