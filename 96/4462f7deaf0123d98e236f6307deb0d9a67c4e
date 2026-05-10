@@ -1,0 +1,46 @@
+docs/ci4/04-code.md
+  s_ff1388e771116a::t_576e517c1fb9c9 184-186
+  s_ff1388e771116a::t_a120085bce0151 1-112,114-183,187-189
+  s_ff1388e771116a::t_d28190474a8f73 113
+.markdownlint-cli2.jsonc
+  s_ff1388e771116a::t_f54984fc14bc0f 10-11
+docs/ci4/01-context.md
+  s_ff1388e771116a::t_2ff900170f732e 70
+  s_ff1388e771116a::t_00a38310ba1829 96
+  s_ff1388e771116a::t_576e517c1fb9c9 78-88,112-114
+  s_ff1388e771116a::t_cd94d6ec7dd130 1-69,71-77,89-95,97-111,115-117
+docs/ci4/02-containers.md
+  s_ff1388e771116a::t_fcb79a3a780226 1-49,58-117,119-123,127-129
+  s_ff1388e771116a::t_576e517c1fb9c9 50-57,124-126
+  s_ff1388e771116a::t_40d7bfcb910c28 118
+docs/ci4/03-components.md
+  s_ff1388e771116a::t_4ab291833c7193 54,58-59,101
+  s_ff1388e771116a::t_a2cd140bb7dc3b 1-51,65-98,106-132,139-170,178-182,186-188
+  s_ff1388e771116a::t_576e517c1fb9c9 52-53,55-57,60-64,99-100,102-105,133-138,171-177,183-185
+docs/ci4/README.md
+  s_ff1388e771116a::t_576e517c1fb9c9 7-13,27-32
+  s_ff1388e771116a::t_0c347ec4dfe9f3 1-6,14-26,33-69
+docs/ci4/decisions.md
+  s_ff1388e771116a::t_755e509019933a 1-16,22-24,31-33,36-50
+  s_ff1388e771116a::t_576e517c1fb9c9 17-21,34-35
+  s_ff1388e771116a::t_4ab291833c7193 25-26,28-30
+  s_ff1388e771116a::t_f194e273fb8e40 27
+.cspell.json
+  s_ff1388e771116a::t_4c752158d188b5 22-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "964462f7deaf0123d98e236f6307deb0d9a67c4e",
+  "prompts": {},
+  "sessions": {
+    "s_ff1388e771116a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20fb5843-004f-4576-b18a-f98f125b2729",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
