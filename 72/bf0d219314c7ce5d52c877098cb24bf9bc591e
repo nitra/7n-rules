@@ -1,0 +1,27 @@
+docs/superpowers/specs/2026-05-10-ci4-model-design.md
+  s_ff1388e771116a::t_b3499ff073dade 1-12,25-116,135-171,181-212
+  s_ff1388e771116a::t_d6d576658368b6 13-24
+  s_ff1388e771116a::t_61329338c85647 117-134
+  s_ff1388e771116a::t_df1da74fa8b818 172-180
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "72bf0d219314c7ce5d52c877098cb24bf9bc591e",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_ff1388e771116a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "20fb5843-004f-4576-b18a-f98f125b2729",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
