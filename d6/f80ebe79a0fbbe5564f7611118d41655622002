@@ -1,0 +1,117 @@
+npm/tests/lint-ga.test.mjs
+  s_0b55b71d1b0ba9::t_8e669fd16ca709 40
+npm/tests/check-ga.test.mjs
+  s_0b55b71d1b0ba9::t_4852ec2d2f5bc1 192
+  s_0b55b71d1b0ba9::t_73f1241f7a4802 58-60
+  s_0b55b71d1b0ba9::t_c3056ca3140cee 10
+  s_0b55b71d1b0ba9::t_d7611f1e8072c8 148-150
+npm/tests/check-k8s-schema.test.mjs
+  s_0b55b71d1b0ba9::t_5af3df2c8d6678 521-523
+.cspell.json
+  s_0b55b71d1b0ba9::t_2f6eebd411b2a5 497-504
+  s_0b55b71d1b0ba9::t_93b86b66ae32f4 514-516
+  s_0b55b71d1b0ba9::t_0638e32d4c9a65 495-496
+  s_0b55b71d1b0ba9::t_955c4713eaf4ee 505-512
+  s_0b55b71d1b0ba9::t_31ec8e66b0054e 513
+npm/scripts/lint-conftest.mjs
+  s_0b55b71d1b0ba9::t_5e33f06ba0f083 82-83
+  s_0b55b71d1b0ba9::t_44a890810a5499 306,314,317-337
+.cursor/rules/conftest.mdc
+  s_0b55b71d1b0ba9::t_98d2d35bff1452 34-79,85-87,94
+npm/policy/abie/base_deployment_preem/base_deployment_preem_test.rego
+  s_0b55b71d1b0ba9::t_344b00cb9da2a0 1-60
+npm/policy/abie/base_deployment_preem/base_deployment_preem.rego
+  s_0b55b71d1b0ba9::t_f791b02a0a1768 1-56
+npm/policy/abie/health_check_policy/health_check_policy.rego
+  s_0b55b71d1b0ba9::t_82bbf57ec20bae 1,5-6,9-17,19-22,31-32,38,43,46-66,68-76,82,92,99,103-108,131,138-144
+  s_0b55b71d1b0ba9::t_4fb58d5e15cf7e 111-129
+  s_0b55b71d1b0ba9::t_b489b3deb51dce 39-40
+npm/scripts/check-abie.mjs
+  s_0b55b71d1b0ba9::t_e7ebc092e11b37 309-312
+  s_0b55b71d1b0ba9::t_d5e2f2831f07ce 756-758,767-769,771-781
+  s_0b55b71d1b0ba9::t_d15eaa1f55a0ba 1437
+  s_0b55b71d1b0ba9::t_3e684346c8fa5a 1541-1550
+  s_0b55b71d1b0ba9::t_bd77f95505e39e 57
+  s_0b55b71d1b0ba9::t_8e98d30ee3781a 1202-1206
+  s_0b55b71d1b0ba9::t_7536f794d1ec6a 1562-1564,1571-1572,1574-1606
+  s_0b55b71d1b0ba9::t_a0853f8624589d 274-278
+  s_0b55b71d1b0ba9::t_f607093f75cf8b 1432-1434,1436,1438-1447,1449
+  s_0b55b71d1b0ba9::t_ab76c4279975c6 1209-1212,1217,1226
+npm/policy/abie/clean_merged_ignore_branches/clean_merged_ignore_branches.rego
+  s_0b55b71d1b0ba9::t_3c8b434d545d3c 1-57,60-62,64-70,72-84,88-93,95-96,100
+  s_0b55b71d1b0ba9::t_bb6be6ea8f537e 58-59,63,71,85-87,94,97-99
+npm/package.json
+  s_0b55b71d1b0ba9::t_e2b7b8dc858f61 3
+npm/CHANGELOG.md
+  s_0b55b71d1b0ba9::t_d3f97db5107f78 7-13
+  s_0b55b71d1b0ba9::t_f3478e29506eda 28-41
+  s_0b55b71d1b0ba9::t_c8a00bd0e1d342 24
+  s_0b55b71d1b0ba9::t_007e2d96b0147f 20-23,25-27
+  s_0b55b71d1b0ba9::t_0635b3e9fc077d 48-60
+  s_0b55b71d1b0ba9::t_4a2ede33e5d1c1 14-19
+  s_0b55b71d1b0ba9::t_b451e4a8670f6b 42-47
+npm/tests/check-abie.test.mjs
+  s_0b55b71d1b0ba9::t_2c65ffd067233e 121-127
+npm/scripts/check-ga.mjs
+  s_0b55b71d1b0ba9::t_0fff694a90e2cf 25
+  s_0b55b71d1b0ba9::t_451ef38f01ad6f 329-406,420-426,456-457
+  s_0b55b71d1b0ba9::t_4ef1e21af5ae1b 280
+npm/mdc/abie.mdc
+  s_0b55b71d1b0ba9::t_070ac361fe4489 391-403
+npm/scripts/lint-ga.mjs
+  s_0b55b71d1b0ba9::t_153083b7806961 4-5,7-11,25
+  s_0b55b71d1b0ba9::t_fbf8d21f96a14e 139,144-147,153-154,156,169-170
+npm/scripts/check-k8s.mjs
+  s_0b55b71d1b0ba9::t_e16217556cda7c 2257-2258
+  s_0b55b71d1b0ba9::t_eccf5233a42e84 3717-3719
+  s_0b55b71d1b0ba9::t_6fbde11b7605d1 2240-2244
+  s_0b55b71d1b0ba9::t_f66391f638ae83 134
+  s_0b55b71d1b0ba9::t_9859b81b92838e 6032-6033,6035-6081,6108-6112
+  s_0b55b71d1b0ba9::t_266e91886f1135 2263-2267
+  s_0b55b71d1b0ba9::t_6fdba34e7aea8b 3906-3909,3913,3916-3927
+  s_0b55b71d1b0ba9::t_bfed707e0f35b0 6034
+  s_0b55b71d1b0ba9::t_09a5ea53755b1d 650-652
+  s_0b55b71d1b0ba9::t_e4e97a1737b5e7 3005-3007
+  s_0b55b71d1b0ba9::t_47d6d1d91b8b03 3575-3579
+  s_0b55b71d1b0ba9::t_0237b028c2c664 3685-3688
+  s_0b55b71d1b0ba9::t_6952a729087014 3484-3487,3493,3496-3504
+  s_0b55b71d1b0ba9::t_a0c1cfe65ff54b 3828-3830
+npm/mdc/ci4.mdc
+  s_1d8c0a8e11eb25::t_bc4b575e8bf565 18-25
+npm/policy/abie/health_check_policy/health_check_policy_test.rego
+  s_0b55b71d1b0ba9::t_51778b06228d48 1-99
+npm/policy/abie/http_route_base/http_route_base_test.rego
+  s_0b55b71d1b0ba9::t_79b774f7c2e630 1-64
+npm/scripts/utils/run-conftest-batch.mjs
+  s_0b55b71d1b0ba9::t_9d83f089fc1273 1-117
+npm/policy/abie/clean_merged_ignore_branches/clean_merged_ignore_branches_test.rego
+  s_0b55b71d1b0ba9::t_39a399c4398ef3 15-16,19
+  s_0b55b71d1b0ba9::t_c92bb6c9845d84 1-14,17-18,20-42,45-46,48
+  s_0b55b71d1b0ba9::t_5bc9e7502c75ac 43-44,47
+npm/bin/n-cursor.js
+  s_0b55b71d1b0ba9::t_59386a602966e8 1330-1332
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "d6f80ebe79a0fbbe5564f7611118d41655622002",
+  "prompts": {},
+  "sessions": {
+    "s_0b55b71d1b0ba9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ae74b3a7-a5a2-48c9-9c66-8ddbdb480d74",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_1d8c0a8e11eb25": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9e3eb48c-1ec1-480c-9c2c-8191adba708c",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
