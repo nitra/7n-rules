@@ -79,6 +79,8 @@ const K8S_DIR_PATH_RE = /(^|\/)k8s\//u
 const K8S_HC_YAML_PATH_RE = /(^|\/)k8s\/.+\/hc\.yaml$/u
 /** `…/k8s/…/base/…/hr.yaml` (HTTPRoute у base-шарі). */
 const K8S_BASE_HR_YAML_PATH_RE = /(^|\/)k8s\/.*base\/.*hr\.yaml$/u
+/** Будь-який ресурсний YAML під `…/k8s/.../base/...` (для abie.base_deployment_preem). */
+const K8S_BASE_RESOURCE_PATH_RE = /(^|\/)k8s\/.*base\//u
 /** `kustomization.yaml` будь-де під сегментом `k8s/`. */
 const K8S_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/.*\/kustomization\.yaml$/u
 /** `…/k8s/.../base/.../kustomization.yaml`. */
@@ -301,7 +303,7 @@ const TARGETS = [
   // abie HealthCheckPolicy: `hc.yaml` у дереві k8s.
   {
     namespace: 'abie.health_check_policy',
-    policyDir: 'abie',
+    policyDir: 'abie/health_check_policy',
     rule: 'abie',
     walk: { match: rel => K8S_HC_YAML_PATH_RE.test(rel) }
   },
@@ -309,9 +311,30 @@ const TARGETS = [
   // abie HTTPRoute у `base/`.
   {
     namespace: 'abie.http_route_base',
-    policyDir: 'abie',
+    policyDir: 'abie/http_route_base',
     rule: 'abie',
     walk: { match: rel => K8S_BASE_HR_YAML_PATH_RE.test(rel) }
+  },
+
+  // abie Deployment у `…/k8s/.../base/...` має preem nodeSelector.
+  {
+    namespace: 'abie.base_deployment_preem',
+    policyDir: 'abie/base_deployment_preem',
+    rule: 'abie',
+    walk: {
+      match: rel =>
+        K8S_BASE_RESOURCE_PATH_RE.test(rel) &&
+        !K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) &&
+        (rel.endsWith('.yaml') || rel.endsWith('.yml'))
+    }
+  },
+
+  // abie clean-merged-branch.yml: with.ignore_branches має містити dev/ua/ru.
+  {
+    namespace: 'abie.clean_merged_ignore_branches',
+    policyDir: 'abie/clean_merged_ignore_branches',
+    rule: 'abie',
+    single: '.github/workflows/clean-merged-branch.yml'
   }
 ]
 

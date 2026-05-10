@@ -1327,8 +1327,9 @@ try {
       break
     }
     case 'lint-ga': {
-      // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor (ga.mdc).
-      process.exitCode = runLintGaCli()
+      // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor → check-ga (ga.mdc).
+      // Останній крок (check-ga) async — тому await обов'язковий, інакше process.exitCode буде Promise.
+      process.exitCode = await runLintGaCli()
 
       break
     }

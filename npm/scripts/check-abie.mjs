@@ -53,8 +53,8 @@ import { parseAllDocuments } from 'yaml'
 
 import { pathHasK8sSegment, ruKustomizationHasHealthCheckDeletePatch } from './check-k8s.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
-import { flattenWorkflowSteps, getStepUses, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const CONFIG_FILE = '.n-cursor.json'
@@ -100,7 +100,6 @@ const PATCH_PARENT_REF_NS_UA_RE =
 const PATCH_PARENT_REF_NS_RU_RE =
   /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/imu
 const WEBSOCKET_ANNOTATION_RE = /gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/mu
-const LEADING_EMPTY_LINE_RE = /^\s*\n/u
 const REMOVE_CLUSTER_IP_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIP\b/mu
 const REMOVE_CLUSTER_IP_BEFORE_OP_RE = /path:\s*\/spec\/clusterIP\b[\s\S]{0,200}?op:\s*remove\b/mu
 const REMOVE_CLUSTER_IPS_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIPs\b/mu
@@ -122,9 +121,6 @@ const HTTPROUTE_BACKENDREF_PORT_8081_RE =
 /** Те саме, value→path. */
 const HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE =
   /value:\s*8081\b[\s\S]{0,200}?path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/port\b/mu
-
-/** Гілки, які мають бути в **`ignore_branches`** за abie.mdc. */
-export const ABIE_REQUIRED_IGNORE_BRANCHES = ['dev', 'ua', 'ru']
 
 /**
  * Регекс basename env-файлу abie: `dev.env` / `ua.env` / `ru.env`, опційно з провідною крапкою (`.dev.env` тощо).
@@ -275,115 +271,11 @@ export function isAbieK8sBaseYamlPath(rel) {
   return BASE_SEGMENT_RE.test(norm)
 }
 
-/**
- * Чи **hostname** дозволений для **HTTPRoute** у **base** (dev): **aiml.live**, **\*.aiml.live** або **\*.…\.aiml.live** (без урахування регістру).
- * @param {string} hostname значення з **spec.hostnames**
- * @returns {boolean} **true**, якщо hostname відповідає abie.mdc
- */
-export function isAllowedAbieBaseDevHostname(hostname) {
-  if (typeof hostname !== 'string') {
-    return false
-  }
-  const h = hostname.trim().toLowerCase()
-  if (h === '') {
-    return false
-  }
-  const root = ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT
-  if (h === root) {
-    return true
-  }
-  if (h === `*.${root}`) {
-    return true
-  }
-  if (h.endsWith(`.${root}`)) {
-    return true
-  }
-  return false
-}
-
-/**
- * @param {unknown} hostnames значення поля spec.hostnames
- * @returns {string[]} непорожні рядки-хости
- */
-function collectAbieHostnames(hostnames) {
-  if (Array.isArray(hostnames)) {
-    return hostnames.filter(h => typeof h === 'string' && h.trim() !== '')
-  }
-  if (typeof hostnames === 'string' && hostnames.trim() !== '') {
-    return [hostnames]
-  }
-  return []
-}
-
-/**
- * Повідомлення про недопустимі **spec.hostnames** у **HTTPRoute** у шляху **…/base/…** (abie.mdc).
- * @param {unknown} obj корінь YAML-документа
- * @param {string} rel відносний шлях від кореня репозиторію
- * @returns {string[]} порожньо, якщо перевірка не застосовується або hostnames коректні
- */
-export function abieBaseHttpRouteHostnamesErrors(obj, rel) {
-  if (!isAbieK8sBaseYamlPath(rel)) return []
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (rec.kind !== 'HTTPRoute') return []
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return []
-  const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
-  if (hostnames === undefined) return []
-  const hosts = collectAbieHostnames(hostnames)
-  if (hosts.length === 0) return []
-  const root = ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT
-  return hosts
-    .filter(h => !isAllowedAbieBaseDevHostname(h))
-    .map(
-      h =>
-        `${rel}: HTTPRoute у base (dev): hostname "${h}" недопустимий — дозволені лише ${root} та піддомени, зокрема *.${root} (abie.mdc)`
-    )
-}
-
-/**
- * Чи значення **`preem`** у base **Deployment** вважається «істинним» за abie.mdc (**true** або рядок **`true`** без урахування регістру).
- * @param {unknown} v значення з YAML
- * @returns {boolean} **true**, якщо значення вважається істинним за abie.mdc
- */
-function isAbiePreemTruthy(v) {
-  if (v === true) {
-    return true
-  }
-  if (typeof v === 'string' && v.trim().toLowerCase() === 'true') {
-    return true
-  }
-  return false
-}
-
-/**
- * Чи документ **Deployment** у **`…/base/…`** містить **`spec.template.spec.nodeSelector.preem`** зі значенням **true** (abie.mdc).
- * @param {unknown} obj корінь YAML-документа (**Deployment**)
- * @returns {boolean} true, якщо критерії виконано
- */
-export function deploymentDocumentHasAbieBasePreemNodeSelector(obj) {
-  if (!isDeploymentDoc(obj)) {
-    return false
-  }
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return false
-  }
-  const template = /** @type {Record<string, unknown>} */ (spec).template
-  if (template === null || typeof template !== 'object' || Array.isArray(template)) {
-    return false
-  }
-  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
-  if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec)) {
-    return false
-  }
-  const nodeSelector = /** @type {Record<string, unknown>} */ (podSpec).nodeSelector
-  if (nodeSelector === null || typeof nodeSelector !== 'object' || Array.isArray(nodeSelector)) {
-    return false
-  }
-  return isAbiePreemTruthy(nodeSelector.preem)
-}
+// Per-document валідація hostnames у `…/k8s/.../base/.../*.yaml` HTTPRoute
+// (Plan B: Rego-authoritative) — повністю в `npm/policy/abie/http_route_base/`.
+// Per-document валідація `nodeSelector.preem` для Deployment у base — у
+// `npm/policy/abie/base_deployment_preem/`. JS у `check-abie.mjs` робить лише
+// path-фільтрацію + батч-виклик conftest через `runConftestBatch`.
 
 /**
  * Чи увімкнено правило **abie** у конфігу репозиторію.
@@ -414,46 +306,10 @@ export async function isAbieRuleEnabled(root) {
   return rules.some(r => String(r).trim().toLowerCase() === 'abie')
 }
 
-/**
- * Розбирає **`ignore_branches`** з workflow **clean-merged-branch** (крок delete-abandoned-branches).
- * @param {string} content вміст **.yml**
- * @returns {string | null} рядок **ignore_branches** або **null**
- */
-export function parseCleanMergedIgnoreBranches(content) {
-  const root = parseWorkflowYaml(content)
-  if (!root) {
-    return null
-  }
-  for (const { step } of flattenWorkflowSteps(root)) {
-    const uses = getStepUses(step)
-    if (uses.includes('phpdocker-io/github-actions-delete-abandoned-branches')) {
-      const w = step.with
-      if (w && typeof w === 'object' && !Array.isArray(w)) {
-        const ib = /** @type {Record<string, unknown>} */ (w).ignore_branches
-        if (typeof ib === 'string') {
-          return ib
-        }
-      }
-    }
-  }
-  return null
-}
-
-/**
- * Чи рядок **ignore_branches** містить усі гілки з **required** (для abie — dev, ua, ru).
- * @param {string} ignoreBranches значення **ignore_branches**
- * @param {string[]} required імена гілок (нижній регістр для порівняння)
- * @returns {boolean} true, якщо всі **required** присутні як окремі токени
- */
-export function ignoreBranchesIncludesRequired(ignoreBranches, required) {
-  const parts = new Set(
-    ignoreBranches
-      .split(',')
-      .map(s => s.trim().toLowerCase())
-      .filter(Boolean)
-  )
-  return required.every(r => parts.has(r.toLowerCase()))
-}
+// Per-document валідація `clean-merged-branch.yml` (with.ignore_branches з
+// dev/ua/ru) делегована rego-пакету `abie.clean_merged_ignore_branches`
+// (`npm/policy/abie/clean_merged_ignore_branches/`). JS викликає
+// `runConftestBatch` у `checkCleanMergedBranch`.
 
 /**
  * Збирає абсолютні шляхи до **.yaml** / **.yml** під деревом, де є сегмент **k8s**.
@@ -896,32 +752,10 @@ async function collectDeploymentDirs(root, yamlAbs, fail) {
 }
 
 /**
- * Перевіряє документи з одного файлу на наявність Deployment з preem nodeSelector.
- * @param {import('yaml').Document[]} docs документи з файлу
- * @param {string} rel відносний шлях файлу
- * @param {(msg: string) => void} fail callback
- * @returns {'violation' | 'found' | 'none'} результат перевірки
- */
-function checkBaseDeploymentDocsForPreem(docs, rel, fail) {
-  for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (isDeploymentDoc(obj)) {
-        if (!deploymentDocumentHasAbieBasePreemNodeSelector(obj)) {
-          fail(
-            `${rel}: Deployment у base: потрібен spec.template.spec.nodeSelector.preem: true (або 'true') — abie.mdc`
-          )
-          return 'violation'
-        }
-        return 'found'
-      }
-    }
-  }
-  return 'none'
-}
-
-/**
  * Для кожного **Deployment** у YAML під **`k8s`** з шляхом **`…/base/…`** вимагає **`spec.template.spec.nodeSelector.preem: true`** (abie.mdc).
+ *
+ * Per-document валідація делегована у rego-пакет **`abie.base_deployment_preem`**
+ * (`npm/policy/abie/base_deployment_preem/`) — JS лише фільтрує файли за path-патерном `base/` і батчем спавнить conftest.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback
@@ -930,19 +764,21 @@ function checkBaseDeploymentDocsForPreem(docs, rel, fail) {
  */
 async function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fail, passFn) {
   const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
-  let anyBaseDeployment = false
-  for (const abs of baseFiles) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const docs = await readAndParseYamlDocs(abs, rel, fail)
-    if (!docs) return
-    const r = checkBaseDeploymentDocsForPreem(docs, rel, fail)
-    if (r === 'violation') return
-    if (r === 'found') anyBaseDeployment = true
+  if (baseFiles.length === 0) {
+    passFn('Немає файлів у шляхах …/base/… — перевірку preem у base пропущено')
+    return
   }
-  if (anyBaseDeployment) {
-    passFn('Deployment у …/base/…: nodeSelector.preem відповідає abie.mdc')
-  } else {
-    passFn('Немає Deployment у шляхах …/base/… — перевірку preem у base пропущено')
+  const violations = runConftestBatch({
+    policyDirRel: 'abie/base_deployment_preem',
+    namespace: 'abie.base_deployment_preem',
+    files: baseFiles
+  })
+  for (const v of violations) {
+    const rel = relative(root, v.filename).replaceAll('\\', '/') || v.filename
+    fail(`${rel}: ${v.message}`)
+  }
+  if (violations.length === 0) {
+    passFn('Deployment у …/base/…: nodeSelector.preem відповідає abie.mdc (rego)')
   }
 }
 
@@ -1363,89 +1199,22 @@ export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
   return validateAbieNginxRunHttpRoutePatches(combined, mode, raw) === null
 }
 
-/**
- * Перевіряє об'єкт HealthCheckPolicy на відповідність abie.mdc.
- * @param {Record<string, unknown>} policy розібраний HealthCheckPolicy
- * @param {string} relPath відносний шлях (для повідомлень)
- * @returns {string | null} текст помилки або null якщо OK
- */
-function validateAbieHcPolicy(policy, relPath) {
-  if (policy.apiVersion !== 'networking.gke.io/v1') {
-    return `${relPath}: apiVersion має бути networking.gke.io/v1 (abie.mdc)`
-  }
-  const meta = policy.metadata
-  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
-    return `${relPath}: відсутній metadata (abie.mdc)`
-  }
-  const name = /** @type {Record<string, unknown>} */ (meta).name
-  if (typeof name !== 'string' || name.trim() === '') {
-    return `${relPath}: metadata.name має бути непорожнім рядком (abie.mdc)`
-  }
-  const spec = policy.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return `${relPath}: відсутній spec (abie.mdc)`
-  }
-  const specRec = /** @type {Record<string, unknown>} */ (spec)
-  const def = specRec.default
-  if (def === null || typeof def !== 'object' || Array.isArray(def)) {
-    return `${relPath}: відсутній spec.default (abie.mdc)`
-  }
-  const config = /** @type {Record<string, unknown>} */ (def).config
-  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
-    return `${relPath}: відсутній spec.default.config (abie.mdc)`
-  }
-  if (config.type !== 'HTTP') return `${relPath}: spec.default.config.type має бути HTTP (abie.mdc)`
-  const httpHc = /** @type {Record<string, unknown>} */ (config).httpHealthCheck
-  if (httpHc === null || typeof httpHc !== 'object' || Array.isArray(httpHc)) {
-    return `${relPath}: відсутній httpHealthCheck (abie.mdc)`
-  }
-  const requestPath = typeof httpHc.requestPath === 'string' ? httpHc.requestPath.trim() : ''
-  if (requestPath === '' || !requestPath.startsWith('/')) {
-    return `${relPath}: httpHealthCheck.requestPath має бути непорожнім шляхом від кореня (рядок, що починається з /) (abie.mdc)`
-  }
-  if (httpHc.port !== 8080) return `${relPath}: httpHealthCheck.port має бути 8080 (abie.mdc)`
-  const targetRef = specRec.targetRef
-  if (targetRef === null || typeof targetRef !== 'object' || Array.isArray(targetRef)) {
-    return `${relPath}: відсутній targetRef (abie.mdc)`
-  }
-  const tr = /** @type {Record<string, unknown>} */ (targetRef)
-  if (tr.kind !== 'Service') return `${relPath}: targetRef.kind має бути Service (abie.mdc)`
-  const expectedHl = name.endsWith('-hl') ? name : `${name}-hl`
-  if (typeof tr.name !== 'string' || tr.name !== expectedHl) {
-    return `${relPath}: targetRef.name має посилатися на headless Service (очікується ${expectedHl}, суфікс -hl) (abie.mdc)`
-  }
-  return null
-}
+// Per-document валідація HealthCheckPolicy (apiVersion / spec.default.config /
+// httpHealthCheck / targetRef з суфіксом `-hl` exact match) делегована
+// rego-пакету `abie.health_check_policy` (`npm/policy/abie/health_check_policy/`).
+// JS у `checkHcYamlFiles` робить лише modeline-перевірку (`validateAbieHcModeline`)
+// і батч-виклик conftest.
 
 /**
- * Шукає HealthCheckPolicy серед YAML-документів.
- * @param {import('yaml').Document[]} docs документи
- * @param {string} relPath відносний шлях для повідомлень
- * @returns {{ policy: Record<string, unknown> } | { error: string }} знайдений документ або помилка
- */
-function findHealthCheckPolicyInDocs(docs, relPath) {
-  for (const doc of docs) {
-    if (doc.errors.length > 0) {
-      return { error: `${relPath}: YAML: ${doc.errors.map(e => e.message).join('; ')}` }
-    }
-    const obj = doc.toJSON()
-    if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-      const rec = /** @type {Record<string, unknown>} */ (obj)
-      if (rec.kind === 'HealthCheckPolicy') {
-        return { policy: rec }
-      }
-    }
-  }
-  return { policy: /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (null)) }
-}
-
-/**
- * Перевіряє hc.yaml на відповідність схемі та структурі HealthCheckPolicy (abie.mdc).
+ * JS-частина перевірки hc.yaml — лише modeline (`# yaml-language-server: $schema=…`).
+ * Парсинг YAML і структурна валідація HealthCheckPolicy делеговано в rego-пакет
+ * **`abie.health_check_policy`** (`npm/policy/abie/health_check_policy/`),
+ * викликається з `checkHcYamlFile` через `runConftestBatch`.
  * @param {string} raw вміст файлу
  * @param {string} relPath відносний шлях (для повідомлень)
  * @returns {string | null} null якщо OK, рядок з помилкою
  */
-export function validateAbieHcYaml(raw, relPath) {
+export function validateAbieHcModeline(raw, relPath) {
   const body = stripBom(raw)
   const lines = body.split(LINE_SPLIT_RE)
   if (lines.length === 0 || lines[0].trim() === '') {
@@ -1454,20 +1223,7 @@ export function validateAbieHcYaml(raw, relPath) {
   const m = lines[0].match(MODELINE_RE)
   if (!m) return `${relPath}: перший рядок має бути modeline $schema (abie.mdc)`
   if (m[1] !== ABIE_HC_SCHEMA_URL) return `${relPath}: $schema має бути\n     ${ABIE_HC_SCHEMA_URL}\n     (abie.mdc)`
-
-  const yamlBody = lines.slice(1).join('\n').replace(LEADING_EMPTY_LINE_RE, '')
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(yamlBody)
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    return `${relPath}: не вдалося розібрати YAML (${msg})`
-  }
-  const result = findHealthCheckPolicyInDocs(docs, relPath)
-  if ('error' in result) return result.error
-  if (!result.policy) return `${relPath}: очікується документ kind: HealthCheckPolicy (abie.mdc)`
-  return validateAbieHcPolicy(result.policy, relPath)
+  return null
 }
 
 /**
@@ -1664,37 +1420,6 @@ async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, c
 }
 
 /**
- * @param {unknown} json YAML-документ
- * @returns {boolean} true, якщо HTTPRoute має непорожні spec.hostnames
- */
-function httpRouteHasNonEmptyHostnames(json) {
-  if (json === null || typeof json !== 'object' || Array.isArray(json)) return false
-  const rec = /** @type {Record<string, unknown>} */ (json)
-  if (rec.kind !== 'HTTPRoute') return false
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
-  const hostnames = /** @type {Record<string, unknown>} */ (spec).hostnames
-  return collectAbieHostnames(hostnames).length > 0
-}
-
-/**
- * @param {import('yaml').Document} doc YAML-документ з файлу
- * @param {string} rel відносний шлях для повідомлень
- * @param {(msg: string) => void} fail callback при помилці
- * @returns {{ hasErrors: boolean, hasHostnames: boolean }} результат обробки документа
- */
-function processBaseHttpRouteDoc(doc, rel, fail) {
-  if (doc.errors.length !== 0) return { hasErrors: false, hasHostnames: false }
-  const json = doc.toJSON()
-  const errs = abieBaseHttpRouteHostnamesErrors(json, rel)
-  if (errs.length > 0) {
-    for (const e of errs) fail(e)
-    return { hasErrors: true, hasHostnames: false }
-  }
-  return { hasErrors: false, hasHostnames: httpRouteHasNonEmptyHostnames(json) }
-}
-
-/**
  * Для кожного **HTTPRoute** у **`…/k8s/base/…`** з непорожніми **`spec.hostnames`** — лише **aiml.live** та піддомени (abie.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
@@ -1703,24 +1428,26 @@ function processBaseHttpRouteDoc(doc, rel, fail) {
  * @returns {Promise<void>}
  */
 async function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
-  let baseHttpRoutesWithHostnames = 0
   const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
-  for (const abs of baseFiles) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const docs = await readAndParseYamlDocs(abs, rel, fail)
-    if (!docs) return
-    for (const doc of docs) {
-      const { hasErrors, hasHostnames } = processBaseHttpRouteDoc(doc, rel, fail)
-      if (hasErrors) return
-      if (hasHostnames) baseHttpRoutesWithHostnames++
-    }
+  if (baseFiles.length === 0) {
+    passFn('Немає файлів у шляхах …/k8s/base/… — перевірку HTTPRoute hostnames пропущено')
+    return
   }
-  if (baseHttpRoutesWithHostnames > 0) {
+  // Per-document валідація делегована rego-пакету `abie.http_route_base`
+  // (`npm/policy/abie/http_route_base/`) — rego гейтує по `kind == "HTTPRoute"`.
+  const violations = runConftestBatch({
+    policyDirRel: 'abie/http_route_base',
+    namespace: 'abie.http_route_base',
+    files: baseFiles
+  })
+  for (const v of violations) {
+    const rel = relative(root, v.filename).replaceAll('\\', '/') || v.filename
+    fail(`${rel}: ${v.message}`)
+  }
+  if (violations.length === 0) {
     passFn(
-      `HTTPRoute у …/k8s/base/…: spec.hostnames відповідають ${ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT} та піддоменам (abie.mdc)`
+      `HTTPRoute у …/k8s/base/…: spec.hostnames відповідають ${ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT} та піддоменам (rego)`
     )
-  } else {
-    passFn('Немає HTTPRoute у …/k8s/base/… з непорожніми spec.hostnames — перевірку aiml.live пропущено')
   }
 }
 
@@ -1811,23 +1538,16 @@ async function checkCleanMergedBranch(root, pass, fail) {
     fail(`Відсутній ${cleanMergedPath} — потрібен для ignore_branches (abie.mdc)`)
     return
   }
-  let wfRaw
-  try {
-    wfRaw = await readFile(cleanMergedPath, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`Не вдалося прочитати clean-merged-branch.yml (${msg})`)
-    return
-  }
-  const ib = parseCleanMergedIgnoreBranches(wfRaw)
-  if (ib === null || ib.trim() === '') {
-    fail(
-      'clean-merged-branch.yml: не знайдено with.ignore_branches у кроці phpdocker-io/github-actions-delete-abandoned-branches (abie.mdc)'
-    )
-  } else if (ignoreBranchesIncludesRequired(ib, ABIE_REQUIRED_IGNORE_BRANCHES)) {
-    pass('clean-merged-branch.yml: ignore_branches містить dev, ua, ru')
-  } else {
-    fail(`clean-merged-branch.yml: ignore_branches має містити dev, ua та ru (зараз: ${JSON.stringify(ib)}) — abie.mdc`)
+  // Per-document валідація делегована у rego-пакет `abie.clean_merged_ignore_branches`
+  // (`npm/policy/abie/clean_merged_ignore_branches/`). conftest сам читає та парсить YAML.
+  const violations = runConftestBatch({
+    policyDirRel: 'abie/clean_merged_ignore_branches',
+    namespace: 'abie.clean_merged_ignore_branches',
+    files: [cleanMergedPath]
+  })
+  for (const v of violations) fail(v.message)
+  if (violations.length === 0) {
+    pass('clean-merged-branch.yml: ignore_branches містить dev, ua, ru (rego)')
   }
 }
 
@@ -1838,39 +1558,52 @@ async function checkCleanMergedBranch(root, pass, fail) {
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-async function checkHcYamlFile(root, dir, pass, fail) {
-  const hcAbs = join(dir, 'hc.yaml')
-  const relHc = relative(root, hcAbs).replaceAll('\\', '/') || 'hc.yaml'
-  if (!existsSync(hcAbs)) {
-    fail(`${relative(root, dir) || dir}: є Deployment, але немає hc.yaml поруч — додай HealthCheckPolicy (abie.mdc)`)
-    return
-  }
-  let hcRaw
-  try {
-    hcRaw = await readFile(hcAbs, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${relHc}: не вдалося прочитати (${msg})`)
-    return
-  }
-  const v = validateAbieHcYaml(hcRaw, relHc)
-  if (v === null) {
-    pass(`${relHc}: відповідає abie.mdc`)
-  } else {
-    fail(v)
-  }
-}
-
 /**
- * Перевіряє hc.yaml у директоріях з Deployment.
+ * Перевіряє hc.yaml у директоріях з Deployment. JS перевіряє modeline, далі
+ * один батч conftest для усіх знайдених hc.yaml — структурна валідація HCP
+ * делегується rego (`abie.health_check_policy`).
  * @param {string} root корінь репозиторію
  * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
 async function checkHcYamlFiles(root, deploymentDirs, pass, fail) {
+  /** @type {string[]} файли, які пройшли modeline-check і йдуть у conftest */
+  const hcFilesForRego = []
   for (const dir of [...deploymentDirs].toSorted((a, b) => a.localeCompare(b))) {
-    await checkHcYamlFile(root, dir, pass, fail)
+    const hcAbs = join(dir, 'hc.yaml')
+    const relHc = relative(root, hcAbs).replaceAll('\\', '/') || 'hc.yaml'
+    if (!existsSync(hcAbs)) {
+      fail(`${relative(root, dir) || dir}: є Deployment, але немає hc.yaml поруч — додай HealthCheckPolicy (abie.mdc)`)
+      continue
+    }
+    let hcRaw
+    try {
+      hcRaw = await readFile(hcAbs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${relHc}: не вдалося прочитати (${msg})`)
+      continue
+    }
+    const modelineErr = validateAbieHcModeline(hcRaw, relHc)
+    if (modelineErr !== null) {
+      fail(modelineErr)
+      continue
+    }
+    hcFilesForRego.push(hcAbs)
+  }
+  if (hcFilesForRego.length === 0) return
+  const violations = runConftestBatch({
+    policyDirRel: 'abie/health_check_policy',
+    namespace: 'abie.health_check_policy',
+    files: hcFilesForRego
+  })
+  for (const v of violations) {
+    const rel = relative(root, v.filename).replaceAll('\\', '/') || v.filename
+    fail(`${rel}: ${v.message}`)
+  }
+  if (violations.length === 0 && hcFilesForRego.length > 0) {
+    pass(`HealthCheckPolicy: ${hcFilesForRego.length} файл(ів) hc.yaml відповідають abie.mdc (rego)`)
   }
 }
 

@@ -1,18 +1,14 @@
 /**
  * CLI-обгортка над канонічним `lint-ga` (ga.mdc): робить preflight на `shellcheck` і `uv` (для `uvx`),
  * тоді послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` і
- * (PoC) `conftest test` на структуру канонічних workflow проти Rego-полісі з `npm/policy/ga/`.
+ * делегує до `check-ga.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
+ * і JS cross-file перевірки правил `ga.mdc`.
  *
- * Conftest-крок навмисно **не** додається в preflight: якщо бінарник не встановлений, виводимо `ℹ`
- * повідомлення й продовжуємо з кодом 0. Структурні перевірки тих самих workflow паралельно живуть у
- * `npm/scripts/check-ga.mjs`, тож відсутність conftest не пропускає порушення мовчки.
- *
- * Conftest проганяється у двох режимах:
- * 1) per-workflow polysi (`ga.<name>`) — для канонічних `clean-ga-workflows`, `clean-merged-branch`,
- *    `lint-ga`, `git-ai`, що мають фіксовані поля (cron, ім'я кроку тощо);
- * 2) `ga.workflow_common` — універсальні правила (concurrency, заборонені setup-bun/cache/install у
- *    кроках, shell line-continuation у `run:`, checkout перед локальним setup-bun-deps), які
- *    застосовуються до **кожного** `.github/workflows/*.yml`.
+ * Plan B-патерн (rego-authoritative): Rego-полісі (`npm/policy/ga/`) запускає вже сам
+ * `check-ga.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
+ * спавнив conftest для `ga.<name>` per-workflow і `ga.workflow_common` (PoC); тепер ця логіка
+ * централізована у `check-ga.mjs`, тож одне джерело істини, без дублювання між
+ * `lint-ga` і `npx @nitra/cursor check ga`.
  *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
  * `run:` блоках, коли `shellcheck` відсутній у PATH; локально `bun lint-ga` лишається зеленим, а CI
@@ -23,48 +19,11 @@
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
  */
-import { existsSync, readdirSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { dirname, join } from 'node:path'
 import { platform } from 'node:process'
-import { fileURLToPath } from 'node:url'
 
+import { check as checkGa } from './check-ga.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
-
-/** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиту директорію policy/. */
-const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-
-/** Шлях до кореня Rego-полісі для GA. У npm-tarball публікується через `files: ["policy"]` у package.json. */
-const GA_POLICY_DIR = join(PACKAGE_ROOT, 'policy', 'ga')
-
-/**
- * Workflow-файли, для яких маємо відповідну Rego-полісі. Кожен таргет посилається на під-пакет
- * `ga.<name>` у `policy/ga/<name>/<name>.rego`; conftest викликаємо з `--namespace`, щоб правила
- * іншого workflow не застосовувалися до чужого файлу.
- * @type {Array<{ workflow: string, namespace: string, label: string }>}
- */
-const CONFTEST_TARGETS = [
-  {
-    workflow: '.github/workflows/clean-ga-workflows.yml',
-    namespace: 'ga.clean_ga_workflows',
-    label: 'clean-ga-workflows.yml structure'
-  },
-  {
-    workflow: '.github/workflows/clean-merged-branch.yml',
-    namespace: 'ga.clean_merged_branch',
-    label: 'clean-merged-branch.yml structure'
-  },
-  {
-    workflow: '.github/workflows/lint-ga.yml',
-    namespace: 'ga.lint_ga',
-    label: 'lint-ga.yml structure'
-  },
-  {
-    workflow: '.github/workflows/git-ai.yml',
-    namespace: 'ga.git_ai',
-    label: 'git-ai.yml structure'
-  }
-]
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
@@ -177,22 +136,24 @@ function runStep(title, cmd, args) {
 }
 
 /**
- * Виконує канонічний `lint-ga` з preflight-перевірками й послідовним запуском actionlint + zizmor.
+ * Виконує канонічний `lint-ga` з preflight-перевірками і делегує до `check-ga.check()`.
  *
  * Послідовність:
  * 1) preflight: `shellcheck` (для actionlint SC-правил) і `uv` (для `uvx zizmor`); відсутній → exit 1;
  * 2) `bunx github-actionlint`;
- * 3) `uvx zizmor --offline --collect=workflows .`.
+ * 3) `uvx zizmor --offline --collect=workflows .`;
+ * 4) `check-ga.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
+ *    перевірки правил `ga.mdc`. Це **те саме**, що робить `npx @nitra/cursor check ga`, тож
+ *    `lint-ga` тепер є суперсетом перевірки правила: external-tools + check.
  *
  * Якщо хоча б один preflight не пройшов — виходимо одразу з кодом 1, **до** запуску actionlint/zizmor,
  * бо їхні власні повідомлення про відсутність залежностей менш інформативні (особливо для shellcheck —
  * actionlint мовчки пропускає SC-правила; ця перевірка — головний сенс обгортки).
  *
- * Першу помилку від actionlint/zizmor повертаємо як код виходу; наступні кроки не запускаються
- * (відповідає `&&` у package.json).
- * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
+ * Першу помилку від actionlint/zizmor/check повертаємо як код виходу; наступні кроки не запускаються.
+ * @returns {Promise<number>} 0 — все OK, інакше — код першого кроку, що впав
  */
-export function runLintGaCli() {
+export async function runLintGaCli() {
   let preflightOk = true
   for (const dep of [SHELLCHECK_PREFLIGHT, UV_PREFLIGHT]) {
     if (!preflight(dep)) preflightOk = false
@@ -205,81 +166,6 @@ export function runLintGaCli() {
   const zizmorCode = runStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
   if (zizmorCode !== 0) return zizmorCode
 
-  return runConftestStep()
-}
-
-/**
- * PoC-крок: запускає conftest на YAML workflow проти Rego-полісі з пакету (`policy/ga/`).
- *
- * Поведінка fallback:
- * - якщо `conftest` не знайдено в PATH — друкуємо `ℹ` повідомлення з підказкою встановлення й
- *   повертаємо 0 (тобто конфтест поки що **не** є обовʼязковою залежністю lint-ga; перевірки лежать
- *   паралельно в `check-ga.mjs`, і `npx \@nitra/cursor check ga` все одно їх запустить);
- * - якщо `conftest` є й полісі-каталог відсутній (нетипова інсталяція) — також `ℹ` skip;
- * - якщо є цільовий workflow і conftest — запускаємо `conftest test <workflow> -p <policy-dir>` і
- *   повертаємо його exit-код, щоб порушення зупиняли lint-ga, як це робить actionlint/zizmor.
- *
- * Локальний `conftest` встановлюється через `brew install conftest` / `go install ...` — деталі в
- * https://www.conftest.dev/install/.
- * @returns {number} 0 — OK або skip, інакше — exit-код conftest
- */
-function runConftestStep() {
-  const conftestBin = resolveCmd('conftest')
-  if (!conftestBin) {
-    console.log(
-      '\nℹ conftest не знайдено в PATH — пропускаю PoC-перевірку структури workflow через Rego-полісі.\n' +
-        '   Встанови, щоб запустити її локально: brew install conftest (macOS) або https://www.conftest.dev/install/'
-    )
-    return 0
-  }
-
-  if (!existsSync(GA_POLICY_DIR)) {
-    console.log(`\nℹ Каталог Rego-полісі не знайдено (${GA_POLICY_DIR}) — пропускаю conftest.`)
-    return 0
-  }
-
-  for (const target of CONFTEST_TARGETS) {
-    if (!existsSync(target.workflow)) continue
-    const code = runStep(`conftest (${target.label})`, conftestBin, [
-      'test',
-      target.workflow,
-      '-p',
-      GA_POLICY_DIR,
-      '--namespace',
-      target.namespace,
-      '--no-color'
-    ])
-    if (code !== 0) return code
-  }
-
-  return runConftestWorkflowCommon(conftestBin)
-}
-
-/**
- * Прогоняє `ga.workflow_common` на кожному `.github/workflows/*.yml` — універсальні перевірки
- * (concurrency, заборонені setup-bun/cache/install, shell line-continuation, checkout перед
- * локальним setup-bun-deps). Якщо директорії немає або файлів немає — мовчки skip.
- *
- * Викликаємо conftest на всіх файлах одним прогоном (`conftest test <files...>`) — швидше, ніж
- * по одному, і summary-лог зрозуміліший. Перший ненульовий exit-код повертаємо як результат.
- * @param {string} conftestBin абсолютний шлях до бінарника conftest
- * @returns {number} 0 — OK, інакше exit-код conftest
- */
-function runConftestWorkflowCommon(conftestBin) {
-  const wfDir = '.github/workflows'
-  if (!existsSync(wfDir)) return 0
-  const ymlFiles = readdirSync(wfDir)
-    .filter(f => f.endsWith('.yml'))
-    .map(f => join(wfDir, f))
-  if (ymlFiles.length === 0) return 0
-
-  return runStep('conftest (workflow_common — усі workflow)', conftestBin, [
-    'test',
-    ...ymlFiles,
-    '-p',
-    GA_POLICY_DIR,
-    '--namespace',
-    'ga.workflow_common',
-    '--no-color'
-  ])
+  console.log('\n▶ check-ga (rego-полісі npm/policy/ga/ + JS cross-file перевірки)')
+  return await checkGa()
 }

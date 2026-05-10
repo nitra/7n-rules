@@ -131,6 +131,7 @@ import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
@@ -477,25 +478,9 @@ export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
   return null
 }
 
-/**
- * Усі **`kustomization.yaml`**: **`resources`**, відсортовані за en.
- * @param {string} root корінь репо
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail функція для фіксації порушення
- * @returns {Promise<void>} завершується після перевірки всіх kustomization.yaml
- */
-async function validateKustomizationResourcesSortedAlphabetically(root, yamlFilesAbs, fail) {
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
-    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-    const kust = await readFirstYamlObject(kustAbs)
-    if (kust !== null) {
-      const v = kustomizationResourcesSortedAlphabeticallyViolation(kust)
-      if (v !== null) {
-        fail(`${rel}: ${v}`)
-      }
-    }
-  }
-}
+// Plan B: per-document `resources[]` sort у Kustomization — у rego-пакеті
+// `k8s.kustomization`, викликається з `runAllK8sRego` на початку `check()`.
+// JS-orchestrator validateKustomizationResourcesSortedAlphabetically видалено.
 
 /**
  * Лексичне порівняння двох tuple рядків через `localeCompare('en', { sensitivity: 'base' })`.
@@ -662,42 +647,9 @@ export function kustomizationInlinePatchOpsSortedViolation(patchText) {
   return `inline patch (JSON6902) має бути за алфавітом по path. Зараз: ${paths.join(', ')}; очікувано: ${want.join(', ')} (k8s.mdc)`
 }
 
-/**
- * Усі **`kustomization.yaml`**: `patches[]` відсортовано за `[target.kind, target.name, …]`,
- * а вміст inline `patches[i].patch` (де всі ops — `add`/`replace` і шляхи дизʼюнктні) — за `path`.
- * @param {string} root корінь репо
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail функція для фіксації порушення
- * @returns {Promise<void>} завершується після перевірки всіх kustomization.yaml
- */
-async function validateKustomizationPatchesStructuralSort(root, yamlFilesAbs, fail) {
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
-    const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-    const kust = await readFirstYamlObject(kustAbs)
-    if (kust === null) continue
-    const outer = kustomizationPatchesSortedViolation(kust)
-    if (outer !== null) fail(`${rel}: ${outer}`)
-    if (!Array.isArray(kust.patches)) continue
-    validateInlinePatchesSorted(rel, kust.patches, fail)
-  }
-}
-
-/**
- * Перевіряє, що inline-`patch:` (рядок YAML/JSON) у кожному `patches[i]` має ops у канонічному порядку
- * (`add`/`replace` за `path`). Чужі форми (без `patch`-стрічки, з `target` без inline-блока) пропускаються.
- * @param {string} rel відносний шлях `kustomization.yaml` для повідомлень
- * @param {unknown[]} patches масив `kust.patches` (рекордів)
- * @param {(msg: string) => void} fail callback при порушенні
- */
-function validateInlinePatchesSorted(rel, patches, fail) {
-  for (const [i, p] of patches.entries()) {
-    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
-    const rec = /** @type {Record<string, unknown>} */ (p)
-    if (typeof rec.patch !== 'string') continue
-    const v = kustomizationInlinePatchOpsSortedViolation(rec.patch)
-    if (v !== null) fail(`${rel}: patches[${i}] (${kustomizationPatchLabel(p, i)}): ${v}`)
-  }
-}
+// Plan B: validateKustomizationPatchesStructuralSort видалено. Per-document
+// `patches[]` sort + inline JSON6902 ops sort — у rego-пакеті `k8s.kustomization`,
+// викликається з `runAllK8sRego`.
 
 /**
  * Шляхи з полів Kustomization для resolve відносно каталогу **`kustomization.yaml`**.
@@ -2285,111 +2237,11 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
   return out.toSorted((a, b) => a.localeCompare(b))
 }
 
-/**
- * Реєструє порушення, якщо в JSON6902-операціях є **remove** і **add** на один **path**.
- * @param {string} rel відносний шлях до kustomization.yaml
- * @param {string} label фрагмент повідомлення (наприклад `patches[1] inline JSON6902`)
- * @param {string} patchText текст patch
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {void}
- */
-function failIfJson6902RemoveAddConflictOnSamePath(rel, label, patchText, fail) {
-  const ops = collectJson6902OperationsFromPatchText(patchText)
-  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-  if (bad.length > 0) {
-    fail(`${rel}: ${label}: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`)
-  }
-}
-
-/**
- * Зовнішній patch-файл (масив JSON6902): remove+add на один path.
- * @param {string} rel відносний шлях до kustomization.yaml
- * @param {string} resolved абсолютний шлях до файлу patch
- * @param {string} root корінь репо
- * @param {string} patchRef відносне посилання з kustomization
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
- */
-async function auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fail) {
-  /** @type {import('node:fs').Stats | null} */
-  let st
-  try {
-    st = await stat(resolved)
-  } catch {
-    st = null
-  }
-  if (st === null || !st.isFile()) {
-    return
-  }
-  let pRaw
-  try {
-    pRaw = await readFile(resolved, 'utf8')
-  } catch {
-    return
-  }
-  const ops = collectJson6902OperationsFromPatchText(pRaw)
-  if (ops.length === 0) {
-    return
-  }
-  const bad = json6902PathsWithRemoveAndAddOnSamePath(ops)
-  if (bad.length === 0) {
-    return
-  }
-  const relPatch = (relative(root, resolved) || patchRef).replaceAll('\\', '/')
-  fail(
-    `${rel}: patch-файл «${relPatch}»: один path має і remove, і add — оформи як op: replace (k8s.mdc): ${bad.join(', ')}`
-  )
-}
-
-/**
- * Один елемент **`patches[]`**: inline JSON6902 або зовнішній patch-файл.
- * @param {string} rel відносний шлях до kustomization.yaml
- * @param {Record<string, unknown>} pr об’єкт patch
- * @param {number} patchIdx 1-based індекс у масиві
- * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @param {string} rootNorm нормалізований корінь репо
- * @param {string} root корінь репо
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
- */
-async function auditOneKustomizationJson6902Patch(rel, pr, patchIdx, kustAbs, rootNorm, root, fail) {
-  if (typeof pr.patch === 'string' && pr.patch.trim() !== '') {
-    failIfJson6902RemoveAddConflictOnSamePath(rel, `patches[${patchIdx}] inline JSON6902`, pr.patch, fail)
-  }
-  if (typeof pr.path !== 'string' || pr.path.trim() === '') {
-    return
-  }
-  const patchRef = pr.path.trim()
-  const resolved = resolve(dirname(kustAbs), patchRef)
-  if (!resolvedFilePathIsUnderRoot(rootNorm, resolved) || !existsSync(resolved)) {
-    return
-  }
-  await auditJson6902PatchExternalFile(rel, resolved, root, patchRef, fail)
-}
-
-/**
- * Усі **`patches[]`** у Kustomization: inline та зовнішні файли.
- * @param {string} rel відносний шлях до kustomization.yaml
- * @param {unknown} patches поле **patches**
- * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @param {string} rootNorm нормалізований корінь репо
- * @param {string} root корінь репо
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
- */
-async function auditKustomizationPatchesJson6902(rel, patches, kustAbs, rootNorm, root, fail) {
-  if (!Array.isArray(patches)) {
-    return
-  }
-  let patchIdx = 0
-  for (const p of patches) {
-    patchIdx++
-    if (p !== null && typeof p === 'object' && !Array.isArray(p)) {
-      const pr = /** @type {Record<string, unknown>} */ (p)
-      await auditOneKustomizationJson6902Patch(rel, pr, patchIdx, kustAbs, rootNorm, root, fail)
-    }
-  }
-}
+// Plan B: вся audit-ланка JSON6902 (failIfJson6902RemoveAddConflictOnSamePath,
+// auditJson6902PatchExternalFile, auditOneKustomizationJson6902Patch,
+// auditKustomizationPatchesJson6902) видалена. Per-document inline JSON6902
+// remove+add conflict — у rego-пакеті `k8s.kustomization`. Зовнішні patch-файли
+// не охоплені rego-кроком (потребує FS-доступу) — це trade-off Plan B.
 
 /**
  * Один YAML-документ: якщо це Kustomization — перевірка **patches** на JSON6902 remove+add.
@@ -2401,140 +2253,18 @@ async function auditKustomizationPatchesJson6902(rel, patches, kustAbs, rootNorm
  * @param {(msg: string) => void} fail реєстрація порушення
  * @returns {Promise<void>}
  */
-async function auditJson6902ForKustomizationYamlDoc(rel, rootObj, kustAbs, rootNorm, root, fail) {
-  const rec = /** @type {Record<string, unknown>} */ (rootObj)
-  if (rec.kind !== 'Kustomization') {
-    return
-  }
-  await auditKustomizationPatchesJson6902(rel, rec.patches, kustAbs, rootNorm, root, fail)
-}
-
 /**
- * Один **`kustomization.yaml`**: JSON6902 remove+add на одному path.
- * @param {string} root корінь репозиторію
- * @param {string} rootNorm нормалізований корінь
- * @param {string} kustAbs абсолютний шлях до файлу
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
+ * Plan B: per-document JSON6902 remove+add conflict — у rego-пакеті
+ * `k8s.kustomization`, виклик через `runAllK8sRego`. JS-функції
+ * auditJson6902ForKustomizationYamlDoc, auditJson6902OneKustomizationYamlFile,
+ * validateKustomizationJson6902NoRemoveAddSamePath видалено.
  */
-async function auditJson6902OneKustomizationYamlFile(root, rootNorm, kustAbs, fail) {
-  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-  let raw
-  try {
-    raw = await readFile(kustAbs, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося прочитати для перевірки JSON6902 (${msg})`)
-    return
-  }
-  const lines = toLines(raw)
-  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch {
-    return
-  }
-  for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const rootObj = doc.toJSON()
-      if (rootObj !== null && typeof rootObj === 'object' && !Array.isArray(rootObj)) {
-        await auditJson6902ForKustomizationYamlDoc(rel, rootObj, kustAbs, rootNorm, root, fail)
-      }
-    }
-  }
-}
 
-/**
- * Перевіряє всі **`kustomization.yaml`** під **`k8s`**: у inline **`patch`** і у зовнішніх patch-файлах не має бути **remove** і **add** на той самий **path**.
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
- * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
- */
-async function validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFilesAbs, fail) {
-  const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
-    await auditJson6902OneKustomizationYamlFile(root, rootNorm, kustAbs, fail)
-  }
-}
-
-/**
- * Заборонений **kind: Ingress** у документі.
- * @param {string} rel відносний шлях до файлу
- * @param {number} docIndex 1-based індекс документа
- * @param {Record<string, unknown>} rec корінь маніфесту
- * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
- */
-function failIfIngressInDocument(rel, docIndex, rec, fail) {
-  if (rec.kind !== 'Ingress') {
-    return
-  }
-  fail(
-    `${rel}: знайдено kind: Ingress (документ ${docIndex}) — заміни на Gateway API: HTTPRoute (hr.yaml), HealthCheckPolicy (hc.yaml) (див. k8s.mdc)`
-  )
-}
-
-/**
- * Чи маніфест використовує заборонений **`apiVersion: autoscaling/v1`** (HPA).
- * Канон — **`autoscaling/v2`** (див. k8s.mdc).
- * @param {unknown} manifest корінь YAML-документа
- * @returns {boolean} true, якщо `apiVersion === 'autoscaling/v1'`
- */
-export function isForbiddenAutoscalingV1Manifest(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
-    return false
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  return rec.apiVersion === 'autoscaling/v1'
-}
-
-/**
- * Заборонена група **`apiVersion: autoscaling/v1`** (HPA) — вимагається міграція на **`autoscaling/v2`**.
- * @param {string} rel відносний шлях до файлу
- * @param {number} docIndex 1-based індекс документа
- * @param {Record<string, unknown>} rec корінь маніфесту
- * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
- */
-function failIfAutoscalingV1InDocument(rel, docIndex, rec, fail) {
-  if (!isForbiddenAutoscalingV1Manifest(rec)) {
-    return
-  }
-  const kind = typeof rec.kind === 'string' ? rec.kind : '(невідомо)'
-  fail(
-    `${rel}: знайдено apiVersion: autoscaling/v1 (документ ${docIndex}, kind: ${kind}) — мігруй на autoscaling/v2 (див. k8s.mdc)`
-  )
-}
-
-/**
- * Шукає заборонені маніфести у розібраних документах: **kind: Ingress** і **apiVersion: autoscaling/v1**.
- * @param {string} rel відносний шлях до файлу
- * @param {string} body YAML після modeline
- * @param {(msg: string) => void} fail callback для помилки
- * @returns {void}
- */
-function scanForbiddenManifestsInYamlDocuments(rel, body, fail) {
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch {
-    return
-  }
-
-  for (const [di, doc] of docs.entries()) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        failIfIngressInDocument(rel, di + 1, rec, fail)
-        failIfAutoscalingV1InDocument(rel, di + 1, rec, fail)
-      }
-    }
-  }
-}
+// Plan B: per-document `kind: Ingress` і `apiVersion: autoscaling/v1` заборонено —
+// у rego-пакеті `k8s.manifest`, виклик через `runAllK8sRego`. JS-функції
+// failIfIngressInDocument, failIfAutoscalingV1InDocument, scanForbiddenManifestsInYamlDocuments
+// видалено. `isForbiddenAutoscalingV1Manifest` як публічний predicate теж видалено
+// (rego — авторитативне джерело).
 
 /**
  * Рекомендоване **`resources.requests.cpu`** поза шарем base для підказок у повідомленнях (k8s.mdc).
@@ -3087,15 +2817,6 @@ export function serviceForbiddenGcpAnnotationsViolation(manifest) {
 const SVC_HL_NAME_SUFFIX = '-hl'
 
 /**
- * Kind маршрутів Gateway API, у **`spec`** яких шукаємо **`backendRefs`** / **`backendRef`** до **Service**.
- * @type {Set<string>}
- */
-const GATEWAY_API_ROUTE_KINDS = new Set(['HTTPRoute', 'GRPCRoute', 'TCPRoute', 'TLSRoute', 'UDPRoute'])
-
-/** Префікс **`apiVersion`** стандартних ресурсів Gateway API. */
-const GATEWAY_API_GROUP_PREFIX = 'gateway.networking.k8s.io/'
-
-/**
  * Чи **Service** у **`svc.yaml`** має **`spec.type: ClusterIP`** (k8s.mdc).
  * @param {unknown} manifest корінь YAML-документа
  * @returns {string | null} текст порушення або null
@@ -3281,64 +3002,9 @@ export function collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, ro
  * @param {(msg: string) => void} fail callback помилки
  * @returns {void}
  */
-function failIfGatewayRouteUsesNonHeadlessService(rel, docIndex, rec, fail) {
-  const av = rec.apiVersion
-  const kind = rec.kind
-  if (
-    typeof av !== 'string' ||
-    !av.startsWith(GATEWAY_API_GROUP_PREFIX) ||
-    typeof kind !== 'string' ||
-    !GATEWAY_API_ROUTE_KINDS.has(kind)
-  ) {
-    return
-  }
-  const names = collectGatewayApiRouteBackendServiceNames(rec.spec)
-  for (const svcName of names) {
-    if (!svcName.endsWith(SVC_HL_NAME_SUFFIX)) {
-      fail(
-        `${rel}: Gateway API ${kind} (документ ${docIndex}): backendRef до Service має вказувати headless-сервіс з суфіксом «${SVC_HL_NAME_SUFFIX}» у name (зараз: «${svcName}»; див. k8s.mdc)`
-      )
-    }
-  }
-  const meta = rec.metadata
-  if (meta !== null && typeof meta === 'object' && !Array.isArray(meta)) {
-    const routeNs = /** @type {Record<string, unknown>} */ (meta).namespace
-    if (typeof routeNs === 'string' && routeNs !== '') {
-      const redundant = collectGatewayApiRouteBackendRefsWithRedundantNamespace(rec.spec, routeNs)
-      for (const svcName of redundant) {
-        fail(
-          `${rel}: Gateway API ${kind} (документ ${docIndex}): backendRef «${svcName}» має namespace «${routeNs}», що збігається з metadata.namespace маршруту — прибери поле namespace з backendRef (див. k8s.mdc)`
-        )
-      }
-    }
-  }
-}
-
-/**
- * Реєструє порушення: маршрути Gateway API мають посилатися на **Service** з суфіксом **`-hl`**.
- * @param {string} rel відносний шлях до файлу
- * @param {string} body YAML після modeline
- * @param {(msg: string) => void} fail callback помилки
- * @returns {void}
- */
-function scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail) {
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch {
-    return
-  }
-
-  for (const [di, doc] of docs.entries()) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        failIfGatewayRouteUsesNonHeadlessService(rel, di + 1, /** @type {Record<string, unknown>} */ (obj), fail)
-      }
-    }
-  }
-}
+// Plan B: Gateway API маршрут backendRef з суфіксом `-hl` і redundant namespace —
+// у rego-пакеті `k8s.gateway`, виклик через `runAllK8sRego`. JS-функції
+// failIfGatewayRouteUsesNonHeadlessService, scanGatewayApiRouteBackendRefsInYamlBody видалено.
 
 /**
  * Звузити `unknown` до `Record<string, unknown>` (`null`, масиви, примітиви → null).
@@ -3815,19 +3481,27 @@ async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
   const { hasuraByDir, httpRoutes } = await collectHasuraDeploymentsAndHttpRoutes(yamlFiles)
   if (hasuraByDir.size === 0 || httpRoutes.length === 0) return
 
+  // JS gating: відберемо файли HTTPRoute, що paired з Hasura-Deployment у тому ж каталозі
+  // (за `metadata.name` HTTPRoute === metadata.name Hasura-Deployment). Per-document валідація
+  // канону 4 правил Hasura — у rego-пакеті `k8s.hasura_httproute`.
+  const pairedFiles = new Set()
   for (const hr of httpRoutes) {
     const meta = asPlainRecord(hr.obj.metadata)
     const name = meta === null ? undefined : meta.name
     const set = typeof name === 'string' && name !== '' ? hasuraByDir.get(hr.dir) : undefined
     if (set !== undefined && typeof name === 'string' && set.has(name)) {
-      const v = httpRouteHasuraCanonViolation(hr.obj)
-      if (v !== null) {
-        const rel = (relative(root, hr.abs) || hr.abs).replaceAll('\\', '/')
-        fail(
-          `${rel}: HTTPRoute «${name}» (документ ${hr.docIndex}; прив'язано до Hasura-Deployment у тому ж каталозі): ${v}`
-        )
-      }
+      pairedFiles.add(hr.abs)
     }
+  }
+  if (pairedFiles.size === 0) return
+  const violations = runConftestBatch({
+    policyDirRel: 'k8s/hasura_httproute',
+    namespace: 'k8s.hasura_httproute',
+    files: [...pairedFiles]
+  })
+  for (const v of violations) {
+    const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
+    fail(`${rel}: ${v.message}`)
   }
 }
 
@@ -3898,117 +3572,11 @@ export function isK8sBaseManifestYamlPath(rel, baseLower) {
   return K8S_BASE_SEGMENT_RE.test(n)
 }
 
-/**
- * Правила **metadata.namespace** для одного документа.
- * @param {string} rel відносний шлях
- * @param {number} docIndex 1-based
- * @param {unknown} obj корінь документа
- * @param {boolean} skipMetaNs пропуск для **kustomization.yaml**
- * @param {boolean} inBaseManifest файл у **k8s/base/**
- * @param {boolean} kustomizeManaged файл у графі kustomization
- * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
- */
-function failIfK8sPolicyNamespaceRulesViolated(rel, docIndex, obj, skipMetaNs, inBaseManifest, kustomizeManaged, fail) {
-  if (skipMetaNs) {
-    return
-  }
-  if (inBaseManifest) {
-    const req = metadataNamespaceRequiredViolation(obj, true)
-    if (req !== null) {
-      fail(`${rel}: документ ${docIndex}: ${req}`)
-    }
-    return
-  }
-  if (kustomizeManaged) {
-    const ns = metadataNamespaceForbiddenViolation(obj)
-    if (ns !== null) {
-      fail(`${rel}: документ ${docIndex}: ${ns}`)
-    }
-    return
-  }
-  const req = metadataNamespaceRequiredViolation(obj, false)
-  if (req !== null) {
-    fail(`${rel}: документ ${docIndex}: ${req}`)
-  }
-}
-
-/**
- * Deployment / Service / HealthCheckPolicy — політики для одного документа.
- * @param {string} rel відносний шлях
- * @param {string} baseLower basename (нижній регістр)
- * @param {number} docIndex 1-based
- * @param {unknown} obj корінь документа
- * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
- */
-function failIfK8sPolicyResourceRulesViolated(rel, baseLower, docIndex, obj, fail) {
-  const relPosix = rel.replaceAll('\\', '/')
-  const inK8sBaseLayer = isK8sYamlUnderBaseDirectory(relPosix)
-  const resV = deploymentResourcesViolation(obj, inK8sBaseLayer)
-  if (resV !== null) {
-    fail(`${rel}: Deployment (документ ${docIndex}): ${resV}`)
-  }
-  const hasuraV = deploymentHasuraGraphqlEngineImageViolation(obj)
-  if (hasuraV !== null) {
-    fail(`${rel}: Deployment (документ ${docIndex}): ${hasuraV}`)
-  }
-  const svcGcpV = serviceForbiddenGcpAnnotationsViolation(obj)
-  if (svcGcpV !== null) {
-    fail(`${rel}: Service (документ ${docIndex}): ${svcGcpV}`)
-  }
-  if (baseLower === 'svc.yaml') {
-    const svcT = serviceSvcYamlClusterIpTypeViolation(obj)
-    if (svcT !== null) {
-      fail(`${rel}: Service (документ ${docIndex}): ${svcT}`)
-    }
-  }
-  if (baseLower === 'svc-hl.yaml') {
-    const svcH = serviceSvcHlYamlHeadlessViolation(obj)
-    if (svcH !== null) {
-      fail(`${rel}: Service (документ ${docIndex}): ${svcH}`)
-    }
-  }
-  const hcpHl = healthCheckPolicyTargetRefHeadlessServiceViolation(obj)
-  if (hcpHl !== null) {
-    fail(`${rel}: документ ${docIndex}: ${hcpHl}`)
-  }
-}
-
-/**
- * Парсить усі YAML-документи: **metadata.namespace**, **Deployment.resources**, **Hasura image pin**,
- * **Service — заборонені GKE-анотації**, **`svc.yaml`** (**`spec.type: ClusterIP`**), **`svc-hl.yaml`**
- * (**headless**, суфікс **`-hl`** у **`metadata.name`**), **HealthCheckPolicy** (**`targetRef.name`** з **`-hl`**).
- * @param {string} rel відносний шлях
- * @param {string} baseLower basename файлу (нижній регістр)
- * @param {string} body вміст після modeline
- * @param {(msg: string) => void} fail реєстрація помилки
- * @param {boolean} kustomizeManaged чи файл досяжний з kustomization.yaml (resources / patches / …)
- */
-function validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged) {
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося розібрати YAML для перевірок маніфестів (${msg})`)
-    return
-  }
-
-  const skipMetaNs = isKustomizationFileName(baseLower)
-  const inBaseManifest = isK8sBaseManifestYamlPath(rel, baseLower)
-
-  for (const [di, doc] of docs.entries()) {
-    if (doc.errors.length > 0) {
-      fail(`${rel}: YAML (документ ${di + 1}): ${doc.errors.map(e => e.message).join('; ')}`)
-    } else {
-      const obj = doc.toJSON()
-      failIfK8sPolicyNamespaceRulesViolated(rel, di + 1, obj, skipMetaNs, inBaseManifest, kustomizeManaged, fail)
-      failIfK8sPolicyResourceRulesViolated(rel, baseLower, di + 1, obj, fail)
-    }
-  }
-}
+// Plan B: per-document валідаційне ядро для k8s YAML повністю в rego —
+// `k8s.manifest`, `k8s.gateway`, `k8s.svc_yaml`, `k8s.svc_hl_yaml`,
+// `k8s.kustomize_managed`, `k8s.base_manifest`. Виклик через `runAllK8sRego`.
+// JS-функції failIfK8sPolicyNamespaceRulesViolated, failIfK8sPolicyResourceRulesViolated,
+// validateK8sYamlPolicyDocuments видалено.
 
 /**
  * Kind для імен файлів yannh/datree: лише літери та цифри, нижній регістр (Service → service, HTTPRoute → httproute).
@@ -4103,20 +3671,6 @@ function countSchemaModelines(lines) {
   return lines.filter(l => OXLINT_SCHEMA_MODELINE_RE.test(l.trim())).length
 }
 
-/**
- * Політики маніфестів і Gateway backendRefs після розбору тіла.
- * @param {string} rel відносний шлях
- * @param {string} baseLower basename (нижній регістр)
- * @param {string} body YAML після modeline
- * @param {(msg: string) => void} fail реєстрація помилки
- * @param {Set<string>} kustomizeManagedRel kustomize-managed шляхи
- * @returns {void}
- */
-function runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel) {
-  const kustomizeManaged = kustomizeManagedRel.has(rel)
-  validateK8sYamlPolicyDocuments(rel, baseLower, body, fail, kustomizeManaged)
-  scanGatewayApiRouteBackendRefsInYamlBody(rel, body, fail)
-}
 
 /**
  * Файл з першим документом **HttpBackendGroup** (ALB Yandex): без modeline **$schema**.
@@ -4128,11 +3682,11 @@ function runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeMa
  * @param {Set<string>} kustomizeManagedRel kustomize-managed шляхи
  * @returns {void}
  */
-function checkK8sYamlHttpBackendGroupFile(rel, baseLower, lines, fail, pass, kustomizeManagedRel) {
-  const body = lines.join('\n')
-  scanForbiddenManifestsInYamlDocuments(rel, body, fail)
+function checkK8sYamlHttpBackendGroupFile(rel, _baseLower, _lines, _fail, pass, _kustomizeManagedRel) {
+  // Per-document валідація (Ingress/autoscaling/v1 заборонено, Gateway API backendRef,
+  // metadata.namespace правила) — у rego (`k8s.manifest`, `k8s.gateway`, `k8s.kustomize_managed`,
+  // `k8s.base_manifest`), батч-виклик з `runAllK8sRego` на початку `check()`.
   pass(`${rel}: HttpBackendGroup (alb.yc.io/v1alpha1) — modeline $schema не застосовується (k8s.mdc)`)
-  runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel)
 }
 
 /**
@@ -4160,7 +3714,9 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
 
   const body = yamlBodyAfterModeline(lines)
 
-  scanForbiddenManifestsInYamlDocuments(rel, body, fail)
+  // Per-document валідація (Ingress/autoscaling/v1 заборонено, Gateway API backendRef,
+  // metadata.namespace правила, Service GCP-анотації, Deployment resources/Hasura image,
+  // topologySpread, HCP, svc/svc-hl) — делегована rego, виконано у `runAllK8sRego` вище.
 
   if (schemaUrl.startsWith('file:')) {
     pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
@@ -4181,10 +3737,7 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
     pass(`${rel}: $schema узгоджено (${reason})`)
   } else {
     fail(`${rel}: $schema має бути https URL або file: (див. k8s.mdc)`)
-    return
   }
-
-  runK8sYamlPolicyAndGatewayScans(rel, baseLower, body, fail, kustomizeManagedRel)
 }
 
 /**
@@ -4272,46 +3825,9 @@ function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
  * @param {(msg: string) => void} fail реєстрація порушення
  * @returns {Promise<void>}
  */
-async function verifyBaseKustomizationNamespaceOnFile(root, abs, fail) {
-  const rel = relative(root, abs).replaceAll('\\', '/')
-  try {
-    const raw = await readFile(abs, 'utf8')
-    const lines = toLines(raw)
-    const body = yamlBodyAfterModeline(lines)
-    /** @type {import('yaml').Document[] | undefined} */
-    let docs
-    try {
-      docs = parseAllDocuments(body)
-    } catch {
-      fail(`${rel}: не вдалося розпарсити YAML для перевірки namespace у base (див. k8s.mdc)`)
-      return
-    }
-    const first = docs[0]?.toJSON()
-    const v = baseKustomizationNamespaceViolation(first)
-    if (v) {
-      fail(`${rel}: ${v}`)
-    }
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося прочитати (${msg})`)
-  }
-}
-
-/**
- * Якщо є **`k8s/base/kustomization.yaml`**, у ньому **завжди** має бути непорожній **`namespace:`**.
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFiles абсолютні шляхи
- * @param {(msg: string) => void} fail callback для реєстрації порушення
- * @returns {Promise<void>}
- */
-async function ensureBaseKustomizationHasNamespace(root, yamlFiles, fail) {
-  for (const abs of yamlFiles) {
-    const rel = relative(root, abs).replaceAll('\\', '/')
-    if (isBaseKustomizationPath(rel)) {
-      await verifyBaseKustomizationNamespaceOnFile(root, abs, fail)
-    }
-  }
-}
+// Plan B: per-document `k8s/base/kustomization.yaml` має непорожнє поле `namespace:` —
+// у rego-пакеті `k8s.base_kustomization`, виклик через `runAllK8sRego`.
+// JS-функції verifyBaseKustomizationNamespaceOnFile, ensureBaseKustomizationHasNamespace видалено.
 
 const CONFIGMAP_BASE_PATH_RE = /\/k8s\/base\/configmap\.yaml$/u
 
@@ -4375,19 +3891,6 @@ async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, 
 }
 
 /**
- * Знаходить перший документ **ConfigMap** у файлі (з `metadata.name`).
- * @param {string} absPath абсолютний шлях до YAML-файлу
- * @returns {Promise<Record<string, unknown> | null>} об'єкт ConfigMap або null
- */
-async function readFirstConfigMapDoc(absPath) {
-  const raw = await tryReadFileUtf8(absPath)
-  if (raw === undefined) return null
-  const docs = tryParseAllYamlDocs(raw)
-  if (docs === undefined) return null
-  return findFirstDocByKind(docs, 'ConfigMap')
-}
-
-/**
  * Для кожного `k8s/base/configmap.yaml`, у каталозі якого поруч є Hasura-Deployment,
  * вимагає у `data` ключ **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (k8s.mdc).
  * @param {string} root корінь репозиторію
@@ -4400,20 +3903,28 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
     const rel = relative(root, abs).replaceAll('\\', '/')
     return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
   })
+  // JS gating: відберемо ConfigMap-файли, у каталозі яких поруч є Hasura-Deployment.
+  // Per-document валідація `data.HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS == "true"`
+  // — у rego-пакеті `k8s.hasura_configmap`.
+  const paired = []
   for (const cmAbs of cmFiles) {
-    const rel = relative(root, cmAbs).replaceAll('\\', '/') || cmAbs
     const deployment = await findDeploymentDocInDir(dirname(cmAbs))
     if (deployment !== null && isHasuraDeploymentManifest(deployment)) {
-      const cm = await readFirstConfigMapDoc(cmAbs)
-      if (cm !== null) {
-        const violation = hasuraConfigMapRemoteSchemaPermissionsViolation(cm)
-        if (violation === null) {
-          passFn(`${rel}: ${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}="true" для Hasura-Deployment (k8s.mdc)`)
-        } else {
-          fail(`${rel}: ${violation}`)
-        }
-      }
+      paired.push(cmAbs)
     }
+  }
+  if (paired.length === 0) return
+  const violations = runConftestBatch({
+    policyDirRel: 'k8s/hasura_configmap',
+    namespace: 'k8s.hasura_configmap',
+    files: paired
+  })
+  for (const v of violations) {
+    const rel = (relative(root, v.filename) || v.filename).replaceAll('\\', '/')
+    fail(`${rel}: ${v.message}`)
+  }
+  if (violations.length === 0) {
+    passFn(`Hasura-ConfigMap (${paired.length}) відповідає ${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}="true" (rego)`)
   }
 }
 
@@ -6518,6 +6029,56 @@ async function runKustomizationImagesCleanup(kustAbs, rel, fail, pass) {
  * Перевіряє відповідність проєкту правилам k8s.mdc.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
+/**
+ * Plan B (rego-authoritative): на початку `check()` батч-викликаємо всі 9 path-фільтрованих
+ * rego-пакетів з `npm/policy/k8s/` через `runConftestBatch`. Пакети hasura_configmap і
+ * hasura_httproute мають cross-file gating (паруються з Hasura-Deployment) — вони запускаються
+ * з відповідних orchestrator-функцій (`validateHasuraConfigMapRemoteSchemaPermissions`,
+ * `validateHasuraHttpRouteCanon`). Структурна частина HPA/PDB (`k8s.hpa_pdb`) тут на всіх yaml,
+ * env-залежні межі min/maxReplicas і expected-name — JS-cross-file у `validateDeploymentHpaPdbAndTopology`.
+ * @param {string} root корінь репозиторію (cwd)
+ * @param {string[]} yamlFiles абсолютні шляхи знайдених *.yaml під `…/k8s/`
+ * @param {Set<string>} kustomizeManagedRel відносні posix-шляхи kustomize-managed файлів
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {void}
+ */
+function runAllK8sRego(root, yamlFiles, kustomizeManagedRel, fail) {
+  const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
+
+  const allYaml = yamlFiles
+  const kustYaml = yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')
+  const svcYaml = yamlFiles.filter(p => basename(p) === 'svc.yaml')
+  const svcHlYaml = yamlFiles.filter(p => basename(p) === 'svc-hl.yaml')
+  const baseKustYaml = yamlFiles.filter(p => isBaseKustomizationPath(relOf(p)))
+  const baseResourceYaml = yamlFiles.filter(p => {
+    const r = relOf(p)
+    if (!K8S_BASE_SEGMENT_RE.test(r)) return false
+    return basename(p).toLowerCase() !== 'kustomization.yaml'
+  })
+  const kustomizeManagedFiles = yamlFiles.filter(p => kustomizeManagedRel.has(relOf(p)))
+
+  /** @type {Array<{ ns: string, dir: string, files: string[] }>} */
+  const targets = [
+    { ns: 'k8s.manifest', dir: 'k8s/manifest', files: allYaml },
+    { ns: 'k8s.gateway', dir: 'k8s/gateway', files: allYaml },
+    { ns: 'k8s.hpa_pdb', dir: 'k8s/hpa_pdb', files: allYaml },
+    { ns: 'k8s.kustomization', dir: 'k8s/kustomization', files: kustYaml },
+    { ns: 'k8s.svc_yaml', dir: 'k8s/svc_yaml', files: svcYaml },
+    { ns: 'k8s.svc_hl_yaml', dir: 'k8s/svc_hl_yaml', files: svcHlYaml },
+    { ns: 'k8s.base_kustomization', dir: 'k8s/base_kustomization', files: baseKustYaml },
+    { ns: 'k8s.base_manifest', dir: 'k8s/base_manifest', files: baseResourceYaml },
+    { ns: 'k8s.kustomize_managed', dir: 'k8s/kustomize_managed', files: kustomizeManagedFiles }
+  ]
+
+  for (const t of targets) {
+    if (t.files.length === 0) continue
+    const violations = runConftestBatch({ policyDirRel: t.dir, namespace: t.ns, files: t.files })
+    for (const v of violations) {
+      fail(`${relOf(v.filename)}: ${v.message}`)
+    }
+  }
+}
+
 export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
@@ -6544,6 +6105,12 @@ export async function check() {
 
   const kustomizeManagedRel = await collectKustomizeManagedRelPaths(root, yamlFiles)
 
+  // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
+  // викликаємо одним батчем на namespace через runConftestBatch. JS нижче робить
+  // лише cross-file orchestration, modeline та FS-existence перевірки.
+  runAllK8sRego(root, yamlFiles, kustomizeManagedRel, fail)
+  pass(`Rego-полісі (npm/policy/k8s/*) виконано на ${yamlFiles.length} файл(ах)`)
+
   for (const abs of yamlFiles) {
     await checkK8sYamlFile(abs, root, fail, pass, kustomizeManagedRel)
   }
@@ -6554,19 +6121,11 @@ export async function check() {
 
   await validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail)
 
-  await validateKustomizationJson6902NoRemoveAddSamePath(root, yamlFiles, fail)
-
   await validateKustomizationPathRefsExistOnDisk(root, yamlFiles, fail)
-
-  await validateKustomizationResourcesSortedAlphabetically(root, yamlFiles, fail)
-
-  await validateKustomizationPatchesStructuralSort(root, yamlFiles, fail)
 
   await validateKustomizationPatchTargetsResolved(root, yamlFiles, fail)
 
   await validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFiles, fail, pass)
-
-  await ensureBaseKustomizationHasNamespace(root, yamlFiles, fail)
 
   await validateConfigMapNameMatchesDeployment(root, yamlFiles, fail, pass)
 

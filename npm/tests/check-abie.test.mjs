@@ -7,23 +7,18 @@ import { join } from 'node:path'
 import {
   ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT,
   ABIE_HC_SCHEMA_URL,
-  ABIE_REQUIRED_IGNORE_BRANCHES,
   ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
-  abieBaseHttpRouteHostnamesErrors,
   abieEnvNameFromBasename,
   abieOverlayK8sTreeHasDeployment,
   abieOverlayRequiresHttpRouteByVite,
   abiePackageDirFromK8sOverlay,
   analyzeAbieSharedBackendRefsInPackageK8s,
-  deploymentDocumentHasAbieBasePreemNodeSelector,
   getAbieRuServiceNodePortPatchErrors,
   getCombinedNginxRunPatchTextFromKustomization,
-  ignoreBranchesIncludesRequired,
   jsonPatchRemovesPath,
   jsonPatchTextClearsHeadlessServiceClusterIPNone,
   jsonPatchTextSetsServiceTypeNodePort,
   isAbieK8sBaseYamlPath,
-  isAllowedAbieBaseDevHostname,
   isK8sYamlInAbiePackageExcludingUaRuOverlays,
   isRuKustomizationPath,
   isUaKustomizationPath,
@@ -32,9 +27,7 @@ import {
   serviceDocumentBaseDeclaresClusterIPsField,
   serviceDocumentRequiresRuClusterIPNoneRemoval,
   kustomizationHasAbieNginxRunHttpRoutePatch,
-  parseCleanMergedIgnoreBranches,
   validateAbieEnvInternalUrls,
-  validateAbieHcYaml,
   validateAbieNginxRunHttpRoutePatches,
   check,
   isAbieRuleEnabled
@@ -125,108 +118,13 @@ describe('check-abie (допоміжні функції)', () => {
     expect(isAbieK8sBaseYamlPath('app/k8s/overlays/ru/foo.yaml')).toBe(false)
   })
 
-  test('isAllowedAbieBaseDevHostname — aiml.live та піддомени', () => {
-    expect(isAllowedAbieBaseDevHostname('aiml.live')).toBe(true)
-    expect(isAllowedAbieBaseDevHostname('App.AimL.Live')).toBe(true)
-    expect(isAllowedAbieBaseDevHostname('*.aiml.live')).toBe(true)
-    expect(isAllowedAbieBaseDevHostname('api.foo.aiml.live')).toBe(true)
-    expect(isAllowedAbieBaseDevHostname('abie.app')).toBe(false)
-    expect(isAllowedAbieBaseDevHostname('notaiml.live')).toBe(false)
-    expect(isAllowedAbieBaseDevHostname('aiml.live.evil.test')).toBe(false)
-    expect(isAllowedAbieBaseDevHostname('')).toBe(false)
-    expect(ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT).toBe('aiml.live')
-  })
-
-  test('abieBaseHttpRouteHostnamesErrors — лише для HTTPRoute у …/base/', () => {
-    const ok = {
-      kind: 'HTTPRoute',
-      spec: { hostnames: ['aiml.live', '*.aiml.live', 'x.aiml.live'] }
-    }
-    expect(abieBaseHttpRouteHostnamesErrors(ok, 'app/k8s/base/hr.yaml')).toEqual([])
-    const bad = { kind: 'HTTPRoute', spec: { hostnames: ['abie.app'] } }
-    expect(abieBaseHttpRouteHostnamesErrors(bad, 'app/k8s/base/hr.yaml').length).toBe(1)
-    expect(abieBaseHttpRouteHostnamesErrors(bad, 'app/k8s/ua/kustomization.yaml')).toEqual([])
-    expect(abieBaseHttpRouteHostnamesErrors({ kind: 'Deployment' }, 'app/k8s/base/d.yaml')).toEqual([])
-  })
-
-  test('deploymentDocumentHasAbieBasePreemNodeSelector', () => {
-    const ok = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            nodeSelector: { preem: 'true' }
-          }
-        }
-      }
-    }
-    expect(deploymentDocumentHasAbieBasePreemNodeSelector(ok)).toBe(true)
-    expect(
-      deploymentDocumentHasAbieBasePreemNodeSelector({
-        ...ok,
-        spec: { template: { spec: { nodeSelector: { preem: true } } } }
-      })
-    ).toBe(true)
-    expect(
-      deploymentDocumentHasAbieBasePreemNodeSelector({
-        ...ok,
-        spec: { template: { spec: { nodeSelector: { preem: 'false' } } } }
-      })
-    ).toBe(false)
-    expect(
-      deploymentDocumentHasAbieBasePreemNodeSelector({
-        ...ok,
-        spec: { template: { spec: { containers: [] } } }
-      })
-    ).toBe(false)
-    expect(deploymentDocumentHasAbieBasePreemNodeSelector({ kind: 'Service' })).toBe(false)
-  })
-
-  test('parseCleanMergedIgnoreBranches знаходить ignore_branches', () => {
-    const ib = parseCleanMergedIgnoreBranches(CLEAN_MERGED_MIN)
-    expect(ib).toBe('dev,ua,ru')
-  })
-
-  test('ignoreBranchesIncludesRequired', () => {
-    expect(ignoreBranchesIncludesRequired('dev,ua,ru', ABIE_REQUIRED_IGNORE_BRANCHES)).toBe(true)
-    expect(ignoreBranchesIncludesRequired('main,dev,ua,ru', ABIE_REQUIRED_IGNORE_BRANCHES)).toBe(true)
-    expect(ignoreBranchesIncludesRequired('main,dev', ABIE_REQUIRED_IGNORE_BRANCHES)).toBe(false)
-    expect(ignoreBranchesIncludesRequired('dev, ua , ru', ABIE_REQUIRED_IGNORE_BRANCHES)).toBe(true)
-  })
-
-  test('validateAbieHcYaml — успіх', () => {
-    expect(validateAbieHcYaml(HC_MIN, 'k8s/base/hc.yaml')).toBeNull()
-  })
-
-  test('validateAbieHcYaml — невірний порт', () => {
-    const bad = HC_MIN.replace('port: 8080', 'port: 80')
-    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('8080')
-  })
-
-  test('validateAbieHcYaml — targetRef без -hl (очікується my-svc-hl)', () => {
-    const bad = HC_MIN.replace('name: my-svc-hl', 'name: my-svc')
-    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('my-svc-hl')
-  })
-
-  test('validateAbieHcYaml — успіх, коли metadata.name вже з суфіксом -hl', () => {
-    const y = HC_MIN.replace(HC_NAME_RE, '  name: my-svc-hl')
-    expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
-  })
-
-  test('validateAbieHcYaml — допустимий нестандартний requestPath від кореня', () => {
-    const y = HC_MIN.replace('requestPath: /healthz', 'requestPath: /IsAlive')
-    expect(validateAbieHcYaml(y, 'hc.yaml')).toBeNull()
-  })
-
-  test('validateAbieHcYaml — requestPath без / на початку', () => {
-    const bad = HC_MIN.replace('requestPath: /healthz', 'requestPath: healthz')
-    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('requestPath')
-  })
-
-  test('validateAbieHcYaml — порожній requestPath', () => {
-    const bad = HC_MIN.replace('requestPath: /healthz', "requestPath: ''")
-    expect(validateAbieHcYaml(bad, 'hc.yaml')).toContain('requestPath')
-  })
+  // Тести `isAllowedAbieBaseDevHostname` / `abieBaseHttpRouteHostnamesErrors`,
+  // `deploymentDocumentHasAbieBasePreemNodeSelector`, `parseCleanMergedIgnoreBranches` /
+  // `ignoreBranchesIncludesRequired`, `validateAbieHcYaml` — видалено разом з відповідними
+  // функціями (Plan B: Rego-authoritative, JS делегує per-document валідацію conftest-у).
+  // Покриття цих правил тепер забезпечують `_test.rego` фікстури у
+  // `npm/policy/abie/{base_deployment_preem,clean_merged_ignore_branches,health_check_policy,http_route_base}/`,
+  // що виконуються через `bun run lint-rego` (`conftest verify`).
 
   const UA_KUSTOMIZATION_NODE_SELECTOR_PATCH = `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization

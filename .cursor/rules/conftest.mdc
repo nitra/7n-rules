@@ -31,21 +31,67 @@ Rego — **default** для нових перевірок у цьому репо
    - **autofix / rewrite**: треба змінити файл (`replace_all`, переписати YAML, перейменувати, видалити) — Rego read-only;
    - **парсинг тексту до YAML-body**: yaml-language-server modeline (`# yaml-language-server: $schema=…`), regex по сирому файлу до парсингу;
    - **стан між викликами / агрегація по дереву**: треба зібрати дані з усіх файлів і потім фейлити (узгодженість HPA/PDB по dir, env-залежні ліміти за сегментом шляху).
-3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Тоді **обидва**: rego — швидкий gate для одиничного маніфеста, JS — оркестратор для cross-file. JS authoritative; rego — копія підмножини правил для IDE / CI gate. Референс — `npm/policy/k8s/*` ↔ `npm/scripts/check-k8s.mjs`.
+3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Працює патерн **Rego-authoritative + JS-orchestrator** (Plan B) — див. розділ нижче.
+
+### Канонічний патерн «Rego-authoritative + JS-orchestrator»
+
+**Принцип.** Кожне пер-документне правило існує **рівно в одному місці** — у rego-полісі. JS у `check-<rule>.mjs` НЕ дублює цю логіку: він робить лише cross-file-частину (walking, path-фільтрацію, парність файлів) і **батч-викликає conftest** для делегування пер-документного валідаційного ядра. Один спавн `conftest` на (`namespace`, `policyDir`) — незалежно від кількості файлів. Це закриває дублювання JS↔rego і прибирає ризик дрифту.
+
+**Інструмент.** `runConftestBatch` із `npm/scripts/utils/run-conftest-batch.mjs`:
+
+```js
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
+
+const violations = runConftestBatch({
+  policyDirRel: '<rule>/<name>',     // піддиректорія в npm/policy/
+  namespace: '<rule>.<name>',         // повне ім'я rego-пакета
+  files: [...absPaths],               // батч файлів — один спавн на namespace
+})
+for (const v of violations) fail(`${rel(v.filename)}: ${v.message}`)
+```
+
+Hard-fail без `conftest` у PATH (з install-hint) — узгоджено з рішенням Plan B: якщо правило делегує свою логіку Rego, тиха відмова приховує реальні порушення.
+
+**Структура `check-<rule>.mjs::check()`.** Rego-крок — **перший** (на початку); далі — JS cross-file:
+
+```js
+export async function check() {
+  const reporter = createCheckReporter()
+  const { pass, fail } = reporter
+
+  // 1. Rego-крок: всі rule-пакети з npm/policy/<rule>/ через runConftestBatch.
+  await runAllRego(reporter, files)
+
+  // 2. JS cross-file: walking, парність, kustomize-tree, env-resolution тощо.
+  await crossFileChecks(...)
+
+  return reporter.getExitCode()
+}
+```
+
+**Інтеграція з `lint-<rule>.mjs`.** Скрипт `lint-<rule>` (якщо є) — це wrapper навколо external-tool ланцюга (`actionlint`/`zizmor`/`kubeconform`/`hadolint`/…). Він **викликає `check()`** з `check-<rule>.mjs` як фінальний крок — без власного conftest-кроку. Так одне джерело істини для пер-документних правил, без дублювання між `lint-<rule>` і `check <rule>`. Референс — [`lint-ga.mjs`](../../npm/scripts/lint-ga.mjs) ↔ [`check-ga.mjs`](../../npm/scripts/check-ga.mjs).
+
+**Tests.** Додавай `_test.rego` фікстури в кожному пакеті — вони запускаються `bun run lint-rego` (через `conftest verify`). JS unit-тести `check-<rule>.test.mjs` тестують лише cross-file частину (rego покривають свої `_test.rego`). Коли pure-предикат уже в rego — JS-функцію видаляєш разом з її тестом.
+
+**Реальні приклади (порядок упровадження):**
+
+- **abie** (пілот) — `check-abie.mjs` делегує `abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base` через `runConftestBatch`. Видалені дублі: `deploymentDocumentHasAbieBasePreemNodeSelector`, `parseCleanMergedIgnoreBranches`, `validateAbieHcPolicy`, `abieBaseHttpRouteHostnamesErrors`. JS лишає лише cross-file (env→cluster DNS, ConfigMap↔Deployment pairing, kustomize JSON6902 patches).
+- **ga** — `check-ga.mjs::check()` починає з `runAllGaRego` (4 per-workflow + 1 batch для `ga.workflow_common`), далі — JS cross-file. `lint-ga.mjs` — `actionlint` + `zizmor` + `await checkGa()`. Раніше `lint-ga` сам спавнив conftest, а `check ga` цього не робив — тепер централізовано.
 
 ### Workflow для нової перевірки
 
 1. Спершу намалюй вхід: один документ чи декілька? Файлова система потрібна?
 2. Якщо **один документ** — починаєш з `npm/policy/<rule>/<name>/<name>.rego` + `_test.rego` фікстури. JS не пишемо.
-3. Якщо **cross-file / FS / autofix** — пишеш JS у `npm/scripts/check-<rule>.mjs`. Опційно паралельно додаєш rego-частину для пер-документного шару (як у `check-k8s.mjs`).
-4. У JSDoc на початку `check-<rule>.mjs` фіксуй: «JS authoritative, rego-копія в `npm/policy/<…>` — швидкий gate». У rego-файлі — обернений напрямок: «JS authoritative, ця Rego — швидкий gate» (див. існуючі rego-полісі).
-5. Реєстрація: новий пакет додається в `TARGETS` `npm/scripts/lint-conftest.mjs` (намеспейс + path-pattern); якщо path-pattern неможливо описати regex'ом (cross-file gating), запуск conftest відбувається безпосередньо з `check-<rule>.mjs`.
+3. Якщо **cross-file / FS / autofix** — пишеш JS у `npm/scripts/check-<rule>.mjs`. Per-document частина (якщо є) — окремо як rego, JS викликає її через `runConftestBatch` (див. патерн вище). НЕ дублюй пер-документну логіку в JS — рего authoritative.
+4. У JSDoc на початку `check-<rule>.mjs` фіксуй: «Per-document валідація делегована rego-пакетам у `npm/policy/<rule>/`; JS — cross-file». У rego-файлі — обернений напрямок: «JS-частина (cross-file) лишається в `check-<rule>.mjs`».
+5. Реєстрація: новий пакет додається в TARGETS [`npm/scripts/lint-conftest.mjs`](../../npm/scripts/lint-conftest.mjs) (для `npx @nitra/cursor lint-conftest` IDE-fast-feedback) **і** запускається з `check-<rule>.mjs` через `runConftestBatch`. Це нормальне дублювання запуску — обидва entry-points мають мати покриття.
 
 ### Червоні прапори
 
 - «Це швидше у JS»: майже завжди ілюзія. Rego-полісі з 5 рядків + `_test.rego` пишеться за пару хвилин і дає IDE-інтеграцію (`tsandall.opa`).
 - «Rego не вміє X»: перевір список вище. Якщо X не у списку — швидше за все вміє (`walk`, `regex.match`, `yaml.unmarshal`, `object.get`).
 - «Я допишу в існуючий `check-*.mjs`» — спершу подивись, чи відповідний `npm/policy/<rule>/` уже є, і чи нова перевірка лягає туди як ще одне `deny contains`.
+- «Залишимо JS-функцію як копію rego — про всяк випадок» — ні. Плодить дрифт (як bug `spec.config` vs `spec.default.config` у `health_check_policy.rego`, що ми ловили cross-check тестами). JS викликає conftest — і це єдиний шлях.
 
 ## Перевірка
 

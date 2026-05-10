@@ -22,6 +22,7 @@ import { join } from 'node:path'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { eventPathsIncludeExact, parseWorkflowYaml } from './utils/gha-workflow.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]
@@ -276,7 +277,7 @@ async function checkLintGaScript(passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
-function checkShellcheckInstalled(passFn, failFn) {
+export function checkShellcheckInstalled(passFn, failFn) {
   if (resolveCmd('shellcheck')) {
     passFn('shellcheck встановлений локально, actionlint виконуватиме SC-правила, як у CI')
     return
@@ -325,7 +326,84 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
 }
 
 /**
- * Перевіряє відповідність проєкту правилам ga.mdc
+ * Per-workflow Rego-полісі: namespace ↔ конкретний workflow-файл. Кожен пакет
+ * у `npm/policy/ga/<name>/` містить правила специфічні для ОДНОГО workflow,
+ * тому conftest викликаємо з `--namespace` окремо на кожен файл (інакше правила
+ * чужого workflow застосуються до неправильного файла).
+ * @type {Array<{ workflow: string, namespace: string, policyDirRel: string }>}
+ */
+const GA_PER_WORKFLOW_REGO_TARGETS = [
+  {
+    workflow: '.github/workflows/clean-ga-workflows.yml',
+    namespace: 'ga.clean_ga_workflows',
+    policyDirRel: 'ga/clean_ga_workflows'
+  },
+  {
+    workflow: '.github/workflows/clean-merged-branch.yml',
+    namespace: 'ga.clean_merged_branch',
+    policyDirRel: 'ga/clean_merged_branch'
+  },
+  {
+    workflow: '.github/workflows/lint-ga.yml',
+    namespace: 'ga.lint_ga',
+    policyDirRel: 'ga/lint_ga'
+  },
+  {
+    workflow: '.github/workflows/git-ai.yml',
+    namespace: 'ga.git_ai',
+    policyDirRel: 'ga/git_ai'
+  }
+]
+
+/**
+ * Plan B (rego-authoritative): на початку перевірки правила ga прогнати усі
+ * Rego-полісі з `npm/policy/ga/`. Спочатку — per-workflow (4 окремі спавни,
+ * бо кожен namespace застосовний лише до свого файла), потім один батч-спавн
+ * `ga.workflow_common` на всі `.github/workflows/*.yml`. Hard-fail без
+ * `conftest` у PATH — узгоджено з Plan B (див. `runConftestBatch`).
+ * @param {string} wfDir шлях до `.github/workflows`
+ * @param {string[]} ymlWorkflows відносні (від `wfDir`) імена файлів `*.yml`
+ * @param {(msg: string) => void} pass callback при успішній перевірці
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<void>}
+ */
+async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
+  for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
+    if (!existsSync(target.workflow)) continue
+    const violations = runConftestBatch({
+      policyDirRel: target.policyDirRel,
+      namespace: target.namespace,
+      files: [target.workflow]
+    })
+    for (const v of violations) fail(`${target.workflow}: ${v.message}`)
+    if (violations.length === 0) {
+      pass(`${target.workflow}: відповідає ${target.namespace} (rego)`)
+    }
+  }
+
+  if (ymlWorkflows.length === 0) return
+  const wfFiles = ymlWorkflows.map(f => join(wfDir, f))
+  const violations = runConftestBatch({
+    policyDirRel: 'ga/workflow_common',
+    namespace: 'ga.workflow_common',
+    files: wfFiles
+  })
+  for (const v of violations) fail(`${v.filename}: ${v.message}`)
+  if (violations.length === 0) {
+    pass(`${wfFiles.length} workflow(s) відповідають ga.workflow_common (rego)`)
+  }
+}
+
+/**
+ * Перевіряє відповідність проєкту правилам ga.mdc.
+ *
+ * Plan B-патерн: пер-документна валідація workflow-структури делегована
+ * Rego-полісі у `npm/policy/ga/`; виклик через `runAllGaRego` (батч-conftest)
+ * — це перший крок `check()`. Далі — JS-частина (cross-file перевірки на
+ * наявність файлів, `git ls-files`-залежні `on.push.paths` glob, vscode/zizmor
+ * config, megalinter залишки тощо). `bun run lint-ga` додатково запускає
+ * `actionlint` + `zizmor` зовнішніми тулчейнами і **викликає цю ж `check()`** —
+ * тобто rego-частина живе тут, не в `lint-ga.mjs`.
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
 export async function check() {
@@ -339,6 +417,13 @@ export async function check() {
     return reporter.getExitCode()
   }
 
+  const files = await readdir(wfDir)
+  const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
+
+  // Rego-крок (per-workflow + workflow_common) — на початку, як єдине джерело
+  // істини для пер-документних структурних правил workflow-файлів.
+  await runAllGaRego(wfDir, ymlWorkflows, pass, fail)
+
   const setupBunDepsAction = '.github/actions/setup-bun-deps/action.yml'
   if (existsSync(setupBunDepsAction)) {
     pass(`${setupBunDepsAction} існує`)
@@ -348,7 +433,6 @@ export async function check() {
     )
   }
 
-  const files = await readdir(wfDir)
   checkGaWorkflowFiles(wfDir, files, pass, fail)
 
   await checkApplyWorkflow(wfDir, files, 'apply-k8s.yml', '**/k8s/**/*.yaml', pass, fail)
@@ -367,14 +451,10 @@ export async function check() {
 
   await checkVscodeSettingsForGa(pass, fail)
 
-  const ymlWorkflows = files.filter(f => f.endsWith('.yml'))
   await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
 
-  // Універсальні структурні перевірки (concurrency, заборонені setup-bun/cache,
-  // shell line-continuation `\`, checkout перед локальним setup-bun-deps)
-  // перенесено в Rego (`npm/policy/ga/workflow_common/`); їх запускає
-  // `bun run lint-ga` через conftest. Тут лишилася лише git-залежна перевірка
-  // `on.push.paths` glob-ів (вимагає `git ls-files`).
+  // git-залежна перевірка `on.push.paths` glob-ів (вимагає `git ls-files`) —
+  // лишається в JS, бо conftest не має доступу до файлової системи репо.
   for (const f of ymlWorkflows) {
     const content = await readFile(join(wfDir, f), 'utf8')
     const parsed = parseWorkflowYaml(content)

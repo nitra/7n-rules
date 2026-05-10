@@ -20,7 +20,6 @@ import {
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
   hpaManifestViolations,
   isDevLikeK8sEnvSegment,
-  isForbiddenAutoscalingV1Manifest,
   k8sEnvSegmentFromRelPath,
   kustomizationPatchPathsByTargetKind,
   kustomizationResourcesSortedAlphabeticallyViolation,
@@ -519,29 +518,9 @@ describe('deploymentHasuraGraphqlEngineImageViolation', () => {
   })
 })
 
-describe('isForbiddenAutoscalingV1Manifest', () => {
-  test('true для autoscaling/v1', () => {
-    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v1', kind: 'HorizontalPodAutoscaler' })).toBe(
-      true
-    )
-  })
-
-  test('false для autoscaling/v2', () => {
-    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'autoscaling/v2', kind: 'HorizontalPodAutoscaler' })).toBe(
-      false
-    )
-  })
-
-  test('false для не-autoscaling apiVersion', () => {
-    expect(isForbiddenAutoscalingV1Manifest({ apiVersion: 'apps/v1', kind: 'Deployment' })).toBe(false)
-  })
-
-  test('false для null / non-object', () => {
-    expect(isForbiddenAutoscalingV1Manifest(null)).toBe(false)
-    expect(isForbiddenAutoscalingV1Manifest('autoscaling/v1')).toBe(false)
-    expect(isForbiddenAutoscalingV1Manifest([{ apiVersion: 'autoscaling/v1' }])).toBe(false)
-  })
-})
+// `isForbiddenAutoscalingV1Manifest` — JS-предикат видалено разом з orchestrator
+// `failIfAutoscalingV1InDocument` (Plan B). Тестове покриття `apiVersion: autoscaling/v1`
+// заборони — у `npm/policy/k8s/manifest/manifest_test.rego::test_deny_autoscaling_v1`.
 
 describe('hasuraConfigMapRemoteSchemaPermissionsViolation', () => {
   test('null для не-ConfigMap', () => {

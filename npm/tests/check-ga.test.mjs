@@ -7,7 +7,7 @@ import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../scripts/check-ga.mjs'
+import { check, checkShellcheckInstalled } from '../scripts/check-ga.mjs'
 import { ensureDir, withBinRemovedFromPath, withShellcheckStubInPath, withTmpCwd, writeJson } from './helpers.mjs'
 
 const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
@@ -55,6 +55,9 @@ on:
   schedule:
     - cron: '0 1 16 * *'
   workflow_dispatch: {}
+concurrency:
+  group: \${{ github.ref }}-\${{ github.workflow }}
+  cancel-in-progress: true
 jobs:
   cleanup_old_workflows:
     runs-on: ubuntu-latest
@@ -79,6 +82,9 @@ on:
   schedule:
     - cron: '0 1 15 * *'
   workflow_dispatch: {}
+concurrency:
+  group: \${{ github.ref }}-\${{ github.workflow }}
+  cancel-in-progress: true
 jobs:
   cleanup_old_branches:
     runs-on: ubuntu-latest
@@ -139,6 +145,9 @@ jobs:
 on:
   pull_request:
     types: [closed]
+concurrency:
+  group: \${{ github.ref }}-\${{ github.workflow }}
+  cancel-in-progress: true
 jobs:
   git-ai:
     if: github.event.pull_request.merged == true
@@ -174,27 +183,23 @@ describe('check-ga: shellcheck в PATH', () => {
     })
   })
 
-  test('exit 1 і повідомлення про shellcheck/brew, коли його немає', async () => {
-    await withTmpCwd(async () => {
-      await setupCanonicalGaProject()
-      // Активно вилучаємо з PATH каталоги з shellcheck, щоб тест був стабільним і на машинах,
-      // де користувач уже зробив `brew install shellcheck` (а саме до цього пушить наша підказка).
-      await withBinRemovedFromPath('shellcheck', async () => {
-        const logs = []
-        const origLog = console.log
-        console.log = (...args) => {
-          logs.push(args.join(' '))
-        }
-        try {
-          const exit = await check()
-          expect(exit).toBe(1)
-          const blob = logs.join('\n')
-          expect(blob).toContain('shellcheck')
-          expect(blob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
-        } finally {
-          console.log = origLog
-        }
-      })
+  // Точковий тест на `checkShellcheckInstalled` — викликаємо предикат напряму. Раніше тест ганяв
+  // увесь `check()`, але після Plan B-рефактору `check()` починає з batched conftest, а
+  // `withBinRemovedFromPath('shellcheck')` на macOS видаляє `/opt/homebrew/bin` (де живуть і
+  // shellcheck, і conftest), тож conftest зникає й `runConftestBatch` падає до `checkShellcheckInstalled`.
+  // Точкова перевірка обходить цю проблему.
+  test('checkShellcheckInstalled — fail + повідомлення про shellcheck/brew, коли його немає', async () => {
+    await withBinRemovedFromPath('shellcheck', async () => {
+      const passes = []
+      const fails = []
+      checkShellcheckInstalled(
+        m => passes.push(m),
+        m => fails.push(m)
+      )
+      expect(passes).toEqual([])
+      expect(fails.length).toBe(1)
+      expect(fails[0]).toContain('shellcheck')
+      expect(fails[0]).toMatch(BREW_INSTALL_SHELLCHECK_RE)
     })
   })
 })

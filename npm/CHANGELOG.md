@@ -4,6 +4,60 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.228] - 2026-05-10
+
+### Changed
+
+- **k8s / Plan B (rego-authoritative, повна централізація):** rego-крок переїхав на початок `check-k8s.mjs::check()` через новий helper `runAllK8sRego` — батч-виклик `runConftestBatch` для 9 пакетів (`k8s.manifest`, `k8s.gateway`, `k8s.hpa_pdb`, `k8s.kustomization`, `k8s.svc_yaml`, `k8s.svc_hl_yaml`, `k8s.base_kustomization`, `k8s.base_manifest`, `k8s.kustomize_managed`). JS у `check-k8s.mjs` робить лише cross-file orchestration + autofix + modeline. Cross-file orchestrators `validateHasuraConfigMapRemoteSchemaPermissions` і `validateHasuraHttpRouteCanon` рефакторнуто: JS відбирає paired-with-Hasura-Deployment файли, далі батч-conftest на `k8s.hasura_configmap`/`k8s.hasura_httproute`. Видалено JS-orchestrator-функції-дублі (≈10 шт): `scanForbiddenManifestsInYamlDocuments`, `failIfIngressInDocument`, `failIfAutoscalingV1InDocument`, `validateK8sYamlPolicyDocuments`, `failIfK8sPolicyNamespaceRulesViolated`, `failIfK8sPolicyResourceRulesViolated`, `runK8sYamlPolicyAndGatewayScans`, `scanGatewayApiRouteBackendRefsInYamlBody`, `failIfGatewayRouteUsesNonHeadlessService`, `validateKustomizationResourcesSortedAlphabetically`, `validateKustomizationPatchesStructuralSort`, `validateInlinePatchesSorted`, `validateKustomizationJson6902NoRemoveAddSamePath`, `auditJson6902OneKustomizationYamlFile`, `auditJson6902ForKustomizationYamlDoc`, `auditKustomizationPatchesJson6902`, `auditOneKustomizationJson6902Patch`, `auditJson6902PatchExternalFile`, `failIfJson6902RemoveAddConflictOnSamePath`, `verifyBaseKustomizationNamespaceOnFile`, `ensureBaseKustomizationHasNamespace`, `readFirstConfigMapDoc`. Видалено публічний predicate `isForbiddenAutoscalingV1Manifest` + його тест (rego `k8s.manifest` авторитативно). Решта predicates лишилися як публічні exports для back-compat (`hpaManifestViolations`, `pdbManifestViolations`, `deploymentTopologySpreadConstraintsViolation` все ще активно використовуються JS cross-file для expected-name/dev-like; інші — тестові shim, можна прибрати окремо).
+- **`checkK8sYamlFile`** залишає тільки modeline + `$schema`-URL перевірки; per-document валідація (Ingress/autoscaling/v1 заборонено, Service GCP-анотації, Deployment resources/Hasura image/topologySpread, Gateway API backendRef правила, HCP, svc/svc-hl, namespace правила) — у rego, виконано на початку `check()`.
+
+## [1.8.227] - 2026-05-10
+
+### Changed
+
+- **conftest.mdc (alwaysApply):** канонізовано патерн «Rego-authoritative + JS-orchestrator» (Plan B) як основний для всіх перевірок у репо. Розділ «Гібрид» переписано: замість «JS authoritative + rego-копія» (Plan A) — тепер чітко: пер-документне правило існує **рівно в одному місці** (rego), а `check-<rule>.mjs` делегує його через `runConftestBatch` (`npm/scripts/utils/run-conftest-batch.mjs`), один спавн на namespace. Додано конкретний шаблон `check()` (rego-крок перший, JS cross-file — після) і опис інтеграції з `lint-<rule>.mjs` (external-tools wrapper викликає `await checkX()` як останній крок). Реальні приклади — abie (пілот) і ga (повна централізація). Новий «червоний прапор» забороняє лишати JS-копію rego-правила «про всяк випадок» — це плодить дрифт.
+
+## [1.8.226] - 2026-05-10
+
+### Changed
+
+- **ga / Plan B (rego-authoritative, повна централізація):** rego-крок переїхав із `lint-ga.mjs` у `check-ga.mjs::check()` як **перший крок**. Раніше `bun run lint-ga` сам викликав 4 per-workflow conftest + 1 batch для `ga.workflow_common`, а `npx @nitra/cursor check ga` цю частину не робив — тепер вся ga-логіка (rego + JS cross-file) в одному `check-ga.check()`. `lint-ga.mjs::runLintGaCli` спрощено: preflight (shellcheck/uv) → actionlint → zizmor → `await checkGa()`. Видалено: `CONFTEST_TARGETS`, `GA_POLICY_DIR`, `runConftestStep`, `runConftestWorkflowCommon` — і непотрібні імпорти `existsSync`/`readdirSync`/`dirname`/`join`/`fileURLToPath`. `runLintGaCli` тепер `async`; `bin/n-cursor.js` оновлено на `await runLintGaCli()`. Тест `lint-ga.test.mjs` оновлено: `await fn()` замість `fn()`. Тест `check-ga.test.mjs::"exit 1 коли shellcheck відсутній"` переведений на точковий виклик експортованої `checkShellcheckInstalled` (бо `withBinRemovedFromPath('shellcheck')` на macOS заодно видаляв `/opt/homebrew/bin` де conftest, ламаючи hard-fail у `runConftestBatch`).
+- **`check-ga.mjs::checkShellcheckInstalled`:** додано `export` (потрібен для точкового тесту після рефактору).
+- **тестова фікстура `setupCanonicalGaProject` у check-ga.test.mjs:** додано секцію `concurrency` (з канонічними `group` і `cancel-in-progress: true`) у workflow `clean-ga-workflows.yml`, `clean-merged-branch.yml`, `git-ai.yml` — `ga.workflow_common` rego тепер запускається у `check()`, а ці workflow раніше не мали concurrency у фікстурі (правило `lint-ga.yml` уже мало). Це **правильна** реакція: rego-перевірка тепер ловить порушення на тих самих фікстурах, на яких раніше не запускалась.
+
+## [1.8.225] - 2026-05-10
+
+### Added
+
+- **utility `runConftestBatch`:** новий `npm/scripts/utils/run-conftest-batch.mjs` — спавнить `conftest test` одним викликом для batched-списку файлів, парсить `--output json`, повертає структуровані `{filename, namespace, message}` порушення. Hard-fail зі install-hint якщо `conftest` не у PATH (узгоджено з рішенням Plan B). Використовується з `check-*.mjs` для делегування пер-документної валідації у Rego-полісі без помітного сповільнення (один спавн на namespace, не на файл).
+
+### Changed
+
+- **abie / Plan B (rego-authoritative, pilot):** `npm/scripts/check-abie.mjs` рефакторнуто — пер-документна валідація 4 правил тепер делегується rego через `runConftestBatch`, JS залишає лише cross-file-оркестрацію (walking, path-фільтрацію, парність файлів). Видалені JS-функції-предикати (тепер єдине джерело істини — rego): `abieBaseHttpRouteHostnamesErrors`, `deploymentDocumentHasAbieBasePreemNodeSelector`, `parseCleanMergedIgnoreBranches`, `ignoreBranchesIncludesRequired`, `validateAbieHcPolicy`, плюс хелпери `collectAbieHostnames`, `isAllowedAbieBaseDevHostname`, `isAbiePreemTruthy`, `processBaseHttpRouteDoc`, `httpRouteHasNonEmptyHostnames`, `findHealthCheckPolicyInDocs` і константа `ABIE_REQUIRED_IGNORE_BRANCHES`. Імпорти `flattenWorkflowSteps`, `getStepUses`, `parseWorkflowYaml` (`./utils/gha-workflow.mjs`) теж прибрано — orphan після видалення JS-парсера workflow.
+- **abie.health_check_policy (rego):** виправлено divergence з JS — тепер targetRef.name перевіряється точним match-ем `<hcp.metadata.name>-hl` (з нормалізацією: якщо name вже закінчується на `-hl`, береться як є). До цього rego перевіряло лише суфікс `-hl`, що дозволяло `targetRef.name=bar-hl` для HCP з `name=foo` — це не дзеркалило JS.
+- **`validateAbieHcYaml` → `validateAbieHcModeline`:** export перейменовано — JS-частина перевірки hc.yaml тепер обмежується modeline (`# yaml-language-server: $schema=…`); парсинг YAML і структурна валідація HCP делеговано rego.
+- **`npm/tests/check-abie.test.mjs`:** прибрано тести видалених JS-предикатів (8 тестів) — їх покриття тепер забезпечують `_test.rego` фікстури через `conftest verify`.
+- **`npm/tests/cross-check-rego-abie.test.mjs`:** видалено — після Plan B JS-сторони для крос-чеку немає; `_test.rego` фікстури в кожному abie-пакеті дають аналогічне покриття.
+
+## [1.8.224] - 2026-05-10
+
+### Added
+
+- **golden cross-check тести JS↔rego (abie):** додано `npm/tests/cross-check-rego-abie.test.mjs` (25 тестів), який для кожної пари (JS-предикат у `check-abie.mjs` ↔ rego-пакет у `npm/policy/abie/`) подає однаковий вхід у обидва імплементації через `opa eval --format json` і перевіряє інваріант **«обидва бачать порушення або обидва ні»**. Покриває: `deploymentDocumentHasAbieBasePreemNodeSelector` ↔ `abie.base_deployment_preem`; `parseCleanMergedIgnoreBranches`+`ignoreBranchesIncludesRequired` ↔ `abie.clean_merged_ignore_branches`; `abieBaseHttpRouteHostnamesErrors` ↔ `abie.http_route_base`; rego-only golden-фікстури для `abie.health_check_policy` (бо JS-функція `validateAbieHcPolicy` приватна). Тест автоматично пропускається, якщо `opa` не у PATH. Sanity-check ламанням rego навмисно — drift детектується.
+
+## [1.8.223] - 2026-05-10
+
+### Added
+
+- **abie / нові rego-пакети:** `npm/policy/abie/base_deployment_preem/` (Deployment у `…/k8s/.../base/...` має `spec.template.spec.nodeSelector.preem` зі значенням, що вважається істинним — boolean `true` або рядок `"true"`); `npm/policy/abie/clean_merged_ignore_branches/` (у workflow `.github/workflows/clean-merged-branch.yml` крок `phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches` з токенами `dev,ua,ru`, case-insensitive). Реєстрація в `lint-conftest.mjs` TARGETS: walk-pattern для base-resource YAML і single-target для workflow.
+- **abie / `_test.rego` фікстури:** додано юніт-тести для всіх 4 abie-пакетів — нових (`base_deployment_preem_test.rego`, `clean_merged_ignore_branches_test.rego`) і існуючих (`http_route_base_test.rego`, `health_check_policy_test.rego`). 35 тестів покривають happy paths і deny-кейси.
+
+### Changed
+
+- **abie.health_check_policy (rego):** виправлено помилковий шлях `spec.config.httpHealthCheck` → правильний `spec.default.config.httpHealthCheck` (узгоджено з `validateAbieHcPolicy` у `check-abie.mjs`). Розширено перевірками: точна `apiVersion: networking.gke.io/v1`, `metadata.name` непорожній, `spec.default.config.type: HTTP`, `targetRef.kind: Service`. Cross-file звірка `<deployment.name>-hl` лишається у JS.
+- **abie.mdc:** додано розділ «Швидкий gate через conftest (Rego)» зі списком rego-пакетів і опису того, що cross-file логіка (парність HCP↔Deployment, обчислений `<name>-hl`, валідація ru/ua-overlay JSON6902 patches, env→cluster DNS, cross-namespace backendRefs) лишається у `check-abie.mjs`.
+- **lint-conftest.mjs TARGETS:** `abie.health_check_policy` і `abie.http_route_base` — `policyDir` уточнено до конкретного підкаталогу (`abie/health_check_policy`, `abie/http_route_base`) замість загального `abie`. Додано шляховий regex `K8S_BASE_RESOURCE_PATH_RE` для базових ресурсних YAML.
+
 ## [1.8.222] - 2026-05-10
 
 ### Added
