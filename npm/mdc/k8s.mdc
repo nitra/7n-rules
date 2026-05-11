@@ -313,9 +313,7 @@ data:
 
 - **`base/kustomization.yaml`:** поле **`namespace:`** має бути **непорожнім** (перевіряє **check k8s**, якщо файл є).
 
-- **Де не дублювати `metadata.namespace`:** у YAML, досяжних через **граф Kustomize** (шляхи з **`kustomization.yaml`**, як у логіці **`collectKustomizeManagedRelPaths`** / **check k8s**). **Namespace** задає **`namespace:`** у kustomization.
-
-- **Коли `metadata.namespace` обов’язковий у файлі:** YAML під **`k8s`**, який **не** в графі жодного kustomization — непорожній **`metadata.namespace`** для namespaced **kind** (винятки — кластерні **kind**, перелік **`CLUSTER_SCOPED_KINDS`** у **`check-k8s.mjs`**). Якщо namespace у маніфесті не потрібен — підключи файл через **`resources`** / **`patches`** тощо.
+- **Коли `metadata.namespace` обов’язковий у файлі:** YAML під **`k8s`** — непорожній **`metadata.namespace`** для namespaced **kind** (винятки — кластерні **kind**, перелік **`CLUSTER_SCOPED_KINDS`** у **`check-k8s.mjs`**). У overlays Kustomize значення в маніфесті буде перезаписано полем **`namespace:`** з відповідного **`kustomization.yaml`**, тому в `base` пиши канонічний dev-namespace.
 
 - **Не додавай** окремі **patches** Kustomize, які лише змінюють **namespace**: **namespace** визначає Kustomize; у overlays додаткові зміни — без дублювання логіки **namespace**.
 

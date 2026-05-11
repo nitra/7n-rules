@@ -9,7 +9,6 @@ import { describe, expect, test } from 'bun:test'
 import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
-  collectKustomizeManagedRelPaths,
   deploymentAppLabel,
   deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
@@ -34,7 +33,6 @@ import {
   isK8sBaseManifestYamlPath,
   isForbiddenK8sDevPath,
   isK8sYamlUnderBaseDirectory,
-  metadataNamespaceForbiddenViolation,
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
   replaceBatchV1beta1ApiVersionInYamlText,
@@ -631,18 +629,6 @@ describe('serviceForbiddenGcpAnnotationsViolation', () => {
   })
 })
 
-describe('metadataNamespaceForbiddenViolation', () => {
-  test('null без metadata.namespace', () => {
-    expect(metadataNamespaceForbiddenViolation({ kind: 'Deployment', metadata: { name: 'x' } })).toBeNull()
-  })
-
-  test('помилка при metadata.namespace', () => {
-    expect(
-      metadataNamespaceForbiddenViolation({ kind: 'Deployment', metadata: { name: 'x', namespace: 'ns' } })
-    ).toContain('metadata.namespace')
-  })
-})
-
 describe('isClusterScopedKubernetesKind', () => {
   test('true для ClusterRole', () => {
     expect(isClusterScopedKubernetesKind('ClusterRole')).toBe(true)
@@ -709,44 +695,6 @@ describe('isK8sBaseManifestYamlPath', () => {
 
   test('false поза base', () => {
     expect(isK8sBaseManifestYamlPath('app/k8s/prod/patch.yaml', 'patch.yaml')).toBe(false)
-  })
-})
-
-describe('collectKustomizeManagedRelPaths', () => {
-  test('містить файл з resources та транзитивно з base', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'k8s-kust-'))
-    const baseDir = join(root, 'svc/k8s/base')
-    await mkdir(baseDir, { recursive: true })
-    const kBase = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - dep.yaml
-`
-    const dep = 'x'
-    await writeFile(join(baseDir, 'kustomization.yaml'), kBase, 'utf8')
-    await writeFile(join(baseDir, 'dep.yaml'), dep, 'utf8')
-
-    const overlayDir = join(root, 'svc/k8s/prod')
-    await mkdir(overlayDir, { recursive: true })
-    const kProd = `# yaml-language-server: $schema=https://json.schemastore.org/kustomization.json
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: prod
-resources:
-  - ../base
-`
-    await writeFile(join(overlayDir, 'kustomization.yaml'), kProd, 'utf8')
-
-    const yamlAbs = [
-      join(baseDir, 'kustomization.yaml'),
-      join(baseDir, 'dep.yaml'),
-      join(overlayDir, 'kustomization.yaml')
-    ]
-
-    const managed = await collectKustomizeManagedRelPaths(root, yamlAbs)
-    expect(managed.has('svc/k8s/base/dep.yaml')).toBe(true)
   })
 })
 

@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.8.229] - 2026-05-11
+
+### Removed
+
+- **k8s / `k8s.kustomize_managed`:** правило «`metadata.namespace` заборонено у YAML, досяжних через граф Kustomize» зняте — воно конфліктувало з `k8s.base_manifest`, який натомість **вимагає** `metadata.namespace` у `…/k8s/base/…` для namespaced kind. Перетин предикатів був порожній, що давало ~50 хибних помилок у канонічних деревах `base + overlays` (adminer, run/nginx, reference-grant, otel, dremio, gateway тощо). Видалено: правило з `mdc/k8s.mdc` (бульйт «Де не дублювати `metadata.namespace`»), rego-полісь `npm/policy/k8s/kustomize_managed/`, JS-helpers `metadataNamespaceForbiddenViolation` і `collectKustomizeManagedRelPaths` разом з відповідними тестами та плумінгом `kustomizeManagedRel` через `runAllK8sRego` / `checkK8sYamlFile`. Логіка `base_manifest` (`metadata.namespace` обов'язковий у `k8s/base/`) лишається; у overlays Kustomize це значення буде перезаписано полем `namespace:` з `kustomization.yaml`.
+
 ## [1.8.228] - 2026-05-10
 
 ### Changed

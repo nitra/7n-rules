@@ -102,7 +102,7 @@ export function runConftestBatch(opts) {
   let parsed
   try {
     parsed = JSON.parse(result.stdout)
-  } catch (e) {
+  } catch {
     throw new Error(`conftest stdout не парситься як JSON: ${(result.stdout || '').slice(0, 200)}`)
   }
   /** @type {ConftestViolation[]} */
