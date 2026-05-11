@@ -1,0 +1,34 @@
+npm/package.json
+  s_ce10658d0534a7::t_5f1e8fdeb1abb6 3
+npm/mdc/graphql.mdc
+  h_74546f1f1ded3e 22
+  s_ce10658d0534a7::t_99738619c32d11 11,13
+npm/scripts/lint-conftest.mjs
+  s_ce10658d0534a7::t_62bb4108247e07 160
+npm/scripts/check-graphql.mjs
+  s_ce10658d0534a7::t_87e03443dc6b78 106-107
+npm/CHANGELOG.md
+  s_ce10658d0534a7::t_362816560343ed 7-10,12
+  s_ce10658d0534a7::t_5767164386aaca 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6427517d310f32cde4985bf4447ded44a9fdf0f6",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_ce10658d0534a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "34d787b5-c3c1-413b-84c5-a96382b581ac",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
