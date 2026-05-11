@@ -34,7 +34,37 @@ deny contains base_namespace_required_msg if {
 	trim_space(ns) == ""
 }
 
+# HPA/PDB у base заборонені — канон k8s.mdc: тримати у sibling каталозі `components/`
+# і підключати з overlay (`components: [- ../components]`). Цей deny — швидкий gate
+# на *локальний* `resources:` base/kustomization.yaml (точне ім'я `hpa.yaml`/`pdb.yaml`,
+# у будь-якому підкаталозі). Рекурсивний обхід `resources:`/`components:`/`bases:`
+# (із зануренням у вкладені kustomization.yaml) — JS-оркестратор
+# `verifyK8sBaseKustomizeHasNoHpaPdb` у `check-k8s.mjs` (потребує fs-доступу). Цей
+# rego-deny — defense-in-depth: спрацює навіть якщо JS-крок упаде з винятку раніше.
+deny contains hpa_pdb_in_base_resources_msg(r) if {
+	is_kustomization
+	some r in object.get(input, "resources", [])
+	is_string(r)
+	is_hpa_or_pdb_filename(r)
+}
+
+hpa_pdb_in_base_resources_msg(file) := sprintf(
+	concat("", [
+		"у base/kustomization.yaml `resources:` містить '%v' — HPA/PDB заборонені у base, ",
+		"перенесіть у sibling каталог components/ і підключайте з overlay (k8s.mdc)",
+	]),
+	[file],
+)
+
 is_kustomization if {
 	input.kind == "Kustomization"
 	startswith(object.get(input, "apiVersion", ""), "kustomize.config.k8s.io/")
+}
+
+is_hpa_or_pdb_filename(p) if {
+	basename(p) in {"hpa.yaml", "pdb.yaml", "hpa.yml", "pdb.yml"}
+}
+
+basename(p) := parts[count(parts) - 1] if {
+	parts := split(p, "/")
 }

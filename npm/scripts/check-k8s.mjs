@@ -309,6 +309,8 @@ const YANNH_GROUPS = new Set([
   'storagemigration.k8s.io'
 ])
 
+const GATEWAY_API_GROUP_PREFIX = 'gateway.networking.k8s.io/'
+
 const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
 const PATH_SPLIT_RE = /[/\\]/u
 const YAML_EXTENSION_RE = /\.ya?ml$/iu

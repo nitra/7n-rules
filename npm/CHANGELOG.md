@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.1] - 2026-05-11
+
+### Added
+
+- **rego `k8s.base_kustomization` — defense-in-depth deny на HPA/PDB у `base/kustomization.yaml::resources:`:** додано пер-документне правило, що відмовляє, якщо `resources:` локально містить запис із basename `hpa.yaml`/`pdb.yaml`/`hpa.yml`/`pdb.yml` (у будь-якому підкаталозі). Канон k8s.mdc — HPA/PDB у sibling `components/` (Kustomize Component) і підключаються з overlay. Рекурсивний обхід дерева `resources:`/`components:`/`bases:` (із зануренням у вкладені kustomization.yaml) лишається у JS-оркестраторі `verifyK8sBaseKustomizeHasNoHpaPdb` (потребує fs-доступу). Rego-deny ловить найпоширеніший локальний випадок навіть якщо JS-крок упаде з винятку раніше. 5 нових rego-тестів (`hpa.yaml`/`pdb.yaml`/`hpa.yml` у `resources:`, чистий `resources:`, lookalike basename `myhpa.yaml`); `opa test` зелений (10/10).
+
+### Fixed
+
+- **`check-k8s.mjs`:** додано константу `GATEWAY_API_GROUP_PREFIX = 'gateway.networking.k8s.io/'`. Її відсутність кидала `ReferenceError` у `indexOneK8sYamlForHasuraCanon` (на лінії з `av.startsWith(GATEWAY_API_GROUP_PREFIX)`), яку ловив outer try/catch у `bin/n-cursor.js` і **тихо пропускав** усі наступні JS-валідатори в `check-k8s.mjs::check()` — серед них `validateKustomizeHpaPdbOnlyWithBaseDeployment`, `validateConfigMapNameMatchesDeployment`, `validateDeploymentHpaPdbAndTopology`, `validateProdKustomizationOverrides`. Наслідок у репах споживачів: правило «HPA/PDB заборонені у `k8s/base/`» не спрацьовувало (хоча `verifyK8sBaseKustomizeHasNoHpaPdb` логіку містив правильну), бо exception вилітав раніше за чергу JS-кроків. Rego-крок (`runAllK8sRego`) ішов **до** crash-точки й тому продовжував працювати — пер-документні перевірки залишалися активними, а cross-file JS — ні.
+
 ## [1.9.0] - 2026-05-11
 
 ### Changed

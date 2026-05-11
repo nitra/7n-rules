@@ -34,3 +34,40 @@ test_allow_non_kustomization if {
 		"metadata": {"name": "cm"},
 	}
 }
+
+base_kust_ok := object.union(base_kust, {"namespace": "dev"})
+
+test_deny_hpa_yaml_in_resources if {
+	count(base_kustomization.deny) > 0 with input as object.union(
+		base_kust_ok,
+		{"resources": ["deployment.yaml", "hpa.yaml"]},
+	)
+}
+
+test_deny_pdb_yaml_in_resources if {
+	count(base_kustomization.deny) > 0 with input as object.union(
+		base_kust_ok,
+		{"resources": ["pdb.yaml"]},
+	)
+}
+
+test_deny_hpa_yml_in_subdir if {
+	count(base_kustomization.deny) > 0 with input as object.union(
+		base_kust_ok,
+		{"resources": ["nested/dir/hpa.yml"]},
+	)
+}
+
+test_allow_resources_without_hpa_pdb if {
+	count(base_kustomization.deny) == 0 with input as object.union(
+		base_kust_ok,
+		{"resources": ["deployment.yaml", "service.yaml", "configmap.yaml"]},
+	)
+}
+
+test_allow_lookalike_basename if {
+	count(base_kustomization.deny) == 0 with input as object.union(
+		base_kust_ok,
+		{"resources": ["myhpa.yaml", "pdb-extra.yaml"]},
+	)
+}
