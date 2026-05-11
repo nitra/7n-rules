@@ -34,4 +34,19 @@ describe('findK8sRoots', () => {
       expect(dirs.includes(join(root, 'p2', 'k8s'))).toBe(true)
     })
   })
+
+  test('не включає .github/workflows, навіть коли корінь репо називається k8s/', async () => {
+    // Worst-case з користувацького bug-report: репо в `…/abie/k8s/`. Без relativize у
+    // pathHasK8sSegment усі yaml-файли проєкту потрапляли б у k8s-сканер, включно з
+    // `.github/workflows/*.yml` (територія `ga.mdc`, де канон — `.yml`).
+    await withTmpCwd(async tmp => {
+      const projectRoot = join(tmp, 'k8s')
+      await mkdir(join(projectRoot, '.github', 'workflows'), { recursive: true })
+      await mkdir(join(projectRoot, 'adminer', 'k8s', 'base'), { recursive: true })
+      await writeFile(join(projectRoot, '.github', 'workflows', 'apply-k8s.yml'), 'on: push\n', 'utf8')
+      await writeFile(join(projectRoot, 'adminer', 'k8s', 'base', 'hr.yaml'), 'a: 1\n', 'utf8')
+      const dirs = await findK8sRoots(projectRoot)
+      expect(dirs).toEqual([join(projectRoot, 'adminer', 'k8s')])
+    })
+  })
 })

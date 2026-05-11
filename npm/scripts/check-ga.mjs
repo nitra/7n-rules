@@ -365,9 +365,9 @@ const GA_PER_WORKFLOW_REGO_TARGETS = [
  * @param {string[]} ymlWorkflows відносні (від `wfDir`) імена файлів `*.yml`
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
+function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
   for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
     if (!existsSync(target.workflow)) continue
     const violations = runConftestBatch({

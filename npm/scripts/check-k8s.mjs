@@ -349,11 +349,23 @@ const BATCH_V1BETA1_API_VERSION_LINE_RE = /^(\s*apiVersion:\s*)["']?batch\/v1bet
 
 /**
  * Чи містить шлях сегмент директорії `k8s` (рівно ця назва компонента).
- * @param {string} filePath шлях до файлу
- * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
+ *
+ * Якщо передано `root`, перевірка ведеться **відносно** кореня репо — інакше випадає
+ * false-positive, коли сам корінь репо вже містить компонент `k8s` (напр.
+ * `/Users/.../abie/k8s/`): без relativize функція б повертала true для **усіх** файлів
+ * у проєкті, включно з `.github/workflows/*.yml`, які належать іншому правилу (`ga.mdc`).
+ *
+ * Без `root` (як у юніт-тестах або коли шлях уже відносний) спрацьовує старий шлях:
+ * розбиття за `/`/`\` і пошук компонента `k8s`.
+ * @param {string} filePath абсолютний або відносний шлях до файлу
+ * @param {string} [root] корінь репо для relativize (типово — без relativize)
+ * @returns {boolean} true, якщо серед компонентів шляху **відносно root** є каталог `k8s`
  */
-export function pathHasK8sSegment(filePath) {
-  const parts = filePath.split(PATH_SPLIT_RE)
+export function pathHasK8sSegment(filePath, root) {
+  const target = root ? relative(root, filePath).replaceAll('\\', '/') : filePath
+  // Порожній relative означає сам root — у ньому компонента `k8s` відносно себе немає.
+  if (target === '') return false
+  const parts = target.split(PATH_SPLIT_RE)
   return parts.includes('k8s')
 }
 
@@ -1723,7 +1735,11 @@ async function findK8sYamlFiles(root, ignorePaths = []) {
   await walkDir(
     root,
     p => {
-      if (!pathHasK8sSegment(p)) return
+      const rel = relative(root, p).replaceAll('\\', '/')
+      // `.github/` належить правилу `ga.mdc` (там канон — `.yml`); не зачіпай тут навіть
+      // якщо `pathHasK8sSegment` колись зіб'ється на крайовому кейсі.
+      if (rel.startsWith('.github/')) return
+      if (!pathHasK8sSegment(p, root)) return
       if (!YAML_EXTENSION_RE.test(p)) return
       out.push(p)
     },
@@ -2890,18 +2906,11 @@ export function collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, ro
   return out
 }
 
-/**
- * Один документ: маршрут Gateway API має посилатися на **Service** з суфіксом **`-hl`**;
- * у **`backendRef`** не має дублюватися **`namespace`**, що збігається з **`metadata.namespace`** маршруту.
- * @param {string} rel відносний шлях до файлу
- * @param {number} docIndex 1-based індекс документа
- * @param {Record<string, unknown>} rec корінь маніфесту
- * @param {(msg: string) => void} fail callback помилки
- * @returns {void}
- */
 // Plan B: Gateway API маршрут backendRef з суфіксом `-hl` і redundant namespace —
 // у rego-пакеті `k8s.gateway`, виклик через `runAllK8sRego`. JS-функції
-// failIfGatewayRouteUsesNonHeadlessService, scanGatewayApiRouteBackendRefsInYamlBody видалено.
+// failIfGatewayRouteUsesNonHeadlessService, scanGatewayApiRouteBackendRefsInYamlBody видалено;
+// JSDoc-блок для них прибрано (eslint-plugin-jsdoc trip-ив на «orphan» JSDoc, який
+// прилипав до asPlainRecord як другий @returns).
 
 /**
  * Звузити `unknown` до `Record<string, unknown>` (`null`, масиви, примітиви → null).
@@ -3552,13 +3561,12 @@ function countSchemaModelines(lines) {
   return lines.filter(l => OXLINT_SCHEMA_MODELINE_RE.test(l.trim())).length
 }
 
-
 /**
  * Файл з першим документом **HttpBackendGroup** (ALB Yandex): без modeline **$schema**.
  * @param {string} rel відносний шлях
- * @param {string} baseLower basename
- * @param {string[]} lines рядки файлу
- * @param {(msg: string) => void} fail реєстрація помилки
+ * @param {string} _baseLower basename (лишений для уніфікованої сигнатури `checkK8sYamlFile*`)
+ * @param {string[]} _lines рядки файлу (лишені з тієї ж причини)
+ * @param {(msg: string) => void} _fail реєстрація помилки (rego гейтує per-document)
  * @param {(msg: string) => void} pass реєстрація успіху
  * @returns {void}
  */
@@ -3679,9 +3687,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
     // Але `# yaml-language-server: $schema=…` дозволено **лише** у першому рядку — якщо він
     // зустрічається нижче, це порушення (yaml-language-server чекає на нього у заголовку файлу).
     if (countSchemaModelines(lines) > 0) {
-      fail(
-        `${rel}: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)`
-      )
+      fail(`${rel}: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)`)
       return
     }
     pass(`${rel}: без modeline — перевірка $schema пропущена (немає публічної схеми; k8s.mdc)`)
@@ -5965,6 +5971,10 @@ function runAllK8sRego(root, yamlFiles, fail) {
   }
 }
 
+/**
+ * Точка входу `check k8s`: повний набір перевірок маніфестів і структури `…/k8s` (див. JSDoc на початку файлу).
+ * @returns {Promise<number>} `process.exitCode`: 0 при успіху, 1 при будь-якому `fail(...)`
+ */
 export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter

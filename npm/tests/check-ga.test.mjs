@@ -189,7 +189,7 @@ describe('check-ga: shellcheck в PATH', () => {
   // shellcheck, і conftest), тож conftest зникає й `runConftestBatch` падає до `checkShellcheckInstalled`.
   // Точкова перевірка обходить цю проблему.
   test('checkShellcheckInstalled — fail + повідомлення про shellcheck/brew, коли його немає', async () => {
-    await withBinRemovedFromPath('shellcheck', async () => {
+    await withBinRemovedFromPath('shellcheck', () => {
       const passes = []
       const fails = []
       checkShellcheckInstalled(

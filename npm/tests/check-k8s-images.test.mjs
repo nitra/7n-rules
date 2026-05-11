@@ -303,12 +303,15 @@ resources:
   return { root, baseDir, prodDir }
 }
 
-describe('convertImagePatchesToImagesInKustomization (e2e)', () => {
-  test('конвертує одиничний image-replace patch у images:', async () => {
-    const { root, baseDir, prodDir } = await setupKustTree('k8s-img-conv-1-')
-    await writeFile(
-      join(baseDir, 'deploy.yaml'),
-      `apiVersion: apps/v1
+/**
+ * Мінімальний `Deployment` у base — один контейнер `app` із заданим образом.
+ * Вилучено в helper щоб прибрати дублювання (jscpd, порогова межа 25 рядків)
+ * між тестами `convertImagePatchesToImagesInKustomization`.
+ * @param {string} image повний `image:` для першого контейнера (з тегом)
+ * @returns {string} YAML-текст файлу `base/deploy.yaml`
+ */
+function buildBaseDeployYaml(image) {
+  return `apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: auth
@@ -317,14 +320,17 @@ spec:
     spec:
       containers:
         - name: app
-          image: europe-west4-docker.pkg.dev/abie-ua/c/x:dev
-`,
-      'utf8'
-    )
-    const prodKust = join(prodDir, 'kustomization.yaml')
-    await writeFile(
-      prodKust,
-      `apiVersion: kustomize.config.k8s.io/v1beta1
+          image: ${image}
+`
+}
+
+/**
+ * `kustomization.yaml` у `prod/` із одним **image-replace** patch на `Deployment auth`.
+ * @param {string} imageValue нове значення `value:` (повний `image:tag`)
+ * @returns {string} YAML-текст файлу `prod/kustomization.yaml`
+ */
+function buildProdKustImageReplace(imageValue) {
+  return `apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: app-ns
 resources:
@@ -337,10 +343,20 @@ patches:
     patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/image
-        value: europe-west4-docker.pkg.dev/abie-ua/c/x:latest
-`,
+        value: ${imageValue}
+`
+}
+
+describe('convertImagePatchesToImagesInKustomization (e2e)', () => {
+  test('конвертує одиничний image-replace patch у images:', async () => {
+    const { root, baseDir, prodDir } = await setupKustTree('k8s-img-conv-1-')
+    await writeFile(
+      join(baseDir, 'deploy.yaml'),
+      buildBaseDeployYaml('europe-west4-docker.pkg.dev/abie-ua/c/x:dev'),
       'utf8'
     )
+    const prodKust = join(prodDir, 'kustomization.yaml')
+    await writeFile(prodKust, buildProdKustImageReplace('europe-west4-docker.pkg.dev/abie-ua/c/x:latest'), 'utf8')
     const r = await convertImagePatchesToImagesInKustomization(prodKust, resolve(root))
     expect(r.changed).toBe(true)
     expect(r.errors).toEqual([])
@@ -357,39 +373,11 @@ patches:
     const { root, baseDir, prodDir } = await setupKustTree('k8s-img-conv-2-')
     await writeFile(
       join(baseDir, 'deploy.yaml'),
-      `apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: auth
-spec:
-  template:
-    spec:
-      containers:
-        - name: app
-          image: europe-west4-docker.pkg.dev/abie-ua/c/x:latest
-`,
+      buildBaseDeployYaml('europe-west4-docker.pkg.dev/abie-ua/c/x:latest'),
       'utf8'
     )
     const prodKust = join(prodDir, 'kustomization.yaml')
-    await writeFile(
-      prodKust,
-      `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: app-ns
-resources:
-  - ../base
-
-patches:
-  - target:
-      kind: Deployment
-      name: auth
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/image
-        value: europe-west4-docker.pkg.dev/abie-ua/c/x:latest
-`,
-      'utf8'
-    )
+    await writeFile(prodKust, buildProdKustImageReplace('europe-west4-docker.pkg.dev/abie-ua/c/x:latest'), 'utf8')
     const r = await convertImagePatchesToImagesInKustomization(prodKust, resolve(root))
     expect(r.changed).toBe(true)
     expect(r.content).toContain('- name: europe-west4-docker.pkg.dev/abie-ua/c/x')

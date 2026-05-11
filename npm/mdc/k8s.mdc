@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.28'
+version: '1.29'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -20,6 +20,8 @@ alwaysApply: false
 **Виняток — modeline заборонено:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути (ні в першому рядку, ні далі). Перший рядок — одразу YAML (`apiVersion:` тощо). Перевірка — **`check-k8s.mjs`**.
 
 **Розширення:** усі маніфести під **`k8s`**, включно з **`kustomization.yaml`**, — лише **`.yaml`** (розширення **`.yml`** не використовуй).
+
+**Скоп — поза `.github/`:** правило стосується YAML-маніфестів у каталогах **`k8s`** (визначаються відносно кореня репо, не за абсолютним шляхом). Файли під **`.github/workflows/`** та **`.github/actions/`** ця перевірка **не** зачіпає — їхній скоп визначає **`ga.mdc`** (там канон — **`.yml`**). Це робить два правила несуперечливими навіть у проєктах, де сам корінь репо випадково має ім'я `k8s/` (тоді сегмент `k8s` присутній у абсолютному шляху всіх файлів, але **відносно кореня** його там немає).
 
 **Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor check docker`**.
 

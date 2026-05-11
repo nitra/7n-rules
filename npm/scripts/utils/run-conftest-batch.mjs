@@ -30,7 +30,7 @@ const POLICY_ROOT = join(PACKAGE_ROOT, 'policy')
 /**
  * Друкує install-hint для conftest і кидає виняток, щоб викликана `check-*`
  * команда ясно завершилась з кодом 1.
- * @returns {never}
+ * @returns {never} завжди кидає; для точки виклику — non-returning
  */
 function failConftestMissing() {
   throw new Error(
@@ -94,9 +94,7 @@ export function runConftestBatch(opts) {
   }
   // conftest exit 1 = є failures (це валідно для нас); >1 = справжня помилка.
   if (result.status !== 0 && result.status !== 1) {
-    throw new Error(
-      `conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`
-    )
+    throw new Error(`conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
   }
   /** @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>} */
   let parsed

@@ -5,7 +5,6 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
-  ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT,
   ABIE_HC_SCHEMA_URL,
   ABIE_SHARED_CROSS_NS_BACKEND_NAMES,
   abieEnvNameFromBasename,
@@ -33,8 +32,6 @@ import {
   isAbieRuleEnabled
 } from '../scripts/check-abie.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
-
-const HC_NAME_RE = /^ {2}name: my-svc$/mu
 
 const CLEAN_MERGED_MIN = `name: Clean abandoned branches
 on:

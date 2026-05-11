@@ -13,7 +13,7 @@
  * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
  */
 import { spawnSync } from 'node:child_process'
-import { basename, dirname } from 'node:path'
+import { basename, dirname, relative } from 'node:path'
 
 import { isRunAsCli } from './cli-entry.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
@@ -31,12 +31,19 @@ const DATREE_CRD_SCHEMA_LOCATION =
   'https://datreeio.github.io/CRDs-catalog/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 
 /**
- * Чи містить шлях сегмент директорії `k8s`.
- * @param {string} filePath шлях до файлу
- * @returns {boolean} true, якщо серед компонентів шляху є каталог `k8s`
+ * Чи містить шлях сегмент директорії `k8s` (відносно `root`, якщо передано).
+ *
+ * Якщо корінь репо сам має компонент `k8s` (напр. `/Users/.../abie/k8s/`), без relativize
+ * функція повертала б true для **усіх** файлів проєкту — включно з `.github/workflows/*.yml`,
+ * які належать `ga.mdc`. Передавай `root` у викликах з walkDir щоб уникнути false-positive.
+ * @param {string} filePath абсолютний або відносний шлях до файлу
+ * @param {string} [root] корінь репо для relativize (типово — без relativize)
+ * @returns {boolean} true, якщо серед компонентів шляху **відносно root** є каталог `k8s`
  */
-export function pathHasK8sSegment(filePath) {
-  const parts = filePath.split(PATH_SEPARATOR_RE)
+export function pathHasK8sSegment(filePath, root) {
+  const target = root ? relative(root, filePath).replaceAll('\\', '/') : filePath
+  if (target === '') return false
+  const parts = target.split(PATH_SEPARATOR_RE)
   return parts.includes('k8s')
 }
 
@@ -68,7 +75,10 @@ export async function findK8sRoots(root, ignorePaths = []) {
   await walkDir(
     root,
     p => {
-      if (!pathHasK8sSegment(p)) return
+      const rel = relative(root, p).replaceAll('\\', '/')
+      // `.github/` належить `ga.mdc`; kubeconform/kubescape там не запускаємо.
+      if (rel.startsWith('.github/')) return
+      if (!pathHasK8sSegment(p, root)) return
       if (!YAML_EXT_RE.test(p)) return
       const k8sRoot = k8sRootFromFile(p)
       if (k8sRoot) roots.add(k8sRoot)

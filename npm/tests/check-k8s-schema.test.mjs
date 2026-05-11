@@ -250,6 +250,27 @@ describe('pathHasK8sSegment', () => {
   test('false без сегмента k8s', () => {
     expect(pathHasK8sSegment('foo/bar/baz.yaml')).toBe(false)
   })
+
+  test('з root: ігнорує сегмент `k8s` у самому префіксі кореня', () => {
+    // Worst-case: корінь репо буквально називається `k8s/` (як `/Users/.../abie/k8s/`).
+    // Без relativize всі файли проєкту повертали б true (включно з `.github/workflows/`),
+    // що ламає скоп check-k8s vs ga.mdc.
+    // Перевірка чисто рядкова — fs не зачіпаємо, тому використовуємо синтетичний префікс.
+    const root = '/home/test/some/k8s'
+    expect(pathHasK8sSegment(`${root}/.github/workflows/x.yml`, root)).toBe(false)
+    expect(pathHasK8sSegment(`${root}/adminer/k8s/base/hr.yaml`, root)).toBe(true)
+    expect(pathHasK8sSegment(`${root}/Dockerfile`, root)).toBe(false)
+  })
+
+  test('з root: сам корінь не вважається k8s-файлом', () => {
+    const root = '/home/test/some/k8s'
+    expect(pathHasK8sSegment(root, root)).toBe(false)
+  })
+
+  test('з root: маніфест під вкладеним k8s/ розпізнається', () => {
+    const root = '/repo/root'
+    expect(pathHasK8sSegment('/repo/root/site/k8s/base/deployment.yaml', root)).toBe(true)
+  })
 })
 
 describe('deploymentResourcesViolation', () => {

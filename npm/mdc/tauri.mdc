@@ -14,7 +14,6 @@ version: '1.0'
 }
 ```
 
-
 ## Перевірка
 
 `npx @nitra/cursor check tauri`

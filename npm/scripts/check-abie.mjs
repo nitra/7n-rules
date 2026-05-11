@@ -323,7 +323,12 @@ async function findK8sYamlFiles(root, ignorePaths = []) {
   await walkDir(
     root,
     p => {
-      if (!pathHasK8sSegment(p)) {
+      const rel = relative(root, p).replaceAll('\\', '/')
+      // `.github/` належить `ga.mdc`; check-abie не зачіпає workflow-файли.
+      if (rel.startsWith('.github/')) {
+        return
+      }
+      if (!pathHasK8sSegment(p, root)) {
         return
       }
       if (!YAML_EXTENSION_RE.test(p)) {
@@ -760,9 +765,9 @@ async function collectDeploymentDirs(root, yamlAbs, fail) {
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback
  * @param {(msg: string) => void} passFn успішне повідомлення
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fail, passFn) {
+function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fail, passFn) {
   const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (baseFiles.length === 0) {
     passFn('Немає файлів у шляхах …/base/… — перевірку preem у base пропущено')
@@ -1425,9 +1430,9 @@ async function checkHttpRouteKustomization(abs, rel, mode, root, yamlFilesAbs, c
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
+function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
   const baseFiles = yamlFilesAbs.filter(abs => isAbieK8sBaseYamlPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (baseFiles.length === 0) {
     passFn('Немає файлів у шляхах …/k8s/base/… — перевірку HTTPRoute hostnames пропущено')
@@ -1531,8 +1536,9 @@ async function ensureNoFirebaseHostingArtifacts(root, passFn, failFn) {
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
+ * @returns {void}
  */
-async function checkCleanMergedBranch(root, pass, fail) {
+function checkCleanMergedBranch(root, pass, fail) {
   const cleanMergedPath = join(root, '.github/workflows/clean-merged-branch.yml')
   if (!existsSync(cleanMergedPath)) {
     fail(`Відсутній ${cleanMergedPath} — потрібен для ignore_branches (abie.mdc)`)
