@@ -1,10 +1,15 @@
 /**
  * Перевіряє Kubernetes YAML у шляхах з сегментом `k8s` (див. k8s.mdc).
  *
- * Перший рядок `# yaml-language-server: $schema=…`, без дублікатів, розширення `.yaml`
+ * Перший рядок `# yaml-language-server: $schema=…` (URL за `https://`), без дублікатів, розширення `.yaml`
  * (окрім `kustomization.yaml`); URL схеми за першим документом — kustomization / yannh / datree
  * (**виняток:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` — рядка `# yaml-language-server:` у файлі бути не має).
  * (datree за замовчуванням: GitHub Pages `https://datreeio.github.io/CRDs-catalog/…`).
+ *
+ * Modeline **опційний**: якщо публічної схеми немає (yannh/datree/schemastore не покривають це поєднання
+ * apiVersion/kind), залиш файл **без** рядка `# yaml-language-server: $schema=…` — `check-k8s` пропустить
+ * перевірку URL. **Заборонено** ставити `$schema=file:…` як заглушку (це фальшива валідація). Якщо modeline
+ * присутній, він має бути **першим рядком** і містити `https://` URL, що відповідає очікуваному за apiVersion/kind.
  *
  * Додатково: у кожному YAML-документі з **`kind: Deployment`** у кожного контейнера
  * **`spec.template.spec.containers[]`** має бути **`resources.requests.cpu`** і **`resources.requests.memory`**
@@ -3593,8 +3598,13 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
   // topologySpread, HCP, svc/svc-hl) — делегована rego, виконано у `runAllK8sRego` вище.
 
   if (schemaUrl.startsWith('file:')) {
-    pass(`${rel}: локальна схема (file:) — перевірка URL за apiVersion/kind пропущена`)
-  } else if (HTTPS_SCHEMA_RE.test(schemaUrl)) {
+    fail(
+      `${rel}: $schema=file:… заборонено (фальшива валідація без публічної схеми). ` +
+        `Якщо публічної схеми для цього apiVersion/kind немає — прибери modeline зовсім (k8s.mdc)`
+    )
+    return
+  }
+  if (HTTPS_SCHEMA_RE.test(schemaUrl)) {
     const doc = firstYamlDocument(body)
     const { expected, reason } = expectedSchemaUrl(abs, doc)
 
@@ -3610,7 +3620,9 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
 
     pass(`${rel}: $schema узгоджено (${reason})`)
   } else {
-    fail(`${rel}: $schema має бути https URL або file: (див. k8s.mdc)`)
+    fail(
+      `${rel}: $schema має бути https URL (file: і інші схеми заборонені — якщо публічної схеми немає, прибери modeline; k8s.mdc)`
+    )
   }
 }
 
@@ -3641,12 +3653,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
   }
 
   const lines = toLines(raw)
-  if (lines.length === 0 || lines[0].trim() === '') {
-    fail(`${rel}: перший рядок порожній — потрібен # yaml-language-server: $schema=…`)
-    return
-  }
-
-  const firstLineIsModeline = MODELINE_RE.test(lines[0])
+  const firstLineIsModeline = lines.length > 0 && MODELINE_RE.test(lines[0])
   const bodyForFirstDoc = k8sYamlBodyForDocumentParse(lines)
   const isAlbHttpBackendGroup = k8sYamlFirstDocIsAlbYcHttpBackendGroup(bodyForFirstDoc)
 
@@ -3668,7 +3675,16 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
   }
 
   if (!firstLineIsModeline) {
-    fail(`${rel}: перший рядок має бути коментарем # yaml-language-server: $schema=<url> (без префіксів перед #)`)
+    // Modeline опційний: дозволено, якщо публічної схеми для apiVersion/kind немає (k8s.mdc).
+    // Але `# yaml-language-server: $schema=…` дозволено **лише** у першому рядку — якщо він
+    // зустрічається нижче, це порушення (yaml-language-server чекає на нього у заголовку файлу).
+    if (countSchemaModelines(lines) > 0) {
+      fail(
+        `${rel}: рядок # yaml-language-server: $schema=… має бути першим у файлі (без префіксів перед #; k8s.mdc)`
+      )
+      return
+    }
+    pass(`${rel}: без modeline — перевірка $schema пропущена (немає публічної схеми; k8s.mdc)`)
     return
   }
 

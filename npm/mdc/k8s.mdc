@@ -1,13 +1,13 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.27'
+version: '1.28'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
 
 # Kubernetes YAML у шляхах з `k8s`
 
-Для кожного файлу `*.yaml`, у шляху якого є сегмент директорії **`k8s`** (наприклад `site/k8s/base/deployment.yaml`), **перший рядок** — коментар-директива для [YAML Language Server](https://github.com/redhat-developer/yaml-language-server):
+Для кожного файлу `*.yaml`, у шляху якого є сегмент директорії **`k8s`** (наприклад `site/k8s/base/deployment.yaml`), якщо існує **публічна** схема (kustomization / yannh / datree CRDs-catalog — див. «Визначення схеми YAML»), **перший рядок** — коментар-директива для [YAML Language Server](https://github.com/redhat-developer/yaml-language-server) з URL за `https://`:
 
 ```yaml
 # yaml-language-server: $schema=https://...
@@ -15,7 +15,9 @@ alwaysApply: false
 
 Далі — вміст маніфесту. Зайвий порожній рядок між коментарем і YAML не додавай, якщо в проєкті не прийнято інше.
 
-**Виняток — без modeline:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути (ні в першому рядку, ні далі). Перший рядок — одразу YAML (`apiVersion:` тощо). Перевірка — **`check-k8s.mjs`**.
+**Modeline — опційний:** якщо для конкретного поєднання `apiVersion`/`kind` **немає** надійної публічної схеми (yannh/datree/schemastore не покривають), залиш файл **без** рядка `# yaml-language-server: $schema=…`. **Заборонено** ставити `$schema=file:…` як заглушку — це створює видимість валідації без неї. Без modeline `check-k8s` не валідує URL, але **`lint-k8s`** (kubeconform/kubescape) продовжить роботу. Якщо modeline присутній — він обов'язково перший рядок і **тільки** `https://` URL, який відповідає очікуваному за `apiVersion`/`kind`.
+
+**Виняток — modeline заборонено:** `apiVersion: alb.yc.io/v1alpha1`, `kind: HttpBackendGroup` (Yandex ALB) — рядка **`# yaml-language-server: $schema=…`** у файлі **не** має бути (ні в першому рядку, ні далі). Перший рядок — одразу YAML (`apiVersion:` тощо). Перевірка — **`check-k8s.mjs`**.
 
 **Розширення:** усі маніфести під **`k8s`**, включно з **`kustomization.yaml`**, — лише **`.yaml`** (розширення **`.yml`** не використовуй).
 
@@ -695,7 +697,7 @@ patch: |-
    # yaml-language-server: $schema=https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json
    ```
 
-5. **Немає надійного публічного URL** — не вигадуй: залиш коректний `$schema` або `file:` за узгодженням.
+5. **Немає надійного публічного URL** — не вигадуй URL і **не** використовуй `$schema=file:…` як заглушку (фальшива валідація). Залиш файл **без** рядка `# yaml-language-server: $schema=…` зовсім — `check-k8s` пропустить перевірку URL для таких файлів, а `lint-k8s` (kubeconform з `-ignore-missing-schemas`) усе ще покриє валідацію.
 
 ## Багатодокументні YAML
 

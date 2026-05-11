@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.2] - 2026-05-11
+
+### Changed
+
+- **k8s — modeline `$schema` тепер опційний; `file:…` заборонено як заглушку:** правило `k8s.mdc` уточнено — рядок `# yaml-language-server: $schema=…` обов'язковий **лише** коли для поєднання `apiVersion`/`kind` існує надійна публічна схема (kustomization / yannh / datree CRDs-catalog). Якщо публічної схеми немає, modeline **не додається зовсім** (раніше п. 5 розділу «Визначення схеми YAML» допускав `file:` за узгодженням — це створювало фальшиву видимість валідації, а автовиправлення n-fix залишало заглушковий `# yaml-language-server: $schema=file:.`). У `check-k8s.mjs`: (1) файли без modeline більше не падають як «перший рядок має бути коментарем», натомість `pass` із позначкою «без modeline — перевірка $schema пропущена»; (2) `$schema=file:…` тепер реєструється як помилка з підказкою прибрати modeline; (3) modeline нижче першого рядка все ще порушення; (4) `HttpBackendGroup` (Yandex ALB) як виняток без modeline залишається без змін. `lint-k8s` (kubeconform з прапорцем ignore-missing-schemas) продовжує покривати валідацію і для файлів без modeline. JSDoc на початку `check-k8s.mjs` оновлено.
+
 ## [1.9.1] - 2026-05-11
 
 ### Added
