@@ -1,7 +1,8 @@
 ---
 description: Vue
-alwaysApply: true
-version: '1.7'
+version: '1.8'
+globs: "**/*.vue"
+alwaysApply: false
 ---
 
 # Vue 3 Composition API — правила для .cursorrules

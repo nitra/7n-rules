@@ -1,7 +1,8 @@
 ---
 description: Оптимізація raster/SVG через @nitra/minify-image у локальному lint
-alwaysApply: true
-version: '1.1'
+version: '1.2'
+globs: "**/*.{png,jpg,jpeg,gif,svg}"
+alwaysApply: false
 ---
 
 CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **3.3.1**) запускається через `npx` (як `markdownlint-cli2` у text.mdc) і **не** додається в `dependencies` / `devDependencies`. Канонічний `lint-image` — авто-оптимізація з прапорцем `--write`: стискає raster/SVG на місці. **AVIF-генерація (`--avif`) у `lint-image` заборонена** — її виконує окреме правило `image-avif` (`npx @nitra/cursor check image-avif`), яке заодно прибирає AVIF-сироти. Split-cache робить повторні прогони дешевими — і локально, і після `git clone`.

@@ -1,7 +1,8 @@
 ---
 description: GraphQL у коді (tagged template `gql`) — GraphQL Config і розширення VS Code
-alwaysApply: true
-version: '1.0'
+version: '1.1'
+globs: "**/*.{vue,js,mjs,cjs,ts,tsx,jsx}"
+alwaysApply: false
 ---
 
 Якщо в **`.vue`** або в **JavaScript / TypeScript** джерелах (`.js`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.jsx` тощо) зустрічається **tagged template literal** з тегом **`gql`** (типово `gql\`query …\`` для GraphQL-запиту), у **корені репозиторію** мають бути:

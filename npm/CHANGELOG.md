@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.0] - 2026-05-11
+
+### Changed
+
+- **mdc frontmatter — `alwaysApply: false` + `globs` для файлово-чітких правил:** `ga` (`.github/workflows/*.yml`), `vue` (`**/*.vue`), `php` (`**/*.php`), `style-lint` (`**/*.{css,scss,vue}`), `nginx-default-tpl` (`**/default.{conf.template,tpl.conf}`), `image-avif` (`**/*.{png,jpg,jpeg,gif,avif,vue,html}`), `image-compress` (`**/*.{png,jpg,jpeg,gif,svg}`), `changelog` (`**/{CHANGELOG.md,package.json}`), `hasura` (`**/hasura/**,**/*.env`), `graphql` (`**/*.{vue,js,mjs,cjs,ts,tsx,jsx}`). Раніше тільки `docker`, `k8s`, `rego` тримали file-scoped формат; решта вантажилася в контекст Cursor завжди (`alwaysApply: true`). Тепер правило підтягується лише коли в контексті є файл за патерном — менше «шуму» у промптах для несуміжних задач. Версії bump-нуто на патч-крок у кожному `*.mdc`. Проєктно-широкі правила (`bun`, `npm-module`, `ci4`, `text`, `js-lint`) і opt-in (`abie`, `adr`) лишилися `alwaysApply: true` без globs.
+
 ## [1.8.229] - 2026-05-11
 
 ### Removed

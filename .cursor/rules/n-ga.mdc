@@ -1,7 +1,8 @@
 ---
 description: Правила форматів для .github/workflows
-alwaysApply: true
-version: '1.7'
+version: '1.8'
+globs: ".github/workflows/*.yml"
+alwaysApply: false
 ---
 
 У `.github/workflows/` лише **`.yml`**. Мають бути **`clean-ga-workflows.yml`**, **`clean-merged-branch.yml`**, **`lint-ga.yml`**, **`git-ai.yml`**. Якщо є **`apply-k8s.yml`** / **`apply-nats-consumer.yml`** — paths у тригері як у фрагментах.

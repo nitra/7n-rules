@@ -1,7 +1,8 @@
 ---
 description: AVIF-двійники для raster-зображень з ув'язуванням у .vue/.html
-alwaysApply: true
-version: '1.1'
+version: '1.2'
+globs: "**/*.{png,jpg,jpeg,gif,avif,vue,html}"
+alwaysApply: false
 ---
 
 AVIF-двійники (`<name>.<ext>.avif`) генерує **виключно** `npx @nitra/cursor check image-avif` — у `lint-image` прапорець `--avif` заборонений (це валідує правило `image-compress`). Перевірка робить три кроки в порядку:

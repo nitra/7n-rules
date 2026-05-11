@@ -1,7 +1,8 @@
 ---
 description: Правила для директорії з hasura graphql-engine
-alwaysApply: true
-version: '1.0'
+version: '1.1'
+globs: "**/hasura/**,**/*.env"
+alwaysApply: false
 ---
 
 ## Підключення для оновлення метаданих у CI (Nitra та Abinbevefes)

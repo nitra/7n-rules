@@ -1,7 +1,8 @@
 ---
 description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння
-alwaysApply: true
-version: '2.0'
+version: '2.1'
+globs: "**/{CHANGELOG.md,package.json}"
+alwaysApply: false
 ---
 
 Bun monorepo: у кожному workspace із кореневого `package.json.workspaces` (плюс кореневий пакет, плюс `npm/`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій. Правило `npm-module` відповідає лише за публікацію типів і workflow, а CHANGELOG — за цим правилом.
