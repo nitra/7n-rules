@@ -157,8 +157,7 @@ const TARGETS = [
     single: '.github/workflows/lint-js.yml'
   },
 
-  // ── graphql / image-compress / capacitor ────────────────────────────────
-  { namespace: 'graphql.package_json', policyDir: 'graphql', rule: 'graphql', single: 'package.json' },
+  // ── image-compress / capacitor ──────────────────────────────────────────
   {
     namespace: 'image_compress.package_json',
     policyDir: 'image_compress',

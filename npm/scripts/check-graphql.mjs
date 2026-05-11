@@ -5,10 +5,6 @@
  * Обхід репозиторію — **`walkDir`** від **`process.cwd()`** (пропуски як у інших check). Кандидати — **`.vue`** та **`.js`/`.ts`/`.jsx`/`.tsx`** тощо; пропуск **`.d.ts`**, **auto-imports.d.ts** тощо — **`shouldSkipFileForGqlScan`**.
  *
  * Виявлення **`gql`** — **oxc-parser** після витягування `<script>` з SFC (**`graphql-gql-scan.mjs`**). Якщо збігів немає — перевірка завершується успішно без вимог до конфігів.
- *
- * Перевірку `scripts.dump-schema == REQUIRED_DUMP_SCHEMA_SCRIPT` у `package.json`
- * перенесено в Rego (`npm/policy/graphql/package_json/`); `bun run lint-conftest`
- * запускає її окремо.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -107,8 +103,8 @@ async function checkExtensionsRecommendation(pass, fail) {
 }
 
 /**
- * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml, graphql.vscode-graphql
- * і scripts.dump-schema за наявності gql tagged templates.
+ * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml і graphql.vscode-graphql
+ * за наявності gql tagged templates.
  * @returns {Promise<number>} 0 — OK, 1 — порушення
  */
 export async function check() {

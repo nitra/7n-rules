@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.4] - 2026-05-11
+
+### Removed
+
+- **graphql — вимога `scripts.dump-schema` у `package.json` прибрана:** правило `graphql.mdc` більше не вимагає канонічний скрипт `dump-schema` (раніше — `bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql`) у корені проєкту за наявності gql tagged template literals. У `.mdc` відповідну буліт-точку та JSON-фрагмент видалено; фраза про «стандартний спосіб оновлення локальної `schema.graphql`» теж прибрана з підсумкового речення. Каталог `npm/policy/graphql/` (єдиний файл `package_json/package_json.rego` з deny-правилами на відсутність/неканонічний `scripts.dump-schema`) видалено повністю. Запис реєстру `graphql.package_json` (policyDir `graphql`, rule `graphql`, single `package.json`) прибрано з `npm/scripts/lint-conftest.mjs` (заголовок секції перейменовано — `graphql` вилучено). JSDoc-преамбулу `npm/scripts/check-graphql.mjs` оновлено: видалено абзац про rego-порт перевірки `dump-schema` і згадку `scripts.dump-schema` з докстрингу `check()`. Сам JS-чек і так не торкався `package.json` — після видалення rego-полісі ніяких runtime-перевірок `dump-schema` не лишається. У кореневому `package.json` репо cursor скрипт `dump-schema` теж видалено, оскільки тримати його як shim без правила немає сенсу.
+
 ## [1.9.3] - 2026-05-11
 
 ### Fixed
