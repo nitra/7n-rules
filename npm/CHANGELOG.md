@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.8] - 2026-05-12
+
+### Changed
+
+- **Корінь монорепо:** у `eslint.config.js` після `...getConfig(...)` додано перевизначення `sonarjs/cognitive-complexity` на `['warn', 20]` (поріг 20, severity `warn`).
+
 ## [1.9.7] - 2026-05-12
 
 ### Changed
