@@ -1,0 +1,51 @@
+knip.json
+  s_78b357e5c28374::t_ec184aa00acdf4 1-5
+npm/policy/js_lint/lint_js_yml/lint_js_yml.rego
+  s_78b357e5c28374::t_a54078eb938344 74-78
+.cursor/rules/n-ga.mdc
+  s_78b357e5c28374::t_a54078eb938344 3,290
+npm/scripts/check-js-run.mjs
+  s_78b357e5c28374::t_a54078eb938344 312,425
+npm/CHANGELOG.md
+  s_78b357e5c28374::t_a54078eb938344 7-18
+npm/mdc/js-lint.mdc
+  s_78b357e5c28374::t_a54078eb938344 4,7,25,58-73,131
+npm/mdc/js-run.mdc
+  s_78b357e5c28374::t_a54078eb938344 4
+.github/workflows/lint-js.yml
+  s_78b357e5c28374::t_a54078eb938344 44
+.cursor/rules/n-js-run.mdc
+  s_78b357e5c28374::t_a54078eb938344 4
+npm/policy/ga/workflow_common/workflow_common.rego
+  s_78b357e5c28374::t_8614537737a2e1 92-93
+  s_78b357e5c28374::t_a54078eb938344 36-40,81-91
+npm/mdc/ga.mdc
+  s_78b357e5c28374::t_a54078eb938344 3,290
+  s_78b357e5c28374::t_2397cfee465246 291
+.cursor/rules/n-js-lint.mdc
+  s_78b357e5c28374::t_a54078eb938344 4,7,25,58-73,131
+npm/policy/js_lint/package_json/package_json.rego
+  s_78b357e5c28374::t_a54078eb938344 20
+package.json
+  s_78b357e5c28374::t_a54078eb938344 17
+npm/scripts/check-js-lint.mjs
+  s_78b357e5c28374::t_a54078eb938344 29,475-502,517
+npm/package.json
+  s_78b357e5c28374::t_a54078eb938344 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "ef3df6be0c67ba94f0416e1b6613d4370657f30c",
+  "prompts": {},
+  "sessions": {
+    "s_78b357e5c28374": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac677d64-ca80-4e32-b474-9006a503d072",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
