@@ -25,7 +25,7 @@ version: '1.19'
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip"
   },
   "devDependencies": {
-    "@nitra/eslint-config": "^3.9.2"
+    "@nitra/eslint-config": "^3.9.4"
   }
 }
 ```

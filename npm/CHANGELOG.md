@@ -8,7 +8,7 @@
 
 ### Changed
 
-- **Корінь монорепо:** у `eslint.config.js` після `...getConfig(...)` додано перевизначення `sonarjs/cognitive-complexity` на `['warn', 20]` (поріг 20, severity `warn`).
+- **Корінь монорепо:** локальне перевизначення `sonarjs/cognitive-complexity` у `eslint.config.js` прибрано — поріг і severity задаються в `@nitra/eslint-config`.
 
 ## [1.9.7] - 2026-05-12
 

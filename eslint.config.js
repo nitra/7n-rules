@@ -16,10 +16,5 @@ export default [
         ...globals.node
       }
     }
-  },
-  {
-    rules: {
-      'sonarjs/cognitive-complexity': ['warn', 20]
-    }
   }
 ]

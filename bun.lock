@@ -7,7 +7,7 @@
       "devDependencies": {
         "@nitra/cspell-dict": "^2.1.0",
         "@nitra/cursor": "workspace:*",
-        "@nitra/eslint-config": "^3.9.2",
+        "@nitra/eslint-config": "^3.9.4",
         "@nitra/stylelint-config": "^1.4.0",
       },
     },
@@ -28,16 +28,13 @@
     },
     "npm": {
       "name": "@nitra/cursor",
-      "version": "1.8.203",
+      "version": "1.9.8",
       "bin": {
         "n-cursor": "./bin/n-cursor.js",
       },
       "dependencies": {
         "oxc-parser": "^0.128.0",
         "yaml": "^2.8.3",
-      },
-      "devDependencies": {
-        "@nitra/cursor": "^1.8.169",
       },
     },
   },
@@ -254,7 +251,7 @@
 
     "@nitra/cursor": ["@nitra/cursor@workspace:npm"],
 
-    "@nitra/eslint-config": ["@nitra/eslint-config@3.9.2", "", { "dependencies": { "@e18e/eslint-plugin": "^0.4.1", "@eslint/compat": "^2.0.5", "@eslint/js": "^10.0.1", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.3.0", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.16.2", "eslint-plugin-jsdoc": "^62.9.0", "eslint-plugin-jsonc": "^3.1.2", "eslint-plugin-markdown": "^5.1.0", "eslint-plugin-n": "^18.0.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.63.0", "eslint-plugin-security": "^4.0.0", "eslint-plugin-sonarjs": "^4.0.3", "eslint-plugin-unicorn": "^64.0.0", "eslint-plugin-vue": "^10.9.1", "eslint-plugin-yml": "^3.3.2", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.6.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.0" } }, "sha512-XeK7mU3oifmILocoYvRf+XbHFT7mamdXFP2SN9T0BqPaqiNUozODYIkhq+Wmh7eChvgXuXFCi3XyRh3QpvP8eg=="],
+    "@nitra/eslint-config": ["@nitra/eslint-config@3.9.4", "", { "dependencies": { "@e18e/eslint-plugin": "^0.4.1", "@eslint/compat": "^2.0.5", "@eslint/js": "^10.0.1", "@graphql-eslint/eslint-plugin": "^4.4.0", "@graphql-tools/code-file-loader": "^8.1.32", "@graphql-tools/graphql-tag-pluck": "^8.3.31", "@graphql-tools/utils": "^11.1.0", "@microsoft/eslint-plugin-sdl": "^1.1.0", "eslint": "^10.3.0", "eslint-merge-processors": "^2.0.0", "eslint-plugin-import-x": "^4.16.2", "eslint-plugin-jsdoc": "^62.9.0", "eslint-plugin-jsonc": "^3.1.2", "eslint-plugin-markdown": "^5.1.0", "eslint-plugin-n": "^18.0.1", "eslint-plugin-no-unsanitized": "^4.1.5", "eslint-plugin-oxlint": "^1.63.0", "eslint-plugin-security": "^4.0.0", "eslint-plugin-sonarjs": "^4.0.3", "eslint-plugin-unicorn": "^64.0.0", "eslint-plugin-vue": "^10.9.1", "eslint-plugin-yml": "^3.3.2", "eslint-processor-vue-blocks": "^2.0.0", "globals": "^17.6.0", "graphql": "^16.14.0", "vue-eslint-parser": "^10.4.0" } }, "sha512-WXIvKXttLkKAVYkYD3pYybeIj0ecZhy5MlOYAOl/dYag8fPH64UbUUbvF7c294YMVJ2xLkTlgWlpTHTxsm07Fg=="],
 
     "@nitra/stylelint-config": ["@nitra/stylelint-config@1.4.1", "", { "dependencies": { "postcss-html": "^1.8.1", "stylelint": "^17.6.0", "stylelint-config-recommended-vue": "^1.6.1", "stylelint-config-standard-scss": "^17.0.0" } }, "sha512-m5hPuFft/SogWxCooz3oESDYQfF6YhsZjVDnf1/+nteDDTrtXSaIb11nWJ9ZlG7DOeXPCtuZELf06nLK1GtSNw=="],
 
