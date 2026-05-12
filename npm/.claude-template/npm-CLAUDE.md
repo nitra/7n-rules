@@ -21,9 +21,17 @@ npx @nitra/cursor check changelog
 npx @nitra/cursor check npm-module
 ```
 
-## Перш ніж писати `check-*.mjs`
+## Перш ніж писати / розширювати `check-*.mjs`
 
-Перед створенням нового `npm/scripts/check-<rule>.mjs` оціни, чи задача лягає на rego-полісі. **Default — Rego**: пер-документні структурні перевірки (kind/apiVersion, поля, форма масивів) пишуться у `npm/policy/<rule>/<name>/<name>.rego` + `_test.rego`. JS — тільки для cross-file resolution, file-system access (`readdir`/`stat`), autofix/rewrite або парсингу до YAML-body. Гібрид (rego як швидкий gate + JS-оркестратор для cross-file) — нормальний патерн; референс — `npm/policy/k8s/*` ↔ `npm/scripts/check-k8s.mjs`. Деталі алгоритму рішення — `.cursor/rules/conftest.mdc` (alwaysApply).
+**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `check-<rule>.mjs`: подивись `npm/policy/<rule>/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
+
+Швидкий self-check для нової перевірки (порядок важливий):
+
+1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/policy/<rule>/<name>/<name>.rego` + `<name>_test.rego`.
+2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `check-<rule>.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
+3. Не впевнений? Подивись референс **`npm/policy/k8s/*`** ↔ **`npm/scripts/check-k8s.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
+
+**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/policy/<rule>/` **перед** редагуванням `check-<rule>.mjs`.
 
 ## Джерело правил
 

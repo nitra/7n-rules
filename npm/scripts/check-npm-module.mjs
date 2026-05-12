@@ -11,6 +11,15 @@
  *
  * Поля workflow перевіряються після **YAML parse**, щоб не плутати з коментарями.
  *
+ * Компактність опублікованого пакета (cross-file / FS / AST частина):
+ *  - Пер-документні структурні deny для `npm/package.json` (`files` whitelist обовʼязковий,
+ *    без `devDependencies`) — у rego-пакеті `npm_module.npm_package_json` (Rego-authoritative).
+ *  - Тут лишається лише `checkNoTestsInPublishedFiles`: walk шляхів з `"files"` (з урахуванням
+ *    негативних glob-патернів) і скан test-style каталогів (`tests/`, `__tests__/`, `fixtures/`,
+ *    `__fixtures__/`, `spec/`, `test/`), імен файлів (`*.test.*` / `*.spec.*`) і AST-імпортів
+ *    test-фреймворків (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, `jest`, `ava`, …).
+ *    Виняток: `*_test.rego` дозволені поруч з полісі — це конвенція conftest.
+ *
  * Версія та CHANGELOG: перший заголовок `## [version]` у `npm/CHANGELOG.md` має збігатися з `version` у
  * `npm/package.json` (найсвіжіший реліз зверху). Якщо в git є незакомічені зміни під `npm/`, `version` у робочому
  * файлі має відрізнятися від `HEAD` — інакше типовий пропуск bump після правок у пакеті.
@@ -18,9 +27,17 @@
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { promisify } from 'node:util'
 
+import { parseSync } from 'oxc-parser'
+
+import {
+  dynamicImportModule,
+  langFromPath,
+  requireCallModule,
+  walkAstWithAncestors
+} from './utils/ast-scan-utils.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -35,6 +52,33 @@ const PACKAGE_JSON_VERSION_RE = /"version":\s*"([^"]+)"/u
 
 /** Файл проєкту TypeScript для emit без каталогу `src` (див. npm-module.mdc) */
 const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
+
+/** Каталоги, які за конвенцією тримають тести / фікстури і не повинні публікуватися. */
+const TEST_DIR_NAMES = new Set(['tests', '__tests__', 'fixtures', '__fixtures__', 'spec', 'test'])
+
+/**
+ * Імена файлів за патернами test/spec (тільки basename, без path). Rego
+ * (`*_test.rego`) свідомо не входить: за конвенцією conftest юніт-тест лежить
+ * поруч з полісі у тому самому `package` — і це дозволений виняток усередині
+ * опублікованого `policy/`-каталогу (npm-module.mdc).
+ */
+const TEST_FILE_PATTERNS = [/^.+\.(test|spec)\.[cm]?[jt]sx?$/iu]
+
+/** Розширення, у яких ловимо імпорти test-фреймворків. */
+const JS_LIKE_EXT_RE = /\.[cm]?[jt]sx?$/iu
+
+/** Імпорти/require/dynamic-import, які видають test-файл. */
+const TEST_FRAMEWORK_MODULES = new Set([
+  'bun:test',
+  'node:test',
+  'vitest',
+  '@jest/globals',
+  'jest',
+  'mocha',
+  'ava',
+  'tap',
+  'tape'
+])
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
@@ -294,6 +338,162 @@ function checkPublishWorkflow(passFn, failFn) {
 }
 
 /**
+ * Перетворює glob-патерн (як у npm `files`) у анкоровану `RegExp`. Підтримує
+ * globstar (нуль або більше сегментів), `*` (символи без `/`) і `?` (один
+ * символ без `/`). Не підтримує brace-expansion і class `[…]` — у негативних
+ * патернах `files` цього достатньо для практичних випадків (приклад:
+ * negation з префіксом `!` і двома зірочками поряд з `_test.rego`).
+ * @param {string} glob posix-шлях у glob-нотації
+ * @returns {RegExp} регулярка, анкорована з обох боків
+ */
+export function globToRegex(glob) {
+  const parts = glob.split('/')
+  const tokens = parts.map(p => {
+    if (p === '**') return '__GLOBSTAR__'
+    let out = ''
+    for (const c of p) {
+      if (c === '*') out += '[^/]*'
+      else if (c === '?') out += '[^/]'
+      else if ('.+^${}()|[]\\'.includes(c)) out += `\\${c}`
+      else out += c
+    }
+    return out
+  })
+  let re = tokens.join('/')
+  re = re.replaceAll('/__GLOBSTAR__/', '(?:/.*/|/)')
+  re = re.replace(/^__GLOBSTAR__\//u, '(?:.*/)?')
+  re = re.replace(/\/__GLOBSTAR__$/u, '(?:/.*)?')
+  re = re.replaceAll('__GLOBSTAR__', '.*')
+  return new RegExp(`^${re}$`, 'u')
+}
+
+/**
+ * Збирає список файлів, що потраплять у tarball, виходячи з `files` у
+ * `npm/package.json`. Підтримує позитивні patterns (директорії або файли) і
+ * негативні (`!…`). Шляхи повертаються у posix-формі, відносно `npm/`.
+ * Не пробує дублювати всю логіку `npm pack` (license/readme/тощо) — тут лише
+ * простір імен `files`, бо саме його сканує check.
+ * @param {string[]} filesField значення поля `files`
+ * @returns {Promise<string[]>} відсортовані posix-шляхи без `npm/` префікса
+ */
+async function collectPublishedFiles(filesField) {
+  const positives = filesField.filter(p => typeof p === 'string' && !p.startsWith('!'))
+  const negatives = filesField
+    .filter(p => typeof p === 'string' && p.startsWith('!'))
+    .map(p => globToRegex(p.slice(1)))
+  /** @type {Set<string>} */
+  const collected = new Set()
+  for (const entry of positives) {
+    const fullPath = join('npm', entry)
+    if (!existsSync(fullPath)) continue
+    const s = await stat(fullPath)
+    if (s.isFile()) {
+      collected.add(entry)
+      continue
+    }
+    if (!s.isDirectory()) continue
+    await walkDir(fullPath, p => {
+      const rel = p.slice('npm/'.length).split(sep).join('/')
+      collected.add(rel)
+    })
+  }
+  const filtered = [...collected].filter(rel => !negatives.some(re => re.test(rel)))
+  filtered.sort()
+  return filtered
+}
+
+/**
+ * Чи є у файлі імпорт/require/dynamic-import з модуля тест-фреймворку.
+ * Парсимо через oxc-parser (як `bunyan-imports`/`redis-imports`). При помилці
+ * парсингу повертаємо `null` — це не наш checker для синтаксису.
+ * @param {string} content повний текст файлу
+ * @param {string} virtualPath шлях для вибору `lang`
+ * @returns {string | null} модуль, через який видно тест, або `null`
+ */
+export function findTestFrameworkImport(content, virtualPath) {
+  const lang = langFromPath(virtualPath)
+  let result
+  try {
+    result = parseSync(virtualPath, content, { lang, sourceType: 'module' })
+  } catch {
+    return null
+  }
+  if (result.errors?.length) return null
+  for (const imp of result.module?.staticImports ?? []) {
+    const mod = imp.moduleRequest?.value
+    if (typeof mod === 'string' && TEST_FRAMEWORK_MODULES.has(mod)) return mod
+  }
+  /** @type {string | null} */
+  let found = null
+  walkAstWithAncestors(result.program, [], node => {
+    if (found) return
+    const reqMod = requireCallModule(node)
+    if (reqMod && TEST_FRAMEWORK_MODULES.has(reqMod)) {
+      found = reqMod
+      return
+    }
+    const dynMod = dynamicImportModule(node)
+    if (dynMod && TEST_FRAMEWORK_MODULES.has(dynMod)) {
+      found = dynMod
+    }
+  })
+  return found
+}
+
+/**
+ * Класифікує опублікований файл як test/fixture, якщо хоча б одна з ознак:
+ * (1) у шляху є каталог із `TEST_DIR_NAMES`; (2) basename відповідає
+ * `TEST_FILE_PATTERNS`; (3) для JS/TS-розширень — імпорт test-фреймворку.
+ * @param {string} relPath posix-шлях відносно `npm/`
+ * @returns {Promise<string | null>} причина порушення або `null`
+ */
+export async function classifyPublishedFileAsTest(relPath) {
+  const segments = relPath.split('/')
+  const base = segments.at(-1)
+  const dirs = segments.slice(0, -1)
+  const testDir = dirs.find(seg => TEST_DIR_NAMES.has(seg.toLowerCase()))
+  if (testDir) return `test-style каталог "${testDir}/"`
+  if (TEST_FILE_PATTERNS.some(re => re.test(base))) return `test-style ім'я файлу`
+  if (JS_LIKE_EXT_RE.test(base)) {
+    const content = await readFile(join('npm', relPath), 'utf8')
+    const mod = findTestFrameworkImport(content, relPath)
+    if (mod) return `імпорт test-фреймворку "${mod}"`
+  }
+  return null
+}
+
+/**
+ * Для всіх файлів, що потрапили б у tarball (positive `files` мінус negative
+ * patterns), забороняє test-style каталоги/імена/імпорти. Так пакет лишається
+ * компактним і не везе користувачам тести й фікстури.
+ * @param {(msg: string) => void} pass callback при успіху
+ * @param {(msg: string) => void} fail callback при порушенні
+ * @returns {Promise<void>}
+ */
+async function checkNoTestsInPublishedFiles(pass, fail) {
+  if (!existsSync('npm/package.json')) return
+  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+  if (!Array.isArray(pkg.files)) return
+  const files = await collectPublishedFiles(pkg.files)
+  /** @type {{ file: string, reason: string }[]} */
+  const violations = []
+  for (const rel of files) {
+    const reason = await classifyPublishedFileAsTest(rel)
+    if (reason) violations.push({ file: rel, reason })
+  }
+  if (violations.length === 0) {
+    pass(`npm/: усі ${files.length} опублікованих файли без тестів/фікстур`)
+    return
+  }
+  for (const v of violations) {
+    fail(
+      `npm/${v.file}: ${v.reason} — винеси за межі шляхів з "files" або додай негативний glob ` +
+        '(наприклад "!**/*_test.rego") у npm/package.json (npm-module.mdc)'
+    )
+  }
+}
+
+/**
  * Перевіряє базову структуру монорепо: наявність каталогу `npm/` і
  * `npm/package.json`. Поле `workspaces ∋ "npm"` у кореневому `package.json`
  * валідує `npm/policy/npm_module/root_package_json/`.
@@ -334,6 +534,7 @@ export async function check() {
   const { pass, fail } = reporter
 
   await checkNpmModuleBasicStructure(pass, fail)
+  await checkNoTestsInPublishedFiles(pass, fail)
 
   const ignorePaths = await loadCursorIgnorePaths(process.cwd())
   const useSrcJsLayout = await npmSrcTreeHasJsFile(ignorePaths)
