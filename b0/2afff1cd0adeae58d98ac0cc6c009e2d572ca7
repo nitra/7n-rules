@@ -1,0 +1,45 @@
+npm/.claude-template/npm-CLAUDE.md
+  s_78b357e5c28374::t_86fe204480eb03 24,26-34
+npm/package.json
+  s_78b357e5c28374::t_d04fe0133344ea 3
+docs/adr/_inbox/20260512-163826-505d1f83.md
+  s_78b357e5c28374::t_86fe204480eb03 1-24
+npm/CLAUDE.md
+  s_78b357e5c28374::t_86fe204480eb03 24,26-34
+docs/adr/_inbox/20260512-134639-505d1f83.md
+  s_78b357e5c28374::t_86fe204480eb03 1-23
+docs/adr/_inbox/20260512-163435-505d1f83.md
+  s_78b357e5c28374::t_86fe204480eb03 1-25
+.cursor/rules/conftest.mdc
+  s_78b357e5c28374::t_86fe204480eb03 25,27-29,32-33,37
+npm/policy/npm_module/npm_package_json/npm_package_json_test.rego
+  s_78b357e5c28374::t_86fe204480eb03 1-81
+npm/tests/check-npm-module.test.mjs
+  s_78b357e5c28374::t_86fe204480eb03 1-129
+docs/adr/_inbox/20260512-163914-505d1f83.md
+  s_78b357e5c28374::t_86fe204480eb03 1-19
+.cursor/rules/n-npm-module.mdc
+  s_78b357e5c28374::t_86fe204480eb03 4,9-20
+npm/mdc/npm-module.mdc
+  s_78b357e5c28374::t_86fe204480eb03 4,9-20
+npm/policy/npm_module/npm_package_json/npm_package_json.rego
+  s_78b357e5c28374::t_86fe204480eb03 8-15,17-19,35-40,49,53-59,64,69-75
+npm/scripts/check-npm-module.mjs
+  s_78b357e5c28374::t_86fe204480eb03 14-22,30,33-40,56-82,340-362,364-365,367-451,453-495,537
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "b02afff1cd0adeae58d98ac0cc6c009e2d572ca7",
+  "prompts": {},
+  "sessions": {
+    "s_78b357e5c28374": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac677d64-ca80-4e32-b474-9006a503d072",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
