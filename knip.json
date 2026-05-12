@@ -1,0 +1,56 @@
+{
+  "ignoreDependencies": [
+    "graphql",
+    "@nitra/cspell-dict",
+    "@nitra/stylelint-config",
+    "globals"
+  ],
+  "ignoreBinaries": [
+    "cspell",
+    "oxfmt",
+    "stylelint",
+    "vite"
+  ],
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "npm/scripts/utils/gha-workflow.mjs"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "eslint.config.{js,mjs}"
+      ]
+    },
+    "npm": {
+      "entry": [
+        "bin/rename-yaml-extensions.mjs",
+        "scripts/check-*.mjs",
+        "scripts/lint-*.mjs",
+        "scripts/run-*.mjs",
+        "scripts/sync-*.mjs",
+        "scripts/auto-*.mjs",
+        "scripts/build-*.mjs",
+        "scripts/claude-stop-hook.mjs",
+        "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+        "scripts/rename-yaml-extensions.mjs",
+        "scripts/upgrade-nitra-cursor-and-install.mjs",
+        "scripts/utils/rebuild-oxlint-canonical.mjs",
+        "tests/**/*.test.mjs"
+      ],
+      "project": [
+        "**/*.{js,mjs}"
+      ],
+      "ignoreDependencies": [
+        "@nitra/cursor"
+      ]
+    },
+    "demo": {
+      "ignoreDependencies": [
+        "@nitra/cursor",
+        "vite-plugin-vue-layouts-next",
+        "vue"
+      ]
+    }
+  }
+}
+

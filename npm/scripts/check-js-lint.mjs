@@ -26,7 +26,7 @@ export const OXLINT_CANONICAL_JSON_PATH = join(
 )
 
 /** Очікуваний локальний скрипт. */
-export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd .'
+export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip'
 
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
 export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']
@@ -473,6 +473,34 @@ async function checkJscpdConfig(passFn, failFn) {
 }
 
 /**
+ * Перевіряє `knip.json`: файл існує і `ignoreDependencies` містить `graphql`
+ * (peer-залежність, що часто використовується без прямого імпорту — без цього
+ * `knip` фолсово репортить її як unused).
+ * @param {(msg: string) => void} passFn callback при успішній перевірці
+ * @param {(msg: string) => void} failFn callback при помилці
+ */
+async function checkKnipConfig(passFn, failFn) {
+  if (!existsSync('knip.json')) {
+    failFn('knip.json не існує — додай конфіг з ignoreDependencies: ["graphql"] (js-lint.mdc)')
+    return
+  }
+  let cfg
+  try {
+    cfg = JSON.parse(await readFile('knip.json', 'utf8'))
+  } catch {
+    failFn('knip.json не є валідним JSON')
+    return
+  }
+  passFn('knip.json існує')
+  const ignoreDeps = cfg?.ignoreDependencies
+  if (Array.isArray(ignoreDeps) && ignoreDeps.includes('graphql')) {
+    passFn('knip.json: ignoreDependencies містить "graphql"')
+  } else {
+    failFn('knip.json: ignoreDependencies має містити "graphql" (peer-залежність) (js-lint.mdc)')
+  }
+}
+
+/**
  * Перевіряє відповідність проєкту правилам js-lint.mdc
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
@@ -486,6 +514,7 @@ export async function check() {
   await checkVscodeExtensions(pass, fail)
   await checkLintJsWorkflows(pass, fail)
   await checkJscpdConfig(pass, fail)
+  await checkKnipConfig(pass, fail)
 
   for (const dup of ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml']) {
     if (existsSync(dup)) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)

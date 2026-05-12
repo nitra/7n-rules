@@ -1,10 +1,10 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.18'
+version: '1.19'
 ---
 
-**oxlint**, **ESLint**, **jscpd**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd не додавай без потреби монорепо.
+**oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
 
 ```json title=".vscode/extensions.json"
 {
@@ -22,7 +22,7 @@ version: '1.18'
 {
   "type": "module",
   "scripts": {
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip"
   },
   "devDependencies": {
     "@nitra/eslint-config": "^3.9.2"
@@ -60,6 +60,22 @@ version: '1.18'
 ```text title=".gitignore (фрагмент)"
 .claude/worktrees/
 ```
+
+## knip
+
+Перевірку невикористаних залежностей і експортів виконує **knip** (заміна `depcheck`). Викликається у скрипті `lint-js` і в CI разом з oxlint/eslint/jscpd — окремий крок у CI не потрібен.
+
+У корені проєкту має бути `knip.json` із `ignoreDependencies` для `graphql` (peer-залежність, часто використовується без прямого імпорту):
+
+```json title="knip.json"
+{
+  "ignoreDependencies": [
+    "graphql"
+  ]
+}
+```
+
+Пакет `knip` окремо в `devDependencies` не додавай — `bunx knip` тягне його ad-hoc, як oxlint/eslint/jscpd.
 
 ## jscpd: рефакторинг і структура
 
@@ -118,6 +134,7 @@ jobs:
           bunx oxlint
           bunx eslint .
           bunx jscpd .
+          bunx knip
 ```
 
 Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.

@@ -33,6 +33,11 @@ forbidden_step_substrings := {
 	"bun install": "використовуй .github/actions/setup-bun-deps замість bun install",
 }
 
+# Заборонені бінарки у `run:` кроках (ga.mdc). `depcheck` мігровано на `knip`
+# у `lint-js.mdc` — окремий крок у workflow не потрібен. Регексп ловить виклики
+# через `npx`, `bunx`, `npm exec`, або як standalone-команду на початку рядка.
+forbidden_run_command_patterns := {"depcheck": `(?:^|[\s;&|])(?:npx|bunx|npm exec|pnpm exec)?[ \t]*depcheck\b`}
+
 # Шаблони довгих повідомлень — через `concat`, щоб дотримуватися regal style/line-length.
 
 concurrency_missing_template := concat(" ", [
@@ -71,6 +76,19 @@ deny contains msg if {
 	step_uses_or_run_blob(entry.step) != ""
 	contains(step_uses_or_run_blob(entry.step), pattern)
 	msg := sprintf("jobs.%s.steps[%d]: %s (ga.mdc)", [entry.job_id, entry.step_index, hint])
+}
+
+# ── deny: depcheck у будь-якому `run:` ────────────────────────────────────
+#
+# `depcheck` мігровано на `knip` (js-lint.mdc); `knip` вже запускається у lint-js
+# CI як частина `bunx knip` у скрипті, тож окремий depcheck-крок зайвий і має
+# бути видалений з workflow-файлів.
+
+deny contains msg if {
+	some entry in all_flat_steps
+	some name, pattern in forbidden_run_command_patterns
+	regex.match(pattern, step_run_text(entry.step))
+	msg := sprintf("jobs.%s.steps[%d]: `%s` заборонено у workflow — мігровано на knip (js-lint.mdc, ga.mdc)", [entry.job_id, entry.step_index, name])
 }
 
 # ── deny: shell-продовження `\` перед переносом рядка у `run:` ─────────────

@@ -71,6 +71,11 @@ deny contains msg if {
 	msg := "lint-js.yml: у run немає `bunx jscpd .` (js-lint.mdc)"
 }
 
+deny contains msg if {
+	not contains(all_run_blob, "bunx knip")
+	msg := "lint-js.yml: у run немає `bunx knip` (js-lint.mdc)"
+}
+
 # ── deny: --fix у CI заборонено ───────────────────────────────────────────
 
 deny contains msg if {
