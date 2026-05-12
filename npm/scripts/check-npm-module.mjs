@@ -32,12 +32,7 @@ import { promisify } from 'node:util'
 
 import { parseSync } from 'oxc-parser'
 
-import {
-  dynamicImportModule,
-  langFromPath,
-  requireCallModule,
-  walkAstWithAncestors
-} from './utils/ast-scan-utils.mjs'
+import { dynamicImportModule, langFromPath, requireCallModule, walkAstWithAncestors } from './utils/ast-scan-utils.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -385,9 +380,7 @@ export function globToRegex(glob) {
  */
 async function collectPublishedFiles(filesField) {
   const positives = filesField.filter(p => typeof p === 'string' && !p.startsWith('!'))
-  const negatives = filesField
-    .filter(p => typeof p === 'string' && p.startsWith('!'))
-    .map(p => globToRegex(p.slice(1)))
+  const negatives = filesField.filter(p => typeof p === 'string' && p.startsWith('!')).map(p => globToRegex(p.slice(1)))
   /** @type {Set<string>} */
   const collected = new Set()
   for (const entry of positives) {
