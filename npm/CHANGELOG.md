@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.6] - 2026-05-12
+
+### Changed
+
+- **js-lint — ігнорувати `.claude/worktrees/` для jscpd і всіх лінтів:** правило `js-lint.mdc` (v1.18) тепер документує, що каталог `.claude/worktrees/` (робочі копії, які Claude Code створює через superpowers-skill `using-git-worktrees`) має бути виключений з лінт-перевірок. Канонічне місце — `.gitignore` (паралельні воркті — це за визначенням не-комітні робочі копії; `gitignore: true` у `.jscpd.json` уже є, тож запис у `.gitignore` каскадно вимикає сканування). Як страховку на випадок запуску jscpd без `gitignore: true` рекомендовано додати `.claude/worktrees/**` у `ignore` `.jscpd.json` — приклад у правилі оновлено. Без цього `bunx jscpd .` фіксує дзеркальні «клони» між кореневим репо і його worktree-копією у `.claude/worktrees/<name>/…`.
+
 ## [1.9.5] - 2026-05-12
 
 ### Changed
@@ -18,7 +24,7 @@
 
 ### Removed
 
-- **graphql — вимога `scripts.dump-schema` у `package.json` прибрана:** правило `graphql.mdc` більше не вимагає канонічний скрипт `dump-schema` (раніше — `bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql`) у корені проєкту за наявності gql tagged template literals. У `.mdc` відповідну буліт-точку та JSON-фрагмент видалено; фраза про «стандартний спосіб оновлення локальної `schema.graphql`» теж прибрана з підсумкового речення. Каталог `npm/policy/graphql/` (єдиний файл `package_json/package_json.rego` з deny-правилами на відсутність/неканонічний `scripts.dump-schema`) видалено повністю. Запис реєстру `graphql.package_json` (policyDir `graphql`, rule `graphql`, single `package.json`) прибрано з `npm/scripts/lint-conftest.mjs` (заголовок секції перейменовано — `graphql` вилучено). JSDoc-преамбулу `npm/scripts/check-graphql.mjs` оновлено: видалено абзац про rego-порт перевірки `dump-schema` і згадку `scripts.dump-schema` з докстрингу `check()`. Сам JS-чек і так не торкався `package.json` — після видалення rego-полісі ніяких runtime-перевірок `dump-schema` не лишається. У кореневому `package.json` репо cursor скрипт `dump-schema` теж видалено, оскільки тримати його як shim без правила немає сенсу.
+- **graphql — вимога `scripts.dump-schema` у `package.json` прибрана:** правило `graphql.mdc` більше не вимагає канонічний скрипт `dump-schema` (раніше — `bunx graphqurl http://localhost:4040/v1/graphql -H 'X-Hasura-Admin-Secret: secret' --introspect > schema.graphql`) у корені проєкту за наявності gql tagged template literals. У `.mdc` відповідну буліт-точку та JSON-фрагмент видалено; фраза про «стандартний спосіб оновлення локальної `schema.graphql`» теж прибрана з підсумкового речення. Каталог `npm/policy/graphql/` (єдиний файл `package_json/package_json.rego` з deny-правилами на відсутність/неканонічний `scripts.dump-schema`) видалено повністю. Запис реєстру `graphql.package_json` (policyDir `graphql`, rule `graphql`, single `package.json`) прибрано з `npm/scripts/lint-conftest.mjs` (заголовок секції перейменовано — `graphql` вилучено). JSDoc-преамбулу `npm/scripts/check-graphql.mjs` оновлено: видалено абзац про rego-порт перевірки `dump-schema` і згадку `scripts.dump-schema` з JSDoc функції `check()`. Сам JS-чек і так не торкався `package.json` — після видалення rego-полісі ніяких runtime-перевірок `dump-schema` не лишається. У кореневому `package.json` репо cursor скрипт `dump-schema` теж видалено, оскільки тримати його як shim без правила немає сенсу.
 
 ## [1.9.3] - 2026-05-11
 

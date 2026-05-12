@@ -4,3 +4,4 @@ dist/
 *.secret
 
 .claude/hooks/capture-decisions.log
+.claude/worktrees/
