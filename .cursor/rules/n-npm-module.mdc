@@ -1,10 +1,23 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.10'
+version: '1.11'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
+
+## Компактний пакет
+
+Мета — **максимально компактний** опублікований пакет: у npm потрапляє тільки те, що потрібно під час `require`/`import` користувачем.
+
+- **`"files"` обовʼязковий** у `npm/package.json` як **whitelist** того, що публікується (без `"files"` npm пакує майже все — це антипатерн для цього правила).
+- **Тести й фікстури — поза будь-яким шляхом з `"files"`.** Канонічне місце для всього тестового — `npm/tests/` (його **не** додаємо до `"files"`). Це стосується **і** фреймворк-тестів (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), **і** test-style каталогів (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`), **і** файлів за патернами `*.test.*` / `*.spec.*`. **Виняток — Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package`, тож rego-тести дозволені всередині опублікованого `policy/`-каталогу.
+- **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
+
+Деталі алгоритму перевірки:
+
+- Пер-документні правила для `npm/package.json` (whitelist `files`, заборона `devDependencies`, форма `types`) — у rego-пакеті `npm_module.npm_package_json` (`npm/policy/npm_module/npm_package_json/`).
+- Скан опублікованого простору файлів на тест-патерни (walking + AST JS/TS) — у `check-npm-module.mjs::checkNoTestsInPublishedFiles` (FS / AST не лягають у rego).
 
 ## TypeScript declaration (`npm/types`)
 

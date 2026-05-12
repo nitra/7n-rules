@@ -22,16 +22,19 @@ Rego — **default** для нових перевірок у цьому репо
 
 ### Алгоритм рішення для нової перевірки
 
-Перед тим як писати `npm/scripts/check-*.mjs`, дай відповіді у такому порядку:
+> **STOP перед `Edit` будь-якого `check-<rule>.mjs`.** Спершу подивись `npm/policy/<rule>/` — чи нова deny-умова не лягає у вже існуючий rego-пакет як ще одне `deny contains msg if { … }`. Цей алгоритм стосується **і нових** перевірок, **і розширення вже існуючих**: додати `if (pkg.<field>) fail(…)` у JS — типовий ляп, коли пер-документна перевірка випадково потрапляє у JS замість rego.
 
-1. **Це пер-документна перевірка одного YAML/JSON-документа?** (структура полів, kind/apiVersion, форма масивів, regex по значенню) → **пиши rego** у `npm/policy/<rule>/<name>/<name>.rego` + `<name>_test.rego`. Точка. JS-код для цього не потрібен.
+Перед тим як писати / розширювати `npm/scripts/check-*.mjs`, дай відповіді у такому порядку:
+
+1. **Це пер-документна перевірка одного YAML/JSON-документа?** (структура полів, kind/apiVersion, форма масивів, regex по значенню, заборона/наявність ключа верхнього рівня типу `devDependencies` / `scripts.<name>`) → **пиши rego** у `npm/policy/<rule>/<name>/<name>.rego` + `<name>_test.rego`. Точка. JS-код для цього не потрібен. Якщо `npm/policy/<rule>/<name>/` уже існує — додай ще одне `deny contains` туди (а не новий блок у `check-<rule>.mjs`).
 2. **Перевірка потребує одного з нижче — rego ці кейси не вміє, тому JS:**
    - **cross-file resolution**: треба прочитати інші YAML / lookup між файлами (резолюція kustomize-tree, парність `svc.yaml`/`svc-hl.yaml`, прив'язка ConfigMap/HTTPRoute до Deployment у тому ж каталозі);
-   - **file-system access**: потрібен `readdir`, `stat`, перевірка existence шляху на диску;
+   - **file-system access**: потрібен `readdir`, `stat`, перевірка existence шляху на диску, walk дерева опублікованих файлів;
+   - **AST-парсинг JS/TS**: oxc-parser, скан імпортів/`require()` у вихідних файлах;
    - **autofix / rewrite**: треба змінити файл (`replace_all`, переписати YAML, перейменувати, видалити) — Rego read-only;
    - **парсинг тексту до YAML-body**: yaml-language-server modeline (`# yaml-language-server: $schema=…`), regex по сирому файлу до парсингу;
    - **стан між викликами / агрегація по дереву**: треба зібрати дані з усіх файлів і потім фейлити (узгодженість HPA/PDB по dir, env-залежні ліміти за сегментом шляху).
-3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Працює патерн **Rego-authoritative + JS-orchestrator** (Plan B) — див. розділ нижче.
+3. **Гібрид (типовий випадок)**: пер-документна частина + cross-file частина. Працює патерн **Rego-authoritative + JS-orchestrator** (Plan B) — див. розділ нижче. Якщо в одній фічі є **і** пер-документні deny (приклад: «`files` whitelist обовʼязковий», «без `devDependencies`»), **і** FS / AST-частина (приклад: «жодних тест-імпортів у tarball») — **обидві** мають жити у своїх місцях, не одна великою купою у `check-<rule>.mjs`.
 
 ### Канонічний патерн «Rego-authoritative + JS-orchestrator»
 

@@ -5,13 +5,18 @@
 #   conftest test npm/package.json -p npm/policy/npm_module \
 #     --namespace npm_module.npm_package_json
 #
-# Перевіряє: поле `types` має будь-який з двох канонічних патернів:
-#  - `./types/index.d.ts` (layout `npm/src` з `.js`); або
-#  - `./types/<…>.d.ts` чи `.d.mts` (layout `tsconfig.emit-types.json`).
+# Перевіряє:
+#  - поле `types` має один із двох канонічних патернів: `./types/index.d.ts`
+#    (layout `npm/src` з `.js`) або `./types/<…>.d.ts`/`.d.mts` (emit-types);
+#  - масив `files` присутній, непорожній і містить `"types"` (whitelist
+#    обовʼязковий — без нього npm пакує майже все);
+#  - `devDependencies` відсутні або порожні: dev-інструментарій тримаємо у
+#    кореневому `package.json` монорепо, щоб `npm install @nitra/<pkg>` його
+#    не тягнув (npm-module.mdc: компактний пакет).
 #
-# Масив `files` має містити `"types"`. Те, який саме layout активний (зокрема
-# наявність `.js` під `npm/src`), а також існування файлу зі шляху `types` —
-# у JS-перевірці (`check-npm-module.mjs`).
+# Те, який саме типовий layout активний (наявність `.js` під `npm/src`),
+# існування файлу зі шляху `types` і скан тест-патернів у tarball — у
+# JS-перевірці (`check-npm-module.mjs`: cross-file / FS-access / AST).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
@@ -27,6 +32,12 @@ types_field_template := concat(" ", [
 	"або \"./types/<…>.d.ts|.d.mts\" (зараз: %v) (npm-module.mdc)",
 ])
 
+# Шаблон повідомлення про присутність `devDependencies`.
+dev_deps_template := concat(" ", [
+	"npm/package.json: \"devDependencies\" не публікуються користувачам пакета —",
+	"перенеси у кореневий package.json: %v (npm-module.mdc: компактний пакет)",
+])
+
 # ── deny: types ────────────────────────────────────────────────────────────
 
 deny contains msg if {
@@ -35,17 +46,33 @@ deny contains msg if {
 	msg := sprintf(types_field_template, [types_field])
 }
 
-# ── deny: files має містити "types" ───────────────────────────────────────
+# ── deny: files має існувати, бути непорожнім, містити "types" ────────────
 
 deny contains msg if {
 	not is_array(object.get(input, "files", null))
-	msg := "npm/package.json: масив \"files\" відсутній — має містити \"types\" (npm-module.mdc)"
+	msg := "npm/package.json: обовʼязковий whitelist \"files\" (без нього npm пакує майже все) (npm-module.mdc)"
 }
 
 deny contains msg if {
 	is_array(input.files)
+	count(input.files) == 0
+	msg := "npm/package.json: масив \"files\" не повинен бути порожнім (npm-module.mdc: компактний пакет)"
+}
+
+deny contains msg if {
+	is_array(input.files)
+	count(input.files) > 0
 	not "types" in {f | some f in input.files}
 	msg := "npm/package.json: масив \"files\" має містити \"types\" (npm-module.mdc)"
+}
+
+# ── deny: жодних devDependencies у npm/package.json ───────────────────────
+
+deny contains msg if {
+	dev := object.get(input, "devDependencies", {})
+	count(dev) > 0
+	names := concat(", ", sort([n | some n, _ in dev]))
+	msg := sprintf(dev_deps_template, [names])
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
