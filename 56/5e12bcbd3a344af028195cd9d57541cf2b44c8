@@ -1,0 +1,19 @@
+.cspell.json
+  s_78b357e5c28374::t_3c263bc8b53dce 530-536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "565e12bcbd3a344af028195cd9d57541cf2b44c8",
+  "prompts": {},
+  "sessions": {
+    "s_78b357e5c28374": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac677d64-ca80-4e32-b474-9006a503d072",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
