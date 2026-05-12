@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.5] - 2026-05-12
+
+### Changed
+
+- **js-lint (mdc v1.17 → v1.18) — `depcheck` мігровано на `knip`:** канонічний `lint-js` тепер `bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip` (раніше — без `bunx knip`); крок `bunx knip` додано і в приклад workflow `lint-js.yml`. У корені має бути `knip.json` з мінімальним `ignoreDependencies: ["graphql"]` (peer-залежність, яку `knip` не розпізнає як використану). Пакет `knip` окремо в `devDependencies` не оголошуй — `bunx` тягне його ad-hoc. `CANONICAL_LINT_JS` у `npm/scripts/check-js-lint.mjs` і `canonical_lint_js` у `npm/policy/js_lint/package_json/package_json.rego` оновлено; додано `checkKnipConfig` (наявність файла + `ignoreDependencies` містить `graphql`) і `deny`-правило у `npm/policy/js_lint/lint_js_yml/` на відсутність `bunx knip` у `run:` кроці lint-js workflow.
+
+- **ga (mdc v1.8 → v1.9) — заборона `depcheck` у workflow-файлах:** додано полісі `ga.workflow_common.deny` на будь-який виклик `depcheck` (через `npx`/`bunx`/`npm exec`/`pnpm exec` чи як standalone-команду) у `run:` кроку `.github/workflows/*.yml`. Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `bun run lint-js` (`bunx knip`), окремий depcheck-крок у workflow зайвий. У `npm/mdc/ga.mdc` додано буліт «`depcheck`: не використовувати» з посиланням на `js-lint.mdc` і `ga.workflow_common`.
+
+### Removed
+
+- **js-run (mdc v1.6 → v1.7) — секцію «depcheck у GitHub Actions з path-фільтром» прибрано:** правило про обовʼязковий `npx depcheck --ignores="graphql,bun"` з `working-directory` у path-scoped workflow більше не діє — `depcheck` повністю мігровано на `knip` (див. js-lint.mdc), окремий крок у per-package workflow не потрібен. Файл `npm/scripts/utils/depcheck-workflow.mjs` видалено. У `npm/scripts/check-js-run.mjs` прибрано `checkDepcheckInWorkflows`, імпорти `findDepcheckViolationsForPackage` / `readAllWorkflowFiles` і параметр `workflows` у `checkWorkspacePackage`. У `npm/tests/check-js-run-fixture.test.mjs` видалено `describe('check-js-run: depcheck у path-scoped workflow', …)` (9 тест-кейсів) і допоміжну `writeRepoWithCronJobAndWorkflow`. У `.github/workflows/npm-publish.yml` прибрано крок `npx depcheck --ignores="graphql,bun,bun:test,@nitra/cursor"` з `working-directory: npm` — `lint-js` workflow покриває цю перевірку через `bunx knip`.
+
 ## [1.9.4] - 2026-05-11
 
 ### Removed

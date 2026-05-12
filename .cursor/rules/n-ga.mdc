@@ -1,6 +1,6 @@
 ---
 description: Правила форматів для .github/workflows
-version: '1.8'
+version: '1.9'
 globs: ".github/workflows/*.yml"
 alwaysApply: false
 ---
@@ -286,6 +286,8 @@ rules:
 ```
 
 **MegaLinter:** не використовувати; прибрати workflow, конфіги (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`), залежності та згадки в CI / pre-commit / документації.
+
+**`depcheck`:** не використовувати у `.github/workflows/*.yml` — мігровано на `knip` (див. `js-lint.mdc`). Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `lint-js`, окремий крок `npx depcheck` у workflow не потрібен і блокується полісі `ga.workflow_common`.
 
 ## Перевірка
 

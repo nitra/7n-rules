@@ -41,3 +41,4 @@ jobs:
           bunx oxlint
           bunx eslint .
           bunx jscpd .
+          bunx knip

@@ -17,7 +17,7 @@ package js_lint.package_json
 
 import rego.v1
 
-canonical_lint_js := "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd ."
+canonical_lint_js := "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip"
 
 # ── deny: `lint-js` скрипт ─────────────────────────────────────────────────
 
