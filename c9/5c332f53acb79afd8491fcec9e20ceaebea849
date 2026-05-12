@@ -1,0 +1,51 @@
+eslint.config.js
+  s_1c9f5a2fb8a59c::t_517b1aa3dfc4bb 7
+docs/adr/_inbox/20260512-165747-a7b3f5d1.md
+  ai_agent 1-19
+npm/scripts/check-npm-module.mjs
+  s_1c9f5a2fb8a59c::t_67d83d6fd6012d 83
+  s_1c9f5a2fb8a59c::t_e0cdedc68a29e1 492
+  s_1c9f5a2fb8a59c::t_3cc0f308dcbe73 364,370-373
+  s_1c9f5a2fb8a59c::t_540affabbb60ce 459
+  s_1c9f5a2fb8a59c::t_960895b86ff967 84-89
+.jscpd.json
+  s_e64e78c2681868::t_33572ff7f2ffef 7
+.cursor/rules/n-js-lint.mdc
+  s_e64e78c2681868::t_91c5d62903545f 46-48,56,60-61
+  s_e64e78c2681868::t_28a349374fb9a9 4
+npm/CHANGELOG.md
+  s_e64e78c2681868::t_b73dd98e385089 7-12
+  s_1c9f5a2fb8a59c::t_963ce2ec83d125 27
+npm/mdc/js-lint.mdc
+  s_e64e78c2681868::t_b08032713b1d67 46-48,56,60-61
+.cspell.json
+  ai_agent 530-534
+npm/package.json
+  s_e64e78c2681868::t_36d5a94c456ab7 3
+.gitignore
+  s_e64e78c2681868::t_34cd357a195ff6 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "c95c332f53acb79afd8491fcec9e20ceaebea849",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e64e78c2681868": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a7b3f5d1-bbf4-45fa-abaf-dff6c8a6dc0f",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
