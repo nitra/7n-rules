@@ -32,12 +32,7 @@ import { promisify } from 'node:util'
 
 import { parseSync } from 'oxc-parser'
 
-import {
-  dynamicImportModule,
-  langFromPath,
-  requireCallModule,
-  walkAstWithAncestors
-} from './utils/ast-scan-utils.mjs'
+import { dynamicImportModule, langFromPath, requireCallModule, walkAstWithAncestors } from './utils/ast-scan-utils.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
@@ -79,6 +74,13 @@ const TEST_FRAMEWORK_MODULES = new Set([
   'tap',
   'tape'
 ])
+
+/** Символи у glob-сегменті, які треба екранувати для RegExp (без `*` / `?` — їх обробляємо окремо). */
+const REGEX_SPECIAL_IN_GLOB = new Set(['.', '+', '^', '$', '{', '}', '(', ')', '|', '[', ']', '\\'])
+
+/** Збіги для post-обробки glob → regex після злиття сегментів через `/` (див. `globToRegex`). */
+const GLOBSTAR_LEADING_RE = /^__GLOBSTAR__\//u
+const GLOBSTAR_TRAILING_RE = /\/__GLOBSTAR__$/u
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
@@ -338,13 +340,13 @@ function checkPublishWorkflow(passFn, failFn) {
 }
 
 /**
- * Перетворює glob-патерн (як у npm `files`) у анкоровану `RegExp`. Підтримує
- * globstar (нуль або більше сегментів), `*` (символи без `/`) і `?` (один
- * символ без `/`). Не підтримує brace-expansion і class `[…]` — у негативних
- * патернах `files` цього достатньо для практичних випадків (приклад:
- * negation з префіксом `!` і двома зірочками поряд з `_test.rego`).
+ * Перетворює glob-патерн (як у npm `files`) у `RegExp` з якорями `^` / `$`.
+ * Підтримує globstar (нуль або більше сегментів), `*` (символи без `/`) і `?`
+ * (один символ без `/`). Не підтримує brace-expansion і class `[…]` — у
+ * негативних патернах `files` цього достатньо для практичних випадків
+ * (приклад: negation з префіксом `!` і двома зірочками поряд з `_test.rego`).
  * @param {string} glob posix-шлях у glob-нотації
- * @returns {RegExp} регулярка, анкорована з обох боків
+ * @returns {RegExp} `RegExp` з якорями `^` / `$`
  */
 export function globToRegex(glob) {
   const parts = glob.split('/')
@@ -354,15 +356,15 @@ export function globToRegex(glob) {
     for (const c of p) {
       if (c === '*') out += '[^/]*'
       else if (c === '?') out += '[^/]'
-      else if ('.+^${}()|[]\\'.includes(c)) out += `\\${c}`
+      else if (REGEX_SPECIAL_IN_GLOB.has(c)) out += `\\${c}`
       else out += c
     }
     return out
   })
   let re = tokens.join('/')
   re = re.replaceAll('/__GLOBSTAR__/', '(?:/.*/|/)')
-  re = re.replace(/^__GLOBSTAR__\//u, '(?:.*/)?')
-  re = re.replace(/\/__GLOBSTAR__$/u, '(?:/.*)?')
+  re = re.replace(GLOBSTAR_LEADING_RE, '(?:.*/)?')
+  re = re.replace(GLOBSTAR_TRAILING_RE, '(?:/.*)?')
   re = re.replaceAll('__GLOBSTAR__', '.*')
   return new RegExp(`^${re}$`, 'u')
 }
@@ -378,9 +380,7 @@ export function globToRegex(glob) {
  */
 async function collectPublishedFiles(filesField) {
   const positives = filesField.filter(p => typeof p === 'string' && !p.startsWith('!'))
-  const negatives = filesField
-    .filter(p => typeof p === 'string' && p.startsWith('!'))
-    .map(p => globToRegex(p.slice(1)))
+  const negatives = filesField.filter(p => typeof p === 'string' && p.startsWith('!')).map(p => globToRegex(p.slice(1)))
   /** @type {Set<string>} */
   const collected = new Set()
   for (const entry of positives) {
@@ -482,7 +482,7 @@ async function checkNoTestsInPublishedFiles(pass, fail) {
     if (reason) violations.push({ file: rel, reason })
   }
   if (violations.length === 0) {
-    pass(`npm/: усі ${files.length} опублікованих файли без тестів/фікстур`)
+    pass(`npm/: усі ${files.length} опублікованих файли без тестів і fixtures`)
     return
   }
   for (const v of violations) {

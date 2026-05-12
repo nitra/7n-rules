@@ -11,11 +11,7 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  classifyPublishedFileAsTest,
-  findTestFrameworkImport,
-  globToRegex
-} from '../scripts/check-npm-module.mjs'
+import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../scripts/check-npm-module.mjs'
 import { ensureDir, withTmpCwd } from './helpers.mjs'
 
 describe('globToRegex', () => {
@@ -114,14 +110,18 @@ describe('classifyPublishedFileAsTest', () => {
         'utf8'
       )
       const reason = await classifyPublishedFileAsTest('scripts/foo.mjs')
-      expect(reason).toContain("імпорт test-фреймворку \"bun:test\"")
+      expect(reason).toContain('імпорт test-фреймворку "bun:test"')
     })
   })
 
   test('звичайний файл — без порушення', async () => {
     await withTmpCwd(async () => {
       await ensureDir('npm/scripts')
-      await writeFile(join('npm', 'scripts', 'pure.mjs'), "import { join } from 'node:path'\nexport const a = 1\n", 'utf8')
+      await writeFile(
+        join('npm', 'scripts', 'pure.mjs'),
+        "import { join } from 'node:path'\nexport const a = 1\n",
+        'utf8'
+      )
       const reason = await classifyPublishedFileAsTest('scripts/pure.mjs')
       expect(reason).toBeNull()
     })

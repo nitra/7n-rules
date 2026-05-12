@@ -4,6 +4,7 @@
   "minLines": 25,
   "reporters": ["console"],
   "ignore": [
+    ".claude/worktrees/**",
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
     "npm/.claude-template/**",
