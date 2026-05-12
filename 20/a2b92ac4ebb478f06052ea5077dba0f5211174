@@ -1,0 +1,23 @@
+.github/workflows/lint-ga.yml
+  s_78b357e5c28374::t_85c8ca84e1a7b4 35-40
+knip.json
+  s_78b357e5c28374::t_3e22d8d7a14d23 7,18,24-36,38-41,52-54,56
+  s_78b357e5c28374::t_025b18475f145c 3-6,13-16
+  s_78b357e5c28374::t_eb5022123d6d7d 8-12,17,19-23,37,42-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "20a2b92ac4ebb478f06052ea5077dba0f5211174",
+  "prompts": {},
+  "sessions": {
+    "s_78b357e5c28374": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac677d64-ca80-4e32-b474-9006a503d072",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
