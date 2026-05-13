@@ -4,6 +4,24 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.17] - 2026-05-13
+
+### Added
+
+- **2 нові rego-полісі для text.mdc VSCode-канону** (мігровано з `check-text.mjs`):
+  - `text.vscode_extensions` — `recommendations` має містити три розширення: `DavidAnson.vscode-markdownlint`, `oxc.oxc-vscode`, `timonwong.shellcheck`. Шаблон повідомлень + множина `recommendations_set` (винесена поза `deny`, щоб не порушити `performance/non-loop-expression`).
+  - `text.vscode_settings` — `editor.formatOnSave: true` плюс шість мов-блоків (`[javascript]`/`[typescript]`/`[json]`/`[vue]`/`[css]`/`[html]`) з `editor.defaultFormatter: "oxc.oxc-vscode"`. Окремі deny для «не object» і «неправильний defaultFormatter». Канон задає мінімум — додаткові lang-блоки дозволені.
+- **18 нових rego-тестів** (7 для `vscode_extensions` + 11 для `vscode_settings`): happy path, додаткові поля, відсутність кожного розширення, відсутність `formatOnSave`, неправильний defaultFormatter, відсутні lang-блоки. `conftest verify` — **252/252 pass** (+18).
+- **`lint-conftest.mjs` TARGETS — два нові entry для text:** `text.vscode_extensions` (`single: '.vscode/extensions.json'`) і `text.vscode_settings` (`single: '.vscode/settings.json'`), обидва з `rule: 'text'`. Глобально активуються для всіх проєктів з `text` у `.n-cursor.json:rules`.
+
+### Removed
+
+- **`check-text.mjs::checkVscodeTextExtensions` / `checkVscodeTextSettings` / `checkVscodeText`** — три JS-функції видалено разом з викликом `await checkVscodeText(pass, fail)` у `check()`. Зміст delegated у rego (`text.vscode_extensions` + `text.vscode_settings`).
+
+### Changed
+
+- **`check-text.mjs::checkTextConfigsExistence` — розширено двома записами:** тепер вимагає FS-існування `.vscode/extensions.json` і `.vscode/settings.json` поряд з `.oxfmtrc.json` / `.cspell.json` / `.markdownlint-cli2.jsonc`. lint-conftest з rego skip-ить неіснуючі файли, тому FS-existence лишається в JS — це працює як «єдина точка контролю наявності файлу + delegated content-валідація у rego».
+
 ## [1.9.16] - 2026-05-13
 
 ### Added

@@ -103,6 +103,8 @@ const TARGETS = [
   { namespace: 'text.cspell', policyDir: 'text', rule: 'text', single: '.cspell.json' },
   { namespace: 'text.markdownlint', policyDir: 'text', rule: 'text', single: '.markdownlint-cli2.jsonc' },
   { namespace: 'text.package_json', policyDir: 'text', rule: 'text', single: 'package.json' },
+  { namespace: 'text.vscode_extensions', policyDir: 'text', rule: 'text', single: '.vscode/extensions.json' },
+  { namespace: 'text.vscode_settings', policyDir: 'text', rule: 'text', single: '.vscode/settings.json' },
 
   // ── style-lint ──────────────────────────────────────────────────────────
   { namespace: 'style_lint.package_json', policyDir: 'style_lint', rule: 'style-lint', single: 'package.json' },

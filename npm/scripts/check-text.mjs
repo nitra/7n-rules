@@ -89,70 +89,11 @@ async function checkV8rIgnore(passFn, failFn) {
   }
 }
 
-/**
- * Перевіряє VSCode extensions.json для текстового стека.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkVscodeTextExtensions(passFn, failFn) {
-  if (!existsSync('.vscode/extensions.json')) {
-    failFn('.vscode/extensions.json не існує — створи з recommendations згідно n-text.mdc')
-    return
-  }
-  try {
-    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    const rec = ext.recommendations
-    for (const id of ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode', 'timonwong.shellcheck']) {
-      if (Array.isArray(rec) && rec.includes(id)) {
-        passFn(`extensions.json містить ${id}`)
-      } else {
-        failFn(`extensions.json: додай "${id}" у recommendations (див. n-text.mdc)`)
-      }
-    }
-  } catch {
-    failFn('.vscode/extensions.json — невалідний JSON')
-  }
-}
-
-/**
- * Перевіряє VSCode settings.json для текстового стека.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkVscodeTextSettings(passFn, failFn) {
-  if (!existsSync('.vscode/settings.json')) {
-    failFn('.vscode/settings.json не існує — створи згідно n-text.mdc')
-    return
-  }
-  try {
-    const settings = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
-    if (settings['editor.formatOnSave'] === true) {
-      passFn('settings.json: editor.formatOnSave увімкнено')
-    } else {
-      failFn('settings.json: editor.formatOnSave має бути true')
-    }
-    for (const t of ['javascript', 'typescript', 'json', 'vue', 'css', 'html']) {
-      const key = `[${t}]`
-      if (settings[key]?.['editor.defaultFormatter'] === 'oxc.oxc-vscode') {
-        passFn(`settings.json: ${key} використовує oxc.oxc-vscode`)
-      } else {
-        failFn(`settings.json: ${key} має використовувати oxc.oxc-vscode як defaultFormatter`)
-      }
-    }
-  } catch {
-    failFn('.vscode/settings.json — невалідний JSON')
-  }
-}
-
-/**
- * Перевіряє VSCode extensions.json та settings.json для текстового стека.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkVscodeText(passFn, failFn) {
-  await checkVscodeTextExtensions(passFn, failFn)
-  await checkVscodeTextSettings(passFn, failFn)
-}
+// `.vscode/extensions.json` (`DavidAnson.vscode-markdownlint`, `oxc.oxc-vscode`,
+// `timonwong.shellcheck`) і `.vscode/settings.json` (`editor.formatOnSave` +
+// `[lang].editor.defaultFormatter`) валідують rego-пакети `text.vscode_extensions`
+// і `text.vscode_settings` (зареєстровані глобально у `lint-conftest.mjs` TARGETS
+// з `rule: 'text'`). FS-existence файлів — у `checkTextConfigsExistence`.
 
 /**
  * FS-existence стек текстових конфігів. Контент-валідація — у Rego
@@ -165,7 +106,9 @@ function checkTextConfigsExistence(passFn, failFn) {
   for (const [path, mdcRef] of [
     ['.oxfmtrc.json', 'text.oxfmtrc'],
     ['.cspell.json', 'text.cspell'],
-    ['.markdownlint-cli2.jsonc', 'text.markdownlint']
+    ['.markdownlint-cli2.jsonc', 'text.markdownlint'],
+    ['.vscode/extensions.json', 'text.vscode_extensions'],
+    ['.vscode/settings.json', 'text.vscode_settings']
   ]) {
     if (existsSync(path)) {
       passFn(`${path} є (структуру перевіряє bun run lint-conftest → ${mdcRef})`)
@@ -247,7 +190,6 @@ export async function check() {
   const { pass, fail } = reporter
 
   await checkV8rIgnore(pass, fail)
-  await checkVscodeText(pass, fail)
   await checkTextConfigsExistence(pass, fail)
 
   for (const f of ['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', '.prettierrc.yml']) {
