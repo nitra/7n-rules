@@ -17,6 +17,7 @@ import {
   sourceFileHasGqlTaggedTemplate
 } from './utils/graphql-gql-scan.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 /** Очікуваний файл GraphQL Config у корені (graphql.mdc). */
@@ -68,38 +69,29 @@ async function collectGqlHits(root, candidates) {
 }
 
 /**
- * Перевіряє `.vscode/extensions.json` на рекомендацію GraphQL extension.
+ * Делегує валідацію `.vscode/extensions.json` rego-пакету `graphql.vscode_extensions`
+ * через `runConftestBatch`. Викликається лише після того, як JS виявив `gql` у дереві
+ * (умовне правило — без gql цей крок не запускається).
  * @param {(msg: string) => void} pass success-репортер
  * @param {(msg: string) => void} fail fail-репортер
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function checkExtensionsRecommendation(pass, fail) {
-  if (!existsSync('.vscode/extensions.json')) {
-    fail(
-      '.vscode/extensions.json не існує — створи файл і додай у recommendations graphql.vscode-graphql (graphql.mdc)'
-    )
+function checkExtensionsRecommendation(pass, fail) {
+  const path = '.vscode/extensions.json'
+  if (!existsSync(path)) {
+    fail(`${path} не існує — створи файл і додай у recommendations ${REQUIRED_GRAPHQL_VSCODE_EXTENSION} (graphql.mdc)`)
     return
   }
-
-  let ext
-  try {
-    ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-  } catch {
-    fail('.vscode/extensions.json не є валідним JSON')
+  const violations = runConftestBatch({
+    policyDirRel: 'graphql/vscode_extensions',
+    namespace: 'graphql.vscode_extensions',
+    files: [path]
+  })
+  if (violations.length === 0) {
+    pass(`${path} відповідає graphql.vscode_extensions (rego)`)
     return
   }
-
-  const rec = ext.recommendations
-  if (!Array.isArray(rec)) {
-    fail('.vscode/extensions.json: поле recommendations має бути масивом')
-    return
-  }
-
-  if (rec.includes(REQUIRED_GRAPHQL_VSCODE_EXTENSION)) {
-    pass(`.vscode/extensions.json: є ${REQUIRED_GRAPHQL_VSCODE_EXTENSION}`)
-  } else {
-    fail(`.vscode/extensions.json: додай у recommendations "${REQUIRED_GRAPHQL_VSCODE_EXTENSION}" (graphql.mdc)`)
-  }
+  for (const v of violations) fail(v.message)
 }
 
 /**
@@ -133,7 +125,7 @@ export async function check() {
     )
   }
 
-  await checkExtensionsRecommendation(pass, fail)
+  checkExtensionsRecommendation(pass, fail)
 
   return reporter.getExitCode()
 }

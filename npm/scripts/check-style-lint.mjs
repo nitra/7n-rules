@@ -1,18 +1,20 @@
 /**
  * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
  *
- * **Що тут лишилося** (FS / VSCode-конфіги — не покривається conftest):
+ * **Що тут лишилося** (FS / cross-file — не покривається conftest):
  *  - наявність зовнішнього файлу конфігу stylelint (`.stylelintrc.*`,
  *    `stylelint.config.js`) як альтернатива полю `stylelint` у `package.json`
  *    (cross-file: треба знати, чи є поле, чи немає);
- *  - `.stylelintignore` у корені;
- *  - `.vscode/extensions.json` recommendation `stylelint.vscode-stylelint`;
- *  - `.vscode/settings.json` `css.validate` / `scss.validate` / `less.validate: false`.
+ *  - `.stylelintignore` у корені.
  *
  * **Що покрила Rego** (`bun run lint-conftest`):
  *  - `npm/policy/style_lint/package_json/` — скрипт `lint-style` через `npx stylelint`,
  *    `@nitra/stylelint-config` у `devDependencies`, поле `stylelint.extends`;
- *  - `npm/policy/style_lint/lint_style_yml/` — `npx stylelint` у `run` workflow.
+ *  - `npm/policy/style_lint/lint_style_yml/` — `npx stylelint` у `run` workflow;
+ *  - `npm/policy/style_lint/vscode_extensions/` — `stylelint.vscode-stylelint`
+ *    у `recommendations` `.vscode/extensions.json`;
+ *  - `npm/policy/style_lint/vscode_settings/` — `css.validate`/`scss.validate`/
+ *    `less.validate: false` у `.vscode/settings.json`.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -39,32 +41,10 @@ async function checkStylelintConfigPresence(reporter) {
   }
 }
 
-/**
- * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
- */
-async function checkVscodeStylelint(reporter) {
-  const { pass, fail } = reporter
-  if (existsSync('.vscode/extensions.json')) {
-    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    if (ext.recommendations?.includes('stylelint.vscode-stylelint')) {
-      pass('extensions.json містить stylelint.vscode-stylelint')
-    } else {
-      fail('extensions.json не містить stylelint.vscode-stylelint')
-    }
-  } else {
-    fail('.vscode/extensions.json не існує')
-  }
-
-  if (!existsSync('.vscode/settings.json')) return
-  const s = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
-  for (const key of ['css.validate', 'scss.validate', 'less.validate']) {
-    if (s[key] === false) {
-      pass(`${key} вимкнено`)
-    } else {
-      fail(`settings.json: ${key} має бути false`)
-    }
-  }
-}
+// `.vscode/extensions.json` (`stylelint.vscode-stylelint`) і `.vscode/settings.json`
+// (`css.validate`/`scss.validate`/`less.validate: false`) — у rego-пакетах
+// `style_lint.vscode_extensions` і `style_lint.vscode_settings`, прогоняє
+// `bun run lint-conftest`. JS-копії видалено, щоб не було двох джерел істини.
 
 /**
  * Перевіряє відповідність проєкту правилам style-lint.mdc
@@ -88,8 +68,6 @@ export async function check() {
   } else {
     fail(`${wfPath} не існує — створи його`)
   }
-
-  await checkVscodeStylelint(reporter)
 
   return reporter.getExitCode()
 }

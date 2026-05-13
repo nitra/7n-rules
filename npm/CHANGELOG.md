@@ -4,6 +4,44 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.16] - 2026-05-13
+
+### Added
+
+- **5 нових rego-полісі для `.vscode/extensions.json` / `.vscode/settings.json`** (мігровано канон з .mdc у rego, прибрано JS-дублі):
+  - `style_lint.vscode_extensions` — `recommendations` має містити `stylelint.vscode-stylelint` (style-lint.mdc).
+  - `style_lint.vscode_settings` — `css.validate` / `scss.validate` / `less.validate: false`; `editor.codeActionsOnSave` свідомо не enforced (smell-test, мдс показує як рекомендацію).
+  - `graphql.vscode_extensions` — `recommendations` має містити `graphql.vscode-graphql` (graphql.mdc). НЕ реєструється глобально у `lint-conftest` TARGETS — правило conditional на наявність `gql\`…\``у джерелах; викликається з`check-graphql.mjs`через`runConftestBatch` після gql-scan.
+  - `nginx_default_tpl.vscode_extensions` — `recommendations` має містити `ahmadalli.vscode-nginx-conf` (nginx-default-tpl.mdc).
+  - `nginx_default_tpl.vscode_settings` — `editor.formatOnSave: true` і `[nginx].editor.defaultFormatter: "ahmadalli.vscode-nginx-conf"`. Обидва nginx-полісі викликаються з `check-nginx-default-tpl.mjs` через `runConftestBatch` лише після виявлення `default.conf.template`.
+- **28 нових тестів** до пʼяти полісі: 5 (style_lint.vscode_extensions) + 6 (style_lint.vscode_settings) + 5 (graphql.vscode_extensions) + 5 (nginx_default_tpl.vscode_extensions) + 7 (nginx_default_tpl.vscode_settings). `conftest verify` — **234/234 pass** (+28).
+
+### Removed
+
+- **`check-style-lint.mjs::checkVscodeStylelint`** — функція повністю видалена; зміст delegated у `style_lint.vscode_extensions` і `style_lint.vscode_settings`. JSDoc-преамбулу оновлено.
+- **`check-graphql.mjs::checkExtensionsRecommendation` — JS-копія тіла перевірки видалена:** функція тепер є тонкою обгорткою над `runConftestBatch`, делегує `graphql.vscode_extensions`. Зник дубль JSON-парсингу й порівняння `recommendations`.
+- **`check-nginx-default-tpl.mjs::checkVscodeNginx` — JS-копія тіла перевірки видалена:** функція тепер делегує `nginx_default_tpl.vscode_extensions` і `nginx_default_tpl.vscode_settings` через `runConftestBatch`. Зник дубль перевірок `editor.formatOnSave` і `[nginx].editor.defaultFormatter` у JS.
+
+### Changed
+
+- **`lint-conftest.mjs` TARGETS — два нові глобальні entry для style-lint:** `style_lint.vscode_extensions` (`single: .vscode/extensions.json`) і `style_lint.vscode_settings` (`single: .vscode/settings.json`), обидва з `rule: 'style-lint'`. Не-style-lint проєкти не зачіпають (filter по `activeRules` з `.n-cursor.json`).
+- **graphql/nginx — НЕ реєструються глобально у `lint-conftest`:** правила conditional на per-package умовах, які lint-conftest не вміє виразити (`gql\`…\``у джерелах для graphql; наявність`default.conf.template`для nginx). Plan B: rego-authoritative + JS-orchestrator з`runConftestBatch`.
+
+## [1.9.15] - 2026-05-13
+
+### Added
+
+- **`npm/policy/js_run/jsconfig/jsconfig_test.rego` — 12 нових тестів для канону `jsconfig.json`:** rego-полісі `js_run.jsconfig` (canonical compilerOptions — `lib: ["esnext"]`, `module/moduleResolution: NodeNext`, `target: esnext`, `checkJs: false`, `include: ["src/**/*"]`) існувала, але не мала тестів і не запускалась на реальних файлах. Додано happy path + 11 негативних кейсів через `json.patch`-фікстури.
+- **`npm/policy/image_avif/package_json/` — структурна валідація опт-аут конфігу:** новий rego-пакет `image_avif.package_json` з 3 deny-правилами для `package.json`: значення `"@nitra/minify-image"` має бути обʼєктом (якщо присутнє), `disable-avif` має бути boolean (якщо присутнє), захист від typo `disabled-avif`. Поле опційне — більшість проєктів його не мають, deny спрацьовує лише на нелегітимну форму (typo або wrong type, що тихо ламає опт-аут). +11 тестів. Зареєстровано у `lint-conftest.mjs` TARGETS з `walk` по всіх `package.json` (з фільтром `rule: "image-avif"`).
+
+### Changed
+
+- **`check-js-run.mjs::checkBackendJsconfigWhenSrcPresent` — структуру `jsconfig.json` тепер валідує rego через `runConftestBatch`:** замість FS-existence-only + посилання на `lint-conftest` (яке насправді не запускалось — rego не була зареєстрована глобально), JS тепер викликає rego-пакет `js_run.jsconfig` через `runConftestBatch` після того, як визначить, що пакет — backend (без `vite` у `devDependencies`) з каталогом `src/`. Це Plan B: Rego-authoritative + JS-orchestrator. Глобальна реєстрація `js_run.jsconfig` у `lint-conftest.mjs` свідомо не додавалась — rule стосується лише workspace-пакетів певної форми, що lint-conftest filter (`activeRules` на рівні репо) не вміє виразити.
+
+### Not done (Phase 1.5 — пізніше)
+
+- **`rego.mdc`, `tauri.mdc`** — rego-полісі для канонічних `.vscode/extensions.json` / `.vscode/settings.json` потрібен JS-orchestrator. Ці правила conditional (rego — glob `**/*.rego`, tauri — лише Tauri-проєкти), тож запускати rego безумовно на кожний `.vscode/extensions.json` дало б false-positive порушення для всіх не-rego/не-tauri проєктів. Чисте розширення rego-полісі без `check-<rule>.mjs`-orchestrator-а тут не закриває правило.
+
 ## [1.9.14] - 2026-05-13
 
 ### Added

@@ -40,6 +40,7 @@ import {
 } from './utils/bunyan-imports.mjs'
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './utils/check-env-scan.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 import { findConnFileRuleViolations, isConnFileRulesSourceFile } from './utils/conn-file-rules.mjs'
 import {
   findConnFactoryImportsInText,
@@ -67,10 +68,11 @@ function backendPackageHasSrcDir(absPackageRoot) {
 }
 
 /**
- * FS-existence для `jsconfig.json` у backend-пакеті з каталогом `src/` (cross-file:
- * наявність каталогу + файла). Структуру самого `jsconfig.json` (canonical
- * compilerOptions і include) валідує `npm/policy/js_run/jsconfig/`; її прогоняє
- * `bun run lint-conftest`.
+ * FS-existence + структурна валідація `jsconfig.json` у backend-пакеті з
+ * каталогом `src/`. Структуру (canonical `compilerOptions` і `include`)
+ * делегуємо у rego-пакет `js_run.jsconfig` через `runConftestBatch` — Plan B:
+ * Rego-authoritative, JS оркеструє per-package gate (frontend з `vite` сюди
+ * взагалі не доходить, бо викликається лише з backend-гілки).
  * @param {string} rootDir відносний шлях workspace
  * @param {string} absPackageRoot абсолютний корінь пакета
  * @param {string} label префікс `[pkg] `
@@ -82,14 +84,23 @@ function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail
   if (!backendPackageHasSrcDir(absPackageRoot)) return
 
   const jcPath = join(rootDir, 'jsconfig.json')
-  if (existsSync(jcPath)) {
-    passFn(`${label}jsconfig.json є (структуру перевіряє bun run lint-conftest → js_run.jsconfig)`)
-  } else {
+  if (!existsSync(jcPath)) {
     fail(
       `${label}є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc ` +
         `(NodeNext, include: src/**/*).`
     )
+    return
   }
+  const violations = runConftestBatch({
+    policyDirRel: 'js_run/jsconfig',
+    namespace: 'js_run.jsconfig',
+    files: [jcPath]
+  })
+  if (violations.length === 0) {
+    passFn(`${label}jsconfig.json відповідає js_run.jsconfig (rego)`)
+    return
+  }
+  for (const v of violations) fail(`${label}${v.message}`)
 }
 
 /**

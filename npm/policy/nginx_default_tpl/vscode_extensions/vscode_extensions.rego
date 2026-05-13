@@ -1,0 +1,16 @@
+# Перевірка `.vscode/extensions.json` для nginx-default-tpl (nginx-default-tpl.mdc).
+#
+# Викликається з `check-nginx-default-tpl.mjs` через `runConftestBatch` лише
+# ПІСЛЯ того, як JS виявив `default.conf.template` у дереві (умовне правило).
+# Глобально у `lint-conftest.mjs` TARGETS не реєструється.
+#
+# Canonical: `recommendations` має містити `ahmadalli.vscode-nginx-conf`.
+package nginx_default_tpl.vscode_extensions
+
+import rego.v1
+
+deny contains msg if {
+	recs := object.get(input, "recommendations", [])
+	not "ahmadalli.vscode-nginx-conf" in {r | some r in recs}
+	msg := ".vscode/extensions.json: recommendations має містити \"ahmadalli.vscode-nginx-conf\" (nginx-default-tpl.mdc)"
+}

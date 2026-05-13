@@ -112,6 +112,18 @@ const TARGETS = [
     rule: 'style-lint',
     single: '.github/workflows/lint-style.yml'
   },
+  {
+    namespace: 'style_lint.vscode_extensions',
+    policyDir: 'style_lint',
+    rule: 'style-lint',
+    single: '.vscode/extensions.json'
+  },
+  {
+    namespace: 'style_lint.vscode_settings',
+    policyDir: 'style_lint',
+    rule: 'style-lint',
+    single: '.vscode/settings.json'
+  },
 
   // ── php ─────────────────────────────────────────────────────────────────
   { namespace: 'php.package_json', policyDir: 'php', rule: 'php', single: 'package.json' },
@@ -157,12 +169,18 @@ const TARGETS = [
     single: '.github/workflows/lint-js.yml'
   },
 
-  // ── image-compress / capacitor ──────────────────────────────────────────
+  // ── image-compress / image-avif / capacitor ─────────────────────────────
   {
     namespace: 'image_compress.package_json',
     policyDir: 'image_compress',
     rule: 'image-compress',
     single: 'package.json'
+  },
+  {
+    namespace: 'image_avif.package_json',
+    policyDir: 'image_avif',
+    rule: 'image-avif',
+    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
   },
   {
     namespace: 'capacitor.package_json',
@@ -214,6 +232,12 @@ const TARGETS = [
     rule: 'js-run',
     walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
   },
+  // `js_run.jsconfig` НЕ реєструємо тут — `jsconfig.json` має канонічну структуру
+  // лише для backend-пакетів (без `vite` у `devDependencies`) з каталогом `src/`,
+  // а lint-conftest фільтрує лише по `activeRules` на рівні репозиторію — не
+  // вміє пропустити окремий workspace-пакет за наявністю `vite`. Тому валідація
+  // структури делегується з `check-js-run.mjs` через `runConftestBatch` після
+  // того, як JS визначить, що пакет — backend з `src/`.
   {
     namespace: 'vue.package_json',
     policyDir: 'vue',

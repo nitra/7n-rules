@@ -20,6 +20,7 @@ import { basename, dirname, join, relative } from 'node:path'
 import { findDockerfilePaths } from './check-docker.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { runConftestBatch } from './utils/run-conftest-batch.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const LINE_SPLIT_RE = /\r?\n/u
@@ -350,36 +351,45 @@ async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
 }
 
 /**
- * Перевіряє VSCode extensions.json та settings.json для nginx.
+ * Делегує валідацію `.vscode/extensions.json` і `.vscode/settings.json` rego-пакетам
+ * `nginx_default_tpl.vscode_extensions` і `nginx_default_tpl.vscode_settings`
+ * через `runConftestBatch`. Викликається лише після того, як JS виявив
+ * `default.conf.template` (умовне правило — без шаблона цей крок не запускається).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @returns {void}
  */
-async function checkVscodeNginx(passFn, failFn) {
-  if (existsSync('.vscode/extensions.json')) {
-    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    if (ext.recommendations?.includes('ahmadalli.vscode-nginx-conf')) {
-      passFn('extensions.json містить ahmadalli.vscode-nginx-conf')
+function checkVscodeNginx(passFn, failFn) {
+  const extPath = '.vscode/extensions.json'
+  if (existsSync(extPath)) {
+    const violations = runConftestBatch({
+      policyDirRel: 'nginx_default_tpl/vscode_extensions',
+      namespace: 'nginx_default_tpl.vscode_extensions',
+      files: [extPath]
+    })
+    if (violations.length === 0) {
+      passFn(`${extPath} відповідає nginx_default_tpl.vscode_extensions (rego)`)
     } else {
-      failFn('extensions.json не містить ahmadalli.vscode-nginx-conf')
+      for (const v of violations) failFn(v.message)
     }
   } else {
     failFn('Очікується .vscode/extensions.json з ahmadalli.vscode-nginx-conf (див. nginx-default-tpl.mdc)')
   }
 
-  if (!existsSync('.vscode/settings.json')) {
+  const setPath = '.vscode/settings.json'
+  if (!existsSync(setPath)) {
     failFn('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
     return
   }
-  const s = JSON.parse(await readFile('.vscode/settings.json', 'utf8'))
-  if (s['editor.formatOnSave'] === true) {
-    passFn('settings.json: editor.formatOnSave увімкнено')
+  const violations = runConftestBatch({
+    policyDirRel: 'nginx_default_tpl/vscode_settings',
+    namespace: 'nginx_default_tpl.vscode_settings',
+    files: [setPath]
+  })
+  if (violations.length === 0) {
+    passFn(`${setPath} відповідає nginx_default_tpl.vscode_settings (rego)`)
   } else {
-    failFn('settings.json: увімкни editor.formatOnSave: true (див. nginx-default-tpl.mdc)')
-  }
-  if (s['[nginx]']?.['editor.defaultFormatter'] === 'ahmadalli.vscode-nginx-conf') {
-    passFn('settings.json: [nginx] defaultFormatter налаштовано')
-  } else {
-    failFn('settings.json: [nginx].editor.defaultFormatter має бути ahmadalli.vscode-nginx-conf')
+    for (const v of violations) failFn(v.message)
   }
 }
 
@@ -416,7 +426,7 @@ export async function check() {
   }
 
   await checkDockerfiles(root, ignorePaths, pass, fail)
-  await checkVscodeNginx(pass, fail)
+  checkVscodeNginx(pass, fail)
 
   return reporter.getExitCode()
 }
