@@ -55,6 +55,11 @@ setup_bun_no_checkout_template := concat(" ", [
 	"інакше runner не знайде action.yml (ga.mdc)",
 ])
 
+forbidden_run_command_template := concat(" ", [
+	"jobs.%s.steps[%d]: `%s` заборонено у workflow —",
+	"мігровано на knip (js-lint.mdc, ga.mdc)",
+])
+
 # ── Аліаси на input ────────────────────────────────────────────────────────
 
 # Усі jobs (з гарантією, що це обʼєкт) — щоб не падати на нетипових YAML.
@@ -88,7 +93,7 @@ deny contains msg if {
 	some entry in all_flat_steps
 	some name, pattern in forbidden_run_command_patterns
 	regex.match(pattern, step_run_text(entry.step))
-	msg := sprintf("jobs.%s.steps[%d]: `%s` заборонено у workflow — мігровано на knip (js-lint.mdc, ga.mdc)", [entry.job_id, entry.step_index, name])
+	msg := sprintf(forbidden_run_command_template, [entry.job_id, entry.step_index, name])
 }
 
 # ── deny: shell-продовження `\` перед переносом рядка у `run:` ─────────────

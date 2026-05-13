@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.9] - 2026-05-13
+
+### Changed
+
+- **AGENTS.md — додано `bunx knip` до секції Commands:** `build-agents-commands.mjs` тепер завжди додає рядок `- **knip (невикористані залежності та експорти)**: \`bunx knip\``після`npx @nitra/cursor check`; оновлено тест (`items.length`3 → 4, перевірка`toContain('bunx knip')`).
+- **`knip.json` — `graphql` у `ignoreDependencies`:** повернуто `graphql` до кореневого `ignoreDependencies` (peer-залежність, яку knip фолсово репортить як unused; вимога `js-lint.mdc` / `check-js-lint.mjs`).
+
 ## [1.9.8] - 2026-05-12
 
 ### Changed
@@ -18,7 +25,7 @@
 
 - **ga (mdc v1.8 → v1.9) — заборона `depcheck` у workflow-файлах:** додано полісі `ga.workflow_common.deny` на будь-який виклик `depcheck` (через `npx`/`bunx`/`npm exec`/`pnpm exec` чи як standalone-команду) у `run:` кроку `.github/workflows/*.yml`. Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `bun run lint-js` (`bunx knip`), окремий depcheck-крок у workflow зайвий. У `npm/mdc/ga.mdc` додано буліт «`depcheck`: не використовувати» з посиланням на `js-lint.mdc` і `ga.workflow_common`.
 
-- **ci (тільки в цьому репо) — lint-ga встановлює conftest; knip.json налаштовано під монорепо:** `.github/workflows/lint-ga.yml` отримав крок `Install conftest` (curl-розпаковка релізу), бо `check-ga.mjs::runAllGaRego` ходить у `runConftestBatch` і hard-fail без бінарника. Кореневий `knip.json` розширено `workspaces.npm.entry` (всі CLI/scripts/tests як entry points — інакше knip false-positive репортить їх як unused), `ignoreBinaries` для `cspell`/`oxfmt`/`stylelint`/`vite` (всі через `bunx`/`npx`, не з deps), і `ignoreDependencies` для workspace self-refs. Це налаштування є кастомним для цього репо; інші проєкти налаштовують `knip.json` під свою структуру.
+- **ci (тільки в цьому репо) — lint-ga встановлює conftest; knip.json налаштовано під монорепо:** `.github/workflows/lint-ga.yml` отримав крок `Install conftest` (curl-витяг релізу), бо `check-ga.mjs::runAllGaRego` ходить у `runConftestBatch` і hard-fail без бінарника. Кореневий `knip.json` розширено `workspaces.npm.entry` (всі CLI/scripts/tests як entry points — інакше knip false-positive репортить їх як unused), `ignoreBinaries` для `cspell`/`oxfmt`/`stylelint`/`vite` (всі через `bunx`/`npx`, не з deps), і `ignoreDependencies` для workspace self-refs. Це налаштування специфічне для цього репо; інші проєкти налаштовують `knip.json` під свою структуру.
 
 ### Removed
 

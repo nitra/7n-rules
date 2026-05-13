@@ -8,7 +8,7 @@
  * `check-ga.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
  * спавнив conftest для `ga.<name>` per-workflow і `ga.workflow_common` (PoC); тепер ця логіка
  * централізована у `check-ga.mjs`, тож одне джерело істини, без дублювання між
- * `lint-ga` і `npx @nitra/cursor check ga`.
+ * `lint-ga` і `npx \@nitra/cursor check ga`.
  *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
  * `run:` блоках, коли `shellcheck` відсутній у PATH; локально `bun lint-ga` лишається зеленим, а CI
@@ -143,7 +143,7 @@ function runStep(title, cmd, args) {
  * 2) `bunx github-actionlint`;
  * 3) `uvx zizmor --offline --collect=workflows .`;
  * 4) `check-ga.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
- *    перевірки правил `ga.mdc`. Це **те саме**, що робить `npx @nitra/cursor check ga`, тож
+ *    перевірки правил `ga.mdc`. Це **те саме**, що робить `npx \@nitra/cursor check ga`, тож
  *    `lint-ga` тепер є суперсетом перевірки правила: external-tools + check.
  *
  * Якщо хоча б один preflight не пройшов — виходимо одразу з кодом 1, **до** запуску actionlint/zizmor,

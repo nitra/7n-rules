@@ -96,6 +96,8 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 
 - **Перевірки правил (programmatic)**: `npx @nitra/cursor check`
 
+- **knip (невикористані залежності та експорти)**: `bunx knip`
+
 ## Instructions for all agents
 
 Before making changes, read the relevant rule files for the area you are working on.

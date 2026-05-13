@@ -18,7 +18,8 @@ describe('buildAgentsCommandBulletItems', () => {
       expect(text).toContain('bun i')
       expect(text).toContain('npx @nitra/cursor')
       expect(text).toContain('npx @nitra/cursor check')
-      expect(items.length).toBe(3)
+      expect(text).toContain('bunx knip')
+      expect(items.length).toBe(4)
     } finally {
       await rm(dir, { recursive: true, force: true })
     }

@@ -48,7 +48,6 @@ function gitHasAnyTrackedFileMatchingGlob(globPattern) {
   if (!p) return false
   if (p.startsWith('!')) return true
   try {
-    // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
     const out = execFileSync('git', ['ls-files', '-z', '--', `:(glob)${p}`], { encoding: 'utf8' })
     return out.length > 0
   } catch {

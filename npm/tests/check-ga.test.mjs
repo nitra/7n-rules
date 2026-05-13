@@ -167,9 +167,9 @@ jobs:
 
   // check-ga валідує `on.*.paths` через `git ls-files`; без git-репо ці перевірки падають,
   // тож ініціалізуємо порожнє локальне репо й трекаємо щойно створені файли.
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
+
   execFileSync('git', ['init', '-q', '--initial-branch=main'])
-  // eslint-disable-next-line sonarjs/no-os-command-from-path -- git як стандартне dev-середовище через PATH; альтернативи (хардкод шляху) непортативні
+
   execFileSync('git', ['add', '-A'])
 }
 

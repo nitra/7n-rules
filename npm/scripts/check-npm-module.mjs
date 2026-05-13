@@ -366,6 +366,10 @@ export function globToRegex(glob) {
   re = re.replace(GLOBSTAR_LEADING_RE, '(?:.*/)?')
   re = re.replace(GLOBSTAR_TRAILING_RE, '(?:/.*)?')
   re = re.replaceAll('__GLOBSTAR__', '.*')
+  // Дозволено: уся функція існує саме для конструкції RegExp з glob-pattern
+  // у `files` (значення з npm/package.json, не від кінцевого користувача), і
+  // спецсимволи вже екрановано через `REGEX_SPECIAL_IN_GLOB` вище.
+  // eslint-disable-next-line security/detect-non-literal-regexp
   return new RegExp(`^${re}$`, 'u')
 }
 
