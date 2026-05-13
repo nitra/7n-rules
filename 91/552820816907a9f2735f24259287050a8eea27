@@ -1,0 +1,62 @@
+.github/workflows/lint-js.yml
+  s_1c9f5a2fb8a59c::t_9c676fe6ba558c 44
+npm/mdc/js-lint.mdc
+  s_1c9f5a2fb8a59c::t_84dee638093232 70
+  s_1c9f5a2fb8a59c::t_5de68eb2ef3692 4
+  s_1c9f5a2fb8a59c::t_7f3709d64b8a52 68
+  s_1c9f5a2fb8a59c::t_d1d19ca9160b6a 25
+npm/CHANGELOG.md
+  s_1c9f5a2fb8a59c::t_9a164d2c515d9a 33
+  s_1c9f5a2fb8a59c::t_dbf2f1d9696876 22-26
+  s_1c9f5a2fb8a59c::t_75bf8832dfbbcf 8-20
+  s_1c9f5a2fb8a59c::t_da85ad0530586a 28-32,34
+  h_74546f1f1ded3e 7,21,27
+.cursor/rules/n-js-lint.mdc
+  s_1c9f5a2fb8a59c::t_16cc24997b5c1c 4
+  s_1c9f5a2fb8a59c::t_7c3096f999e40e 70
+  s_1c9f5a2fb8a59c::t_b14bb8390dbf0b 25
+  s_1c9f5a2fb8a59c::t_cc6d9ab455bcd1 68
+  s_1c9f5a2fb8a59c::t_cd3edfabe37d7c 131
+.cspell.json
+  s_1c9f5a2fb8a59c::t_eda3e4faf9d3e3 20
+npm/package.json
+  h_74546f1f1ded3e 3
+npm/scripts/utils/knip-canonical.json
+  h_74546f1f1ded3e 14
+  s_1c9f5a2fb8a59c::t_3b1ab01791a721 1-13,15-29
+npm/scripts/check-js-lint.mjs
+  s_1c9f5a2fb8a59c::t_ca1b996a5ec3a7 439-443,448-449,452-456,459-460
+  s_1c9f5a2fb8a59c::t_f404062be4a32b 15,28
+  s_1c9f5a2fb8a59c::t_89f85ab713fc64 29
+  s_1c9f5a2fb8a59c::t_c109892f1818d1 36-39
+package.json
+  s_1c9f5a2fb8a59c::t_0b1b6469df4366 17
+npm/tests/check-js-lint.test.mjs
+  s_1c9f5a2fb8a59c::t_8edbcf294ffa17 2-5,11
+npm/policy/js_lint/package_json/package_json_test.rego
+  s_1c9f5a2fb8a59c::t_e067e839bf35bb 1-47,50-53,56-130
+  s_1c9f5a2fb8a59c::t_32dbf3feca87dc 48-49,54-55
+npm/policy/js_lint/package_json/package_json.rego
+  s_1c9f5a2fb8a59c::t_cd8951ada813f8 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "91552820816907a9f2735f24259287050a8eea27",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
