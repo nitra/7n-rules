@@ -41,4 +41,4 @@ jobs:
           bunx oxlint
           bunx eslint .
           bunx jscpd .
-          bunx knip
+          bunx knip --no-config-hints

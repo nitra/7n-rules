@@ -1,7 +1,7 @@
 ---
 description: Перевірка JavaScript коду
 alwaysApply: true
-version: '1.19'
+version: '1.21'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
@@ -22,7 +22,7 @@ version: '1.19'
 {
   "type": "module",
   "scripts": {
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip"
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints"
   },
   "devDependencies": {
     "@nitra/eslint-config": "^3.9.4"
@@ -65,15 +65,9 @@ version: '1.19'
 
 Перевірку невикористаних залежностей і експортів виконує **knip** (заміна `depcheck`). Викликається у скрипті `lint-js` і в CI разом з oxlint/eslint/jscpd — окремий крок у CI не потрібен.
 
-У корені проєкту має бути `knip.json` із `ignoreDependencies` для `graphql` (peer-залежність, часто використовується без прямого імпорту):
+У корені проєкту має бути **`knip.json`**, який стартує з канонічного baseline з пакета `@nitra/cursor` — файл [`npm/scripts/utils/knip-canonical.json`](../scripts/utils/knip-canonical.json). Він покриває типові false-positives для наших правил: `entry` зі CLI-конфігами (eslint, stylelint, oxlint, jscpd, markdownlint-cli2, `commitlint`), `project` для `**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}`, `ignore` для `**/__fixtures__/**`, `ignoreDependencies` для пакетів, посилання на які є лише в не-JS-конфігах (`@nitra/cspell-dict`, `/@cspell\/dict-.+/`), і `ignoreBinaries` для CLI, які канон вимагає викликати через `npx`/`bunx` і яких заборонено додавати в `devDependencies` (`actionlint`, `cspell`, `depcheck`, `eslint`, `git-ai`, `jscpd`, `markdownlint-cli2`, `oxfmt`, `oxlint`, `shellcheck`, `uvx`, `v8r`, `zizmor`).
 
-```json title="knip.json"
-{
-  "ignoreDependencies": [
-    "graphql"
-  ]
-}
-```
+Якщо `knip.json` відсутній — `npx @nitra/cursor check js-lint` копіює канон у корінь проєкту (side effect). Після створення модифікуй файл під свій проєкт як завгодно: перевіряємо лише наявність, зміст подальших змін не валідується.
 
 Пакет `knip` окремо в `devDependencies` не додавай — `bunx knip` тягне його ad-hoc, як oxlint/eslint/jscpd.
 
@@ -134,7 +128,7 @@ jobs:
           bunx oxlint
           bunx eslint .
           bunx jscpd .
-          bunx knip
+          bunx knip --no-config-hints
 ```
 
 Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.

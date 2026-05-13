@@ -1,50 +1,16 @@
 /**
- * Допоміжні перевірки та канонічний рядок lint-js для check-js-lint.mjs.
+ * Допоміжні перевірки для check-js-lint.mjs.
+ *
+ * Канонічний рядок `lint-js` і мінімальну версію `@nitra/eslint-config` тестує
+ * rego-полісі `js_lint.package_json` (див. `npm/policy/js_lint/package_json/package_json_test.rego`).
  */
 import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
-import {
-  CANONICAL_LINT_JS,
-  isCanonicalLintJs,
-  nitraEslintConfigMeetsMinVersion,
-  normalizeLintJsScript,
-  OXLINT_CANONICAL_JSON_PATH,
-  verifyOxlintRcAgainstCanonical
-} from '../scripts/check-js-lint.mjs'
+import { OXLINT_CANONICAL_JSON_PATH, verifyOxlintRcAgainstCanonical } from '../scripts/check-js-lint.mjs'
 
 const canonicalOxlint = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
-
-describe('normalizeLintJsScript / isCanonicalLintJs', () => {
-  test('канонічний lint-js приймається', () => {
-    expect(normalizeLintJsScript(`  ${CANONICAL_LINT_JS}  `)).toBe(CANONICAL_LINT_JS)
-    expect(isCanonicalLintJs(CANONICAL_LINT_JS)).toBe(true)
-  })
-
-  test('oxlint без bunx у локальному скрипті — не канон', () => {
-    expect(isCanonicalLintJs('oxlint --fix && bunx eslint --fix . && bunx jscpd .')).toBe(false)
-  })
-
-  test('інший порядок або відсутній jscpd — не канон', () => {
-    expect(isCanonicalLintJs('bunx eslint --fix . && bunx oxlint --fix && bunx jscpd .')).toBe(false)
-    expect(isCanonicalLintJs('bunx oxlint --fix && bunx eslint --fix .')).toBe(false)
-  })
-})
-
-describe('nitraEslintConfigMeetsMinVersion', () => {
-  test('>= 3.9.2 і workspace — ok; нижчі версії — ні', () => {
-    expect(nitraEslintConfigMeetsMinVersion('^3.9.2')).toBe(true)
-    expect(nitraEslintConfigMeetsMinVersion('^3.9.10')).toBe(true)
-    expect(nitraEslintConfigMeetsMinVersion('^3.10.0')).toBe(true)
-    expect(nitraEslintConfigMeetsMinVersion('^4.0.0')).toBe(true)
-    expect(nitraEslintConfigMeetsMinVersion('workspace:*')).toBe(true)
-    expect(nitraEslintConfigMeetsMinVersion('^3.9.1')).toBe(false)
-    expect(nitraEslintConfigMeetsMinVersion('^3.8.0')).toBe(false)
-    expect(nitraEslintConfigMeetsMinVersion('^3.6.12')).toBe(false)
-    expect(nitraEslintConfigMeetsMinVersion('^3.4.3')).toBe(false)
-  })
-})
 
 describe('verifyOxlintRcAgainstCanonical', () => {
   test('канон збігається сам із собою', () => {

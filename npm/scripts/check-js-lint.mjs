@@ -12,7 +12,7 @@
  * `engines.bun` >= 1.3, `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
  */
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { copyFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -25,55 +25,18 @@ export const OXLINT_CANONICAL_JSON_PATH = join(
   'oxlint-canonical.json'
 )
 
-/** Очікуваний локальний скрипт. */
-export const CANONICAL_LINT_JS = 'bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip'
+/** Шлях до канонічного knip JSON у цьому пакеті — копіюється у корінь проєкту-споживача, якщо відсутній. */
+export const KNIP_CANONICAL_JSON_PATH = join(dirname(fileURLToPath(import.meta.url)), 'utils', 'knip-canonical.json')
 
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
 export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']
 
-const WHITESPACE_RE = /\s+/gu
 const NON_DIGITS_RE = /\D+/u
 
-/**
- * Нормалізує рядок скрипта для порівняння (зайві пробіли).
- * @param {string} s вихідний рядок скрипта `lint-js`
- * @returns {string} рядок без зайвих пробілів на краях і з одиничними пробілами всередині
- */
-export function normalizeLintJsScript(s) {
-  return String(s).trim().replaceAll(WHITESPACE_RE, ' ')
-}
-
-/**
- * Чи рядок `lint-js` збігається з каноном (`bunx oxlint`, `bunx eslint`, `bunx jscpd`).
- * @param {string} script значення `scripts.lint-js` з package.json
- * @returns {boolean} true, якщо рядок канонічний
- */
-export function isCanonicalLintJs(script) {
-  return normalizeLintJsScript(script) === CANONICAL_LINT_JS
-}
-
-/**
- * Чи діапазон `@nitra/eslint-config` у `package.json` задовольняє мінімум `>= 3.9.2`
- * (заборона `for...in` через `no-restricted-syntax` з 3.8.0 + вбудований ignore для ADR-каталогів
- * у `getConfig` з 3.9.2 + транзитивний `@e18e/eslint-plugin` для oxlint).
- * @param {unknown} versionSpec значення `devDependencies['@nitra/eslint-config']`
- * @returns {boolean} true для `workspace:*` або першої semver у рядку >= 3.9.2
- */
-export function nitraEslintConfigMeetsMinVersion(versionSpec) {
-  const s = String(versionSpec).trim()
-  if (s.startsWith('workspace:')) {
-    return true
-  }
-  const parts = s.split(NON_DIGITS_RE).filter(Boolean)
-  if (parts.length < 3) {
-    return false
-  }
-  const [major, minor, patch] = parts.slice(0, 3).map(Number)
-  if ([major, minor, patch].some(n => Number.isNaN(n))) {
-    return false
-  }
-  return major > 3 || (major === 3 && (minor > 9 || (minor === 9 && patch >= 2)))
-}
+// Канонічний рядок `lint-js`-скрипта і мінімальна версія `@nitra/eslint-config` —
+// у rego (`npm/policy/js_lint/package_json/`). JS-копії (`CANONICAL_LINT_JS`,
+// `isCanonicalLintJs`, `nitraEslintConfigMeetsMinVersion`) видалено, щоб не
+// було двох джерел істини й ризику дрифту.
 
 /**
  * Рекурсивне порівняння фрагментів канону oxlint (масиви — порядок як у каноні; об’єкти — той самий набір ключів і вкладеність).
@@ -473,31 +436,28 @@ async function checkJscpdConfig(passFn, failFn) {
 }
 
 /**
- * Перевіряє `knip.json`: файл існує і `ignoreDependencies` містить `graphql`
- * (peer-залежність, що часто використовується без прямого імпорту — без цього
- * `knip` фолсово репортить її як unused).
+ * Перевіряє наявність `knip.json` у корені проєкту. Якщо файл відсутній —
+ * копіює канонічний `knip-canonical.json` з пакета `@nitra/cursor` як стартовий
+ * baseline; зміст подальших модифікацій локально не валідується (`entry` /
+ * `project` / `ignore` / `ignoreDependencies` / `ignoreBinaries` дозволені
+ * будь-які; це side effect — описано у js-lint.mdc).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
 async function checkKnipConfig(passFn, failFn) {
-  if (!existsSync('knip.json')) {
-    failFn('knip.json не існує — додай конфіг з ignoreDependencies: ["graphql"] (js-lint.mdc)')
+  if (existsSync('knip.json')) {
+    passFn('knip.json існує')
     return
   }
-  let cfg
-  try {
-    cfg = JSON.parse(await readFile('knip.json', 'utf8'))
-  } catch {
-    failFn('knip.json не є валідним JSON')
+  if (!existsSync(KNIP_CANONICAL_JSON_PATH)) {
+    failFn(
+      `knip.json відсутній, і канонічний шаблон у пакеті не знайдено (${KNIP_CANONICAL_JSON_PATH}) — ` +
+        'перевстанови @nitra/cursor'
+    )
     return
   }
-  passFn('knip.json існує')
-  const ignoreDeps = cfg?.ignoreDependencies
-  if (Array.isArray(ignoreDeps) && ignoreDeps.includes('graphql')) {
-    passFn('knip.json: ignoreDependencies містить "graphql"')
-  } else {
-    failFn('knip.json: ignoreDependencies має містити "graphql" (peer-залежність) (js-lint.mdc)')
-  }
+  await copyFile(KNIP_CANONICAL_JSON_PATH, 'knip.json')
+  passFn('knip.json створено з канонічного npm/scripts/utils/knip-canonical.json (js-lint.mdc)')
 }
 
 /**

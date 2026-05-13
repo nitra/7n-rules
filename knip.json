@@ -24,9 +24,6 @@
         "tests/**/*.test.mjs"
       ],
       "project": ["**/*.{js,mjs}"]
-    },
-    "demo": {
-      "ignoreDependencies": ["@nitra/cursor", "vite-plugin-vue-layouts-next"]
     }
   }
 }

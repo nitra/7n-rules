@@ -14,7 +14,7 @@
     "test": "bun test npm/tests",
     "start": "bun ./npm/bin/n-cursor.js",
     "lint": "bun run lint-rego && bun run lint-conftest && bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && bun run lint-style && bun run lint-image && oxfmt .",
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip",
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
     "lint-text": "npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix \"**/*.md\" \"**/*.mdc\" && bun ./npm/scripts/run-v8r.mjs",
     "lint-ga": "n-cursor lint-ga",
     "lint-rego": "bun ./npm/scripts/lint-rego.mjs",

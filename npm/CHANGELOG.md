@@ -4,6 +4,34 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.12] - 2026-05-13
+
+### Removed
+
+- **`check-js-lint.mjs` — видалено дубльовані JS-копії канону `lint-js`:** експорти `CANONICAL_LINT_JS`, `isCanonicalLintJs`, `normalizeLintJsScript`, `nitraEslintConfigMeetsMinVersion` і константу `WHITESPACE_RE` видалено. Ці функції експортувалися, але **не використовувалися** у `check()` — пер-документна перевірка кореневого `package.json` (канонічний `lint-js`, `@nitra/eslint-config ≥ 3.9.2`, `type: "module"`, `engines.{node,bun}`) давно мігровано до rego-полісі `npm/policy/js_lint/package_json/`. Залишені експорти створювали два джерела істини: при оновленні канону (`bunx knip --no-config-hints`) доводилось правити і `.rego`, і `.mjs`-константу, що відкриває дрифт. Тепер канон лише в rego, JS-копії немає. У `check-js-lint.mjs` додано коментар з посиланням на rego-полісі.
+
+### Added
+
+- **`npm/policy/js_lint/package_json/package_json_test.rego` — rego-тести для канону `lint-js`:** перенесено покриття з JS-тестів (`normalizeLintJsScript`, `isCanonicalLintJs`, `nitraEslintConfigMeetsMinVersion`) у rego через `json.patch`-фікстури: 16 нових `test_*`-кейсів — happy path, неправильний порядок команд, відсутність `bunx knip`, відсутність `--no-config-hints`, `type` не `module`, `engines.node < 24`, `engines.bun < 1.3`, `@nitra/eslint-config` < 3.9.2, `workspace:*` дозволено. Покривається `bun run lint-rego` (`conftest verify`).
+
+### Changed
+
+- **`npm/tests/check-js-lint.test.mjs` — прибрано тести для видалених JS-копій:** видалено блоки `describe('normalizeLintJsScript / isCanonicalLintJs')` і `describe('nitraEslintConfigMeetsMinVersion')` разом з імпортами. Залишилися тести `verifyOxlintRcAgainstCanonical` (там JS усе ще authoritative — потрібен readFile + рекурсивне порівняння канон-блока).
+
+## [1.9.11] - 2026-05-13
+
+### Changed
+
+- **`lint-js` — `bunx knip --no-config-hints` у каноні (js-lint.mdc `1.20 → 1.21`):** до канонічного `lint-js`-скрипта додано прапор `--no-config-hints`, щоб knip не друкував щоразу інформаційну секцію «Configuration hints» (`Remove from ignoreDependencies/ignoreBinaries`). Hints не впливають на exit code і часто стосуються свідомо доданих ignore (`graphql` як peer-залежність) — щоразу їх читати немає сенсу. Оновлено: `CANONICAL_LINT_JS` у `check-js-lint.mjs`, `canonical_lint_js` у `npm_module_unused.../js_lint.package_json.rego`, приклади `lint-js`-скрипта і CI-блока у `npm/mdc/js-lint.mdc` + дзеркало `.cursor/rules/n-js-lint.mdc`, реальний `package.json#scripts.lint-js` у корені, реальний `.github/workflows/lint-js.yml`. Rego-deny `lint-js.yml: у run немає bunx knip` ловиться через `contains` — новий рядок з прапором проходить як раніше.
+
+## [1.9.10] - 2026-05-13
+
+### Added
+
+- **`npm/scripts/utils/knip-canonical.json` — канонічний baseline `knip.json` для проєктів-споживачів:** покриває типові false-positives `bunx knip` для наших правил — `entry` зі CLI-конфігами (eslint/stylelint/oxlint/jscpd/markdownlint-cli2/commitlint), `project` для `**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}`, `ignore` для `**/__fixtures__/**`, `ignoreDependencies` (`@nitra/cspell-dict`, `/@cspell\/dict-.+/`), `ignoreBinaries` для CLI з канону `bunx`/`npx` (`actionlint`, `cspell`, `depcheck`, `eslint`, `git-ai`, `jscpd`, `markdownlint-cli2`, `oxfmt`, `oxlint`, `shellcheck`, `uvx`, `v8r`, `zizmor`). Структурно поряд з `oxlint-canonical.json` / `oxlint-canonical-skeleton.json` у `npm/scripts/utils/`.
+- **`js-lint.mdc` — секція про канонічний `knip.json` (версія `1.19 → 1.20`):** правило тепер вимагає `knip.json` у корені проєкту як стартовий baseline з канонічного файлу пакета. Перевіряється **лише наявність** — зміст подальших модифікацій локально не валідується (`entry` / `project` / `ignore` / `ignoreDependencies` / `ignoreBinaries` дозволені будь-які). Дзеркало — `.cursor/rules/n-js-lint.mdc`. Прибрано згадку про обовʼязковий `ignoreDependencies: ["graphql"]` як зміст-вимогу (тепер це лише стартова рекомендація через канон).
+- **`check-js-lint.mjs::checkKnipConfig` — auto-create з канону:** якщо `knip.json` відсутній у корені, чек копіює `KNIP_CANONICAL_JSON_PATH` у `knip.json` і повідомляє pass про створення. Раніше функція падала з fail на відсутність і додатково перевіряла `ignoreDependencies ∋ "graphql"` — обидві перевірки замінено на FS-existence + копію канону (side effect, описано у `js-lint.mdc`).
+
 ## [1.9.9] - 2026-05-13
 
 ### Changed
