@@ -1,0 +1,37 @@
+npm/package.json
+  s_1c9f5a2fb8a59c::t_21fad70b5564d0 3
+npm/policy/text/vscode_extensions/vscode_extensions_test.rego
+  s_1c9f5a2fb8a59c::t_87ac61c8457b4a 1-51
+npm/policy/text/vscode_settings/vscode_settings_test.rego
+  s_1c9f5a2fb8a59c::t_4fbc5a3397a067 1-85
+npm/scripts/check-text.mjs
+  s_1c9f5a2fb8a59c::t_6d5b21291afbbd 109-111
+npm/policy/text/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_a567477cf60f50 1-24,32-33,36
+  s_1c9f5a2fb8a59c::t_e7fc88e0f1f761 27-31,34
+  s_1c9f5a2fb8a59c::t_58d4f884bcdddd 25-26,35
+npm/policy/text/vscode_settings/vscode_settings.rego
+  s_1c9f5a2fb8a59c::t_87b2bb7c10996f 24-32,42,47,55
+  s_1c9f5a2fb8a59c::t_481313f5d2a58e 1-22,43-46,48-54,56
+  s_1c9f5a2fb8a59c::t_4d6ec8e7f48f3a 23,33-41
+npm/scripts/lint-conftest.mjs
+  s_1c9f5a2fb8a59c::t_a68e28a6f7805f 106-107
+npm/CHANGELOG.md
+  s_1c9f5a2fb8a59c::t_b37e39693fe02a 7-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6ebfa8b526d545002d7d2ac3174e51fb64912bad",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
