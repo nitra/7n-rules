@@ -1,0 +1,70 @@
+npm/scripts/check-graphql.mjs
+  s_1c9f5a2fb8a59c::t_362a3533d4b5f0 128
+  s_1c9f5a2fb8a59c::t_91f7595063352b 20
+  s_1c9f5a2fb8a59c::t_93db60437a336b 72-74,77,79-82,85-91,94
+npm/policy/nginx_default_tpl/vscode_settings/vscode_settings_test.rego
+  s_1c9f5a2fb8a59c::t_7e13ce1646551d 1-53
+npm/policy/image_avif/package_json/package_json_test.rego
+  s_1c9f5a2fb8a59c::t_75402840b4c084 1-69
+npm/policy/style_lint/vscode_settings/vscode_settings.rego
+  s_1c9f5a2fb8a59c::t_e59200104a8f48 1-24
+npm/policy/nginx_default_tpl/vscode_settings/vscode_settings.rego
+  s_1c9f5a2fb8a59c::t_aadd7b802cf755 32-35
+  s_1c9f5a2fb8a59c::t_939bd2b5210441 1-31,36
+npm/policy/style_lint/vscode_settings/vscode_settings_test.rego
+  s_1c9f5a2fb8a59c::t_99c8787d82d759 1-49
+npm/policy/image_avif/package_json/package_json.rego
+  s_1c9f5a2fb8a59c::t_9605b304fc7c29 1-61
+npm/policy/js_run/jsconfig/jsconfig_test.rego
+  s_1c9f5a2fb8a59c::t_c6dc7d9bde705e 63
+  s_1c9f5a2fb8a59c::t_58f120b646d22c 1-62,64-67,69-88
+  s_1c9f5a2fb8a59c::t_acce2045368710 68
+npm/scripts/lint-conftest.mjs
+  s_1c9f5a2fb8a59c::t_609cf70e47cda7 235-240
+  s_1c9f5a2fb8a59c::t_776f539cad1d22 172,179-183
+  s_1c9f5a2fb8a59c::t_e8e572fdae0d1f 115-126
+npm/policy/graphql/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_cfc8e740e67081 1-4,7-20
+  s_1c9f5a2fb8a59c::t_3d5d2fdccf9e5b 5-6
+npm/policy/style_lint/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_6eaeb3a7946431 1-23
+npm/policy/graphql/vscode_extensions/vscode_extensions_test.rego
+  s_1c9f5a2fb8a59c::t_27fb55103989f2 1-34
+npm/scripts/check-style-lint.mjs
+  s_1c9f5a2fb8a59c::t_da1eb8065f2869 4,8,13-17
+  s_1c9f5a2fb8a59c::t_946f3b5352ced2 44-47
+npm/package.json
+  s_1c9f5a2fb8a59c::t_d58ebb78509aaa 3
+npm/policy/nginx_default_tpl/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_4fb71e7c1ef6e3 1-16
+npm/policy/style_lint/vscode_extensions/vscode_extensions_test.rego
+  s_1c9f5a2fb8a59c::t_9982ba2e0ef4ca 1-39
+npm/scripts/check-nginx-default-tpl.mjs
+  s_1c9f5a2fb8a59c::t_006e735f73da9d 23
+  s_1c9f5a2fb8a59c::t_c6878551a3c9e0 354-357,360,362-371,373,379-380,384-390,392
+  s_1c9f5a2fb8a59c::t_49a3532fa3bf8f 429
+npm/scripts/check-js-run.mjs
+  s_1c9f5a2fb8a59c::t_650fb67d7db8f0 43
+npm/CHANGELOG.md
+  s_1c9f5a2fb8a59c::t_ff58de41753105 39
+  s_1c9f5a2fb8a59c::t_207813c5df5948 43
+  s_1c9f5a2fb8a59c::t_1645513377d5b7 14,28
+  s_1c9f5a2fb8a59c::t_14f061b962fd31 7-13,15-27,29
+  s_1c9f5a2fb8a59c::t_1500287b109a12 30-38,40-42,44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "6d8cea9789a74c1f49602bab4dbb221e981f6906",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
