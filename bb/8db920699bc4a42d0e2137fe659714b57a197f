@@ -1,0 +1,53 @@
+AGENTS.md
+  s_bf6e248ec9f49a::t_cecc167c38fcd7 99-100
+npm/CHANGELOG.md
+  s_bf6e248ec9f49a::t_784712742c6e66 28
+  s_bf6e248ec9f49a::t_5a82965141572c 7-10,12-13
+  s_bf6e248ec9f49a::t_77bd12bc314f7d 11
+npm/scripts/build-agents-commands.mjs
+  s_bf6e248ec9f49a::t_329b4fb5b4fd5e 84-85
+npm/scripts/claude-stop-hook.mjs
+  s_bf6e248ec9f49a::t_77bd12bc314f7d 65
+npm/tests/agents-md-commands.test.mjs
+  s_bf6e248ec9f49a::t_6779490b7c7619 21-22
+knip.json
+  s_bf6e248ec9f49a::t_77bd12bc314f7d 2-3,5,8,26,29
+npm/package.json
+  s_bf6e248ec9f49a::t_7d60f5f3bce9a8 3
+npm/policy/ga/workflow_common/workflow_common.rego
+  s_1c9f5a2fb8a59c::t_c3425611d1cb35 58-62
+  s_1c9f5a2fb8a59c::t_5fa1c608f4aa8d 96
+npm/tests/check-ga.test.mjs
+  s_bf6e248ec9f49a::t_77bd12bc314f7d 170,172
+npm/scripts/lint-ga.mjs
+  s_1c9f5a2fb8a59c::t_9e7a34b6d65930 146
+  s_1c9f5a2fb8a59c::t_da285862314886 11
+npm/scripts/check-npm-module.mjs
+  s_1c9f5a2fb8a59c::t_0d6f8073b140f4 369-370
+docs/adr/_inbox/20260513-045516-505d1f83.md
+  s_1c9f5a2fb8a59c::t_cf061e3ece6bc0 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "bb8db920699bc4a42d0e2137fe659714b57a197f",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_bf6e248ec9f49a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0478cc45-09f6-43c6-8d68-f132fc151f25",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
