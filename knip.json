@@ -24,6 +24,9 @@
         "tests/**/*.test.mjs"
       ],
       "project": ["**/*.{js,mjs}"]
+    },
+    "demo": {
+      "ignoreDependencies": ["vite-plugin-vue-layouts-next"]
     }
   }
 }

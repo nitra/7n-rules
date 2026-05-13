@@ -10,18 +10,11 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check, isAllowedRootDevDependency } from '../scripts/check-bun.mjs'
+import { check } from '../scripts/check-bun.mjs'
 import { withTmpCwd, writeJson } from './helpers.mjs'
 
-describe('isAllowedRootDevDependency', () => {
-  test('лише @nitra/*', () => {
-    expect(isAllowedRootDevDependency('@nitra/eslint-config')).toBe(true)
-    expect(isAllowedRootDevDependency('@cspell/dict-uk-ua')).toBe(false)
-    expect(isAllowedRootDevDependency('@cspell/cspell-lib')).toBe(false)
-    expect(isAllowedRootDevDependency('lodash')).toBe(false)
-    expect(isAllowedRootDevDependency('@types/node')).toBe(false)
-  })
-})
+// Перевірка дозволених кореневих devDependencies (лише `@nitra/*`) — у rego
+// (`npm/policy/bun/package_json/package_json_test.rego`).
 
 describe('check-bun', () => {
   test('успіх: bun.lock, мінімальний package.json', async () => {

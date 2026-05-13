@@ -4,6 +4,28 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.14] - 2026-05-13
+
+### Added
+
+- **`text.markdownlint` rego — повний канон `.markdownlint-cli2.jsonc` тепер виноситься як deny:** раніше rego-полісі мала **рівно один** deny (`gitignore == true`), а решта канонічного блока з [text.mdc](mdc/text.mdc) (`config.default == true`, `MD013 == false`, `MD024.siblings_only == true`, `MD029 == false`, `MD040 == false`, `MD041 == false`) була показана як приклад, але не перевірялась. Додано 6 нових deny-правил, що покривають кожне поле канону; додаткові поля верхнього рівня (`ignores`) і додаткові MD-rules (`MD033` тощо) дозволені — канон задає мінімум. Шаблон повідомлень — через `concat` для regal style/line-length.
+- **`npm/policy/text/markdownlint/markdownlint_test.rego` — 14 нових тестів:** happy path (канонічний `.markdownlint-cli2.jsonc`), дозволені розширення (`ignores`, `MD033`), порушення для `gitignore` (відсутній / `false`), `config.default` (відсутній / `false`), `MD013/029/040/041` (`true` або відсутній), `MD024` (не object / `siblings_only: false` / відсутній). `conftest verify` — **183/183 pass** (+14). `lint-conftest` на реальному `.markdownlint-cli2.jsonc` репо: 5/5 (раніше було 1/1 — додано 4 нові тестові кейси проти реального файлу).
+
+## [1.9.13] - 2026-05-13
+
+### Removed
+
+- **`check-bun.mjs::isAllowedRootDevDependency` — видалено JS-копію, дубль rego:** функція експортувалася лише для тестів, у `check()` не викликалась; логіка «дозволено лише `@nitra/*` у кореневих `devDependencies`» давно живе у `npm/policy/bun/package_json/package_json.rego` (`not startswith(name, "@nitra/")`). Docstring помилково посилався на `check-text.mjs`, який цю функцію не імпортує. Тепер єдине джерело — rego; у `check-bun.mjs` додано коментар з посиланням на полісі.
+
+### Added
+
+- **`npm/policy/bun/package_json/package_json_test.rego` — rego-тести для bun.package_json:** 12 нових `test_*`-кейсів через `json.patch`-фікстури — happy path (без `devDependencies`, з кількома `@nitra/*`), 4 негативні `devDependencies` (`@cspell/dict-uk-ua`, `@cspell/cspell-lib`, `lodash`, `@types/node`), mixed-devDeps з конкретним повідомленням про `lodash`, заборона `packageManager`, заборона кореневих `dependencies` (порожній обʼєкт теж), агрегований `lint`-скрипт (відсутній / не покриває `bun run` / без `&& oxfmt .`). Покривається `bun run lint-rego` (169/169 pass).
+
+### Changed
+
+- **`npm/tests/check-bun.test.mjs` — прибрано `describe('isAllowedRootDevDependency')`:** імпорт і блок тестів видалено; залишено інтеграційні `check-bun`-тести у тимчасових каталогах (FS / cross-file частина).
+- **Аудит інших `check-*.mjs`**: пройдено всі 22 скрипти на наявність дубля з rego (export не викликається внутрішньо + наявне `npm/policy/<rule>/<name>/<name>.rego`). Знайдено лише цей кейс; `httpRouteMatchesNginxDefaultTpl` у `check-nginx-default-tpl.mjs` залишається — не має rego-counterpart і свідомо лишений для майбутнього використання згідно docstring. Інші експорти або викликаються у відповідному `check()` / приватних helper-ах, або не мають rego-копії.
+
 ## [1.9.12] - 2026-05-13
 
 ### Removed

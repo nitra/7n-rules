@@ -20,17 +20,9 @@ import { readFile } from 'node:fs/promises'
 
 import { createCheckReporter } from './utils/check-reporter.mjs'
 
-/**
- * Чи ім'я пакета дозволене в кореневих `devDependencies` за bun.mdc (лише **`@nitra/*`**).
- *
- * Залишилася як експорт для `check-text.mjs` і тестів — `bun.package_json` Rego
- * робить ту саму перевірку для check-runner-а.
- * @param {string} name ключ з поля `devDependencies`
- * @returns {boolean} true, якщо префікс дозволений
- */
-export function isAllowedRootDevDependency(name) {
-  return name.startsWith('@nitra/')
-}
+// Перевірка `devDependencies` кореневого `package.json` (дозволено лише `@nitra/*`)
+// — у rego (`npm/policy/bun/package_json/`). JS-копії `isAllowedRootDevDependency`
+// видалено, щоб не було двох джерел істини.
 
 /**
  * Зчитує ідентифікатори правил з `.n-cursor.json` (поле `rules`).
