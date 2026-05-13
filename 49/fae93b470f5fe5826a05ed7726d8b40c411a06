@@ -1,0 +1,39 @@
+npm/CHANGELOG.md
+  s_1c9f5a2fb8a59c::t_9faae213de4608 7-24
+npm/policy/docker/lint_docker_yml/lint_docker_yml.rego
+  s_1c9f5a2fb8a59c::t_c95c9d42540480 29-31
+  s_1c9f5a2fb8a59c::t_02b4896aac15bf 1-28,32-91
+npm/scripts/lint-conftest.mjs
+  s_1c9f5a2fb8a59c::t_61aee2d0ab3ddf 139-147
+npm/policy/docker/package_json/package_json_test.rego
+  s_1c9f5a2fb8a59c::t_d9012f3d230b37 1-42
+npm/package.json
+  s_1c9f5a2fb8a59c::t_d681ee0398cc29 3
+npm/mdc/docker.mdc
+  s_1c9f5a2fb8a59c::t_dc3afca9ba546a 156
+  s_1c9f5a2fb8a59c::t_defdadf14fb199 3
+npm/policy/docker/package_json/package_json.rego
+  s_1c9f5a2fb8a59c::t_5496371146a551 24-28,34
+  s_1c9f5a2fb8a59c::t_214e54146269d1 1-14,16-23,29-33,35
+  s_1c9f5a2fb8a59c::t_6835aba8a183e7 15
+npm/policy/docker/lint_docker_yml/lint_docker_yml_test.rego
+  s_1c9f5a2fb8a59c::t_d44fcdcf7ae8d9 9-13,22
+  s_1c9f5a2fb8a59c::t_86d8639ba37ea5 52-55,59
+  s_1c9f5a2fb8a59c::t_11d207051098d6 1-8,14-21,23-51,56-58,60-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.4",
+  "base_commit_sha": "49fae93b470f5fe5826a05ed7726d8b40c411a06",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
