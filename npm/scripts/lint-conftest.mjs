@@ -136,6 +136,15 @@ const TARGETS = [
     single: '.github/workflows/lint-php.yml'
   },
 
+  // ── docker ──────────────────────────────────────────────────────────────
+  { namespace: 'docker.package_json', policyDir: 'docker', rule: 'docker', single: 'package.json' },
+  {
+    namespace: 'docker.lint_docker_yml',
+    policyDir: 'docker',
+    rule: 'docker',
+    single: '.github/workflows/lint-docker.yml'
+  },
+
   // ── npm-module ──────────────────────────────────────────────────────────
   {
     namespace: 'npm_module.root_package_json',

@@ -4,6 +4,24 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.18] - 2026-05-13
+
+### Changed
+
+- **`docker.mdc` (`1.8 → 1.9`) — узгоджено канонічний `lint-docker.yml` з ga.mdc:** видалено 4 застарілих кроки з прикладу workflow (`actions/setup-node@v6` + `oven-sh/setup-bun@v2` + `actions/cache@v5` + `bun install --frozen-lockfile`) і замінено на один `uses: ./.github/actions/setup-bun-deps`. Раніше docker.mdc показував саме той патерн, який `ga.mdc` явно називає «❌ НЕПРАВИЛЬНО» і який `ga.workflow_common.rego` ловить через `forbidden_step_substrings` (3 заборонені підрядки). Конфлікт виник тому, що інші правила (`lint-style.mdc`, `lint-text.mdc`, `lint-js.mdc`) уже мігровано на composite, а docker.mdc пропустили. Hadolint-install залишається як окремий `curl`-крок (так само як `Install conftest` у `lint-ga.yml`).
+
+### Added
+
+- **`docker.package_json` rego — канонічний `scripts.lint-docker`:** deny, якщо ключ `scripts.lint-docker` присутній, але його значення ≠ `"bun ./npm/scripts/run-docker.mjs"`. Умовну обовʼязковість (правило `docker` у `.n-cursor.json` → `scripts.lint-docker` ЗОБОВ'ЯЗАНИЙ існувати) перевіряє `check-bun.mjs` cross-file, тут rego видно лише один документ. +6 тестів через `json.patch`-фікстури (canonical / lint-docker absent / whitespace / wrong value).
+- **`docker.lint_docker_yml` rego — структура `.github/workflows/lint-docker.yml`:** 4 deny — (1) `on.push.paths` має містити 3 канонічні glob-и (`**/Dockerfile`, `**/*.Dockerfile`, `**/*.dockerfile`); (2) у `run:` будь-якого кроку має бути URL з версією `v2.12.0` (узгоджено з `HADOLINT_IMAGE` у `npm/scripts/utils/docker-hadolint.mjs`); (3) у `uses:` має бути `./.github/actions/setup-bun-deps` (canonical composite per ga.mdc); (4) у `run:` має бути `bun run lint-docker`. +9 тестів через `json.patch`-фікстури.
+- **`lint-conftest.mjs` TARGETS — два нові entry:** `docker.package_json` (single: `package.json`) і `docker.lint_docker_yml` (single: `.github/workflows/lint-docker.yml`), обидва з `rule: 'docker'`. Цей репо (cursor) не має `docker` у `.n-cursor.json:rules` → docker таргети тут не активуються; полісі діятиме на проєкти-споживачі.
+- **15 нових rego-тестів** (6 + 9), `conftest verify` — **267/267 pass** (+15).
+
+### Regal fixes during migration
+
+- `idiomatic/prefer-set-or-object-rule` у `lint_docker_yml.rego`: `all_step_uses := {u | …}` (comprehension) → `all_step_uses contains u if { … }` (incremental set rule).
+- `style/line-length` × 3: винесено довгі hadolint-URL і шаблон повідомлення у проміжні константи через `concat`.
+
 ## [1.9.17] - 2026-05-13
 
 ### Added

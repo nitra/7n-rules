@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.8'
+version: '1.9'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -153,24 +153,7 @@ jobs:
           chmod +x /tmp/hadolint
           sudo mv /tmp/hadolint /usr/local/bin/hadolint
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - uses: oven-sh/setup-bun@v2
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.bun/install/cache
-            node_modules
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
+      - uses: ./.github/actions/setup-bun-deps
 
       - name: Lint Docker
         run: bun run lint-docker
