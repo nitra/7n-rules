@@ -233,7 +233,7 @@ async function readConfig(paths = {}) {
   }
 
   /**
-   * Автодописує правила/skills за `auto-rules.md` і синхронізує `$schema`.
+   * Автодописує правила/skills за `rules/<rule>/auto.md` і синхронізує `$schema`.
    * @param {Record<string, unknown>} parsedConfig сирий обʼєкт конфігу
    * @returns {Promise<Record<string, unknown>>} нормалізований конфіг
    */

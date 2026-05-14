@@ -23,18 +23,18 @@ npx @nitra/cursor check npm-module
 
 ## Перш ніж писати / розширювати `check-*.mjs`
 
-**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `check-<rule>.mjs`: подивись `npm/policy/<rule>/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
+**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `js/check.mjs`: подивись `npm/rules/<rule>/policy/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
 
 Швидкий self-check для нової перевірки (порядок важливий):
 
-1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/policy/<rule>/<name>/<name>.rego` + `<name>_test.rego`.
-2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `check-<rule>.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
-3. Не впевнений? Подивись референс **`npm/policy/k8s/*`** ↔ **`npm/scripts/check-k8s.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
+1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/rules/<rule>/policy/<name>/<name>.rego` + `<name>_test.rego`.
+2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `js/check.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
+3. Не впевнений? Подивись референс **`npm/rules/k8s/policy/*`** ↔ **`npm/rules/k8s/js/check.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
 
-**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/policy/<rule>/` **перед** редагуванням `check-<rule>.mjs`.
+**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/check.mjs`.
 
 ## Джерело правил
 
 - `.cursor/rules/n-changelog.mdc` — правило про CHANGELOG (PR-scoped, для всіх воркспейсів)
 - `.cursor/rules/n-npm-module.mdc` — правило публікації пакета (типи, hk, npm-publish workflow)
-- `npm/scripts/check-changelog.mjs`, `npm/scripts/check-npm-module.mjs` — алгоритми перевірки
+- `npm/rules/changelog/js/check.mjs`, `npm/rules/npm-module/js/check.mjs` — алгоритми перевірки

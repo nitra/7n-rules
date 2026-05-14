@@ -1,5 +1,5 @@
 /**
- * Автовизначення правил для `.n-cursor.json` за умовами з `npm/bin/auto-rules.md`.
+ * Автовизначення правил для `.n-cursor.json` за умовами з `npm/rules/<rule>/auto.md`.
  *
  * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
  * залежності `mssql` / `pg` / `pg-format` / `mysql2` / `ioredis` / `node-redis` у `package.json`,
@@ -8,7 +8,7 @@
  *
  * Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
  *
- * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/bin/auto-skills.md`).
+ * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/auto.md`).
  * `mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
  * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
@@ -24,7 +24,7 @@ import {
 } from './utils/graphql-gql-scan.mjs'
 import { contentForVueImportScan } from './utils/vue-forbidden-imports.mjs'
 
-/** Порядок автододавання правил відповідно до `auto-rules.md`. */
+/** Порядок автододавання правил відповідно до `rules/<rule>/auto.md`. */
 export const AUTO_RULE_ORDER = Object.freeze([
   'abie',
   'bun',
@@ -91,7 +91,7 @@ export function detectLegacyRuleIds(ids) {
 }
 
 /**
- * Граф залежностей між правилами (`auto-rules.md` синтаксис `rule - [other]`).
+ * Граф залежностей між правилами (`rules/<rule>/auto.md` синтаксис `rule - [other]`).
  * Ключ варто автододати, коли всі правила-залежності вже додані до конфігу — щоб
  * не дублювати вихідну умову, достатньо описати її у залежності.
  */
@@ -576,7 +576,7 @@ function resolveRuleDependencies(detectedRules, addRule) {
 }
 
 /**
- * Визначає авто-правила згідно з `auto-rules.md`.
+ * Визначає авто-правила згідно з `rules/<rule>/auto.md`.
  * @param {object} params параметри аналізу
  * @param {string} params.root абсолютний шлях до кореня репозиторію
  * @param {string[]} params.availableRules перелік доступних правил з пакету

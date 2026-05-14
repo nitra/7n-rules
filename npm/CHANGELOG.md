@@ -4,6 +4,23 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.22] - 2026-05-14
+
+### Changed
+
+- **Rule-centric структура пакета.** Кожне правило тепер живе в одній директорії `npm/rules/{rule}/` з усіма своїми артефактами: `{rule}.mdc`, `auto.md` (умова автоактивації), `policy/` (rego-поліси), `js/` (check.mjs + опційні run/lint + co-located *.test.mjs + fixtures/). Видалив каталог правила — правило зникло без слідів у `bin/auto-rules.md`, `npm/policy/`, `npm/scripts/`. Дзеркальна структура для скілів у `npm/skills/{skill}/` (SKILL.md + auto.md + js/).
+- **Тести співрозташовуються з джерелами.** ~50 файлів з `npm/tests/` переїхали в `npm/rules/{rule}/js/*.test.mjs` (тести правил), `npm/scripts/*.test.mjs` (тести інфраструктури), `npm/scripts/utils/*.test.mjs` (тести утиліт). `tests/helpers.mjs` → `scripts/utils/test-helpers.mjs`. `npm/tests/` залишається тільки для 3 крос-правильних інтеграційних тестів.
+- **`bin/n-cursor.js`**: `BUNDLED_MDC_DIR` → `BUNDLED_RULES_DIR`. `discoverBundledRuleNames` і `discoverCheckScripts` тепер обходять підкаталоги `rules/` замість файлів у `mdc/` чи `check-*.mjs` у `scripts/`. Резолвер check-скриптів: `rules/{rule}/js/check.mjs`. `readBundledRuleContent` читає `rules/{rule}/{rule}.mdc`.
+- **`scripts/utils/run-conftest-batch.mjs` та `scripts/lint-conftest.mjs`**: шляхи до rego-полісі — `rules/{rule}/policy/{name}/` (замість `policy/{rule}/{name}/`). Snake_case `policyDirRel` у JS-call sites замінено на kebab-case.
+- **`npm/package.json#files`**: `mdc` і `policy` видалено, додано `rules`. `scripts.test`: `bun test tests` → `bun test` (рекурсивний пошук `*.test.mjs`).
+- **`.cursor/rules/scripts.mdc`** (v1.5): додано секцію «Структура правила» з документацією rule-centric layout для майбутніх правил. Path-references у `npm/CLAUDE.md` оновлено.
+
+### Removed
+
+- `npm/mdc/` (24 файли) — вміст переїхав у `npm/rules/{rule}/{rule}.mdc`.
+- `npm/policy/` (24 каталоги) — вміст переїхав у `npm/rules/{rule}/policy/`.
+- `npm/bin/auto-rules.md`, `npm/bin/auto-skills.md` — замінено на per-rule і per-skill `auto.md` в кожному каталозі.
+
 ## [1.9.20] - 2026-05-14
 
 ### Added

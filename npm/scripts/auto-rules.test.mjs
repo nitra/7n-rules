@@ -1,5 +1,5 @@
 /**
- * Тести автодетекту правил для `.n-cursor.json` за `auto-rules.md`.
+ * Тести автодетекту правил для `.n-cursor.json` за `rules/<rule>/auto.md`.
  * Тести для скілів — у `auto-skills.test.mjs`.
  */
 import { describe, expect, test } from 'bun:test'
