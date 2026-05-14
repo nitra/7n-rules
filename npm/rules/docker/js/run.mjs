@@ -9,7 +9,7 @@
  */
 import { basename } from 'node:path'
 
-import { isRunAsCli } from './cli-entry.mjs'
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { lintDockerfileWithHadolint, posixRel } from '../../../scripts/utils/docker-hadolint.mjs'
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'

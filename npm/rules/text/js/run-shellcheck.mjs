@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process'
 import { globSync } from 'node:fs'
 import { resolve } from 'node:path'
 
-import { isRunAsCli } from './cli-entry.mjs'
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Підрядок у stderr ShellCheck, коли є зауваження, але без авто-виправлення у форматі diff. */

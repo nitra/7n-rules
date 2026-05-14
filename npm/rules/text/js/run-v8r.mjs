@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { isRunAsCli } from './cli-entry.mjs'
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */

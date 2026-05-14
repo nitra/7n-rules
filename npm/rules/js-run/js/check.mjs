@@ -92,7 +92,7 @@ function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail
     return
   }
   const violations = runConftestBatch({
-    policyDirRel: 'js_run/jsconfig',
+    policyDirRel: 'js-run/jsconfig',
     namespace: 'js_run.jsconfig',
     files: [jcPath]
   })

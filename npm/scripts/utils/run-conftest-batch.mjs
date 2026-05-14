@@ -21,11 +21,11 @@ import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from './resolve-cmd.mjs'
 
-/** Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиту директорію `policy/`. */
+/** Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил. */
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
-/** Шлях до кореня rego-полісі. У npm-tarball публікується через `files: ["policy"]`. */
-const POLICY_ROOT = join(PACKAGE_ROOT, 'policy')
+/** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. Кожне правило: `rules/<id>/policy/<name>/`. */
+const RULES_ROOT = join(PACKAGE_ROOT, 'rules')
 
 /**
  * Друкує install-hint для conftest і кидає виняток, щоб викликана `check-*`
@@ -72,7 +72,12 @@ export function runConftestBatch(opts) {
   if (!conftestBin) {
     failConftestMissing()
   }
-  const policyAbs = join(POLICY_ROOT, opts.policyDirRel)
+  // policyDirRel — формат `<rule>/<name>` (наприклад `abie/base_deployment_preem`).
+  // Реальний шлях у новій структурі: `rules/<rule>/policy/<name>`.
+  const slash = opts.policyDirRel.indexOf('/')
+  const ruleId = slash === -1 ? opts.policyDirRel : opts.policyDirRel.slice(0, slash)
+  const sub = slash === -1 ? '' : opts.policyDirRel.slice(slash + 1)
+  const policyAbs = sub ? join(RULES_ROOT, ruleId, 'policy', sub) : join(RULES_ROOT, ruleId, 'policy')
   if (!existsSync(policyAbs)) {
     throw new Error(`runConftestBatch: rego-каталог не знайдено: ${policyAbs}`)
   }

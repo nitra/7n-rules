@@ -363,7 +363,7 @@ function checkVscodeNginx(passFn, failFn) {
   const extPath = '.vscode/extensions.json'
   if (existsSync(extPath)) {
     const violations = runConftestBatch({
-      policyDirRel: 'nginx_default_tpl/vscode_extensions',
+      policyDirRel: 'nginx-default-tpl/vscode_extensions',
       namespace: 'nginx_default_tpl.vscode_extensions',
       files: [extPath]
     })
@@ -382,7 +382,7 @@ function checkVscodeNginx(passFn, failFn) {
     return
   }
   const violations = runConftestBatch({
-    policyDirRel: 'nginx_default_tpl/vscode_settings',
+    policyDirRel: 'nginx-default-tpl/vscode_settings',
     namespace: 'nginx_default_tpl.vscode_settings',
     files: [setPath]
   })

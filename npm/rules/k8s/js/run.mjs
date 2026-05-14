@@ -15,7 +15,7 @@
 import { spawnSync } from 'node:child_process'
 import { basename, dirname, relative } from 'node:path'
 
-import { isRunAsCli } from './cli-entry.mjs'
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
