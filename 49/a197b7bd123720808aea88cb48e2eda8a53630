@@ -1,0 +1,129 @@
+npm/rules/hasura/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-187
+npm/rules/npm-module/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-129
+npm/rules/nginx-default-tpl/js/check.test.mjs
+  s_f0a007ceed1ba8::t_95d90e16a97f35 20
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-19,21-123
+npm/tests/integration-repo-checks.test.mjs
+  s_f0a007ceed1ba8::t_3c26fd2a3ef970 8-18
+npm/rules/docker/js/check-compile.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-82
+npm/rules/docker/js/check-multistage.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-146
+npm/rules/image-compress/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-69
+npm/scripts/utils/bunyan-imports.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-63
+npm/rules/docker/js/check-mirror.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-97
+npm/rules/text/js/run-shellcheck.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-41
+npm/tests/check-rule-fixtures.test.mjs
+  s_f0a007ceed1ba8::t_3c26fd2a3ef970 9-12
+  s_f0a007ceed1ba8::t_803458a7ed008a 14
+npm/rules/js-run/js/check-env-scan.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-119
+npm/scripts/utils/conn-imports-scan.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-85
+npm/rules/bun/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-71
+npm/rules/graphql/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-32
+npm/rules/image-avif/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-458
+npm/rules/text/js/run-v8r-catalog.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-23
+npm/scripts/auto-rules.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-387
+npm/scripts/auto-skills.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-87
+npm/rules/js-lint/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-69
+npm/scripts/utils/check-reporter.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-31
+npm/rules/adr/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-105
+npm/scripts/utils/promise-settimeout-scan.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-91
+npm/scripts/utils/vue-forbidden-imports.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-135
+npm/rules/capacitor/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-159
+npm/rules/text/js/check-fixture.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-97
+npm/scripts/utils/gha-workflow.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-136
+npm/scripts/upgrade-nitra-cursor-and-install.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-88
+npm/scripts/sync-claude-config.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-286
+npm/rules/docker/js/discover.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-58
+npm/scripts/sync-setup-bun-deps-action.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-24
+npm/scripts/utils/docker-hadolint.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-23
+npm/rules/ga/js/lint.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-77
+npm/rules/changelog/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-313
+npm/rules/docker/js/check-nonroot.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-101
+npm/scripts/utils/walkDir.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-119
+npm/scripts/utils/load-cursor-config.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-87
+npm/scripts/utils/conn-file-rules.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-79
+npm/scripts/utils/redis-imports.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-84
+npm/rules/k8s/js/check-images.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-769
+npm/rules/docker/js/check-nginx-slim.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-41
+npm/scripts/build-agents-commands.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-54
+npm/scripts/cli-entry.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-12
+npm/tests/check-empty-trees.test.mjs
+  s_f0a007ceed1ba8::t_3c26fd2a3ef970 7-9
+npm/scripts/rename-yaml-extensions.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-105
+npm/rules/k8s/js/run-roots.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-52
+npm/scripts/utils/pass.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-25
+npm/rules/abie/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-593
+npm/rules/js-run/js/check-fixture.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-297
+npm/rules/ga/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-205
+npm/rules/js-bun-db/js/check.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-250
+npm/package.json
+  s_f0a007ceed1ba8::t_0f692df547ca17 40
+npm/scripts/utils/workspaces.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-59
+npm/scripts/ensure-nitra-cursor-dev-dependencies.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-66
+npm/rules/k8s/js/check-schema.test.mjs
+  s_f0a007ceed1ba8::t_ddf476bd591097 1-2169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "49a197b7bd123720808aea88cb48e2eda8a53630",
+  "prompts": {},
+  "sessions": {
+    "s_f0a007ceed1ba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ec950c-74c5-483c-8668-94737ed94920",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
