@@ -131,7 +131,65 @@ RUN bun install && bun vite build --mode "prod-$BRANCH" --base="$BASE"
 
 Те саме стосується `nginx`-конфігів (`server_name`, `proxy_pass` з ru-доменами), `*.sh`-скриптів та `package.json` scripts (`build:ru`, `deploy:ru`, `prod-ru` тощо).
 
-## 5. Після очистки
+
+## 5. Переклади
+
+Замінити переклад з російської на англійську в @nitra/tfm, @nitra/tf та @nitra/tfm-node. Якщо англійська вже є, то прибираємо російську:
+
+Приклад БУЛО:
+
+<template>
+    <h5>{{ t`Привіт` }}</h5>
+</template>
+
+<script setup>
+import tf from '@nitra/tf/webpack'
+
+// Translate
+const tr = {
+  'Привіт': 'Привет'
+}
+
+const t = tf.bind({ tr })
+</script>
+
+СТАЛО
+
+<template>
+    <h5>{{ t`Привіт` }}</h5>
+</template>
+
+<script setup>
+import tf from '@nitra/tf/webpack'
+
+// Translate
+const tr = {
+  'Привіт': 'Hello'
+}
+
+const t = tf.bind({ tr })
+</script>
+
+або
+
+import { tf } from '@nitra/tfm'
+
+const tr = {
+  Так: { ru: 'Да' },
+  Ні: { ru: 'Нет' }
+}
+
+на
+
+import { tf } from '@nitra/tfm'
+
+const tr = {
+  Так: { ru: 'Yes' },
+  Ні: { ru: 'No' }
+}
+
+
+## 6. Після очистки
 
 - Переконайся, що `kustomization.yaml` у кожній директорії `k8s/` не посилається на видалені overlay або файли.
 - Пройдись `git grep` по репозиторію на залишки: `git grep -n -i -e '\bru\b' -e cr\.yandex -e country/ru -e prod-ru -e values-ru -e "'ya'"` — переглянь усі знахідки вручну, бо `ru` як слово може траплятися в легітимних контекстах (наприклад, `truncate`, `Aurum`, `cruft`). Видаляй лише ті входження, що належать ru-середовищу.
