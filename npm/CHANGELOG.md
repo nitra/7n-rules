@@ -4,6 +4,35 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.20] - 2026-05-14
+
+### Added
+
+- **`check-rego.mjs` orchestrator + 3 rego-полісі для `rego.mdc`:**
+  - JS gate у `npm/scripts/check-rego.mjs`: walk дерева від `cwd` (з типовими skip-ами і `.n-cursor.json:ignore`); якщо немає жодного `.rego` файла — `pass` (skip) ("rego-tooling не вимагається"). Інакше — FS-existence + content-валідація 3 файлів через `runConftestBatch`.
+  - `rego.vscode_extensions` — `recommendations` ∋ `tsandall.opa`.
+  - `rego.vscode_settings` — `[rego]` блок з `editor.defaultFormatter: "tsandall.opa"` + `editor.formatOnSave: true`; окремі deny на «не object», «неправильний defaultFormatter», «formatOnSave не true / відсутній».
+  - `rego.package_json` — `scripts.lint-rego` присутній і дорівнює `"bun ./npm/scripts/lint-rego.mjs"` (точне значення, з підтримкою whitespace через `trim_space`).
+  - +20 rego-тестів (5 + 7 + 8). Глобально у `lint-conftest` НЕ реєструються — це conditional правило, gating через JS.
+- **`check-tauri.mjs` orchestrator + 1 rego-полісі для `tauri.mdc`:**
+  - JS detector маркера Tauri-проєкту: `src-tauri/` каталог, `tauri.conf.json` у корені, або `@tauri-apps/*` у `dependencies`/`devDependencies` кореневого `package.json`. Якщо немає — `pass` (skip).
+  - `tauri.vscode_extensions` — `recommendations` ∋ обидва: `tauri-apps.tauri-vscode` і `rust-lang.rust-analyzer`. Один deny з шаблоном повідомлень + `recommendations_set` поза deny (performance hint).
+  - +6 rego-тестів (canonical, додаткові розширення, кожний відсутній маркер окремо, empty, no field).
+- **`conftest verify`** — **293/293 pass** (+26).
+
+### Changed
+
+- **CLI auto-discovery** підхоплює `check-rego.mjs` і `check-tauri.mjs` через `discoverCheckScripts()` у `bin/n-cursor.js`. Окрема реєстрація не потрібна — будь-який `check-*.mjs` стає доступним через `npx @nitra/cursor check <rule>`.
+
+### Verified
+
+- **На цьому репо `npx @nitra/cursor check rego` детектує реальні гепи у `.vscode/extensions.json` (немає `tsandall.opa`) і `.vscode/settings.json` (немає `[rego]` блока).** Це true-positive: репо має `rego` у `.n-cursor.json:rules` і містить `.rego` файли, тож канонічний tooling-набір вимагається. Фікс — додати entries у `.vscode/*` згідно `rego.mdc`.
+
+### Not migrated (explained)
+
+- **`changelog.mdc` format-валідація** — пропущено: `conftest` не парсить markdown без pre-processing. Структурна валідація формату `## [version] - YYYY-MM-DD` лишається в `check-changelog.mjs` (JS), яке через regex розбирає текст. Перенесення вимагало б pre-processing markdown → JSON у JS перед викликом conftest — додаткова складність без виграшу.
+- **`image-compress.mdc`** — вже має повне покриття rego через `image_compress.package_json` (8 deny, тести у [npm/policy/image_compress/package_json/](npm/policy/image_compress/package_json/)). `.gitignore` cross-file checks залишаються в `check-image-compress.mjs` як FS-логіка (rego не вміє).
+
 ## [1.9.19] - 2026-05-14
 
 ### Removed

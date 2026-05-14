@@ -76,7 +76,6 @@ const UA_KUSTOMIZATION_PATH_RE = /(^|\/)ua\/kustomization\.yaml$/u
 const OVERLAY_PACKAGE_DIR_RE = /^(.+)\/k8s\/ua\/kustomization\.yaml$/u
 const BASE_SEGMENT_RE = /(^|\/)base\//u
 const YAML_EXTENSION_RE = /\.ya?ml$/iu
-const K8S_PACKAGE_DIR_RE = /^(.+)\/k8s\//u
 const PATCH_NODE_SELECTOR_PATH_RE = /path:\s*\/spec\/template\/spec\/nodeSelector\b/u
 const PATCH_PREEM_FALSE_RE = /\bpreem:\s*['"]?false['"]?\b/u
 const TRAILING_SLASH_RE = /\/$/u
