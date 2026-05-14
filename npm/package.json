@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.9.22",
+  "version": "1.9.23",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -32,7 +32,10 @@
     "skills",
     ".claude-template",
     "AGENTS.template.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "!**/*.test.mjs",
+    "!**/test-helpers.mjs",
+    "!**/fixtures/**"
   ],
   "type": "module",
   "types": "./types/bin/n-cursor.d.ts",
@@ -47,5 +50,8 @@
   "engines": {
     "bun": ">=1.3",
     "node": ">=25"
+  },
+  "devDependencies": {
+    "@nitra/cursor": "^1.9.22"
   }
 }

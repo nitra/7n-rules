@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.23] - 2026-05-14
+
+### Fixed
+
+- `npm/package.json#files`: додано негативні glob-патерни `!**/*.test.mjs`, `!**/test-helpers.mjs`, `!**/fixtures/**`, щоб після переїзду тестів у `rules/<rule>/js/`, `scripts/`, `scripts/utils/` вони не потрапляли в опубліковану npm-таrball (вимагає правило `npm-module`).
+- `npm/package.json#devDependencies`: додано `@nitra/cursor: ^1.9.22` (auto-fill від `ensure-nitra-cursor-dev-dependencies.mjs`).
+
 ## [1.9.22] - 2026-05-14
 
 ### Changed
