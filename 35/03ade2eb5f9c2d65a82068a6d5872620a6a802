@@ -1,0 +1,27 @@
+npm/skills/abie-clean/SKILL.md
+  h_74546f1f1ded3e 134-136,138-192
+  s_f0a007ceed1ba8::t_949b3fa0ddf84a 137
+npm/package.json
+  h_74546f1f1ded3e 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3503ade2eb5f9c2d65a82068a6d5872620a6a802",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_f0a007ceed1ba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ec950c-74c5-483c-8668-94737ed94920",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
