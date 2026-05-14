@@ -606,7 +606,7 @@ patches:
       - op: replace
         path: /spec/template/spec/nodeSelector
         value:
-          ru: "true"
+          preem: "false"
 `,
       'utf8'
     )

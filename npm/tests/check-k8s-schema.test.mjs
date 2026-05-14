@@ -36,7 +36,6 @@ import {
   metadataNamespaceRequiredViolation,
   pathHasK8sSegment,
   replaceBatchV1beta1ApiVersionInYamlText,
-  ruKustomizationHasHealthCheckDeletePatch,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
   serviceForbiddenGcpAnnotationsViolation,
   collectGatewayApiRouteBackendRefsWithRedundantNamespace,
@@ -148,26 +147,6 @@ describe('healthCheckPolicyTargetRefHeadlessServiceViolation', () => {
         spec: { targetRef: { kind: 'Pod', name: 'x' } }
       })
     ).toBeNull()
-  })
-})
-
-describe('ruKustomizationHasHealthCheckDeletePatch', () => {
-  test('true для patch delete HealthCheckPolicy', () => {
-    const y = `
-patches:
-  - target:
-      kind: HealthCheckPolicy
-    patch: |-
-      kind: HealthCheckPolicy
-      metadata:
-        name: my-svc
-      $patch: delete
-`
-    expect(ruKustomizationHasHealthCheckDeletePatch(y)).toBe(true)
-  })
-
-  test('false без $patch: delete', () => {
-    expect(ruKustomizationHasHealthCheckDeletePatch('kind: HealthCheckPolicy')).toBe(false)
   })
 })
 
@@ -1285,7 +1264,6 @@ describe('k8sEnvSegmentFromRelPath / isDevLikeK8sEnvSegment', () => {
 
   test('прод: решта', () => {
     expect(isDevLikeK8sEnvSegment('ua')).toBe(false)
-    expect(isDevLikeK8sEnvSegment('ru')).toBe(false)
     expect(isDevLikeK8sEnvSegment('prod')).toBe(false)
     expect(isDevLikeK8sEnvSegment('')).toBe(false)
     expect(isDevLikeK8sEnvSegment(null)).toBe(false)

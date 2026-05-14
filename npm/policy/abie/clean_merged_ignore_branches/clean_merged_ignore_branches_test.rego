@@ -24,23 +24,23 @@ test_deny_ignore_branches_missing if {
 }
 
 test_deny_missing_required_token if {
-	count(clean_merged_ignore_branches.deny) > 0 with input as mk_workflow({"ignore_branches": "dev,ua"})
+	count(clean_merged_ignore_branches.deny) > 0 with input as mk_workflow({"ignore_branches": "dev"})
 }
 
 test_deny_completely_wrong_tokens if {
 	count(clean_merged_ignore_branches.deny) > 0 with input as mk_workflow({"ignore_branches": "main,develop"})
 }
 
-test_allow_all_three_tokens if {
-	count(clean_merged_ignore_branches.deny) == 0 with input as mk_workflow({"ignore_branches": "dev,ua,ru"})
+test_allow_required_tokens if {
+	count(clean_merged_ignore_branches.deny) == 0 with input as mk_workflow({"ignore_branches": "dev,ua"})
 }
 
 # Регістронезалежне порівняння і пропуск пробілів.
 test_allow_uppercase_with_spaces if {
-	count(clean_merged_ignore_branches.deny) == 0 with input as mk_workflow({"ignore_branches": " DEV , UA , RU "})
+	count(clean_merged_ignore_branches.deny) == 0 with input as mk_workflow({"ignore_branches": " DEV , UA "})
 }
 
-extra_branches_workflow := mk_workflow({"ignore_branches": "dev,ua,ru,main,release/*"})
+extra_branches_workflow := mk_workflow({"ignore_branches": "dev,ua,main,release/*"})
 
 # Додаткові гілки після обов'язкових — дозволено.
 test_allow_extra_branches if {

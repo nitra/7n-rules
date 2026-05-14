@@ -21,18 +21,6 @@ describe('parseInternalHasuraEndpoint', () => {
     })
   })
 
-  test('валідний внутрішній URL (Yandex Cloud, cluster.local)', () => {
-    // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
-    const r = parseInternalHasuraEndpoint('http://apruv-h-hl.ru-apruv.svc.cluster.local:8080')
-    expect(r).toEqual({
-      ok: true,
-      service: 'apruv-h-hl',
-      namespace: 'ru-apruv',
-      cluster: 'cluster.local',
-      port: '8080'
-    })
-  })
-
   test('абі-кластери для dev і ua (.internal)', () => {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
     const dev = parseInternalHasuraEndpoint('http://apruv-h-hl.dev-apruv.svc.abie-dev.internal:8080')
@@ -55,7 +43,7 @@ describe('parseInternalHasuraEndpoint', () => {
   })
 
   test('відхиляє https зовнішній URL', () => {
-    expect(parseInternalHasuraEndpoint('https://napitkivmeste.tech/contract/ql').ok).toBe(false)
+    expect(parseInternalHasuraEndpoint('https://vybeerai.com.ua/contract/ql').ok).toBe(false)
   })
 
   test('відхиляє http без сегментів кластера', () => {
@@ -108,7 +96,7 @@ describe('check-hasura', () => {
   test('помилка: HASURA_GRAPHQL_ENDPOINT з публічним https URL', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't', repository: 'https://github.com/abinbevefes/foo' })
-      await writeFile('dev.env', 'HASURA_GRAPHQL_ENDPOINT=https://napitkivmeste.tech/contract/ql\n', 'utf8')
+      await writeFile('dev.env', 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql\n', 'utf8')
       expect(await check()).toBe(1)
     })
   })
@@ -119,19 +107,6 @@ describe('check-hasura', () => {
       await writeFile(
         'production.env',
         'HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080\n',
-        'utf8'
-      )
-      expect(await check()).toBe(0)
-    })
-  })
-
-  test('успіх: cluster.local (Yandex Cloud) у ru.env', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 't', repository: 'https://github.com/abinbevefes/foo' })
-      await mkdir('hasura', { recursive: true })
-      await writeFile(
-        join('hasura', '.ru.env'),
-        'HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080\n',
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -205,7 +180,7 @@ describe('check-hasura', () => {
   test('файл .env без імені ігнорується навіть з поганим URL', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't', repository: 'https://github.com/nitra/foo' })
-      await writeFile('.env', 'HASURA_GRAPHQL_ENDPOINT=https://napitkivmeste.tech/contract/ql\n', 'utf8')
+      await writeFile('.env', 'HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql\n', 'utf8')
       expect(await check()).toBe(0)
     })
   })

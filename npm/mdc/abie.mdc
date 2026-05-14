@@ -1,10 +1,10 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.19'
+version: '1.20'
 ---
 
-Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** / **ru** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua** / **ru**), у overlay **ru** — кожен **Service** (у т. ч. **headless** / **`-hl`**) → **`spec.type: NodePort`** через **JSON6902** у **`kustomization.yaml`**, видалення **HealthCheckPolicy** у **ru**), гілки **dev**, **ua**, **ru** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
+Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
 
 **`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
 
@@ -34,15 +34,15 @@ spec:
     name: СЕРВІС-hl
 ```
 
-## k8s: overlay **HTTPRoute** (**ua** / **ru**)
+## k8s: overlay **HTTPRoute** (**ua**)
 
-За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`** / **`ru`**, також дозволені префікси **`ua-*`** / **`ru-*`**, наприклад **`ua-b2b`**, **`ru-b2b`**). Для **ru** — анотація **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`** лише якщо в **тому ж** **`ru/kustomization.yaml`** є згадка **`HASURA_GRAPHQL_JWT_SECRET`** (типово patch на **ConfigMap** Hasura). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
+За наявності **Deployment** під **k8s** і наявності **Vite** (**`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`** у каталозі пакета) у **`ua/kustomization.yaml`** цього пакета потрібні **inline JSON6902** у **`patches`**: **target** **`kind: HTTPRoute`**, **непорожній `name`** (як у маніфесті маршруту). Мають бути зміни **`/spec/hostnames`** (домени abie — у скрипті) та **`/spec/parentRefs/0/namespace`** (**`ua`**, також дозволені префікси **`ua-*`**, наприклад **`ua-b2b`**). Як обирати **`op`** (**add** / **replace** тощо) у patch — **k8s.mdc** (розділ про JSON patch у kustomization).
 
 ### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
 
 У **HTTPRoute** у шляху з **`…/k8s/base/…`** у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (перевірка в **`check-abie.mjs`**).
 
-Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** та **`ru/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
+Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
 
 ```yaml title="…/k8s/base/hr.yaml (фрагмент)"
 spec:
@@ -60,7 +60,7 @@ spec:
           port: 8080
 ```
 
-У **`ua/kustomization.yaml`** та **`ru/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** / **`ru`** (також дозволені **`ua-*`** / **`ru-*`**). Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
+У **`ua/kustomization.yaml`** додай до того самого **inline** patch на **`HTTPRoute`** (той самий **`target.name`**) операції **JSON6902** з **`path`**: **`/spec/rules/<i>/backendRefs/<j>/namespace`**, де **`<i>`** / **`<j>`** — індекси відповідно до порядку **`spec.rules`** та **`backendRefs`** у base-файлі; **`value`**: **`ua`** (також дозволені **`ua-*`**). Якщо кілька таких **`backendRefs`**, потрібна окрема операція для кожного.
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
   - target:
@@ -82,219 +82,9 @@ spec:
         value: ua
 ```
 
-```yaml title="…/ru/kustomization.yaml (фрагмент)"
-  - target:
-      kind: HTTPRoute
-      name: my-httproute
-    patch: |-
-      - op: replace
-        path: /spec/hostnames
-        value:
-          - "napitkivmeste.tech" # зокрема выбирайонлайн.рф, *.napitkivmeste.tech, *.выбирайонлайн.рф
-      - op: replace
-        path: /spec/parentRefs/0/namespace
-        value: ru
-      - op: replace
-        path: /spec/rules/0/backendRefs/0/namespace
-        value: ru
-      - op: replace
-        path: /spec/rules/0/backendRefs/1/namespace
-        value: ru
-```
+## k8s: overlay **ua** і nodeSelector
 
-Якщо в цьому ж файлі є **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura з JWT), додай окремий patch на **HTTPRoute** з анотацією для WebSocket:
-
-```yaml title="…/ru/kustomization.yaml (фрагмент, після patch на ConfigMap з HASURA_GRAPHQL_JWT_SECRET)"
-  - target:
-      kind: HTTPRoute
-      name: my-httproute
-    patch: |-
-      - op: add
-        path: /metadata/annotations
-        value:
-          gwin.yandex.cloud/rules.http.upgradeTypes: "websocket"
-```
-
-## k8s: overlay **ru** і nginx-sidecar для WebSocket (Hasura)
-
-YC ALB (gwin) має баг: якщо HTTPRoute-правило містить одночасно `URLRewrite` (ReplacePrefixMatch) і `upgrade_types: websocket` — ALB не обробляє WebSocket і повертає 404.
-<https://center.yandex.cloud/support/tickets/TX549394>
-
-Обхідний варіант: nginx-sidecar у поді, що сам виконує rewrite і передає WebSocket до Hasura.
-
-**Умова:** в дереві `k8s` є Deployment з image `hasura/graphql-engine` (або `newName` на нього через `images:` у kustomization) **і** `ru/kustomization.yaml` містить `HASURA_GRAPHQL_JWT_SECRET` (patch на ConfigMap Hasura з JWT).
-
-### Що потрібно зробити
-
-**1. `ru/configmap-nginx.yaml`** — ConfigMap з nginx.conf:
-
-```yaml title="…/k8s/ru/configmap-nginx.yaml"
-# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/configmap-v1.json
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: СЕРВІС-nginx
-  namespace: ru-NAMESPACE
-data:
-  nginx.conf: |
-    user nginx;
-    worker_processes auto;
-    error_log /dev/null;
-
-    events {
-        worker_connections 1024;
-    }
-
-    http {
-        access_log off;
-
-        map $http_upgrade $connection_upgrade {
-            default upgrade;
-            ''      close;
-        }
-
-        server {
-            listen 8081;
-            server_name _;
-
-            location /healthz {
-                add_header Content-Type text/plain;
-                return 200 "healthy";
-            }
-
-            # WebSocket: ALB не робить rewrite (URLRewrite + upgrade = bug YC ALB)
-            # nginx переписує /PREFIX/* → /* і передає до Hasura
-            location /PREFIX/ {
-                rewrite ^/PREFIX/(.*)$ /$1 break;
-                proxy_pass http://127.0.0.1:8080;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection $connection_upgrade;
-                proxy_set_header Host $host;
-            }
-
-            # HTTP: ALB вже зробив prefix_rewrite → /, nginx просто передає
-            location / {
-                proxy_pass http://127.0.0.1:8080;
-                proxy_http_version 1.1;
-                proxy_set_header Upgrade $http_upgrade;
-                proxy_set_header Connection $connection_upgrade;
-                proxy_set_header Host $host;
-            }
-        }
-    }
-```
-
-**2. `ru/kustomization.yaml`** — додати до `resources` та чотири patch-блоки:
-
-```yaml title="…/k8s/ru/kustomization.yaml (фрагмент)"
-resources:
-  - ../base
-  - configmap-nginx.yaml   # ← додати
-
-patches:
-  # Headless Service: замінити ports на два іменованих (hasura:8080 + proxy:8081)
-  - target:
-      kind: Service
-      name: СЕРВІС-hl
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: remove
-        path: /spec/clusterIP
-      - op: replace
-        path: /spec/ports
-        value:
-          - name: hasura
-            protocol: TCP
-            port: 8080
-          - name: proxy
-            protocol: TCP
-            port: 8081
-
-  # Deployment: додати nginx-sidecar контейнер та volume
-  - target:
-      kind: Deployment
-      name: СЕРВІС
-    patch: |-
-      - op: add
-        path: /spec/template/spec/containers/-
-        value:
-          name: СЕРВІС-p
-          image: nginx:alpine-slim
-          ports:
-            - containerPort: 8081
-              protocol: TCP
-          volumeMounts:
-            - name: nginx-conf
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
-          resources: {}
-      - op: add
-        path: /spec/template/spec/volumes
-        value:
-          - name: nginx-conf
-            configMap:
-              name: СЕРВІС-nginx
-
-  # HTTPRoute: прибрати URLRewrite-фільтри з PathPrefix-правила,
-  # направити трафік на nginx:8081, видалити мертве WebSocket-правило
-  - target:
-      kind: HTTPRoute
-      name: СЕРВІС
-    patch: |-
-      - op: remove
-        path: /spec/rules/INDEX_PATHPREFIX/filters
-      - op: replace
-        path: /spec/rules/INDEX_PATHPREFIX/backendRefs/0/port
-        value: 8081
-      - op: remove
-        path: /spec/rules/INDEX_WEBSOCKET
-```
-
-> `INDEX_PATHPREFIX` і `INDEX_WEBSOCKET` — індекси правил у `base/hr.yaml`. Після видалення filters ALB більше не додає `prefix_rewrite`, тому nginx-sidecar отримує оригінальний шлях і сам виконує rewrite.
-
-**Примітка щодо Service:** якщо в base у `-hl` Service два порти задаються вперше, `spec.ports[*].name` є обов'язковим — без нього `kubectl apply` поверне помилку `Required value`.
-
-## k8s: overlay **ru** і **Service** (у т. ч. headless → NodePort)
-
-Для кожного **Service** в YAML під **`…/k8s/…`**, де шлях файлу **не** містить **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару; у т. ч. **headless** з **`spec.clusterIP: None`** і **`-hl`**), якщо ще не **`spec.type: NodePort`** / **`LoadBalancer`** / **`ExternalName`**, у **`k8s/ru/kustomization.yaml`** того ж пакета (overlay **ru**) додай **inline** **JSON6902** у **`patches`**: **`target.kind: Service`**, **`target.name`** як у маніфеста, **`path: /spec/type`**, **`value: NodePort`**. Якщо в base було **`spec.clusterIP: None`**, у тому ж **patch** додай **`op: remove`** для **`/spec/clusterIP`**. Якщо в base **явно** задано **`spec.clusterIPs`** (зокрема **`['None']`**), додай **`op: remove`** і для **`/spec/clusterIPs`** — інакше **API** може відхилити **NodePort** (*`spec.clusterIPs[0]: Invalid value: "None"`*). **Не** додавай **`remove`** на **`/spec/clusterIPs`**, якщо ключа **немає** в base: **`kubectl kustomize`** тоді падає (*Unable to remove nonexistent key*). Якщо в base лише **`clusterIP: None`**, а помилка лишається після **`kubectl apply -k`** (злиття з уже існуючим **Service** у кластері), тимчасово **видали** **`Service`** у **`ru`** і застосуй знову, або додай у base поле **`clusterIPs`**, щоб **`remove`** у patch був валідний для **kustomize**. Деталі — **`check-abie.mjs`**.
-
-```yaml title="…/ru/kustomization.yaml (фрагмент, headless → NodePort, без clusterIPs у base)"
-patches:
-  - target:
-      kind: Service
-      name: user-site-hl
-    patch: |-
-      - op: replace
-        path: /spec/type
-        value: NodePort
-      - op: remove
-        path: /spec/clusterIP
-```
-
-Якщо в base у цього **Service** уже є **`spec.clusterIPs`**, той самий **patch** розшир **remove** на **`/spec/clusterIPs`** (див. **`check-abie.mjs`**).
-
-## k8s: overlay **ru** і HealthCheckPolicy
-
-Якщо в дереві **k8s** є **HealthCheckPolicy**, у **`ru/kustomization.yaml`** має бути patch **`$patch: delete`** для політики (узгоджено з **k8s.mdc**; перевірка в **`check-k8s.mjs`**, **`ruKustomizationHasHealthCheckDeletePatch`**). Підстав реальне ім’я замість **`СЕРВІС`**:
-
-```yaml title="…/ru/kustomization.yaml (фрагмент)"
-patches:
-  - target:
-      kind: HealthCheckPolicy
-      name: СЕРВІС
-    patch: |-
-      kind: HealthCheckPolicy
-      metadata:
-        name: СЕРВІС
-      $patch: delete
-```
-
-## k8s: overlay **ua** / **ru** і nodeSelector
-
-У **`…/ua/kustomization.yaml`** та **`…/ru/kustomization.yaml`** того пакета, у дереві **`k8s`** якого є **Deployment**, потрібен patch на **`kind: Deployment`**: **ua** — **`spec.template.spec.nodeSelector`** з **`preem: false`**; **ru** — **`spec.template.spec.nodeSelector`** з **`yandex.cloud/preemptible: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
+У **`…/ua/kustomization.yaml`** того пакета, у дереві **`k8s`** якого є **Deployment**, потрібен patch на **`kind: Deployment`**: **`spec.template.spec.nodeSelector`** з **`preem: false`**. Форму **JSON6902** (шлях **`/spec/template/spec/nodeSelector`**, **`op`**) див. **k8s.mdc**.
 
 ```yaml title="…/ua/kustomization.yaml (фрагмент)"
 patches:
@@ -308,21 +98,9 @@ patches:
           preem: 'false'
 ```
 
-```yaml title="…/ru/kustomization.yaml (фрагмент)"
-patches:
-  - target:
-      kind: Deployment
-      name: my-app
-    patch: |-
-      - op: replace
-        path: /spec/template/spec/nodeSelector
-        value:
-          yandex.cloud/preemptible: "false"
-```
-
 ### Базовий Deployment (`…/base/`)
 
-Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`**, у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**); overlay **ua** / **ru** підміняє селектор.
+Якщо **Deployment** у YAML під **`k8s`** лежить у шляху з сегментом **`base`**, у **`spec.template.spec.nodeSelector`** має бути **`preem`** зі значенням **істинно** (**`true`** або рядок **`'true'`**); overlay **ua** підміняє селектор.
 
 ```yaml title="…/base/deploy.yaml (фрагмент)"
 spec:
@@ -332,19 +110,18 @@ spec:
         preem: 'true' # буде замінено через kustomize
 ```
 
-## Внутрішньокластерні URL у env-файлах (dev / ua / ru)
+## Внутрішньокластерні URL у env-файлах (dev / ua)
 
 Правило стосується **будь-якого** внутрішньокластерного URL у env-файлах abie-проєкту, а не лише `HASURA_GRAPHQL_ENDPOINT`. Це може бути URL до Hasura, KVCMS, `auth-run-hl`, `file-link-hl` чи будь-якого іншого Service у кластері — у всіх випадках DNS-суфікс і namespace-префікс мають відповідати **середовищу** з імені env-файлу.
 
-abie-проєкти живуть у **трьох різних кластерах** (dev / ua у GKE, ru у Yandex Cloud), тож DNS-суфікс і namespace у URL відрізняються між `*.env`-файлами:
+abie-проєкти живуть у **двох GKE-кластерах** (dev / ua), тож DNS-суфікс і namespace у URL відрізняються між `*.env`-файлами:
 
 | env-файл (basename) | namespace-префікс у URL | DNS-суфікс кластера | примітка |
 | --- | --- | --- | --- |
 | `dev.env`, `.dev.env` | `dev-…` | `abie-dev.internal` | GKE-кластер dev |
 | `ua.env`, `.ua.env` | `ua-…` | `abie-ua.internal` | GKE-кластер ua |
-| `ru.env`, `.ru.env` | `ru-…` | `cluster.local` | YC-кластер ru, стандартний k8s DNS |
 
-Канонічна форма URL — `http://<service>.<namespace>.svc.<cluster-dns-suffix>:<port>`. Для GKE (dev / ua) суфікс — `<cluster>.internal`; для YC (ru) — фіксований `cluster.local` (у YC у DNS сервісу немає окремого імені кластера).
+Канонічна форма URL — `http://<service>.<namespace>.svc.<cluster-dns-suffix>:<port>`. Суфікс — `<cluster>.internal`.
 
 Приклади для одного env-файлу з двома сервісами (Hasura + KVCMS):
 
@@ -358,19 +135,14 @@ HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ua-apruv.svc.abie-ua.internal:8080
 KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 ```
 
-```env title="hasura/.ru.env"
-HASURA_GRAPHQL_ENDPOINT=http://apruv-h-hl.ru-apruv.svc.cluster.local:8080
-KVCMS_URL=http://kvcms-hl.ru-apruv.svc.cluster.local:8080
-```
+`<namespace>` (наприклад `dev-apruv` / `ua-apruv`) — `metadata.name` цільового namespace після kustomize-overlay для відповідного середовища; `<service>` — `metadata.name` headless Service (`-hl`) того сервісу, до якого йде URL.
 
-`<namespace>` (наприклад `dev-apruv` / `ua-apruv` / `ru-apruv`) — `metadata.name` цільового namespace після kustomize-overlay для відповідного середовища; `<service>` — `metadata.name` headless Service (`-hl`) того сервісу, до якого йде URL.
+**Перевірка `check-abie.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
 
-**Перевірка `check-abie.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` / `ru.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
+- DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal`;
+- namespace починався з `dev-` / `ua-` відповідно.
 
-- DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal` / `cluster.local`;
-- namespace починався з `dev-` / `ua-` / `ru-` відповідно.
-
-Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `check-hasura.mjs` приймає обидва кластерні DNS-формати (`<cluster>.internal` і `cluster.local`).
+Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `check-hasura.mjs` приймає кластерний DNS-формат `<cluster>.internal`.
 
 ## Firebase Hosting
 
@@ -378,11 +150,11 @@ KVCMS_URL=http://kvcms-hl.ru-apruv.svc.cluster.local:8080
 
 ## Git branches
 
-У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно):
+У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev** та **ua** (разом з іншими гілками, якщо потрібно):
 
 ```yaml title=".github/workflows/clean-merged-branch.yml (фрагмент)"
 with:
-  ignore_branches: main,dev,ua,ru
+  ignore_branches: main,dev,ua
 ```
 
 ## Перевірка
@@ -398,6 +170,6 @@ with:
 - **`http_route_base/`** → `abie.http_route_base` — у HTTPRoute під `…/k8s/.../base/...` усі `spec.hostnames` мають бути в домені `aiml.live` (включно з `*.aiml.live` та піддоменами). **Цільові файли:** `…/k8s/.../base/.../hr.yaml`.
 - **`health_check_policy/`** → `abie.health_check_policy` — структура HealthCheckPolicy: `apiVersion: networking.gke.io/v1`, `metadata.name`, `spec.default.config.type: HTTP`, `httpHealthCheck.requestPath` починається з `/`, `port: 8080`, `targetRef.kind: Service`, `targetRef.name` має суфікс `-hl`. **Цільові файли:** `…/k8s/.../hc.yaml`.
 - **`base_deployment_preem/`** → `abie.base_deployment_preem` — Deployment у base/ має `spec.template.spec.nodeSelector.preem` зі значенням `true` (boolean або рядок). **Цільові файли:** ресурсні YAML під `…/k8s/.../base/...`.
-- **`clean_merged_ignore_branches/`** → `abie.clean_merged_ignore_branches` — у workflow `.github/workflows/clean-merged-branch.yml` крок з `uses: phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches`, що містить токени `dev,ua,ru` (case-insensitive). **Цільові файли:** `.github/workflows/clean-merged-branch.yml`.
+- **`clean_merged_ignore_branches/`** → `abie.clean_merged_ignore_branches` — у workflow `.github/workflows/clean-merged-branch.yml` крок з `uses: phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches`, що містить токени `dev,ua` (case-insensitive). **Цільові файли:** `.github/workflows/clean-merged-branch.yml`.
 
-Cross-file логіка (парність HCP↔Deployment у каталозі, обчислений `<deployment.name>-hl` для `targetRef.name`, валідація ru/ua-overlay JSON6902 patches на Service/HTTPRoute, env→cluster DNS, аналіз cross-namespace backendRefs у пакетах) лишається у **`check-abie.mjs`** — Rego не читає файлову систему й не робить cross-document резолюцію.
+Cross-file логіка (парність HCP↔Deployment у каталозі, обчислений `<deployment.name>-hl` для `targetRef.name`, валідація ua-overlay JSON6902 patches на HTTPRoute, env→cluster DNS, аналіз cross-namespace backendRefs у пакетах) лишається у **`check-abie.mjs`** — Rego не читає файлову систему й не робить cross-document резолюцію.

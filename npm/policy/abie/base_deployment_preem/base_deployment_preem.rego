@@ -2,8 +2,8 @@
 # `npm/scripts/check-abie.mjs` (abie.mdc): кожен `Deployment` у файлах під
 # `…/k8s/.../base/…` має `spec.template.spec.nodeSelector.preem` зі
 # значенням, що вважається істинним (boolean `true` або рядок `"true"`
-# без урахування регістру). Overlays (ua/ru) далі підміняють селектор
-# JSON6902-патчами на `preem: false` / `yandex.cloud/preemptible: false`.
+# без урахування регістру). Overlay ua далі підміняє селектор
+# JSON6902-патчем на `preem: false`.
 #
 # Запуск (локально, лише для одного base-YAML з Deployment):
 #   conftest test path/to/k8s/base/deployment.yaml \

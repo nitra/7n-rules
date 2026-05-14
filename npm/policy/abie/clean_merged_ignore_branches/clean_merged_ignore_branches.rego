@@ -2,7 +2,7 @@
 # з `npm/scripts/check-abie.mjs` (abie.mdc): у workflow
 # `.github/workflows/clean-merged-branch.yml` крок з
 # `uses: phpdocker-io/github-actions-delete-abandoned-branches` має у
-# `with.ignore_branches` містити усі обовʼязкові токени `dev,ua,ru`
+# `with.ignore_branches` містити усі обовʼязкові токени `dev,ua`
 # (case-insensitive, кома-розділені).
 #
 # Запуск (локально):
@@ -23,7 +23,7 @@ package abie.clean_merged_ignore_branches
 import rego.v1
 
 # Обовʼязкові гілки в `ignore_branches` (узгоджено з `ABIE_REQUIRED_IGNORE_BRANCHES`).
-required_branches := {"dev", "ua", "ru"}
+required_branches := {"dev", "ua"}
 
 # Префікс `uses:` для GitHub Action, у якого читаємо `with.ignore_branches`.
 target_action_marker := "phpdocker-io/github-actions-delete-abandoned-branches"

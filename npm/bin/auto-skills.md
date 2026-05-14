@@ -8,6 +8,8 @@
 
 abie-kustomize - [abie]
 
+abie-clean - [abie]
+
 fix - завжди
 
 llm-patch - завжди

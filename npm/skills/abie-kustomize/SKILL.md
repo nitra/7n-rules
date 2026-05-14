@@ -27,7 +27,7 @@ README має бути в директорії **k8s**.
 
 Застарілі файли прибирай.
 
-Для overlays **ru** та **ua** `namespace` задавай у `kustomization.yaml` (без окремих patch лише на зміну namespace). Деталі — **n-k8s** / **abie** у `.cursor/rules/`, якщо ці правила увімкнені в проєкті.
+Для overlay **ua** `namespace` задавай у `kustomization.yaml` (без окремих patch лише на зміну namespace). Деталі — **n-k8s** / **abie** у `.cursor/rules/`, якщо ці правила увімкнені в проєкті.
 
 ## Виключення: CNPG `Cluster`
 

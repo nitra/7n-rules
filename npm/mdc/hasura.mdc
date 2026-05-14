@@ -12,7 +12,7 @@ alwaysApply: false
 Приклад **неправильного** значення:
 
 ```env
-HASURA_GRAPHQL_ENDPOINT=https://napitkivmeste.tech/contract/ql
+HASURA_GRAPHQL_ENDPOINT=https://vybeerai.com.ua/contract/ql
 ```
 
 Правильне значення:

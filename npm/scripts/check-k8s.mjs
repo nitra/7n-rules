@@ -97,7 +97,7 @@
  * `hpa.yaml` і `pdb.yaml` (як єдині або принаймні обов'язкові), `hpa.yaml` (валідний `autoscaling/v2`
  * HorizontalPodAutoscaler з `scaleTargetRef.name` = ім'я Deployment, dev-like `min=max=1`), `pdb.yaml` (валідний
  * `policy/v1` PodDisruptionBudget з `selector.matchLabels.app` = мітка `app` Deployment, dev-like `minAvailable=0`).
- * Overlays (`ua/`, `ru/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для
+ * Overlays (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для
  * прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). HPA поруч із Deployment
  * у не-base оверлеях — як раніше (див. k8s.mdc).
  * Env-залежні межі за сегментом після `/k8s/`: **dev-like** (`base`, `dev`, `*-qa`) — для HPA, що лишився після
@@ -324,10 +324,6 @@ const API_VERSION_FIELD_RE = /^\s*apiVersion:\s*(\S+)\s*$/
 const KIND_FIELD_RE = /^\s*kind:\s*(\S+)\s*$/
 const TYPE_FIELD_RE = /^\s*type:\s*(\S+)\s*$/
 const YAML_DOC_SEPARATOR_LINE_RE = /^---\s*$/
-const HEALTHCHECK_DELETE_RE = /\$patch:\s*delete/u
-const HEALTHCHECK_KIND_RE = /kind:\s*HealthCheckPolicy/u
-const METADATA_LINE_RE = /metadata:/u
-const NAME_NON_EMPTY_RE = /name:\s*\S+/u
 const K8S_BASE_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/base\/kustomization\.yaml$/u
 const K8S_BASE_SEGMENT_RE = /(^|\/)k8s\/base\//u
 const OXLINT_SCHEMA_MODELINE_RE = /^\s*#\s*yaml-language-server:\s*\$schema=\S+/u
@@ -2023,19 +2019,6 @@ export function k8sYamlFirstDocIsAlbYcHttpBackendGroup(yamlBody) {
   const first = firstYamlDocument(yamlBody)
   const { apiVersion, kind } = extractApiVersionAndKind(first)
   return apiVersion === 'alb.yc.io/v1alpha1' && kind === 'HttpBackendGroup'
-}
-
-/**
- * Чи вміст overlay **`ru/kustomization.yaml`** містить Kustomize patch видалення **HealthCheckPolicy**.
- * @param {string} raw повний текст файлу
- * @returns {boolean} true, якщо є `$patch: delete` і блоки kind/metadata для HealthCheckPolicy
- */
-export function ruKustomizationHasHealthCheckDeletePatch(raw) {
-  if (!HEALTHCHECK_DELETE_RE.test(raw)) return false
-  if (!HEALTHCHECK_KIND_RE.test(raw)) return false
-  if (!METADATA_LINE_RE.test(raw)) return false
-  if (!NAME_NON_EMPTY_RE.test(raw)) return false
-  return true
 }
 
 /**

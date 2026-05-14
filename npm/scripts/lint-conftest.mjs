@@ -363,7 +363,7 @@ const TARGETS = [
     }
   },
 
-  // abie clean-merged-branch.yml: with.ignore_branches має містити dev/ua/ru.
+  // abie clean-merged-branch.yml: with.ignore_branches має містити dev/ua.
   {
     namespace: 'abie.clean_merged_ignore_branches',
     policyDir: 'abie/clean_merged_ignore_branches',

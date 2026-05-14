@@ -310,7 +310,7 @@ data:
 
 ### Overlays (не-dev)
 
-- У каталозі кожного іншого середовища (наприклад **`ru/`**, **`prod/`**) має бути **мінімум файлів**: типово лише **`kustomization.yaml`** (посилання на `base`, `patches`, `replacements`, `components` тощо) і ресурси чи додаткові YAML, **необхідні лише для цього overlay**.
+- У каталозі кожного іншого середовища (наприклад **`ua/`**, **`prod/`**) має бути **мінімум файлів**: типово лише **`kustomization.yaml`** (посилання на `base`, `patches`, `replacements`, `components` тощо) і ресурси чи додаткові YAML, **необхідні лише для цього overlay**.
 - Відмінності від dev вносяться **оверрайдами** (patches, `images`, `replicas`, `configMapGenerator` тощо), а не копіюванням повного дерева з `base`.
 
 ### Namespace
@@ -387,7 +387,7 @@ images:
 
 Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
 
-**Overlays** (`ua/`, `ru/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно.
+**Overlays** (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно.
 
 **`<pkg>/k8s/components/kustomization.yaml`** має `kind: Component` (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі. Прод-перезаписи (`/spec/minReplicas`, `/spec/maxReplicas`, `/spec/minAvailable`) живуть у `<env>/kustomization.yaml`, що підключає Component через `components:`. У самому Component patches не потрібні — він env-неутральний; **`check k8s`** не вимагає прод-патчів від `components/kustomization.yaml`.
 

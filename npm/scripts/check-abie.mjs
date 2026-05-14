@@ -6,7 +6,7 @@
  *
  * **Гілки:** у **`.github/workflows/clean-merged-branch.yml`** у кроці з
  * **`phpdocker-io/github-actions-delete-abandoned-branches`** у **`with.ignore_branches`** мають бути
- * **dev**, **ua** та **ru** (разом з іншими гілками, якщо потрібно).
+ * **dev** та **ua** (разом з іншими гілками, якщо потрібно).
  *
  * **Firebase Hosting:** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; `node_modules` / `.git` пропускаються) не має бути
  * **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`**; у **самому** корені репозиторію ці імена не перевіряються.
@@ -15,35 +15,29 @@
  * має існувати **`hc.yaml`** із **`HealthCheckPolicy`** (**`networking.gke.io/v1`**), modeline **`$schema`**
  * як у abie.mdc, **`requestPath`** — непорожній шлях від кореня (рядок, що починається з **`/`**: **`/healthz`**, **`/IsAlive`**, **`/api/live`** тощо), порт **8080**, **`targetRef`** на **headless Service** (ім'я з суфіксом **`-hl`**):
  * якщо **`metadata.name`** уже закінчується на **`-hl`**, **`targetRef.name`** має збігатися з ним; інакше **`targetRef.name`** = **`${metadata.name}-hl`**.
- * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc** (наприклад **HttpBackendGroup** `alb.yc.io/v1alpha1` — **без** modeline).
- * Якщо в дереві **k8s** є **HealthCheckPolicy**, перевіряється **`ru/kustomization.yaml`** з patch **`$patch: delete`**
- * (логіка вмісту — **`ruKustomizationHasHealthCheckDeletePatch`** у **check-k8s.mjs**, узгоджено з **k8s.mdc**).
+ * Загальні вимоги до **`# yaml-language-server: $schema`** для інших YAML під **`k8s`** — у **check-k8s.mjs** / **k8s.mdc**.
  *
  * **nodeSelector (base):** якщо **Deployment** лежить у шляху з сегментом **`base`** (наприклад **`…/k8s/base/deploy.yaml`**),
- * у **`spec.template.spec.nodeSelector`** має бути **`preem`** з булевим значенням **true** або рядком **`'true'`** — overlay **ua** та **ru** далі підміняють селектор.
+ * у **`spec.template.spec.nodeSelector`** має бути **`preem`** з булевим значенням **true** або рядком **`'true'`** — overlay **ua** далі підміняє селектор.
  *
- * **nodeSelector (overlay):** якщо в дереві **k8s** пакета є **Deployment**, у **`ua`/`ru` kustomization** цього пакета — inline patch на **`kind: Deployment`**
- * з **`path: /spec/template/spec/nodeSelector`**: **ua** — **`preem: false`**; **ru** — **`yandex.cloud/preemptible: false`**.
+ * **nodeSelector (overlay ua):** якщо в дереві **k8s** пакета є **Deployment**, у **`ua/kustomization.yaml`** цього пакета — inline patch на **`kind: Deployment`**
+ * з **`path: /spec/template/spec/nodeSelector`** та **`preem: false`**.
  * Узагальнені вимоги **k8s.mdc** до JSON6902 (зокрема заборона **remove** + **add** на той самий **path**) перевіряє **check-k8s.mjs**; **check-abie** — лише abie-специфічний вміст (без дублювання цього правила).
  *
- * **HTTPRoute (overlay):** лише якщо в каталозі пакета (батько **`k8s`**) є **`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`**
- * — тоді в **`ua`/`ru` kustomization** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
- * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua** / **ru**); для **ru** — **`gwin.yandex.cloud/rules.http.upgradeTypes: websocket`**,
- * якщо в тому ж **`kustomization.yaml`** згадується **`HASURA_GRAPHQL_JWT_SECRET`** (Hasura + JWT).
+ * **HTTPRoute (overlay ua):** лише якщо в каталозі пакета (батько **`k8s`**) є **`vite.config.js`**, **`vite.config.mjs`** або **`vite.config.ts`**
+ * — тоді в **`ua/kustomization.yaml`** потрібен patch на **`kind: HTTPRoute`**, **непорожній `target.name`**: **`/spec/hostnames`**
+ * (домени abie.mdc), **`/spec/parentRefs/0/namespace`** (**ua**, також дозволені префікси **`ua-*`**).
  * **HTTPRoute (base / dev):** у маніфесті **HTTPRoute** у шляху з сегментом **`base`** (наприклад **`…/k8s/base/hr.yaml`**) у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (канонічно порівняння без урахування регістру).
- * **Спільні бекенди (`auth-run-hl`, `file-link-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** та **ru** (шлях не містить **`k8s/ua/`** чи **`k8s/ru/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
- * у patch overlay **ua** та **ru** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** або **ru** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
+ * **Спільні бекенди (`auth-run-hl`, `file-link-hl`):** у **HTTPRoute** під **`k8s`** поза overlay **ua** (шлях не містить **`k8s/ua/`**) кожен такий **`backendRefs`** має **`namespace: dev`** і порт **8080**;
+ * у patch overlay **ua** — по одному **JSON6902** на **`/spec/rules/…/backendRefs/…/namespace`** з **`value`**: **ua** (кількість patch-ів = кількість таких **`backendRefs`** у пакеті).
  * Вибір **`op`** — **k8s.mdc**.
  *
- * **Service (overlay ru):** для кожного **Service**, оголошеного в YAML під **`…/k8s/…`**, де шлях **не** проходить через **`k8s/ua/`** чи **`k8s/ru/`** (маніфести base / спільного шару, у т. ч. **headless** з **`clusterIP: None`** і **`-hl`**), якщо ще не **NodePort** / **LoadBalancer** / **ExternalName**,
- * у файлі **`k8s/ru/kustomization.yaml`** того ж пакета (overlay середовища **ru**) — inline **JSON6902** на **`kind: Service`** з тим самим **`target.name`**: **`path: /spec/type`**, **`value: NodePort`**; якщо в base було **`spec.clusterIP: None`** — **`op: remove`** для **`/spec/clusterIP`**; якщо в base **явно** задано **`spec.clusterIPs`** — також **`remove`** для **`/spec/clusterIPs`** (інакше **API** може залишити **`None`** для **NodePort**; без ключа **`clusterIPs`** у base **`remove`** на **`/spec/clusterIPs`** ламає **`kubectl kustomize`**).
- *
- * **env→cluster DNS:** abie живе у трьох різних кластерах (GKE dev/ua + YC ru), тож DNS-суфікс і namespace-префікс у будь-якому
+ * **env→cluster DNS:** abie живе у двох GKE-кластерах (dev / ua), тож DNS-суфікс і namespace-префікс у будь-якому
  * **внутрішньокластерному** URL виду `http://<svc>.<ns>.svc.<dns>` мають відповідати імені env-файла. Скануються всі `*.env` файли,
- * basename яких збігається з `dev.env` / `ua.env` / `ru.env` (опційно з провідною крапкою — `.dev.env` тощо). Для кожного знайденого
+ * basename яких збігається з `dev.env` / `ua.env` (опційно з провідною крапкою — `.dev.env` тощо). Для кожного знайденого
  * internal URL у файлі (не лише `HASURA_GRAPHQL_ENDPOINT`, а й KVCMS, auth-run, file-link тощо) валідатор `validateAbieEnvInternalUrls`
- * вимагає: для `dev.env` — DNS `abie-dev.internal` і namespace починається з `dev-`; для `ua.env` — `abie-ua.internal` + `ua-`;
- * для `ru.env` — `cluster.local` + `ru-`. Файл `.env` без імені (локальний для розробника) виключено зі сканування — як і у `check-hasura.mjs`.
+ * вимагає: для `dev.env` — DNS `abie-dev.internal` і namespace починається з `dev-`; для `ua.env` — `abie-ua.internal` + `ua-`.
+ * Файл `.env` без імені (локальний для розробника) виключено зі сканування — як і у `check-hasura.mjs`.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -51,7 +45,7 @@ import { basename, dirname, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
-import { pathHasK8sSegment, ruKustomizationHasHealthCheckDeletePatch } from './check-k8s.mjs'
+import { pathHasK8sSegment } from './check-k8s.mjs'
 import { createCheckReporter } from './utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
 import { runConftestBatch } from './utils/run-conftest-batch.mjs'
@@ -61,9 +55,6 @@ const CONFIG_FILE = '.n-cursor.json'
 
 /** Каталоги-діти в корені, які пропускаються при скануванні на артефакти Firebase Hosting (abie). */
 const ABIE_FIREBASE_HOSTING_SCAN_SKIP_TOP_DIR_NAMES = new Set(['.git', 'node_modules'])
-
-/** Маркер у kustomization.yaml: якщо зустрічається у файлі — для overlay ru у patch HTTPRoute потрібна анотація gwin…websocket. */
-const HASURA_JWT_SECRET_IN_KUSTOMIZATION = 'HASURA_GRAPHQL_JWT_SECRET'
 
 /**
  * Спільні **Service** (**`-hl`**) у **dev**: у base-**HTTPRoute** обов'язково **`namespace: dev`**, у overlay — patch **`…/backendRefs/…/namespace`** (abie.mdc).
@@ -81,83 +72,53 @@ export const ABIE_BASE_DEV_HTTPROUTE_HOST_ROOT = 'aiml.live'
 
 const MODELINE_RE = /^#\s*yaml-language-server:\s*\$schema=(\S+)\s*$/
 const LINE_SPLIT_RE = /\r?\n/u
-const RU_KUSTOMIZATION_PATH_RE = /(^|\/)ru\/kustomization\.yaml$/u
 const UA_KUSTOMIZATION_PATH_RE = /(^|\/)ua\/kustomization\.yaml$/u
-const OVERLAY_PACKAGE_DIR_RE = /^(.+)\/k8s\/(?:ua|ru)\/kustomization\.yaml$/u
+const OVERLAY_PACKAGE_DIR_RE = /^(.+)\/k8s\/ua\/kustomization\.yaml$/u
 const BASE_SEGMENT_RE = /(^|\/)base\//u
 const YAML_EXTENSION_RE = /\.ya?ml$/iu
 const K8S_PACKAGE_DIR_RE = /^(.+)\/k8s\//u
-const PATCH_PATH_TYPE_RE = /path:\s*\/spec\/type\b/u
-const PATCH_VALUE_NODE_PORT_RE = /value:\s*['"]?NodePort['"]?(?:\s|$)/iu
 const PATCH_NODE_SELECTOR_PATH_RE = /path:\s*\/spec\/template\/spec\/nodeSelector\b/u
 const PATCH_PREEM_FALSE_RE = /\bpreem:\s*['"]?false['"]?\b/u
-const PATCH_YANDEX_PREEMPTIBLE_FALSE_RE = /yandex\.cloud\/preemptible:\s*['"]?false['"]?/u
 const TRAILING_SLASH_RE = /\/$/u
 const PATCH_HOSTNAMES_PATH_RE = /path:\s*\/spec\/hostnames\b/mu
-// Overlay namespaces: allow ua/ru and ua-*/ru-* (e.g. ua-b2b, ru-b2b).
+// Overlay namespaces: allow `ua` and `ua-*` (e.g. ua-b2b).
 const PATCH_PARENT_REF_NS_UA_RE =
   /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/imu
-const PATCH_PARENT_REF_NS_RU_RE =
-  /path:\s*\/spec\/parentRefs\/0\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/imu
-const WEBSOCKET_ANNOTATION_RE = /gwin\.yandex\.cloud\/rules\.http\.upgradeTypes:\s*['"]?websocket['"]?/mu
-const REMOVE_CLUSTER_IP_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIP\b/mu
-const REMOVE_CLUSTER_IP_BEFORE_OP_RE = /path:\s*\/spec\/clusterIP\b[\s\S]{0,200}?op:\s*remove\b/mu
-const REMOVE_CLUSTER_IPS_AFTER_OP_RE = /op:\s*remove\b[\s\S]{0,200}?path:\s*\/spec\/clusterIPs\b/mu
-const REMOVE_CLUSTER_IPS_BEFORE_OP_RE = /path:\s*\/spec\/clusterIPs\b[\s\S]{0,200}?op:\s*remove\b/mu
-
-/** Підрядок образу Hasura у контейнері Deployment (abie.mdc nginx-sidecar). */
-const HASURA_IMAGE_MARKER = 'hasura/graphql-engine'
-/** Nginx-sidecar image (abie.mdc): nginx:*-alpine. */
-const NGINX_SIDECAR_IMAGE_RE = /image:\s*nginx:\S*-alpine/u
-/** containerPort: 8081 у patch Deployment (abie.mdc). */
-const NGINX_SIDECAR_CONTAINER_PORT_RE = /containerPort:\s*8081\b/u
-/** port: 8081 у patch Service -hl (proxy порт, abie.mdc). */
-const PATCH_PROXY_PORT_8081_RE = /\bport:\s*8081\b/u
-/** configmap-nginx.yaml у resources kustomization (abie.mdc). */
-const RESOURCES_CONFIGMAP_NGINX_RE = /configmap-nginx\.yaml/u
-/** path /spec/rules/{i}/backendRefs/{j}/port … value: 8081 у patch HTTPRoute (path→value, abie.mdc). */
-const HTTPROUTE_BACKENDREF_PORT_8081_RE =
-  /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/port\b[\s\S]{0,200}?value:\s*8081\b/mu
-/** Те саме, value→path. */
-const HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE =
-  /value:\s*8081\b[\s\S]{0,200}?path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/port\b/mu
 
 /**
- * Регекс basename env-файлу abie: `dev.env` / `ua.env` / `ru.env`, опційно з провідною крапкою (`.dev.env` тощо).
+ * Регекс basename env-файлу abie: `dev.env` / `ua.env`, опційно з провідною крапкою (`.dev.env` тощо).
  * Файл рівно `.env` (без імені) — виключення з правила: локальний файл розробника, `check-abie` його не сканує
  * (так само як `check-hasura`, див. `isEnvFile`).
  */
-const ABIE_ENV_FILE_BASENAME_RE = /^\.?(dev|ua|ru)\.env$/u
+const ABIE_ENV_FILE_BASENAME_RE = /^\.?(dev|ua)\.env$/u
 
 /**
  * Глобальний регекс кластерного internal URL у тексті env-файлу.
  * Використовується з `String.prototype.matchAll`, тому має флаг `g`.
- * Дозволяє два DNS-формати: `<cluster>.internal` (GKE) і `cluster.local` (YC / стандартний k8s).
+ * Допустимий DNS-формат — `<cluster>.internal` (GKE).
  * Порт необов'язковий — у KVCMS-конфігах інколи лежить URL без порту (8080 додається сервісом за замовчуванням).
  */
 const ABIE_INTERNAL_URL_GLOBAL_RE =
-  /\bhttp:\/\/([a-z0-9][a-z0-9-]*)\.([a-z0-9][a-z0-9-]*)\.svc\.((?:[a-z0-9][a-z0-9-]*\.internal)|cluster\.local)(?::\d+)?(?:\/[^\s"'`]*)?/giu
+  /\bhttp:\/\/([a-z0-9][a-z0-9-]*)\.([a-z0-9][a-z0-9-]*)\.svc\.([a-z0-9][a-z0-9-]*\.internal)(?::\d+)?(?:\/[^\s"'`]*)?/giu
 
 /**
  * Очікуваний кластерний DNS-суфікс і namespace-префікс для кожного env-файлу abie.
- * `dev` / `ua` живуть у GKE з власним `<cluster>.internal`; `ru` — у YC, де DNS-суфікс
- * стандартний `cluster.local` (без імені кластера).
+ * `dev` / `ua` живуть у двох GKE-кластерах з власним `<cluster>.internal`.
  */
 const ABIE_ENV_CLUSTER_DNS_MAP = Object.freeze({
   dev: Object.freeze({ clusterDns: 'abie-dev.internal', namespacePrefix: 'dev-' }),
-  ua: Object.freeze({ clusterDns: 'abie-ua.internal', namespacePrefix: 'ua-' }),
-  ru: Object.freeze({ clusterDns: 'cluster.local', namespacePrefix: 'ru-' })
+  ua: Object.freeze({ clusterDns: 'abie-ua.internal', namespacePrefix: 'ua-' })
 })
 
 /**
- * Дістає ім'я env (`dev` / `ua` / `ru`) з basename env-файлу abie.
+ * Дістає ім'я env (`dev` / `ua`) з basename env-файлу abie.
  * Для не-abie env-файлів (наприклад `production.env`, `.env` без імені) повертає `null`.
  * @param {string} basenameOfEnvFile basename файла (без шляху)
- * @returns {('dev' | 'ua' | 'ru') | null} ім'я env або `null`
+ * @returns {('dev' | 'ua') | null} ім'я env або `null`
  */
 export function abieEnvNameFromBasename(basenameOfEnvFile) {
   const m = basenameOfEnvFile.match(ABIE_ENV_FILE_BASENAME_RE)
-  return m ? /** @type {'dev' | 'ua' | 'ru'} */ (m[1]) : null
+  return m ? /** @type {'dev' | 'ua'} */ (m[1]) : null
 }
 
 /**
@@ -165,7 +126,7 @@ export function abieEnvNameFromBasename(basenameOfEnvFile) {
  * для кожного знайденого internal URL. URL шукається глобально (`matchAll`), тож одне й те саме
  * порушення в кількох змінних дасть стільки ж окремих помилок.
  * @param {string} content вміст env-файлу (UTF-8)
- * @param {'dev' | 'ua' | 'ru'} envName ім'я env, отримане з `abieEnvNameFromBasename`
+ * @param {'dev' | 'ua'} envName ім'я env, отримане з `abieEnvNameFromBasename`
  * @returns {string[]} порожній масив, якщо все OK; інакше — список повідомлень про порушення
  */
 export function validateAbieEnvInternalUrls(content, envName) {
@@ -190,16 +151,6 @@ export function validateAbieEnvInternalUrls(content, envName) {
 }
 
 /**
- * Чи відносний шлях вказує на **`ru/kustomization.yaml`** (сегмент **`ru`** перед ім'ям файлу) — специфіка abie overlay.
- * @param {string} rel шлях від кореня репозиторію
- * @returns {boolean} true, якщо це `…/ru/kustomization.yaml`
- */
-export function isRuKustomizationPath(rel) {
-  const norm = rel.replaceAll('\\', '/')
-  return RU_KUSTOMIZATION_PATH_RE.test(norm)
-}
-
-/**
  * Чи відносний шлях вказує на **`ua/kustomization.yaml`** (сегмент **`ua`** перед ім'ям файлу) — специфіка abie overlay.
  * @param {string} rel шлях від кореня репозиторію
  * @returns {boolean} true, якщо це `…/ua/kustomization.yaml`
@@ -210,10 +161,10 @@ export function isUaKustomizationPath(rel) {
 }
 
 /**
- * Каталог пакета: шлях перед сегментом **`/k8s/`** для overlay **`…/k8s/(ua|ru)/kustomization.yaml`**.
+ * Каталог пакета: шлях перед сегментом **`/k8s/`** для overlay **`…/k8s/ua/kustomization.yaml`**.
  * @param {string} root корінь репозиторію
- * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
- * @returns {string | null} абсолютний шлях до каталогу пакета або null, якщо шлях не overlay ua чи ru
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** kustomization.yaml
+ * @returns {string | null} абсолютний шлях до каталогу пакета або null, якщо шлях не overlay ua
  */
 export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
   const rel = relative(root, kustomizationAbs).replaceAll('\\', '/') || kustomizationAbs
@@ -224,7 +175,7 @@ export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
 /**
  * Чи для цього overlay застосовувати вимоги **HTTPRoute** (лише Vite-пакети).
  * @param {string} root корінь репозиторію
- * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** kustomization.yaml
  * @returns {boolean} **true**, якщо поруч із **k8s** є **vite.config** (**js** / **mjs** / **ts**)
  */
 export function abieOverlayRequiresHttpRouteByVite(root, kustomizationAbs) {
@@ -240,10 +191,10 @@ export function abieOverlayRequiresHttpRouteByVite(root, kustomizationAbs) {
 }
 
 /**
- * Чи в дереві **k8s** того ж пакета, що й overlay **ua** або **ru**, є **Deployment** (за каталогами з **collectDeploymentDirs**).
+ * Чи в дереві **k8s** того ж пакета, що й overlay **ua**, є **Deployment** (за каталогами з **collectDeploymentDirs**).
  * @param {Set<string>} deploymentDirs абсолютні каталоги YAML-файлів із **Deployment**
  * @param {string} root корінь репозиторію
- * @param {string} kustomizationAbs абсолютний шлях до **ua** або **ru** kustomization.yaml
+ * @param {string} kustomizationAbs абсолютний шлях до **ua** kustomization.yaml
  * @returns {boolean} **true**, якщо хоч один каталог із **deploymentDirs** лежить під **`…/k8s/`** цього пакета
  */
 export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizationAbs) {
@@ -307,7 +258,7 @@ export async function isAbieRuleEnabled(root) {
 }
 
 // Per-document валідація `clean-merged-branch.yml` (with.ignore_branches з
-// dev/ua/ru) делегована rego-пакету `abie.clean_merged_ignore_branches`
+// dev/ua) делегована rego-пакету `abie.clean_merged_ignore_branches`
 // (`npm/policy/abie/clean_merged_ignore_branches/`). JS викликає
 // `runConftestBatch` у `checkCleanMergedBranch`.
 
@@ -353,383 +304,6 @@ function isDeploymentDoc(obj) {
     !Array.isArray(obj) &&
     /** @type {Record<string, unknown>} */ (obj).kind === 'Deployment'
   )
-}
-
-/**
- * Чи документ — **Service**.
- * @param {unknown} obj корінь YAML-документа
- * @returns {boolean} true, якщо **kind** — **Service**
- */
-function isServiceDoc(obj) {
-  return (
-    obj !== null &&
-    typeof obj === 'object' &&
-    !Array.isArray(obj) &&
-    /** @type {Record<string, unknown>} */ (obj).kind === 'Service'
-  )
-}
-
-/**
- * Чи відносний шлях до YAML під **`…/k8s/…`** не в каталозі overlay **`k8s/ua/`** чи **`k8s/ru/`** у репозиторії (після **`k8s/`** одразу не йде **`ua/`** чи **`ru/`**).
- * @param {string} relFromRoot шлях від кореня
- * @returns {boolean} true для base / спільних маніфестів; **false** для файлів усередині **`k8s/ua/…`** або **`k8s/ru/…`**
- */
-function k8sYamlRelOutsideUaRuOverlays(relFromRoot) {
-  const norm = relFromRoot.replaceAll('\\', '/')
-  const idx = norm.indexOf('/k8s/')
-  if (idx === -1) {
-    return false
-  }
-  const after = norm.slice(idx + '/k8s/'.length)
-  return after.length > 0 && !after.startsWith('ua/') && !after.startsWith('ru/')
-}
-
-/**
- * Каталог пакета з відносного шляху **`…/k8s/…`** (частина до **`/k8s/`**).
- * @param {string} root корінь репозиторію
- * @param {string} relFromRoot відносний шлях
- * @returns {string | null} абсолютний шлях до каталогу пакета або **null**
- */
-function abiePackageDirFromK8sYamlRel(root, relFromRoot) {
-  const norm = relFromRoot.replaceAll('\\', '/')
-  const m = norm.match(K8S_PACKAGE_DIR_RE)
-  return m ? join(root, m[1]) : null
-}
-
-/**
- * Чи **Service** у base-шарі abie потребує в **ru** patch **`spec.type: NodePort`** (у т. ч. **headless**; не вже **NodePort** / **LoadBalancer** / **ExternalName**).
- * @param {unknown} obj корінь YAML (**Service**)
- * @returns {boolean} true, якщо для overlay **ru** очікується **NodePort**
- */
-export function serviceDocumentRequiresAbieRuNodePortOverlay(obj) {
-  if (!isServiceDoc(obj)) {
-    return false
-  }
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const meta = rec.metadata
-  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
-    return false
-  }
-  const name = /** @type {Record<string, unknown>} */ (meta).name
-  if (typeof name !== 'string' || name.trim() === '') {
-    return false
-  }
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return true
-  }
-  const sp = /** @type {Record<string, unknown>} */ (spec)
-  const t = sp.type
-  if (t === 'NodePort' || t === 'LoadBalancer' || t === 'ExternalName') {
-    return false
-  }
-  return true
-}
-
-/**
- * Чи в base-**Service** задано **headless** через **`spec.clusterIP: None`**, який треба прибрати в **ru** перед **NodePort**.
- * @param {unknown} obj корінь YAML (**Service**)
- * @returns {boolean} **true**, якщо **`spec.clusterIP === 'None'`**
- */
-export function serviceDocumentRequiresRuClusterIPNoneRemoval(obj) {
-  if (!isServiceDoc(obj)) {
-    return false
-  }
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return false
-  }
-  const sp = /** @type {Record<string, unknown>} */ (spec)
-  return sp.clusterIP === 'None'
-}
-
-/**
- * Чи в base-**Service** у **`spec`** явно задано поле **`clusterIPs`** (тоді **`remove`** на **`/spec/clusterIPs`** безпечний для **`kubectl kustomize`**).
- * @param {unknown} obj корінь YAML (**Service**)
- * @returns {boolean} **true**, якщо **`Object.hasOwn(spec, 'clusterIPs')`**
- */
-export function serviceDocumentBaseDeclaresClusterIPsField(obj) {
-  if (!isServiceDoc(obj)) {
-    return false
-  }
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) {
-    return false
-  }
-  const sp = /** @type {Record<string, unknown>} */ (spec)
-  return Object.hasOwn(sp, 'clusterIPs')
-}
-
-/**
- * Чи **JSON6902**-текст містить **`op: remove`** для заданого **`path`** (порядок ключів **op** / **path** неважливий).
- * @param {string} patchText поле **patch** у kustomization
- * @param {string} posixPath **`/spec/clusterIP`** або **`/spec/clusterIPs`**
- * @returns {boolean} true, якщо знайдено пару **remove** + **path**
- */
-export function jsonPatchRemovesPath(patchText, posixPath) {
-  if (typeof patchText !== 'string' || patchText.trim() === '') {
-    return false
-  }
-  if (posixPath !== '/spec/clusterIP' && posixPath !== '/spec/clusterIPs') {
-    return false
-  }
-  if (posixPath === '/spec/clusterIP') {
-    return REMOVE_CLUSTER_IP_AFTER_OP_RE.test(patchText) || REMOVE_CLUSTER_IP_BEFORE_OP_RE.test(patchText)
-  }
-  return REMOVE_CLUSTER_IPS_AFTER_OP_RE.test(patchText) || REMOVE_CLUSTER_IPS_BEFORE_OP_RE.test(patchText)
-}
-
-/**
- * Чи patch містить **`op: remove`** для **`/spec/clusterIP`**, щоб прибрати **headless** перед **NodePort**.
- * @param {string} patchText поле **patch** у kustomization
- * @returns {boolean} true, якщо є **remove** для **`/spec/clusterIP`**
- */
-export function jsonPatchTextClearsHeadlessServiceClusterIPNone(patchText) {
-  return jsonPatchRemovesPath(patchText, '/spec/clusterIP')
-}
-
-/**
- * Чи фрагмент **JSON6902** у **`patch`** задає **`/spec/type`** зі значенням **NodePort** (abie overlay **ru**).
- * @param {string} patchText поле **patch** у kustomization
- * @returns {boolean} true, якщо знайдено **path** і **value**
- */
-export function jsonPatchTextSetsServiceTypeNodePort(patchText) {
-  if (typeof patchText !== 'string' || patchText.trim() === '') {
-    return false
-  }
-  if (!PATCH_PATH_TYPE_RE.test(patchText)) {
-    return false
-  }
-  if (!PATCH_VALUE_NODE_PORT_RE.test(patchText)) {
-    return false
-  }
-  return true
-}
-
-/**
- * Витягує ім'я та текст patch для Service з елемента patches.
- * @param {unknown} p елемент масиву patches
- * @returns {{ name: string, patchStr: string } | null} ім'я та текст patch або null
- */
-function extractServicePatchEntry(p) {
-  if (p === null || typeof p !== 'object' || Array.isArray(p)) return null
-  const pr = /** @type {Record<string, unknown>} */ (p)
-  const target = pr.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return null
-  const tg = /** @type {Record<string, unknown>} */ (target)
-  if (tg.kind !== 'Service' || typeof tg.name !== 'string' || tg.name.trim() === '') return null
-  const patchStr = pr.patch
-  if (typeof patchStr !== 'string' || patchStr.trim() === '') return null
-  return { name: tg.name, patchStr }
-}
-
-/**
- * З одного документа **Kustomization** збирає пари **Service name → patch text** для **inline patches** з **target.kind: Service**.
- * @param {import('yaml').Document} doc документ після **parseAllDocuments**
- * @returns {Map<string, string>} ім'я сервісу → текст **patch**
- */
-function collectAbieServicePatchTextsByNameFromKustomizationDoc(doc) {
-  /** @type {Map<string, string>} */
-  const out = new Map()
-  if (doc.errors.length > 0) return out
-  const root = doc.toJSON()
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) return out
-  const rec = /** @type {Record<string, unknown>} */ (root)
-  if (rec.kind !== 'Kustomization' || !Array.isArray(rec.patches)) return out
-  for (const p of rec.patches) {
-    const entry = extractServicePatchEntry(p)
-    if (entry) {
-      const prev = out.get(entry.name)
-      out.set(entry.name, prev === undefined ? entry.patchStr : `${prev}\n${entry.patchStr}`)
-    }
-  }
-  return out
-}
-
-/**
- * Збирає тексти **patch** на **Service** з **kustomization.yaml** (усі документи).
- * @param {string} raw повний текст **kustomization.yaml**
- * @returns {Map<string, string>} **target.name** → об'єднаний текст **patch**
- */
-function collectAbieRuServicePatchTextByTargetNameFromRaw(raw) {
-  const body = stripBom(raw)
-  const lines = body.split(LINE_SPLIT_RE)
-  const first = lines[0] ?? ''
-  const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-  /** @type {Map<string, string>} */
-  const byName = new Map()
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(rest)
-  } catch {
-    return byName
-  }
-  for (const doc of docs) {
-    const chunk = collectAbieServicePatchTextsByNameFromKustomizationDoc(doc)
-    for (const [k, v] of chunk) {
-      const prev = byName.get(k)
-      byName.set(k, prev === undefined ? v : `${prev}\n${v}`)
-    }
-  }
-  return byName
-}
-
-/**
- * Збирає помилки patch для одного Service за ім'ям.
- * @param {string} name ім'я Service
- * @param {string | undefined} pt текст patch або undefined
- * @param {{ requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean } | undefined} flags прапорці
- * @param {string[]} errors масив для запису помилок
- */
-function collectServicePatchErrors(name, pt, flags, errors) {
-  if (pt === undefined || String(pt).trim() === '') {
-    errors.push(`${name}: немає inline patch для kind: Service`)
-    return
-  }
-  if (!jsonPatchTextSetsServiceTypeNodePort(pt)) {
-    errors.push(`${name}: потрібен JSON6902 path /spec/type та value NodePort`)
-  }
-  if (flags?.requiresClusterIPNoneClear === true && !jsonPatchTextClearsHeadlessServiceClusterIPNone(pt)) {
-    errors.push(
-      `${name}: для spec.clusterIP: None додай у той самий patch op: remove для path /spec/clusterIP (abie.mdc)`
-    )
-  }
-  if (flags?.requiresClusterIPsRemove === true && !jsonPatchRemovesPath(pt, '/spec/clusterIPs')) {
-    errors.push(
-      `${name}: у base задано spec.clusterIPs — додай op: remove для path /spec/clusterIPs (інакше NodePort з None у clusterIPs; abie.mdc)`
-    )
-  }
-}
-
-/**
- * Повідомлення про порушення patch **Service** у **ru/kustomization.yaml** (abie.mdc).
- * @param {string} raw повний текст **kustomization.yaml**
- * @param {Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove?: boolean }>} targetsByName ім'я **Service** → прапорці patch
- * @returns {string[]} порожньо, якщо все OK
- */
-export function getAbieRuServiceNodePortPatchErrors(raw, targetsByName) {
-  if (targetsByName.size === 0) return []
-  const byName = collectAbieRuServicePatchTextByTargetNameFromRaw(raw)
-  /** @type {string[]} */
-  const errors = []
-  for (const name of [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))) {
-    collectServicePatchErrors(name, byName.get(name), targetsByName.get(name), errors)
-  }
-  return errors
-}
-
-/**
- * Для кожного пакета збирає **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
- * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
- * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} **pkgAbs** → (**ім'я** → прапорці)
- */
-/**
- * Обробляє один Service-документ для збору NodePort-патч цілей.
- * @param {unknown} obj YAML-документ (toJSON)
- * @param {string} pkgAbs абсолютний шлях до пакета
- * @param {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} map результуючий Map
- */
-function processServiceDocForNodePortTargets(obj, pkgAbs, map) {
-  if (!serviceDocumentRequiresAbieRuNodePortOverlay(obj)) return
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const meta = /** @type {Record<string, unknown>} */ (rec.metadata)
-  const n = meta.name
-  if (typeof n !== 'string' || n.trim() === '') return
-  let inner = map.get(pkgAbs)
-  if (!inner) {
-    inner = new Map()
-    map.set(pkgAbs, inner)
-  }
-  const needClear = serviceDocumentRequiresRuClusterIPNoneRemoval(obj)
-  const needClusterIPsRemove = serviceDocumentBaseDeclaresClusterIPsField(obj)
-  const prev = inner.get(n)
-  inner.set(n, {
-    requiresClusterIPNoneClear: prev?.requiresClusterIPNoneClear === true || needClear,
-    requiresClusterIPsRemove: prev?.requiresClusterIPsRemove === true || needClusterIPsRemove
-  })
-}
-
-/**
- * Обробляє YAML-документи з одного файлу для збору NodePort-патч цілей.
- * @param {import('yaml').Document[]} docs документи з файлу
- * @param {string} pkgAbs абсолютний шлях пакета
- * @param {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} map результуючий Map
- */
-function collectNodePortTargetsFromDocs(docs, pkgAbs, map) {
-  for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      processServiceDocForNodePortTargets(doc.toJSON(), pkgAbs, map)
-    }
-  }
-}
-
-/**
- * Для кожного пакета збирає **Service**, які в overlay **ru** мають стати **NodePort** (abie.mdc).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlAbs абсолютні шляхи yaml під **k8s**
- * @param {(msg: string) => void} fail реєстрація помилки читання/парсингу
- * @returns {Promise<Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>>} пакет → назва сервісу → прапори NodePort
- */
-async function collectAbieRuNodePortServiceTargetsByPackage(root, yamlAbs, fail) {
-  /** @type {Map<string, Map<string, { requiresClusterIPNoneClear: boolean, requiresClusterIPsRemove: boolean }>>} */
-  const map = new Map()
-  for (const abs of yamlAbs) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const pkgAbs = k8sYamlRelOutsideUaRuOverlays(rel) ? abiePackageDirFromK8sYamlRel(root, rel) : null
-    if (pkgAbs) {
-      const docs = await readAndParseYamlDocs(abs, rel, fail)
-      if (docs) collectNodePortTargetsFromDocs(docs, pkgAbs, map)
-    }
-  }
-  return map
-}
-
-/**
- * У **`k8s/ru/kustomization.yaml`** для кожного **Service** з YAML **`k8s`**, шлях якого без сегментів **`k8s/ua/`** та **`k8s/ru/`** (у т. ч. **headless** / **`-hl`**) — **JSON6902** **`/spec/type` → NodePort**; при **`clusterIP: None`** — **`op: remove`** на **`/spec/clusterIP`**; якщо в base є **`spec.clusterIPs`** — ще **`remove`** на **`/spec/clusterIPs`** (abie.mdc).
- * @param {string} root корінь
- * @param {string[]} yamlFilesAbs yaml під **k8s**
- * @param {(msg: string) => void} fail callback
- * @param {(msg: string) => void} passFn успішне повідомлення
- * @returns {Promise<void>}
- */
-async function ensureRuAbieServiceNodePortPatches(root, yamlFilesAbs, fail, passFn) {
-  const byPkg = await collectAbieRuNodePortServiceTargetsByPackage(root, yamlFilesAbs, fail)
-  const entries = [...byPkg.entries()].filter(([, m]) => m.size > 0)
-  if (entries.length === 0) {
-    passFn('Немає Service у шарі k8s без k8s/ua/ та k8s/ru/ — patch NodePort у k8s/ru/ не вимагається (abie.mdc)')
-    return
-  }
-  for (const [pkgAbs, targetsByName] of entries.toSorted((a, b) => a[0].localeCompare(b[0]))) {
-    const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
-    const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
-    const nameList = [...targetsByName.keys()].toSorted((a, b) => a.localeCompare(b))
-    if (!existsSync(ruAbs)) {
-      fail(
-        `${relPkg}/k8s: є Service, для overlay ru потрібен patch Service (NodePort; для headless — ще remove /spec/clusterIP): ${nameList.join(', ')} — додай ru/kustomization.yaml (abie.mdc)`
-      )
-      return
-    }
-    const relRu = relative(root, ruAbs).replaceAll('\\', '/') || ruAbs
-    let raw
-    try {
-      raw = await readFile(ruAbs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${relRu}: не вдалося прочитати (${msg})`)
-      return
-    }
-    const patchErrors = getAbieRuServiceNodePortPatchErrors(raw, targetsByName)
-    if (patchErrors.length > 0) {
-      fail(`${relRu}: ${patchErrors.join('; ')}`)
-      return
-    }
-    passFn(`${relRu}: patch Service → NodePort (ru) відповідає abie.mdc`)
-  }
 }
 
 /**
@@ -793,7 +367,7 @@ function ensureAbieBaseDeploymentPreemNodeSelector(root, yamlFilesAbs, fail, pas
  * @returns {string} той самий рядок без BOM (U+FEFF) на початку
  */
 function stripBom(s) {
-  return s.startsWith('\uFEFF') ? s.slice(1) : s
+  return s.startsWith('﻿') ? s.slice(1) : s
 }
 
 /**
@@ -856,28 +430,9 @@ function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
 }
 
 /**
- * Чи рядок inline JSON6902 patch містить очікуваний **ru** nodeSelector (**yandex.cloud/preemptible: false** на **`/spec/template/spec/nodeSelector`**).
- * Конкретний **`op`** не перевіряється — див. **k8s.mdc**.
- * @param {string} patchText поле **patch** у kustomization
- * @returns {boolean} true, якщо критерії abie.mdc виконано
- */
-function jsonPatchTextHasRuDeploymentNodeSelector(patchText) {
-  if (typeof patchText !== 'string' || patchText.trim() === '') {
-    return false
-  }
-  if (!PATCH_NODE_SELECTOR_PATH_RE.test(patchText)) {
-    return false
-  }
-  if (!PATCH_YANDEX_PREEMPTIBLE_FALSE_RE.test(patchText)) {
-    return false
-  }
-  return true
-}
-
-/**
  * Чи один елемент **patches** у kustomization відповідає abie nodeSelector для заданого **mode**.
  * @param {unknown} p елемент масиву **patches**
- * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @param {'ua'} mode який overlay перевіряти
  * @returns {boolean} true, якщо patch відповідає abie для **mode**
  */
 function inlineKustomizationPatchMatchesAbieMode(p, mode) {
@@ -900,16 +455,13 @@ function inlineKustomizationPatchMatchesAbieMode(p, mode) {
   if (mode === 'ua' && jsonPatchTextHasUaDeploymentNodeSelector(patchStr)) {
     return true
   }
-  if (mode === 'ru' && jsonPatchTextHasRuDeploymentNodeSelector(patchStr)) {
-    return true
-  }
   return false
 }
 
 /**
  * Чи один YAML-документ kustomization містить відповідний inline patch на Deployment.
  * @param {import('yaml').Document} doc документ після **parseAllDocuments**
- * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @param {'ua'} mode який overlay перевіряти
  * @returns {boolean} true, якщо знайдено відповідний patch
  */
 function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
@@ -937,9 +489,9 @@ function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
 }
 
 /**
- * Чи **kustomization.yaml** містить inline **patches** на **Deployment** з nodeSelector за abie.mdc (**ua** або **ru**).
+ * Чи **kustomization.yaml** містить inline **patches** на **Deployment** з nodeSelector за abie.mdc (overlay **ua**).
  * @param {string} raw повний текст файлу
- * @param {'ua' | 'ru'} mode який overlay перевіряти
+ * @param {'ua'} mode який overlay перевіряти
  * @returns {boolean} true, якщо знайдено відповідний patch
  */
 export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
@@ -963,12 +515,12 @@ export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
 }
 
 /**
- * Чи YAML відносно кореня належить до **`${pkgRel}/k8s/**`** поза піддеревами **`ua/`** та **`ru/`** (base-шар abie).
+ * Чи YAML відносно кореня належить до **`${pkgRel}/k8s/**`** поза піддеревом **`ua/`** (base-шар abie).
  * @param {string} relFromRoot відносний шлях від кореня
  * @param {string} pkgRelFromRoot каталог пакета відносно кореня (без завершального слеша після імені пакета)
  * @returns {boolean} `true`, якщо шлях належить до base-шару abie
  */
-export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelFromRoot) {
+export function isK8sYamlInAbiePackageExcludingUaOverlay(relFromRoot, pkgRelFromRoot) {
   const normRel = relFromRoot.replaceAll('\\', '/')
   const pkg = pkgRelFromRoot.replaceAll('\\', '/').replace(TRAILING_SLASH_RE, '')
   const prefix = `${pkg}/k8s/`
@@ -976,7 +528,7 @@ export function isK8sYamlInAbiePackageExcludingUaRuOverlays(relFromRoot, pkgRelF
     return false
   }
   const after = normRel.slice(prefix.length)
-  return !after.startsWith('ua/') && !after.startsWith('ru/')
+  return !after.startsWith('ua/')
 }
 
 /**
@@ -1028,7 +580,7 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
 }
 
 /**
- * З YAML під **k8s** пакета (без overlay **ua** та **ru**) збирає кількість **`backendRefs`** до **`auth-run-hl`** і **`file-link-hl`** і порушення **`namespace: dev`**.
+ * З YAML під **k8s** пакета (без overlay **ua**) збирає кількість **`backendRefs`** до **`auth-run-hl`** і **`file-link-hl`** і порушення **`namespace: dev`**.
  * @param {string} root корінь репозиторію
  * @param {string} pkgAbs абсолютний шлях до каталогу пакета
  * @param {string[]} yamlFilesAbs усі **yaml** під **k8s** (як **findK8sYamlFiles**)
@@ -1041,7 +593,7 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
   const baseErrors = []
   for (const abs of yamlFilesAbs) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    if (isK8sYamlInAbiePackageExcludingUaRuOverlays(rel, pkgRel)) {
+    if (isK8sYamlInAbiePackageExcludingUaOverlay(rel, pkgRel)) {
       const docs = await readAndParseYamlDocs(abs, rel, silentFail)
       if (docs) {
         for (const doc of docs) {
@@ -1061,27 +613,18 @@ export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yam
 /**
  * Рахує операції JSON6902 з **`path`**: **`/spec/rules/…/backendRefs/…/namespace`** та **`value`** overlay.
  * @param {string} combined сукупний текст patch **HTTPRoute**
- * @param {'ua' | 'ru'} mode overlay
+ * @param {'ua'} mode overlay
  * @returns {number} кількість знайдених патчів namespace
  */
 function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) {
+  if (mode !== 'ua') return 0
   const re =
-    mode === 'ua'
-      ? /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
-      : /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ru(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
+    /path:\s*\/spec\/rules\/\d+\/backendRefs\/\d+\/namespace\b[\s\S]{0,200}?value:\s*['"]?ua(?:-[a-z0-9][a-z0-9-]*)?['"]?(?:\s|$)/gimu
   return [...combined.matchAll(re)].length
 }
 
 /** Домени **hostnames** для overlay **ua** (підрядки у JSON6902-тексті patch), abie.mdc. */
 const ABIE_UA_HTTPROUTE_HOST_MARKERS = ['abie.app', 'vybeerai.com.ua', '*.abie.app', '*.vybeerai.com.ua']
-
-/** Домени **hostnames** для overlay **ru** (підрядки), abie.mdc. */
-const ABIE_RU_HTTPROUTE_HOST_MARKERS = [
-  'napitkivmeste.tech',
-  'выбирайонлайн.рф',
-  '*.napitkivmeste.tech',
-  '*.выбирайонлайн.рф'
-]
 
 /**
  * Витягує текст patch HTTPRoute з елемента patches.
@@ -1147,38 +690,29 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
 /**
  * Перевіряє сукупний текст patch(ів) **HTTPRoute** (будь-яке **target.name**) на відповідність abie.mdc.
  * @param {string} combined текст одного або кількох inline **patch**, розділених символом нового рядка
- * @param {'ua' | 'ru'} mode **ua** або **ru**
- * @param {string} [fullKustomizationRaw] повний текст **kustomization.yaml** — для **ru** визначає, чи потрібна анотація **gwin…websocket** (лише якщо є **`HASURA_GRAPHQL_JWT_SECRET`**)
+ * @param {'ua'} mode overlay (наразі лише **ua**)
+ * @param {string} [_fullKustomizationRaw] збережено для зворотної сумісності API (не використовується)
  * @param {number} [sharedCrossNsBackendRefCount] скільки **`backendRefs`** до **`auth-run-hl`** і **`file-link-hl`** у base **HTTPRoute** пакета — стільки ж patch-ів **`…/backendRefs/…/namespace`** з **`value`** overlay
  * @returns {string | null} повідомлення про помилку або **null**
  */
 export function validateAbieNginxRunHttpRoutePatches(
   combined,
   mode,
-  fullKustomizationRaw,
+  _fullKustomizationRaw,
   sharedCrossNsBackendRefCount = 0
 ) {
   if (typeof combined !== 'string' || combined.trim() === '') {
-    return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}; для ru — gwin… websocket лише за наявності HASURA_GRAPHQL_JWT_SECRET у файлі) — abie.mdc`
+    return `очікується patch target kind HTTPRoute з непорожнім target.name (hostnames, parentRefs namespace ${mode}) — abie.mdc`
   }
   if (!PATCH_HOSTNAMES_PATH_RE.test(combined)) {
     return 'HTTPRoute: потрібен path /spec/hostnames у patch (abie.mdc)'
   }
-  const markers = mode === 'ua' ? ABIE_UA_HTTPROUTE_HOST_MARKERS : ABIE_RU_HTTPROUTE_HOST_MARKERS
+  const markers = ABIE_UA_HTTPROUTE_HOST_MARKERS
   if (!markers.some(m => combined.includes(m))) {
     return `HTTPRoute: у value для /spec/hostnames має бути один із доменів abie (${markers.join(', ')}) — abie.mdc`
   }
-  const namespaceOk =
-    mode === 'ua' ? PATCH_PARENT_REF_NS_UA_RE.test(combined) : PATCH_PARENT_REF_NS_RU_RE.test(combined)
-  if (!namespaceOk) {
+  if (!PATCH_PARENT_REF_NS_UA_RE.test(combined)) {
     return `HTTPRoute: потрібен path /spec/parentRefs/0/namespace з value ${mode} (abie.mdc)`
-  }
-  const ruNeedsWebsocket =
-    mode === 'ru' &&
-    typeof fullKustomizationRaw === 'string' &&
-    fullKustomizationRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)
-  if (ruNeedsWebsocket && !WEBSOCKET_ANNOTATION_RE.test(combined)) {
-    return 'HTTPRoute (ru): за наявності HASURA_GRAPHQL_JWT_SECRET у kustomization потрібна анотація gwin.yandex.cloud/rules.http.upgradeTypes: websocket (abie.mdc)'
   }
   const sharedCount =
     typeof sharedCrossNsBackendRefCount === 'number' && Number.isFinite(sharedCrossNsBackendRefCount)
@@ -1194,9 +728,9 @@ export function validateAbieNginxRunHttpRoutePatches(
 }
 
 /**
- * Чи **kustomization** містить валідні для abie **patch** для **HTTPRoute** з непорожнім **target.name** (**ua** або **ru**).
+ * Чи **kustomization** містить валідні для abie **patch** для **HTTPRoute** з непорожнім **target.name** (**ua**).
  * @param {string} raw повний текст **kustomization.yaml**
- * @param {'ua' | 'ru'} mode overlay
+ * @param {'ua'} mode overlay
  * @returns {boolean} true, якщо **`validateAbieNginxRunHttpRoutePatches`** повертає **null**
  */
 export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
@@ -1232,84 +766,10 @@ export function validateAbieHcModeline(raw, relPath) {
 }
 
 /**
- * Збирає відносний шлях із документів, що містять HealthCheckPolicy.
- * @param {import('yaml').Document[]} docs документи з файлу
- * @param {string} rel відносний шлях файлу
- * @param {string[]} out масив для запису шляхів
- */
-function collectHealthCheckPolicyRelFromDocs(docs, rel, out) {
-  for (const doc of docs) {
-    if (doc.errors.length === 0) {
-      const obj = doc.toJSON()
-      if (obj !== null && typeof obj === 'object' && !Array.isArray(obj)) {
-        const rec = /** @type {Record<string, unknown>} */ (obj)
-        if (rec.kind === 'HealthCheckPolicy' && !out.includes(rel)) {
-          out.push(rel)
-        }
-      }
-    }
-  }
-}
-
-/**
- * Збирає відносні шляхи файлів із **HealthCheckPolicy** у дереві k8s.
- * @param {string} root корінь
- * @param {string[]} yamlAbs абсолютні шляхи
- * @returns {Promise<string[]>} унікальні відносні шляхи yaml із **HealthCheckPolicy**
- */
-async function collectHealthCheckPolicyRelPaths(root, yamlAbs) {
-  /** @type {string[]} */
-  const out = []
-  for (const abs of yamlAbs) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const docs = await readAndParseYamlDocs(abs, rel, silentFail)
-    if (docs) collectHealthCheckPolicyRelFromDocs(docs, rel, out)
-  }
-  return out
-}
-
-/**
- * Якщо є **HealthCheckPolicy**, вимагає **ru/kustomization.yaml** з patch видалення (**ruKustomizationHasHealthCheckDeletePatch** у **check-k8s**).
- * @param {string} root корінь
- * @param {string[]} yamlFilesAbs абсолютні шляхи yaml k8s
- * @param {string[]} healthCheckPolicyRelativePaths відносні шляхи
- * @param {(msg: string) => void} fail callback
- * @returns {Promise<void>}
- */
-async function ensureRuKustomizationHealthCheckDelete(root, yamlFilesAbs, healthCheckPolicyRelativePaths, fail) {
-  if (healthCheckPolicyRelativePaths.length === 0) {
-    return
-  }
-  const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
-  if (ruAbsList.length === 0) {
-    fail(
-      `Знайдено HealthCheckPolicy у ${healthCheckPolicyRelativePaths.join(', ')} — додай ru/kustomization.yaml з patch видалення (abie.mdc)`
-    )
-    return
-  }
-  for (const abs of ruAbsList) {
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${relative(root, abs) || abs}: не вдалося прочитати (${msg})`)
-      return
-    }
-    if (ruKustomizationHasHealthCheckDeletePatch(raw)) {
-      return
-    }
-  }
-  fail(
-    'Є HealthCheckPolicy, але жоден ru/kustomization.yaml не містить очікуваного patch видалення (kind: HealthCheckPolicy, metadata.name, $patch: delete) — abie.mdc'
-  )
-}
-
-/**
  * Перевіряє одну kustomization.yaml на nodeSelector patch для заданого overlay.
  * @param {string} abs абсолютний шлях до файлу
  * @param {string} rel відносний шлях (для повідомлень)
- * @param {'ua' | 'ru'} mode параметр mode
+ * @param {'ua'} mode параметр mode
  * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail callback при помилці
@@ -1330,8 +790,7 @@ async function checkNodeSelectorKustomization(abs, rel, mode, deploymentDirs, ro
     return false
   }
   if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode)) {
-    const detail = mode === 'ua' ? 'preem: false' : 'yandex.cloud/preemptible: false'
-    fail(`${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та ${detail} (abie.mdc)`)
+    fail(`${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`)
     return false
   }
   passFn(`${rel}: nodeSelector patch (${mode}) відповідає abie.mdc`)
@@ -1339,14 +798,14 @@ async function checkNodeSelectorKustomization(abs, rel, mode, deploymentDirs, ro
 }
 
 /**
- * Перевіряє наявність патчів nodeSelector для ua/ru overlay у k8s.
+ * Перевіряє наявність патчів nodeSelector для ua overlay у k8s.
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи yaml-файлів під k8s
  * @param {Set<string>} deploymentDirs директорії з Deployment (Set)
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  */
-async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentDirs, fail, passFn) {
+async function ensureUaAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentDirs, fail, passFn) {
   const uaAbsList = yamlFilesAbs.filter(abs => isUaKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
   if (uaAbsList.length === 0) {
     fail(
@@ -1359,26 +818,13 @@ async function ensureUaRuAbieNodeSelectorPatches(root, yamlFilesAbs, deploymentD
     const ok = await checkNodeSelectorKustomization(abs, rel, 'ua', deploymentDirs, root, fail, passFn)
     if (!ok) return
   }
-
-  const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
-  if (ruAbsList.length === 0) {
-    fail(
-      'Є Deployment у k8s — додай ru/kustomization.yaml з patch на Deployment: path /spec/template/spec/nodeSelector, yandex.cloud/preemptible false (abie.mdc)'
-    )
-    return
-  }
-  for (const abs of ruAbsList) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const ok = await checkNodeSelectorKustomization(abs, rel, 'ru', deploymentDirs, root, fail, passFn)
-    if (!ok) return
-  }
 }
 
 /**
- * Перевіряє HTTPRoute patch для одного overlay (ua/ru).
+ * Перевіряє HTTPRoute patch для одного overlay (ua).
  * @param {string} abs абсолютний шлях до kustomization.yaml
  * @param {string} rel відносний шлях (для повідомлень)
- * @param {'ua' | 'ru'} mode overlay
+ * @param {'ua'} mode overlay
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи yaml-файлів під k8s
  * @param {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} cache кеш аналізу shared backend refs
@@ -1457,14 +903,14 @@ function ensureAbieBaseHttpRouteHostnames(root, yamlFilesAbs, fail, passFn) {
 }
 
 /**
- * Якщо є **Deployment** під **k8s**, вимагає в overlay **ua** та **ru** patch **HTTPRoute** (непорожній **target.name**) за abie.mdc
+ * Якщо є **Deployment** під **k8s**, вимагає в overlay **ua** patch **HTTPRoute** (непорожній **target.name**) за abie.mdc
  * лише для пакетів з **vite.config.{js,mjs,ts}** у каталозі пакета (батько **k8s**).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  */
-async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) {
+async function ensureUaAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) {
   /** @type {Map<string, Promise<{ refCount: number, baseErrors: string[] }>>} */
   const cache = new Map()
 
@@ -1477,18 +923,6 @@ async function ensureUaRuAbieHttpRoutePatches(root, yamlFilesAbs, fail, passFn) 
   for (const abs of uaAbsList) {
     const rel = relative(root, abs).replaceAll('\\', '/') || abs
     const ok = await checkHttpRouteKustomization(abs, rel, 'ua', root, yamlFilesAbs, cache, fail, passFn)
-    if (!ok) return
-  }
-
-  const ruAbsList = yamlFilesAbs.filter(abs => isRuKustomizationPath(relative(root, abs).replaceAll('\\', '/') || abs))
-  if (ruAbsList.length === 0) {
-    passFn(
-      'Немає ru/kustomization.yaml у дереві k8s — patch HTTPRoute (ru) не вимагається (abie.mdc, лише Vite-пакети)'
-    )
-  }
-  for (const abs of ruAbsList) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const ok = await checkHttpRouteKustomization(abs, rel, 'ru', root, yamlFilesAbs, cache, fail, passFn)
     if (!ok) return
   }
 }
@@ -1553,17 +987,10 @@ function checkCleanMergedBranch(root, pass, fail) {
   })
   for (const v of violations) fail(v.message)
   if (violations.length === 0) {
-    pass('clean-merged-branch.yml: ignore_branches містить dev, ua, ru (rego)')
+    pass('clean-merged-branch.yml: ignore_branches містить dev, ua (rego)')
   }
 }
 
-/**
- * Перевіряє один файл hc.yaml на відповідність abie.mdc.
- * @param {string} root корінь репозиторію
- * @param {string} dir директорія з Deployment
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- */
 /**
  * Перевіряє hc.yaml у директоріях з Deployment. JS перевіряє modeline, далі
  * один батч conftest для усіх знайдених hc.yaml — структурна валідація HCP
@@ -1614,286 +1041,8 @@ async function checkHcYamlFiles(root, deploymentDirs, pass, fail) {
 }
 
 /**
- * Чи Deployment-документ містить контейнер із образом **`hasura/graphql-engine`** (abie.mdc nginx-sidecar).
- * @param {unknown} obj корінь YAML-документа
- * @returns {boolean} true якщо документ є Deployment із hasura/graphql-engine
- */
-function deploymentDocHasHasuraImage(obj) {
-  if (!isDeploymentDoc(obj)) return false
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  const spec = rec.spec
-  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
-  const template = /** @type {Record<string, unknown>} */ (spec).template
-  if (template === null || typeof template !== 'object' || Array.isArray(template)) return false
-  const podSpec = /** @type {Record<string, unknown>} */ (template).spec
-  if (podSpec === null || typeof podSpec !== 'object' || Array.isArray(podSpec)) return false
-  const containers = /** @type {Record<string, unknown>} */ (podSpec).containers
-  if (!Array.isArray(containers)) return false
-  for (const c of containers) {
-    if (c !== null && typeof c === 'object' && !Array.isArray(c)) {
-      const img = /** @type {Record<string, unknown>} */ (c).image
-      if (typeof img === 'string' && img.includes(HASURA_IMAGE_MARKER)) return true
-    }
-  }
-  return false
-}
-
-/**
- * Чи Kustomization-документ містить у **`images[*].newName`** рядок **`hasura/graphql-engine`** (abie.mdc nginx-sidecar).
- * @param {unknown} obj корінь YAML-документа
- * @returns {boolean} true якщо є images[*].newName із hasura/graphql-engine
- */
-function kustomizationDocHasHasuraImageNewName(obj) {
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return false
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (!Array.isArray(rec.images)) return false
-  for (const img of rec.images) {
-    if (img !== null && typeof img === 'object' && !Array.isArray(img)) {
-      const newName = /** @type {Record<string, unknown>} */ (img).newName
-      if (typeof newName === 'string' && newName.includes(HASURA_IMAGE_MARKER)) return true
-    }
-  }
-  return false
-}
-
-/**
- * Чи patch-запис у Kustomization має **target.kind === 'Deployment'**.
- * @param {unknown} patchEntry елемент масиву **patches**
- * @returns {boolean} true, якщо patch цілить на Deployment
- */
-function isPatchTargetingDeployment(patchEntry) {
-  if (patchEntry === null || typeof patchEntry !== 'object' || Array.isArray(patchEntry)) return false
-  const pr = /** @type {Record<string, unknown>} */ (patchEntry)
-  const target = pr.target
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) return false
-  return /** @type {Record<string, unknown>} */ (target).kind === 'Deployment'
-}
-
-/**
- * Витягує текст **patch** із запису Kustomization, якщо він непорожній рядок.
- * @param {unknown} patchEntry елемент масиву **patches**
- * @returns {string | null} текст patch або null
- */
-function extractPatchString(patchEntry) {
-  const pr = /** @type {Record<string, unknown>} */ (patchEntry)
-  const patchStr = pr.patch
-  if (typeof patchStr === 'string' && patchStr.trim() !== '') return patchStr
-  return null
-}
-
-/**
- * Збирає тексти inline **patch** для **Deployment** з одного YAML-документа Kustomization.
- * @param {import('yaml').Document} doc YAML-документ
- * @param {string[]} out масив для збору результатів
- */
-function collectDeploymentPatchTextsFromDoc(doc, out) {
-  if (doc.errors.length > 0) return
-  const root = doc.toJSON()
-  if (root === null || typeof root !== 'object' || Array.isArray(root)) return
-  const rec = /** @type {Record<string, unknown>} */ (root)
-  if (!Array.isArray(rec.patches)) return
-  for (const p of rec.patches) {
-    if (isPatchTargetingDeployment(p)) {
-      const text = extractPatchString(p)
-      if (text !== null) out.push(text)
-    }
-  }
-}
-
-/**
- * Збирає тексти inline **patch** для **Deployment** з **kustomization.yaml** (усі документи).
- * @param {string} raw повний текст файлу
- * @returns {string[]} рядки patch
- */
-function collectDeploymentPatchTextsFromKustomization(raw) {
-  const body = stripBom(raw)
-  const lines = body.split(LINE_SPLIT_RE)
-  const first = lines[0] ?? ''
-  const rest = MODELINE_RE.test(first.trim()) ? lines.slice(1).join('\n') : body
-  /** @type {import('yaml').Document[]} */
-  let docs
-  try {
-    docs = parseAllDocuments(rest)
-  } catch {
-    return []
-  }
-  /** @type {string[]} */
-  const out = []
-  for (const doc of docs) {
-    collectDeploymentPatchTextsFromDoc(doc, out)
-  }
-  return out
-}
-
-/**
- * Чи YAML-документ містить образ Hasura (Deployment або Kustomization images).
- * @param {import('yaml').Document} doc YAML-документ
- * @returns {boolean} true, якщо документ посилається на hasura/graphql-engine
- */
-function yamlDocReferencesHasuraImage(doc) {
-  if (doc.errors.length > 0) return false
-  const obj = doc.toJSON()
-  return deploymentDocHasHasuraImage(obj) || kustomizationDocHasHasuraImageNewName(obj)
-}
-
-/**
- * Каталоги пакетів, де в дереві **k8s** є **Deployment** з образом **`hasura/graphql-engine`** або
- * **Kustomization** з **`images[*].newName`** на нього (abie.mdc nginx-sidecar).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlAbs абсолютні шляхи yaml під k8s
- * @returns {Promise<Set<string>>} абсолютні шляхи каталогів пакетів
- */
-async function collectHasuraK8sPackageDirs(root, yamlAbs) {
-  /** @type {Set<string>} */
-  const dirs = new Set()
-  for (const abs of yamlAbs) {
-    const rel = relative(root, abs).replaceAll('\\', '/') || abs
-    const docs = await readAndParseYamlDocs(abs, rel, silentFail)
-    if (docs && docs.some(doc => yamlDocReferencesHasuraImage(doc))) {
-      const pkgDir = abiePackageDirFromK8sYamlRel(root, rel)
-      if (pkgDir) dirs.add(pkgDir)
-    }
-  }
-  return dirs
-}
-
-/**
- * Якщо в дереві **k8s** є Deployment з **`hasura/graphql-engine`** і **`ru/kustomization.yaml`** містить
- * **`HASURA_GRAPHQL_JWT_SECRET`** — вимагає **nginx-sidecar** (abie.mdc):
- * **`ru/configmap-nginx.yaml`**, **`resources`** у kustomization, patch **Service -hl** (port 8081),
- * patch **Deployment** (nginx-sidecar image + containerPort 8081), patch **HTTPRoute** (port 8081).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @returns {Promise<void>}
- */
-/**
- * Перевіряє nginx-sidecar вимоги у **ru/kustomization.yaml** для одного Hasura-пакета.
- * @param {string} relPkg відносний шлях пакета
- * @param {string} relRu відносний шлях до ru/kustomization.yaml
- * @param {string} pkgAbs абсолютний шлях до пакета
- * @param {string} ruRaw вміст ru/kustomization.yaml
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- */
-function validateNginxSidecarInRuKustomization(relPkg, relRu, pkgAbs, ruRaw, fail, passFn) {
-  // configmap-nginx.yaml must exist
-  const configmapNginxAbs = join(pkgAbs, 'k8s', 'ru', 'configmap-nginx.yaml')
-  if (!existsSync(configmapNginxAbs)) {
-    fail(`${relPkg}/k8s/ru: потрібен configmap-nginx.yaml з nginx.conf (nginx-sidecar для Hasura WebSocket, abie.mdc)`)
-    return
-  }
-  passFn(`${relPkg}/k8s/ru/configmap-nginx.yaml: існує`)
-  // kustomization resources must include configmap-nginx.yaml
-  if (!RESOURCES_CONFIGMAP_NGINX_RE.test(ruRaw)) {
-    fail(`${relRu}: у resources потрібен configmap-nginx.yaml (nginx-sidecar, abie.mdc)`)
-    return
-  }
-  passFn(`${relRu}: resources містить configmap-nginx.yaml`)
-  validateNginxSidecarPatches(relRu, ruRaw, fail, passFn)
-}
-
-/**
- * Перевіряє наявність nginx-sidecar patch (Service -hl, Deployment, HTTPRoute) у **ru/kustomization.yaml**.
- * @param {string} relRu відносний шлях до ru/kustomization.yaml
- * @param {string} ruRaw вміст ru/kustomization.yaml
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- */
-function validateNginxSidecarPatches(relRu, ruRaw, fail, passFn) {
-  // Service -hl patch must include port: 8081 (proxy)
-  const svcPatchByName = collectAbieRuServicePatchTextByTargetNameFromRaw(ruRaw)
-  const hasHlWith8081 = [...svcPatchByName.entries()].some(
-    ([name, pt]) => name.endsWith('-hl') && PATCH_PROXY_PORT_8081_RE.test(pt)
-  )
-  if (!hasHlWith8081) {
-    fail(`${relRu}: у patch Service -hl потрібен port: 8081 (proxy) для nginx-sidecar (abie.mdc)`)
-    return
-  }
-  passFn(`${relRu}: Service -hl patch містить port 8081 (nginx-sidecar)`)
-  // Deployment patch must include nginx-sidecar (image nginx:*-alpine + containerPort: 8081)
-  const deployPatches = collectDeploymentPatchTextsFromKustomization(ruRaw)
-  const hasNginxSidecar = deployPatches.some(
-    pt => NGINX_SIDECAR_IMAGE_RE.test(pt) && NGINX_SIDECAR_CONTAINER_PORT_RE.test(pt)
-  )
-  if (!hasNginxSidecar) {
-    fail(`${relRu}: у patch Deployment потрібен nginx-sidecar (image nginx:…-alpine, containerPort: 8081) — abie.mdc`)
-    return
-  }
-  passFn(`${relRu}: Deployment patch містить nginx-sidecar (image + containerPort 8081)`)
-  // HTTPRoute patch must replace a backendRef port to 8081
-  const combined = getCombinedNginxRunPatchTextFromKustomization(ruRaw)
-  if (
-    !HTTPROUTE_BACKENDREF_PORT_8081_RE.test(combined) &&
-    !HTTPROUTE_BACKENDREF_PORT_8081_VALUE_FIRST_RE.test(combined)
-  ) {
-    fail(
-      `${relRu}: у patch HTTPRoute потрібен JSON6902 з path /spec/rules/…/backendRefs/…/port та value: 8081 (nginx-sidecar, abie.mdc)`
-    )
-    return
-  }
-  passFn(`${relRu}: HTTPRoute patch замінює порт на 8081 (nginx-sidecar)`)
-}
-
-/**
- * Обробляє один Hasura-пакет: читає **ru/kustomization.yaml** та перевіряє nginx-sidecar вимоги.
- * @param {string} root корінь репозиторію
- * @param {string} pkgAbs абсолютний шлях до пакета
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @returns {Promise<void>}
- */
-async function checkNginxSidecarForHasuraPackage(root, pkgAbs, fail, passFn) {
-  const relPkg = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs
-  const ruAbs = join(pkgAbs, 'k8s', 'ru', 'kustomization.yaml')
-  if (!existsSync(ruAbs)) {
-    passFn(`${relPkg}/k8s: є Hasura Deployment, але немає ru/kustomization.yaml — nginx-sidecar не перевіряється`)
-    return
-  }
-  let ruRaw
-  try {
-    ruRaw = await readFile(ruAbs, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${relPkg}/k8s/ru/kustomization.yaml: не вдалося прочитати (${msg})`)
-    return
-  }
-  if (!ruRaw.includes(HASURA_JWT_SECRET_IN_KUSTOMIZATION)) {
-    passFn(
-      `${relPkg}/k8s/ru/kustomization.yaml: немає ${HASURA_JWT_SECRET_IN_KUSTOMIZATION} — nginx-sidecar не вимагається (abie.mdc)`
-    )
-    return
-  }
-  const relRu = relative(root, ruAbs).replaceAll('\\', '/') || ruAbs
-  validateNginxSidecarInRuKustomization(relPkg, relRu, pkgAbs, ruRaw, fail, passFn)
-}
-
-/**
- * Якщо в дереві **k8s** є Deployment з **`hasura/graphql-engine`** і **`ru/kustomization.yaml`** містить
- * **`HASURA_GRAPHQL_JWT_SECRET`** — вимагає **nginx-sidecar** (abie.mdc):
- * **`ru/configmap-nginx.yaml`**, **`resources`** у kustomization, patch **Service -hl** (port 8081),
- * patch **Deployment** (nginx-sidecar image + containerPort 8081), patch **HTTPRoute** (port 8081).
- * @param {string} root корінь репозиторію
- * @param {string[]} yamlFilesAbs yaml під k8s
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @returns {Promise<void>}
- */
-async function ensureAbieNginxSidecarForHasura(root, yamlFilesAbs, fail, passFn) {
-  const hasuraPkgDirs = await collectHasuraK8sPackageDirs(root, yamlFilesAbs)
-  if (hasuraPkgDirs.size === 0) {
-    passFn('Немає Deployment із hasura/graphql-engine у дереві k8s — nginx-sidecar не вимагається (abie.mdc)')
-    return
-  }
-  for (const pkgAbs of [...hasuraPkgDirs].toSorted((a, b) => a.localeCompare(b))) {
-    await checkNginxSidecarForHasuraPackage(root, pkgAbs, fail, passFn)
-  }
-}
-
-/**
  * Збирає всі `*.env` файли в дереві (за виключенням `node_modules`, `.git` та інших службових каталогів),
- * basename яких — abie env-файл (`dev.env` / `ua.env` / `ru.env` опційно з провідною крапкою). Файл `.env`
+ * basename яких — abie env-файл (`dev.env` / `ua.env` опційно з провідною крапкою). Файл `.env`
  * без імені виключається — як і у `check-hasura.mjs`.
  * @param {string} root корінь репозиторію
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
@@ -1915,11 +1064,11 @@ async function collectAbieEnvFiles(root, ignorePaths) {
 }
 
 /**
- * Сканує всі `*.env` файли abie (`.dev.env` / `.ua.env` / `.ru.env`) і для кожного знайденого
+ * Сканує всі `*.env` файли abie (`.dev.env` / `.ua.env`) і для кожного знайденого
  * **внутрішньокластерного** URL (`http://<svc>.<ns>.svc.<dns>`) перевіряє, що DNS-суфікс і namespace-префікс
  * відповідають середовищу env-файла. Не лише `HASURA_GRAPHQL_ENDPOINT`, а й будь-який сервіс у env (KVCMS,
  * `auth-run-hl`, `file-link-hl` тощо) мусить мати кластер, що відповідає env: dev → `abie-dev.internal`,
- * ua → `abie-ua.internal`, ru → `cluster.local`.
+ * ua → `abie-ua.internal`.
  * @param {string} root корінь репозиторію
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} pass успішне повідомлення
@@ -1929,7 +1078,7 @@ async function collectAbieEnvFiles(root, ignorePaths) {
 async function ensureAbieEnvFilesMatchClusterDns(root, ignorePaths, pass, fail) {
   const envFiles = await collectAbieEnvFiles(root, ignorePaths)
   if (envFiles.length === 0) {
-    pass('Не знайдено dev.env / ua.env / ru.env у репозиторії — перевірку env→cluster DNS пропущено (abie.mdc)')
+    pass('Не знайдено dev.env / ua.env у репозиторії — перевірку env→cluster DNS пропущено (abie.mdc)')
     return
   }
   for (const abs of envFiles) {
@@ -1987,26 +1136,17 @@ export async function check() {
     pass('Немає Deployment у дереві k8s — перевірку hc.yaml пропущено')
   }
 
-  const healthCheckPolicyRelativePaths = await collectHealthCheckPolicyRelPaths(root, yamlFiles)
-  await ensureRuKustomizationHealthCheckDelete(root, yamlFiles, healthCheckPolicyRelativePaths, fail)
-
-  pass('Перевіряємо Service → NodePort у ru/kustomization (abie.mdc)')
-  await ensureRuAbieServiceNodePortPatches(root, yamlFiles, fail, pass)
-
   pass('Перевіряємо HTTPRoute spec.hostnames у …/k8s/base/… (aiml.live, abie.mdc)')
   await ensureAbieBaseHttpRouteHostnames(root, yamlFiles, fail, pass)
 
   if (deploymentDirs.size > 0) {
-    pass('Є Deployment — перевіряємо nodeSelector у ua/ru kustomization (abie.mdc)')
-    await ensureUaRuAbieNodeSelectorPatches(root, yamlFiles, deploymentDirs, fail, pass)
-    pass('Є Deployment — перевіряємо HTTPRoute у ua/ru kustomization (abie.mdc)')
-    await ensureUaRuAbieHttpRoutePatches(root, yamlFiles, fail, pass)
+    pass('Є Deployment — перевіряємо nodeSelector у ua/kustomization (abie.mdc)')
+    await ensureUaAbieNodeSelectorPatches(root, yamlFiles, deploymentDirs, fail, pass)
+    pass('Є Deployment — перевіряємо HTTPRoute у ua/kustomization (abie.mdc)')
+    await ensureUaAbieHttpRoutePatches(root, yamlFiles, fail, pass)
   }
 
-  pass('Перевіряємо nginx-sidecar для Hasura WebSocket у ru (abie.mdc)')
-  await ensureAbieNginxSidecarForHasura(root, yamlFiles, fail, pass)
-
-  pass('Перевіряємо env→cluster DNS у dev.env / ua.env / ru.env (abie.mdc)')
+  pass('Перевіряємо env→cluster DNS у dev.env / ua.env (abie.mdc)')
   await ensureAbieEnvFilesMatchClusterDns(root, ignorePaths, pass, fail)
 
   return reporter.getExitCode()

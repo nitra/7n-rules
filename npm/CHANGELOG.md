@@ -4,6 +4,27 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.9.19] - 2026-05-14
+
+### Removed
+
+- **`abie.mdc` (`1.19 → 1.20`) — повністю прибрано підтримку `ru`-overlay:** видалено секції «overlay **ru** і nginx-sidecar для WebSocket (Hasura)», «overlay **ru** і **Service** (headless → NodePort)», «overlay **ru** і HealthCheckPolicy»; з секцій «HTTPRoute (ua / ru)», «nodeSelector (overlay)», «env-файли», «Git branches» видалено `ru`-гілку. Залишається лише `dev` + `ua`. Таблиця env-файлів — без `ru.env` / `cluster.local` / YC. У workflow `clean-merged-branch.yml` обов'язкові токени `ignore_branches`: `dev,ua` (раніше `dev,ua,ru`).
+- **`check-abie.mjs` — drop ru-логіки:** видалено всі функції з суфіксом / префіксом `Ru` (`isRuKustomizationPath`, `serviceDocumentRequiresAbieRuNodePortOverlay`, `ensureRuKustomizationHealthCheckDelete`, `ensureRuAbieServiceNodePortPatches`, `ensureAbieNginxSidecarForHasura` + усі допоміжні), regex / константи для `ru` overlay (`PATCH_PARENT_REF_NS_RU_RE`, `WEBSOCKET_ANNOTATION_RE`, `REMOVE_CLUSTER_IP*_RE`, `HASURA_IMAGE_MARKER`, `NGINX_SIDECAR_*`, `ABIE_RU_HTTPROUTE_HOST_MARKERS`, `HASURA_JWT_SECRET_IN_KUSTOMIZATION`). Перейменування: `ensureUaRuAbieNodeSelectorPatches` → `ensureUaAbieNodeSelectorPatches`, `ensureUaRuAbieHttpRoutePatches` → `ensureUaAbieHttpRoutePatches`. Тип `mode` — лише `'ua'`. Файл скоротився з ≈2013 до ≈880 рядків.
+- **`check-k8s.mjs` — drop `ruKustomizationHasHealthCheckDeletePatch`:** export видалено разом з допоміжними regex; решта k8s-логіки без змін.
+- **`check-hasura.mjs` — only `<cluster>.internal`:** `INTERNAL_HASURA_URL_RE` більше не приймає `cluster.local`; повідомлення про помилку згадує лише GKE-формат.
+- **Rego — `abie.clean_merged_ignore_branches`:** `required_branches := {"dev", "ua"}` (раніше `{"dev", "ua", "ru"}`); тести оновлено.
+- **`abie.base_deployment_preem` rego — коментар:** «Overlays (ua/ru)» → «Overlay ua».
+- **`.cspell.json`:** зі списку слів прибрано `napitkivmeste` та `выбирайонлайн` (мову `ru-ru` у `language` залишено для коректного спелл-чеку коментарів/документації).
+- **`k8s.mdc` приклади:** у переліку overlays залишилось `ua/`, `prod/` без `ru/`.
+- **`hasura.mdc` / `tests/check-hasura.test.mjs`:** приклад "неправильного" публічного домену змінено з `napitkivmeste.tech` на `vybeerai.com.ua`.
+
+### Tests
+
+- **`tests/check-abie.test.mjs` — переписано (1210 → ≈480 рядків):** видалено всі тести `ru`-overlay (NodePort Service, HealthCheckPolicy delete, nginx-sidecar, websocket annotation, `ru-apruv` env-URL, ru parentRef regex). Залишено dev/ua сценарії.
+- **`tests/check-hasura.test.mjs`:** видалено 2 тести на `cluster.local` / `ru-apruv`.
+- **`tests/check-k8s-schema.test.mjs`:** видалено `describe('ruKustomizationHasHealthCheckDeletePatch')` і `isDevLikeK8sEnvSegment('ru')` assertion.
+- **`tests/check-k8s-images.test.mjs`:** ASCII-збіг `ru: "true"` як ім'я label у фікстурі перейменовано на `preem: "false"`.
+
 ## [1.9.18] - 2026-05-13
 
 ### Changed
