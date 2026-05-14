@@ -1,0 +1,36 @@
+npm/rules/nginx-default-tpl/js/check.mjs
+  s_f0a007ceed1ba8::t_ab5d050d178f59 366,385
+npm/rules/k8s/js/run.mjs
+  s_f0a007ceed1ba8::t_72947acb216533 18
+npm/rules/hasura/js/check.mjs
+  s_f0a007ceed1ba8::t_1778edea94b20c 30
+npm/scripts/utils/run-conftest-batch.mjs
+  s_f0a007ceed1ba8::t_782aa3da09fbf0 24,27-28
+  s_f0a007ceed1ba8::t_abb38dddc4ea85 75-80
+npm/rules/php/js/run.mjs
+  s_f0a007ceed1ba8::t_72947acb216533 15
+npm/rules/text/js/run-shellcheck.mjs
+  s_f0a007ceed1ba8::t_72947acb216533 22
+npm/rules/js-run/js/check.mjs
+  s_f0a007ceed1ba8::t_ab5d050d178f59 95
+npm/rules/docker/js/run.mjs
+  s_f0a007ceed1ba8::t_72947acb216533 12
+npm/rules/text/js/run-v8r.mjs
+  s_f0a007ceed1ba8::t_72947acb216533 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2c16a67925ac11545871d210aefdef83c1b0b0d9",
+  "prompts": {},
+  "sessions": {
+    "s_f0a007ceed1ba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ec950c-74c5-483c-8668-94737ed94920",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
