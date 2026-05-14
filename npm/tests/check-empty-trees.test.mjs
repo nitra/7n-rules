@@ -4,9 +4,9 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check as checkDocker } from '../scripts/check-docker.mjs'
-import { check as checkK8s } from '../scripts/check-k8s.mjs'
-import { ensureDir, withTmpCwd } from './helpers.mjs'
+import { check as checkDocker } from '../rules/docker/js/check.mjs'
+import { check as checkK8s } from '../rules/k8s/js/check.mjs'
+import { ensureDir, withTmpCwd } from '../scripts/utils/test-helpers.mjs'
 
 const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =
   'https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/deployment-apps-v1.json'

@@ -6,12 +6,12 @@ import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { check as checkNginx } from '../scripts/check-nginx-default-tpl.mjs'
-import { check as checkStyle } from '../scripts/check-style-lint.mjs'
-import { check as checkVue } from '../scripts/check-vue.mjs'
-import { ensureDir, withTmpCwd, writeJson } from './helpers.mjs'
+import { check as checkNginx } from '../rules/nginx-default-tpl/js/check.mjs'
+import { check as checkStyle } from '../rules/style-lint/js/check.mjs'
+import { check as checkVue } from '../rules/vue/js/check.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.mjs'
 
-const nginxFixDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures/nginx-default-tpl')
+const nginxFixDir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'rules/nginx-default-tpl/js/fixtures')
 
 /**
  * Готує мінімальний monorepo з workspace-пакетом `app` (Vue + Vite) для `check-vue`.

@@ -37,7 +37,7 @@
   "type": "module",
   "types": "./types/bin/n-cursor.d.ts",
   "scripts": {
-    "test": "bun test tests",
+    "test": "bun test",
     "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
   },
   "dependencies": {
