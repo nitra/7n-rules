@@ -1,0 +1,101 @@
+npm/rules/js-mssql/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-305
+npm/rules/rego/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-106
+npm/rules/bun/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-117
+npm/rules/changelog/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-400
+npm/rules/image-compress/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-109
+npm/rules/nginx-default-tpl/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-432
+npm/rules/php/js/run.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-125
+npm/rules/rego/js/lint.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-131
+npm/rules/text/js/run-shellcheck.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-220
+npm/rules/capacitor/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-480
+npm/rules/k8s/js/run.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-173
+npm/rules/ga/js/lint.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-171
+npm/rules/js-run/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-440
+npm/rules/style-lint/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-73
+npm/scripts/lint-conftest.mjs
+  s_f0a007ceed1ba8::t_65e54660c08d05 441
+  s_f0a007ceed1ba8::t_261e19008fc8f9 30,33-34
+  s_f0a007ceed1ba8::t_8cf7ecf1ce2dd5 2-3,5-6,12-14
+  s_f0a007ceed1ba8::t_1ca2cf38dcca14 474-475
+npm/rules/docker/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-346
+npm/rules/js-lint/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-484
+npm/rules/abie/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-1152
+npm/rules/docker/js/run.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-84
+npm/rules/ga/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-470
+npm/rules/tauri/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-88
+npm/rules/graphql/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-131
+npm/bin/n-cursor.js
+  s_f0a007ceed1ba8::t_bb4a0f008de7d5 522
+  s_f0a007ceed1ba8::t_68170f9820d4bd 355-358,360,363-364,368-369,371,375-376,379
+  s_f0a007ceed1ba8::t_dd05cdd16fe7d3 954
+  s_f0a007ceed1ba8::t_36b5e789023fc3 119-122,132-136,139
+  s_f0a007ceed1ba8::t_f130e9ddb313a2 24
+  s_f0a007ceed1ba8::t_48f4d6a7716d15 124-125,128,208,212,216,374,946,950,958,1210,1214,1239
+  s_f0a007ceed1ba8::t_330e3043cfdf25 88
+  s_f0a007ceed1ba8::t_25774c6240f115 92
+  s_f0a007ceed1ba8::t_be72fc5d84dde4 1099
+  s_f0a007ceed1ba8::t_b46beecfe44177 70
+  s_f0a007ceed1ba8::t_666856d9e7593b 39
+  s_f0a007ceed1ba8::t_dca662124976d9 1102
+npm/rules/js-bun-db/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-265
+npm/package.json
+  s_f0a007ceed1ba8::t_fd52e16aa746d2 27
+npm/rules/php/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-44
+npm/rules/hasura/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-236
+npm/rules/npm-module/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-578
+npm/rules/adr/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-174
+npm/rules/js-bun-redis/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-98
+npm/rules/vue/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-552
+npm/rules/text/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-211
+npm/rules/text/js/run-v8r.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-82
+npm/rules/k8s/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-6016
+npm/rules/image-avif/js/check.mjs
+  s_f0a007ceed1ba8::t_ebe7d5231371fe 1-402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2c1440c1378c027ebc71bde2c098a684f5eb5da2",
+  "prompts": {},
+  "sessions": {
+    "s_f0a007ceed1ba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ec950c-74c5-483c-8668-94737ed94920",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
