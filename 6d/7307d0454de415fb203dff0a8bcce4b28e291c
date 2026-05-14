@@ -1,0 +1,95 @@
+npm/bin/n-cursor.js
+  s_f0a007ceed1ba8::t_03101fd22edaf9 236
+npm/rules/js-bun-redis/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/npm-module/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/k8s/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/abie-clean/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/js-bun-db/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/vue/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/llm-patch/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/graphql/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/fix/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/js-mssql/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/scripts/auto-skills.test.mjs
+  s_f0a007ceed1ba8::t_03101fd22edaf9 2
+npm/rules/abie/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/hasura/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/image-avif/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/php/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/ga/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/scripts/auto-rules.test.mjs
+  s_f0a007ceed1ba8::t_129419473669d8 2
+npm/rules/docker/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/js-run/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/nginx-default-tpl/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/rego/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/js-lint/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/text/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/publish-telegram/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/scripts/auto-rules.mjs
+  s_f0a007ceed1ba8::t_03101fd22edaf9 2,11,27,94,579
+npm/rules/style-lint/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/image-compress/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/lint/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/tauri/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/package.json
+  s_f0a007ceed1ba8::t_024abcc25d894a 3
+npm/CHANGELOG.md
+  s_f0a007ceed1ba8::t_11215c6a4b7e6f 7-23
+npm/scripts/auto-skills.mjs
+  s_f0a007ceed1ba8::t_03101fd22edaf9 2,10,14,25,35,41
+npm/rules/bun/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/capacitor/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/rules/changelog/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/taze/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/skills/abie-kustomize/auto.md
+  s_f0a007ceed1ba8::t_39acf2230590df 1
+npm/CLAUDE.md
+  s_f0a007ceed1ba8::t_918b0a3a38a761 26,30-32,34,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6d7307d0454de415fb203dff0a8bcce4b28e291c",
+  "prompts": {},
+  "sessions": {
+    "s_f0a007ceed1ba8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8ec950c-74c5-483c-8668-94737ed94920",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
