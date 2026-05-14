@@ -1,0 +1,49 @@
+npm/CHANGELOG.md
+  s_1c9f5a2fb8a59c::t_2cf94d18d67da8 33
+  s_1c9f5a2fb8a59c::t_960fdef4f1ced2 7-11,13-17,19-28,30-32,34-35
+  s_1c9f5a2fb8a59c::t_adaa977c6afc3a 29
+  s_1c9f5a2fb8a59c::t_7c681213b668c1 12,18
+npm/policy/rego/vscode_settings/vscode_settings_test.rego
+  s_1c9f5a2fb8a59c::t_c8a85f1d10fb70 1-55
+npm/scripts/check-hasura.mjs
+  s_1c9f5a2fb8a59c::t_d1f1c4ca651568 146
+npm/policy/rego/package_json/package_json.rego
+  s_1c9f5a2fb8a59c::t_bdcab4dd5b82b9 23-26
+  s_1c9f5a2fb8a59c::t_3f54869e88dcac 1-22,27-35
+npm/policy/rego/package_json/package_json_test.rego
+  s_1c9f5a2fb8a59c::t_11b78a8cf70209 1-42
+npm/scripts/check-rego.mjs
+  s_1c9f5a2fb8a59c::t_250deddc1a81cd 1-10,12,14,16-106
+  s_1c9f5a2fb8a59c::t_d1f1c4ca651568 11,13,15
+npm/policy/rego/vscode_extensions/vscode_extensions_test.rego
+  s_1c9f5a2fb8a59c::t_1b1976db47e864 1-34
+npm/policy/rego/vscode_settings/vscode_settings.rego
+  s_1c9f5a2fb8a59c::t_0afc97b4aca36e 18
+  s_1c9f5a2fb8a59c::t_8bdb1ee42223da 19-23
+  s_1c9f5a2fb8a59c::t_43c732d5e78492 1-17,24-38
+npm/scripts/check-tauri.mjs
+  s_1c9f5a2fb8a59c::t_1b4c735d200ddb 1-88
+npm/policy/rego/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_7c2e7eb7eef204 1-19
+npm/policy/tauri/vscode_extensions/vscode_extensions_test.rego
+  s_1c9f5a2fb8a59c::t_bbee98984f5f7e 1-44
+npm/policy/tauri/vscode_extensions/vscode_extensions.rego
+  s_1c9f5a2fb8a59c::t_4dbb3bd506c2b3 1-5,7-28
+  s_1c9f5a2fb8a59c::t_ee26d5c3789105 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c0ad38e78ec70523d089538e1a4940ac013d4d17",
+  "prompts": {},
+  "sessions": {
+    "s_1c9f5a2fb8a59c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "505d1f83-a62d-4588-93a3-e884d625840b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
