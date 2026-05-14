@@ -1,0 +1,26 @@
+docs/superpowers/specs/2026-05-14-npm-rules-restructure-design.md
+  s_f2b814017bf874::t_08598c8eb0dfe8 1-283
+npm/mdc/text.mdc
+  h_74546f1f1ded3e 299-302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f6905db70d7b0b5b9f6121424c90c6d5d28e1016",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_f2b814017bf874": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "01cc1ff7-501c-41ad-a00a-6a2c8a406214",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
