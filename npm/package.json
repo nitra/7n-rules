@@ -24,10 +24,9 @@
   },
   "files": [
     "types",
-    "mdc",
+    "rules",
     "bin",
     "github-actions",
-    "policy",
     "schemas",
     "scripts",
     "skills",

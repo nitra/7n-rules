@@ -1,17 +1,17 @@
 /**
- * Прогоняє `conftest test` по всіх Rego-полісі з `npm/policy/` (окрім `ga/*`,
- * які вже виконуються через `lint-ga.mjs`).
+ * Прогоняє `conftest test` по всіх Rego-полісі з `npm/rules/<rule>/policy/` (окрім `ga/*`,
+ * які вже виконуються через `npm/rules/ga/js/lint.mjs`).
  *
- * Кожна полісі має свій namespace, опційний `rule` (id у `.n-cursor.json:rules`,
- * інакше таргет пропускається — як гейтинг у `check-*.mjs`), і список цільових
+ * Кожна полісі має свій namespace, обов'язковий `rule` (id у `.n-cursor.json:rules`,
+ * інакше таргет пропускається — як гейтинг у `check.mjs`), і список цільових
  * файлів — single-file або walk-предикат для дерева. Якщо цільових файлів немає
  * або правило не активне — таргет мовчки пропускається.
  *
  * Поведінка fallback:
  *  - якщо `conftest` не в `PATH` — друкуємо `ℹ` повідомлення з підказкою
- *    встановлення і повертаємо 0 (структурні JS-перевірки в `check-*.mjs`
- *    лишаються паралельно). Те саме рішення — у `lint-ga.mjs`.
- *  - якщо `npm/policy/` не існує (нетипова інсталяція) — також `ℹ` skip.
+ *    встановлення і повертаємо 0 (структурні JS-перевірки в `check.mjs`
+ *    лишаються паралельно). Те саме рішення — у `rules/ga/js/lint.mjs`.
+ *  - якщо `npm/rules/` не існує (нетипова інсталяція) — також `ℹ` skip.
  *
  * Перший ненульовий exit-код conftest — повертаємо як результат, але всі
  * наступні таргети все одно виконуємо, щоб одразу побачити повний список
@@ -27,11 +27,11 @@ import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from './utils/resolve-cmd.mjs'
 
-/** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиту директорію policy/. */
+/** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиті директорії правил. */
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
-/** Шлях до кореня Rego-полісі. У npm-tarball публікується через `files: ["policy"]`. */
-const POLICY_DIR = join(PACKAGE_ROOT, 'policy')
+/** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. Кожне правило: `rules/<id>/policy/`. */
+const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
  * Опис одного таргета: namespace + спосіб розвʼязати цільові файли.
@@ -438,7 +438,7 @@ function resolveTargetFiles(target, cwd) {
  * @returns {number} exit-код
  */
 function runConftestForTarget(conftestBin, target, files) {
-  const policyAbs = join(POLICY_DIR, target.policyDir)
+  const policyAbs = join(RULES_DIR, target.rule, 'policy')
   if (!existsSync(policyAbs)) {
     return 0
   }
@@ -471,8 +471,8 @@ export function runLintConftestCli() {
     )
     return 0
   }
-  if (!existsSync(POLICY_DIR)) {
-    console.log(`ℹ Каталог Rego-полісі не знайдено (${POLICY_DIR}) — пропускаю conftest.`)
+  if (!existsSync(RULES_DIR)) {
+    console.log(`ℹ Каталог правил не знайдено (${RULES_DIR}) — пропускаю conftest.`)
     return 0
   }
 

@@ -21,7 +21,7 @@
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
- * з усіма правилами з каталогу mdc пакету (їх можна відредагувати після створення). У файлі завжди має бути
+ * з усіма правилами з каталогу rules/ пакету (їх можна відредагувати після створення). У файлі завжди має бути
  * поле `$schema` з посиланням на JSON Schema пакету (публічний URL для IDE); при зчитуванні конфігу воно додається або виправляється на диску, якщо відсутнє або некоректне.
  * Масиви `rules`, `skills`, `disable-rules` і `disable-skills` при записі сортуються за алфавітом.
  *
@@ -36,7 +36,7 @@
  * `github-actions/` пакету при кожному успішному синку (workflows з правил ga / js-lint / text).
  *
  * Skills копіюються з npm/skills пакету лише для id з масиву «skills» у .n-cursor.json
- * (у JSON — без префікса, як імена файлів у mdc/ без n-). У пакеті джерело — каталоги
+ * (у JSON — без префікса, як імена каталогів у rules/ без n-). У пакеті джерело — каталоги
  * skills/<id>/ (без префікса); у проєкті — .cursor/skills/n-<id>/ (префікс n-, як n-*.mdc).
  * Якщо ключа skills немає, за замовчуванням підтягуються всі підкаталоги skills/ (лише імена без префікса n-).
  * Зайві каталоги n-* у .cursor/skills, яких немає у списку, видаляються.
@@ -67,7 +67,7 @@ import {
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
-import { runLintGaCli } from '../scripts/lint-ga.mjs'
+import { runLintGaCli } from '../rules/ga/js/lint.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -85,11 +85,11 @@ const COMMANDS_DIR = '.claude/commands'
 const RULE_PREFIX = 'n-'
 
 const binDir = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_MDC_DIR = join(binDir, '..', 'mdc')
+const BUNDLED_RULES_DIR = join(binDir, '..', 'rules')
 const BUNDLED_SCRIPTS_DIR = join(binDir, '..', 'scripts')
 const BUNDLED_SKILLS_DIR = join(binDir, '..', 'skills')
 const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
-/** Корінь установленого пакету (каталог з `mdc/`, `github-actions/`, …) */
+/** Корінь установленого пакету (каталог з `rules/`, `github-actions/`, …) */
 const BUNDLED_PACKAGE_ROOT = join(binDir, '..')
 
 const YAML_FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/
@@ -116,25 +116,27 @@ function sortConfigIdArrays(config) {
 }
 
 /**
- * Імена правил (без .mdc) з каталогу mdc поточної інсталяції пакету
- * @param {string} [bundledMdcDir] каталог `mdc/` у корені пакету (за замовчуванням — з поточного процесу)
- * @returns {Promise<string[]>} відсортовані імена файлів правил без суфікса .mdc
+ * Імена правил з каталогу `rules/` поточної інсталяції пакету. Кожне правило — окремий
+ * підкаталог `rules/<id>/`, у якому має бути `<id>.mdc`.
+ * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету
+ * @returns {Promise<string[]>} відсортовані id правил (імена підкаталогів)
  */
-async function discoverBundledRuleNames(bundledMdcDir = BUNDLED_MDC_DIR) {
-  if (!existsSync(bundledMdcDir)) {
+async function discoverBundledRuleNames(bundledRulesDir = BUNDLED_RULES_DIR) {
+  if (!existsSync(bundledRulesDir)) {
     throw new Error(
       `Не знайдено каталог правил пакету.\n` +
-        `Очікуваний шлях: ${bundledMdcDir}\n` +
+        `Очікуваний шлях: ${bundledRulesDir}\n` +
         `Перевстановіть ${PACKAGE_NAME} або створіть ${CONFIG_FILE} вручну.`
     )
   }
-  const names = await readdir(bundledMdcDir)
-  const rules = names
-    .filter(n => n.endsWith('.mdc'))
-    .map(n => n.slice(0, -'.mdc'.length))
+  const entries = await readdir(bundledRulesDir, { withFileTypes: true })
+  const rules = entries
+    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+    .filter(e => existsSync(join(bundledRulesDir, e.name, `${e.name}.mdc`)))
+    .map(e => e.name)
     .toSorted((a, b) => a.localeCompare(b))
   if (rules.length === 0) {
-    throw new Error(`У каталозі mdc пакету немає файлів .mdc. Створіть ${CONFIG_FILE} вручну.`)
+    throw new Error(`У каталозі rules/ пакету немає підкаталогів з <id>.mdc. Створіть ${CONFIG_FILE} вручну.`)
   }
   return rules
 }
@@ -203,15 +205,15 @@ async function migrateLegacyConfigIfNeeded() {
 
 /**
  * Зчитує конфіг .n-cursor.json з поточної директорії
- * @param {{ bundledMdcDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@nitra/cursor`)
+ * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@nitra/cursor`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
  */
 async function readConfig(paths = {}) {
-  const bundledMdcDir = paths.bundledMdcDir ?? BUNDLED_MDC_DIR
+  const bundledRulesDir = paths.bundledRulesDir ?? BUNDLED_RULES_DIR
   const bundledSkillsDir = paths.bundledSkillsDir ?? BUNDLED_SKILLS_DIR
   await migrateLegacyConfigIfNeeded()
   const configPath = join(cwd(), CONFIG_FILE)
-  const availableRules = await discoverBundledRuleNames(bundledMdcDir)
+  const availableRules = await discoverBundledRuleNames(bundledRulesDir)
   const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
 
   /**
@@ -350,29 +352,31 @@ function logRuleMigrationsIfAny(parsedConfig) {
 }
 
 /**
- * Витягує чисте ім'я файлу правила (без шляху, але зберігає .mdc)
- * "npm/mdc/text.mdc" → "text.mdc"
- * "text"             → "text.mdc"
+ * Витягує чистий id правила без шляху і без .mdc.
+ * "npm/rules/text/text.mdc" → "text"
+ * "text.mdc"                → "text"
+ * "text"                    → "text"
  * @param {string} ruleName шлях або базове ім'я, з суфіксом .mdc або без
- * @returns {string} лише ім'я файлу з суфіксом .mdc
+ * @returns {string} id правила (без .mdc, без шляху)
  */
 function normalizeRuleName(ruleName) {
-  const name = ruleName.endsWith('.mdc') ? ruleName : `${ruleName}.mdc`
-  return basename(name)
+  const name = basename(String(ruleName).trim())
+  return name.endsWith('.mdc') ? name.slice(0, -'.mdc'.length) : name
 }
 
 /**
- * Читає вміст правила з каталогу `mdc/` установленого пакету (наприклад `node_modules/@nitra/cursor/mdc` або кеш npx).
+ * Читає вміст правила з каталогу `rules/<id>/<id>.mdc` установленого пакету
+ * (наприклад `node_modules/@nitra/cursor/rules/<id>/<id>.mdc` або кеш npx).
  * @param {string} rule елемент масиву rules з `.n-cursor.json`
- * @param {string} [bundledMdcDir] каталог `mdc/` у корені пакету-джерела
+ * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
-function readBundledRuleContent(rule, bundledMdcDir = BUNDLED_MDC_DIR) {
-  const bundledName = normalizeRuleName(rule)
-  const bundledPath = join(bundledMdcDir, bundledName)
+function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
+  const id = normalizeRuleName(rule)
+  const bundledPath = join(bundledRulesDir, id, `${id}.mdc`)
   if (!existsSync(bundledPath)) {
     throw new Error(
-      `Немає файлу ${bundledName} у ${bundledMdcDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
+      `Немає файлу ${id}/${id}.mdc у ${bundledRulesDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
     )
   }
   return readFile(bundledPath, 'utf8')
@@ -515,7 +519,7 @@ async function listProjectRulesMdcFiles() {
  * @returns {Set<string>} множина очікуваних імен файлів (наприклад n-bun.mdc)
  */
 function expectedManagedRuleBasenames(configRules) {
-  return new Set(configRules.map(rule => `${RULE_PREFIX}${normalizeRuleName(rule)}`))
+  return new Set(configRules.map(rule => `${RULE_PREFIX}${normalizeRuleName(rule)}.mdc`))
 }
 
 /**
@@ -939,19 +943,19 @@ async function runSyncStep(prefix, action) {
 /**
  * Копіює керовані `.mdc` файли з пакету до `.cursor/rules`.
  * @param {string[]} rules список rules з конфігу
- * @param {string} bundledMdcDir каталог `mdc` пакету-джерела
+ * @param {string} bundledRulesDir каталог `mdc` пакету-джерела
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
  * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
  */
-async function syncManagedRuleFiles(rules, bundledMdcDir, rulesDir) {
+async function syncManagedRuleFiles(rules, bundledRulesDir, rulesDir) {
   let successCount = 0
   let failCount = 0
   for (const rule of rules) {
-    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}`
+    const fileName = `${RULE_PREFIX}${normalizeRuleName(rule)}.mdc`
     const destPath = join(rulesDir, fileName)
     try {
       process.stdout.write(`  ⬇  ${rule} → ${RULES_DIR}/${fileName} ... `)
-      const content = await readBundledRuleContent(rule, bundledMdcDir)
+      const content = await readBundledRuleContent(rule, bundledRulesDir)
       await writeFile(destPath, content, 'utf8')
       console.log(`✅`)
       successCount++
@@ -982,15 +986,17 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Знаходить доступні check-скрипти у каталозі scripts пакету
- * @returns {Promise<string[]>} відсортовані імена правил (наприклад ['bun', 'ga', 'js-lint'])
+ * Знаходить доступні check-скрипти. Кожне правило з check-скриптом тримає його у
+ * `rules/<id>/js/check.mjs` (rule-centric layout).
+ * @returns {Promise<string[]>} відсортовані id правил, для яких є check.mjs
  */
 async function discoverCheckScripts() {
-  if (!existsSync(BUNDLED_SCRIPTS_DIR)) return []
-  const names = await readdir(BUNDLED_SCRIPTS_DIR)
-  return names
-    .filter(n => n.startsWith('check-') && n.endsWith('.mjs'))
-    .map(n => n.slice('check-'.length, -'.mjs'.length))
+  if (!existsSync(BUNDLED_RULES_DIR)) return []
+  const entries = await readdir(BUNDLED_RULES_DIR, { withFileTypes: true })
+  return entries
+    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+    .filter(e => existsSync(join(BUNDLED_RULES_DIR, e.name, 'js', 'check.mjs')))
+    .map(e => e.name)
     .toSorted((a, b) => a.localeCompare(b))
 }
 
@@ -1090,10 +1096,10 @@ async function runChecks(requestedRules) {
   let totalFailed = 0
 
   for (const rule of rulesToCheck) {
-    const scriptPath = join(BUNDLED_SCRIPTS_DIR, `check-${rule}.mjs`)
+    const scriptPath = join(BUNDLED_RULES_DIR, rule, 'js', 'check.mjs')
     console.log(`📋 ${rule}:`)
     try {
-      // eslint-disable-next-line no-unsanitized/method -- rule валідовано проти available, scriptPath будується з фіксованої BUNDLED_SCRIPTS_DIR
+      // eslint-disable-next-line no-unsanitized/method -- rule валідовано проти available, scriptPath будується з фіксованої BUNDLED_RULES_DIR
       const { check } = await import(scriptPath)
       const code = await check()
       if (code !== 0) totalFailed++
@@ -1201,11 +1207,11 @@ async function runSync() {
 
   await reexecIfPackageVersionChanged(effectivePackageRoot)
 
-  const bundledMdcDir = join(effectivePackageRoot, 'mdc')
+  const bundledRulesDir = join(effectivePackageRoot, 'mdc')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')
   const bundledAgentsTemplatePath = join(effectivePackageRoot, AGENTS_TEMPLATE_FILE)
 
-  const config = await runSyncStep('❌ ', () => readConfig({ bundledMdcDir, bundledSkillsDir }))
+  const config = await runSyncStep('❌ ', () => readConfig({ bundledRulesDir, bundledSkillsDir }))
 
   const { rules, skills, version, ignore } = config
   const claudeConfigEnabled = config['claude-config'] !== false
@@ -1230,7 +1236,7 @@ async function runSync() {
 
   const rulesDir = join(cwd(), RULES_DIR)
   await mkdir(rulesDir, { recursive: true })
-  const { successCount, failCount } = await syncManagedRuleFiles(rules, bundledMdcDir, rulesDir)
+  const { successCount, failCount } = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir)
 
   await runSyncStep(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: `, async () => {
     const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
