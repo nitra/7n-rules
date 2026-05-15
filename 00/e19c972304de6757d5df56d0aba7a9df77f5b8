@@ -1,0 +1,195 @@
+npm/rules/text/js/formatting/check-fixture.test.mjs
+  s_3a4481ec6003f6::t_f322ce2d08d334 84
+readme.MD
+  h_74546f1f1ded3e 1-4
+docs/adr/k8s-gateway-api-httproute-надлишковий-namespace.md
+  ai_agent 1-24
+npm/rules/rego/policy/package_json/package_json.rego
+  s_3a4481ec6003f6::t_1666819bd7083f 6-8,15,27
+npm/rules/docker/policy/package_json/package_json_test.rego
+  s_3a4481ec6003f6::t_625c1673e91392 9
+docs/adr/oxlint-canonical-заборона-дублікатів-імпортів.md
+  ai_agent 1,3-4,6,8,10-12,16-22,24,26,28
+npm/rules/text/js/run-v8r.mjs
+  s_3a4481ec6003f6::t_67e44f15a55239 27-28
+npm/tests/check-rule-fixtures.test.mjs
+  s_3a4481ec6003f6::t_da888017f5d319 9-10
+docs/adr/n-changelog-pr-scoped-перевірка.md
+  ai_agent 1,3-4,6,8,10,12,14-16,18,20,22,24,26,28,30-33,35,37
+npm/bin/n-cursor.js
+  s_3a4481ec6003f6::t_a297e85b2df5b6 77,79-81
+  s_3a4481ec6003f6::t_9c712a5060c2ad 1380
+  s_3a4481ec6003f6::t_2dd24cab583397 1393
+  s_3a4481ec6003f6::t_696271175e025a 1012,1014
+  s_3a4481ec6003f6::t_be12bb42052f15 16-21
+  s_3a4481ec6003f6::t_8dfb65527f5b28 1360-1379,1381-1383
+knip.json
+  s_3a4481ec6003f6::t_5a2935ec55fab8 12,14-18,23,25,28
+  s_3a4481ec6003f6::t_8c26e7f59f444d 29
+npm/rules/docker/js/run.mjs
+  s_3a4481ec6003f6::t_fc28211d29a842 84
+  s_3a4481ec6003f6::t_afd88449becd48 50,53
+npm/package.json
+  s_e33879f145ddbe::t_8d5ee2e54482ce 3
+  s_3a4481ec6003f6::t_f750f82abe3a5d 37
+npm/rules/adr/adr.mdc
+  s_3a4481ec6003f6::t_4af82e88c869ae 42,58
+npm/rules/rego/rego.mdc
+  s_3a4481ec6003f6::t_4fd6c2b47478ce 61
+  s_3a4481ec6003f6::t_d8b1050eebdaee 45
+  s_3a4481ec6003f6::t_92fdcb2f68d194 39
+npm/rules/text/text.mdc
+  s_3a4481ec6003f6::t_ea389e0467a7a8 123,242,259
+  s_3a4481ec6003f6::t_117afc8f2c64f7 116,118
+.v8rignore
+  s_3a4481ec6003f6::t_ac7b783a2c73f8 12
+  s_3a4481ec6003f6::t_31c4e3290d103d 5-11
+docs/adr/20260515-212400-e513a1f0.md
+  ai_agent 2-4,7,9,11,13,15,17
+docs/adr/node-26-мінімальна-версія-та-temporal-api.md
+  ai_agent 1-24
+npm/CHANGELOG.md
+  s_e33879f145ddbe::t_a6a723055658c3 15
+  s_3a4481ec6003f6::t_134b3249f83386 20,26-28
+  s_3a4481ec6003f6::t_86453efb21b1d1 16-19,21-25,29
+  s_e33879f145ddbe::t_96d3e376278b4f 7-13
+  s_e33879f145ddbe::t_dbfaa1072dd187 14
+  s_3a4481ec6003f6::t_af32948125ac93 109
+docs/adr/adr-правило-capture-decisions.md
+  ai_agent 1,3-4,6,8,10-12,14-21,23,25-27,29,31
+npm/scripts/utils/run-lint-step.mjs
+  s_3a4481ec6003f6::t_0b3a5d1e0d6a66 1-33
+npm/rules/text/js/run-shellcheck.mjs
+  s_3a4481ec6003f6::t_fa782cac339212 85,93
+npm/rules/rego/js/lint.mjs
+  s_3a4481ec6003f6::t_c7f1b3fc95e059 132-134
+npm/rules/ga/js/lint.mjs
+  s_3a4481ec6003f6::t_dcfba573d192d4 26
+  s_3a4481ec6003f6::t_16fde967ea979a 140
+  s_3a4481ec6003f6::t_98e7fe961493ba 143
+npm/scripts/utils/resolve-target-files.mjs
+  s_3a4481ec6003f6::t_e9e53262254753 64
+npm/rules/text/js/lint.mjs
+  s_3a4481ec6003f6::t_138ee628b9c1f1 29
+  s_3a4481ec6003f6::t_aa95b0adfebcd0 18-19,21
+  s_3a4481ec6003f6::t_d706dc9d4c4d99 11,22
+  s_3a4481ec6003f6::t_986042e53ddd51 1-10,12-17,20,23-28,30-34
+npm/rules/abie/utils/http-route.mjs
+  s_3a4481ec6003f6::t_30a41644677918 5
+docs/adr/n-cursor-ignore-виключення-з-check-скриптів.md
+  ai_agent 1,3-4,6,8,10-12,14,17-23,25,27,29
+npm/scripts/auto-skills.mjs
+  s_3a4481ec6003f6::t_ee89d08bfae494 112
+npm/rules/abie/utils/overlay-paths.mjs
+  s_3a4481ec6003f6::t_44f211113f4aa2 19
+npm/skills/abie-clean/SKILL.md
+  s_3a4481ec6003f6::t_138ee628b9c1f1 142,150,161,169
+  s_3a4481ec6003f6::t_dda17c6218061c 140,155,157,159,174
+npm/rules/k8s/js/run.mjs
+  s_3a4481ec6003f6::t_f166eb20a13fc3 149,152
+  s_3a4481ec6003f6::t_afb3defd1e3a13 173
+npm/rules/abie/utils/k8s-tree.mjs
+  s_3a4481ec6003f6::t_f687bf0d3c1f8d 84
+  s_3a4481ec6003f6::t_4d6a9fa56b8563 79,87
+  s_3a4481ec6003f6::t_8bc94f4ead9389 80-83,85-86
+npm/rules/adr/js/hooks/check.mjs
+  s_3a4481ec6003f6::t_8b585ef7c49930 82,111,124,145,185
+npm/skills/fix/SKILL.md
+  s_34a2b8fe255b53::t_e222be6e68b799 39,42,45
+npm/scripts/utils/run-rule.mjs
+  s_3a4481ec6003f6::t_768a0f2a87027b 48
+  s_3a4481ec6003f6::t_93b6247f567684 10
+npm/rules/docker/policy/package_json/package_json.rego
+  s_3a4481ec6003f6::t_bd8fb4d6bf52ed 22
+npm/rules/style-lint/js/tooling/check.mjs
+  s_3a4481ec6003f6::t_830b2bd3ede6b2 28
+package.json
+  s_3a4481ec6003f6::t_c5fcf61f5b378a 18,20,22-23
+npm/rules/text/js/formatting/check.mjs
+  s_3a4481ec6003f6::t_eef638aa1cc936 150-153,158-160,163
+npm/rules/npm-module/js/package_structure/check.mjs
+  s_e33879f145ddbe::t_d6a2dc0ea27fb8 499-500
+npm/rules/npm-module/npm-module.mdc
+  s_e33879f145ddbe::t_bb2a659a28e22a 20
+  s_e33879f145ddbe::t_392248f2662338 4
+  s_e33879f145ddbe::t_ddb2bafce23a28 14
+npm/rules/style-lint/style-lint.mdc
+  s_34a2b8fe255b53::t_de59dd7a8325ba 12
+.cursor/rules/n-npm-module.mdc
+  s_e33879f145ddbe::t_23740292961930 4,14,20
+docs/adr/github-actions-concurrency-cancel-in-progress.md
+  ai_agent 1,3-4,6-12,16-17,20-36
+docs/adr/lint-fix-jsdoc-jscpd-cspell-eslint.md
+  ai_agent 1,3-4,6,8,10,12-21,23,25-33
+docs/adr/github-actions-depcheck-path-scoped-workflow.md
+  ai_agent 1,3-4,6,8,10,12-17,19,21-29
+docs/adr/minify-image-avif-hash-інвалідація.md
+  ai_agent 1-32
+npm/scripts/utils/resolve-target-files.test.mjs
+  s_3a4481ec6003f6::t_9d263ae4600301 36
+  s_3a4481ec6003f6::t_138ee628b9c1f1 43-45
+  s_3a4481ec6003f6::t_8ca75dcef1f78f 104
+.cursor/rules/n-adr.mdc
+  s_3a4481ec6003f6::t_d4d09c9ab788e9 42,58
+docs/adr/js-run-скіп-frontend-vite-пакетів.md
+  ai_agent 1-27
+docs/adr/check-image-avif-pipeline-та-vite-резолвер.md
+  ai_agent 1-38
+npm/rules/rego/policy/package_json/package_json_test.rego
+  s_3a4481ec6003f6::t_ed202a48a452a7 9
+docs/adr/vue-заборона-node-імпортів-у-sfc.md
+  ai_agent 1-24
+.cspell.json
+  s_3a4481ec6003f6::t_ecd21643531b2b 588-589
+  s_3a4481ec6003f6::t_c01a4a27bd53a9 550-587
+docs/adr/runbook-n-fix-перевірка-і-виправлення.md
+  ai_agent 1,3-4,6,8-13,17-26,28,30,32
+npm/rules/docker/docker.mdc
+  s_3a4481ec6003f6::t_87888e94246cd6 100
+  ai_agent 109
+npm/rules/k8s/k8s.mdc
+  s_3a4481ec6003f6::t_33e778906a36d6 41,46
+docs/adr/stop-hook-capture-decisions-виправлення-багів.md
+  ai_agent 1,3-4,6,8,10,12,14-16,18-21,23-33
+.cursor/skills/n-fix/SKILL.md
+  s_34a2b8fe255b53::t_2400fdc810dbc7 39,42,45
+docs/adr/js-run-заборона-new-promise-settimeout.md
+  ai_agent 1,3-4,6,8,10,12-20,22,24-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "00e19c972304de6757d5df56d0aba7a9df77f5b8",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_3a4481ec6003f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb463371-d052-4d9b-9e88-9490d27363ab",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e33879f145ddbe": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "58c5ac60-0065-436a-8d25-9ece50846bc5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
