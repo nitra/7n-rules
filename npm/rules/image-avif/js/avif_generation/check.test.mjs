@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { env } from 'node:process'
 
 import { check } from './check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 beforeAll(() => {
   env.NITRA_CURSOR_NO_AVIF_RUN = '1'

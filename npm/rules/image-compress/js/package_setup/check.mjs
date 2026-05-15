@@ -19,7 +19,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
 /** Імʼя committed-кешу (sha1 + originalSize + size) у `@nitra/minify-image` ≥ 3.2.0. */
 const HASH_CACHE_FILENAME = '.n-minify-image.tsv'

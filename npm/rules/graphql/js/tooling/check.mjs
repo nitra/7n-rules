@@ -10,15 +10,15 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
-} from '../../../scripts/utils/graphql-gql-scan.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
-import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+} from '../../../../scripts/utils/graphql-gql-scan.mjs'
+import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
+import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 
 /** Очікуваний файл GraphQL Config у корені (graphql.mdc). */
 export const GRAPHQL_RC_FILENAME = '.graphqlrc.yml'

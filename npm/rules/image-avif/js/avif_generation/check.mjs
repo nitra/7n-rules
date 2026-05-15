@@ -25,11 +25,11 @@ import { join, relative } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
-import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { getMonorepoPackageRootDirs } from '../../../scripts/utils/workspaces.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
+import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
 
 /** Імʼя CLI-пакета, який генерує AVIF. */
 const MINIFY_PACKAGE_NAME = '@nitra/minify-image'

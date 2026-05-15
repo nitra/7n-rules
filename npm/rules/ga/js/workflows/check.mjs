@@ -19,10 +19,10 @@ import { readdir, readFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../scripts/utils/gha-workflow.mjs'
-import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../../scripts/utils/gha-workflow.mjs'
+import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
+import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]

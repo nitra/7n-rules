@@ -22,7 +22,7 @@
 import { spawnSync } from 'node:child_process'
 import { platform } from 'node:process'
 
-import { check as checkGa } from './check.mjs'
+import { check as checkGa } from './workflows/check.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /**

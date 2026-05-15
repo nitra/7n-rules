@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { sourceFileHasGqlTaggedTemplate } from '../../../scripts/utils/graphql-gql-scan.mjs'
+import { sourceFileHasGqlTaggedTemplate } from '../../../../scripts/utils/graphql-gql-scan.mjs'
 
 describe('sourceFileHasGqlTaggedTemplate', () => {
   test('true для gql у .ts', () => {

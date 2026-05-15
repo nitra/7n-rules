@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { check, isEnvFile, isNitraOrAbieRepository, parseInternalHasuraEndpoint } from './check.mjs'
-import { withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {
