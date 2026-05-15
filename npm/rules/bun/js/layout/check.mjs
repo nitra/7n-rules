@@ -18,7 +18,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
 // Перевірка `devDependencies` кореневого `package.json` (дозволено лише `@nitra/*`)
 // — у rego (`npm/policy/bun/package_json/`). JS-копії `isAllowedRootDevDependency`

@@ -27,8 +27,8 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { getMonorepoPackageRootDirs } from '../../../scripts/utils/workspaces.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
 
 const execFileAsync = promisify(execFile)
 

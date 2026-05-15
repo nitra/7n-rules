@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check as checkDocker } from '../rules/docker/js/check.mjs'
+import { check as checkDocker } from '../rules/docker/js/lint/check.mjs'
 import { check as checkK8s } from '../rules/k8s/js/check.mjs'
 import { ensureDir, withTmpCwd } from '../scripts/utils/test-helpers.mjs'
 

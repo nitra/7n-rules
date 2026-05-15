@@ -17,7 +17,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
 
-import { findDockerfilePaths } from '../../docker/js/check.mjs'
+import { findDockerfilePaths } from '../../docker/js/lint/check.mjs'
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'

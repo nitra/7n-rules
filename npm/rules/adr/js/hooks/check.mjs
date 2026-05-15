@@ -22,7 +22,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
 /** Один hook-артефакт: bash-скрипт + його лог-файл, які перевіряємо однотипно. */
 const HOOK_ARTIFACTS = /** @type {const} */ ([
@@ -34,7 +34,7 @@ const PROJECT_SETTINGS_PATH = '.claude/settings.json'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '.claude-template', 'hooks')
+const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '.claude-template', 'hooks')
 
 /**
  * Відносний шлях до managed hook-скрипта у проєкті.

@@ -12,7 +12,7 @@ import {
   findFirstPodfileUnderIosExcludingPods,
   nitrAObjectAllowsIosCocoaPods
 } from './check.mjs'
-import { withTmpCwd, writeJson, ensureDir } from '../../../scripts/utils/test-helpers.mjs'
+import { withTmpCwd, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
   test('^8.0.0 — ok', () => {

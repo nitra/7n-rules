@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { check as checkChangelog } from './check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const execFileAsync = promisify(execFile)
 

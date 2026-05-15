@@ -6,8 +6,8 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { findDockerfilePaths, isDockerfileName } from './check.mjs'
-import { findLintDockerfilePaths, isLintDockerfileName } from './run.mjs'
-import { withTmpCwd } from '../../../scripts/utils/test-helpers.mjs'
+import { findLintDockerfilePaths, isLintDockerfileName } from '../run.mjs'
+import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('isDockerfileName', () => {
   test('канонічні імена', () => {
