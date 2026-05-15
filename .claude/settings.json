@@ -33,6 +33,17 @@
             "timeout": 180
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/normalize-decisions.sh\"",
+            "async": true,
+            "timeout": 600
+          }
+        ]
       }
     ]
   }

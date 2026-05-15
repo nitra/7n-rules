@@ -296,6 +296,10 @@ jobs:
 
 Якщо потрібна мова вже є в залежностях **`@nitra/cspell-dict`** — додай лише код у **`language`**, без окремих **`@cspell/dict-*`** у споживачі. Якщо мови немає в корпоративному пакеті — розширюй **`@nitra/cspell-dict`**, а не підключай **`@cspell/dict-*`** у корені репозиторію-споживача. Огляд upstream-словників: [streetsidesoftware/cspell-dicts](https://github.com/streetsidesoftware/cspell-dicts).
 
+## Найменування каталогів
+
+kebab-case
+
 ## Перевірка
 
 `npx @nitra/cursor check text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`)

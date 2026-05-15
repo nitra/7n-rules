@@ -1,7 +1,7 @@
 ---
-description: Автоматичний збір ADR/Runbook/Knowledge-чернеток із Stop-хука Claude Code (capture-decisions)
+description: Автоматичний збір ADR/Runbook/Knowledge-чернеток і батч-нормалізація у `docs/adr/` через Stop-хук Claude Code
 alwaysApply: true
-version: '1.0'
+version: '2.0'
 ---
 
 Правило вмикається **вручну** — додай `"adr"` у масив `rules` файлу `.n-cursor.json`. У `auto-rules.md` його немає, бо корисність залежить від робочого процесу команди (не кожен проєкт хоче літати ADR-чернеткам у `docs/`).
@@ -9,37 +9,90 @@ version: '1.0'
 Коли правило увімкнене, **`npx @nitra/cursor`** автоматично:
 
 - копіює канонічний bash-скрипт у **`.claude/hooks/capture-decisions.sh`** (executable, повністю керується пакетом — на кожен sync перезаписується);
-- додає managed-групу у **`hooks.Stop`** в **`.claude/settings.json`**, яка викликає цей скрипт асинхронно (`async: true`, `timeout: 180`);
-- ці зміни — додаткові до lint Stop-hook (`@nitra/cursor stop-hook`); обидві групи живуть поряд у `Stop`.
+- копіює канонічний bash-скрипт у **`.claude/hooks/normalize-decisions.sh`** (батч-нормалізація чернеток через LLM);
+- додає у **`hooks.Stop`** в **`.claude/settings.json`** дві managed-групи: capture (`async: true`, `timeout: 180`) і normalize (`async: true`, `timeout: 600`);
+- ці зміни — додаткові до lint Stop-hook (`@nitra/cursor stop-hook`); усі три групи живуть поряд у `Stop`.
 
-## Що робить механізм
+## Дві фази, один каталог
 
-Stop-hook Claude Code зчитує JSONL-транскрипт сесії (через `jq`), витягає текст, `thinking`-блоки та назви `tool_use`-викликів, передає компактний дайджест у LLM CLI з промптом українською і записує результат у **`docs/adr/_inbox/<timestamp>-<session>.md`**, якщо модель повернула блок з шапкою `## ADR|Runbook|Knowledge …`. Якщо модель повернула `NONE` (тривіальна сесія) — нічого не пишеться. Рекурсію з внутрішнього виклику моделі блокує env-var `CAPTURE_DECISIONS_RUNNING=1`.
+ADR живуть у єдиному каталозі **`docs/adr/`**. Є два стани файлу, які відрізняються YAML frontmatter:
+
+- **Draft** — файл з frontmatter `session: …`, `captured: …`, `transcript: …` та timestamp-іменем `YYYYMMDD-HHMMSS-<sid>.md`. Пише `capture-decisions.sh` після кожної сесії.
+- **Clean** — файл без frontmatter, з kebab-case-іменем `<slug>.md` (наприклад `ланцюжок-запуску-abie.md`). Створює `normalize-decisions.sh` або людина руками.
+
+`normalize-decisions.sh` ніколи не чіпає clean-файли — крім випадку `merge-into`, коли дописує `## Update YYYY-MM-DD` в кінець наявного clean-файлу.
+
+### Фаза 1 — Capture
+
+Stop-hook `capture-decisions.sh` зчитує JSONL-транскрипт сесії (через `jq`), витягає текст, `thinking`-блоки та назви `tool_use`-викликів, передає компактний дайджест у LLM CLI з промптом українською і записує результат у **`docs/adr/<timestamp>-<session>.md`**, якщо модель повернула блок з шапкою `## ADR|Runbook|Knowledge …`. Якщо модель повернула `NONE` (тривіальна сесія) — нічого не пишеться. Рекурсію з внутрішнього виклику моделі блокує env-var `CAPTURE_DECISIONS_RUNNING=1`.
+
+### Фаза 2 — Normalize
+
+Stop-hook `normalize-decisions.sh` спрацьовує на тому самому `Stop`-евенті, але:
+
+- Виходить миттєво, якщо чернеток (`session:` у frontmatter) менше ніж **`ADR_NORMALIZE_THRESHOLD`** (default 30).
+- Виходить миттєво, якщо від попередньої спроби пройшло менше **`ADR_NORMALIZE_MIN_INTERVAL_HOURS`** годин (default 6) — щоб не крутитися щоразу, коли поріг постійний.
+- Бере не більше **`ADR_NORMALIZE_BATCH`** чернеток (default 30, найстарші за іменем-timestamp), формує один промпт LLM і чекає JSON-відповідь зі списком операцій.
+- Виходить миттєво, якщо репозиторій у стані `MERGE_HEAD` / `rebase-*` — небезпечно правити файли посеред конфлікту.
+- Виходить миттєво, якщо інший normalize-запуск тримає `flock` на `.claude/hooks/.normalize.lock` (тільки де `flock` доступний).
+
+LLM повертає масив операцій:
+
+| `op` | Семантика | Поля |
+|---|---|---|
+| `delete` | Чернетка тривіальна / повністю покрита іншим clean-ADR-ом. | `file`, `reason` |
+| `rewrite` | Чернетка стає окремим clean-файлом: frontmatter знімається, ім'я → `<slug>.md`, додаються `**Status: Accepted**` і `**Date:**` з `captured`. | `file`, `slug`, `content` |
+| `merge-into` | Чернетка повторює тему вже існуючого clean-файлу; дописуємо `## Update YYYY-MM-DD` у кінець `target`. | `file`, `target`, `additions` |
+
+`slug` — kebab-case українською (`ланцюжок-запуску-abie`, `npm-publish-flow`); англійські технічні терміни лишаються англійською без транслітерації. Колізія slug-ів обробляється детермінованим суфіксом `-2`, `-3`.
+
+### Жодних git-операцій
+
+`normalize-decisions.sh` **не комітить, не `git add`, нічого з git**. Усі зміни — у робочому дереві. Розробник у зручний момент дивиться `git status` / `git diff` і вирішує: `git add` + commit, `git checkout -- <file>` для відкату, або правки руками. Це і є review-вікно.
+
+### Recursion guard і ENV-керування
+
+Інший LLM CLI, який запустить normalize, успадковує `ADR_NORMALIZE_RUNNING=1` — внутрішній Stop-hook вийде відразу. Доступні ENV:
+
+| Змінна | Default | Призначення |
+|---|---|---|
+| `ADR_NORMALIZE_THRESHOLD` | `30` | Поріг чернеток для запуску фази. |
+| `ADR_NORMALIZE_BATCH` | `30` | Максимум чернеток у одному виклику LLM. |
+| `ADR_NORMALIZE_MIN_INTERVAL_HOURS` | `6` | Мінімум між спробами (навіть якщо поріг). |
+| `ADR_NORMALIZE_DRY` | `0` | `1` — лише лог запланованих операцій, без змін на диску. |
+| `ADR_NORMALIZE_MODEL` | `sonnet` | Модель для `claude -p`. |
+| `ADR_NORMALIZE_CURSOR_MODEL` | `claude-4.6-sonnet-medium` | Модель для `cursor-agent -p`. |
+
+Для ручного запуску (поза порогом і поза Stop-хуком) є **`/n-adr-normalize`** — slash-команда тимчасово виставляє `ADR_NORMALIZE_THRESHOLD=0` і `ADR_NORMALIZE_MIN_INTERVAL_HOURS=0` та викликає скрипт напряму.
 
 ## LLM CLI: claude → cursor-agent fallback
 
-Скрипт сам обирає доступний CLI (порядок фіксований):
+Обидва скрипти обирають доступний CLI (порядок фіксований):
 
-1. **`claude`** (Anthropic Claude Code CLI) — `claude -p --model "$CAPTURE_DECISIONS_CLAUDE_MODEL"` (default `sonnet`).
-2. **`cursor-agent`** (Cursor IDE CLI) — `cursor-agent -p --mode ask --output-format text --model "$CAPTURE_DECISIONS_CURSOR_MODEL"` (default `claude-4.6-sonnet-medium`).
+1. **`claude`** (Anthropic Claude Code CLI) — `claude -p --model "<model>"`.
+2. **`cursor-agent`** (Cursor IDE CLI) — `cursor-agent -p --mode ask --output-format text --model "<model>"`.
 3. Жодного CLI у `PATH` — скрипт виходить з кодом `0` і нічого не пише.
 
-`--mode ask` для cursor-agent навмисно: режим Q&A read-only, без shell/edit-інструментів — для класифікації сесії інструменти не потрібні. Моделі можна перевизначити через ENV: `CAPTURE_DECISIONS_CLAUDE_MODEL`, `CAPTURE_DECISIONS_CURSOR_MODEL`.
+`--mode ask` для cursor-agent навмисно: режим Q&A read-only, без shell/edit-інструментів — для класифікації / нормалізації інструменти не потрібні.
 
 ## Структура каталогу
 
 ```text
 docs/adr/
-└── _inbox/                         # чернетки, що пишуться Stop-хуком
-    └── YYYYMMDD-HHMMSS-<sid>.md    # session_id (перші 8 символів)
+├── YYYYMMDD-HHMMSS-<sid>.md   # drafts (frontmatter session:/captured:/transcript:)
+└── <slug>.md                  # clean ADR-и (без frontmatter)
 .claude/hooks/
-├── capture-decisions.sh            # auto-synced з пакета
-└── capture-decisions.log           # лог запусків (НЕ коміти)
+├── capture-decisions.sh       # auto-synced з пакета
+├── normalize-decisions.sh     # auto-synced з пакета
+├── capture-decisions.log      # лог запусків capture (НЕ коміти)
+├── normalize-decisions.log    # лог запусків normalize (НЕ коміти)
+├── .normalize-state           # timestamp останнього normalize-запуску (НЕ коміти)
+└── .normalize.lock            # lock-файл (НЕ коміти)
 ```
 
-`.gitignore` повинен містити рядок **`.claude/hooks/capture-decisions.log`**, щоб лог не потрапляв у git.
+`.gitignore` повинен містити рядки, що покривають **`.claude/hooks/*.log`** і службові файли normalize (`.claude/hooks/.normalize-*`).
 
-`docs/adr/_inbox/` — це робоча скринька; чернетки звідти переносяться у структуровані ADR-файли вручну (під час оглядів) або тримаються як архів сесій. Каталог сам створюється скриптом, тому пустим у git тримати не потрібно.
+> Якщо в репозиторії лишився старий каталог **`docs/adr/_inbox/`** з попередньої версії правила — `normalize-decisions.sh` бачить його рекурсивно й поступово розчистить. Можна також одразу `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
 
 ## Stop-hook у `.claude/settings.json`
 
@@ -69,17 +122,28 @@ docs/adr/
             "timeout": 180
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/normalize-decisions.sh\"",
+            "async": true,
+            "timeout": 600
+          }
+        ]
       }
     ]
   }
 }
 ```
 
-Обидві групи ідентифікуються пакетом за маркером у `command` (`@nitra/cursor stop-hook` і `.claude/hooks/capture-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, ADR-група автоматично видаляється на наступному `npx @nitra/cursor`.
+Усі три групи ідентифікуються пакетом за маркером у `command` (`@nitra/cursor stop-hook`, `.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
 
 ## Локальні vs project-shared налаштування
 
-Stop-hook ADR живе у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
+Обидва Stop-hook'и ADR живуть у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
 
 ## Перевірка
 
