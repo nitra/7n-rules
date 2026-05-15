@@ -21,16 +21,6 @@ async function addJsConcern(ruleId, concern, fileName = 'check.mjs') {
 }
 
 /**
- * Створює плаский legacy `rules/<id>/js/check.mjs`.
- * @param {string} ruleId id правила
- * @returns {Promise<void>}
- */
-async function addLegacyJs(ruleId) {
-  await ensureDir(join('rules', ruleId, 'js'))
-  await writeFile(join('rules', ruleId, 'js', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
-}
-
-/**
  * Створює `rules/<id>/policy/<concern>/{concern.rego,target.json}`.
  * @param {string} ruleId id правила
  * @param {string} concern імʼя концерну
@@ -64,42 +54,17 @@ describe('discoverCheckableRules', () => {
       await addJsConcern('text', 'cspell')
       const out = await discoverCheckableRules(join(dir, 'rules'))
       expect(out).toEqual([
-        { id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'], legacy: false }], policyConcerns: [] }
+        { id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }], policyConcerns: [] }
       ])
     })
   })
 
-  test('legacy JS — плаский js/check.mjs', async () => {
+  test('ігнорує flat js/check.mjs без subdir-концерну (legacy більше не підтримується)', async () => {
     await withTmpCwd(async dir => {
-      await addLegacyJs('rego')
+      await ensureDir(join('rules', 'flat-only', 'js'))
+      await writeFile(join('rules', 'flat-only', 'js', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
       const out = await discoverCheckableRules(join(dir, 'rules'))
-      expect(out).toEqual([
-        { id: 'rego', jsConcerns: [{ name: 'legacy', files: ['check.mjs'], legacy: true }], policyConcerns: [] }
-      ])
-    })
-  })
-
-  test('гібрид під час міграції: legacy js/check.mjs ігнорується, якщо є subdir-концерни', async () => {
-    await withTmpCwd(async dir => {
-      // Симулюємо стан коли flat check.mjs ще лишився (для backward-compat тестів),
-      // а нові концерни вже додані. Discovery має взяти ТІЛЬКИ subdir-концерни — інакше
-      // CLI прогонить логіку двічі (раз у flat, раз через концерни).
-      await addLegacyJs('abie')
-      await addJsConcern('abie', 'firebase')
-      await addJsConcern('abie', 'env_dns', 'check-env-dns.mjs')
-      await addPolicyConcern('abie', 'health_check_policy')
-      await addPolicyConcern('abie', 'http_route_base')
-      const out = await discoverCheckableRules(join(dir, 'rules'))
-      expect(out).toEqual([
-        {
-          id: 'abie',
-          jsConcerns: [
-            { name: 'env_dns', files: ['check-env-dns.mjs'], legacy: false },
-            { name: 'firebase', files: ['check.mjs'], legacy: false }
-          ],
-          policyConcerns: [{ name: 'health_check_policy' }, { name: 'http_route_base' }]
-        }
-      ])
+      expect(out).toEqual([])
     })
   })
 

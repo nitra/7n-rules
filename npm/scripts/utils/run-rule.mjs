@@ -6,8 +6,6 @@
  *      false — друкуємо `✅ правило не застосовне` і завершуємо без подальших викликів.
  *   2. **JS-концерни** — кожен `check*.mjs` у `js/<concern>/`. Concern `applies` теж може мати
  *      `check()` для друку контексту (його `applies()` уже відпрацював на кроці 1, він не повторюється).
- *      Legacy-fallback: плаский `js/check.mjs` лежить як concern `legacy` — імпортується з кореня `js/`,
- *      а не з підкаталога.
  *   3. **Policy-концерни** — кожен `policy/<concern>/target.json` через `runConftestBatch`.
  *      Реcолвер `resolveTargetFiles` ділить cache (`walkCache`) між концернами.
  *
@@ -32,9 +30,7 @@ const APPLIES_CONCERN_NAME = 'applies'
  * @returns {string} абсолютний шлях
  */
 function resolveJsCheckPath(bundledRulesDir, ruleId, concern, fileName) {
-  return concern.legacy
-    ? join(bundledRulesDir, ruleId, 'js', fileName)
-    : join(bundledRulesDir, ruleId, 'js', concern.name, fileName)
+  return join(bundledRulesDir, ruleId, 'js', concern.name, fileName)
 }
 
 /**

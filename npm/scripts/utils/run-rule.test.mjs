@@ -46,8 +46,8 @@ describe('runRule — applies gate', () => {
       const rule = {
         id: 'rego',
         jsConcerns: [
-          { name: 'applies', files: ['check.mjs'], legacy: false },
-          { name: 'other', files: ['check.mjs'], legacy: false }
+          { name: 'applies', files: ['check.mjs'] },
+          { name: 'other', files: ['check.mjs'] }
         ],
         policyConcerns: []
       }
@@ -77,8 +77,8 @@ describe('runRule — applies gate', () => {
       const rule = {
         id: 'rego',
         jsConcerns: [
-          { name: 'applies', files: ['check.mjs'], legacy: false },
-          { name: 'other', files: ['check.mjs'], legacy: false }
+          { name: 'applies', files: ['check.mjs'] },
+          { name: 'other', files: ['check.mjs'] }
         ],
         policyConcerns: []
       }
@@ -92,7 +92,7 @@ describe('runRule — applies gate', () => {
       await writeConcernJs('text', 'cspell', 'check.mjs', `export const check = async () => 0`)
       const rule = {
         id: 'text',
-        jsConcerns: [{ name: 'cspell', files: ['check.mjs'], legacy: false }],
+        jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }],
         policyConcerns: []
       }
       const code = await runRule(rule, join(dir, 'rules'), new Map())
@@ -109,8 +109,8 @@ describe('runRule — exit-код агрегується', () => {
       const rule = {
         id: 'mix',
         jsConcerns: [
-          { name: 'a', files: ['check.mjs'], legacy: false },
-          { name: 'b', files: ['check.mjs'], legacy: false }
+          { name: 'a', files: ['check.mjs'] },
+          { name: 'b', files: ['check.mjs'] }
         ],
         policyConcerns: []
       }
@@ -120,18 +120,3 @@ describe('runRule — exit-код агрегується', () => {
   })
 })
 
-describe('runRule — legacy JS', () => {
-  test('імпортує з js/check.mjs напряму (без підкаталогу)', async () => {
-    await withTmpCwd(async dir => {
-      await ensureDir(join('rules', 'legacy-rule', 'js'))
-      await writeFile(join('rules', 'legacy-rule', 'js', 'check.mjs'), `export const check = async () => 0`, 'utf8')
-      const rule = {
-        id: 'legacy-rule',
-        jsConcerns: [{ name: 'legacy', files: ['check.mjs'], legacy: true }],
-        policyConcerns: []
-      }
-      const code = await runRule(rule, join(dir, 'rules'), new Map())
-      expect(code).toBe(0)
-    })
-  })
-})

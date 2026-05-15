@@ -2,11 +2,11 @@
  * Discovery rules для CLI `check`. Шукає правила, для яких є щось «прогонне»:
  *   - JS concerns:   `rules/<id>/js/<concern>/<check.mjs | check-*.mjs>` — кожен concern окремий вузол.
  *   - Policy concerns: `rules/<id>/policy/<concern>/target.json` — пара з `<concern>.rego`.
- *   - Legacy JS (на час міграції): `rules/<id>/js/check.mjs` (плаский) — мапиться у concern `legacy`,
- *     щоб не ламати ще не мігровані правила.
  *
  * Каталог `utils/` всередині `js/` свідомо пропускається — це хелпери, не концерни.
  * Файли `*.test.mjs` фільтруються regex (`^check(?:-.+)?\.mjs$`).
+ * Top-level плаский `js/check.mjs` (legacy) більше не підтримується — усі вшиті правила
+ * у пакеті розпиляні на concern-структуру.
  *
  * Намеренно НЕ парсимо `target.json` тут (це робить runner). Discovery — швидкий скан структури:
  * шляхи + назви, без I/O вмісту.
@@ -20,9 +20,8 @@ const TEST_SUFFIX = '.test.mjs'
 
 /**
  * @typedef {object} JsConcern
- * @property {string} name імʼя концерну (`<name>` у `js/<name>/`); для legacy — `'legacy'`
+ * @property {string} name імʼя концерну (`<name>` у `js/<name>/`)
  * @property {string[]} files імена `check*.mjs` у концерні (відсортовані алфавітно)
- * @property {boolean} legacy чи це fallback на плаский `js/check.mjs`
  */
 
 /**
@@ -38,8 +37,7 @@ const TEST_SUFFIX = '.test.mjs'
  */
 
 /**
- * Перелічує JS-концерни одного правила: підкаталоги `js/<name>/` з принаймні одним `check*.mjs`,
- * плюс legacy-fallback на плаский `js/check.mjs` (без підкаталогу).
+ * Перелічує JS-концерни одного правила: підкаталоги `js/<name>/` з принаймні одним `check*.mjs`.
  *
  * `js/utils/` свідомо пропускається — це хелпери, а не концерни.
  * @param {string} jsDir абсолютний шлях `rules/<id>/js/`
@@ -49,7 +47,6 @@ async function listJsConcerns(jsDir) {
   if (!existsSync(jsDir)) return []
   const topLevel = await readdir(jsDir, { withFileTypes: true })
 
-  // Перевага — нова concern-структура (`js/<concern>/check*.mjs`).
   /** @type {JsConcern[]} */
   const concerns = []
   for (const entry of topLevel) {
@@ -59,21 +56,7 @@ async function listJsConcerns(jsDir) {
       .filter(n => CHECK_FILENAME_RE.test(n) && !n.endsWith(TEST_SUFFIX))
       .toSorted((a, b) => a.localeCompare(b))
     if (files.length > 0) {
-      concerns.push({ name: entry.name, files, legacy: false })
-    }
-  }
-
-  // Legacy fallback — лише якщо subdir-концернів немає взагалі. Гібридні правила
-  // (одночасно legacy check.mjs + нові концерни) трактуються як уже мігровані:
-  // CLI запускає тільки субдиректорні концерни, flat-файл лишається для backward-compat
-  // тестів, які імпортують `check` напряму.
-  if (concerns.length === 0) {
-    const flatChecks = topLevel
-      .filter(e => e.isFile() && CHECK_FILENAME_RE.test(e.name) && !e.name.endsWith(TEST_SUFFIX))
-      .map(e => e.name)
-      .toSorted((a, b) => a.localeCompare(b))
-    if (flatChecks.length > 0) {
-      concerns.push({ name: 'legacy', files: flatChecks, legacy: true })
+      concerns.push({ name: entry.name, files })
     }
   }
 
