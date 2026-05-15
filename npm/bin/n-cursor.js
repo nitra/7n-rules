@@ -945,7 +945,7 @@ async function runSyncStep(prefix, action) {
 /**
  * Копіює керовані `.mdc` файли з пакету до `.cursor/rules`.
  * @param {string[]} rules список rules з конфігу
- * @param {string} bundledRulesDir каталог `mdc` пакету-джерела
+ * @param {string} bundledRulesDir каталог `rules` пакету-джерела
  * @param {string} rulesDir абсолютний шлях до `.cursor/rules`
  * @returns {Promise<{ successCount: number, failCount: number }>} статистика копіювання
  */
@@ -1207,7 +1207,7 @@ async function runSync() {
 
   await reexecIfPackageVersionChanged(effectivePackageRoot)
 
-  const bundledRulesDir = join(effectivePackageRoot, 'mdc')
+  const bundledRulesDir = join(effectivePackageRoot, 'rules')
   const bundledSkillsDir = join(effectivePackageRoot, 'skills')
   const bundledAgentsTemplatePath = join(effectivePackageRoot, AGENTS_TEMPLATE_FILE)
 
