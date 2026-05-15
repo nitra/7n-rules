@@ -21,16 +21,16 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import {
   findForbiddenNodeImportsInVueFile,
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
-} from '../../../scripts/utils/vue-forbidden-imports.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
-import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { getMonorepoPackageRootDirs } from '../../../scripts/utils/workspaces.mjs'
+} from '../../../../scripts/utils/vue-forbidden-imports.mjs'
+import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
 
 const ESBUILD_RE = /\besbuild\b/
 

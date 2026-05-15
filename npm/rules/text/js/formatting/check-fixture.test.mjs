@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { check } from './check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check-text (мінімальний проєкт)', () => {
   test('проходить при повному мінімальному наборі', async () => {

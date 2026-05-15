@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 
 import { check as checkNginx } from '../rules/nginx-default-tpl/js/check.mjs'
 import { check as checkStyle } from '../rules/style-lint/js/check.mjs'
-import { check as checkVue } from '../rules/vue/js/check.mjs'
+import { check as checkVue } from '../rules/vue/js/packages/check.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const nginxFixDir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'rules/nginx-default-tpl/js/fixtures')

@@ -18,8 +18,8 @@
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
 
 /**
  * Чи є префікс `@tauri-apps/` у ключах `dependencies` або `devDependencies`.

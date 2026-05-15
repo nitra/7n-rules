@@ -32,8 +32,8 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { anyRunStepIncludes, parseWorkflowYaml } from '../../../scripts/utils/gha-workflow.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { anyRunStepIncludes, parseWorkflowYaml } from '../../../../scripts/utils/gha-workflow.mjs'
 
 /** Заголовок абзацу про апостроф у text.mdc / n-text.mdc. */
 const UK_APOSTROPHE_HEADING = '**Український апостроф:**'
