@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.2] - 2026-05-15
+
+### Fixed
+
+- **`npm/scripts/auto-skills.mjs`** — джерело правди для автоактивації скілів тепер `skills/<skill>/auto.md`, а не hardcoded мапа в JS. Парсер розпізнає три формати: `завжди` (always-on), `[rule, rule, …]` (умова на правила), відсутній/нерозпізнаний файл (opt-in). Експортовані константи `AUTO_SKILL_ORDER` та `AUTO_SKILL_RULE_DEPENDENCIES` тепер похідні від сканування `npm/skills/` під час завантаження модуля (зберігаються для зворотної сумісності). Побічно виправлено пропуск `abie-clean` у hardcoded мапі попри `[abie]` у його `auto.md` — тепер скіл коректно автоактивується разом з правилом `abie`.
+
 ## [1.11.1] - 2026-05-15
 
 ### Fixed
@@ -45,9 +51,6 @@
   - **Walk-glob правила** (6): `js-mssql`, `js-bun-db`, `js-bun-redis`, `js-run` (package_json + configmap), `vue`, `image-avif` — `walkGlob: "**/package.json"` або відповідний патерн.
   - **k8s.* концерни** (8): `manifest`, `gateway`, `hpa_pdb`, `kustomization`, `svc_yaml`, `svc_hl_yaml`, `base_kustomization`, `base_manifest` — `walkGlob` по YAML під сегментом `k8s/`; `base_manifest` використовує негативний glob для виключення `kustomization.yaml`.
   - **abie концерни** (4): `clean_merged_ignore_branches` (single), `health_check_policy` (walkGlob `**/k8s/**/hc.yaml`), `http_route_base` (walkGlob `**/k8s/**/base/**/hr.yaml`), `base_deployment_preem` (walkGlob `**/k8s/**/base/**/*.{yaml,yml}` з виключенням `kustomization.yaml`).
-
-### Changed
-
 - **`capture-decisions.sh` тепер пише чернетки напряму в `docs/adr/<timestamp>-<sid>.md`** (раніше — у `docs/adr/_inbox/`). Сам каталог `_inbox/` більше не створюється, але `normalize-decisions.sh` бачить його рекурсивно — старі чернетки з `_inbox/` поступово розчищаються нормалізацією. Можна також одноразово `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
 - **Правило `adr` (`npm/rules/adr/adr.mdc`)**: повне переписування під дві фази (capture + normalize). Видалено згадки `_inbox/`. Версія `version: '2.0'`.
 - **`npm/rules/adr/js/check.mjs`**: перевірка обох hook-скриптів (canonicity), обох log-файлів у `.gitignore`.
