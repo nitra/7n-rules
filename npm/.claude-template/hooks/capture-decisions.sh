@@ -22,10 +22,10 @@ TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
 SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // "unknown"')
 
 PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
-INBOX="$PROJECT_ROOT/docs/adr/_inbox"
+ADR_DIR="$PROJECT_ROOT/docs/adr"
 LOG_DIR="$PROJECT_ROOT/.claude/hooks"
 LOG="$LOG_DIR/capture-decisions.log"
-mkdir -p "$INBOX" "$LOG_DIR"
+mkdir -p "$ADR_DIR" "$LOG_DIR"
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
@@ -145,7 +145,7 @@ if ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## '; then
 fi
 
 TS=$(date +%Y%m%d-%H%M%S)
-OUT="$INBOX/$TS-${SESSION_ID:0:8}.md"
+OUT="$ADR_DIR/$TS-${SESSION_ID:0:8}.md"
 {
   printf -- '---\nsession: %s\ncaptured: %s\ntranscript: %s\n---\n\n' \
     "$SESSION_ID" "$(date -Iseconds)" "$TRANSCRIPT_PATH"

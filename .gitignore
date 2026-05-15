@@ -3,5 +3,7 @@ dist/
 
 *.secret
 
-.claude/hooks/capture-decisions.log
+.claude/hooks/*.log
+.claude/hooks/.normalize-state
+.claude/hooks/.normalize.lock
 .claude/worktrees/

@@ -14,6 +14,7 @@
 /** Порядок автододавання skills відповідно до `skills/<skill>/auto.md`. */
 export const AUTO_SKILL_ORDER = Object.freeze([
   'abie-kustomize',
+  'adr-normalize',
   'fix',
   'lint',
   'llm-patch',
@@ -28,6 +29,7 @@ export const AUTO_SKILL_ORDER = Object.freeze([
 export const AUTO_SKILL_RULE_DEPENDENCIES = Object.freeze(
   /** @type {Record<string, readonly string[]>} */ ({
     'abie-kustomize': Object.freeze(['abie']),
+    'adr-normalize': Object.freeze(['adr']),
     taze: Object.freeze(['bun'])
   })
 )

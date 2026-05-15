@@ -53,6 +53,11 @@ async function setupTemplate(cwdAbs, tpl = {}) {
     tpl.captureDecisionsSh ?? '#!/usr/bin/env bash\nexit 0\n',
     'utf8'
   )
+  await writeFile(
+    join(cwdAbs, TEMPLATE_REL, 'hooks', 'normalize-decisions.sh'),
+    tpl.normalizeDecisionsSh ?? '#!/usr/bin/env bash\nexit 0\n',
+    'utf8'
+  )
   return pkgRoot
 }
 
@@ -200,7 +205,13 @@ describe('syncClaudeConfig (інтеграція)', () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: false })
-      expect(result).toEqual({ settings: false, npmClaudeMd: false, commands: [], adrHook: false })
+      expect(result).toEqual({
+        settings: false,
+        npmClaudeMd: false,
+        commands: [],
+        adrHook: false,
+        adrNormalizeHook: false
+      })
       expect(existsSync(join(cwdAbs, '.claude/settings.json'))).toBe(false)
     })
   })
@@ -222,9 +233,12 @@ describe('syncClaudeConfig (інтеграція)', () => {
     })
   })
 
-  test('з правилом "adr": копіюється скрипт і додається managed-група у Stop', async () => {
+  test('з правилом "adr": копіюються обидва hook-скрипти і додаються managed-групи у Stop', async () => {
     await withTmpCwd(async cwdAbs => {
-      const pkgRoot = await setupTemplate(cwdAbs, { captureDecisionsSh: '#!/usr/bin/env bash\necho adr-canonical\n' })
+      const pkgRoot = await setupTemplate(cwdAbs, {
+        captureDecisionsSh: '#!/usr/bin/env bash\necho adr-capture\n',
+        normalizeDecisionsSh: '#!/usr/bin/env bash\necho adr-normalize\n'
+      })
       const result = await syncClaudeConfig({
         projectRoot: cwdAbs,
         bundledPackageRoot: pkgRoot,
@@ -232,14 +246,23 @@ describe('syncClaudeConfig (інтеграція)', () => {
         rules: ['adr', 'text']
       })
       expect(result.adrHook).toBe(true)
-      const scriptContent = await readFile('.claude/hooks/capture-decisions.sh', 'utf8')
-      expect(scriptContent).toBe('#!/usr/bin/env bash\necho adr-canonical\n')
+      expect(result.adrNormalizeHook).toBe(true)
+      expect(await readFile('.claude/hooks/capture-decisions.sh', 'utf8')).toBe('#!/usr/bin/env bash\necho adr-capture\n')
+      expect(await readFile('.claude/hooks/normalize-decisions.sh', 'utf8')).toBe(
+        '#!/usr/bin/env bash\necho adr-normalize\n'
+      )
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const adrGroup = settings.hooks.Stop.find(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
-      expect(adrGroup).toBeTruthy()
-      expect(adrGroup.hooks[0].command).toContain('$CLAUDE_PROJECT_DIR')
-      expect(adrGroup.hooks[0].async).toBe(true)
-      expect(adrGroup.hooks[0].timeout).toBe(180)
+      const captureGroup = settings.hooks.Stop.find(g =>
+        g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
+      )
+      expect(captureGroup).toBeTruthy()
+      expect(captureGroup.hooks[0].timeout).toBe(180)
+      const normalizeGroup = settings.hooks.Stop.find(g =>
+        g.hooks?.some(h => h.command?.includes('.claude/hooks/normalize-decisions.sh'))
+      )
+      expect(normalizeGroup).toBeTruthy()
+      expect(normalizeGroup.hooks[0].async).toBe(true)
+      expect(normalizeGroup.hooks[0].timeout).toBe(600)
       const lintGroup = settings.hooks.Stop.find(g =>
         g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER))
       )
@@ -257,6 +280,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
         rules: ['adr']
       })
       expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(true)
+      expect(existsSync(join(cwdAbs, '.claude/hooks/normalize-decisions.sh'))).toBe(true)
       await syncClaudeConfig({
         projectRoot: cwdAbs,
         bundledPackageRoot: pkgRoot,
@@ -265,22 +289,31 @@ describe('syncClaudeConfig (інтеграція)', () => {
       })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
+      const hasNormalize = settings.hooks.Stop.some(g =>
+        g.hooks?.some(h => h.command?.includes('.claude/hooks/normalize-decisions.sh'))
+      )
       expect(hasAdr).toBe(false)
-      // Скрипт лишається — користувач прибирає вручну, щоб не втратити кастомізації.
+      expect(hasNormalize).toBe(false)
+      // Скрипти лишаються — користувач прибирає вручну, щоб не втратити кастомізації.
       expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(true)
+      expect(existsSync(join(cwdAbs, '.claude/hooks/normalize-decisions.sh'))).toBe(true)
     })
   })
 
-  test('повторний sync з "adr" не дублює managed ADR-групу', async () => {
+  test('повторний sync з "adr" не дублює managed ADR-групи (capture + normalize)', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const adrCount = settings.hooks.Stop.filter(g =>
+      const captureCount = settings.hooks.Stop.filter(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
       ).length
-      expect(adrCount).toBe(1)
+      const normalizeCount = settings.hooks.Stop.filter(g =>
+        g.hooks?.some(h => h.command?.includes('.claude/hooks/normalize-decisions.sh'))
+      ).length
+      expect(captureCount).toBe(1)
+      expect(normalizeCount).toBe(1)
     })
   })
 })

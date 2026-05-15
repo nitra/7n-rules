@@ -10,10 +10,12 @@
  * - `npm/CLAUDE.md` — **fully owned**: завжди перезаписується; пропускається,
  *   якщо в проєкті немає каталогу `npm/`.
  * - `.claude/commands/n-check.md` — fully owned slash-команда.
- * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR Stop-hook;
+ * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR capture Stop-hook;
  *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
  *   присутнє `adr` (правило вмикається вручну). Якщо правила немає, керована
  *   ADR-група в hooks так само автоматично прибирається з settings.json.
+ * - `.claude/hooks/normalize-decisions.sh` — fully owned bash-скрипт ADR normalize
+ *   Stop-hook (батч-нормалізація чернеток); умови — ті самі, що для `capture`.
  *
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
@@ -23,20 +25,27 @@ import { join } from 'node:path'
 
 /** Маркер lint Stop-hook'а (`npx --no \@nitra/cursor stop-hook`). */
 export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
-/** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта. */
+/** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта capture-decisions. */
 export const ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
+/** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта normalize-decisions. */
+export const ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisions.sh'
 /** Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких. */
-export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([MANAGED_HOOK_COMMAND_MARKER, ADR_HOOK_COMMAND_MARKER])
+export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
+  MANAGED_HOOK_COMMAND_MARKER,
+  ADR_HOOK_COMMAND_MARKER,
+  ADR_NORMALIZE_HOOK_COMMAND_MARKER
+])
 
 const CLAUDE_DIR = '.claude'
 const CLAUDE_SETTINGS_FILE = `${CLAUDE_DIR}/settings.json`
 const CLAUDE_COMMANDS_DIR = `${CLAUDE_DIR}/commands`
 const CLAUDE_HOOKS_DIR = `${CLAUDE_DIR}/hooks`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
+const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const NPM_CLAUDE_MD_FILE = 'npm/CLAUDE.md'
 const TEMPLATE_DIR_NAME = '.claude-template'
 
-/** Канонічна група hooks для ADR Stop-hook'а — додається в settings, коли `adr` у `rules`. */
+/** Канонічна група hooks для ADR capture Stop-hook'а — додається в settings, коли `adr` у `rules`. */
 const ADR_STOP_HOOK_GROUP = Object.freeze({
   matcher: '',
   hooks: Object.freeze([
@@ -45,6 +54,19 @@ const ADR_STOP_HOOK_GROUP = Object.freeze({
       command: `bash "$CLAUDE_PROJECT_DIR/${ADR_HOOK_COMMAND_MARKER}"`,
       async: true,
       timeout: 180
+    })
+  ])
+})
+
+/** Канонічна група hooks для ADR normalize Stop-hook'а — батч-нормалізація чернеток у `docs/adr/`. */
+const ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
+  matcher: '',
+  hooks: Object.freeze([
+    Object.freeze({
+      type: 'command',
+      command: `bash "$CLAUDE_PROJECT_DIR/${ADR_NORMALIZE_HOOK_COMMAND_MARKER}"`,
+      async: true,
+      timeout: 600
     })
   ])
 })
@@ -140,7 +162,11 @@ function templateWithAdrHook(template) {
   for (const [event, groups] of Object.entries(template.hooks ?? {})) {
     hooks[event] = Array.isArray(groups) ? [...groups] : []
   }
-  hooks.Stop = [...(hooks.Stop ?? []), /** @type {HookGroup} */ (ADR_STOP_HOOK_GROUP)]
+  hooks.Stop = [
+    ...(hooks.Stop ?? []),
+    /** @type {HookGroup} */ (ADR_STOP_HOOK_GROUP),
+    /** @type {HookGroup} */ (ADR_NORMALIZE_STOP_HOOK_GROUP)
+  ]
   return { ...template, hooks }
 }
 
@@ -209,24 +235,45 @@ export async function syncClaudeSettings(projectRoot, templateDir, options = {})
 }
 
 /**
- * Копіює канонічний `.claude/hooks/capture-decisions.sh` з темплейту пакета.
+ * Копіює один канонічний bash-скрипт hook'а з темплейту пакета у `.claude/hooks/`.
  * Файл повністю керується пакетом — на кожен sync перезаписується (як setup-bun-deps).
  * @param {string} projectRoot корінь проєкту, куди писати
  * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @param {string} scriptName базове ім'я скрипта (наприклад `capture-decisions.sh`)
  * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
  */
-export async function syncAdrHookScript(projectRoot, templateDir) {
-  const templatePath = join(templateDir, 'hooks', ADR_HOOK_SCRIPT_NAME)
+async function syncHookScript(projectRoot, templateDir, scriptName) {
+  const templatePath = join(templateDir, 'hooks', scriptName)
   if (!existsSync(templatePath)) {
     return { written: false, path: '' }
   }
   const content = await readFile(templatePath, 'utf8')
   const hooksDir = join(projectRoot, CLAUDE_HOOKS_DIR)
   await mkdir(hooksDir, { recursive: true })
-  const destPath = join(hooksDir, ADR_HOOK_SCRIPT_NAME)
+  const destPath = join(hooksDir, scriptName)
   await writeFile(destPath, content, 'utf8')
   await chmod(destPath, 0o755)
-  return { written: true, path: `${CLAUDE_HOOKS_DIR}/${ADR_HOOK_SCRIPT_NAME}` }
+  return { written: true, path: `${CLAUDE_HOOKS_DIR}/${scriptName}` }
+}
+
+/**
+ * Копіює канонічний `.claude/hooks/capture-decisions.sh` з темплейту пакета.
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
+ */
+export function syncAdrHookScript(projectRoot, templateDir) {
+  return syncHookScript(projectRoot, templateDir, ADR_HOOK_SCRIPT_NAME)
+}
+
+/**
+ * Копіює канонічний `.claude/hooks/normalize-decisions.sh` з темплейту пакета.
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
+ */
+export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
+  return syncHookScript(projectRoot, templateDir, ADR_NORMALIZE_HOOK_SCRIPT_NAME)
 }
 
 /**
@@ -283,20 +330,29 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean }>} прапорці записів settings/CLAUDE.md/ADR-hook та список записаних slash-команд
+ * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/CLAUDE.md/ADR-hook(s) та список записаних slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
-    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false }
+    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false, adrNormalizeHook: false }
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
   if (!existsSync(templateDir)) {
-    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false }
+    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false, adrNormalizeHook: false }
   }
   const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
   const adrHook = includeAdrHook ? await syncAdrHookScript(projectRoot, templateDir) : { written: false, path: '' }
+  const adrNormalizeHook = includeAdrHook
+    ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
+    : { written: false, path: '' }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const npmClaudeMd = await syncNpmClaudeMd(projectRoot, templateDir)
   const commands = await syncClaudeCommands(projectRoot, templateDir)
-  return { settings: settings.written, npmClaudeMd: npmClaudeMd.written, commands, adrHook: adrHook.written }
+  return {
+    settings: settings.written,
+    npmClaudeMd: npmClaudeMd.written,
+    commands,
+    adrHook: adrHook.written,
+    adrNormalizeHook: adrNormalizeHook.written
+  }
 }

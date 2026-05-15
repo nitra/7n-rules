@@ -4,6 +4,25 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.10.0] - 2026-05-15
+
+### Added
+
+- **Правило `adr` — фаза 2 (Normalize).** Новий Stop-hook `.claude/hooks/normalize-decisions.sh` батчево нормалізує ADR-чернетки через LLM: коли кількість файлів з `session:` у frontmatter досягає `ADR_NORMALIZE_THRESHOLD` (default 30), бере до `ADR_NORMALIZE_BATCH` найстарших, отримує JSON-операції (`rewrite` / `delete` / `merge-into`) і застосовує їх до робочого дерева. **Жодних git-операцій** — розробник дивиться `git status`/`git diff` і вирішує сам. Recursion guard `ADR_NORMALIZE_RUNNING=1`, мінімальний інтервал між спробами `ADR_NORMALIZE_MIN_INTERVAL_HOURS=6`, lock-файл, skip при mid-rebase/mid-merge, `ADR_NORMALIZE_DRY=1` для dry-run. Slug-стиль — kebab-case українською; дата у фінальному ADR береться з `captured` чернетки.
+- **Skill `adr-normalize`** (slash-команда `/n-adr-normalize`) — ручний запуск normalize поза порогом і поза Stop-hook (виставляє `ADR_NORMALIZE_THRESHOLD=0` і `ADR_NORMALIZE_MIN_INTERVAL_HOURS=0`, корисно для dry-run або разової чистки). Авто-додається при `adr` у `rules`.
+- **`sync-claude-config`**: експортовано `ADR_NORMALIZE_HOOK_COMMAND_MARKER` і функцію `syncAdrNormalizeHookScript`; managed-група normalize додається до `hooks.Stop` поряд з capture-групою (`async: true`, `timeout: 600`) при `"adr"` у `rules`. Маркер `.claude/hooks/normalize-decisions.sh` додано в `MANAGED_HOOK_COMMAND_MARKERS`.
+- **Rego-перевірка `adr.settings_json`** тепер вимагає Stop-hook групу і для capture, і для normalize; **`adr.settings_local_json`** забороняє дублі обох хуків.
+
+### Changed
+
+- **`capture-decisions.sh` тепер пише чернетки напряму в `docs/adr/<timestamp>-<sid>.md`** (раніше — у `docs/adr/_inbox/`). Сам каталог `_inbox/` більше не створюється, але `normalize-decisions.sh` бачить його рекурсивно — старі чернетки з `_inbox/` поступово розчищаються нормалізацією. Можна також одноразово `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
+- **Правило `adr` (`npm/rules/adr/adr.mdc`)**: повне переписування під дві фази (capture + normalize). Видалено згадки `_inbox/`. Версія `version: '2.0'`.
+- **`npm/rules/adr/js/check.mjs`**: перевірка обох hook-скриптів (canonicity), обох log-файлів у `.gitignore`.
+
+### Fixed
+
+- `npm/rules/adr/js/check.{mjs,test.mjs}`: виправлено `BUNDLED_HOOKS_DIR` (після phase 3 co-location шлях `'..'` указував у `npm/rules/adr/.claude-template/`, потрібно `'../../..'` — до `npm/.claude-template/`).
+
 ## [1.9.23] - 2026-05-14
 
 ### Fixed

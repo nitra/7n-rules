@@ -1,14 +1,17 @@
 /**
- * Перевіряє вимоги правила adr.mdc: ADR Stop-hook capture-decisions.sh у Claude Code.
+ * Перевіряє вимоги правила adr.mdc: ADR Stop-hook'и `capture-decisions.sh` і
+ * `normalize-decisions.sh` у Claude Code.
  *
  * Очікування:
- * - `.claude/hooks/capture-decisions.sh` існує і байт-у-байт збігається з канонічним
- *   `.claude-template/hooks/capture-decisions.sh` пакета (sync керує файлом повністю).
- * - `.claude/settings.json` (project-shared) має managed-групу у `hooks.Stop`, яка
- *   викликає цей bash-скрипт; маркер у `command` — `.claude/hooks/capture-decisions.sh`.
- * - `.claude/settings.local.json` (якщо існує) НЕ має дубля цієї managed-групи —
- *   після переходу на project-shared такий запис створив би два запуски на одну подію.
- * - `.gitignore` у корені містить шаблон, який покриває `.claude/hooks/capture-decisions.log`.
+ * - `.claude/hooks/capture-decisions.sh` та `.claude/hooks/normalize-decisions.sh`
+ *   існують і байт-у-байт збігаються з канонічними `.claude-template/hooks/*`
+ *   пакета (sync керує файлами повністю).
+ * - `.claude/settings.json` (project-shared) має managed-групи у `hooks.Stop` для
+ *   обох скриптів (маркери у `command` — самі шляхи до скриптів).
+ * - `.claude/settings.local.json` (якщо існує) НЕ має дублів цих managed-груп —
+ *   після переходу на project-shared такі записи створили б два запуски на одну подію.
+ * - `.gitignore` у корені містить шаблон, який покриває
+ *   `.claude/hooks/capture-decisions.log` і `.claude/hooks/normalize-decisions.log`.
  *
  * LLM CLI (`claude` або `cursor-agent`) у `PATH` — інформативна перевірка: якщо жодного
  * немає, скрипт працює, але мовчки виходить, тому це warning, а не fail.
@@ -21,26 +24,48 @@ import { fileURLToPath } from 'node:url'
 
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 
-const PROJECT_HOOK_PATH = '.claude/hooks/capture-decisions.sh'
+/** Один hook-артефакт: bash-скрипт + його лог-файл, які перевіряємо однотипно. */
+const HOOK_ARTIFACTS = /** @type {const} */ ([
+  { scriptName: 'capture-decisions.sh', logName: 'capture-decisions.log' },
+  { scriptName: 'normalize-decisions.sh', logName: 'normalize-decisions.log' }
+])
+
 const PROJECT_SETTINGS_PATH = '.claude/settings.json'
-const PROJECT_LOG_PATH = '.claude/hooks/capture-decisions.log'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
-/** Канонічний bundled-скрипт у пакеті — джерело правди для звірки з проєктним. */
-const BUNDLED_HOOK_PATH = join(here, '..', '.claude-template', 'hooks', 'capture-decisions.sh')
+const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '.claude-template', 'hooks')
 
 /**
- * Чи містить рядок `.gitignore` шаблон, який покриває `.claude/hooks/capture-decisions.log`.
+ * Відносний шлях до managed hook-скрипта у проєкті.
+ * @param {string} scriptName базове ім'я скрипта (наприклад `capture-decisions.sh`)
+ * @returns {string} `.claude/hooks/<scriptName>`
+ */
+function projectHookPath(scriptName) {
+  return `.claude/hooks/${scriptName}`
+}
+
+/**
+ * Відносний шлях до лог-файлу managed hook'а у проєкті.
+ * @param {string} logName базове ім'я лог-файлу (наприклад `capture-decisions.log`)
+ * @returns {string} `.claude/hooks/<logName>`
+ */
+function projectLogPath(logName) {
+  return `.claude/hooks/${logName}`
+}
+
+/**
+ * Чи містить рядок `.gitignore` шаблон, який покриває цей конкретний лог-файл хука.
  * Враховує точний шлях, glob `.claude/hooks/*.log` та широкий glob `**\/*.log`.
  * @param {string} line одна нормалізована (trim) лінія `.gitignore`
- * @returns {boolean} `true`, якщо лінія матчить лог-файл хука
+ * @param {string} logPath шлях `.claude/hooks/<name>.log`, який треба покрити
+ * @returns {boolean} `true`, якщо лінія матчить цей лог-файл
  */
-function gitignoreLineCoversHookLog(line) {
+function gitignoreLineCoversHookLog(line, logPath) {
   if (!line || line.startsWith('#')) {
     return false
   }
-  if (line === PROJECT_LOG_PATH) {
+  if (line === logPath) {
     return true
   }
   if (line === '.claude/hooks/*.log' || line === '.claude/hooks/**/*.log') {
@@ -53,28 +78,28 @@ function gitignoreLineCoversHookLog(line) {
 }
 
 /**
- * Перевіряє наявність і канонічність `.claude/hooks/capture-decisions.sh` у проєкті.
+ * Перевіряє наявність і канонічність одного hook-скрипта.
  * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {string} scriptName базове ім'я скрипта (наприклад `capture-decisions.sh`)
  * @returns {Promise<void>}
  */
-async function checkHookScript(reporter) {
+async function checkHookScript(reporter, scriptName) {
   const { pass, fail } = reporter
-  if (!existsSync(PROJECT_HOOK_PATH)) {
-    fail(`${PROJECT_HOOK_PATH} не існує — запусти \`npx @nitra/cursor\` (правило adr копіює канонічний скрипт)`)
+  const projectPath = projectHookPath(scriptName)
+  const bundledPath = join(BUNDLED_HOOKS_DIR, scriptName)
+  if (!existsSync(projectPath)) {
+    fail(`${projectPath} не існує — запусти \`npx @nitra/cursor\` (правило adr копіює канонічний скрипт)`)
     return
   }
-  if (!existsSync(BUNDLED_HOOK_PATH)) {
-    fail(`канонічний скрипт у пакеті не знайдено: ${BUNDLED_HOOK_PATH} — перевстанови @nitra/cursor`)
+  if (!existsSync(bundledPath)) {
+    fail(`канонічний скрипт у пакеті не знайдено: ${bundledPath} — перевстанови @nitra/cursor`)
     return
   }
-  const [project, bundled] = await Promise.all([
-    readFile(PROJECT_HOOK_PATH, 'utf8'),
-    readFile(BUNDLED_HOOK_PATH, 'utf8')
-  ])
+  const [project, bundled] = await Promise.all([readFile(projectPath, 'utf8'), readFile(bundledPath, 'utf8')])
   if (project === bundled) {
-    pass(`${PROJECT_HOOK_PATH} збігається з канонічним`)
+    pass(`${projectPath} збігається з канонічним`)
   } else {
-    fail(`${PROJECT_HOOK_PATH} відрізняється від канонічного — запусти \`npx @nitra/cursor\` для повторного синку`)
+    fail(`${projectPath} відрізняється від канонічного — запусти \`npx @nitra/cursor\` для повторного синку`)
   }
 }
 
@@ -95,25 +120,42 @@ function checkProjectSettings(reporter) {
 }
 
 /**
- * Перевіряє `.gitignore` на ігнорування лог-файлу хука.
+ * Перевіряє `.gitignore` на ігнорування лог-файлу одного хука.
+ * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {string} logName базове ім'я лог-файлу (наприклад `capture-decisions.log`)
+ * @param {string} gitignoreContent попередньо прочитаний вміст `.gitignore`
+ * @returns {void}
+ */
+function checkGitignoreForLog(reporter, logName, gitignoreContent) {
+  const { pass, fail } = reporter
+  const logPath = projectLogPath(logName)
+  const covers = gitignoreContent
+    .split(EOL_RE)
+    .map(l => l.trim())
+    .some(line => gitignoreLineCoversHookLog(line, logPath))
+  if (covers) {
+    pass(`.gitignore покриває ${logPath}`)
+  } else {
+    fail(`.gitignore не ігнорує \`${logPath}\` — додай цей рядок`)
+  }
+}
+
+/**
+ * Перевіряє `.gitignore` для всіх hook-логів одним проходом.
  * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
  * @returns {Promise<void>}
  */
 async function checkGitignore(reporter) {
-  const { pass, fail } = reporter
+  const { fail } = reporter
   if (!existsSync('.gitignore')) {
-    fail(`.gitignore не існує — додай рядок \`${PROJECT_LOG_PATH}\``)
+    for (const { logName } of HOOK_ARTIFACTS) {
+      fail(`.gitignore не існує — додай рядок \`${projectLogPath(logName)}\``)
+    }
     return
   }
   const content = await readFile('.gitignore', 'utf8')
-  const covers = content
-    .split(EOL_RE)
-    .map(l => l.trim())
-    .some(line => gitignoreLineCoversHookLog(line))
-  if (covers) {
-    pass(`.gitignore покриває ${PROJECT_LOG_PATH}`)
-  } else {
-    fail(`.gitignore не ігнорує \`${PROJECT_LOG_PATH}\` — додай цей рядок`)
+  for (const { logName } of HOOK_ARTIFACTS) {
+    checkGitignoreForLog(reporter, logName, content)
   }
 }
 
@@ -166,7 +208,9 @@ function checkLlmCliAvailable(reporter) {
  */
 export async function check() {
   const reporter = createCheckReporter()
-  await checkHookScript(reporter)
+  for (const { scriptName } of HOOK_ARTIFACTS) {
+    await checkHookScript(reporter, scriptName)
+  }
   checkProjectSettings(reporter)
   await checkGitignore(reporter)
   checkLlmCliAvailable(reporter)

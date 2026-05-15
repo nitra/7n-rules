@@ -6,7 +6,7 @@
  * тому перші тести копіюють його у tmp `.claude/hooks/` для збігу байт-у-байт.
  */
 import { describe, expect, test } from 'bun:test'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,13 +14,14 @@ import { check } from './check.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_HOOK_SOURCE = join(here, '..', '.claude-template', 'hooks', 'capture-decisions.sh')
+const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '.claude-template', 'hooks')
 
-/** Канонічний вміст hook-скрипта з пакета — спільне джерело правди для тестів. */
-const bundledHookContent = await readFile(BUNDLED_HOOK_SOURCE, 'utf8')
+/** Канонічні вмісти hook-скриптів з пакета — спільне джерело правди для тестів. */
+const bundledCaptureContent = await readFile(join(BUNDLED_HOOKS_DIR, 'capture-decisions.sh'), 'utf8')
+const bundledNormalizeContent = await readFile(join(BUNDLED_HOOKS_DIR, 'normalize-decisions.sh'), 'utf8')
 
 /**
- * Канонічний валідний `.claude/settings.json` із обома managed-групами (lint + ADR).
+ * Канонічний валідний `.claude/settings.json` із усіма managed-групами (lint + capture + normalize).
  * @returns {Record<string, unknown>} settings-обʼєкт для запису
  */
 function makeValidSettings() {
@@ -38,6 +39,17 @@ function makeValidSettings() {
               timeout: 180
             }
           ]
+        },
+        {
+          matcher: '',
+          hooks: [
+            {
+              type: 'command',
+              command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/normalize-decisions.sh"',
+              async: true,
+              timeout: 600
+            }
+          ]
         }
       ]
     }
@@ -50,9 +62,14 @@ function makeValidSettings() {
  */
 async function setupValidProject() {
   await ensureDir('.claude/hooks')
-  await writeFile('.claude/hooks/capture-decisions.sh', bundledHookContent, 'utf8')
+  await writeFile('.claude/hooks/capture-decisions.sh', bundledCaptureContent, 'utf8')
+  await writeFile('.claude/hooks/normalize-decisions.sh', bundledNormalizeContent, 'utf8')
   await writeJson('.claude/settings.json', makeValidSettings())
-  await writeFile('.gitignore', 'node_modules/\n.claude/hooks/capture-decisions.log\n', 'utf8')
+  await writeFile(
+    '.gitignore',
+    'node_modules/\n.claude/hooks/capture-decisions.log\n.claude/hooks/normalize-decisions.log\n',
+    'utf8'
+  )
 }
 
 describe('check-adr (інтеграція)', () => {
@@ -63,26 +80,39 @@ describe('check-adr (інтеграція)', () => {
     })
   })
 
-  test('1 — немає .claude/hooks/capture-decisions.sh', async () => {
+  test('1 — capture-decisions.sh не канонічний', async () => {
     await withTmpCwd(async () => {
       await setupValidProject()
-      await mkdir('.claude/hooks', { recursive: true })
-      await writeFile('.gitignore', '.claude/hooks/capture-decisions.log\n', 'utf8')
-      // прибираємо скрипт
-      await writeFile('.claude/hooks/capture-decisions.sh', '', 'utf8') // зробимо його не канонічним
+      await writeFile('.claude/hooks/capture-decisions.sh', '', 'utf8')
       expect(await check()).toBe(1)
     })
   })
 
-  // Перевірки структури `.claude/settings.json` (наявність Stop-hook з
-  // `capture-decisions.sh`) і дубля у `.claude/settings.local.json` тепер у Rego
-  // (`npm/policy/adr/settings_json/`, `npm/policy/adr/settings_local_json/`).
-  // JS-перевірка лише наявність файлу.
+  test('1 — normalize-decisions.sh не канонічний', async () => {
+    await withTmpCwd(async () => {
+      await setupValidProject()
+      await writeFile('.claude/hooks/normalize-decisions.sh', '', 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  // Перевірки структури `.claude/settings.json` (наявність Stop-хуків з
+  // `capture-decisions.sh` і `normalize-decisions.sh`) і дублів у `.claude/settings.local.json`
+  // — у Rego (`npm/rules/adr/policy/settings_json/`, `settings_local_json/`). JS-перевірка
+  // лише наявність файлу.
 
   test('1 — .gitignore не покриває capture-decisions.log', async () => {
     await withTmpCwd(async () => {
       await setupValidProject()
-      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await writeFile('.gitignore', 'node_modules/\n.claude/hooks/normalize-decisions.log\n', 'utf8')
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('1 — .gitignore не покриває normalize-decisions.log', async () => {
+    await withTmpCwd(async () => {
+      await setupValidProject()
+      await writeFile('.gitignore', 'node_modules/\n.claude/hooks/capture-decisions.log\n', 'utf8')
       expect(await check()).toBe(1)
     })
   })
@@ -95,7 +125,15 @@ describe('check-adr (інтеграція)', () => {
     })
   })
 
-  test('0 — `.claude/settings.local.json` без ADR-hook не вважається дублем', async () => {
+  test('0 — `.gitignore` через `.claude/hooks/*.log` покриває обидва логи', async () => {
+    await withTmpCwd(async () => {
+      await setupValidProject()
+      await writeFile('.gitignore', 'node_modules/\n.claude/hooks/*.log\n', 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('0 — `.claude/settings.local.json` без ADR-хуків не вважається дублем', async () => {
     await withTmpCwd(async () => {
       await setupValidProject()
       await writeJson('.claude/settings.local.json', { permissions: { allow: ['Bash'] } })
