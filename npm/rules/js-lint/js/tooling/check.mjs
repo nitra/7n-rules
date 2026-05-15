@@ -16,17 +16,31 @@ import { copyFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
 /** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
 export const OXLINT_CANONICAL_JSON_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  '..',
+  'scripts',
   'utils',
   'oxlint-canonical.json'
 )
 
 /** Шлях до канонічного knip JSON у цьому пакеті — копіюється у корінь проєкту-споживача, якщо відсутній. */
-export const KNIP_CANONICAL_JSON_PATH = join(dirname(fileURLToPath(import.meta.url)), 'utils', 'knip-canonical.json')
+export const KNIP_CANONICAL_JSON_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  '..',
+  'scripts',
+  'utils',
+  'knip-canonical.json'
+)
 
 /** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
 export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']

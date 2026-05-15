@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from './check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check-js-bun-db', () => {
   test('пропускає, якщо немає кореневого package.json', async () => {

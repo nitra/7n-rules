@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { check } from './check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /** Канонічний jsconfig для backend-пакетів із `src/` (js-run.mdc). */
 const CANONICAL_BACKEND_JSCONFIG = {
