@@ -11,7 +11,11 @@ import { check as checkStyle } from '../rules/style-lint/js/tooling/check.mjs'
 import { check as checkVue } from '../rules/vue/js/packages/check.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.mjs'
 
-const nginxFixDir = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'rules/nginx-default-tpl/js/fixtures')
+const nginxFixDir = join(
+  fileURLToPath(new URL('.', import.meta.url)),
+  '..',
+  'rules/nginx-default-tpl/js/template/fixtures'
+)
 
 /**
  * Готує мінімальний monorepo з workspace-пакетом `app` (Vue + Vite) для `check-vue`.

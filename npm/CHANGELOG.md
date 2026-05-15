@@ -4,12 +4,23 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.7] - 2026-05-15
+
+### Changed
+
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — `/n-fix` більше **не запускає** `bun run lint` і **не делегує** до `/n-lint`. Крок 6 (`bun run lint` з делегуванням, доданий у 1.11.6) повністю видалено; замість нього на початку SKILL.md додано секцію **«Скоуп»**, де явно зафіксовано: `/n-fix` опікується лише структурою проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), а лінт-порушення у самому коді (ESLint/oxlint/jscpd/cspell/knip/sonarjs/stylelint) — поза скоупом і виправляються винятково через `/n-lint`. Кроки 7→6 і 8→7 переномеровано; остаточний пункт 7 додатково нагадує, що лінт-помилки не входять у критерій успіху `/n-fix`. Мета — щоб агент, що виконує `/n-fix`, не плутав свою задачу з `/n-lint` і не запускав важкий `bun run lint` без потреби; те, що діагностує `/n-lint`, виправляється там же, а не дублюється тут.
+
+### Fixed
+
+- **`npm/tests/check-rule-fixtures.test.mjs`** — `nginxFixDir` оновлено з `rules/nginx-default-tpl/js/fixtures` на `rules/nginx-default-tpl/js/template/fixtures`. Після phase 2 concern-split фікстура `default.conf.template` переїхала всередину концерну `template/`, тест падав з `ENOENT no such file or directory`.
+
 ## [1.11.6] - 2026-05-15
 
 ### Changed
 
 - **`npm/rules/npm-module/npm-module.mdc`** — переформульовано вимогу про тести й фікстури. Раніше правило вимагало тримати їх **поза** будь-яким шляхом з `"files"` (канонічно — у `npm/tests/`). Тепер тести/фікстури можуть лежати **поруч з кодом** усередині `"files"`-шляхів, але `"files"` обовʼязково має містити **негативні glob-патерни**, що виключають їх із tarball (`!**/*.test.*`, `!**/*.spec.*`, `!**/test-helpers.*`, `!**/fixtures/**`, `!**/__tests__/**`, опційно `!**/*_test.rego`). Це краще відповідає реальному layout пакета (co-located test-файли у `rules/<id>/js/<concern>/`) і прибирає роз'їзд правила з фактичним `npm/package.json`. Версію `.mdc` піднято до `1.12`.
 - **`npm/rules/npm-module/js/package_structure/check.mjs::checkNoTestsInPublishedFiles`** — текст fail-повідомлення тепер однозначно радить додати негативний glob у `"files"`, без альтернативи «винеси за межі шляхів з "files"». Логіка перевірки (walk positive ∖ negative + класифікація test-style) не змінилась — пере-кваліфіковано лише підказку для агента й людини.
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк), **`npm/rules/style-lint/style-lint.mdc`** — розмежовано ролі скілів: `/n-fix` відповідає за **структуру** проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), `/n-lint` — за **чистоту коду** (`bun run lint`). Крок 6 у `n-fix` (перебір `lint-js`/`lint-text`/`lint-style`) замінено на одиничний `bun run lint` з делегуванням до `/n-lint` — лінт-логіку (auto-fix, sonarjs-рефакторинг, заборона паралельних запусків ESLint) `n-fix` більше не дублює. У `style-lint.mdc` cross-reference «повний набір `lint-*` (навичка `n-fix`)» оновлено на «`bun run lint` (навичка `/n-lint`)».
 
 ## [1.11.5] - 2026-05-15
 
