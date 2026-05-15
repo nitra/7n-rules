@@ -1,0 +1,43 @@
+npm/skills/fix/SKILL.md
+  s_34a2b8fe255b53::t_feb15c2c4281ca 9-12
+  s_34a2b8fe255b53::t_b8cd321b37643a 43,49
+npm/package.json
+  s_3a4481ec6003f6::t_dbd6ced30d6fdd 3
+docs/adr/20260515-214800-e513a1f0.md
+  s_3a4481ec6003f6::t_9f6cd6aba21488 1-17
+npm/tests/check-rule-fixtures.test.mjs
+  s_3a4481ec6003f6::t_cdf6a8dfe0cc24 14-18
+.cursor/skills/n-fix/SKILL.md
+  s_34a2b8fe255b53::t_32a9a4cee821d7 9-12
+  s_34a2b8fe255b53::t_781649f7966488 43,49
+docs/adr/20260515-214800-58c5ac60.md
+  s_3a4481ec6003f6::t_9f6cd6aba21488 1-17
+npm/CHANGELOG.md
+  s_34a2b8fe255b53::t_fe1585b3e69a9d 9-12
+  s_3a4481ec6003f6::t_3e36b1f13c6c98 7-8,13-16
+  s_34a2b8fe255b53::t_a813580ab34322 23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "0578a3ec2c9ea96d4c3d88fc5b00ff3945bf0f0d",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_3a4481ec6003f6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cb463371-d052-4d9b-9e88-9490d27363ab",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
