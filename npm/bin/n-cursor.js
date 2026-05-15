@@ -46,6 +46,8 @@
  * skills/<id>/ (без префікса); у проєкті — .cursor/skills/n-<id>/ (префікс n-, як n-*.mdc).
  * Якщо ключа skills немає, за замовчуванням підтягуються всі підкаталоги skills/ (лише імена без префікса n-).
  * Зайві каталоги n-* у .cursor/skills, яких немає у списку, видаляються.
+ * Файл `auto.md` у скілі — джерело правди для auto-skills у CLI (`scripts/auto-skills.mjs`)
+ * і у проєкт не копіюється; раніше синхронізовані `auto.md` прибираються при наступному синку.
  *
  * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
  * в dependencies), CLI дописує devDependencies з діапазоном ^<version> поточного пакету — зручно після npx.
@@ -771,9 +773,12 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
         await mkdir(destDir, { recursive: true })
         const files = await readdir(srcDir)
         for (const file of files) {
+          if (file === 'auto.md') continue
           const content = await readFile(join(srcDir, file), 'utf8')
           await writeFile(join(destDir, file), content, 'utf8')
         }
+        const stalePath = join(destDir, 'auto.md')
+        if (existsSync(stalePath)) await unlink(stalePath)
         console.log(`✅`)
         success++
       } catch (error) {

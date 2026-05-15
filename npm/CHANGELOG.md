@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.8] - 2026-05-15
+
+### Changed
+
+- **`npm/bin/n-cursor.js::syncSkills`** — файл `auto.md` зі скілу більше **не** копіюється у `.cursor/skills/n-<id>/`. `auto.md` — це службова мета для CLI-сторони (`scripts/auto-skills.mjs` читає його з пакета, щоб вирішити, чи автоматично активувати скіл у `.n-cursor.json`), у проєкті він зайвий і лише засмічує `.cursor/skills/`. Додатково: якщо у `.cursor/skills/n-<id>/auto.md` вже лежить старий артефакт минулих синків, він прибирається при наступному `npx @nitra/cursor` (через `unlink`). Каталог-приймач лишається без `auto.md` — тільки `SKILL.md` (і будь-які інші файли скілу, якщо зʼявляться). Заголовний коментар у `npm/bin/n-cursor.js` оновлено відповідно.
+
 ## [1.11.7] - 2026-05-15
 
 ### Changed
