@@ -261,9 +261,16 @@ async function readConfig(paths = {}) {
       packageJsonParsed: rootPkg,
       disableRules
     })
+    // Skills залежать від ефективного списку правил, який буде у конфізі після merge:
+    // вже існуючі (опт-ін вручну) + auto-detected, мінус `disable-rules`. Без цього
+    // правило, додане вручну (напр. `adr` без auto.md-умови), не активувало б залежні
+    // скіли (`adr-normalize`).
+    const disableRulesSet = new Set(disableRules)
+    const effectiveRulesForSkills = [...new Set([...normalizeIdList(parsedConfig.rules), ...autoDetectedRules.rules])]
+      .filter(id => !disableRulesSet.has(id))
     const autoDetectedSkills = detectAutoSkills({
       availableSkills,
-      detectedRules: autoDetectedRules.rules,
+      detectedRules: effectiveRulesForSkills,
       disableSkills
     })
 

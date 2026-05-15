@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.3] - 2026-05-15
+
+### Fixed
+
+- **`npm/bin/n-cursor.js`** — `detectAutoSkills` тепер отримує **ефективний** список правил (опт-ін вручну з `.n-cursor.json:rules` ∪ auto-detected, мінус `disable-rules`), а не лише auto-detected. Без цього скіли із залежністю на правило, додане вручну (наприклад, `adr` без `auto.md`-умови), не активувалися — у репо з `"rules": ["adr", …]` скіл `adr-normalize` залишався відсутнім, попри `[adr]` у його `skills/adr-normalize/auto.md`. Тепер `adr-normalize`, `abie-clean`, `abie-kustomize`, `taze` авто-додаються коректно як при auto-detected, так і при manual-opt-in відповідних правил.
+
 ## [1.11.2] - 2026-05-15
 
 ### Fixed
