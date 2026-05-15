@@ -66,8 +66,10 @@ import {
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
+import { discoverCheckableRules } from '../scripts/utils/discover-checkable-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintGaCli } from '../rules/ga/js/lint.mjs'
+import { runRule } from '../scripts/utils/run-rule.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -986,18 +988,14 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Знаходить доступні check-скрипти. Кожне правило з check-скриптом тримає його у
- * `rules/<id>/js/check.mjs` (rule-centric layout).
- * @returns {Promise<string[]>} відсортовані id правил, для яких є check.mjs
+ * Знаходить правила, для яких є хоча б щось прогонне: JS-концерн у `rules/<id>/js/<concern>/check*.mjs`
+ * (плюс legacy `rules/<id>/js/check.mjs` як концерн `legacy`) або policy-концерн у
+ * `rules/<id>/policy/<concern>/target.json`. Делегує у `discoverCheckableRules` —
+ * див. `scripts/utils/discover-checkable-rules.mjs`.
+ * @returns {Promise<import('../scripts/utils/discover-checkable-rules.mjs').CheckableRule[]>} опис правил у алфавітному порядку
  */
 async function discoverCheckScripts() {
-  if (!existsSync(BUNDLED_RULES_DIR)) return []
-  const entries = await readdir(BUNDLED_RULES_DIR, { withFileTypes: true })
-  return entries
-    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-    .filter(e => existsSync(join(BUNDLED_RULES_DIR, e.name, 'js', 'check.mjs')))
-    .map(e => e.name)
-    .toSorted((a, b) => a.localeCompare(b))
+  return discoverCheckableRules(BUNDLED_RULES_DIR)
 }
 
 /**
@@ -1048,13 +1046,15 @@ async function discoverCheckRulesFromAgentsMd(available) {
 }
 
 /**
- * Запускає перевірки: без аргументів — за списком у AGENTS.md; з аргументами — лише вказані правила
+ * Запускає перевірки: без аргументів — за списком у AGENTS.md; з аргументами — лише вказані правила.
+ * Делегує оркестрацію concern-ів (JS-checks + policy через `runConftestBatch`) у `runRule`;
+ * сам `runChecks` відповідає лише за фільтр id, агрегацію exit-кодів і shared walk-cache на прогон.
  * @param {string[]} requestedRules імена правил; порожній масив — брати з AGENTS.md
  * @returns {Promise<void>}
  */
 async function runChecks(requestedRules) {
-  const available = await discoverCheckScripts()
-  if (available.length === 0) {
+  const allRules = await discoverCheckScripts()
+  if (allRules.length === 0) {
     console.error('❌ Не знайдено жодного check-скрипта у пакеті')
     throw new Error('No check scripts found')
   }
@@ -1070,38 +1070,38 @@ async function runChecks(requestedRules) {
     }
   }
 
-  let rulesToCheck
+  const available = allRules.map(r => r.id)
+  let idsToCheck
   if (requestedRules.length > 0) {
-    rulesToCheck = requestedRules
+    idsToCheck = requestedRules
   } else {
-    rulesToCheck = await discoverCheckRulesFromAgentsMd(available)
-    if (rulesToCheck.length === 0) {
+    idsToCheck = await discoverCheckRulesFromAgentsMd(available)
+    if (idsToCheck.length === 0) {
       console.log(
         `\n🔍 ${PACKAGE_NAME} check — у ${AGENTS_FILE} немає правил з programmatic перевіркою ` +
-          `(відповідного check-*.mjs у пакеті). Нічого не запущено.\n`
+          `(відповідного check-*.mjs або policy/<name>/target.json у пакеті). Нічого не запущено.\n`
       )
       return
     }
   }
 
-  const unknown = rulesToCheck.filter(r => !available.includes(r))
+  const unknown = idsToCheck.filter(id => !available.includes(id))
   if (unknown.length > 0) {
     console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
     console.log(`   Доступні: ${available.join(', ')}`)
     throw new Error(`Unknown rules: ${unknown.join(', ')}`)
   }
 
-  console.log(`\n🔍 ${PACKAGE_NAME} check — перевірка правил (${rulesToCheck.length})\n`)
+  console.log(`\n🔍 ${PACKAGE_NAME} check — перевірка правил (${idsToCheck.length})\n`)
 
+  const ruleMap = new Map(allRules.map(r => [r.id, r]))
+  /** @type {Map<string, Promise<string[]>>} shared walk-cache (cross-concern, cross-rule у межах одного прогону) */
+  const walkCache = new Map()
   let totalFailed = 0
 
-  for (const rule of rulesToCheck) {
-    const scriptPath = join(BUNDLED_RULES_DIR, rule, 'js', 'check.mjs')
-    console.log(`📋 ${rule}:`)
+  for (const id of idsToCheck) {
     try {
-      // eslint-disable-next-line no-unsanitized/method -- rule валідовано проти available, scriptPath будується з фіксованої BUNDLED_RULES_DIR
-      const { check } = await import(scriptPath)
-      const code = await check()
+      const code = await runRule(ruleMap.get(id), BUNDLED_RULES_DIR, walkCache)
       if (code !== 0) totalFailed++
     } catch (error) {
       console.log(`  ❌ Помилка виконання: ${error.message}`)
@@ -1110,11 +1110,11 @@ async function runChecks(requestedRules) {
     console.log()
   }
 
-  const passedCount = rulesToCheck.length - totalFailed
-  console.log(`✨ Результат: ${passedCount}/${rulesToCheck.length} правил без зауважень\n`)
+  const passedCount = idsToCheck.length - totalFailed
+  console.log(`✨ Результат: ${passedCount}/${idsToCheck.length} правил без зауважень\n`)
 
   if (totalFailed > 0) {
-    throw new Error(`${totalFailed} з ${rulesToCheck.length} правил мають проблеми`)
+    throw new Error(`${totalFailed} з ${idsToCheck.length} правил мають проблеми`)
   }
 }
 

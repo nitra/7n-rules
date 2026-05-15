@@ -1,59 +1,44 @@
 /**
- * Прогоняє `conftest test` по всіх Rego-полісі з `npm/rules/<rule>/policy/` (окрім `ga/*`,
- * які вже виконуються через `npm/rules/ga/js/lint.mjs`).
+ * Прогоняє `conftest test` по всіх Rego-полісі з `npm/rules/<rule>/policy/<concern>/`.
  *
- * Кожна полісі має свій namespace, обов'язковий `rule` (id у `.n-cursor.json:rules`,
- * інакше таргет пропускається — як гейтинг у `check.mjs`), і список цільових
- * файлів — single-file або walk-предикат для дерева. Якщо цільових файлів немає
- * або правило не активне — таргет мовчки пропускається.
+ * Джерело правди — `target.json` поруч із кожним `<concern>.rego`. Маніфест декларує,
+ * які файли проєкту фідити в conftest (`files.single` або `files.walkGlob`). Resolver
+ * і walk-кеш — спільні з CLI `check` (`scripts/utils/resolve-target-files.mjs`),
+ * discovery — `scripts/utils/discover-checkable-rules.mjs`.
+ *
+ * Фільтрація за `.n-cursor.json:rules` — не перевіряємо полісі правил, які проєкт
+ * не активує (як було у попередній hardcoded TARGETS-таблиці).
  *
  * Поведінка fallback:
- *  - якщо `conftest` не в `PATH` — друкуємо `ℹ` повідомлення з підказкою
- *    встановлення і повертаємо 0 (структурні JS-перевірки в `check.mjs`
- *    лишаються паралельно). Те саме рішення — у `rules/ga/js/lint.mjs`.
- *  - якщо `npm/rules/` не існує (нетипова інсталяція) — також `ℹ` skip.
+ *  - якщо `conftest` не в PATH — `ℹ` install-hint, повертаємо 0 (структурні JS-перевірки
+ *    в `check-*.mjs` лишаються паралельно). Те саме рішення — у `rules/ga/js/lint.mjs`.
+ *  - якщо `rules/` каталог відсутній (нетипова інсталяція) — також `ℹ` skip.
  *
- * Перший ненульовий exit-код conftest — повертаємо як результат, але всі
- * наступні таргети все одно виконуємо, щоб одразу побачити повний список
- * порушень (а не виправляти по одному).
+ * Перший ненульовий exit-код conftest — повертаємо як результат, але всі наступні цілі
+ * все одно виконуємо, щоб одразу побачити повний список порушень.
  *
- * Експортовано окремо `runLintConftestCli` — використовується з
- * `bin/n-cursor.js` як підкоманда `lint-conftest`.
+ * Експортовано `runLintConftestCli` — використовується з `bin/n-cursor.js` як підкоманда
+ * `lint-conftest`, а також виконується напряму через `bun ./npm/scripts/lint-conftest.mjs`.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { dirname, join, sep } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { discoverCheckableRules } from './utils/discover-checkable-rules.mjs'
 import { resolveCmd } from './utils/resolve-cmd.mjs'
+import { resolveTargetFiles } from './utils/resolve-target-files.mjs'
 
 /** Каталог пакету `@nitra/cursor`, від якого ресолвимо вшиті директорії правил. */
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
-/** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. Кожне правило: `rules/<id>/policy/`. */
+/** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. */
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
- * Опис одного таргета: namespace + спосіб розвʼязати цільові файли.
- *
- * `single` — конкретний файл відносно cwd, перевіряється `existsSync`-ом.
- * `walk` — рекурсивний обхід від cwd із простим суфікс-предикатом
- * (наприклад `name === 'package.json'`). Глибокі ігнори — як у `walkDir`
- * в інших скриптах: `node_modules`, `.git`, `dist`, `coverage`, `build`,
- * `.turbo`, `.next`. Не використовуємо bun Glob, щоб не плодити залежності
- * за межами `node:fs`.
- * @typedef {{
- *   namespace: string,
- *   policyDir: string,
- *   rule?: string,
- *   single?: string,
- *   walk?: { match: (relPosix: string) => boolean }
- * }} ConftestTarget
- */
-
-/**
  * Зчитує `rules` з `.n-cursor.json` у cwd. Повертає множину рядків — або `null`,
- * якщо файлу немає чи поле некоректне (тоді гейтинг вимикаємо — як у `check-bun.mjs`).
+ * якщо файлу немає чи поле некоректне (тоді гейтинг вимикаємо — як було в попередній версії).
  * @param {string} cwd корінь репо
  * @returns {Set<string> | null} множина активних правил або null
  */
@@ -69,381 +54,37 @@ function loadActiveCursorRules(cwd) {
   }
 }
 
-const SKIP_DIR_NAMES = new Set(['node_modules', '.git', 'dist', 'coverage', 'build', '.turbo', '.next'])
-
-/** `…/k8s/<env>/configmap.yaml` (configmap безпосередньо у directory `k8s/<…>`). */
-const K8S_CONFIGMAP_PATH_RE = /(^|\/)k8s\/[^/]+\/configmap\.yaml$/u
-/** Будь-який шлях під сегментом `k8s/`. */
-const K8S_DIR_PATH_RE = /(^|\/)k8s\//u
-/** `…/k8s/<…>/hc.yaml` (HealthCheckPolicy будь-де під k8s). */
-const K8S_HC_YAML_PATH_RE = /(^|\/)k8s\/.+\/hc\.yaml$/u
-/** `…/k8s/…/base/…/hr.yaml` (HTTPRoute у base-шарі). */
-const K8S_BASE_HR_YAML_PATH_RE = /(^|\/)k8s\/.*base\/.*hr\.yaml$/u
-/** Будь-який ресурсний YAML під `…/k8s/.../base/...` (для abie.base_deployment_preem). */
-const K8S_BASE_RESOURCE_PATH_RE = /(^|\/)k8s\/.*base\//u
-/** `kustomization.yaml` будь-де під сегментом `k8s/`. */
-const K8S_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/.*\/kustomization\.yaml$/u
-/** `…/k8s/.../base/.../kustomization.yaml`. */
-const K8S_BASE_KUSTOMIZATION_PATH_RE = /(^|\/)k8s\/.*base\/(?:.*\/)?kustomization\.yaml$/u
-/** Будь-який ресурсний `*.yaml` під сегментом `…/k8s/.../base/...`, окрім `kustomization.yaml`. */
-const K8S_BASE_MANIFEST_PATH_RE = /(^|\/)k8s\/.*base\//u
-/** `…/k8s/.../svc.yaml` (cluster-IP Service). */
-const K8S_SVC_YAML_PATH_RE = /(^|\/)k8s\/.+\/svc\.yaml$/u
-/** `…/k8s/.../svc-hl.yaml` (headless Service). */
-const K8S_SVC_HL_YAML_PATH_RE = /(^|\/)k8s\/.+\/svc-hl\.yaml$/u
-
-/** @type {ConftestTarget[]} */
-const TARGETS = [
-  // ── bun ─────────────────────────────────────────────────────────────────
-  { namespace: 'bun.bunfig', policyDir: 'bun', rule: 'bun', single: 'bunfig.toml' },
-  { namespace: 'bun.package_json', policyDir: 'bun', rule: 'bun', single: 'package.json' },
-
-  // ── text ────────────────────────────────────────────────────────────────
-  { namespace: 'text.oxfmtrc', policyDir: 'text', rule: 'text', single: '.oxfmtrc.json' },
-  { namespace: 'text.cspell', policyDir: 'text', rule: 'text', single: '.cspell.json' },
-  { namespace: 'text.markdownlint', policyDir: 'text', rule: 'text', single: '.markdownlint-cli2.jsonc' },
-  { namespace: 'text.package_json', policyDir: 'text', rule: 'text', single: 'package.json' },
-  { namespace: 'text.vscode_extensions', policyDir: 'text', rule: 'text', single: '.vscode/extensions.json' },
-  { namespace: 'text.vscode_settings', policyDir: 'text', rule: 'text', single: '.vscode/settings.json' },
-
-  // ── style-lint ──────────────────────────────────────────────────────────
-  { namespace: 'style_lint.package_json', policyDir: 'style_lint', rule: 'style-lint', single: 'package.json' },
-  {
-    namespace: 'style_lint.lint_style_yml',
-    policyDir: 'style_lint',
-    rule: 'style-lint',
-    single: '.github/workflows/lint-style.yml'
-  },
-  {
-    namespace: 'style_lint.vscode_extensions',
-    policyDir: 'style_lint',
-    rule: 'style-lint',
-    single: '.vscode/extensions.json'
-  },
-  {
-    namespace: 'style_lint.vscode_settings',
-    policyDir: 'style_lint',
-    rule: 'style-lint',
-    single: '.vscode/settings.json'
-  },
-
-  // ── php ─────────────────────────────────────────────────────────────────
-  { namespace: 'php.package_json', policyDir: 'php', rule: 'php', single: 'package.json' },
-  {
-    namespace: 'php.lint_php_yml',
-    policyDir: 'php',
-    rule: 'php',
-    single: '.github/workflows/lint-php.yml'
-  },
-
-  // ── docker ──────────────────────────────────────────────────────────────
-  { namespace: 'docker.package_json', policyDir: 'docker', rule: 'docker', single: 'package.json' },
-  {
-    namespace: 'docker.lint_docker_yml',
-    policyDir: 'docker',
-    rule: 'docker',
-    single: '.github/workflows/lint-docker.yml'
-  },
-
-  // ── npm-module ──────────────────────────────────────────────────────────
-  {
-    namespace: 'npm_module.root_package_json',
-    policyDir: 'npm_module',
-    rule: 'npm-module',
-    single: 'package.json'
-  },
-  {
-    namespace: 'npm_module.npm_package_json',
-    policyDir: 'npm_module',
-    rule: 'npm-module',
-    single: 'npm/package.json'
-  },
-  {
-    namespace: 'npm_module.emit_types_config',
-    policyDir: 'npm_module',
-    rule: 'npm-module',
-    single: 'npm/tsconfig.emit-types.json'
-  },
-  {
-    namespace: 'npm_module.npm_publish_yml',
-    policyDir: 'npm_module',
-    rule: 'npm-module',
-    single: '.github/workflows/npm-publish.yml'
-  },
-
-  // ── js-lint ─────────────────────────────────────────────────────────────
-  { namespace: 'js_lint.package_json', policyDir: 'js_lint', rule: 'js-lint', single: 'package.json' },
-  {
-    namespace: 'js_lint.lint_js_yml',
-    policyDir: 'js_lint',
-    rule: 'js-lint',
-    single: '.github/workflows/lint-js.yml'
-  },
-
-  // ── image-compress / image-avif / capacitor ─────────────────────────────
-  {
-    namespace: 'image_compress.package_json',
-    policyDir: 'image_compress',
-    rule: 'image-compress',
-    single: 'package.json'
-  },
-  {
-    namespace: 'image_avif.package_json',
-    policyDir: 'image_avif',
-    rule: 'image-avif',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-  {
-    namespace: 'capacitor.package_json',
-    policyDir: 'capacitor',
-    rule: 'capacitor',
-    single: 'package.json'
-  },
-
-  // ── hasura ──────────────────────────────────────────────────────────────
-  {
-    namespace: 'hasura.svc_hl',
-    policyDir: 'hasura',
-    rule: 'hasura',
-    single: 'hasura/k8s/base/svc-hl.yaml'
-  },
-
-  // ── adr ─────────────────────────────────────────────────────────────────
-  { namespace: 'adr.settings_json', policyDir: 'adr', rule: 'adr', single: '.claude/settings.json' },
-  {
-    namespace: 'adr.settings_local_json',
-    policyDir: 'adr',
-    rule: 'adr',
-    single: '.claude/settings.local.json'
-  },
-
-  // ── multi-file (walk) ───────────────────────────────────────────────────
-  // Усі `package.json` у дереві (включно з workspace-пакетами).
-  {
-    namespace: 'js_mssql.package_json',
-    policyDir: 'js_mssql',
-    rule: 'js-mssql',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-  {
-    namespace: 'js_bun_db.package_json',
-    policyDir: 'js_bun_db',
-    rule: 'js-bun-db',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-  {
-    namespace: 'js_bun_redis.package_json',
-    policyDir: 'js_bun_redis',
-    rule: 'js-bun-redis',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-  {
-    namespace: 'js_run.package_json',
-    policyDir: 'js_run',
-    rule: 'js-run',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-  // `js_run.jsconfig` НЕ реєструємо тут — `jsconfig.json` має канонічну структуру
-  // лише для backend-пакетів (без `vite` у `devDependencies`) з каталогом `src/`,
-  // а lint-conftest фільтрує лише по `activeRules` на рівні репозиторію — не
-  // вміє пропустити окремий workspace-пакет за наявністю `vite`. Тому валідація
-  // структури делегується з `check-js-run.mjs` через `runConftestBatch` після
-  // того, як JS визначить, що пакет — backend з `src/`.
-  {
-    namespace: 'vue.package_json',
-    policyDir: 'vue',
-    rule: 'vue',
-    walk: { match: rel => rel.endsWith('/package.json') || rel === 'package.json' }
-  },
-
-  // ConfigMap у `…/k8s/base/configmap.yaml` будь-де у дереві.
-  {
-    namespace: 'js_run.configmap',
-    policyDir: 'js_run',
-    rule: 'js-run',
-    walk: { match: rel => K8S_CONFIGMAP_PATH_RE.test(rel) }
-  },
-
-  // Усі YAML у дереві з сегментом `k8s` — пер-документні структурні правила.
-  {
-    namespace: 'k8s.manifest',
-    policyDir: 'k8s/manifest',
-    rule: 'k8s',
-    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
-  },
-
-  // Gateway API + HealthCheckPolicy — застосовується до будь-якого YAML під k8s
-  // (правила перевіряють лише відповідні kind / apiVersion).
-  {
-    namespace: 'k8s.gateway',
-    policyDir: 'k8s/gateway',
-    rule: 'k8s',
-    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
-  },
-
-  // Структурні перевірки HPA / PDB (apiVersion / behavior / metrics / selector).
-  {
-    namespace: 'k8s.hpa_pdb',
-    policyDir: 'k8s/hpa_pdb',
-    rule: 'k8s',
-    walk: { match: rel => K8S_DIR_PATH_RE.test(rel) && (rel.endsWith('.yaml') || rel.endsWith('.yml')) }
-  },
-
-  // Kustomization-файли: resources sort, patches sort, JSON6902 conflicts.
-  {
-    namespace: 'k8s.kustomization',
-    policyDir: 'k8s/kustomization',
-    rule: 'k8s',
-    walk: { match: rel => K8S_KUSTOMIZATION_PATH_RE.test(rel) }
-  },
-
-  // svc.yaml — cluster-IP Service.
-  {
-    namespace: 'k8s.svc_yaml',
-    policyDir: 'k8s/svc_yaml',
-    rule: 'k8s',
-    walk: { match: rel => K8S_SVC_YAML_PATH_RE.test(rel) }
-  },
-
-  // svc-hl.yaml — headless Service з суфіксом `-hl`.
-  {
-    namespace: 'k8s.svc_hl_yaml',
-    policyDir: 'k8s/svc_hl_yaml',
-    rule: 'k8s',
-    walk: { match: rel => K8S_SVC_HL_YAML_PATH_RE.test(rel) }
-  },
-
-  // base/kustomization.yaml — обов'язкове непорожнє поле `namespace:`.
-  {
-    namespace: 'k8s.base_kustomization',
-    policyDir: 'k8s/base_kustomization',
-    rule: 'k8s',
-    walk: { match: rel => K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) }
-  },
-
-  // Ресурсні маніфести під `…/k8s/.../base/...` (окрім kustomization.yaml).
-  {
-    namespace: 'k8s.base_manifest',
-    policyDir: 'k8s/base_manifest',
-    rule: 'k8s',
-    walk: {
-      match: rel =>
-        K8S_BASE_MANIFEST_PATH_RE.test(rel) &&
-        !K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) &&
-        (rel.endsWith('.yaml') || rel.endsWith('.yml'))
-    }
-  },
-
-  // abie HealthCheckPolicy: `hc.yaml` у дереві k8s.
-  {
-    namespace: 'abie.health_check_policy',
-    policyDir: 'abie/health_check_policy',
-    rule: 'abie',
-    walk: { match: rel => K8S_HC_YAML_PATH_RE.test(rel) }
-  },
-
-  // abie HTTPRoute у `base/`.
-  {
-    namespace: 'abie.http_route_base',
-    policyDir: 'abie/http_route_base',
-    rule: 'abie',
-    walk: { match: rel => K8S_BASE_HR_YAML_PATH_RE.test(rel) }
-  },
-
-  // abie Deployment у `…/k8s/.../base/...` має preem nodeSelector.
-  {
-    namespace: 'abie.base_deployment_preem',
-    policyDir: 'abie/base_deployment_preem',
-    rule: 'abie',
-    walk: {
-      match: rel =>
-        K8S_BASE_RESOURCE_PATH_RE.test(rel) &&
-        !K8S_BASE_KUSTOMIZATION_PATH_RE.test(rel) &&
-        (rel.endsWith('.yaml') || rel.endsWith('.yml'))
-    }
-  },
-
-  // abie clean-merged-branch.yml: with.ignore_branches має містити dev/ua.
-  {
-    namespace: 'abie.clean_merged_ignore_branches',
-    policyDir: 'abie/clean_merged_ignore_branches',
-    rule: 'abie',
-    single: '.github/workflows/clean-merged-branch.yml'
-  }
-]
-
 /**
- * Рекурсивно збирає відносні (posix) шляхи від cwd, які матчаться предикатом.
- * Глибокі ігнори — `SKIP_DIR_NAMES`. Не йде у симлінки, помилки stat — мовчки skip.
- * @param {string} root абсолютний корінь обходу
- * @param {(relPosix: string) => boolean} match предикат на відносний posix-шлях
- * @returns {string[]} список відносних posix-шляхів
+ * Обчислює namespace rego-полісі за id правила і ім'ям концерну.
+ * Rego не дозволяє '-' в імені пакета, тож kebab-id у `.n-cursor.json:rules`
+ * мапиться на snake у namespace; ім'я концерну йде як є (вже snake у `policy/<concern>/`).
+ * @param {string} ruleId id правила (kebab)
+ * @param {string} concernName ім'я concern (підкаталог у `policy/`)
+ * @returns {string} namespace для `conftest --namespace`
  */
-function collectFiles(root, match) {
-  /** @type {string[]} */
-  const out = []
-  /** @param {string} dirAbs абсолютний шлях каталогу для рекурсивного обходу */
-  function visit(dirAbs) {
-    /** @type {import('node:fs').Dirent[]} */
-    let entries
-    try {
-      entries = readdirSync(dirAbs, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const e of entries) {
-      if (e.isSymbolicLink()) continue
-      const abs = join(dirAbs, e.name)
-      if (e.isDirectory()) {
-        if (SKIP_DIR_NAMES.has(e.name)) continue
-        visit(abs)
-        continue
-      }
-      if (!e.isFile()) continue
-      const rel = abs
-        .slice(root.length + 1)
-        .split(sep)
-        .join('/')
-      if (match(rel)) out.push(rel)
-    }
-  }
-  visit(root)
-  return out
+function computeNamespace(ruleId, concernName) {
+  return `${ruleId.replaceAll('-', '_')}.${concernName}`
 }
 
 /**
- * Розвʼязує файлові цілі для одного таргета щодо cwd.
- * @param {ConftestTarget} target опис таргета
- * @param {string} cwd корінь репозиторію
- * @returns {string[]} список абсолютних / відносних шляхів
- */
-function resolveTargetFiles(target, cwd) {
-  if (target.single) {
-    return existsSync(join(cwd, target.single)) ? [target.single] : []
-  }
-  if (target.walk) {
-    return collectFiles(cwd, target.walk.match)
-  }
-  return []
-}
-
-/**
- * Запускає conftest на одному таргеті. Повертає exit-код (0 — OK, 1+ — помилки).
+ * Запускає conftest на одному policy-концерні. Повертає exit-код (0 — OK, 1+ — порушення).
  *
- * При відсутніх цільових файлах — мовчки повертає 0 (правило неактуальне для repo).
- * Логує заголовок з namespace і кількістю файлів, як `lint-ga.mjs`.
+ * stdio: 'inherit' — щоб користувач бачив рідну форматовану табличку conftest у виводі
+ * `bun run lint` (відрізняється від структурованого JSON-варіанта в `check`-команді).
  * @param {string} conftestBin абсолютний шлях до бінарника conftest
- * @param {ConftestTarget} target опис таргета
- * @param {string[]} files список файлів для перевірки (відносні до cwd)
+ * @param {string} ruleId id правила
+ * @param {string} concernName ім'я concern
+ * @param {string} namespace rego-пакет
+ * @param {string[]} files список файлів (відносні/абсолютні шляхи)
  * @returns {number} exit-код
  */
-function runConftestForTarget(conftestBin, target, files) {
-  const policyAbs = join(RULES_DIR, target.rule, 'policy')
+function runConftestForConcern(conftestBin, ruleId, concernName, namespace, files) {
+  const policyAbs = join(RULES_DIR, ruleId, 'policy', concernName)
   if (!existsSync(policyAbs)) {
     return 0
   }
-  console.log(`\n▶ conftest (${target.namespace} — ${files.length} файл(ів))`)
-  const r = spawnSync(conftestBin, ['test', ...files, '-p', policyAbs, '--namespace', target.namespace, '--no-color'], {
+  console.log(`\n▶ conftest (${namespace} — ${files.length} файл(ів))`)
+  const r = spawnSync(conftestBin, ['test', ...files, '-p', policyAbs, '--namespace', namespace, '--no-color'], {
     stdio: 'inherit',
     env: process.env
   })
@@ -455,14 +96,14 @@ function runConftestForTarget(conftestBin, target, files) {
 }
 
 /**
- * Запускає `conftest test` по всіх таргетах із `TARGETS`. Перший ненульовий exit-код
- * запамʼятовується, але цикл йде до кінця, щоб користувач побачив усі порушення.
+ * Запускає `conftest test` по всіх policy-концернах із `target.json`-маніфестів.
+ * Фільтрація — за `activeRules` (поле `rules` у `.n-cursor.json`). Перший ненульовий
+ * exit-код запамʼятовується, але цикл йде до кінця.
  *
- * Якщо `conftest` не знайдено в PATH — друкує `ℹ` повідомлення і повертає 0
- * (структурні перевірки в `check-*.mjs` лишаються паралельно).
- * @returns {number} 0 — все OK або skip; інакше — перший ненульовий exit-код
+ * Якщо `conftest` не знайдено в PATH — друкує `ℹ` повідомлення і повертає 0.
+ * @returns {Promise<number>} 0 — все OK або skip; інакше — перший ненульовий exit-код
  */
-export function runLintConftestCli() {
+export async function runLintConftestCli() {
   const conftestBin = resolveCmd('conftest')
   if (!conftestBin) {
     console.log(
@@ -478,19 +119,29 @@ export function runLintConftestCli() {
 
   const cwd = process.cwd()
   const activeRules = loadActiveCursorRules(cwd)
+  const rules = await discoverCheckableRules(RULES_DIR)
+  /** @type {Map<string, Promise<string[]>>} */
+  const walkCache = new Map()
   let firstFailureCode = 0
-  for (const target of TARGETS) {
-    if (target.rule && activeRules && !activeRules.has(target.rule)) continue
-    const files = resolveTargetFiles(target, cwd)
-    if (files.length === 0) continue
-    const code = runConftestForTarget(conftestBin, target, files)
-    if (code !== 0 && firstFailureCode === 0) {
-      firstFailureCode = code
+
+  for (const rule of rules) {
+    if (activeRules && !activeRules.has(rule.id)) continue
+    for (const concern of rule.policyConcerns) {
+      const targetPath = join(RULES_DIR, rule.id, 'policy', concern.name, 'target.json')
+      /** @type {{ files: { single?: string, walkGlob?: string|string[], required?: boolean }, missingMessage?: string }} */
+      const target = JSON.parse(await readFile(targetPath, 'utf8'))
+      const files = await resolveTargetFiles(target.files, cwd, walkCache)
+      if (files.length === 0) continue
+      const namespace = computeNamespace(rule.id, concern.name)
+      const code = runConftestForConcern(conftestBin, rule.id, concern.name, namespace, files)
+      if (code !== 0 && firstFailureCode === 0) {
+        firstFailureCode = code
+      }
     }
   }
   return firstFailureCode
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  process.exitCode = runLintConftestCli()
+  process.exitCode = (await runLintConftestCli()) ?? 0
 }

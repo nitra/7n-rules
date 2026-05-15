@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "title": "Rego policy target manifest",
+  "description": "Маніфест поряд із <name>.rego: декларує, які файли проєкту фідити в conftest для цієї полісі. Лежить у npm/rules/<id>/policy/<name>/target.json (per-policy, поруч із <name>.rego). CLI читає й передає у runConftestBatch — JS-оркестратор у js/<name>/check.mjs не зобовʼязаний дублювати виклик. Namespace полісі обчислюється з шляху: <id>.<name>, відповідно `package <id>.<name>` у .rego.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["files"],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "Опційне посилання на JSON Schema для IDE-валідації; очікувано https://unpkg.com/@nitra/cursor/schemas/target.json"
+    },
+    "files": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["single"],
+          "properties": {
+            "single": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Відносний шлях від кореня репозиторію (posix). Заборонені сегменти '..' і абсолютні шляхи."
+            },
+            "required": {
+              "type": "boolean",
+              "description": "true → fail при відсутності файла з відповідним missingMessage; false/відсутнє → silent skip (полісі не запускається). За замовчуванням false."
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["walkGlob"],
+          "properties": {
+            "walkGlob": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "minLength": 1 }
+                }
+              ],
+              "description": "Один або декілька picomatch-globів (matched проти відносного posix-шляху). walkDir від cwd із загальними skip-ами + .n-cursor.json:ignore."
+            }
+          }
+        }
+      ]
+    },
+    "missingMessage": {
+      "type": "string",
+      "description": "Override дефолтного fail-повідомлення при відсутності required:single файла. Без значення CLI використає шаблон '<path> не існує (<id>.<name>)'."
+    }
+  }
+}

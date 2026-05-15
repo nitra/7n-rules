@@ -4,24 +4,57 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.10.0] - 2026-05-15
+## [1.11.0] - 2026-05-15
 
 ### Added
+
+- **Concern-based JS + per-policy `target.json`** — нова інфраструктура для CLI `check`:
+  - `npm/rules/<id>/js/<concern>/check*.mjs` — JS-концерни замість одного плаского `js/check.mjs`. Дзеркалить `policy/<name>/`: один `<name>` = одна одиниця відповідальності (rego, JS, або hybrid).
+  - `npm/rules/<id>/policy/<name>/target.json` — декларативний маніфест поруч із `<name>.rego` описує, які файли фідити в conftest (`{ "files": { "single": "..." | "walkGlob": [...] } }`). CLI читає сам і викликає `runConftestBatch` — JS не зобовʼязаний дублювати.
+  - **Pure-rego правила** працюють без жодного `.mjs`: CLI знаходить полісі за `target.json` і прогонить їх через `runConftestBatch`.
+  - **Applies-гейт**: `rules/<id>/js/applies/check.mjs` може експортувати `applies()`. Якщо повертає `false` — CLI пропускає правило цілком (включно з policy-концернами).
+  - **JSON Schema** у `npm/schemas/target.json` для IDE-валідації `target.json`.
+  - **picomatch@^4.0.4** — runtime dependency для `walkGlob`-резолверу.
+- **Нові утиліти** в `npm/scripts/utils/`:
+  - `discover-checkable-rules.mjs` — обхід `rules/`, повертає `{ id, jsConcerns, policyConcerns }[]`. Legacy-fallback: плаский `js/check.mjs` маппиться у концерн `legacy`, щоб не ламати ще не мігровані правила під час переходу.
+  - `resolve-target-files.mjs` — резолвер `files.single` / `files.walkGlob` з спільним walk-кешем на check-прогон (повторні таргети з тим самим `ignorePaths` не роблять додаткового `walkDir`). Path-traversal у `single` блокується.
+  - `run-rule.mjs` — оркестратор одного правила: applies-гейт → JS-концерни → policy-концерни. Exit-код агрегується OR-ом.
+
+### Changed
+
+- **`npm/bin/n-cursor.js`** — `discoverCheckScripts` тепер делегує у `discoverCheckableRules` і повертає `CheckableRule[]` замість `string[]`. `runChecks` запускає `runRule` для кожного id зі shared `walkCache` (один обхід дерева на унікальний `ignorePaths`-сигнатуру).
+- **`npm/rules/rego/`** — пілот міграції на нову структуру:
+  - `js/check.mjs` → `js/applies/check.mjs` з експортами `applies()` (gate за наявністю `*.rego` у дереві) і `check()` (короткий context-pass). Виклики `runConftestBatch` прибрано — їх тепер виконує CLI через `target.json`.
+  - `policy/{package_json,vscode_extensions,vscode_settings}/target.json` додано (`single` + `required: true` + кастомні `missingMessage`).
+- **`npm/package.json`** — додано `picomatch` у `dependencies`.
 
 - **Правило `adr` — фаза 2 (Normalize).** Новий Stop-hook `.claude/hooks/normalize-decisions.sh` батчево нормалізує ADR-чернетки через LLM: коли кількість файлів з `session:` у frontmatter досягає `ADR_NORMALIZE_THRESHOLD` (default 30), бере до `ADR_NORMALIZE_BATCH` найстарших, отримує JSON-операції (`rewrite` / `delete` / `merge-into`) і застосовує їх до робочого дерева. **Жодних git-операцій** — розробник дивиться `git status`/`git diff` і вирішує сам. Recursion guard `ADR_NORMALIZE_RUNNING=1`, мінімальний інтервал між спробами `ADR_NORMALIZE_MIN_INTERVAL_HOURS=6`, lock-файл, skip при mid-rebase/mid-merge, `ADR_NORMALIZE_DRY=1` для dry-run. Slug-стиль — kebab-case українською; дата у фінальному ADR береться з `captured` чернетки.
 - **Skill `adr-normalize`** (slash-команда `/n-adr-normalize`) — ручний запуск normalize поза порогом і поза Stop-hook (виставляє `ADR_NORMALIZE_THRESHOLD=0` і `ADR_NORMALIZE_MIN_INTERVAL_HOURS=0`, корисно для dry-run або разової чистки). Авто-додається при `adr` у `rules`.
 - **`sync-claude-config`**: експортовано `ADR_NORMALIZE_HOOK_COMMAND_MARKER` і функцію `syncAdrNormalizeHookScript`; managed-група normalize додається до `hooks.Stop` поряд з capture-групою (`async: true`, `timeout: 600`) при `"adr"` у `rules`. Маркер `.claude/hooks/normalize-decisions.sh` додано в `MANAGED_HOOK_COMMAND_MARKERS`.
 - **Rego-перевірка `adr.settings_json`** тепер вимагає Stop-hook групу і для capture, і для normalize; **`adr.settings_local_json`** забороняє дублі обох хуків.
+- **Інкрементальна міграція правил на `target.json`** (декларативні маніфести поруч із кожним `<concern>.rego`):
+  - **Single-file правила** (11): `bun`, `text`, `style-lint`, `php`, `docker`, `npm-module`, `js-lint`, `image-compress`, `capacitor`, `hasura`, `adr` — `target.json` з `single` для кожного канонічного конфіг-файлу. Сумарно 27 нових маніфестів. `bun.bunfig`, `text.cspell`, `npm_module.npm_publish_yml` тощо тепер прогоняються через CLI `check <id>` без додаткового `bun run lint-conftest`.
+  - **Walk-glob правила** (6): `js-mssql`, `js-bun-db`, `js-bun-redis`, `js-run` (package_json + configmap), `vue`, `image-avif` — `walkGlob: "**/package.json"` або відповідний патерн.
+  - **k8s.* концерни** (8): `manifest`, `gateway`, `hpa_pdb`, `kustomization`, `svc_yaml`, `svc_hl_yaml`, `base_kustomization`, `base_manifest` — `walkGlob` по YAML під сегментом `k8s/`; `base_manifest` використовує негативний glob для виключення `kustomization.yaml`.
+  - **abie концерни** (4): `clean_merged_ignore_branches` (single), `health_check_policy` (walkGlob `**/k8s/**/hc.yaml`), `http_route_base` (walkGlob `**/k8s/**/base/**/hr.yaml`), `base_deployment_preem` (walkGlob `**/k8s/**/base/**/*.{yaml,yml}` з виключенням `kustomization.yaml`).
 
 ### Changed
 
 - **`capture-decisions.sh` тепер пише чернетки напряму в `docs/adr/<timestamp>-<sid>.md`** (раніше — у `docs/adr/_inbox/`). Сам каталог `_inbox/` більше не створюється, але `normalize-decisions.sh` бачить його рекурсивно — старі чернетки з `_inbox/` поступово розчищаються нормалізацією. Можна також одноразово `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
 - **Правило `adr` (`npm/rules/adr/adr.mdc`)**: повне переписування під дві фази (capture + normalize). Видалено згадки `_inbox/`. Версія `version: '2.0'`.
 - **`npm/rules/adr/js/check.mjs`**: перевірка обох hook-скриптів (canonicity), обох log-файлів у `.gitignore`.
+- **`npm/scripts/lint-conftest.mjs`**: повне переписування. Замість hardcoded `TARGETS`-таблиці (~280 рядків з регексами та walker-преди­катами) скрипт викликає `discoverCheckableRules` і читає `target.json` для кожного policy-концерну. Файл-резолвер — спільний з CLI `check` (`resolveTargetFiles` + walk-кеш). Поведінка для користувача однакова (`stdio: 'inherit'` зберігається для рідного форматування conftest), але джерело правди тепер — `target.json` поруч із `.rego`. Скрипт став `async` (для `await readFile`/`discoverCheckableRules`).
+- **`npm/rules/abie/`** — завершено concern-split:
+  - `js/check.mjs` (1153 рядки) видалено, його логіка розпорошена по `js/{applies,firebase_hosting,hc_pairing,ua_node_selector,ua_http_route,env_dns}/check.mjs`.
+  - Спільні стан і утиліти у `utils/{enabled,k8s-tree,overlay-paths,kustomization-patches,http-route,hc-yaml,env-dns,yaml}.mjs`. `k8s-tree.mjs` тримає module-level кеш `findK8sYamlFiles` + `collectDeploymentDirs` — повторні виклики з різних концернів не роблять нового обходу дерева.
+  - Виклики `runConftestBatch` прибрано з JS — їх тепер виконує CLI через `target.json`.
 
 ### Fixed
 
 - `npm/rules/adr/js/check.{mjs,test.mjs}`: виправлено `BUNDLED_HOOKS_DIR` (після phase 3 co-location шлях `'..'` указував у `npm/rules/adr/.claude-template/`, потрібно `'../../..'` — до `npm/.claude-template/`).
+- **`scripts/utils/run-rule.mjs`**: kebab-id правила (`style-lint`, `image-compress`, `js-lint`, `npm-module`, `js-mssql`, `js-bun-db`, `js-bun-redis`, `js-run`, `image-avif`, `nginx-default-tpl`) тепер коректно мапиться у snake-namespace rego (`style_lint.<concern>` тощо). Раніше `namespace: <id>.<concern>` давав `style-lint.package_json`, що не збігалося з `package style_lint.package_json` у `.rego` → conftest повертав 0 violations попри реальні порушення.
+- **`scripts/utils/resolve-target-files.mjs`**: виправлено інтерпретацію негативних glob-патернів. `picomatch(['pos', '!neg'])` за дефолтом трактує `!neg` як окремий позитивний матчер «не-neg» (OR-логіка), що матчило майже всі шляхи. Тепер позитивні/негативні розділяються вручну, негативи застосовуються через `!isExcluded`. Виправляє `k8s.base_manifest`-таргет, який мав виключати `kustomization.yaml`, але до фіксу матчив усе дерево.
+- **`scripts/utils/discover-checkable-rules.mjs`**: коли правило має й плаский `js/check.mjs`, і concern-підкаталоги, CLI прогонить **тільки** концерни. Раніше додавалися обидва → дублюючий вивід для правил у стані часткової міграції.
 
 ## [1.9.23] - 2026-05-14
 

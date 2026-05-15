@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": { "walkGlob": "**/k8s/**/svc.yaml" }
+}

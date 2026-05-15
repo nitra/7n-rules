@@ -1,0 +1,4 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": { "single": "npm/package.json" }
+}
