@@ -146,9 +146,10 @@ function runKubescape(dirs) {
 
 /**
  * Головна точка входу: kubeconform + kubescape для усіх знайдених дерев `k8s`.
+ * Експортовано як `runLintK8s` — використовується з `bin/n-cursor.js` як підкоманда `lint-k8s`.
  * @returns {Promise<number>} код виходу для `process.exitCode` (0 — успіх або пропуск)
  */
-async function main() {
+export async function runLintK8s() {
   const root = process.cwd()
   const ignorePaths = await loadCursorIgnorePaths(root)
   const dirs = await findK8sRoots(root, ignorePaths)
@@ -169,5 +170,5 @@ async function main() {
 }
 
 if (isRunAsCli()) {
-  process.exitCode = await main()
+  process.exitCode = await runLintK8s()
 }

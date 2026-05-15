@@ -82,7 +82,7 @@ export function listShellScriptPaths(cwd) {
         return []
       }
       const files = ls.stdout.split('\0').filter(Boolean)
-      return new Set(files).toSorted()
+      return [...new Set(files)].toSorted()
     }
   }
 
@@ -90,7 +90,7 @@ export function listShellScriptPaths(cwd) {
     cwd,
     exclude: p => p.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')
   })
-  return new Set(fromGlob.map(p => p.replaceAll('\\', '/'))).toSorted()
+  return [...new Set(fromGlob.map(p => p.replaceAll('\\', '/')))].toSorted()
 }
 
 /**

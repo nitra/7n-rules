@@ -61,7 +61,7 @@ async function walkAllRelative(root, ignorePaths) {
 
 /**
  * Витягує (або обчислює і кешує) список усіх файлів у дереві для заданого набору ignore-шляхів.
- * Кеш — мapа `signature → Promise<string[]>`, тож паралельні виклики одного й того ж набору
+ * Кеш — мапа `signature → Promise<string[]>`, тож паралельні виклики одного й того ж набору
  * чекають один обхід.
  * @param {string} root абсолютний корінь репозиторію
  * @param {string[]} ignorePaths абсолютні posix-шляхи виключених каталогів

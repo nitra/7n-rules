@@ -9,18 +9,24 @@
     },
     "npm": {
       "entry": [
+        "bin/n-cursor.js",
         "bin/rename-yaml-extensions.mjs",
-        "scripts/check-*.mjs",
-        "scripts/lint-*.mjs",
-        "scripts/run-*.mjs",
-        "scripts/sync-*.mjs",
+        "rules/*/js/**/check.mjs",
+        "rules/*/js/**/check-*.mjs",
+        "rules/*/js/lint.mjs",
+        "rules/*/js/run.mjs",
+        "rules/*/js/run-*.mjs",
         "scripts/auto-*.mjs",
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
         "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+        "scripts/lint-conftest.mjs",
         "scripts/rename-yaml-extensions.mjs",
+        "scripts/sync-*.mjs",
         "scripts/upgrade-nitra-cursor-and-install.mjs",
         "scripts/utils/rebuild-oxlint-canonical.mjs",
+        "rules/**/*.test.mjs",
+        "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs"
       ],
       "project": ["**/*.{js,mjs}"]

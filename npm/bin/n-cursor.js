@@ -13,6 +13,12 @@
  *                                     інакше викликає `check`); прописується автоматично в `.claude/settings.json`
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
  *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
+ *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
+ *                                     preflight на `opa`/`regal` → `opa check --strict` → `regal lint` → опц. `conftest verify`
+ *   `npx \@nitra/cursor lint-k8s`    — канонічний lint-k8s (k8s.mdc): `kubeconform` + `kubescape` по `…/k8s/*.yaml`
+ *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
+ *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
+ *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
  *
  * Claude Code інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
@@ -68,7 +74,11 @@ import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { discoverCheckableRules } from '../scripts/utils/discover-checkable-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { runLintDocker } from '../rules/docker/js/run.mjs'
 import { runLintGaCli } from '../rules/ga/js/lint.mjs'
+import { runLintK8s } from '../rules/k8s/js/run.mjs'
+import { runLintRego } from '../rules/rego/js/lint.mjs'
+import { runLintTextCli } from '../rules/text/js/lint.mjs'
 import { runRule } from '../scripts/utils/run-rule.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
@@ -88,7 +98,6 @@ const RULE_PREFIX = 'n-'
 
 const binDir = dirname(fileURLToPath(import.meta.url))
 const BUNDLED_RULES_DIR = join(binDir, '..', 'rules')
-const BUNDLED_SCRIPTS_DIR = join(binDir, '..', 'scripts')
 const BUNDLED_SKILLS_DIR = join(binDir, '..', 'skills')
 const BUNDLED_AGENTS_TEMPLATE_PATH = join(binDir, '..', AGENTS_TEMPLATE_FILE)
 /** Корінь установленого пакету (каталог з `rules/`, `github-actions/`, …) */
@@ -1000,9 +1009,9 @@ function logRemovedManagedItems(title, basePath, names) {
  * (плюс legacy `rules/<id>/js/check.mjs` як концерн `legacy`) або policy-концерн у
  * `rules/<id>/policy/<concern>/target.json`. Делегує у `discoverCheckableRules` —
  * див. `scripts/utils/discover-checkable-rules.mjs`.
- * @returns {Promise<import('../scripts/utils/discover-checkable-rules.mjs').CheckableRule[]>} опис правил у алфавітному порядку
+ * @returns {import('../scripts/utils/discover-checkable-rules.mjs').CheckableRule[]} опис правил у алфавітному порядку
  */
-async function discoverCheckScripts() {
+function discoverCheckScripts() {
   return discoverCheckableRules(BUNDLED_RULES_DIR)
 }
 
@@ -1348,6 +1357,30 @@ try {
 
       break
     }
+    case 'lint-rego': {
+      // Канонічний lint-rego: preflight opa/regal → opa check --strict → regal lint → conftest verify (опц.).
+      process.exitCode = runLintRego()
+
+      break
+    }
+    case 'lint-k8s': {
+      // Канонічний lint-k8s: kubeconform + kubescape по знайдених деревах `…/k8s/*.yaml`.
+      process.exitCode = await runLintK8s()
+
+      break
+    }
+    case 'lint-docker': {
+      // Канонічний lint-docker: hadolint по Dockerfile та *.Dockerfile (docker.mdc).
+      process.exitCode = await runLintDocker()
+
+      break
+    }
+    case 'lint-text': {
+      // Канонічний lint-text: cspell → run-shellcheck → markdownlint-cli2 --fix → run-v8r (text.mdc).
+      process.exitCode = runLintTextCli()
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1357,7 +1390,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text`
       )
       process.exitCode = 1
     }

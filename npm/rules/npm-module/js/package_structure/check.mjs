@@ -496,8 +496,8 @@ async function checkNoTestsInPublishedFiles(pass, fail) {
   }
   for (const v of violations) {
     fail(
-      `npm/${v.file}: ${v.reason} — винеси за межі шляхів з "files" або додай негативний glob ` +
-        '(наприклад "!**/*_test.rego") у npm/package.json (npm-module.mdc)'
+      `npm/${v.file}: ${v.reason} — додай у "files" у npm/package.json негативний glob, ` +
+        'що виключає цей файл з tarball (наприклад "!**/*.test.mjs", "!**/fixtures/**", "!**/*_test.rego") (npm-module.mdc)'
     )
   }
 }

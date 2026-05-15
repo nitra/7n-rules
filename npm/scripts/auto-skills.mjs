@@ -109,9 +109,7 @@ export function detectAutoSkills({ availableSkills, detectedRules, disableSkills
 
   for (const [skillId, spec] of Object.entries(SKILL_AUTO_ACTIVATION)) {
     if (!normalizedSkills.has(skillId) || disableSkillsSet.has(skillId)) continue
-    if ('always' in spec) {
-      detected.add(skillId)
-    } else if (spec.rules.every(d => detectedRulesSet.has(d))) {
+    if ('always' in spec || spec.rules.every(d => detectedRulesSet.has(d))) {
       detected.add(skillId)
     }
   }

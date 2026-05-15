@@ -26,6 +26,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
@@ -128,4 +129,6 @@ export function runLintRego(cwd = process.cwd()) {
   return runStep(conftest, ['verify', ...targets.flatMap(t => ['-p', t])], root)
 }
 
-process.exitCode = runLintRego()
+if (isRunAsCli()) {
+  process.exitCode = runLintRego()
+}

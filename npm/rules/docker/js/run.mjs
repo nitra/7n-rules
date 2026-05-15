@@ -47,9 +47,10 @@ export async function findLintDockerfilePaths(root, ignorePaths = []) {
 
 /**
  * Запуск hadolint по Dockerfile та *.Dockerfile.
+ * Експортовано як `runLintDocker` — використовується з `bin/n-cursor.js` як підкоманда `lint-docker`.
  * @returns {Promise<number>} 0 — OK, 1 — зауваження або помилка
  */
-async function main() {
+export async function runLintDocker() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
@@ -80,5 +81,5 @@ async function main() {
 }
 
 if (isRunAsCli()) {
-  process.exitCode = await main()
+  process.exitCode = await runLintDocker()
 }

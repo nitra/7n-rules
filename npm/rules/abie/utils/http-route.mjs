@@ -2,7 +2,7 @@
  * Cross-документна аналітика abie HTTPRoute: підрахунок `backendRefs` до спільних
  * сервісів (`auth-run-hl`, `file-link-hl`) у base-маніфестах пакета (поза overlay `ua`).
  * Використовується ua_http_route-концерном для синхронізації числа patch-ів namespace
- * у overlay із кількістю base-referencе.
+ * у overlay із кількістю base-reference.
  */
 import { relative } from 'node:path'
 

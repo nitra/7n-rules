@@ -25,7 +25,7 @@ import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mj
  * Альтернатива полю `stylelint` у `package.json` — зовнішній файл конфігу. Якщо
  * поля немає і файлу немає, фейлимося; якщо є хоч щось — пропускаємо. Поле
  * `stylelint.extends == "@nitra/stylelint-config"` сам формат — у Rego.
- * @param {import('./utils/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер
  */
 async function checkStylelintConfigPresence(reporter) {
   const { pass, fail } = reporter

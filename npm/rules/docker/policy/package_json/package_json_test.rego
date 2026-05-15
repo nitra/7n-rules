@@ -6,7 +6,7 @@ import rego.v1
 
 import data.docker.package_json
 
-canonical_lint_docker := "bun ./npm/scripts/run-docker.mjs"
+canonical_lint_docker := "n-cursor lint-docker"
 
 # ── happy path ────────────────────────────────────────────────────────────
 

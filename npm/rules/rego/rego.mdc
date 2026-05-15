@@ -36,13 +36,13 @@ alwaysApply: false
 bun run lint-rego
 ```
 
-Скрипт делегує до `bun ./npm/scripts/lint-rego.mjs`. Послідовність:
+Скрипт делегує до CLI `n-cursor lint-rego` (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`). Послідовність:
 
 1. **preflight** — наявність `opa` і `regal` у `PATH`; якщо хоча б одного нема — exit 1 з підказкою встановлення;
 2. `opa check --strict <targets>` — компіляція з типами та `--strict` (мертвий код, неоднозначні правила, незадекларовані змінні);
 3. `regal lint <targets>` — статичний лінтер Rego ([Styra Regal](https://docs.styra.com/regal)): ловить v0-синтаксис, неявні set-rules і відхилення від `rego.v1`, плюс bugs/idiomatic/style-правила.
 
-Цілі — `npm/policy/` (де живуть Rego-полісі пакета). Інші *.rego поза деревом додай у `LINT_TARGETS` у `lint-rego.mjs`.
+Цілі — `npm/policy/` (де живуть Rego-полісі пакета). Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/js/lint.mjs`.
 
 ### Встановлення інструментів
 
@@ -58,7 +58,7 @@ bun run lint-rego
 ```json title="package.json"
 {
   "scripts": {
-    "lint-rego": "bun ./npm/scripts/lint-rego.mjs"
+    "lint-rego": "n-cursor lint-rego"
   }
 }
 ```

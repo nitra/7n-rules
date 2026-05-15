@@ -5,7 +5,6 @@
  *
  * Кеш — module-level singleton, ключований за `(root, ignorePaths)`. Перший виклик
  * платить за обхід; наступні концерни в межах того ж прогону отримують готове.
- * Для тестів — `resetAbieK8sTreeCache()` (інакше withTmpCwd-фікстури злипатимуться).
  */
 import { dirname, relative } from 'node:path'
 
@@ -19,15 +18,6 @@ const YAML_EXTENSION_RE = /\.ya?ml$/iu
 const yamlCache = new Map()
 /** @type {Map<string, Promise<Set<string>>>} */
 const deploymentCache = new Map()
-
-/**
- * Скидає кеш — тести мусять викликати між фікстурами.
- * @returns {void} результат
- */
-export function resetAbieK8sTreeCache() {
-  yamlCache.clear()
-  deploymentCache.clear()
-}
 
 /**
  * Стабільний ключ кешу за (root, ignorePaths).
@@ -86,6 +76,15 @@ const silentFail = _msg => {
   // noop
 }
 
+/**
+ * Знаходить унікальні каталоги, що містять Deployment-маніфести серед переданих YAML-файлів.
+ * Парсить документи через `readAndParseYamlDocs` і фільтрує лише ті, що є Deployment.
+ * Кешує результат за ключем `root|<sorted yamlAbs>`, щоб повторні виклики не робили I/O.
+ * @param {string} root абсолютний корінь репо для побудови relative-шляхів у повідомленнях
+ * @param {string[]} yamlAbs абсолютні шляхи до YAML-файлів для перевірки
+ * @param {(msg: string) => void} [fail] callback на помилку парсингу (за замовчуванням noop)
+ * @returns {Promise<Set<string>>} проміс із сетом абсолютних каталогів, де знайдено Deployment
+ */
 export function collectDeploymentDirs(root, yamlAbs, fail = silentFail) {
   const key = `${root}|${[...yamlAbs].toSorted((a, b) => a.localeCompare(b)).join(':')}`
   const cached = deploymentCache.get(key)

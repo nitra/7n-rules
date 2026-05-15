@@ -3,14 +3,16 @@
 # Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ виявлення
 # `.rego` файлів у дереві. Глобально у `lint-conftest` НЕ реєструється.
 #
-# Canonical (rego.mdc): scripts.lint-rego має бути "bun ./npm/scripts/lint-rego.mjs".
+# Canonical (rego.mdc): scripts.lint-rego має бути "n-cursor lint-rego" — CLI пакета `@nitra/cursor`
+# (бінарка з `node_modules/.bin/`) робить preflight `opa`/`regal` і прогонить
+# `opa check --strict` → `regal lint` → опц. `conftest verify` (`@nitra/cursor lint-rego`).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 package rego.package_json
 
 import rego.v1
 
-canonical_lint_rego := "bun ./npm/scripts/lint-rego.mjs"
+canonical_lint_rego := "n-cursor lint-rego"
 
 lint_rego_template := concat(" ", [
 	"package.json: scripts.lint-rego має бути %q",
@@ -22,7 +24,7 @@ deny contains msg if {
 	not "lint-rego" in object.keys(scripts)
 	msg := concat(" ", [
 		"package.json: відсутній scripts.lint-rego — додай",
-		"\"lint-rego\": \"bun ./npm/scripts/lint-rego.mjs\" (rego.mdc)",
+		"\"lint-rego\": \"n-cursor lint-rego\" (rego.mdc)",
 	])
 }
 

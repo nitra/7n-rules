@@ -6,7 +6,7 @@ import rego.v1
 
 import data.rego.package_json
 
-canonical_lint_rego := "bun ./npm/scripts/lint-rego.mjs"
+canonical_lint_rego := "n-cursor lint-rego"
 
 test_allow_canonical if {
 	pkg := {"scripts": {"lint-rego": canonical_lint_rego}}

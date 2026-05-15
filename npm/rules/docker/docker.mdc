@@ -97,7 +97,7 @@ CMD ["./app"]
 
 ## lint-docker
 
-CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить скрипт **`npm/scripts/run-docker.mjs`**.
+CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить CLI **`n-cursor lint-docker`** (реалізація — **`npm/rules/docker/js/run.mjs`**).
 
 **Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`check-docker.mjs`).
 
@@ -106,7 +106,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 ```json title="package.json"
 {
   "scripts": {
-    "lint-docker": "bun ./npm/scripts/run-docker.mjs"
+    "lint-docker": "n-cursor lint-docker"
   }
 }
 ```

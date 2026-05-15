@@ -81,8 +81,7 @@ description: test
           '@nitra/cspell-dict': '^2.0.0'
         },
         scripts: {
-          'lint-text':
-            'npx cspell . && bun ./npm/scripts/run-shellcheck-text.mjs && bunx markdownlint-cli2 --fix "**/*.md" "**/*.mdc" && bun ./npm/scripts/run-v8r.mjs'
+          'lint-text': 'n-cursor lint-text'
         }
       })
       await ensureDir('.github/workflows')

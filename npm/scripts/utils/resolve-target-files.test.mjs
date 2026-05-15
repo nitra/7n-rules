@@ -8,6 +8,10 @@ import { join } from 'node:path'
 import { resolveTargetFiles } from './resolve-target-files.mjs'
 import { ensureDir, withTmpCwd, writeJson } from './test-helpers.mjs'
 
+const ABSOLUTE_PATH_HINT_RE = /відносним/u
+const PARENT_TRAVERSAL_HINT_RE = /\.\./u
+const INVALID_SPEC_HINT_RE = /single або walkGlob/u
+
 describe('resolveTargetFiles — single', () => {
   test('повертає [<abs>], якщо файл існує', async () => {
     await withTmpCwd(async dir => {
@@ -29,14 +33,16 @@ describe('resolveTargetFiles — single', () => {
   test('кидає на абсолютний шлях', async () => {
     await withTmpCwd(async dir => {
       const cache = new Map()
-      await expect(resolveTargetFiles({ single: '/etc/passwd' }, dir, cache)).rejects.toThrow(/відносним/)
+      await expect(resolveTargetFiles({ single: '/etc/passwd' }, dir, cache)).rejects.toThrow(ABSOLUTE_PATH_HINT_RE)
     })
   })
 
   test('кидає на ".." у шляху', async () => {
     await withTmpCwd(async dir => {
       const cache = new Map()
-      await expect(resolveTargetFiles({ single: '../outside.json' }, dir, cache)).rejects.toThrow(/\.\./)
+      await expect(resolveTargetFiles({ single: '../outside.json' }, dir, cache)).rejects.toThrow(
+        PARENT_TRAVERSAL_HINT_RE
+      )
     })
   })
 })
@@ -95,7 +101,7 @@ describe('resolveTargetFiles — невалідний spec', () => {
   test('кидає, коли немає ні single, ні walkGlob', async () => {
     await withTmpCwd(async dir => {
       const cache = new Map()
-      await expect(resolveTargetFiles({}, dir, cache)).rejects.toThrow(/single або walkGlob/)
+      await expect(resolveTargetFiles({}, dir, cache)).rejects.toThrow(INVALID_SPEC_HINT_RE)
     })
   })
 })

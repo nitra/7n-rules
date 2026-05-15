@@ -4,6 +4,29 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.6] - 2026-05-15
+
+### Changed
+
+- **`npm/rules/npm-module/npm-module.mdc`** — переформульовано вимогу про тести й фікстури. Раніше правило вимагало тримати їх **поза** будь-яким шляхом з `"files"` (канонічно — у `npm/tests/`). Тепер тести/фікстури можуть лежати **поруч з кодом** усередині `"files"`-шляхів, але `"files"` обовʼязково має містити **негативні glob-патерни**, що виключають їх із tarball (`!**/*.test.*`, `!**/*.spec.*`, `!**/test-helpers.*`, `!**/fixtures/**`, `!**/__tests__/**`, опційно `!**/*_test.rego`). Це краще відповідає реальному layout пакета (co-located test-файли у `rules/<id>/js/<concern>/`) і прибирає роз'їзд правила з фактичним `npm/package.json`. Версію `.mdc` піднято до `1.12`.
+- **`npm/rules/npm-module/js/package_structure/check.mjs::checkNoTestsInPublishedFiles`** — текст fail-повідомлення тепер однозначно радить додати негативний glob у `"files"`, без альтернативи «винеси за межі шляхів з "files"». Логіка перевірки (walk positive ∖ negative + класифікація test-style) не змінилась — пере-кваліфіковано лише підказку для агента й людини.
+
+## [1.11.5] - 2026-05-15
+
+### Added
+
+- **`npm/bin/n-cursor.js`** — підкоманди `lint-rego`, `lint-k8s`, `lint-docker`, `lint-text` (раніше був лише `lint-ga`). Споживчі `package.json` тепер можуть використовувати уніфіковану форму `n-cursor lint-X` замість прямих посилань на файли `bun ./npm/scripts/*.mjs`, які після phase 2 концерн-сплету переїхали у `npm/rules/<id>/js/`. `lint-text` — композитний: послідовно `cspell .` → `runShellcheckText()` → `bunx markdownlint-cli2 --fix "**/*.md" "**/*.mdc"` → `runV8rWithGlobs()`.
+- **`npm/rules/text/js/lint.mjs`** — новий ентрі-модуль для канонічного `lint-text`.
+- **`npm/scripts/utils/run-lint-step.mjs`** — спільний хелпер `runLintStep(title, cmd, args)` для CLI-обгорток `lint-<rule>` (раніше дублювалося у `rules/ga/js/lint.mjs` і новому `rules/text/js/lint.mjs` — jscpd-clone).
+
+### Changed
+
+- **`npm/rules/k8s/js/run.mjs`**, **`npm/rules/docker/js/run.mjs`** — `main()` перейменовано і експортовано як `runLintK8s` / `runLintDocker` для виклику з CLI-маршрутизатора. `isRunAsCli()`-гілка прямого запуску збережена для зворотної сумісності.
+- **`npm/rules/rego/js/lint.mjs`** — авто-виклик `runLintRego()` тепер обгорнуто `if (isRunAsCli())`, інакше імпорт модуля з CLI запускав би лінт як side-effect.
+- **`npm/rules/rego/policy/package_json/`** — канонічне значення `scripts.lint-rego` змінено на `"n-cursor lint-rego"` (раніше `"bun ./npm/scripts/lint-rego.mjs"`). Аналогічно `npm/rules/docker/policy/package_json/` — на `"n-cursor lint-docker"`.
+- **`npm/rules/text/js/formatting/check.mjs`** — `checkLintTextScript()` тепер вимагає рівно `"n-cursor lint-text"` замість попередньої складної валідації багатоступеневого ланцюжка (`cspell` → `run-shellcheck-text.mjs` → `markdownlint-cli2` → `run-v8r.mjs`). Канонічна форма — одне посилання на CLI, а зміст ланцюжка живе у `npm/rules/text/js/lint.mjs`.
+- **`npm/package.json#files`** — додано негативний glob `"!**/*_test.rego"` (раніше були лише `*.test.mjs`, `test-helpers.mjs`, `fixtures/**`). 33 rego-юніт-тестових файли (`<policy>_test.rego`) більше не потрапляють у tarball — їх виконує лише `conftest verify` у dev-репо.
+
 ## [1.11.4] - 2026-05-15
 
 ### Fixed
@@ -83,7 +106,7 @@
 
 ### Fixed
 
-- `npm/package.json#files`: додано негативні glob-патерни `!**/*.test.mjs`, `!**/test-helpers.mjs`, `!**/fixtures/**`, щоб після переїзду тестів у `rules/<rule>/js/`, `scripts/`, `scripts/utils/` вони не потрапляли в опубліковану npm-таrball (вимагає правило `npm-module`).
+- `npm/package.json#files`: додано негативні glob-патерни `!**/*.test.mjs`, `!**/test-helpers.mjs`, `!**/fixtures/**`, щоб після переїзду тестів у `rules/<rule>/js/`, `scripts/`, `scripts/utils/` вони не потрапляли в опубліковану npm-tarball (вимагає правило `npm-module`).
 - `npm/package.json#devDependencies`: додано `@nitra/cursor: ^1.9.22` (auto-fill від `ensure-nitra-cursor-dev-dependencies.mjs`).
 
 ## [1.9.22] - 2026-05-14

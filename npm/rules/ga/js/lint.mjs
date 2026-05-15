@@ -19,11 +19,11 @@
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
  */
-import { spawnSync } from 'node:child_process'
 import { platform } from 'node:process'
 
 import { check as checkGa } from './workflows/check.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
@@ -113,29 +113,6 @@ function preflight(dep) {
 }
 
 /**
- * Запускає крок lint-ga з відображенням команди користувачу. Stdout/stderr дочірнього процесу
- * передається користувачу як є (`stdio: 'inherit'`), щоб виглядало як прямий виклик у shell.
- * @param {string} title заголовок для логу (наприклад `actionlint`)
- * @param {string} cmd ім'я команди (`bunx`, `uvx`)
- * @param {string[]} args аргументи команди
- * @returns {number} код виходу дочірнього процесу (0 — OK, інше — помилка)
- */
-function runStep(title, cmd, args) {
-  console.log(`\n▶ ${title}: ${cmd} ${args.join(' ')}`)
-  const resolved = resolveCmd(cmd)
-  if (!resolved) {
-    console.error(`❌ ${cmd} не знайдено в PATH (${title}).`)
-    return 127
-  }
-  const r = spawnSync(resolved, args, { stdio: 'inherit', env: process.env })
-  if (r.error) {
-    console.error(`❌ Не вдалося запустити ${cmd}: ${r.error.message}`)
-    return 1
-  }
-  return r.status ?? 1
-}
-
-/**
  * Виконує канонічний `lint-ga` з preflight-перевірками і делегує до `check-ga.check()`.
  *
  * Послідовність:
@@ -160,10 +137,10 @@ export async function runLintGaCli() {
   }
   if (!preflightOk) return 1
 
-  const actionlintCode = runStep('actionlint', 'bunx', ['github-actionlint'])
+  const actionlintCode = runLintStep('actionlint', 'bunx', ['github-actionlint'])
   if (actionlintCode !== 0) return actionlintCode
 
-  const zizmorCode = runStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
+  const zizmorCode = runLintStep('zizmor', 'uvx', ['zizmor', '--offline', '--collect=workflows', '.'])
   if (zizmorCode !== 0) return zizmorCode
 
   console.log('\n▶ check-ga (rego-полісі npm/policy/ga/ + JS cross-file перевірки)')

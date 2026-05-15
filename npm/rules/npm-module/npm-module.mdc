@@ -1,7 +1,7 @@
 ---
 description: Оформлення репозиторію для npm модуля
 alwaysApply: true
-version: '1.11'
+version: '1.12'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.
@@ -11,13 +11,13 @@ Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.g
 Мета — **максимально компактний** опублікований пакет: у npm потрапляє тільки те, що потрібно під час `require`/`import` користувачем.
 
 - **`"files"` обовʼязковий** у `npm/package.json` як **whitelist** того, що публікується (без `"files"` npm пакує майже все — це антипатерн для цього правила).
-- **Тести й фікстури — поза будь-яким шляхом з `"files"`.** Канонічне місце для всього тестового — `npm/tests/` (його **не** додаємо до `"files"`). Це стосується **і** фреймворк-тестів (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), **і** test-style каталогів (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`), **і** файлів за патернами `*.test.*` / `*.spec.*`. **Виняток — Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package`, тож rego-тести дозволені всередині опублікованого `policy/`-каталогу.
+- **Тести й фікстури не публікуються — через негативні glob-патерни у `"files"`.** Тести можна (і зазвичай зручніше) тримати **поруч з кодом** усередині шляхів, перелічених у `"files"` (наприклад `*.test.mjs` поруч з модулем чи `fixtures/` під `rules/<id>/js/`). Щоб вони не потрапляли у tarball, `"files"` **обовʼязково має містити негативні glob-патерни**, що їх виключають. Покрий усі форми тестового: фреймворк-тести (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, …), test-style каталоги (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), файли за патернами `*.test.*` / `*.spec.*`. Орієнтовний набір: `"!**/*.test.*"`, `"!**/*.spec.*"`, `"!**/test-helpers.*"`, `"!**/fixtures/**"`, `"!**/__tests__/**"`. **Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package` — `*_test.rego` усередині опублікованого `policy/` дозволені; якщо потрібна максимальна компактність, додай `"!**/*_test.rego"` явно (як у самому `@nitra/cursor`).
 - **Лише runtime-залежності у `npm/package.json`.** `devDependencies` тримай у **кореневому** `package.json` монорепо — тоді `npm install @nitra/<pkg>` не тягне інструментарій, потрібний лише для розробки самого пакета.
 
 Деталі алгоритму перевірки:
 
 - Пер-документні правила для `npm/package.json` (whitelist `files`, заборона `devDependencies`, форма `types`) — у rego-пакеті `npm_module.npm_package_json` (`npm/policy/npm_module/npm_package_json/`).
-- Скан опублікованого простору файлів на тест-патерни (walking + AST JS/TS) — у `check-npm-module.mjs::checkNoTestsInPublishedFiles` (FS / AST не лягають у rego).
+- Walk шляхів з `"files"` з застосуванням негативних patterns і скан залишку на тест-патерни (walking + AST JS/TS) — у `check.mjs::checkNoTestsInPublishedFiles` (FS / AST не лягають у rego). Якщо після застосування негативних patterns у tarball лишається test-style файл — `check` падає з вказівкою, який саме негативний glob треба додати у `"files"`.
 
 ## TypeScript declaration (`npm/types`)
 

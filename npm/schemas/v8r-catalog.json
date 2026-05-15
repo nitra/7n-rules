@@ -9,6 +9,12 @@
       "fileMatch": [".n-cursor.json", "**/.n-cursor.json", ".n-cursor.example.json", "**/.n-cursor.example.json"]
     },
     {
+      "name": "rego-target.json",
+      "description": "Маніфест rego-полісі (npm/rules/<id>/policy/<name>/target.json) — які файли проєкту фідити в conftest",
+      "url": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+      "fileMatch": ["npm/rules/*/policy/*/target.json", "rules/*/policy/*/target.json"]
+    },
+    {
       "name": "schema-catalog",
       "description": "Каталог схем Schema Store (v8r-catalog.json у пакеті)",
       "url": "https://json.schemastore.org/schema-catalog.json",

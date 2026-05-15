@@ -147,36 +147,20 @@ async function checkPackageJsonText(passFn, failFn) {
 }
 
 /**
- * Перевіряє скрипт lint-text на коректність v8r-виклику.
- * @param {unknown} lintText параметр lintText
+ * Перевіряє скрипт lint-text: канонічний — `n-cursor lint-text` (CLI пакета `@nitra/cursor` робить
+ * `cspell` → `runShellcheckText()` → `bunx markdownlint-cli2 --fix` → `runV8rWithGlobs()`).
+ * Дозволено whitespace навколо команди.
+ * @param {unknown} lintText значення `scripts.lint-text` з package.json
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
 function checkLintTextScript(lintText, passFn, failFn) {
-  const lt = typeof lintText === 'string' ? lintText : ''
-  const v8rCalls = (lt.match(/bunx v8r/g) || []).length
-  const quietCalls = (lt.match(/run-v8r?\.mjs/g) || []).length
-  const eq98Hints = (lt.match(/eq 98/g) || []).length
-  const legacyV8r = v8rCalls >= 4 && eq98Hints >= 4
-  const quietBundled = quietCalls === 1
-  const quietLegacy4x = quietCalls >= 4
-  const v8rTextOk = legacyV8r || quietBundled || quietLegacy4x
-  const globsRequired = legacyV8r || quietLegacy4x
-  const globsOk =
-    lt.includes('**/*.json') && lt.includes('**/*.yml') && lt.includes('**/*.yaml') && lt.includes('**/*.toml')
-  const ok =
-    lt &&
-    lt.includes('cspell') &&
-    lt.includes('run-shellcheck-text.mjs') &&
-    lt.includes('bunx markdownlint-cli2') &&
-    lt.includes('**/*.mdc') &&
-    v8rTextOk &&
-    (!globsRequired || globsOk)
-  if (ok) {
-    passFn('package.json: lint-text — shellcheck (run-shellcheck-text.mjs), v8r: run-v8r.mjs або чотири bunx v8r')
+  const lt = typeof lintText === 'string' ? lintText.trim() : ''
+  if (lt === 'n-cursor lint-text') {
+    passFn('lint-text делегує CLI n-cursor lint-text (cspell + shellcheck + markdownlint + v8r)')
   } else {
     failFn(
-      'package.json: lint-text — додай bun ./…/run-shellcheck-text.mjs; v8r: bun ./…/run-v8r.mjs або чотири (bunx v8r "<glob>" || [ $? -eq 98 ]) (див. n-text.mdc)'
+      'package.json: lint-text має бути "n-cursor lint-text" — CLI пакета @nitra/cursor виконує cspell → shellcheck → markdownlint-cli2 → v8r (text.mdc)'
     )
   }
 }

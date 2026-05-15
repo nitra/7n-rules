@@ -24,8 +24,8 @@ import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 /** Типові glob-и для форматів, які обробляє v8r (див. опис CLI v8r). */
 export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.yaml', '**/*.toml']
 
-/** Абсолютний шлях до `schemas/v8r-catalog.json` поруч з цим скриптом у пакеті `@nitra/cursor`. */
-export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../schemas/v8r-catalog.json')
+/** Абсолютний шлях до `schemas/v8r-catalog.json` у корені пакета `@nitra/cursor` (`npm/schemas/`). */
+export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../schemas/v8r-catalog.json')
 
 /**
  * Повертає шлях до каталогу схем v8r для пакета (для тестів і діагностики).

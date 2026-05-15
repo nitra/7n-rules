@@ -137,8 +137,9 @@ RUN bun install && bun vite build --mode "prod-$BRANCH" --base="$BASE"
 
 Приклад БУЛО:
 
+```vue
 <template>
-    <h5>{{ t`Привіт` }}</h5>
+  <h5>{{ t`Привіт` }}</h5>
 </template>
 
 <script setup>
@@ -146,16 +147,18 @@ import tf from '@nitra/tf/webpack'
 
 // Translate
 const tr = {
-  'Привіт': 'Привет'
+  Привіт: 'Привет'
 }
 
 const t = tf.bind({ tr })
 </script>
+```
 
-СТАЛО
+СТАЛО:
 
+```vue
 <template>
-    <h5>{{ t`Привіт` }}</h5>
+  <h5>{{ t`Привіт` }}</h5>
 </template>
 
 <script setup>
@@ -163,11 +166,12 @@ import tf from '@nitra/tf/webpack'
 
 // Translate
 const tr = {
-  'Привіт': 'Hello'
+  Привіт: 'Hello'
 }
 
 const t = tf.bind({ tr })
 </script>
+```
 
 або
 

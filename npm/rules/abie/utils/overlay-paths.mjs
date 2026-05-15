@@ -16,7 +16,7 @@ const TRAILING_SLASH_RE = /\/$/u
 
 /**
  * Чи `rel` — це `…/ua/kustomization.yaml` (abie overlay).
- * @param {string} rel посі від кореня репозиторію
+ * @param {string} rel posix-шлях від кореня репозиторію
  * @returns {boolean} результат
  */
 export function isUaKustomizationPath(rel) {

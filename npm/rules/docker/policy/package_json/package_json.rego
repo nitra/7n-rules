@@ -19,7 +19,7 @@ package docker.package_json
 
 import rego.v1
 
-canonical_lint_docker := "bun ./npm/scripts/run-docker.mjs"
+canonical_lint_docker := "n-cursor lint-docker"
 
 lint_docker_template := concat(" ", [
 	"package.json: scripts.lint-docker має бути %q",

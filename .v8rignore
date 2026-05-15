@@ -2,3 +2,11 @@
 .vscode/settings.json
 .git/**
 npm/schemas/n-cursor.json
+npm/schemas/target.json
+.claude/settings.local.json
+npm/.claude-template/settings.template.json
+npm/scripts/utils/knip-canonical.json
+npm/scripts/utils/oxlint-canonical-skeleton.json
+npm/scripts/utils/oxlint-canonical.json
+npm/tsconfig.emit-types.json
+.regal/config.yaml

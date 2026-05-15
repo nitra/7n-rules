@@ -7,7 +7,7 @@
  *   2. **JS-концерни** — кожен `check*.mjs` у `js/<concern>/`. Concern `applies` теж може мати
  *      `check()` для друку контексту (його `applies()` уже відпрацював на кроці 1, він не повторюється).
  *   3. **Policy-концерни** — кожен `policy/<concern>/target.json` через `runConftestBatch`.
- *      Реcолвер `resolveTargetFiles` ділить cache (`walkCache`) між концернами.
+ *      Резолвер `resolveTargetFiles` ділить cache (`walkCache`) між концернами.
  *
  * Кожен concern має власний `createCheckReporter` — їхні exit-коди OR-яться в один на рівні правила.
  * Це дає той самий 0/1 контракт, що й попередня модель «один check.mjs на правило».
@@ -45,6 +45,7 @@ async function evaluateAppliesGate(bundledRulesDir, rule) {
   const concern = rule.jsConcerns.find(c => c.name === APPLIES_CONCERN_NAME)
   if (!concern || concern.files.length === 0) return true
   const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern, concern.files[0])
+  // eslint-disable-next-line no-unsanitized/method -- path будується з discovered concern/file, які пройшли regex CHECK_FILENAME_RE
   const mod = await import(path)
   if (typeof mod.applies !== 'function') return true
   return Boolean(await mod.applies())
