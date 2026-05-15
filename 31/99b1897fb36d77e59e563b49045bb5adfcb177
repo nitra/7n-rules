@@ -1,0 +1,25 @@
+docs/adr/adr-llm-нормалізація.md
+  s_af08c91ea2c30d::t_e8009733a3ed9c 1,3-4,6,8,10,12-16,18-31
+docs/adr/20260515-123025-concern-target-design.md
+  s_af08c91ea2c30d::t_e8009733a3ed9c 51-84
+docs/adr/auto-skills-читає-auto-md.md
+  s_af08c91ea2c30d::t_e8009733a3ed9c 1-31
+docs/adr/picomatch-array-negation-та-jsdoc-glob.md
+  s_af08c91ea2c30d::t_e8009733a3ed9c 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3199b1897fb36d77e59e563b49045bb5adfcb177",
+  "prompts": {},
+  "sessions": {
+    "s_af08c91ea2c30d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f863c0c-74a8-4485-9562-bb11e3c408fc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
