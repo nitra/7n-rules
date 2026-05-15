@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
 import { check as checkDocker } from '../rules/docker/js/lint/check.mjs'
-import { check as checkK8s } from '../rules/k8s/js/check.mjs'
+import { check as checkK8s } from '../rules/k8s/js/manifests/check.mjs'
 import { ensureDir, withTmpCwd } from '../scripts/utils/test-helpers.mjs'
 
 const YANNH_DEPLOYMENT_APPS_V1_SCHEMA =

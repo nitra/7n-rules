@@ -18,8 +18,8 @@ import { check as checkGraphql } from '../rules/graphql/js/tooling/check.mjs'
 import { check as checkJsLint } from '../rules/js-lint/js/tooling/check.mjs'
 import { check as checkText } from '../rules/text/js/check.mjs'
 import { check as checkJsRun } from '../rules/js-run/js/runtime/check.mjs'
-import { check as checkK8s } from '../rules/k8s/js/check.mjs'
-import { check as checkNpmModule } from '../rules/npm-module/js/check.mjs'
+import { check as checkK8s } from '../rules/k8s/js/manifests/check.mjs'
+import { check as checkNpmModule } from '../rules/npm-module/js/package_structure/check.mjs'
 import { withShellcheckStubInPath } from '../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR =

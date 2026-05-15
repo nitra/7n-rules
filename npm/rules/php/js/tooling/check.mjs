@@ -11,7 +11,7 @@
  */
 import { existsSync } from 'node:fs'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
 /**
  * Перевіряє відповідність проєкту правилам php.mdc.

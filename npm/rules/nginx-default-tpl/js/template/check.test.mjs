@@ -15,7 +15,7 @@ import {
   nginxTemplateViolations,
   parseIniVariableNames
 } from './check.mjs'
-import { ensureDir, withTmpCwd } from '../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
 
 const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
 
