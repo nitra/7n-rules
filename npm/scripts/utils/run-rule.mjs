@@ -92,7 +92,7 @@ async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache)
 
 /**
  * Запускає одне правило: applies-гейт → JS-концерни → policy-концерни.
- * @param {import('./discover-checkable-rules.mjs').CheckableRule} rule
+ * @param {import('./discover-checkable-rules.mjs').CheckableRule} rule опис правила з discovery
  * @param {string} bundledRulesDir абсолютний шлях до `rules/`
  * @param {Map<string, Promise<string[]>>} walkCache shared cache (один на check-прогон)
  * @returns {Promise<number>} 0 — OK, 1 — є порушення в одному чи більше концернів
