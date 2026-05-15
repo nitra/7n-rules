@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.1] - 2026-05-15
+
+### Fixed
+
+- **`npm/bin/n-cursor.js`** — `runSync()` (entry для `npx @nitra/cursor` без аргументів) шукав
+  `<packageRoot>/mdc` після того, як phase 1-4 перейменував каталог у `rules/`. Виправлено: тепер
+  вказує на коректний шлях `<packageRoot>/rules` — більше не кидає «Не знайдено каталог правил пакету».
+
 ## [1.11.0] - 2026-05-15
 
 ### Added
