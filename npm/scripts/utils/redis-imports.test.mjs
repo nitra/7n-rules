@@ -4,11 +4,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import {
-  findRedisImportsInText,
-  isRedisScanSourceFile,
-  shouldSkipFileForRedisScan
-} from './redis-imports.mjs'
+import { findRedisImportsInText, isRedisScanSourceFile, shouldSkipFileForRedisScan } from './redis-imports.mjs'
 
 describe('redis-imports (oxc)', () => {
   test('default import з ioredis', () => {

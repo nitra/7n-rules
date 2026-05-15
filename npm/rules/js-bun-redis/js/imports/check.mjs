@@ -16,7 +16,11 @@ import { join, relative } from 'node:path'
 
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
-import { findRedisImportsInText, isRedisScanSourceFile, shouldSkipFileForRedisScan } from '../../../../scripts/utils/redis-imports.mjs'
+import {
+  findRedisImportsInText,
+  isRedisScanSourceFile,
+  shouldSkipFileForRedisScan
+} from '../../../../scripts/utils/redis-imports.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 
 /**

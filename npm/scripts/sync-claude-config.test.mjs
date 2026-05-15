@@ -247,7 +247,9 @@ describe('syncClaudeConfig (інтеграція)', () => {
       })
       expect(result.adrHook).toBe(true)
       expect(result.adrNormalizeHook).toBe(true)
-      expect(await readFile('.claude/hooks/capture-decisions.sh', 'utf8')).toBe('#!/usr/bin/env bash\necho adr-capture\n')
+      expect(await readFile('.claude/hooks/capture-decisions.sh', 'utf8')).toBe(
+        '#!/usr/bin/env bash\necho adr-capture\n'
+      )
       expect(await readFile('.claude/hooks/normalize-decisions.sh', 'utf8')).toBe(
         '#!/usr/bin/env bash\necho adr-normalize\n'
       )

@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { isAbieRuleEnabled } from './enabled.mjs'
 import { withTmpCwd, writeJson } from '../../../scripts/utils/test-helpers.mjs'
 
-const TEST_DIR = typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
+const TEST_DIR =
+  typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..', '..', '..')
 
 describe('isAbieRuleEnabled', () => {

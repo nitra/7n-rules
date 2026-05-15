@@ -34,7 +34,9 @@ const GZIP_CMD_RE = /\bgzip\b/u
 const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
 
 /**
- * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; шлях `tests/fixtures` не обходиться як проєктний шаблон.
+ * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; будь-який сегмент
+ * `fixtures/` у шляху виключається — це тестові артефакти (як `tests/fixtures/` так і
+ * co-located `rules/<rule>/js/<concern>/fixtures/`).
  * @param {string} root корінь cwd
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до шаблонів
@@ -47,7 +49,7 @@ export async function findDefaultConfTemplatePaths(root, ignorePaths = []) {
     p => {
       if (basename(p) !== 'default.conf.template') return
       const rel = relative(root, p).replaceAll('\\', '/')
-      if (rel.includes('tests/fixtures/')) return
+      if (rel.split('/').includes('fixtures')) return
       out.push(p)
     },
     ignorePaths

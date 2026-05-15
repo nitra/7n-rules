@@ -52,7 +52,7 @@ function parseSkillAutoSpec(text) {
  * Сканує `npm/skills/<id>/auto.md`. Скіли без `auto.md` або з нерозпізнаним
  * вмістом не потрапляють у результат — їх можна вмикати лише вручну в конфізі.
  * @param {string} [skillsDir] override для тестів
- * @returns {Record<string, SkillAutoSpec>}
+ * @returns {Record<string, SkillAutoSpec>} мапа `skillId → spec`
  */
 export function discoverSkillAutoActivation(skillsDir = SKILLS_DIR) {
   if (!existsSync(skillsDir)) return {}
@@ -75,9 +75,7 @@ const SKILL_AUTO_ACTIVATION = discoverSkillAutoActivation()
  * Стабільний алфавітний порядок скілів з автоактивацією. Експортовано для зворотної
  * сумісності (попередня версія мала жорстко прописаний `AUTO_SKILL_ORDER`).
  */
-export const AUTO_SKILL_ORDER = Object.freeze(
-  Object.keys(SKILL_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b))
-)
+export const AUTO_SKILL_ORDER = Object.freeze(Object.keys(SKILL_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b)))
 
 /**
  * Похідна view на `SKILL_AUTO_ACTIVATION`: лише скіли з rule-залежностями.

@@ -17,7 +17,7 @@ import { validateAbieHcModeline } from '../../utils/hc-yaml.mjs'
 import { collectDeploymentDirs, findK8sYamlFiles } from '../../utils/k8s-tree.mjs'
 
 /**
- * @returns {Promise<number>}
+ * @returns {Promise<number>} результат
  */
 export async function check() {
   const reporter = createCheckReporter()
@@ -50,8 +50,8 @@ export async function check() {
       continue
     }
     const modelineErr = validateAbieHcModeline(hcRaw, relHc)
-    if (modelineErr !== null) fail(modelineErr)
-    else pass(`${relHc}: modeline OK`)
+    if (modelineErr === null) pass(`${relHc}: modeline OK`)
+    else fail(modelineErr)
   }
 
   return reporter.getExitCode()

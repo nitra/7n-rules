@@ -14,7 +14,7 @@ const ABIE_SHARED_CROSS_NS_BACKEND_SET = new Set(ABIE_SHARED_CROSS_NS_BACKEND_NA
 
 /**
  * Перевіряє один `backendRef`: якщо це спільний `-hl` сервіс, має бути `namespace: dev`.
- * @param {unknown} br
+ * @param {unknown} br опис.
  * @param {string} rel rel-шлях файла
  * @param {string[]} errors мутабельний список помилок
  * @returns {number} 1 — це shared backend, 0 — інакше
@@ -33,8 +33,8 @@ function checkSharedBackendRef(br, rel, errors) {
 /**
  * Збирає по HTTPRoute-документу кількість посилань на shared backends і порушення namespace.
  * @param {unknown} obj корінь YAML
- * @param {string} rel
- * @returns {{ refCount: number, errors: string[] }}
+ * @param {string} rel опис.
+ * @returns {{ refCount: number, errors: string[] }} статистика shared-backend посилань і порушення namespace
  */
 function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
   /** @type {string[]} */
@@ -66,7 +66,7 @@ function httpRouteDocSharedCrossNsBackendStats(obj, rel) {
  * @param {string} root корінь репозиторію
  * @param {string} pkgAbs абсолютний шлях каталогу пакета
  * @param {string[]} yamlFilesAbs усі yaml під k8s
- * @returns {Promise<{ refCount: number, baseErrors: string[] }>}
+ * @returns {Promise<{ refCount: number, baseErrors: string[] }>} агрегована статистика й помилки base-шару
  */
 export async function analyzeAbieSharedBackendRefsInPackageK8s(root, pkgAbs, yamlFilesAbs) {
   const pkgRel = relative(root, pkgAbs).replaceAll('\\', '/') || pkgAbs

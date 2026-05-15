@@ -53,9 +53,7 @@ describe('discoverCheckableRules', () => {
     await withTmpCwd(async dir => {
       await addJsConcern('text', 'cspell')
       const out = await discoverCheckableRules(join(dir, 'rules'))
-      expect(out).toEqual([
-        { id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }], policyConcerns: [] }
-      ])
+      expect(out).toEqual([{ id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }], policyConcerns: [] }])
     })
   })
 

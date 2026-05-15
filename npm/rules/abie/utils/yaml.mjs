@@ -12,7 +12,7 @@ export const LINE_SPLIT_RE = /\r?\n/u
 /**
  * Прибирає BOM на початку файлу.
  * @param {string} s вміст
- * @returns {string}
+ * @returns {string} результат
  */
 export function stripBom(s) {
   return s.startsWith('﻿') ? s.slice(1) : s
@@ -21,7 +21,7 @@ export function stripBom(s) {
 /**
  * Чи YAML-документ — це `kind: Deployment`.
  * @param {unknown} obj корінь YAML-документа
- * @returns {boolean}
+ * @returns {boolean} результат
  */
 export function isDeploymentDoc(obj) {
   return (
@@ -46,8 +46,8 @@ export const silentFail = _msg => {
  * викликає `failFn` і повертає `null`.
  * @param {string} abs абсолютний шлях
  * @param {string} rel відносний (для повідомлень)
- * @param {(msg: string) => void} failFn
- * @returns {Promise<import('yaml').Document[] | null>}
+ * @param {(msg: string) => void} failFn опис.
+ * @returns {Promise<import('yaml').Document[] | null>} результат
  */
 export async function readAndParseYamlDocs(abs, rel, failFn) {
   let raw

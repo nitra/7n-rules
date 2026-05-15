@@ -6,6 +6,8 @@
     "DavidAnson.vscode-markdownlint",
     "timonwong.shellcheck",
     "Vue.volar",
-    "stylelint.vscode-stylelint"
+    "stylelint.vscode-stylelint",
+    "tsandall.opa",
+    "ahmadalli.vscode-nginx-conf"
   ]
 }

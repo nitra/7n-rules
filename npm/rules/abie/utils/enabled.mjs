@@ -12,7 +12,7 @@ const CONFIG_FILE = '.n-cursor.json'
 /**
  * Чи увімкнено правило **abie** у `.n-cursor.json:rules`.
  * @param {string} root корінь репозиторію (cwd)
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} `true` — `rules` містить `abie`; `false` — інакше
  */
 export async function isAbieRuleEnabled(root) {
   const p = join(root, CONFIG_FILE)

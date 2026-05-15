@@ -15,7 +15,7 @@ import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-con
 import { abieEnvNameFromBasename, collectAbieEnvFiles, validateAbieEnvInternalUrls } from '../../utils/env-dns.mjs'
 
 /**
- * @returns {Promise<number>}
+ * @returns {Promise<number>} результат
  */
 export async function check() {
   const reporter = createCheckReporter()

@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.4] - 2026-05-15
+
+### Fixed
+
+- **`npm/rules/nginx-default-tpl/js/template/check.mjs`** — `findDefaultConfTemplatePaths` пропускає тестові `fixtures/` за будь-яким сегментом шляху, не лише `tests/fixtures/`. Після concern-split (фази 1-4) fixtures лежать у `rules/<rule>/js/<concern>/fixtures/`, і старий патерн пропускав їх повз → check шукав Dockerfile поруч із тестовим шаблоном і фалс-фейлив.
+
 ## [1.11.3] - 2026-05-15
 
 ### Fixed
@@ -55,7 +61,7 @@
 - **Інкрементальна міграція правил на `target.json`** (декларативні маніфести поруч із кожним `<concern>.rego`):
   - **Single-file правила** (11): `bun`, `text`, `style-lint`, `php`, `docker`, `npm-module`, `js-lint`, `image-compress`, `capacitor`, `hasura`, `adr` — `target.json` з `single` для кожного канонічного конфіг-файлу. Сумарно 27 нових маніфестів. `bun.bunfig`, `text.cspell`, `npm_module.npm_publish_yml` тощо тепер прогоняються через CLI `check <id>` без додаткового `bun run lint-conftest`.
   - **Walk-glob правила** (6): `js-mssql`, `js-bun-db`, `js-bun-redis`, `js-run` (package_json + configmap), `vue`, `image-avif` — `walkGlob: "**/package.json"` або відповідний патерн.
-  - **k8s.* концерни** (8): `manifest`, `gateway`, `hpa_pdb`, `kustomization`, `svc_yaml`, `svc_hl_yaml`, `base_kustomization`, `base_manifest` — `walkGlob` по YAML під сегментом `k8s/`; `base_manifest` використовує негативний glob для виключення `kustomization.yaml`.
+  - **k8s.\* концерни** (8): `manifest`, `gateway`, `hpa_pdb`, `kustomization`, `svc_yaml`, `svc_hl_yaml`, `base_kustomization`, `base_manifest` — `walkGlob` по YAML під сегментом `k8s/`; `base_manifest` використовує негативний glob для виключення `kustomization.yaml`.
   - **abie концерни** (4): `clean_merged_ignore_branches` (single), `health_check_policy` (walkGlob `**/k8s/**/hc.yaml`), `http_route_base` (walkGlob `**/k8s/**/base/**/hr.yaml`), `base_deployment_preem` (walkGlob `**/k8s/**/base/**/*.{yaml,yml}` з виключенням `kustomization.yaml`).
 - **`capture-decisions.sh` тепер пише чернетки напряму в `docs/adr/<timestamp>-<sid>.md`** (раніше — у `docs/adr/_inbox/`). Сам каталог `_inbox/` більше не створюється, але `normalize-decisions.sh` бачить його рекурсивно — старі чернетки з `_inbox/` поступово розчищаються нормалізацією. Можна також одноразово `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
 - **Правило `adr` (`npm/rules/adr/adr.mdc`)**: повне переписування під дві фази (capture + normalize). Видалено згадки `_inbox/`. Версія `version: '2.0'`.
@@ -84,7 +90,7 @@
 
 ### Changed
 
-- **Rule-centric структура пакета.** Кожне правило тепер живе в одній директорії `npm/rules/{rule}/` з усіма своїми артефактами: `{rule}.mdc`, `auto.md` (умова автоактивації), `policy/` (rego-поліси), `js/` (check.mjs + опційні run/lint + co-located *.test.mjs + fixtures/). Видалив каталог правила — правило зникло без слідів у `bin/auto-rules.md`, `npm/policy/`, `npm/scripts/`. Дзеркальна структура для скілів у `npm/skills/{skill}/` (SKILL.md + auto.md + js/).
+- **Rule-centric структура пакета.** Кожне правило тепер живе в одній директорії `npm/rules/{rule}/` з усіма своїми артефактами: `{rule}.mdc`, `auto.md` (умова автоактивації), `policy/` (rego-поліси), `js/` (check.mjs + опційні run/lint + co-located \*.test.mjs + fixtures/). Видалив каталог правила — правило зникло без слідів у `bin/auto-rules.md`, `npm/policy/`, `npm/scripts/`. Дзеркальна структура для скілів у `npm/skills/{skill}/` (SKILL.md + auto.md + js/).
 - **Тести співрозташовуються з джерелами.** ~50 файлів з `npm/tests/` переїхали в `npm/rules/{rule}/js/*.test.mjs` (тести правил), `npm/scripts/*.test.mjs` (тести інфраструктури), `npm/scripts/utils/*.test.mjs` (тести утиліт). `tests/helpers.mjs` → `scripts/utils/test-helpers.mjs`. `npm/tests/` залишається тільки для 3 крос-правильних інтеграційних тестів.
 - **`bin/n-cursor.js`**: `BUNDLED_MDC_DIR` → `BUNDLED_RULES_DIR`. `discoverBundledRuleNames` і `discoverCheckScripts` тепер обходять підкаталоги `rules/` замість файлів у `mdc/` чи `check-*.mjs` у `scripts/`. Резолвер check-скриптів: `rules/{rule}/js/check.mjs`. `readBundledRuleContent` читає `rules/{rule}/{rule}.mdc`.
 - **`scripts/utils/run-conftest-batch.mjs` та `scripts/lint-conftest.mjs`**: шляхи до rego-полісі — `rules/{rule}/policy/{name}/` (замість `policy/{rule}/{name}/`). Snake_case `policyDirRel` у JS-call sites замінено на kebab-case.

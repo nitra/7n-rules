@@ -19,12 +19,5 @@
     "text",
     "vue"
   ],
-  "skills": [
-    "adr-normalize",
-    "fix",
-    "lint",
-    "llm-patch",
-    "publish-telegram",
-    "taze"
-  ]
+  "skills": ["adr-normalize", "fix", "lint", "llm-patch", "publish-telegram", "taze"]
 }

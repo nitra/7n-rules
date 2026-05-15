@@ -143,7 +143,7 @@ async function checkEnvFile(relPath, expected, reporter) {
   const value = m[1].trim()
   const parsed = parseInternalHasuraEndpoint(value)
   if (!parsed.ok) {
-    const example = "https://<service>.<namespace>.svc.<cluster>.internal:<port>"
+    const example = 'https://<service>.<namespace>.svc.<cluster>.internal:<port>'
     fail(
       `${relPath}: HASURA_GRAPHQL_ENDPOINT="${value}" — потрібен внутрішній кластерний URL виду ${example} (hasura.mdc)`
     )

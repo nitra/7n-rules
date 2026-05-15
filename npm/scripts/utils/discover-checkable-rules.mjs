@@ -32,8 +32,8 @@ const TEST_SUFFIX = '.test.mjs'
 /**
  * @typedef {object} CheckableRule
  * @property {string} id ідентифікатор правила (імʼя каталогу `rules/<id>/`)
- * @property {JsConcern[]} jsConcerns
- * @property {PolicyConcern[]} policyConcerns
+ * @property {JsConcern[]} jsConcerns JS-концерни правила (алфавітно)
+ * @property {PolicyConcern[]} policyConcerns policy-концерни правила (алфавітно)
  */
 
 /**
@@ -52,7 +52,8 @@ async function listJsConcerns(jsDir) {
   for (const entry of topLevel) {
     if (!entry.isDirectory() || entry.name === 'utils' || entry.name.startsWith('.')) continue
     const concernDir = join(jsDir, entry.name)
-    const files = (await readdir(concernDir))
+    const dirContents = await readdir(concernDir)
+    const files = dirContents
       .filter(n => CHECK_FILENAME_RE.test(n) && !n.endsWith(TEST_SUFFIX))
       .toSorted((a, b) => a.localeCompare(b))
     if (files.length > 0) {

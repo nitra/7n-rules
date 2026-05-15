@@ -17,7 +17,7 @@ const TRAILING_SLASH_RE = /\/$/u
 /**
  * Чи `rel` — це `…/ua/kustomization.yaml` (abie overlay).
  * @param {string} rel посі від кореня репозиторію
- * @returns {boolean}
+ * @returns {boolean} результат
  */
 export function isUaKustomizationPath(rel) {
   const norm = rel.replaceAll('\\', '/')
@@ -28,7 +28,7 @@ export function isUaKustomizationPath(rel) {
  * Каталог пакета (батько `k8s/`) для overlay `…/k8s/ua/kustomization.yaml`.
  * @param {string} root корінь репозиторію
  * @param {string} kustomizationAbs абсолютний шлях до ua kustomization
- * @returns {string | null}
+ * @returns {string | null} результат
  */
 export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
   const rel = relative(root, kustomizationAbs).replaceAll('\\', '/') || kustomizationAbs
@@ -41,7 +41,7 @@ export function abiePackageDirFromK8sOverlay(root, kustomizationAbs) {
  * застосовується лише до Vite-пакетів.
  * @param {string} root корінь репозиторію
  * @param {string} kustomizationAbs абсолютний шлях до ua kustomization
- * @returns {boolean}
+ * @returns {boolean} результат
  */
 export function abieOverlayRequiresHttpRouteByVite(root, kustomizationAbs) {
   const pkg = abiePackageDirFromK8sOverlay(root, kustomizationAbs)
@@ -58,7 +58,7 @@ export function abieOverlayRequiresHttpRouteByVite(root, kustomizationAbs) {
  * @param {Set<string>} deploymentDirs абсолютні каталоги з Deployment
  * @param {string} root корінь репозиторію
  * @param {string} kustomizationAbs абсолютний шлях до ua kustomization
- * @returns {boolean}
+ * @returns {boolean} результат
  */
 export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizationAbs) {
   const pkg = abiePackageDirFromK8sOverlay(root, kustomizationAbs)
@@ -73,8 +73,8 @@ export function abieOverlayK8sTreeHasDeployment(deploymentDirs, root, kustomizat
 
 /**
  * Чи rel-шлях `…/k8s/base/…` (base-шар abie, не overlay).
- * @param {string} rel
- * @returns {boolean}
+ * @param {string} rel опис.
+ * @returns {boolean} результат
  */
 export function isAbieK8sBaseYamlPath(rel) {
   const norm = rel.replaceAll('\\', '/')
@@ -85,7 +85,7 @@ export function isAbieK8sBaseYamlPath(rel) {
  * Чи yaml належить до `<pkgRel>/k8s/**` поза `ua/` піддеревом (base-шар abie).
  * @param {string} relFromRoot шлях від кореня
  * @param {string} pkgRelFromRoot каталог пакета від кореня
- * @returns {boolean}
+ * @returns {boolean} результат
  */
 export function isK8sYamlInAbiePackageExcludingUaOverlay(relFromRoot, pkgRelFromRoot) {
   const normRel = relFromRoot.replaceAll('\\', '/')

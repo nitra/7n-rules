@@ -12,7 +12,7 @@ import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mj
 const SKIP_TOP_DIR_NAMES = new Set(['.git', 'node_modules'])
 
 /**
- * @returns {Promise<number>}
+ * @returns {Promise<number>} результат
  */
 export async function check() {
   const reporter = createCheckReporter()

@@ -23,8 +23,8 @@ const ABIE_ENV_CLUSTER_DNS_MAP = Object.freeze({
 /**
  * Дістає `dev` / `ua` з basename env-файлу abie.
  * Не-abie env-файли (`production.env`, `.env` без імені) → null.
- * @param {string} basenameOfEnvFile
- * @returns {('dev' | 'ua') | null}
+ * @param {string} basenameOfEnvFile опис.
+ * @returns {('dev' | 'ua') | null} результат
  */
 export function abieEnvNameFromBasename(basenameOfEnvFile) {
   const m = basenameOfEnvFile.match(ABIE_ENV_FILE_BASENAME_RE)
@@ -35,7 +35,7 @@ export function abieEnvNameFromBasename(basenameOfEnvFile) {
  * Сканує вміст env-файла, повертає помилки невідповідності кластерного DNS / namespace
  * для кожного internal URL (один URL у двох змінних = дві окремі помилки).
  * @param {string} content вміст env-файла (UTF-8)
- * @param {'dev' | 'ua'} envName
+ * @param {'dev' | 'ua'} envName опис.
  * @returns {string[]} порожній масив, якщо все OK
  */
 export function validateAbieEnvInternalUrls(content, envName) {
@@ -63,7 +63,7 @@ export function validateAbieEnvInternalUrls(content, envName) {
  * Збирає `*.env` файли, які є abie env (`dev.env`/`ua.env`, опц. з провідною крапкою).
  * @param {string} root корінь репозиторію
  * @param {string[]} ignorePaths абсолютні шляхи каталогів-виключень
- * @returns {Promise<string[]>}
+ * @returns {Promise<string[]>} результат
  */
 export async function collectAbieEnvFiles(root, ignorePaths) {
   /** @type {string[]} */

@@ -32,7 +32,12 @@ import { promisify } from 'node:util'
 
 import { parseSync } from 'oxc-parser'
 
-import { dynamicImportModule, langFromPath, requireCallModule, walkAstWithAncestors } from '../../../../scripts/utils/ast-scan-utils.mjs'
+import {
+  dynamicImportModule,
+  langFromPath,
+  requireCallModule,
+  walkAstWithAncestors
+} from '../../../../scripts/utils/ast-scan-utils.mjs'
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'

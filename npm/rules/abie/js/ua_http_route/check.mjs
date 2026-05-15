@@ -26,7 +26,7 @@ import {
 } from '../../utils/overlay-paths.mjs'
 
 /**
- * @returns {Promise<number>}
+ * @returns {Promise<number>} результат
  */
 export async function check() {
   const reporter = createCheckReporter()
@@ -78,8 +78,8 @@ export async function check() {
     }
     const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
     const v = validateAbieNginxRunHttpRoutePatches(combined, 'ua', raw, sharedAnalysis.refCount)
-    if (v !== null) fail(`${rel}: ${v}`)
-    else pass(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
+    if (v === null) pass(`${rel}: HTTPRoute patch (ua) відповідає abie.mdc`)
+    else fail(`${rel}: ${v}`)
   }
 
   return reporter.getExitCode()

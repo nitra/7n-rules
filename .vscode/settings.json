@@ -60,6 +60,13 @@
   "[yaml]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.formatOnSave": true
+  },
+  "[nginx]": {
+    "editor.defaultFormatter": "ahmadalli.vscode-nginx-conf"
+  },
   "oxc.path.oxlint": "/opt/homebrew/bin/oxlint",
   "oxc.path.oxfmt": "/opt/homebrew/bin/oxfmt",
   "css.validate": false,

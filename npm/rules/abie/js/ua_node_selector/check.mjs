@@ -16,7 +16,7 @@ import { kustomizationHasAbieDeploymentNodeSelectorPatch } from '../../utils/kus
 import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../../utils/overlay-paths.mjs'
 
 /**
- * @returns {Promise<number>}
+ * @returns {Promise<number>} результат
  */
 export async function check() {
   const reporter = createCheckReporter()
@@ -55,7 +55,9 @@ export async function check() {
       continue
     }
     if (!kustomizationHasAbieDeploymentNodeSelectorPatch(raw, 'ua')) {
-      fail(`${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`)
+      fail(
+        `${rel}: потрібен patch target kind Deployment: path /spec/template/spec/nodeSelector та preem: false (abie.mdc)`
+      )
       continue
     }
     pass(`${rel}: nodeSelector patch (ua) відповідає abie.mdc`)

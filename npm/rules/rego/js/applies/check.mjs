@@ -45,9 +45,9 @@ export async function applies() {
 
 /**
  * Друкує короткий context-pass — самі полісі прогонить CLI через `policy/<name>/target.json`.
- * @returns {Promise<number>} 0 — все ок (фактичні порушення повертають policy-концерни)
+ * @returns {number} 0 — все ок (фактичні порушення повертають policy-концерни)
  */
-export async function check() {
+export function check() {
   const reporter = createCheckReporter()
   reporter.pass('Знайдено *.rego у дереві — перевіряємо канонічні конфіги rego.mdc')
   return reporter.getExitCode()

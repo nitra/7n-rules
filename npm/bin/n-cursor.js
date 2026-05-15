@@ -266,8 +266,9 @@ async function readConfig(paths = {}) {
     // правило, додане вручну (напр. `adr` без auto.md-умови), не активувало б залежні
     // скіли (`adr-normalize`).
     const disableRulesSet = new Set(disableRules)
-    const effectiveRulesForSkills = [...new Set([...normalizeIdList(parsedConfig.rules), ...autoDetectedRules.rules])]
-      .filter(id => !disableRulesSet.has(id))
+    const effectiveRulesForSkills = [
+      ...new Set([...normalizeIdList(parsedConfig.rules), ...autoDetectedRules.rules])
+    ].filter(id => !disableRulesSet.has(id))
     const autoDetectedSkills = detectAutoSkills({
       availableSkills,
       detectedRules: effectiveRulesForSkills,

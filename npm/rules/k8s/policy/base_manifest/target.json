@@ -1,10 +1,6 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
   "files": {
-    "walkGlob": [
-      "**/k8s/**/base/**/*.yaml",
-      "**/k8s/**/base/**/*.yml",
-      "!**/k8s/**/base/**/kustomization.yaml"
-    ]
+    "walkGlob": ["**/k8s/**/base/**/*.yaml", "**/k8s/**/base/**/*.yml", "!**/k8s/**/base/**/kustomization.yaml"]
   }
 }

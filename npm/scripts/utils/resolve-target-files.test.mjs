@@ -2,7 +2,7 @@
  * Тести `resolveTargetFiles`: forms `single` / `walkGlob`, walk-cache, path-traversal guard.
  */
 import { describe, expect, test } from 'bun:test'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { resolveTargetFiles } from './resolve-target-files.mjs'

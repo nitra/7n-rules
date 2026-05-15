@@ -51,7 +51,6 @@ description: >-
    Видалені файли — `delete`-операція. Нові файли `<slug>.md` — `rewrite`. Модифіковані clean-файли — `merge-into`.
 
 4. **Прийняти / відкотити:**
-
    - Прийняти все: `git add docs/adr/ && git commit -m "adr: normalize batch"`.
    - Відкотити конкретний файл: `git checkout -- docs/adr/<file>` (для `rewrite` цього мало — треба ще `git restore --staged` і `rm` нового).
    - Відкотити весь батч: `git checkout -- docs/adr/ && git clean -f docs/adr/` (видалить і untracked rewrite-результати).

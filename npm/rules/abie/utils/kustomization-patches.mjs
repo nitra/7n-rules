@@ -24,8 +24,8 @@ const ABIE_UA_HTTPROUTE_HOST_MARKERS = ['abie.app', 'vybeerai.com.ua', '*.abie.a
 
 /**
  * Чи patch-рядок містить очікуваний ua nodeSelector (preem: false).
- * @param {string} patchText
- * @returns {boolean}
+ * @param {string} patchText опис.
+ * @returns {boolean} результат
  */
 function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
   if (typeof patchText !== 'string' || patchText.trim() === '') return false
@@ -36,9 +36,9 @@ function jsonPatchTextHasUaDeploymentNodeSelector(patchText) {
 
 /**
  * Чи один елемент `patches` відповідає abie nodeSelector для `mode`.
- * @param {unknown} p
- * @param {'ua'} mode
- * @returns {boolean}
+ * @param {unknown} p опис.
+ * @param {'ua'} mode опис.
+ * @returns {boolean} результат
  */
 function inlineKustomizationPatchMatchesAbieMode(p, mode) {
   if (p === null || typeof p !== 'object' || Array.isArray(p)) return false
@@ -55,9 +55,9 @@ function inlineKustomizationPatchMatchesAbieMode(p, mode) {
 
 /**
  * Чи документ Kustomization містить відповідний inline patch на Deployment.
- * @param {import('yaml').Document} doc
- * @param {'ua'} mode
- * @returns {boolean}
+ * @param {import('yaml').Document} doc опис.
+ * @param {'ua'} mode опис.
+ * @returns {boolean} результат
  */
 function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
   if (doc.errors.length > 0) return false
@@ -76,8 +76,8 @@ function kustomizationDocumentHasAbieDeploymentNodeSelectorPatch(doc, mode) {
 /**
  * Чи `kustomization.yaml` містить валідні inline patch для Deployment nodeSelector (ua).
  * @param {string} raw повний текст файла
- * @param {'ua'} mode
- * @returns {boolean}
+ * @param {'ua'} mode опис.
+ * @returns {boolean} результат
  */
 export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
   const body = stripBom(raw)
@@ -100,8 +100,8 @@ export function kustomizationHasAbieDeploymentNodeSelectorPatch(raw, mode) {
 // ── HTTPRoute (ua) ────────────────────────────────────────────────────────
 
 /**
- * @param {unknown} p
- * @returns {string | null}
+ * @param {unknown} p опис.
+ * @returns {string | null} результат
  */
 function extractHttpRoutePatchString(p) {
   if (p === null || typeof p !== 'object' || Array.isArray(p)) return null
@@ -116,8 +116,8 @@ function extractHttpRoutePatchString(p) {
 
 /**
  * Збирає inline `patch`-рядки для HTTPRoute (непорожній `target.name`) з одного Kustomization-документа.
- * @param {import('yaml').Document} doc
- * @returns {string[]}
+ * @param {import('yaml').Document} doc опис.
+ * @returns {string[]} результат
  */
 function collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc) {
   if (doc.errors.length > 0) return []
@@ -137,7 +137,7 @@ function collectAbieHttpRoutePatchStringsFromKustomizationDoc(doc) {
 /**
  * Збирає всі inline JSON6902-фрагменти HTTPRoute (непорожній `target.name`) у kustomization.yaml.
  * @param {string} raw повний текст файла
- * @returns {string}
+ * @returns {string} результат
  */
 export function getCombinedNginxRunPatchTextFromKustomization(raw) {
   const body = stripBom(raw)
@@ -162,8 +162,8 @@ export function getCombinedNginxRunPatchTextFromKustomization(raw) {
 /**
  * Рахує операції JSON6902 з `path: /spec/rules/.../backendRefs/.../namespace` і `value: ua[-…]`.
  * @param {string} combined сукупний текст patch
- * @param {'ua'} mode
- * @returns {number}
+ * @param {'ua'} mode опис.
+ * @returns {number} результат
  */
 function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) {
   if (mode !== 'ua') return 0
@@ -175,7 +175,7 @@ function countAbieHttpRouteBackendRefNamespacePatchesInCombined(combined, mode) 
 /**
  * Перевіряє сукупний текст patch(ів) HTTPRoute на відповідність abie.mdc.
  * @param {string} combined сукупний текст patch
- * @param {'ua'} mode
+ * @param {'ua'} mode опис.
  * @param {string} [_fullKustomizationRaw] зберігається для API-сумісності, не використовується
  * @param {number} [sharedCrossNsBackendRefCount] кількість `auth-run-hl`/`file-link-hl` у base HTTPRoute
  * @returns {string | null} повідомлення про помилку або null
@@ -215,8 +215,8 @@ export function validateAbieNginxRunHttpRoutePatches(
 /**
  * Чи kustomization містить валідні patch для HTTPRoute (ua).
  * @param {string} raw повний текст kustomization.yaml
- * @param {'ua'} mode
- * @returns {boolean}
+ * @param {'ua'} mode опис.
+ * @returns {boolean} результат
  */
 export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
   const combined = getCombinedNginxRunPatchTextFromKustomization(raw)

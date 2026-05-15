@@ -22,7 +22,7 @@ const deploymentCache = new Map()
 
 /**
  * Скидає кеш — тести мусять викликати між фікстурами.
- * @returns {void}
+ * @returns {void} результат
  */
 export function resetAbieK8sTreeCache() {
   yamlCache.clear()
@@ -31,9 +31,9 @@ export function resetAbieK8sTreeCache() {
 
 /**
  * Стабільний ключ кешу за (root, ignorePaths).
- * @param {string} root
- * @param {string[]} ignorePaths
- * @returns {string}
+ * @param {string} root опис.
+ * @param {string[]} ignorePaths опис.
+ * @returns {string} результат
  */
 function cacheKey(root, ignorePaths) {
   return `${root}|${[...ignorePaths].toSorted((a, b) => a.localeCompare(b)).join(':')}`
@@ -44,7 +44,7 @@ function cacheKey(root, ignorePaths) {
  * Каталог `.github/` свідомо пропускається (належить `ga.mdc`).
  * @param {string} root корінь репозиторію
  * @param {string[]} [ignorePaths] абсолютні шляхи каталогів-виключень
- * @returns {Promise<string[]>}
+ * @returns {Promise<string[]>} результат
  */
 export function findK8sYamlFiles(root, ignorePaths = []) {
   const key = cacheKey(root, ignorePaths)
@@ -77,7 +77,16 @@ export function findK8sYamlFiles(root, ignorePaths = []) {
  * @param {(msg: string) => void} [fail] репортер помилок парсингу (опц.)
  * @returns {Promise<Set<string>>} абсолютні шляхи директорій
  */
-export function collectDeploymentDirs(root, yamlAbs, fail = () => {}) {
+/**
+ * No-op fail-handler за замовчуванням для `collectDeploymentDirs` — пошкоджені YAML
+ * під час cross-rule сканування мовчки пропускаються; формальний reporter передає сам caller.
+ * @param {string} _msg повідомлення про помилку (ігнорується)
+ */
+const silentFail = _msg => {
+  // noop
+}
+
+export function collectDeploymentDirs(root, yamlAbs, fail = silentFail) {
   const key = `${root}|${[...yamlAbs].toSorted((a, b) => a.localeCompare(b)).join(':')}`
   const cached = deploymentCache.get(key)
   if (cached) return cached

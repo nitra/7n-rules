@@ -6,12 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { ensureDir, withTmpCwd, writeJson } from './utils/test-helpers.mjs'
 import { writeFile } from 'node:fs/promises'
 
-import {
-  detectAutoRules,
-  detectLegacyRuleIds,
-  mergeConfigWithAutoDetected,
-  migrateRuleIds
-} from './auto-rules.mjs'
+import { detectAutoRules, detectLegacyRuleIds, mergeConfigWithAutoDetected, migrateRuleIds } from './auto-rules.mjs'
 
 const ALL_RULES = [
   'abie',

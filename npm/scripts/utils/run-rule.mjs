@@ -68,7 +68,8 @@ async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache)
   if (files.length === 0) {
     if (target.files.required && target.files.single) {
       const msg =
-        target.missingMessage ?? `${target.files.single} не існує — створи згідно ${ruleId}.mdc (${ruleId}.${concernName})`
+        target.missingMessage ??
+        `${target.files.single} не існує — створи згідно ${ruleId}.mdc (${ruleId}.${concernName})`
       reporter.fail(msg)
     }
     return reporter.getExitCode()

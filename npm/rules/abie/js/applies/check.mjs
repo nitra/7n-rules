@@ -8,16 +8,16 @@ import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mj
 import { isAbieRuleEnabled } from '../../utils/enabled.mjs'
 
 /**
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} `true` — правило застосовне; `false` — пропустити
  */
-export async function applies() {
+export function applies() {
   return isAbieRuleEnabled(process.cwd())
 }
 
 /**
- * @returns {Promise<number>}
+ * @returns {number} exit-код (0 — OK, 1 — порушення)
  */
-export async function check() {
+export function check() {
   const reporter = createCheckReporter()
   reporter.pass('Правило abie увімкнено — виконуємо перевірки')
   return reporter.getExitCode()

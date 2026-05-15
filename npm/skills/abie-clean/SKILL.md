@@ -131,7 +131,6 @@ RUN bun install && bun vite build --mode "prod-$BRANCH" --base="$BASE"
 
 Те саме стосується `nginx`-конфігів (`server_name`, `proxy_pass` з ru-доменами), `*.sh`-скриптів та `package.json` scripts (`build:ru`, `deploy:ru`, `prod-ru` тощо).
 
-
 ## 5. Переклади
 
 Замінити переклад з російської на англійську в @nitra/tfm, @nitra/tf та @nitra/tfm-node. Якщо англійська вже є, то прибираємо російську:
@@ -175,8 +174,8 @@ const t = tf.bind({ tr })
 import { tf } from '@nitra/tfm'
 
 const tr = {
-  Так: { ru: 'Да' },
-  Ні: { ru: 'Нет' }
+Так: { ru: 'Да' },
+Ні: { ru: 'Нет' }
 }
 
 на
@@ -184,10 +183,9 @@ const tr = {
 import { tf } from '@nitra/tfm'
 
 const tr = {
-  Так: { ru: 'Yes' },
-  Ні: { ru: 'No' }
+Так: { ru: 'Yes' },
+Ні: { ru: 'No' }
 }
-
 
 ## 6. Після очистки
 

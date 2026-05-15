@@ -70,7 +70,9 @@ export async function check() {
 
   const extPath = '.vscode/extensions.json'
   if (!existsSync(extPath)) {
-    fail(`${extPath} не існує — створи з recommendations "tauri-apps.tauri-vscode" і "rust-lang.rust-analyzer" (tauri.mdc)`)
+    fail(
+      `${extPath} не існує — створи з recommendations "tauri-apps.tauri-vscode" і "rust-lang.rust-analyzer" (tauri.mdc)`
+    )
     return reporter.getExitCode()
   }
   const violations = runConftestBatch({
