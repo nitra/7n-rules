@@ -12,8 +12,9 @@
  * - `.claude/commands/n-check.md` — fully owned slash-команда.
  * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR capture Stop-hook;
  *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
- *   присутнє `adr` (правило вмикається вручну). Якщо правила немає, керована
- *   ADR-група в hooks так само автоматично прибирається з settings.json.
+ *   присутнє `adr` (правило увімкнене за замовчуванням; вимикається через
+ *   `disable-rules: ["adr"]`). Якщо правила немає, керована ADR-група в hooks
+ *   так само автоматично прибирається з settings.json.
  * - `.claude/hooks/normalize-decisions.sh` — fully owned bash-скрипт ADR normalize
  *   Stop-hook (батч-нормалізація чернеток); умови — ті самі, що для `capture`.
  *

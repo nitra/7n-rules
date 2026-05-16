@@ -27,6 +27,7 @@ import { contentForVueImportScan } from './utils/vue-forbidden-imports.mjs'
 /** Порядок автододавання правил відповідно до `rules/<rule>/auto.md`. */
 export const AUTO_RULE_ORDER = Object.freeze([
   'abie',
+  'adr',
   'bun',
   'capacitor',
   'changelog',
@@ -657,6 +658,7 @@ export async function detectAutoRules({
       addRule(item.id)
     }
   }
+  addRule('adr')
   addRule('text')
   if (facts.hasVueSource) {
     addRule('vue')

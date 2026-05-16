@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.16] - 2026-05-16
+
+### Changed
+
+- **`npm/rules/adr/adr.mdc`**, **`npm/scripts/auto-rules.mjs`**, **`npm/rules/adr/auto.md`** — правило `adr` тепер **увімкнене за замовчуванням** (`addRule('adr')` без умови, поруч з `addRule('text')`; `auto.md` = `завжди`). Раніше — opt-in вручну через `"adr"` у `rules`. Щоб вимкнути для конкретного репо — `"adr"` у `disable-rules`. Текст правила і JSDoc у `sync-claude-config.mjs` оновлено відповідно. Існуючі `.n-cursor.json` із явним `"adr"` у `rules` лишаються валідними (`mergeConfigWithAutoDetected` дедуплікує).
+- **Мотивація:** ADR/Runbook/Knowledge capture виявився корисним для всіх проєктів команди, а не лише тих, де його свідомо ввімкнули; opt-out зручніший за opt-in, бо інтегрує hooks у новий репо з коробки.
+
 ## [1.11.15] - 2026-05-16
 
 ### Changed

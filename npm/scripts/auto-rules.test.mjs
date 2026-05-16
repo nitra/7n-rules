@@ -10,6 +10,7 @@ import { detectAutoRules, detectLegacyRuleIds, mergeConfigWithAutoDetected, migr
 
 const ALL_RULES = [
   'abie',
+  'adr',
   'bun',
   'capacitor',
   'changelog',
@@ -65,6 +66,7 @@ describe('detectAutoRules', () => {
 
       expect(actual.rules).toEqual([
         'abie',
+        'adr',
         'bun',
         'capacitor',
         'changelog',
