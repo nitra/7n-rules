@@ -27,7 +27,6 @@
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs"
       ],
-      "ignoreDependencies": ["@nitra/cursor"],
       "project": ["**/*.{js,mjs}"]
     },
     "demo": {

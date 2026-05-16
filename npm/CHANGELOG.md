@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.14] - 2026-05-16
+
+### Removed
+
+- **`npm/package.json#devDependencies`** — повністю видалено блок (містив лише self-reference `@nitra/cursor: ^1.11.9`). `npx @nitra/cursor check npm-module` зафіксував порушення: `devDependencies` не публікуються користувачам пакета, але інструменти, що **потрібні** для розробки пакета, мають жити в кореневому `package.json` (у workspace-root) як `@nitra/cursor: workspace:*` (там уже є). Self-reference у `npm/package.json` лишався з попередньої практики, але **публікувався** у npm-tarball (хоч і ігнорувався установником, оскільки лізе у nested deps), забруднюючи метадані пакета.
+- **`knip.json#workspaces.npm.ignoreDependencies: ["@nitra/cursor"]`** — workaround, доданий у 1.11.13 для приховання knip-violation на self-reference, тепер не потрібен (першопричина прибрана). Знято, щоб конфіг лишався чистим.
+
 ## [1.11.13] - 2026-05-16
 
 ### Fixed
