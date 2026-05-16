@@ -1,0 +1,135 @@
+npm/rules/graphql/policy/vscode_extensions/vscode_extensions.rego
+  s_34a2b8fe255b53::t_f576300cf0acf8 5-6
+npm/rules/ga/lint/lint.mjs
+  s_5160df5c5af641::t_64cb0285f8f69b 24
+npm/rules/abie/utils/k8s-tree.mjs
+  s_5160df5c5af641::t_997b7b03f8149c 11
+npm/rules/image-compress/fix/package_setup/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-109
+npm/rules/npm-module/fix/package_structure/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-583
+npm/tests/check-empty-trees.test.mjs
+  s_5160df5c5af641::t_5a6b456f97af9c 7-8
+npm/rules/abie/abie.mdc
+  s_34a2b8fe255b53::t_cf57bc18ef1fc1 166
+npm/rules/style-lint/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-73
+npm/rules/nginx-default-tpl/fix/template/check.mjs
+  s_5160df5c5af641::t_ef3362ffc71311 20
+npm/rules/rego/policy/vscode_extensions/vscode_extensions.rego
+  s_34a2b8fe255b53::t_a859a8953367e0 5
+npm/rules/tauri/policy/vscode_extensions/vscode_extensions.rego
+  s_34a2b8fe255b53::t_8679eb121d1e5c 5-6
+npm/CHANGELOG.md
+  s_34a2b8fe255b53::t_5e3de866b01359 7-13
+  s_34a2b8fe255b53::t_b017328e5c0f92 14-27
+  s_5160df5c5af641::t_dcf65fcaa6e525 28-35
+  s_34a2b8fe255b53::t_416dc680657ef3 36-39,42
+  s_34a2b8fe255b53::t_f8874fe73dc50f 40-41
+  s_ee7679d18de06c::t_c524ec224c4663 47
+npm/scripts/utils/discover-checkable-rules.mjs
+  s_34a2b8fe255b53::t_d9e49926e0c5c3 3,6,11-14,25,42,44-45,48-50,56,89-90,102
+npm/scripts/utils/discover-checkable-rules.test.mjs
+  s_34a2b8fe255b53::t_aa66abc9a93a70 2,12,14,19-20,52,57,62,64-65,71,73-74,80-81,89,98,100-101,110
+  s_34a2b8fe255b53::t_4e1a0c6288da5f 56,58,72,75-79,82-85
+npm/rules/js-run/fix/runtime/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-443
+npm/bin/n-cursor.js
+  s_5160df5c5af641::t_53cd1910ecae94 82
+  s_5160df5c5af641::t_b10c841682348b 80
+  s_5160df5c5af641::t_d65ef9d95be0f8 83
+  s_34a2b8fe255b53::t_ca76ef534dff80 1012-1014
+  s_5160df5c5af641::t_f6bf7678035bd6 81
+  s_ee7679d18de06c::t_498ac9da0d9ce5 50-51
+  s_5160df5c5af641::t_f00633bfe00a7c 84
+npm/README.md
+  s_34a2b8fe255b53::t_ab33e5eb8498ab 49
+  s_34a2b8fe255b53::t_9a73fc87afb46e 79
+  s_34a2b8fe255b53::t_426714a9b2fcbf 99-105,107,110-141
+  s_34a2b8fe255b53::t_74759cc812a110 59
+  s_34a2b8fe255b53::t_eea454dc97bb28 174
+  s_34a2b8fe255b53::t_ccf88341070346 155
+  s_34a2b8fe255b53::t_07b7d57b9af1ea 7,9
+.cursor/rules/scripts.mdc
+  s_34a2b8fe255b53::t_4762c54ebd66d0 30
+npm/rules/nginx-default-tpl/policy/vscode_extensions/vscode_extensions.rego
+  s_34a2b8fe255b53::t_a859a8953367e0 5
+npm/rules/bun/fix/layout/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 2,4-10,12-16,23-25,28-29,31-33,35-39,41-43,48-50,52-67,73-74,76-78,80-82,84,88-89,91,93-96,99-100,102,105-114
+.cursor/rules/conftest.mdc
+  s_34a2b8fe255b53::t_fddb5c99f6577f 90
+npm/rules/rego/policy/package_json/package_json.rego
+  s_34a2b8fe255b53::t_a859a8953367e0 4
+npm/rules/docker/fix/lint/discover.test.mjs
+  s_5160df5c5af641::t_9aaf941773bbbb 9
+npm/rules/js-bun-redis/fix/imports/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-102
+npm/rules/nginx-default-tpl/policy/vscode_settings/vscode_settings.rego
+  s_34a2b8fe255b53::t_a859a8953367e0 4
+npm/rules/js-bun-db/fix/safety/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-265
+npm/rules/tauri/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_a859a8953367e0 1-90
+npm/tests/check-rule-fixtures.test.mjs
+  s_5160df5c5af641::t_f08b4accc3df59 9-11
+  s_5160df5c5af641::t_b95ea51e799422 17
+npm/rules/php/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-44
+npm/rules/vue/fix/packages/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-552
+package.json
+  s_34a2b8fe255b53::t_e6d72dc19117c1 16
+npm/rules/rego/policy/vscode_settings/vscode_settings.rego
+  s_34a2b8fe255b53::t_a859a8953367e0 4
+npm/scripts/utils/run-rule.mjs
+  s_34a2b8fe255b53::t_5a064a5f86e5e0 25-27,35
+  s_34a2b8fe255b53::t_9dd4b12e5195d6 39
+  s_34a2b8fe255b53::t_be7f79e0cb9d5b 5,7
+npm/package.json
+  s_34a2b8fe255b53::t_d35bbcf766de43 3
+npm/tests/integration-repo-checks.test.mjs
+  s_5160df5c5af641::t_2a9de7c411a43e 15
+  s_5160df5c5af641::t_5ee7eac07ae2a3 21
+  s_5160df5c5af641::t_ca8eb5582b1894 19
+  s_5160df5c5af641::t_18606810f534c0 14,17-18,20,22
+  s_5160df5c5af641::t_1708bfaa049a10 8-13
+  s_5160df5c5af641::t_77b93d63f8a20d 16
+npm/rules/adr/fix/hooks/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-218
+npm/rules/js-lint/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 1-498
+npm/rules/k8s/lint/run-roots.test.mjs
+  s_5160df5c5af641::t_11c675ab5f3e9c 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "dbd4484eb4b6e4b18990162d53a0015ca4bb721a",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_5160df5c5af641": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff8e85c6-b29c-4190-95f8-86d26cbdef98",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ee7679d18de06c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4b6cf594-1d72-471c-a7a6-add375985760",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
