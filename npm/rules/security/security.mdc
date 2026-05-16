@@ -1,0 +1,104 @@
+---
+description: Локальний та CI-секюріті-лінт через gitleaks — скрипт `lint-security`, `.gitleaks.toml`, інтеграція в агрегований `lint`
+alwaysApply: true
+version: '1.0'
+---
+
+Правило увімкнене **за замовчуванням** (як [[text]] і [[adr]]) — додавати `"security"` у `.n-cursor.json#rules` не потрібно. Щоб вимкнути для конкретного репо — `"security"` у `disable-rules`.
+
+## Мета
+
+[gitleaks](https://github.com/gitleaks/gitleaks) сканує файли і git-історію на витоки секретів (AWS keys, GitHub tokens, generic API keys, JWT, приватні ключі, паролі в URL тощо) за вбудованим набором правил. Правило `security` забезпечує:
+
+- скрипт **`lint-security`** у `package.json#scripts` — викликає `gitleaks detect --no-banner`;
+- сам скрипт **`lint-security`** включений в агрегований **`lint`** (як `lint-text`, `lint-js` тощо), щоб `bun run lint` ловив секрети разом з рештою перевірок;
+- файл-конфіг **`.gitleaks.toml`** у корені (за бажанням з allowlist-патернами для відомих фікстур у тестах) — без нього gitleaks використовує лише вбудовані правила.
+
+## Канон `package.json#scripts`
+
+```json title="package.json"
+{
+  "scripts": {
+    "lint-security": "gitleaks detect --no-banner",
+    "lint": "bun run lint-rego && bun run lint-js && bun run lint-text && bun run lint-security && oxfmt ."
+  }
+}
+```
+
+- `gitleaks detect` — сканує робоче дерево (uncommitted + tracked). Для повного аудиту з git-історії використовуй `gitleaks git --no-banner` локально, але як default-`lint`-step `detect` швидший і безпечніший для часто-викликаного `bun run lint`.
+- `--no-banner` — прибирає ASCII-арт у виводі (CI-friendly).
+- Інтеграція з `lint`: позиція в ланцюжку не критична; за конвенцією — після інших `lint-*` і перед `oxfmt`.
+
+## `.gitleaks.toml` (рекомендована основа)
+
+У корені проєкту:
+
+```toml title=".gitleaks.toml"
+# gitleaks config — успадковує дефолтні правила, додає лише allowlist для проєктних винятків.
+# Дефолтні правила: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+title = "Project gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Файли й шляхи, які навмисно містять test-фікстури з паттернами секретів."
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\.git(/|$)''',
+  '''(^|/)dist(/|$)''',
+  '''(^|/)build(/|$)''',
+  '''.*\.lock$''',
+  '''.*fixtures?/.*'''
+]
+# regexes — додавай локально, лише якщо реальний секрет неможливо переписати.
+```
+
+Allowlist лише розширює дефолти; правила гри: `useDefault = true` (НЕ перетирай дефолтний `rules`-масив), а ріальні винятки описуй у `[allowlist]`. Якщо `.gitleaks.toml` відсутній — gitleaks все одно працює з вбудованими правилами, але у CI-логах буде попередження.
+
+## Встановлення gitleaks
+
+gitleaks — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
+
+- **macOS:** `brew install gitleaks`
+- **Debian/Ubuntu:** `apt-get install gitleaks` або binary release з GitHub
+- **Arch:** `pacman -S gitleaks`
+- **Windows / WSL / Linux інші:** релізи на [github.com/gitleaks/gitleaks/releases](https://github.com/gitleaks/gitleaks/releases)
+
+Якщо у `PATH` gitleaks немає — `lint-security` падає з commission-message; CI-фейл вкажет на крок встановлення.
+
+## GitHub Actions (опційно)
+
+Окремий workflow не обовʼязковий: `lint-security` у `lint` вже виконається на `lint-text.yml` / `lint-js.yml` агрегаторах. Якщо хочеш fast-feedback окремо:
+
+```yaml title=".github/workflows/lint-security.yml"
+name: Lint Security
+
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+```
+
+Зауваж: для повного скану git-історії потрібен `fetch-depth: 0`. Без нього gitleaks бачить лише останній коміт.
+
+## Перевірка
+
+`npx @nitra/cursor check security` (валідує `scripts.lint-security`, входження у `scripts.lint`, наявність `.gitleaks.toml` з `useDefault = true`).
