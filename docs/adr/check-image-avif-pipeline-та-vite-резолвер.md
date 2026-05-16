@@ -36,3 +36,13 @@
 ## Зачіпає
 
 `.cursor/rules/n-image.mdc` (v1.5), `npm/mdc/image.mdc`, `npm/scripts/check-image.mjs` (функції `resolveImageCandidates`, `checkVueAvifImportsInPackage`, `cleanupOrphanAvifs`, `check`), `npm/tests/check-image.test.mjs`, `npm/package.json` (v1.8.196), `npm/CHANGELOG.md`, кореневий `package.json` (видалено `--avif` з `lint-image`).
+
+## Update 2026-05-07
+
+### Порядок операцій у cleanup: читати оновлені файли
+
+`cleanupOrphanAvifs` запускалась до завершення всіх rewrite у `.vue`/`.html`, через що щойно-згенеровані `.avif` (ще без посилань у шаблонах) одразу видалялись.
+
+`usedAvifAbs` (множина `.avif`-файлів, на які є активні посилання) заповнюється всередині `checkVueAvifImportsInPackage` через `writeFile` in-place, по одному файлу. `cleanupOrphanAvifs` викликається лише після того, як `checkVueAvifImports` завершила обхід усіх пакетів. Cleanup пропускає весь `packageRoot` для opt-out пакетів (`disable-avif: true`) і ігнорує директорії збірки (`dist`, `build`, `android`, `ios`, `.output`, `.nuxt`, `.cache`) — інакше build/Capacitor-артефакти видалялись би помилково.
+
+Зачіпає: `npm/scripts/check-image.mjs` (функції `cleanupOrphanAvifs`, `checkVueAvifImports`, `CLEANUP_EXTRA_IGNORE_DIR_NAMES`).

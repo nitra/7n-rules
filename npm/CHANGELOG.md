@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.17] - 2026-05-16
+
+### Fixed
+
+- **`npm/rules/js-run/fix/runtime/check-fixture.test.mjs`** — фікстури двох тестів («0, якщо `import { SQL } from 'bun'` у `src/conn/`» і «враховує `package.json#imports['#conn/*']`») приведено у відповідність до канону `js-run`: іменування файлу `pg.js` → `pg-write.js` (шаблон `pg-{read|write}[-<id>]`) та іменований експорт `db` → `pgWrite` (camelCase від basename). Раніше фікстури використовували старий формат і check.mjs справедливо повертав `1`, через що очікування `toBe(0)` падало. Решта тестів conn-канону (`mssql-write.js`/`mssqlWrite` happy-path, `mssqlWriter` negative-path) у тому ж файлі вже були канонічними — їх не торкаюся.
+
+### Removed
+
+- **`npm/package.json#devDependencies`** — повторно видалено `@nitra/cursor: ^1.11.16` self-reference, який повернувся в коміті `8ae6e9e auto adr` (автоматичний stop-hook fix). Той самий блок уже прибирали в `1.11.14` (див. запис нижче) — потрапив назад через автофікс. `npx @nitra/cursor check npm-module` знову зелений.
+
 ## [1.11.16] - 2026-05-16
 
 ### Changed

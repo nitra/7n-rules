@@ -108,8 +108,8 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await mkdir(join('pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join('pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
       await writeFile(
-        join('pkg', 'src', 'conn', 'pg.js'),
-        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
+        join('pkg', 'src', 'conn', 'pg-write.js'),
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pgWrite = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -180,8 +180,8 @@ describe('check-js-run (мінімальний проєкт)', () => {
       })
       await mkdir(join('pkg', 'lib', 'connections'), { recursive: true })
       await writeFile(
-        join('pkg', 'lib', 'connections', 'pg.js'),
-        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const db = new SQL({ url: env.PG_CONN })\n`,
+        join('pkg', 'lib', 'connections', 'pg-write.js'),
+        `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pgWrite = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
       expect(await check()).toBe(0)

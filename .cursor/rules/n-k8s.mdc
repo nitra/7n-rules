@@ -38,19 +38,17 @@ alwaysApply: false
 
 **kubescape:** типово **`kubescape scan <каталог-k8s>`**; поріг серйозності підлаштуй під проєкт (наприклад **`--severity-threshold high`**). Перший запуск може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
 
-У репозиторії пакета **`@nitra/cursor`** скрипт **`lint-k8s`** делегує обхід дерев і виклики **`npm/scripts/run-k8s.mjs`**. У інших проєктах можна скопіювати цей скрипт або зібрати еквівалентні команди в **`package.json`**.
+У репозиторії пакета **`@nitra/cursor`** скрипт **`lint-k8s`** делегує до CLI **`n-cursor lint-k8s`** (реалізація — **`npm/rules/k8s/js/run.mjs`**). У інших проєктах достатньо встановити **`@nitra/cursor`** у `devDependencies` — бінарка **`n-cursor`** буде у **`node_modules/.bin/`**.
 
 ```json title="package.json"
 {
   "scripts": {
-    "lint-k8s": "bun ./npm/scripts/run-k8s.mjs"
+    "lint-k8s": "n-cursor lint-k8s"
   }
 }
 ```
 
 Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **мають** бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
-
-Шлях до скрипта підстав свій (`./scripts/…` після копіювання, `node_modules/@nitra/cursor/scripts/…` якщо пакет у залежностях).
 
 Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**). **Не** дублюй **`setup-node`**, **`oven-sh/setup-bun`**, **`actions/cache`** і **`bun install`** у job — після **`checkout`** використовуй локальний composite **`setup-bun-deps`** (шлях **`./.github/actions/setup-bun-deps`** або **`./npm/github-actions/setup-bun-deps`**, як у репозиторії). Встановлення **kubeconform** / **kubescape** лишаються окремими кроками.
 
