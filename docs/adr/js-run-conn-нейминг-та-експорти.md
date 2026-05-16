@@ -29,3 +29,17 @@
 ## Зачіпає
 
 `npm/mdc/js-run.mdc`; всі backend workspace-пакети, що мають каталог `src/conn/`.
+
+## Update 2026-05-08
+
+Додано утиліту `npm/scripts/utils/conn-file-rules.mjs` (AST-перевірка): валідує basename файла regex-ом, знаходить `export default` (порушення), збирає всі іменовані `export const`, порівнює з очікуваним camelCase-іменем від basename. Функцію `checkConnFileRules` інтегровано в `check-js-run.mjs` — обходить усі файли conn-каталога (крім `index.*`) та агрегує порушення. Розділ «Перевірка» у `js-run.mdc` оновлено: `npx @nitra/cursor check js-run` тепер явно описує перевірку basename, відсутності `export default` і відповідності імені іменованого експорту. Версія `npm/package.json` → `1.8.208`.
+
+## Update 2026-05-09
+
+### Додано префікс `mssql-` для з'єднань з Microsoft SQL Server
+
+Регекс `CONN_FILENAME_RE` у `scripts/utils/conn-file-rules.mjs` розширено з `(?:pg|mysql)` до `(?:pg|mysql|mssql)`, що дозволяє використовувати окремий префікс `mssql-` для файлів підключення до MS SQL Server (наприклад, `mssql-read.ts`, `mssql-write-b2b.mts`). Раніше обидві СУБД — MySQL і MSSQL — могли використовувати префікс `mysql-`, що порушувало принцип «ім'я файла одразу повідомляє, до якої СУБД підключення».
+
+Зміна backward-сумісна: проєкти, що вже використовують `mysql-…` для MSSQL-з'єднань, продовжують проходити валідацію без правок; `mssql-` є рекомендованим, але не обов'язковим префіксом для нового коду. `kebabToCamel` не потребував змін — він нечутливий до конкретного префіксу і коректно перетворює `mssql-write-b2b` → `mssqlWriteB2b`.
+
+Відхилено: компактний варіант `m(y|s)?sql` (зловив би неіснуючий `msql-`) та alias `mssql-` → `mysql-` на рівні валідатора (маскує проблему замість вирішення). Зачіпає: `npm/scripts/utils/conn-file-rules.mjs`, `npm/scripts/check-js-run.mjs`, `npm/mdc/js-run.mdc`, `npm/tests/conn-file-rules.test.mjs`, `npm/tests/check-js-run-fixture.test.mjs`.

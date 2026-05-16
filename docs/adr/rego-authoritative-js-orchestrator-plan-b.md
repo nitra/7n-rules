@@ -1,0 +1,51 @@
+# Централізація Rego-валідації: «Rego-authoritative + JS-orchestrator» (Plan B)
+
+**Status:** Accepted
+**Date:** 2026-05-10
+
+## Контекст
+
+Кілька check-скриптів (`check-abie.mjs`, `check-ga.mjs`, `check-k8s.mjs`) мали дубльовану логіку: per-document перевірки писалися двічі — у JS (як авторитетне джерело) і у Rego (як «mirror»). Це спричиняло divergence-баги (наприклад, `endswith "-hl"` у rego проти exact-match `<hcp.name>-hl` у JS для HealthCheckPolicy), хиткі тести й необхідність підтримувати паралельні реалізації.
+
+## Рішення/Процедура/Факт
+
+Запроваджено патерн «Plan B (rego-authoritative + JS-orchestrator)» для всіх трьох модулів:
+
+1. Створено хелпер `npm/scripts/utils/run-conftest-batch.mjs` — єдиний спавн `conftest test --output=json` на пакет/namespace; кидає виняток, якщо `conftest` відсутній у PATH.
+2. У `check()` кожного скрипта першим кроком (до JS cross-file) додано батч-виклик усіх rego-пакетів через `runConftestBatch`:
+   - `check-abie.mjs`: 4 пакети (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`)
+   - `check-ga.mjs`: 5 пакетів (`ga.clean_ga_workflows`, `ga.clean_merged_branch`, `ga.lint_ga`, `ga.git_ai`, `ga.workflow_common`) через новий `runAllGaRego`
+   - `check-k8s.mjs`: 9 пакетів через `runAllK8sRego` + окремий conftest для `k8s.hasura_configmap` / `k8s.hasura_httproute` з JS cross-file gating (паруванням ConfigMap↔Deployment та HTTPRoute↔Deployment)
+3. Видалено JS-функції, що дублювали rego (≈22 у k8s, ≈11 у abie, ≈5 у ga); JS залишив лише modeline-перевірки та cross-file orchestration.
+4. `lint-ga.mjs` спрощено: прибрано `CONFTEST_TARGETS`, `runConftestStep`, `runConftestWorkflowCommon`; `runLintGaCli` тепер завершується `await checkGa()`.
+5. Виявлено і виправлено divergence у `abie.health_check_policy`: rego перевіряв `endswith "-hl"` замість exact match `<hcp.name>-hl`.
+6. Канонізовано патерн у `.cursor/rules/conftest.mdc` (alwaysApply: true) з деревом рішень, шаблоном коду та «червоними прапорами» (заборона дублювати rego у JS).
+
+## Обґрунтування
+
+Єдине джерело істини — rego. JS-предикати дублювали семантику й неминуче дрейфували. Conftest-батч дозволяє вловлювати порушення у `npx @nitra/cursor check <rule>` (stop-hook) та `bun run lint-<rule>` без двох паралельних реалізацій. Реальний divergence-баг (знайдений при ретельному порівнянні JS проти rego під час рефакторингу abie) підтвердив ризик дублювання.
+
+## Розглянуті альтернативи
+
+- **Plan A (JS authoritative + rego mirror)** — вихідний стан; відхилено через неминучий дрейф.
+- **Повне видалення JS predicates** за один прохід — відхилено для predicates, що активно задіяні у cross-file orchestration (наприклад, `hpaManifestViolations`, `deploymentTopologySpreadConstraintsViolation`, `pdbManifestViolations` у `validateDeploymentHpaPdbAndTopology`); лишаються в JS з планом видалення в окремому PR.
+- **Один batch-спавн conftest на всі namespace** — неможливо для per-workflow ga пакетів (кожен застосовний лише до свого файла).
+
+## Зачіпає
+
+- `npm/scripts/utils/run-conftest-batch.mjs` (новий)
+- `npm/scripts/check-abie.mjs` — `check()`, видалено ≈11 JS-функцій
+- `npm/scripts/check-ga.mjs` — `check()`, новий `runAllGaRego`, `checkShellcheckInstalled` став `export`
+- `npm/scripts/lint-ga.mjs` — спрощено, `runLintGaCli` став `async`
+- `npm/scripts/check-k8s.mjs` — `check()`, новий `runAllK8sRego`, видалено ≈22 JS-функцій, Hasura orchestrators переведено на conftest
+- `npm/bin/n-cursor.js` — `await runLintGaCli()`
+- `npm/tests/check-abie.test.mjs`, `check-ga.test.mjs`, `lint-ga.test.mjs`, `check-k8s-schema.test.mjs` — оновлено
+- `npm/policy/abie/health_check_policy/health_check_policy.rego` — виправлено exact-match divergence
+- `.cursor/rules/conftest.mdc` (alwaysApply) — канонізовано Plan B як default
+- `.cspell.json` — розширено allowlist
+- `npm/package.json` — версії 1.8.225 → 1.8.228
+- `npm/CHANGELOG.md`
+
+## Update 2026-05-10
+
+Уніфіковано rego-стиль у пакетах `kustomization` та `manifest`: конструкцію `_ := obj.field` замінено на `"field" in object.keys(obj)` у 4 місцях. Початкова точка версій — `1.8.224`, кінцева — `1.8.228`.

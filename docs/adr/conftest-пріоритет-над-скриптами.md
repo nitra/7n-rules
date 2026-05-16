@@ -22,3 +22,7 @@
 ## Зачіпає
 
 `.cursor/rules/conftest.mdc`, усі майбутні задачі, де вибір між скриптом/хуком і Rego-політикою.
+
+## Update 2026-05-08
+
+У кореневому `package.json` `lint-rego` і `lint-conftest` переставлено перед `lint-js`, `lint-k8s`, `lint-docker`, `lint-style`, `lint-image`. Ланцюжок `&&` гарантує запуск JS-скриптів лише після успішного проходження структурних Rego-правил. Rego/conftest дешеві й детерміновані (JSON-схема над parsed YAML/JSON, без FS-обходу); JS-скрипти дорожчі (AST-парсинг через `oxc-parser`, `walkDir`, `readdir`). Fail-fast на Rego скорочує час лінту при типових структурних порушеннях (`packageManager`, відсутній `lint-image`, неправильний порт у `HealthCheckPolicy` тощо) і дає точніші повідомлення до запуску повного JS-скану.

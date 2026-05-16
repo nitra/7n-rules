@@ -1,0 +1,42 @@
+# Скіл n-llm-patch: read-only генератор промпту для іншої LLM
+
+**Status:** Accepted
+**Date:** 2026-05-09
+
+## Контекст
+
+При передачі завдань між проєктами або LLM-агентами доводилося вручну збирати контекст пакета: `package.json`, структуру директорій, конфіги, опис завдання. Це займало час і давало неповний або неузгоджений результат. Каркас `npm/skills/llm-patch/SKILL.md` вже існував, але був порожнім.
+
+## Рішення/Процедура/Факт
+
+Наповнено `npm/skills/llm-patch/SKILL.md` повним workflow, таблицею збору контексту та markdown-шаблоном вихідного промпту. Команда `/n-llm-patch <опис>` збирає read-only snapshot CWD і виводить самодостатній markdown-блок у чат. Дзеркальну копію розміщено у `.cursor/skills/n-llm-patch/SKILL.md` для локального Claude Code. Скіл зареєстровано як always-on через запис `llm-patch - [завжди]` у `npm/bin/auto-skills.md`; `npm/scripts/auto-skills.mjs` підхоплює його звідти автоматично. Версію підвищено до `1.8.218`, у `npm/CHANGELOG.md` додано відповідний запис. Дизайн-спек та план реалізації збережено у `docs/superpowers/specs/2026-05-09-n-llm-patch-design.md` і `docs/superpowers/plans/2026-05-09-n-llm-patch-plan.md`.
+
+## Обґрунтування
+
+Скіл є строго read-only: не модифікує репо, не завантажує пакети з registry. Обрано гібридний флоу — single-shot якщо аргумент повний, максимум два уточнювальних питання якщо ні. Повний вміст файлів до 300 рядків включається без скорочень, щоб цільова LLM мала достатньо контексту. Джерело — виключно локальний CWD, оскільки він містить актуальний стан, відомий автору запиту.
+
+## Розглянуті альтернативи
+
+- Single-shot без питань — відхилено: неповний аргумент давав би беззмістовний промпт.
+- Інтерактивний флоу з обов'язковими питаннями — відхилено: зайві кроки коли завдання однозначне.
+- `npm pack` або завантаження tarball з registry — відхилено: показує опубліковану версію, а не локальну; повільніше.
+- Клонування git-репозиторію — відхилено: надмірна складність для цього завдання.
+
+## Зачіпає
+
+`npm/skills/llm-patch/SKILL.md`, `.cursor/skills/n-llm-patch/SKILL.md`, `npm/bin/auto-skills.md`, `npm/scripts/auto-skills.mjs`, `npm/package.json`, `npm/CHANGELOG.md`, `docs/superpowers/specs/2026-05-09-n-llm-patch-design.md`, `docs/superpowers/plans/2026-05-09-n-llm-patch-plan.md`.
+
+## Update 2026-05-09
+
+### Деталі реєстрації в auto-skills.mjs
+
+`'llm-patch'` додано до масиву `AUTO_SKILL_ORDER` (між `lint` та `publish-telegram`, за алфавітним порядком) та `ALWAYS_ON_SKILLS` у `npm/scripts/auto-skills.mjs`. Оновлено тест у `npm/tests/auto-skills.test.mjs` — масив `ALL_SKILLS` і перевірка always-on набору. Перевірки `check changelog` та `check npm-module` пройшли чисто; 8 тестів — `pass`.
+
+## Update 2026-05-09
+
+Реалізовано інтеграцію скіла `n-llm-patch` в інфраструктуру `auto-skills.mjs`:
+
+- `'llm-patch'` додано до `AUTO_SKILL_ORDER` (між `lint` та `publish-telegram`) і до `ALWAYS_ON_SKILLS` відповідно до умови у `npm/bin/auto-skills.md` (`llm-patch - завжди`).
+- Дзеркальну копію розміщено у `.cursor/skills/n-llm-patch/SKILL.md` (аналогічно до `n-publish-telegram`).
+- Тест `npm/tests/auto-skills.test.mjs` розширено: `ALL_SKILLS` і перевірку "завжди-on" скілів доповнено на `llm-patch`; усі 8 тестів проходять.
+- Версія: `1.8.217 → 1.8.218 → 1.8.219`; записи у `npm/CHANGELOG.md`.

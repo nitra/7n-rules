@@ -33,3 +33,9 @@
 - `npm/mdc/k8s.mdc` — версія `1.27`
 - `npm/tests/check-k8s-images.test.mjs`
 - `npm/package.json`, `npm/CHANGELOG.md` — версія `1.8.203`
+
+## Update 2026-05-09
+
+### Виправлення: `Map.keys()` повертає ітератор, а не масив
+
+У функції `applyConversionsToDoc` виклик `byPatch.keys().toSorted(...)` падав із `TypeError`, оскільки `Map.prototype.keys()` повертає `MapIterator`, а `.toSorted()` визначено лише на `Array.prototype`. Виправлено заміною `byPatch.keys().toSorted((a, b) => b - a)` на `[...byPatch.keys()].toSorted((a, b) => b - a)` — spread матеріалізує ітератор у масив без зміни логіки сортування. Зачіпає: `npm/scripts/check-k8s.mjs` (функція `applyConversionsToDoc`), `npm/CHANGELOG.md`.

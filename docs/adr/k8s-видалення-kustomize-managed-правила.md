@@ -1,0 +1,32 @@
+# Видалення правила `k8s.kustomize_managed` через конфлікт із `k8s.base_manifest`
+
+**Status:** Accepted
+**Date:** 2026-05-11
+
+## Контекст
+
+Два правила перевірки k8s-маніфестів утворювали логічно нерозв'язний конфлікт для файлів у `*/k8s/base/`: `k8s.kustomize_managed` забороняло `metadata.namespace` у всіх файлах, підключених через граф Kustomize, а `k8s.base_manifest` вимагало непорожній `metadata.namespace` у тих самих файлах (`*/k8s/base/`). Перетин предикатів був порожнім — жодна комбінація стану файлу не задовольняла обидва правила одночасно.
+
+## Рішення/Процедура/Факт
+
+- Видалено булет «Де не дублювати `metadata.namespace`» з `npm/mdc/k8s.mdc` та синхронізованого `.cursor/rules/n-k8s.mdc`.
+- Видалено директорію `npm/policy/k8s/kustomize_managed/` (2 файли: `kustomize_managed.rego`, `kustomize_managed_test.rego`).
+- З `npm/scripts/check-k8s.mjs` видалено: `export function collectKustomizeManagedRelPaths`, `export function metadataNamespaceForbiddenViolation`, мертву функцію `posixRelFromAbs`, зайвий параметр `kustomizeManagedRel` у `checkK8sYamlHttpBackendGroupFile`, виклик `collectKustomizeManagedRelPaths` у `check()`, посилання на пакет `k8s.kustomize_managed` у коментарях.
+- Відповідні тести прибрано з `npm/tests/check-k8s-schema.test.mjs`.
+- Версія пакету: `1.8.228` → `1.8.229`; запис у `npm/CHANGELOG.md`.
+
+## Обґрунтування
+
+Правило `k8s.kustomize_managed` було коректним у вузькому сенсі (kustomization перепише `metadata.namespace` в overlays, тому він справді зайвий), але тригерилося за фактом присутності файлу в Kustomize-графі, тоді як `k8s.base_manifest` тригерилося за шляховим патерном `*/k8s/base/` — а в канонічній схемі `base + overlays` ці множини збігаються повністю. Оскільки `k8s.base_manifest` зберігається (ловить маніфести, що apply-ляться напряму без Kustomize), `k8s.kustomize_managed` стає надмірним і породжує близько 50 хибних порушень в усіх деревах із канонічною структурою.
+
+## Розглянуті альтернативи
+
+Додати виняток у `k8s.base_manifest` для файлів, що входять до Kustomize-графу — відхилено як ускладнення без користі, оскільки `k8s.kustomize_managed` нічого не додає до наявного захисту.
+
+## Зачіпає
+
+- `npm/mdc/k8s.mdc`, `.cursor/rules/n-k8s.mdc`
+- `npm/policy/k8s/kustomize_managed/` (видалено повністю)
+- `npm/scripts/check-k8s.mjs`
+- `npm/tests/check-k8s-schema.test.mjs`
+- `npm/package.json`, `npm/CHANGELOG.md`
