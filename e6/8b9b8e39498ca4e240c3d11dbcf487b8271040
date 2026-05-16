@@ -1,0 +1,29 @@
+npm/package.json
+  s_34a2b8fe255b53::t_d6c57b16dae6e4 3
+docs/adr/20260516-rules-fix-lint-policy-structure.md
+  s_a9fd3082b5748d::t_e709ae0c4ca5f5 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e68b9b8e39498ca4e240c3d11dbcf487b8271040",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_a9fd3082b5748d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "39586a5c-8d9e-4536-9d67-a2e89acec7ae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
