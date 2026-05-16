@@ -145,7 +145,33 @@ if ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## '; then
 fi
 
 TS=$(date +%Y%m%d-%H%M%S)
-OUT="$ADR_DIR/$TS-${SESSION_ID:0:8}.md"
+
+# Slug із першого `## [ADR|Runbook|Knowledge] <heading>`-рядка відповіді.
+# Логіка локальна (без додаткового LLM-виклику): використовуємо вже згенерований heading.
+# Конвенція кебаб-slug-у — як у normalize-decisions.sh:171: малі літери, дозволено цифри, дефіс,
+# кирилиця; англомовні технічні терміни лишаються англійською без транслітерації.
+HEADING=$(printf '%s' "$RESPONSE_TRIMMED" \
+  | awk '/^## (\[?(ADR|Runbook|Knowledge)\]?)/{ sub(/^## /,""); sub(/^\[?(ADR|Runbook|Knowledge)\]?[[:space:]]*:?[[:space:]]*/,""); print; exit }')
+SLUG=$(printf '%s' "$HEADING" \
+  | tr '[:upper:]' '[:lower:]' \
+  | sed -E 's/[`«»"]//g; s/[ /,.:;()—–]+/-/g; s/[^a-zа-яёіїєґ0-9-]//g; s/-+/-/g; s/^-//; s/-$//' \
+  | cut -c1-60 \
+  | sed -E 's/-$//')
+
+if [[ -z "$SLUG" ]]; then
+  # Fallback на старий формат, якщо heading не спарсився
+  OUT="$ADR_DIR/$TS-${SESSION_ID:0:8}.md"
+else
+  # Колізії: <timestamp>-<slug>-<n>.md (n=2,3,...), як у normalize-decisions.sh:244-257
+  BASE="$ADR_DIR/$TS-$SLUG.md"
+  OUT="$BASE"
+  n=2
+  while [[ -e "$OUT" ]]; do
+    OUT="$ADR_DIR/$TS-$SLUG-$n.md"
+    n=$((n+1))
+  done
+fi
+
 {
   printf -- '---\nsession: %s\ncaptured: %s\ntranscript: %s\n---\n\n' \
     "$SESSION_ID" "$(date -Iseconds)" "$TRANSCRIPT_PATH"

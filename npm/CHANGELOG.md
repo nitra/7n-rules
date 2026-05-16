@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.15] - 2026-05-16
+
+### Changed
+
+- **`npm/.claude-template/hooks/capture-decisions.sh`** (+`.claude/hooks/capture-decisions.sh` синк) — Stop-hook тепер генерує **slug-name** для чернетки замість session-hash суфікса. Раніше: `<timestamp>-<session-id[0:8]>.md` (наприклад `20260516-090349-e513a1f0.md`). Тепер: `<timestamp>-<slug>.md` (наприклад `20260516-090349-структура-директорій-правила-fix-lint-policy.md`). **Slug береться з вже згенерованого LLM-заголовка** першого `## [ADR|Runbook|Knowledge] <heading>` блоку — без додаткового LLM-виклику, та сама вартість Stop-hook. Конвенція slug-у синхронізована з `normalize-decisions.sh:171`: малі літери, цифри, дефіс, кирилиця; англомовні технічні терміни лишаються англійською (`fix`, `lint`, `policy` — не транслітеруються). Колізії в межах однієї секунди — суфікс `-2`, `-3`, …, як у `normalize-decisions.sh:244-257`. Fallback на старий `<timestamp>-<session-id[0:8]>.md` якщо heading не спарсився (response без `## ADR|Runbook|Knowledge` префікса).
+- **Мотивація:** після прогону `normalize-decisions.sh` нові чернетки створювалися з абстрактними session-hash іменами і знову вимагали LLM-`rewrite`-операцію щоб отримати читабельний slug. Тепер capture одразу пише читабельний slug → наступна нормалізація обмежується лише `delete`/`merge-into` для дублікатів (rename-операції стають рідкісними).
+
 ## [1.11.14] - 2026-05-16
 
 ### Removed
