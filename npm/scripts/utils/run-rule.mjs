@@ -2,9 +2,9 @@
  * Оркестратор одного правила під CLI `check`.
  *
  * Послідовність (concerns у межах правила — алфавітно):
- *   1. **applies-гейт** з `js/applies/check.mjs`. Якщо модуль експортує `applies()` і вона повертає
+ *   1. **applies-гейт** з `fix/applies/check.mjs`. Якщо модуль експортує `applies()` і вона повертає
  *      false — друкуємо `✅ правило не застосовне` і завершуємо без подальших викликів.
- *   2. **JS-концерни** — кожен `check*.mjs` у `js/<concern>/`. Concern `applies` теж може мати
+ *   2. **JS-концерни** — кожен `check*.mjs` у `fix/<concern>/`. Concern `applies` теж може мати
  *      `check()` для друку контексту (його `applies()` уже відпрацював на кроці 1, він не повторюється).
  *   3. **Policy-концерни** — кожен `policy/<concern>/target.json` через `runConftestBatch`.
  *      Резолвер `resolveTargetFiles` ділить cache (`walkCache`) між концернами.
@@ -22,7 +22,9 @@ import { runConftestBatch } from './run-conftest-batch.mjs'
 const APPLIES_CONCERN_NAME = 'applies'
 
 /**
- * Обчислює абсолютний шлях до файла-check у JS-концерні.
+ * Обчислює абсолютний шлях до файла-check у JS-концерні: `rules/<id>/fix/<concern>/<file>`.
+ * Legacy `js/` корінь і поле `concern.rootDir` прибрані у 1.11.12 — усі правила переїхали
+ * у `fix/` ще у 1.11.10.
  * @param {string} bundledRulesDir абсолютний `rules/`
  * @param {string} ruleId id правила
  * @param {import('./discover-checkable-rules.mjs').JsConcern} concern опис концерну
@@ -30,11 +32,11 @@ const APPLIES_CONCERN_NAME = 'applies'
  * @returns {string} абсолютний шлях
  */
 function resolveJsCheckPath(bundledRulesDir, ruleId, concern, fileName) {
-  return join(bundledRulesDir, ruleId, 'js', concern.name, fileName)
+  return join(bundledRulesDir, ruleId, 'fix', concern.name, fileName)
 }
 
 /**
- * Спробувати викликати applies() гейт з `js/applies/check.mjs` правила.
+ * Спробувати викликати applies() гейт з `fix/applies/check.mjs` правила.
  * Гейт активний лише за наявності концерну з імʼям `applies` і експортом-функцією `applies` у його
  * першому check-файлі (алфавіт).
  * @param {string} bundledRulesDir абсолютний `rules/`

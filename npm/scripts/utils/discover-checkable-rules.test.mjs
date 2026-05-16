@@ -1,5 +1,5 @@
 /**
- * Тести `discoverCheckableRules`: різні комбінації структури `rules/<id>/{js,policy}/`.
+ * Тести `discoverCheckableRules`: різні комбінації структури `rules/<id>/{fix,policy}/`.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -9,15 +9,15 @@ import { discoverCheckableRules } from './discover-checkable-rules.mjs'
 import { ensureDir, withTmpCwd } from './test-helpers.mjs'
 
 /**
- * Створює `rules/<id>/js/<concern>/check.mjs`.
+ * Створює `rules/<id>/fix/<concern>/check.mjs`.
  * @param {string} ruleId id правила
- * @param {string} concern імʼя концерну (підкаталог js/)
+ * @param {string} concern імʼя концерну (підкаталог `fix/`)
  * @param {string} fileName наприклад `check.mjs` або `check-foo.mjs`
  * @returns {Promise<void>}
  */
 async function addJsConcern(ruleId, concern, fileName = 'check.mjs') {
-  await ensureDir(join('rules', ruleId, 'js', concern))
-  await writeFile(join('rules', ruleId, 'js', concern, fileName), 'export const check = () => 0\n', 'utf8')
+  await ensureDir(join('rules', ruleId, 'fix', concern))
+  await writeFile(join('rules', ruleId, 'fix', concern, fileName), 'export const check = () => 0\n', 'utf8')
 }
 
 /**
@@ -49,24 +49,44 @@ describe('discoverCheckableRules', () => {
     })
   })
 
-  test('правило з тільки JS-концерном (новий формат)', async () => {
+  test('правило з JS-концерном у fix/', async () => {
     await withTmpCwd(async dir => {
       await addJsConcern('text', 'cspell')
       const out = await discoverCheckableRules(join(dir, 'rules'))
-      expect(out).toEqual([{ id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }], policyConcerns: [] }])
+      expect(out).toEqual([
+        { id: 'text', jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }], policyConcerns: [] }
+      ])
     })
   })
 
-  test('ігнорує flat js/check.mjs без subdir-концерну (legacy більше не підтримується)', async () => {
+  test('legacy js/-структура ігнорується (concern у js/<name>/ не підхоплюється)', async () => {
     await withTmpCwd(async dir => {
-      await ensureDir(join('rules', 'flat-only', 'js'))
-      await writeFile(join('rules', 'flat-only', 'js', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
+      await ensureDir(join('rules', 'legacy', 'js', 'cspell'))
+      await writeFile(join('rules', 'legacy', 'js', 'cspell', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
       const out = await discoverCheckableRules(join(dir, 'rules'))
       expect(out).toEqual([])
     })
   })
 
-  test('пропускає правило без js/ і без policy/', async () => {
+  test('правило з кількома JS-концернами в fix/ — всі присутні, відсортовані', async () => {
+    await withTmpCwd(async dir => {
+      await addJsConcern('text', 'shellcheck')
+      await addJsConcern('text', 'cspell')
+      const out = await discoverCheckableRules(join(dir, 'rules'))
+      expect(out).toEqual([
+        {
+          id: 'text',
+          jsConcerns: [
+            { name: 'cspell', files: ['check.mjs'] },
+            { name: 'shellcheck', files: ['check.mjs'] }
+          ],
+          policyConcerns: []
+        }
+      ])
+    })
+  })
+
+  test('пропускає правило без fix/ і без policy/', async () => {
     await withTmpCwd(async dir => {
       await ensureDir(join('rules', 'docs-only'))
       await writeFile(join('rules', 'docs-only', 'docs-only.mdc'), '', 'utf8')
@@ -75,10 +95,10 @@ describe('discoverCheckableRules', () => {
     })
   })
 
-  test('пропускає js/utils/ як концерн', async () => {
+  test('пропускає fix/utils/ як концерн', async () => {
     await withTmpCwd(async dir => {
-      await ensureDir(join('rules', 'abie', 'js', 'utils'))
-      await writeFile(join('rules', 'abie', 'js', 'utils', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
+      await ensureDir(join('rules', 'abie', 'fix', 'utils'))
+      await writeFile(join('rules', 'abie', 'fix', 'utils', 'check.mjs'), 'export const check = () => 0\n', 'utf8')
       const out = await discoverCheckableRules(join(dir, 'rules'))
       expect(out).toEqual([])
     })
@@ -87,7 +107,7 @@ describe('discoverCheckableRules', () => {
   test('пропускає *.test.mjs у концерні', async () => {
     await withTmpCwd(async dir => {
       await addJsConcern('text', 'cspell')
-      await writeFile(join('rules', 'text', 'js', 'cspell', 'check.test.mjs'), '', 'utf8')
+      await writeFile(join('rules', 'text', 'fix', 'cspell', 'check.test.mjs'), '', 'utf8')
       const out = await discoverCheckableRules(join(dir, 'rules'))
       expect(out[0].jsConcerns[0].files).toEqual(['check.mjs'])
     })

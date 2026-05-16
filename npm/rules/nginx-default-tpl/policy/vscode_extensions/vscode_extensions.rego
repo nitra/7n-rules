@@ -2,7 +2,7 @@
 #
 # Викликається з `check-nginx-default-tpl.mjs` через `runConftestBatch` лише
 # ПІСЛЯ того, як JS виявив `default.conf.template` у дереві (умовне правило).
-# Глобально у `lint-conftest.mjs` TARGETS не реєструється.
+# Глобально без `target.json` поруч (не auto-discoverable через `n-cursor check`).
 #
 # Canonical: `recommendations` має містити `ahmadalli.vscode-nginx-conf`.
 package nginx_default_tpl.vscode_extensions

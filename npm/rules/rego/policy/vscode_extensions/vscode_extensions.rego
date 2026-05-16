@@ -2,7 +2,7 @@
 #
 # Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ того, як
 # JS виявив `.rego` файли у дереві (умовне правило — проєкти без rego не
-# зобовʼязані ставити tsandall.opa). Глобально у `lint-conftest` НЕ
+# зобовʼязані ставити tsandall.opa). Без `target.json` поруч НЕ
 # реєструється.
 #
 # Canonical (rego.mdc): `recommendations` має містити `tsandall.opa`.

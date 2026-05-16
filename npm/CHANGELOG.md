@@ -4,11 +4,47 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.12] - 2026-05-15
+
+### Removed
+
+- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 3 реструктуризації: dual-mode підтримка `js/` (legacy) прибрана. Після завершення масового переїзду у 1.11.10 (всі 26 правил у `rules/<id>/fix/`) інфраструктура `n-cursor check` тепер сканує **тільки** `rules/<id>/fix/<concern>/check*.mjs`. Конкретно: (1) у `discoverCheckableRules` видалено `listJsConcerns(js/, 'js')`-виклик, утиліту `mergeJsConcerns` (fatal на дублікат `js/`+`fix/`) і поле `rootDir` у `JsConcern`-типі; (2) у `run-rule.mjs::resolveJsCheckPath` `concern.rootDir ?? 'js'` замінено на хардкод `'fix'`; (3) JSDoc на початку обох файлів і на `evaluateAppliesGate` оновлено з `js/applies/check.mjs` на `fix/applies/check.mjs`; (4) коментар на `discoverCheckScripts` у `npm/bin/n-cursor.js` оновлено — згадку legacy `js/check.mjs` прибрано. Жодне правило в `rules/` не торкається — лише сканер.
+- **`npm/scripts/utils/discover-checkable-rules.test.mjs`**, **`npm/scripts/utils/run-rule.test.mjs`** — прибрано тести dual-mode: `правило з тільки JS-концерном у legacy js/`, `правило з різними концернами у js/ і fix/`, `дублікат концерну в js/ і fix/ — fatal`, `пропускає js/utils/ як концерн`, `концерн з rootDir="fix"`, `концерн без rootDir (legacy-тести) fallback до js/`, `applies-гейт у fix/applies/`. Додано: `legacy js/-структура ігнорується (concern у js/<name>/ не підхоплюється)` — гарантує, що випадковий залишок `js/`-дерева у правилі не виконається, та `правило з кількома JS-концернами в fix/ — всі присутні, відсортовані`. Тестовий хелпер `addJsConcern` / `writeConcernJs` — за замовчуванням пишуть у `fix/` без параметра rootDir.
+
+## [1.11.11] - 2026-05-15
+
+### Removed
+
+- **`npm/scripts/lint-conftest.mjs`** — скрипт видалено повністю. Його єдина функція — ітерувати policy-концерни через `discoverCheckableRules` і запускати `runConftestBatch` на реальних файлах — **повністю дублювала** `npx @nitra/cursor check` (CHANGELOG 1.11.5: «`bun.bunfig`, `text.cspell`, `npm_module.npm_publish_yml` тепер прогоняються через CLI `check <id>` без додаткового `bun run lint-conftest`»). Окремий канал залишався лише як IDE-fast-feedback, але через одне джерело правди (`target.json` поруч з `.rego`) другий entry-point не дає нічого нового. Кореневий `package.json` оновлено: скрипт `lint-conftest` прибрано, ланцюжок `lint` тепер `bun run lint-rego && bun run lint-js && …` (без `lint-conftest`).
+
+### Changed
+
+- **`npm/README.md`** — секція «Структура пакету» переписана під поточний layout (`rules/<id>/<id>.mdc` замість застарілих `mdc/`). Додано підсекцію **«Структура одного правила»** з принципом fix/lint/policy: технологія реалізації визначає директорію — JS для `npx @nitra/cursor check` у `fix/<concern>/`, JS для `bun run lint-<id>` у `lint/`, rego для `npx @nitra/cursor check` у `policy/<concern>/`. Решта `mdc/`-посилань у README також виправлені на `rules/`.
+- **`.cursor/rules/conftest.mdc`** — крок 5 у workflow «нова перевірка» переписано: окремої реєстрації нового rego-пакета в TARGETS більше не потрібно (TARGETS видалено разом із `lint-conftest.mjs`); `discoverCheckableRules` автоматично підхоплює пакет за наявності `target.json` поруч з `.rego`.
+- **`.cursor/rules/scripts.mdc`** — згадку `lint-conftest.mjs` прибрано зі списку «крос-правильної інфраструктури» у `npm/scripts/`.
+- **`npm/rules/abie/abie.mdc`** (cross-reference) — `npx @nitra/cursor lint-conftest` → `npx @nitra/cursor check abie`; `npm/policy/abie/` → `npm/rules/abie/policy/`; `check-abie.mjs` → `fix/<concern>/check.mjs`.
+- **`npm/rules/**/fix/<concern>/check.mjs`** (10 файлів) та **`npm/rules/**/policy/<concern>/<name>.rego`** (7 файлів) — у коментарях і `pass()`-повідомленнях `bun run lint-conftest` замінено на `npx @nitra/cursor check` (структурна валідація живить fix-канал; окремого `lint-conftest`-каналу більше немає). Для conditional rego-полісі без `target.json` (ті, що не auto-discoverable) текст коментарів переформульовано — замість «глобально у `lint-conftest` НЕ реєструється» тепер «без `target.json` поруч (не auto-discoverable через `n-cursor check`)».
+
+## [1.11.10] - 2026-05-15
+
+### Changed
+
+- **`npm/rules/<rule>/js/`** — фаза 2 реструктуризації: усі 26 правил перенесені з `rules/<id>/js/` у `rules/<id>/fix/` (JS-концерни `check*.mjs`) та `rules/<id>/lint/` (CLI-entry `lint.mjs` + helper-runner-и). Директорія `rules/<id>/js/` більше не існує ні в жодному правилі. Перелік переміщеного: 18 правил (Category A) — лише концерни у `fix/`; 7 правил (Category B) — концерни у `fix/` та lint-entry у `lint/`: `ga`, `docker`, `php`, `rego`, `k8s`, `text`, а також `abie` (6 концернів, без lint-entry). Policy-каталоги (`rules/<id>/policy/`) — не рухались. Відносні imports у всіх переміщених файлах залишились дійсними (глибина `js/` = глибина `fix/`/`lint/`). Виправлено крос-модульні imports: `rules/abie/utils/k8s-tree.mjs`, `rules/ga/lint/lint.mjs`, `rules/docker/fix/lint/discover.test.mjs`, `rules/nginx-default-tpl/fix/template/check.mjs` — усі 4 оновлено з `*/js/*` на правильні нові шляхи. Оновлено hardcoded imports у `tests/check-rule-fixtures.test.mjs`, `tests/integration-repo-checks.test.mjs`, `tests/check-empty-trees.test.mjs`.
+- **`npm/bin/n-cursor.js`** — 5 static imports CLI lint-entry перенаправлено: `rules/rego/js/lint.mjs` → `rules/rego/lint/lint.mjs`, `rules/ga/js/lint.mjs` → `rules/ga/lint/lint.mjs`, `rules/docker/js/run.mjs` → `rules/docker/lint/lint.mjs`, `rules/k8s/js/run.mjs` → `rules/k8s/lint/lint.mjs`, `rules/text/js/lint.mjs` → `rules/text/lint/lint.mjs`.
+- **`npm/rules/k8s/lint/run-roots.test.mjs`** — import `./run.mjs` → `./lint.mjs` (файл перейменовано в межах переїзду).
+
+## [1.11.9] - 2026-05-15
+
+### Changed
+
+- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 1 реструктуризації `rules/<id>/js/` → `rules/<id>/{fix,lint}/`: інфраструктура `n-cursor check` тепер **dual-mode** — сканує JS-концерни одночасно у `rules/<id>/js/<concern>/` (legacy) і `rules/<id>/fix/<concern>/` (новий формат). Кожен знайдений концерн штампується полем `rootDir: 'js' | 'fix'`; `runRule` використовує його для побудови шляху імпорту через `resolveJsCheckPath`. Концерн з однаковим іменем у обох каталогах одного правила — fatal-помилка з підказкою «заверши міграцію цього концерну у fix/ і видали `js/<name>/`», щоб не лишалось напіввиконаних move-ів. `utils/` пропускається в обох коренях. Жодне правило ще не переїхало у фазі 1 — це лише підготовка інфраструктури; для зворотної сумісності `resolveJsCheckPath` має fallback `rootDir ?? 'js'`, тож тести, що збирають `jsConcerns` вручну без `rootDir`, продовжують працювати без змін. CLI-точки входу `n-cursor lint-X` (статичні `import` у `npm/bin/n-cursor.js:79-83`) переїдуть пізніше — у фазах 2/3 (move + оновлення imports).
+- **`npm/scripts/utils/discover-checkable-rules.test.mjs`**, **`npm/scripts/utils/run-rule.test.mjs`** — додано покриття нового `fix/`-кореня: окремі тести на discovery концерну у `fix/`, mix `js/`+`fix/` різних концернів одного правила, fatal на дублікат, пропуск `fix/utils/`, runRule з `rootDir: 'fix'`, applies-гейт у `fix/applies/`, та fallback на `js/` для концернів без `rootDir` (зворотна сумісність із наявними тестовими фікстурами).
+
 ## [1.11.8] - 2026-05-15
 
 ### Changed
 
-- **`npm/bin/n-cursor.js::syncSkills`** — файл `auto.md` зі скілу більше **не** копіюється у `.cursor/skills/n-<id>/`. `auto.md` — це службова мета для CLI-сторони (`scripts/auto-skills.mjs` читає його з пакета, щоб вирішити, чи автоматично активувати скіл у `.n-cursor.json`), у проєкті він зайвий і лише засмічує `.cursor/skills/`. Додатково: якщо у `.cursor/skills/n-<id>/auto.md` вже лежить старий артефакт минулих синків, він прибирається при наступному `npx @nitra/cursor` (через `unlink`). Каталог-приймач лишається без `auto.md` — тільки `SKILL.md` (і будь-які інші файли скілу, якщо зʼявляться). Заголовний коментар у `npm/bin/n-cursor.js` оновлено відповідно.
+- **`npm/bin/n-cursor.js::syncSkills`** — файл `auto.md` зі скілу більше **не** копіюється у `.cursor/skills/n-<id>/`. `auto.md` — це службова мета для CLI-сторони (`scripts/auto-skills.mjs` читає його з пакета, щоб вирішити, чи автоматично активувати скіл у `.n-cursor.json`), у проєкті він зайвий і лише засмічує `.cursor/skills/`. Каталог-приймач після цієї зміни лишається без `auto.md` — тільки `SKILL.md` (і будь-які інші файли скілу, якщо зʼявляться). Раніше синхронізовані `auto.md` у `.cursor/skills/n-<id>/` CLI **не чіпає** — їх потрібно прибрати вручну (свідома вимога користувача, щоб синк не видаляв нічого без явної згоди). Заголовний коментар у `npm/bin/n-cursor.js` оновлено відповідно.
 
 ## [1.11.7] - 2026-05-15
 

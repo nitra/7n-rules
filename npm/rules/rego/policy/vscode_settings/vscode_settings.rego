@@ -1,7 +1,7 @@
 # Перевірка `.vscode/settings.json` для rego (rego.mdc).
 #
 # Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ виявлення
-# `.rego` файлів у дереві. Глобально у `lint-conftest` НЕ реєструється.
+# `.rego` файлів у дереві. Глобально без `target.json` поруч (не auto-discoverable через `n-cursor check`).
 #
 # Canonical (rego.mdc):
 #   { "[rego]": { "editor.defaultFormatter": "tsandall.opa",

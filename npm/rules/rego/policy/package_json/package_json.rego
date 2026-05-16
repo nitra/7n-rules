@@ -1,7 +1,7 @@
 # Перевірка `package.json` для rego (rego.mdc).
 #
 # Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ виявлення
-# `.rego` файлів у дереві. Глобально у `lint-conftest` НЕ реєструється.
+# `.rego` файлів у дереві. Глобально без `target.json` поруч (не auto-discoverable через `n-cursor check`).
 #
 # Canonical (rego.mdc): scripts.lint-rego має бути "n-cursor lint-rego" — CLI пакета `@nitra/cursor`
 # (бінарка з `node_modules/.bin/`) робить preflight `opa`/`regal` і прогонить

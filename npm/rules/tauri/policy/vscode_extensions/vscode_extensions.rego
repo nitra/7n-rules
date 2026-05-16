@@ -2,8 +2,8 @@
 #
 # Викликається з `check-tauri.mjs` через `runConftestBatch` лише ПІСЛЯ того,
 # як JS виявив маркер Tauri-проєкту (`src-tauri/` каталог, `tauri.conf.json`
-# у будь-якому пакеті, або залежність `@tauri-apps/*`). Глобально у
-# `lint-conftest` НЕ реєструється — інакше false-positive порушення на не-Tauri проєктах.
+# у будь-якому пакеті, або залежність `@tauri-apps/*`). Без `target.json` поруч
+# (не auto-discoverable через `n-cursor check`) — інакше false-positive порушення на не-Tauri проєктах.
 #
 # Canonical (tauri.mdc): `recommendations` має містити обидва записи —
 #   - tauri-apps.tauri-vscode

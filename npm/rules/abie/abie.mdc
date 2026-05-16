@@ -163,7 +163,7 @@ with:
 
 ### Швидкий gate через conftest (Rego)
 
-Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/policy/abie/`** (запускається через **`bun run lint-rego`** для `*_test.rego` тестів і **`npx @nitra/cursor lint-conftest`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`check-abie.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor check abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`fix/<concern>/check.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
 
 Пакети (директорія в **`npm/policy/abie/`** → namespace → що перевіряє):
 

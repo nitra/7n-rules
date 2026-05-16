@@ -27,7 +27,7 @@ npm/rules/{rule}/
 
 Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor), `auto.md` (опційно), `js/` (опційно, з тестами).
 
-**Крос-правильна інфраструктура** (CLI, оркестратори, спільні утиліти) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `lint-conftest.mjs`, `utils/` тощо) + тести поруч з джерелом.
+**Крос-правильна інфраструктура** (CLI, оркестратори, спільні утиліти) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом.
 
 ## Діагностика
 

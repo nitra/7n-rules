@@ -8,7 +8,7 @@
  */
 import { dirname, relative } from 'node:path'
 
-import { pathHasK8sSegment } from '../../k8s/js/manifests/check.mjs'
+import { pathHasK8sSegment } from '../../k8s/fix/manifests/check.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 import { isDeploymentDoc, readAndParseYamlDocs } from './yaml.mjs'
 

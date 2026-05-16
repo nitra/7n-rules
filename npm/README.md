@@ -4,9 +4,9 @@
 
 ## Як це працює
 
-Репозиторій `@nitra/cursor` містить cursor-правила у директорії `mdc/`. CLI копіює обрані правила з **каталогу `mdc/` того пакету, з якого виконується `bin/n-cursor.js`**: після `npm i` / `bun add` це зазвичай `node_modules/@nitra/cursor/mdc`; при **`npx @nitra/cursor`** пакет потрапляє в **кеш npx/npm**, і правила читаються з тієї розпакованої копії (у корені проєкту залежність не обов’язкова). Жодних окремих HTTP-запитів до CDN для файлів правил немає — лише те, що вже є в tarball пакету.
+Репозиторій `@nitra/cursor` містить cursor-правила у директорії `rules/<id>/`. CLI копіює `<id>.mdc` обраних правил з **каталогу `rules/` того пакету, з якого виконується `bin/n-cursor.js`**: після `npm i` / `bun add` це зазвичай `node_modules/@nitra/cursor/rules/<id>/<id>.mdc`; при **`npx @nitra/cursor`** пакет потрапляє в **кеш npx/npm**, і правила читаються з тієї розпакованої копії (у корені проєкту залежність не обов’язкова). Жодних окремих HTTP-запитів до CDN для файлів правил немає — лише те, що вже є в tarball пакету.
 
-Наприклад, правило `mdc/text.mdc` буде збережено як `.cursor/rules/n-text.mdc`.
+Наприклад, правило `rules/text/text.mdc` буде збережено як `.cursor/rules/n-text.mdc`.
 
 ## Підготовка
 
@@ -46,7 +46,7 @@
 
 ### Правило `k8s` і Kustomize
 
-У цільовому репозиторії з маніфестами під **`**/k8s`** дотримуйтесь **`mdc/k8s.mdc`** з пакету (після синку — `.cursor/rules/n-k8s.mdc`або копія з`node_modules/@nitra/cursor/mdc/k8s.mdc`).
+У цільовому репозиторії з маніфестами під **`**/k8s`** дотримуйтесь **`rules/k8s/k8s.mdc`** з пакету (після синку — `.cursor/rules/n-k8s.mdc` або копія з `node_modules/@nitra/cursor/rules/k8s/k8s.mdc`).
 
 Коротко:
 
@@ -56,7 +56,7 @@
 - Рядки в **base**, які змінюються в overlays, позначайте коментарем на рядку (узгоджено в команді), наприклад: `# буде замінено через kustomize`.
 - Після перенесення в **`base`** / overlays **видаляйте** застарілі маніфести та каталоги, які більше не потрібні.
 
-Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/scripts/check-k8s.mjs`** (у встановленому пакеті — `scripts/check-k8s.mjs`).
+Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/rules/k8s/`**: JS-checks у `fix/<concern>/check.mjs`, rego-policies у `policy/<concern>/<name>.rego` (обидва запускаються через `npx @nitra/cursor check k8s`).
 
 ### v8r і власний каталог схем
 
@@ -76,7 +76,7 @@ CLI автоматично (команда завантаження правил
 
 1. Знайде або створить `.n-cursor.json` у поточній директорії (із полем `$schema` на JSON Schema пакету; якщо файл уже є без коректного `$schema`, поле буде додано або оновлено при зчитуванні конфігу)
 2. Створить директорію `.cursor/rules/`, якщо її ще немає
-3. Скопіює кожне з перелічених у конфігу правило з `mdc/` установленого пакету і збереже файли з префіксом `n-`
+3. Скопіює кожне з перелічених у конфігу правило з `rules/<id>/<id>.mdc` установленого пакету і збереже файли з префіксом `n-`
 4. Після оновлення файлів на диску згенерує в корені проєкту **`AGENTS.md`**: повний вміст береться з шаблону пакету `AGENTS.template.md`, а список правил у шаблоні формується з **усіх наявних файлів `*.mdc`** у `.cursor/rules/` (відсортовано за ім’ям); секція команд — з **`package.json`** кореня (див. `{{#commands}}` у шаблоні).
 
 ## Приклад виводу
@@ -96,14 +96,49 @@ CLI автоматично (команда завантаження правил
 
 ```
 npm/
-├── AGENTS.template.md   # шаблон AGENTS.md для цільових репозиторіїв (потрапляє в npm-архів)
-├── mdc/                 # cursor-правила (без префікса n-; після синку — .cursor/rules/n-<id>.mdc)
-│   ├── npm-module.mdc
-│   └── text.mdc
-├── skills/              # skills (каталоги <id>/; після синку — .cursor/skills/n-<id>/)
+├── AGENTS.template.md    # шаблон AGENTS.md для цільових репозиторіїв (потрапляє в npm-архів)
+├── rules/                # cursor-правила (підкаталог на правило, див. «Структура одного правила»)
+│   ├── npm-module/
+│   ├── text/
+│   └── ...
+├── skills/               # скіли (каталоги <id>/; після синку — .cursor/skills/n-<id>/)
+├── scripts/              # CLI-утиліти, спільні runner-и, discovery
 └── bin/
-    └── n-cursor.js  # CLI-скрипт
+    └── n-cursor.js       # CLI-скрипт (точка входу)
 ```
+
+### Структура одного правила
+
+Кожне правило `npm/rules/<id>/` ділиться за **технологією реалізації** на три сиблінги — `fix/`, `lint/`, `policy/`:
+
+```
+npm/rules/<id>/
+├── <id>.mdc              # текст правила (після синку — .cursor/rules/n-<id>.mdc)
+├── auto.md               # умова автоактивації скілу (опційно)
+├── fix/                  # JS для `npx @nitra/cursor check`
+│   └── <concern>/
+│       ├── check.mjs     # діагностика — повертає список violations
+│       ├── check.test.mjs
+│       └── autofix.mjs   # опційно — програмний автофікс
+├── lint/                 # JS, що живить `bun run lint-<id>` (для правил з канонічним lint-скриптом)
+│   ├── lint.mjs          # CLI entry для `n-cursor lint-<id>`
+│   └── run-*.mjs         # допоміжні runner-и (shellcheck, v8r тощо)
+└── policy/               # rego для `npx @nitra/cursor check`
+    └── <concern>/
+        ├── <concern>.rego       # правила (`deny contains msg if …`)
+        ├── <concern>_test.rego  # юніт-тести (запускає `bun run lint-rego` → conftest verify)
+        └── target.json          # які файли подавати в conftest (single / walkGlob)
+```
+
+**Принцип:** технологія реалізації визначає директорію.
+
+| Що реалізує | Канал виклику | Куди |
+| --- | --- | --- |
+| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал) | `fix/<concern>/` |
+| JS-orchestrator лінту | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/` |
+| Rego-діагностика | `npx @nitra/cursor check` (fix-канал) | `policy/<concern>/` |
+
+`fix/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor check` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `fix/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
 
 ## AGENTS.md у проєкті користувача
 
@@ -117,7 +152,7 @@ npm/
 
 ### Зміна шаблону AGENTS
 
-1. Редагуйте **`npm/AGENTS.template.md`**. Файл має бути перелічений у полі **`files`** у `npm/package.json`, щоб потрапляти в публікацію npm (разом з `mdc/` та `bin/`).
+1. Редагуйте **`npm/AGENTS.template.md`**. Файл має бути перелічений у полі **`files`** у `npm/package.json`, щоб потрапляти в публікацію npm (разом з `rules/`, `skills/`, `bin/`).
 2. Для вставки списку файлів правил використовуйте блок у стилі Mustache з ім’ям секції **`services`** і плейсхолдером **`{{name}}`**:
 
 ```markdown
@@ -136,7 +171,7 @@ npm/
 
 ### Логіка в коді CLI
 
-- Шлях до шаблону: поруч із `mdc/`, тобто `…/node_modules/@nitra/cursor/AGENTS.template.md` після встановлення пакету.
+- Шлях до шаблону: поруч із `rules/`, тобто `…/node_modules/@nitra/cursor/AGENTS.template.md` після встановлення пакету.
 - Оновлення **`AGENTS.md`** виконується **після** циклу завантаження правил, щоб список відображав актуальний вміст `.cursor/rules/` на диску.
 - Якщо каталогу `.cursor/rules/` немає або в ньому немає `*.mdc`, блок `{{#services}}` стає порожнім; решта шаблону все одно записується в **`AGENTS.md`**.
 - Секція **`commands`** залежить лише від **`package.json` у корені cwd**; якщо файлу немає або `scripts` відсутній, у блоці лишаються мінімальні рядки (`bun i`, виклики CLI).

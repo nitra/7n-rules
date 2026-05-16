@@ -47,7 +47,8 @@
  * Якщо ключа skills немає, за замовчуванням підтягуються всі підкаталоги skills/ (лише імена без префікса n-).
  * Зайві каталоги n-* у .cursor/skills, яких немає у списку, видаляються.
  * Файл `auto.md` у скілі — джерело правди для auto-skills у CLI (`scripts/auto-skills.mjs`)
- * і у проєкт не копіюється; раніше синхронізовані `auto.md` прибираються при наступному синку.
+ * і у проєкт не копіюється; раніше синхронізовані `auto.md` у `.cursor/skills/n-<id>/` CLI
+ * не чіпає — їх потрібно прибрати вручну.
  *
  * Якщо в корені є package.json і в ньому ще немає \@nitra/cursor у devDependencies (і не оголошено
  * в dependencies), CLI дописує devDependencies з діапазоном ^<version> поточного пакету — зручно після npx.
@@ -76,11 +77,11 @@ import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { discoverCheckableRules } from '../scripts/utils/discover-checkable-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
-import { runLintDocker } from '../rules/docker/js/run.mjs'
-import { runLintGaCli } from '../rules/ga/js/lint.mjs'
-import { runLintK8s } from '../rules/k8s/js/run.mjs'
-import { runLintRego } from '../rules/rego/js/lint.mjs'
-import { runLintTextCli } from '../rules/text/js/lint.mjs'
+import { runLintDocker } from '../rules/docker/lint/lint.mjs'
+import { runLintGaCli } from '../rules/ga/lint/lint.mjs'
+import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
+import { runLintRego } from '../rules/rego/lint/lint.mjs'
+import { runLintTextCli } from '../rules/text/lint/lint.mjs'
 import { runRule } from '../scripts/utils/run-rule.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
@@ -777,8 +778,6 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
           const content = await readFile(join(srcDir, file), 'utf8')
           await writeFile(join(destDir, file), content, 'utf8')
         }
-        const stalePath = join(destDir, 'auto.md')
-        if (existsSync(stalePath)) await unlink(stalePath)
         console.log(`✅`)
         success++
       } catch (error) {
@@ -1010,10 +1009,9 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Знаходить правила, для яких є хоча б щось прогонне: JS-концерн у `rules/<id>/js/<concern>/check*.mjs`
- * (плюс legacy `rules/<id>/js/check.mjs` як концерн `legacy`) або policy-концерн у
- * `rules/<id>/policy/<concern>/target.json`. Делегує у `discoverCheckableRules` —
- * див. `scripts/utils/discover-checkable-rules.mjs`.
+ * Знаходить правила, для яких є хоча б щось прогонне: JS-концерн у `rules/<id>/fix/<concern>/check*.mjs`
+ * або policy-концерн у `rules/<id>/policy/<concern>/target.json`. Делегує у `discoverCheckableRules`
+ * — див. `scripts/utils/discover-checkable-rules.mjs`.
  * @returns {import('../scripts/utils/discover-checkable-rules.mjs').CheckableRule[]} опис правил у алфавітному порядку
  */
 function discoverCheckScripts() {
