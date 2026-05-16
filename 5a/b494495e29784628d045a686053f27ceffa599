@@ -1,0 +1,41 @@
+npm/CHANGELOG.md
+  s_e55d0246d58385::t_20d9173e38f99a 7-12
+  s_e55d0246d58385::t_a9de756ef078fe 13-16
+.cursor/rules/n-text.mdc
+  s_e55d0246d58385::t_530b484505e12d 116,118,123,242,259
+npm/package.json
+  s_e55d0246d58385::t_5add01df92d33e 3
+.cursor/rules/n-k8s.mdc
+  s_e55d0246d58385::t_530b484505e12d 41,46
+AGENTS.md
+  s_e55d0246d58385::t_530b484505e12d 11,52,55,70
+.cursor/rules/n-rego.mdc
+  s_e55d0246d58385::t_530b484505e12d 39,45,61
+docs/adr/20260516-155441-нормалізація-батчу-adr-чернеток-2026-05-07-5-файлів.md
+  s_e55d0246d58385::t_530b484505e12d 2-4,7,9,11-14,16,20
+.cursor/rules/n-style-lint.mdc
+  s_e55d0246d58385::t_530b484505e12d 12
+npm/rules/js-run/fix/runtime/check-fixture.test.mjs
+  s_e55d0246d58385::t_095db494a8c70a 111-112
+  s_e55d0246d58385::t_228fe1577e26b8 183-184
+.cursor/rules/n-adr.mdc
+  s_e55d0246d58385::t_530b484505e12d 7,9
+CLAUDE.md
+  s_e55d0246d58385::t_530b484505e12d 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5ab494495e29784628d045a686053f27ceffa599",
+  "prompts": {},
+  "sessions": {
+    "s_e55d0246d58385": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0850a6f9-4567-482d-8da2-2fe965458fbc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
