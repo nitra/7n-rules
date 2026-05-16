@@ -11,16 +11,14 @@
       "entry": [
         "bin/n-cursor.js",
         "bin/rename-yaml-extensions.mjs",
-        "rules/*/js/**/check.mjs",
-        "rules/*/js/**/check-*.mjs",
-        "rules/*/js/lint.mjs",
-        "rules/*/js/run.mjs",
-        "rules/*/js/run-*.mjs",
+        "rules/*/fix/**/check.mjs",
+        "rules/*/fix/**/check-*.mjs",
+        "rules/*/lint/lint.mjs",
+        "rules/*/lint/run-*.mjs",
         "scripts/auto-*.mjs",
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
         "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
-        "scripts/lint-conftest.mjs",
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
         "scripts/upgrade-nitra-cursor-and-install.mjs",
@@ -29,6 +27,7 @@
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs"
       ],
+      "ignoreDependencies": ["@nitra/cursor"],
       "project": ["**/*.{js,mjs}"]
     },
     "demo": {

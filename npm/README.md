@@ -46,7 +46,7 @@
 
 ### Правило `k8s` і Kustomize
 
-У цільовому репозиторії з маніфестами під **`**/k8s`** дотримуйтесь **`rules/k8s/k8s.mdc`** з пакету (після синку — `.cursor/rules/n-k8s.mdc` або копія з `node_modules/@nitra/cursor/rules/k8s/k8s.mdc`).
+У цільовому репозиторії з маніфестами під **`**/k8s`** дотримуйтесь **`rules/k8s/k8s.mdc`** з пакету (після синку — `.cursor/rules/n-k8s.mdc`або копія з`node_modules/@nitra/cursor/rules/k8s/k8s.mdc`).
 
 Коротко:
 
@@ -132,11 +132,11 @@ npm/rules/<id>/
 
 **Принцип:** технологія реалізації визначає директорію.
 
-| Що реалізує | Канал виклику | Куди |
-| --- | --- | --- |
-| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал) | `fix/<concern>/` |
-| JS-orchestrator лінту | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/` |
-| Rego-діагностика | `npx @nitra/cursor check` (fix-канал) | `policy/<concern>/` |
+| Що реалізує               | Канал виклику                                  | Куди                |
+| ------------------------- | ---------------------------------------------- | ------------------- |
+| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал)          | `fix/<concern>/`    |
+| JS-orchestrator лінту     | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/`             |
+| Rego-діагностика          | `npx @nitra/cursor check` (fix-канал)          | `policy/<concern>/` |
 
 `fix/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor check` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `fix/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
 

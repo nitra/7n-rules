@@ -9,7 +9,7 @@
  *    `package.json` має бути відповідний скрипт `lint-docker` / `lint-k8s`
  *    (cross-file: два JSON-файли).
  *
- * **Що покрила Rego** (`npx @nitra/cursor check`):
+ * **Що покрила Rego** (`npx \@nitra/cursor check`):
  *  - `npm/policy/bun/bunfig/` — `[install].linker == "hoisted"` у `bunfig.toml`;
  *  - `npm/policy/bun/package_json/` — відсутність `packageManager` / `dependencies`
  *    у кореневому `package.json`, у `devDependencies` лише `@nitra/*`, агрегований

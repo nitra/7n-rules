@@ -9,7 +9,7 @@
  *  - застарілий `.minify-image-cache.tsv` (з версій < 3.2) видалений з кореня та
  *    з `.gitignore`.
  *
- * **Що покрила Rego** (`npx @nitra/cursor check`,
+ * **Що покрила Rego** (`npx \@nitra/cursor check`,
  * `npm/policy/image_compress/package_json/`):
  *  - `scripts.lint-image` викликає `npx \@nitra/minify-image --src=. --write`
  *    без `--avif` (AVIF — окреме правило `image-avif`);

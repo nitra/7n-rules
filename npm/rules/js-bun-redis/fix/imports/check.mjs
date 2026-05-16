@@ -8,7 +8,7 @@
  *
  * Перевірку `dependencies` (заборона `ioredis` / `node-redis` / `redis` / `@redis/*` у будь-якому
  * `package.json`) винесено в Rego-полісі `npm/policy/js_bun_redis/package_json/`; її запускає
- * `npx @nitra/cursor check`. Тут лишився AST-скан коду через `oxc-parser`.
+ * `npx \@nitra/cursor check`. Тут лишився AST-скан коду через `oxc-parser`.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'

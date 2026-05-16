@@ -15,8 +15,12 @@
   ],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": [
+    "ENOENT",
     "Tauri",
     "tauri",
+    "Скоуп",
+    "парсив",
+    "флагав",
     "commitlint",
     "пайплайн",
     "дашборд",

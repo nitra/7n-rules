@@ -14,7 +14,7 @@
  *    варіантах, run-shellcheck-text.mjs, обовʼязкові glob-и);
  *  - workflow `lint-text.yml` має крок `bun run lint-text`.
  *
- * **Що покрила Rego** (`npx @nitra/cursor check`):
+ * **Що покрила Rego** (`npx \@nitra/cursor check`):
  *  - `npm/policy/text/oxfmtrc/` — обовʼязкові ключі `.oxfmtrc.json` і канонічні
  *    значення (semi/singleQuote/tabWidth/useTabs/printWidth) + `ignorePatterns`
  *    канонічні glob-и;

@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.11.13] - 2026-05-16
+
+### Fixed
+
+- **`npm/rules/{bun,image-compress,js-bun-redis,js-run,php,style-lint,text}/fix/<concern>/check.mjs`** — escape `@nitra` як `\@nitra` у JSDoc-блоках (`/** … */`), де `npx @nitra/cursor check` стояв всередині backticks. ESLint-плагін `jsdoc/escape-inline-tags` парсив `@nitra` як інлайн-тег (false-positive у backticks) і видавав 8 warnings. Виправлення — escape-символ `\` перед `@`, як уже зроблено в інших місцях коду (CHANGELOG 1.11.5 для `js-run`). Pass-повідомлення та `//`-коментарі поза JSDoc не зачіпало — там парсер не активний.
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — заголовок секції перейменовано з **«Скоуп»** на **«Scope»**, бо cspell флагав «Скоуп» як unknown word. Англійський «Scope» зрозумілий і не вимагає розширення словника. Тіло секції без змін.
+
 ## [1.11.12] - 2026-05-15
 
 ### Removed
@@ -50,7 +57,7 @@
 
 ### Changed
 
-- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — `/n-fix` більше **не запускає** `bun run lint` і **не делегує** до `/n-lint`. Крок 6 (`bun run lint` з делегуванням, доданий у 1.11.6) повністю видалено; замість нього на початку SKILL.md додано секцію **«Скоуп»**, де явно зафіксовано: `/n-fix` опікується лише структурою проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), а лінт-порушення у самому коді (ESLint/oxlint/jscpd/cspell/knip/sonarjs/stylelint) — поза скоупом і виправляються винятково через `/n-lint`. Кроки 7→6 і 8→7 переномеровано; остаточний пункт 7 додатково нагадує, що лінт-помилки не входять у критерій успіху `/n-fix`. Мета — щоб агент, що виконує `/n-fix`, не плутав свою задачу з `/n-lint` і не запускав важкий `bun run lint` без потреби; те, що діагностує `/n-lint`, виправляється там же, а не дублюється тут.
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — `/n-fix` більше **не запускає** `bun run lint` і **не делегує** до `/n-lint`. Крок 6 (`bun run lint` з делегуванням, доданий у 1.11.6) повністю видалено; замість нього на початку SKILL.md додано секцію **«Scope»**, де явно зафіксовано: `/n-fix` опікується лише структурою проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), а лінт-порушення у самому коді (ESLint/oxlint/jscpd/cspell/knip/sonarjs/stylelint) — поза скоупом і виправляються винятково через `/n-lint`. Кроки 7→6 і 8→7 переномеровано; остаточний пункт 7 додатково нагадує, що лінт-помилки не входять у критерій успіху `/n-fix`. Мета — щоб агент, що виконує `/n-fix`, не плутав свою задачу з `/n-lint` і не запускав важкий `bun run lint` без потреби; те, що діагностує `/n-lint`, виправляється там же, а не дублюється тут.
 
 ### Fixed
 

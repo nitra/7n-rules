@@ -392,7 +392,7 @@ function packageJsonHasViteDevDependency(pkgJson) {
 /**
  * Завантажує `package.json` пакета (якщо є). Заборону `@nitra/bunyan` / `bunyan`
  * у dependencies/devDependencies перенесено в Rego (`npm/policy/js_run/package_json/`);
- * `npx @nitra/cursor check` запускає її по всіх workspace `package.json`. Тут лишилася
+ * `npx \@nitra/cursor check` запускає її по всіх workspace `package.json`. Тут лишилася
  * лише AST-перевірка імпортів.
  * @param {string} rootDir відносний шлях workspace
  * @returns {Promise<unknown>} розпарсений package.json або null
@@ -406,7 +406,7 @@ async function loadPackageJson(rootDir) {
 /**
  * Перевіряє наявність `k8s/base/configmap.yaml` пакета. Структуру (наявність
  * `OTEL_RESOURCE_ATTRIBUTES` з обов'язковими `service.name=` / `service.namespace=`)
- * перенесено в Rego (`npm/policy/js_run/configmap/`); `npx @nitra/cursor check`
+ * перенесено в Rego (`npm/policy/js_run/configmap/`); `npx \@nitra/cursor check`
  * запускає її на всіх `k8s/base/configmap.yaml`.
  * @param {string} rootDir відносний шлях workspace
  * @param {(msg: string) => void} passFn успішне повідомлення

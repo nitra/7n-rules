@@ -5,7 +5,7 @@
  *  - наявність `composer.json` у корені;
  *  - наявність `.github/workflows/lint-php.yml`.
  *
- * **Що покрила Rego** (`npx @nitra/cursor check`):
+ * **Що покрила Rego** (`npx \@nitra/cursor check`):
  *  - `npm/policy/php/package_json/` — наявність скрипта `lint-php` у `package.json`;
  *  - `npm/policy/php/lint_php_yml/` — крок `run: bun run lint-php` у workflow.
  */
