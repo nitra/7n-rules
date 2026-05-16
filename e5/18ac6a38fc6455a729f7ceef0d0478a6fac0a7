@@ -1,0 +1,27 @@
+npm/package.json
+  s_34a2b8fe255b53::t_fa047d54e51ebe 3
+npm/.claude-template/hooks/capture-decisions.sh
+  s_34a2b8fe255b53::t_a78ea71ce3e5b0 148-174
+.cspell.json
+  s_34a2b8fe255b53::t_d8192bf81ee141 23
+.claude/hooks/capture-decisions.sh
+  s_34a2b8fe255b53::t_453d8f463a151e 148-174
+npm/CHANGELOG.md
+  s_34a2b8fe255b53::t_c87335b7ab5f6c 7-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e518ac6a38fc6455a729f7ceef0d0478a6fac0a7",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
