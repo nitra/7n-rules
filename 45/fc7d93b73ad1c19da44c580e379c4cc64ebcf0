@@ -1,0 +1,51 @@
+npm/rules/bun/fix/layout/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 12
+.cspell.json
+  s_34a2b8fe255b53::t_f91feaab279116 21-23
+  s_34a2b8fe255b53::t_9e09e66fddf1de 18
+npm/README.md
+  s_34a2b8fe255b53::t_813a1a55061f09 49,135-139
+knip.json
+  s_34a2b8fe255b53::t_e1dbf4981bc904 30
+  s_34a2b8fe255b53::t_2764c98d750c48 14-17
+npm/skills/fix/SKILL.md
+  s_34a2b8fe255b53::t_c162926d3b7ea3 9
+npm/scripts/utils/discover-checkable-rules.test.mjs
+  s_34a2b8fe255b53::t_813a1a55061f09 56
+npm/rules/js-bun-redis/fix/imports/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 11
+npm/rules/style-lint/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 10
+npm/rules/text/fix/formatting/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 17
+npm/package.json
+  s_34a2b8fe255b53::t_929b36b5a94e3b 3
+  s_34a2b8fe255b53::t_813a1a55061f09 52-54
+npm/rules/image-compress/fix/package_setup/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 12
+npm/rules/js-run/fix/runtime/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 395,409
+npm/rules/php/fix/tooling/check.mjs
+  s_34a2b8fe255b53::t_e92456e41a593a 8
+.cursor/skills/n-fix/SKILL.md
+  s_34a2b8fe255b53::t_c162926d3b7ea3 9
+npm/CHANGELOG.md
+  s_34a2b8fe255b53::t_c162926d3b7ea3 60
+  s_34a2b8fe255b53::t_37c1edd79ed4fc 7-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "45fc7d93b73ad1c19da44c580e379c4cc64ebcf0",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
