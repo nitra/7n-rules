@@ -11,14 +11,8 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 
 ## `package.json`
 
-```json title="package.json"
-{
-  "scripts": {
-    "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-image && oxfmt .",
-    "lint-image": "npx @nitra/minify-image --src=. --write"
-  }
-}
-```
+- Канон `lint-image` (substring requirements): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+- Заборонені залежності `@nitra/minify-image` у deps/devDeps: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
 Якщо в `package.json` уже є агрегований `lint`, додай у його ланцюжок `bun run lint-image` (як `bun run lint-text`, `bun run lint-js`, `bun run lint-ga`). Так розробник, що локально гонить `bun run lint`, перед фіксацією одразу бачить, чи зросли зображення.
 

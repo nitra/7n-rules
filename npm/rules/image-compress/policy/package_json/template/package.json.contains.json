@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "lint-image": ["npx @nitra/minify-image", "--src=.", "--write"]
+  }
+}

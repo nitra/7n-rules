@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@nitra/minify-image": "не повинен бути в dependencies — використовуй npx (image-compress.mdc)"
+  },
+  "devDependencies": {
+    "@nitra/minify-image": "не повинен бути в devDependencies — використовуй npx (image-compress.mdc)"
+  }
+}

@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.16] - 2026-05-17
+
+### Added
+
+- `image-compress.package_json` template/ міграція (Phase 6): `template/package.json.{contains,deny}.json` + новий `package_json_test.rego` (10 тестів). Generic contains-walker для substring-перевірок lint-image + generic deny-walker для заборонених deps; інверс-патерни (`--avif` заборонений підрядок + аґреґатор `lint` має містити `bun run lint-image`) лишилися в rego.
+- `image-compress.mdc` — inline `package.json` snippet замінено на template-links.
+
 ## [1.13.15] - 2026-05-17
 
 ### Added

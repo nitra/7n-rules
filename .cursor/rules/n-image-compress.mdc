@@ -11,11 +11,24 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 
 ## `package.json`
 
-```json title="package.json"
+- Канон `lint-image` (substring requirements): `package.json`:
+
+```json
 {
   "scripts": {
-    "lint": "bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-image && oxfmt .",
-    "lint-image": "npx @nitra/minify-image --src=. --write"
+    "lint-image": ["npx @nitra/minify-image", "--src=.", "--write"]
+  }
+}
+```
+- Заборонені залежності `@nitra/minify-image` у deps/devDeps: `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@nitra/minify-image": "не повинен бути в dependencies — використовуй npx (image-compress.mdc)"
+  },
+  "devDependencies": {
+    "@nitra/minify-image": "не повинен бути в devDependencies — використовуй npx (image-compress.mdc)"
   }
 }
 ```
