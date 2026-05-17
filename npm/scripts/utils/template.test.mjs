@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { checkSnippet, loadTemplate } from './template.mjs'
+import { checkDeny, checkSnippet, loadTemplate } from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
@@ -72,5 +72,35 @@ describe('checkSnippet', () => {
   test('returns empty for null snippet (no template provided)', () => {
     expect(checkSnippet({}, null, opts)).toEqual([])
     expect(checkSnippet({}, undefined, opts)).toEqual([])
+  })
+})
+
+describe('checkDeny', () => {
+  const opts = { targetPath: 'package.json', source: 'security.mdc' }
+
+  test('returns empty when no forbidden path is present', () => {
+    const actual = { dependencies: { lodash: '^4' } }
+    const deny = { dependencies: { gitleaks: 'CLI — не додавай' } }
+    expect(checkDeny(actual, deny, opts)).toEqual([])
+  })
+
+  test('reports forbidden path with reason from deny value', () => {
+    const actual = { dependencies: { gitleaks: '^8.0.0', lodash: '^4' } }
+    const deny = { dependencies: { gitleaks: 'CLI — не додавай у dependencies' } }
+    expect(checkDeny(actual, deny, opts)).toEqual([
+      'package.json: dependencies.gitleaks — CLI — не додавай у dependencies (security.mdc)'
+    ])
+  })
+
+  test('handles deeply nested forbidden paths', () => {
+    const actual = { a: { b: { c: 1 } } }
+    const deny = { a: { b: { c: 'кореневий c заборонений' } } }
+    expect(checkDeny(actual, deny, opts)).toEqual([
+      'package.json: a.b.c — кореневий c заборонений (security.mdc)'
+    ])
+  })
+
+  test('returns empty for null deny', () => {
+    expect(checkDeny({}, null, opts)).toEqual([])
   })
 })
