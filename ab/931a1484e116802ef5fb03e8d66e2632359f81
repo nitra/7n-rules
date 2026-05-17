@@ -1,0 +1,25 @@
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_91ae3a70bd2cc3 18
+npm/rules/security/policy/package_json/package_json_test.rego
+  s_9102be39d1e731::t_a2ad59dab12f45 8-11,13,17-18,22-23,27-32,36-38,42-46
+  s_9102be39d1e731::t_bfbf67b057523e 4,6-7,16,21,26,35,41
+npm/rules/security/policy/package_json/package_json.rego
+  s_9102be39d1e731::t_f4ccdb8a433a28 2-3,8,10-12,16,18-20,24-26,29,32,35,37
+  s_9102be39d1e731::t_4013641458c11b 13,30,33-34,36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "ab931a1484e116802ef5fb03e8d66e2632359f81",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
