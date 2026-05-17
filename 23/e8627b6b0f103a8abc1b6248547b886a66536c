@@ -1,0 +1,54 @@
+npm/rules/npm-module/policy/root_package_json/template/package.json.snippet.json
+  s_650e956376b4b4::t_1a0e8a6fd99ac1 1
+npm/rules/npm-module/npm-module.mdc
+  s_650e956376b4b4::t_1dac5c0318c02a 78-84
+.cursor/rules/n-npm-module.mdc
+  s_650e956376b4b4::t_ea44e9bdddb667 78-80,116-140
+npm/rules/npm-module/policy/emit_types_config/emit_types_config.rego
+  s_650e956376b4b4::t_9858af96508244 1,3-6,11,13-19,22,24-27
+npm/rules/npm-module/policy/npm_package_json/template/package.json.snippet.json
+  s_650e956376b4b4::t_a8f99441ce6947 1
+npm/rules/npm-module/policy/npm_publish_yml/npm_publish_yml.rego
+  s_650e956376b4b4::t_faf00708044d14 1,3-6,17-21,23-27,33,36-38,41-42,44-46,52-54,57,59,61-64,69-71,74,77,79,85-86
+  s_650e956376b4b4::t_c8cbeebf3c0bcc 28-31
+npm/rules/npm-module/policy/npm_package_json/npm_package_json_test.rego
+  s_650e956376b4b4::t_f10a72b6b9098a 2,5,8-9,15,22,27,30,34,39,42,46,51,56,61-62,65,68,73,78-85
+npm/rules/npm-module/policy/npm_package_json/npm_package_json.rego
+  s_650e956376b4b4::t_6fbcf2206960ad 1,3-5,7-9,11,26,34,47-48,50-56,59
+npm/rules/npm-module/policy/emit_types_config/emit_types_config_test.rego
+  s_650e956376b4b4::t_edf95ae896f68e 1-61
+npm/rules/npm-module/policy/emit_types_config/template/tsconfig.emit-types.json.snippet.json
+  s_650e956376b4b4::t_abdf1e2b6e0def 1-9
+npm/rules/npm-module/policy/root_package_json/root_package_json_test.rego
+  s_650e956376b4b4::t_0e13eb2b3e6198 1-42
+npm/package.json
+  s_650e956376b4b4::t_87f9118fc14452 3
+npm/rules/npm-module/policy/root_package_json/root_package_json.rego
+  s_650e956376b4b4::t_17d2646bb6486c 1,3-5,7-8,13,15-17,20,22-27
+npm/rules/npm-module/policy/npm_publish_yml/npm_publish_yml_test.rego
+  s_650e956376b4b4::t_8cc7c103659555 1-84
+docs/adr/template-dir-concern-inventory.md
+  s_650e956376b4b4::t_cad46ec07d7c74 128
+  s_650e956376b4b4::t_d5640fad913324 139
+  s_650e956376b4b4::t_e709b89616adfb 59-62
+npm/rules/npm-module/policy/npm_publish_yml/template/npm-publish.yml.snippet.yml
+  s_650e956376b4b4::t_dac4f4277323a3 1-34
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_290fc5b451eb53 7-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "23e8627b6b0f103a8abc1b6248547b886a66536c",
+  "prompts": {},
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
