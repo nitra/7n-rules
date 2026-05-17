@@ -1,0 +1,61 @@
+npm/rules/text/policy/cspell/template/.cspell.json.contains.json
+  s_650e956376b4b4::t_95c730960a923f 1-3
+npm/rules/text/policy/markdownlint/markdownlint_test.rego
+  s_650e956376b4b4::t_280e34613c351a 3,6-16,31,34,36,41,46,51,56,59-63
+npm/rules/text/policy/vscode_extensions/template/extensions.json.snippet.json
+  s_650e956376b4b4::t_7fad5968cd3ff5 1-7
+npm/rules/text/policy/package_json/package_json.rego
+  s_650e956376b4b4::t_e1b7b7dfb56e27 1,3-6,8-9,15-17,21,23,27,29
+npm/rules/text/policy/cspell/cspell_test.rego
+  s_650e956376b4b4::t_fee82bb49dd586 1-75
+npm/rules/text/policy/cspell/cspell.rego
+  s_650e956376b4b4::t_2cab6069d4f822 1,3-4,6-7,12,14-20,23,26-32,35-36,42,45-46,48-50,53-54,56,61-62,65,67-70
+npm/rules/text/policy/oxfmtrc/oxfmtrc_test.rego
+  s_650e956376b4b4::t_4173a36ae84b7a 1-57
+npm/package.json
+  s_650e956376b4b4::t_31beb0725b5b9c 3
+npm/rules/text/policy/vscode_extensions/vscode_extensions.rego
+  s_650e956376b4b4::t_994a6fa1fdac43 3,9-11
+npm/rules/text/policy/markdownlint/template/.markdownlint-cli2.jsonc.snippet.jsonc
+  s_650e956376b4b4::t_868212b0fa5247 1-11
+npm/rules/text/policy/oxfmtrc/template/.oxfmtrc.json.snippet.json
+  s_650e956376b4b4::t_c83fadfb8116f7 1-12
+npm/rules/text/policy/package_json/package_json_test.rego
+  s_650e956376b4b4::t_f28f9e4add1d47 1-60
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_4292c9c942b58c 7-12
+npm/rules/text/policy/cspell/template/.cspell.json.snippet.json
+  s_650e956376b4b4::t_e75ccda14d22b1 1-12
+npm/rules/text/policy/package_json/template/package.json.deny.json
+  s_650e956376b4b4::t_91752d8066b0c2 1-15
+npm/rules/text/policy/cspell/template/.cspell.json.deny.json
+  s_650e956376b4b4::t_693677a191988c 1-5
+npm/rules/text/policy/markdownlint/markdownlint.rego
+  s_650e956376b4b4::t_d408bcdf6839cb 1,3-6,11,14-18,21,24-32,35,38-47,50,53-56
+npm/rules/text/policy/vscode_extensions/vscode_extensions_test.rego
+  s_650e956376b4b4::t_74dde9baf2ece2 3,6,8,11,16,21,25,28-32
+npm/rules/text/policy/vscode_settings/vscode_settings.rego
+  s_650e956376b4b4::t_f9eb07833906cd 3-4,10-14,18-25,29-33
+npm/rules/text/policy/oxfmtrc/oxfmtrc.rego
+  s_650e956376b4b4::t_2fd4e0415d13f8 1,3-5,7-8,32-37,41-44,48-54
+npm/rules/text/policy/vscode_settings/template/settings.json.snippet.json
+  s_650e956376b4b4::t_db58d1e4a1c6ee 1-9
+npm/rules/text/policy/vscode_settings/vscode_settings_test.rego
+  s_650e956376b4b4::t_797c1afbd007b8 3,6-14,27,32,37,45,48-49,52-56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3b5ed274464a1d4c4fe67a19516e3ddaa7b4e168",
+  "prompts": {},
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
