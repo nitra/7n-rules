@@ -1,0 +1,53 @@
+npm/rules/rego/policy/vscode_settings/vscode_settings_test.rego
+  s_650e956376b4b4::t_0f9734a11b464d 2,5,8-12,20,28,32,37,45,50,55,60-67
+npm/rules/rego/policy/package_json/package_json_test.rego
+  s_650e956376b4b4::t_8ab7601f912e3c 2,6,8-9,12-13,17-18,22-23,28,33,38,43-50
+npm/rules/rego/policy/package_json/package_json.rego
+  s_650e956376b4b4::t_7cad85b54fb002 3-6,12-15
+npm/package.json
+  s_650e956376b4b4::t_838885e84ff984 3
+npm/rules/rego/policy/vscode_extensions/vscode_extensions.rego
+  s_650e956376b4b4::t_d7012694d54c4a 3-6,12-14
+npm/rules/rego/policy/vscode_settings/template/settings.json.snippet.json
+  s_650e956376b4b4::t_faa8ebae813b9b 1-6
+.cursor/rules/n-rego.mdc
+  s_650e956376b4b4::t_3d8e9ecde89206 18,24-42,44-46
+npm/rules/rego/policy/vscode_extensions/vscode_extensions_test.rego
+  s_650e956376b4b4::t_25757241e1ce6f 2,5,8-9,13,22,27,32,36-43
+npm/rules/rego/policy/vscode_extensions/template/extensions.json.snippet.json
+  s_650e956376b4b4::t_70dc8a7b2d6b48 1
+npm/rules/rego/policy/package_json/template/package.json.snippet.json
+  s_650e956376b4b4::t_1f794c839444c7 1
+npm/rules/rego/rego.mdc
+  s_650e956376b4b4::t_ae8dcae0747c84 18,24-32
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_d7b78cd53fdba8 7-21
+npm/rules/rego/policy/vscode_settings/vscode_settings.rego
+  s_650e956376b4b4::t_5694377188ee9c 12,16,23,25-29
+  s_650e956376b4b4::t_79b6af5bcf8b89 3-7,14-15,17-20
+docs/adr/template-dir-concern-inventory.md
+  s_650e956376b4b4::t_45ac1bcc15aa9b 60-62
+  s_650e956376b4b4::t_ca4e23081b773c 123
+  s_650e956376b4b4::t_03214f0aa54479 131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b0efa4d88b81e5737190ae0392d7541f525b2e18",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
