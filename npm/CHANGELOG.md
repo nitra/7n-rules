@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.6] - 2026-05-17
+
+### Added
+
+- `npm/scripts/utils/inline-template-links.mjs` — `inlineTemplateLinks(text, ruleDir)`: під час sync знаходить markdown-лінки виду `[label](./…/template/…)` у `.mdc` і замінює їх inline fenced-блоком з вмістом відповідного файла. Відсутній файл — hard error (fail loud).
+
+### Changed
+
+- `readBundledRuleContent` у `npm/bin/n-cursor.js` тепер пропускає текст правила через `inlineTemplateLinks` перед записом у `.cursor/rules/n-*.mdc`. Template-посилання у скопійованих правилах більше не зламані.
+
 ## [1.13.5] - 2026-05-17
 
 ### Added
