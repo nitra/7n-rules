@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate } from './template.mjs'
+import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate, resolveConcernTemplateData } from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
@@ -169,5 +169,39 @@ describe('checkTextSubset', () => {
 
   test('returns empty for null template', () => {
     expect(checkTextSubset('anything', null, opts)).toEqual([])
+  })
+})
+
+describe('resolveConcernTemplateData', () => {
+  test('single target — picks template by basename', async () => {
+    const data = await resolveConcernTemplateData(
+      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
+      { files: { single: 'package.json' } }
+    )
+    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+  })
+
+  test('walkGlob string — picks by glob basename', async () => {
+    const data = await resolveConcernTemplateData(
+      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
+      { files: { walkGlob: '**/package.json' } }
+    )
+    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+  })
+
+  test('walkGlob array — skips negative patterns and picks first matching template', async () => {
+    const data = await resolveConcernTemplateData(
+      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
+      { files: { walkGlob: ['!**/dist/**', '**/package.json'] } }
+    )
+    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+  })
+
+  test('returns undefined when no template matches target basename', async () => {
+    const data = await resolveConcernTemplateData(
+      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
+      { files: { single: 'unrelated.yml' } }
+    )
+    expect(data).toBeUndefined()
   })
 })

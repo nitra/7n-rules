@@ -18,6 +18,7 @@ import { join } from 'node:path'
 import { createCheckReporter } from './check-reporter.mjs'
 import { resolveTargetFiles } from './resolve-target-files.mjs'
 import { runConftestBatch } from './run-conftest-batch.mjs'
+import { resolveConcernTemplateData } from './template.mjs'
 
 const APPLIES_CONCERN_NAME = 'applies'
 
@@ -80,10 +81,13 @@ async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache)
   // Rego не дозволяє '-' в імені пакета, тому kebab-id у `.n-cursor.json:rules`
   // мапиться на snake у namespace. Файлова структура `rules/<id>/policy/` лишається kebab.
   const regoNamespace = `${ruleId.replaceAll('-', '_')}.${concernName}`
+  const concernAbsDir = join(bundledRulesDir, ruleId, 'policy', concernName)
+  const templateData = await resolveConcernTemplateData(concernAbsDir, target)
   const violations = runConftestBatch({
     policyDirRel: `${ruleId}/${concernName}`,
     namespace: regoNamespace,
-    files
+    files,
+    templateData
   })
   if (violations.length === 0) {
     reporter.pass(`${concernName}: ${files.length} файл(ів) OK (rego)`)
