@@ -1,0 +1,1 @@
+{ "scripts": { "lint-security": "gitleaks detect --no-banner" } }

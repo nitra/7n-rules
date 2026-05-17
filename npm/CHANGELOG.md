@@ -10,6 +10,7 @@
 
 - **`runConftestBatch`: optional `templateData`** — у `npm/scripts/utils/run-conftest-batch.mjs` додано опціональне поле `templateData` в `ConftestBatchOptions`: якщо передано, дерево серіалізується у JSON `{ "template": <data> }` у тимчасовий файл і передається до conftest як `--data <tmpfile>` (cleanup у `finally`). Чисту збірку аргументів винесено в експортований `buildConftestArgs({ policyAbs, namespace, files, extraArgs, tmpDataFile })` — testable без spawn. Сумарно: rego-пакети можуть звертатися до `input.template.*` для template-aware валідації, поведінка без `templateData` — ідентична попередній.
 - `npm/scripts/utils/check-mdc-template-refs.mjs` — централізована перевірка, що кожен файл `template/` згаданий у `<id>.mdc`.
+- Template/ файли для security: `.gitleaks.toml` повний канон і `package.json` snippet/deny/contains у `npm/rules/security/`.
 
 ### Changed
 
