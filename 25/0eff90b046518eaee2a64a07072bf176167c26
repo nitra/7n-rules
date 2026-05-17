@@ -1,0 +1,27 @@
+npm/rules/image-avif/policy/package_json/package_json_test.rego
+  s_650e956376b4b4::t_f274eecb65eab8 2,6,8,11,16,21,26,31,36,41,46,51,56,61-70
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_3964495b63a83c 7-12
+npm/package.json
+  s_650e956376b4b4::t_fb318b9085ba62 3
+npm/rules/image-avif/policy/package_json/template/package.json.deny.json
+  s_650e956376b4b4::t_89e7dc29d43fea 1-5
+npm/rules/image-avif/policy/package_json/package_json.rego
+  s_650e956376b4b4::t_4c058fb9f7b3b9 3-5,7-8,14-23,25,28-29,32,35,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "250eff90b046518eaee2a64a07072bf176167c26",
+  "prompts": {},
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
