@@ -4,15 +4,6 @@ alwaysApply: true
 version: '2.0'
 ---
 
-Правило увімкнене **за замовчуванням** (як [[text]]) — `npx @nitra/cursor` сам додає `"adr"` у `rules` файлу `.n-cursor.json`. Щоб вимкнути для конкретного репо (не кожен проєкт хоче літати ADR-чернеткам у `docs/`), додай `"adr"` у `disable-rules`.
-
-Коли правило увімкнене (за замовчуванням), **`npx @nitra/cursor`** автоматично:
-
-- копіює канонічний bash-скрипт у **`.claude/hooks/capture-decisions.sh`** (executable, повністю керується пакетом — на кожен sync перезаписується);
-- копіює канонічний bash-скрипт у **`.claude/hooks/normalize-decisions.sh`** (батч-нормалізація чернеток через LLM);
-- додає у **`hooks.Stop`** в **`.claude/settings.json`** дві managed-групи: capture (`async: true`, `timeout: 180`) і normalize (`async: true`, `timeout: 600`);
-- ці зміни — додаткові до lint Stop-hook (`@nitra/cursor stop-hook`); усі три групи живуть поряд у `Stop`.
-
 ## MADR v4 і дві фази
 
 ADR живуть у єдиному каталозі **`docs/adr/`**. Clean ADR-и мають формат **MADR v4.0.0 minimal** з точними section headings англійською:
@@ -106,8 +97,6 @@ docs/adr/
 
 `.gitignore` повинен містити рядки, що покривають **`.claude/hooks/*.log`** і службові файли normalize (`.claude/hooks/.normalize-*`).
 
-> Якщо в репозиторії лишився старий каталог **`docs/adr/_inbox/`** з попередньої версії правила — `normalize-decisions.sh` бачить його рекурсивно й поступово розчистить. Можна також одразу `git mv docs/adr/_inbox/*.md docs/adr/` і прибрати порожній каталог.
-
 ## Stop-hook у `.claude/settings.json`
 
 Канонічний запис, який вставляє sync (поряд із lint stop-hook):
@@ -177,10 +166,4 @@ Cursor Agent читає project-level **`.cursor/hooks.json`**. `npx @nitra/curs
 }
 ```
 
-## Локальні vs project-shared налаштування
-
 Обидва Stop-hook'и ADR живуть у **project-shared** `.claude/settings.json` (закомічений), щоб механізм працював у всіх членів команди. Якщо хук колись був у `.claude/settings.local.json` — прибери дубль вручну: project-shared і local-копія створили б два запуски на одну подію.
-
-## Перевірка
-
-`npx @nitra/cursor check adr`

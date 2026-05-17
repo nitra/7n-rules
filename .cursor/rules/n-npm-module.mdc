@@ -69,9 +69,7 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 ## CHANGELOG
 
-Окреме правило **`changelog`** ([changelog.mdc](changelog.mdc)) вимагає `npm/CHANGELOG.md` із записом для поточної версії (Keep a Changelog) і присутність `"CHANGELOG.md"` у масиві `files` у `npm/package.json`. Логіка — PR-scoped (сума по гілці vs `dev`).
-
-Найновіша версія — **перша** секція **`## [version]`** у файлі (зверху після заголовка). Вона **має збігатися** з полем **`version`** у **`npm/package.json`** — це перевіряє **`npx @nitra/cursor check npm-module`**.
+Найновіша версія — **перша** секція **`## [version]`** у файлі (зверху після заголовка). Вона **має збігатися** з полем **`version`** у **`npm/package.json`**.
 
 ## npm publish
 
@@ -113,7 +111,3 @@ jobs:
         with:
           package: npm/package.json
 ```
-
-## Перевірка
-
-`npx @nitra/cursor check npm-module` — зокрема узгодженість першої секції **`npm/CHANGELOG.md`** з **`version`** у **`npm/package.json`** і нагадування про bump при незакомічених змінах під **`npm/`** (через `git`).

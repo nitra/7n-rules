@@ -12,25 +12,6 @@ alwaysApply: false
 - **Запуск stylelint:** лише **`npx stylelint`**. Локально — через скрипт **`lint-style`** (`bun run lint-style`); у **GitHub Actions** у кроці **`run`** викликай `npx stylelint '**/*.{css,scss,vue}' --fix` напряму (не через **`bun run lint-style`**). Не використовуй **`bunx stylelint`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний `bun run lint` (навичка **`/n-lint`**).
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
 
-**VSCode:** у **`.vscode/extensions.json`** рекомендуй **`stylelint.vscode-stylelint`**. У **`.vscode/settings.json`** вимкни вбудовану валідацію CSS/SCSS/Less і увімкни явні code actions:
-
-```json title=".vscode/extensions.json"
-{
-  "recommendations": ["stylelint.vscode-stylelint"]
-}
-```
-
-```json title=".vscode/settings.json"
-{
-  "css.validate": false,
-  "less.validate": false,
-  "scss.validate": false,
-  "editor.codeActionsOnSave": {
-    "source.fixAll": "explicit"
-  }
-}
-```
-
 **`package.json`:**
 
 ```json title="package.json"
@@ -94,7 +75,3 @@ jobs:
 ```text title=".stylelintignore"
 dist/
 ```
-
-## Перевірка
-
-`npx @nitra/cursor check style-lint`

@@ -26,20 +26,7 @@ version: '1.8'
 - `bunx <tool>`
 - `npx <tool>`
 
-- Для встановлення залежностей використовуй `bun i`.
-- Для запуску скриптів використовуй `bun run <script>`.
-- Для додавання залежностей:
-  - `bun add <pkg>`
-  - `bun add -d <pkg>` для devDependencies
-- Для одноразових CLI-команд використовуй `bunx <tool>`.
-
 **Не додавай** у `dependencies` / `devDependencies` пакети, які **використовуються лише як CLI** і їх достатньо викликати через **`bunx <pkg>`** (або **`npx`**, якщо в проєкті так прийнято): наприклад **oxlint**, **jscpd**, **eslint** у корені тощо. Виняток — пакет потрібен як **бібліотека** (імпорт у коді), peer для іншого пакета, або інструмент **не** покривається `bunx` у вашому CI.
-
-Заборонено використовувати:
-
-- `npm`
-- `yarn`
-- `pnpm`
 
 Lockfile у репозиторії: `bun.lock`.
 Не створювати `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`.
@@ -62,7 +49,6 @@ linker = "hoisted"
 
 Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn
 
-Якщо в проекті використовується npx, то не замінювати його на bunx, а використовувати npx.
 Коли зміна відбувається в Dockerfile, то використовувати
 
 ```dockerfile
@@ -80,10 +66,6 @@ FROM oven/bun:alpine AS build-env
 ```
 
 Якщо в репозиторії action збережено під **`./npm/github-actions/setup-bun-deps`**, у `uses:` вкажи цей шлях замість `.github/actions/…` (**ga.mdc**).
-
-## Перевірка
-
-`npx @nitra/cursor check bun`
 
 ## lint
 

@@ -5,11 +5,9 @@ globs: "**/*.{png,jpg,jpeg,gif,svg}"
 alwaysApply: false
 ---
 
-CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **3.3.1**) запускається через `npx` (як `markdownlint-cli2` у text.mdc) і **не** додається в `dependencies` / `devDependencies`. Канонічний `lint-image` — авто-оптимізація з прапорцем `--write`: стискає raster/SVG на місці. **AVIF-генерація (`--avif`) у `lint-image` заборонена** — її виконує окреме правило `image-avif` (`npx @nitra/cursor check image-avif`), яке заодно прибирає AVIF-сироти. Split-cache робить повторні прогони дешевими — і локально, і після `git clone`.
+CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (≥ **3.3.1**) запускається через `npx` і **не** додається в `dependencies` / `devDependencies`. Канонічний `lint-image` — авто-оптимізація з прапорцем `--write`: стискає raster/SVG на місці. **AVIF-генерація (`--avif`) у `lint-image` заборонена** — її виконує окреме правило `image-avif`.
 
-Мінімум `3.3.1` важливий для правила `image-avif`: починаючи з цієї версії, CLI порівнює sha1 raster-сорсу зі збереженим у `.n-minify-image.tsv` і **перегенеровує `<source>.avif`** при будь-якій зміні контенту оригіналу (раніше stale `.avif` лишався, поки розробник не видаляв його вручну).
-
-Перевірка лише локальна — у CI `lint-image` не запускаємо (sharp/svgo тягнуть бінарні залежності, цінність на ubuntu-runner-ах нижча за час прогону). Окремий workflow `lint-image.yml` створювати не треба.
+Перевірка лише локальна — у CI `lint-image` не запускаємо. Окремий workflow `lint-image.yml` створювати не треба.
 
 ## `package.json`
 
@@ -24,36 +22,12 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
 
 Якщо в `package.json` уже є агрегований `lint`, додай у його ланцюжок `bun run lint-image` (як `bun run lint-text`, `bun run lint-js`, `bun run lint-ga`). Так розробник, що локально гонить `bun run lint`, перед фіксацією одразу бачить, чи зросли зображення.
 
-## Split-cache
+## Кеш
 
-Починаючи з `@nitra/minify-image` **3.2.0** кеш розбитий на два файли з різною семантикою:
-
-### `.n-minify-image.tsv` — source of truth у git
-
-У корені сканованого каталогу. Формат: `<rel-path>\t<sha1-hex>\t<originalSize>\t<size>`.
-
-Slow-path і джерело даних для `Project lifetime savings`. **Має бути в git** — після `git clone` чи `git checkout` (mtime скидається на час checkout-у) CLI читає файл, рахує SHA-1 і порівнює зі збереженим у TSV хешем; на match локальний mtime-кеш зігрівається без reprocess. Рядки відсортовані алфавітно, hash і size змінюються лише при реальній зміні контенту — diff чистий.
-
-### `node_modules/.cache/@nitra/minify-image/mtime.tsv` — локальний fast-path
-
-Формат: `<rel-path>\t<mtime>\t<size>`. При збігу `(size, mtime)` CLI пропускає файл без читання — константа per-file.
-
-Лежить під `node_modules/`, тож **авто-gitignored** за конвенцією JS-tooling-у (так кешуються ESLint, Babel, webpack, Turbo). Окремий рядок у `.gitignore` не потрібен. `rm -rf node_modules` зносить — наступний запуск відновлює його через slow-path проти `.n-minify-image.tsv`, без reprocess.
-
-### Міграція з versions < 3.2
-
-Старий єдиний `.minify-image-cache.tsv` (4 колонки `path\tmtime\toriginalSize\tsize`, зазвичай у `.gitignore`) автоматично читається при першому запуску для seed-у `originalSize` у `.n-minify-image.tsv` (lifetime savings не скидається). Після цього старий файл видаляють вручну:
-
-```bash
-git rm --cached .minify-image-cache.tsv 2>/dev/null || true
-rm -f .minify-image-cache.tsv
-# прибери відповідний рядок з .gitignore, якщо був
-```
+- **`.n-minify-image.tsv`** у корені сканованого каталогу — **має бути в git** (source of truth для sha1-перевірок і lifetime savings). У `.gitignore` його не додавай.
+- **`node_modules/.cache/@nitra/minify-image/mtime.tsv`** — локальний fast-path; авто-gitignored через `node_modules/`.
+- Застарілий `.minify-image-cache.tsv` у корені — видали (`git rm --cached`, прибери рядок з `.gitignore`).
 
 ## Заборонені залежності
 
-`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` кореневого `package.json` — CLI запускається лише через `npx` (так само, як `markdownlint-cli2` у text.mdc). Якщо потрібен явний пін — закладай діапазон версій npm у самому виклику (`npx @nitra/minify-image@^3 --src=. --write`).
-
-## Перевірка
-
-`npx @nitra/cursor check image-compress` (охоплює `lint-image` з обовʼязковими `--src=.`, `--write` і **забороненим** `--avif`; агрегований `lint`; заборону `@nitra/minify-image` у залежностях; `.n-minify-image.tsv` НЕ в `.gitignore` — має бути в git; відсутність застарілого `.minify-image-cache.tsv` у корені).
+`@nitra/minify-image` не повинен зʼявлятися ні в `dependencies`, ні в `devDependencies` — CLI запускається лише через `npx`. Якщо потрібен явний пін — у самому виклику (`npx @nitra/minify-image@^3 --src=. --write`).

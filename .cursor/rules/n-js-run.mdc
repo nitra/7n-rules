@@ -210,12 +210,4 @@ await setTimeout(500)
 
 Імпорт `setTimeout` з `node:timers/promises` затіняє глобальний таймер у файлі — якщо в тому ж файлі потрібен callback-варіант, імпортуй його під іншим іменем (наприклад, `import { setTimeout as setTimeoutCb } from 'node:timers'`).
 
-## Перевірка
-
-`npx @nitra/cursor check js-run` — зокрема для кожного backend workspace-пакета з каталогом **`src/`** перевіряє наявність **`jsconfig.json`** і збіг вмісту з каноном вище. Додатково для файлів у каталозі `#conn/` (за замовчуванням `src/conn/`) перевіряється:
-
-- **basename файла** відповідає канону: `ql-<id>` (GraphQL) / `(pg|mysql|mssql)-(read|write)[-<id>]` (БД), kebab-case `[a-z0-9-]`;
-- **відсутній `export default`** — лише іменований експорт;
-- **імʼя експорту** дорівнює camelCase від basename (`pg-write-contract.js` → `export const pgWriteContract`).
-
 Файли `index.*` у conn-каталозі пропускаються як можливий reexport-барель.

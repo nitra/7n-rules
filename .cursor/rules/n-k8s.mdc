@@ -27,12 +27,9 @@ alwaysApply: false
 
 ## lint-k8s: kubeconform і kubescape
 
-Окремо від modeline `$schema` у редакторі варто ганяти CLI-лінтери по тих самих дерев’ях **`…/k8s`**.
+Окремо від modeline `$schema` у редакторі варто ганяти CLI-лінтери (**kubeconform** і **kubescape**) по тих самих дерев’ях **`…/k8s`**.
 
-- **[kubeconform](https://github.com/yannh/kubeconform#readme)** — швидка валідація маніфестів проти OpenAPI-схем Kubernetes (аналог kubeval, з підтримкою власних реєстрів схем і CRD). Не покриває серверні перевірки кластера; для gap див. README проєкту ([`kubectl --dry-run=server`](https://github.com/yannh/kubeconform#readme) тощо).
-- **[kubescape](https://github.com/kubescape/kubescape#readme)** — сканування misconfiguration / compliance (NSA-CISA, MITRE ATT&CK, CIS тощо) по файлах, Helm, Kustomize або кластеру.
-
-**Залежності:** виконувані файли kubeconform і kubescape у **PATH**; не додавай їх у **devDependencies** npm (аналогія до `v8r` у `n-text.mdc`). Локально: наприклад `brew install kubeconform kubescape` або релізи з GitHub.
+**Залежності:** виконувані файли kubeconform і kubescape у **PATH**; не додавай їх у **devDependencies**.
 
 **Версія Kubernetes для kubeconform** має відповідати PIN yannh у цьому правилі та в **`check-k8s.mjs`** (зараз **`-kubernetes-version 1.33.9`** — semver без префікса `v`, еквівалент релізу **v1.33.9**; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключай реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**, як у [прикладах kubeconform](https://github.com/yannh/kubeconform#readme). За потреби **`-ignore-missing-schemas`**, якщо частина CRD ще без публічної схеми.
 
@@ -645,18 +642,6 @@ patch: |-
     value: 2
 ```
 
-## Перевірка
-
-**`npx @nitra/cursor check k8s`** — програмні критерії в **JSDoc на початку** **`npm/scripts/check-k8s.mjs`**. Якщо під **`k8s`** немає **`*.yaml`** — крок пропущено. Канон **`$schema`** для редактора — розділ **«Визначення схеми YAML`** нижче.
-
-**Не входить у check k8s:** **kubeconform** / **kubescape** — це **`bun run lint-k8s`**.
-
-## Коли застосовувати (агентам)
-
-- Після змін у k8s YAML: **`npx @nitra/cursor check k8s`** і за наявності правила — **`bun run lint-k8s`**.
-- Оновив **`apiVersion` / `kind`** — підправ **перший** рядок **`$schema`** (див. **Визначення схеми YAML**).
-- Дотримуйся **Kustomize** з цього правила; деталі **namespace** / графа ресурсів — **check k8s** + підказки в JSDoc скрипта.
-
 ## Визначення схеми YAML (канон)
 
 Орієнтир — **перший документ** (до наступного `---`).
@@ -702,7 +687,3 @@ patch: |-
 ## Багатодокументні YAML
 
 Одна схема на файл; скрипт звіряє **перший** документ. Інші `kind` у тому ж файлі — розділи файли або узгодь у рев’ю.
-
-## Редактор
-
-Для `$schema` у VS Code / Cursor: **Red Hat YAML** (`redhat.vscode-yaml`) — за потреби в **`.vscode/extensions.json`**.

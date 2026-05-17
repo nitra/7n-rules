@@ -251,7 +251,3 @@ function getUser(id) {
 Якщо в коді з'явився `import { sql } from 'bun'`, то `pg`, `pg-format` та `mysql2` мають бути прибрані і з `dependencies`, і з імпортів — щоб не лишалось двох паралельних шляхів до БД та ручного форматування поряд із параметризованими template literal.
 
 Те саме стосується **локальних шимів**: будь-який модуль, що експортує `format`, `pgRead`, `pgWrite`, `query(text, params)`, `quoteLiteral`, `quoteIdent` як обгортку над `sql.unsafe(...)`, потрібно переписати — всі call-site на tagged template, сам шим видалити (див. `## pg-format: повне видалення, без шимів`).
-
-## Перевірка
-
-`npx @nitra/cursor check js-bun-db`.
