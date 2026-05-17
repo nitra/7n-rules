@@ -56,10 +56,10 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | k8s | policy | manifest | `**/k8s/**/*.yaml` (multi-kind: Ingress deny, Deployment containers walk, hasura image whitelist) | non-eligible | (none — multi-kind walking) |
 | k8s | policy | svc_hl_yaml | `**/k8s/**/svc-hl.yaml` (`metadata.name` має -hl суфікс + clusterIP=None) | non-eligible | (none — suffix predicate на metadata.name) |
 | k8s | policy | svc_yaml | `**/k8s/**/svc.yaml` (kind=Service + spec.type=ClusterIP) | non-eligible | (none — kind-gating потрібен у rego) |
-| npm-module | policy | emit_types_config | `npm/tsconfig.emit-types.json` | fragment | `tsconfig.emit-types.json.snippet.json` |
-| npm-module | policy | npm_package_json | `npm/package.json` (types regex pattern + files масив contains `"types"` + devDependencies має бути empty) | partial | `package.json.contains.json` (files contains `types`); regex types + empty-devDeps лишаються у rego |
-| npm-module | policy | npm_publish_yml | `.github/workflows/npm-publish.yml` | full-canon | `npm-publish.yml.snippet.yml` |
-| npm-module | policy | root_package_json | `package.json` (`workspaces` містить `"npm"`) | fragment | `package.json.contains.json` (`workspaces: ["npm"]`) |
+| npm-module | policy | emit_types_config | `npm/tsconfig.emit-types.json` | fragment | `tsconfig.emit-types.json.snippet.json` ✓ |
+| npm-module | policy | npm_package_json | `npm/package.json` (types regex pattern + files масив contains `"types"` + devDependencies має бути empty) | partial | `package.json.snippet.json` ✓ (files subset-of); regex types + empty-devDeps лишаються у rego |
+| npm-module | policy | npm_publish_yml | `.github/workflows/npm-publish.yml` | full-canon | `npm-publish.yml.snippet.yml` ✓ |
+| npm-module | policy | root_package_json | `package.json` (`workspaces` містить `"npm"`) | fragment | `package.json.snippet.json` ✓ (`workspaces: ["npm"]`) |
 | php | policy | lint_php_yml | `.github/workflows/lint-php.yml` (run contains `bun run lint-php`) | full-canon | `lint-php.yml.snippet.yml` |
 | php | policy | package_json | `package.json` (`scripts.lint-php` присутній) | fragment | `package.json.snippet.json` |
 | rego | policy | package_json | `package.json` (`scripts.lint-rego` точне значення `n-cursor lint-rego`) | fragment | `package.json.snippet.json` ✓ |
@@ -125,7 +125,7 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | **partial** | 7 | `bun.package_json`, `style-lint/fix/tooling` (.stylelintignore), `npm-module.npm_package_json`, `text.oxfmtrc`, `text.package_json`, `image-avif.package_json`, `js-lint.package_json` |
 | **non-eligible** | 46 | усі fix-only концерни з AST/FS-walk; всі k8s policy концерни (kind-dispatch / multi-kind YAML); version-range checks; параметризовані HTTPRoute з `<prefix>` |
 
-**Сумарне покриття template-каталогами**: 39 з 85 концернів (fragment + full-canon + partial = 46% — тобто ~54% залишається inline у Rego/JS). Мігровано: 15 з 39 (security × 2 + ga × 8 + rego × 3 + bun × 2 = 38%).
+**Сумарне покриття template-каталогами**: 39 з 85 концернів (fragment + full-canon + partial = 46% — тобто ~54% залишається inline у Rego/JS). Мігровано: 19 з 39 (security × 2 + ga × 8 + rego × 3 + bun × 2 + npm-module × 4 = 49%).
 
 **Позначка `✓`** у колонці template-files-planned означає, що міграцію вже виконано (template/ файли створені, rego читає з `data.template.*`, mdc посилається маркдаун-лінками).
 
@@ -136,4 +136,5 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 - Phase 3: `rego` — усі 3 fragment-концерни (1.13.11): `package_json` (snippet + trim_space tolerance), `vscode_extensions` (snippet-array), `vscode_settings` (snippet-object 2-level з guard на non-object block).
 - Phase 3.5: `ga` workflow concerns (1.13.12) — добір прогалини Phase 2: 4 full-canon workflows (`clean_ga_workflows`, `clean_merged_branch`, `lint_ga`, `git_ai`). `workflow_common` (partial — cross-workflow forbidden patterns) лишається TODO.
 - Phase 4: `bun` (1.13.14) — `bunfig` (snippet-walker 2-level як ga.vscode_settings) + `package_json` (partial — top-level deny-fields у template; devDeps@nitra-only та lint-aggregator як inverse-patterns, що не виносяться у template у rego).
+- Phase 5: `npm-module` (1.13.15) — усі 4 концерни: `emit_types_config` (2-level walker), `root_package_json` (snippet-array), `npm_package_json` (partial — files-whitelist у template), `npm_publish_yml` (full-canon workflow).
 - TODO: інвентаризація потребує доповнення для policy-концернів, доданих у 1.13.8 (`js-lint.jscpd`, `js-lint.vscode_extensions`, `security.policy.gitleaks` як дублікат до fix/gitleaks). Будуть додані разом із їх template-міграцією.

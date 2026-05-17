@@ -1,37 +1,28 @@
-# Порт перевірок `npm/tsconfig.emit-types.json` з `npm/scripts/check-npm-module.mjs`
-# (npm-module.mdc).
+# Перевірка `npm/tsconfig.emit-types.json` (npm-module.mdc).
 #
-# Запуск (локально):
-#   conftest test npm/tsconfig.emit-types.json -p npm/policy/npm_module \
-#     --namespace npm_module.emit_types_config
-#
-# Перевіряє: `compilerOptions.{allowJs, declaration, emitDeclarationOnly, outDir,
-# skipLibCheck}` мають канонічні значення (true/true/true/"types"/true). FS-перевірки
-# (наявність самого `tsconfig.emit-types.json`, активність layout-варіанта) — у JS.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/tsconfig.emit-types.json.snippet.json.
+# Snippet — 2-рівнева мапа (section → key → expected). Walker такий самий,
+# як для ga.vscode_settings / bun.bunfig.
 package npm_module.emit_types_config
 
 import rego.v1
 
-required_compiler_options := {
-	"allowJs": true,
-	"declaration": true,
-	"emitDeclarationOnly": true,
-	"outDir": "types",
-	"skipLibCheck": true,
+# Leaf-by-leaf: коли section присутня й обʼєкт.
+deny contains msg if {
+	some section, expected_inner in data.template.snippet
+	inner := object.get(input, section, {})
+	is_object(inner)
+	some leaf_key, expected_value in expected_inner
+	actual := object.get(inner, leaf_key, null)
+	actual != expected_value
+	msg := sprintf("npm/tsconfig.emit-types.json: %s.%s має бути %v (npm-module.mdc)", [section, leaf_key, expected_value])
 }
 
+# Section відсутня (null) або не обʼєкт.
 deny contains msg if {
-	not is_object(object.get(input, "compilerOptions", null))
-	msg := "npm/tsconfig.emit-types.json: відсутній compilerOptions (npm-module.mdc)"
-}
-
-deny contains msg if {
-	is_object(input.compilerOptions)
-	some key, expected in required_compiler_options
-	object.get(input.compilerOptions, key, null) != expected
-	msg := sprintf("npm/tsconfig.emit-types.json: compilerOptions.%s має бути %v (npm-module.mdc)", [key, expected])
+	some section in object.keys(data.template.snippet)
+	raw := object.get(input, section, null)
+	not is_object(raw)
+	msg := sprintf("npm/tsconfig.emit-types.json: відсутній %s (npm-module.mdc)", [section])
 }

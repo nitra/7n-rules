@@ -75,39 +75,10 @@ bunx -p typescript tsc src/**/*.js --declaration --allowJs --emitDeclarationOnly
 
 **`npm-publish.yml`:** push у **`main`**, **`on.push.paths`** з **`npm/**`**, **`JS-DevTools/npm-publish@v4.1.5`**, **`with.package: npm/package.json`**, **`permissions.id-token: write`** (OIDC на npm).
 
-```yaml title=".github/workflows/npm-publish.yml"
-name: npm-publish
+- Канон: [npm-publish.yml.snippet.yml](./policy/npm_publish_yml/template/npm-publish.yml.snippet.yml)
 
-on:
-  push:
-    paths:
-      - 'npm/**'
-    branches:
-      - main
+## Канонічні конфіги
 
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write # КРИТИЧНО для OIDC!
-
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24' # includes npm@11.6.0
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Publish package
-        uses: JS-DevTools/npm-publish@v4.1.5
-        with:
-          package: npm/package.json
-```
+- Кореневий `package.json` (workspaces): [package.json.snippet.json](./policy/root_package_json/template/package.json.snippet.json)
+- `npm/package.json` (whitelist `files` обовʼязково має містити `types`): [package.json.snippet.json](./policy/npm_package_json/template/package.json.snippet.json)
+- `npm/tsconfig.emit-types.json` (canonical `compilerOptions` для emit-types): [tsconfig.emit-types.json.snippet.json](./policy/emit_types_config/template/tsconfig.emit-types.json.snippet.json)

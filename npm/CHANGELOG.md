@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.15] - 2026-05-17
+
+### Added
+
+- `npm-module` rule template/ міграція (Phase 5): усі 4 policy концерни — `emit_types_config` (fragment, 2-level walker), `root_package_json` (fragment, snippet-array `workspaces`), `npm_package_json` (partial — `files` whitelist у template, regex `types` + `devDependencies`-must-be-empty лишаються у rego), `npm_publish_yml` (full-canon workflow з per-concern field-by-field rego).
+- 3 нові `*_test.rego` (раніше тестів не було для `emit_types_config`, `root_package_json`, `npm_publish_yml`) — кожен покриває canonical + 4-6 негативних + drift.
+
+### Changed
+
+- `emit_types_config.rego` — generic 2-level snippet walker (як `bun.bunfig` / `ga.vscode_settings`).
+- `root_package_json.rego` — generic snippet-array subset-of walker (під `workspaces` і потенційні наступні масиви).
+- `npm_package_json.rego` — `files` whitelist тепер subset-of через `data.template.snippet`; `types` regex + `devDependencies`-must-be-empty лишаються у rego як inverse-patterns.
+- `npm_publish_yml.rego` — повний канон workflow у `template/npm-publish.yml.snippet.yml` (як ga workflow concerns), expected paths/branches/permissions/uses-marker читаються з `data.template.snippet.<path>`.
+- `npm-module.mdc` — inline `npm-publish.yml` блок (35 рядків) замінено на template-link; додано окрему секцію «Канонічні конфіги» з лінками на `root_package_json`, `npm_package_json`, `emit_types_config` template-файли.
+- `docs/adr/template-dir-concern-inventory.md` — усі 4 `npm-module.*` концерни позначено ✓; додано Phase 5 у прогрес; tally: 19/39 (49%).
+
 ## [1.13.14] - 2026-05-17
 
 ### Added

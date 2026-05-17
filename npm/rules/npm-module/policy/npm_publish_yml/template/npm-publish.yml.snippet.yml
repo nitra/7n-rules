@@ -1,0 +1,34 @@
+name: npm-publish
+
+on:
+  push:
+    paths:
+      - 'npm/**'
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # КРИТИЧНО для OIDC!
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24' # includes npm@11.6.0
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish package
+        uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: npm/package.json

@@ -1,44 +1,29 @@
-# Порт перевірок `npm/package.json` з `npm/scripts/check-npm-module.mjs`
-# (npm-module.mdc).
+# Порт перевірок `npm/package.json` (npm-module.mdc).
 #
-# Запуск (локально):
-#   conftest test npm/package.json -p npm/policy/npm_module \
-#     --namespace npm_module.npm_package_json
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/package.json.snippet.json
+# (snippet-array subset-of для whitelist `files`).
 #
-# Перевіряє:
-#  - поле `types` має один із двох канонічних патернів: `./types/index.d.ts`
-#    (layout `npm/src` з `.js`) або `./types/<…>.d.ts`/`.d.mts` (emit-types);
-#  - масив `files` присутній, непорожній і містить `"types"` (whitelist
-#    обовʼязковий — без нього npm пакує майже все);
-#  - `devDependencies` відсутні або порожні: dev-інструментарій тримаємо у
-#    кореневому `package.json` монорепо, щоб `npm install @nitra/<pkg>` його
-#    не тягнув (npm-module.mdc: компактний пакет).
+# Логіка, що ЛИШАЄТЬСЯ у rego (inverse-patterns, не виносяться у template):
+#  - форма поля `types` (regex pattern: `./types/index.d.ts` або `./types/<…>.d.ts|.d.mts`);
+#  - `devDependencies` мають бути відсутні або порожні (inverse-pattern — заборона будь-яких).
 #
-# Те, який саме типовий layout активний (наявність `.js` під `npm/src`),
-# існування файлу зі шляху `types` і скан тест-патернів у tarball — у
-# JS-перевірці (`check-npm-module.mjs`: cross-file / FS-access / AST).
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# FS-перевірки (наявність файлу зі шляху `types`, скан tarball на тест-патерни) — у JS.
 package npm_module.npm_package_json
 
 import rego.v1
 
-# Шаблон повідомлення про неканонічне поле `types` — через `concat` для
-# regal style/line-length.
 types_field_template := concat(" ", [
 	"npm/package.json: поле \"types\" має бути \"./types/index.d.ts\"",
 	"або \"./types/<…>.d.ts|.d.mts\" (зараз: %v) (npm-module.mdc)",
 ])
 
-# Шаблон повідомлення про присутність `devDependencies`.
 dev_deps_template := concat(" ", [
 	"npm/package.json: \"devDependencies\" не публікуються користувачам пакета —",
 	"перенеси у кореневий package.json: %v (npm-module.mdc: компактний пакет)",
 ])
 
-# ── deny: types ────────────────────────────────────────────────────────────
+# ── deny: types (regex — лишається в rego) ───────────────────────────────
 
 deny contains msg if {
 	types_field := object.get(input, "types", "")
@@ -46,7 +31,7 @@ deny contains msg if {
 	msg := sprintf(types_field_template, [types_field])
 }
 
-# ── deny: files має існувати, бути непорожнім, містити "types" ────────────
+# ── deny: files має існувати та бути масивом ─────────────────────────────
 
 deny contains msg if {
 	not is_array(object.get(input, "files", null))
@@ -59,14 +44,19 @@ deny contains msg if {
 	msg := "npm/package.json: масив \"files\" не повинен бути порожнім (npm-module.mdc: компактний пакет)"
 }
 
+# ── deny: files subset-of з template (template-driven) ──────────────────
+
 deny contains msg if {
-	is_array(input.files)
-	count(input.files) > 0
-	not "types" in {f | some f in input.files}
-	msg := "npm/package.json: масив \"files\" має містити \"types\" (npm-module.mdc)"
+	some field, expected_values in data.template.snippet
+	is_array(object.get(input, field, null))
+	count(input[field]) > 0
+	actual_set := {v | some v in input[field]}
+	some required in expected_values
+	not required in actual_set
+	msg := sprintf("npm/package.json: масив \"%s\" має містити %q (npm-module.mdc)", [field, required])
 }
 
-# ── deny: жодних devDependencies у npm/package.json ───────────────────────
+# ── deny: devDependencies (inverse-pattern, лишається в rego) ────────────
 
 deny contains msg if {
 	dev := object.get(input, "devDependencies", {})
