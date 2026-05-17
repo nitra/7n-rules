@@ -29,9 +29,14 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | capacitor | policy | package_json | `package.json` (`@capacitor/core` version-range ≥ 8) | non-eligible | (none — semver range parsing) |
 | docker | policy | lint_docker_yml | `.github/workflows/lint-docker.yml` | full-canon | `lint-docker.yml.snippet.yml` |
 | docker | policy | package_json | `package.json` (`scripts.lint-docker` точне значення) | fragment | `package.json.snippet.json` |
+| ga | policy | clean_ga_workflows | `.github/workflows/clean-ga-workflows.yml` (повний канон workflow) | full-canon | `clean-ga-workflows.yml.snippet.yml` ✓ |
+| ga | policy | clean_merged_branch | `.github/workflows/clean-merged-branch.yml` (повний канон) | full-canon | `clean-merged-branch.yml.snippet.yml` ✓ |
+| ga | policy | git_ai | `.github/workflows/git-ai.yml` (повний канон + substring-перевірки `run:`) | full-canon | `git-ai.yml.snippet.yml` ✓ |
+| ga | policy | lint_ga | `.github/workflows/lint-ga.yml` (повний канон + substring `bun run lint-ga`) | full-canon | `lint-ga.yml.snippet.yml` ✓ |
 | ga | policy | package_json | `package.json` (`scripts.lint-ga` має містити `n-cursor lint-ga`) | fragment | `package.json.contains.json` ✓ |
 | ga | policy | vscode_extensions | `.vscode/extensions.json` (recommendations містить `github.vscode-github-actions`) | fragment | `extensions.json.snippet.json` ✓ |
 | ga | policy | vscode_settings | `.vscode/settings.json` (`[github-actions-workflow].editor.defaultFormatter = "oxc.oxc-vscode"`) | fragment | `settings.json.snippet.json` ✓ |
+| ga | policy | workflow_common | `.github/workflows/*.yml` (cross-workflow: concurrency canon + forbidden setup-bun/cache/depcheck patterns + shell-continuation deny) | partial | (TODO — concurrency.group у snippet, forbidden patterns у deny-map) |
 | ga | policy | zizmor_yml | `.github/zizmor.yml` (`rules.unpinned-uses.config.policies."*" = "ref-pin"`) | fragment | `zizmor.yml.snippet.yml` ✓ |
 | hasura | policy | svc_hl | `hasura/k8s/base/svc-hl.yaml` (`metadata.name` має закінчуватись на `-h`) | non-eligible | (none — suffix predicate, не leaf-equality) |
 | image-avif | policy | package_json | `**/package.json` (`@nitra/minify-image.disable-avif` boolean) | partial | `package.json.deny.json` (typo `disabled-avif`); type-check значення лишається у rego |
@@ -129,4 +134,5 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 - Phase 1: `security` — pilot (`security.fix.gitleaks` full-canon + `security.policy.package_json` fragment). Покриває обидва шаблони інфраструктури.
 - Phase 2: `ga` — усі 4 fragment-концерни (1.13.9).
 - Phase 3: `rego` — усі 3 fragment-концерни (1.13.11): `package_json` (snippet + trim_space tolerance), `vscode_extensions` (snippet-array), `vscode_settings` (snippet-object 2-level з guard на non-object block).
+- Phase 3.5: `ga` workflow concerns (1.13.12) — добір прогалини Phase 2: 4 full-canon workflows (`clean_ga_workflows`, `clean_merged_branch`, `lint_ga`, `git_ai`). `workflow_common` (partial — cross-workflow forbidden patterns) лишається TODO.
 - TODO: інвентаризація потребує доповнення для policy-концернів, доданих у 1.13.8 (`js-lint.jscpd`, `js-lint.vscode_extensions`, `security.policy.gitleaks` як дублікат до fix/gitleaks). Будуть додані разом із їх template-міграцією.

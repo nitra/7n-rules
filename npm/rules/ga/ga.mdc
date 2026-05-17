@@ -17,152 +17,23 @@ concurrency:
 
 Без винятків — у scheduled cleanup-воркфлоу, у `pull_request: types: [closed]`, у publish-воркфлоу теж. Це уникає паралельних запусків того самого workflow на тій самій ref і скасовує попередні в чергу нових.
 
-Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
+Повинен бути файл `.github/workflows/clean-ga-workflows.yml`:
 
-```yaml
-name: Clean action for removing completed workflow runs
+- Канон: [clean-ga-workflows.yml.snippet.yml](./policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml)
 
-on:
-  schedule:
-    - cron: '0 1 16 * *'
+Повинен бути файл `.github/workflows/clean-merged-branch.yml`:
 
-  # Allow workflow to be manually run from the GitHub UI
-  workflow_dispatch: {}
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  cleanup_old_workflows:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
-    steps:
-      - name: Delete workflow runs
-        uses: dmvict/clean-workflow-runs@v1
-        with:
-          token: ${{ github.token }}
-          save_period: 31
-          save_min_runs_number: 0
-
-```
-
-Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
-
-```yaml
-name: Clean abandoned branches
-
-on:
-  # Run daily at midnight
-  schedule:
-    - cron: '0 1 15 * *'
-
-  # Allow workflow to be manually run from the GitHub UI
-  workflow_dispatch: {}
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  cleanup_old_branches:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - id: delete_stuff
-        name: Delete those pesky dead branches
-        uses: phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3
-        with:
-          github_token: ${{ github.token }}
-          last_commit_age_days: 90
-          ignore_branches: main,dev
-          dry_run: no
-
-      - name: Get output
-        env:
-          DELETED_BRANCHES: ${{ steps.delete_stuff.outputs.deleted_branches }}
-        run: |
-          echo "Deleted branches: ${DELETED_BRANCHES}"
-```
+- Канон: [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml)
 
 Інші гілки в `ignore_branches` — допустимо.
-Повинен бути файл .github/workflows/lint-ga.yml, зі змістом:
 
-```yaml
-name: Lint GA
+Повинен бути файл `.github/workflows/lint-ga.yml`:
 
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '.github/actions/**'
-      - '.github/workflows/**'
-  pull_request:
-    branches:
-      - dev
-      - main
+- Канон: [lint-ga.yml.snippet.yml](./policy/lint_ga/template/lint-ga.yml.snippet.yml)
 
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
+Повинен бути файл `.github/workflows/git-ai.yml`:
 
-jobs:
-  lint-ga:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - uses: astral-sh/setup-uv@v8.0.0
-
-      - name: Lint GA
-        run: bun run lint-ga
-```
-
-Повинен бути файл .github/workflows/git-ai.yml, зі змістом:
-
-```yaml
-name: Git AI
-
-on:
-  pull_request:
-    types: [closed]
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  git-ai:
-    if: github.event.pull_request.merged == true
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Install git-ai
-        run: |
-          curl -fsSL https://usegitai.com/install.sh | bash
-          echo "$HOME/.git-ai/bin" >> $GITHUB_PATH
-      - name: Run git-ai
-        id: run-git-ai
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git-ai ci github run
-```
+- Канон: [git-ai.yml.snippet.yml](./policy/git_ai/template/git-ai.yml.snippet.yml)
 
 **Локальний composite** (`uses: ./.github/actions/setup-bun-deps` або `./npm/github-actions/setup-bun-deps`): **спочатку** обов’язковий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun**, **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
 

@@ -1,42 +1,33 @@
-# Порт перевірки `validateCleanGaWorkflows` з `npm/scripts/check-ga.mjs` (ga.mdc).
+# Перевірка `.github/workflows/clean-ga-workflows.yml` (ga.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/clean-ga-workflows.yml \
-#     -p npm/policy/ga --namespace ga.clean_ga_workflows
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
-#
-# Усі `deny`-правила йдуть контигно (regal: messy-rule); helpers і константи —
-# секціями вище та нижче.
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/clean-ga-workflows.yml.snippet.yml
+# (повний YAML канон). Path-and-value перевірки — у цьому rego (per-concern
+# field-by-field з .data.template.snippet.<path>); жодних inline literals.
 package ga.clean_ga_workflows
 
 import rego.v1
 
-# ── Очікувані значення ─────────────────────────────────────────────────────
-#
-# `${{ … }}` — шаблонний синтаксис GitHub Actions; `{{` у Rego починає string
-# interpolation. Збираємо очікувані рядки з фрагментів через `concat`, як це
-# зроблено в check-ga.mjs, щоб і Rego-парсер, і людина-читач не плуталися.
-
-expected_github_token := concat("", ["$", "{{ github.token }}"])
-
-expected_name := "Clean action for removing completed workflow runs"
-
-expected_cron := "0 1 16 * *"
-
 # ── Аліаси на input ────────────────────────────────────────────────────────
-#
-# GHA YAML quirk: ключ `on:` — YAML 1.1 boolean `true`, конфтест серіалізує його
-# як рядковий ключ "true". Ані `input.on`, ані `input["on"]`, ані `input[true]`
-# не працюють — лише `input["true"]`.
+# GHA YAML quirk: ключ `on:` — YAML 1.1 boolean `true`, у conftest серіалізується
+# як рядковий ключ "true". Template (через --data JSON) має ключ "on".
 
 gha_on := input["true"]
 
 step0 := input.jobs.cleanup_old_workflows.steps[0]
 
-# ── deny rules (контигно — regal: messy-rule) ──────────────────────────────
+# Експектації з template.
+expected_name := data.template.snippet.name
+
+expected_cron := data.template.snippet.on.schedule[0].cron
+
+expected_step0 := data.template.snippet.jobs.cleanup_old_workflows.steps[0]
+
+expected_perms := data.template.snippet.jobs.cleanup_old_workflows.permissions
+
+expected_runs_on := data.template.snippet.jobs.cleanup_old_workflows["runs-on"]
+
+# ── deny rules ─────────────────────────────────────────────────────────────
 
 deny contains msg if {
 	input.name != expected_name
@@ -49,7 +40,7 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not has_workflow_dispatch
+	not is_object(object.get(gha_on, "workflow_dispatch", null))
 	msg := "clean-ga-workflows.yml: має бути workflow_dispatch: {} (ga.mdc)"
 }
 
@@ -60,32 +51,34 @@ deny contains msg if {
 
 deny contains msg if {
 	job := input.jobs.cleanup_old_workflows
-	job["runs-on"] != "ubuntu-latest"
-	msg := "clean-ga-workflows.yml: runs-on має бути ubuntu-latest (ga.mdc)"
+	job["runs-on"] != expected_runs_on
+	msg := sprintf("clean-ga-workflows.yml: runs-on має бути %s (ga.mdc)", [expected_runs_on])
 }
 
 deny contains msg if {
 	perms := input.jobs.cleanup_old_workflows.permissions
-	not actions_write_contents_read(perms)
+	not perms_match(perms, expected_perms)
 	msg := "clean-ga-workflows.yml: permissions мають бути actions: write, contents: read (ga.mdc)"
 }
 
 deny contains msg if {
-	step0.name != "Delete workflow runs"
-	msg := "clean-ga-workflows.yml: перший крок має мати name: Delete workflow runs (ga.mdc)"
+	step0.name != expected_step0.name
+	msg := sprintf("clean-ga-workflows.yml: перший крок має мати name: %s (ga.mdc)", [expected_step0.name])
 }
 
 deny contains msg if {
-	step0.uses != "dmvict/clean-workflow-runs@v1"
-	msg := "clean-ga-workflows.yml: перший крок має uses: dmvict/clean-workflow-runs@v1 (ga.mdc)"
+	step0.uses != expected_step0.uses
+	msg := sprintf("clean-ga-workflows.yml: перший крок має uses: %s (ga.mdc)", [expected_step0.uses])
 }
 
-# Триплет полів `with`: token (gh-токен), save_period=31, save_min_runs_number=0.
-# В JS-перевірці помилка спільна для всіх трьох — лишаємо такий самий формат, щоб
-# повідомлення збігалися.
 deny contains msg if {
 	not step0_with_canonical
-	msg := "clean-ga-workflows.yml: with має містити token/save_period/save_min_runs_number як у ga.mdc"
+	msg := "clean-ga-workflows.yml: with має містити token/save_period/save_min_runs_number як у template (ga.mdc)"
+}
+
+deny contains msg if {
+	step0.with.save_period != expected_step0.with.save_period
+	msg := sprintf("clean-ga-workflows.yml: with.save_period має бути %d (ga.mdc)", [expected_step0.with.save_period])
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -94,17 +87,13 @@ has_expected_cron if {
 	gha_on.schedule[_].cron == expected_cron
 }
 
-has_workflow_dispatch if {
-	is_object(gha_on.workflow_dispatch)
-}
-
-actions_write_contents_read(perms) if {
-	perms.actions == "write"
-	perms.contents == "read"
+perms_match(actual, expected) if {
+	actual.actions == expected.actions
+	actual.contents == expected.contents
 }
 
 step0_with_canonical if {
-	step0.with.token == expected_github_token
-	step0.with.save_period == 31
-	step0.with.save_min_runs_number == 0
+	step0.with.token == expected_step0.with.token
+	step0.with.save_period == expected_step0.with.save_period
+	step0.with.save_min_runs_number == expected_step0.with.save_min_runs_number
 }

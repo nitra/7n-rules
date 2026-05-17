@@ -17,12 +17,17 @@
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../../scripts/utils/gha-workflow.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
+import { loadTemplate } from '../../../../scripts/utils/template.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const GA_POLICY_DIR = join(HERE, '..', '..', 'policy')
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]
@@ -278,13 +283,17 @@ const GA_PER_WORKFLOW_REGO_TARGETS = [
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void}
  */
-function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
+async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
   for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
     if (!existsSync(target.workflow)) continue
+    const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/')[1])
+    const tpl = await loadTemplate(concernDir)
+    const templateData = tpl[basename(target.workflow)]
     const violations = runConftestBatch({
       policyDirRel: target.policyDirRel,
       namespace: target.namespace,
-      files: [target.workflow]
+      files: [target.workflow],
+      templateData
     })
     for (const v of violations) fail(`${target.workflow}: ${v.message}`)
     if (violations.length === 0) {

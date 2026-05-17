@@ -17,7 +17,9 @@ concurrency:
 
 Без винятків — у scheduled cleanup-воркфлоу, у `pull_request: types: [closed]`, у publish-воркфлоу теж. Це уникає паралельних запусків того самого workflow на тій самій ref і скасовує попередні в чергу нових.
 
-Повинен бути файл .github/workflows/clean-ga-workflows.yml, зі змістом:
+Повинен бути файл `.github/workflows/clean-ga-workflows.yml`:
+
+- Канон: `clean-ga-workflows.yml`:
 
 ```yaml
 name: Clean action for removing completed workflow runs
@@ -46,10 +48,11 @@ jobs:
           token: ${{ github.token }}
           save_period: 31
           save_min_runs_number: 0
-
 ```
 
-Повинен бути файл .github/workflows/clean-merged-branch.yml, зі змістом:
+Повинен бути файл `.github/workflows/clean-merged-branch.yml`:
+
+- Канон: `clean-merged-branch.yml`:
 
 ```yaml
 name: Clean abandoned branches
@@ -79,7 +82,10 @@ jobs:
           github_token: ${{ github.token }}
           last_commit_age_days: 90
           ignore_branches: main,dev
-          dry_run: no
+          # `no` у workflow → Go-yaml парсить як bool false; тут пишемо явно false,
+          # бо template читає `yaml` (YAML 1.2), де `no` лишається рядком — а нам
+          # потрібна семантична відповідність runtime-парсингу conftest.
+          dry_run: false
 
       - name: Get output
         env:
@@ -89,7 +95,10 @@ jobs:
 ```
 
 Інші гілки в `ignore_branches` — допустимо.
-Повинен бути файл .github/workflows/lint-ga.yml, зі змістом:
+
+Повинен бути файл `.github/workflows/lint-ga.yml`:
+
+- Канон: `lint-ga.yml`:
 
 ```yaml
 name: Lint GA
@@ -129,7 +138,9 @@ jobs:
         run: bun run lint-ga
 ```
 
-Повинен бути файл .github/workflows/git-ai.yml, зі змістом:
+Повинен бути файл `.github/workflows/git-ai.yml`:
+
+- Канон: `git-ai.yml`:
 
 ```yaml
 name: Git AI

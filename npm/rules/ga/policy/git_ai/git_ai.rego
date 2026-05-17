@@ -1,42 +1,38 @@
-# Порт перевірки `validateGitAiWorkflowStructure` з `npm/scripts/check-ga.mjs` (ga.mdc).
+# Перевірка `.github/workflows/git-ai.yml` (ga.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/git-ai.yml \
-#     -p npm/policy/ga --namespace ga.git_ai
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/git-ai.yml.snippet.yml.
+# Substring-перевірки (`if:`, `run:` блоки) — на основі ключових фраз з template
+# steps, бо повний multi-line `run:` дуже крихкий для exact-match.
 package ga.git_ai
 
 import rego.v1
 
-# ── Очікувані значення ─────────────────────────────────────────────────────
-
-expected_name := "Git AI"
-
-expected_if_substring := "github.event.pull_request.merged == true"
-
-expected_install_substring := "curl -fsSL https://usegitai.com/install.sh | bash"
-
-expected_run_substring := "git-ai ci github run"
-
-# ── Аліаси на input ────────────────────────────────────────────────────────
-#
-# YAML 1.1 quirk: `on:` → boolean true → у конфтесті ключ "true".
+# ── Аліаси ─────────────────────────────────────────────────────────────────
 
 gha_on := input["true"]
 
-# Job-id містить дефіс — звертаємося через `[…]`. Імʼя `job` (без префіксу пакету)
-# — щоб уникнути regal-правила `rule-name-repeats-package`.
 job := input.jobs["git-ai"]
 
-# Усі `run:` зі steps цього job-а, склеєні в один blob — для substring-перевірки.
 job_run_blob := concat("\n", [run |
 	run := job.steps[_].run
 ])
 
-# ── deny rules (контигно — regal: messy-rule) ──────────────────────────────
+expected_name := data.template.snippet.name
+
+expected_types := {t | some t in data.template.snippet.on.pull_request.types}
+
+expected_if := data.template.snippet.jobs["git-ai"].if
+
+expected_perms := data.template.snippet.jobs["git-ai"].permissions
+
+# Substring-маркери з template `run:` блоків — ключові команди, наявність яких
+# гарантує що workflow робить очікувані дії. Конкретний multi-line — не порівнюємо.
+install_substring := "https://usegitai.com/install.sh"
+
+run_substring := "git-ai ci github run"
+
+# ── deny rules ─────────────────────────────────────────────────────────────
 
 deny contains msg if {
 	input.name != expected_name
@@ -54,30 +50,27 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not contains(job_if_str, expected_if_substring)
-	msg := "git-ai.yml: job має містити if: github.event.pull_request.merged == true (ga.mdc)"
+	not contains(job_if_str, expected_if)
+	msg := sprintf("git-ai.yml: job має містити if: %s (ga.mdc)", [expected_if])
 }
 
 deny contains msg if {
-	job.permissions.contents != "write"
-	msg := "git-ai.yml: permissions мають бути contents: write (ga.mdc)"
+	job.permissions.contents != expected_perms.contents
+	msg := sprintf("git-ai.yml: permissions.contents має бути %s (ga.mdc)", [expected_perms.contents])
 }
 
 deny contains msg if {
-	not contains(job_run_blob, expected_install_substring)
+	not contains(job_run_blob, install_substring)
 	msg := "git-ai.yml: має встановлювати git-ai через curl | bash (ga.mdc)"
 }
 
 deny contains msg if {
-	not contains(job_run_blob, expected_run_substring)
-	msg := "git-ai.yml: має виконувати git-ai ci github run (ga.mdc)"
+	not contains(job_run_blob, run_substring)
+	msg := sprintf("git-ai.yml: має виконувати %s (ga.mdc)", [run_substring])
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-# `if` поле job-а може бути відсутнім — тоді `sprintf` дає невизначене значення
-# і спрацьовує `default`, повертаючи порожній рядок; `contains(…)` нижче дасть
-# false і відповідне `deny`-правило спрацює зі зрозумілим повідомленням.
 default job_if_str := ""
 
 job_if_str := sprintf("%v", [job.if])

@@ -4,6 +4,23 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.12] - 2026-05-17
+
+### Added
+
+- `ga` rule template/ міграція доповнена (Phase 3.5 — 4 full-canon workflow концерни, пропущені в 1.13.9): `clean_ga_workflows`, `clean_merged_branch`, `lint_ga`, `git_ai`. Кожен має повний YAML канон у `template/<workflow>.yml.snippet.yml`, rego читає expected-значення з `data.template.snippet.<path>` (path лишається у rego, literals — у template). Для кожного — `*_test.rego` із canonical/wrong/drift тестами.
+- Wiring у `ga/fix/workflows/check.mjs`: `runAllGaRego` тепер `await loadTemplate(concernDir)` і передає `templateData` у `runConftestBatch` для кожного workflow концерну.
+
+### Changed
+
+- `ga.mdc` — 4 inline YAML-блоки повних workflow канонів замінено на markdown-посилання до `template/<workflow>.yml.snippet.yml`. Файл скоротився суттєво — канон тепер живе як data, а не як прозовий приклад.
+- `template/clean-merged-branch.yml.snippet.yml`: `dry_run: false` (явний bool) замість `dry_run: no` — `yaml` npm (YAML 1.2) лишає `no` рядком, а Go-yaml у conftest нормалізує до `false`; пишемо канонізовану форму під runtime conftest-парсингу.
+- `docs/adr/template-dir-concern-inventory.md` — додано 4 нові full-canon ga.* концерни з ✓; оновлено summary (89 концернів, 43 з template — мігровано 13/43 = 30%).
+
+### TODO
+
+- `ga.workflow_common` — cross-workflow forbidden-patterns (concurrency, depcheck deny, shell line-continuation). Не fully full-canon — окремий випадок, мігрується пізніше.
+
 ## [1.13.11] - 2026-05-17
 
 ### Added

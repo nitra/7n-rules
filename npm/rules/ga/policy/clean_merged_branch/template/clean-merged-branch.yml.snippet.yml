@@ -1,0 +1,37 @@
+name: Clean abandoned branches
+
+on:
+  # Run daily at midnight
+  schedule:
+    - cron: '0 1 15 * *'
+
+  # Allow workflow to be manually run from the GitHub UI
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  cleanup_old_branches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - id: delete_stuff
+        name: Delete those pesky dead branches
+        uses: phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3
+        with:
+          github_token: ${{ github.token }}
+          last_commit_age_days: 90
+          ignore_branches: main,dev
+          # `no` у workflow → Go-yaml парсить як bool false; тут пишемо явно false,
+          # бо template читає `yaml` (YAML 1.2), де `no` лишається рядком — а нам
+          # потрібна семантична відповідність runtime-парсингу conftest.
+          dry_run: false
+
+      - name: Get output
+        env:
+          DELETED_BRANCHES: ${{ steps.delete_stuff.outputs.deleted_branches }}
+        run: |
+          echo "Deleted branches: ${DELETED_BRANCHES}"

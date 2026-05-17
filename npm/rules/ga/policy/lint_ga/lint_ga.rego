@@ -1,44 +1,50 @@
-# Порт перевірок `validateLintGaWorkflowStructure` + `validateLintGaOnTriggers` з
-# `npm/scripts/check-ga.mjs` (ga.mdc).
+# Перевірка `.github/workflows/lint-ga.yml` (ga.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/lint-ga.yml \
-#     -p npm/policy/ga --namespace ga.lint_ga
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/lint-ga.yml.snippet.yml.
 package ga.lint_ga
 
 import rego.v1
 
-# ── Очікувані значення ─────────────────────────────────────────────────────
-
-expected_name := "Lint GA"
-
-expected_branches := {"dev", "main"}
-
-expected_push_paths := {".github/actions/**", ".github/workflows/**"}
-
-# ── Аліаси на input ────────────────────────────────────────────────────────
-#
-# YAML 1.1 quirk: `on:` → boolean true → у конфтесті ключ "true".
+# ── Аліаси ─────────────────────────────────────────────────────────────────
 
 gha_on := input["true"]
 
-# Job-id містить дефіс — звертаємося через `[…]`. Імʼя `job` (без префіксу пакету)
-# — щоб уникнути regal-правила `rule-name-repeats-package`.
 job := input.jobs["lint-ga"]
 
-# Усі `uses:` зі steps цього job-а — для перевірки членства.
 job_uses_set contains job.steps[_].uses
 
-# Усі `run:` зі steps цього job-а, склеєні в один blob — для substring-перевірки.
 job_run_blob := concat("\n", [run |
 	run := job.steps[_].run
 ])
 
-# ── deny rules (контигно — regal: messy-rule) ──────────────────────────────
+expected_name := data.template.snippet.name
+
+expected_push_branches := {b | some b in data.template.snippet.on.push.branches}
+
+expected_pr_branches := {b | some b in data.template.snippet.on.pull_request.branches}
+
+expected_push_paths := {p | some p in data.template.snippet.on.push.paths}
+
+expected_runs_on := data.template.snippet.jobs["lint-ga"]["runs-on"]
+
+expected_perms := data.template.snippet.jobs["lint-ga"].permissions
+
+# Required `uses:` зі template — фільтруємо тільки кроки що мають `uses`.
+expected_uses_set contains u if {
+	some step in data.template.snippet.jobs["lint-ga"].steps
+	u := object.get(step, "uses", "")
+	u != ""
+}
+
+# Required `run:` substrings — collected from steps with `run`.
+expected_run_blob := concat("\n", [r |
+	some step in data.template.snippet.jobs["lint-ga"].steps
+	r := object.get(step, "run", "")
+	r != ""
+])
+
+# ── deny rules ─────────────────────────────────────────────────────────────
 
 deny contains msg if {
 	input.name != expected_name
@@ -46,17 +52,17 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not push_branches_have_dev_and_main
+	not branches_superset_of(gha_on.push.branches, expected_push_branches)
 	msg := "lint-ga.yml: on.push.branches має містити dev і main (ga.mdc)"
 }
 
 deny contains msg if {
-	not pr_branches_have_dev_and_main
+	not branches_superset_of(gha_on.pull_request.branches, expected_pr_branches)
 	msg := "lint-ga.yml: on.pull_request.branches має містити dev і main (ga.mdc)"
 }
 
 deny contains msg if {
-	not push_paths_have_required
+	not paths_superset_of(gha_on.push.paths, expected_push_paths)
 	msg := "lint-ga.yml: on.push.paths має містити .github/actions/** і .github/workflows/** (ga.mdc)"
 }
 
@@ -66,13 +72,13 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	job["runs-on"] != "ubuntu-latest"
-	msg := "lint-ga.yml: runs-on має бути ubuntu-latest (ga.mdc)"
+	job["runs-on"] != expected_runs_on
+	msg := sprintf("lint-ga.yml: runs-on має бути %s (ga.mdc)", [expected_runs_on])
 }
 
 deny contains msg if {
-	job.permissions.contents != "read"
-	msg := "lint-ga.yml: permissions мають бути contents: read (ga.mdc)"
+	job.permissions.contents != expected_perms.contents
+	msg := sprintf("lint-ga.yml: permissions.contents має бути %s (ga.mdc)", [expected_perms.contents])
 }
 
 deny contains msg if {
@@ -81,38 +87,23 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not "actions/checkout@v6" in job_uses_set
-	msg := "lint-ga.yml: має бути uses: actions/checkout@v6 (ga.mdc)"
+	some required_use in expected_uses_set
+	not required_use in job_uses_set
+	msg := sprintf("lint-ga.yml: має бути uses: %s (ga.mdc)", [required_use])
 }
 
 deny contains msg if {
-	not "./.github/actions/setup-bun-deps" in job_uses_set
-	msg := "lint-ga.yml: має бути uses: ./.github/actions/setup-bun-deps (ga.mdc)"
-}
-
-deny contains msg if {
-	not "astral-sh/setup-uv@v8.0.0" in job_uses_set
-	msg := "lint-ga.yml: має бути uses: astral-sh/setup-uv@v8.0.0 (ga.mdc)"
-}
-
-deny contains msg if {
+	expected_run_blob != ""
 	not contains(job_run_blob, "bun run lint-ga")
 	msg := "lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)"
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-push_branches_have_dev_and_main if {
-	branches := gha_on.push.branches
-	expected_branches & {b | some b in branches} == expected_branches
+branches_superset_of(actual, expected) if {
+	expected & {b | some b in actual} == expected
 }
 
-pr_branches_have_dev_and_main if {
-	branches := gha_on.pull_request.branches
-	expected_branches & {b | some b in branches} == expected_branches
-}
-
-push_paths_have_required if {
-	paths := gha_on.push.paths
-	expected_push_paths & {p | some p in paths} == expected_push_paths
+paths_superset_of(actual, expected) if {
+	expected & {p | some p in actual} == expected
 }

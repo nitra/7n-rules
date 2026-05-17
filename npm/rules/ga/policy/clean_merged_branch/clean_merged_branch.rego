@@ -1,34 +1,12 @@
-# Порт перевірки `validateCleanMergedBranch` з `npm/scripts/check-ga.mjs` (ga.mdc).
+# Перевірка `.github/workflows/clean-merged-branch.yml` (ga.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/clean-merged-branch.yml \
-#     -p npm/policy/ga --namespace ga.clean_merged_branch
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/clean-merged-branch.yml.snippet.yml.
 package ga.clean_merged_branch
 
 import rego.v1
 
-# ── Очікувані значення ─────────────────────────────────────────────────────
-#
-# Шаблонні токени GitHub Actions (`${{ … }}`) збираємо з фрагментів через
-# `concat`, бо `{{` у Rego починає string interpolation.
-
-expected_github_token := concat("", ["$", "{{ github.token }}"])
-
-expected_deleted_branches_expr := concat("", ["$", "{{ steps.delete_stuff.outputs.deleted_branches }}"])
-
-expected_echo_substring := concat("", ["echo \"Deleted branches: $", "{DELETED_BRANCHES}\""])
-
-expected_name := "Clean abandoned branches"
-
-expected_cron := "0 1 15 * *"
-
-# ── Аліаси на input ────────────────────────────────────────────────────────
-#
-# YAML 1.1 quirk: `on:` → boolean true → у конфтесті ключ "true".
+# ── Аліаси ─────────────────────────────────────────────────────────────────
 
 gha_on := input["true"]
 
@@ -38,7 +16,17 @@ step0 := steps[0]
 
 step1 := steps[1]
 
-# ── deny rules (контигно — regal: messy-rule) ──────────────────────────────
+expected_name := data.template.snippet.name
+
+expected_cron := data.template.snippet.on.schedule[0].cron
+
+expected_step0 := data.template.snippet.jobs.cleanup_old_branches.steps[0]
+
+expected_step1 := data.template.snippet.jobs.cleanup_old_branches.steps[1]
+
+expected_perms := data.template.snippet.jobs.cleanup_old_branches.permissions
+
+# ── deny rules ─────────────────────────────────────────────────────────────
 
 deny contains msg if {
 	input.name != expected_name
@@ -51,7 +39,7 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not has_workflow_dispatch
+	not is_object(object.get(gha_on, "workflow_dispatch", null))
 	msg := "clean-merged-branch.yml: має бути workflow_dispatch: {} (ga.mdc)"
 }
 
@@ -61,65 +49,73 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	input.jobs.cleanup_old_branches.permissions.contents != "write"
-	msg := "clean-merged-branch.yml: permissions мають бути contents: write (ga.mdc)"
+	input.jobs.cleanup_old_branches.permissions.contents != expected_perms.contents
+	msg := sprintf("clean-merged-branch.yml: permissions.contents має бути %s (ga.mdc)", [expected_perms.contents])
 }
 
 deny contains msg if {
 	count(steps) < 2
-	msg := "clean-merged-branch.yml: steps має містити 2 кроки як у ga.mdc"
+	msg := "clean-merged-branch.yml: steps має містити 2 кроки як у template (ga.mdc)"
 }
 
 # ── Step 0 (delete_stuff) ──────────────────────────────────────────────────
 
 deny contains msg if {
-	step0.id != "delete_stuff"
-	msg := "clean-merged-branch.yml: перший крок має id: delete_stuff (ga.mdc)"
+	step0.id != expected_step0.id
+	msg := sprintf("clean-merged-branch.yml: перший крок має id: %s (ga.mdc)", [expected_step0.id])
 }
 
 deny contains msg if {
-	step0.uses != "phpdocker-io/github-actions-delete-abandoned-branches@v2.0.3"
-	msg := "clean-merged-branch.yml: перший крок має uses як у ga.mdc"
+	step0.uses != expected_step0.uses
+	msg := sprintf("clean-merged-branch.yml: перший крок має uses: %s (ga.mdc)", [expected_step0.uses])
 }
 
 deny contains msg if {
-	step0.with.github_token != expected_github_token
-	msg := sprintf("clean-merged-branch.yml: with.github_token має бути %s (ga.mdc)", [expected_github_token])
+	step0.with.github_token != expected_step0.with.github_token
+	msg := sprintf(
+		"clean-merged-branch.yml: with.github_token має бути %s (ga.mdc)",
+		[expected_step0.with.github_token],
+	)
 }
 
 deny contains msg if {
-	step0.with.last_commit_age_days != 90
-	msg := "clean-merged-branch.yml: with.last_commit_age_days має бути 90 (ga.mdc)"
+	step0.with.last_commit_age_days != expected_step0.with.last_commit_age_days
+	msg := sprintf(
+		"clean-merged-branch.yml: with.last_commit_age_days має бути %d (ga.mdc)",
+		[expected_step0.with.last_commit_age_days],
+	)
 }
 
 deny contains msg if {
-	not ignore_branches_has_main_and_dev
-	msg := "clean-merged-branch.yml: with.ignore_branches має містити main,dev (ga.mdc)"
+	not ignore_branches_subset
+	msg := sprintf(
+		"clean-merged-branch.yml: with.ignore_branches має містити %s (ga.mdc)",
+		[expected_step0.with.ignore_branches],
+	)
 }
 
-# `dry_run: no` у YAML парситься як boolean `false`. JS-перевірка порівнює зі
-# рядком "no", але в нас input уже Go-yaml-парсений — тому очікуємо `false`.
-# (Якщо комусь схочеться явного `"no"` — треба буде брати in quotes у YAML.)
+# YAML 1.1 quirk: `dry_run: no` парситься як boolean false у Go-yaml (conftest).
+# Template (від `yaml` npm) теж нормалізовано до false у фікстурі.
 deny contains msg if {
-	step0.with.dry_run != false # noqa: rules-style-no-equality-with-false
+	step0.with.dry_run != expected_step0.with.dry_run # noqa: rules-style-no-equality-with-false
 	msg := "clean-merged-branch.yml: with.dry_run має бути no (ga.mdc)"
 }
 
 # ── Step 1 (Get output) ────────────────────────────────────────────────────
 
 deny contains msg if {
-	step1.name != "Get output"
-	msg := "clean-merged-branch.yml: другий крок має name: Get output (ga.mdc)"
+	step1.name != expected_step1.name
+	msg := sprintf("clean-merged-branch.yml: другий крок має name: %s (ga.mdc)", [expected_step1.name])
 }
 
 deny contains msg if {
-	step1.env.DELETED_BRANCHES != expected_deleted_branches_expr
-	msg := "clean-merged-branch.yml: env.DELETED_BRANCHES має бути як у ga.mdc"
+	step1.env.DELETED_BRANCHES != expected_step1.env.DELETED_BRANCHES
+	msg := "clean-merged-branch.yml: env.DELETED_BRANCHES має бути як у template (ga.mdc)"
 }
 
 deny contains msg if {
 	not echo_deleted_branches
-	msg := "clean-merged-branch.yml: run має echo Deleted branches як у ga.mdc"
+	msg := "clean-merged-branch.yml: run має echo Deleted branches як у template (ga.mdc)"
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
@@ -128,15 +124,17 @@ has_expected_cron if {
 	gha_on.schedule[_].cron == expected_cron
 }
 
-has_workflow_dispatch if {
-	is_object(gha_on.workflow_dispatch)
-}
-
-ignore_branches_has_main_and_dev if {
-	contains(step0.with.ignore_branches, "main")
-	contains(step0.with.ignore_branches, "dev")
+# Кожна гілка з template-літералу (через кому) має бути присутня у actual.
+ignore_branches_subset if {
+	required_branches := split(expected_step0.with.ignore_branches, ",")
+	actual := step0.with.ignore_branches
+	every b in required_branches {
+		contains(actual, trim_space(b))
+	}
 }
 
 echo_deleted_branches if {
-	contains(step1.run, expected_echo_substring)
+	# Звіряємо substring "echo "Deleted branches: …${DELETED_BRANCHES}…"" — формується з template run.
+	contains(step1.run, "Deleted branches:")
+	contains(step1.run, "${DELETED_BRANCHES}")
 }
