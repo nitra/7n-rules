@@ -1,0 +1,8 @@
+---
+description: test fixture
+globs: "**"
+alwaysApply: false
+---
+
+Канон фрагментів:
+- [package.json.snippet.json](./fix/foo/template/package.json.snippet.json)
