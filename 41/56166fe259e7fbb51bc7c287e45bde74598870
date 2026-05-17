@@ -1,0 +1,82 @@
+.cursor/hooks.json
+  s_2fd1143388b218::t_98339fd6dd9f96 1-15
+npm/rules/adr/adr.mdc
+  s_2fd1143388b218::t_5eaae98751e277 2,20-21,84-85,137-157
+npm/rules/adr/fix/hooks/check.mjs
+  s_34a2b8fe255b53::t_001f155a4f98fe 125
+  s_2fd1143388b218::t_c4d0794cc4e0f4 160-161
+  s_2fd1143388b218::t_d89486b2566bd3 11-12,36,126-159,162-190,284
+docs/superpowers/specs/2026-05-17-template-dir-design.md
+  s_9102be39d1e731::t_8ebd93f76902b0 3,12,14-18,25,34-35,44,46-49,51,54-55,59-62,96-100,105-108,111,113,123,126-128,133,137,147-150,154-165,168-169,172-188,192,196,198-216,219,223-228,231,234,238,240,242-244,246-247,250-264,268,270-279,287-290
+  s_9102be39d1e731::t_60febf1bced693 64-84
+  s_9102be39d1e731::t_cf2e6e99fa7369 245
+  s_9102be39d1e731::t_439898b208c2fe 131-132,135
+  s_9102be39d1e731::t_577dd233071199 229-230,232
+  s_9102be39d1e731::t_91afb225aed101 248
+  s_9102be39d1e731::t_7d91df043e4687 20-24,26
+  s_9102be39d1e731::t_bfe5f7dce91eb7 115,117
+  s_9102be39d1e731::t_4b272cf6b70609 291
+  s_9102be39d1e731::t_87cae69143b1c1 32,36-38,40,42
+npm/CHANGELOG.md
+  s_2fd1143388b218::t_ae00bcfc36101a 7-12
+npm/bin/n-cursor.js
+  s_2fd1143388b218::t_67c07eef7bef8a 23,25,1315
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_2fd1143388b218::t_0fc24e8d114ac5 15-18,30-32
+npm/scripts/sync-claude-config.test.mjs
+  s_2fd1143388b218::t_dc01b9917b1074 259-260
+  s_2fd1143388b218::t_ebbed843f0ca5e 14,145-171,238,281,289-294,331,338,351,360-367
+npm/.claude-template/hooks/capture-decisions.sh
+  s_2fd1143388b218::t_0fc24e8d114ac5 12-15,26-27,29
+npm/package.json
+  s_2fd1143388b218::t_ae00bcfc36101a 3
+npm/scripts/sync-claude-config.mjs
+  s_2fd1143388b218::t_9963c2d4c62f06 86-90,96-100
+  s_2fd1143388b218::t_dc01b9917b1074 318-320
+  s_2fd1143388b218::t_98952c11f4fd6c 3-4,21-22,36-39,51-52,84-85,91-95,101-103,123-134,149-162,254-263,265-290,307-317,321-327,447,451-458,462-469,477,482
+  s_2fd1143388b218::t_163c5e93599da0 264
+npm/rules/adr/fix/hooks/check.test.mjs
+  s_2fd1143388b218::t_655eaa51785ca2 65,69-77,114-123
+.cursor/rules/n-adr.mdc
+  s_2fd1143388b218::t_5eaae98751e277 2,29-30,93-94,148-168
+.claude/hooks/capture-decisions.sh
+  s_2fd1143388b218::t_10542a1351a8df 12-15,26-27,29
+.claude/hooks/normalize-decisions.sh
+  s_2fd1143388b218::t_10542a1351a8df 15-18,30-32
+docs/superpowers/plans/2026-05-17-template-dir-phase-0-1.md
+  s_9102be39d1e731::t_d4c0b4ecc8c9bf 689,691,693,697-714,716-731,733-747,752-755,757,759,761,766,768,772-785,787-792,795,798,801,805-814,819,821,824,826,830
+  s_9102be39d1e731::t_ba407bcadb912a 1362,1364,1366,1368-1394,1396-1408,1410-1420,1422-1424,1428-1429,1431-1449,1451,1456,1459-1460
+  s_9102be39d1e731::t_f3fe429a23a6c1 1-688,690,692,694-696,715,732,748-751,756,758,760,762-765,767,769-771,786,793-794,796-797,799-800,802-804,815-818,820,822-823,825,827-829,831-1361,1363,1365,1367,1395,1409,1421,1425-1427,1430,1450,1452-1455,1457-1458,1461-1609
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "4156166fe259e7fbb51bc7c287e45bde74598870",
+  "prompts": {},
+  "sessions": {
+    "s_2fd1143388b218": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34d9-a5a3-7151-b46e-d854680990da",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
