@@ -1,0 +1,24 @@
+npm/rules/security/fix/gitleaks/check.mjs
+  s_9102be39d1e731::t_4ea41fe0dce1d3 2,4-8,12-15,18,20,25,28-32,35-40,50
+npm/rules/security/fix/gitleaks/check.test.mjs
+  s_9102be39d1e731::t_c73418486374cb 2-4,9-13,15-18,21-24,27-31,34-39,42-45,47-62
+  s_9102be39d1e731::t_fe8474f8f2f911 8,14
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_dece5817cb1400 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "05eba30097b5883142e4d9b5e62af4984dac3fe6",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
