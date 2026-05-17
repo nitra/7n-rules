@@ -1,0 +1,14 @@
+npm/rules/security/todo.MD
+  h_74546f1f1ded3e 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "c87298c19c523017d2307590743e68cc606ec720",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
