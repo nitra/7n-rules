@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.9] - 2026-05-17
+
+### Added
+
+- `ga` rule template/ міграція (Phase 2): 4 концерни — `package_json` (contains-style), `vscode_extensions` (snippet-array), `vscode_settings` (snippet-object), `zizmor_yml` (snippet з канонічним path `rules.unpinned-uses.config.policies."*"`).
+- Drift-тести (`test_data_template_drives_*`) у кожному `*_test.rego` ловлять регресію, якщо rego перестане читати з `data.template`.
+
+### Changed
+
+- `ga.package_json.rego` — замість двох inline-deny з `is_string` + `regex.match` тепер один generic contains-walker через `data.template.contains`.
+- `ga.vscode_extensions.rego` — замість inline `"github.vscode-github-actions"` тепер subset-of через `data.template.snippet.recommendations`.
+- `ga.vscode_settings.rego` — 2-рівневий snippet-walker через `data.template.snippet` (літеральні keys `[github-actions-workflow]`, `editor.defaultFormatter`).
+- `ga.zizmor_yml.rego` — замість substring `json.marshal` хака тепер структурний чек `rules.unpinned-uses.config.policies."*"` із expected value з `data.template.snippet`.
+- `ga.mdc` — inline `package.json` snippet і `zizmor.yml` snippet блоки замінено на markdown-посилання на template-файли; додано посилання на нові template/ для `.vscode/{extensions,settings}.json`.
+
 ## [1.13.8] - 2026-05-17
 
 ### Changed

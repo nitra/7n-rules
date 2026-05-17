@@ -242,10 +242,10 @@ jobs:
 
 **Лінт:** [actionlint](https://github.com/rhysd/actionlint) через [github-actionlint](https://www.npmjs.com/package/github-actionlint); [zizmor](https://docs.zizmor.sh) — `uvx`, офлайн. Канонічний скрипт у корені делегує виконання CLI `n-cursor lint-ga` (бінарка з `node_modules/.bin/` пакету `@nitra/cursor`), який робить preflight на `shellcheck` і послідовно запускає `actionlint` та `zizmor`:
 
-```json title="package.json"
-"scripts": {
-  "lint-ga": "n-cursor lint-ga"
-}
+- `package.json` — `scripts.lint-ga` має містити `n-cursor lint-ga`: `package.json`:
+
+```json
+{ "scripts": { "lint-ga": ["n-cursor lint-ga"] } }
 ```
 
 > Не використовуй `npx --no @nitra/cursor lint-ga` — `bun run` автоматично транслює `npx` у `bun x`, а `bun x` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання. Виклик через bin-ім’я `n-cursor` працює і у `bun run`, і у `npm run`.
@@ -254,15 +254,30 @@ CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, поті
 
 **`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
 
-```yaml title=".github/zizmor.yml"
-# https://docs.zizmor.sh/configuration/
+- Канон `.github/zizmor.yml`: `zizmor.yml`:
+
+```yaml
 rules:
   unpinned-uses:
     config:
       policies:
         '*': ref-pin
-  template-injection:
-    disable: true
+```
+
+**`.vscode/extensions.json`** має рекомендувати `github.vscode-github-actions`:
+
+- Канон: `extensions.json`:
+
+```json
+{ "recommendations": ["github.vscode-github-actions"] }
+```
+
+**`.vscode/settings.json`** для мови `github-actions-workflow` має `editor.defaultFormatter = "oxc.oxc-vscode"`:
+
+- Канон: `settings.json`:
+
+```json
+{ "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } }
 ```
 
 **MegaLinter:** не використовувати; прибрати workflow, конфіги (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`), залежності та згадки в CI / pre-commit / документації.

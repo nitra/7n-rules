@@ -1,24 +1,20 @@
 # Перевірка кореневого `package.json` для GitHub Actions tooling (ga.mdc).
 #
-# Структурні workflow-перевірки живуть у `ga.workflow_common` і per-workflow
-# policy-пакетах. JS лишається для PATH-preflight (`shellcheck`) і git-залежної
-# перевірки `on.*.paths` через `git ls-files`.
+# Канон надходить через --data: { "template": { "contains": ... } }
+# Структура --data сформована з template/package.json.contains.json.
 #
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
 # (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
 package ga.package_json
 
 import rego.v1
 
+# Кожне рядкове поле з contains має містити кожен substring.
+# Відсутність ключа → `""` → contains() = false → deny.
 deny contains msg if {
-	not is_string(object.get(object.get(input, "scripts", {}), "lint-ga", null))
-	msg := "package.json: додай скрипт \"lint-ga\" (ga.mdc)"
-}
-
-deny contains msg if {
-	lint_ga := object.get(object.get(input, "scripts", {}), "lint-ga", "")
-	is_string(lint_ga)
-	not regex.match(`\bn-cursor\s+lint-ga\b`, lint_ga)
-	msg := "lint-ga має делегувати CLI `n-cursor lint-ga` (ga.mdc)"
+	some script_name, needles in data.template.contains.scripts
+	actual := object.get(object.get(input, "scripts", {}), script_name, "")
+	some needle in needles
+	not contains(actual, needle)
+	msg := sprintf("package.json: scripts.%s має містити %q (ga.mdc)", [script_name, needle])
 }

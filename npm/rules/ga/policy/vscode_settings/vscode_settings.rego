@@ -1,9 +1,11 @@
 # Перевірка `.vscode/settings.json` для GitHub Actions workflow (ga.mdc).
 #
-# Мова `github-actions-workflow` має форматуватись через `oxc.oxc-vscode`,
-# узгоджено з oxc для YAML/workflow.
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/settings.json.snippet.json.
+# Snippet — 2-рівнева мапа: <language-block-key>.<setting-key> = <expected>
+# (VS Code-конвенція: ключі типу `[github-actions-workflow]` і `editor.defaultFormatter`
+# — це літеральні string-keys із дужками/крапкою, не вкладені обʼєкти).
 #
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
 # (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
 package ga.vscode_settings
@@ -11,14 +13,10 @@ package ga.vscode_settings
 import rego.v1
 
 deny contains msg if {
-	block := object.get(input, "[github-actions-workflow]", null)
-	not is_object(block)
-	msg := ".vscode/settings.json: додай \"[github-actions-workflow]\": { \"editor.defaultFormatter\": \"oxc.oxc-vscode\" } (ga.mdc)"
-}
-
-deny contains msg if {
-	block := object.get(input, "[github-actions-workflow]", null)
-	is_object(block)
-	object.get(block, "editor.defaultFormatter", null) != "oxc.oxc-vscode"
-	msg := ".vscode/settings.json: [github-actions-workflow].editor.defaultFormatter має бути \"oxc.oxc-vscode\" (ga.mdc)"
+	some block_key, expected_inner in data.template.snippet
+	inner := object.get(input, block_key, {})
+	some leaf_key, expected_value in expected_inner
+	actual := object.get(inner, leaf_key, null)
+	actual != expected_value
+	msg := sprintf(".vscode/settings.json: %s.%s має бути %q (ga.mdc)", [block_key, leaf_key, expected_value])
 }

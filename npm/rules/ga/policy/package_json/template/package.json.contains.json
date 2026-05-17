@@ -1,0 +1,1 @@
+{ "scripts": { "lint-ga": ["n-cursor lint-ga"] } }
