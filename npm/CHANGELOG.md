@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.4] - 2026-05-17
+
+### Removed
+
+- `npm/package.json#devDependencies` — повторно видалено self-reference `@nitra/cursor` (порушує canon `npm-module`: «devDependencies не публікуються користувачам пакета»). Автоматично повертався у попередніх тасках template-dir роботи; цей коміт остаточно прибирає.
+
 ## [1.13.3] - 2026-05-17
 
 ### Changed
