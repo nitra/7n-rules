@@ -166,20 +166,6 @@ jobs:
 
 **Локальний composite** (`uses: ./.github/actions/setup-bun-deps` або `./npm/github-actions/setup-bun-deps`): **спочатку** обов’язковий крок **`actions/checkout@v6`** (`persist-credentials: false`), інакше runner не знайде `action.yml`. Сам composite: **`actions/setup-node@v6`** (**Node 24**), **Bun**, **`actions/cache@v5`**, **`bun install --frozen-lockfile`**.
 
-```json title=".vscode/extensions.json"
-{
-  "recommendations": ["github.vscode-github-actions"]
-}
-```
-
-У **`.vscode/settings.json`** для мови **`github-actions-workflow`** (workflow з розширення GitHub Actions) задай **oxc** як formatter:
-
-```json
-  "[github-actions-workflow]": {
-    "editor.defaultFormatter": "oxc.oxc-vscode"
-  }
-```
-
 **ЗАБОРОНЕНО** дублювати кроки встановлення Bun та кешування безпосередньо у workflow файлах. Завжди використовуй локальний composite action.
 
 **Кроки `run`:** не розбивай команду shell-продовженням через зворотний сліш у кінці рядка (`… \` у `run: |`). Замість багаторядкового буквального блока з `\\` оформ довгу одну shell-команду як **folded block** `>-` (рядки з’єднаються в один рядок із пробілами).
@@ -264,13 +250,7 @@ jobs:
 
 > Не використовуй `npx --no @nitra/cursor lint-ga` — `bun run` автоматично транслює `npx` у `bun x`, а `bun x` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання. Виклик через bin-ім’я `n-cursor` працює і у `bun run`, і у `npm run`.
 
-CLI виконує:
-
-1. Preflight на [`shellcheck`](https://www.shellcheck.net/) у `PATH` — без нього `actionlint` мовчки пропускає shell-перевірки в `run:` блоках, тож локальний прогін зеленіє, а CI на `ubuntu-latest` (де shellcheck передвстановлений) падає на тих самих workflow. Встановлення: `brew install shellcheck` (macOS), `sudo apt-get install -y shellcheck` (Debian/Ubuntu), `sudo pacman -S shellcheck` (Arch).
-2. Preflight на [`uv`](https://docs.astral.sh/uv/) у `PATH` — постачає `uvx`, без якого не запуститься `uvx zizmor`. Встановлення: `brew install uv` (macOS), `curl -LsSf https://astral.sh/uv/install.sh | sh` (universal), `pip install uv`.
-3. Якщо хоча б один preflight не пройшов — exit 1 (підказки для всіх відсутніх залежностей друкуються разом, а не лише для першої).
-4. `bunx github-actionlint`.
-5. `uvx zizmor --offline --collect=workflows .`.
+CLI робить preflight на `shellcheck` і `uv` (`uvx`) у `PATH`, потім запускає `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
 
 **`.github/zizmor.yml`:** для [unpinned-uses](https://docs.zizmor.sh/audits/#unpinned-uses) — політика **`ref-pin`**, якщо в `uses:` семантичні теги. За потреби вимкни [template-injection](https://docs.zizmor.sh/audits/#template-injection):
 
@@ -288,8 +268,3 @@ rules:
 **MegaLinter:** не використовувати; прибрати workflow, конфіги (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`), залежності та згадки в CI / pre-commit / документації.
 
 **`depcheck`:** не використовувати у `.github/workflows/*.yml` — мігровано на `knip` (див. `js-lint.mdc`). Перевірка невикористаних залежностей виконується разом з рештою лінтерів у `lint-js`, окремий крок `npx depcheck` у workflow не потрібен і блокується полісі `ga.workflow_common`.
-
-## Перевірка
-
-- `bun run lint-ga`
-- `npx @nitra/cursor check ga`

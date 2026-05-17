@@ -10,10 +10,6 @@ alwaysApply: false
 - файл **`.graphqlrc.yml`** ([GraphQL Config](https://the-guild.dev/graphql/config/docs));
 - у **`.vscode/extensions.json`** в масиві **`recommendations`** — запис **`graphql.vscode-graphql`**.
 
-Це забезпечує підсвітку та діагностику GraphQL в редакторі.
-
-Деталі виявлення `gql` у скриптах (у т.ч. лише `<script>` у SFC) — **`npm/scripts/check-graphql.mjs`** / **`npm/scripts/utils/graphql-gql-scan.mjs`**.
-
 ## `.graphqlrc.yml`
 
 Підстав свої шляхи до схеми та до файлів з операціями; приклад орієнтиру:
@@ -33,7 +29,3 @@ documents:
   "recommendations": ["graphql.vscode-graphql"]
 }
 ```
-
-## Перевірка
-
-`npx @nitra/cursor check graphql`

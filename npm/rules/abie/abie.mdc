@@ -6,10 +6,6 @@ version: '1.20'
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
 
-**`npx @nitra/cursor check abie`** виконується лише якщо в **`.n-cursor.json`** у **`rules`** є **`abie`** — інакше вихід **0** без зауважень.
-
-**Канон перевірки** — **`npm/scripts/check-abie.mjs`** у пакеті **`@nitra/cursor`**: верхній JSDoc і реалізація задають точні умови, допустимі домени для hostnames, тексти помилок. Нижче — зміст правила й орієнтовні фрагменти YAML; не дублюй тут покроковий алгоритм зі скрипта.
-
 ## k8s: `hc.yaml` поруч із Deployment
 
 Якщо під **`k8s`** є **Deployment**, у **тій самій директорії** має бути **`hc.yaml`** з **HealthCheckPolicy** (**`networking.gke.io/v1`**): коректний modeline **`$schema`**, **`httpHealthCheck.requestPath`** — непорожній шлях від кореня (рядок, що починається з **`/`**: канонічно **`/healthz`**, але також допустимі **`/IsAlive`**, **`/api/live`** тощо — узгоджується з реальним endpoint сервісу), порт **8080**, **`targetRef.name`** — **headless** **Service** з суфіксом **`-hl`** (узгоджено з парою **`svc.yaml`** / **`svc-hl.yaml`** у **k8s.mdc**): або **`${metadata.name}-hl`**, або те саме ім’я, якщо **`metadata.name`** уже з **`-hl`**.
@@ -157,11 +153,7 @@ with:
   ignore_branches: main,dev,ua
 ```
 
-## Перевірка
-
-**`npx @nitra/cursor check abie`**
-
-### Швидкий gate через conftest (Rego)
+## Швидкий gate через conftest (Rego)
 
 Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor check abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`fix/<concern>/check.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
 

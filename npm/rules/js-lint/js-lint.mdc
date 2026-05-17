@@ -7,16 +7,6 @@ version: '1.22'
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
 
-```json title=".vscode/extensions.json"
-{
-  "recommendations": [
-    "dbaeumer.vscode-eslint",
-    "github.vscode-github-actions",
-    "oxc.oxc-vscode"
-  ]
-}
-```
-
 У кожному **`package.json`** проєкту (корінь і всі workspace-пакети) має бути **`"type": "module"`** — весь код у ESM.
 
 ```json title="package.json"
@@ -190,7 +180,3 @@ for (const item of arr) {
 ## Тести
 
 Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
-
-## Перевірка
-
-`npx @nitra/cursor check js-lint`

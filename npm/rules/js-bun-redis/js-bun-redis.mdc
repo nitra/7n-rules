@@ -16,7 +16,3 @@ Redis 7.2+
 - Видалити з `dependencies`: `ioredis`, `node-redis`.
 - Видалити з коду: усі `import` / `require` цих пакетів та власні обгортки над ними.
 - Замінити на `import { redis } from 'bun'`
-
-## Перевірка
-
-`npx @nitra/cursor check js-bun-redis`.

@@ -26,9 +26,3 @@ HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080
 Правило застосовується для проєктів **nitra** (у кореневому `package.json` `"repository": "https://github.com/nitra/*"`) і **abie** (`"repository": "https://github.com/abinbevefes/*"`); для інших репозиторіїв перевірка пропускається.
 
 Файл .env це (без імені) це виключення з цього правила, його змінювати не потрібно
-
-## Перевірка
-
-`npx @nitra/cursor check hasura`
-
-Деталі алгоритму — у `check-hasura.mjs`.
