@@ -8,7 +8,7 @@
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
-import { extname, join, relative } from 'node:path'
+import { basename as _basename, extname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
@@ -189,4 +189,27 @@ export async function loadTemplate(concernDir) {
     else result[target][slot] = value
   }
   return result
+}
+
+/**
+ * Resolves which template[<target>] to pass for a concern, based on its target.json.
+ * For `single` targets — basename. For `walkGlob` — basename of first non-negated entry.
+ * @param {string} concernAbsDir absolute path to fix/<concern>/ or policy/<concern>/
+ * @param {{ files?: { single?: string, walkGlob?: string|string[] } }} targetJson parsed target.json
+ * @returns {Promise<object|undefined>} template tree for the resolved target basename, or undefined
+ */
+export async function resolveConcernTemplateData(concernAbsDir, targetJson) {
+  const tpl = await loadTemplate(concernAbsDir)
+  const single = targetJson?.files?.single
+  if (single) return tpl[_basename(single)]
+  const glob = targetJson?.files?.walkGlob
+  if (typeof glob === 'string') return tpl[_basename(glob.replace(/^!/, ''))]
+  if (Array.isArray(glob)) {
+    for (const g of glob) {
+      if (g.startsWith('!')) continue
+      const data = tpl[_basename(g)]
+      if (data) return data
+    }
+  }
+  return undefined
 }
