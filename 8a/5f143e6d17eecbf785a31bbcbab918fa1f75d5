@@ -1,0 +1,27 @@
+npm/rules/security/policy/package_json/template/package.json.contains.json
+  s_9102be39d1e731::t_54d86c107b77d6 1
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_4bc51bd068a40d 13
+npm/rules/security/policy/package_json/template/package.json.deny.json
+  s_9102be39d1e731::t_35d4050cf4acd6 1-4
+npm/rules/security/policy/package_json/template/package.json.snippet.json
+  s_9102be39d1e731::t_11df827bda6288 1
+npm/rules/security/fix/gitleaks/template/.gitleaks.toml.snippet.toml
+  s_9102be39d1e731::t_0d5c93abb8c2fa 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8a5f143e6d17eecbf785a31bbcbab918fa1f75d5",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
