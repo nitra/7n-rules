@@ -67,6 +67,7 @@ import { cwd, env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
+import { inlineTemplateLinks } from '../scripts/utils/inline-template-links.mjs'
 import {
   detectAutoRules,
   detectLegacyRuleIds,
@@ -394,7 +395,7 @@ function normalizeRuleName(ruleName) {
  * @param {string} [bundledRulesDir] каталог `rules/` у корені пакету-джерела
  * @returns {Promise<string>} текст правила для запису в `.cursor/rules/n-*.mdc`
  */
-function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
+async function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
   const id = normalizeRuleName(rule)
   const bundledPath = join(bundledRulesDir, id, `${id}.mdc`)
   if (!existsSync(bundledPath)) {
@@ -402,7 +403,8 @@ function readBundledRuleContent(rule, bundledRulesDir = BUNDLED_RULES_DIR) {
       `Немає файлу ${id}/${id}.mdc у ${bundledRulesDir}. Оновіть ${PACKAGE_NAME} або приберіть "${rule}" з rules у ${CONFIG_FILE}.`
     )
   }
-  return readFile(bundledPath, 'utf8')
+  const text = await readFile(bundledPath, 'utf8')
+  return inlineTemplateLinks(text, dirname(bundledPath))
 }
 
 /**
