@@ -1,0 +1,87 @@
+.cursor/rules/n-security.mdc
+  s_9cf76e31545c62::t_d1ba1c003ebbf3 2-3,5,8,15,22,26-27,33-37,40,42,45-53,90-92
+  s_9cf76e31545c62::t_4e808fea9682b4 59,61,66-69,71-73,89,95
+  s_9cf76e31545c62::t_407e8420848ef9 55,57
+npm/rules/security/policy/package_json/template/package.json.snippet.json
+  s_9cf76e31545c62::t_282a88087b29e1 1
+npm/scripts/utils/inline-template-links.test.mjs
+  s_9cf76e31545c62::t_fcf0c7be8dcbb2 98,103,108,113
+  s_9cf76e31545c62::t_e856f88eb1c985 107,111-112,116
+npm/rules/security/policy/lint_security_yml/template/lint-security.yml.snippet.yml
+  s_9cf76e31545c62::t_d4fa8b8438107d 1-31
+npm/rules/security/policy/lint_security_yml/lint_security_yml.rego
+  s_9cf76e31545c62::t_8c65b0cf467662 1-33
+npm/rules/security/policy/lint_security_yml/target.json
+  s_9cf76e31545c62::t_b5cedc09ef2cb7 1-2,8
+  s_9cf76e31545c62::t_30f7276905cc0d 3-7
+npm/rules/security/fix/trufflehog/check.mjs
+  s_9cf76e31545c62::t_68bc1c540d5ca4 1-45
+.cursor/rules/scripts.mdc
+  s_9cf76e31545c62::t_700d006e4f79ab 87
+  s_9cf76e31545c62::t_1ca2978915a146 61
+  s_9cf76e31545c62::t_acfffe35ff2c87 68,70,72-75,77,79,81,83
+  s_9cf76e31545c62::t_adeeaedc477365 2,4,7,9,13-23,26,28,30,34-57
+npm/package.json
+  s_9cf76e31545c62::t_5a74e88330f8ed 3
+npm/rules/security/fix/trufflehog/check.test.mjs
+  s_9cf76e31545c62::t_77bb97df891728 1-58
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_59ee59e1e5b8bf::t_72687d27127aeb 81
+npm/rules/security/policy/package_json/template/package.json.deny.json
+  s_9cf76e31545c62::t_478f7f57a7b512 2-3
+.trufflehog-exclude
+  s_9cf76e31545c62::t_1925eb51bd023d 1-10
+npm/skills/adr-normalize/SKILL.md
+  s_59ee59e1e5b8bf::t_e772e1e464bb19 58,62
+.github/workflows/lint-security.yml
+  s_9cf76e31545c62::t_385ce78c0efb94 1-31
+npm/rules/security/security.mdc
+  s_9cf76e31545c62::t_f7d056a435186d 2-3,5,8,14,18-22,25,27,29
+  s_9cf76e31545c62::t_8339a2e1a186d3 31,33,37
+  s_9cf76e31545c62::t_24a709a5ee9fbf 35
+npm/rules/adr/adr.mdc
+  s_59ee59e1e5b8bf::t_ed574709f8d362 63
+  s_59ee59e1e5b8bf::t_f745361c0e0f8e 38
+npm/rules/security/policy/lint_security_yml/lint_security_yml_test.rego
+  s_9cf76e31545c62::t_1468f13cfcf819 1-7,9-13,15-35
+  s_9cf76e31545c62::t_3ea7a7516245a9 8,14
+npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.snippet.json
+  s_9cf76e31545c62::t_69890b91d7f94d 1
+npm/CHANGELOG.md
+  s_9cf76e31545c62::t_e380ec0cb29ff6 7-15,17-22
+  s_9cf76e31545c62::t_8c77de014fce85 16
+npm/rules/security/fix/trufflehog/template/.trufflehog-exclude.snippet.txt
+  s_9cf76e31545c62::t_bb90088a8e6d4e 1-6
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_59ee59e1e5b8bf::t_edfb8ca35ecc19 58,62
+npm/scripts/utils/template.test.mjs
+  s_9cf76e31545c62::t_70790434b69c40 10-11,18,20-21,39-40,46,48,53-54,56,85,90-91,93,183,191,199
+package.json
+  s_9cf76e31545c62::t_8fd64d0c1b654b 25
+npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.deny.json
+  s_9cf76e31545c62::t_cbfa41016e74e6 2-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "f91eb636f66ad5c271e8a1dc83c73633ce8183f0",
+  "prompts": {},
+  "sessions": {
+    "s_59ee59e1e5b8bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e9d4bb22-4fa8-42cf-8102-f89a81156925",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9cf76e31545c62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e24d1f5-91f5-4ecb-8cd8-a93d4121e0a5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
