@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.2] - 2026-05-17
+
+### Changed
+
+- Снепет `.gitleaks.toml.snippet.toml` тримає тільки security-affecting поля (extend.useDefault + allowlist.paths); title опціональний.
+
 ## [1.13.1] - 2026-05-17
 
 ### Added
