@@ -1,0 +1,58 @@
+npm/rules/ga/policy/git_ai/git_ai.rego
+  s_650e956376b4b4::t_f2db521d885e77 1,3-6,11,21-35,53-54,58-59,63,68-69
+npm/rules/ga/policy/git_ai/git_ai_test.rego
+  s_650e956376b4b4::t_c0c340fa84092c 1-96
+npm/package.json
+  s_650e956376b4b4::t_840702be816fb9 3
+npm/rules/ga/policy/clean_ga_workflows/clean_ga_workflows.rego
+  s_650e956376b4b4::t_70bafd5afcfb51 1,3-6,11-13,15,17,19-20,22,24,26,28-30,43,54-55,60,65-66,70-71,76-81,90-92,96-98
+npm/rules/ga/policy/git_ai/template/git-ai.yml.snippet.yml
+  s_650e956376b4b4::t_c440395ab4a7d6 1-30
+npm/rules/ga/policy/lint_ga/lint_ga_test.rego
+  s_650e956376b4b4::t_19ab98e13649f5 1-87
+npm/rules/ga/policy/clean_merged_branch/clean_merged_branch_test.rego
+  s_650e956376b4b4::t_d1773c006fd8f3 1-108
+.cursor/rules/n-ga.mdc
+  s_650e956376b4b4::t_8b9d8a1ea98ad1 20-22,53-55,85-88,98-101,141-143
+npm/rules/ga/policy/clean_ga_workflows/clean_ga_workflows_test.rego
+  s_650e956376b4b4::t_dd22a1c0e81690 1-101
+docs/adr/20260517-172337-function-replacer-для-екранування-паттернів-у-inlinetemplate.md
+  ai_agent 1-108
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_c576275498c346 7-23
+npm/rules/ga/policy/lint_ga/lint_ga.rego
+  s_650e956376b4b4::t_e21fabf4f8f0bf 1,3-4,9,21-47,55,60,65,75-76,80-81,90-92,96,103-104,107-108
+npm/rules/ga/fix/workflows/check.mjs
+  s_650e956376b4b4::t_ea0ff2e9d386ac 20-21,27-30
+  s_650e956376b4b4::t_86d06eb004b0e9 286,289-291,295-296
+npm/rules/ga/policy/clean_merged_branch/template/clean-merged-branch.yml.snippet.yml
+  s_650e956376b4b4::t_dd90b8a8cc4b89 1-27,32-37
+  s_650e956376b4b4::t_56317306ef37e5 28-31
+npm/rules/ga/policy/lint_ga/template/lint-ga.yml.snippet.yml
+  s_650e956376b4b4::t_c8ac7d729129eb 1-35
+npm/rules/ga/policy/clean_ga_workflows/template/clean-ga-workflows.yml.snippet.yml
+  s_650e956376b4b4::t_ea5575a59d5840 1-26
+npm/rules/ga/policy/clean_merged_branch/clean_merged_branch.rego
+  s_650e956376b4b4::t_f8045c4aa5b0b9 1,3-4,9,11,13,15,17,19,21,23,25,27,29,42,52-53,58,64-65,69-70,74-78,82-86,90-94,97-98,100,107-108,112-113,118,127-133,137-139
+npm/rules/ga/ga.mdc
+  s_650e956376b4b4::t_e22b54315b6061 20,22,24,26,30,32,34,36
+docs/adr/template-dir-concern-inventory.md
+  s_650e956376b4b4::t_0e0f248656059f 32-35,39
+  s_650e956376b4b4::t_98aa31e408821e 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "55a6751eecd9e52b5bdb2d7f04c53e34875d3a4e",
+  "prompts": {},
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
