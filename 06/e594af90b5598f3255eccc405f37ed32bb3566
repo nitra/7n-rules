@@ -1,0 +1,48 @@
+npm/package.json
+  s_650e956376b4b4::t_925ab525150d4e 3
+docs/adr/template-dir-concern-inventory.md
+  s_650e956376b4b4::t_95bd1cabe76988 27
+  s_650e956376b4b4::t_2ed5513cb393c5 28,138
+  s_650e956376b4b4::t_2069a8bdebb44b 128
+npm/rules/bun/policy/package_json/package_json_test.rego
+  s_650e956376b4b4::t_8684e9d47dff0b 2,5,8-12,22,29,31,36,42,45,54,58,62-63,68-69,74-75,78,82,91,100,109-117
+  s_650e956376b4b4::t_a6e2c7c71d4c16 39
+.cursor/rules/n-text.mdc
+  s_650e956376b4b4::t_e84b8202d33d57 118
+npm/rules/bun/policy/bunfig/bunfig_test.rego
+  s_650e956376b4b4::t_ac8bb4eacc1c45 1-43
+npm/rules/bun/policy/package_json/package_json.rego
+  s_650e956376b4b4::t_644c4402a2362e 35
+  s_650e956376b4b4::t_1ce04e7f833c2b 1,3-5,8-9,25,27-28,30-32,44
+  s_650e956376b4b4::t_d8e536e08c2f9b 7
+npm/CHANGELOG.md
+  s_650e956376b4b4::t_ebe7174a1bb79b 7-16,18-20
+  s_650e956376b4b4::t_b1928931fd75a0 17
+npm/rules/bun/policy/bunfig/bunfig.rego
+  s_650e956376b4b4::t_bb35b2aac5e54f 1,3-7,12,14-20,23,25-28
+.cursor/rules/n-ci4.mdc
+  s_650e956376b4b4::t_e84b8202d33d57 2,4,7-9,13,17,21,25,29,33,37-164,166,168-300,304,308,312,316,320-332
+npm/rules/bun/bun.mdc
+  s_650e956376b4b4::t_41441143f2cc86 45,47
+  s_650e956376b4b4::t_9d7aaf8a45e990 37
+npm/rules/bun/policy/package_json/template/package.json.deny.json
+  s_650e956376b4b4::t_d4c5d05f9cee01 1-4
+.cursor/rules/n-bun.mdc
+  s_650e956376b4b4::t_e84b8202d33d57 37-39,50-52,54-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "06e594af90b5598f3255eccc405f37ed32bb3566",
+  "prompts": {},
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
