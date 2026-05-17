@@ -1,0 +1,4 @@
+{
+  "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
+  "devDependencies": { "gitleaks": "глобальний CLI — не додавай у devDependencies" }
+}

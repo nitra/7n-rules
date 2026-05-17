@@ -1,0 +1,1 @@
+{ "scripts": { "lint": ["bun run lint-security"] } }

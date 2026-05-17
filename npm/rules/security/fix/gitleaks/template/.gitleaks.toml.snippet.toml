@@ -1,0 +1,15 @@
+title = "Project gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Файли й шляхи, які навмисно містять test-фікстури з паттернами секретів."
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\.git(/|$)''',
+  '''(^|/)dist(/|$)''',
+  '''(^|/)build(/|$)''',
+  '''.*\.lock$''',
+  '''.*fixtures?/.*'''
+]
