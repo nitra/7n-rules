@@ -1,0 +1,95 @@
+docs/adr/check-ланцюжок-виконання-та-структура-правила.md
+  s_34a2b8fe255b53::t_4ea764af58d7aa 49-56,58-63,65
+npm/CHANGELOG.md
+  s_e55d0246d58385::t_066baa54411b75 24-30
+  s_e55d0246d58385::t_b9d5516d6cf78e 31-46
+  s_e55d0246d58385::t_913e48ecc2bb21 7-23
+npm/rules/security/policy/package_json/package_json_test.rego
+  s_e55d0246d58385::t_10a4e0a938734c 1-71
+docs/adr/adr-правило-capture-decisions.md
+  s_34a2b8fe255b53::t_4ea764af58d7aa 50-63
+npm/scripts/auto-rules.mjs
+  s_e55d0246d58385::t_c17bf1adb328cf 663
+  s_e55d0246d58385::t_c7c47a02ab99b8 50
+AGENTS.md
+  s_e55d0246d58385::t_f07a107d0fda81 44-45,100
+npm/rules/security/policy/package_json/package_json.rego
+  s_e55d0246d58385::t_66788795a4ace3 1-75
+.cursor/rules/n-security.mdc
+  s_e55d0246d58385::t_f07a107d0fda81 1-2,6-7,9-20,24-48,50-76
+npm/rules/js-bun-redis/js-bun-redis.mdc
+  s_e55d0246d58385::t_8ca56f40488ce4 3-5
+npm/rules/js-mssql/js-mssql.mdc
+  s_e55d0246d58385::t_54e4ec6001d3d8 3-5
+docs/adr/adr-llm-нормалізація.md
+  s_34a2b8fe255b53::t_4ea764af58d7aa 45-79
+.n-cursor.json
+  s_e55d0246d58385::t_0528b18d05056b 18,23-30
+npm/rules/capacitor/capacitor.mdc
+  s_e55d0246d58385::t_31ac799e241025 3-5
+npm/rules/npm-module/npm-module.mdc
+  s_e55d0246d58385::t_26e0af25fe527a 3-5
+npm/rules/tauri/tauri.mdc
+  s_e55d0246d58385::t_5e670dda1e22d5 3-5
+CLAUDE.md
+  s_e55d0246d58385::t_f07a107d0fda81 19
+npm/rules/js-lint/js-lint.mdc
+  s_e55d0246d58385::t_82112a1df5beca 3-5
+npm/package.json
+  s_e55d0246d58385::t_7af7abd07ac9c1 3
+npm/rules/security/fix/gitleaks/check.test.mjs
+  s_e55d0246d58385::t_16b2e0f005cdce 1-12,14-15,17,19-20,22-25,27-34,36-73
+npm/rules/js-bun-db/js-bun-db.mdc
+  s_e55d0246d58385::t_cd30285a43ca38 3-5
+npm/rules/security/security.mdc
+  s_e55d0246d58385::t_08dd3943e932cc 3-5
+  s_9102be39d1e731::t_31c486cb811059 8,21-23,45,49,77
+docs/adr/rego-target-json-декларативний-контракт.md
+  s_34a2b8fe255b53::t_4ea764af58d7aa 52-65,67,69,71,73-75,77,79,81,83,85,87,89,91,93,95
+npm/rules/bun/bun.mdc
+  s_e55d0246d58385::t_232916a0f9d796 3-5
+npm/rules/js-run/js-run.mdc
+  s_e55d0246d58385::t_cf0edabe2d5ee8 3-5
+.gitleaks.toml
+  s_e55d0246d58385::t_370bb4fd704e37 1-19
+npm/scripts/auto-rules.test.mjs
+  s_e55d0246d58385::t_4835ba2046dd71 31
+  s_e55d0246d58385::t_a5c150394d0e40 83
+package.json
+  s_e55d0246d58385::t_b8ca2bcfb06b7b 3
+  s_e55d0246d58385::t_f3ed6558185c75 16,24-25
+npm/rules/security/fix/gitleaks/check.mjs
+  s_e55d0246d58385::t_f9f1a463a45f53 1-16,18,20,22-43,45-51,53-57,59-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "8f43dbffc0cc5d700e01fd48bc909481d52f59ef",
+  "prompts": {},
+  "sessions": {
+    "s_34a2b8fe255b53": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e513a1f0-c8b8-4eec-a745-63768ffe456b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e55d0246d58385": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0850a6f9-4567-482d-8da2-2fe965458fbc",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
