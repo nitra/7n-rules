@@ -1,0 +1,27 @@
+npm/scripts/utils/template.mjs
+  s_9102be39d1e731::t_32979f8011c636 1-73
+npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.snippet.json
+  s_9102be39d1e731::t_00e98440a7b987 1
+npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.deny.json
+  s_9102be39d1e731::t_135e2f90a25a3f 1-4
+npm/scripts/utils/template.test.mjs
+  s_9102be39d1e731::t_834e33c28dfbe1 1-31
+npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.contains.json
+  s_9102be39d1e731::t_9eb43786b9fe94 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "543d15f64967b1a59c9939a6c60be3fcfaaef61e",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
