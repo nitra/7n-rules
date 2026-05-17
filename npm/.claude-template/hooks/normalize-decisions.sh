@@ -160,7 +160,7 @@ PROMPT_HEADER=$(cat <<'EOF'
 {
   "operations": [
     { "op": "delete",     "file": "<basename>.md", "reason": "..." },
-    { "op": "rewrite",    "file": "<basename>.md", "slug": "<kebab-case-ukrainian>", "content": "<повний markdown файлу>" },
+    { "op": "rewrite",    "file": "<basename>.md", "slug": "<kebab-case-ukrainian>", "content": "<повний markdown файлу у MADR 4.0.0>" },
     { "op": "merge-into", "file": "<basename>.md", "target": "<slug>.md", "additions": "<markdown для дописування>" }
   ]
 }
@@ -169,11 +169,15 @@ PROMPT_HEADER=$(cat <<'EOF'
 
 1. `delete` — драфт тривіальний / повністю покритий іншим існуючим clean-ADR-ом / порожній. Поясни короткою причиною українською.
 
-2. `rewrite` — драфт має самостійну цінність. Повертай у `content` повний фінальний вміст файлу:
+2. `rewrite` — драфт має самостійну цінність як decision record. Повертай у `content` повний фінальний вміст файлу у форматі MADR 4.0.0 minimal:
    - Без YAML frontmatter (жодного `session:`, `captured:`, `transcript:`).
    - Заголовок `# <Title>` українською.
    - Один рядок `**Status:** Accepted` і один рядок `**Date:** YYYY-MM-DD` — дату беремо з поля `captured:` оригінальної чернетки (перші 10 символів ISO-дати).
-   - Далі розділи **Контекст**, **Рішення/Процедура/Факт**, **Обґрунтування**, **Розглянуті альтернативи**, **Зачіпає** — як у драфті, але причесані: цілісні речення, без скорочень, без слідів автогенерованого тегу типу `## Knowledge`.
+   - Далі секції з точними MADR headings англійською: `## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`, `### Consequences`, `## More Information`.
+   - У `## Considered Options` перелічуй лише варіанти, які є в драфті/transcript. Якщо альтернатив не було, додай bullet `Інші варіанти в transcript не обговорювалися.`
+   - У `## Decision Outcome` використовуй форму `Chosen option: "<option>", because <reason>.` Причина має спиратися на драфт/transcript, без вигаданого business/context.
+   - У `### Consequences` пиши bullets `Good, because ...`, `Bad, because ...`, `Neutral, because ...`. Якщо наслідок не зафіксований, явно пиши `transcript не містить підтвердження ...`, не вигадуй.
+   - У `## More Information` перенеси файли, команди, публічні API, конфіги й transcript facts. Якщо нема — `Додаткової інформації в transcript не зафіксовано.`
    - `slug` — kebab-case українською (наприклад `ланцюжок-запуску-abie`, `npm-publish-flow`). Без розширення `.md`. Літери малі, дозволено цифри, дефіс, кирилиця. Якщо тема технічна англійською (назва пакету, ключове слово) — лиши англійською без транслітерації.
 
 3. `merge-into` — драфт повторює тему вже існуючого clean-файлу зі списку нижче. `target` — точна назва файлу зі списку (з `.md`). `additions` — лише новий зміст, який варто дописати в кінець target-файлу під підзаголовком `## Update YYYY-MM-DD` (date з `captured` драфта). Якщо нічого нового додати — використовуй `delete`.
@@ -184,6 +188,7 @@ PROMPT_HEADER=$(cat <<'EOF'
 - Кожен файл з вхідного списку має зʼявитися у `operations` рівно один раз.
 - Слаги не повторювати між операціями того самого батча. Якщо дві чернетки про одну тему — одна `rewrite`, інша `merge-into target: <slug>.md` з тим самим slug-ом.
 - Не вигадуй target, якого нема у списку clean-файлів.
+- Не вигадуй альтернативи, decision drivers, наслідки, людей або зовнішній контекст. Якщо даних бракує — явно напиши, що transcript цього не містить.
 
 Вхідні драфти і clean-список — нижче.
 EOF

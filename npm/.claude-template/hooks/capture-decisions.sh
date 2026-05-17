@@ -83,33 +83,51 @@ if [[ -z "$TRANSCRIPT" ]]; then
 fi
 
 PROMPT=$(cat <<'EOF'
-You analyze a Claude Code session transcript and produce a durable knowledge artifact (ADR, Runbook, or Knowledge note) capturing what was done and why.
+You analyze an AI coding session transcript and produce durable decision documentation.
 
-LANGUAGE: Write the ENTIRE output in Ukrainian. This applies to the title, all section content, prose, and rationale. Keep code identifiers, file paths, commands, and tool or library names in their original form (do not translate `walkDir`, `package.json`, `npm`, etc.) — only translate the natural-language prose around them. Section labels themselves stay in Ukrainian per the template below.
+LANGUAGE: Write the content in Ukrainian. Keep MADR section headings in English exactly as shown below. Keep code identifiers, file paths, commands, and tool or library names in their original form (do not translate `walkDir`, `package.json`, `npm`, etc.).
 
 IMPORTANT: by "decision" we mean the design choice expressed in the session — even if the user pre-specified it in their brief. The user dictating the approach IS the decision; capture it, including the rationale they gave or that became apparent during implementation. Do NOT return NONE just because the user gave detailed instructions upfront.
+
+ANTI-HALLUCINATION RULES:
+- Use only facts present in the transcript, tool calls, changed file paths, or direct implications of those facts.
+- Do not invent decision makers, stakeholders, business context, requirements, alternatives, or consequences.
+- If alternatives were not discussed, write exactly: "Інші варіанти в transcript не обговорювалися."
+- If a consequence is unknown, write it as "Neutral, because transcript не містить підтвердження наслідку."
+- Prefer specific file paths and commands from the transcript over generic prose.
 
 OUTPUT RULES:
 - Emit one or more markdown blocks in this exact shape (no preamble, no trailing prose):
 
-## [ADR|Runbook|Knowledge] <короткий заголовок українською>
-**Контекст:** <яка проблема / ситуація це спричинила — 1-2 речення>
-**Рішення/Процедура/Факт:** <що було зроблено — конкретно: змінені файли, введена семантика, кроки>
-**Обґрунтування:** <чому саме такий підхід — з ТЗ користувача або міркувань асистента>
-**Розглянуті альтернативи:** <перелік явно обговорених, або «не обговорювалися»>
-**Зачіпає:** <файли, модулі, публічні API, конфіги>
+## ADR <короткий заголовок українською>
+
+## Context and Problem Statement
+<1-3 речення: яка проблема / ситуація спричинила рішення.>
+
+## Considered Options
+* <назва явно обговореного варіанта>
+* <або "Інші варіанти в transcript не обговорювалися.">
+
+## Decision Outcome
+Chosen option: "<назва обраного варіанта>", because <коротке обґрунтування з transcript>.
+
+### Consequences
+* Good, because <підтверджений позитивний наслідок або "transcript фіксує очікувану користь: ...">.
+* Bad, because <підтверджений негативний наслідок або "transcript не містить підтверджених негативних наслідків.">.
+
+## More Information
+<файли, команди, публічні API, конфіги, transcript facts. Якщо нема — "Додаткової інформації в transcript не зафіксовано.">
 
 WHEN TO PICK EACH TYPE:
-- ADR: a design choice (library, schema, pattern, semantics of a field/API). Most substantive code work qualifies.
-- Runbook: a procedure to operate, fix, deploy, or reproduce something.
-- Knowledge: a non-obvious constraint, gotcha, or invariant uncovered (without a corresponding code change).
+- Emit ADR for design choices: library, schema, pattern, file layout, hook semantics, API behavior, validation semantics.
+- Do not emit Runbook or Knowledge blocks here. This hook stores MADR-style decision records only.
 
 OUTPUT NONE ONLY IF the session is genuinely trivial:
 - A single typo fix, comment edit, or lint cleanup with no design content
-- A pure question/answer with no code change and no surprising fact
+- A pure question/answer with no durable decision
 - An aborted/empty session
 
-When in doubt, emit a block. Capturing too much is acceptable; missing real work is not.
+When in doubt, emit a conservative ADR with explicit "not discussed" placeholders rather than inventing missing details.
 
 TRANSCRIPT FOLLOWS:
 ---

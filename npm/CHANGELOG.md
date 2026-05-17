@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.2] - 2026-05-17
+
+### Changed
+
+- **`adr` hook output тепер MADR v4.0.0 minimal** — capture/normalize prompts генерують ADR-и з canonical headings `Context and Problem Statement`, `Considered Options`, `Decision Outcome`, `Consequences`, `More Information`. Prompts стали evidence-bound: якщо transcript не містить альтернатив або підтверджених наслідків, hook явно пише, що даних немає, замість вигадування деталей.
+
 ## [1.13.1] - 2026-05-17
 
 ### Added
