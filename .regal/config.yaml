@@ -1,10 +1,27 @@
 # Конфіг regal (https://docs.styra.com/regal/configuration).
 #
-# Відключаємо `idiomatic.no-defined-entrypoint`: для conftest-полісі (npm/policy/) `deny`-правила
-# є де-факто entrypoint-ами — конфтест їх збирає за іменем, без `# METADATA / entrypoint: true`
-# анотацій. Включене за замовчуванням, регалівське правило виглядає як ритуальний коментар без
-# семантики; вимикаємо проєктно.
+# Інтенціональні відхилення від defaults:
+#
+# - `idiomatic.no-defined-entrypoint` — для conftest-полісі `deny`-правила є де-факто entrypoint-ами;
+#   конфтест їх збирає за іменем, без `# METADATA / entrypoint: true` анотацій.
+#
+# - `idiomatic.directory-package-mismatch` — конвенція проєкту: package = `<rule>.<concern>`
+#   у `npm/rules/<rule>/policy/<concern>/`. Regal очікує точного збігу шляху з пакетом
+#   (`<rule>.policy.<concern>`), але це додало б `.policy.` всюди без користі.
+#
+# - `imports.unresolved-reference` на `data.template.*` — template-data ін'єктиться у
+#   runtime через `conftest --data <tmpfile>` (див. `npm/scripts/utils/run-conftest-batch.mjs`).
+#   Regal лінтує статично і не бачить runtime-data; вимикаємо повністю.
 rules:
   idiomatic:
     no-defined-entrypoint:
       level: ignore
+    directory-package-mismatch:
+      level: ignore
+  imports:
+    unresolved-reference:
+      level: ignore
+  style:
+    # opa fmt тримає інлайнові обʼєкти/масиви single-line; default 120 з ним конфліктує.
+    line-length:
+      max-line-length: 220

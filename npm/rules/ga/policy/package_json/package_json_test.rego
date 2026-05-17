@@ -4,9 +4,7 @@ import data.ga.package_json
 import rego.v1
 
 # Mirrors template/package.json.contains.json
-template_data := {
-	"contains": {"scripts": {"lint-ga": ["n-cursor lint-ga"]}},
-}
+template_data := {"contains": {"scripts": {"lint-ga": ["n-cursor lint-ga"]}}}
 
 test_valid_package_json if {
 	count(package_json.deny) == 0 with input as {"scripts": {"lint-ga": "n-cursor lint-ga"}}

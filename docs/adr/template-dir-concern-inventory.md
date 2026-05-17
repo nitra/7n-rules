@@ -29,6 +29,10 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | capacitor | policy | package_json | `package.json` (`@capacitor/core` version-range ≥ 8) | non-eligible | (none — semver range parsing) |
 | docker | policy | lint_docker_yml | `.github/workflows/lint-docker.yml` | full-canon | `lint-docker.yml.snippet.yml` |
 | docker | policy | package_json | `package.json` (`scripts.lint-docker` точне значення) | fragment | `package.json.snippet.json` |
+| ga | policy | package_json | `package.json` (`scripts.lint-ga` має містити `n-cursor lint-ga`) | fragment | `package.json.contains.json` ✓ |
+| ga | policy | vscode_extensions | `.vscode/extensions.json` (recommendations містить `github.vscode-github-actions`) | fragment | `extensions.json.snippet.json` ✓ |
+| ga | policy | vscode_settings | `.vscode/settings.json` (`[github-actions-workflow].editor.defaultFormatter = "oxc.oxc-vscode"`) | fragment | `settings.json.snippet.json` ✓ |
+| ga | policy | zizmor_yml | `.github/zizmor.yml` (`rules.unpinned-uses.config.policies."*" = "ref-pin"`) | fragment | `zizmor.yml.snippet.yml` ✓ |
 | hasura | policy | svc_hl | `hasura/k8s/base/svc-hl.yaml` (`metadata.name` має закінчуватись на `-h`) | non-eligible | (none — suffix predicate, не leaf-equality) |
 | image-avif | policy | package_json | `**/package.json` (`@nitra/minify-image.disable-avif` boolean) | partial | `package.json.deny.json` (typo `disabled-avif`); type-check значення лишається у rego |
 | image-compress | policy | package_json | `package.json` (lint-image script, aggregator, deny deps) | fragment | `package.json.snippet.json` + `package.json.deny.json` + `package.json.contains.json` |
@@ -107,15 +111,21 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 
 ## Summary
 
-Загалом: **81 концерн** (50 з `target.json`, 31 fix-only).
+Загалом: **85 концернів** (54 з `target.json`, 31 fix-only).
 
 | категорія | кількість | приклади |
 |---|---|---|
-| **fragment** | 21 | `security.package_json`, `text.cspell`, `style-lint.vscode_settings`, `js-run.configmap`, `bun.bunfig` |
+| **fragment** | 25 | `security.package_json`, `text.cspell`, `style-lint.vscode_settings`, `js-run.configmap`, `bun.bunfig`, усі 4 `ga.*` |
 | **full-canon** | 7 | `security.gitleaks` (.gitleaks.toml), `js-lint.lint_js_yml`, `docker.lint_docker_yml`, `abie.clean_merged_ignore_branches` (workflows) |
 | **partial** | 7 | `bun.package_json`, `style-lint/fix/tooling` (.stylelintignore), `npm-module.npm_package_json`, `text.oxfmtrc`, `text.package_json`, `image-avif.package_json`, `js-lint.package_json` |
 | **non-eligible** | 46 | усі fix-only концерни з AST/FS-walk; всі k8s policy концерни (kind-dispatch / multi-kind YAML); version-range checks; параметризовані HTTPRoute з `<prefix>` |
 
-**Сумарне покриття template-каталогами**: 35 з 81 концернів (fragment + full-canon + partial = 43% — тобто ~57% залишається inline у Rego/JS).
+**Сумарне покриття template-каталогами**: 39 з 85 концернів (fragment + full-canon + partial = 46% — тобто ~54% залишається inline у Rego/JS).
 
-Pilot (Phase 1): `security.fix.gitleaks` (full-canon) + `security.policy.package_json` (fragment) — покриває обидва шаблони усієї інфраструктури.
+**Позначка `✓`** у колонці template-files-planned означає, що міграцію вже виконано (template/ файли створені, rego читає з `data.template.*`, mdc посилається маркдаун-лінками).
+
+**Прогрес міграції:**
+
+- Phase 1: `security` — pilot (`security.fix.gitleaks` full-canon + `security.policy.package_json` fragment). Покриває обидва шаблони інфраструктури.
+- Phase 2: `ga` — усі 4 fragment-концерни (1.13.9).
+- TODO: інвентаризація потребує доповнення для policy-концернів, доданих у 1.13.8 (`js-lint.jscpd`, `js-lint.vscode_extensions`, `security.policy.gitleaks` як дублікат до fix/gitleaks). Будуть додані разом із їх template-міграцією.

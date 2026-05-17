@@ -4,6 +4,19 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.10] - 2026-05-17
+
+### Fixed
+
+- `runLintRego` (`npm/rules/rego/lint/lint.mjs`) — `LINT_TARGETS` вказував на застарілий шлях `npm/policy` (не існує після Phase 1 реструктуризації), тож `bun run lint-rego` мовчки exit 0 без реальної перевірки. Тепер `LINT_TARGETS = ['npm/rules']` — `opa check --strict`, `regal lint`, `conftest verify` реально проходять по всіх 111 `.rego`-файлах. TDD-регресія у `lint.test.mjs` (broken-syntax + well-formed fixtures).
+
+### Changed
+
+- `.regal/config.yaml` — додано `idiomatic.directory-package-mismatch` і `imports.unresolved-reference` у `ignore` (інтенціональні конвенції проєкту: package = `<rule>.<concern>` у `<rule>/policy/<concern>/`; `data.template.*` ін'єктиться runtime через `--data`). `style.line-length.max-line-length: 220` — узгоджено з `opa fmt` (тримає малі обʼєкти single-line).
+- `*_test.rego` з порушенням `test-outside-test-package` (4 файли: `js-lint.jscpd`, `js-lint.vscode_extensions`, `security.gitleaks`, `vue.package_json`) — перейменовано в `<package>_test` із явним `import data.<package>`.
+- `opa fmt -w npm/rules` — auto-fix форматування.
+- `docs/adr/template-dir-concern-inventory.md` — додано 4 `ga.*` концерни з відміткою `✓` (мігровано); оновлено summary-числа (85 концернів, 39 з template — 46%); додано секцію прогресу міграції.
+
 ## [1.13.9] - 2026-05-17
 
 ### Added

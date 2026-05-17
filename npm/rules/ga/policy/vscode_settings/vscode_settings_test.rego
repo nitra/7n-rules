@@ -4,16 +4,10 @@ import data.ga.vscode_settings
 import rego.v1
 
 # Mirrors template/settings.json.snippet.json
-template_data := {
-	"snippet": {
-		"[github-actions-workflow]": {"editor.defaultFormatter": "oxc.oxc-vscode"},
-	},
-}
+template_data := {"snippet": {"[github-actions-workflow]": {"editor.defaultFormatter": "oxc.oxc-vscode"}}}
 
 test_valid_settings if {
-	count(vscode_settings.deny) == 0 with input as {
-		"[github-actions-workflow]": {"editor.defaultFormatter": "oxc.oxc-vscode"},
-	}
+	count(vscode_settings.deny) == 0 with input as {"[github-actions-workflow]": {"editor.defaultFormatter": "oxc.oxc-vscode"}}
 		with data.template as template_data
 }
 
@@ -24,9 +18,7 @@ test_missing_settings if {
 }
 
 test_wrong_formatter if {
-	some msg in vscode_settings.deny with input as {
-		"[github-actions-workflow]": {"editor.defaultFormatter": "other"},
-	}
+	some msg in vscode_settings.deny with input as {"[github-actions-workflow]": {"editor.defaultFormatter": "other"}}
 		with data.template as template_data
 	contains(msg, "editor.defaultFormatter")
 }

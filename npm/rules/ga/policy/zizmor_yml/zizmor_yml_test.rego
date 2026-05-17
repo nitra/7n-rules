@@ -4,9 +4,7 @@ import data.ga.zizmor_yml
 import rego.v1
 
 # Mirrors template/zizmor.yml.snippet.yml
-template_data := {
-	"snippet": {"rules": {"unpinned-uses": {"config": {"policies": {"*": "ref-pin"}}}}},
-}
+template_data := {"snippet": {"rules": {"unpinned-uses": {"config": {"policies": {"*": "ref-pin"}}}}}}
 
 test_valid_zizmor if {
 	count(zizmor_yml.deny) == 0 with input as {"rules": {"unpinned-uses": {"config": {"policies": {"*": "ref-pin"}}}}}

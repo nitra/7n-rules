@@ -18,9 +18,10 @@
  * потрібен VS Code-розширенню `tsandall.opa` (LSP, format-on-save через `opa fmt`) — деталі в
  * `mdc/rego.mdc`.
  *
- * Цілі лінту: `npm/policy/` (місце, де поки що живуть Rego-полісі пакета `@nitra/cursor`).
- * Якщо в репозиторії з’являться інші *.rego поза цим деревом, додай шлях у `LINT_TARGETS` —
- * усі три інструменти приймають кілька шляхів і самі рекурсивно обходять директорії.
+ * Цілі лінту: `npm/rules/` (де живуть Rego-полісі пакета `@nitra/cursor` — у
+ * `npm/rules/<id>/policy/<concern>/`). Усі три інструменти приймають один шлях
+ * і самі рекурсивно знаходять `.rego` (ігноруючи інші розширення на кшталт
+ * `target.json` чи template-фіх).
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -30,7 +31,7 @@ import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
-const LINT_TARGETS = ['npm/policy']
+const LINT_TARGETS = ['npm/rules']
 
 /**
  * Друкує підказку зі встановлення `opa` (потрібен для `opa check --strict` і VS Code LSP).
