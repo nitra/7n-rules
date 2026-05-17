@@ -36,7 +36,8 @@
     "!**/*.test.mjs",
     "!**/*_test.rego",
     "!**/test-helpers.mjs",
-    "!**/fixtures/**"
+    "!**/fixtures/**",
+    "!**/__fixtures__/**"
   ],
   "type": "module",
   "types": "./types/bin/n-cursor.d.ts",
@@ -53,5 +54,8 @@
   "engines": {
     "bun": ">=1.3",
     "node": ">=25"
+  },
+  "devDependencies": {
+    "@nitra/cursor": "^1.13.0"
   }
 }
