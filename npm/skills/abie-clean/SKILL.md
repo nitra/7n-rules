@@ -9,12 +9,16 @@ version: '1.1'
 
 Скіл прибирає з проєкту все, що належить **ru-середовищу**. Залишаються тільки `dev` (як база) та `ua` як активне продакшн-середовище. Працюй послідовно по секціях нижче — після кожної секції перевіряй, що проєкт лишається консистентним (`kustomization.yaml` посилається лише на наявні файли, GitHub Actions-вирази синтаксично коректні).
 
+## 0. Що НЕ чіпати
+
+**`node_modules/`** (і будь-які `**/node_modules/`) — повністю виключаються з аналізу й модифікацій. Це згенеровані залежності: збіги на `ru`, `values-ru.*`, `cr.yandex` тощо там нерелевантні і відновляться при наступному `install`. Усі `find` / `git grep` / автозаміни мають пропускати ці шляхи. Аналогічно не чіпай `.git/`, `dist/`, `build/`, `.next/`, `.nuxt/`, `.output/`, `coverage/`.
+
 ## 1. Директорії з назвою `ru`
 
-Видали всі директорії з назвою `ru` у проєкті:
+Видали всі директорії з назвою `ru` у проєкті (крім тих, що всередині `node_modules`):
 
 ```bash
-find . -type d -name "ru" -exec rm -rf {} +
+find . -type d \( -name node_modules -o -name .git \) -prune -o -type d -name "ru" -print -exec rm -rf {} +
 ```
 
 Це чистить як `country/ru/`, так і `k8s/<...>/ru/` (overlay у kustomize). Після видалення overlay `ru/` обов’язково прибери відповідний запис у `resources:` у батьківському `kustomization.yaml`, якщо він там лишився.
@@ -27,7 +31,8 @@ find . -type d -name "ru" -exec rm -rf {} +
 - будь-які файли, що закінчуються на `-ru` або `-ru.<ext>`, наприклад `site/.env.prod-ru`, `*.env.prod-ru`, `*.prod-ru.conf`
 
 ```bash
-find . -type f \( -name "values-ru.*" -o -name "*-ru" -o -name "*.prod-ru" -o -name "*.prod-ru.*" \) -delete
+find . -type d \( -name node_modules -o -name .git \) -prune -o \
+  -type f \( -name "values-ru.*" -o -name "*-ru" -o -name "*.prod-ru" -o -name "*.prod-ru.*" \) -print -delete
 ```
 
 ## 3. `.github/workflows/*.yml`
@@ -194,5 +199,5 @@ const tr = {
 ## 6. Після очистки
 
 - Переконайся, що `kustomization.yaml` у кожній директорії `k8s/` не посилається на видалені overlay або файли.
-- Пройдись `git grep` по репозиторію на залишки: `git grep -n -i -e '\bru\b' -e cr\.yandex -e country/ru -e prod-ru -e values-ru -e "'ya'"` — переглянь усі знахідки вручну, бо `ru` як слово може траплятися в легітимних контекстах (наприклад, `truncate`, `Aurum`, `cruft`). Видаляй лише ті входження, що належать ru-середовищу.
+- Пройдись `git grep` по репозиторію на залишки: `git grep -n -i -e '\bru\b' -e cr\.yandex -e country/ru -e prod-ru -e values-ru -e "'ya'"` — переглянь усі знахідки вручну, бо `ru` як слово може траплятися в легітимних контекстах (наприклад, `truncate`, `Aurum`, `cruft`). Видаляй лише ті входження, що належать ru-середовищу. `git grep` за замовчуванням пропускає невідстежувані шляхи, тож `node_modules/` у вихід не потрапить, поки воно у `.gitignore`.
 - Перевір CI локально: `npx @nitra/cursor check abie` (якщо правило **abie** ввімкнене у проєкті).

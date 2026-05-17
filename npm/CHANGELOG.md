@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.13] - 2026-05-17
+
+### Added
+
+- `text` rule: до ланцюжка `lint-text` додано крок `dotenv-linter` (`runDotenvLinter()` у `npm/rules/text/lint/run-dotenv-linter.mjs`). На знайдених `.env*` рекурсивно по проєкту виконується `dotenv-linter fix -r --no-backup --quiet . --exclude node_modules --exclude .envrc`, після чого симетричний `check` для фінальної перевірки. Якщо інструмент відсутній у `PATH` — друкуються підказки встановлення (`brew install dotenv-linter` для macOS).
+- `text.mdc` (canonical + `.cursor/rules/n-text.mdc` mirror) описує новий крок і вимоги до `dotenv-linter` (тільки в `PATH`, **не** у `dependencies`/`devDependencies`).
+- `.cspell.json` — додано слово `envrc` (направлення на direnv-файл, не key=value).
+- Тест `npm/rules/text/lint/run-dotenv-linter.test.mjs` — порожнє дерево, авто-фікс `LowercaseKey`, ігнор `node_modules`/`.envrc`.
+
 ## [1.13.12] - 2026-05-17
 
 ### Added
