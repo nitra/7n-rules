@@ -128,6 +128,34 @@ export function checkDeny(actual, deny, opts, path = []) {
   return []
 }
 
+/**
+ * For each leaf path that has an array of strings in `contains`, every string
+ * must appear as substring in the same path of `actual` (string leaf).
+ */
+export function checkContains(actual, contains, opts, path = []) {
+  if (contains == null) return []
+  const { targetPath, source } = opts
+  if (Array.isArray(contains)) {
+    const out = []
+    const haystack = typeof actual === 'string' ? actual : ''
+    for (const needle of contains) {
+      if (!haystack.includes(needle)) {
+        out.push(`${targetPath}: ${formatPath(path)} має містити ${quote(needle)} (${source})`)
+      }
+    }
+    return out
+  }
+  if (contains !== null && typeof contains === 'object') {
+    const out = []
+    for (const [k, v] of Object.entries(contains)) {
+      const childActual = actual && typeof actual === 'object' ? actual[k] : undefined
+      out.push(...checkContains(childActual, v, opts, [...path, k]))
+    }
+    return out
+  }
+  return []
+}
+
 export async function loadTemplate(concernDir) {
   const tplDir = join(concernDir, 'template')
   if (!existsSync(tplDir)) return {}
