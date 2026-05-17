@@ -148,10 +148,7 @@ KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 
 У **`.github/workflows/clean-merged-branch.yml`** у кроці **`phpdocker-io/github-actions-delete-abandoned-branches`** значення **`with.ignore_branches`** має містити **dev** та **ua** (разом з іншими гілками, якщо потрібно):
 
-```yaml title=".github/workflows/clean-merged-branch.yml (фрагмент)"
-with:
-  ignore_branches: main,dev,ua
-```
+- abie-specific канон (action marker + required ignore_branches tokens): [clean-merged-branch.yml.snippet.yml](./policy/clean_merged_ignore_branches/template/clean-merged-branch.yml.snippet.yml)
 
 ## Швидкий gate через conftest (Rego)
 

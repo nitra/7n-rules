@@ -1,57 +1,41 @@
-# Порт перевірки `parseCleanMergedIgnoreBranches` + `ignoreBranchesIncludesRequired`
-# з `npm/scripts/check-abie.mjs` (abie.mdc): у workflow
-# `.github/workflows/clean-merged-branch.yml` крок з
-# `uses: phpdocker-io/github-actions-delete-abandoned-branches` має у
-# `with.ignore_branches` містити усі обовʼязкові токени `dev,ua`
-# (case-insensitive, кома-розділені).
+# Перевірка `clean-merged-branch.yml` для abie-проєктів (abie.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/clean-merged-branch.yml \
-#     -p npm/policy/abie/clean_merged_ignore_branches \
-#     --namespace abie.clean_merged_ignore_branches
-#
-# JS authoritative (`check-abie.mjs`: `checkCleanMergedBranch`,
-# `parseCleanMergedIgnoreBranches`, `ignoreBranchesIncludesRequired`); ця Rego —
-# швидкий gate для одиничного workflow YAML. Cross-file гейтинг (правило
-# `abie` у `.n-cursor.json`) — у JS.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/clean-merged-branch.yml.snippet.yml.
+# Action-маркер (`uses:` substring) і required branches (parsed з template's
+# `ignore_branches`) читаються з template. ga.clean_merged_branch перевіряє
+# повний канон workflow окремо; цей пакет — лише abie-specific шар.
 package abie.clean_merged_ignore_branches
 
 import rego.v1
 
-# Обовʼязкові гілки в `ignore_branches` (узгоджено з `ABIE_REQUIRED_IGNORE_BRANCHES`).
-required_branches := {"dev", "ua"}
+# Експектації з template's step (першого з steps).
+expected_step := step if some step in data.template.snippet.jobs.cleanup_old_branches.steps
 
-# Префікс `uses:` для GitHub Action, у якого читаємо `with.ignore_branches`.
-target_action_marker := "phpdocker-io/github-actions-delete-abandoned-branches"
+target_action_marker := expected_step.uses
 
-step_missing_msg := concat(" ", [
-	"clean-merged-branch.yml: не знайдено крок з uses: phpdocker-io/github-actions-delete-abandoned-branches",
-	"(abie.mdc)",
-])
+required_branches := parsed_ignore_tokens(expected_step.with.ignore_branches)
 
-ignore_branches_missing_msg := concat(" ", [
-	"clean-merged-branch.yml: не знайдено with.ignore_branches у кроці",
-	"phpdocker-io/github-actions-delete-abandoned-branches (abie.mdc)",
-])
+step_missing_msg := sprintf(
+	"clean-merged-branch.yml: не знайдено крок з uses: %s (abie.mdc)",
+	[target_action_marker],
+)
 
-# ── deny: крок не знайдено ────────────────────────────────────────────────
+ignore_branches_missing_msg := sprintf(
+	"clean-merged-branch.yml: не знайдено with.ignore_branches у кроці %s (abie.mdc)",
+	[target_action_marker],
+)
+
+# ── deny ─────────────────────────────────────────────────────────────────
 
 deny contains step_missing_msg if {
 	count(target_steps) == 0
 }
 
-# ── deny: з step нема with.ignore_branches ────────────────────────────────
-
 deny contains ignore_branches_missing_msg if {
 	count(target_steps) > 0
 	not has_ignore_branches_value
 }
-
-# ── deny: ignore_branches не містить усіх обов'язкових токенів ────────────
 
 deny contains msg if {
 	count(target_steps) > 0
@@ -64,9 +48,8 @@ deny contains msg if {
 	)
 }
 
-# ── helpers ───────────────────────────────────────────────────────────────
+# ── helpers ──────────────────────────────────────────────────────────────
 
-# Усі steps з усіх jobs у workflow (підтримує jobs.<job>.steps[]).
 target_steps contains step if {
 	some job in object.get(input, "jobs", {})
 	some step in object.get(job, "steps", [])
@@ -75,7 +58,6 @@ target_steps contains step if {
 	contains(uses, target_action_marker)
 }
 
-# Чи у знайдених steps хоча б у одного є with.ignore_branches непорожнім рядком.
 has_ignore_branches_value if {
 	some step in target_steps
 	v := object.get(object.get(step, "with", {}), "ignore_branches", null)
@@ -93,7 +75,6 @@ ignore_branches_value := values[0] if {
 	count(values) > 0
 }
 
-# Розбирає `ignore_branches` як `,`-розділений список, нормалізує через trim+lower.
 parsed_ignore_tokens(value) := {lower(trim_space(part)) |
 	some part in split(value, ",")
 	trim_space(part) != ""

@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.20] - 2026-05-17
+
+### Added
+
+- `abie.clean_merged_ignore_branches` template/ міграція (Phase 10): action marker (`uses:` substring) + required `ignore_branches` tokens (`dev,ua`) тепер у `template/clean-merged-branch.yml.snippet.yml`. Rego читає expected step із template's `jobs.cleanup_old_branches.steps[0]`. Drift test покриває зміну required-branches.
+- `abie.mdc` — inline `ignore_branches` фрагмент замінено на template-link.
+
 ## [1.13.19] - 2026-05-17
 
 ### Added
