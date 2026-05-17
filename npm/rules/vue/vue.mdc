@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '1.8'
+version: '1.9'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -104,7 +104,20 @@ const additionalInstructions = `
 
 ### Тестування
 
-- **Unit / component:** **Vue Test Utils**; з **Vite** зручно **Vitest**.
+- **Unit:** **Bun Test Runner** (`bun test`) — використовуй його замість **Vitest**. API сумісне (`describe` / `it` / `expect` з `bun:test`), моки через `mock` і `mock.module`. У `package.json` тримай `"test": "bun test <шляхи>"`; не додавай `vitest`, `vitest.config.*` і пов’язані залежності.
+- **Component / DOM:** **Vue Test Utils** + **Bun Test Runner** з **happy-dom** як DOM-середовищем. Підключення — через `@happy-dom/global-registrator` у preload-файлі та `bunfig.toml`:
+
+```toml title="bunfig.toml"
+[test]
+preload = ["./test/happy-dom.preload.js"]
+```
+
+```js title="test/happy-dom.preload.js"
+import { GlobalRegistrator } from '@happy-dom/global-registrator'
+GlobalRegistrator.register()
+```
+
+`jsdom` не використовуй — happy-dom швидший і достатній для типових Vue-компонентних тестів.
 - **E2E:** **Playwright** змістовні сценарії користувацьких потоків.
 
 ### Інструменти (узгоджено з Vite і цим правилом)

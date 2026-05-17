@@ -1,18 +1,18 @@
 /**
  * Перевіряє GitHub Actions за правилом ga.mdc.
  *
- * Workflows лише з розширенням `.yml`, наявність clean/lint workflow, конфіг zizmor з ref-pin,
- * відсутність MegaLinter, коректний скрипт `lint-ga` у `package.json`, виклик у `lint-ga.yml`,
+ * Workflows лише з розширенням `.yml`, наявність clean/lint workflow,
+ * відсутність MegaLinter, виклик у `lint-ga.yml`,
  * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує npx `\@nitra/cursor`),
- * `\.vscode/settings.json` — `editor.defaultFormatter` **oxc** для `[github-actions-workflow]`.
  *
  * Структурні поля 4 канонічних workflow (`clean-ga-workflows.yml`, `clean-merged-branch.yml`,
  * `lint-ga.yml`, `git-ai.yml`) і УНІВЕРСАЛЬНІ перевірки для всіх `.github/workflows/*.yml`
  * (`concurrency`, заборонені `oven-sh/setup-bun` / `actions/cache` / `bun install` у `uses`/`run`,
  * shell-продовження `\` у `run`, обов'язковий `actions/checkout@v6` перед локальним
- * `setup-bun-deps`) — у Rego-полісі під `npm/policy/ga/` і запускаються через
- * `bun run lint-ga` (`runConftestStep` у `lint-ga.mjs`). Тут лишилася лише git-залежна
- * перевірка `on.*.paths` glob-ів через `git ls-files :(glob)`.
+ * `setup-bun-deps`), а також `package.json`, `.vscode/*` і `.github/zizmor.yml` —
+ * у Rego-полісі під `npm/policy/ga/`. Тут лишилися FS/git/tooling перевірки:
+ * наявність файлів, MegaLinter leftovers, `on.*.paths` через `git ls-files :(glob)`,
+ * і локальний `shellcheck`.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -29,8 +29,6 @@ const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/
 
 /** Типові конфіги MegaLinter у корені репо */
 const MEGALINTER_CONFIG_NAMES = ['.mega-linter.yml', '.megalinter.yaml', '.mega-linter.yaml']
-
-const N_CURSOR_LINT_GA_RE = /\bn-cursor\s+lint-ga\b/
 
 /** Обовʼязкові workflow-файли (ga.mdc). */
 const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml', 'lint-ga.yml', 'git-ai.yml']
@@ -177,92 +175,6 @@ async function checkMegalinter(wfDir, ymlWorkflows, passFn, failFn) {
     }
   }
   if (!found) passFn('Залишків MegaLinter не виявлено')
-}
-
-/**
- * Перевіряє zizmor конфіг.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkZizmor(passFn, failFn) {
-  const zizmorPath = '.github/zizmor.yml'
-  if (!existsSync(zizmorPath)) {
-    failFn(`Відсутній ${zizmorPath} — потрібен для zizmor (ga.mdc)`)
-    return
-  }
-  const z = await readFile(zizmorPath, 'utf8')
-  passFn(`${zizmorPath} існує`)
-  if (z.includes('ref-pin')) {
-    passFn(`${zizmorPath} містить політику ref-pin (zizmor)`)
-  } else {
-    failFn(`${zizmorPath}: додай policies ref-pin для unpinned-uses (ga.mdc)`)
-  }
-}
-
-/**
- * Перевіряє `.vscode/settings.json`: oxfmt/oxc як default formatter для GitHub Actions workflow (мова
- * `github-actions-workflow` з розширення github.vscode-github-actions), узгоджено з oxc для yaml/workflow.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkVscodeSettingsForGa(passFn, failFn) {
-  const rel = '.vscode/settings.json'
-  if (!existsSync(rel)) {
-    failFn(`${rel} не існує — додай [github-actions-workflow].editor.defaultFormatter = oxc.oxc-vscode (ga.mdc)`)
-    return
-  }
-  let settings
-  try {
-    settings = JSON.parse(await readFile(rel, 'utf8'))
-  } catch {
-    failFn(`${rel}: невалідний JSON (ga.mdc)`)
-    return
-  }
-  if (!settings || typeof settings !== 'object') {
-    failFn(`${rel}: очікується об’єкт налаштувань (ga.mdc)`)
-    return
-  }
-  const block = /** @type {Record<string, unknown>} */ (settings)['[github-actions-workflow]']
-  if (!block || typeof block !== 'object' || block === null || Array.isArray(block)) {
-    failFn(`${rel}: додай "[github-actions-workflow]": { "editor.defaultFormatter": "oxc.oxc-vscode" } (ga.mdc)`)
-    return
-  }
-  const df = String(/** @type {Record<string, unknown>} */ (block)['editor.defaultFormatter'] ?? '')
-  if (df !== 'oxc.oxc-vscode') {
-    failFn(
-      `${rel}: [github-actions-workflow].editor.defaultFormatter має бути "oxc.oxc-vscode" (зараз: ${df || '∅'}) (ga.mdc)`
-    )
-    return
-  }
-  passFn(`${rel}: [github-actions-workflow] → oxc.oxc-vscode`)
-}
-
-/**
- * Перевіряє скрипт lint-ga в package.json.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkLintGaScript(passFn, failFn) {
-  if (!existsSync('package.json')) {
-    failFn('package.json не існує — потрібен lint-ga у scripts')
-    return
-  }
-  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-  const lg = pkg.scripts?.['lint-ga']
-  if (typeof lg !== 'string') {
-    failFn('package.json: додай скрипт "lint-ga" (ga.mdc)')
-    return
-  }
-  passFn('package.json містить lint-ga')
-  // Канонічний скрипт делегує виконання CLI `n-cursor lint-ga` (bin з `@nitra/cursor`) — там preflight
-  // на shellcheck + послідовно `bunx github-actionlint` і `uvx zizmor --offline --collect=workflows .`.
-  // Виклик через bin-ім’я `n-cursor`, а не `npx --no @nitra/cursor`, бо `bun run` транслює `npx` у `bun x`,
-  // а `bun x @nitra/cursor` для скоупованого пакету з одним bin-ім’ям повертає 0 без виконання.
-  if (N_CURSOR_LINT_GA_RE.test(lg)) {
-    passFn('lint-ga делегує CLI n-cursor lint-ga (preflight shellcheck + actionlint + zizmor)')
-  } else {
-    failFn('lint-ga має бути "n-cursor lint-ga" — CLI робить preflight shellcheck перед actionlint/zizmor (ga.mdc)')
-  }
 }
 
 /**
@@ -437,19 +349,6 @@ export async function check() {
   await checkApplyWorkflow(wfDir, files, 'apply-k8s.yml', '**/k8s/**/*.yaml', pass, fail)
   await checkApplyWorkflow(wfDir, files, 'apply-nats-consumer.yml', '**/consumer.yaml', pass, fail)
 
-  if (existsSync('.vscode/extensions.json')) {
-    const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-    if (ext.recommendations?.includes('github.vscode-github-actions')) {
-      pass('extensions.json містить github.vscode-github-actions')
-    } else {
-      fail('extensions.json не містить github.vscode-github-actions')
-    }
-  } else {
-    fail('.vscode/extensions.json не існує')
-  }
-
-  await checkVscodeSettingsForGa(pass, fail)
-
   await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
 
   // git-залежна перевірка `on.push.paths` glob-ів (вимагає `git ls-files`) —
@@ -462,8 +361,6 @@ export async function check() {
     }
   }
 
-  await checkZizmor(pass, fail)
-  await checkLintGaScript(pass, fail)
   checkShellcheckInstalled(pass, fail)
 
   return reporter.getExitCode()

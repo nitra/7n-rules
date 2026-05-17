@@ -1,8 +1,12 @@
 /**
  * Знаходить пакети з `vue` у dependencies і перевіряє їх за правилом vue.mdc.
  *
- * Версії Vite та плагінів, vue-macros, auto-import, layouts, вміст `vite.config`;
- * у репозиторії — рекомендацію розширення Vue.volar.
+ * Вміст `vite.config`, editor-файли для Vite client types, у репозиторії —
+ * рекомендацію розширення Vue.volar.
+ *
+ * Залежності Vue/Vite (`vite >= 8`, `@vitejs/plugin-vue`, `vue-macros`,
+ * `unplugin-auto-import`, `vite-plugin-vue-layouts-next`, заборона `esbuild`) —
+ * у policy `vue.package_json`.
  *
  * У кожному Vue+Vite-пакеті очікується `src/vite-env.d.ts` з `/// <reference types="vite/client" />`
  * та `jsconfig.json` у корені пакета (типи для імпортів асетів у `.vue`).
@@ -183,30 +187,6 @@ function ukFilesCountPhrase(n) {
   return `${n} файлів`
 }
 
-/**
- * Перевіряє наявність залежності в об'єкті deps.
- * @param {Record<string,string>} deps об'єкт залежностей
- * @param {string} name ім'я пакета
- * @param {string} prefix префікс повідомлення
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- * @param {string} hint підказка при відсутності
- */
-function checkRequiredDep(deps, name, prefix, passFn, fail, hint = `${name} відсутній`) {
-  if (deps[name]) {
-    passFn(`${prefix}${name}: ${deps[name]}`)
-  } else {
-    fail(`${prefix}${hint}`)
-  }
-}
-
-/**
- * Перевіряє версію vite у devDependencies.
- * @param {Record<string,string>} devDeps devDependencies з package.json
- * @param {string} prefix параметр prefix
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- */
 /**
  * Перевіряє `src/vite-env.d.ts` і наявність `jsconfig.json` для підтягування типів асетів Vite у IDE.
  * @param {string} rootDir відносний шлях до кореня пакета
@@ -433,44 +413,7 @@ async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, ha
  */
 async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
   const prefix = `[${packageLabel(rootDir)}] `
-  const pkg = JSON.parse(await readFile(join(rootDir, 'package.json'), 'utf8'))
-  const deps = pkg.dependencies || {}
-  const devDeps = pkg.devDependencies || {}
-  const allDeps = { ...deps, ...devDeps }
-
-  if (allDeps.esbuild) {
-    fail(`${prefix}esbuild заборонено (знайдено: ${allDeps.esbuild}). Замінити на rolldown та прибрати esbuild.`)
-  }
-
-  checkRequiredDep(deps, 'vue', prefix, passFn, fail, 'vue відсутній в dependencies')
-  // `vite >= 8` перенесено в Rego (`npm/policy/vue/package_json/`); запуск
-  // через `npx @nitra/cursor check`. Залишені вимоги — present-/missing-deps
-  // (vue-macros, unplugin-auto-import, тощо) — у самому JS-чекері.
-  checkRequiredDep(
-    devDeps,
-    '@vitejs/plugin-vue',
-    prefix,
-    passFn,
-    fail,
-    '@vitejs/plugin-vue відсутній в devDependencies'
-  )
-  checkRequiredDep(allDeps, 'vue-macros', prefix, passFn, fail, 'vue-macros відсутній — bun add -d vue-macros')
-  checkRequiredDep(
-    allDeps,
-    'unplugin-auto-import',
-    prefix,
-    passFn,
-    fail,
-    'unplugin-auto-import відсутній — bun add -d unplugin-auto-import'
-  )
-  checkRequiredDep(
-    allDeps,
-    'vite-plugin-vue-layouts-next',
-    prefix,
-    passFn,
-    fail,
-    'vite-plugin-vue-layouts-next відсутній — bun add -d vite-plugin-vue-layouts-next'
-  )
+  passFn(`${prefix}package.json залежності перевіряє npx @nitra/cursor check → vue.package_json`)
 
   await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail)
 

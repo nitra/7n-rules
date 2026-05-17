@@ -15,10 +15,10 @@ describe('inlineTemplateLinks', () => {
     expect(result).toBe('`snippet.json`:\n\n```json\n{"key": "val"}\n```')
   })
 
-  test('toml link → fenced toml block', async () => {
+  test('toml link → fenced toml block (label normalized to .gitleaks.toml)', async () => {
     const text = '[.gitleaks.toml.snippet.toml](./fix/foo/template/.gitleaks.toml.snippet.toml)'
     const result = await inlineTemplateLinks(text, FIXTURES)
-    expect(result).toBe('`.gitleaks.toml.snippet.toml`:\n\n```toml\ntitle = "x"\n```')
+    expect(result).toBe('`.gitleaks.toml`:\n\n```toml\ntitle = "x"\n```')
   })
 
   test('yml link → fenced yaml block', async () => {
@@ -43,6 +43,30 @@ describe('inlineTemplateLinks', () => {
     const text = '[gitleaks](https://github.com/gitleaks/gitleaks)'
     const result = await inlineTemplateLinks(text, FIXTURES)
     expect(result).toBe('[gitleaks](https://github.com/gitleaks/gitleaks)')
+  })
+
+  test('normalizes label: strips .snippet.<ext> → target basename', async () => {
+    const text = '[package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)'
+    const result = await inlineTemplateLinks(text, FIXTURES)
+    expect(result.startsWith('`package.json`:')).toBe(true)
+  })
+
+  test('normalizes label: strips .deny.<ext> → target basename', async () => {
+    const text = '[package.json.deny.json](./policy/package_json/template/package.json.deny.json)'
+    const result = await inlineTemplateLinks(text, FIXTURES)
+    expect(result.startsWith('`package.json`:')).toBe(true)
+  })
+
+  test('normalizes label: strips .contains.<ext> → target basename', async () => {
+    const text = '[package.json.contains.json](./policy/package_json/template/package.json.contains.json)'
+    const result = await inlineTemplateLinks(text, FIXTURES)
+    expect(result.startsWith('`package.json`:')).toBe(true)
+  })
+
+  test('normalizes label: strips .snippet.<ext> with dotfile target → .gitleaks.toml', async () => {
+    const text = '[.gitleaks.toml.snippet.toml](./fix/foo/template/.gitleaks.toml.snippet.toml)'
+    const result = await inlineTemplateLinks(text, FIXTURES)
+    expect(result.startsWith('`.gitleaks.toml`:')).toBe(true)
   })
 
   test('preserves $ characters in template content (no $-pattern substitution)', async () => {

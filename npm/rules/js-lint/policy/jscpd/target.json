@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": {
+    "single": ".jscpd.json",
+    "required": true
+  },
+  "missingMessage": ".jscpd.json не існує — створи з полями згідно js-lint.mdc"
+}

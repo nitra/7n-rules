@@ -1,8 +1,9 @@
 /**
- * Тести дописування `\@nitra/cursor` у `devDependencies` кореневого package.json.
+ * Тести дописування `\@nitra/cursor` у `devDependencies` workspace-root package.json.
  */
 import { describe, expect, test } from 'bun:test'
-import { readFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { ensureNitraCursorInRootDevDependencies } from './ensure-nitra-cursor-dev-dependencies.mjs'
 import { withTmpCwd, writeJson } from './utils/test-helpers.mjs'
@@ -10,7 +11,7 @@ import { withTmpCwd, writeJson } from './utils/test-helpers.mjs'
 describe('ensureNitraCursorInRootDevDependencies', () => {
   test('дописує devDependencies, якщо пакету ще немає', async () => {
     await withTmpCwd(async dir => {
-      await writeJson('package.json', { name: 'x', version: '0.0.0' })
+      await writeJson('package.json', { name: 'x', version: '0.0.0', workspaces: ['npm'] })
       const ok = await ensureNitraCursorInRootDevDependencies(dir, {
         bundledVersion: '1.2.3',
         silent: true
@@ -25,6 +26,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
     await withTmpCwd(async dir => {
       const before = {
         name: 'x',
+        workspaces: ['npm'],
         devDependencies: { '@nitra/cursor': '^9.0.0' }
       }
       await writeJson('package.json', before)
@@ -42,6 +44,7 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
     await withTmpCwd(async dir => {
       await writeJson('package.json', {
         name: 'x',
+        workspaces: ['npm'],
         dependencies: { '@nitra/cursor': '1.0.0' }
       })
       const ok = await ensureNitraCursorInRootDevDependencies(dir, {
@@ -61,6 +64,38 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
         silent: true
       })
       expect(ok).toBe(false)
+    })
+  })
+
+  test('не дописує у package.json без workspaces', async () => {
+    await withTmpCwd(async dir => {
+      await writeJson('package.json', { name: 'leaf', version: '0.0.0' })
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, {
+        bundledVersion: '1.2.3',
+        silent: true
+      })
+      expect(ok).toBe(false)
+      const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+      expect(pkg.devDependencies).toBeUndefined()
+    })
+  })
+
+  test('із вкладеного пакета не шукає package.json з workspaces вгору', async () => {
+    await withTmpCwd(async dir => {
+      await writeJson('package.json', { name: 'root', workspaces: ['npm'] })
+      await mkdir('npm')
+      await writeJson(join('npm', 'package.json'), { name: '@nitra/cursor', version: '0.0.0' })
+
+      const ok = await ensureNitraCursorInRootDevDependencies(join(dir, 'npm'), {
+        bundledVersion: '1.2.3',
+        silent: true
+      })
+
+      expect(ok).toBe(false)
+      const rootPkg = JSON.parse(await readFile('package.json', 'utf8'))
+      const leafPkg = JSON.parse(await readFile(join('npm', 'package.json'), 'utf8'))
+      expect(rootPkg.devDependencies).toBeUndefined()
+      expect(leafPkg.devDependencies).toBeUndefined()
     })
   })
 })

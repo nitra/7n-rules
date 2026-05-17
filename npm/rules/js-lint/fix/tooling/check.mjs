@@ -1,15 +1,14 @@
 /**
  * Перевіряє лінт JavaScript за правилом js-lint.mdc.
  *
- * Канонічний `lint-js`, flat ESLint з getConfig і ignore для auto-imports, рекомендації VSCode,
+ * Flat ESLint з getConfig і ignore для auto-imports,
  * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/scripts/utils/oxlint-canonical.json`):
  * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
- * globals, ignorePatterns. `@nitra/eslint-config` у devDependencies мінімум **3.9.2** (з 3.8.0 правило
- * `no-restricted-syntax` для `ForInStatement` забороняє `for...in`; з 3.9.2 у `getConfig` вбудовано
- * ignore для ADR-каталогів — локально цей glob додавати не потрібно; також тягне транзитивний
- * `@e18e/eslint-plugin` для oxlint), `.jscpd.json` (gitignore, exitCode, reporters, minLines), workflow
- * `lint-js.yml` (checkout@v6, setup-bun-deps, bunx без --fix), без prettier, `engines.node` >= 24,
- * `engines.bun` >= 1.3, `"type": "module"` у кореневому і всіх workspace `package.json`. Дубль перевірки JS у `lint.yml` — заборонено.
+ * globals, ignorePatterns. Також перевіряє workspace `package.json` на `type: "module"`
+ * і `engines`, workflow-дубль у `lint.yml`, `knip.json` autofill і застарілі `.eslintrc*`.
+ *
+ * Per-document вимоги (`lint-js`, `@nitra/eslint-config`, root `engines`, `.jscpd.json`,
+ * `.vscode/extensions.json`, `lint-js.yml`) — у policy-пакетах `js_lint.*`.
  */
 import { existsSync } from 'node:fs'
 import { copyFile, readFile } from 'node:fs/promises'
@@ -41,9 +40,6 @@ export const KNIP_CANONICAL_JSON_PATH = join(
   'utils',
   'knip-canonical.json'
 )
-
-/** Мінімальні рекомендації розширень редактора з js-lint.mdc (eslint, oxlint, GA). */
-export const REQUIRED_VSCODE_EXTENSIONS = ['dbaeumer.vscode-eslint', 'github.vscode-github-actions', 'oxc.oxc-vscode']
 
 const NON_DIGITS_RE = /\D+/u
 
@@ -354,36 +350,6 @@ async function checkOxlintRc(passFn, failFn) {
 }
 
 /**
- * Перевіряє .vscode/extensions.json на потрібні розширення.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkVscodeExtensions(passFn, failFn) {
-  if (!existsSync('.vscode/extensions.json')) {
-    failFn('.vscode/extensions.json не існує — додай recommendations з js-lint.mdc (див. check-js-lint.mjs)')
-    return
-  }
-  let ext
-  try {
-    ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
-  } catch {
-    failFn('.vscode/extensions.json не є валідним JSON')
-    return
-  }
-  const rec = ext.recommendations
-  if (!Array.isArray(rec)) {
-    failFn('.vscode/extensions.json: поле recommendations має бути масивом')
-    return
-  }
-  const missing = REQUIRED_VSCODE_EXTENSIONS.filter(id => !rec.includes(id))
-  if (missing.length > 0) {
-    failFn(`.vscode/extensions.json: додай у recommendations: ${missing.join(', ')} (мінімум для js-lint.mdc)`)
-  } else {
-    passFn('.vscode/extensions.json: є рекомендації oxlint, eslint і GitHub Actions')
-  }
-}
-
-/**
  * FS-existence для `lint-js.yml` + cross-file перевірка, що `lint.yml` (якщо існує)
  * не дублює лінт JS-кроки. Структуру `lint-js.yml` (`actions/checkout@v6`,
  * `persist-credentials: false`, `setup-bun-deps`, `bunx oxlint/eslint/jscpd .`,
@@ -405,47 +371,6 @@ async function checkLintJsWorkflows(passFn, failFn) {
     } else {
       passFn('.github/workflows/lint.yml не дублює oxlint/eslint/jscpd з lint-js.yml')
     }
-  }
-}
-
-/**
- * Перевіряє .jscpd.json.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- */
-async function checkJscpdConfig(passFn, failFn) {
-  if (!existsSync('.jscpd.json')) {
-    failFn('.jscpd.json не існує — створи з полями згідно check js-lint')
-    return
-  }
-  let jscpdCfg
-  try {
-    jscpdCfg = JSON.parse(await readFile('.jscpd.json', 'utf8'))
-  } catch {
-    failFn('.jscpd.json не є валідним JSON')
-    return
-  }
-  passFn('.jscpd.json існує')
-  if (jscpdCfg.gitignore === true) {
-    passFn('.jscpd.json: gitignore увімкнено')
-  } else {
-    failFn('.jscpd.json має містити "gitignore": true')
-  }
-  if (jscpdCfg.exitCode === 1) {
-    passFn('.jscpd.json: exitCode 1 при дублікатах')
-  } else {
-    failFn('.jscpd.json має містити "exitCode": 1 (інакше CI не впаде на клонах)')
-  }
-  if (Array.isArray(jscpdCfg.reporters) && jscpdCfg.reporters.includes('console')) {
-    passFn('.jscpd.json: reporters містить console')
-  } else {
-    failFn('.jscpd.json має містити "reporters": ["console"] (або масив із "console")')
-  }
-  const minLines = jscpdCfg.minLines
-  if (typeof minLines === 'number' && minLines >= 25) {
-    passFn(`.jscpd.json: minLines ${minLines} (>=25)`)
-  } else {
-    failFn('.jscpd.json має містити "minLines" як число >= 25')
   }
 }
 
@@ -485,9 +410,7 @@ export async function check() {
   await checkEslintConfig(pass, fail)
   await checkPackageJsonJsLint(pass, fail)
   await checkOxlintRc(pass, fail)
-  await checkVscodeExtensions(pass, fail)
   await checkLintJsWorkflows(pass, fail)
-  await checkJscpdConfig(pass, fail)
   await checkKnipConfig(pass, fail)
 
   for (const dup of ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml']) {

@@ -4,6 +4,23 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.8] - 2026-05-17
+
+### Changed
+
+- Перенесено частину per-document логіки з `fix` у Rego policy:
+  - `js-lint`: `.jscpd.json` і `.vscode/extensions.json`;
+  - `ga`: `package.json#scripts.lint-ga`, `.vscode/extensions.json`, `.vscode/settings.json`, `.github/zizmor.yml`;
+  - `security`: `.gitleaks.toml` (`[extend].useDefault = true`);
+  - `vue`: залежності Vue/Vite-пакетів і заборону `esbuild`.
+- Відповідні JS check-и спрощено до FS/cross-file/AST/tooling частини без дублювання Rego-умов.
+- `ensureNitraCursorInRootDevDependencies` тепер додає `@nitra/cursor` тільки в `package.json` поруч із запуском, якщо в ньому є `workspaces`.
+- `vue.mdc` уточнює тестування через Bun Test Runner + Vue Test Utils/happy-dom замість Vitest/jsdom.
+
+### Fixed
+
+- `npm/package.json#devDependencies` — прибрано self-reference `@nitra/cursor`, щоб published package знову відповідав `npm-module` compact-package canon.
+
 ## [1.13.7] - 2026-05-17
 
 ### Fixed

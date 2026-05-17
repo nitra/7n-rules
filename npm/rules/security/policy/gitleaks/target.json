@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": {
+    "single": ".gitleaks.toml",
+    "required": true
+  },
+  "missingMessage": ".gitleaks.toml не знайдено — створи за каноном security.mdc"
+}

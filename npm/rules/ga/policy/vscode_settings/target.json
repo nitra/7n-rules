@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": {
+    "single": ".vscode/settings.json",
+    "required": true
+  },
+  "missingMessage": ".vscode/settings.json не існує — додай [github-actions-workflow].editor.defaultFormatter (ga.mdc)"
+}

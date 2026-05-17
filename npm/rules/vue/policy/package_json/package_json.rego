@@ -5,8 +5,9 @@
 #   conftest test path/to/package.json -p npm/policy/vue \
 #     --namespace vue.package_json
 #
-# Перевіряє: якщо в `dependencies` є `vue`, то у `devDependencies.vite` має бути
-# мажорна версія ≥ 8.
+# Перевіряє: якщо в `dependencies` є `vue`, то потрібні канонічні Vue/Vite
+# залежності, `devDependencies.vite` має бути мажорної версії ≥ 8, а `esbuild`
+# у dependencies/devDependencies заборонений (міграція на rolldown).
 #
 # AST-сканування коду (заборона явних value-імпортів `from 'vue'`, заборона
 # Node-нативних модулів у `.vue` SFC, перевірка `vite.config` на
@@ -34,10 +35,52 @@ deny contains msg if {
 	msg := sprintf("Vue-пакет: vite має бути >= 8 (зараз %q) (vue.mdc)", [vite_range])
 }
 
+deny contains msg if {
+	uses_vue
+	not "@vitejs/plugin-vue" in dev_dependency_names
+	msg := "Vue-пакет: @vitejs/plugin-vue відсутній у devDependencies (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	not "vue-macros" in all_dependency_names
+	msg := "Vue-пакет: vue-macros відсутній (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	not "unplugin-auto-import" in all_dependency_names
+	msg := "Vue-пакет: unplugin-auto-import відсутній (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	not "vite-plugin-vue-layouts-next" in all_dependency_names
+	msg := "Vue-пакет: vite-plugin-vue-layouts-next відсутній (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	"esbuild" in all_dependency_names
+	msg := "Vue-пакет: esbuild заборонено — заміни на rolldown і прибери залежність (vue.mdc)"
+}
+
 # ── helpers ────────────────────────────────────────────────────────────────
 
 uses_vue if {
 	"vue" in object.keys(object.get(input, "dependencies", {}))
+}
+
+dependency_names := {n | some n in object.keys(object.get(input, "dependencies", {}))}
+
+dev_dependency_names := {n | some n in object.keys(object.get(input, "devDependencies", {}))}
+
+all_dependency_names contains n if {
+	some n in dependency_names
+}
+
+all_dependency_names contains n if {
+	some n in dev_dependency_names
 }
 
 vite_in_dev_dependencies if {

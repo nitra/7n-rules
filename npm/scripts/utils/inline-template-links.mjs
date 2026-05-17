@@ -1,15 +1,28 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { extname, join } from 'node:path'
+import { basename, extname, join } from 'node:path'
 
 const TEMPLATE_LINK_RE = /\[([^\]]+)\]\((\.\/[^)]*\/template\/[^)]+)\)/g
+const SLOTS = ['snippet', 'deny', 'contains']
 
+/** @param {string} filePath */
 function langFromExt(filePath) {
   const ext = extname(filePath)
   if (ext === '.json') return 'json'
   if (ext === '.toml') return 'toml'
   if (ext === '.yml' || ext === '.yaml') return 'yaml'
   return ''
+}
+
+// Strip `.<slot>.<ext>` suffix (slot ∈ snippet/deny/contains) to recover the
+// real target file name (e.g. `package.json.snippet.json` → `package.json`).
+/** @param {string} fileBasename */
+function normalizeTargetName(fileBasename) {
+  for (const slot of SLOTS) {
+    const m = fileBasename.match(new RegExp(`^(.+)\\.${slot}\\.[^.]+$`))
+    if (m) return m[1]
+  }
+  return fileBasename
 }
 
 /**
@@ -27,7 +40,7 @@ export async function inlineTemplateLinks(text, ruleDir) {
 
   let result = text
   for (const match of matches) {
-    const [fullMatch, label, href] = match
+    const [fullMatch, , href] = match
     // href starts with ./ and contains /template/ — already guaranteed by regex
     const relPath = href.slice(2) // strip leading ./
     const absPath = join(ruleDir, relPath)
@@ -38,7 +51,8 @@ export async function inlineTemplateLinks(text, ruleDir) {
 
     const contents = (await readFile(absPath, 'utf8')).trim()
     const lang = langFromExt(absPath)
-    const replacement = `\`${label}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
+    const targetName = normalizeTargetName(basename(absPath))
+    const replacement = `\`${targetName}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
     result = result.replace(fullMatch, () => replacement)
   }
 
