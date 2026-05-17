@@ -101,61 +101,13 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`check-docker.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/scripts/utils/docker-hadolint.mjs`**.
 
-```json title="package.json"
-{
-  "scripts": {
-    "lint-docker": "n-cursor lint-docker"
-  }
-}
-```
+- Канон `package.json#scripts.lint-docker`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
 Якщо правило **`docker`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **обов'язково** мають бути скрипт **`lint-docker`** і виклик **`bun run lint-docker`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
 
 Додай workflow **`.github/workflows/lint-docker.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**):
 
-```yaml title=".github/workflows/lint-docker.yml"
-name: Lint Docker
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/Dockerfile'
-      - '**/*.Dockerfile'
-      - '**/*.dockerfile'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  lint-docker:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Install hadolint
-        run: |
-          curl -sSL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
-          chmod +x /tmp/hadolint
-          sudo mv /tmp/hadolint /usr/local/bin/hadolint
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Lint Docker
-        run: bun run lint-docker
-```
+- Канон: [lint-docker.yml.snippet.yml](./policy/lint_docker_yml/template/lint-docker.yml.snippet.yml)
 
 Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/scripts/utils/docker-hadolint.mjs`**.
 

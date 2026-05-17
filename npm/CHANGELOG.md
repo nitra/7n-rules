@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.19] - 2026-05-17
+
+### Added
+
+- `docker` rule template/ міграція (Phase 9): `docker.package_json` (snippet, scripts.lint-docker з trim_space, conditional на наявність) + `docker.lint_docker_yml` (full-canon — paths, required uses, run substrings з template's steps).
+- `docker.mdc` — 2 inline-блоки замінено на template-links.
+
 ## [1.13.18] - 2026-05-17
 
 ### Added
