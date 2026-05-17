@@ -1,0 +1,22 @@
+npm/scripts/utils/template.test.mjs
+  s_9102be39d1e731::t_ebcaa2149accee 5
+  s_9102be39d1e731::t_f7a3b64bb8de1d 32-76
+npm/scripts/utils/template.mjs
+  s_9102be39d1e731::t_a77f43a5e1f9f8 59-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "45ea45af4cae05cf1e18ecd5f782e38575f51c29",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
