@@ -1,0 +1,4 @@
+{
+  "packageManager": "видали поле — Bun не потребує packageManager (bun.mdc)",
+  "dependencies": "кореневий package.json не повинен містити dependencies — додай у workspace-пакети (bun.mdc)"
+}

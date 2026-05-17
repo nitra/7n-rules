@@ -24,8 +24,8 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | abie | policy | http_route_base | `**/k8s/**/base/**/hr.yaml` (HTTPRoute з regex-predicate на hostnames) | non-eligible | (none — domain-suffix regex) |
 | adr | policy | settings_json | `.claude/settings.json` (hooks.Stop[].hooks[].command contains marker) | non-eligible | (none — substring у вкладеному масиві об'єктів, не на leaf string) |
 | adr | policy | settings_local_json | `.claude/settings.local.json` (deny: hooks.Stop[].hooks[].command містить marker) | non-eligible | (none — символ deny — підрядок у вкладеному масиві об'єктів) |
-| bun | policy | bunfig | `bunfig.toml` | fragment | `bunfig.toml.snippet.toml` (`[install].linker = "hoisted"`) |
-| bun | policy | package_json | `package.json` (root, дозволено лише `@nitra/*` devDeps, dynamic lint-* aggregation) | partial | `package.json.deny.json` (packageManager, dependencies); aggregation lint-script лишається у rego |
+| bun | policy | bunfig | `bunfig.toml` | fragment | `bunfig.toml.snippet.toml` ✓ |
+| bun | policy | package_json | `package.json` (root, дозволено лише `@nitra/*` devDeps, dynamic lint-* aggregation) | partial | `package.json.deny.json` ✓ (packageManager + dependencies); aggregation lint-script + `@nitra/*` whitelist лишаються у rego (inverse-patterns, що не виносяться у template) |
 | capacitor | policy | package_json | `package.json` (`@capacitor/core` version-range ≥ 8) | non-eligible | (none — semver range parsing) |
 | docker | policy | lint_docker_yml | `.github/workflows/lint-docker.yml` | full-canon | `lint-docker.yml.snippet.yml` |
 | docker | policy | package_json | `package.json` (`scripts.lint-docker` точне значення) | fragment | `package.json.snippet.json` |
@@ -125,7 +125,7 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 | **partial** | 7 | `bun.package_json`, `style-lint/fix/tooling` (.stylelintignore), `npm-module.npm_package_json`, `text.oxfmtrc`, `text.package_json`, `image-avif.package_json`, `js-lint.package_json` |
 | **non-eligible** | 46 | усі fix-only концерни з AST/FS-walk; всі k8s policy концерни (kind-dispatch / multi-kind YAML); version-range checks; параметризовані HTTPRoute з `<prefix>` |
 
-**Сумарне покриття template-каталогами**: 39 з 85 концернів (fragment + full-canon + partial = 46% — тобто ~54% залишається inline у Rego/JS). Мігровано: 9 з 39 (security × 2 + ga × 4 + rego × 3 = 23%).
+**Сумарне покриття template-каталогами**: 39 з 85 концернів (fragment + full-canon + partial = 46% — тобто ~54% залишається inline у Rego/JS). Мігровано: 15 з 39 (security × 2 + ga × 8 + rego × 3 + bun × 2 = 38%).
 
 **Позначка `✓`** у колонці template-files-planned означає, що міграцію вже виконано (template/ файли створені, rego читає з `data.template.*`, mdc посилається маркдаун-лінками).
 
@@ -135,4 +135,5 @@ Phase 0 deliverable до плану [`docs/superpowers/plans/2026-05-17-template
 - Phase 2: `ga` — усі 4 fragment-концерни (1.13.9).
 - Phase 3: `rego` — усі 3 fragment-концерни (1.13.11): `package_json` (snippet + trim_space tolerance), `vscode_extensions` (snippet-array), `vscode_settings` (snippet-object 2-level з guard на non-object block).
 - Phase 3.5: `ga` workflow concerns (1.13.12) — добір прогалини Phase 2: 4 full-canon workflows (`clean_ga_workflows`, `clean_merged_branch`, `lint_ga`, `git_ai`). `workflow_common` (partial — cross-workflow forbidden patterns) лишається TODO.
+- Phase 4: `bun` (1.13.14) — `bunfig` (snippet-walker 2-level як ga.vscode_settings) + `package_json` (partial — top-level deny-fields у template; devDeps@nitra-only та lint-aggregator як inverse-patterns, що не виносяться у template у rego).
 - TODO: інвентаризація потребує доповнення для policy-концернів, доданих у 1.13.8 (`js-lint.jscpd`, `js-lint.vscode_extensions`, `security.policy.gitleaks` як дублікат до fix/gitleaks). Будуть додані разом із їх template-міграцією.

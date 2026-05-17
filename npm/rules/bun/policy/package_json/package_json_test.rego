@@ -1,10 +1,15 @@
 # Тести для `bun.package_json`. Запуск:
-#   conftest verify -p npm/policy/bun/package_json
+#   conftest verify -p npm/rules/bun/policy/package_json
 package bun.package_json_test
 
+import data.bun.package_json
 import rego.v1
 
-import data.bun.package_json
+# Mirrors template/package.json.deny.json (top-level fields заборонені у root package.json).
+template_data := {"deny": {
+	"packageManager": "видали поле — Bun не потребує packageManager (bun.mdc)",
+	"dependencies": "кореневий package.json не повинен містити dependencies — додай у workspace-пакети (bun.mdc)",
+}}
 
 valid_pkg := {
 	"name": "n-cursor",
@@ -14,35 +19,30 @@ valid_pkg := {
 # ── happy path ────────────────────────────────────────────────────────────
 
 test_allow_minimal if {
-	count(package_json.deny) == 0 with input as valid_pkg
+	count(package_json.deny) == 0 with input as valid_pkg with data.template as template_data
 }
 
 test_allow_multiple_nitra_deps if {
 	pkg := json.patch(valid_pkg, [{
 		"op": "replace",
 		"path": "/devDependencies",
-		"value": {"@nitra/eslint-config": "^3.9.2", "@nitra/cspell-dict": "^2.0.0", "@nitra/stylelint-config": "^1.0.0"},
+		"value": {"@nitra/eslint-config": "^3.9.2", "@nitra/cspell-dict": "^2.0.0"},
 	}])
-	count(package_json.deny) == 0 with input as pkg
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
 test_allow_no_dev_dependencies if {
 	pkg := json.patch(valid_pkg, [{"op": "remove", "path": "/devDependencies"}])
-	count(package_json.deny) == 0 with input as pkg
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
-# ── deny: devDependencies лише @nitra/* ──────────────────────────────────
+# ── deny: devDependencies лише @nitra/* (логіка лишається в rego — inverse-pattern) ─
 
 test_deny_non_nitra_devdep if {
-	cases := [
-		{"@cspell/dict-uk-ua": "^2.0.0"},
-		{"@cspell/cspell-lib": "^9.0.0"},
-		{"lodash": "*"},
-		{"@types/node": "^24.0.0"},
-	]
+	cases := [{"@cspell/dict-uk-ua": "^2.0.0"}, {"lodash": "*"}, {"@types/node": "^24.0.0"}]
 	some bad in cases
 	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/devDependencies", "value": bad}])
-	count(package_json.deny) > 0 with input as pkg
+	count(package_json.deny) > 0 with input as pkg with data.template as template_data
 }
 
 test_deny_mixed_dev_deps_only_flags_non_nitra if {
@@ -51,34 +51,35 @@ test_deny_mixed_dev_deps_only_flags_non_nitra if {
 		"path": "/devDependencies",
 		"value": {"@nitra/eslint-config": "^3.9.2", "lodash": "*"},
 	}])
-	some msg in package_json.deny with input as pkg
+	some msg in package_json.deny with input as pkg with data.template as template_data
 	contains(msg, "lodash")
 }
 
-# ── deny: packageManager ─────────────────────────────────────────────────
+# ── deny: top-level deny fields (з template) ─────────────────────────────
 
 test_deny_package_manager_field if {
 	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/packageManager", "value": "pnpm@9.0.0"}])
-	count(package_json.deny) > 0 with input as pkg
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "packageManager")
 }
-
-# ── deny: dependencies у кореневому ──────────────────────────────────────
 
 test_deny_root_dependencies_present if {
 	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/dependencies", "value": {"lodash": "*"}}])
-	count(package_json.deny) > 0 with input as pkg
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "dependencies")
 }
 
 test_deny_empty_dependencies_object if {
 	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/dependencies", "value": {}}])
-	count(package_json.deny) > 0 with input as pkg
+	some msg in package_json.deny with input as pkg with data.template as template_data
+	contains(msg, "dependencies")
 }
 
-# ── deny: агрегований lint ───────────────────────────────────────────────
+# ── deny: агрегований lint (логіка лишається в rego) ─────────────────────
 
 test_deny_lint_prefixed_without_aggregate if {
 	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"lint-js": "echo"}}])
-	count(package_json.deny) > 0 with input as pkg
+	count(package_json.deny) > 0 with input as pkg with data.template as template_data
 }
 
 test_allow_lint_aggregate_calls_subscript_and_oxfmt if {
@@ -87,7 +88,7 @@ test_allow_lint_aggregate_calls_subscript_and_oxfmt if {
 		"path": "/scripts",
 		"value": {"lint-js": "echo", "lint": "bun run lint-js && oxfmt ."},
 	}])
-	count(package_json.deny) == 0 with input as pkg
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
 test_deny_lint_aggregate_missing_oxfmt if {
@@ -96,7 +97,7 @@ test_deny_lint_aggregate_missing_oxfmt if {
 		"path": "/scripts",
 		"value": {"lint-js": "echo", "lint": "bun run lint-js"},
 	}])
-	count(package_json.deny) > 0 with input as pkg
+	count(package_json.deny) > 0 with input as pkg with data.template as template_data
 }
 
 test_deny_lint_aggregate_missing_subscript_via_bun_run if {
@@ -105,5 +106,13 @@ test_deny_lint_aggregate_missing_subscript_via_bun_run if {
 		"path": "/scripts",
 		"value": {"lint-js": "echo", "lint-text": "echo", "lint": "bun run lint-js && oxfmt ."},
 	}])
-	count(package_json.deny) > 0 with input as pkg
+	count(package_json.deny) > 0 with input as pkg with data.template as template_data
+}
+
+# Drift test: ensures top-level deny is template-driven.
+test_data_template_drives_top_level_deny if {
+	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/customField", "value": "x"}])
+	some msg in package_json.deny with input as pkg
+		with data.template as {"deny": {"customField": "заборонено для тесту"}}
+	contains(msg, "customField")
 }

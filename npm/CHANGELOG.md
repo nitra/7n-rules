@@ -4,6 +4,20 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.14] - 2026-05-17
+
+### Added
+
+- `bun` rule template/ міграція (Phase 4): 2 концерни — `bunfig` (snippet-walker 2-level, `[install].linker = "hoisted"`) + `package_json` (partial — top-level deny-fields у template).
+- `bunfig_test.rego` створено з нуля (раніше тестів не було) — 5 позитивних/негативних + drift.
+
+### Changed
+
+- `bun.bunfig.rego` — використовує той самий 2-level snippet-walker, що `ga.vscode_settings` (leaf-by-leaf + guard на non-object section).
+- `bun.package_json.rego` — top-level deny-fields (`packageManager`, `dependencies`) тепер читаються з `data.template.deny`. Сентинельний value у `object.get(input, field, "__bun_missing__")` зберігає behavior «field present навіть якщо порожній обʼєкт». Логіка `@nitra/*`-only у devDependencies та lint-aggregator (cross-script) лишається у rego — це inverse-patterns, які не виносяться у template.
+- `bun.mdc` — inline `bunfig.toml` snippet замінено на template-link; додано посилання на `package.json.deny.json` для документації заборонених top-level полів.
+- `docs/adr/template-dir-concern-inventory.md` — `bun.*` концерни позначено ✓; додано Phase 4 у прогрес-секцію; tally: 15/39 (38%).
+
 ## [1.13.13] - 2026-05-17
 
 ### Added

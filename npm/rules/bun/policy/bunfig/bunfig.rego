@@ -1,33 +1,29 @@
-# Порт перевірки `checkBunfigHoisted` з `npm/scripts/check-bun.mjs` (bun.mdc).
+# Перевірка `bunfig.toml` для bun (bun.mdc).
 #
-# Запуск (локально):
-#   conftest test bunfig.toml -p npm/policy/bun --namespace bun.bunfig
-#
-# Conftest парсить `.toml` нативно: секція `[install]` стає обʼєктом `input.install`.
-# FS-перевірки (наявність самого `bunfig.toml`, `bun.lock`, заборонені lockfile-и
-# `package-lock.json` тощо, директорія `.yarn/`) живуть у `check-bun.mjs` — Rego
-# працює лише з вже завантаженим input.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/bunfig.toml.snippet.toml.
+# Snippet — 2-рівнева мапа (section → key → expected). Walker такий самий,
+# як для ga.vscode_settings: leaf-by-leaf коли section-обʼєкт існує + окремий
+# deny коли section відсутній / не обʼєкт.
 package bun.bunfig
 
 import rego.v1
 
+# Leaf-by-leaf: section присутня й обʼєкт.
 deny contains msg if {
-	# `object.get(…, false)` дає визначене значення, коли поля немає, інакше
-	# `not is_object(input.install)` повернув би `undefined`, і правило мовчки
-	# не спрацювало б (той самий патерн, що й у `ga.workflow_common`).
-	not is_object(object.get(input, "install", false))
-	msg := "bunfig.toml: відсутня секція [install] (bun.mdc)"
+	some section, expected_inner in data.template.snippet
+	inner := object.get(input, section, {})
+	is_object(inner)
+	some leaf_key, expected_value in expected_inner
+	actual := object.get(inner, leaf_key, null)
+	actual != expected_value
+	msg := sprintf("bunfig.toml: у секції [%s] має бути %s = %q (bun.mdc)", [section, leaf_key, expected_value])
 }
 
+# Section відсутня (null) або не обʼєкт.
 deny contains msg if {
-	is_object(object.get(input, "install", false))
-
-	# `object.get(…, null)` робить значення визначеним, інакше при відсутньому
-	# `linker` порівняння `!= "hoisted"` дало б `undefined`, не `true`.
-	object.get(input.install, "linker", null) != "hoisted"
-	msg := "bunfig.toml: у секції [install] має бути linker = \"hoisted\" (bun.mdc)"
+	some section in object.keys(data.template.snippet)
+	raw := object.get(input, section, null)
+	not is_object(raw)
+	msg := sprintf("bunfig.toml: відсутня секція [%s] (bun.mdc)", [section])
 }
