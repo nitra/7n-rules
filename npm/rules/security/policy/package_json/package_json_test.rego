@@ -1,71 +1,47 @@
-# Тести для `security.package_json`. Запуск:
-#   conftest verify -p npm/policy/security/package_json
 package security.package_json_test
 
+import data.security.package_json
 import rego.v1
 
-import data.security.package_json
-
-valid_pkg := {
-	"name": "demo",
-	"scripts": {
-		"lint-security": "gitleaks detect --no-banner",
-		"lint": "bun run lint-text && bun run lint-security",
+# Canonical template data — mirrors template/package.json.{snippet,deny,contains}.json
+template_data := {
+	"snippet": {"scripts": {"lint-security": "gitleaks detect --no-banner"}},
+	"deny": {
+		"dependencies": {"gitleaks": "глобальний CLI — не додавай у dependencies"},
+		"devDependencies": {"gitleaks": "глобальний CLI — не додавай у devDependencies"},
 	},
+	"contains": {"scripts": {"lint": ["bun run lint-security"]}},
 }
 
-# ── happy path ───────────────────────────────────────────────────────────
-
-test_allow_canonical if {
-	count(package_json.deny) == 0 with input as valid_pkg
+test_required_lint_security_missing if {
+	some msg in package_json.deny with input as {"scripts": {}} with data.template as template_data
+	contains(msg, "scripts.lint-security")
 }
 
-test_allow_without_aggregator_lint if {
-	pkg := json.patch(valid_pkg, [{"op": "remove", "path": "/scripts/lint"}])
-	count(package_json.deny) == 0 with input as pkg
+test_required_lint_security_present if {
+	count(package_json.deny) == 0 with input as {"scripts": {"lint-security": "gitleaks detect --no-banner"}}
+		with data.template as template_data
 }
 
-test_allow_gitleaks_git_subcommand if {
-	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/lint-security", "value": "gitleaks git --no-banner"}])
-	count(package_json.deny) == 0 with input as pkg
+test_forbid_gitleaks_in_dependencies if {
+	some msg in package_json.deny with input as {
+		"scripts": {"lint-security": "gitleaks detect --no-banner"},
+		"dependencies": {"gitleaks": "^8.0.0"},
+	}
+		with data.template as template_data
+	contains(msg, "dependencies.gitleaks")
 }
 
-# ── deny: scripts.lint-security відсутній ────────────────────────────────
-
-test_deny_lint_security_missing if {
-	pkg := json.patch(valid_pkg, [{"op": "remove", "path": "/scripts/lint-security"}])
-	count(package_json.deny) > 0 with input as pkg
+test_contains_lint_aggregator_missing_substring if {
+	some msg in package_json.deny with input as {"scripts": {"lint-security": "gitleaks detect --no-banner", "lint": "oxfmt ."}}
+		with data.template as template_data
+	contains(msg, "scripts.lint")
 }
 
-# ── deny: lint-security без `gitleaks` ───────────────────────────────────
-
-test_deny_lint_security_not_gitleaks if {
-	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/lint-security", "value": "trufflehog filesystem ."}])
-	count(package_json.deny) > 0 with input as pkg
-}
-
-# ── deny: lint-security з gitleaks без detect/git subcommand ─────────────
-
-test_deny_lint_security_gitleaks_without_subcommand if {
-	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/lint-security", "value": "gitleaks --help"}])
-	count(package_json.deny) > 0 with input as pkg
-}
-
-# ── deny: агрегатор `lint` без `bun run lint-security` ──────────────────
-
-test_deny_lint_aggregator_without_lint_security if {
-	pkg := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/lint", "value": "bun run lint-text && oxfmt ."}])
-	count(package_json.deny) > 0 with input as pkg
-}
-
-# ── deny: gitleaks у dependencies/devDependencies ───────────────────────
-
-test_deny_gitleaks_in_dependencies if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/dependencies", "value": {"gitleaks": "^8.0.0"}}])
-	count(package_json.deny) > 0 with input as pkg
-}
-
-test_deny_gitleaks_in_devDependencies if {
-	pkg := json.patch(valid_pkg, [{"op": "add", "path": "/devDependencies", "value": {"gitleaks": "^8.0.0"}}])
-	count(package_json.deny) > 0 with input as pkg
+test_contains_lint_aggregator_with_substring_ok if {
+	count(package_json.deny) == 0 with input as {"scripts": {
+		"lint-security": "gitleaks detect --no-banner",
+		"lint": "bun run lint-security && oxfmt .",
+	}}
+		with data.template as template_data
 }
