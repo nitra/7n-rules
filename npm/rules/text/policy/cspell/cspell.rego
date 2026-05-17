@@ -1,91 +1,71 @@
-# Порт перевірок `.cspell.json` з `npm/scripts/check-text.mjs` (text.mdc).
+# Перевірка `.cspell.json` (text.mdc).
 #
-# Запуск (локально):
-#   conftest test .cspell.json -p npm/policy/text --namespace text.cspell
+# Канон надходить через --data: { "template": { "snippet": ..., "contains": ..., "deny": ... } }
+# Структура --data сформована з template/.cspell.json.{snippet,contains,deny}.json.
 #
-# Перевіряє: `version: "0.2"`, наявність `language`, імпорт `@nitra/cspell-dict`,
-# відсутність прямих імпортів `@cspell/dict-*`, обовʼязкові glob-и в `ignorePaths`
-# (text.mdc).
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Логіка, що ЛИШАЄТЬСЯ у rego (inverse — не виноситься у template):
+#  - `language` має бути присутнє (presence-only).
 package text.cspell
 
 import rego.v1
 
-# ── Очікувані значення ─────────────────────────────────────────────────────
-
-# Канонічні `ignorePaths` з text.mdc — кожен має бути присутнім.
-required_ignore_paths := {
-	"**/node_modules/**",
-	"**/vscode-extension/**",
-	"**/.git/**",
-	".vscode",
-	"report",
-	"*.svg",
-	"**/k8s/**/*.yaml",
-}
-
-nitra_cspell_dict_marker := "@nitra/cspell-dict"
-
-legacy_dict_marker := "@cspell/dict-"
-
-# Шаблон повідомлення про заборонений імпорт `@cspell/dict-*` — через `concat`
-# для regal style/line-length.
-legacy_dict_import_template := concat(" ", [
-	".cspell.json не має імпортувати @cspell/dict-* —",
-	"використовуй лише @nitra/cspell-dict (знайдено: %s) (text.mdc)",
-])
-
-# ── deny: version / language ──────────────────────────────────────────────
+# ── deny: top-level snippet leafs (version etc) ──────────────────────────
 
 deny contains msg if {
-	object.get(input, "version", null) != "0.2"
-	msg := ".cspell.json: version має бути \"0.2\" (text.mdc)"
+	some key, expected_value in data.template.snippet
+	not is_array(expected_value)
+	not is_object(expected_value)
+	actual := object.get(input, key, null)
+	actual != expected_value
+	msg := sprintf(".cspell.json: %s має бути %v (text.mdc)", [key, expected_value])
 }
+
+# ── deny: ignorePaths subset-of ──────────────────────────────────────────
+
+deny contains msg if {
+	some field, expected_values in data.template.snippet
+	is_array(expected_values)
+	is_array(object.get(input, field, null))
+	actual_set := {v | some v in input[field]}
+	some required in expected_values
+	not required in actual_set
+	msg := sprintf(".cspell.json %s: додай %q (text.mdc)", [field, required])
+}
+
+# ── deny: language presence (inverse, in rego) ───────────────────────────
 
 deny contains msg if {
 	not object.get(input, "language", false)
 	msg := ".cspell.json: відсутнє поле language (text.mdc)"
 }
 
-# ── deny: imports ─────────────────────────────────────────────────────────
+# ── deny: import substrings required (contains) ─────────────────────────
 
 deny contains msg if {
-	imports := object.get(input, "import", [])
+	some field, needles in data.template.contains
+	imports := object.get(input, field, [])
 	is_array(imports)
-	not has_nitra_dict_import(imports)
-	msg := ".cspell.json не імпортує @nitra/cspell-dict/cspell-ext.json (text.mdc)"
+	some needle in needles
+	not has_substring_in_array(imports, needle)
+	msg := sprintf(".cspell.json: %s має містити %q (text.mdc)", [field, needle])
 }
 
+# ── deny: import substrings forbidden ────────────────────────────────────
+
 deny contains msg if {
+	some forbidden, reason in data.template.deny["import-substrings"]
 	imports := object.get(input, "import", [])
 	is_array(imports)
 	some imp in imports
 	is_string(imp)
-	contains(imp, legacy_dict_marker)
-	msg := sprintf(legacy_dict_import_template, [imp])
+	contains(imp, forbidden)
+	msg := sprintf(".cspell.json import містить заборонений %q — %s", [imp, reason])
 }
 
-# ── deny: ignorePaths ─────────────────────────────────────────────────────
+# ── helpers ──────────────────────────────────────────────────────────────
 
-deny contains msg if {
-	not is_array(object.get(input, "ignorePaths", null))
-	msg := ".cspell.json: додай масив ignorePaths з канонічними glob-ами (text.mdc)"
-}
-
-deny contains msg if {
-	is_array(input.ignorePaths)
-	some path in required_ignore_paths
-	not path in {p | some p in input.ignorePaths}
-	msg := sprintf(".cspell.json ignorePaths: додай %q (text.mdc)", [path])
-}
-
-# ── helpers ────────────────────────────────────────────────────────────────
-
-has_nitra_dict_import(imports) if {
-	some imp in imports
-	is_string(imp)
-	contains(imp, nitra_cspell_dict_marker)
+has_substring_in_array(arr, needle) if {
+	some item in arr
+	is_string(item)
+	contains(item, needle)
 }

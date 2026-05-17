@@ -1,0 +1,5 @@
+{
+  "import-substrings": {
+    "@cspell/dict-": "використовуй лише @nitra/cspell-dict (text.mdc)"
+  }
+}

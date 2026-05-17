@@ -1,0 +1,15 @@
+{
+  "top-level": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)"
+  },
+  "dependencies": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)",
+    "@nitra/prettier-config": "Prettier-конфіг заборонено — використовуй oxfmt (text.mdc)",
+    "markdownlint-cli2": "використовуй bunx у lint-text (text.mdc)"
+  },
+  "devDependencies": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)",
+    "@nitra/prettier-config": "Prettier-конфіг заборонено — використовуй oxfmt (text.mdc)",
+    "markdownlint-cli2": "використовуй bunx у lint-text (text.mdc)"
+  }
+}

@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.24] - 2026-05-17
+
+### Added
+
+- `text` rule template/ міграція (Phase 14): 6 концернів — `cspell` (snippet + contains + deny з `@cspell/dict-` як forbidden substrings), `markdownlint` (3-level walker для `config.MD024.siblings_only`), `oxfmtrc` (scalar leafs + array subset-of; required_keys presence лишається в rego), `package_json` (top-level deny + deps/devDeps deny; `@nitra/cspell-dict` semver range у rego), `vscode_extensions` (snippet-array), `vscode_settings` (top-level leafs + per-language blocks).
+
 ## [1.13.23] - 2026-05-17
 
 ### Added

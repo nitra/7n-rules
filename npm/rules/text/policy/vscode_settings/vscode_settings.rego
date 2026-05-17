@@ -1,56 +1,34 @@
 # Перевірка `.vscode/settings.json` для text (text.mdc).
 #
-# Запуск (локально):
-#   conftest test .vscode/settings.json -p npm/policy/text/vscode_settings \
-#     --namespace text.vscode_settings
-#
-# Canonical (text.mdc):
-#   { "editor.formatOnSave": true,
-#     "[javascript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-#     "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
-#     "[json]":       { "editor.defaultFormatter": "oxc.oxc-vscode" },
-#     "[vue]":        { "editor.defaultFormatter": "oxc.oxc-vscode" },
-#     "[css]":        { "editor.defaultFormatter": "oxc.oxc-vscode" },
-#     "[html]":       { "editor.defaultFormatter": "oxc.oxc-vscode" } }
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/settings.json.snippet.json.
 package text.vscode_settings
 
 import rego.v1
 
-language_keys := {"[javascript]", "[typescript]", "[json]", "[vue]", "[css]", "[html]"}
-
-# Шаблони повідомлень — через `concat` для regal style/line-length.
-lang_block_not_object_template := concat(" ", [
-	".vscode/settings.json: %q має бути обʼєктом з",
-	"\"editor.defaultFormatter\": \"oxc.oxc-vscode\" (text.mdc)",
-])
-
-lang_wrong_formatter_template := concat(" ", [
-	".vscode/settings.json: %q має використовувати",
-	"\"oxc.oxc-vscode\" як editor.defaultFormatter (text.mdc)",
-])
-
-# ── deny: editor.formatOnSave ────────────────────────────────────────────
-
 deny contains msg if {
-	object.get(input, "editor.formatOnSave", null) != true
-	msg := ".vscode/settings.json: \"editor.formatOnSave\" має бути true (text.mdc)"
-}
-
-# ── deny: [lang].editor.defaultFormatter ────────────────────────────────
-
-deny contains msg if {
-	some key in language_keys
-	block := object.get(input, key, {})
-	not is_object(block)
-	msg := sprintf(lang_block_not_object_template, [key])
+	some key, expected_value in data.template.snippet
+	not is_object(expected_value)
+	actual := object.get(input, key, null)
+	actual != expected_value
+	msg := sprintf(".vscode/settings.json: \"%s\" має бути %v (text.mdc)", [key, expected_value])
 }
 
 deny contains msg if {
-	some key in language_keys
-	block := object.get(input, key, {})
-	is_object(block)
-	object.get(block, "editor.defaultFormatter", null) != "oxc.oxc-vscode"
-	msg := sprintf(lang_wrong_formatter_template, [key])
+	some block_key, expected_inner in data.template.snippet
+	is_object(expected_inner)
+	inner := object.get(input, block_key, {})
+	is_object(inner)
+	some leaf_key, expected_value in expected_inner
+	actual := object.get(inner, leaf_key, null)
+	actual != expected_value
+	msg := sprintf(".vscode/settings.json: %s.%s має бути %v (text.mdc)", [block_key, leaf_key, expected_value])
+}
+
+deny contains msg if {
+	some block_key, expected_inner in data.template.snippet
+	is_object(expected_inner)
+	raw := object.get(input, block_key, null)
+	not is_object(raw)
+	msg := sprintf(".vscode/settings.json: %s має бути обʼєктом (text.mdc)", [block_key])
 }

@@ -1,0 +1,12 @@
+{
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 120,
+  "ignorePatterns": [
+    "**/hasura/metadata/**",
+    "**/schema.graphql",
+    "**/auto-imports.d.ts"
+  ]
+}
