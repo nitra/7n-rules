@@ -45,6 +45,14 @@ describe('inlineTemplateLinks', () => {
     expect(result).toBe('[gitleaks](https://github.com/gitleaks/gitleaks)')
   })
 
+  test('preserves $ characters in template content (no $-pattern substitution)', async () => {
+    const text = 'Canon: [with-dollar.toml](./fix/foo/template/with-dollar.toml)\nTail after.'
+    const result = await inlineTemplateLinks(text, FIXTURES)
+    expect(result).toBe(
+      'Canon: `with-dollar.toml`:\n\n```toml\npaths = [\'\'\'.*\\.lock$\'\'\']\n```\nTail after.'
+    )
+  })
+
   test('missing file throws', async () => {
     const text = '[missing.json](./fix/foo/template/missing.json)'
     await expect(inlineTemplateLinks(text, FIXTURES)).rejects.toThrow(

@@ -9,9 +9,24 @@ version: '1.1'
 
 ## Канон `package.json#scripts`
 
-- `lint-security` скрипт: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
-- `lint` агрегатор повинен містити: [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
-- Заборонено `gitleaks` у `dependencies`/`devDependencies`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+- `lint-security` скрипт: `package.json.snippet.json`:
+
+```json
+{ "scripts": { "lint-security": "gitleaks detect --no-banner" } }
+```
+- `lint` агрегатор повинен містити: `package.json.contains.json`:
+
+```json
+{ "scripts": { "lint": ["bun run lint-security"] } }
+```
+- Заборонено `gitleaks` у `dependencies`/`devDependencies`: `package.json.deny.json`:
+
+```json
+{
+  "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
+  "devDependencies": { "gitleaks": "глобальний CLI — не додавай у devDependencies" }
+}
+```
 
 **Зауваження:**
 
@@ -21,7 +36,22 @@ version: '1.1'
 
 ## `.gitleaks.toml` (рекомендована основа)
 
-Канон (допускає розширення в `[allowlist].paths`): [.gitleaks.toml.snippet.toml](./fix/gitleaks/template/.gitleaks.toml.snippet.toml)
+Канон (допускає розширення в `[allowlist].paths`): `.gitleaks.toml.snippet.toml`:
+
+```toml
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\.git(/|$)''',
+  '''(^|/)dist(/|$)''',
+  '''(^|/)build(/|$)''',
+  '''.*\.lock$''',
+  '''.*fixtures?/.*'''
+]
+```
 
 **Важливо:** `useDefault = true` — НЕ перетирай дефолтний `rules`-масив; реальні винятки лише через `[allowlist]`.
 

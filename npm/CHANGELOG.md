@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.7] - 2026-05-17
+
+### Fixed
+
+- `inlineTemplateLinks`: `String.replace(needle, replacement)` інтерпретує `$'`, `$&` тощо у `replacement`. Через це інлайнінг `.gitleaks.toml.snippet.toml` (де є `$'''`) ламав вивід — хвіст `.mdc` реінжектився всередину блока. Перехід на function-replacer (`(_) => replacement`) усуває це. Додано регресійний тест із фікстурою `with-dollar.toml`.
+
 ## [1.13.6] - 2026-05-17
 
 ### Added

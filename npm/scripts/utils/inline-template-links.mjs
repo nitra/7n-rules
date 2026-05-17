@@ -39,7 +39,7 @@ export async function inlineTemplateLinks(text, ruleDir) {
     const contents = (await readFile(absPath, 'utf8')).trim()
     const lang = langFromExt(absPath)
     const replacement = `\`${label}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
-    result = result.replace(fullMatch, replacement)
+    result = result.replace(fullMatch, () => replacement)
   }
 
   return result
