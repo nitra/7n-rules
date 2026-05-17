@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.22] - 2026-05-17
+
+### Added
+
+- `image-avif.package_json` template/ міграція (Phase 12): typo-keys у `template/package.json.deny.json` (`@nitra/minify-image.disabled-avif` як приклад typo до `disable-avif`). Type-перевірки (inverse-patterns) лишилися в rego.
+
 ## [1.13.21] - 2026-05-17
 
 ### Added

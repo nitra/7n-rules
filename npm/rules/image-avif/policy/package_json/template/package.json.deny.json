@@ -1,0 +1,5 @@
+{
+  "@nitra/minify-image": {
+    "disabled-avif": "виглядає як typo — канонічна назва \"disable-avif\" (image-avif.mdc)"
+  }
+}
