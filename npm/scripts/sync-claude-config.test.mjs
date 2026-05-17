@@ -11,6 +11,7 @@ import {
   ADR_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
+  mergeCursorHooksConfig,
   mergeHooks,
   mergeSettings,
   syncClaudeConfig
@@ -141,6 +142,33 @@ describe('mergeSettings', () => {
   })
 })
 
+describe('mergeCursorHooksConfig', () => {
+  test('додає ADR stop hooks і зберігає користувацькі entries', () => {
+    const merged = mergeCursorHooksConfig(
+      {
+        version: 1,
+        hooks: {
+          stop: [{ command: 'echo user-stop' }],
+          afterFileEdit: [{ command: 'echo edit' }]
+        }
+      },
+      { includeAdrHook: true }
+    )
+    expect(merged.hooks?.afterFileEdit).toEqual([{ command: 'echo edit' }])
+    expect(merged.hooks?.stop).toHaveLength(3)
+    expect(merged.hooks?.stop?.[0].command).toBe('echo user-stop')
+    expect(merged.hooks?.stop?.[1].command).toContain('.claude/hooks/capture-decisions.sh')
+    expect(merged.hooks?.stop?.[2].command).toContain('.claude/hooks/normalize-decisions.sh')
+  })
+
+  test('видаляє managed ADR stop hooks, коли правило вимкнене', () => {
+    const withAdr = mergeCursorHooksConfig(undefined, { includeAdrHook: true })
+    const merged = mergeCursorHooksConfig(withAdr, { includeAdrHook: false })
+    expect(merged.hooks).toBeUndefined()
+    expect(merged.version).toBe(1)
+  })
+})
+
 describe('syncClaudeConfig (інтеграція)', () => {
   test('створює settings.json + npm/CLAUDE.md + slash-команди', async () => {
     await withTmpCwd(async cwdAbs => {
@@ -207,6 +235,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: false })
       expect(result).toEqual({
         settings: false,
+        cursorHooks: false,
         npmClaudeMd: false,
         commands: [],
         adrHook: false,
@@ -227,6 +256,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
       })
       expect(result.adrHook).toBe(false)
       expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(false)
+      expect(result.cursorHooks).toBe(false)
+      expect(existsSync(join(cwdAbs, '.cursor/hooks.json'))).toBe(false)
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
       expect(hasAdr).toBe(false)
@@ -247,6 +278,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       })
       expect(result.adrHook).toBe(true)
       expect(result.adrNormalizeHook).toBe(true)
+      expect(result.cursorHooks).toBe(true)
       expect(await readFile('.claude/hooks/capture-decisions.sh', 'utf8')).toBe(
         '#!/usr/bin/env bash\necho adr-capture\n'
       )
@@ -254,6 +286,12 @@ describe('syncClaudeConfig (інтеграція)', () => {
         '#!/usr/bin/env bash\necho adr-normalize\n'
       )
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
+      expect(cursorHooks.hooks.stop).toHaveLength(2)
+      expect(cursorHooks.hooks.stop[0].command).toContain('.claude/hooks/capture-decisions.sh')
+      expect(cursorHooks.hooks.stop[0].timeout).toBe(180)
+      expect(cursorHooks.hooks.stop[1].command).toContain('.claude/hooks/normalize-decisions.sh')
+      expect(cursorHooks.hooks.stop[1].timeout).toBe(600)
       const captureGroup = settings.hooks.Stop.find(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
       )
@@ -290,12 +328,14 @@ describe('syncClaudeConfig (інтеграція)', () => {
         rules: []
       })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
       const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
       const hasNormalize = settings.hooks.Stop.some(g =>
         g.hooks?.some(h => h.command?.includes('.claude/hooks/normalize-decisions.sh'))
       )
       expect(hasAdr).toBe(false)
       expect(hasNormalize).toBe(false)
+      expect(cursorHooks.hooks).toBeUndefined()
       // Скрипти лишаються — користувач прибирає вручну, щоб не втратити кастомізації.
       expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(true)
       expect(existsSync(join(cwdAbs, '.claude/hooks/normalize-decisions.sh'))).toBe(true)
@@ -308,6 +348,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
       const captureCount = settings.hooks.Stop.filter(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
       ).length
@@ -316,6 +357,14 @@ describe('syncClaudeConfig (інтеграція)', () => {
       ).length
       expect(captureCount).toBe(1)
       expect(normalizeCount).toBe(1)
+      const cursorCaptureCount = cursorHooks.hooks.stop.filter(h =>
+        h.command?.includes('.claude/hooks/capture-decisions.sh')
+      ).length
+      const cursorNormalizeCount = cursorHooks.hooks.stop.filter(h =>
+        h.command?.includes('.claude/hooks/normalize-decisions.sh')
+      ).length
+      expect(cursorCaptureCount).toBe(1)
+      expect(cursorNormalizeCount).toBe(1)
     })
   })
 })

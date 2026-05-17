@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.1] - 2026-05-17
+
+### Added
+
+- **`adr` rule: Cursor Agent Stop-hook support** — `npx @nitra/cursor` тепер merge-ить project-level `.cursor/hooks.json` і додає managed `hooks.stop` entries для `.claude/hooks/capture-decisions.sh` та `.claude/hooks/normalize-decisions.sh`. Hook-скрипти приймають Cursor payload (`transcript_path`, `conversation_id` / `generation_id`, `workspace_roots[]`) і використовують той самий ADR capture/normalize pipeline, що й Claude Code.
+
 ## [1.13.0] - 2026-05-17
 
 ### Changed

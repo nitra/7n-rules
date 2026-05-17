@@ -12,6 +12,10 @@
 #                      (default: claude-4.6-sonnet-medium)
 #   neither          — exit 0 silently
 #
+# Hook payloads:
+#   - Claude Code Stop: `CLAUDE_PROJECT_DIR`
+#   - Cursor stop: `workspace_roots[]`
+#
 # Portable bash 3.2 (macOS /bin/bash): no `mapfile`, no associative arrays.
 #
 # Bundled with @nitra/cursor; project copy is auto-synced by the `adr` rule.
@@ -23,7 +27,9 @@ if [ -n "${ADR_NORMALIZE_RUNNING:-}" ]; then
 fi
 export ADR_NORMALIZE_RUNNING=1
 
-PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+INPUT=$(cat || true)
+CURSOR_WORKSPACE_ROOT=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // empty' 2>/dev/null || true)
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-${CURSOR_WORKSPACE_ROOT:-$PWD}}"
 ADR_DIR="$PROJECT_ROOT/docs/adr"
 LOG_DIR="$PROJECT_ROOT/.claude/hooks"
 LOG="$LOG_DIR/normalize-decisions.log"

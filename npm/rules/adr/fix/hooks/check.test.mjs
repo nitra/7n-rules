@@ -62,9 +62,19 @@ function makeValidSettings() {
  */
 async function setupValidProject() {
   await ensureDir('.claude/hooks')
+  await ensureDir('.cursor')
   await writeFile('.claude/hooks/capture-decisions.sh', bundledCaptureContent, 'utf8')
   await writeFile('.claude/hooks/normalize-decisions.sh', bundledNormalizeContent, 'utf8')
   await writeJson('.claude/settings.json', makeValidSettings())
+  await writeJson('.cursor/hooks.json', {
+    version: 1,
+    hooks: {
+      stop: [
+        { command: 'bash "$PWD/.claude/hooks/capture-decisions.sh"', timeout: 180 },
+        { command: 'bash "$PWD/.claude/hooks/normalize-decisions.sh"', timeout: 600 }
+      ]
+    }
+  })
   await writeFile(
     '.gitignore',
     'node_modules/\n.claude/hooks/capture-decisions.log\n.claude/hooks/normalize-decisions.log\n',
@@ -100,6 +110,17 @@ describe('check-adr (інтеграція)', () => {
   // `capture-decisions.sh` і `normalize-decisions.sh`) і дублів у `.claude/settings.local.json`
   // — у Rego (`npm/rules/adr/policy/settings_json/`, `settings_local_json/`). JS-перевірка
   // лише наявність файлу.
+
+  test('1 — .cursor/hooks.json не має Cursor stop-hook для capture', async () => {
+    await withTmpCwd(async () => {
+      await setupValidProject()
+      await writeJson('.cursor/hooks.json', {
+        version: 1,
+        hooks: { stop: [{ command: 'bash "$PWD/.claude/hooks/normalize-decisions.sh"' }] }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
 
   test('1 — .gitignore не покриває capture-decisions.log', async () => {
     await withTmpCwd(async () => {

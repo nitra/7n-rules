@@ -1,6 +1,7 @@
 /**
  * Синхронізує конфігурацію Claude Code (`.claude/settings.json`, `npm/CLAUDE.md`,
- * slash-команди для checks, ADR Stop-hook) у поточний проєкт із темплейтів пакету
+ * slash-команди для checks, ADR Stop-hook) і Cursor hooks (`.cursor/hooks.json`)
+ * у поточний проєкт із темплейтів пакету
  * `npm/.claude-template/`.
  *
  * Архітектура:
@@ -17,6 +18,8 @@
  *   так само автоматично прибирається з settings.json.
  * - `.claude/hooks/normalize-decisions.sh` — fully owned bash-скрипт ADR normalize
  *   Stop-hook (батч-нормалізація чернеток); умови — ті самі, що для `capture`.
+ * - `.cursor/hooks.json` — **merge**: користувацькі hooks зберігаються; ADR stop
+ *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене.
  *
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
@@ -30,6 +33,10 @@ export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
 export const ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
 /** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта normalize-decisions. */
 export const ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisions.sh'
+/** Маркер Cursor ADR Stop-hook'а — той самий script path, але в `.cursor/hooks.json`. */
+export const CURSOR_ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
+/** Маркер Cursor ADR Normalize Stop-hook'а — той самий script path, але в `.cursor/hooks.json`. */
+export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisions.sh'
 /** Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких. */
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
@@ -41,6 +48,8 @@ const CLAUDE_DIR = '.claude'
 const CLAUDE_SETTINGS_FILE = `${CLAUDE_DIR}/settings.json`
 const CLAUDE_COMMANDS_DIR = `${CLAUDE_DIR}/commands`
 const CLAUDE_HOOKS_DIR = `${CLAUDE_DIR}/hooks`
+const CURSOR_DIR = '.cursor'
+const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const NPM_CLAUDE_MD_FILE = 'npm/CLAUDE.md'
@@ -72,6 +81,26 @@ const ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
   ])
 })
 
+/** Канонічний Cursor stop-hook для ADR capture. Cursor передає payload через stdin JSON. */
+const CURSOR_ADR_STOP_HOOK = Object.freeze({
+  command: [
+    "bash -lc 'root=\"$PWD\";",
+    `if [ ! -f "$root/${CURSOR_ADR_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${CURSOR_ADR_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
+    `bash "$root/${CURSOR_ADR_HOOK_COMMAND_MARKER}"'`
+  ].join(' '),
+  timeout: 180
+})
+
+/** Канонічний Cursor stop-hook для ADR normalize. */
+const CURSOR_ADR_NORMALIZE_STOP_HOOK = Object.freeze({
+  command: [
+    "bash -lc 'root=\"$PWD\";",
+    `if [ ! -f "$root/${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
+    `bash "$root/${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}"'`
+  ].join(' '),
+  timeout: 600
+})
+
 /**
  * @typedef {object} HookEntry
  * @property {string} type тип hook'а у форматі Claude Code (зазвичай `'command'`)
@@ -92,6 +121,18 @@ const ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
  */
 
 /**
+ * @typedef {object} CursorHookEntry
+ * @property {string} command команда, яку виконує Cursor hook
+ * @property {number} [timeout] опційний таймаут у секундах
+ */
+
+/**
+ * @typedef {object} CursorHooksConfig
+ * @property {number} [version] версія Cursor hooks config
+ * @property {Record<string, CursorHookEntry[]>} [hooks] hooks за подіями (`stop`, `afterFileEdit`, ...)
+ */
+
+/**
  * Чи hook-група містить лише наші managed-команди (за будь-яким із маркерів пакета).
  * @param {HookGroup} group hook-група з .claude/settings.json
  * @returns {boolean} `true`, якщо всі hooks мають маркер з `MANAGED_HOOK_COMMAND_MARKERS`
@@ -102,6 +143,20 @@ function isManagedHookGroup(group) {
   }
   return group.hooks.every(
     h => typeof h?.command === 'string' && MANAGED_HOOK_COMMAND_MARKERS.some(marker => h.command.includes(marker))
+  )
+}
+
+/**
+ * Чи Cursor hook entry належить пакету `@nitra/cursor`.
+ * @param {CursorHookEntry} entry один entry з `.cursor/hooks.json`
+ * @returns {boolean} `true`, якщо command містить managed ADR marker
+ */
+function isManagedCursorHookEntry(entry) {
+  return (
+    typeof entry?.command === 'string' &&
+    [CURSOR_ADR_HOOK_COMMAND_MARKER, CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER].some(marker =>
+      entry.command.includes(marker)
+    )
   )
 }
 
@@ -197,6 +252,43 @@ export function mergeSettings(existing, template, options = {}) {
 }
 
 /**
+ * Зливає `.cursor/hooks.json`: користувацькі entries зберігаються, managed ADR
+ * entries у `hooks.stop` перезаписуються або видаляються залежно від `includeAdrHook`.
+ * @param {CursorHooksConfig | undefined} existing поточний Cursor hooks config
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додати ADR stop entries
+ * @returns {CursorHooksConfig} результат злиття
+ */
+export function mergeCursorHooksConfig(existing, options = {}) {
+  /** @type {CursorHooksConfig} */
+  const merged = { ...existing }
+  /** @type {Record<string, CursorHookEntry[]>} */
+  const hooks = {}
+  for (const [event, entries] of Object.entries(existing?.hooks ?? {})) {
+    hooks[event] = Array.isArray(entries) ? [...entries] : []
+  }
+  const stop = (hooks.stop ?? []).filter(entry => !isManagedCursorHookEntry(entry))
+  if (options.includeAdrHook) {
+    stop.push(
+      /** @type {CursorHookEntry} */ (CURSOR_ADR_STOP_HOOK),
+      /** @type {CursorHookEntry} */ (CURSOR_ADR_NORMALIZE_STOP_HOOK)
+    )
+  }
+  if (stop.length > 0) {
+    hooks.stop = stop
+  } else {
+    delete hooks.stop
+  }
+  merged.version = typeof merged.version === 'number' ? merged.version : 1
+  if (Object.keys(hooks).length > 0) {
+    merged.hooks = hooks
+  } else {
+    delete merged.hooks
+  }
+  return merged
+}
+
+/**
  * Читає JSON-файл; якщо файл відсутній або не валідний — повертає `undefined`.
  * @param {string} path абсолютний шлях до JSON-файлу
  * @returns {Promise<ClaudeSettings | undefined>} розпарсений об'єкт або `undefined` (файл відсутній / невалідний)
@@ -210,6 +302,27 @@ async function readJsonOrUndefined(path) {
   } catch {
     return
   }
+}
+
+/**
+ * Синхронізує `.cursor/hooks.json` для Cursor Agent stop-hooks. Cursor читає
+ * project-level config з `.cursor/hooks.json`; hook scripts лишаються спільними
+ * з Claude Code у `.claude/hooks/`.
+ * @param {string} projectRoot корінь проєкту, куди писати
+ * @param {object} [options] опції merge-у
+ * @param {boolean} [options.includeAdrHook] чи додавати ADR stop-hook entries
+ * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
+ */
+export async function syncCursorHooksConfig(projectRoot, options = {}) {
+  const hooksPath = join(projectRoot, CURSOR_HOOKS_FILE)
+  if (!options.includeAdrHook && !existsSync(hooksPath)) {
+    return { written: false, path: '' }
+  }
+  const existing = /** @type {CursorHooksConfig | undefined} */ (await readJsonOrUndefined(hooksPath))
+  const merged = mergeCursorHooksConfig(existing, options)
+  await mkdir(join(projectRoot, CURSOR_DIR), { recursive: true })
+  await writeFile(hooksPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8')
+  return { written: true, path: CURSOR_HOOKS_FILE }
 }
 
 /**
@@ -331,15 +444,29 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/CLAUDE.md/ADR-hook(s) та список записаних slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/CLAUDE.md/Cursor hooks/ADR-hook(s) та список записаних slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
-    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false, adrNormalizeHook: false }
+    return {
+      settings: false,
+      cursorHooks: false,
+      npmClaudeMd: false,
+      commands: [],
+      adrHook: false,
+      adrNormalizeHook: false
+    }
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
   if (!existsSync(templateDir)) {
-    return { settings: false, npmClaudeMd: false, commands: [], adrHook: false, adrNormalizeHook: false }
+    return {
+      settings: false,
+      cursorHooks: false,
+      npmClaudeMd: false,
+      commands: [],
+      adrHook: false,
+      adrNormalizeHook: false
+    }
   }
   const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
   const adrHook = includeAdrHook ? await syncAdrHookScript(projectRoot, templateDir) : { written: false, path: '' }
@@ -347,10 +474,12 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
     : { written: false, path: '' }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
+  const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
   const npmClaudeMd = await syncNpmClaudeMd(projectRoot, templateDir)
   const commands = await syncClaudeCommands(projectRoot, templateDir)
   return {
     settings: settings.written,
+    cursorHooks: cursorHooks.written,
     npmClaudeMd: npmClaudeMd.written,
     commands,
     adrHook: adrHook.written,

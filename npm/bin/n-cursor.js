@@ -20,8 +20,9 @@
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
  *
- * Claude Code інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
+ * Agent інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
+ * `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються),
  * `npm/CLAUDE.md` (path-scoped нагадування для роботи в `npm/`) і slash-команди checks (`/n-check`).
  * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
  *
@@ -1311,6 +1312,7 @@ async function runSync() {
     }
     const parts = []
     if (result.settings) parts.push('.claude/settings.json')
+    if (result.cursorHooks) parts.push('.cursor/hooks.json')
     if (result.npmClaudeMd) parts.push('npm/CLAUDE.md')
     if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
     if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')

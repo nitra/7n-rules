@@ -9,6 +9,10 @@
 #                       (default: claude-4.6-sonnet-medium)
 #   neither          — exit 0 silently
 #
+# Hook payloads:
+#   - Claude Code Stop: `transcript_path`, `session_id`, `CLAUDE_PROJECT_DIR`
+#   - Cursor stop: `transcript_path`, `conversation_id` / `generation_id`, `workspace_roots[]`
+#
 # Bundled with @nitra/cursor; project copy is auto-synced by the `adr` rule.
 set -euo pipefail
 
@@ -19,9 +23,10 @@ export CAPTURE_DECISIONS_RUNNING=1
 
 INPUT=$(cat)
 TRANSCRIPT_PATH=$(printf '%s' "$INPUT" | jq -r '.transcript_path // empty')
-SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // "unknown"')
+SESSION_ID=$(printf '%s' "$INPUT" | jq -r '.session_id // .conversation_id // .generation_id // "unknown"')
+CURSOR_WORKSPACE_ROOT=$(printf '%s' "$INPUT" | jq -r '.workspace_roots[0] // empty')
 
-PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$PWD}"
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-${CURSOR_WORKSPACE_ROOT:-$PWD}}"
 ADR_DIR="$PROJECT_ROOT/docs/adr"
 LOG_DIR="$PROJECT_ROOT/.claude/hooks"
 LOG="$LOG_DIR/capture-decisions.log"

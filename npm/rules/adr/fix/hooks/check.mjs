@@ -8,6 +8,8 @@
  *   пакета (sync керує файлами повністю).
  * - `.claude/settings.json` (project-shared) має managed-групи у `hooks.Stop` для
  *   обох скриптів (маркери у `command` — самі шляхи до скриптів).
+ * - `.cursor/hooks.json` має managed entries у `hooks.stop` для обох скриптів, щоб
+ *   Cursor Agent теж запускав ADR capture/normalize після завершення відповіді.
  * - `.claude/settings.local.json` (якщо існує) НЕ має дублів цих managed-груп —
  *   після переходу на project-shared такі записи створили б два запуски на одну подію.
  * - `.gitignore` у корені містить шаблон, який покриває
@@ -31,6 +33,7 @@ const HOOK_ARTIFACTS = /** @type {const} */ ([
 ])
 
 const PROJECT_SETTINGS_PATH = '.claude/settings.json'
+const CURSOR_HOOKS_PATH = '.cursor/hooks.json'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -116,6 +119,72 @@ function checkProjectSettings(reporter) {
     pass(`${PROJECT_SETTINGS_PATH} є (Stop-hook перевіряє npx @nitra/cursor check → adr.settings_json)`)
   } else {
     fail(`${PROJECT_SETTINGS_PATH} не існує — запусти \`npx @nitra/cursor\``)
+  }
+}
+
+/**
+ * Читає JSON-файл із диска без винятку.
+ * @param {string} path відносний шлях до JSON-файлу
+ * @returns {Promise<unknown | null>} розпарсений JSON або null
+ */
+async function readJsonSafe(path) {
+  try {
+    return JSON.parse(await readFile(path, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Чи має Cursor hooks config stop-entry з потрібним command marker.
+ * @param {unknown} config розпарсений `.cursor/hooks.json`
+ * @param {string} marker підрядок, який має бути в `command`
+ * @returns {boolean} true, якщо marker знайдено у `hooks.stop[]`
+ */
+function cursorConfigHasStopHook(config, marker) {
+  if (config === null || typeof config !== 'object' || Array.isArray(config)) {
+    return false
+  }
+  const hooks = /** @type {{ hooks?: unknown }} */ (config).hooks
+  if (hooks === null || typeof hooks !== 'object' || Array.isArray(hooks)) {
+    return false
+  }
+  const stop = /** @type {{ stop?: unknown }} */ (hooks).stop
+  if (!Array.isArray(stop)) {
+    return false
+  }
+  return stop.some(entry => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+      return false
+    }
+    const command = /** @type {{ command?: unknown }} */ (entry).command
+    return typeof command === 'string' && command.includes(marker)
+  })
+}
+
+/**
+ * Перевіряє project-level Cursor hooks config для ADR stop-hooks.
+ * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер
+ * @returns {Promise<void>}
+ */
+async function checkCursorHooks(reporter) {
+  const { pass, fail } = reporter
+  if (!existsSync(CURSOR_HOOKS_PATH)) {
+    fail(`${CURSOR_HOOKS_PATH} не існує — запусти \`npx @nitra/cursor\``)
+    return
+  }
+  const config = await readJsonSafe(CURSOR_HOOKS_PATH)
+  if (config === null) {
+    fail(`${CURSOR_HOOKS_PATH} не парситься як JSON — запусти \`npx @nitra/cursor\` або виправ файл`)
+    return
+  }
+  for (const { scriptName } of HOOK_ARTIFACTS) {
+    const marker = projectHookPath(scriptName)
+    if (cursorConfigHasStopHook(config, marker)) {
+      pass(`${CURSOR_HOOKS_PATH} має stop-hook для ${marker}`)
+    } else {
+      fail(`${CURSOR_HOOKS_PATH}: відсутній stop-hook для \`${marker}\` (adr.mdc)`)
+    }
   }
 }
 
@@ -212,6 +281,7 @@ export async function check() {
     await checkHookScript(reporter, scriptName)
   }
   checkProjectSettings(reporter)
+  await checkCursorHooks(reporter)
   await checkGitignore(reporter)
   checkLlmCliAvailable(reporter)
   return reporter.getExitCode()
