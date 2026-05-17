@@ -1,0 +1,31 @@
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_e52f509fef944c 12
+npm/scripts/utils/__fixtures__/mdc-refs/missing-ref/missing-ref.mdc
+  s_9102be39d1e731::t_ec61f86d676df8 1-7
+npm/scripts/utils/check-mdc-template-refs.test.mjs
+  s_9102be39d1e731::t_47339866c09543 1-28
+npm/scripts/utils/__fixtures__/mdc-refs/with-refs/fix/foo/template/package.json.snippet.json
+  s_9102be39d1e731::t_c3753166e932a0 1
+npm/scripts/utils/check-mdc-template-refs.mjs
+  s_9102be39d1e731::t_4140bd190b242d 1-47
+npm/scripts/utils/__fixtures__/mdc-refs/with-refs/with-refs.mdc
+  s_9102be39d1e731::t_5522ccea813fba 1-8
+npm/scripts/utils/__fixtures__/mdc-refs/missing-ref/policy/bar/template/.gitleaks.toml.snippet.toml
+  s_9102be39d1e731::t_45d8e803536576 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5353265772f3e7cdb67c42ba8075f187c374f7ed",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
