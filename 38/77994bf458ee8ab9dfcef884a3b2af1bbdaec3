@@ -1,0 +1,48 @@
+npm/rules/image-compress/image-compress.mdc
+  s_9102be39d1e731::t_76dbff1265b2d3 25,27-29,33
+  s_9102be39d1e731::t_d5e44c8da050b1 8,10
+npm/rules/capacitor/capacitor.mdc
+  s_9102be39d1e731::t_4f2ba7a74d4fd7 12
+npm/rules/ga/ga.mdc
+  s_9102be39d1e731::t_f8306116d44d96 253
+npm/rules/abie/abie.mdc
+  s_9102be39d1e731::t_a26af7d50b7e80 156
+npm/rules/rego/rego.mdc
+  s_9102be39d1e731::t_3ba71a0ae83fae 18,20
+npm/rules/docker/docker.mdc
+  s_9102be39d1e731::t_0aefae773f64fa 182
+npm/rules/image-avif/image-avif.mdc
+  s_9102be39d1e731::t_fbb73df69eab29 10
+npm/rules/k8s/k8s.mdc
+  s_9102be39d1e731::t_27f838815bff5a 30,32
+npm/rules/changelog/changelog.mdc
+  s_9102be39d1e731::t_74ac836046db5d 8
+npm/rules/npm-module/npm-module.mdc
+  s_9102be39d1e731::t_783b48cf8da72c 72
+docs/superpowers/specs/2026-05-17-template-dir-design.md
+  s_fb0e8630148017::t_1086bb720434a2 1-195
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "3877994bf458ee8ab9dfcef884a3b2af1bbdaec3",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_fb0e8630148017": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d2ea56d-d183-4e43-94bd-a6f55c5beb14",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
