@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "ioredis": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "node-redis": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "redis": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "@redis/client": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "@redis/json": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "@redis/search": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "@redis/time-series": "заміни на Bun native Redis (js-bun-redis.mdc)",
+    "@redis/bloom": "заміни на Bun native Redis (js-bun-redis.mdc)"
+  }
+}

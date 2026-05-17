@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.18] - 2026-05-17
+
+### Added
+
+- `js-bun-db.package_json` + `js-bun-redis.package_json` template/ міграція (Phase 8): `template/package.json.deny.json` (forbidden deps з причинами). Rego — простий deny-walker. 2 нових `*_test.rego` (8 тестів).
+
 ## [1.13.17] - 2026-05-17
 
 ### Added
