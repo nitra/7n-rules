@@ -1,0 +1,24 @@
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_a49b7960b2ca06 7-12
+npm/package.json
+  s_9102be39d1e731::t_b9f005e5be8ba8 3
+npm/rules/security/fix/gitleaks/check.test.mjs
+  s_9102be39d1e731::t_8421a7ad55d88d 66
+  s_9102be39d1e731::t_1198f2e9e7e3f5 45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "b0330badd7c7fa46d94e80078fcd51323407585f",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
