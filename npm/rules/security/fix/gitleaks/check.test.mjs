@@ -42,9 +42,7 @@ describe('security/fix/gitleaks/check', () => {
   test('passes when both files exist and .gitleaks.toml is template superset', async () => {
     const exit = await withTmpCwd(cwd => {
       writeFileSync(join(cwd, 'package.json'), '{}')
-      writeFileSync(join(cwd, '.gitleaks.toml'), `title = "Project gitleaks config"
-
-[extend]
+      writeFileSync(join(cwd, '.gitleaks.toml'), `[extend]
 useDefault = true
 
 [allowlist]
@@ -65,9 +63,7 @@ paths = [
   test('fails when .gitleaks.toml allowlist paths missing canonical entry', async () => {
     const exit = await withTmpCwd(cwd => {
       writeFileSync(join(cwd, 'package.json'), '{}')
-      writeFileSync(join(cwd, '.gitleaks.toml'), `title = "Project gitleaks config"
-
-[extend]
+      writeFileSync(join(cwd, '.gitleaks.toml'), `[extend]
 useDefault = true
 
 [allowlist]

@@ -1,5 +1,3 @@
-title = "Project gitleaks config"
-
 [extend]
 useDefault = true
 
