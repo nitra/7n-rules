@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { checkDeny, checkSnippet, loadTemplate } from './template.mjs'
+import { checkContains, checkDeny, checkSnippet, loadTemplate } from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
@@ -102,5 +102,44 @@ describe('checkDeny', () => {
 
   test('returns empty for null deny', () => {
     expect(checkDeny({}, null, opts)).toEqual([])
+  })
+})
+
+describe('checkContains', () => {
+  const opts = { targetPath: 'package.json', source: 'security.mdc' }
+
+  test('returns empty when leaf string contains every required substring', () => {
+    const actual = { scripts: { lint: 'bun run lint-text && bun run lint-security && oxfmt .' } }
+    const contains = { scripts: { lint: ['bun run lint-security'] } }
+    expect(checkContains(actual, contains, opts)).toEqual([])
+  })
+
+  test('reports missing substring', () => {
+    const actual = { scripts: { lint: 'bun run lint-text && oxfmt .' } }
+    const contains = { scripts: { lint: ['bun run lint-security'] } }
+    expect(checkContains(actual, contains, opts)).toEqual([
+      'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)'
+    ])
+  })
+
+  test('multiple substrings — reports each missing one', () => {
+    const actual = { scripts: { lint: 'bun run lint-text' } }
+    const contains = { scripts: { lint: ['bun run lint-security', 'oxfmt .'] } }
+    expect(checkContains(actual, contains, opts).sort()).toEqual([
+      'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)',
+      'package.json: scripts.lint має містити "oxfmt ." (security.mdc)'
+    ].sort())
+  })
+
+  test('returns empty when actual leaf missing entirely (cannot check substring of nothing)', () => {
+    const actual = { scripts: {} }
+    const contains = { scripts: { lint: ['bun run lint-security'] } }
+    expect(checkContains(actual, contains, opts)).toEqual([
+      'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)'
+    ])
+  })
+
+  test('returns empty for null contains', () => {
+    expect(checkContains({}, null, opts)).toEqual([])
   })
 })
