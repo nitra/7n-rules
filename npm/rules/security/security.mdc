@@ -1,58 +1,37 @@
 ---
-description: Локальний та CI-секюріті-лінт через gitleaks — скрипт `lint-security`, `.gitleaks.toml`, інтеграція в агрегований `lint`
-globs: "**/.gitleaks.toml,**/package.json,**/.github/workflows/**/*.yml"
+description: Локальний та CI-секюріті-лінт через TruffleHog — скрипт `lint-security`, `.trufflehog-exclude`, інтеграція в агрегований `lint`
+globs: "**/.trufflehog-exclude,**/package.json,**/.github/workflows/**/*.yml"
 alwaysApply: false
-version: '1.1'
+version: '2.0'
 ---
 
-[gitleaks](https://github.com/gitleaks/gitleaks) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
+[TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
 
 ## Канон `package.json#scripts`
 
 - `lint-security` скрипт: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 - `lint` агрегатор повинен містити: [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
-- Заборонено `gitleaks` у `dependencies`/`devDependencies`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+- Заборонено `trufflehog` у `dependencies`/`devDependencies`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
 **Зауваження:**
 
-- `gitleaks detect` — сканує робоче дерево (uncommitted + tracked); швидше і безпечніше для частого `bun run lint`, ніж `gitleaks git`.
-- `--no-banner` — прибирає ASCII-арт (CI-friendly).
+- `trufflehog filesystem .` — сканує робоче дерево як директорію (включно з untracked/gitignored файлами); підкоманда `git file://.` лишається на CI для аудиту історії.
+- `--no-update` — вимикає self-update check (CI-friendly).
+- `--exclude-paths .trufflehog-exclude` — файл з regex-patterns, які треба пропускати (аналог `[allowlist].paths` із gitleaks).
+- `--results=verified,unknown` — показує лише верифіковані секрети + ті, що TruffleHog не зміг перевірити (`unverified` дублікат відсіюється).
+- `--fail` — exit-code `183` за наявності знахідок (потрібно, щоб `bun run lint` падав).
 - Позиція в `lint`: за конвенцією після інших `lint-*` і перед `oxfmt`.
 
-## `.gitleaks.toml` (рекомендована основа)
+## `.trufflehog-exclude` (рекомендована основа)
 
-Канон (допускає розширення в `[allowlist].paths`): [.gitleaks.toml.snippet.toml](./fix/gitleaks/template/.gitleaks.toml.snippet.toml)
+Канон (допускає розширення): [.trufflehog-exclude.snippet.txt](./fix/trufflehog/template/.trufflehog-exclude.snippet.txt)
 
-**Важливо:** `useDefault = true` — НЕ перетирай дефолтний `rules`-масив; реальні винятки лише через `[allowlist]`.
+**Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
 
-## GitHub Actions (опційно)
+## CI: `.github/workflows/lint-security.yml`
 
-Окремий workflow не обовʼязковий — `lint-security` уже виконується через агрегований `lint`. Для fast-feedback окремо:
+Workflow обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
 
-```yaml title=".github/workflows/lint-security.yml"
-name: Lint Security
+- Канон: [lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)
 
-on:
-  push:
-    branches: [dev, main]
-  pull_request:
-    branches: [dev, main]
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  security:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-```
-
-Для повного скану git-історії потрібен `fetch-depth: 0`.
+Перевіряється policy `security.lint_security_yml`: серед `uses:` має бути крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.

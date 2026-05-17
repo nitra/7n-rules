@@ -95,25 +95,24 @@ describe('inlineTemplateLinks', () => {
     )
   })
 
-  test('integration: security.mdc — 4 template links inlined, non-template links untouched', async () => {
+  test('integration: security.mdc — 5 template links inlined, non-template links untouched', async () => {
     const { readFile } = await import('node:fs/promises')
     const mdc = await readFile(join(SECURITY_RULE_DIR, 'security.mdc'), 'utf8')
     const result = await inlineTemplateLinks(mdc, SECURITY_RULE_DIR)
 
-    // All 4 template links are gone
+    // All 5 template links are gone
     expect(result).not.toContain('[package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)')
     expect(result).not.toContain('[package.json.contains.json](./policy/package_json/template/package.json.contains.json)')
     expect(result).not.toContain('[package.json.deny.json](./policy/package_json/template/package.json.deny.json)')
-    expect(result).not.toContain('[.gitleaks.toml.snippet.toml](./fix/gitleaks/template/.gitleaks.toml.snippet.toml)')
+    expect(result).not.toContain('[.trufflehog-exclude.snippet.txt](./fix/trufflehog/template/.trufflehog-exclude.snippet.txt)')
+    expect(result).not.toContain('[lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)')
 
     // Inline content from the actual template files is present
-    expect(result).toContain('```json\n{ "scripts": { "lint-security": "gitleaks detect --no-banner" } }\n```')
-    expect(result).toContain('```toml\n')
-    expect(result).toContain('useDefault = true')
+    expect(result).toContain('```json\n{ "scripts": { "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail" } }\n```')
+    expect(result).toContain('(^|/)node_modules(/|$)')
+    expect(result).toContain('uses: trufflesecurity/trufflehog@main')
 
     // Non-template links are untouched
-    expect(result).toContain('[gitleaks](https://github.com/gitleaks/gitleaks)')
-    // The yaml code block for the workflow is still present (not a template link)
-    expect(result).toContain('```yaml title=".github/workflows/lint-security.yml"')
+    expect(result).toContain('[TruffleHog](https://github.com/trufflesecurity/trufflehog)')
   })
 })

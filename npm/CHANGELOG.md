@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.26] - 2026-05-17
+
+### Changed
+
+- `security` rule: міграція з gitleaks на TruffleHog. Канонічний `lint-security` тепер `trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail`; allowlist переїхав із TOML-файлу `.gitleaks.toml` (`[extend].useDefault=true` + `[allowlist].paths`) у plain-text `.trufflehog-exclude` (regex-pattern на рядок). Bump `security.mdc` version `1.1` → `2.0`.
+
+### Added
+
+- `npm/rules/security/fix/trufflehog/check.mjs` + `template/.trufflehog-exclude.snippet.txt` — JS-частина правила перевіряє існування `.trufflehog-exclude` та subset канонічних patterns через `checkTextSubset` (Rego не пасує plain-text-формату).
+- `npm/rules/security/policy/lint_security_yml/` — Rego policy `security.lint_security_yml` із template `lint-security.yml.snippet.yml`; перевіряє, що `.github/workflows/lint-security.yml` містить крок з `uses: trufflesecurity/trufflehog@main`. У `security.mdc` inline-YAML замінено на template-link для single-source-of-truth (патерн із `php`/`style-lint`/`js-lint`). Workflow обовʼязковий (`target.json: required=true` + `missingMessage`), у корені cursor створено `.github/workflows/lint-security.yml` за каноном.
+
+### Removed
+
+- `npm/rules/security/fix/gitleaks/` + `npm/rules/security/policy/gitleaks/` (концерн gitleaks повністю видалено разом з Rego policy `security.gitleaks`).
+- Кореневий `.gitleaks.toml` (замінено на `.trufflehog-exclude`).
+
 ## [1.13.25] - 2026-05-17
 
 ### Added

@@ -1,72 +1,76 @@
 ---
-description: Локальний та CI-секюріті-лінт через gitleaks — скрипт `lint-security`, `.gitleaks.toml`, інтеграція в агрегований `lint`
-globs: "**/.gitleaks.toml,**/package.json,**/.github/workflows/**/*.yml"
+description: Локальний та CI-секюріті-лінт через TruffleHog — скрипт `lint-security`, `.trufflehog-exclude`, інтеграція в агрегований `lint`
+globs: "**/.trufflehog-exclude,**/package.json,**/.github/workflows/**/*.yml"
 alwaysApply: false
-version: '1.1'
+version: '2.0'
 ---
 
-[gitleaks](https://github.com/gitleaks/gitleaks) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
+[TruffleHog](https://github.com/trufflesecurity/trufflehog) — глобальний CLI (як `shellcheck`, `conftest`); **не** додавай до `dependencies`/`devDependencies`.
 
 ## Канон `package.json#scripts`
 
 - `lint-security` скрипт: `package.json`:
 
 ```json
-{ "scripts": { "lint-security": "gitleaks detect --no-banner" } }
+{ "scripts": { "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail" } }
 ```
 - `lint` агрегатор повинен містити: `package.json`:
 
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
-- Заборонено `gitleaks` у `dependencies`/`devDependencies`: `package.json`:
+- Заборонено `trufflehog` у `dependencies`/`devDependencies`: `package.json`:
 
 ```json
 {
-  "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
-  "devDependencies": { "gitleaks": "глобальний CLI — не додавай у devDependencies" }
+  "dependencies": { "trufflehog": "глобальний CLI — не додавай у dependencies" },
+  "devDependencies": { "trufflehog": "глобальний CLI — не додавай у devDependencies" }
 }
 ```
 
 **Зауваження:**
 
-- `gitleaks detect` — сканує робоче дерево (uncommitted + tracked); швидше і безпечніше для частого `bun run lint`, ніж `gitleaks git`.
-- `--no-banner` — прибирає ASCII-арт (CI-friendly).
+- `trufflehog filesystem .` — сканує робоче дерево як директорію (включно з untracked/gitignored файлами); підкоманда `git file://.` лишається на CI для аудиту історії.
+- `--no-update` — вимикає self-update check (CI-friendly).
+- `--exclude-paths .trufflehog-exclude` — файл з regex-patterns, які треба пропускати (аналог `[allowlist].paths` із gitleaks).
+- `--results=verified,unknown` — показує лише верифіковані секрети + ті, що TruffleHog не зміг перевірити (`unverified` дублікат відсіюється).
+- `--fail` — exit-code `183` за наявності знахідок (потрібно, щоб `bun run lint` падав).
 - Позиція в `lint`: за конвенцією після інших `lint-*` і перед `oxfmt`.
 
-## `.gitleaks.toml` (рекомендована основа)
+## `.trufflehog-exclude` (рекомендована основа)
 
-Канон (допускає розширення в `[allowlist].paths`): `.gitleaks.toml`:
+Канон (допускає розширення): `.trufflehog-exclude`:
 
-```toml
-[extend]
-useDefault = true
-
-[allowlist]
-paths = [
-  '''(^|/)node_modules(/|$)''',
-  '''(^|/)\.git(/|$)''',
-  '''(^|/)dist(/|$)''',
-  '''(^|/)build(/|$)''',
-  '''.*\.lock$''',
-  '''.*fixtures?/.*'''
-]
+```
+(^|/)node_modules(/|$)
+(^|/)\.git(/|$)
+(^|/)dist(/|$)
+(^|/)build(/|$)
+.*\.lock$
+.*fixtures?/.*
 ```
 
-**Важливо:** `useDefault = true` — НЕ перетирай дефолтний `rules`-масив; реальні винятки лише через `[allowlist]`.
+**Важливо:** один regex-pattern на рядок, без TOML-обгортки; коментарі починаються з `#`.
 
-## GitHub Actions (опційно)
+## CI: `.github/workflows/lint-security.yml`
 
-Окремий workflow не обовʼязковий — `lint-security` уже виконується через агрегований `lint`. Для fast-feedback окремо:
+Workflow обовʼязковий — забезпечує незалежний скан секретів на push/PR (агрегований `lint` локально + окремий fail-fast job на CI).
 
-```yaml title=".github/workflows/lint-security.yml"
+- Канон: `lint-security.yml`:
+
+```yaml
 name: Lint Security
 
 on:
   push:
-    branches: [dev, main]
+    branches:
+      - dev
+      - main
+
   pull_request:
-    branches: [dev, main]
+    branches:
+      - dev
+      - main
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -82,7 +86,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --results=verified,unknown
 ```
 
-Для повного скану git-історії потрібен `fetch-depth: 0`.
+Якщо файл існує, перевіряється policy `security.lint_security_yml`: серед `uses:` має бути крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.

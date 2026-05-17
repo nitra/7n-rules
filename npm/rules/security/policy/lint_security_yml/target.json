@@ -1,0 +1,8 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": {
+    "single": ".github/workflows/lint-security.yml",
+    "required": true
+  },
+  "missingMessage": ".github/workflows/lint-security.yml не знайдено — створи за каноном security.mdc"
+}

@@ -35,7 +35,7 @@ Stop-hook `normalize-decisions.sh` спрацьовує на тому самом
 
 - Виходить миттєво, якщо чернеток (`session:` у frontmatter) менше ніж **`ADR_NORMALIZE_THRESHOLD`** (default 30).
 - Виходить миттєво, якщо від попередньої спроби пройшло менше **`ADR_NORMALIZE_MIN_INTERVAL_HOURS`** годин (default 6) — щоб не крутитися щоразу, коли поріг постійний.
-- Бере не більше **`ADR_NORMALIZE_BATCH`** чернеток (default 30, найстарші за іменем-timestamp), формує один промпт LLM і чекає JSON-відповідь зі списком операцій.
+- Бере не більше **`ADR_NORMALIZE_BATCH`** чернеток (default 10, найстарші за іменем-timestamp), формує один промпт LLM і чекає JSON-відповідь зі списком операцій.
 - Виходить миттєво, якщо репозиторій у стані `MERGE_HEAD` / `rebase-*` — небезпечно правити файли посеред конфлікту.
 - Виходить миттєво, якщо інший normalize-запуск тримає `flock` на `.claude/hooks/.normalize.lock` (тільки де `flock` доступний).
 
@@ -60,7 +60,7 @@ LLM повертає масив операцій:
 | Змінна | Default | Призначення |
 | --- | --- | --- |
 | `ADR_NORMALIZE_THRESHOLD` | `30` | Поріг чернеток для запуску фази. |
-| `ADR_NORMALIZE_BATCH` | `30` | Максимум чернеток у одному виклику LLM. |
+| `ADR_NORMALIZE_BATCH` | `10` | Максимум чернеток у одному виклику LLM. |
 | `ADR_NORMALIZE_MIN_INTERVAL_HOURS` | `6` | Мінімум між спробами (навіть якщо поріг). |
 | `ADR_NORMALIZE_DRY` | `0` | `1` — лише лог запланованих операцій, без змін на диску. |
 | `ADR_NORMALIZE_MODEL` | `sonnet` | Модель для `claude -p`. |

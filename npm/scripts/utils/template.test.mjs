@@ -7,16 +7,18 @@ import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate, 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
 
+const CANON_LINT_SECURITY = 'trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail'
+
 describe('loadTemplate', () => {
   test('reads snippet/deny/contains from policy/<concern>/template/ for package.json target', async () => {
     const concernDir = join(FIXTURES, 'security-pkgjson', 'policy', 'package_json')
     const tpl = await loadTemplate(concernDir)
     expect(tpl).toEqual({
       'package.json': {
-        snippet: { scripts: { 'lint-security': 'gitleaks detect --no-banner' } },
+        snippet: { scripts: { 'lint-security': CANON_LINT_SECURITY } },
         deny: {
-          dependencies: { gitleaks: 'глобальний CLI — не додавай у dependencies' },
-          devDependencies: { gitleaks: 'глобальний CLI — не додавай у devDependencies' }
+          dependencies: { trufflehog: 'глобальний CLI — не додавай у dependencies' },
+          devDependencies: { trufflehog: 'глобальний CLI — не додавай у devDependencies' }
         },
         contains: { scripts: { lint: ['bun run lint-security'] } }
       }
@@ -34,24 +36,24 @@ describe('checkSnippet', () => {
   const opts = { targetPath: 'package.json', source: 'security.mdc' }
 
   test('returns empty for exact match on leaves', () => {
-    const actual = { scripts: { 'lint-security': 'gitleaks detect --no-banner' } }
-    const snippet = { scripts: { 'lint-security': 'gitleaks detect --no-banner' } }
+    const actual = { scripts: { 'lint-security': CANON_LINT_SECURITY } }
+    const snippet = { scripts: { 'lint-security': CANON_LINT_SECURITY } }
     expect(checkSnippet(actual, snippet, opts)).toEqual([])
   })
 
   test('reports missing leaf with path and expected value', () => {
     const actual = { scripts: {} }
-    const snippet = { scripts: { 'lint-security': 'gitleaks detect --no-banner' } }
+    const snippet = { scripts: { 'lint-security': CANON_LINT_SECURITY } }
     expect(checkSnippet(actual, snippet, opts)).toEqual([
-      'package.json: scripts."lint-security" має бути "gitleaks detect --no-banner" (security.mdc)'
+      `package.json: scripts."lint-security" має бути "${CANON_LINT_SECURITY}" (security.mdc)`
     ])
   })
 
   test('reports mismatched leaf value', () => {
-    const actual = { scripts: { 'lint-security': 'gitleaks detect' } }
-    const snippet = { scripts: { 'lint-security': 'gitleaks detect --no-banner' } }
+    const actual = { scripts: { 'lint-security': 'trufflehog filesystem .' } }
+    const snippet = { scripts: { 'lint-security': CANON_LINT_SECURITY } }
     expect(checkSnippet(actual, snippet, opts)).toEqual([
-      'package.json: scripts."lint-security" має бути "gitleaks detect --no-banner" (security.mdc)'
+      `package.json: scripts."lint-security" має бути "${CANON_LINT_SECURITY}" (security.mdc)`
     ])
   })
 
@@ -80,15 +82,15 @@ describe('checkDeny', () => {
 
   test('returns empty when no forbidden path is present', () => {
     const actual = { dependencies: { lodash: '^4' } }
-    const deny = { dependencies: { gitleaks: 'CLI — не додавай' } }
+    const deny = { dependencies: { trufflehog: 'CLI — не додавай' } }
     expect(checkDeny(actual, deny, opts)).toEqual([])
   })
 
   test('reports forbidden path with reason from deny value', () => {
-    const actual = { dependencies: { gitleaks: '^8.0.0', lodash: '^4' } }
-    const deny = { dependencies: { gitleaks: 'CLI — не додавай у dependencies' } }
+    const actual = { dependencies: { trufflehog: '^3.0.0', lodash: '^4' } }
+    const deny = { dependencies: { trufflehog: 'CLI — не додавай у dependencies' } }
     expect(checkDeny(actual, deny, opts)).toEqual([
-      'package.json: dependencies.gitleaks — CLI — не додавай у dependencies (security.mdc)'
+      'package.json: dependencies.trufflehog — CLI — не додавай у dependencies (security.mdc)'
     ])
   })
 
@@ -178,7 +180,7 @@ describe('resolveConcernTemplateData', () => {
       join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
       { files: { single: 'package.json' } }
     )
-    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+    expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('walkGlob string — picks by glob basename', async () => {
@@ -186,7 +188,7 @@ describe('resolveConcernTemplateData', () => {
       join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
       { files: { walkGlob: '**/package.json' } }
     )
-    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+    expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('walkGlob array — skips negative patterns and picks first matching template', async () => {
@@ -194,7 +196,7 @@ describe('resolveConcernTemplateData', () => {
       join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
       { files: { walkGlob: ['!**/dist/**', '**/package.json'] } }
     )
-    expect(data?.snippet?.scripts?.['lint-security']).toBe('gitleaks detect --no-banner')
+    expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('returns undefined when no template matches target basename', async () => {

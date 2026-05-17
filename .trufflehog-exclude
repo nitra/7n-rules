@@ -1,0 +1,10 @@
+# trufflehog filesystem exclude — regex patterns, one per line.
+# Канон: npm/rules/security/fix/trufflehog/template/.trufflehog-exclude.snippet.txt
+(^|/)node_modules(/|$)
+(^|/)\.git(/|$)
+(^|/)dist(/|$)
+(^|/)build(/|$)
+.*\.lock$
+.*fixtures?/.*
+^npm/rules/.*/(fix|policy)/.*\.test\.mjs$
+^npm/rules/.*/policy/.*_test\.rego$

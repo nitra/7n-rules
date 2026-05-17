@@ -55,11 +55,11 @@ description: >-
    - Відкотити конкретний файл: `git checkout -- docs/adr/<file>` (для `rewrite` цього мало — треба ще `git restore --staged` і `rm` нового).
    - Відкотити весь батч: `git checkout -- docs/adr/ && git clean -f docs/adr/` (видалить і untracked rewrite-результати).
 
-5. **Повторити для наступного батчу**, якщо чернеток ще багато. Кожен запуск обробляє до `ADR_NORMALIZE_BATCH` файлів (default 30, найстарші за часовою позначкою у назві).
+5. **Повторити для наступного батчу**, якщо чернеток ще багато. Кожен запуск обробляє до `ADR_NORMALIZE_BATCH` файлів (default 10, найстарші за часовою позначкою у назві).
 
 ## Tuning через ENV
 
-- `ADR_NORMALIZE_BATCH=10` — менший батч (менше токенів, частіші коміти).
+- `ADR_NORMALIZE_BATCH=30` — більший батч (менше викликів LLM, більше токенів за раз).
 - `ADR_NORMALIZE_MODEL=opus` — інша модель `claude -p`.
 - `ADR_NORMALIZE_CURSOR_MODEL=…` — інша модель для cursor-agent fallback.
 

@@ -22,7 +22,7 @@
     "lint-docker": "n-cursor lint-docker",
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
     "lint-image": "npx @nitra/minify-image --src=. --write",
-    "lint-security": "gitleaks detect --no-banner"
+    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.1.0",
