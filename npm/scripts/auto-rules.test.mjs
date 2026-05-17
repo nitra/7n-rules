@@ -28,6 +28,7 @@ const ALL_RULES = [
   'k8s',
   'nginx-default-tpl',
   'npm-module',
+  'security',
   'style-lint',
   'text',
   'vue'
@@ -79,6 +80,7 @@ describe('detectAutoRules', () => {
         'k8s',
         'nginx-default-tpl',
         'npm-module',
+        'security',
         'style-lint',
         'text',
         'vue'

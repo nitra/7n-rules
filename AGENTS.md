@@ -41,6 +41,8 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-rego.mdc
 
+- .cursor/rules/n-security.mdc
+
 - .cursor/rules/n-style-lint.mdc
 
 - .cursor/rules/n-text.mdc
@@ -94,6 +96,8 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **lint-image**: `bun run lint-image`
 
 - **lint-rego**: `bun run lint-rego`
+
+- **lint-security**: `bun run lint-security`
 
 - **lint-style**: `bun run lint-style`
 

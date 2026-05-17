@@ -1,7 +1,8 @@
 ---
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
-alwaysApply: true
-version: '1.6'
+globs: "**/package.json,**/src/conn/**"
+alwaysApply: false
+version: '1.7'
 ---
 
 ## Підтримувані версії баз даних

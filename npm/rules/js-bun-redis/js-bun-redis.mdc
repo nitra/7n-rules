@@ -1,7 +1,8 @@
 ---
 description: Використання Redis/Valkey з Bun
-alwaysApply: true
-version: '1.0'
+globs: "**/package.json,**/src/conn/**"
+alwaysApply: false
+version: '1.1'
 ---
 
 ## Підтримувані версії redis

@@ -22,3 +22,18 @@
 ## Зачіпає
 
 `npm/rules/npm-module/npm-module.mdc`, `.cursor/rules/n-npm-module.mdc`, `npm/rules/npm-module/js/package_structure/check.mjs`, `npm/package.json`, `npm/CHANGELOG.md`; публічний API правила перевірки `checkNoTestsInPublishedFiles` — семантика не змінилася, лише текст помилки й дозволена топологія файлів.
+
+## Update 2026-05-12
+
+Додано перевірку компактності пакету у `check-npm-module.mjs`:
+
+- `checkPackageCompactness` — перевіряє наявність поля `"files"` у `npm/package.json` та відсутність `devDependencies`.
+- `checkNoTestsInPublishedFiles` — резолвить glob-патерни з `"files"`, для кожного файлу перевіряє назву, приналежність до тестового каталогу (`TEST_DIR_NAMES`) та AST-імпорт тестового фреймворку через oxc-parser.
+- Допоміжна функція `globToRegex` підтримує `**`, `*`, `?` та негативні патерни.
+- До `"files"` у `npm/package.json` додано `"!**/*_test.rego"` — 14 rego-юніт-тестів більше не потрапляють до tarball (підтверджено `npm pack --dry-run`).
+- Видалено `devDependencies: { "@nitra/cursor": ... }` з `npm/package.json` — пакет підключений через `workspace:*` у кореневому `package.json`.
+- Написано 14 unit-тестів у `npm/tests/check-npm-module.test.mjs` для `globToRegex`, `findTestFrameworkImport`, `classifyPublishedFileAsTest`.
+- `npm/mdc/npm-module.mdc` і `.cursor/rules/n-npm-module.mdc` оновлено до версії 1.11 з трьома новими обов'язковими вимогами: поле `"files"` є обов'язковим, `devDependencies` заборонені, тести і фікстури мають лежати поза будь-яким виданим шляхом.
+- Версію підвищено з `1.9.4` до `1.9.5`, CHANGELOG оновлено.
+
+**Розглянуті альтернативи:** Фізично перенести `*_test.rego` під `npm/tests/policy/` — відкладено, потребує рефакторингу `lint-rego.mjs` і `lint-conftest.mjs`. Залишити порожній `devDependencies: {}` — відхилено як надлишкове поле.

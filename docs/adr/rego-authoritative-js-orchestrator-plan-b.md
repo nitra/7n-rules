@@ -49,3 +49,17 @@
 ## Update 2026-05-10
 
 Уніфіковано rego-стиль у пакетах `kustomization` та `manifest`: конструкцію `_ := obj.field` замінено на `"field" in object.keys(obj)` у 4 місцях. Початкова точка версій — `1.8.224`, кінцева — `1.8.228`.
+
+## Update 2026-05-13
+
+### Два паттерни активації rego-полісі: глобальний TARGETS і JS-оркестратор
+
+`lint-conftest.mjs` фільтрує полісі лише за активними правилами репозиторію (`.n-cursor.json`), але не вміє визначати per-workspace або per-file умови.
+
+**Паттерн A — Глобальний TARGETS:** для безумовних правил (`.markdownlint-cli2.jsonc`, `package.json` присутній завжди) rego-полісі реєструються у масиві `TARGETS` у `lint-conftest.mjs` з `rule: '<name>'` для фільтрації за `.n-cursor.json`.
+
+**Паттерн B — JS-оркестратор:** для умовних правил (rego — glob `**/*.rego`; tauri — лише Tauri-проєкти; jsconfig — лише backend-пакети з `src/`) JS-скрипт `check-<rule>.mjs` спочатку перевіряє умову, потім викликає `runConftestBatch` з відповідним `policyDir` і namespace. Rego-полісі не реєструються у TARGETS.
+
+Приклад: `check-js-run.mjs` після визначення що пакет є backend із каталогом `src/` викликає `runConftestBatch` для `js_run.jsconfig` — аналогічно до `check-ga.mjs`, яка викликає conftest для GA-специфічних правил. Реєстрація в TARGETS спричинила б false-positive для Vite-frontend пакетів (наприклад, `demo/`).
+
+**Зачіпає:** `npm/scripts/lint-conftest.mjs` (TARGETS), `npm/scripts/check-js-run.mjs`, `npm/policy/js_run/jsconfig/`

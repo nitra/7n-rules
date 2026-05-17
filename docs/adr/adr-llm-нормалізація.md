@@ -29,3 +29,51 @@
 ## Зачіпає
 
 `npm/.claude-template/hooks/capture-decisions.sh`, `npm/.claude-template/hooks/normalize-decisions.sh` (новий), `npm/scripts/sync-claude-config.mjs`, `npm/rules/adr/js/check.mjs`, `npm/rules/adr/adr.mdc`, `npm/rules/adr/policy/settings_json/settings_json.rego`, `npm/rules/adr/policy/settings_local_json/settings_local_json.rego`, `npm/scripts/auto-skills.mjs`, `npm/skills/adr-normalize/SKILL.md` (новий), `.gitignore`, `npm/package.json`, `npm/CHANGELOG.md`
+
+## Update 2026-05-15
+
+**Пропозиція автоматизації промоції чернеток через LLM.**
+
+Найприродніша схема — новий hook або скрипт, що запускається за подією (`PostToolUse` на запис у `_inbox/`, або `schedule`-cron). Логіка:
+
+1. Читає нові файли з `docs/adr/_inbox/` (трекінг через тег у frontmatter або окремий стейт-файл).
+2. LLM-фільтр: передає вміст чернетки моделі з промптом «Чи є тут справжнє архітектурне рішення? YES/NO + slug».
+3. Для YES: LLM генерує структурований ADR без службового frontmatter, CLI призначає наступний номер, записує у `docs/adr/NNNN-<slug>.md`, видаляє або архівує чернетку в `_inbox/archived/`.
+4. Для NO: чернетку видаляє або лишає без змін.
+
+Реалізація можлива як новий Stop-hook `promote-adrs.sh` за зразком `capture-decisions.sh`, або окремий скрипт із `/schedule`-cron.
+
+## Update 2026-05-15
+
+### Нормалізація «на місці» замість двоступеневого inbox/promote
+
+Альтернативна модель: відмовитися від окремих папок `_inbox/` і `_promoted/`. Усі файли живуть в єдиному каталозі `docs/adr/`. `capture-decisions.sh` пише чернетку з маркером `status: raw` у frontmatter. При досягненні threshold (≥ 30 необроблених файлів) Stop-hook запускає двофазний LLM-пайплайн:
+
+1. **Фаза 1 — кластеризація:** LLM повертає JSON `[{title, sources:[...]}]`.
+2. **Фаза 2 — синтез:** LLM перезаписує файли нормалізованим змістом і прибирає `status: raw`; тривіальні або дублюючі чернетки видаляються.
+
+`git status` після нормалізації показує `modified` (очищено) та `deleted` (відкинуто) — природній review-вікно без окремого `_pending/`. Необроблені файли легко фільтрувати: `grep -rl 'status: raw' docs/adr/`.
+
+Recursion guard `ADR_PROMOTE_RUNNING=1` запобігає повторному запуску під час внутрішньої LLM-сесії.
+
+**Відхилені альтернативи:** `_inbox/` → `_promoted/` (складніша схема переміщень, залишає сміттєві сирці); continuous-промоція на кожен Stop (рішення ще нестабільні в активній сесії); однофазний LLM-виклик на 30 файлів одразу (ризик склеїти різні рішення).
+
+**Зачіпає:** `npm/.claude-template/hooks/capture-decisions.sh`, новий `npm/.claude-template/hooks/promote-decisions.sh`, `.cursor/rules/n-adr.mdc`, структура `docs/adr/`.
+
+## Update 2026-05-15
+
+### Двофазна кластеризація
+
+Нормалізація реалізована двофазно: (a) перший виклик LLM повертає лише JSON-кластери `[{title, sources:[...]}]`; (b) окремий LLM-виклик на кожен кластер генерує фінальний ADR-текст. Однофазний варіант (усі 30 файлів → N ADR-ів за один виклик) збережено як fallback.
+
+### JSON-операції нормалізатора
+
+LLM повертає масив операцій трьох типів: `rewrite` — переписати драфт, зняти frontmatter, перейменувати у `<slug>.md`; `delete` — тривіальний або повністю покритий іншим ADR; `merge-into` — зміст покрито існуючим файлом, дописати нові деталі туди, драфт видалити.
+
+### Маркер «сирий файл»
+
+Маркером необробленості є наявність поля `session:` у YAML frontmatter. Сирі файли мають вигляд `20260515-090910-88a66cb5.md`; після нормалізації frontmatter знімається, файл перейменовується у `<slug>.md`.
+
+### Без авто-коміту
+
+Скрипт залишає змінені, видалені та нові файли в робочому дереві. Розробник переглядає `git diff` / `git status` і самостійно вирішує, що прийняти — git diff слугує review-інтерфейсом без додаткового інструментарію.

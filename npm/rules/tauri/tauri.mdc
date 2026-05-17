@@ -1,7 +1,8 @@
 ---
 description: Tauri
-alwaysApply: true
-version: '1.0'
+globs: "**/src-tauri/**,**/tauri.conf.json"
+alwaysApply: false
+version: '1.1'
 ---
 
 

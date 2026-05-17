@@ -4,6 +4,46 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.0] - 2026-05-17
+
+### Changed
+
+- **9 правил переведено з `alwaysApply: true` на `alwaysApply: false` + `globs:`** — AI-контекст у Cursor/Claude Code підвантажується лише при роботі з релевантними файлами; програмна валідація через `npx check <rule>` залишається повністю функціональною незалежно від AI-контексту. Економить контекстне вікно у сесіях, де редагують код, далекий від відповідних конфігів.
+  - **`bun`** (`1.7 → 1.8`) — `globs: "**/package.json,**/bunfig.toml,**/bun.lock,**/bun.lockb"`
+  - **`capacitor`** (`1.0 → 1.1`) — `globs: "**/capacitor.config.json,**/android/**,**/ios/**"`
+  - **`js-bun-db`** (`1.6 → 1.7`) — `globs: "**/package.json,**/src/conn/**"`
+  - **`js-bun-redis`** (`1.0 → 1.1`) — `globs: "**/package.json,**/src/conn/**"`
+  - **`js-mssql`** (`1.3 → 1.4`) — `globs: "**/package.json,**/src/conn/mssql-*"`
+  - **`npm-module`** (`1.12 → 1.13`) — `globs: "npm/**,**/package.json,**/hk.pkl,.github/workflows/npm-publish.yml,**/tsconfig*.json"`
+  - **`tauri`** (`1.0 → 1.1`) — `globs: "**/src-tauri/**,**/tauri.conf.json"`
+  - **`js-lint`** (`1.21 → 1.22`) — `globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"`
+  - **`js-run`** (`1.7 → 1.8`) — `globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"`
+- **Мотивація:** усі 9 правил мають повне покриття `npx @nitra/cursor check <rule>` (JS-перевірка + Rego policy). Тримати їх `alwaysApply: true` без потреби палить контекст AI у сесіях, де редагується непов'язаний код. Помилка → check ловить → AI виправляє — той самий цикл, що для `security@1.12.1` і `changelog`/`image-compress`/`php`/`vue`.
+- **Залишено `alwaysApply: true`** — `text` (cross-cutting cspell-словник, апостроф), `adr` (про процес capture/normalize hooks), `ci4` (0 програмних чекерів — без AI-контексту правило мертве), `abie` (має JS `applies`-гейт, у не-abie репо мовчить; файли розкидані).
+
+## [1.12.1] - 2026-05-17
+
+### Changed
+
+- **`npm/rules/security/security.mdc`** — `alwaysApply: true` → `alwaysApply: false` + `globs: "**/.gitleaks.toml,**/package.json,**/.github/workflows/**/*.yml"`. AI-контекст правила тепер підвантажується лише при роботі з релевантними файлами (за зразком `changelog`/`image-compress`/`php`), а не на кожен турн. Програмна валідація через `npx @nitra/cursor check security` залишається завжди увімкненою (через `auto.md = завжди`) і ловить помилки незалежно від AI-контексту. Версія frontmatter `1.0` → `1.1`.
+- **Мотивація:** правило має повне покриття перевіркою (Rego + JS-check); тримати його `alwaysApply: true` не дає AI додаткової цінності понад те, що `check security` ловить програмно — лише марно займає контекстне вікно при роботі з кодом, не повʼязаним з конфігурацією security.
+
+## [1.12.0] - 2026-05-16
+
+### Added
+
+- **Нове правило `security`** (увімкнене за замовчуванням, як `text`/`adr`) — секрет-сканер на базі [gitleaks](https://github.com/gitleaks/gitleaks). Вимагає:
+  - `scripts.lint-security` у `package.json` з викликом `gitleaks detect` (або `gitleaks git`);
+  - `bun run lint-security` всередині агрегованого `scripts.lint` (якщо `lint` є);
+  - `.gitleaks.toml` у корені з `useDefault = true` у блоці `[extend]` (без перетирання вбудованих правил);
+  - `gitleaks` **не** у `dependencies`/`devDependencies` (інструмент глобальний, як `shellcheck`/`conftest`).
+- **`npm/rules/security/{security.mdc,auto.md,fix/gitleaks/check.mjs,policy/package_json/{package_json.rego,target.json,package_json_test.rego}}`** — повна структура правила за зразком `image-compress` (Rego per-document валідація + JS-частина для FS). 9 rego-тестів + 5 JS-тестів.
+- **`npm/scripts/auto-rules.mjs`** — `'security'` додано в `AUTO_RULE_ORDER` (alphabetical, між `rego` і `style-lint`) і викликається `addRule('security')` без умови. `auto-rules.test.mjs` оновлено.
+
+### Motivation
+
+Команда вже виявляла секрети у public-репо вручну (gitleaks локально + GitHub Push Protection); правило виносить інструмент у канонічний `bun run lint`, щоб витоки ловилися ще до push. Default-on, бо «опт-ін на secret-scanning» — це anti-pattern: репо, що не вмикав security вручну, найімовірніше і є той, що зливає секрети.
+
 ## [1.11.17] - 2026-05-16
 
 ### Fixed

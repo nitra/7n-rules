@@ -1,7 +1,8 @@
 ---
 description: Використання mssql в nodejs
-alwaysApply: true
-version: '1.3'
+globs: "**/package.json,**/src/conn/mssql-*"
+alwaysApply: false
+version: '1.4'
 ---
 
 ## Підтримувана версія SQL Server

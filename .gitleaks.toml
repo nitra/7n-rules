@@ -1,0 +1,19 @@
+# gitleaks config — успадковує дефолтні правила, додає allowlist для test-фікстур.
+# Дефолтні правила: https://github.com/gitleaks/gitleaks/blob/master/config/gitleaks.toml
+title = "n/cursor gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Шляхи, які навмисно містять test-фікстури з паттернами секретів."
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\.git(/|$)''',
+  '''(^|/)dist(/|$)''',
+  '''(^|/)build(/|$)''',
+  '''.*\.lock$''',
+  '''.*fixtures?/.*''',
+  '''^npm/rules/.*/(fix|policy)/.*\.test\.mjs$''',
+  '''^npm/rules/.*/policy/.*_test\.rego$'''
+]

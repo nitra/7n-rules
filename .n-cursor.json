@@ -15,9 +15,17 @@
     "nginx-default-tpl",
     "npm-module",
     "rego",
+    "security",
     "style-lint",
     "text",
     "vue"
   ],
-  "skills": ["adr-normalize", "fix", "lint", "llm-patch", "publish-telegram", "taze"]
+  "skills": [
+    "adr-normalize",
+    "fix",
+    "lint",
+    "llm-patch",
+    "publish-telegram",
+    "taze"
+  ]
 }

@@ -1,7 +1,8 @@
 ---
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
-alwaysApply: true
-version: '1.7'
+globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"
+alwaysApply: false
+version: '1.8'
 ---
 
 ## Область застосування

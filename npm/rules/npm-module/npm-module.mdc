@@ -1,7 +1,8 @@
 ---
 description: Оформлення репозиторію для npm модуля
-alwaysApply: true
-version: '1.12'
+globs: "npm/**,**/package.json,**/hk.pkl,.github/workflows/npm-publish.yml,**/tsconfig*.json"
+alwaysApply: false
+version: '1.13'
 ---
 
 Bun monorepo: workspace **`npm/`**, кореневий **`package.json`**, **`.github/workflows/`**; опційно **`demo/`**.

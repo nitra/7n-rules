@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.0.2] - 2026-05-16
+
+### Added
+
+- **`package.json#scripts.lint-security`** — викликає `gitleaks detect --no-banner`. Доданий у агрегований `lint` між `lint-image` і `oxfmt`. Dogfood для нового правила `security` пакета `@nitra/cursor@1.12.0`.
+- **`.gitleaks.toml`** — мінімальний конфіг з `useDefault = true` (успадковує вбудовані gitleaks-правила) і allowlist для test-фікстур (`npm/rules/**/fix/**/*.test.mjs`, `_test.rego`).
+
 ## [1.0.1] - 2026-05-09
 
 ### Added

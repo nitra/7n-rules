@@ -47,6 +47,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'npm-module',
   'php',
   'rego',
+  'security',
   'style-lint',
   'text',
   'vue'
@@ -659,6 +660,7 @@ export async function detectAutoRules({
     }
   }
   addRule('adr')
+  addRule('security')
   addRule('text')
   if (facts.hasVueSource) {
     addRule('vue')

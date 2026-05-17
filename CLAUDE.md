@@ -16,6 +16,7 @@
 @.cursor/rules/n-nginx-default-tpl.mdc
 @.cursor/rules/n-npm-module.mdc
 @.cursor/rules/n-rego.mdc
+@.cursor/rules/n-security.mdc
 @.cursor/rules/n-style-lint.mdc
 @.cursor/rules/n-text.mdc
 @.cursor/rules/n-vue.mdc

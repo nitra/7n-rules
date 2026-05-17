@@ -1,7 +1,8 @@
 ---
 description: Bun як єдиний package manager у монорепо
-alwaysApply: true
-version: '1.7'
+globs: "**/package.json,**/bunfig.toml,**/bun.lock,**/bun.lockb"
+alwaysApply: false
+version: '1.8'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
