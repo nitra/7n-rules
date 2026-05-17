@@ -1,0 +1,27 @@
+npm/scripts/utils/run-rule.mjs
+  s_9102be39d1e731::t_02c90611377b4c 21,84-85,89-90
+npm/scripts/utils/template.mjs
+  s_9102be39d1e731::t_696a5274a4ea28 215
+  s_9102be39d1e731::t_02c90611377b4c 11,193-214
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_02c90611377b4c 19
+npm/scripts/utils/template.test.mjs
+  s_9102be39d1e731::t_02c90611377b4c 5,174-205
+  s_9102be39d1e731::t_d4cd4084d54675 206-207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2a32076f53ddfb5df63db1b5aa2288eb1443e47c",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
