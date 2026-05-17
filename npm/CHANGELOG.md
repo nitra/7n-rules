@@ -16,6 +16,7 @@
 
 - `security/fix/gitleaks/check.mjs` читає канон з `template/`, не з inline regex.
 - `security/policy/package_json/package_json.rego` читає очікувані значення з `data.template.*`, не з inline literals.
+- Снепет `.gitleaks.toml.snippet.toml` тримає канонічний title + allowlist paths (description лишається user-specific).
 - **9 правил переведено з `alwaysApply: true` на `alwaysApply: false` + `globs:`** — AI-контекст у Cursor/Claude Code підвантажується лише при роботі з релевантними файлами; програмна валідація через `npx check <rule>` залишається повністю функціональною незалежно від AI-контексту. Економить контекстне вікно у сесіях, де редагують код, далекий від відповідних конфігів.
   - **`bun`** (`1.7 → 1.8`) — `globs: "**/package.json,**/bunfig.toml,**/bun.lock,**/bun.lockb"`
   - **`capacitor`** (`1.0 → 1.1`) — `globs: "**/capacitor.config.json,**/android/**,**/ios/**"`

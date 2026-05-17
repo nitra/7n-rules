@@ -1,2 +1,14 @@
+title = "Project gitleaks config"
+
 [extend]
 useDefault = true
+
+[allowlist]
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\.git(/|$)''',
+  '''(^|/)dist(/|$)''',
+  '''(^|/)build(/|$)''',
+  '''.*\.lock$''',
+  '''.*fixtures?/.*'''
+]

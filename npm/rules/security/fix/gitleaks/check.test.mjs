@@ -48,7 +48,7 @@ describe('security/fix/gitleaks/check', () => {
 useDefault = true
 
 [allowlist]
-description = "..."
+description = "будь-який project-specific опис"
 paths = [
   '''(^|/)node_modules(/|$)''',
   '''(^|/)\\.git(/|$)''',
@@ -60,5 +60,23 @@ paths = [
 `)
     }, async () => await check())
     expect(exit).toBe(0)
+  })
+
+  test('fails when .gitleaks.toml allowlist paths missing canonical entry', async () => {
+    const exit = await withTmpCwd(cwd => {
+      writeFileSync(join(cwd, 'package.json'), '{}')
+      writeFileSync(join(cwd, '.gitleaks.toml'), `title = "Project gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  '''(^|/)node_modules(/|$)''',
+  '''(^|/)\\.git(/|$)'''
+]
+`)
+    }, async () => await check())
+    expect(exit).toBe(1)
   })
 })
