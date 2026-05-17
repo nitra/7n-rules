@@ -1,0 +1,6 @@
+{
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.formatOnSave": true
+  }
+}

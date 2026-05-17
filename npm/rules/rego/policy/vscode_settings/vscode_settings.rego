@@ -1,38 +1,30 @@
 # Перевірка `.vscode/settings.json` для rego (rego.mdc).
 #
-# Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ виявлення
-# `.rego` файлів у дереві. Глобально без `target.json` поруч (не auto-discoverable через `n-cursor check`).
-#
-# Canonical (rego.mdc):
-#   { "[rego]": { "editor.defaultFormatter": "tsandall.opa",
-#                 "editor.formatOnSave": true } }
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/settings.json.snippet.json.
+# Snippet — 2-рівнева мапа: <language-block-key>.<setting-key> = <expected>
+# (VS Code-конвенція: ключі `[rego]` і `editor.defaultFormatter`/`editor.formatOnSave`
+# — це літеральні string-keys із дужками/крапкою, не вкладені обʼєкти).
 package rego.vscode_settings
 
 import rego.v1
 
-# ── deny: [rego] block ──────────────────────────────────────────────────
-
+# Leaf-by-leaf: працює коли block присутній і є обʼєктом.
 deny contains msg if {
-	not is_object(object.get(input, "[rego]", null))
-	msg := concat(" ", [
-		".vscode/settings.json: \"[rego]\" має бути обʼєктом з",
-		"\"editor.defaultFormatter\": \"tsandall.opa\" і",
-		"\"editor.formatOnSave\": true (rego.mdc)",
-	])
+	some block_key, expected_inner in data.template.snippet
+	inner := object.get(input, block_key, {})
+	is_object(inner)
+	some leaf_key, expected_value in expected_inner
+	actual := object.get(inner, leaf_key, null)
+	actual != expected_value
+	msg := sprintf(".vscode/settings.json: %s.%s має бути %v (rego.mdc)", [block_key, leaf_key, expected_value])
 }
 
+# Block існує, але не обʼєкт (напр. рядок) — окрема помилка типу.
 deny contains msg if {
-	rego_block := object.get(input, "[rego]", {})
-	is_object(rego_block)
-	object.get(rego_block, "editor.defaultFormatter", null) != "tsandall.opa"
-	msg := ".vscode/settings.json: \"[rego].editor.defaultFormatter\" має бути \"tsandall.opa\" (rego.mdc)"
-}
-
-deny contains msg if {
-	rego_block := object.get(input, "[rego]", {})
-	is_object(rego_block)
-	object.get(rego_block, "editor.formatOnSave", null) != true
-	msg := ".vscode/settings.json: \"[rego].editor.formatOnSave\" має бути true (rego.mdc)"
+	some block_key in object.keys(data.template.snippet)
+	raw := object.get(input, block_key, null)
+	raw != null
+	not is_object(raw)
+	msg := sprintf(".vscode/settings.json: %s має бути обʼєктом (rego.mdc)", [block_key])
 }

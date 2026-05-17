@@ -1,19 +1,15 @@
 # Перевірка `.vscode/extensions.json` для rego (rego.mdc).
 #
-# Викликається з `check-rego.mjs` через `runConftestBatch` лише ПІСЛЯ того, як
-# JS виявив `.rego` файли у дереві (умовне правило — проєкти без rego не
-# зобовʼязані ставити tsandall.opa). Без `target.json` поруч НЕ
-# реєструється.
-#
-# Canonical (rego.mdc): `recommendations` має містити `tsandall.opa`.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/extensions.json.snippet.json.
+# `recommendations` — subset-of: кожна рекомендація з template має бути у input.
+# Додаткові рекомендації від інших правил дозволені.
 package rego.vscode_extensions
 
 import rego.v1
 
 deny contains msg if {
-	recs := object.get(input, "recommendations", [])
-	not "tsandall.opa" in {r | some r in recs}
-	msg := ".vscode/extensions.json: recommendations має містити \"tsandall.opa\" (rego.mdc)"
+	some rec in data.template.snippet.recommendations
+	not rec in {r | some r in object.get(input, "recommendations", [])}
+	msg := sprintf(".vscode/extensions.json: recommendations має містити %q (rego.mdc)", [rec])
 }

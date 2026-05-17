@@ -15,16 +15,35 @@ alwaysApply: false
 bun run lint-rego
 ```
 
-Цілі — `npm/policy/`. Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/js/lint.mjs`.
+Цілі — `npm/rules/` (рекурсивно знаходить `.rego` у `<rule>/policy/<concern>/`). Інші *.rego поза деревом додай у `LINT_TARGETS` у `npm/rules/rego/lint/lint.mjs`.
 
 `opa` і `regal` — лише у `PATH`, **не** додавай у `dependencies` / `devDependencies`.
 
 ### `package.json`
 
-```json title="package.json"
+- Канон `scripts.lint-rego`: `package.json`:
+
+```json
+{ "scripts": { "lint-rego": "n-cursor lint-rego" } }
+```
+
+### `.vscode/extensions.json`
+
+- Канон `recommendations` має містити `tsandall.opa` (LSP, format-on-save через `opa fmt`): `extensions.json`:
+
+```json
+{ "recommendations": ["tsandall.opa"] }
+```
+
+### `.vscode/settings.json`
+
+- Канон `[rego]`-block (`editor.defaultFormatter` + `editor.formatOnSave`): `settings.json`:
+
+```json
 {
-  "scripts": {
-    "lint-rego": "n-cursor lint-rego"
+  "[rego]": {
+    "editor.defaultFormatter": "tsandall.opa",
+    "editor.formatOnSave": true
   }
 }
 ```

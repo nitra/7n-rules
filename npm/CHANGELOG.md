@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.11] - 2026-05-17
+
+### Added
+
+- `rego` rule template/ міграція (Phase 3): 3 концерни — `package_json` (snippet із збереженням `trim_space` tolerance), `vscode_extensions` (snippet-array), `vscode_settings` (snippet-object 2-level + окремий deny на non-object block).
+- Drift-тести у кожному `*_test.rego`.
+
+### Changed
+
+- `rego.package_json.rego` — замість двох inline-deny (missing + wrong-value через `regex/trim_space`) тепер один snippet-walker через `data.template.snippet`.
+- `rego.vscode_extensions.rego` — замість inline `"tsandall.opa"` тепер subset-of через `data.template.snippet.recommendations`.
+- `rego.vscode_settings.rego` — 2-рівневий snippet-walker з гардом `is_object(inner)` для випадку, коли block існує, але не обʼєкт.
+- `rego.mdc` — inline `package.json` snippet замінено на template-link; додано посилання на `.vscode/{extensions,settings}.json` template-файли. Виправлено застаріле `Цілі — npm/policy/` → `npm/rules/`.
+- `docs/adr/template-dir-concern-inventory.md` — позначено 3 `rego.*` концерни як ✓; додано Phase 3 у прогрес-секцію.
+
 ## [1.13.10] - 2026-05-17
 
 ### Fixed
