@@ -1,0 +1,31 @@
+npm/scripts/utils/inline-template-links.test.mjs
+  s_9ba8fc311d4f79::t_2b0e8d07a72352 1-87
+docs/adr/20260517-153233-введення-template-директорії-у-правилах-npm-rules-id.md
+  ai_agent 1-43
+npm/scripts/utils/inline-template-links.mjs
+  s_9ba8fc311d4f79::t_beef87099646a7 1-46
+npm/scripts/utils/__fixtures__/inline-template/policy/bar/template/file.txt
+  s_9ba8fc311d4f79::t_b6bee233890118 1
+npm/scripts/utils/__fixtures__/inline-template/policy/bar/template/config.yml
+  s_9ba8fc311d4f79::t_6005aa0b8e0ab1 1
+npm/scripts/utils/__fixtures__/inline-template/fix/foo/template/.gitleaks.toml.snippet.toml
+  s_9ba8fc311d4f79::t_9aa8341450455c 1
+npm/scripts/utils/__fixtures__/inline-template/fix/foo/template/snippet.json
+  s_9ba8fc311d4f79::t_d9b8936b0a9567 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "2f360156e4fa92b13da95acf547763942121d857",
+  "prompts": {},
+  "sessions": {
+    "s_9ba8fc311d4f79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "328bb743-a5ae-4252-b4bc-4cb8830cb252",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
