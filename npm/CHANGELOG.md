@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.21] - 2026-05-17
+
+### Added
+
+- `js-run` rule template/ міграція (Phase 11): 3 концерни (інвентар недорахував `jsconfig`) — `configmap` (contains, OTEL_RESOURCE_ATTRIBUTES substrings), `package_json` (deny на bunyan/@nitra/bunyan у deps/devDeps), `jsconfig` (snippet з generic 2-level walker + top-level array як множина для `include`).
+- Drift-тести у кожному `*_test.rego`.
+
 ## [1.13.20] - 2026-05-17
 
 ### Added

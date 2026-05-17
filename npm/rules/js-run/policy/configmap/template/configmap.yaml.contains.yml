@@ -1,0 +1,4 @@
+data:
+  OTEL_RESOURCE_ATTRIBUTES:
+    - 'service.name='
+    - 'service.namespace='

@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "devDependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  }
+}
