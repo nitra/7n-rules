@@ -1,0 +1,26 @@
+npm/scripts/utils/run-conftest-batch.mjs
+  s_9102be39d1e731::t_0034bcbad503ea 61,64-84,107-112,115-141,143-145
+  s_9102be39d1e731::t_f4a34484d71d91 18-19
+npm/package.json
+  s_9102be39d1e731::t_df58e747ca056d 3
+npm/scripts/utils/run-conftest-batch.test.mjs
+  s_9102be39d1e731::t_d90e08f25e5ceb 1-72
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_afae43449d81c0 7-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "e6b9e66fe8e05fda33406809a0c54c0be9d658c9",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
