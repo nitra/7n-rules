@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.3] - 2026-05-17
+
+### Changed
+
+- `security/security.mdc` — прибрано inline merge-фрагменти (package.json snippet для `lint-security`, .gitleaks.toml повний канон), замість них markdown-посилання на файли в `template/` (single source of truth). Зміст правила залишається (описи для чого потрібен gitleaks, GitHub Actions), видалено дублювання фіксованого коду.
+
 ## [1.13.2] - 2026-05-17
 
 ### Changed
