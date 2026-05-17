@@ -1,0 +1,24 @@
+npm/rules/security/security.mdc
+  s_9102be39d1e731::t_14f74cca1a92aa 24,26
+  s_9102be39d1e731::t_10ef2f354b793a 12-16
+npm/package.json
+  s_9102be39d1e731::t_714ec6ea4748a9 3
+npm/CHANGELOG.md
+  s_9102be39d1e731::t_b74ed229c39278 7-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "6cb91cd3f0886ccb7229ac80b2d8717542ad1811",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
