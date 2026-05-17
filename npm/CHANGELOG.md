@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.17] - 2026-05-17
+
+### Added
+
+- `php` rule template/ міграція (Phase 7): `php.package_json` (fragment, contains-walker для `lint-php`) + `php.lint_php_yml` (full-canon, substring-маркер `bun run lint-php` з template's php-job steps). 2 нових `*_test.rego` (8 тестів).
+- `php.mdc` — 2 inline-блоки замінено на template-links.
+
 ## [1.13.16] - 2026-05-17
 
 ### Added

@@ -1,19 +1,16 @@
-# Порт перевірки `package.json` з `npm/scripts/check-php.mjs` (php.mdc).
+# Перевірка `package.json` (php.mdc).
 #
-# Запуск (локально):
-#   conftest test package.json -p npm/policy/php --namespace php.package_json
-#
-# Перевіряє: наявність скрипта `lint-php`. FS-перевірки (`composer.json`, наявність
-# `package.json` як такого) — у JS.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "contains": ... } }
+# Структура --data сформована з template/package.json.contains.json.
+# FS-перевірки (`composer.json`, наявність `package.json` як такого) — у JS.
 package php.package_json
 
 import rego.v1
 
 deny contains msg if {
-	not object.get(object.get(input, "scripts", {}), "lint-php", false)
-	msg := "package.json: додай скрипт \"lint-php\" (php.mdc)"
+	some script_name, needles in data.template.contains.scripts
+	actual := object.get(object.get(input, "scripts", {}), script_name, "")
+	some needle in needles
+	not contains(actual, needle)
+	msg := sprintf("package.json: scripts.%s має містити %q (php.mdc)", [script_name, needle])
 }

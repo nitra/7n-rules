@@ -1,18 +1,19 @@
-# Порт перевірки `lint-php.yml` з `npm/scripts/check-php.mjs` (php.mdc).
+# Перевірка `lint-php.yml` (php.mdc).
 #
-# Запуск (локально):
-#   conftest test .github/workflows/lint-php.yml -p npm/policy/php \
-#     --namespace php.lint_php_yml
-#
-# Перевіряє: хоча б один крок `run` містить `bun run lint-php`. Універсальні
-# workflow-перевірки — у `ga.workflow_common`.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/lint-php.yml.snippet.yml.
+# Маркер `run:` (bun run lint-php) збирається з template's php-job steps.
+# Універсальні workflow-перевірки — у `ga.workflow_common`.
 package php.lint_php_yml
 
 import rego.v1
+
+# Очікуваний `run:` маркер — конкатенація всіх run-блоків з template.
+expected_run_blob := concat("\n", [r |
+	some step in data.template.snippet.jobs.php.steps
+	r := object.get(step, "run", "")
+	r != ""
+])
 
 all_run_text := concat("\n", [run_text |
 	some job in object.get(input, "jobs", {})
@@ -21,8 +22,9 @@ all_run_text := concat("\n", [run_text |
 ])
 
 deny contains msg if {
-	not contains(all_run_text, "bun run lint-php")
-	msg := "lint-php.yml: жоден крок run не містить `bun run lint-php` (php.mdc)"
+	expected_run_blob != ""
+	not contains(all_run_text, expected_run_blob)
+	msg := sprintf("lint-php.yml: жоден крок run не містить %q (php.mdc)", [expected_run_blob])
 }
 
 step_run_to_text(step) := step.run if is_string(step.run)

@@ -65,13 +65,7 @@ composer audit
 
 `composer`-інструмененти не мають єдиного CLI, який сам обходить репозиторій, тому `lint-php` зручно делегувати у JS-скрипт-обгортку (як `lint-docker`, `lint-k8s`).
 
-```json title="package.json"
-{
-  "scripts": {
-    "lint-php": "bun ./npm/scripts/run-php.mjs"
-  }
-}
-```
+- Канон `package.json#scripts.lint-php` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
 
 Скрипт `run-php.mjs`:
 
@@ -82,52 +76,4 @@ composer audit
 
 ## CI: `.github/workflows/lint-php.yml`
 
-```yaml title=".github/workflows/lint-php.yml"
-name: Lint PHP
-
-on:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - '**/*.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'phpstan.neon'
-      - 'phpstan.neon.dist'
-      - 'psalm.xml'
-      - '.github/workflows/lint-php.yml'
-
-  pull_request:
-    branches:
-      - dev
-      - main
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-
-jobs:
-  php:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - uses: ./.github/actions/setup-bun-deps
-
-      - name: Install PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.5'
-
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --no-progress --prefer-dist
-
-      - name: Lint PHP
-        run: bun run lint-php
-```
+- Канон: [lint-php.yml.snippet.yml](./policy/lint_php_yml/template/lint-php.yml.snippet.yml)
