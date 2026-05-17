@@ -1,0 +1,31 @@
+npm/CHANGELOG.md
+  s_2fd1143388b218::t_aedcd76282e918 7-12
+.claude/hooks/capture-decisions.sh
+  s_2fd1143388b218::t_1ccf9c57d81951 86,88,92-98,102-119,122-123,127,130
+npm/rules/adr/adr.mdc
+  s_2fd1143388b218::t_490b57269c7870 7,9-19,28,47
+npm/package.json
+  s_2fd1143388b218::t_aedcd76282e918 3
+.cursor/rules/n-adr.mdc
+  s_2fd1143388b218::t_490b57269c7870 16,18-28,37,56
+npm/.claude-template/hooks/capture-decisions.sh
+  s_2fd1143388b218::t_002a809e14c1ca 86,88,92-98,102-119,122-123,127,130
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_2fd1143388b218::t_002a809e14c1ca 163,172,176-180,191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5709476894f572708eeb3a59ed34b2f2461c5a4e",
+  "prompts": {},
+  "sessions": {
+    "s_2fd1143388b218": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34d9-a5a3-7151-b46e-d854680990da",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
