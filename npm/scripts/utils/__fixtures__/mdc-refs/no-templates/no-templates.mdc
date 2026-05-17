@@ -1,0 +1,7 @@
+---
+description: test fixture without any template dirs
+globs: "**"
+alwaysApply: false
+---
+
+Це правило не має template/ каталогів.

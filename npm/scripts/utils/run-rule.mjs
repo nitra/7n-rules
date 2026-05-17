@@ -15,6 +15,7 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { findMissingMdcRefs } from './check-mdc-template-refs.mjs'
 import { createCheckReporter } from './check-reporter.mjs'
 import { resolveTargetFiles } from './resolve-target-files.mjs'
 import { runConftestBatch } from './run-conftest-batch.mjs'
@@ -129,6 +130,16 @@ export async function runRule(rule, bundledRulesDir, walkCache) {
   for (const policyConcern of rule.policyConcerns) {
     const code = await runPolicyConcern(bundledRulesDir, rule.id, policyConcern.name, walkCache)
     if (code !== 0) totalCode = 1
+  }
+
+  const ruleDir = join(bundledRulesDir, rule.id)
+  const missing = await findMissingMdcRefs(ruleDir, rule.id)
+  if (missing.length > 0) {
+    const reporter = createCheckReporter()
+    for (const rel of missing) {
+      reporter.fail(`${rule.id}.mdc: відсутнє markdown-посилання на template-файл ${rel}`)
+    }
+    if (reporter.getExitCode() !== 0) totalCode = 1
   }
 
   return totalCode
