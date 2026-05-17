@@ -156,6 +156,25 @@ export function checkContains(actual, contains, opts, path = []) {
   return []
 }
 
+/**
+ * For text-only targets (e.g. .stylelintignore): every non-empty, non-comment
+ * line in `template` must appear (trimmed) in `actual`.
+ */
+export function checkTextSubset(actual, template, opts) {
+  if (template == null) return []
+  const { targetPath, source } = opts
+  const actualLines = new Set(String(actual ?? '').split(/\r?\n/).map(l => l.trim()))
+  const out = []
+  for (const raw of String(template).split(/\r?\n/)) {
+    const line = raw.trim()
+    if (line === '' || line.startsWith('#')) continue
+    if (!actualLines.has(line)) {
+      out.push(`${targetPath}: відсутній рядок ${quote(line)} (${source})`)
+    }
+  }
+  return out
+}
+
 export async function loadTemplate(concernDir) {
   const tplDir = join(concernDir, 'template')
   if (!existsSync(tplDir)) return {}

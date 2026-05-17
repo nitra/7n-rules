@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { checkContains, checkDeny, checkSnippet, loadTemplate } from './template.mjs'
+import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate } from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
@@ -141,5 +141,33 @@ describe('checkContains', () => {
 
   test('returns empty for null contains', () => {
     expect(checkContains({}, null, opts)).toEqual([])
+  })
+})
+
+describe('checkTextSubset', () => {
+  const opts = { targetPath: '.stylelintignore', source: 'style-lint.mdc' }
+
+  test('returns empty when actual contains every template line', () => {
+    const actual = 'dist/\nnode_modules/\n'
+    const template = 'dist/\n'
+    expect(checkTextSubset(actual, template, opts)).toEqual([])
+  })
+
+  test('reports missing line', () => {
+    const actual = 'node_modules/\n'
+    const template = 'dist/\n'
+    expect(checkTextSubset(actual, template, opts)).toEqual([
+      '.stylelintignore: відсутній рядок "dist/" (style-lint.mdc)'
+    ])
+  })
+
+  test('ignores empty lines and comments (# prefix)', () => {
+    const actual = 'dist/\n'
+    const template = '# comment\n\ndist/\n'
+    expect(checkTextSubset(actual, template, opts)).toEqual([])
+  })
+
+  test('returns empty for null template', () => {
+    expect(checkTextSubset('anything', null, opts)).toEqual([])
   })
 })
