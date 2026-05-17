@@ -1,0 +1,124 @@
+npm/rules/security/policy/gitleaks/gitleaks_test.rego
+  s_c6be12cfc68eef::t_3303fc533bcfe0 1-11
+npm/rules/js-lint/policy/jscpd/jscpd_test.rego
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-21
+npm/rules/ga/fix/workflows/check.mjs
+  s_c6be12cfc68eef::t_e4038c922e7010 4-5,12-15
+npm/rules/ga/policy/vscode_settings/target.json
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-8
+npm/rules/ga/policy/vscode_extensions/vscode_extensions_test.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-11
+docs/adr/20260517-163358-inline-template-контент-у-mdc-під-час-sync-варіант-вибору.md
+  s_c6be12cfc68eef::t_3a8869a6f09b7a 1-72
+npm/rules/js-lint/policy/vscode_extensions/target.json
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-8
+npm/rules/security/policy/gitleaks/gitleaks.rego
+  s_c6be12cfc68eef::t_3303fc533bcfe0 1-17
+npm/rules/ga/policy/vscode_extensions/target.json
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-8
+npm/rules/vue/policy/package_json/package_json_test.rego
+  s_c6be12cfc68eef::t_2bc51f1fabddda 1-38
+npm/rules/ga/policy/package_json/package_json_test.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-15
+npm/rules/security/policy/gitleaks/target.json
+  s_c6be12cfc68eef::t_3303fc533bcfe0 1-8
+npm/rules/js-lint/policy/vscode_extensions/vscode_extensions.rego
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-25
+npm/rules/vue/fix/packages/check.mjs
+  s_c6be12cfc68eef::t_13141be639588e 416
+  s_c6be12cfc68eef::t_e4038c922e7010 4-9
+npm/package.json
+  s_c6be12cfc68eef::t_922ec904378278 3
+npm/scripts/utils/inline-template-links.test.mjs
+  s_650e956376b4b4::t_54cba8e93107f8 48-49,51-55,57-61,63-71
+  s_650e956376b4b4::t_b3697b402b46c5 50,56,62
+  s_650e956376b4b4::t_69d21e7d141bba 18,21
+npm/rules/js-lint/policy/vscode_extensions/vscode_extensions_test.rego
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-23
+.cursor/rules/n-security.mdc
+  s_c6be12cfc68eef::t_04934ceadc582e 12,17,22,39
+npm/scripts/utils/__fixtures__/inline-template/policy/package_json/template/package.json.contains.json
+  s_650e956376b4b4::t_5ae4429bb1c8a2 1
+npm/rules/ga/policy/zizmor_yml/zizmor_yml.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-17
+npm/rules/security/fix/gitleaks/check.test.mjs
+  s_c6be12cfc68eef::t_c1778813806ebd 27
+npm/rules/js-lint/fix/tooling/check.mjs
+  s_c6be12cfc68eef::t_e4038c922e7010 4,7-11
+docs/adr/20260517-162253-міграція-з-vitest-на-bun-test-runner.md
+  s_c6be12cfc68eef::t_0df5b6b35bd42a 1-17
+npm/rules/ga/policy/zizmor_yml/target.json
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-8
+npm/rules/vue/vue.mdc
+  h_74546f1f1ded3e 3,107-120
+npm/rules/ga/policy/package_json/package_json.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-24
+npm/rules/ga/policy/vscode_extensions/vscode_extensions.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-16
+npm/rules/ga/policy/zizmor_yml/zizmor_yml_test.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-11
+npm/rules/ga/policy/vscode_settings/vscode_settings_test.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-19
+npm/scripts/utils/__fixtures__/inline-template/policy/package_json/template/package.json.snippet.json
+  s_650e956376b4b4::t_2ad0b755772734 1
+npm/scripts/utils/__fixtures__/inline-template/policy/package_json/template/package.json.deny.json
+  s_650e956376b4b4::t_aa4dd1fe654292 1
+npm/rules/ga/policy/vscode_settings/vscode_settings.rego
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-24
+npm/rules/security/fix/gitleaks/check.mjs
+  s_c6be12cfc68eef::t_d77614827abaf1 6-9,23
+npm/rules/js-lint/policy/jscpd/target.json
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-8
+npm/rules/js-lint/policy/jscpd/jscpd.rego
+  s_c6be12cfc68eef::t_0d62f826f5d1ae 1-38
+npm/rules/ga/policy/package_json/target.json
+  s_c6be12cfc68eef::t_4d13cf337bdb24 1-8
+npm/rules/vue/policy/package_json/package_json.rego
+  s_c6be12cfc68eef::t_2bc51f1fabddda 78,80-82,84
+  s_c6be12cfc68eef::t_26e1dbe6cbfd0e 79,83,85
+  s_c6be12cfc68eef::t_59cae6c39c3fb2 8-10,38-67,74-77
+npm/scripts/utils/inline-template-links.mjs
+  s_650e956376b4b4::t_f84cc7401bfa00 8,19
+  s_650e956376b4b4::t_a7d7f80ccb2bb2 54-55
+  s_650e956376b4b4::t_457b17e36b342d 3,6,17-18,20-25
+  s_650e956376b4b4::t_ce8c306f03b384 43
+npm/scripts/ensure-nitra-cursor-dev-dependencies.test.mjs
+  s_c6be12cfc68eef::t_73f1b69f7e7998 83,94,97
+  s_c6be12cfc68eef::t_f5345ccecec41d 2,5-6,14,29,47,69-82,84-93,95-96,98
+npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
+  s_c6be12cfc68eef::t_2645771dace701 2-3,41-43,45,48,50,54-55,57,59,61,63-65,70,74-84,86,89
+  s_c6be12cfc68eef::t_9788de1470de27 7-8,62,66-69,71-73,85
+npm/CHANGELOG.md
+  s_c6be12cfc68eef::t_922ec904378278 7-16,18-19
+  s_c6be12cfc68eef::t_34c349557496ab 17
+  s_c6be12cfc68eef::t_b7c0fd36e8a17f 20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "7e57ae8c9e68f357f974e7445b8650a88603f1c6",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_650e956376b4b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4a6350d4-09fc-48ad-b274-e81cf19e7e26",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c6be12cfc68eef": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e3600-db09-7780-b390-6ca2e58e9a12",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
