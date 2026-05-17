@@ -105,6 +105,29 @@ export function checkSnippet(actual, snippet, opts, path = []) {
   return violations
 }
 
+/**
+ * Walks deny tree; for any leaf path that exists in actual, returns violation
+ * with the deny's leaf string as reason.
+ */
+export function checkDeny(actual, deny, opts, path = []) {
+  if (deny == null) return []
+  const { targetPath, source } = opts
+  if (deny !== null && typeof deny === 'object' && !Array.isArray(deny)) {
+    const out = []
+    for (const [k, v] of Object.entries(deny)) {
+      const childActual = actual && typeof actual === 'object' ? actual[k] : undefined
+      out.push(...checkDeny(childActual, v, opts, [...path, k]))
+    }
+    return out
+  }
+  // Leaf reached — if actual has this path at all (any value), it's a violation
+  if (actual !== undefined) {
+    const reason = typeof deny === 'string' ? deny : 'заборонено'
+    return [`${targetPath}: ${formatPath(path)} — ${reason} (${source})`]
+  }
+  return []
+}
+
 export async function loadTemplate(concernDir) {
   const tplDir = join(concernDir, 'template')
   if (!existsSync(tplDir)) return {}
