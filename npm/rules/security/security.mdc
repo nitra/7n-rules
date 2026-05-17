@@ -9,14 +9,11 @@ version: '1.1'
 
 ## Канон `package.json#scripts`
 
-```json title="package.json"
-{
-  "scripts": {
-    "lint-security": "gitleaks detect --no-banner",
-    "lint": "bun run lint-rego && bun run lint-js && bun run lint-text && bun run lint-security && oxfmt ."
-  }
-}
-```
+- `lint-security` скрипт: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
+- `lint` агрегатор повинен містити: [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+- Заборонено `gitleaks` у `dependencies`/`devDependencies`: [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
+
+**Зауваження:**
 
 - `gitleaks detect` — сканує робоче дерево (uncommitted + tracked); швидше і безпечніше для частого `bun run lint`, ніж `gitleaks git`.
 - `--no-banner` — прибирає ASCII-арт (CI-friendly).
@@ -24,25 +21,9 @@ version: '1.1'
 
 ## `.gitleaks.toml` (рекомендована основа)
 
-```toml title=".gitleaks.toml"
-title = "Project gitleaks config"
+Канон (допускає розширення в `[allowlist].paths`): [.gitleaks.toml.snippet.toml](./fix/gitleaks/template/.gitleaks.toml.snippet.toml)
 
-[extend]
-useDefault = true
-
-[allowlist]
-description = "Файли й шляхи, які навмисно містять test-фікстури з паттернами секретів."
-paths = [
-  '''(^|/)node_modules(/|$)''',
-  '''(^|/)\.git(/|$)''',
-  '''(^|/)dist(/|$)''',
-  '''(^|/)build(/|$)''',
-  '''.*\.lock$''',
-  '''.*fixtures?/.*'''
-]
-```
-
-`useDefault = true` — НЕ перетирай дефолтний `rules`-масив; реальні винятки лише через `[allowlist]`.
+**Важливо:** `useDefault = true` — НЕ перетирай дефолтний `rules`-масив; реальні винятки лише через `[allowlist]`.
 
 ## GitHub Actions (опційно)
 
