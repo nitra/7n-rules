@@ -1,0 +1,20 @@
+docs/adr/template-dir-concern-inventory.md
+  s_9102be39d1e731::t_56447af8f1942d 114-115,117,119
+  s_9102be39d1e731::t_70f9c43a22bed3 1-113,116,118,120-121
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.8",
+  "base_commit_sha": "5570ddd60db528b44ca597863efbecfd702a31ab",
+  "prompts": {},
+  "sessions": {
+    "s_9102be39d1e731": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3e517a1-5154-44e2-9ce0-9ca5f8359ffb",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
