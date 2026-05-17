@@ -1,23 +1,13 @@
 # Перевірка `.vscode/extensions.json` для style-lint (style-lint.mdc).
 #
-# Запуск (локально):
-#   conftest test .vscode/extensions.json -p npm/policy/style_lint/vscode_extensions \
-#     --namespace style_lint.vscode_extensions
-#
-# Canonical (style-lint.mdc):
-#   { "recommendations": ["stylelint.vscode-stylelint"] }
-#
-# Канон задає мінімум — `recommendations` має МІСТИТИ `stylelint.vscode-stylelint`;
-# додаткові записи (від інших правил — markdownlint, oxc тощо) дозволені.
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`.
+# Канон надходить через --data: { "template": { "snippet": ... } }
+# Структура --data сформована з template/extensions.json.snippet.json.
 package style_lint.vscode_extensions
 
 import rego.v1
 
 deny contains msg if {
-	recs := object.get(input, "recommendations", [])
-	not "stylelint.vscode-stylelint" in {r | some r in recs}
-	msg := ".vscode/extensions.json: recommendations має містити \"stylelint.vscode-stylelint\" (style-lint.mdc)"
+	some rec in data.template.snippet.recommendations
+	not rec in {r | some r in object.get(input, "recommendations", [])}
+	msg := sprintf(".vscode/extensions.json: recommendations має містити %q (style-lint.mdc)", [rec])
 }

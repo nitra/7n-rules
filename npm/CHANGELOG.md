@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.23] - 2026-05-17
+
+### Added
+
+- `style-lint` rule template/ міграція (Phase 13): 4 policy концерни — `package_json` (contains + 2-level snippet для `stylelint.extends`; `@nitra/stylelint-config` presence лишається в rego), `vscode_extensions` (snippet-array), `vscode_settings` (top-level leaf walker для `css/less/scss.validate`), `lint_style_yml` (full-canon з substring-маркером з template's stylelint-job steps). `fix/tooling` (`.stylelintignore` partial) лишається JS-managed.
+
 ## [1.13.22] - 2026-05-17
 
 ### Added

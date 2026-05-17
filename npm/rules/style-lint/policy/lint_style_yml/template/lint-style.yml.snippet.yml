@@ -1,0 +1,39 @@
+name: StyleLint
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  stylelint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: StyleLint
+        run: npx stylelint '**/*.{css,scss,vue}' --fix
