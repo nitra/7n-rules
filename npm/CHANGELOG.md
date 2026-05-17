@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.5] - 2026-05-17
+
+### Added
+
+- Оркестратор `run-rule.mjs` тепер викликає `findMissingMdcRefs` для кожного правила — fail, якщо файл у `template/` не згаданий як markdown-посилання у `<id>.mdc`. Поки що активно лише для `security` (єдине правило з `template/`); готова страховка для Phase 2+.
+
+### Fixed
+
+- `check-mdc-template-refs.test.mjs` тест 3 — фіксував дубль test 1; тепер використовує окрему `no-templates` фікстуру, що дійсно валідує "no template/ dirs → empty result".
+
 ## [1.13.4] - 2026-05-17
 
 ### Removed

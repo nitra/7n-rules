@@ -22,7 +22,7 @@ describe('findMissingMdcRefs', () => {
   })
 
   test('returns empty for rule without template/ dirs', async () => {
-    const ruleDir = join(FIXTURES, 'with-refs')
-    expect(await findMissingMdcRefs(ruleDir, 'with-refs')).toEqual([])
+    const ruleDir = join(FIXTURES, 'no-templates')
+    expect(await findMissingMdcRefs(ruleDir, 'no-templates')).toEqual([])
   })
 })
