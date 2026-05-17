@@ -4,7 +4,11 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.13.0] - 2026-05-17
+## [1.13.1] - 2026-05-17
+
+### Added
+
+- **`runConftestBatch`: optional `templateData`** — у `npm/scripts/utils/run-conftest-batch.mjs` додано опціональне поле `templateData` в `ConftestBatchOptions`: якщо передано, дерево серіалізується у JSON `{ "template": <data> }` у тимчасовий файл і передається до conftest як `--data <tmpfile>` (cleanup у `finally`). Чисту збірку аргументів винесено в експортований `buildConftestArgs({ policyAbs, namespace, files, extraArgs, tmpDataFile })` — testable без spawn. Сумарно: rego-пакети можуть звертатися до `input.template.*` для template-aware валідації, поведінка без `templateData` — ідентична попередній.
 
 ### Changed
 

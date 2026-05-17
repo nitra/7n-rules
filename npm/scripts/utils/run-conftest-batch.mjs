@@ -15,7 +15,8 @@
  * робить для opa/regal).
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -57,7 +58,29 @@ function failConftestMissing() {
  * @property {string} namespace повне імʼя rego-пакета (наприклад `abie.base_deployment_preem`)
  * @property {string[]} files список абсолютних шляхів файлів для перевірки (порожній — повертаємо порожньо)
  * @property {string[]} [extraArgs] додаткові аргументи для conftest (наприклад `--combine` для крос-документних правил)
+ * @property {object} [templateData] опціональне merged-дерево; серіалізується у JSON `{ "template": <data> }` і передається як `--data <tmpfile>` (cleanup після завершення)
  */
+
+/**
+ * Pure args builder for conftest test. Extracted for unit-testability.
+ * Preserves the existing args layout (files before -p; --output json --no-color
+ * for parseable output); inserts --data right after --namespace when provided.
+ * @param {{ policyAbs: string, namespace: string, files: string[], extraArgs: string[], tmpDataFile: string|null }} p
+ * @returns {string[]}
+ */
+export function buildConftestArgs(p) {
+  const args = [
+    'test',
+    ...p.files,
+    '-p',
+    p.policyAbs,
+    '--namespace',
+    p.namespace
+  ]
+  if (p.tmpDataFile) args.push('--data', p.tmpDataFile)
+  args.push('--output', 'json', '--no-color', ...p.extraArgs)
+  return args
+}
 
 /**
  * Виконує `conftest test` для всіх файлів одним спавном і повертає масив
@@ -81,40 +104,44 @@ export function runConftestBatch(opts) {
   if (!existsSync(policyAbs)) {
     throw new Error(`runConftestBatch: rego-каталог не знайдено: ${policyAbs}`)
   }
-  const args = [
-    'test',
-    ...opts.files,
-    '-p',
-    policyAbs,
-    '--namespace',
-    opts.namespace,
-    '--output',
-    'json',
-    '--no-color',
-    ...(opts.extraArgs ?? [])
-  ]
-  const result = spawnSync(conftestBin, args, { encoding: 'utf8' })
-  if (result.error) {
-    throw result.error
+  let tmpDataDir = null
+  let tmpDataFile = null
+  if (opts.templateData) {
+    tmpDataDir = mkdtempSync(join(tmpdir(), 'n-cursor-tpl-'))
+    tmpDataFile = join(tmpDataDir, 'template-data.json')
+    writeFileSync(tmpDataFile, JSON.stringify({ template: opts.templateData }))
   }
-  // conftest exit 1 = є failures (це валідно для нас); >1 = справжня помилка.
-  if (result.status !== 0 && result.status !== 1) {
-    throw new Error(`conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
-  }
-  /** @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>} */
-  let parsed
   try {
-    parsed = JSON.parse(result.stdout)
-  } catch {
-    throw new Error(`conftest stdout не парситься як JSON: ${(result.stdout || '').slice(0, 200)}`)
-  }
-  /** @type {ConftestViolation[]} */
-  const out = []
-  for (const entry of parsed) {
-    const failures = entry.failures ?? []
-    for (const f of failures) {
-      out.push({ filename: entry.filename, namespace: entry.namespace, message: f.msg })
+    const args = buildConftestArgs({
+      policyAbs,
+      namespace: opts.namespace,
+      files: opts.files,
+      extraArgs: opts.extraArgs ?? [],
+      tmpDataFile
+    })
+    const result = spawnSync(conftestBin, args, { encoding: 'utf8' })
+    if (result.error) throw result.error
+    // conftest exit 1 = є failures (це валідно для нас); >1 = справжня помилка.
+    if (result.status !== 0 && result.status !== 1) {
+      throw new Error(`conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
     }
+    /** @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>} */
+    let parsed
+    try {
+      parsed = JSON.parse(result.stdout)
+    } catch {
+      throw new Error(`conftest stdout не парситься як JSON: ${(result.stdout || '').slice(0, 200)}`)
+    }
+    /** @type {ConftestViolation[]} */
+    const out = []
+    for (const entry of parsed) {
+      const failures = entry.failures ?? []
+      for (const f of failures) {
+        out.push({ filename: entry.filename, namespace: entry.namespace, message: f.msg })
+      }
+    }
+    return out
+  } finally {
+    if (tmpDataDir) rmSync(tmpDataDir, { recursive: true, force: true })
   }
-  return out
 }
