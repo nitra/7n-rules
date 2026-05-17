@@ -56,6 +56,55 @@ function classifyTemplateFile(relPath) {
   return { target: relPath, slot: null }
 }
 
+function formatPath(parts) {
+  return parts
+    .map(p => (typeof p === 'number' ? `[${p}]` : /^[a-zA-Z_$][\w$]*$/.test(p) ? p : JSON.stringify(p)))
+    .reduce((acc, p) => (acc === '' ? p : p.startsWith('[') ? acc + p : acc + '.' + p), '')
+}
+
+function quote(v) {
+  return typeof v === 'string' ? JSON.stringify(v) : String(v)
+}
+
+/**
+ * Deep subset-of check. Every leaf in `snippet` must equal same path in `actual`.
+ * Arrays in snippet: every element must be present in actual array.
+ * Returns array of violation messages.
+ */
+export function checkSnippet(actual, snippet, opts, path = []) {
+  if (snippet == null) return []
+  const { targetPath, source } = opts
+  const violations = []
+  if (Array.isArray(snippet)) {
+    if (!Array.isArray(actual)) {
+      violations.push(`${targetPath}: ${formatPath(path)} має бути масивом (${source})`)
+      return violations
+    }
+    for (const needle of snippet) {
+      const found = actual.some(a => JSON.stringify(a) === JSON.stringify(needle))
+      if (!found) {
+        violations.push(`${targetPath}: ${formatPath(path)} має містити ${quote(needle)} (${source})`)
+      }
+    }
+    return violations
+  }
+  if (snippet !== null && typeof snippet === 'object') {
+    if (actual == null || typeof actual !== 'object' || Array.isArray(actual)) {
+      violations.push(`${targetPath}: ${formatPath(path)} має бути об'єктом (${source})`)
+      return violations
+    }
+    for (const [k, v] of Object.entries(snippet)) {
+      violations.push(...checkSnippet(actual[k], v, opts, [...path, k]))
+    }
+    return violations
+  }
+  // Leaf (string/number/boolean)
+  if (actual !== snippet) {
+    violations.push(`${targetPath}: ${formatPath(path)} має бути ${quote(snippet)} (${source})`)
+  }
+  return violations
+}
+
 export async function loadTemplate(concernDir) {
   const tplDir = join(concernDir, 'template')
   if (!existsSync(tplDir)) return {}
