@@ -1,0 +1,6 @@
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "minLines": 25
+}

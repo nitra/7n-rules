@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.25] - 2026-05-17
+
+### Added
+
+- `js-lint` rule template/ міграція (Phase 15, фінал): 4 концерни — `jscpd` (snippet з minLines >=N semantic), `vscode_extensions` (snippet-array), `package_json` (partial — `type`+`scripts.lint-js` у template; engines + eslint-config semver ranges у rego), `lint_js_yml` (full-canon з required uses + per-line run substrings з template's eslint-job steps; --fix anti-patterns + checkout persist-credentials у rego).
+
+### Closed
+
+- Template/ migration scope (Phases 1-15): 19 з 39 template-eligible концернів мігровано у попередніх фазах + 17 нових у Phase 6-15 = усі 39 завершено (100%). Залишилися лише non-eligible (AST-walks, multi-kind YAML, cross-file gating) — за дизайном живуть у JS/rego inline.
+
 ## [1.13.24] - 2026-05-17
 
 ### Added
