@@ -14,7 +14,7 @@
 
 ### Added
 
-- `efes` rule: новий (поки що порожній) пакет правил для проєктів **github.com/efes-cloud/***. Автодетект у `auto-rules.mjs` через `EFES_REPOSITORY_URL_MARKER` (`https://github.com/efes-cloud/`) — аналогічно до `abie`. Додано `npm/rules/efes/efes.mdc` + `auto.md`, прописано порядок в `AUTO_RULE_ORDER` і покрито тестами в `auto-rules.test.mjs`.
+- `efes` rule: новий (поки що порожній) пакет правил для проєктів **github.com/efes-cloud/\***. Автодетект у `auto-rules.mjs` через `EFES_REPOSITORY_URL_MARKER` (`https://github.com/efes-cloud/`) — аналогічно до `abie`. Додано `npm/rules/efes/efes.mdc` + `auto.md`, прописано порядок в `AUTO_RULE_ORDER` і покрито тестами в `auto-rules.test.mjs`.
 - `efes-create-env` skill: повʼязано з правилом `efes` через `skills/efes-create-env/auto.md` (`[efes]`) — активується автоматично, коли репозиторій відповідає efes-маркеру. Тести в `auto-skills.test.mjs` фіксують позитивний і негативний випадки.
 
 ## [1.13.41] - 2026-05-18

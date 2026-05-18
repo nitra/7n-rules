@@ -51,13 +51,10 @@ const SHELLCHECK_PREFLIGHT = {
 /** @type {PreflightDep} */
 const PATCH_PREFLIGHT = {
   bin: 'patch',
-  explanation: [
-    'Без `patch` не застосуються авто-виправлення shellcheck (`shellcheck -f diff` + `patch -p1`).'
-  ].join('\n   '),
-  install: [
-    'macOS:         зазвичай уже є в системі',
-    'Debian/Ubuntu: sudo apt-get install -y patch'
-  ],
+  explanation: ['Без `patch` не застосуються авто-виправлення shellcheck (`shellcheck -f diff` + `patch -p1`).'].join(
+    '\n   '
+  ),
+  install: ['macOS:         зазвичай уже є в системі', 'Debian/Ubuntu: sudo apt-get install -y patch'],
   successMsg: '✅ patch знайдено в PATH — shellcheck auto-fix працюватиме'
 }
 

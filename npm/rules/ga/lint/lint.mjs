@@ -81,10 +81,7 @@ const CONFTEST_PREFLIGHT = {
     'Без нього не запускається пер-документна валідація через rego-полісі (npm/rules/*/policy/)',
     'у кроці check-ga — `runConftestBatch` завершується hard-fail.'
   ].join('\n   '),
-  install: [
-    'macOS:     brew install conftest',
-    'Universal: https://www.conftest.dev/install/'
-  ],
+  install: ['macOS:     brew install conftest', 'Universal: https://www.conftest.dev/install/'],
   successMsg: '✅ conftest знайдено в PATH — check-ga виконає rego-полісі через runConftestBatch'
 }
 
