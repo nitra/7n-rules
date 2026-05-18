@@ -136,7 +136,7 @@ cp site/k8s/$BASE/kustomization.yaml site/k8s/$ENV/kustomization.yaml
 У секцію `"scripts"` додай рядок (зберігай порядок поряд із сусідніми `start-remote-*`):
 
 ```json
-"start-remote-$ENV": "vite dev --mode remote-$ENV",
+{ "scripts": { "start-remote-$ENV": "vite dev --mode remote-$ENV" } }
 ```
 
 ### 4. Зареєструвати `$ENV` у CI/CD branch-списках

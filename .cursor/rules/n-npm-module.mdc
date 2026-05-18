@@ -121,11 +121,13 @@ jobs:
 ```json
 { "workspaces": ["npm"] }
 ```
+
 - `npm/package.json` (whitelist `files` обовʼязково має містити `types`): `package.json`:
 
 ```json
 { "files": ["types"] }
 ```
+
 - `npm/tsconfig.emit-types.json` (canonical `compilerOptions` для emit-types): `tsconfig.emit-types.json`:
 
 ```json

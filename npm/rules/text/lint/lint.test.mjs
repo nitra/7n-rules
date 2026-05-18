@@ -18,8 +18,10 @@ const GITIO_DOTENV_RE = /git\.io\/JLbXn/
 const PATCH_WORD_RE = /\bpatch\b/
 
 /**
- * @param {() => number} fn
- * @returns {Promise<{ code: number, errBlob: string }>}
+ * Викликає `fn` під ізольованим `PATH` (тимчасова порожня директорія), збираючи stderr і exit-code.
+ * Гарантує, що жоден preflight-binary не знайдеться, і відновлює `PATH` після виклику.
+ * @param {() => number} fn колбек, який повертає очікуваний exit-code запуску CLI
+ * @returns {Promise<{ code: number, errBlob: string }>} зібраний exit-code і об'єднаний stderr
  */
 async function withIsolatedPath(fn) {
   const isolatedDir = await mkdtemp(join(tmpdir(), 'n-cursor-empty-path-'))
@@ -29,7 +31,9 @@ async function withIsolatedPath(fn) {
   const origErr = console.error
   const origLog = console.log
   console.error = (...args) => errs.push(args.join(' '))
-  console.log = () => {}
+  console.log = () => {
+    /* мовчимо: success-повідомлення preflight у тесті не цікавлять */
+  }
   try {
     const code = fn()
     return { code, errBlob: errs.join('\n') }

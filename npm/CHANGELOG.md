@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.43] - 2026-05-18
+
+### Removed
+
+- `npm/CLAUDE.md` як path-scoped нагадування для роботи в `npm/` повністю прибрано — фінальне завершення міграції з `1.13.42` (де вже прибрали `syncNpmClaudeMd` + Rego-first STOP перенесли у `scripts.mdc`): видалено сам `npm/CLAUDE.md`, темплейт `npm/.claude-template/npm-CLAUDE.md`, останні згадки в `bin/n-cursor.js` (повідомлення про `npm/CLAUDE.md` після sync; JSDoc) і опис у `schemas/n-cursor.json` `claude-config`. Реліз-правила (PR-bump + CHANGELOG) і так живуть у `n-changelog.mdc`/`n-npm-module.mdc` (alwaysApply).
+
 ## [1.13.42] - 2026-05-18
 
 ### Added

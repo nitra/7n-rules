@@ -23,7 +23,7 @@
  * Agent інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
  * `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються),
- * `npm/CLAUDE.md` (path-scoped нагадування для роботи в `npm/`) і slash-команди checks (`/n-check`).
+ * і slash-команди checks (`/n-check`).
  * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
@@ -1315,7 +1315,6 @@ async function runSync() {
     const parts = []
     if (result.settings) parts.push('.claude/settings.json')
     if (result.cursorHooks) parts.push('.cursor/hooks.json')
-    if (result.npmClaudeMd) parts.push('npm/CLAUDE.md')
     if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
     if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
     if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')

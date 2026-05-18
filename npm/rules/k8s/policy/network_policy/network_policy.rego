@@ -130,7 +130,7 @@ egress_has_internet_http_https(spec) if {
 	is_object(peer)
 	ipb := object.get(peer, "ipBlock", null)
 	is_object(ipb)
-	object.get(ipb, "cidr", "") == "0.0.0.0/0"
+	ipb.cidr == "0.0.0.0/0"
 	ports := object.get(rule, "ports", null)
 	is_array(ports)
 	egress_ports_include(ports, 80)
@@ -140,7 +140,7 @@ egress_has_internet_http_https(spec) if {
 egress_ports_include(ports, want) if {
 	some p in ports
 	is_object(p)
-	object.get(p, "port", null) == want
+	p.port == want
 }
 
 egress_has_cluster_namespace_selector(spec) if {

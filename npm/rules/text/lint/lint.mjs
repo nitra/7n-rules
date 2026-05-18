@@ -78,8 +78,9 @@ const DOTENV_LINTER_PREFLIGHT = {
 }
 
 /**
- * @param {PreflightDep} dep
- * @returns {string | null}
+ * Шукає шлях до бінарника `dep.bin` у `PATH`; на Windows додатково перебирає `dep.winBins`.
+ * @param {PreflightDep} dep опис залежності з canon-списку preflight-перевірок
+ * @returns {string | null} абсолютний шлях до знайденого бінарника або `null`, якщо не знайдено
  */
 function resolvePreflightBin(dep) {
   if (platform === 'win32' && dep.winBins) {
@@ -92,8 +93,9 @@ function resolvePreflightBin(dep) {
 }
 
 /**
- * @param {PreflightDep} dep
- * @returns {void}
+ * Друкує stderr-повідомлення про відсутній бінарник з install-hint'ами і посиланням на правило.
+ * @param {PreflightDep} dep опис залежності — джерело пояснення й install-команд
+ * @returns {void} нічого не повертає; виводить рядки в `console.error`
  */
 function printPreflightMissingMessage(dep) {
   console.error(`❌ ${dep.bin} не знайдено в PATH.`)
@@ -106,8 +108,10 @@ function printPreflightMissingMessage(dep) {
 }
 
 /**
- * @param {PreflightDep} dep
- * @returns {boolean}
+ * Виконує preflight-перевірку: повертає `true` і друкує `successMsg`, якщо бінарник знайдено,
+ * інакше друкує install-hint у stderr і повертає `false`.
+ * @param {PreflightDep} dep опис залежності для перевірки наявності в `PATH`
+ * @returns {boolean} `true` — бінарник знайдено, `false` — відсутній
  */
 function preflight(dep) {
   if (resolvePreflightBin(dep)) {
