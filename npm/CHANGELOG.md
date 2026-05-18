@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.28] - 2026-05-18
+
+### Fixed
+
+- `scripts/utils/template.mjs` (`stripJsonComments`): враховує контекст рядкових літералів. Раніше regex `\/\*[\s\S]*?\*\/` без розрізнення string-літералів агресивно вирізав блоки між `/*` і `*/`, які зустрічаються в glob-патернах JSON-значень (напр. `**/node_modules/**`, `**/k8s/**/*.yaml`), і канонічний `.cspell.json.snippet.json` чи `.oxfmtrc.json.snippet.json` після стрипу стягувався в один склеєний рядок замість 7-елементного масиву. Новий стриппер пропускає вміст `"..."` (з підтримкою backslash-escape) без змін і вирізає лише реальні JSONC-коментарі.
+
+### Changed
+
+- `hasura` rule (`hasura.svc_hl`): іменування Service узгоджено з `k8s.svc_hl_yaml` — headless (`spec.clusterIP: None`) має суфікс `-h-hl` (напр. `db-h` → `db-h-hl`), clusterIP у `svc.yaml` — `-h`. Target розширено на `hasura/k8s/base/svc.yaml` і `svc-hl.yaml`; додано `svc_hl_test.rego`. `hasura.mdc` і `fix/internal_urls` оновлено під headless DNS (`contract-h-hl`). Bump `hasura.mdc` `1.1` → `1.2`.
+
+## [1.13.27] - 2026-05-18
+
+### Fixed
+
+- `text`, `js-lint`, `js-run` rules: додано markdown-посилання на template-файли у канонічні `<id>.mdc` — `findMissingMdcRefs` (викликається з `run-rule.mjs`) раніше падав, бо канонічні `.mdc` не містили `[name](./policy/<concern>/template/<file>)` для власних шаблонів. Bump rule versions: `text.mdc` `1.27` → `1.28`, `js-lint.mdc` `1.22` → `1.23`, `js-run.mdc` `1.8` → `1.9`.
+
 ## [1.13.26] - 2026-05-17
 
 ### Changed

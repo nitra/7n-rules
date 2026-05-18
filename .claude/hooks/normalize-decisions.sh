@@ -78,7 +78,7 @@ if [ -f "$STATE_FILE" ]; then
 fi
 
 THRESHOLD="${ADR_NORMALIZE_THRESHOLD:-30}"
-BATCH_SIZE="${ADR_NORMALIZE_BATCH:-30}"
+BATCH_SIZE="${ADR_NORMALIZE_BATCH:-10}"
 DRY_RUN="${ADR_NORMALIZE_DRY:-0}"
 
 # Detects whether a markdown file is a draft: has YAML frontmatter with `session:` field.

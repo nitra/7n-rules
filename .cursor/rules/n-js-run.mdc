@@ -2,7 +2,7 @@
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"
 alwaysApply: false
-version: '1.8'
+version: '1.9'
 ---
 
 ## Область застосування
@@ -46,15 +46,52 @@ readme.md
 }
 ```
 
+Канон: `jsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "lib": ["esnext"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "esnext",
+    "checkJs": false
+  },
+  "include": ["src/**/*"]
+}
+```
+
 Якщо пакет не слідує структурі з `src/` (наприклад, лише `scripts/` у корені) — ця вимога не застосовується; для типових сервісів із `src/` файл обов’язковий і має збігатися з каноном.
 
 ## Використання @nitra/pino
 
 Проект використовує @nitra/pino для логування.
-Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API.
+Якщо в проекті присутній @nitra/bunyan, то він повинен бути замінений на @nitra/pino — як у `package.json`, так і в коді: усі `import` / `require` / динамічні `import()` з `@nitra/bunyan` (і застарілого `bunyan`) треба замінити на `@nitra/pino` і за потреби адаптувати виклики під його API. Канон заборонених `dependencies` / `devDependencies` (`bunyan`, `@nitra/bunyan`): `package.json`:
+
+```json
+{
+  "dependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "devDependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  }
+}
+```
 
 В **/k8s/base/configmap.yaml повинен бути заданий OTEL_RESOURCE_ATTRIBUTES: 'service.name=<project_name>,service.namespace=<project_namespace>'
 а в директоріях з kustomize повинні бути перевизначені значення OTEL_RESOURCE_ATTRIBUTES і в них service.namespace повинен відповідати namespace, в якому знаходиться дана директорія.
+
+Канон обовʼязкових substring у `data.OTEL_RESOURCE_ATTRIBUTES` (`service.name=`, `service.namespace=`): `configmap.yaml`:
+
+```yaml
+data:
+  OTEL_RESOURCE_ATTRIBUTES:
+    - 'service.name='
+    - 'service.namespace='
+```
 
 ## Внутрішні аліаси
 

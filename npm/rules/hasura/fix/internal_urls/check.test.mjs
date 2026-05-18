@@ -11,10 +11,10 @@ import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mj
 describe('parseInternalHasuraEndpoint', () => {
   test('валідний внутрішній URL (GKE-style з .internal)', () => {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url, sonarjs/no-clear-text-protocols -- hasura.mdc вимагає саме http:// для кластерного URL
-    const r = parseInternalHasuraEndpoint('http://contract-h.ua-contract.svc.abie-ua.internal:8080')
+    const r = parseInternalHasuraEndpoint('http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080')
     expect(r).toEqual({
       ok: true,
-      service: 'contract-h',
+      service: 'contract-h-hl',
       namespace: 'ua-contract',
       cluster: 'abie-ua',
       port: '8080'
@@ -106,7 +106,7 @@ describe('check-hasura', () => {
       await writeJson('package.json', { name: 't', repository: 'https://github.com/nitra/foo' })
       await writeFile(
         'production.env',
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -119,7 +119,7 @@ describe('check-hasura', () => {
       await mkdir(join('hasura', 'k8s', 'base'), { recursive: true })
       await writeFile(
         join('hasura', 'k8s', 'base', 'svc-hl.yaml'),
-        'apiVersion: v1\nkind: Service\nmetadata:\n  name: contract-h\nspec:\n  clusterIP: None\n',
+        'apiVersion: v1\nkind: Service\nmetadata:\n  name: contract-h-hl\nspec:\n  clusterIP: None\n',
         'utf8'
       )
       await writeFile(
@@ -129,7 +129,7 @@ describe('check-hasura', () => {
       )
       await writeFile(
         'production.env',
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check()).toBe(0)
@@ -147,7 +147,7 @@ describe('check-hasura', () => {
       )
       await writeFile(
         'dev.env',
-        'HASURA_GRAPHQL_ENDPOINT=http://contract-h.ua-contract.svc.abie-ua.internal:8080\n',
+        'HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080\n',
         'utf8'
       )
       expect(await check()).toBe(1)

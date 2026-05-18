@@ -9,10 +9,11 @@
  *
  * Очікуваний формат URL — кластерний DNS-суфікс `<cluster>.internal`:
  *  - GKE / GCP: `http://<service>.<namespace>.svc.<cluster>.internal:<port>`
- *    приклад: `http://contract-h.ua-contract.svc.abie-ua.internal:8080`
+ *    приклад: `http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080`
  *
  * Сегменти беруться з `hasura/k8s/base/svc-hl.yaml` (`metadata.name` —
- * має закінчуватись на `-h`, headless-сервіс) і `hasura/k8s/base/namespace.yaml`
+ * headless, має закінчуватись на `-h-hl`; див. `hasura.svc_hl` / k8s.svc_hl_yaml) і
+ * `hasura/k8s/base/namespace.yaml`
  * (`metadata.name` — namespace). Якщо ці YAML є в репозиторії, у URL додатково
  * звіряються конкретні `<service>` і `<namespace>` з ними.
  *

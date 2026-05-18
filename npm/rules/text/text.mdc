@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), dotenv-linter (.env*), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.27'
+version: '1.28'
 ---
 
 **oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **[dotenv-linter](https://dotenv-linter.github.io/)** (`.env*` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
@@ -19,6 +19,8 @@ version: '1.27'
   ]
 }
 ```
+
+Канон `recommendations` (substring requirement): [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
 
 ```json title=".vscode/settings.json"
 {
@@ -79,6 +81,8 @@ version: '1.27'
 }
 ```
 
+Канон `editor.formatOnSave` + `editor.defaultFormatter` для основних мов: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
 У корені проєкту має бути файл з правилами форматування для **oxfmt**:
 
 ```json title=".oxfmtrc.json"
@@ -105,9 +109,11 @@ version: '1.27'
 }
 ```
 
+Канон мінімального набору ключів і `ignorePatterns`: [.oxfmtrc.json.snippet.json](./policy/oxfmtrc/template/.oxfmtrc.json.snippet.json)
+
 Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`**, **`**/schema.graphql`** і **`**/auto-imports.d.ts`**; інші glob-и додавай за потреби (згенеровані каталоги тощо) — канон задає мінімум, локальні розширення дозволені.
 
-Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього.
+Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього. Канон заборонених top-level/`dependencies`/`devDependencies` (prettier, `@nitra/prettier-config`, `markdownlint-cli2`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 
 Завжди пиши **JSDoc** до функцій та методів.
 
@@ -155,6 +161,8 @@ version: '1.27'
   }
 }
 ```
+
+Канон: [.markdownlint-cli2.jsonc.snippet.jsonc](./policy/markdownlint/template/.markdownlint-cli2.jsonc.snippet.jsonc)
 
 **MD041** off навмисно (`.mdc` з frontmatter). Деталі — [markdownlint-cli2](https://github.com/DavidAnson/markdownlint-cli2).
 
@@ -237,6 +245,8 @@ jobs:
   "words": []
 }
 ```
+
+Канон базових ключів `.cspell.json` (`version`, `ignorePaths`): [.cspell.json.snippet.json](./policy/cspell/template/.cspell.json.snippet.json). Обовʼязковий запис у `import`: [.cspell.json.contains.json](./policy/cspell/template/.cspell.json.contains.json). Заборонено імпортувати окремі `@cspell/dict-*` у `.cspell.json`: [.cspell.json.deny.json](./policy/cspell/template/.cspell.json.deny.json).
 
 ```json title="package.json"
 {

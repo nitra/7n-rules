@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), dotenv-linter (.env*), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.27'
+version: '1.28'
 ---
 
 **oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **[dotenv-linter](https://dotenv-linter.github.io/)** (`.env*` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
@@ -16,6 +16,18 @@ version: '1.27'
     "timonwong.shellcheck",
     "redhat.vscode-yaml",
     "irongeek.vscode-env"
+  ]
+}
+```
+
+Канон `recommendations` (substring requirement): `extensions.json`:
+
+```json
+{
+  "recommendations": [
+    "DavidAnson.vscode-markdownlint",
+    "oxc.oxc-vscode",
+    "timonwong.shellcheck"
   ]
 }
 ```
@@ -79,6 +91,20 @@ version: '1.27'
 }
 ```
 
+Канон `editor.formatOnSave` + `editor.defaultFormatter` для основних мов: `settings.json`:
+
+```json
+{
+  "editor.formatOnSave": true,
+  "[javascript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[typescript]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[json]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[vue]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[css]": { "editor.defaultFormatter": "oxc.oxc-vscode" },
+  "[html]": { "editor.defaultFormatter": "oxc.oxc-vscode" }
+}
+```
+
 У корені проєкту має бути файл з правилами форматування для **oxfmt**:
 
 ```json title=".oxfmtrc.json"
@@ -105,9 +131,44 @@ version: '1.27'
 }
 ```
 
+Канон мінімального набору ключів і `ignorePatterns`: `.oxfmtrc.json`:
+
+```json
+{
+  "semi": false,
+  "singleQuote": true,
+  "tabWidth": 2,
+  "useTabs": false,
+  "printWidth": 120,
+  "ignorePatterns": [
+    "**/hasura/metadata/**",
+    "**/schema.graphql",
+    "**/auto-imports.d.ts"
+  ]
+}
+```
+
 Поле **`ignorePatterns`** обовʼязкове: у масиві мають бути **`**/hasura/metadata/**`**, **`**/schema.graphql`** і **`**/auto-imports.d.ts`**; інші glob-и додавай за потреби (згенеровані каталоги тощо) — канон задає мінімум, локальні розширення дозволені.
 
-Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього.
+Також потрібно прибрати, якщо є в проєкті, модуль **`@nitra/prettier-config`**, **prettier** та всі виклики prettier і налаштування для нього. Канон заборонених top-level/`dependencies`/`devDependencies` (prettier, `@nitra/prettier-config`, `markdownlint-cli2`): `package.json`:
+
+```json
+{
+  "top-level": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)"
+  },
+  "dependencies": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)",
+    "@nitra/prettier-config": "Prettier-конфіг заборонено — використовуй oxfmt (text.mdc)",
+    "markdownlint-cli2": "використовуй bunx у lint-text (text.mdc)"
+  },
+  "devDependencies": {
+    "prettier": "Prettier заборонено — використовуй oxfmt (text.mdc)",
+    "@nitra/prettier-config": "Prettier-конфіг заборонено — використовуй oxfmt (text.mdc)",
+    "markdownlint-cli2": "використовуй bunx у lint-text (text.mdc)"
+  }
+}
+```
 
 Завжди пиши **JSDoc** до функцій та методів.
 
@@ -149,6 +210,22 @@ version: '1.27'
     "MD024": {
       "siblings_only": true
     },
+    "MD029": false,
+    "MD040": false,
+    "MD041": false
+  }
+}
+```
+
+Канон: `.markdownlint-cli2.jsonc`:
+
+```
+{
+  "gitignore": true,
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD024": { "siblings_only": true },
     "MD029": false,
     "MD040": false,
     "MD041": false
@@ -237,6 +314,37 @@ jobs:
   "words": []
 }
 ```
+
+Канон базових ключів `.cspell.json` (`version`, `ignorePaths`): `.cspell.json`:
+
+```json
+{
+  "version": "0.2",
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/vscode-extension/**",
+    "**/.git/**",
+    ".vscode",
+    "report",
+    "*.svg",
+    "**/k8s/**/*.yaml"
+  ]
+}
+```. Обовʼязковий запис у `import`: `.cspell.json`:
+
+```json
+{
+  "import": ["@nitra/cspell-dict"]
+}
+```. Заборонено імпортувати окремі `@cspell/dict-*` у `.cspell.json`: `.cspell.json`:
+
+```json
+{
+  "import-substrings": {
+    "@cspell/dict-": "використовуй лише @nitra/cspell-dict (text.mdc)"
+  }
+}
+```.
 
 ```json title="package.json"
 {

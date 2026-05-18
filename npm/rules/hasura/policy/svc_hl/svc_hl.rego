@@ -1,28 +1,50 @@
-# Порт мінімальної структурної перевірки `hasura/k8s/base/svc-hl.yaml` з
-# `npm/scripts/check-hasura.mjs` (hasura.mdc): для кожного Service у файлі
-# `metadata.name` має закінчуватись на `-h` (headless-сервіс Hasura).
+# Іменування Service у `hasura/k8s/base/svc.yaml` та `svc-hl.yaml`, узгоджене з
+# `k8s.svc_hl_yaml` / `k8s.svc_yaml` (пара clusterIP + headless під `k8s/**/`).
+#
+# Hasura-конвенція: базовий сегмент закінчується на `-h`; headless додає `-hl`
+# → повне ім'я `*-h-hl` (також задовольняє k8s-вимогу суфікса `-hl`).
 #
 # Запуск (локально):
-#   conftest test hasura/k8s/base/svc-hl.yaml -p npm/policy/hasura \
+#   conftest test hasura/k8s/base/svc-hl.yaml -p npm/rules/hasura/policy/svc_hl \
 #     --namespace hasura.svc_hl
 #
-# Решта логіки `check-hasura.mjs` (звірення `HASURA_GRAPHQL_ENDPOINT` в `.env`-файлах
-# з `<service>.<namespace>.svc.<cluster>` через regex по всьому дереву репо, gating
-# на `repository` у кореневому `package.json`) — у JS: вона потребує текстового
-# парсингу `.env`-файлів, обходу дерева й cross-file resolution. JS authoritative;
-# ця Rego — додатковий gate (JS неявно перевіряє суфікс через звірку URL).
-#
-# Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
-# Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
-# (.cursor/rules/conftest.mdc). Лінт — `bun run lint-rego` (regal).
+# Cross-file (`HASURA_GRAPHQL_ENDPOINT` ↔ YAML) — `fix/internal_urls/check.mjs`.
 package hasura.svc_hl
 
 import rego.v1
 
-deny contains msg if {
+# Суфікс clusterIP Service у hasura/k8s/base (і база для пари з svc-hl.yaml).
+hasura_cluster_suffix := "-h"
+
+# Headless: `<cluster-name>-hl`, напр. `db-h` → `db-h-hl`.
+hasura_headless_suffix := "-h-hl"
+
+service_is_headless if {
 	input.kind == "Service"
+	spec := object.get(input, "spec", {})
+	is_object(spec)
+	spec.clusterIP == "None"
+}
+
+deny contains msg if {
+	service_is_headless
 	name := object.get(object.get(input, "metadata", {}), "name", "")
 	name != ""
-	not endswith(name, "-h")
-	msg := sprintf("hasura svc-hl.yaml: Service %q має закінчуватись на `-h` (hasura.mdc / k8s.mdc)", [name])
+	not endswith(name, hasura_headless_suffix)
+	msg := sprintf(
+		"hasura svc-hl.yaml: headless Service %q має закінчуватись на `%s` (узгоджено з k8s.svc_hl_yaml `-hl`; hasura.mdc)",
+		[name, hasura_headless_suffix],
+	)
+}
+
+deny contains msg if {
+	input.kind == "Service"
+	not service_is_headless
+	name := object.get(object.get(input, "metadata", {}), "name", "")
+	name != ""
+	not endswith(name, hasura_cluster_suffix)
+	msg := sprintf(
+		"hasura svc.yaml: clusterIP Service %q має закінчуватись на `%s` (hasura.mdc / k8s.mdc)",
+		[name, hasura_cluster_suffix],
+	)
 }

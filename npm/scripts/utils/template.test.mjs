@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+
 import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate, resolveConcernTemplateData } from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -29,6 +31,43 @@ describe('loadTemplate', () => {
     const concernDir = join(FIXTURES, 'empty-concern', 'policy', 'empty')
     const tpl = await loadTemplate(concernDir)
     expect(tpl).toEqual({})
+  })
+
+  test('parses JSON string values that contain `/*` and `*/` (glob patterns) without stripping them', async () => {
+    // Regression: stripJsonComments used to greedily strip `/*…*/` regardless of string
+    // context, smashing array elements like "**/node_modules/**" together.
+    const concernDir = join(FIXTURES, 'json-with-globs', 'policy', 'cspell')
+    const tplDir = join(concernDir, 'template')
+    await mkdir(tplDir, { recursive: true })
+    await writeFile(
+      join(tplDir, '.cspell.json.snippet.json'),
+      JSON.stringify({
+        version: '0.2',
+        ignorePaths: [
+          '**/node_modules/**',
+          '**/vscode-extension/**',
+          '**/.git/**',
+          '.vscode',
+          'report',
+          '*.svg',
+          '**/k8s/**/*.yaml'
+        ]
+      })
+    )
+    try {
+      const tpl = await loadTemplate(concernDir)
+      expect(tpl['.cspell.json'].snippet.ignorePaths).toEqual([
+        '**/node_modules/**',
+        '**/vscode-extension/**',
+        '**/.git/**',
+        '.vscode',
+        'report',
+        '*.svg',
+        '**/k8s/**/*.yaml'
+      ])
+    } finally {
+      await rm(join(FIXTURES, 'json-with-globs'), { recursive: true, force: true })
+    }
   })
 })
 

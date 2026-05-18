@@ -2,7 +2,7 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.22'
+version: '1.23'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
@@ -18,6 +18,29 @@ version: '1.22'
   "devDependencies": {
     "@nitra/eslint-config": "^3.9.4"
   }
+}
+```
+
+Канон `type` + `scripts.lint-js` (substring requirement): `package.json`:
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints"
+  }
+}
+```
+
+У `.vscode/extensions.json` `recommendations` мають містити `dbaeumer.vscode-eslint`, `github.vscode-github-actions`, `oxc.oxc-vscode`: `extensions.json`:
+
+```json
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "github.vscode-github-actions",
+    "oxc.oxc-vscode"
+  ]
 }
 ```
 
@@ -45,6 +68,17 @@ version: '1.22'
   "reporters": ["console"],
   "minLines": 25,
   "ignore": [".claude/worktrees/**", "**/dist/**"]
+}
+```
+
+Канон базових ключів `.jscpd.json` (`gitignore`, `exitCode`, `reporters`, `minLines`): `.jscpd.json`:
+
+```json
+{
+  "gitignore": true,
+  "exitCode": 1,
+  "reporters": ["console"],
+  "minLines": 25
 }
 ```
 
@@ -76,6 +110,55 @@ version: '1.22'
 Додай workflow:
 
 ```yaml title=".github/workflows/lint-js.yml"
+name: Lint JS
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.js'
+      - '**/*.mjs'
+      - '**/*.cjs'
+      - '**/*.jsx'
+      - '**/*.ts'
+      - '**/*.tsx'
+      - '**/*.vue'
+      - '**/eslint.config.*'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: Eslint
+        run: |
+          bunx oxlint
+          bunx eslint .
+          bunx jscpd .
+          bunx knip --no-config-hints
+```
+
+Канон workflow `.github/workflows/lint-js.yml`: `lint-js.yml`:
+
+```yaml
 name: Lint JS
 
 on:

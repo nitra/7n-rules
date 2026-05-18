@@ -28,8 +28,9 @@ async function parseByExt(path) {
 }
 
 function stripJsonComments(s) {
-  // Minimal: strip // line comments and /* */ block comments. JSON-with-comments format.
-  return s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+  // Match string literals OR comments. Strings are returned unchanged so we never
+  // strip `/*` / `//` / `*/` that appear inside values (e.g. glob `**/node_modules/**`).
+  return s.replace(/"(?:\\.|[^"\\])*"|\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, m => (m.startsWith('"') ? m : ''))
 }
 
 async function walk(dir, base = dir) {

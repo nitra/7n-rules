@@ -2,7 +2,7 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.22'
+version: '1.23'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
@@ -20,6 +20,10 @@ version: '1.22'
   }
 }
 ```
+
+Канон `type` + `scripts.lint-js` (substring requirement): [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
+
+У `.vscode/extensions.json` `recommendations` мають містити `dbaeumer.vscode-eslint`, `github.vscode-github-actions`, `oxc.oxc-vscode`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
 
 У корені має бути **`.oxlintrc.json`**, який **збігається з каноном** oxlint з пакета **`@nitra/cursor`**: файл **`npm/scripts/utils/oxlint-canonical.json`** (plugins, jsPlugins з **`@e18e/eslint-plugin`**, categories, повний набір **rules** із канону — додаткові записи в **`rules`** дозволені; також **`settings`**, **`env`**, **`globals`**). Поле **`ignorePatterns`** працює як **`rules`**: канонічні патерни з **`oxlint-canonical.json`** (наразі **`**/schema.graphql`**, **`**/auto-imports.d.ts`**) мають бути присутні, додаткові локальні glob-и дозволені. Оновити канон можна з репозиторію пакета або скопіювавши файл після **`bun ./scripts/utils/rebuild-oxlint-canonical.mjs`** (джерело правил — **`oxlint-rules.tsv`** + скелет **`oxlint-canonical-skeleton.json`**). Модуль **`@e18e/eslint-plugin`** не оголошуй окремо в **`package.json`** — він уже в залежностях **`@nitra/eslint-config`** (з **3.8.0**), oxlint підвантажує його з **`node_modules`**.
 
@@ -47,6 +51,8 @@ version: '1.22'
   "ignore": [".claude/worktrees/**", "**/dist/**"]
 }
 ```
+
+Канон базових ключів `.jscpd.json` (`gitignore`, `exitCode`, `reporters`, `minLines`): [.jscpd.json.snippet.json](./policy/jscpd/template/.jscpd.json.snippet.json)
 
 ```text title=".gitignore (фрагмент)"
 .claude/worktrees/
@@ -121,6 +127,8 @@ jobs:
           bunx jscpd .
           bunx knip --no-config-hints
 ```
+
+Канон workflow `.github/workflows/lint-js.yml`: [lint-js.yml.snippet.yml](./policy/lint_js_yml/template/lint-js.yml.snippet.yml)
 
 Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
 

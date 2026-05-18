@@ -92,4 +92,4 @@ jobs:
           extra_args: --results=verified,unknown
 ```
 
-Якщо файл існує, перевіряється policy `security.lint_security_yml`: серед `uses:` має бути крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
+Перевіряється policy `security.lint_security_yml`: серед `uses:` має бути крок з `trufflesecurity/trufflehog@main`. Універсальні workflow-перевірки (checkout, permissions, persist-credentials) — у `ga.workflow_common`. Для повного скану історії потрібен `fetch-depth: 0`.
