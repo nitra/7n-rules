@@ -1,0 +1,66 @@
+npm/rules/text/lint/lint.mjs
+  s_844018d454e86d::t_4ccc8176d89bfb 81-83
+  s_844018d454e86d::t_a005ca85d1041e 96-98
+  s_844018d454e86d::t_08d739ad7c1959 111-114
+docs/adr/20260518-205155-видалення-npm-claude-md-як-path-scoped-нагадування.md
+  s_844018d454e86d::t_36dc2ef5d8c2e5 1-28
+.cspell.json
+  s_844018d454e86d::t_45329680af9c84 65
+  s_844018d454e86d::t_1b0f95fbdc5864 129-131
+  s_844018d454e86d::t_8f4d3dc6a08d10 326
+  s_844018d454e86d::t_7a417763bcdcf3 448
+  s_844018d454e86d::t_2f28d165719e90 54
+  s_844018d454e86d::t_50b0c3421b1c0d 60-61
+  s_844018d454e86d::t_46289bf4052297 479
+  s_844018d454e86d::t_a290309cfb5dd9 347
+  s_844018d454e86d::t_5a5f4853e12faf 26
+  s_844018d454e86d::t_67b5a482258dd7 78
+  s_844018d454e86d::t_5bb74748cada6e 90-91
+.cursor/rules/n-image-compress.mdc
+  ai_agent 23
+npm/rules/k8s/policy/network_policy/network_policy.rego
+  s_844018d454e86d::t_da9786243de855 133
+  s_844018d454e86d::t_740c040a44b70d 143
+.cursor/rules/n-js-run.mdc
+  ai_agent 65,71
+.cursor/rules/n-npm-module.mdc
+  ai_agent 124,130
+npm/package.json
+  s_844018d454e86d::t_a58dda8b5fdfe7 3
+npm/rules/js-run/policy/package_json/package_json_test.rego
+  s_844018d454e86d::t_8c5c6357bf574f 84,91,104
+CLAUDE.md
+  ai_agent 6
+npm/skills/efes-create-env/SKILL.md
+  s_844018d454e86d::t_7cf3c168d10199 139
+npm/bin/n-cursor.js
+  s_844018d454e86d::t_a58dda8b5fdfe7 26
+npm/rules/text/lint/lint.test.mjs
+  s_844018d454e86d::t_2144eb1e52241d 21-24
+  s_844018d454e86d::t_1a23a4bbeeb00b 34-36
+npm/CHANGELOG.md
+  s_844018d454e86d::t_5eac67db0d0480 11
+  s_844018d454e86d::t_a58dda8b5fdfe7 7-10,12
+npm/schemas/n-cursor.json
+  s_844018d454e86d::t_a58dda8b5fdfe7 60
+.cursor/rules/n-security.mdc
+  ai_agent 21,27
+.cursor/rules/n-style-lint.mdc
+  ai_agent 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "1a0f3d233c9eb8fc56821ad20932166e196162b3",
+  "prompts": {},
+  "sessions": {
+    "s_844018d454e86d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13b1f06d-3620-43eb-afdb-901ee439a314",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
