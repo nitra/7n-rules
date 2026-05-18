@@ -1,5 +1,5 @@
 /**
- * Синхронізує конфігурацію Claude Code (`.claude/settings.json`, `npm/CLAUDE.md`,
+ * Синхронізує конфігурацію Claude Code (`.claude/settings.json`,
  * slash-команди для checks, ADR Stop-hook) і Cursor hooks (`.cursor/hooks.json`)
  * у поточний проєкт із темплейтів пакету
  * `npm/.claude-template/`.
@@ -8,8 +8,6 @@
  * - `settings.json` — **merge**: користувацькі поля зберігаються; наші hooks
  *   ідентифікуються командою-маркером (`MANAGED_HOOK_COMMAND_MARKERS`) і
  *   перезаписуються; permissions.allow зливається через union (із дедублікацією).
- * - `npm/CLAUDE.md` — **fully owned**: завжди перезаписується; пропускається,
- *   якщо в проєкті немає каталогу `npm/`.
  * - `.claude/commands/n-check.md` — fully owned slash-команда.
  * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR capture Stop-hook;
  *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
@@ -52,7 +50,6 @@ const CURSOR_DIR = '.cursor'
 const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
-const NPM_CLAUDE_MD_FILE = 'npm/CLAUDE.md'
 const TEMPLATE_DIR_NAME = '.claude-template'
 
 /** Канонічна група hooks для ADR capture Stop-hook'а — додається в settings, коли `adr` у `rules`. */
@@ -391,25 +388,6 @@ export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
 }
 
 /**
- * Копіює `npm/CLAUDE.md` з темплейту, якщо в проєкті є каталог `npm/`.
- * @param {string} projectRoot корінь проєкту, куди писати
- * @param {string} templateDir каталог `.claude-template/` усередині пакету `@nitra/cursor`
- * @returns {Promise<{ written: boolean, path: string }>} результат: чи писали файл, та його відносний шлях
- */
-export async function syncNpmClaudeMd(projectRoot, templateDir) {
-  if (!existsSync(join(projectRoot, 'npm'))) {
-    return { written: false, path: '' }
-  }
-  const templatePath = join(templateDir, 'npm-CLAUDE.md')
-  if (!existsSync(templatePath)) {
-    return { written: false, path: '' }
-  }
-  const content = await readFile(templatePath, 'utf8')
-  await writeFile(join(projectRoot, NPM_CLAUDE_MD_FILE), content, 'utf8')
-  return { written: true, path: NPM_CLAUDE_MD_FILE }
-}
-
-/**
  * Копіює всі slash-команди з `templateDir/commands/` у `.claude/commands/`.
  * Команди ідентифікуються тим, що вони лежать у темплейті — не перетинаються
  * з командами скілів (n-fix, n-lint, ...).
@@ -444,14 +422,13 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, npmClaudeMd: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/CLAUDE.md/Cursor hooks/ADR-hook(s) та список записаних slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s) та список записаних slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
     return {
       settings: false,
       cursorHooks: false,
-      npmClaudeMd: false,
       commands: [],
       adrHook: false,
       adrNormalizeHook: false
@@ -462,7 +439,6 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     return {
       settings: false,
       cursorHooks: false,
-      npmClaudeMd: false,
       commands: [],
       adrHook: false,
       adrNormalizeHook: false
@@ -475,12 +451,10 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     : { written: false, path: '' }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
-  const npmClaudeMd = await syncNpmClaudeMd(projectRoot, templateDir)
   const commands = await syncClaudeCommands(projectRoot, templateDir)
   return {
     settings: settings.written,
     cursorHooks: cursorHooks.written,
-    npmClaudeMd: npmClaudeMd.written,
     commands,
     adrHook: adrHook.written,
     adrNormalizeHook: adrNormalizeHook.written

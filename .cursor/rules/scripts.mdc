@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту та синхронізація з check-скриптами; rule-centric concern-based структура `npm/rules/` з канонічним `template/`
 alwaysApply: true
-version: '1.7'
+version: '1.8'
 ---
 
 ## Структура правила (rule-centric, concern-based layout)
@@ -60,9 +60,21 @@ npm/rules/{rule}/
 
 **Red flag (pure-doc):** у канонічному `npm/rules/<id>/<id>.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед коммітом `<id>.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
 
+## Перш ніж писати / розширювати `check.mjs`
+
+**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `fix/<concern>/check.mjs`: подивись `npm/rules/<rule>/policy/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
+
+Швидкий self-check для нової перевірки (порядок важливий):
+
+1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/rules/<rule>/policy/<concern>/<concern>.rego` + `<concern>_test.rego`.
+2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `fix/<concern>/check.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
+3. Не впевнений? Подивись референс **`npm/rules/k8s/policy/*`** ↔ **`npm/rules/k8s/fix/*/check.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
+
+**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `fix/<concern>/check.mjs`.
+
 ## Діагностика
 
-`npx @nitra/cursor check` — програмна перевірка відповідності проєкту правилам, **лише для `.mdc`, перелічених у `AGENTS.md`** (auto-discovery: правило вмикається, якщо є `fix/<concern>/check.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явний приклад: `npx @nitra/cursor check bun ga`.
+`npx @nitra/cursor check` — програмна перевірка відповідності проєкту правилам, **лише для `.mdc`, перелічених у `AGENTS.md`** (auto-discovery: правило вмикається, якщо є `fix/<concern>/check.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor check bun ga`, `npx @nitra/cursor check changelog npm-module`.
 
 Файл **`.n-cursor.json`** має містити **`$schema`** з посиланням на JSON Schema пакету: `https://unpkg.com/@nitra/cursor/schemas/n-cursor.json`. CLI `@nitra/cursor` записує або оновлює це поле при автоматичному створенні конфігу, при зчитуванні конфігу під час завантаження правил і перед запуском `check`, якщо в корені вже є `.n-cursor.json`.
 

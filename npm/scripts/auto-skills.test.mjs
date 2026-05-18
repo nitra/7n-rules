@@ -9,7 +9,7 @@ import { describe, expect, test } from 'bun:test'
 
 import { detectAutoSkills } from './auto-skills.mjs'
 
-const ALL_SKILLS = ['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
+const ALL_SKILLS = ['abie-kustomize', 'efes-create-env', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
 
 describe('detectAutoSkills', () => {
   test('завжди-додавані скіли — без правил у конфігу', () => {
@@ -83,5 +83,23 @@ describe('detectAutoSkills', () => {
     })
 
     expect(actual.skills.includes('abie-kustomize')).toBe(false)
+  })
+
+  test('efes-create-env додається, коли правило efes виявлене', () => {
+    const actual = detectAutoSkills({
+      availableSkills: ALL_SKILLS,
+      detectedRules: ['efes']
+    })
+
+    expect(actual.skills.includes('efes-create-env')).toBe(true)
+  })
+
+  test('efes-create-env НЕ додається без правила efes', () => {
+    const actual = detectAutoSkills({
+      availableSkills: ALL_SKILLS,
+      detectedRules: ['abie', 'bun']
+    })
+
+    expect(actual.skills.includes('efes-create-env')).toBe(false)
   })
 })

@@ -32,6 +32,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'capacitor',
   'changelog',
   'docker',
+  'efes',
   'ga',
   'graphql',
   'hasura',
@@ -106,6 +107,7 @@ export const AUTO_RULE_DEPENDENCIES = Object.freeze(
 )
 
 const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
+const EFES_REPOSITORY_URL_MARKER = 'https://github.com/efes-cloud/'
 const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
 const JS_LIKE_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx)$/iu
 const REGO_RE = /\.rego$/iu
@@ -605,6 +607,7 @@ export async function detectAutoRules({
       : null
   )
   const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
+  const isEfes = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(EFES_REPOSITORY_URL_MARKER)
   const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, [
     'mssql',
     'pg',
@@ -639,6 +642,7 @@ export async function detectAutoRules({
     { enabled: packageJsonExists, id: 'bun' },
     { enabled: facts.hasCapacitorConfig, id: 'capacitor' },
     { enabled: facts.hasDockerfile, id: 'docker' },
+    { enabled: isEfes, id: 'efes' },
     { enabled: facts.hasGaWorkflowsDir, id: 'ga' },
     { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
     { enabled: facts.hasHasuraConfig, id: 'hasura' },

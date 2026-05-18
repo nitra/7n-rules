@@ -1,0 +1,7 @@
+---
+description: Правила для проєктів Efes (репозиторії під github.com/efes-cloud)
+alwaysApply: true
+version: '1.0'
+---
+
+Правило **efes** для споживачів **@nitra/cursor** у репозиторіях під **`github.com/efes-cloud/*`**. Поки що зміст правила порожній — додавайте сюди вимоги, специфічні для efes-проєктів, у міру їх появи.

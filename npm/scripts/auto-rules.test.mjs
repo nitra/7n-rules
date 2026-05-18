@@ -15,6 +15,7 @@ const ALL_RULES = [
   'capacitor',
   'changelog',
   'docker',
+  'efes',
   'ga',
   'graphql',
   'hasura',
@@ -301,6 +302,45 @@ describe('detectAutoRules', () => {
       expect(actual.rules.includes('vue')).toBe(true)
       expect(actual.rules.includes('image-compress')).toBe(false)
       expect(actual.rules.includes('image-avif')).toBe(false)
+    })
+  })
+
+  test('додає efes за repository з github.com/efes-cloud', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'efes-app',
+        repository: 'https://github.com/efes-cloud/example.git'
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('efes')).toBe(true)
+    })
+  })
+
+  test('додає efes для repository як обʼєкт з url у git+https формі', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'efes-app',
+        repository: { type: 'git', url: 'git+https://github.com/efes-cloud/example.git' }
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('efes')).toBe(true)
+    })
+  })
+
+  test('не додає efes для стороннього repository', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', {
+        name: 'other-app',
+        repository: 'https://github.com/some-other-org/example.git'
+      })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('efes')).toBe(false)
     })
   })
 })

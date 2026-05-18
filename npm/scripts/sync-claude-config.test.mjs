@@ -1,6 +1,6 @@
 /**
- * Тести sync-claude-config: merge-логіка settings.json, опт-аут, копіювання
- * `npm/CLAUDE.md` лише за наявності `npm/`.
+ * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
+ * синхронізація slash-команд і ADR Stop-hook'ів.
  */
 import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -16,7 +16,7 @@ import {
   mergeSettings,
   syncClaudeConfig
 } from './sync-claude-config.mjs'
-import { ensureDir, withTmpCwd, writeJson } from './utils/test-helpers.mjs'
+import { withTmpCwd, writeJson } from './utils/test-helpers.mjs'
 
 const TEMPLATE_REL = 'pkg/.claude-template'
 
@@ -47,7 +47,6 @@ async function setupTemplate(cwdAbs, tpl = {}) {
     `${JSON.stringify(settings, null, 2)}\n`,
     'utf8'
   )
-  await writeFile(join(cwdAbs, TEMPLATE_REL, 'npm-CLAUDE.md'), tpl.npmClaudeMd ?? '# npm scoped\n', 'utf8')
   await writeFile(join(cwdAbs, TEMPLATE_REL, 'commands', 'n-check.md'), tpl.commandNCheck ?? '# n-check stub\n', 'utf8')
   await writeFile(
     join(cwdAbs, TEMPLATE_REL, 'hooks', 'capture-decisions.sh'),
@@ -170,27 +169,15 @@ describe('mergeCursorHooksConfig', () => {
 })
 
 describe('syncClaudeConfig (інтеграція)', () => {
-  test('створює settings.json + npm/CLAUDE.md + slash-команди', async () => {
+  test('створює settings.json + slash-команди', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
-      await ensureDir('npm')
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       expect(result.settings).toBe(true)
-      expect(result.npmClaudeMd).toBe(true)
       expect(result.commands).toEqual(['.claude/commands/n-check.md'])
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       expect(settings.hooks.Stop[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
-      expect(await readFile('npm/CLAUDE.md', 'utf8')).toBe('# npm scoped\n')
       expect(await readFile('.claude/commands/n-check.md', 'utf8')).toBe('# n-check stub\n')
-    })
-  })
-
-  test('пропускає npm/CLAUDE.md, якщо немає каталогу npm/', async () => {
-    await withTmpCwd(async cwdAbs => {
-      const pkgRoot = await setupTemplate(cwdAbs)
-      const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
-      expect(result.npmClaudeMd).toBe(false)
-      expect(existsSync(join(cwdAbs, 'npm/CLAUDE.md'))).toBe(false)
     })
   })
 
@@ -236,7 +223,6 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(result).toEqual({
         settings: false,
         cursorHooks: false,
-        npmClaudeMd: false,
         commands: [],
         adrHook: false,
         adrNormalizeHook: false
