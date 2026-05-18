@@ -1,25 +1,19 @@
 /**
- * Перевіряє, що в кожному workspace із незакомічаними/незрелізнутими змінами підвищена `version` у
- * `<ws>/package.json` і в `<ws>/CHANGELOG.md` присутній запис `## [version] - YYYY-MM-DD`
- * (формат Keep a Changelog).
+ * Перевіряє, що в кожному workspace із релізно-релевантними змінами підвищена `version`
+ * у маніфесті (`package.json` або `pyproject.toml`) і в `<ws>/CHANGELOG.md` є запис
+ * `## [version] - YYYY-MM-DD` (формат Keep a Changelog).
  *
- * Дві моделі визначення «бази для порівняння» — на рівні воркспейсу:
+ * Дві моделі бази — на рівні воркспейсу (див. n-changelog.mdc):
  *
- * 1) **npm-published mode** (`<ws>/package.json` має непорожнє `name`, не `private: true`,
- *    і має масив `files`): база = опублікована версія в npm-реєстрі (`npm view <name> version`).
- *    Git не задіяний. Якщо локальна версія відрізняється від опублікованої — потрібен запис
- *    у CHANGELOG для локальної версії й `"CHANGELOG.md"` у `files`. Якщо `npm view` недосяжний
- *    (немає мережі / пакет ще не публікувався) — fail-safe pass із поясненням, щоб локальна
- *    розробка офлайн не блокувалась.
+ * 1) **registry-published** (npm: `name` + `files`, не `private`; Python: `project.name` +
+ *    статична `project.version` у `pyproject.toml`): база = опублікована версія в npm / PyPI.
+ *    Якщо локальна версія відрізняється — потрібен CHANGELOG; для npm також `"CHANGELOG.md"`
+ *    у `files`. Якщо версії збігаються, але в git є релевантні зміни без bump — fail.
  *
- * 2) **local-only mode** (приватні / без `files` воркспейси): PR-scoped перевірка проти `dev`.
- *    База = `git merge-base <dev> HEAD` (точка розгалуження поточної гілки від `dev`), щоб:
- *    - на feature-гілці бачити лише унікальні коміти цієї гілки;
- *    - на `main` після merge `dev → main` diff був порожній (нічого не вимагати);
- *    - direct-commit на `main` поза PR-flow ловився як зміна, що потребує bump + CHANGELOG.
- *    Якщо не git-репо, поточна гілка = `dev`, або `dev`/`origin/dev` не існує — пропуск.
+ * 2) **local-only** (приватні npm, без `files`, Python без імені/версії для реєстру): PR-scoped
+ *    перевірка проти `dev` / `main` через `git merge-base`.
  *
- * Усі `git` і `npm` виклики — через `execFile`, без shell-інтерполяції.
+ * Усі `git` і зовнішні виклики — через `execFile` / `fetch`, без shell-інтерполяції.
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -28,20 +22,34 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
+import {
+  getMonorepoProjectRootDirs,
+  manifestFilePath,
+  parsePyprojectFields,
+  readPackageManifest,
+} from '../../../../scripts/utils/package-manifest.mjs'
 
 const execFileAsync = promisify(execFile)
 
-/** Базова гілка PR — фіксована, без конфіга (див. n-changelog.mdc) */
-const BASE_BRANCH = 'dev'
+/** Кандидати інтеграційної гілки (перша наявна в репо; див. n-changelog.mdc) */
+const BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
 
-/** Таймаут на `npm view <name> version` (мс), щоб не блокуватись на офлайні */
-const NPM_VIEW_TIMEOUT_MS = 10_000
+/** Гілки, на яких local-only перевірку пропускаємо (крім незакомічених registry-published). */
+const INTEGRATION_BRANCHES = Object.freeze(['dev', 'main'])
+
+/** Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc). */
+const CHANGELOG_IGNORE_PATH_PREFIXES = Object.freeze(['docs/', 'doc/'])
+
+/** Точні шляхи каталогів документації (posix), без bump. */
+const CHANGELOG_IGNORE_PATH_EXACT = Object.freeze(['docs', 'doc'])
+
+/** Таймаут на `npm view` / PyPI (мс) */
+const REGISTRY_TIMEOUT_MS = 10_000
 
 /**
  * Тихо запускає `git` і повертає stdout або `null` при будь-якій помилці.
  * @param {string[]} args аргументи `git`
- * @returns {Promise<string | null>} stdout процесу або `null` при будь-якій помилці виконання
+ * @returns {Promise<string | null>}
  */
 async function gitOrNull(args) {
   try {
@@ -53,8 +61,7 @@ async function gitOrNull(args) {
 }
 
 /**
- * Чи робочий каталог — git-репозиторій.
- * @returns {Promise<boolean>} `true`, якщо `git rev-parse --is-inside-work-tree` повернув `true`
+ * @returns {Promise<boolean>}
  */
 async function isInsideGitRepo() {
   const out = await gitOrNull(['rev-parse', '--is-inside-work-tree'])
@@ -62,8 +69,7 @@ async function isInsideGitRepo() {
 }
 
 /**
- * Назва поточної гілки (або `HEAD` для detached state).
- * @returns {Promise<string | null>} назва гілки чи `'HEAD'`, або `null` (поза git / помилка)
+ * @returns {Promise<string | null>}
  */
 async function currentBranchName() {
   const out = await gitOrNull(['rev-parse', '--abbrev-ref', 'HEAD'])
@@ -71,25 +77,64 @@ async function currentBranchName() {
 }
 
 /**
- * Знаходить ref для базової гілки. Перевага локальному `dev`, далі `origin/dev`. Повертає `null`,
- * якщо жоден не існує.
- * @returns {Promise<string | null>} назва ref-а (`dev` чи `origin/dev`) або `null`, якщо жоден не знайдено
+ * @param {string | null} branch
+ * @returns {boolean}
+ */
+function isIntegrationBranch(branch) {
+  return branch !== null && INTEGRATION_BRANCHES.includes(branch)
+}
+
+/**
+ * @param {string} ref
+ * @returns {string}
+ */
+function baseRefLabel(ref) {
+  return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref
+}
+
+/**
+ * @param {string} relPath
+ * @returns {boolean}
+ */
+function isChangelogIgnoredPath(relPath) {
+  const p = relPath.replace(/\\/g, '/').replace(/^\.\//, '')
+  if (CHANGELOG_IGNORE_PATH_EXACT.includes(p)) {
+    return true
+  }
+  return CHANGELOG_IGNORE_PATH_PREFIXES.some(prefix => p.startsWith(prefix))
+}
+
+/**
+ * @param {string} relPath
+ * @returns {Promise<boolean>}
+ */
+async function isPathGitIgnored(relPath) {
+  try {
+    await execFileAsync('git', ['check-ignore', '-q', '--', relPath])
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * @returns {Promise<string | null>}
  */
 async function resolveBaseRef() {
-  for (const ref of [BASE_BRANCH, `origin/${BASE_BRANCH}`]) {
-    const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref])
-    if (typeof out === 'string' && out.trim().length > 0) {
-      return ref
+  for (const name of BASE_BRANCH_CANDIDATES) {
+    for (const ref of [name, `origin/${name}`]) {
+      const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref])
+      if (typeof out === 'string' && out.trim().length > 0) {
+        return ref
+      }
     }
   }
   return null
 }
 
 /**
- * Точка розгалуження поточної гілки від `baseRef`. На feature-гілці = коли вона відгалузилась;
- * на `main` після merge `dev → main` = поточний `dev`. Повертає `null`, якщо merge-base нема.
- * @param {string} baseRef SHA або ref-name бази (зазвичай `dev` / `origin/dev`)
- * @returns {Promise<string | null>} SHA точки розгалуження або `null`, якщо merge-base нема
+ * @param {string} baseRef
+ * @returns {Promise<string | null>}
  */
 async function resolveMergeBase(baseRef) {
   const out = await gitOrNull(['merge-base', baseRef, 'HEAD'])
@@ -99,14 +144,9 @@ async function resolveMergeBase(baseRef) {
 }
 
 /**
- * Будує pathspec для `git diff` / `ls-files` для воркспейсу.
- *
- * Для кореня `.` — це точка плюс magic-виключення кожного підворкспейсу через `:(exclude)<sub>/`,
- * щоб зміни всередині sub-workspace не вважалися змінами кореня.
- * Для звичайного воркспейсу — просто `<ws>/`.
- * @param {string} ws шлях воркспейсу (`'.'` для кореня, інакше — відносний шлях, як у `workspaces`)
- * @param {string[]} subWorkspaces усі під-воркспейси (зокрема для `'.'` потрібно виключити їх)
- * @returns {string[]} pathspec для git: масив, що передається після `--`
+ * @param {string} ws
+ * @param {string[]} subWorkspaces
+ * @returns {string[]}
  */
 function pathspecForWorkspace(ws, subWorkspaces) {
   if (ws !== '.') return [`${ws}/`]
@@ -114,50 +154,74 @@ function pathspecForWorkspace(ws, subWorkspaces) {
 }
 
 /**
- * Чи є зміни (committed або в робочому дереві) у каталозі `<ws>` відносно `baseRef`.
- *
- * `git diff --quiet <baseRef> -- <pathspec>` ловить committed-зміни на цій гілці й незбережені
- * правки tracked-файлів. Untracked-файли — `git ls-files --others --exclude-standard`.
- * @param {string} baseRef SHA або ref-name (зокрема merge-base)
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @param {string[]} subWorkspaces усі під-воркспейси для коректного формування pathspec кореня
- * @returns {Promise<boolean>} `true`, якщо в межах воркспейсу є будь-які зміни (committed або untracked)
+ * @param {string} baseRef
+ * @param {string[]} pathspec
+ * @returns {Promise<string[]>}
  */
-async function workspaceHasChangesAgainstBase(baseRef, ws, subWorkspaces) {
-  const pathspec = pathspecForWorkspace(ws, subWorkspaces)
-  try {
-    await execFileAsync('git', ['diff', '--quiet', baseRef, '--', ...pathspec])
-  } catch (error) {
-    const code = /** @type {{ code?: number }} */ (error).code
-    return code === 1
+async function listChangedPathsAgainstBase(baseRef, pathspec) {
+  /** @type {string[]} */
+  const out = []
+  const diffArgs =
+    baseRef === 'HEAD'
+      ? ['diff', '--name-only', 'HEAD', '--', ...pathspec]
+      : ['diff', '--name-only', baseRef, '--', ...pathspec]
+  const diffOut = await gitOrNull(diffArgs)
+  if (typeof diffOut === 'string' && diffOut.trim().length > 0) {
+    out.push(...diffOut.trim().split('\n'))
   }
-  const untracked = await gitOrNull(['ls-files', '--others', '--exclude-standard', '--', ...pathspec])
-  return typeof untracked === 'string' && untracked.trim().length > 0
+  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '--', ...pathspec])
+  if (typeof untrackedOut === 'string' && untrackedOut.trim().length > 0) {
+    out.push(...untrackedOut.trim().split('\n'))
+  }
+  return [...new Set(out)]
 }
 
 /**
- * Версія з `<ws>/package.json` на `baseRef` або `null`.
- * @param {string} baseRef SHA або ref-name (зазвичай merge-base) для `git show`
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @returns {Promise<string | null>} значення поля `version` або `null`, якщо файла нема / JSON некоректний
+ * @param {string} baseRef
+ * @param {string} ws
+ * @param {string[]} subWorkspaces
+ * @returns {Promise<boolean>}
  */
-async function readBaseVersion(baseRef, ws) {
-  const wsPath = ws === '.' ? 'package.json' : `${ws}/package.json`
+async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces) {
+  const pathspec = pathspecForWorkspace(ws, subWorkspaces)
+  const paths = await listChangedPathsAgainstBase(baseRef, pathspec)
+  for (const p of paths) {
+    if (isChangelogIgnoredPath(p)) {
+      continue
+    }
+    if (await isPathGitIgnored(p)) {
+      continue
+    }
+    return true
+  }
+  return false
+}
+
+/**
+ * Версія з маніфесту на `baseRef`.
+ * @param {string} baseRef
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @returns {Promise<string | null>}
+ */
+async function readBaseVersion(baseRef, manifest) {
+  const wsPath = manifest.ws === '.' ? manifest.manifestRel : `${manifest.ws}/${manifest.manifestRel}`
   const out = await gitOrNull(['show', `${baseRef}:${wsPath}`])
   if (out === null) return null
-  try {
-    const parsed = JSON.parse(out)
-    return typeof parsed?.version === 'string' ? parsed.version : null
-  } catch {
-    return null
+  if (manifest.kind === 'npm') {
+    try {
+      const parsed = JSON.parse(out)
+      return typeof parsed?.version === 'string' ? parsed.version : null
+    } catch {
+      return null
+    }
   }
+  return parsePyprojectFields(out).version
 }
 
 /**
- * Чи містить текст `CHANGELOG.md` запис `## [version]` (з опційним `- YYYY-MM-DD`).
- * @param {string} text вміст CHANGELOG.md
- * @param {string} version версія, яку шукаємо у форматі Keep a Changelog
- * @returns {boolean} `true`, якщо запис для `version` знайдено
+ * @param {string} text
+ * @param {string} version
+ * @returns {boolean}
  */
 function changelogHasVersionEntry(text, version) {
   const needle = `## [${version}]`
@@ -165,44 +229,12 @@ function changelogHasVersionEntry(text, version) {
 }
 
 /**
- * Зчитує `<ws>/package.json`. `null`, якщо файл відсутній або JSON некоректний.
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @returns {Promise<Record<string, unknown> | null>} розпарсений `package.json` або `null`
+ * @param {string} name
+ * @returns {Promise<string | null>}
  */
-async function readPackageJsonOrNull(ws) {
-  const path = join(ws, 'package.json')
-  if (!existsSync(path)) return null
+async function defaultGetPublishedNpmVersion(name) {
   try {
-    const parsed = JSON.parse(await readFile(path, 'utf8'))
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? /** @type {Record<string, unknown>} */ (parsed)
-      : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * Воркспейс публікується в npm: має непорожній `name`, не `private: true`, і має масив `files`.
- * @param {Record<string, unknown> | null} pkg розпарсений `package.json` (або `null`)
- * @returns {boolean} `true`, якщо пакет придатний для публікації в npm
- */
-function isNpmPublishable(pkg) {
-  if (!pkg) return false
-  if (typeof pkg.name !== 'string' || pkg.name.length === 0) return false
-  if (pkg.private === true) return false
-  return Array.isArray(pkg.files)
-}
-
-/**
- * Опублікована версія пакета в npm-реєстрі. `null` — пакет не знайдено / нема мережі / помилка.
- * Дефолтна імплементація — `npm view <name> version` із таймаутом, щоб не блокуватись офлайн.
- * @param {string} name повна назва пакета (включно зі скоупом)
- * @returns {Promise<string | null>} опублікована версія або `null` (нема пакета / офлайн)
- */
-async function defaultGetPublishedVersion(name) {
-  try {
-    const { stdout } = await execFileAsync('npm', ['view', name, 'version'], { timeout: NPM_VIEW_TIMEOUT_MS })
+    const { stdout } = await execFileAsync('npm', ['view', name, 'version'], { timeout: REGISTRY_TIMEOUT_MS })
     const v = stdout.trim()
     return v.length > 0 ? v : null
   } catch {
@@ -211,16 +243,54 @@ async function defaultGetPublishedVersion(name) {
 }
 
 /**
- * Перевіряє масив `files` у `<ws>/package.json`: якщо оголошено — має містити `"CHANGELOG.md"`.
- * @param {Record<string, unknown> | null} pkg розпарсений `package.json` воркспейсу
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
+ * @param {string} name
+ * @returns {Promise<string | null>}
  */
-function checkFilesArrayContainsChangelog(pkg, ws, pass, fail) {
-  if (!pkg || !Array.isArray(pkg.files)) return
-  const pkgPath = join(ws, 'package.json')
-  if (pkg.files.includes('CHANGELOG.md')) {
+async function defaultGetPublishedPyPiVersion(name) {
+  try {
+    const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, {
+      signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    const v = data?.info?.version
+    return typeof v === 'string' && v.length > 0 ? v : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion
+ * @returns {Promise<string | null>}
+ */
+async function resolvePublishedVersion(manifest, getPublishedVersion) {
+  if (!manifest.name) return null
+  return getPublishedVersion(manifest.name, manifest.kind)
+}
+
+/**
+ * @returns {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>}
+ */
+function createDefaultGetPublishedVersion() {
+  return async (name, kind = 'npm') => {
+    if (kind === 'python') {
+      return defaultGetPublishedPyPiVersion(name)
+    }
+    return defaultGetPublishedNpmVersion(name)
+  }
+}
+
+/**
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ */
+function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
+  if (manifest.kind !== 'npm' || !manifest.npmFiles) return
+  const pkgPath = manifestFilePath(manifest.ws, manifest)
+  if (manifest.npmFiles.includes('CHANGELOG.md')) {
     pass(`${pkgPath}: files містить "CHANGELOG.md"`)
   } else {
     fail(`${pkgPath}: масив files має містити "CHANGELOG.md", щоб публікувати changelog із пакетом`)
@@ -228,12 +298,11 @@ function checkFilesArrayContainsChangelog(pkg, ws, pass, fail) {
 }
 
 /**
- * Перевіряє наявність запису у `<ws>/CHANGELOG.md` для версії `version`.
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @param {string} version версія, для якої очікується запис
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<boolean>} `false`, якщо файл відсутній або немає запису
+ * @param {string} ws
+ * @param {string} version
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ * @returns {Promise<boolean>}
  */
 async function verifyChangelogEntry(ws, version, pass, fail) {
   const label = ws === '.' ? '<root>' : ws
@@ -252,89 +321,147 @@ async function verifyChangelogEntry(ws, version, pass, fail) {
 }
 
 /**
- * npm-published режим: порівнює локальну `version` з опублікованою в реєстрі. Якщо вони
- * відрізняються — вимагає запис у CHANGELOG і `"CHANGELOG.md"` у `files`. Якщо реєстр недосяжний,
- * правило fail-safe пасує (щоб офлайн-розробка не блокувалась).
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @param {Record<string, unknown>} pkg розпарсений `package.json` воркспейсу
- * @param {(name: string) => Promise<string | null>} getPublishedVersion стаб/реальна функція отримання опублікованої версії
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @returns {string}
  */
-async function checkPublishedWorkspace(ws, pkg, getPublishedVersion, pass, fail) {
-  const label = ws === '.' ? '<root>' : ws
-  const Vcurrent = typeof pkg.version === 'string' ? pkg.version : null
-  if (!Vcurrent) {
-    fail(`${label}: у package.json відсутнє поле version (npm-published воркспейс)`)
+function workspaceLabel(manifest) {
+  return manifest.ws === '.' ? '<root>' : manifest.ws
+}
+
+/**
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @param {string} Vcurrent
+ * @param {string[]} subWorkspaces
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ * @returns {Promise<void>}
+ */
+async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail) {
+  const label = workspaceLabel(manifest)
+  const mf = manifestFilePath(manifest.ws, manifest)
+  if (!(await isInsideGitRepo())) {
     return
   }
-  const name = /** @type {string} */ (pkg.name)
-  const Vpublished = await getPublishedVersion(name)
+
+  const branch = await currentBranchName()
+  if (isIntegrationBranch(branch)) {
+    if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces)) {
+      fail(
+        `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
+          `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
+      )
+    }
+    return
+  }
+
+  const baseRef = await resolveBaseRef()
+  if (!baseRef) {
+    return
+  }
+  const mergeBase = await resolveMergeBase(baseRef)
+  if (!mergeBase) {
+    return
+  }
+  if (!(await workspaceHasRelevantChangesAgainstBase(mergeBase, manifest.ws, subWorkspaces))) {
+    return
+  }
+
+  const Vbase = await readBaseVersion(mergeBase, manifest)
+  const baseLabel = baseRefLabel(baseRef)
+  if (Vbase === null || Vbase === Vcurrent) {
+    fail(
+      `${label}: у цій гілці є зміни в registry-published пакеті, але version у ${mf} ` +
+        `не підвищено (на ${baseLabel} — ${Vbase ?? '∅'}). Bump + запис у CHANGELOG.md обов'язкові на PR (n-changelog.mdc)`
+    )
+    return
+  }
+  pass(`${label}: version змінено (${Vbase} → ${Vcurrent}) — очікується запис CHANGELOG після bump`)
+}
+
+/**
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @param {string[]} subWorkspaces
+ * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
+ * @returns {Promise<void>}
+ */
+async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail) {
+  const label = workspaceLabel(manifest)
+  const mf = manifestFilePath(manifest.ws, manifest)
+  const Vcurrent = manifest.version
+  if (!Vcurrent) {
+    fail(`${label}: у ${mf} відсутнє поле version (registry-published воркспейс)`)
+    return
+  }
+  const name = manifest.name
+  if (!name) {
+    fail(`${label}: у ${mf} відсутнє ім'я пакета (registry-published воркспейс)`)
+    return
+  }
+  const Vpublished = await resolvePublishedVersion(manifest, getPublishedVersion)
   if (Vpublished === null) {
     pass(`${label}: ${name} — опублікована версія недоступна (мережа/реєстр), перевірку пропущено`)
     return
   }
   if (Vpublished === Vcurrent) {
-    pass(`${label}: ${name}@${Vcurrent} вже опубліковано — змін до релізу немає`)
+    pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
+    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail)
     return
   }
   pass(`${label}: ${name} — нова локальна версія (${Vpublished} → ${Vcurrent})`)
-  await verifyChangelogEntry(ws, Vcurrent, pass, fail)
-  checkFilesArrayContainsChangelog(pkg, ws, pass, fail)
+  await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail)
+  checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
 }
 
 /**
- * local-only режим: PR-scoped перевірка проти `dev` через `git merge-base`. Викликається лише
- * для воркспейсів, де є реальні зміни щодо merge-base.
- * @param {string} mergeBase SHA точки розгалуження
- * @param {string} ws шлях воркспейсу (`'.'` для кореня)
- * @param {Record<string, unknown> | null} pkg розпарсений `package.json` воркспейсу (або `null`)
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
+ * @param {string} mergeBase
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
+ * @param {string} baseLabel
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
  */
-async function checkLocalOnlyChangedWorkspace(mergeBase, ws, pkg, pass, fail) {
-  const label = ws === '.' ? '<root>' : ws
-  const Vcurrent = typeof pkg?.version === 'string' ? pkg.version : null
+async function checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pass, fail) {
+  const label = workspaceLabel(manifest)
+  const mf = manifestFilePath(manifest.ws, manifest)
+  const Vcurrent = manifest.version
   if (!Vcurrent) {
-    fail(`${label}: у package.json відсутнє поле version (потрібне для запису в CHANGELOG)`)
+    fail(`${label}: у ${mf} відсутнє поле version (потрібне для запису в CHANGELOG)`)
     return
   }
-  const Vbase = await readBaseVersion(mergeBase, ws)
-  if (Vbase !== null && Vbase === Vcurrent) {
+  const Vbase = await readBaseVersion(mergeBase, manifest)
+  if (Vbase === null || Vbase === Vcurrent) {
     fail(
-      `${label}: у цій гілці є зміни, але version у ${join(ws, 'package.json')} не підвищено (на ${BASE_BRANCH} — ${Vbase}). Bump + запис у CHANGELOG.md обов'язкові на PR`
+      `${label}: у цій гілці є зміни, але version у ${mf} не підвищено (на ${baseLabel} — ${Vbase ?? '∅'}). Bump + запис у CHANGELOG.md обов'язкові на PR`
     )
     return
   }
-  pass(`${label}: version підвищено (${Vbase ?? '∅'} → ${Vcurrent})`)
-  if (!(await verifyChangelogEntry(ws, Vcurrent, pass, fail))) return
-  checkFilesArrayContainsChangelog(pkg, ws, pass, fail)
+  pass(`${label}: version підвищено (${Vbase} → ${Vcurrent})`)
+  if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail))) return
+  checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
 }
 
 /**
- * Виконує local-only перевірку для всіх workspace-ів, у яких немає npm-published режиму.
- * @param {string[]} localOnlyWorkspaces список шляхів local-only воркспейсів
- * @param {Map<string, Record<string, unknown> | null>} pkgByWs мапа: шлях воркспейсу → розпарсений `package.json` (або `null`)
- * @param {string[]} subWorkspaces усі під-воркспейси (для коректного pathspec кореня)
- * @param {(msg: string) => void} pass callback при успішній перевірці
- * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>} резолвиться по завершенню перевірок усіх local-only воркспейсів
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} localOnly
+ * @param {string[]} subWorkspaces
+ * @param {(msg: string) => void} pass
+ * @param {(msg: string) => void} fail
  */
-async function runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, pass, fail) {
-  if (localOnlyWorkspaces.length === 0) return
+async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
+  if (localOnly.length === 0) return
 
   if (!(await isInsideGitRepo())) {
     pass('changelog: не git-репозиторій — local-only перевірку пропущено')
     return
   }
   const branch = await currentBranchName()
-  if (branch === BASE_BRANCH) {
-    pass(`changelog: поточна гілка = ${BASE_BRANCH} — local-only перевірку пропущено`)
+  if (branch === 'dev') {
+    pass('changelog: поточна гілка = dev — local-only перевірку пропущено')
     return
   }
   const baseRef = await resolveBaseRef()
   if (!baseRef) {
-    pass(`changelog: ref ${BASE_BRANCH} (та origin/${BASE_BRANCH}) не знайдено — local-only перевірку пропущено`)
+    pass('changelog: ref dev/main (та origin/*) не знайдено — local-only перевірку пропущено')
     return
   }
   const mergeBase = await resolveMergeBase(baseRef)
@@ -343,11 +470,12 @@ async function runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, p
     return
   }
 
+  const baseLabel = baseRefLabel(baseRef)
   let checkedAny = false
-  for (const ws of localOnlyWorkspaces) {
-    if (!(await workspaceHasChangesAgainstBase(mergeBase, ws, subWorkspaces))) continue
+  for (const manifest of localOnly) {
+    if (!(await workspaceHasRelevantChangesAgainstBase(mergeBase, manifest.ws, subWorkspaces))) continue
     checkedAny = true
-    await checkLocalOnlyChangedWorkspace(mergeBase, ws, pkgByWs.get(ws) ?? null, pass, fail)
+    await checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pass, fail)
   }
   if (!checkedAny) {
     pass(`changelog: local-only воркспейси без змін відносно merge-base(${baseRef})`)
@@ -355,46 +483,40 @@ async function runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, p
 }
 
 /**
- * Перевіряє відповідність проєкту правилу changelog.mdc.
- * @param {object} [opts] опції перевірки
- * @param {(name: string) => Promise<string | null>} [opts.getPublishedVersion] перевизначення для тестів
- * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {object} [opts]
+ * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
+ * @returns {Promise<number>}
  */
 export async function check(opts = {}) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const getPublishedVersion = opts.getPublishedVersion ?? defaultGetPublishedVersion
+  const getPublishedVersion = opts.getPublishedVersion ?? createDefaultGetPublishedVersion()
 
-  const workspaces = await getMonorepoPackageRootDirs(process.cwd())
+  const workspaces = await getMonorepoProjectRootDirs(process.cwd())
   const subWorkspaces = workspaces.filter(w => w !== '.')
 
-  /** @type {Map<string, Record<string, unknown> | null>} */
-  const pkgByWs = new Map()
-  /** @type {string[]} */
-  const publishedWorkspaces = []
-  /** @type {string[]} */
-  const localOnlyWorkspaces = []
+  /** @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} */
+  const published = []
+  /** @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} */
+  const localOnly = []
+
   for (const ws of workspaces) {
-    const pkg = await readPackageJsonOrNull(ws)
-    pkgByWs.set(ws, pkg)
-    if (isNpmPublishable(pkg)) {
-      publishedWorkspaces.push(ws)
+    const manifest = await readPackageManifest(ws)
+    if (!manifest) {
+      continue
+    }
+    if (manifest.registryPublishable) {
+      published.push(manifest)
     } else {
-      localOnlyWorkspaces.push(ws)
+      localOnly.push(manifest)
     }
   }
 
-  for (const ws of publishedWorkspaces) {
-    await checkPublishedWorkspace(
-      ws,
-      /** @type {Record<string, unknown>} */ (pkgByWs.get(ws)),
-      getPublishedVersion,
-      pass,
-      fail
-    )
+  for (const manifest of published) {
+    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail)
   }
 
-  await runLocalOnlyChecks(localOnlyWorkspaces, pkgByWs, subWorkspaces, pass, fail)
+  await runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail)
 
   return reporter.getExitCode()
 }

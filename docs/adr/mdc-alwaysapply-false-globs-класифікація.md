@@ -46,3 +46,7 @@
 - `npm/mdc/{ga,vue,php,style-lint,nginx-default-tpl,image-avif,image-compress,changelog,hasura,graphql}.mdc`
 - `.cursor/rules/{n-ga,n-vue,n-style-lint,n-changelog,n-image-avif,n-image-compress,n-nginx-default-tpl}.mdc`
 - `npm/package.json`, `npm/CHANGELOG.md`
+
+## Update 2026-05-17
+
+`security.mdc` переключено з `alwaysApply: true` на `alwaysApply: false` + `globs: "**/.gitleaks.toml,**/package.json,.github/workflows/**/*.yml"` як перший конкретний приклад класифікації. `alwaysApply: true` доцільний лише для cross-cutting правил без вузького скоупу; для `security` glob чіткий, програмна перевірка запускається через lint-ланцюжок незалежно від AI-контексту. Bump `1.12.0 → 1.12.1`.

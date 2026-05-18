@@ -4,6 +4,25 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.31] - 2026-05-18
+
+### Changed
+
+- `changelog` rule (`n-changelog.mdc` `2.3` → `2.4`): підтримка Python — `pyproject.toml` (`[project]` / Poetry) поряд із `package.json`; discovery воркспейсів через `getMonorepoProjectRootDirs`; PyPI-порівняння для registry-published Python-пакетів. `package-manifest.mjs` — уніфікований маніфест npm/python.
+
+## [1.13.30] - 2026-05-18
+
+### Changed
+
+- `changelog` rule (`n-changelog.mdc` `2.2` → `2.3`): `alwaysApply: true` без `globs`; інверсія — не вимагати bump для `docs/`/`doc/` і шляхів з `.gitignore`. `check changelog`: інтеграційна база `dev` **або** `main` (перша наявна); на `dev`/`main` local-only пропускається; релевантні зміни фільтруються в git. Тести.
+
+## [1.13.29] - 2026-05-18
+
+### Changed
+
+- `changelog` rule (`n-changelog.mdc` `2.1` → `2.2`): розширені `globs` (типові шляхи пакета + `*.rego` / `*.mdc`) — правило потрапляє в контекст агента при правках коду, не лише `package.json` / `CHANGELOG.md`; секція «Чеклист агента» для будь-якого репозиторію з правилом.
+- `changelog/fix/consistency/check.mjs`: npm-published режим — якщо `version` збігається з реєстром, але в git є зміни workspace без bump (feature vs `dev` або незакомічене на `dev`) → fail. Регресійні тести.
+
 ## [1.13.28] - 2026-05-18
 
 ### Fixed

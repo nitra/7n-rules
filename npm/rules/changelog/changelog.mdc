@@ -1,36 +1,61 @@
 ---
-description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння
-version: '2.1'
-globs: "**/{CHANGELOG.md,package.json}"
-alwaysApply: false
+description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння (npm і Python)
+version: '2.4'
+alwaysApply: true
 ---
 
-Bun monorepo: у кожному workspace із кореневого `package.json.workspaces` (плюс кореневий пакет, плюс `npm/`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій.
+У кожному **пакетному** workspace (каталог із `package.json` або `pyproject.toml`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій.
+
+**Маніфест версії:**
+
+- **JS / Bun / npm** — `<ws>/package.json` (`version`, для монорепо ще `workspaces` у кореневому `package.json`).
+- **Python** — `<ws>/pyproject.toml`: `[project].name` / `[project].version` (PEP 621) або `[tool.poetry].name` / `[tool.poetry].version`.
+
+Каталоги лише з `pyproject.toml` (без `package.json`) теж враховуються; `node_modules/`, `.venv/`, `venv/` при пошуку ігноруються.
+
+## Чеклист агента (будь-який репозиторій з цим правилом)
+
+**Інверсія (за замовчуванням не вимагають bump/CHANGELOG):**
+
+- зміни **лише** під `docs/` або `doc/`;
+- файли під **`.gitignore`**;
+- правки **лише** `CHANGELOG.md` або поля `version` у маніфесті як сам релізний крок.
+
+**Вимагають bump + нову секцію CHANGELOG** — усі інші зміни в каталозі workspace (код, rego, правила, конфіги, тести тощо).
+
+Перед завершенням задачі:
+
+1. **`version`** у `<ws>/package.json` або `[project].version` у `<ws>/pyproject.toml` підвищено (build/patch +1 на PR), якщо зміни входять у реліз.
+2. **`CHANGELOG.md`** — **нова** секція `## [версія] - YYYY-MM-DD` зверху (не дописуй bullet-и в стару версію).
+3. **`npx @nitra/cursor check changelog`** — exit `0`.
+
+Перевірка програмна (`changelog/fix/consistency/check.mjs`).
 
 ## Дві моделі бази порівняння
 
-Правило за **`<ws>/package.json`** автоматично визначає режим перевірки:
+Режим визначається автоматично з маніфесту.
 
-### npm-published воркспейс
+### registry-published (npm / PyPI)
 
-Якщо в `<ws>/package.json` є непорожнє `name`, **не** `private: true` і оголошено масив `files` — workspace публікується в npm. База — **опублікована версія в реєстрі** (`npm view <name> version`):
+**npm:** непорожнє `name`, не `private: true`, масив `files`.
 
-1. Якщо локальна `version` дорівнює опублікованій — ще нічого не зрелізнуто, перевірка мовчить.
-2. Якщо локальна `version` відрізняється від опублікованої — потрібен запис у `<ws>/CHANGELOG.md` для локальної версії (формат `## [версія] - YYYY-MM-DD`) і `"CHANGELOG.md"` у `files`.
-3. Якщо реєстр недосяжний (офлайн / пакет ще не публікувався) — fail-safe pass із поясненням, щоб локальна розробка не блокувалася.
+**Python:** статичні `project.name` і `project.version` у `pyproject.toml` (або Poetry-секція).
 
-Git у цьому режимі не використовується — порівнюється поточний стан робочої копії з тим, що насправді в npm. Це покриває кейс «прямі коміти в `main` поза PR-flow» автоматично, бо неопубліковані зміни одразу видно.
+1. **Локальна `version` ≠ опублікованій** (npm / PyPI): запис у `<ws>/CHANGELOG.md`; для npm також `"CHANGELOG.md"` у `files`.
+2. **Версії збігаються**, але в git є **релевантні** зміни без bump → fail.
+3. **Реєстр недосяжний** — fail-safe pass.
+4. **Немає релевантних змін** — pass.
 
-### local-only воркспейс
+### local-only
 
-Якщо workspace приватний (`private: true`) або без `files` (apps, services, internal-only пакети) — база = **гілка `dev`**, точніше `git merge-base <dev> HEAD`:
+**npm:** `private: true` або без `files`. **Python:** без пари name+version для реєстру. База = **`dev` або `main`** (перша наявна), `git merge-base`:
 
-1. На самій гілці `dev` правило не активне.
-2. На feature-гілці merge-base = точка розгалуження від `dev` → видно лише унікальні коміти цієї гілки. Bump + запис у `CHANGELOG.md` потрібні **раз на весь PR — як сума по гілці**, без bump-шуму в проміжних комітах.
-3. На `main` після merge `dev → main` merge-base = поточний `dev` → diff порожній → правило мовчить.
-4. Direct-commit на `main` поза PR-flow ловиться як зміна, що потребує bump + запис у `CHANGELOG.md`.
+1. На **`dev`** local-only не активний (крім незакомічених registry-published).
+2. На feature-гілці — bump + CHANGELOG **раз на PR**.
+3. Після merge на інтеграційну гілку diff порожній → pass.
+4. Direct-commit на `main` ловиться так само.
 
-Якщо не git-репо, або `dev`/`origin/dev` не існує — local-only перевірка пропускається.
+Якщо немає git або немає `dev`/`main` — local-only пропускається.
 
 ## Формат CHANGELOG.md
 
