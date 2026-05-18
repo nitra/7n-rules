@@ -1,6 +1,6 @@
 /**
- * Тест preflight у `runLintGaCli`: коли `shellcheck` і `uv` відсутні в PATH — exit 1, причому
- * друкуються підказки встановлення для кожного незалежно (а не лише для першого).
+ * Тест preflight у `runLintGaCli`: коли `shellcheck`, `uv` і `conftest` відсутні в PATH — exit 1,
+ * причому друкуються підказки встановлення для кожного незалежно (а не лише для першого).
  *
  * Реальний `actionlint`/`zizmor` не запускаються — ми обриваємо потік ще на preflight, не доходячи до них.
  */
@@ -18,6 +18,9 @@ const PACMAN_INSTALL_SHELLCHECK_RE = /pacman -S shellcheck/
 const UV_WORD_RE = /\buv\b/
 const BREW_INSTALL_UV_RE = /brew install uv/
 const ASTRAL_UV_RE = /astral\.sh\/uv/
+const CONFTEST_WORD_RE = /\bconftest\b/
+const BREW_INSTALL_CONFTEST_RE = /brew install conftest/
+const CONFTEST_INSTALL_URL_RE = /conftest\.dev\/install/
 
 /**
  * Ізолює PATH у порожньому каталозі на час `fn`, перехоплює console.error/log і повертає виведене
@@ -68,10 +71,18 @@ describe('runLintGaCli', () => {
     expect(errBlob).toMatch(ASTRAL_UV_RE)
   })
 
-  test('обидва preflight’и повідомляються незалежно — підказка для uv не зникає, якщо shellcheck впав першим', async () => {
+  test('exit 1 + підказка conftest.dev/install, коли conftest відсутній у PATH', async () => {
+    const { code, errBlob } = await withIsolatedPath(runLintGaCli)
+    expect(code).toBe(1)
+    expect(errBlob).toMatch(CONFTEST_WORD_RE)
+    expect(errBlob).toMatch(BREW_INSTALL_CONFTEST_RE)
+    expect(errBlob).toMatch(CONFTEST_INSTALL_URL_RE)
+  })
+
+  test('усі три preflight’и повідомляються незалежно — підказки не зникають після першого fail', async () => {
     const { errBlob } = await withIsolatedPath(runLintGaCli)
-    // Один прогін має містити обидві підказки (а не вийти одразу після першого fail).
     expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
     expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
+    expect(errBlob).toMatch(BREW_INSTALL_CONFTEST_RE)
   })
 })

@@ -12,7 +12,7 @@
  *    `npm/mdc/text.mdc` (markdown-текст, не JSON/YAML);
  *  - складна валідація скрипта `lint-text` (cspell, markdownlint, v8r у трьох
  *    варіантах, run-shellcheck-text.mjs, обовʼязкові glob-и);
- *  - workflow `lint-text.yml` має крок `bun run lint-text`.
+ *  - workflow `lint-text.yml` має крок `bun run lint-text` (структура — rego `text.lint_text`).
  *
  * **Що покрила Rego** (`npx \@nitra/cursor check`):
  *  - `npm/policy/text/oxfmtrc/` — обовʼязкові ключі `.oxfmtrc.json` і канонічні

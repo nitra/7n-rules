@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.13.38",
+  "version": "1.13.40",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",

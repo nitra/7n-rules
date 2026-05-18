@@ -1405,7 +1405,11 @@ try {
 } catch (error) {
   if (error instanceof ReexecHandoff) {
     process.exitCode = error.code
+  } else if (error instanceof Error && error.message) {
+    console.error(error.message)
+    process.exitCode = 1
   } else {
+    console.error(error)
     process.exitCode = 1
   }
 }

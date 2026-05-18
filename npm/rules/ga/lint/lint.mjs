@@ -1,5 +1,6 @@
 /**
- * CLI-обгортка над канонічним `lint-ga` (ga.mdc): робить preflight на `shellcheck` і `uv` (для `uvx`),
+ * CLI-обгортка над канонічним `lint-ga` (ga.mdc): робить preflight на `shellcheck`, `uv` (для `uvx`)
+ * і `conftest` (для rego-полісі у `check-ga`),
  * тоді послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` і
  * делегує до `check-ga.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
  * і JS cross-file перевірки правил `ga.mdc`.
@@ -16,6 +17,10 @@
  *
  * `uv` потрібен для `uvx zizmor`. Якщо його нема — `uvx zizmor` падає неінформативно («command not
  * found»); підказка з командою встановлення коротша й корисніша.
+ *
+ * `conftest` потрібен для `check-ga.mjs::runAllGaRego` (`runConftestBatch`). Без preflight крок
+ * check-ga кидає виняток, який глобальний `catch` у `bin/n-cursor.js` раніше ковтав без логу —
+ * локально це виглядало як мовчазний exit 1.
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
  */
@@ -68,6 +73,21 @@ const UV_PREFLIGHT = {
   successMsg: '✅ uv знайдено в PATH — uvx zizmor запуститься'
 }
 
+/** @type {PreflightDep} */
+const CONFTEST_PREFLIGHT = {
+  bin: 'conftest',
+  winBins: ['conftest.exe'],
+  explanation: [
+    'Без нього не запускається пер-документна валідація через rego-полісі (npm/rules/*/policy/)',
+    'у кроці check-ga — `runConftestBatch` завершується hard-fail.'
+  ].join('\n   '),
+  install: [
+    'macOS:     brew install conftest',
+    'Universal: https://www.conftest.dev/install/'
+  ],
+  successMsg: '✅ conftest знайдено в PATH — check-ga виконає rego-полісі через runConftestBatch'
+}
+
 /**
  * Шукає бінарник у PATH з урахуванням Windows: спершу `winBins`, потім `bin`.
  * @param {PreflightDep} dep опис залежності
@@ -116,7 +136,7 @@ function preflight(dep) {
  * Виконує канонічний `lint-ga` з preflight-перевірками і делегує до `check-ga.check()`.
  *
  * Послідовність:
- * 1) preflight: `shellcheck` (для actionlint SC-правил) і `uv` (для `uvx zizmor`); відсутній → exit 1;
+ * 1) preflight: `shellcheck`, `uv` (для `uvx zizmor`) і `conftest` (для check-ga); відсутній → exit 1;
  * 2) `bunx github-actionlint`;
  * 3) `uvx zizmor --offline --collect=workflows .`;
  * 4) `check-ga.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
@@ -132,7 +152,7 @@ function preflight(dep) {
  */
 export async function runLintGaCli() {
   let preflightOk = true
-  for (const dep of [SHELLCHECK_PREFLIGHT, UV_PREFLIGHT]) {
+  for (const dep of [SHELLCHECK_PREFLIGHT, UV_PREFLIGHT, CONFTEST_PREFLIGHT]) {
     if (!preflight(dep)) preflightOk = false
   }
   if (!preflightOk) return 1

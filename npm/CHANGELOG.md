@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.40] - 2026-05-18
+
+### Fixed
+
+- `lint-text` CLI: preflight на `shellcheck`, `patch` і `dotenv-linter` до ланцюжка cspell/shellcheck/dotenv. Канон `lint-text.yml.snippet.yml` — кроки `Install shellcheck` (apt) і `Install dotenv-linter` (curl); rego `text.lint_text`. Bump `text.mdc` `1.28` → `1.29`.
+
+## [1.13.39] - 2026-05-18
+
+### Fixed
+
+- `lint-ga` CLI: preflight на `conftest` (поряд із `shellcheck`/`uv`) з install-hint; глобальний `catch` у `bin/n-cursor.js` більше не ковтає повідомлення `failConftestMissing()`. Канон `lint-ga.yml.snippet.yml` — крок `Install conftest` для CI; rego `ga.lint_ga` вимагає curl на release conftest.
+
 ## [1.13.38] - 2026-05-18
 
 ### Added

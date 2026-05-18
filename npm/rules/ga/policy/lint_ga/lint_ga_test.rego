@@ -17,6 +17,10 @@ template_data := {"snippet": {
 			{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 			{"uses": "./.github/actions/setup-bun-deps"},
 			{"uses": "astral-sh/setup-uv@v8.0.0"},
+			{
+				"name": "Install conftest",
+				"run": "curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin conftest",
+			},
 			{"name": "Lint GA", "run": "bun run lint-ga"},
 		],
 	}},
@@ -35,6 +39,10 @@ canonical_input := {
 			{"uses": "actions/checkout@v6", "with": {"persist-credentials": false}},
 			{"uses": "./.github/actions/setup-bun-deps"},
 			{"uses": "astral-sh/setup-uv@v8.0.0"},
+			{
+				"name": "Install conftest",
+				"run": "curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz | sudo tar -xz -C /usr/local/bin conftest",
+			},
 			{"name": "Lint GA", "run": "bun run lint-ga"},
 		],
 	}},
@@ -73,7 +81,7 @@ test_deny_missing_required_uses if {
 test_deny_missing_run_command if {
 	bad := json.patch(
 		canonical_input,
-		[{"op": "replace", "path": "/jobs/lint-ga/steps/3/run", "value": "echo nothing"}],
+		[{"op": "replace", "path": "/jobs/lint-ga/steps/4/run", "value": "echo nothing"}],
 	)
 	some msg in lint_ga.deny with input as bad with data.template as template_data
 	contains(msg, "bun run lint-ga")

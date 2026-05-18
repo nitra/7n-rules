@@ -94,6 +94,12 @@ deny contains msg if {
 
 deny contains msg if {
 	expected_run_blob != ""
+	not contains(job_run_blob, "open-policy-agent/conftest")
+	msg := "lint-ga.yml: має бути крок Install conftest (ga.mdc)"
+}
+
+deny contains msg if {
+	expected_run_blob != ""
 	not contains(job_run_blob, "bun run lint-ga")
 	msg := "lint-ga.yml: має бути крок run: bun run lint-ga (ga.mdc)"
 }
