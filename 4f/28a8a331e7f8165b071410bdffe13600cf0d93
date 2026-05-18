@@ -1,0 +1,23 @@
+npm/rules/text/lint/lint.mjs
+  s_844018d454e86d::t_fb6a32ca0a0c43 54-57
+npm/rules/ga/lint/lint.mjs
+  s_844018d454e86d::t_fb6a32ca0a0c43 84
+npm/CHANGELOG.md
+  s_844018d454e86d::t_fb6a32ca0a0c43 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "4f28a8a331e7f8165b071410bdffe13600cf0d93",
+  "prompts": {},
+  "sessions": {
+    "s_844018d454e86d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "13b1f06d-3620-43eb-afdb-901ee439a314",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
