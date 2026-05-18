@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту та синхронізація з check-скриптами; rule-centric concern-based структура `npm/rules/` з канонічним `template/`
 alwaysApply: true
-version: '1.6'
+version: '1.7'
 ---
 
 ## Структура правила (rule-centric, concern-based layout)
@@ -35,6 +35,8 @@ npm/rules/{rule}/
 
 **Принцип:** усе, що **можна** винести в `template/<target>.<slot>.<ext>` — **має** туди переїхати. Inline-літерали у `.mdc`, `check.mjs` чи `.rego` створюють дрифт між кількома місцями істини й роблять зміну канонічного значення n-кроковою операцією замість одного редагування template.
 
+**Принцип поширюється і на pure-doc канони** — приклади канонічного вмісту файлу, які `.mdc` показує лише для копіювання користувачем (опційні per-project конфіги типу `.kubescape-exceptions.json`, `.v8rignore`, knip-baseline). Те, що жодна `check.mjs` / `<concern>.rego` поки **не читає** template, не звільняє від міграції: майбутній drift між інлайн-прикладом і реальним патерном проєктів повторно випливе як "у документації одне, у репах — інше". Створюй концерн (`policy/<concern>/template/<target>.<slot>.<ext>` або `fix/<concern>/template/…`) навіть без `target.json` / `check.mjs` — тільки заради host'а template-файлу, на який `.mdc` посилається markdown-лінком; `inlineTemplateLinks` під час `n-cursor` sync підставить вміст у `.cursor/rules/n-{rule}.mdc`. Коли зʼявиться перевірка — вона прочитає вже існуючий template без додаткової міграції.
+
 **Слоти** (семантика співпадає у JS- і Rego-перевірках):
 
 - `<target>.snippet.<ext>` — required merge-фрагмент у нативному синтаксисі target-файлу. Семантика: equals для leaf-значень, subset-of для масивів. Для повних файлів-канонів (workflow `.yml`, `.trufflehog-exclude`, `.stylelintignore`) — той самий `.snippet.<ext>` як повний файл.
@@ -55,6 +57,8 @@ npm/rules/{rule}/
 **Drift-tests у `<concern>_test.rego`:** додай тест, що при підміні `data.template.*` правило emit-ить очікувану deny з новою канонічною substring — гарантує, що template веде перевірку, а не задубльована inline-константа в rego.
 
 **Red flag:** додаєш inline-fenced-блок або inline-string поруч з template-лінком / під JS-перевіркою / в rego — майже завжди це канон, який має бути єдино в `template/<target>.<slot>.<ext>` і читатися звідти.
+
+**Red flag (pure-doc):** у канонічному `npm/rules/<id>/<id>.mdc` зʼявляється fenced-блок з ` ```<ext> title="<filename>" ` — будь-який, навіть якщо поруч **немає** ані template-лінка, ані check'а. `title="<filename>"` сигналізує канон конкретного файлу проєкту, і він має жити в `template/<basename>.snippet.<ext>` з markdown-лінком у `.mdc`, а не дублюватися fenced-блоком inline. Виняток — контрприклади (`title="❌ ..."`, `title="✅ ..."`) і анонімні приклади без `title=`. Перед коммітом `<id>.mdc` з новим `title="<filename>"` fenced-блоком — зупинись і створи концерн з template-файлом.
 
 ## Діагностика
 

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "hasura-jwt-public-config",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": {
+          "kind": "ConfigMap",
+          "name": "hasura-config"
+        }
+      }
+    ],
+    "posturePolicies": [
+      {
+        "controlID": "C-0012"
+      }
+    ]
+  }
+]

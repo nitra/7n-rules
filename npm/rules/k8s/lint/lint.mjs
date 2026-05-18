@@ -13,12 +13,16 @@
  * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
  */
 import { spawnSync } from 'node:child_process'
-import { basename, dirname, relative } from 'node:path'
+import { existsSync } from 'node:fs'
+import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+
+/** Per-project kubescape exceptions file; підмішується через --exceptions, якщо існує в корені. */
+const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
 
 const PATH_SEPARATOR_RE = /[/\\]/u
 const YAML_EXT_RE = /\.yaml$/iu
@@ -119,19 +123,40 @@ function runKubeconform(dirs) {
 }
 
 /**
+ * Будує аргументи `--exceptions <file>` для kubescape, якщо в корені проєкту є
+ * `.kubescape-exceptions.json`. Інакше — порожній масив.
+ * @param {string} root корінь репозиторію
+ * @returns {string[]} `['--exceptions', '<abs-path>']` або `[]`
+ */
+export function buildKubescapeExceptionsArgs(root) {
+  const exceptionsPath = join(root, KUBESCAPE_EXCEPTIONS_FILE)
+  return existsSync(exceptionsPath) ? ['--exceptions', exceptionsPath] : []
+}
+
+/**
  * Запускає kubescape scan для кожного каталогу окремо (узгоджено з прикладами CLI).
  * Немає прапорця версії Kubernetes — за потреби додай `scan framework <ім’я>` під CIS/інші набори.
+ *
+ * Якщо в корені проєкту є `.kubescape-exceptions.json` — підмішується через `--exceptions <file>`.
+ * Файл потрібен для точкових винятків control'ів kubescape (напр. C-0012 на ConfigMap, що містить
+ * публічний JWT-конфіг типу `HASURA_GRAPHQL_JWT_SECRET={"jwk_url": "https://…"}` — control тригериться
+ * на ім'я env, а не на значення; див. приклад у `k8s.mdc`).
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
+ * @param {string} root корінь репозиторію (для пошуку exceptions-файлу)
  * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо kubescape відсутній у PATH
  */
-function runKubescape(dirs) {
+function runKubescape(dirs, root) {
+  const exceptionsArgs = buildKubescapeExceptionsArgs(root)
+  if (exceptionsArgs.length > 0) {
+    console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
+  }
   for (const d of dirs) {
     const kubescapePath = resolveCmd('kubescape')
     if (!kubescapePath) {
       console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
       return 127
     }
-    const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high'], {
+    const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high', ...exceptionsArgs], {
       stdio: 'inherit',
       shell: false
     })
@@ -165,7 +190,7 @@ export async function runLintK8s() {
   const kc = runKubeconform(dirs)
   if (kc !== 0) return kc
 
-  const ks = runKubescape(dirs)
+  const ks = runKubescape(dirs, root)
   return ks
 }
 

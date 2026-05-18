@@ -1,6 +1,6 @@
 ---
 description: AVIF-двійники для raster-зображень з ув'язуванням у .vue/.html
-version: '1.2'
+version: '1.3'
 globs: "**/*.{png,jpg,jpeg,gif,avif,vue,html}"
 alwaysApply: false
 ---
@@ -31,7 +31,7 @@ AVIF-двійники **зберігаємо в git** — це готові ар
 
 ## Опт-аут для конкретного пакета
 
-У workspace-пакеті, де AVIF-імпорти небажані (наприклад, мобільний бандл або публічний сайт без гарантованої AVIF-підтримки), додай у `package.json` цього пакета:
+У workspace-пакеті, де AVIF-імпорти небажані (наприклад, мобільний бандл або публічний сайт без гарантованої AVIF-підтримки), додай у `package.json` цього пакета. Заборонений typo `disabled-avif` (канон — `disable-avif`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json).
 
 ```json title="apps/site/package.json"
 {

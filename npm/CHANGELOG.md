@@ -4,6 +4,24 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.34] - 2026-05-18
+
+### Changed
+
+- `k8s` rule: винесено канонічний приклад `.kubescape-exceptions.json` з inline-fenced-блоку в `k8s.mdc` у `fix/kubescape_exceptions/template/.kubescape-exceptions.json.snippet.json`; `.mdc` тепер посилається на template markdown-лінком, `inlineTemplateLinks` підставить вміст у `.cursor/rules/n-k8s.mdc` під час sync. Dogfood новій клаузі `scripts.mdc` ("Принцип поширюється і на pure-doc канони"). Bump `k8s.mdc` `1.30` → `1.31`.
+
+## [1.13.33] - 2026-05-18
+
+### Fixed
+
+- `style-lint`, `image-avif` rules: markdown-посилання на `policy/*/template/*` у канонічних `<id>.mdc` — `findMissingMdcRefs` (викликається з `run-rule.mjs`) падав, бо шаблони не були згадані в `npm/rules/<id>/<id>.mdc`. Bump: `style-lint.mdc` `1.3` → `1.4`, `image-avif.mdc` `1.2` → `1.3`.
+
+## [1.13.32] - 2026-05-18
+
+### Added
+
+- `k8s` rule (`lint-k8s`): підтримка per-project винятків kubescape — якщо в корені проєкту є `.kubescape-exceptions.json`, `runKubescape` автоматично передає його через `--exceptions <file>`. Канонічний приклад — control **C-0012** (`Applications credentials in configuration files`) на ConfigMap з публічним JWT-конфігом (`HASURA_GRAPHQL_JWT_SECRET={"jwk_url": "https://…"}`): control тригериться лише на імʼя env, не на значення, тому точкове `postureExceptionPolicy` з `kind: ConfigMap` + `attributes.name` знімає false-positive без глобального вимкнення контролю. Bump `k8s.mdc` `1.29` → `1.30`. Документація — секція "Винятки kubescape" в `k8s.mdc`.
+
 ## [1.13.31] - 2026-05-18
 
 ### Changed

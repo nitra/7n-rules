@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.29'
+version: '1.31'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -34,6 +34,38 @@ alwaysApply: false
 **Версія Kubernetes для kubeconform** має відповідати PIN yannh у цьому правилі та в **`check-k8s.mjs`** (зараз **`-kubernetes-version 1.33.9`** — semver без префікса `v`, еквівалент релізу **v1.33.9**; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключай реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**, як у [прикладах kubeconform](https://github.com/yannh/kubeconform#readme). За потреби **`-ignore-missing-schemas`**, якщо частина CRD ще без публічної схеми.
 
 **kubescape:** типово **`kubescape scan <каталог-k8s>`**; поріг серйозності підлаштуй під проєкт (наприклад **`--severity-threshold high`**). Перший запуск може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
+
+### Винятки kubescape: `.kubescape-exceptions.json`
+
+Якщо в **корені проєкту** є файл **`.kubescape-exceptions.json`** — `lint-k8s` автоматично передає його в `kubescape scan` через **`--exceptions`** ([postureExceptionPolicy](https://github.com/kubescape/kubescape/blob/master/docs/exceptions.md)). Файл — JSON-масив об'єктів з полями `name`, `policyType: "postureExceptionPolicy"`, `actions` (`["alertOnly"]` — знижує fail до alert, не блокує lint), `resources` (resource designator) і `posturePolicies` (масив `controlID`).
+
+Канонічний кейс — **C-0012** (`Applications credentials in configuration files`, High): control тригериться на **імʼя** env, що містить підрядок `secret`/`password`/`key`/`token`, а **не** на значення. Для `HASURA_GRAPHQL_JWT_SECRET` у ConfigMap значення — публічний JWT-конфіг (`jwk_url`, `issuer`), не credentials, але kubescape падає лише через імʼя. Точкове виключення для ConfigMap із цим env — канон: `.kubescape-exceptions.json`:
+
+```json
+[
+  {
+    "name": "hasura-jwt-public-config",
+    "policyType": "postureExceptionPolicy",
+    "actions": ["alertOnly"],
+    "resources": [
+      {
+        "designatorType": "Attributes",
+        "attributes": {
+          "kind": "ConfigMap",
+          "name": "hasura-config"
+        }
+      }
+    ],
+    "posturePolicies": [
+      {
+        "controlID": "C-0012"
+      }
+    ]
+  }
+]
+```
+
+Підстав свою `attributes.name` (рядок або regex), якщо ConfigMap зветься інакше; виключай контрольно, а не глобально (не додавай винятки без `attributes.name`/`labels`, бо тоді C-0012 знімається для усіх ConfigMap-ів проєкту і реальні витоки credentials теж пройдуть).
 
 У репозиторії пакета **`@nitra/cursor`** скрипт **`lint-k8s`** делегує до CLI **`n-cursor lint-k8s`** (реалізація — **`npm/rules/k8s/js/run.mjs`**). У інших проєктах достатньо встановити **`@nitra/cursor`** у `devDependencies` — бінарка **`n-cursor`** буде у **`node_modules/.bin/`**.
 

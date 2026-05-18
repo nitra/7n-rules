@@ -1,6 +1,6 @@
 ---
 description: Правила стилів CSS та SCSS
-version: '1.3'
+version: '1.4'
 globs: "**/*.{css,scss,vue}"
 alwaysApply: false
 ---
@@ -11,6 +11,25 @@ alwaysApply: false
 - **Форматування** узгоджуй з **`n-text.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
 - **Запуск stylelint:** лише **`npx stylelint`**. Локально — через скрипт **`lint-style`** (`bun run lint-style`); у **GitHub Actions** у кроці **`run`** викликай `npx stylelint '**/*.{css,scss,vue}' --fix` напряму (не через **`bun run lint-style`**). Не використовуй **`bunx stylelint`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний `bun run lint` (навичка **`/n-lint`**).
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
+
+## Канон
+
+### `package.json`
+
+- `lint-style` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+- `stylelint.extends`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
+
+### `.vscode/extensions.json`
+
+- Канон `recommendations`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+### `.vscode/settings.json`
+
+- Вимкнення вбудованої CSS-валідації VS Code: [settings.json.snippet.json](./policy/vscode_settings/template/settings.json.snippet.json)
+
+### CI: `.github/workflows/lint-style.yml`
+
+- Канон: [lint-style.yml.snippet.yml](./policy/lint_style_yml/template/lint-style.yml.snippet.yml)
 
 **`package.json`:**
 

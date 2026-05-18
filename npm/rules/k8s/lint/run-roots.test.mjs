@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { findK8sRoots, k8sRootFromFile } from './lint.mjs'
+import { buildKubescapeExceptionsArgs, findK8sRoots, k8sRootFromFile } from './lint.mjs'
 import { withTmpCwd } from '../../../scripts/utils/test-helpers.mjs'
 
 describe('k8sRootFromFile', () => {
@@ -32,6 +32,20 @@ describe('findK8sRoots', () => {
       expect(dirs.length).toBe(2)
       expect(dirs.includes(join(root, 'p1', 'k8s'))).toBe(true)
       expect(dirs.includes(join(root, 'p2', 'k8s'))).toBe(true)
+    })
+  })
+
+  test('додає --exceptions <abs-path>, коли в корені є .kubescape-exceptions.json', async () => {
+    await withTmpCwd(async root => {
+      await writeFile(join(root, '.kubescape-exceptions.json'), '[]', 'utf8')
+      const args = buildKubescapeExceptionsArgs(root)
+      expect(args).toEqual(['--exceptions', join(root, '.kubescape-exceptions.json')])
+    })
+  })
+
+  test('повертає [], коли .kubescape-exceptions.json відсутній', async () => {
+    await withTmpCwd(async root => {
+      expect(buildKubescapeExceptionsArgs(root)).toEqual([])
     })
   })
 

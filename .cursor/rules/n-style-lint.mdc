@@ -1,6 +1,6 @@
 ---
 description: Правила стилів CSS та SCSS
-version: '1.3'
+version: '1.4'
 globs: "**/*.{css,scss,vue}"
 alwaysApply: false
 ---
@@ -11,6 +11,95 @@ alwaysApply: false
 - **Форматування** узгоджуй з **`n-text.mdc`** (oxfmt / `.oxfmtrc.json` для css, scss тощо), щоб форматер і stylelint не суперечили один одному.
 - **Запуск stylelint:** лише **`npx stylelint`**. Локально — через скрипт **`lint-style`** (`bun run lint-style`); у **GitHub Actions** у кроці **`run`** викликай `npx stylelint '**/*.{css,scss,vue}' --fix` напряму (не через **`bun run lint-style`**). Не використовуй **`bunx stylelint`**. Після змін запускай **`bun run lint-style`** і виправляй усе, що лишилось після auto-fix; за потреби — повний `bun run lint` (навичка **`/n-lint`**).
 - **Не розширюй винятки:** не додавай зайві **`stylelint-disable`** без потреби; краще підлаштувати стилі під правила проєкту.
+
+## Канон
+
+### `package.json`
+
+- `lint-style` (substring requirement): `package.json`:
+
+```json
+{
+  "scripts": {
+    "lint-style": ["npx stylelint"]
+  }
+}
+```
+- `stylelint.extends`: `package.json`:
+
+```json
+{
+  "stylelint": {
+    "extends": "@nitra/stylelint-config"
+  }
+}
+```
+
+### `.vscode/extensions.json`
+
+- Канон `recommendations`: `extensions.json`:
+
+```json
+{ "recommendations": ["stylelint.vscode-stylelint"] }
+```
+
+### `.vscode/settings.json`
+
+- Вимкнення вбудованої CSS-валідації VS Code: `settings.json`:
+
+```json
+{
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false
+}
+```
+
+### CI: `.github/workflows/lint-style.yml`
+
+- Канон: `lint-style.yml`:
+
+```yaml
+name: StyleLint
+
+on:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.css'
+      - '**/*.scss'
+      - '**/*.vue'
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  stylelint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-bun-deps
+
+      - name: StyleLint
+        run: npx stylelint '**/*.{css,scss,vue}' --fix
+```
 
 **`package.json`:**
 
