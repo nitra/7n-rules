@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.34'
+version: '1.35'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -530,7 +530,7 @@ resources:
 ```
 
 ```yaml title="k8s/components/networkpolicy.yaml"
-# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/networkpolicy-networking-k8s-io-v1.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/networkpolicy-networking-v1.json
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -771,8 +771,8 @@ patch: |-
    ```
 
 3. **`apiVersion: group/version`** і **group** у **`YANNH_GROUPS`** у скрипті → yannh:
-   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-з-крапками-як-дефіси>-<version>.json`
-   Приклади: `apps/v1` + `Deployment` → `deployment-apps-v1.json`; `networking.k8s.io/v1` + `Ingress` → `ingress-networking-k8s-io-v1.json`.
+   `https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/<PIN>/<kind>-<group-частина>-<version>.json`
+   де **`<group-частина>`** — **перший сегмент** `group` до першої крапки: для груп без крапок збігається з усією group (`apps/v1` + `Deployment` → `deployment-apps-v1.json`); для `*.k8s.io` / `*.apiserver.k8s.io` — лише префікс до `.k8s.io` (`networking.k8s.io/v1` + `Ingress` → `ingress-networking-v1.json`; `networking.k8s.io/v1` + `NetworkPolicy` → `networkpolicy-networking-v1.json`; `rbac.authorization.k8s.io/v1` + `ClusterRole` → `clusterrole-rbac-v1.json`; `flowcontrol.apiserver.k8s.io/v1` + `FlowSchema` → `flowschema-flowcontrol-v1.json`). У yannh **немає** файлів з фрагментом `-k8s-io-` у назві — патерн `<group-з-крапками-як-дефіси>` дає 404.
 4. **Інакше** (CRD тощо) → [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog). Типово для `$schema` у редакторі — **GitHub Pages**:
    `https://datreeio.github.io/CRDs-catalog/<group>/<kind>_<version>.json`
    (`<kind>` — лише літери та цифри в нижньому регістрі, без роздільників між CamelCase, як для yannh.)

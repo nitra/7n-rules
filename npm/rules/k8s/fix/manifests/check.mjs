@@ -3595,10 +3595,14 @@ function expectedSchemaUrlForTypedManifest(doc, apiVersion, kind) {
   const group = apiVersion.slice(0, Math.max(0, slash))
   const version = apiVersion.slice(slash + 1)
   const kindPart = kindToSchemaFilePart(kind)
-  const groupDash = group.replaceAll('.', '-')
 
   if (YANNH_GROUPS.has(group)) {
-    const url = `${YANNH_BASE}${kindPart}-${groupDash}-${version}.json`
+    // yannh для груп типу `*.k8s.io` / `*.apiserver.k8s.io` зберігає у назві файлу
+    // лише перший сегмент `group` до першої крапки: `networking.k8s.io` → `networking`,
+    // `rbac.authorization.k8s.io` → `rbac`, `flowcontrol.apiserver.k8s.io` → `flowcontrol`.
+    // Для груп без крапок (`apps`, `batch`, `autoscaling`, `policy`) це збігається з group.
+    const groupPart = group.split('.')[0]
+    const url = `${YANNH_BASE}${kindPart}-${groupPart}-${version}.json`
     return { expected: url, reason: 'вбудований API Kubernetes (yannh)' }
   }
 
@@ -4284,7 +4288,7 @@ const NETWORK_POLICY_EGRESS_YAML = `  egress:
  * @returns {string} вміст `networkpolicy.yaml`
  */
 export function buildNetworkPolicyYaml(deployName, appLabel) {
-  const schemaUrl = `${YANNH_BASE}networkpolicy-networking-k8s-io-v1.json`
+  const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

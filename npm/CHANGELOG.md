@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.41] - 2026-05-18
+
+### Fixed
+
+- `k8s` rule: yannh-патерн для груп з крапками — у назві файлу схеми зберігається лише **перший сегмент** `group` до першої крапки (`networking.k8s.io` → `networking`, `rbac.authorization.k8s.io` → `rbac`, `flowcontrol.apiserver.k8s.io` → `flowcontrol`); попередній `<group-з-крапками-як-дефіси>` давав 404 для всіх ресурсів `*.k8s.io` (Ingress, NetworkPolicy, ClusterRole, StorageClass, FlowSchema, RuntimeClass тощо). Виправлено в `expectedSchemaUrlForTypedManifest` і `buildNetworkPolicyYaml` (`check-k8s.mjs`); опис патерну в `k8s.mdc` переписано з прикладами для усіх типових груп. Bump `k8s.mdc` `1.34` → `1.35`.
+
 ## [1.13.40] - 2026-05-18
 
 ### Fixed
