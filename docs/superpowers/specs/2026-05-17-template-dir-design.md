@@ -8,6 +8,7 @@
 ## Проблема
 
 Правила в `npm/rules/<id>/` поєднують у `.mdc` файлі дві логічно різні речі:
+
 1. **AI-директиви** — що і як генерувати/редагувати.
 2. **Фрагменти канону** — inline code blocks із вмістом цільових файлів.
 
@@ -23,6 +24,7 @@
 - **Повні файли-канони** (`.gitleaks.toml`, повні workflow `.yml`, `.stylelintignore`) — теж у `template/`, у нативному форматі цільового файлу. AI читає файл напряму через посилання у `.mdc`. Семантика — та сама `.snippet` (subset-of): канон обов'язковий, проєкт може доповнити (наприклад додати свої `[allowlist]` patterns у `.gitleaks.toml`).
 
 **НЕ покриваємо** (лишаються inline в `.mdc`):
+
 - Параметризовані snippets з placeholder-ами (HTTPRoute з `<prefix>`, k8s-Deployment з `<service>/<namespace>`) — потребують template engine, окрема потреба.
 
 ---
@@ -31,11 +33,11 @@
 
 Ввести каталог `template/` на рівні **концерну** (`fix/<concern>/template/` або `policy/<concern>/template/`) з трьома типами файлів — **у нативному форматі цільового файлу**:
 
-| Файл | Семантика |
-|---|---|
-| `<target>.snippet.<ext>` | required: кожна leaf-пара має бути в реальному файлі з тим самим значенням; масиви — subset-of. Для повних канонів — увесь template є обов'язковою підмножиною |
-| `<target>.deny.<ext>` | forbidden: будь-який ключ цього дерева у реальному файлі = fail (значення = опис помилки) |
-| `<target>.contains.<ext>` | substring: рядкове поле реального файлу має містити кожен рядок масиву як substring |
+| Файл                      | Семантика                                                                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<target>.snippet.<ext>`  | required: кожна leaf-пара має бути в реальному файлі з тим самим значенням; масиви — subset-of. Для повних канонів — увесь template є обов'язковою підмножиною |
+| `<target>.deny.<ext>`     | forbidden: будь-який ключ цього дерева у реальному файлі = fail (значення = опис помилки)                                                                      |
+| `<target>.contains.<ext>` | substring: рядкове поле реального файлу має містити кожен рядок масиву як substring                                                                            |
 
 `<ext>` дорівнює розширенню цільового файлу (`.json`, `.toml`, `.yml`, `.yaml`, `.jsonc`). Loader парсить за extension у JS-object, далі — однотипне структурне порівняння. Для **text-only** цілей (`.stylelintignore`, plain config) `template/<target>` (без `.snippet.` суфікса) = subset-of-lines: кожен рядок template має бути присутнім у реальному файлі.
 
@@ -44,11 +46,13 @@
 ### Приклад — `security/policy/package_json/template/`
 
 `package.json.snippet.json`:
+
 ```json
 { "scripts": { "lint-security": "gitleaks detect --no-banner" } }
 ```
 
 `package.json.deny.json`:
+
 ```json
 {
   "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
@@ -57,6 +61,7 @@
 ```
 
 `package.json.contains.json`:
+
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
@@ -124,11 +129,13 @@ npm/rules/<id>/
 
 ```markdown
 Канон фрагментів — `template/`:
+
 - [package.json](./policy/package_json/template/package.json.snippet.json)
 - [.vscode/extensions.json](./policy/vscode_extensions/template/.vscode/extensions.json.snippet.json)
 ```
 
 Окремий централізований крок у CLI runner (`npm/scripts/utils/check-mdc-template-refs.mjs`) перевіряє для кожного правила:
+
 - Кожен файл у будь-якому `template/` каталозі правила має markdown-посилання у `<id>.mdc`.
 - Fail з конкретним шляхом, якщо новий template-файл забутий у `.mdc`.
 
@@ -181,6 +188,7 @@ runConftestBatch({
 ```
 
 Якщо `templateData` передано:
+
 1. Серіалізувати у tmp JSON: `{ "template": { "snippet": ..., "deny": ..., "contains": ... } }`
 2. Передати `conftest test ... --data <tmp.json>`
 3. Cleanup tmp після завершення
@@ -224,12 +232,12 @@ Namespace у `--data` — flat `{ "template": {...} }`, єдиний на confte
 
 Перед міграцією — інвентаризація всіх ~50+ концернів у 26 правилах за категорією:
 
-| Категорія | Опис | Стратегія |
-|---|---|---|
-| **Template-eligible (fragment)** | merge-фрагмент на single JSON/TOML/YAML/jsonc | `.snippet.<ext>` у нативному форматі |
-| **Template-eligible (full canon)** | повний файл-канон (`.gitleaks.toml`, workflow `.yml`, `.stylelintignore`) | `.snippet.<ext>` повного вмісту, або `<target>` без суфікса для text-only |
-| **Partial** | FS-existence + leaf-перевірка | FS лишається в JS, leaf → template |
-| **Non-eligible** | cross-file / kustomize-resolution / параметризовані snippets з placeholder-ами / file-walking з графом | лишається inline, з коментарем-обґрунтуванням |
+| Категорія                          | Опис                                                                                                   | Стратегія                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| **Template-eligible (fragment)**   | merge-фрагмент на single JSON/TOML/YAML/jsonc                                                          | `.snippet.<ext>` у нативному форматі                                      |
+| **Template-eligible (full canon)** | повний файл-канон (`.gitleaks.toml`, workflow `.yml`, `.stylelintignore`)                              | `.snippet.<ext>` повного вмісту, або `<target>` без суфікса для text-only |
+| **Partial**                        | FS-existence + leaf-перевірка                                                                          | FS лишається в JS, leaf → template                                        |
+| **Non-eligible**                   | cross-file / kustomize-resolution / параметризовані snippets з placeholder-ами / file-walking з графом | лишається inline, з коментарем-обґрунтуванням                             |
 
 Інвентаризація — частина Phase 0 deliverable.
 
@@ -241,7 +249,7 @@ Namespace у `--data` — flat `{ "template": {...} }`, єдиний на confte
 
 1. **Phase 0** — інфраструктура: `template.mjs` (loader + check-функції), розширення `run-conftest-batch.mjs`, інвентаризація концернів за категорією. Без жодного перевіденого правила. Існуючий test-suite green.
 2. **Phase 1** — pilot на `security` (одне правило: fix/gitleaks + policy/package_json). Валідує всю обв'язку end-to-end.
-3. **Phase 2** — батч simple-JSON концернів (text.*, js-lint.package_json, style-lint.*, graphql.*). Машинально, паралельно через subagent.
+3. **Phase 2** — батч simple-JSON концернів (text._, js-lint.package_json, style-lint._, graphql.\*). Машинально, паралельно через subagent.
 4. **Phase 3** — TOML/YAML/jsonc цілі та повні канони (security.gitleaks `.gitleaks.toml`, rego `.regal/config.yaml`, text.markdownlint `.markdownlint-cli2.jsonc`, повні workflow `.yml` для ga/k8s/docker/style-lint/security, `.stylelintignore`).
 5. **Phase 4** — walkGlob прості (js-bun-redis, image-avif на `**/package.json`).
 6. **Phase 5** — classify rest (k8s, abie, npm-module): або переписати, або лишити inline з ADR-обґрунтуванням.
@@ -271,22 +279,22 @@ Namespace у `--data` — flat `{ "template": {...} }`, єдиний на confte
 - **CLI публічний API** не змінюється (`.n-cursor.json`, `npx @nitra/cursor check`).
 - `check.mjs` сигнатура змінюється: `check()` → `check({ template })`. CLI orchestrator адаптується одночасно.
 
-| Ризик | Мітигація |
-|---|---|
-| Дрифт template ↔ inline-snippets у `.mdc` | Phase 6 + `fix/mdc_sync/` як страховка |
-| Concern класифіковано як template-eligible, але виявляється partial | Phase 1 на pilot ловить; per-rule code review проти class-table |
-| Subagent batch-міграція в Phase 2 пропускає edge-case | Окремий commit per rule — можна re-review |
-| Rego звертається до `data.template.*` коли template не передано | conftest повертає undefined без падіння; rego-правила формулюємо з `object.get(...)` defaults |
+| Ризик                                                               | Мітигація                                                                                     |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Дрифт template ↔ inline-snippets у `.mdc`                           | Phase 6 + `fix/mdc_sync/` як страховка                                                        |
+| Concern класифіковано як template-eligible, але виявляється partial | Phase 1 на pilot ловить; per-rule code review проти class-table                               |
+| Subagent batch-міграція в Phase 2 пропускає edge-case               | Окремий commit per rule — можна re-review                                                     |
+| Rego звертається до `data.template.*` коли template не передано     | conftest повертає undefined без падіння; rego-правила формулюємо з `object.get(...)` defaults |
 
 ---
 
 ## Альтернативи, що відхилені
 
-| Альтернатива | Причина відхилення |
-|---|---|
-| Rule-level `template/` (один на правило) | Collision: k8s має 4 концерни на `*.yaml`, npm-module — 2 на `package.json` |
-| DSL-файл `check.json` з ключами required/forbidden/contains | Новий синтаксис, AI треба вчити; native fragments — natural, AI читає як цільовий файл |
-| Expectations DSL у YAML (`expectations.yaml`) | Те саме — новий синтаксис, не схоже на цільовий файл |
-| Snippet-only (без deny/contains) | Contains-перевірки (`lint` містить `bun run lint-security`) і forbid не покриваються — лишається подвійна точка істини |
+| Альтернатива                                                   | Причина відхилення                                                                                                                   |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Rule-level `template/` (один на правило)                       | Collision: k8s має 4 концерни на `*.yaml`, npm-module — 2 на `package.json`                                                          |
+| DSL-файл `check.json` з ключами required/forbidden/contains    | Новий синтаксис, AI треба вчити; native fragments — natural, AI читає як цільовий файл                                               |
+| Expectations DSL у YAML (`expectations.yaml`)                  | Те саме — новий синтаксис, не схоже на цільовий файл                                                                                 |
+| Snippet-only (без deny/contains)                               | Contains-перевірки (`lint` містить `bun run lint-security`) і forbid не покриваються — лишається подвійна точка істини               |
 | Сценарій A (scaffold-файли повних канонів) як окрема концепція | Уніфіковано в `.snippet.<ext>` — повний канон = subset-of, який покриває весь файл. AI читає template-файл через посилання у `.mdc`. |
-| `@path` references у `.mdc` | Claude Code не підтримує автоматичне розгортання `@path` всередині `.mdc` |
+| `@path` references у `.mdc`                                    | Claude Code не підтримує автоматичне розгортання `@path` всередині `.mdc`                                                            |

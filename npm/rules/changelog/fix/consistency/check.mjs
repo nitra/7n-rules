@@ -26,7 +26,7 @@ import {
   getMonorepoProjectRootDirs,
   manifestFilePath,
   parsePyprojectFields,
-  readPackageManifest,
+  readPackageManifest
 } from '../../../../scripts/utils/package-manifest.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -46,10 +46,12 @@ const CHANGELOG_IGNORE_PATH_EXACT = Object.freeze(['docs', 'doc'])
 /** Таймаут на `npm view` / PyPI (мс) */
 const REGISTRY_TIMEOUT_MS = 10_000
 
+const LEADING_DOTSLASH_RE = /^\.\//
+
 /**
  * Тихо запускає `git` і повертає stdout або `null` при будь-якій помилці.
  * @param {string[]} args аргументи `git`
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} результат
  */
 async function gitOrNull(args) {
   try {
@@ -61,7 +63,7 @@ async function gitOrNull(args) {
 }
 
 /**
- * @returns {Promise<boolean>}
+ * @returns {Promise<boolean>} результат
  */
 async function isInsideGitRepo() {
   const out = await gitOrNull(['rev-parse', '--is-inside-work-tree'])
@@ -69,7 +71,7 @@ async function isInsideGitRepo() {
 }
 
 /**
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} результат
  */
 async function currentBranchName() {
   const out = await gitOrNull(['rev-parse', '--abbrev-ref', 'HEAD'])
@@ -77,27 +79,27 @@ async function currentBranchName() {
 }
 
 /**
- * @param {string | null} branch
- * @returns {boolean}
+ * @param {string | null} branch параметр
+ * @returns {boolean} результат
  */
 function isIntegrationBranch(branch) {
   return branch !== null && INTEGRATION_BRANCHES.includes(branch)
 }
 
 /**
- * @param {string} ref
- * @returns {string}
+ * @param {string} ref параметр
+ * @returns {string} результат
  */
 function baseRefLabel(ref) {
   return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref
 }
 
 /**
- * @param {string} relPath
- * @returns {boolean}
+ * @param {string} relPath параметр
+ * @returns {boolean} результат
  */
 function isChangelogIgnoredPath(relPath) {
-  const p = relPath.replace(/\\/g, '/').replace(/^\.\//, '')
+  const p = relPath.replaceAll('\\', '/').replace(LEADING_DOTSLASH_RE, '')
   if (CHANGELOG_IGNORE_PATH_EXACT.includes(p)) {
     return true
   }
@@ -105,8 +107,8 @@ function isChangelogIgnoredPath(relPath) {
 }
 
 /**
- * @param {string} relPath
- * @returns {Promise<boolean>}
+ * @param {string} relPath параметр
+ * @returns {Promise<boolean>} результат
  */
 async function isPathGitIgnored(relPath) {
   try {
@@ -118,7 +120,7 @@ async function isPathGitIgnored(relPath) {
 }
 
 /**
- * @returns {Promise<string | null>}
+ * @returns {Promise<string | null>} результат
  */
 async function resolveBaseRef() {
   for (const name of BASE_BRANCH_CANDIDATES) {
@@ -133,8 +135,8 @@ async function resolveBaseRef() {
 }
 
 /**
- * @param {string} baseRef
- * @returns {Promise<string | null>}
+ * @param {string} baseRef параметр
+ * @returns {Promise<string | null>} результат
  */
 async function resolveMergeBase(baseRef) {
   const out = await gitOrNull(['merge-base', baseRef, 'HEAD'])
@@ -144,9 +146,9 @@ async function resolveMergeBase(baseRef) {
 }
 
 /**
- * @param {string} ws
- * @param {string[]} subWorkspaces
- * @returns {string[]}
+ * @param {string} ws параметр
+ * @param {string[]} subWorkspaces параметр
+ * @returns {string[]} результат
  */
 function pathspecForWorkspace(ws, subWorkspaces) {
   if (ws !== '.') return [`${ws}/`]
@@ -154,12 +156,14 @@ function pathspecForWorkspace(ws, subWorkspaces) {
 }
 
 /**
- * @param {string} baseRef
- * @param {string[]} pathspec
- * @returns {Promise<string[]>}
+ * @param {string} baseRef параметр
+ * @param {string[]} pathspec параметр
+ * @returns {Promise<string[]>} результат
  */
 async function listChangedPathsAgainstBase(baseRef, pathspec) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   const diffArgs =
     baseRef === 'HEAD'
@@ -177,10 +181,10 @@ async function listChangedPathsAgainstBase(baseRef, pathspec) {
 }
 
 /**
- * @param {string} baseRef
- * @param {string} ws
- * @param {string[]} subWorkspaces
- * @returns {Promise<boolean>}
+ * @param {string} baseRef параметр
+ * @param {string} ws параметр
+ * @param {string[]} subWorkspaces параметр
+ * @returns {Promise<boolean>} результат
  */
 async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces) {
   const pathspec = pathspecForWorkspace(ws, subWorkspaces)
@@ -199,9 +203,9 @@ async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces
 
 /**
  * Версія з маніфесту на `baseRef`.
- * @param {string} baseRef
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @returns {Promise<string | null>}
+ * @param {string} baseRef параметр
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @returns {Promise<string | null>} результат
  */
 async function readBaseVersion(baseRef, manifest) {
   const wsPath = manifest.ws === '.' ? manifest.manifestRel : `${manifest.ws}/${manifest.manifestRel}`
@@ -219,9 +223,9 @@ async function readBaseVersion(baseRef, manifest) {
 }
 
 /**
- * @param {string} text
- * @param {string} version
- * @returns {boolean}
+ * @param {string} text параметр
+ * @param {string} version параметр
+ * @returns {boolean} результат
  */
 function changelogHasVersionEntry(text, version) {
   const needle = `## [${version}]`
@@ -229,8 +233,8 @@ function changelogHasVersionEntry(text, version) {
 }
 
 /**
- * @param {string} name
- * @returns {Promise<string | null>}
+ * @param {string} name параметр
+ * @returns {Promise<string | null>} результат
  */
 async function defaultGetPublishedNpmVersion(name) {
   try {
@@ -243,13 +247,13 @@ async function defaultGetPublishedNpmVersion(name) {
 }
 
 /**
- * @param {string} name
- * @returns {Promise<string | null>}
+ * @param {string} name параметр
+ * @returns {Promise<string | null>} результат
  */
 async function defaultGetPublishedPyPiVersion(name) {
   try {
     const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`, {
-      signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS),
+      signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS)
     })
     if (!res.ok) return null
     const data = await res.json()
@@ -261,31 +265,38 @@ async function defaultGetPublishedPyPiVersion(name) {
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion
- * @returns {Promise<string | null>}
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
+ * @returns {Promise<string | null>} результат
  */
-async function resolvePublishedVersion(manifest, getPublishedVersion) {
-  if (!manifest.name) return null
+function resolvePublishedVersion(manifest, getPublishedVersion) {
+  if (!manifest.name) return Promise.resolve(null)
   return getPublishedVersion(manifest.name, manifest.kind)
 }
 
 /**
- * @returns {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>}
+ * @param {string} name пакет
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageKind} [kind] тип пакета
+ * @returns {Promise<string | null>} опублікована версія або null
  */
-function createDefaultGetPublishedVersion() {
-  return async (name, kind = 'npm') => {
-    if (kind === 'python') {
-      return defaultGetPublishedPyPiVersion(name)
-    }
-    return defaultGetPublishedNpmVersion(name)
+function defaultGetPublishedVersion(name, kind = 'npm') {
+  if (kind === 'python') {
+    return defaultGetPublishedPyPiVersion(name)
   }
+  return defaultGetPublishedNpmVersion(name)
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @returns {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} стандартний резолвер
+ */
+function createDefaultGetPublishedVersion() {
+  return defaultGetPublishedVersion
+}
+
+/**
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
  */
 function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
   if (manifest.kind !== 'npm' || !manifest.npmFiles) return
@@ -298,11 +309,11 @@ function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
 }
 
 /**
- * @param {string} ws
- * @param {string} version
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
- * @returns {Promise<boolean>}
+ * @param {string} ws параметр
+ * @param {string} version параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
+ * @returns {Promise<boolean>} результат
  */
 async function verifyChangelogEntry(ws, version, pass, fail) {
   const label = ws === '.' ? '<root>' : ws
@@ -321,20 +332,20 @@ async function verifyChangelogEntry(ws, version, pass, fail) {
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @returns {string}
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @returns {string} результат
  */
 function workspaceLabel(manifest) {
   return manifest.ws === '.' ? '<root>' : manifest.ws
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @param {string} Vcurrent
- * @param {string[]} subWorkspaces
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
- * @returns {Promise<void>}
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {string} Vcurrent параметр
+ * @param {string[]} subWorkspaces параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
+ * @returns {Promise<void>} результат
  */
 async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail) {
   const label = workspaceLabel(manifest)
@@ -379,12 +390,12 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @param {string[]} subWorkspaces
- * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
- * @returns {Promise<void>}
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {string[]} subWorkspaces параметр
+ * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
+ * @returns {Promise<void>} результат
  */
 async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail) {
   const label = workspaceLabel(manifest)
@@ -415,11 +426,11 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
 }
 
 /**
- * @param {string} mergeBase
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest
- * @param {string} baseLabel
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {string} mergeBase параметр
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {string} baseLabel параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
  */
 async function checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pass, fail) {
   const label = workspaceLabel(manifest)
@@ -442,10 +453,10 @@ async function checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pa
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} localOnly
- * @param {string[]} subWorkspaces
- * @param {(msg: string) => void} pass
- * @param {(msg: string) => void} fail
+ * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} localOnly параметр
+ * @param {string[]} subWorkspaces параметр
+ * @param {(msg: string) => void} pass параметр
+ * @param {(msg: string) => void} fail параметр
  */
 async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
   if (localOnly.length === 0) return
@@ -483,9 +494,9 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
 }
 
 /**
- * @param {object} [opts]
+ * @param {object} [opts] опції перевірки
  * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
- * @returns {Promise<number>}
+ * @returns {Promise<number>} exit-код перевірки
  */
 export async function check(opts = {}) {
   const reporter = createCheckReporter()
@@ -495,9 +506,13 @@ export async function check(opts = {}) {
   const workspaces = await getMonorepoProjectRootDirs(process.cwd())
   const subWorkspaces = workspaces.filter(w => w !== '.')
 
-  /** @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} */
+  /**
+  @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]}
+   */
   const published = []
-  /** @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} */
+  /**
+  @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]}
+   */
   const localOnly = []
 
   for (const ws of workspaces) {

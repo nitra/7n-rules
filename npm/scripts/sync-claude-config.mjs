@@ -84,7 +84,7 @@ const ADR_NORMALIZE_STOP_HOOK_GROUP = Object.freeze({
 /** Канонічний Cursor stop-hook для ADR capture. Cursor передає payload через stdin JSON. */
 const CURSOR_ADR_STOP_HOOK = Object.freeze({
   command: [
-    "bash -lc 'root=\"$PWD\";",
+    'bash -lc \'root="$PWD";',
     `if [ ! -f "$root/${CURSOR_ADR_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${CURSOR_ADR_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
     `bash "$root/${CURSOR_ADR_HOOK_COMMAND_MARKER}"'`
   ].join(' '),
@@ -94,7 +94,7 @@ const CURSOR_ADR_STOP_HOOK = Object.freeze({
 /** Канонічний Cursor stop-hook для ADR normalize. */
 const CURSOR_ADR_NORMALIZE_STOP_HOOK = Object.freeze({
   command: [
-    "bash -lc 'root=\"$PWD\";",
+    'bash -lc \'root="$PWD";',
     `if [ ! -f "$root/${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ] && [ -f "$root/../${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}" ]; then root="$root/.."; fi;`,
     `bash "$root/${CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER}"'`
   ].join(' '),

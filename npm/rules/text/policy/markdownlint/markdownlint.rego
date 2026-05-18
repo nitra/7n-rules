@@ -47,7 +47,7 @@ deny contains msg if {
 	msg := sprintf(".markdownlint-cli2.jsonc: %s.%s.%s має бути %v (text.mdc)", [section, inner_key, leaf, expected])
 }
 
-# ── deny: vкладеного обʼєкта взагалі немає ──────────────────────────────
+# ── deny: вкладеного обʼєкта взагалі немає ──────────────────────────────
 
 deny contains msg if {
 	some section, expected_inner in data.template.snippet

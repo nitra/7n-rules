@@ -5,6 +5,11 @@ import { join } from 'node:path'
 
 import { runLintRego } from './lint.mjs'
 
+/**
+ * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії
+ * @param {(cwd: string) => number} body тіло тесту
+ * @returns {number} результат body
+ */
 function withTmpRepo(prep, body) {
   const root = mkdtempSync(join(tmpdir(), 'lint-rego-'))
   try {
@@ -15,12 +20,11 @@ function withTmpRepo(prep, body) {
   }
 }
 
+const NO_PREP = (/** @type {string} */ _cwd) => null
+
 describe('runLintRego', () => {
   test('returns 0 (skip) when no rego targets exist in cwd', () => {
-    const exit = withTmpRepo(
-      () => {},
-      cwd => runLintRego(cwd)
-    )
+    const exit = withTmpRepo(NO_PREP, cwd => runLintRego(cwd))
     expect(exit).toBe(0)
   })
 

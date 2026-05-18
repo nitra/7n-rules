@@ -1,6 +1,6 @@
 {
   "ignoreDependencies": ["graphql", "@nitra/cspell-dict", "@nitra/stylelint-config", "globals"],
-  "ignoreBinaries": ["cspell", "oxfmt", "stylelint"],
+  "ignoreBinaries": ["cspell", "oxfmt", "stylelint", "trufflehog"],
   "ignoreExportsUsedInFile": true,
   "ignore": ["npm/scripts/utils/gha-workflow.mjs"],
   "workspaces": {

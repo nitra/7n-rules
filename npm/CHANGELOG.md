@@ -4,6 +4,34 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.38] - 2026-05-18
+
+### Added
+
+- `js-run` rule: у backend `package.json#scripts` заборонено `env $(cat …) bun` — заміна на `bun --env-file=…` (по файлу з `cat`); Rego `scriptsForbidden` `env-cat-bun`. Bump `js-run.mdc` `1.10` → `1.11`.
+
+## [1.13.37] - 2026-05-18
+
+### Added
+
+- `js-run` rule: у backend `package.json#scripts` заборонено запуск через `node` — один runtime **Bun** у dev і prod; Rego `js_run.package_json` (`scriptsForbidden` у `package.json.deny.json`), frontend з `vite` у `devDependencies` пропускається. Bump `js-run.mdc` `1.9` → `1.10`.
+
+### Changed
+
+- `k8s` rule: канон **NetworkPolicy** egress для всіх workload-ів — kube-dns; **TCP 80/443** на `0.0.0.0/0`; інші порти лише in-cluster (`namespaceSelector: {}`, `*.svc`). Заборонено `egress: [{}]`. Оновлено `buildNetworkPolicyYaml`, rego `k8s.network_policy`, template. Bump `k8s.mdc` `1.33` → `1.34`.
+
+## [1.13.36] - 2026-05-18
+
+### Changed
+
+- `k8s` rule: **NetworkPolicy** обов'язковий не лише для **Deployment**, а й для **StatefulSet**, **DaemonSet**, **Job**, **CronJob** (`workloadAppLabel`, multi-doc `networkpolicy.yaml`, autofix/validate для всіх шарів `k8s`). HPA/PDB лишаються прив'язаними до Deployment. Bump `k8s.mdc` `1.32` → `1.33`.
+
+## [1.13.35] - 2026-05-18
+
+### Added
+
+- `k8s` rule: для кожного **Deployment** під `k8s` обов'язковий **NetworkPolicy** — у `components/networkpolicy.yaml` для base (разом із HPA/PDB) або `networkpolicy.yaml` поруч у не-base оверлеях. Rego-пакет `k8s.network_policy`, перевірка прив'язки за `metadata.name` / міткою `app` у JS. **`check k8s`** автоматично створює відсутній `networkpolicy.yaml` і додає його в `components/kustomization.yaml` (`resources`). Bump `k8s.mdc` `1.31` → `1.32`.
+
 ## [1.13.34] - 2026-05-18
 
 ### Changed
@@ -192,7 +220,7 @@
 
 - `ga.mdc` — 4 inline YAML-блоки повних workflow канонів замінено на markdown-посилання до `template/<workflow>.yml.snippet.yml`. Файл скоротився суттєво — канон тепер живе як data, а не як прозовий приклад.
 - `template/clean-merged-branch.yml.snippet.yml`: `dry_run: false` (явний bool) замість `dry_run: no` — `yaml` npm (YAML 1.2) лишає `no` рядком, а Go-yaml у conftest нормалізує до `false`; пишемо канонізовану форму під runtime conftest-парсингу.
-- `docs/adr/template-dir-concern-inventory.md` — додано 4 нові full-canon ga.* концерни з ✓; оновлено summary (89 концернів, 43 з template — мігровано 13/43 = 30%).
+- `docs/adr/template-dir-concern-inventory.md` — додано 4 нові full-canon ga.\* концерни з ✓; оновлено summary (89 концернів, 43 з template — мігровано 13/43 = 30%).
 
 ### TODO
 

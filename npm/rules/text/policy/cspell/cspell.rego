@@ -53,9 +53,9 @@ deny contains msg if {
 # ── deny: import substrings forbidden ────────────────────────────────────
 
 deny contains msg if {
-	some forbidden, reason in data.template.deny["import-substrings"]
 	imports := object.get(input, "import", [])
 	is_array(imports)
+	some forbidden, reason in data.template.deny["import-substrings"]
 	some imp in imports
 	is_string(imp)
 	contains(imp, forbidden)

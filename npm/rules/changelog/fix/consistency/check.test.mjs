@@ -52,10 +52,10 @@ function publishedStub(map) {
 }
 
 /**
- * @param {string} [dir]
- * @param {{ name?: string, version: string }} fields
+ * @param {{ name?: string, version: string }} fields поля pyproject
+ * @param {string} [dir] директорія
  */
-async function writePyproject(dir = '.', fields) {
+async function writePyproject(fields, dir = '.') {
   const lines = ['[project]']
   if (fields.name) {
     lines.push(`name = "${fields.name}"`)
@@ -165,11 +165,7 @@ describe('check-changelog (npm-published mode)', () => {
         version: '1.0.1',
         files: ['lib', 'CHANGELOG.md']
       })
-      await writeFile(
-        'CHANGELOG.md',
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
+      await writeFile('CHANGELOG.md', `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`, 'utf8')
       const code = await checkChangelog({ getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
       expect(code).toBe(0)
     })
@@ -383,7 +379,7 @@ describe('check-changelog (Python pyproject.toml)', () => {
   test('local-only: лише version без name, feature-гілка без bump → fail', async () => {
     await withTmpCwd(async () => {
       await git(['init', '-q', '-b', 'dev'])
-      await writePyproject('.', { version: '1.0.0' })
+      await writePyproject({ version: '1.0.0' })
       await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
       await writeFile('app.py', '#\n', 'utf8')
       await git(['add', '-A'])
@@ -397,26 +393,22 @@ describe('check-changelog (Python pyproject.toml)', () => {
   test('local-only: bump + CHANGELOG → pass', async () => {
     await withTmpCwd(async () => {
       await git(['init', '-q', '-b', 'dev'])
-      await writePyproject('.', { version: '1.0.0' })
+      await writePyproject({ version: '1.0.0' })
       await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
       await writeFile('app.py', '#\n', 'utf8')
       await git(['add', '-A'])
       await git(['commit', '-q', '-m', 'init'])
       await git(['checkout', '-q', '-b', 'feat/x'])
       await writeFile('app.py', 'print(1)\n', 'utf8')
-      await writePyproject('.', { version: '1.0.1' })
-      await writeFile(
-        'CHANGELOG.md',
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
+      await writePyproject({ version: '1.0.1' })
+      await writeFile('CHANGELOG.md', `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`, 'utf8')
       expect(await checkChangelog()).toBe(0)
     })
   })
 
   test('PyPI-published: version != реєстру + CHANGELOG → pass', async () => {
     await withTmpCwd(async () => {
-      await writePyproject('.', { name: 'my-lib', version: '2.0.1' })
+      await writePyproject({ name: 'my-lib', version: '2.0.1' })
       await writeFile('CHANGELOG.md', changelogWithVersion('2.0.1'), 'utf8')
       const code = await checkChangelog({ getPublishedVersion: publishedStub({ 'my-lib': '2.0.0' }) })
       expect(code).toBe(0)
@@ -425,7 +417,7 @@ describe('check-changelog (Python pyproject.toml)', () => {
 
   test('PyPI-published: version != реєстру без CHANGELOG → fail', async () => {
     await withTmpCwd(async () => {
-      await writePyproject('.', { name: 'my-lib', version: '2.0.1' })
+      await writePyproject({ name: 'my-lib', version: '2.0.1' })
       const code = await checkChangelog({ getPublishedVersion: publishedStub({ 'my-lib': '2.0.0' }) })
       expect(code).toBe(1)
     })
@@ -434,7 +426,7 @@ describe('check-changelog (Python pyproject.toml)', () => {
   test('python-only репо без package.json виявляється через pyproject.toml', async () => {
     await withTmpCwd(async () => {
       await git(['init', '-q', '-b', 'dev'])
-      await writePyproject('.', { version: '0.1.0' })
+      await writePyproject({ version: '0.1.0' })
       await writeFile('CHANGELOG.md', changelogWithVersion('0.1.0'), 'utf8')
       await git(['add', '-A'])
       await git(['commit', '-q', '-m', 'init'])

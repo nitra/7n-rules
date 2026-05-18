@@ -11,7 +11,8 @@ test_valid_jscpd if {
 		"exitCode": 1,
 		"reporters": ["console"],
 		"minLines": 25,
-	} with data.template as template_data
+	}
+		with data.template as template_data
 }
 
 test_invalid_jscpd if {
@@ -20,7 +21,8 @@ test_invalid_jscpd if {
 		"exitCode": 0,
 		"reporters": ["json"],
 		"minLines": 10,
-	} with data.template as template_data
+	}
+		with data.template as template_data
 }
 
 # Drift test.

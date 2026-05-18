@@ -1,15 +1,15 @@
 /**
  * Returns list of template/ files that are NOT referenced in <id>.mdc as
  * markdown link targets. Paths returned are relative to ruleDir.
- *
- * @param {string} ruleDir absolute path to npm/rules/<id>/
- * @param {string} ruleId basename (e.g. "security")
- * @returns {Promise<string[]>}
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
+/**
+ * @param {string} ruleDir абсолютний шлях до каталогу правила
+ * @returns {Promise<string[]>} абсолютні шляхи всіх файлів у template/
+ */
 async function walkTemplateDirs(ruleDir) {
   const out = []
   for (const kind of ['fix', 'policy']) {
@@ -18,13 +18,18 @@ async function walkTemplateDirs(ruleDir) {
     for (const concern of await readdir(kindDir)) {
       const tpl = join(kindDir, concern, 'template')
       if (!existsSync(tpl)) continue
-      if (!(await stat(tpl)).isDirectory()) continue
+      const tplStat = await stat(tpl)
+      if (!tplStat.isDirectory()) continue
       out.push(...(await collectFiles(tpl)))
     }
   }
   return out.map(p => relative(ruleDir, p))
 }
 
+/**
+ * @param {string} dir каталог для обходу
+ * @returns {Promise<string[]>} абсолютні шляхи знайдених файлів
+ */
 async function collectFiles(dir) {
   const out = []
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -35,6 +40,11 @@ async function collectFiles(dir) {
   return out
 }
 
+/**
+ * @param {string} ruleDir абсолютний шлях до npm/rules/<id>/
+ * @param {string} ruleId basename правила (напр. "security")
+ * @returns {Promise<string[]>} відносні шляхи template-файлів без посилань у .mdc
+ */
 export async function findMissingMdcRefs(ruleDir, ruleId) {
   const mdcPath = join(ruleDir, `${ruleId}.mdc`)
   if (!existsSync(mdcPath)) return []

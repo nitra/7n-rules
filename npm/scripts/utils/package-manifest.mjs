@@ -10,16 +10,24 @@ import { parse as parseToml } from 'smol-toml'
 
 import { getMonorepoPackageRootDirs } from './workspaces.mjs'
 
-/** @typedef {'npm' | 'python'} PackageKind */
-
 /**
+  @typedef {'npm' | 'python'} PackageKind
+ */
+
+/*
  * @typedef {object} PackageManifest
- * @property {PackageKind} kind
+
+ * @property {PackageKind} kind поле
  * @property {string} ws відносний шлях воркспейсу (`'.'` для кореня)
+
  * @property {string} manifestRel `package.json` | `pyproject.toml`
+
  * @property {string | null} name ім'я пакета (npm / PyPI)
+
  * @property {string | null} version semver-рядок
+
  * @property {boolean} registryPublishable чи застосовується режим порівняння з реєстром
+
  * @property {string[] | null} [npmFiles] лише npm: `files` з package.json
  */
 
@@ -27,7 +35,7 @@ const PYPROJECT_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**', '**/.venv/**'
 
 /**
  * @param {unknown} doc розпарсений pyproject.toml
- * @returns {{ name: string | null, version: string | null }}
+ * @returns {{ name: string | null, version: string | null }} витягнуті поля project / tool.poetry
  */
 function projectFieldsFromPyprojectDoc(doc) {
   if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
@@ -39,7 +47,7 @@ function projectFieldsFromPyprojectDoc(doc) {
     const p = /** @type {Record<string, unknown>} */ (project)
     return {
       name: typeof p.name === 'string' ? p.name : null,
-      version: typeof p.version === 'string' ? p.version : null,
+      version: typeof p.version === 'string' ? p.version : null
     }
   }
   const tool = root.tool
@@ -49,7 +57,7 @@ function projectFieldsFromPyprojectDoc(doc) {
       const po = /** @type {Record<string, unknown>} */ (poetry)
       return {
         name: typeof po.name === 'string' ? po.name : null,
-        version: typeof po.version === 'string' ? po.version : null,
+        version: typeof po.version === 'string' ? po.version : null
       }
     }
   }
@@ -58,7 +66,7 @@ function projectFieldsFromPyprojectDoc(doc) {
 
 /**
  * @param {string} text вміст pyproject.toml
- * @returns {{ name: string | null, version: string | null }}
+ * @returns {{ name: string | null, version: string | null }} витягнуті поля project / tool.poetry
  */
 export function parsePyprojectFields(text) {
   try {
@@ -70,7 +78,7 @@ export function parsePyprojectFields(text) {
 
 /**
  * @param {string} ws шлях воркспейсу
- * @returns {Promise<PackageManifest | null>}
+ * @returns {Promise<PackageManifest | null>} маніфест пакета або null
  */
 export async function readPackageManifest(ws) {
   const pkgPath = join(ws, 'package.json')
@@ -82,10 +90,7 @@ export async function readPackageManifest(ws) {
       }
       const pkg = /** @type {Record<string, unknown>} */ (parsed)
       const registryPublishable =
-        typeof pkg.name === 'string' &&
-        pkg.name.length > 0 &&
-        pkg.private !== true &&
-        Array.isArray(pkg.files)
+        typeof pkg.name === 'string' && pkg.name.length > 0 && pkg.private !== true && Array.isArray(pkg.files)
       return {
         kind: 'npm',
         ws,
@@ -93,7 +98,7 @@ export async function readPackageManifest(ws) {
         name: typeof pkg.name === 'string' ? pkg.name : null,
         version: typeof pkg.version === 'string' ? pkg.version : null,
         registryPublishable,
-        npmFiles: Array.isArray(pkg.files) ? pkg.files : null,
+        npmFiles: Array.isArray(pkg.files) ? pkg.files : null
       }
     } catch {
       return null
@@ -113,14 +118,14 @@ export async function readPackageManifest(ws) {
     name: fields.name,
     version: fields.version,
     registryPublishable,
-    npmFiles: null,
+    npmFiles: null
   }
 }
 
 /**
  * Каталоги пакетів: npm (`package.json` / workspaces) + Python (`pyproject.toml` без package.json).
- * @param {string} [repoRoot]
- * @returns {Promise<string[]>}
+ * @param {string} [repoRoot] параметр
+ * @returns {Promise<string[]>} результат
  */
 export async function getMonorepoProjectRootDirs(repoRoot = '.') {
   const roots = new Set(await getMonorepoPackageRootDirs(repoRoot))
@@ -149,9 +154,9 @@ export async function getMonorepoProjectRootDirs(repoRoot = '.') {
 
 /**
  * Шлях до файлу маніфесту воркспейсу.
- * @param {string} ws
- * @param {PackageManifest} manifest
- * @returns {string}
+ * @param {string} ws параметр
+ * @param {PackageManifest} manifest параметр
+ * @returns {string} результат
  */
 export function manifestFilePath(ws, manifest) {
   return join(ws, manifest.manifestRel)

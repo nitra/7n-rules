@@ -2,7 +2,7 @@
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"
 alwaysApply: false
-version: '1.9'
+version: '1.11'
 ---
 
 ## Область застосування
@@ -16,6 +16,46 @@ version: '1.9'
 - усі змінні оточення для frontend задаються через `VITE_*` і доступні як `import.meta.env.VITE_X` (типобезпечно через `vite-check-env`); режим — `import.meta.env.MODE` / `import.meta.env.PROD`.
 
 Тому **у frontend-пакетах не торкайся `process.env.*`** і **не додавай** `import { env } from 'node:process'`. Якщо натрапив на `process.env.NODE_ENV` у frontend-коді — заміна, якщо взагалі потрібна, лише на `import.meta.env.MODE`.
+
+## Runtime у `package.json#scripts`
+
+У **backend**-пакетах (без `vite` у `devDependencies`) код запускають через **Bun**, не через бінарник **`node`** у значеннях `scripts`:
+
+- `"start": "node src/index.js"` → `"start": "bun src/index.js"` (або `bun run …`, якщо так прийнято в репо);
+- `node --watch app.js` → `bun --watch app.js`;
+- `NODE_OPTIONS=… node app.js` → `NODE_OPTIONS=… bun app.js`.
+- `env $(cat .env .env.local) bun src/index.js` → `bun --env-file=.env --env-file=.env.local src/index.js` (нативне завантаження env у Bun, без `env`/`cat`).
+
+Заборонено викликати **`node`** у ланцюжках (`&&`, `;`, `|`). Заборонено обгортку **`env $(cat …) bun`** — файли з `cat` перелічуй у **`--env-file=`** (по одному прапорцю на файл, порядок як у `cat`). Допустимо: `bun`, `bunx`, `npx` (див. **bun.mdc**), інші CLI, якщо вони не підміняють рантайм на `node`.
+
+Це **не** стосується поля `engines.node` (мінімальна версія Node для сумісності інструментів) і **не** стосується frontend-пакетів з `vite` у `devDependencies`.
+
+Канон заборонених патернів у `scripts`: `package.json`:
+
+```json
+{
+  "dependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "devDependencies": {
+    "bunyan": "використовуй стандартні логери (js-run.mdc)",
+    "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
+  },
+  "scriptsForbidden": [
+    {
+      "id": "node-runner",
+      "pattern": "\\bnode(\\s|$)",
+      "message": "заміни `node` на `bun` у scripts — один runtime у dev і prod (js-run.mdc)"
+    },
+    {
+      "id": "env-cat-bun",
+      "pattern": "\\benv\\s+\\$\\(cat\\s+[^)]+\\)\\s+bun\\b",
+      "message": "заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B` (нативний Bun, js-run.mdc)"
+    }
+  ]
+}
+``` (`scriptsForbidden`).
 
 ## Структура проекту
 
@@ -77,7 +117,19 @@ readme.md
   "devDependencies": {
     "bunyan": "використовуй стандартні логери (js-run.mdc)",
     "@nitra/bunyan": "використовуй стандартні логери (js-run.mdc)"
-  }
+  },
+  "scriptsForbidden": [
+    {
+      "id": "node-runner",
+      "pattern": "\\bnode(\\s|$)",
+      "message": "заміни `node` на `bun` у scripts — один runtime у dev і prod (js-run.mdc)"
+    },
+    {
+      "id": "env-cat-bun",
+      "pattern": "\\benv\\s+\\$\\(cat\\s+[^)]+\\)\\s+bun\\b",
+      "message": "заміни `env $(cat A B) bun` на `bun --env-file=A --env-file=B` (нативний Bun, js-run.mdc)"
+    }
+  ]
 }
 ```
 

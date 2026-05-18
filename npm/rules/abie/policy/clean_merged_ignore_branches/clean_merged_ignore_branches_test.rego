@@ -43,8 +43,7 @@ test_allow_uppercase_with_spaces if {
 }
 
 test_allow_extra_branches if {
-	count(clean_merged_ignore_branches.deny) == 0
-		with input as mk_workflow({"ignore_branches": "dev,ua,main,release/*"})
+	count(clean_merged_ignore_branches.deny) == 0 with input as mk_workflow({"ignore_branches": "dev,ua,main,release/*"})
 		with data.template as template_data
 }
 
@@ -54,8 +53,7 @@ test_data_template_drives_required_branches if {
 		"uses": "phpdocker-io/github-actions-delete-abandoned-branches",
 		"with": {"ignore_branches": "release,ua"},
 	}]}}}}
-	some msg in clean_merged_ignore_branches.deny
-		with input as mk_workflow({"ignore_branches": "dev,ua"})
+	some msg in clean_merged_ignore_branches.deny with input as mk_workflow({"ignore_branches": "dev,ua"})
 		with data.template as drifted
 	contains(msg, "release")
 }

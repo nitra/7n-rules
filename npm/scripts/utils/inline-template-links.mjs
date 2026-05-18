@@ -2,10 +2,14 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 
-const TEMPLATE_LINK_RE = /\[([^\]]+)\]\((\.\/[^)]*\/template\/[^)]+)\)/g
+const MD_LINK_RE = /\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
+const TEMPLATE_SEGMENT_RE = /\/template\//
 const SLOTS = ['snippet', 'deny', 'contains']
 
-/** @param {string} filePath */
+/**
+ * @param {string} filePath шлях до файлу
+ * @returns {string} назва мови для fenced-блока
+ */
 function langFromExt(filePath) {
   const ext = extname(filePath)
   if (ext === '.json') return 'json'
@@ -16,10 +20,13 @@ function langFromExt(filePath) {
 
 // Strip `.<slot>.<ext>` suffix (slot ∈ snippet/deny/contains) to recover the
 // real target file name (e.g. `package.json.snippet.json` → `package.json`).
-/** @param {string} fileBasename */
+/**
+ * @param {string} fileBasename базове ім'я template-файлу
+ * @returns {string} ім'я реального target-файлу
+ */
 function normalizeTargetName(fileBasename) {
   for (const slot of SLOTS) {
-    const m = fileBasename.match(new RegExp(`^(.+)\\.${slot}\\.[^.]+$`))
+    const m = fileBasename.match(new RegExp(String.raw`^(.+)\.${slot}\.[^.]+$`))
     if (m) return m[1]
   }
   return fileBasename
@@ -29,19 +36,18 @@ function normalizeTargetName(fileBasename) {
  * Finds markdown links whose path contains /template/ and replaces them with
  * inline fenced blocks. Reads file from join(ruleDir, rel-path).
  * Throws Error if a matched link target doesn't exist (fail loud — user must know).
- *
  * @param {string} text .mdc file contents
  * @param {string} ruleDir absolute path to the rule directory (e.g. .../npm/rules/security/)
  * @returns {Promise<string>} transformed text
  */
 export async function inlineTemplateLinks(text, ruleDir) {
-  const matches = [...text.matchAll(TEMPLATE_LINK_RE)]
+  const matches = [...text.matchAll(MD_LINK_RE)].filter(m => TEMPLATE_SEGMENT_RE.test(m[2]))
   if (matches.length === 0) return text
 
   let result = text
   for (const match of matches) {
     const [fullMatch, , href] = match
-    // href starts with ./ and contains /template/ — already guaranteed by regex
+    // href starts with ./ (regex) and contains /template/ (filter above)
     const relPath = href.slice(2) // strip leading ./
     const absPath = join(ruleDir, relPath)
 
@@ -49,7 +55,8 @@ export async function inlineTemplateLinks(text, ruleDir) {
       throw new Error(`inlineTemplateLinks: file not found: ${absPath} (referenced from .mdc)`)
     }
 
-    const contents = (await readFile(absPath, 'utf8')).trim()
+    const raw = await readFile(absPath, 'utf8')
+    const contents = raw.trim()
     const lang = langFromExt(absPath)
     const targetName = normalizeTargetName(basename(absPath))
     const replacement = `\`${targetName}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``

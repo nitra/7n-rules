@@ -4,12 +4,20 @@ import { fileURLToPath } from 'node:url'
 
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 
-import { checkContains, checkDeny, checkSnippet, checkTextSubset, loadTemplate, resolveConcernTemplateData } from './template.mjs'
+import {
+  checkContains,
+  checkDeny,
+  checkSnippet,
+  checkTextSubset,
+  loadTemplate,
+  resolveConcernTemplateData
+} from './template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FIXTURES = join(HERE, '__fixtures__', 'template')
 
-const CANON_LINT_SECURITY = 'trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail'
+const CANON_LINT_SECURITY =
+  'trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail'
 
 describe('loadTemplate', () => {
   test('reads snippet/deny/contains from policy/<concern>/template/ for package.json target', async () => {
@@ -136,9 +144,7 @@ describe('checkDeny', () => {
   test('handles deeply nested forbidden paths', () => {
     const actual = { a: { b: { c: 1 } } }
     const deny = { a: { b: { c: 'кореневий c заборонений' } } }
-    expect(checkDeny(actual, deny, opts)).toEqual([
-      'package.json: a.b.c — кореневий c заборонений (security.mdc)'
-    ])
+    expect(checkDeny(actual, deny, opts)).toEqual(['package.json: a.b.c — кореневий c заборонений (security.mdc)'])
   })
 
   test('returns empty for null deny', () => {
@@ -166,10 +172,12 @@ describe('checkContains', () => {
   test('multiple substrings — reports each missing one', () => {
     const actual = { scripts: { lint: 'bun run lint-text' } }
     const contains = { scripts: { lint: ['bun run lint-security', 'oxfmt .'] } }
-    expect(checkContains(actual, contains, opts).sort()).toEqual([
-      'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)',
-      'package.json: scripts.lint має містити "oxfmt ." (security.mdc)'
-    ].sort())
+    expect(checkContains(actual, contains, opts).toSorted()).toEqual(
+      [
+        'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)',
+        'package.json: scripts.lint має містити "oxfmt ." (security.mdc)'
+      ].toSorted()
+    )
   })
 
   test('returns empty when actual leaf missing entirely (cannot check substring of nothing)', () => {
@@ -215,34 +223,30 @@ describe('checkTextSubset', () => {
 
 describe('resolveConcernTemplateData', () => {
   test('single target — picks template by basename', async () => {
-    const data = await resolveConcernTemplateData(
-      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
-      { files: { single: 'package.json' } }
-    )
+    const data = await resolveConcernTemplateData(join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'), {
+      files: { single: 'package.json' }
+    })
     expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('walkGlob string — picks by glob basename', async () => {
-    const data = await resolveConcernTemplateData(
-      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
-      { files: { walkGlob: '**/package.json' } }
-    )
+    const data = await resolveConcernTemplateData(join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'), {
+      files: { walkGlob: '**/package.json' }
+    })
     expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('walkGlob array — skips negative patterns and picks first matching template', async () => {
-    const data = await resolveConcernTemplateData(
-      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
-      { files: { walkGlob: ['!**/dist/**', '**/package.json'] } }
-    )
+    const data = await resolveConcernTemplateData(join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'), {
+      files: { walkGlob: ['!**/dist/**', '**/package.json'] }
+    })
     expect(data?.snippet?.scripts?.['lint-security']).toBe(CANON_LINT_SECURITY)
   })
 
   test('returns undefined when no template matches target basename', async () => {
-    const data = await resolveConcernTemplateData(
-      join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'),
-      { files: { single: 'unrelated.yml' } }
-    )
+    const data = await resolveConcernTemplateData(join(FIXTURES, 'security-pkgjson', 'policy', 'package_json'), {
+      files: { single: 'unrelated.yml' }
+    })
     expect(data).toBeUndefined()
   })
 })

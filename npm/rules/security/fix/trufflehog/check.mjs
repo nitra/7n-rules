@@ -17,6 +17,9 @@ import { checkTextSubset } from '../../../../scripts/utils/template.mjs'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const SNIPPET_PATH = join(HERE, 'template', '.trufflehog-exclude.snippet.txt')
 
+/**
+ * @returns {Promise<number>} exit-код перевірки
+ */
 export async function check() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter

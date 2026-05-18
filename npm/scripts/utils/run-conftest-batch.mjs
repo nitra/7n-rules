@@ -22,7 +22,9 @@ import { fileURLToPath } from 'node:url'
 
 import { resolveCmd } from './resolve-cmd.mjs'
 
-/** Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил. */
+/**
+  Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил.
+ */
 const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
 /** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. Кожне правило: `rules/<id>/policy/<name>/`. */
@@ -45,19 +47,27 @@ function failConftestMissing() {
   )
 }
 
-/**
+/*
  * @typedef {object} ConftestViolation
+
  * @property {string} filename абсолютний шлях до файла, що дав порушення (з output conftest)
+
  * @property {string} message текст порушення (як у `deny` rego-пакета)
+
  * @property {string} namespace namespace rego-пакета (наприклад `abie.base_deployment_preem`)
  */
 
-/**
+/*
  * @typedef {object} ConftestBatchOptions
+
  * @property {string} policyDirRel шлях до підкаталогу `npm/policy/...` (наприклад `abie/base_deployment_preem`)
+
  * @property {string} namespace повне імʼя rego-пакета (наприклад `abie.base_deployment_preem`)
+
  * @property {string[]} files список абсолютних шляхів файлів для перевірки (порожній — повертаємо порожньо)
+
  * @property {string[]} [extraArgs] додаткові аргументи для conftest (наприклад `--combine` для крос-документних правил)
+
  * @property {object} [templateData] опціональне merged-дерево; серіалізується у JSON `{ "template": <data> }` і передається як `--data <tmpfile>` (cleanup після завершення)
  */
 
@@ -65,18 +75,11 @@ function failConftestMissing() {
  * Pure args builder for conftest test. Extracted for unit-testability.
  * Preserves the existing args layout (files before -p; --output json --no-color
  * for parseable output); inserts --data right after --namespace when provided.
- * @param {{ policyAbs: string, namespace: string, files: string[], extraArgs: string[], tmpDataFile: string|null }} p
- * @returns {string[]}
+ * @param {{ policyAbs: string, namespace: string, files: string[], extraArgs: string[], tmpDataFile: string|null }} p параметри батчу
+ * @returns {string[]} args для виклику conftest
  */
 export function buildConftestArgs(p) {
-  const args = [
-    'test',
-    ...p.files,
-    '-p',
-    p.policyAbs,
-    '--namespace',
-    p.namespace
-  ]
+  const args = ['test', ...p.files, '-p', p.policyAbs, '--namespace', p.namespace]
   if (p.tmpDataFile) args.push('--data', p.tmpDataFile)
   args.push('--output', 'json', '--no-color', ...p.extraArgs)
   return args
@@ -125,14 +128,18 @@ export function runConftestBatch(opts) {
     if (result.status !== 0 && result.status !== 1) {
       throw new Error(`conftest exit ${result.status}: ${(result.stderr || result.stdout || '').slice(0, 500)}`)
     }
-    /** @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>} */
+    /**
+  @type {Array<{ filename: string, namespace: string, failures?: Array<{ msg: string }> }>}
+     */
     let parsed
     try {
       parsed = JSON.parse(result.stdout)
     } catch {
       throw new Error(`conftest stdout не парситься як JSON: ${(result.stdout || '').slice(0, 200)}`)
     }
-    /** @type {ConftestViolation[]} */
+    /**
+  @type {ConftestViolation[]}
+     */
     const out = []
     for (const entry of parsed) {
       const failures = entry.failures ?? []

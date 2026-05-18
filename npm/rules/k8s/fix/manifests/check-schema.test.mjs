@@ -13,7 +13,12 @@ import {
   deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
   deploymentTopologySpreadConstraintsViolation,
+  buildNetworkPolicyYaml,
+  ensureResourceInKustomizationYaml,
+  workloadAppLabel,
+  WORKLOAD_KINDS_WITH_NETWORK_POLICY,
   expectedSchemaUrl,
+  networkPolicyManifestViolations,
   hasuraConfigMapRemoteSchemaPermissionsViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
@@ -1821,10 +1826,49 @@ spec:
     matchLabels:
       app: ap
 `
+    const np = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ap
+spec:
+  podSelector:
+    matchLabels:
+      app: ap
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+`
     const componentsK = `apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
   - hpa.yaml
+  - networkpolicy.yaml
   - pdb.yaml
 `
     const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -1843,6 +1887,7 @@ components:
 `
 
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     await writeFile(join(componentsDir, 'kustomization.yaml'), componentsK, 'utf8')
     await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
@@ -2038,6 +2083,7 @@ resources:
 kind: Component
 resources:
   - hpa.yaml
+  - networkpolicy.yaml
   - pdb.yaml
 `
     const pdb = `apiVersion: policy/v1
@@ -2050,14 +2096,53 @@ spec:
     matchLabels:
       app: ap
 `
+    const np = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ap
+spec:
+  podSelector:
+    matchLabels:
+      app: ap
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+`
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
+    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
     expect(c.fails.some(m => m.includes('hpa.yaml') && m.includes('відсутній'))).toBe(true)
   })
 
-  test('pass для канонічного components/ з hpa.yaml і pdb.yaml', async () => {
+  test('pass для канонічного components/ з hpa.yaml, networkpolicy.yaml і pdb.yaml', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-comp-ok-'))
     const baseDir = join(root, 'k8s', 'base')
     const componentsDir = join(root, 'k8s', 'components')
@@ -2067,6 +2152,7 @@ spec:
 kind: Component
 resources:
   - hpa.yaml
+  - networkpolicy.yaml
   - pdb.yaml
 `
     const hpa = `apiVersion: autoscaling/v2
@@ -2099,6 +2185,44 @@ spec:
           value: 10
           periodSeconds: 15
 `
+    const np = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ap
+spec:
+  podSelector:
+    matchLabels:
+      app: ap
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+`
     const pdb = `apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -2111,6 +2235,7 @@ spec:
 `
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
@@ -2128,7 +2253,46 @@ spec:
 kind: Component
 resources:
   - hpa.yaml
+  - networkpolicy.yaml
   - pdb.yaml
+`
+    const np = `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ap
+spec:
+  podSelector:
+    matchLabels:
+      app: ap
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
 `
     const hpa = `apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -2161,9 +2325,106 @@ spec:
 `
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
+    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
     expect(c.fails.some(m => m.includes('hpa.yaml'))).toBe(true)
+  })
+})
+
+describe('NetworkPolicy helpers', () => {
+  test('WORKLOAD_KINDS_WITH_NETWORK_POLICY містить пʼять workload-типів', () => {
+    expect([...WORKLOAD_KINDS_WITH_NETWORK_POLICY]).toEqual([
+      'Deployment',
+      'StatefulSet',
+      'DaemonSet',
+      'Job',
+      'CronJob'
+    ])
+  })
+
+  test('workloadAppLabel для StatefulSet і CronJob', () => {
+    expect(
+      workloadAppLabel({
+        kind: 'StatefulSet',
+        spec: { selector: { matchLabels: { app: 'cache' } } }
+      })
+    ).toBe('cache')
+    expect(
+      workloadAppLabel({
+        kind: 'CronJob',
+        spec: {
+          jobTemplate: {
+            spec: { selector: { matchLabels: { app: 'cron' } } }
+          }
+        }
+      })
+    ).toBe('cron')
+  })
+
+  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress', () => {
+    const yaml = buildNetworkPolicyYaml('api', 'api')
+    expect(yaml).toContain('name: api')
+    expect(yaml).toContain('app: api')
+    expect(yaml).toContain('kind: NetworkPolicy')
+    expect(yaml).toContain('cidr: 0.0.0.0/0')
+    expect(yaml).toContain('port: 80')
+    expect(yaml).toContain('port: 443')
+    expect(yaml).toContain('namespaceSelector: {}')
+    expect(yaml).not.toContain('egress:\n    - {}')
+  })
+
+  test('networkPolicyManifestViolations порожній для канонічного документа', () => {
+    const doc = {
+      apiVersion: 'networking.k8s.io/v1',
+      kind: 'NetworkPolicy',
+      metadata: { name: 'api' },
+      spec: {
+        podSelector: { matchLabels: { app: 'api' } },
+        policyTypes: ['Ingress', 'Egress'],
+        ingress: [{ from: [{ podSelector: {} }] }],
+        egress: [
+          {
+            to: [
+              {
+                namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': 'kube-system' } },
+                podSelector: { matchLabels: { 'k8s-app': 'kube-dns' } }
+              }
+            ],
+            ports: [
+              { protocol: 'UDP', port: 53 },
+              { protocol: 'TCP', port: 53 }
+            ]
+          },
+          {
+            to: [{ ipBlock: { cidr: '0.0.0.0/0' } }],
+            ports: [
+              { protocol: 'TCP', port: 80 },
+              { protocol: 'TCP', port: 443 }
+            ]
+          },
+          { to: [{ namespaceSelector: {} }] }
+        ]
+      }
+    }
+    expect(networkPolicyManifestViolations(doc, 'api', 'api')).toEqual([])
+  })
+
+  test('ensureResourceInKustomizationYaml додає networkpolicy.yaml і сортує resources', () => {
+    const raw = `apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - pdb.yaml
+  - hpa.yaml
+`
+    const { changed, content } = ensureResourceInKustomizationYaml(raw, 'networkpolicy.yaml')
+    expect(changed).toBe(true)
+    expect(content).toContain('networkpolicy.yaml')
+    const idxHpa = content.indexOf('hpa.yaml')
+    const idxNp = content.indexOf('networkpolicy.yaml')
+    const idxPdb = content.indexOf('pdb.yaml')
+    expect(idxHpa).toBeLessThan(idxNp)
+    expect(idxNp).toBeLessThan(idxPdb)
   })
 })

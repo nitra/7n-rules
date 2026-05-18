@@ -16,9 +16,7 @@ describe('findMissingMdcRefs', () => {
   test('returns missing template files', async () => {
     const ruleDir = join(FIXTURES, 'missing-ref')
     const missing = await findMissingMdcRefs(ruleDir, 'missing-ref')
-    expect(missing).toEqual([
-      'policy/bar/template/.gitleaks.toml.snippet.toml'
-    ])
+    expect(missing).toEqual(['policy/bar/template/.gitleaks.toml.snippet.toml'])
   })
 
   test('returns empty for rule without template/ dirs', async () => {

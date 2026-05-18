@@ -44,7 +44,7 @@ describe('findK8sRoots', () => {
   })
 
   test('повертає [], коли .kubescape-exceptions.json відсутній', async () => {
-    await withTmpCwd(async root => {
+    await withTmpCwd(root => {
       expect(buildKubescapeExceptionsArgs(root)).toEqual([])
     })
   })

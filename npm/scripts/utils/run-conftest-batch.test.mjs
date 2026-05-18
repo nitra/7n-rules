@@ -11,17 +11,7 @@ describe('buildConftestArgs', () => {
       extraArgs: [],
       tmpDataFile: null
     })
-    expect(args).toEqual([
-      'test',
-      '/a.json',
-      '-p',
-      '/p',
-      '--namespace',
-      'demo.demo',
-      '--output',
-      'json',
-      '--no-color'
-    ])
+    expect(args).toEqual(['test', '/a.json', '-p', '/p', '--namespace', 'demo.demo', '--output', 'json', '--no-color'])
   })
 
   test('inserts --data <tmpfile> when tmpDataFile provided', () => {
@@ -30,7 +20,7 @@ describe('buildConftestArgs', () => {
       namespace: 'demo.demo',
       files: ['/a.json'],
       extraArgs: [],
-      tmpDataFile: '/tmp/data.json'
+      tmpDataFile: '/test-tmp/data.json'
     })
     expect(args).toEqual([
       'test',
@@ -40,7 +30,7 @@ describe('buildConftestArgs', () => {
       '--namespace',
       'demo.demo',
       '--data',
-      '/tmp/data.json',
+      '/test-tmp/data.json',
       '--output',
       'json',
       '--no-color'

@@ -6,15 +6,13 @@ import rego.v1
 template_data := {"snippet": {"recommendations": ["dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode"]}}
 
 test_valid_extensions if {
-	count(vscode_extensions.deny) == 0 with input as {"recommendations": [
-		"dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode", "Vue.volar",
-	]} with data.template as template_data
+	count(vscode_extensions.deny) == 0 with input as {"recommendations": ["dbaeumer.vscode-eslint", "github.vscode-github-actions", "oxc.oxc-vscode", "Vue.volar"]}
+		with data.template as template_data
 }
 
 test_missing_extension if {
-	count(vscode_extensions.deny) > 0 with input as {"recommendations": [
-		"dbaeumer.vscode-eslint", "oxc.oxc-vscode",
-	]} with data.template as template_data
+	count(vscode_extensions.deny) > 0 with input as {"recommendations": ["dbaeumer.vscode-eslint", "oxc.oxc-vscode"]}
+		with data.template as template_data
 }
 
 # Drift test.

@@ -16,7 +16,7 @@ describe('run-dotenv-linter.mjs', () => {
       expect(true).toBe(true)
       return
     }
-    await withTmpCwd(async () => {
+    await withTmpCwd(() => {
       expect(runDotenvLinter(process.cwd())).toBe(0)
     })
   })

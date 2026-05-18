@@ -16,33 +16,33 @@
 
 ### New files
 
-| Path | Responsibility |
-|---|---|
-| `npm/scripts/utils/template.mjs` | `loadTemplate(concernDir)` + `checkSnippet/Deny/Contains` + `checkTextSubset` |
-| `npm/scripts/utils/template.test.mjs` | Unit tests for template loader and check fns |
-| `npm/scripts/utils/__fixtures__/template/<scenario>/` | Fixture trees for template tests |
-| `npm/scripts/utils/check-mdc-template-refs.mjs` | Central check: every `template/<file>` referenced from rule's `<id>.mdc` |
-| `npm/scripts/utils/check-mdc-template-refs.test.mjs` | Unit tests |
-| `npm/rules/security/policy/package_json/template/package.json.snippet.json` | Required scripts (lint-security) |
-| `npm/rules/security/policy/package_json/template/package.json.deny.json` | Forbidden gitleaks in deps |
-| `npm/rules/security/policy/package_json/template/package.json.contains.json` | `lint` must contain `bun run lint-security` |
-| `npm/rules/security/fix/gitleaks/template/.gitleaks.toml.snippet.toml` | Full canon for `.gitleaks.toml` |
-| `docs/adr/template-dir-concern-inventory.md` | Phase 0 deliverable — classification of all concerns |
+| Path                                                                         | Responsibility                                                                |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `npm/scripts/utils/template.mjs`                                             | `loadTemplate(concernDir)` + `checkSnippet/Deny/Contains` + `checkTextSubset` |
+| `npm/scripts/utils/template.test.mjs`                                        | Unit tests for template loader and check fns                                  |
+| `npm/scripts/utils/__fixtures__/template/<scenario>/`                        | Fixture trees for template tests                                              |
+| `npm/scripts/utils/check-mdc-template-refs.mjs`                              | Central check: every `template/<file>` referenced from rule's `<id>.mdc`      |
+| `npm/scripts/utils/check-mdc-template-refs.test.mjs`                         | Unit tests                                                                    |
+| `npm/rules/security/policy/package_json/template/package.json.snippet.json`  | Required scripts (lint-security)                                              |
+| `npm/rules/security/policy/package_json/template/package.json.deny.json`     | Forbidden gitleaks in deps                                                    |
+| `npm/rules/security/policy/package_json/template/package.json.contains.json` | `lint` must contain `bun run lint-security`                                   |
+| `npm/rules/security/fix/gitleaks/template/.gitleaks.toml.snippet.toml`       | Full canon for `.gitleaks.toml`                                               |
+| `docs/adr/template-dir-concern-inventory.md`                                 | Phase 0 deliverable — classification of all concerns                          |
 
 ### Modified files
 
-| Path | Change |
-|---|---|
-| `npm/package.json` | Add `smol-toml` to `dependencies` |
-| `npm/scripts/utils/run-conftest-batch.mjs` | Accept optional `templateData`, write to tmpfile, pass `--data` |
-| `npm/scripts/utils/run-conftest-batch.test.mjs` | Cover new templateData path |
-| `npm/rules/security/policy/package_json/package_json.rego` | Read canon from `data.template.*` |
-| `npm/rules/security/policy/package_json/package_json_test.rego` | Mock `data.template.*` via `with` |
-| `npm/rules/security/fix/gitleaks/check.mjs` | Call `loadTemplate` + `checkSnippet` instead of hardcoded regex |
-| `npm/rules/security/fix/gitleaks/check.test.mjs` | Adapt to new `check({ template })` signature |
-| `npm/rules/security/security.mdc` | Replace inline canon blocks with markdown links to `template/` |
-| `npm/CHANGELOG.md` | Entry for new template infrastructure + security pilot |
-| `npm/package.json` (version) | Bump (per `npm/CLAUDE.md`) |
+| Path                                                            | Change                                                          |
+| --------------------------------------------------------------- | --------------------------------------------------------------- |
+| `npm/package.json`                                              | Add `smol-toml` to `dependencies`                               |
+| `npm/scripts/utils/run-conftest-batch.mjs`                      | Accept optional `templateData`, write to tmpfile, pass `--data` |
+| `npm/scripts/utils/run-conftest-batch.test.mjs`                 | Cover new templateData path                                     |
+| `npm/rules/security/policy/package_json/package_json.rego`      | Read canon from `data.template.*`                               |
+| `npm/rules/security/policy/package_json/package_json_test.rego` | Mock `data.template.*` via `with`                               |
+| `npm/rules/security/fix/gitleaks/check.mjs`                     | Call `loadTemplate` + `checkSnippet` instead of hardcoded regex |
+| `npm/rules/security/fix/gitleaks/check.test.mjs`                | Adapt to new `check({ template })` signature                    |
+| `npm/rules/security/security.mdc`                               | Replace inline canon blocks with markdown links to `template/`  |
+| `npm/CHANGELOG.md`                                              | Entry for new template infrastructure + security pilot          |
+| `npm/package.json` (version)                                    | Bump (per `npm/CLAUDE.md`)                                      |
 
 ---
 
@@ -51,6 +51,7 @@
 ### Task 1: Add smol-toml dependency
 
 **Files:**
+
 - Modify: `npm/package.json` (`dependencies` section)
 
 - [ ] **Step 1: Add smol-toml**
@@ -75,11 +76,13 @@ git commit -m "deps(npm): add smol-toml for template TOML parsing"
 ### Task 2: Concern inventory (Phase 0 deliverable)
 
 **Files:**
+
 - Create: `docs/adr/template-dir-concern-inventory.md`
 
 - [ ] **Step 1: Enumerate every concern**
 
 Run:
+
 ```bash
 find npm/rules -name target.json | while read f; do
   rule=$(echo "$f" | cut -d/ -f3)
@@ -89,6 +92,7 @@ find npm/rules -name target.json | while read f; do
   echo "$rule|$kind|$concern|$files"
 done | sort | column -t -s '|'
 ```
+
 Save output for the next step.
 
 - [ ] **Step 2: Write inventory ADR**
@@ -107,6 +111,7 @@ git commit -m "docs(adr): concern inventory for template-dir migration (Phase 0)
 ### Task 3: template.mjs — `loadTemplate` (TDD)
 
 **Files:**
+
 - Create: `npm/scripts/utils/template.mjs`
 - Create: `npm/scripts/utils/template.test.mjs`
 - Create: `npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.snippet.json`
@@ -117,11 +122,13 @@ git commit -m "docs(adr): concern inventory for template-dir migration (Phase 0)
 - [ ] **Step 1: Create fixture files**
 
 `npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.snippet.json`:
+
 ```json
 { "scripts": { "lint-security": "gitleaks detect --no-banner" } }
 ```
 
 `npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.deny.json`:
+
 ```json
 {
   "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
@@ -130,6 +137,7 @@ git commit -m "docs(adr): concern inventory for template-dir migration (Phase 0)
 ```
 
 `npm/scripts/utils/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.contains.json`:
+
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
@@ -139,6 +147,7 @@ git commit -m "docs(adr): concern inventory for template-dir migration (Phase 0)
 - [ ] **Step 2: Write failing test for loadTemplate**
 
 Create `npm/scripts/utils/template.test.mjs`:
+
 ```js
 import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
@@ -181,6 +190,7 @@ Expected: FAIL with "Cannot find module './template.mjs'" or similar.
 - [ ] **Step 4: Implement loadTemplate (minimum to pass)**
 
 Create `npm/scripts/utils/template.mjs`:
+
 ```js
 /**
  * Reads template/ for a concern directory and returns a merged structure indexed
@@ -250,7 +260,8 @@ export async function loadTemplate(concernDir) {
     const { target, slot } = classifyTemplateFile(rel)
     if (!result[target]) result[target] = {}
     const value = await parseByExt(join(tplDir, rel))
-    if (slot === null) result[target].snippet = value // text-only treated as snippet
+    if (slot === null)
+      result[target].snippet = value // text-only treated as snippet
     else result[target][slot] = value
   }
   return result
@@ -274,12 +285,14 @@ git commit -m "feat(npm): loadTemplate util reads <target>.<slot>.<ext> from con
 ### Task 4: template.mjs — `checkSnippet` (TDD)
 
 **Files:**
+
 - Modify: `npm/scripts/utils/template.mjs` (add export)
 - Modify: `npm/scripts/utils/template.test.mjs` (add tests)
 
 - [ ] **Step 1: Add failing tests for checkSnippet**
 
 Append to `npm/scripts/utils/template.test.mjs`:
+
 ```js
 import { checkSnippet } from './template.mjs'
 
@@ -337,6 +350,7 @@ Expected: 6 new tests fail with "checkSnippet is not a function".
 - [ ] **Step 3: Implement checkSnippet**
 
 Append to `npm/scripts/utils/template.mjs`:
+
 ```js
 function formatPath(parts) {
   return parts
@@ -405,12 +419,14 @@ git commit -m "feat(npm): template.checkSnippet (subset-of for objects, contains
 ### Task 5: template.mjs — `checkDeny` (TDD)
 
 **Files:**
+
 - Modify: `npm/scripts/utils/template.mjs`
 - Modify: `npm/scripts/utils/template.test.mjs`
 
 - [ ] **Step 1: Add failing tests**
 
 Append to `npm/scripts/utils/template.test.mjs`:
+
 ```js
 import { checkDeny } from './template.mjs'
 
@@ -434,9 +450,7 @@ describe('checkDeny', () => {
   test('handles deeply nested forbidden paths', () => {
     const actual = { a: { b: { c: 1 } } }
     const deny = { a: { b: { c: 'кореневий c заборонений' } } }
-    expect(checkDeny(actual, deny, opts)).toEqual([
-      'package.json: a.b.c — кореневий c заборонений (security.mdc)'
-    ])
+    expect(checkDeny(actual, deny, opts)).toEqual(['package.json: a.b.c — кореневий c заборонений (security.mdc)'])
   })
 
   test('returns empty for null deny', () => {
@@ -453,6 +467,7 @@ Expected: 4 new tests fail with "checkDeny is not a function".
 - [ ] **Step 3: Implement checkDeny**
 
 Append to `npm/scripts/utils/template.mjs`:
+
 ```js
 /**
  * Walks deny tree; for any leaf path that exists in actual, returns violation
@@ -495,12 +510,14 @@ git commit -m "feat(npm): template.checkDeny (path-presence fails with template-
 ### Task 6: template.mjs — `checkContains` (TDD)
 
 **Files:**
+
 - Modify: `npm/scripts/utils/template.mjs`
 - Modify: `npm/scripts/utils/template.test.mjs`
 
 - [ ] **Step 1: Add failing tests**
 
 Append to `npm/scripts/utils/template.test.mjs`:
+
 ```js
 import { checkContains } from './template.mjs'
 
@@ -524,10 +541,12 @@ describe('checkContains', () => {
   test('multiple substrings — reports each missing one', () => {
     const actual = { scripts: { lint: 'bun run lint-text' } }
     const contains = { scripts: { lint: ['bun run lint-security', 'oxfmt .'] } }
-    expect(checkContains(actual, contains, opts).sort()).toEqual([
-      'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)',
-      'package.json: scripts.lint має містити "oxfmt ." (security.mdc)'
-    ].sort())
+    expect(checkContains(actual, contains, opts).sort()).toEqual(
+      [
+        'package.json: scripts.lint має містити "bun run lint-security" (security.mdc)',
+        'package.json: scripts.lint має містити "oxfmt ." (security.mdc)'
+      ].sort()
+    )
   })
 
   test('returns empty when actual leaf missing entirely (cannot check substring of nothing)', () => {
@@ -552,6 +571,7 @@ Expected: 5 new tests fail with "checkContains is not a function".
 - [ ] **Step 3: Implement checkContains**
 
 Append to `npm/scripts/utils/template.mjs`:
+
 ```js
 /**
  * For each leaf path that has an array of strings in `contains`, every string
@@ -599,12 +619,14 @@ git commit -m "feat(npm): template.checkContains (substring presence in string l
 ### Task 7: template.mjs — `checkTextSubset` for text-only targets (TDD)
 
 **Files:**
+
 - Modify: `npm/scripts/utils/template.mjs`
 - Modify: `npm/scripts/utils/template.test.mjs`
 
 - [ ] **Step 1: Add failing tests**
 
 Append to `npm/scripts/utils/template.test.mjs`:
+
 ```js
 import { checkTextSubset } from './template.mjs'
 
@@ -645,6 +667,7 @@ Expected: 4 new tests fail with "checkTextSubset is not a function".
 - [ ] **Step 3: Implement checkTextSubset**
 
 Append to `npm/scripts/utils/template.mjs`:
+
 ```js
 /**
  * For text-only targets (e.g. .stylelintignore): every non-empty, non-comment
@@ -653,7 +676,11 @@ Append to `npm/scripts/utils/template.mjs`:
 export function checkTextSubset(actual, template, opts) {
   if (template == null) return []
   const { targetPath, source } = opts
-  const actualLines = new Set(String(actual ?? '').split(/\r?\n/).map(l => l.trim()))
+  const actualLines = new Set(
+    String(actual ?? '')
+      .split(/\r?\n/)
+      .map(l => l.trim())
+  )
   const out = []
   for (const raw of String(template).split(/\r?\n/)) {
     const line = raw.trim()
@@ -683,6 +710,7 @@ git commit -m "feat(npm): template.checkTextSubset for text-only targets"
 ### Task 8: `run-conftest-batch.mjs` — add `templateData` (TDD)
 
 **Files:**
+
 - Modify: `npm/scripts/utils/run-conftest-batch.mjs`
 - Modify: `npm/scripts/utils/run-conftest-batch.test.mjs`
 
@@ -691,6 +719,7 @@ This task extracts pure args-building into a testable helper, then uses it in `r
 - [ ] **Step 1: Add failing test for `buildConftestArgs` helper**
 
 Append to `npm/scripts/utils/run-conftest-batch.test.mjs`:
+
 ```js
 import { describe, expect, test } from 'bun:test'
 
@@ -705,12 +734,7 @@ describe('buildConftestArgs', () => {
       extraArgs: [],
       tmpDataFile: null
     })
-    expect(args).toEqual([
-      'test',
-      '--policy', '/p',
-      '--namespace', 'demo.demo',
-      '/a.json'
-    ])
+    expect(args).toEqual(['test', '--policy', '/p', '--namespace', 'demo.demo', '/a.json'])
   })
 
   test('inserts --data <tmpfile> when tmpDataFile provided', () => {
@@ -721,13 +745,7 @@ describe('buildConftestArgs', () => {
       extraArgs: [],
       tmpDataFile: '/tmp/data.json'
     })
-    expect(args).toEqual([
-      'test',
-      '--data', '/tmp/data.json',
-      '--policy', '/p',
-      '--namespace', 'demo.demo',
-      '/a.json'
-    ])
+    expect(args).toEqual(['test', '--data', '/tmp/data.json', '--policy', '/p', '--namespace', 'demo.demo', '/a.json'])
   })
 
   test('appends extraArgs after files', () => {
@@ -738,13 +756,7 @@ describe('buildConftestArgs', () => {
       extraArgs: ['--combine'],
       tmpDataFile: null
     })
-    expect(args).toEqual([
-      'test',
-      '--policy', '/p',
-      '--namespace', 'demo.demo',
-      '/a.json', '/b.json',
-      '--combine'
-    ])
+    expect(args).toEqual(['test', '--policy', '/p', '--namespace', 'demo.demo', '/a.json', '/b.json', '--combine'])
   })
 })
 ```
@@ -759,13 +771,16 @@ Expected: 3 new tests fail — `buildConftestArgs is not a function`.
 Edit `npm/scripts/utils/run-conftest-batch.mjs`.
 
 (a) Add imports near top (after existing imports):
+
 ```js
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 ```
+
 Check existing import list and add only the missing names; keep one consolidated `node:fs` import.
 
 (b) Update the JSDoc typedef block (replace the existing `@typedef ConftestBatchOptions`):
+
 ```js
 /**
  * @typedef {object} ConftestBatchOptions
@@ -778,6 +793,7 @@ Check existing import list and add only the missing names; keep one consolidated
 ```
 
 (c) Export the pure helper. Add new export above `runConftestBatch`:
+
 ```js
 /**
  * Pure args builder — extracted for unit-testability.
@@ -793,6 +809,7 @@ export function buildConftestArgs(p) {
 ```
 
 (d) Refactor `runConftestBatch` body to use `buildConftestArgs` and write/cleanup tmpfile. Replace the existing args-construction + `spawnSync` block with:
+
 ```js
 let tmpDataDir = null
 let tmpDataFile = null
@@ -816,6 +833,7 @@ try {
   if (tmpDataDir) rmSync(tmpDataDir, { recursive: true, force: true })
 }
 ```
+
 (Preserve the existing stdout parsing — only the args composition and tmpfile lifecycle change.)
 
 - [ ] **Step 4: Run tests, see them pass**
@@ -835,6 +853,7 @@ git commit -m "feat(npm): runConftestBatch accepts templateData; extract buildCo
 ### Task 9: `check-mdc-template-refs.mjs` (TDD)
 
 **Files:**
+
 - Create: `npm/scripts/utils/check-mdc-template-refs.mjs`
 - Create: `npm/scripts/utils/check-mdc-template-refs.test.mjs`
 - Create: `npm/scripts/utils/__fixtures__/mdc-refs/with-refs/<id>.mdc`
@@ -845,27 +864,31 @@ git commit -m "feat(npm): runConftestBatch accepts templateData; extract buildCo
 - [ ] **Step 1: Create fixtures**
 
 `__fixtures__/mdc-refs/with-refs/with-refs.mdc`:
+
 ```markdown
 ---
 description: test fixture
-globs: "**"
+globs: '**'
 alwaysApply: false
 ---
 
 Канон фрагментів:
+
 - [package.json.snippet.json](./fix/foo/template/package.json.snippet.json)
 ```
 
 `__fixtures__/mdc-refs/with-refs/fix/foo/template/package.json.snippet.json`:
+
 ```json
 {}
 ```
 
 `__fixtures__/mdc-refs/missing-ref/missing-ref.mdc`:
+
 ```markdown
 ---
 description: test fixture
-globs: "**"
+globs: '**'
 alwaysApply: false
 ---
 
@@ -873,6 +896,7 @@ alwaysApply: false
 ```
 
 `__fixtures__/mdc-refs/missing-ref/policy/bar/template/.gitleaks.toml.snippet.toml`:
+
 ```toml
 title = "demo"
 ```
@@ -880,6 +904,7 @@ title = "demo"
 - [ ] **Step 2: Add failing test**
 
 Create `npm/scripts/utils/check-mdc-template-refs.test.mjs`:
+
 ```js
 import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
@@ -899,9 +924,7 @@ describe('findMissingMdcRefs', () => {
   test('returns missing template files', async () => {
     const ruleDir = join(FIXTURES, 'missing-ref')
     const missing = await findMissingMdcRefs(ruleDir, 'missing-ref')
-    expect(missing).toEqual([
-      'policy/bar/template/.gitleaks.toml.snippet.toml'
-    ])
+    expect(missing).toEqual(['policy/bar/template/.gitleaks.toml.snippet.toml'])
   })
 
   test('returns empty for rule without template/ dirs', async () => {
@@ -920,6 +943,7 @@ Expected: FAIL — module not found.
 - [ ] **Step 4: Implement**
 
 Create `npm/scripts/utils/check-mdc-template-refs.mjs`:
+
 ```js
 /**
  * Returns list of template/ files that are NOT referenced in <id>.mdc as
@@ -987,6 +1011,7 @@ git commit -m "feat(npm): findMissingMdcRefs — central check that template/ fi
 ### Task 10: Pilot — create security template files
 
 **Files:**
+
 - Create: `npm/rules/security/policy/package_json/template/package.json.snippet.json`
 - Create: `npm/rules/security/policy/package_json/template/package.json.deny.json`
 - Create: `npm/rules/security/policy/package_json/template/package.json.contains.json`
@@ -995,11 +1020,13 @@ git commit -m "feat(npm): findMissingMdcRefs — central check that template/ fi
 - [ ] **Step 1: Create policy template files**
 
 `npm/rules/security/policy/package_json/template/package.json.snippet.json`:
+
 ```json
 { "scripts": { "lint-security": "gitleaks detect --no-banner" } }
 ```
 
 `npm/rules/security/policy/package_json/template/package.json.deny.json`:
+
 ```json
 {
   "dependencies": { "gitleaks": "глобальний CLI — не додавай у dependencies" },
@@ -1008,6 +1035,7 @@ git commit -m "feat(npm): findMissingMdcRefs — central check that template/ fi
 ```
 
 `npm/rules/security/policy/package_json/template/package.json.contains.json`:
+
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
@@ -1015,6 +1043,7 @@ git commit -m "feat(npm): findMissingMdcRefs — central check that template/ fi
 - [ ] **Step 2: Create fix template (full canon for .gitleaks.toml)**
 
 `npm/rules/security/fix/gitleaks/template/.gitleaks.toml.snippet.toml`:
+
 ```toml
 title = "Project gitleaks config"
 
@@ -1053,6 +1082,7 @@ git commit -m "feat(security): template/ files for package_json concern and gitl
 ### Task 11: Pilot — rewrite `security/fix/gitleaks/check.mjs`
 
 **Files:**
+
 - Modify: `npm/rules/security/fix/gitleaks/check.mjs`
 - Modify: `npm/rules/security/fix/gitleaks/check.test.mjs`
 
@@ -1061,6 +1091,7 @@ git commit -m "feat(security): template/ files for package_json concern and gitl
 Read current `npm/rules/security/fix/gitleaks/check.test.mjs` to understand its fixture style. Then rewrite the assertions to expect template-driven messages.
 
 Replace contents of `npm/rules/security/fix/gitleaks/check.test.mjs` with:
+
 ```js
 import { describe, expect, test } from 'bun:test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -1084,29 +1115,41 @@ function withTmpCwd(prep, body) {
 
 describe('security/fix/gitleaks/check', () => {
   test('fails when package.json missing', async () => {
-    const exit = await withTmpCwd(() => {}, async () => await check())
+    const exit = await withTmpCwd(
+      () => {},
+      async () => await check()
+    )
     expect(exit).toBe(1)
   })
 
   test('fails when .gitleaks.toml missing', async () => {
-    const exit = await withTmpCwd(cwd => {
-      writeFileSync(join(cwd, 'package.json'), '{}')
-    }, async () => await check())
+    const exit = await withTmpCwd(
+      cwd => {
+        writeFileSync(join(cwd, 'package.json'), '{}')
+      },
+      async () => await check()
+    )
     expect(exit).toBe(1)
   })
 
   test('fails when .gitleaks.toml lacks useDefault from template', async () => {
-    const exit = await withTmpCwd(cwd => {
-      writeFileSync(join(cwd, 'package.json'), '{}')
-      writeFileSync(join(cwd, '.gitleaks.toml'), 'title = "x"\n')
-    }, async () => await check())
+    const exit = await withTmpCwd(
+      cwd => {
+        writeFileSync(join(cwd, 'package.json'), '{}')
+        writeFileSync(join(cwd, '.gitleaks.toml'), 'title = "x"\n')
+      },
+      async () => await check()
+    )
     expect(exit).toBe(1)
   })
 
   test('passes when both files exist and .gitleaks.toml is template superset', async () => {
-    const exit = await withTmpCwd(cwd => {
-      writeFileSync(join(cwd, 'package.json'), '{}')
-      writeFileSync(join(cwd, '.gitleaks.toml'), `title = "Project gitleaks config"
+    const exit = await withTmpCwd(
+      cwd => {
+        writeFileSync(join(cwd, 'package.json'), '{}')
+        writeFileSync(
+          join(cwd, '.gitleaks.toml'),
+          `title = "Project gitleaks config"
 
 [extend]
 useDefault = true
@@ -1121,8 +1164,11 @@ paths = [
   '''.*\\.lock$''',
   '''.*fixtures?/.*'''
 ]
-`)
-    }, async () => await check())
+`
+        )
+      },
+      async () => await check()
+    )
     expect(exit).toBe(0)
   })
 })
@@ -1136,6 +1182,7 @@ Expected: tests fail — current check.mjs uses regex `/useDefault\s*=\s*true/u`
 - [ ] **Step 3: Rewrite `check.mjs` to use template**
 
 Replace contents of `npm/rules/security/fix/gitleaks/check.mjs`:
+
 ```js
 /**
  * FS-частина правила `security`.
@@ -1209,12 +1256,14 @@ git commit -m "refactor(security/gitleaks): drive .gitleaks.toml check from temp
 ### Task 12: Pilot — rewrite `security/policy/package_json/package_json.rego`
 
 **Files:**
+
 - Modify: `npm/rules/security/policy/package_json/package_json.rego`
 - Modify: `npm/rules/security/policy/package_json/package_json_test.rego`
 
 - [ ] **Step 1: Adapt rego tests first (TDD for rego)**
 
 Replace contents of `npm/rules/security/policy/package_json/package_json_test.rego`:
+
 ```rego
 package security.package_json_test
 
@@ -1275,6 +1324,7 @@ Expected: FAIL — current `package_json.rego` does not reference `data.template
 - [ ] **Step 3: Rewrite `package_json.rego` to read from `data.template`**
 
 Replace contents of `npm/rules/security/policy/package_json/package_json.rego`:
+
 ```rego
 # Перевірка `package.json` для правила security (security.mdc).
 # Канон надходить через --data: { "template": { "snippet": ..., "deny": ..., "contains": ... } }
@@ -1330,6 +1380,7 @@ git commit -m "refactor(security/package_json): drive rego from data.template.* 
 ### Task 13: Pilot — wire template into runner for security concern
 
 **Files:**
+
 - Modify: `npm/bin/n-cursor.js` (or whichever file dispatches concerns; locate `check-rule` / `runRule`)
 - Verify: existing orchestrator picks up template automatically
 
@@ -1364,6 +1415,7 @@ If `target.json` has `walkGlob` with mixed basenames (rare), iterate per matched
 This pure helper centralises the lookup logic so we can TDD it without spawning the full orchestrator. Add it next to the orchestrator file (or in `npm/scripts/utils/template.mjs` if simpler — adjust based on Step 1 finding).
 
 In the chosen location, add export:
+
 ```js
 import { loadTemplate } from './template.mjs' // adjust path if helper colocated
 import { basename } from 'node:path'
@@ -1391,6 +1443,7 @@ export async function resolveConcernTemplateData(concernAbsDir, targetJson) {
 ```
 
 Add tests for this helper (file alongside its location):
+
 ```js
 import { describe, expect, test } from 'bun:test'
 import { dirname, join } from 'node:path'
@@ -1434,6 +1487,7 @@ Expected: tests pass after Step 3 implementation.
 - [ ] **Step 5: Wire helper into orchestrator at call site**
 
 In the orchestrator (from Step 1), where options for `runConftestBatch` are built, add:
+
 ```js
 import { resolveConcernTemplateData } from './<helper-path>.mjs'
 
@@ -1446,6 +1500,7 @@ const opts = {
   templateData
 }
 ```
+
 For JS-check concerns (`fix/<concern>/check.mjs`), update the orchestrator to load template the same way and pass it as `check({ template })` argument. (Existing `check()` signature must be updated — for security pilot, check.mjs reads template via `loadTemplate(HERE)` directly per Task 11, so orchestrator change is optional for fix; do it only if orchestrator already passes options.)
 
 - [ ] **Step 6: Run full test suite**
@@ -1465,6 +1520,7 @@ git commit -m "feat(npm): orchestrator wires resolveConcernTemplateData → runC
 ### Task 14: Pilot — update `security/security.mdc` with template refs
 
 **Files:**
+
 - Modify: `npm/rules/security/security.mdc`
 
 - [ ] **Step 1: Replace inline canon blocks with markdown links to template/**
@@ -1545,6 +1601,7 @@ Expected: all green.
 ### Task 16: Bump version + CHANGELOG entry
 
 **Files:**
+
 - Modify: `npm/package.json` (`version`)
 - Modify: `npm/CHANGELOG.md` (prepend new section)
 

@@ -88,13 +88,17 @@
  * **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (приймається булеве `true`
  * або рядок `"true"`, без регістрової залежності).
  *
- * **HPA / PDB / topologySpreadConstraints:** для кожного **`Deployment`** у шарі **`…/k8s/…/base/`** (будь-який
- * `.yaml` у цьому каталозі) обов'язкові канонічні **topologySpreadConstraints**, а HPA і PDB живуть у sibling
- * каталозі **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу `components`). У `base/`
- * заборонено тримати локальні `hpa.yaml` і `pdb.yaml` (file-existence error) і також у дереві base-kustomize
- * не повинно бути HPA/PDB через `resources` / `components` / `bases`. Структура `components/`:
- * `kustomization.yaml` з `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources` що містять
- * `hpa.yaml` і `pdb.yaml` (як єдині або принаймні обов'язкові), `hpa.yaml` (валідний `autoscaling/v2`
+ * **HPA / PDB / topologySpreadConstraints:** для кожного **`Deployment`** у шарі **`…/k8s/…/base/`**
+ * (будь-який `.yaml` у цьому каталозі) обов'язкові канонічні **topologySpreadConstraints**, а HPA і PDB
+ * живуть у sibling каталозі **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу `components`). У `base/`
+ * заборонено тримати локальні `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` (file-existence error) і також у дереві
+ * base-kustomize не повинно бути HPA/PDB/NetworkPolicy через `resources` / `components` / `bases`.
+ * **NetworkPolicy:** для кожного **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s`
+ * обов'язковий канонічний NetworkPolicy (base → `components/networkpolicy.yaml`, інші шари → `networkpolicy.yaml` поруч).
+ * Egress: kube-dns; **TCP 80/443** на `0.0.0.0/0`; інші порти — `namespaceSelector: {}` (in-cluster / `*.svc`). Заборонено `egress: [{}]`.
+ * Відсутні документи **`check k8s`** створює автоматично (multi-doc у одному файлі, якщо workload-ів кілька).
+ * Структура `components/`: `kustomization.yaml` з `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`,
+ * `resources` що містять `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml`, `hpa.yaml` (валідний `autoscaling/v2`
  * HorizontalPodAutoscaler з `scaleTargetRef.name` = ім'я Deployment, dev-like `min=max=1`), `pdb.yaml` (валідний
  * `policy/v1` PodDisruptionBudget з `selector.matchLabels.app` = мітка `app` Deployment, dev-like `minAvailable=0`).
  * Overlays (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для
@@ -129,7 +133,7 @@
  * поки в наслідуваному `base` у дереві не з'явиться такий Deployment (k8s.mdc).
  */
 import { existsSync } from 'node:fs'
-import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
@@ -140,6 +144,8 @@ import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.m
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
+const YAML_LS_MODELINE_RE = /^# yaml-language-server: \$schema=.*\n/
+
 const YANNH_PIN = 'v1.33.9-standalone-strict'
 
 /**
@@ -148,7 +154,9 @@ const YANNH_PIN = 'v1.33.9-standalone-strict'
  */
 export const HASURA_GRAPHQL_ENGINE_IMAGE = 'hasura/graphql-engine:v2.48.15.ubi.amd64'
 
-/** Набір прийнятних рядків `image` без digest (`@sha256:…`). */
+/**
+  Набір прийнятних рядків `image` без digest (`@sha256:…`).
+ */
 const HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES = new Set([
   HASURA_GRAPHQL_ENGINE_IMAGE,
   `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`
@@ -464,7 +472,9 @@ export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
   if (!Array.isArray(res)) {
     return 'Kustomization.resources має бути масивом (k8s.mdc)'
   }
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const paths = []
   for (const [i, item] of res.entries()) {
     if (typeof item !== 'string') {
@@ -530,7 +540,9 @@ function kustomizationPatchSortKey(patchItem) {
   }
   const rec = /** @type {Record<string, unknown>} */ (patchItem)
   const t = rec.target
-  /** @type {Record<string, unknown>} */
+  /**
+  @type {Record<string, unknown>}
+   */
   const target =
     t !== null && typeof t === 'object' && !Array.isArray(t) ? /** @type {Record<string, unknown>} */ (t) : {}
   const kind = typeof target.kind === 'string' ? target.kind : ''
@@ -614,7 +626,9 @@ function parseJson6902OpsFromText(raw) {
     return null
   }
   if (!Array.isArray(parsed)) return null
-  /** @type {{ op: string, path: string }[]} */
+  /**
+  @type {{ op: string, path: string }[]}
+   */
   const out = []
   for (const item of parsed) {
     if (item === null || typeof item !== 'object' || Array.isArray(item)) return null
@@ -643,7 +657,9 @@ export function kustomizationInlinePatchOpsSortedViolation(patchText) {
   }
   const paths = ops.map(o => o.path)
   if (!jsonPointerPathsAreDisjoint(paths)) return null
-  /** @type {string[][]} */
+  /**
+  @type {string[][]}
+   */
   const keys = paths.map(p => [p])
   if (stringTuplesAreSortedEn(keys)) return null
   const want = paths.toSorted((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
@@ -662,7 +678,9 @@ export function kustomizationInlinePatchOpsSortedViolation(patchText) {
 function pathsFromKustomizationObject(obj) {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
   const rec = /** @type {Record<string, unknown>} */ (obj)
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   pushStringPaths(rec.resources, out)
   pushStringPaths(rec.bases, out)
@@ -687,8 +705,8 @@ function pathsFromKustomizationObject(obj) {
 }
 
 /**
- * @param {unknown} arr масив (може бути не масивом)
- * @param {string[]} out вихідний масив
+ * @param {unknown} arr масив об'єктів із полем `path` (може бути не масивом)
+ * @param {string[]} out вихідний масив для накопичення значень `path`
  */
 function collectObjectPathFields(arr, out) {
   if (!Array.isArray(arr)) return
@@ -703,8 +721,8 @@ function collectObjectPathFields(arr, out) {
 }
 
 /**
- * @param {unknown} arr масив (може бути не масивом)
- * @param {string[]} out вихідний масив
+ * @param {unknown} arr масив рядків (може бути не масивом)
+ * @param {string[]} out вихідний масив для накопичення непорожніх рядків
  */
 function collectStringPaths(arr, out) {
   if (!Array.isArray(arr)) return
@@ -739,8 +757,8 @@ export function kustomizePathRefsForExistenceCheck(obj) {
  * @param {string} r посилання з kustomization
  * @param {string} kustDir каталог kustomization.yaml
  * @param {string} rootNorm нормалізований корінь
- * @param {(msg: string) => void} fail callback
- * @returns {Promise<void>}
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<void>} резолвиться по завершенню перевірки
  */
 async function validateKustomizationRef(rel, r, kustDir, rootNorm, fail) {
   const target = resolve(kustDir, r.trim())
@@ -752,7 +770,9 @@ async function validateKustomizationRef(rel, r, kustDir, rootNorm, fail) {
     )
     return
   }
-  /** @type {import('node:fs').Stats | undefined} */
+  /**
+  @type {import('node:fs').Stats | undefined}
+   */
   let st
   try {
     st = await stat(target)
@@ -778,7 +798,7 @@ async function validateKustomizationRef(rel, r, kustDir, rootNorm, fail) {
  * @param {string} kustAbs kustomization.yaml
  * @param {string} rootNorm нормалізований корінь
  * @param {(msg: string) => void} fail callback
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail) {
   const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
@@ -800,7 +820,7 @@ async function validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fa
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи YAML-файлів у k8s
  * @param {(msg: string) => void} fail callback для повідомлень про помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
@@ -817,7 +837,9 @@ async function validateKustomizationPathRefsExistOnDisk(root, yamlFilesAbs, fail
  * @returns {string | null} текст порушення або null, якщо ок
  */
 export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, pathRefs) {
-  /** @type {Set<string>} */
+  /**
+  @type {Set<string>}
+   */
   const resolved = new Set()
   for (const ref of pathRefs) {
     if (typeof ref === 'string' && !ref.includes('://')) {
@@ -843,7 +865,7 @@ export function kustomizationSvcYamlMissingSvcHlViolation(kustomizationDir, path
  * @param {string} root корінь репозиторію
  * @param {string} kustAbs абсолютний шлях до kustomization.yaml
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
   const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
@@ -857,7 +879,9 @@ async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
   }
   const lines = toLines(raw)
   const body = yamlBodyAfterModeline(lines)
-  /** @type {import('yaml').Document[] | undefined} */
+  /**
+  @type {import('yaml').Document[] | undefined}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -882,7 +906,7 @@ async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до yaml під k8s
  * @param {(msg: string) => void} fail callback помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) {
   for (const kustAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
@@ -898,7 +922,9 @@ async function validateKustomizationIncludesSvcHlWithSvc(root, yamlFiles, fail) 
 function resourcePathRefsFromKustomizationObject(obj) {
   if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return []
   const rec = /** @type {Record<string, unknown>} */ (obj)
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   pushStringPaths(rec.resources, out)
   pushStringPaths(rec.bases, out)
@@ -1118,9 +1144,13 @@ async function readK8sYamlDocumentRootsForInventory(abs) {
   }
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {unknown[]} */
+  /**
+  @type {unknown[]}
+   */
   const roots = parseK8sYamlDocumentObjectRoots(body)
-  /** @type {Record<string, unknown>[]} */
+  /**
+  @type {Record<string, unknown>[]}
+   */
   const out = []
   for (const r of roots) {
     if (r !== null && typeof r === 'object' && !Array.isArray(r)) {
@@ -1155,7 +1185,9 @@ async function collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visit
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
 
-  /** @type {import('yaml').Document[] | undefined} */
+  /**
+  @type {import('yaml').Document[] | undefined}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -1169,12 +1201,14 @@ async function collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visit
   const kustDir = dirname(normKust)
   const pathRefs = resourcePathRefsFromKustomizationObject(first)
 
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
 
   /**
    * @param {string} ref шлях з resources/bases/…
-   * @returns {Promise<void>}
+   * @returns {Promise<void>} результат
    */
   async function handleResourcePathRef(ref) {
     if (typeof ref !== 'string' || ref.includes('://')) {
@@ -1184,7 +1218,9 @@ async function collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visit
     if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
       return
     }
-    /** @type {import('node:fs').Stats | undefined} */
+    /**
+  @type {import('node:fs').Stats | undefined}
+     */
     let st
     try {
       st = await stat(resolved)
@@ -1258,7 +1294,9 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
 
-  /** @type {import('yaml').Document[] | undefined} */
+  /**
+  @type {import('yaml').Document[] | undefined}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -1274,14 +1312,20 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
   const kustDir = dirname(normKust)
   const pathRefs = resourcePathRefsFromKustomizationObject(first)
 
-  /** @type {KustomizeResourceDescriptor[]} */
+  /**
+  @type {KustomizeResourceDescriptor[]}
+   */
   const out = []
 
+  /*
+ * @param {string} ref шлях з resources/bases/…
+  
+ * @returns {Promise<void>} результат
+ */
   /**
-   * @param {string} ref шлях з resources/bases/…
-   * @returns {Promise<void>}
-   */
-  async function handleResourceDescriptorPathRef(ref) {
+   *
+   * @param {*} ref параметр
+   */ async function handleResourceDescriptorPathRef(ref) {
     if (typeof ref !== 'string' || ref.includes('://')) {
       return
     }
@@ -1289,7 +1333,9 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
     if (!resolvedFilePathIsUnderRoot(rootNorm, resolved)) {
       return
     }
-    /** @type {import('node:fs').Stats | undefined} */
+    /**
+  @type {import('node:fs').Stats | undefined}
+     */
     let st
     try {
       st = await stat(resolved)
@@ -1336,13 +1382,17 @@ function extractExplicitPatchTargetsFromKustomization(obj) {
     return []
   }
   const rec = /** @type {Record<string, unknown>} */ (obj)
-  /** @type {Array<{ section: string, index: number, target: unknown }>} */
-  const out = []
   /**
-   * @param {string} section ім’я поля
-   * @param {unknown} arr масив з YAML
-   * @returns {void}
+  @type {Array<{ section: string, index: number, target: unknown }>}
    */
+  const out = []
+  /*
+ * @param {string} section ім’я поля
+  
+ * @param {unknown} arr масив з YAML
+  
+ * @returns {void} результат
+ */
   const push = (section, arr) => {
     if (!Array.isArray(arr)) {
       return
@@ -1403,7 +1453,7 @@ function formatKustomizePatchTargetForMessage(target) {
  * @param {Record<string, unknown>} first корінь Kustomization
  * @param {KustomizeResourceDescriptor[]} catalog інвентар resources/bases/…
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
+ * @returns {void} результат
  */
 function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
   for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
@@ -1421,7 +1471,7 @@ function failIfExplicitPatchTargetsNotInCatalog(rel, first, catalog, fail) {
  * @param {Record<string, unknown>} first корінь Kustomization
  * @param {KustomizeResourceDescriptor[]} catalog інвентар resources/bases/…
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
+ * @returns {void} результат
  */
 function failIfExplicitPatchTargetsHaveRedundantGroupVersion(rel, first, catalog, fail) {
   for (const entry of extractExplicitPatchTargetsFromKustomization(first)) {
@@ -1455,7 +1505,9 @@ function describePatchTargetRedundancy(entry, catalog) {
   const matchingByKindName = catalog.filter(r => r.kind === kind && r.name === name)
   const distinctGvk = new Set(matchingByKindName.map(r => `${r.group}/${r.version}`))
   if (distinctGvk.size > 1) return null
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const redundant = []
   if (tgtGroup !== '') redundant.push('group')
   if (tgtVersion !== '') redundant.push('version')
@@ -1472,7 +1524,7 @@ function describePatchTargetRedundancy(entry, catalog) {
  * @param {KustomizeResourceDescriptor[]} catalog інвентар
  * @param {string} kustNs default namespace
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function failIfYamlFileRootsMissingFromCatalog(
   rel,
@@ -1510,7 +1562,9 @@ async function resolveExistingYamlFileUnderRoot(kustDir, pathStr, rootNorm) {
   if (!resolvedFilePathIsUnderRoot(rootNorm, resolved) || !existsSync(resolved)) {
     return null
   }
-  /** @type {import('node:fs').Stats | null} */
+  /**
+  @type {import('node:fs').Stats | null}
+   */
   let st
   try {
     st = await stat(resolved)
@@ -1534,7 +1588,7 @@ async function resolveExistingYamlFileUnderRoot(kustDir, pathStr, rootNorm) {
  * @param {KustomizeResourceDescriptor[]} catalog інвентар
  * @param {string} kustNs default namespace з kustomization
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function failIfOnePathOnlyPatchNotInCatalog(rel, p, pIdx, kustDir, rootNorm, root, catalog, kustNs, fail) {
   if (p === null || typeof p !== 'object' || Array.isArray(p)) {
@@ -1573,7 +1627,7 @@ async function failIfOnePathOnlyPatchNotInCatalog(rel, p, pIdx, kustDir, rootNor
  * @param {KustomizeResourceDescriptor[]} catalog інвентар
  * @param {string} kustNs default namespace з kustomization
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function failIfPathOnlyPatchesNotInCatalog(rel, patches, kustDir, rootNorm, root, catalog, kustNs, fail) {
   if (!Array.isArray(patches)) {
@@ -1596,7 +1650,7 @@ async function failIfPathOnlyPatchesNotInCatalog(rel, patches, kustDir, rootNorm
  * @param {KustomizeResourceDescriptor[]} catalog інвентар
  * @param {string} kustNs default namespace з kustomization
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function failIfStrategicMergePatchesNotInCatalog(rel, sm, kustDir, rootNorm, root, catalog, kustNs, fail) {
   if (!Array.isArray(sm)) {
@@ -1629,7 +1683,7 @@ async function failIfStrategicMergePatchesNotInCatalog(rel, sm, kustDir, rootNor
  * @param {string} kustAbs абсолютний шлях до файлу
  * @param {string} rootNorm нормалізований корінь
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm, fail) {
   const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
@@ -1643,7 +1697,9 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
   }
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {import('yaml').Document[]} */
+  /**
+  @type {import('yaml').Document[]}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -1683,7 +1739,7 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи до yaml під k8s
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateKustomizationPatchTargetsResolved(root, yamlFilesAbs, fail) {
   const rootNorm = resolve(root)
@@ -1726,7 +1782,9 @@ export function baseKustomizationNamespaceViolation(obj) {
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
  */
 async function findK8sYamlFiles(root, ignorePaths = []) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   await walkDir(
     root,
@@ -1761,7 +1819,7 @@ function k8sYamlBodyForDocumentParse(lines) {
  * Оновлює прапорці наявності **BackendConfig** / інших **kind** у документі.
  * @param {unknown} kind значення **kind**
  * @param {{ hasBc: boolean, hasOther: boolean }} acc накопичувач
- * @returns {void}
+ * @returns {void} результат
  */
 function updateBackendConfigKindFlags(kind, acc) {
   if (kind === 'BackendConfig') {
@@ -1779,7 +1837,9 @@ function updateBackendConfigKindFlags(kind, acc) {
  * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розпарсити YAML
  */
 export function classifyBackendConfigManifestPresence(body) {
-  /** @type {import('yaml').Document[]} */
+  /**
+  @type {import('yaml').Document[]}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -1812,7 +1872,7 @@ export function classifyBackendConfigManifestPresence(body) {
  * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail реєстрація порушення
  * @param {(msg: string) => void} pass реєстрація успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function removeBackendConfigOnlyK8sYamlFiles(root, ignorePaths, fail, pass) {
   const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
@@ -1890,7 +1950,7 @@ export function replaceBatchV1beta1ApiVersionInYamlText(raw) {
  * @param {string[]} ignorePaths шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail колбек повідомлення про помилку
  * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass) {
   const yamlFiles = await findK8sYamlFiles(root, ignorePaths)
@@ -1985,9 +2045,13 @@ function firstYamlDocument(body) {
  * @returns {{ apiVersion?: string, kind?: string }} знайдені поля або властивості відсутні
  */
 function extractApiVersionAndKind(doc) {
-  /** @type {string | undefined} */
+  /**
+  @type {string | undefined}
+   */
   let apiVersion
-  /** @type {string | undefined} */
+  /**
+  @type {string | undefined}
+   */
   let kind
   for (const line of doc.split(YAML_LINE_SPLIT_RE)) {
     if (apiVersion === undefined) {
@@ -2052,7 +2116,9 @@ function normalizeJsonPatchPath(p) {
  * @returns {Array<{ op: string, path: string }>} **op** у нижньому регістрі
  */
 function extractJson6902OpsFromArray(arr) {
-  /** @type {Array<{ op: string, path: string }>} */
+  /**
+  @type {Array<{ op: string, path: string }>}
+   */
   const out = []
   for (const item of arr) {
     if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
@@ -2113,7 +2179,9 @@ export function collectJson6902OperationsFromPatchText(patchText) {
  * @returns {string[]} унікальні **path** з порушенням (відсортовано)
  */
 export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
-  /** @type {Map<string, Set<string>>} */
+  /**
+  @type {Map<string, Set<string>>}
+   */
   const byPath = new Map()
   for (const { op, path } of ops) {
     if (path) {
@@ -2123,7 +2191,9 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
       byPath.get(path).add(op)
     }
   }
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   for (const [path, set] of byPath) {
     if (set.has('remove') && set.has('add')) {
@@ -2147,7 +2217,7 @@ export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
  * @param {string} rootNorm нормалізований корінь репо
  * @param {string} root корінь репо
  * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 /**
  * Plan B: per-document JSON6902 remove+add conflict — у rego-пакеті
@@ -2538,7 +2608,9 @@ function findFirstDocByKind(docs, kind) {
  * @returns {Record<string, unknown>[]} знайдені об'єкти
  */
 function collectDocsByKind(docs, kind) {
-  /** @type {Record<string, unknown>[]} */
+  /**
+  @type {Record<string, unknown>[]}
+   */
   const out = []
   for (const doc of docs) {
     if (doc.errors.length === 0) {
@@ -2669,7 +2741,9 @@ function collectConfigMapRefsFromVolumes(volumes, names) {
  * @returns {Set<string>} унікальні імена ConfigMap
  */
 export function collectDeploymentConfigMapRefs(deployment) {
-  /** @type {Set<string>} */
+  /**
+  @type {Set<string>}
+   */
   const names = new Set()
   const ps = extractPodSpec(deployment)
   if (ps === null) return names
@@ -2698,7 +2772,9 @@ export function serviceForbiddenGcpAnnotationsViolation(manifest) {
   const ann = m.annotations
   if (ann === null || ann === undefined || typeof ann !== 'object' || Array.isArray(ann)) return null
   const a = /** @type {Record<string, unknown>} */ (ann)
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const found = []
   for (const key of SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS) {
     if (Object.hasOwn(a, key)) {
@@ -2820,14 +2896,20 @@ function isGatewayApiBackendRefToService(obj) {
  * @returns {string[]} імена backend-сервісів (можливі дублікати)
  */
 export function collectGatewayApiRouteBackendServiceNames(spec) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
 
+  /*
+ * @param {unknown} node вузол для обходу
+  
+ * @returns {void} результат
+ */
   /**
-   * @param {unknown} node вузол для обходу
-   * @returns {void}
-   */
-  function walk(node) {
+   *
+   * @param {*} node параметр
+   */ function walk(node) {
     if (node === null || node === undefined) return
     if (Array.isArray(node)) {
       for (const x of node) {
@@ -2858,14 +2940,20 @@ export function collectGatewayApiRouteBackendServiceNames(spec) {
  * @returns {string[]} імена backend-сервісів з надлишковим **`namespace`** (можливі дублікати)
  */
 export function collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, routeNs) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
 
+  /*
+ * @param {unknown} node вузол для обходу
+  
+ * @returns {void} результат
+ */
   /**
-   * @param {unknown} node вузол для обходу
-   * @returns {void}
-   */
-  function walk(node) {
+   *
+   * @param {*} node параметр
+   */ function walk(node) {
     if (node === null || node === undefined) return
     if (Array.isArray(node)) {
       for (const x of node) {
@@ -3167,7 +3255,7 @@ function appendServiceNamesFromSvcRoots(roots, relForMsg, fileLabel, names, fail
  * @param {string[]} svcNames імена з **svc.yaml**
  * @param {string[]} hlNames імена з **svc-hl.yaml**
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
+ * @returns {void} результат
  */
 function validateSvcHlServiceNamePairing(relSvc, relHl, svcNames, hlNames, fail) {
   if (svcNames.length === 0) {
@@ -3209,7 +3297,7 @@ function validateSvcHlServiceNamePairing(relSvc, relHl, svcNames, hlNames, fail)
  * @param {string[]} yamlFiles абсолютні шляхи
  * @param {Set<string>} absSet той самий набір шляхів
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {void}
+ * @returns {void} результат
  */
 function failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail) {
   for (const abs of yamlFiles.filter(p => basename(p).toLowerCase() === 'svc-hl.yaml')) {
@@ -3227,7 +3315,7 @@ function failIfSvcHlWithoutSiblingSvc(root, yamlFiles, absSet, fail) {
  * @param {Set<string>} absSet наявні yaml під k8s
  * @param {string} svcAbs абсолютний шлях до **svc.yaml**
  * @param {(msg: string) => void} fail реєстрація помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
   const rel = (relative(root, svcAbs) || svcAbs).replaceAll('\\', '/')
@@ -3249,12 +3337,16 @@ async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
   }
   const svcRoots = parseK8sYamlDocumentObjectRoots(svcBody)
   const hlRoots = parseK8sYamlDocumentObjectRoots(hlBody)
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const svcNames = []
   if (!appendServiceNamesFromSvcRoots(svcRoots, rel, 'svc.yaml', svcNames, fail)) {
     return
   }
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const hlNames = []
   if (!appendServiceNamesFromSvcRoots(hlRoots, hlRel, 'svc-hl.yaml', hlNames, fail)) {
     return
@@ -3267,7 +3359,7 @@ async function validateOneSvcYamlHlPair(root, absSet, svcAbs, fail) {
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
  * @param {(msg: string) => void} fail callback помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
   const absSet = new Set(yamlFiles)
@@ -3287,9 +3379,13 @@ async function validateSvcYamlAndSvcHlPairs(root, yamlFiles, fail) {
  * }>} індекс Hasura-Deployment-ів за каталогом і список HTTPRoute-документів
  */
 async function collectHasuraDeploymentsAndHttpRoutes(yamlFiles) {
-  /** @type {Map<string, Set<string>>} */
+  /**
+  @type {Map<string, Set<string>>}
+   */
   const hasuraByDir = new Map()
-  /** @type {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]} */
+  /**
+  @type {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]}
+   */
   const httpRoutes = []
 
   for (const abs of yamlFiles) {
@@ -3304,7 +3400,7 @@ async function collectHasuraDeploymentsAndHttpRoutes(yamlFiles) {
  * @param {string} abs абсолютний шлях до файлу
  * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом
  * @param {{ abs: string, dir: string, docIndex: number, obj: Record<string, unknown> }[]} httpRoutes колектор HTTPRoute-документів
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
   let raw
@@ -3315,7 +3411,9 @@ async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
   }
   const lines = toLines(raw)
   const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-  /** @type {import('yaml').Document[]} */
+  /**
+  @type {import('yaml').Document[]}
+   */
   let docs
   try {
     docs = parseAllDocuments(body)
@@ -3343,7 +3441,7 @@ async function indexOneK8sYamlForHasuraCanon(abs, hasuraByDir, httpRoutes) {
  * @param {Record<string, unknown>} rec корінь YAML-документа
  * @param {string} dir абсолютний шлях до каталогу файлу
  * @param {Map<string, Set<string>>} hasuraByDir індекс Hasura Deployment-ів за каталогом (під час обходу в нього додаються імена)
- * @returns {void}
+ * @returns {void} результат
  */
 function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
   if (!isHasuraDeploymentManifest(rec)) return
@@ -3364,7 +3462,7 @@ function recordHasuraDeploymentName(rec, dir, hasuraByDir) {
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFiles абсолютні шляхи до `*.yaml` під `k8s`
  * @param {(msg: string) => void} fail callback реєстрації помилки
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateHasuraHttpRouteCanon(root, yamlFiles, fail) {
   const { hasuraByDir, httpRoutes } = await collectHasuraDeploymentsAndHttpRoutes(yamlFiles)
@@ -3551,7 +3649,7 @@ function countSchemaModelines(lines) {
  * @param {string[]} _lines рядки файлу (лишені з тієї ж причини)
  * @param {(msg: string) => void} _fail реєстрація помилки (rego гейтує per-document)
  * @param {(msg: string) => void} pass реєстрація успіху
- * @returns {void}
+ * @returns {void} результат
  */
 function checkK8sYamlHttpBackendGroupFile(rel, _baseLower, _lines, _fail, pass) {
   // Per-document валідація (Ingress/autoscaling/v1 заборонено, Gateway API backendRef,
@@ -3568,7 +3666,7 @@ function checkK8sYamlHttpBackendGroupFile(rel, _baseLower, _lines, _fail, pass) 
  * @param {string[]} lines рядки файлу
  * @param {(msg: string) => void} fail реєстрація помилки
  * @param {(msg: string) => void} pass реєстрація успіху
- * @returns {void}
+ * @returns {void} результат
  */
 function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pass) {
   const match = lines[0].match(MODELINE_RE)
@@ -3623,7 +3721,7 @@ function checkK8sYamlFileWithSchemaModeline(abs, rel, baseLower, lines, fail, pa
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail реєстрація помилки
  * @param {(msg: string) => void} pass реєстрація успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function checkK8sYamlFile(abs, root, fail, pass) {
   const rel = (relative(root, abs) || abs).replaceAll('\\', '/')
@@ -3685,7 +3783,7 @@ async function checkK8sYamlFile(abs, root, fail, pass) {
  * @param {string[]} yamlFiles абсолютні шляхи
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail callback для реєстрації порушення
- * @returns {void}
+ * @returns {void} результат
  */
 function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
   for (const abs of yamlFiles) {
@@ -3701,7 +3799,7 @@ function assertNoForbiddenK8sDevPaths(yamlFiles, root, fail) {
  * @param {string} root корінь репозиторію
  * @param {string} abs абсолютний шлях до файлу
  * @param {(msg: string) => void} fail реєстрація порушення
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 // Plan B: per-document `k8s/base/kustomization.yaml` має непорожнє поле `namespace:` —
 // у rego-пакеті `k8s.base_kustomization`, виклик через `runAllK8sRego`.
@@ -3817,6 +3915,23 @@ export const HPA_FILENAME = 'hpa.yaml'
 export const PDB_FILENAME = 'pdb.yaml'
 
 /**
+ * Ім'я файлу NetworkPolicy поруч із Deployment або в `components/` (див. k8s.mdc).
+ */
+export const NETWORK_POLICY_FILENAME = 'networkpolicy.yaml'
+
+/**
+ * Workload-типи, для яких обов'язковий **NetworkPolicy** (див. k8s.mdc).
+ * @type {readonly string[]}
+ */
+export const WORKLOAD_KINDS_WITH_NETWORK_POLICY = Object.freeze([
+  'Deployment',
+  'StatefulSet',
+  'DaemonSet',
+  'Job',
+  'CronJob'
+])
+
+/**
  * Фіксована назва каталогу Kustomize Component, sibling до `base/`, де живуть HPA і PDB
  * (за каноном — `hpa.yaml` і `pdb.yaml` з `kind: Component` у `kustomization.yaml`). Інші назви
  * (`scale/`, `hpa-component/`) у правилі **k8s** не дозволені (k8s.mdc).
@@ -3883,6 +3998,40 @@ export function deploymentAppLabel(deployment) {
   if (matchLabels === null || typeof matchLabels !== 'object' || Array.isArray(matchLabels)) return null
   const app = /** @type {Record<string, unknown>} */ (matchLabels).app
   return typeof app === 'string' && app.trim() !== '' ? app : null
+}
+
+/**
+ * Витягує мітку `app` з `spec.selector.matchLabels.app` об'єкта з полем `spec.selector`.
+ * @param {Record<string, unknown>} spec об'єкт `spec` workload
+ * @returns {string | null} результат
+ */
+function appLabelFromSpecSelector(spec) {
+  const selector = getNestedObject(spec, 'selector')
+  if (selector === null) return null
+  const matchLabels = getNestedObject(selector, 'matchLabels')
+  if (matchLabels === null) return null
+  const app = matchLabels.app
+  return typeof app === 'string' && app.trim() !== '' ? app : null
+}
+
+/**
+ * Витягує мітку `app` для workload, для якого потрібен NetworkPolicy.
+ * Deployment / StatefulSet / DaemonSet / Job — `spec.selector.matchLabels.app`;
+ * CronJob — `spec.jobTemplate.spec.selector.matchLabels.app`.
+ * @param {Record<string, unknown>} manifest AST workload
+ * @returns {string | null} непорожнє значення `app` або null
+ */
+export function workloadAppLabel(manifest) {
+  const kind = manifest.kind
+  if (typeof kind !== 'string') return null
+  if (kind === 'CronJob') {
+    const jobTemplate = getNestedObject(getNestedObject(manifest, 'spec'), 'jobTemplate')
+    const jobSpec = jobTemplate === null ? null : getNestedObject(jobTemplate, 'spec')
+    return jobSpec === null ? null : appLabelFromSpecSelector(jobSpec)
+  }
+  const spec = getNestedObject(manifest, 'spec')
+  if (spec === null) return null
+  return appLabelFromSpecSelector(spec)
 }
 
 /**
@@ -3995,7 +4144,9 @@ function validateHpaBehavior(spec, errs) {
  * @returns {string[]} список порушень (порожній — ок)
  */
 export function hpaManifestViolations(manifest, expectedDeployName, isDevLike) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const errs = []
   if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
     errs.push('HPA має бути обʼєктом YAML')
@@ -4073,7 +4224,9 @@ function validatePdbSelector(spec, expectedAppLabel, errs) {
  * @returns {string[]} список порушень (порожній — ок)
  */
 export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const errs = []
   if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
     errs.push('PDB має бути обʼєктом YAML')
@@ -4093,6 +4246,143 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
   validatePdbMinAvailable(coerceInteger(s.minAvailable), isDevLike, errs)
   validatePdbSelector(s, expectedAppLabel, errs)
   return errs
+}
+
+/**
+ * Канонічний блок `spec.egress` NetworkPolicy (k8s.mdc): kube-dns; TCP 80/443 на 0.0.0.0/0;
+ * інші порти — `namespaceSelector: {}` (in-cluster, зокрема `*.svc`).
+ */
+const NETWORK_POLICY_EGRESS_YAML = `  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+`
+
+/**
+ * Канонічний YAML **NetworkPolicy** для workload з іменем `workloadName` і міткою `app`.
+ * @param {string} deployName `metadata.name` workload (Deployment, StatefulSet, …)
+ * @param {string} appLabel `spec.selector.matchLabels.app` (або selector у `jobTemplate` для CronJob)
+ * @returns {string} вміст `networkpolicy.yaml`
+ */
+export function buildNetworkPolicyYaml(deployName, appLabel) {
+  const schemaUrl = `${YANNH_BASE}networkpolicy-networking-k8s-io-v1.json`
+  return `# yaml-language-server: $schema=${schemaUrl}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ${deployName}
+spec:
+  podSelector:
+    matchLabels:
+      app: ${appLabel}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+${NETWORK_POLICY_EGRESS_YAML}`
+}
+
+/**
+ * Перевіряє **NetworkPolicy** (`networking.k8s.io/v1`): структура й прив'язка до workload.
+ * @param {unknown} manifest корінь YAML-документа NetworkPolicy
+ * @param {string} expectedDeployName очікуване `metadata.name` workload
+ * @param {string} expectedAppLabel очікувана мітка `app` у `podSelector.matchLabels`
+ * @returns {string[]} список порушень (порожній — ок)
+ */
+export function networkPolicyManifestViolations(manifest, expectedDeployName, expectedAppLabel) {
+  /**
+  @type {string[]}
+   */
+  const errs = []
+  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    errs.push('NetworkPolicy має бути обʼєктом YAML')
+    return errs
+  }
+  const rec = /** @type {Record<string, unknown>} */ (manifest)
+  if (rec.kind !== 'NetworkPolicy') errs.push(`kind має бути NetworkPolicy (зараз: ${JSON.stringify(rec.kind)})`)
+  if (rec.apiVersion !== 'networking.k8s.io/v1')
+    errs.push(`apiVersion має бути networking.k8s.io/v1 (зараз: ${JSON.stringify(rec.apiVersion)})`)
+  const name = manifestMetadataName(rec)
+  if (name !== expectedDeployName)
+    errs.push(`metadata.name має бути '${expectedDeployName}' (зараз: ${JSON.stringify(name)})`)
+  const spec = rec.spec
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
+    errs.push('spec відсутній або некоректний')
+    return errs
+  }
+  const s = /** @type {Record<string, unknown>} */ (spec)
+  const podSelector = s.podSelector
+  if (
+    podSelector === null ||
+    podSelector === undefined ||
+    typeof podSelector !== 'object' ||
+    Array.isArray(podSelector)
+  ) {
+    errs.push('spec.podSelector відсутній')
+    return errs
+  }
+  const matchLabels = /** @type {Record<string, unknown>} */ (podSelector).matchLabels
+  if (
+    matchLabels === null ||
+    matchLabels === undefined ||
+    typeof matchLabels !== 'object' ||
+    Array.isArray(matchLabels)
+  ) {
+    errs.push('spec.podSelector.matchLabels відсутній')
+    return errs
+  }
+  const app = /** @type {Record<string, unknown>} */ (matchLabels).app
+  if (app !== expectedAppLabel)
+    errs.push(`spec.podSelector.matchLabels.app має бути '${expectedAppLabel}' (зараз: ${JSON.stringify(app)})`)
+  return errs
+}
+
+/**
+ * Додає `resourceName` у `resources:` kustomization/Component YAML, якщо ще немає; сортує за алфавітом (en).
+ * @param {string} raw вміст `kustomization.yaml`
+ * @param {string} resourceName ім'я файлу ресурсу (наприклад `networkpolicy.yaml`)
+ * @returns {{ changed: boolean, content: string }} результат
+ */
+export function ensureResourceInKustomizationYaml(raw, resourceName) {
+  const doc = parseDocument(raw)
+  const resourcesNode = doc.get('resources')
+  /**
+  @type {string[]}
+   */
+  let items = []
+  if (resourcesNode && isSeq(resourcesNode)) {
+    items = resourcesNode.items
+      .map(n => (n && typeof n === 'object' && 'value' in n ? String(n.value) : ''))
+      .filter(s => s !== '')
+  }
+  if (items.includes(resourceName)) {
+    return { changed: false, content: raw }
+  }
+  items.push(resourceName)
+  items.sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
+  doc.set('resources', doc.createNode(items))
+  return { changed: true, content: String(doc) }
 }
 
 /**
@@ -4170,7 +4460,9 @@ function matchesYamlFilter(entry, filenameFilter) {
  * @returns {Promise<Record<string, unknown>[]>} список знайдених документів
  */
 async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
-  /** @type {Record<string, unknown>[]} */
+  /**
+  @type {Record<string, unknown>[]}
+   */
   const out = []
   const entries = await tryReaddir(dirPath)
   for (const entry of entries) {
@@ -4192,7 +4484,9 @@ async function readDocsByKindInDir(dirPath, kind, filenameFilter) {
  * @returns {Set<string>} шляхи JSON Pointer (наприклад `/spec/minReplicas`)
  */
 export function kustomizePatchModifiedPaths(patchText) {
-  /** @type {Set<string>} */
+  /**
+  @type {Set<string>}
+   */
   const out = new Set()
   const t = typeof patchText === 'string' ? patchText.trim() : ''
   if (t === '') return out
@@ -4296,7 +4590,9 @@ function processSingleKustomizePatch(p, byKind) {
  * @returns {Map<string, Set<string>>} `kind` → шляхи JSON Pointer, які overrides змінюють
  */
 export function kustomizationPatchPathsByTargetKind(kust) {
-  /** @type {Map<string, Set<string>>} */
+  /**
+  @type {Map<string, Set<string>>}
+   */
   const byKind = new Map()
   const patches = kust.patches
   if (!Array.isArray(patches)) return byKind
@@ -4401,7 +4697,9 @@ async function isK8sBaseDir(resolved, rootNorm) {
  * @returns {Promise<string[]>} абсолютні шляхи (без дедуплікації, якщо кілька однакових ref)
  */
 async function k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootNorm) {
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   for (const ref of pathRefs) {
     if (typeof ref === 'string' && !ref.includes('://') && ref.trim() !== '') {
@@ -4422,7 +4720,9 @@ async function k8sBaseDirsFromKustomizeResourcePathRefs(kustDir, pathRefs, rootN
  * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} прапорці
  */
 export async function kustomizeResourceTreeHpaPdbDeploymentFlags(kustAbs, rootNorm) {
-  /** @type {Set<string>} */
+  /**
+  @type {Set<string>}
+   */
   const visitedKustomization = new Set()
   const desc = await collectResourceDescriptorsForKustomizationWalk(kustAbs, rootNorm, visitedKustomization)
   const hasDeployment = await kustomizationTreeHasDeploymentUnderK8sBase(kustAbs, rootNorm)
@@ -4465,7 +4765,7 @@ async function yamlFileContainsHpaOrPdbDocument(fileAbs) {
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
  * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags мемоізований аналіз дерева
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function verifyK8sBaseKustomizeHasNoHpaPdb(kustAbs, rel, fail, passFn, getTreeFlags) {
   const { hasHpa, hasPdb } = await getTreeFlags(kustAbs)
@@ -4488,7 +4788,7 @@ async function verifyK8sBaseKustomizeHasNoHpaPdb(kustAbs, rel, fail, passFn, get
  * @param {(msg: string) => void} fail callback
  * @param {(msg: string) => void} passFn success
  * @param {(kust: string) => Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} getTreeFlags функція отримання прапорців дерева kustomize
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
   root,
@@ -4523,9 +4823,9 @@ async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
  * @param {string} ref посилання з pathRefs
  * @param {string[]} baseDirs масив base-каталогів
  * @param {boolean} anyBaseHasDep чи є Deployment у base
- * @param {(msg: string) => void} fail callback
- * @param {(msg: string) => void} passFn callback
- * @returns {Promise<void>}
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} резолвиться по завершенню перевірки
  */
 async function checkOverlayRefHpaPdb(root, kustDir, rel, ref, baseDirs, anyBaseHasDep, fail, passFn) {
   const fAbs = resolve(kustDir, ref.trim())
@@ -4559,16 +4859,19 @@ async function checkOverlayRefHpaPdb(root, kustDir, rel, ref, baseDirs, anyBaseH
  * @param {string[]} yamlFilesAbs yaml у k8s
  * @param {(msg: string) => void} fail callback
  * @param {(msg: string) => void} passFn pass
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateKustomizeHpaPdbOnlyWithBaseDeployment(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
-  /** @type {Map<string, Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>>} */
-  const treeFlagsMemo = new Map()
   /**
-   * @param {string} kustPath абсолютний шлях до kustomization.yaml
-   * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} прапорці наявності ресурсів у дереві
+  @type {Map<string, Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>>}
    */
+  const treeFlagsMemo = new Map()
+  /*
+ * @param {string} kustPath абсолютний шлях до kustomization.yaml
+  
+ * @returns {Promise<{ hasDeployment: boolean, hasHpa: boolean, hasPdb: boolean }>} прапорці наявності ресурсів у дереві
+ */
   const getTreeFlags = kustPath => {
     const k = resolve(kustPath)
     let p = treeFlagsMemo.get(k)
@@ -4793,6 +5096,42 @@ function validatePdbForDeployment(pdbDocs, deployName, appLabel, isDevLike, pdbR
 }
 
 /**
+ * Шукає NetworkPolicy за `metadata.name`.
+ * @param {Record<string, unknown>[]} npDocs документи NetworkPolicy
+ * @param {string} deployName очікуване `metadata.name`
+ * @returns {Record<string, unknown> | undefined} результат
+ */
+function findNetworkPolicyByDeployName(npDocs, deployName) {
+  return npDocs.find(doc => manifestMetadataName(doc) === deployName)
+}
+
+/**
+ * Перевіряє NetworkPolicy для одного workload: наявність і прив'язка за іменем / міткою `app`.
+ * @param {Record<string, unknown>[]} npDocs масив NetworkPolicy-документів каталогу
+ * @param {string} workloadName `metadata.name` workload
+ * @param {string} appLabel мітка `app` у selector workload
+ * @param {string} workloadKind `kind` workload (Deployment, StatefulSet, …)
+ * @param {string} npRel відносний шлях до networkpolicy.yaml для повідомлень
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn) {
+  const matchedNp = findNetworkPolicyByDeployName(npDocs, workloadName)
+  if (matchedNp === undefined) {
+    fail(
+      `${npRel}: відсутній або не знайдено NetworkPolicy з metadata.name='${workloadName}' для ${workloadKind} (k8s.mdc)`
+    )
+    return
+  }
+  const npErrs = networkPolicyManifestViolations(matchedNp, workloadName, appLabel)
+  if (npErrs.length === 0) {
+    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
+  } else {
+    for (const e of npErrs) fail(`${npRel}: ${e} (k8s.mdc)`)
+  }
+}
+
+/**
  * Перевіряє sibling каталог `…/k8s/…/components/` для одного **Deployment** з шару `…/k8s/…/base/`.
  *
  * Канон (k8s.mdc):
@@ -4809,14 +5148,14 @@ function validatePdbForDeployment(pdbDocs, deployName, appLabel, isDevLike, pdbR
  * @param {string} root корінь репозиторію
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 export async function validateComponentsForBaseDeployment(baseDir, deployName, appLabel, root, fail, passFn) {
   const componentsDir = resolve(baseDir, '..', COMPONENTS_DIR)
   const componentsRel = (relative(root, componentsDir) || componentsDir).replaceAll('\\', '/')
   if (!existsSync(componentsDir)) {
     fail(
-      `${componentsRel}: для Deployment '${deployName}' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)`
+      `${componentsRel}: для Deployment '${deployName}' з sibling base/ обов'язковий каталог components/ з hpa.yaml, networkpolicy.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)`
     )
     return
   }
@@ -4832,17 +5171,26 @@ export async function validateComponentsForBaseDeployment(baseDir, deployName, a
   }
   await validateComponentsKustomizationManifest(componentsDir, componentsRel, fail, passFn)
   await validateComponentsHpaFile(componentsDir, componentsRel, deployName, fail, passFn)
+  await validateComponentsNetworkPolicyFile(
+    componentsDir,
+    componentsRel,
+    deployName,
+    appLabel,
+    'Deployment',
+    fail,
+    passFn
+  )
   await validateComponentsPdbFile(componentsDir, componentsRel, deployName, appLabel, fail, passFn)
 }
 
 /**
  * Перевіряє `components/kustomization.yaml`: `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`,
- * `resources` містить `hpa.yaml` і `pdb.yaml` (як мінімум).
+ * `resources` містить `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` (як мінімум).
  * @param {string} componentsDir абсолютний шлях до каталогу `components/`
  * @param {string} componentsRel відносний шлях для повідомлень
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateComponentsKustomizationManifest(componentsDir, componentsRel, fail, passFn) {
   const kustAbs = join(componentsDir, 'kustomization.yaml')
@@ -4867,15 +5215,21 @@ async function validateComponentsKustomizationManifest(componentsDir, components
   }
   const resources = Array.isArray(obj.resources) ? obj.resources.filter(x => typeof x === 'string') : []
   const hasHpa = resources.includes(HPA_FILENAME)
+  const hasNp = resources.includes(NETWORK_POLICY_FILENAME)
   const hasPdb = resources.includes(PDB_FILENAME)
   if (!hasHpa) {
     fail(`${componentsRel}/kustomization.yaml: у resources має бути '${HPA_FILENAME}' (k8s.mdc)`)
   }
+  if (!hasNp) {
+    fail(`${componentsRel}/kustomization.yaml: у resources має бути '${NETWORK_POLICY_FILENAME}' (k8s.mdc)`)
+  }
   if (!hasPdb) {
     fail(`${componentsRel}/kustomization.yaml: у resources має бути '${PDB_FILENAME}' (k8s.mdc)`)
   }
-  if (obj.apiVersion === KUSTOMIZE_COMPONENT_API_VERSION && obj.kind === 'Component' && hasHpa && hasPdb) {
-    passFn(`${componentsRel}/kustomization.yaml: канонічний Kustomize Component з hpa.yaml і pdb.yaml (k8s.mdc)`)
+  if (obj.apiVersion === KUSTOMIZE_COMPONENT_API_VERSION && obj.kind === 'Component' && hasHpa && hasNp && hasPdb) {
+    passFn(
+      `${componentsRel}/kustomization.yaml: канонічний Kustomize Component з hpa.yaml, networkpolicy.yaml і pdb.yaml (k8s.mdc)`
+    )
   }
 }
 
@@ -4886,7 +5240,7 @@ async function validateComponentsKustomizationManifest(componentsDir, components
  * @param {string} deployName ім'я Deployment з base
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateComponentsHpaFile(componentsDir, componentsRel, deployName, fail, passFn) {
   const hpaAbs = join(componentsDir, HPA_FILENAME)
@@ -4900,6 +5254,36 @@ async function validateComponentsHpaFile(componentsDir, componentsRel, deployNam
 }
 
 /**
+ * Перевіряє `components/networkpolicy.yaml`: NetworkPolicy для Deployment.
+ * @param {string} componentsDir абсолютний шлях до каталогу `components/`
+ * @param {string} componentsRel відносний шлях для повідомлень
+ * @param {string} deployName ім'я Deployment з base
+ * @param {string} appLabel мітка `app` Deployment
+ * @param {string} workloadKind вид workload для повідомлень
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} результат
+ */
+async function validateComponentsNetworkPolicyFile(
+  componentsDir,
+  componentsRel,
+  deployName,
+  appLabel,
+  workloadKind,
+  fail,
+  passFn
+) {
+  const npAbs = join(componentsDir, NETWORK_POLICY_FILENAME)
+  const npRel = `${componentsRel}/${NETWORK_POLICY_FILENAME}`
+  if (!existsSync(npAbs)) {
+    fail(`${npRel}: відсутній — додай NetworkPolicy для ${workloadKind} '${deployName}' (k8s.mdc)`)
+    return
+  }
+  const npDocs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
+  validateNetworkPolicyForWorkload(npDocs, deployName, appLabel, workloadKind, npRel, fail, passFn)
+}
+
+/**
  * Перевіряє `components/pdb.yaml`: PDB для Deployment, dev-like `minAvailable=0`.
  * @param {string} componentsDir абсолютний шлях до каталогу `components/`
  * @param {string} componentsRel відносний шлях для повідомлень
@@ -4907,7 +5291,7 @@ async function validateComponentsHpaFile(componentsDir, componentsRel, deployNam
  * @param {string} appLabel мітка `app` Deployment
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function validateComponentsPdbFile(componentsDir, componentsRel, deployName, appLabel, fail, passFn) {
   const pdbAbs = join(componentsDir, PDB_FILENAME)
@@ -4968,7 +5352,7 @@ function validateSingleDeploymentHpaPdbTopology(
 }
 
 /**
- * Обробляє один каталог з Deployment: читає HPA/PDB і перевіряє кожен Deployment.
+ * Обробляє один каталог з Deployment: читає HPA/PDB/NetworkPolicy і перевіряє кожен Deployment.
  * @param {Record<string, unknown>[]} deployments масив Deployment-документів
  * @param {string} dir абсолютний шлях до каталогу
  * @param {string} root корінь репозиторію
@@ -4983,6 +5367,7 @@ async function validateDeploymentsInDir(deployments, dir, root, fail, passFn) {
   const deployRel = relDir === '' ? '.' : relDir
   if (isK8sBaseLayer && deployments.length > 0) {
     failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail)
+    failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail)
   }
   const hpaDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'HorizontalPodAutoscaler', HPA_FILENAME)
   const pdbDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'PodDisruptionBudget', PDB_FILENAME)
@@ -5023,6 +5408,20 @@ function failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail) {
 }
 
 /**
+ * У шарі `…/k8s/…/base/` забороняє локальний `networkpolicy.yaml` (має жити у sibling `components/`).
+ * @param {string} dir абсолютний каталог Deployment-маніфесту
+ * @param {string} deployRel відносний шлях для повідомлень
+ * @param {(msg: string) => void} fail callback при порушенні
+ */
+function failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail) {
+  if (existsSync(join(dir, NETWORK_POLICY_FILENAME))) {
+    fail(
+      `${deployRel}/${NETWORK_POLICY_FILENAME}: у шарі k8s/.../base не тримай локальний networkpolicy.yaml — NetworkPolicy живе у sibling components/ (k8s.mdc)`
+    )
+  }
+}
+
+/**
  * Якщо у Deployment є `metadata.name` і `spec.selector.matchLabels.app` — викликає
  * `validateComponentsForBaseDeployment` для звірки sibling-`components/`. Без цих ключів
  * каталог `components/` неможливо звʼязати з конкретним Deployment, тож пропускаємо мовчки.
@@ -5053,6 +5452,50 @@ async function extractDeploymentsFromFile(filePath) {
 }
 
 /**
+ * Витягує workload-документи, для яких потрібен NetworkPolicy (Deployment, StatefulSet, …).
+ * @param {string} filePath абсолютний шлях до YAML-файлу
+ * @returns {Promise<Record<string, unknown>[]>} результат
+ */
+async function extractNetworkPolicyWorkloadsFromFile(filePath) {
+  const raw = await tryReadFileUtf8(filePath)
+  if (raw === undefined) return []
+  const docs = tryParseAllYamlDocs(raw)
+  if (docs === undefined) return []
+  /**
+  @type {Record<string, unknown>[]}
+   */
+  const out = []
+  for (const kind of WORKLOAD_KINDS_WITH_NETWORK_POLICY) {
+    out.push(...collectDocsByKind(docs, kind))
+  }
+  return out
+}
+
+/**
+ * Групує workload-и з NetworkPolicy за каталогом маніфесту.
+ * @param {string[]} yamlFilesAbs абсолютні шляхи yaml під `k8s`
+ * @returns {Promise<Map<string, Record<string, unknown>[]>>} результат
+ */
+async function collectNetworkPolicyWorkloadsByDir(yamlFilesAbs) {
+  /**
+  @type {Map<string, Record<string, unknown>[]>}
+   */
+  const byDir = new Map()
+  for (const abs of yamlFilesAbs) {
+    const workloads = await extractNetworkPolicyWorkloadsFromFile(abs)
+    if (workloads.length === 0) continue
+    const dir = dirname(abs)
+    const merged = byDir.get(dir)
+    if (merged === undefined) {
+      byDir.set(dir, [...workloads])
+    } else {
+      merged.push(...workloads)
+    }
+  }
+  return byDir
+}
+
+/**
  * Для кожного **Deployment** у шарі **`…/k8s/…/base/`** (будь-який YAML у відповідному каталозі) перевіряє:
  * заборона локальних **`hpa.yaml`** і **`pdb.yaml`** (file-existence); канонічні **topologySpreadConstraints**;
  * наявність і канон sibling каталогу **`components/`** (Kustomize Component) з `hpa.yaml` і `pdb.yaml` через
@@ -5065,7 +5508,9 @@ async function extractDeploymentsFromFile(filePath) {
  */
 async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, passFn) {
   const rootNorm = resolve(root)
-  /** @type {Map<string, Record<string, unknown>[]>} */
+  /**
+  @type {Map<string, Record<string, unknown>[]>}
+   */
   const deploymentsByDir = new Map()
   for (const abs of yamlFilesAbs) {
     const rel = (relative(rootNorm, abs) || abs).replaceAll('\\', '/')
@@ -5082,6 +5527,47 @@ async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, pas
   }
   for (const [dir, deployments] of deploymentsByDir) {
     await validateDeploymentsInDir(deployments, dir, rootNorm, fail, passFn)
+  }
+}
+
+/**
+ * Перевіряє NetworkPolicy для **Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**
+ * під `k8s` (base → `components/networkpolicy.yaml`, інші шари → `networkpolicy.yaml` поруч).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} результат
+ */
+async function validateNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  const workloadsByDir = await collectNetworkPolicyWorkloadsByDir(yamlFilesAbs)
+  for (const [dir, workloads] of workloadsByDir) {
+    const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
+    const deployRel = relDir === '' ? '.' : relDir
+    const isBase = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
+    if (isBase && workloads.length > 0) {
+      failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail)
+    }
+    const npAbs = isBase ? join(dir, '..', COMPONENTS_DIR, NETWORK_POLICY_FILENAME) : join(dir, NETWORK_POLICY_FILENAME)
+    const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
+    const npDocs = existsSync(npAbs) ? await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy') : []
+    for (const workload of workloads) {
+      const workloadName = manifestMetadataName(workload)
+      const appLabel = workloadAppLabel(workload)
+      const workloadKind = typeof workload.kind === 'string' ? workload.kind : 'workload'
+      if (workloadName === null) {
+        fail(`${deployRel}: ${workloadKind} без metadata.name — не можу перевірити NetworkPolicy (k8s.mdc)`)
+        continue
+      }
+      if (appLabel === null) {
+        fail(
+          `${deployRel}: ${workloadKind} '${workloadName}' без мітки app у selector (spec.selector.matchLabels.app або jobTemplate для CronJob) (k8s.mdc)`
+        )
+        continue
+      }
+      validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn)
+    }
   }
 }
 
@@ -5207,9 +5693,13 @@ export function cleanupKustomizationImagesInYamlText(raw) {
 
   const entries = splitImagesBlockEntries(lines, imagesRange.start, imagesRange.end)
 
-  /** @type {Map<number, string>} */
+  /**
+  @type {Map<number, string>}
+   */
   const replacements = new Map()
-  /** @type {Set<number>} */
+  /**
+  @type {Set<number>}
+   */
   const removals = new Set()
   let changed = false
 
@@ -5219,7 +5709,9 @@ export function cleanupKustomizationImagesInYamlText(raw) {
 
   if (!changed) return { changed: false, content: raw }
 
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const out = []
   for (const [i, line] of lines.entries()) {
     if (removals.has(i)) continue
@@ -5261,7 +5753,9 @@ function findImagesBlockRange(lines) {
  * @returns {Array<{ start: number, end: number }>} діапазони рядків кожного елемента
  */
 function splitImagesBlockEntries(lines, blockStart, blockEnd) {
-  /** @type {Array<{ start: number, end: number }>} */
+  /**
+  @type {Array<{ start: number, end: number }>}
+   */
   const entries = []
   let curStart = -1
   for (let i = blockStart; i < blockEnd; i++) {
@@ -5283,10 +5777,14 @@ function splitImagesBlockEntries(lines, blockStart, blockEnd) {
  * @returns {boolean} true, якщо для цього елемента запланована хоча б одна зміна
  */
 function processImagesEntry(lines, entry, replacements, removals) {
-  /** @type {string | null} */
+  /**
+  @type {string | null}
+   */
   let strippedTag = null
   let nameProcessed = false
-  /** @type {{ lineIdx: number, value: string } | null} */
+  /**
+  @type {{ lineIdx: number, value: string } | null}
+   */
   let newTagInfo = null
   let newTagProcessed = false
   let changed = false
@@ -5368,7 +5866,9 @@ export function imageReplaceDeploymentPatchInfo(patchObj) {
   const parsedArr = tryParseJson6902Array(pr.patch)
   if (parsedArr === null) return null
 
-  /** @type {Array<{ containerIndex: number, newImage: string, opIndex: number }>} */
+  /**
+  @type {Array<{ containerIndex: number, newImage: string, opIndex: number }>}
+   */
   const ops = []
   for (const [i, element] of parsedArr.entries()) {
     const op = asPlainObject(element)
@@ -5635,7 +6135,9 @@ function parseKustomizationWithPatches(raw) {
   if (typeof rec.apiVersion !== 'string' || !rec.apiVersion.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) return null
   if (!Array.isArray(rec.patches)) return null
 
-  /** @type {Array<{ index: number, totalOps: number, info: { deployName: string, containerIndex: number, newImage: string, opIndex: number } }>} */
+  /**
+  @type {Array<{ index: number, totalOps: number, info: { deployName: string, containerIndex: number, newImage: string, opIndex: number } }>}
+   */
   const candidates = []
   for (const [i, p] of rec.patches.entries()) {
     const info = imageReplaceDeploymentPatchInfo(p)
@@ -5666,9 +6168,13 @@ function parseKustomizationWithPatches(raw) {
  *   результати конвертації та зібрані нефатальні помилки
  */
 async function buildPatchToImageConversions(kustAbs, rootNorm, candidates) {
-  /** @type {Array<{ index: number, opIndex: number, totalOps: number, name: string, newName: string, newTag: string | null }>} */
+  /**
+  @type {Array<{ index: number, opIndex: number, totalOps: number, name: string, newName: string, newTag: string | null }>}
+   */
   const conversions = []
-  /** @type {string[]} */
+  /**
+  @type {string[]}
+   */
   const errors = []
 
   for (const { index, totalOps, info } of candidates) {
@@ -5746,7 +6252,9 @@ function applyConversionsToDoc(doc, conversions) {
  * @returns {Map<number, { totalOps: number, opIdx: number[] }>} згруповане
  */
 function groupConversionsByPatchIndex(conversions) {
-  /** @type {Map<number, { totalOps: number, opIdx: number[] }>} */
+  /**
+  @type {Map<number, { totalOps: number, opIdx: number[] }>}
+   */
   const byPatch = new Map()
   for (const c of conversions) {
     const slot = byPatch.get(c.index) ?? { totalOps: c.totalOps, opIdx: [] }
@@ -5840,13 +6348,134 @@ function rewriteInlinePatchWithoutOps(patchText, opIndices) {
 }
 
 /**
+ * Прибирає рядок modeline з блоку YAML (для multi-doc `networkpolicy.yaml`).
+ * @param {string} yamlText фрагмент YAML
+ * @returns {string} результат
+ */
+function stripYamlLanguageServerModeline(yamlText) {
+  return yamlText.replace(YAML_LS_MODELINE_RE, '')
+}
+
+/**
+ * Імена NetworkPolicy, уже присутні у файлі.
+ * @param {string} npAbs абсолютний шлях до `networkpolicy.yaml`
+ * @returns {Promise<Set<string>>} результат
+ */
+async function existingNetworkPolicyNames(npAbs) {
+  if (!existsSync(npAbs)) return new Set()
+  const docs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
+  /**
+  @type {Set<string>}
+   */
+  const names = new Set()
+  for (const doc of docs) {
+    const n = manifestMetadataName(doc)
+    if (n !== null) names.add(n)
+  }
+  return names
+}
+
+/**
+ * Дописує відсутні NetworkPolicy-документи у `networkpolicy.yaml` (multi-doc через `---`).
+ * @param {string} npAbs абсолютний шлях до файлу
+ * @param {Array<{ name: string, appLabel: string, kind: string }>} toAdd workload-и без NP
+ * @param {string} npRel відносний шлях для повідомлень
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} результат
+ */
+async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn) {
+  if (toAdd.length === 0) return
+  let content = ''
+  if (existsSync(npAbs)) {
+    const raw = await readFile(npAbs, 'utf8')
+    content = raw.trimEnd()
+  }
+  const blocks = toAdd.map(({ name, appLabel }, i) => {
+    const block = buildNetworkPolicyYaml(name, appLabel)
+    return i === 0 && content === '' ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
+  })
+  const joined = blocks.join('\n---\n')
+  content = content === '' ? `${joined}\n` : `${content}\n---\n${joined}\n`
+  await writeFile(npAbs, content, 'utf8')
+  for (const { name, kind } of toAdd) {
+    passFn(`${npRel}: додано NetworkPolicy для ${kind} '${name}' (k8s.mdc)`)
+  }
+}
+
+/**
+ * Створює відсутні NetworkPolicy для workload-ів у каталозі (base → `components/`, інакше — поруч).
+ * @param {string} dir абсолютний каталог workload-маніфесту
+ * @param {Record<string, unknown>[]} workloads workload-документи з цього каталогу
+ * @param {string} rootNorm корінь репо
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} результат
+ */
+async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, fail, passFn) {
+  const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
+  const isBase = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
+  const npAbs = isBase ? join(dir, '..', COMPONENTS_DIR, NETWORK_POLICY_FILENAME) : join(dir, NETWORK_POLICY_FILENAME)
+  const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
+  const existing = await existingNetworkPolicyNames(npAbs)
+  /**
+  @type {Array<{ name: string, appLabel: string, kind: string }>}
+   */
+  const toAdd = []
+  for (const workload of workloads) {
+    const name = manifestMetadataName(workload)
+    const appLabel = workloadAppLabel(workload)
+    const kind = typeof workload.kind === 'string' ? workload.kind : 'workload'
+    if (name === null || appLabel === null) continue
+    if (!existing.has(name)) toAdd.push({ name, appLabel, kind })
+  }
+  if (toAdd.length === 0) return
+  try {
+    if (isBase) await mkdir(dirname(npAbs), { recursive: true })
+    await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn)
+    if (isBase) {
+      const componentsDir = dirname(npAbs)
+      const componentsRel = (relative(rootNorm, componentsDir) || componentsDir).replaceAll('\\', '/')
+      const kustAbs = join(componentsDir, 'kustomization.yaml')
+      if (existsSync(kustAbs)) {
+        const raw = await readFile(kustAbs, 'utf8')
+        const { changed, content } = ensureResourceInKustomizationYaml(raw, NETWORK_POLICY_FILENAME)
+        if (changed) {
+          await writeFile(kustAbs, content, 'utf8')
+          passFn(`${componentsRel}/kustomization.yaml: додано '${NETWORK_POLICY_FILENAME}' у resources (k8s.mdc)`)
+        }
+      }
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${npRel}: не вдалося створити/оновити NetworkPolicy (${msg})`)
+  }
+}
+
+/**
+ * Автоматично створює відсутні **NetworkPolicy** для Deployment, StatefulSet, DaemonSet, Job і CronJob
+ * під `k8s` (base → `components/`, інші шари → поруч).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs абсолютні шляхи yaml під `k8s`
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ * @returns {Promise<void>} результат
+ */
+async function ensureNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  const workloadsByDir = await collectNetworkPolicyWorkloadsByDir(yamlFilesAbs)
+  for (const [dir, workloads] of workloadsByDir) {
+    await ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, fail, passFn)
+  }
+}
+
+/**
  * Прохід для всіх `kustomization.yaml`: конвертує image-replace patches у `images:`,
  * потім чистить `images:` (зрізає теги в `name`, видаляє надлишкові `newTag`).
  * @param {string} root корінь репо
  * @param {string[]} yamlFilesAbs всі yaml під k8s
  * @param {(msg: string) => void} fail колбек повідомлення про помилку
  * @param {(msg: string) => void} pass колбек успішного повідомлення
- * @returns {Promise<void>}
+ * @returns {Promise<void>} результат
  */
 async function autofixKustomizationImagesYaml(root, yamlFilesAbs, fail, pass) {
   const rootNorm = resolve(root)
@@ -5917,7 +6546,7 @@ async function runKustomizationImagesCleanup(kustAbs, rel, fail, pass) {
  * @param {string} root корінь репозиторію (cwd)
  * @param {string[]} yamlFiles абсолютні шляхи знайдених *.yaml під `…/k8s/`
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {void}
+ * @returns {void} результат
  */
 function runAllK8sRego(root, yamlFiles, fail) {
   const relOf = abs => relative(root, abs).replaceAll('\\', '/') || abs
@@ -5933,11 +6562,14 @@ function runAllK8sRego(root, yamlFiles, fail) {
     return basename(p).toLowerCase() !== 'kustomization.yaml'
   })
 
-  /** @type {Array<{ ns: string, dir: string, files: string[] }>} */
+  /**
+  @type {Array<{ ns: string, dir: string, files: string[] }>}
+   */
   const targets = [
     { ns: 'k8s.manifest', dir: 'k8s/manifest', files: allYaml },
     { ns: 'k8s.gateway', dir: 'k8s/gateway', files: allYaml },
     { ns: 'k8s.hpa_pdb', dir: 'k8s/hpa_pdb', files: allYaml },
+    { ns: 'k8s.network_policy', dir: 'k8s/network_policy', files: allYaml },
     { ns: 'k8s.kustomization', dir: 'k8s/kustomization', files: kustYaml },
     { ns: 'k8s.svc_yaml', dir: 'k8s/svc_yaml', files: svcYaml },
     { ns: 'k8s.svc_hl_yaml', dir: 'k8s/svc_hl_yaml', files: svcHlYaml },
@@ -5980,6 +6612,8 @@ export async function check() {
 
   await autofixKustomizationImagesYaml(root, yamlFiles, fail, pass)
 
+  await ensureNetworkPoliciesForK8sWorkloads(root, yamlFiles, fail, pass)
+
   assertNoForbiddenK8sDevPaths(yamlFiles, root, fail)
 
   // Plan B: пер-документні структурні правила — у rego-полісі `npm/policy/k8s/*`,
@@ -6009,6 +6643,8 @@ export async function check() {
   await validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFiles, fail, pass)
 
   await validateDeploymentHpaPdbAndTopology(root, yamlFiles, fail, pass)
+
+  await validateNetworkPoliciesForK8sWorkloads(root, yamlFiles, fail, pass)
 
   await validateProdKustomizationOverrides(root, yamlFiles, fail, pass)
 

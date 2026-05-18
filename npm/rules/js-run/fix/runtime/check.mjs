@@ -28,6 +28,9 @@
  *    (див. `utils/promise-settimeout-scan.mjs`);
  *  - «jsconfig.json»: у backend-пакеті з каталогом `src/` у корені має бути `jsconfig.json`,
  *    вміст якого збігається з каноном js-run.mdc (NodeNext і include на дерево `src`).
+ *
+ * Per-document валідація `package.json` (bunyan, `node` у `scripts`) делегована rego-пакету
+ * `js_run.package_json` у `npm/rules/js-run/policy/package_json/`; JS — cross-file (AST, FS).
  */
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'

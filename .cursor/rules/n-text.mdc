@@ -24,11 +24,7 @@ version: '1.28'
 
 ```json
 {
-  "recommendations": [
-    "DavidAnson.vscode-markdownlint",
-    "oxc.oxc-vscode",
-    "timonwong.shellcheck"
-  ]
+  "recommendations": ["DavidAnson.vscode-markdownlint", "oxc.oxc-vscode", "timonwong.shellcheck"]
 }
 ```
 
@@ -140,11 +136,7 @@ version: '1.28'
   "tabWidth": 2,
   "useTabs": false,
   "printWidth": 120,
-  "ignorePatterns": [
-    "**/hasura/metadata/**",
-    "**/schema.graphql",
-    "**/auto-imports.d.ts"
-  ]
+  "ignorePatterns": ["**/hasura/metadata/**", "**/schema.graphql", "**/auto-imports.d.ts"]
 }
 ```
 

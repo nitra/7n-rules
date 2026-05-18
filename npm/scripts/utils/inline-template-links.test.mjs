@@ -72,9 +72,7 @@ describe('inlineTemplateLinks', () => {
   test('preserves $ characters in template content (no $-pattern substitution)', async () => {
     const text = 'Canon: [with-dollar.toml](./fix/foo/template/with-dollar.toml)\nTail after.'
     const result = await inlineTemplateLinks(text, FIXTURES)
-    expect(result).toBe(
-      'Canon: `with-dollar.toml`:\n\n```toml\npaths = [\'\'\'.*\\.lock$\'\'\']\n```\nTail after.'
-    )
+    expect(result).toBe("Canon: `with-dollar.toml`:\n\n```toml\npaths = ['''.*\\.lock$''']\n```\nTail after.")
   })
 
   test('missing file throws', async () => {
@@ -87,12 +85,10 @@ describe('inlineTemplateLinks', () => {
   test('multiple links in same text both get inlined', async () => {
     const text = [
       '[snippet.json](./fix/foo/template/snippet.json)',
-      '[config.yml](./policy/bar/template/config.yml)',
+      '[config.yml](./policy/bar/template/config.yml)'
     ].join(' and ')
     const result = await inlineTemplateLinks(text, FIXTURES)
-    expect(result).toBe(
-      '`snippet.json`:\n\n```json\n{"key": "val"}\n``` and `config.yml`:\n\n```yaml\nkey: val\n```'
-    )
+    expect(result).toBe('`snippet.json`:\n\n```json\n{"key": "val"}\n``` and `config.yml`:\n\n```yaml\nkey: val\n```')
   })
 
   test('integration: security.mdc — 5 template links inlined, non-template links untouched', async () => {
@@ -101,14 +97,24 @@ describe('inlineTemplateLinks', () => {
     const result = await inlineTemplateLinks(mdc, SECURITY_RULE_DIR)
 
     // All 5 template links are gone
-    expect(result).not.toContain('[package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)')
-    expect(result).not.toContain('[package.json.contains.json](./policy/package_json/template/package.json.contains.json)')
+    expect(result).not.toContain(
+      '[package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)'
+    )
+    expect(result).not.toContain(
+      '[package.json.contains.json](./policy/package_json/template/package.json.contains.json)'
+    )
     expect(result).not.toContain('[package.json.deny.json](./policy/package_json/template/package.json.deny.json)')
-    expect(result).not.toContain('[.trufflehog-exclude.snippet.txt](./fix/trufflehog/template/.trufflehog-exclude.snippet.txt)')
-    expect(result).not.toContain('[lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)')
+    expect(result).not.toContain(
+      '[.trufflehog-exclude.snippet.txt](./fix/trufflehog/template/.trufflehog-exclude.snippet.txt)'
+    )
+    expect(result).not.toContain(
+      '[lint-security.yml.snippet.yml](./policy/lint_security_yml/template/lint-security.yml.snippet.yml)'
+    )
 
     // Inline content from the actual template files is present
-    expect(result).toContain('```json\n{ "scripts": { "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail" } }\n```')
+    expect(result).toContain(
+      '```json\n{ "scripts": { "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail" } }\n```'
+    )
     expect(result).toContain('(^|/)node_modules(/|$)')
     expect(result).toContain('uses: trufflesecurity/trufflehog@main')
 
