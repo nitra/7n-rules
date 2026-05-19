@@ -85,6 +85,13 @@ deny contains "spec.egress: потрібен to.namespaceSelector: {} (інші 
 	not egress_has_cluster_namespace_selector(spec)
 }
 
+deny contains "spec.egress: to.namespaceSelector: {} мусить мати непорожні ports — catch-all заборонено (k8s.mdc)" if {
+	is_np_doc
+	spec := object.get(input, "spec", null)
+	is_object(spec)
+	cluster_egress_rule_without_ports(spec)
+}
+
 is_np_doc if input.kind == "NetworkPolicy"
 
 is_np_doc if startswith(object.get(input, "apiVersion", ""), "networking.k8s.io/")
@@ -155,4 +162,20 @@ egress_has_cluster_namespace_selector(spec) if {
 	ns := object.get(peer, "namespaceSelector", null)
 	is_object(ns)
 	count(ns) == 0
+}
+
+cluster_egress_rule_without_ports(spec) if {
+	egress := object.get(spec, "egress", null)
+	is_array(egress)
+	some rule in egress
+	is_object(rule)
+	to_list := object.get(rule, "to", null)
+	is_array(to_list)
+	some peer in to_list
+	is_object(peer)
+	ns := object.get(peer, "namespaceSelector", null)
+	is_object(ns)
+	count(ns) == 0
+	ports := object.get(rule, "ports", [])
+	count(ports) == 0
 }

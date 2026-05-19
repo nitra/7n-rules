@@ -30,7 +30,20 @@ valid_np := {
 					{"protocol": "TCP", "port": 443},
 				],
 			},
-			{"to": [{"namespaceSelector": {}}]},
+			{
+				"to": [{"namespaceSelector": {}}],
+				"ports": [
+					{"protocol": "TCP", "port": 80},
+					{"protocol": "TCP", "port": 443},
+					{"protocol": "TCP", "port": 5432},
+					{"protocol": "TCP", "port": 3306},
+					{"protocol": "TCP", "port": 1433},
+					{"protocol": "TCP", "port": 6379},
+					{"protocol": "TCP", "port": 8080},
+					{"protocol": "TCP", "port": 4317},
+					{"protocol": "TCP", "port": 4318},
+				],
+			},
 		],
 	},
 }
@@ -67,4 +80,14 @@ test_deny_missing_cluster_egress if {
 	bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/egress/2"}])
 	some msg in network_policy.deny with input as bad
 	contains(msg, "namespaceSelector")
+}
+
+test_deny_cluster_egress_catch_all if {
+	bad := json.patch(valid_np, [{
+		"op": "replace",
+		"path": "/spec/egress/2",
+		"value": {"to": [{"namespaceSelector": {}}]},
+	}])
+	some msg in network_policy.deny with input as bad
+	contains(msg, "catch-all")
 }

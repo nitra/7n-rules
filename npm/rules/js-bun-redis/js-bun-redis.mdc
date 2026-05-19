@@ -2,7 +2,7 @@
 description: Використання Redis/Valkey з Bun
 globs: "**/package.json,**/src/conn/**"
 alwaysApply: false
-version: '1.1'
+version: '1.2'
 ---
 
 ## Підтримувані версії redis
@@ -16,3 +16,5 @@ Redis 7.2+
 - Видалити з `dependencies`: `ioredis`, `node-redis`.
 - Видалити з коду: усі `import` / `require` цих пакетів та власні обгортки над ними.
 - Замінити на `import { redis } from 'bun'`
+
+Канон заборонених `dependencies` (`ioredis`, `node-redis`, `redis`, `@redis/*`): [package.json.deny.json](./policy/package_json/template/package.json.deny.json).

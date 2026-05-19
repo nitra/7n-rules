@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.47] - 2026-05-19
+
+### Fixed
+
+- `js-bun-db`, `js-bun-redis` rules: додано markdown-посилання на `policy/package_json/template/package.json.deny.json` у канонічних `<id>.mdc` — `findMissingMdcRefs` (викликається з `run-rule.mjs`) падав, бо канонічні `.mdc` не містили `[package.json.deny.json](./policy/package_json/template/package.json.deny.json)`. Bump rule versions: `js-bun-db.mdc` `1.7` → `1.8`, `js-bun-redis.mdc` `1.1` → `1.2`.
+
+## [1.13.46] - 2026-05-19
+
+### Changed
+
+- `image-avif` rule: двопрохідний rewrite у `check image-avif` — спочатку pre-scan `.vue`/`.html` на raster-посилання (`VUE_RASTER_IMPORT_RE` + `VUE_RASTER_STATIC_SRC_RE`), і лише якщо є хоча б одне — запускається `npx @nitra/minify-image --avif`, rewrite та cleanup AVIF-сиріт. Якщо raster-посилань нема — вихід `0` без жодного side-effect. Bump `image-avif.mdc` `1.3` → `1.4`.
+
 ## [1.13.45] - 2026-05-19
 
 ### Fixed
@@ -15,7 +27,7 @@
 
 ### Added
 
-- `abie` rule: новий policy-концерн `abie.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-docs` (presence-only, версію не фіксуємо). Реалізація: `npm/rules/abie/policy/package_json_docs/` (target.json + .rego + _test.rego). Bump `abie.mdc` `1.20` → `1.21`.
+- `abie` rule: новий policy-концерн `abie.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-docs` (presence-only, версію не фіксуємо). Реалізація: `npm/rules/abie/policy/package_json_docs/` (target.json + .rego + \_test.rego). Bump `abie.mdc` `1.20` → `1.21`.
 - `efes` rule: перший policy-концерн `efes.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-docs` (узгоджено з `graphql.mdc`, де схема береться з `node_modules/@nitra/efes-docs/schema/maya.graphql`). Реалізація: `npm/rules/efes/policy/package_json_docs/`. Bump `efes.mdc` `1.0` → `1.1`.
 
 ## [1.13.43] - 2026-05-18
