@@ -1,0 +1,80 @@
+docs/superpowers/plans/2026-05-19-networkpolicy-egress-explicit-ports.md
+  s_dc0d61fdf73895::t_f48c6c2da712b2 8,24-33,52-70,80,102,117,150,165,206,227,233,270,337,346-356,362-373,379,434,445,456,467,488,587,674,687-690,692,698,719,724,735,737-738,742,744-764,783,790,794,796,816,840,850,861,868,875
+npm/rules/k8s/fix/manifests/check.mjs
+  s_59071945723ea4::t_3e11545bf601a7 103
+  s_59071945723ea4::t_df2eeeafcebd8e 138
+  s_59071945723ea4::t_338d164807868e 94-95,97-99
+  s_59071945723ea4::t_6a668064466ce3 5160-5161,5175
+  s_59071945723ea4::t_800e7239e6b48e 5196-5197,5234
+  s_59071945723ea4::t_6a10a808401874 6430-6431,6441,6464-6471
+  s_59071945723ea4::t_8e85c30a9360e5 6482
+  s_dc0d61fdf73895::t_f48c6c2da712b2 5235
+  s_59071945723ea4::t_df0aa34a3820f1 5493,5506
+  s_59071945723ea4::t_8146b99b7e3bde 1781
+npm/rules/k8s/lint/lint.mjs
+  s_59071945723ea4::t_7cd33a2e9c9988 230-233
+npm/rules/k8s/policy/base_manifest/target.json
+  s_59071945723ea4::t_133b8910cea99c 4
+.cursor/rules/n-bun.mdc
+  s_dc0d61fdf73895::t_99a8049260cec6 5,85-87
+npm/package.json
+  s_59071945723ea4::t_8d787970d1294c 3
+npm/rules/k8s/policy/base_kustomization/base_kustomization_test.rego
+  s_59071945723ea4::t_bdbf2b573ae639 61,64
+  s_59071945723ea4::t_34555cb5df5179 54-55,57
+npm/CHANGELOG.md
+  s_59071945723ea4::t_f7fba9836e661e 7-10,12
+  s_59071945723ea4::t_aa034a08876474 11
+  s_59071945723ea4::t_f069e0f07e71d0 13-18
+npm/rules/k8s/fix/manifests/check-schema.test.mjs
+  s_59071945723ea4::t_fa6e766b17e8a2 2066
+npm/rules/k8s/lint/run-roots.test.mjs
+  s_dc0d61fdf73895::t_f48c6c2da712b2 59-63
+  s_59071945723ea4::t_025f4096a0341b 67
+npm/rules/k8s/policy/hpa_pdb/target.json
+  s_59071945723ea4::t_01c2cd4896b776 3
+npm/rules/k8s/k8s.mdc
+  s_59071945723ea4::t_64b2f30962c235 3
+  s_59071945723ea4::t_80c016cfb5f408 36
+  s_59071945723ea4::t_2fbf4e29f0adb7 466,476-487
+  s_59071945723ea4::t_97f859034a4c19 384,386,388,390,392,396-397,400,404,407,411
+  s_59071945723ea4::t_e96efee2a38ea8 124
+npm/rules/k8s/policy/manifest/target.json
+  s_59071945723ea4::t_2f147fbb5c64d6 3
+docs/superpowers/specs/2026-05-19-networkpolicy-egress-explicit-ports-design.md
+  s_dc0d61fdf73895::t_f48c6c2da712b2 50-56,81-87,95-103
+npm/rules/k8s/policy/gateway/target.json
+  s_59071945723ea4::t_5aaf06fc2ce5cd 3
+.n-cursor.json
+  s_dc0d61fdf73895::t_f48c6c2da712b2 18-19
+npm/rules/k8s/policy/base_kustomization/base_kustomization.rego
+  s_59071945723ea4::t_9c2ffaeb0884ab 44-48,52,55,57,68
+npm/rules/image-avif/fix/avif_generation/check.mjs
+  s_dc0d61fdf73895::t_f48c6c2da712b2 416
+npm/rules/image-avif/fix/avif_generation/check.test.mjs
+  s_dc0d61fdf73895::t_f48c6c2da712b2 413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "c040dd06fff56e767dd235926337341f43b69414",
+  "prompts": {},
+  "sessions": {
+    "s_59071945723ea4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad135efd-59fa-47be-a7a4-25a9bcbf00c1",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_dc0d61fdf73895": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7dce12ed-bc92-4e37-b12d-7d0638806c61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
