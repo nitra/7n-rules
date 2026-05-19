@@ -1,0 +1,56 @@
+npm/CHANGELOG.md
+  s_85f9c025ba1fa9::t_bb95544cee6cbd 7-11,13
+  s_e4f5fab254cea0::t_ac40c309052405 12
+npm/package.json
+  s_85f9c025ba1fa9::t_adce514563eb6d 3
+npm/rules/image-avif/fix/avif_generation/check.test.mjs
+  s_e4f5fab254cea0::t_b8972ca2d08f4d 396-399,409-410,413-417,421
+  s_e4f5fab254cea0::t_eb72c85a7f1693 189-193,209
+  s_e4f5fab254cea0::t_b61a93da24fec0 4-5
+npm/rules/ga/fix/workflows/check.test.mjs
+  s_85f9c025ba1fa9::t_def366cf1cc110 142-146
+npm/rules/image-avif/fix/avif_generation/check.mjs
+  s_e4f5fab254cea0::t_af97e2b8089e55 415-419,422
+  s_e4f5fab254cea0::t_74d0522b52266b 6-12,15
+  s_e4f5fab254cea0::t_bb45d4f9f01fca 293-294
+  s_e4f5fab254cea0::t_a7ebf85babd67a 286-292,295-296,298,300-330
+npm/scripts/utils/inline-template-links.test.mjs
+  s_85f9c025ba1fa9::t_a5347b755eb0f6 15
+  s_85f9c025ba1fa9::t_fd24669434afe9 116
+  s_85f9c025ba1fa9::t_e9e031d3d379f4 91
+.claude/commands/n-check.md
+  s_e4f5fab254cea0::t_f43f146ed43b99 1-11
+.cursor/rules/n-ga.mdc
+  s_e4f5fab254cea0::t_f43f146ed43b99 137-142
+docs/adr/20260519-091111-двопрохідний-pre-scan-у-check-image-avif.md
+  s_e4f5fab254cea0::t_482f774daf3177 1-50
+npm/rules/image-avif/image-avif.mdc
+  s_e4f5fab254cea0::t_479b5fb48b4170 15
+  s_e4f5fab254cea0::t_5c91d892b6b451 3,8,10-12
+.cursor/rules/n-text.mdc
+  s_e4f5fab254cea0::t_f43f146ed43b99 4,236-238,290-297,302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "9837e9cb02efa869dd016d35ea35b31fb05000ca",
+  "prompts": {},
+  "sessions": {
+    "s_85f9c025ba1fa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f97d6f8-5b2c-472f-9d2b-42ac8442cf90",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e4f5fab254cea0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c1067437-1e71-478f-a762-d388755ae5a8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
