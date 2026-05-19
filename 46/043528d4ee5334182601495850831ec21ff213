@@ -1,0 +1,19 @@
+npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml
+  s_ffed6d04484277::t_086b3695e93f76 33-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "46043528d4ee5334182601495850831ec21ff213",
+  "prompts": {},
+  "sessions": {
+    "s_ffed6d04484277": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b2548bae-dcf7-4da7-a1d3-edd830b8c5e9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
