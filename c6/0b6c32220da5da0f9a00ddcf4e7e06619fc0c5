@@ -1,0 +1,9 @@
+docs/adr/20260519-100331-явний-список-in-cluster-портів-в-egress-networkpolicy-заміст.md
+  ai_agent 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "c60b6c32220da5da0f9a00ddcf4e7e06619fc0c5",
+  "prompts": {}
+}
