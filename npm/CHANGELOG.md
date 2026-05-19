@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.48] - 2026-05-19
+
+### Changed
+
+- `k8s.network_policy`: канонічний egress NetworkPolicy більше **не дозволяє** `to.namespaceSelector: {}` без `ports:` (catch-all). У шаблоні `networkpolicy.snippet.yaml`, генераторі `buildNetworkPolicyYaml` і rego-policy `network_policy.rego` тепер in-cluster rule має явний список TCP-портів: `80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`. Додатково: `fix k8s` під час прогону знаходить існуючі `networkpolicy.yaml` з legacy catch-all egress і **перезаписує** їх через `buildNetworkPolicyYaml` (повний rebuild за `metadata.name` + `app`-міткою). JS-валідатор `networkPolicyManifestViolations` не змінюється (порти enforce-ить rego). Bump `k8s.mdc` `1.35` → `1.36`. Спец: [docs/superpowers/specs/2026-05-19-networkpolicy-egress-explicit-ports-design.md](../../docs/superpowers/specs/2026-05-19-networkpolicy-egress-explicit-ports-design.md).
+
 ## [1.13.47] - 2026-05-19
 
 ### Fixed
