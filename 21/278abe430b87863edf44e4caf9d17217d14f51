@@ -1,0 +1,43 @@
+package.json
+  s_56e95f1fdc1975::t_7e71c2bd36f641 16
+npm/rules/bun/bun.mdc
+  s_56e95f1fdc1975::t_0ef529d1da9f9b 5
+  s_56e95f1fdc1975::t_906c1700b93a15 75
+  s_56e95f1fdc1975::t_c1b99e71497785 73-74
+.n-cursor.json
+  s_56e95f1fdc1975::t_62244384b39a5a 19
+npm/package.json
+  s_56e95f1fdc1975::t_28c58e66a5844d 3
+npm/CHANGELOG.md
+  s_56e95f1fdc1975::t_4e7ee0b4f4238c 11
+  s_56e95f1fdc1975::t_96a5da7390f3bf 7-10,12
+npm/rules/bun/fix/layout/check.mjs
+  s_56e95f1fdc1975::t_384ec3a66355e2 89-95
+  s_56e95f1fdc1975::t_ad21a02a8233af 8-12
+  s_56e95f1fdc1975::t_b244c85de70c77 30-31,34-35,38-40,42,47-57,107,109,113,116-117,119,126-129,131-134,136-138
+  s_56e95f1fdc1975::t_ce1b86ee736ae6 61-88,96-106,114-115,118,120,123,130,135,139
+npm/rules/bun/fix/layout/check.test.mjs
+  s_56e95f1fdc1975::t_72906e25b228ec 71-119
+  s_56e95f1fdc1975::t_3301af66348e4d 120-151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "21278abe430b87863edf44e4caf9d17217d14f51",
+  "prompts": {},
+  "humans": {
+    "h_74546f1f1ded3e": {
+      "author": "vitaliytv <v@nitra.ai>"
+    }
+  },
+  "sessions": {
+    "s_56e95f1fdc1975": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a604541-32f2-4a17-b482-d057d3059bc4",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
