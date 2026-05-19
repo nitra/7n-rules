@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.39'
+version: '1.41'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -33,7 +33,7 @@ alwaysApply: false
 
 **Версія Kubernetes для kubeconform** має відповідати PIN yannh у цьому правилі та в **`check-k8s.mjs`** (зараз **`-kubernetes-version 1.33.9`** — semver без префікса `v`, еквівалент релізу **v1.33.9**; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключай реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**, як у [прикладах kubeconform](https://github.com/yannh/kubeconform#readme). За потреби **`-ignore-missing-schemas`**, якщо частина CRD ще без публічної схеми.
 
-**kubescape — вхід через зібраний kustomize-маніфест:** для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається — він не білдиться окремо) `lint-k8s` виконує **`kubectl kustomize <dir>`** і передає stdout у **`kubescape scan <tmp-file>`** з порогом **`--severity-threshold high`** (вбудована в kubectl підкоманда `kustomize` — окремий бінарник `kustomize` не потрібен; рендеринг локальний і не потребує доступу до кластера). Маніфест проходить через тимчасовий файл, бо **`kubescape scan` у v4.x не читає stdin** (`-` як шлях → `no resources found to scan`; прапорця `--input`/`--stdin` немає); тимчасова директорія створюється під `os.tmpdir()` і прибирається після скану. Це усуває false-positive **C-0260** (`Missing network policy`) у каноні з sibling **`components/networkpolicy.yaml`** без `metadata.namespace`: сирий dir-скан не виконує kustomize-збірку й бачить порожній namespace у NetworkPolicy проти непорожнього у Deployment з `base/`, тож `podSelector` не матчиться. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` (проєкт без Kustomize) — fallback на старий dir-скан **`kubescape scan <каталог-k8s>`**. Перший запуск kubescape може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
+**kubescape — вхід через зібраний kustomize-маніфест:** для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається — він не білдиться окремо) `lint-k8s` виконує **`kubectl kustomize <dir>`** і передає stdout у **`kubescape scan <tmp-file>`** з порогом **`--severity-threshold high`** (вбудована в kubectl підкоманда `kustomize` — окремий бінарник `kustomize` не потрібен; рендеринг локальний і не потребує доступу до кластера). Маніфест проходить через тимчасовий файл, бо **`kubescape scan` у v4.x не читає stdin** (`-` як шлях → `no resources found to scan`; прапорця `--input`/`--stdin` немає); тимчасова директорія створюється під `os.tmpdir()` і прибирається після скану. Збірка через kustomize нормалізує namespace на workload-маніфестах і **NetworkPolicy у `base/networkpolicy.yaml`** (через `base/kustomization.yaml` `namespace:`), що дає коректний матчинг `podSelector` у `C-0260` (`Missing network policy`) і дозволяє kubescape бачити дерево overlays / components зі справжніми ресурсами. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` (проєкт без Kustomize) — fallback на старий dir-скан **`kubescape scan <каталог-k8s>`**. Перший запуск kubescape може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
 
 ### Винятки kubescape: `.kubescape-exceptions.json`
 
@@ -121,7 +121,7 @@ resources:
     memory: '128Mi'
 ```
 
-**HPA, PDB і NetworkPolicy у base не тримаємо**: ні локальних `hpa.yaml` / `pdb.yaml` / `networkpolicy.yaml` поруч із workload-маніфестами, ні через `resources` / `components` / `bases`. Канон — sibling каталог **`components/`** (Kustomize Component) поруч з `base/` (див. розділ нижче).
+**HPA і PDB у base не тримаємо**: ні локальних `hpa.yaml` / `pdb.yaml` поруч із workload-маніфестами, ні через `resources` / `components` / `bases`. Канон — sibling каталог **`components/`** (Kustomize Component) поруч з `base/`, який підключають лише прод-overlays (див. розділ нижче). **NetworkPolicy** — навпаки: **обов'язковий і у `base/`**, у вигляді `base/networkpolicy.yaml` поруч з workload-маніфестом, підключений через `base/kustomization.yaml` `resources:` — щоб обмеження діяли і на dev-середовищі.
 
 ### Поза base (оверлеї, окремі каталоги)
 
@@ -381,33 +381,34 @@ images:
 
 **`check k8s`:** заборонено **`kind: Ingress`**.
 
-## Deployment: `topologySpreadConstraints`, HPA / PDB через `components/`
+## Deployment: `topologySpreadConstraints`, HPA / PDB через `components/`, NetworkPolicy у `base/`
 
-Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) сам Deployment має канонічні **`spec.template.spec.topologySpreadConstraints`**, а **HPA і PDB** живуть у **sibling каталозі** **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`). У `base/` локальні `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` **заборонені** (file-existence error). У дереві base-kustomize HPA / PDB / NetworkPolicy також **не дозволені** через `resources` / `components` / `bases`.
+Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) сам Deployment має канонічні **`spec.template.spec.topologySpreadConstraints`**, а **HPA і PDB** живуть у **sibling каталозі** **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`). У `base/` локальні `hpa.yaml` і `pdb.yaml` **заборонені** (file-existence error). У дереві base-kustomize HPA / PDB також **не дозволені** через `resources` / `components` / `bases`.
 
-Для **кожного** з **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s` обов'язковий **NetworkPolicy**: у **`…/k8s/…/base/`** — у **`components/networkpolicy.yaml`** (multi-doc, якщо workload-ів кілька); у **не-base** — **`networkpolicy.yaml`** поруч із маніфестом workload у тому ж каталозі. `metadata.name` NetworkPolicy **= `metadata.name`** workload; `spec.podSelector.matchLabels.app` **= мітка `app`** з `spec.selector.matchLabels` (для **CronJob** — з `spec.jobTemplate.spec.selector.matchLabels`). Відсутні документи **`check k8s`** створює автоматично.
+**NetworkPolicy** — інша історія: оскільки обмеження мережі мають діяти **і на dev**, NP лежить **у `base/`** (а не в `components/`). Для **кожного** з **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s` обов'язковий **NetworkPolicy**: у **`…/k8s/…/base/`** — у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc, якщо workload-ів кілька); у **не-base** — **`networkpolicy.yaml`** поруч із маніфестом workload у тому ж каталозі (overlay-specific override). `metadata.name` NetworkPolicy **= `metadata.name`** workload; `spec.podSelector.matchLabels.app` **= мітка `app`** з `spec.selector.matchLabels` (для **CronJob** — з `spec.jobTemplate.spec.selector.matchLabels`). У `base/kustomization.yaml` `resources:` має бути `networkpolicy.yaml`. Відсутні документи **`check k8s`** створює автоматично і додає `networkpolicy.yaml` у `base/kustomization.yaml` `resources:`.
 
-**Канонічна структура `<pkg>/k8s/components/`** (sibling до `base/`):
+**Канонічна структура `<pkg>/k8s/components/`** (sibling до `base/`) — лише HPA і PDB:
 
-- **`kustomization.yaml`** — `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources: [hpa.yaml, networkpolicy.yaml, pdb.yaml]` (відсортовано за алфавітом).
+- **`kustomization.yaml`** — `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`, `resources: [hpa.yaml, pdb.yaml]` (відсортовано за алфавітом).
 - **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, **без** `metadata.namespace` (namespace задає kustomization-споживач), `spec.scaleTargetRef.name` **= `metadata.name`** Deployment з base, dev-like значення `minReplicas: 1`, `maxReplicas: 1`.
-- **`networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace`; один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у sibling `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns (UDP/TCP 53); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні, включно з metadata `169.254.169.254:80`); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові in-cluster порти можна додати вручну у `ports:` цього rule. Канон: [networkpolicy.snippet.yaml](./policy/network_policy/template/networkpolicy.snippet.yaml). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, **без** `metadata.namespace`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment, dev-like `minAvailable: 0`.
+
+**Канонічний `base/networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace` (namespace додає `base/kustomization.yaml`); один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у тому ж `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns (UDP/TCP 53); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні, включно з metadata `169.254.169.254:80`); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові in-cluster порти можна додати вручну у `ports:` цього rule. Канон: [networkpolicy.snippet.yaml](./policy/network_policy/template/networkpolicy.snippet.yaml). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
 
 Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
 
-**Overlays** (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно.
+**Overlays** (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для прод-значень: `/spec/minReplicas`, `/spec/maxReplicas` (HPA), `/spec/minAvailable` (PDB). NetworkPolicy успадковується з base через `resources: [- ../base]` — окремий `networkpolicy.yaml` у overlay не обов'язковий і додається тільки для overlay-specific правил. Dev-середовище (`base`) HPA/PDB не отримує — як і потрібно — а NetworkPolicy діє з тим самим каноном.
 
 **`<pkg>/k8s/components/kustomization.yaml`** має `kind: Component` (не `kind: Kustomization`) — це **джерело** канонічних HPA/PDB для всіх overlays, а не overlay сам по собі. Прод-перезаписи (`/spec/minReplicas`, `/spec/maxReplicas`, `/spec/minAvailable`) живуть у `<env>/kustomization.yaml`, що підключає Component через `components:`. У самому Component patches не потрібні — він env-неутральний; **`check k8s`** не вимагає прод-патчів від `components/kustomization.yaml`.
 
-У **не-base** оверлеях (без `components/`) поруч із `Deployment` лишається звична схема: окремі **`hpa.yaml`**, **`networkpolicy.yaml`** і **`pdb.yaml`**, якщо такі потрібні для цього середовища. Для **StatefulSet**, **DaemonSet**, **Job**, **CronJob** у не-base — обов'язковий лише **`networkpolicy.yaml`** (HPA/PDB лишаються прив'язаними до **Deployment**, якщо є). **`check k8s`** звіряє прив'язку за іменами (і **дописує** відсутні NetworkPolicy-документи автоматично):
+У **не-base** оверлеях (без `components/`) поруч із `Deployment` лишається звична схема: окремі **`hpa.yaml`**, **`networkpolicy.yaml`** і **`pdb.yaml`**, якщо такі потрібні для цього середовища (NP overlay-specific override). Для **StatefulSet**, **DaemonSet**, **Job**, **CronJob** у не-base — обов'язкового локального `networkpolicy.yaml` немає, бо NP вже успадковується з base; додавайте лише якщо overlay змінює правила. **`check k8s`** звіряє прив'язку за іменами (і **дописує** відсутні NetworkPolicy-документи автоматично у файл поруч):
 
 - **`hpa.yaml`** (поза **`…/base/`**) — `autoscaling/v2`, `HorizontalPodAutoscaler`, `spec.scaleTargetRef.name` **= `metadata.name`** Deployment.
-- **`networkpolicy.yaml`** — той самий канон egress/ingress, що в `components/` (multi-doc, якщо у каталозі кілька workload-ів).
+- **`networkpolicy.yaml`** (overlay-specific, опціональний) — той самий канон egress/ingress, що в `base/` (multi-doc, якщо у каталозі кілька workload-ів).
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment.
 - **`topologySpreadConstraints`** — запис з `maxSkew: 1`, `topologyKey: kubernetes.io/hostname`, `whenUnsatisfiable: ScheduleAnyway`, `labelSelector.matchLabels.app` рівне тій самій мітці `app`.
 
-**Перевірка структури `components/`** (для кожного Deployment у `base/`): наявність каталогу, валідний `kustomization.yaml` як Component, `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` з відповідністю до Deployment-name / app-label. Алгоритм — функція `validateComponentsForBaseDeployment` у **`check-k8s.mjs`**.
+**Перевірка структури `components/`** (для кожного Deployment у `base/`): наявність каталогу, валідний `kustomization.yaml` як Component, `hpa.yaml` і `pdb.yaml` з відповідністю до Deployment-name / app-label. Алгоритм — функція `validateComponentsForBaseDeployment` у **`check-k8s.mjs`**.
 
 **Локальні шляхи в `kustomization.yaml`:** кожен запис без `://` (remote) з `resources` / `bases` / `components` / `crds`, `patchesStrategicMerge`, `patches[].path`, `patchesJson6902[].path`, `configurations[]`, `replacements[].path` має вказувати на **існуючий** у репозиторії файл (`.yaml` / `.yml`) або **каталог**; биті посилання — помилка **`check k8s`**.
 
@@ -462,18 +463,28 @@ patches:
         value: 1
 ```
 
-### Приклади `components/`
+### Приклади `components/` і `base/networkpolicy.yaml`
 
 ```yaml title="k8s/components/kustomization.yaml"
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
   - hpa.yaml
-  - networkpolicy.yaml
   - pdb.yaml
 ```
 
-```yaml title="k8s/components/networkpolicy.yaml"
+```yaml title="k8s/base/kustomization.yaml (фрагмент)"
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deploy.yaml
+  - networkpolicy.yaml
+  - svc.yaml
+  - svc-hl.yaml
+```
+
+```yaml title="k8s/base/networkpolicy.yaml"
 # yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/networkpolicy-networking-v1.json
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

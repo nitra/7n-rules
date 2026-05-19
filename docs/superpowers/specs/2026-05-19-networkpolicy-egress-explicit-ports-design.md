@@ -47,13 +47,13 @@ spec:
       ports:
         - { protocol: TCP, port: 80 }
         - { protocol: TCP, port: 443 }
-        - { protocol: TCP, port: 5432 }   # Postgres
-        - { protocol: TCP, port: 3306 }   # MySQL / MariaDB
-        - { protocol: TCP, port: 1433 }   # MSSQL
-        - { protocol: TCP, port: 6379 }   # Redis / Valkey
-        - { protocol: TCP, port: 8080 }   # Hasura / HTTP backends
-        - { protocol: TCP, port: 4317 }   # OTLP gRPC
-        - { protocol: TCP, port: 4318 }   # OTLP HTTP
+        - { protocol: TCP, port: 5432 } # Postgres
+        - { protocol: TCP, port: 3306 } # MySQL / MariaDB
+        - { protocol: TCP, port: 1433 } # MSSQL
+        - { protocol: TCP, port: 6379 } # Redis / Valkey
+        - { protocol: TCP, port: 8080 } # Hasura / HTTP backends
+        - { protocol: TCP, port: 4317 } # OTLP gRPC
+        - { protocol: TCP, port: 4318 } # OTLP HTTP
 ```
 
 **Дефолтний список:** `80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318` (9 портів).
@@ -78,13 +78,13 @@ Workload-и, що зараз слухають на нестандартних п
 
 ## Семантика check
 
-| Перевірка | Поведінка |
-|---|---|
-| kube-dns rule | Без змін: вимагається rule з `kube-system` namespaceSelector + `kube-dns` podSelector + порти 53 UDP/TCP. |
-| `ipBlock 0.0.0.0/0` з 80 та 443 | Без змін: обов'язковий. Extra-порти у тому ж блоці — дозволені. |
-| In-cluster `namespaceSelector: {}` rule | **Зміна:** має існувати, AND `ports:` непорожній. Catch-all (порожній/відсутній `ports`) — fail. |
-| Конкретний список портів in-cluster | **Не перевіряється.** Семантика «мінімум — лише структура». Workload може звузити чи розширити список. |
-| `egress: [{}]` (allow-all whole rule) | Без змін: заборонено. |
+| Перевірка                               | Поведінка                                                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| kube-dns rule                           | Без змін: вимагається rule з `kube-system` namespaceSelector + `kube-dns` podSelector + порти 53 UDP/TCP. |
+| `ipBlock 0.0.0.0/0` з 80 та 443         | Без змін: обов'язковий. Extra-порти у тому ж блоці — дозволені.                                           |
+| In-cluster `namespaceSelector: {}` rule | **Зміна:** має існувати, AND `ports:` непорожній. Catch-all (порожній/відсутній `ports`) — fail.          |
+| Конкретний список портів in-cluster     | **Не перевіряється.** Семантика «мінімум — лише структура». Workload може звузити чи розширити список.    |
+| `egress: [{}]` (allow-all whole rule)   | Без змін: заборонено.                                                                                     |
 
 **Філософія:** єдина точка enforcement — структура (catch-all більше не приймається). Конкретні порти — за вибором сервісу.
 
@@ -92,15 +92,15 @@ Workload-и, що зараз слухають на нестандартних п
 
 ## Файли, що змінюються
 
-| Файл | Зміна |
-|---|---|
-| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | Новий канон: in-cluster блок з 9 портами. |
-| `npm/rules/k8s/policy/network_policy/network_policy.rego` | Додати deny на in-cluster rule з порожнім/відсутнім `ports`. |
-| `npm/rules/k8s/policy/network_policy/network_policy_test.rego` | Тести: catch-all → fail; rule з ports → pass; нестандартний набір портів → pass. |
-| `npm/rules/k8s/fix/manifests/check.mjs` | Оновити `NETWORK_POLICY_EGRESS_YAML`; винести список портів у `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`. |
-| `npm/rules/k8s/fix/manifests/check-schema.test.mjs` | Оновити фікстури під новий канон. |
-| `npm/rules/k8s/k8s.mdc` | Оновити людиночитаний опис канону egress (нагадування, що catch-all заборонено). |
-| `npm/CHANGELOG.md` | Запис про зміну канону + міграцію. |
+| Файл                                                                      | Зміна                                                                                                    |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | Новий канон: in-cluster блок з 9 портами.                                                                |
+| `npm/rules/k8s/policy/network_policy/network_policy.rego`                 | Додати deny на in-cluster rule з порожнім/відсутнім `ports`.                                             |
+| `npm/rules/k8s/policy/network_policy/network_policy_test.rego`            | Тести: catch-all → fail; rule з ports → pass; нестандартний набір портів → pass.                         |
+| `npm/rules/k8s/fix/manifests/check.mjs`                                   | Оновити `NETWORK_POLICY_EGRESS_YAML`; винести список портів у `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`. |
+| `npm/rules/k8s/fix/manifests/check-schema.test.mjs`                       | Оновити фікстури під новий канон.                                                                        |
+| `npm/rules/k8s/k8s.mdc`                                                   | Оновити людиночитаний опис канону egress (нагадування, що catch-all заборонено).                         |
+| `npm/CHANGELOG.md`                                                        | Запис про зміну канону + міграцію.                                                                       |
 
 ---
 

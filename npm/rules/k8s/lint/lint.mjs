@@ -227,10 +227,10 @@ function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
  * Запускає kubescape по зібраному kustomize-маніфесту для кожного `…/k8s`-кореня. Для кожного
  * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kubectl kustomize <dir>` і
  * передаємо stdout у `kubescape scan <tmp-file>` через тимчасовий файл (kubescape v4.x не читає
- * stdin — див. `runKubescapeManifest`). Це усуває false-positive C-0260 (`Missing network policy`)
- * у випадках, коли NetworkPolicy живе у sibling `components/` без `metadata.namespace` (намспейс
- * інжектить overlay через `kustomization.namespace`); сирий dir-скан не виконує kustomize й бачить
- * порожній `namespace` у NetworkPolicy проти непорожнього у Deployment, через що `podSelector` не матчиться.
+ * stdin — див. `runKubescapeManifest`). Збірка через kustomize нормалізує namespace на workload-маніфестах
+ * і `base/networkpolicy.yaml` (через `base/kustomization.yaml` `namespace:`), що дає коректний
+ * матчинг `podSelector` у C-0260 (`Missing network policy`) і дозволяє kubescape бачити дерево
+ * overlays / components зі справжніми ресурсами.
  *
  * Якщо в `…/k8s`-корені немає жодного білдабельного kustomization.yaml (проєкт без Kustomize) —
  * fallback на старий dir-скан, щоб не блокувати чистий YAML-only набір маніфестів.

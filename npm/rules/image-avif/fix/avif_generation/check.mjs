@@ -413,9 +413,7 @@ export async function check() {
   const ignorePaths = await loadCursorIgnorePaths(process.cwd())
 
   if (!(await hasAnyVueRasterReference(ignorePaths))) {
-    pass(
-      'image-avif: у .vue/.html немає raster-посилань для переписування — AVIF-генерація і cleanup пропущені'
-    )
+    pass('image-avif: у .vue/.html немає raster-посилань для переписування — AVIF-генерація і cleanup пропущені')
     return reporter.getExitCode()
   }
 

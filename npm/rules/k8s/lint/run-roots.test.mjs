@@ -56,11 +56,15 @@ describe('findK8sRoots', () => {
       await mkdir(join(k8sDir, 'components'), { recursive: true })
       await mkdir(join(k8sDir, 'ua'), { recursive: true })
       // base: Kustomization (без явного kind теж рахуємо)
-      await writeFile(join(k8sDir, 'base', 'kustomization.yaml'), 'namespace: dev\nresources:\n  - deploy.yaml\n', 'utf8')
+      await writeFile(
+        join(k8sDir, 'base', 'kustomization.yaml'),
+        'namespace: dev\nresources:\n  - deploy.yaml\n',
+        'utf8'
+      )
       // components: Component — пропускається
       await writeFile(
         join(k8sDir, 'components', 'kustomization.yaml'),
-        'apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - networkpolicy.yaml\n',
+        'apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - hpa.yaml\n  - pdb.yaml\n',
         'utf8'
       )
       // ua: явний kind: Kustomization

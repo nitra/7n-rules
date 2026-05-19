@@ -1827,49 +1827,10 @@ spec:
     matchLabels:
       app: ap
 `
-    const np = `apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: ap
-spec:
-  podSelector:
-    matchLabels:
-      app: ap
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
-`
     const componentsK = `apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 resources:
   - hpa.yaml
-  - networkpolicy.yaml
   - pdb.yaml
 `
     const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
@@ -1888,7 +1849,6 @@ components:
 `
 
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
-    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     await writeFile(join(componentsDir, 'kustomization.yaml'), componentsK, 'utf8')
     await writeFile(join(baseDir, 'deployment.yaml'), dep, 'utf8')
@@ -2084,7 +2044,6 @@ resources:
 kind: Component
 resources:
   - hpa.yaml
-  - networkpolicy.yaml
   - pdb.yaml
 `
     const pdb = `apiVersion: policy/v1
@@ -2097,53 +2056,14 @@ spec:
     matchLabels:
       app: ap
 `
-    const np = `apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: ap
-spec:
-  podSelector:
-    matchLabels:
-      app: ap
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
-`
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
-    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
     expect(c.fails.some(m => m.includes('hpa.yaml') && m.includes('відсутній'))).toBe(true)
   })
 
-  test('pass для канонічного components/ з hpa.yaml, networkpolicy.yaml і pdb.yaml', async () => {
+  test('pass для канонічного components/ з hpa.yaml і pdb.yaml', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-comp-ok-'))
     const baseDir = join(root, 'k8s', 'base')
     const componentsDir = join(root, 'k8s', 'components')
@@ -2153,7 +2073,6 @@ spec:
 kind: Component
 resources:
   - hpa.yaml
-  - networkpolicy.yaml
   - pdb.yaml
 `
     const hpa = `apiVersion: autoscaling/v2
@@ -2186,44 +2105,6 @@ spec:
           value: 10
           periodSeconds: 15
 `
-    const np = `apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: ap
-spec:
-  podSelector:
-    matchLabels:
-      app: ap
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
-`
     const pdb = `apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
@@ -2236,7 +2117,6 @@ spec:
 `
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
-    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)
@@ -2254,46 +2134,7 @@ spec:
 kind: Component
 resources:
   - hpa.yaml
-  - networkpolicy.yaml
   - pdb.yaml
-`
-    const np = `apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: ap
-spec:
-  podSelector:
-    matchLabels:
-      app: ap
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
 `
     const hpa = `apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -2326,7 +2167,6 @@ spec:
 `
     await writeFile(join(componentsDir, 'kustomization.yaml'), okK, 'utf8')
     await writeFile(join(componentsDir, 'hpa.yaml'), hpa, 'utf8')
-    await writeFile(join(componentsDir, 'networkpolicy.yaml'), np, 'utf8')
     await writeFile(join(componentsDir, 'pdb.yaml'), pdb, 'utf8')
     const c = collectors()
     await validateComponentsForBaseDeployment(baseDir, 'ap', 'ap', resolve(root), c.fail, c.pass)

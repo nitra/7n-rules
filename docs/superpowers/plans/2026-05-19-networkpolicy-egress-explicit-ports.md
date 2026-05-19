@@ -5,6 +5,7 @@
 **Goal:** Замінити catch-all `to: [{namespaceSelector: {}}]` (без `ports:`) на канонічний rule з явним списком 9 in-cluster портів. Це стосується генератора, rego-перевірки, шаблону та документації. Існуючі `networkpolicy.yaml` мігруються одним прогоном `fix k8s`.
 
 **Architecture:** Зміна локалізована у `npm/rules/k8s`:
+
 1. Канонічний шаблон і генератор (`buildNetworkPolicyYaml`) пишуть нову форму.
 2. Rego додає `deny` на catch-all (порожній/відсутній `ports:` у in-cluster rule).
 3. JS-валідатор `networkPolicyManifestViolations` не змінюється (структурна семантика лишається).
@@ -20,16 +21,16 @@
 
 ### Modified files
 
-| Path | Зміна |
-|---|---|
-| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | In-cluster блок з 9 явними портами замість catch-all. |
-| `npm/rules/k8s/policy/network_policy/network_policy.rego` | Додано `deny` на in-cluster rule з порожнім/відсутнім `ports:`. |
-| `npm/rules/k8s/policy/network_policy/network_policy_test.rego` | Оновлено `valid_np` під новий канон; додано тест для catch-all. |
-| `npm/rules/k8s/fix/manifests/check.mjs` | Винесено `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`; оновлено `NETWORK_POLICY_EGRESS_YAML`; додано `regenerateLegacyNetworkPolicyDocsInFile` та виклик з fix-флоу. |
-| `npm/rules/k8s/fix/manifests/check-schema.test.mjs` | Оновлено JS-фікстуру `networkPolicyManifestViolations`; додано тест-кейс для `buildNetworkPolicyYaml` з новими портами; новий тест для legacy-міграції. |
-| `npm/rules/k8s/k8s.mdc` | Оновлено прозовий опис canon (явний список портів, заборона catch-all); оновлено YAML-snippet; bump `version` `1.35` → `1.36`. |
-| `npm/CHANGELOG.md` | Запис `[1.13.48] - 2026-05-19` під `### Changed`. |
-| `npm/package.json` | `version` `1.13.47` → `1.13.48`. |
+| Path                                                                      | Зміна                                                                                                                                                             |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | In-cluster блок з 9 явними портами замість catch-all.                                                                                                             |
+| `npm/rules/k8s/policy/network_policy/network_policy.rego`                 | Додано `deny` на in-cluster rule з порожнім/відсутнім `ports:`.                                                                                                   |
+| `npm/rules/k8s/policy/network_policy/network_policy_test.rego`            | Оновлено `valid_np` під новий канон; додано тест для catch-all.                                                                                                   |
+| `npm/rules/k8s/fix/manifests/check.mjs`                                   | Винесено `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`; оновлено `NETWORK_POLICY_EGRESS_YAML`; додано `regenerateLegacyNetworkPolicyDocsInFile` та виклик з fix-флоу. |
+| `npm/rules/k8s/fix/manifests/check-schema.test.mjs`                       | Оновлено JS-фікстуру `networkPolicyManifestViolations`; додано тест-кейс для `buildNetworkPolicyYaml` з новими портами; новий тест для legacy-міграції.           |
+| `npm/rules/k8s/k8s.mdc`                                                   | Оновлено прозовий опис canon (явний список портів, заборона catch-all); оновлено YAML-snippet; bump `version` `1.35` → `1.36`.                                    |
+| `npm/CHANGELOG.md`                                                        | Запис `[1.13.48] - 2026-05-19` під `### Changed`.                                                                                                                 |
+| `npm/package.json`                                                        | `version` `1.13.47` → `1.13.48`.                                                                                                                                  |
 
 ### Files NOT modified
 
@@ -48,25 +49,25 @@ const NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS = [80, 443, 5432, 3306, 1433, 6379
 YAML-fragment, що цей список генерує (під `- to: [{namespaceSelector: {}}]`):
 
 ```yaml
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-        - protocol: TCP
-          port: 5432
-        - protocol: TCP
-          port: 3306
-        - protocol: TCP
-          port: 1433
-        - protocol: TCP
-          port: 6379
-        - protocol: TCP
-          port: 8080
-        - protocol: TCP
-          port: 4317
-        - protocol: TCP
-          port: 4318
+ports:
+  - protocol: TCP
+    port: 80
+  - protocol: TCP
+    port: 443
+  - protocol: TCP
+    port: 5432
+  - protocol: TCP
+    port: 3306
+  - protocol: TCP
+    port: 1433
+  - protocol: TCP
+    port: 6379
+  - protocol: TCP
+    port: 8080
+  - protocol: TCP
+    port: 4317
+  - protocol: TCP
+    port: 4318
 ```
 
 ---
@@ -76,6 +77,7 @@ YAML-fragment, що цей список генерує (під `- to: [{namespac
 ### Task 1: Add failing rego test for catch-all in-cluster egress
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy_test.rego` (додати тест в кінці файлу).
 
 - [ ] **Step 1: Add failing test that asserts deny on catch-all in-cluster rule**
@@ -97,6 +99,7 @@ test_deny_cluster_egress_catch_all if {
 - [ ] **Step 2: Run rego tests, verify the new test fails**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && \
   conftest verify -p npm/rules/k8s/policy/network_policy --namespace k8s.network_policy
@@ -111,6 +114,7 @@ Expected: усі попередні тести PASS, `test_deny_cluster_egress_c
 ### Task 2: Update existing `valid_np` fixture in rego tests under the new canon
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy_test.rego` — замінити catch-all rule на rule з явними портами.
 
 - [ ] **Step 1: Replace catch-all entry in `valid_np` with new explicit-ports entry**
@@ -143,6 +147,7 @@ Expected: усі попередні тести PASS, `test_deny_cluster_egress_c
 - [ ] **Step 2: Run rego tests, verify all previous tests still pass; `test_deny_cluster_egress_catch_all` still fails (no deny rule yet)**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && \
   conftest verify -p npm/rules/k8s/policy/network_policy --namespace k8s.network_policy
@@ -157,6 +162,7 @@ Expected: `test_valid_network_policy`, `test_wrong_kind`, `test_missing_match_la
 ### Task 3: Add rego `deny` for in-cluster rule without ports
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy.rego` — додати deny rule та helper.
 
 - [ ] **Step 1: Add new deny rule after the existing `egress_has_cluster_namespace_selector` deny (after line 86)**
@@ -197,6 +203,7 @@ cluster_egress_rule_without_ports(spec) if {
 - [ ] **Step 3: Run rego tests — все PASS**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && \
   conftest verify -p npm/rules/k8s/policy/network_policy --namespace k8s.network_policy
@@ -217,11 +224,13 @@ git add npm/rules/k8s/policy/network_policy/network_policy.rego \
 ### Task 4: Update canonical template (`networkpolicy.snippet.yaml`)
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml`.
 
 - [ ] **Step 1: Replace last egress entry with explicit-ports block**
 
 Поточне значення файлу (рядки 1-33):
+
 ```yaml
 spec:
   podSelector:
@@ -258,6 +267,7 @@ spec:
 ```
 
 Замінити **повністю** на:
+
 ```yaml
 spec:
   podSelector:
@@ -324,6 +334,7 @@ git add npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml 
 ### Task 5: Update generator — add `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` and `NETWORK_POLICY_EGRESS_YAML`
 
 **Files:**
+
 - Modify: `npm/rules/k8s/fix/manifests/check.mjs` — навколо рядків 4255-4282.
 - Test: `npm/rules/k8s/fix/manifests/check-schema.test.mjs` — оновити тест `buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress`.
 
@@ -332,39 +343,40 @@ git add npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml 
 У `check-schema.test.mjs` (рядки 2366-2376), замінити тест:
 
 ```js
-  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress', () => {
-    const yaml = buildNetworkPolicyYaml('api', 'api')
-    expect(yaml).toContain('name: api')
-    expect(yaml).toContain('app: api')
-    expect(yaml).toContain('kind: NetworkPolicy')
-    expect(yaml).toContain('cidr: 0.0.0.0/0')
-    expect(yaml).toContain('port: 80')
-    expect(yaml).toContain('port: 443')
-    expect(yaml).toContain('namespaceSelector: {}')
-    expect(yaml).not.toContain('egress:\n    - {}')
-  })
+test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress', () => {
+  const yaml = buildNetworkPolicyYaml('api', 'api')
+  expect(yaml).toContain('name: api')
+  expect(yaml).toContain('app: api')
+  expect(yaml).toContain('kind: NetworkPolicy')
+  expect(yaml).toContain('cidr: 0.0.0.0/0')
+  expect(yaml).toContain('port: 80')
+  expect(yaml).toContain('port: 443')
+  expect(yaml).toContain('namespaceSelector: {}')
+  expect(yaml).not.toContain('egress:\n    - {}')
+})
 ```
 
 на:
 
 ```js
-  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
-    const yaml = buildNetworkPolicyYaml('api', 'api')
-    expect(yaml).toContain('name: api')
-    expect(yaml).toContain('app: api')
-    expect(yaml).toContain('kind: NetworkPolicy')
-    expect(yaml).toContain('cidr: 0.0.0.0/0')
-    expect(yaml).toContain('namespaceSelector: {}')
-    expect(yaml).not.toContain('egress:\n    - {}')
-    for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-      expect(yaml).toContain(`port: ${port}`)
-    }
-  })
+test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
+  const yaml = buildNetworkPolicyYaml('api', 'api')
+  expect(yaml).toContain('name: api')
+  expect(yaml).toContain('app: api')
+  expect(yaml).toContain('kind: NetworkPolicy')
+  expect(yaml).toContain('cidr: 0.0.0.0/0')
+  expect(yaml).toContain('namespaceSelector: {}')
+  expect(yaml).not.toContain('egress:\n    - {}')
+  for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
+    expect(yaml).toContain(`port: ${port}`)
+  }
+})
 ```
 
 - [ ] **Step 2: Run the test, verify it fails**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs -t 'buildNetworkPolicyYaml'
@@ -419,6 +431,7 @@ ${NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS.map(p => `        - protocol: TCP\n   
 - [ ] **Step 4: Run the test, verify PASS**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs -t 'buildNetworkPolicyYaml'
@@ -429,6 +442,7 @@ Expected: PASS.
 - [ ] **Step 5: Run the full schema test file**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs
@@ -439,6 +453,7 @@ Expected: усі тести PASS (фікстура `networkPolicyManifestViolati
 - [ ] **Step 6: Якщо в Step 5 будь-який тест FAIL з причини нової форми egress — оновити відповідні фікстури під новий канон**
 
 Локалізація фікстур — пошук:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   grep -nE 'namespaceSelector:\s*\{\}\s*$' rules/k8s/fix/manifests/check-schema.test.mjs
@@ -449,6 +464,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && \
 - [ ] **Step 7: Run all schema tests again — PASS**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs
@@ -469,6 +485,7 @@ git add npm/rules/k8s/fix/manifests/check.mjs \
 ### Task 6: M1 migration — auto-regenerate legacy NP docs in fix mode
 
 **Files:**
+
 - Modify: `npm/rules/k8s/fix/manifests/check.mjs` — додати функцію `regenerateLegacyNetworkPolicyDocsInFile` і викликати її в `ensureNetworkPoliciesForWorkloadsInDir`.
 - Test: `npm/rules/k8s/fix/manifests/check-schema.test.mjs` — новий тест.
 
@@ -567,6 +584,7 @@ spec:
 - [ ] **Step 2: Run test, verify it fails (function not exported / not defined)**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs -t 'regenerateLegacyNetworkPolicyDocsInFile'
@@ -653,6 +671,7 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
 - [ ] **Step 4: Run test, verify both new tests PASS**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs -t 'regenerateLegacyNetworkPolicyDocsInFile'
@@ -665,17 +684,18 @@ Expected: 2/2 PASS.
 У `ensureNetworkPoliciesForWorkloadsInDir` (рядок 6418), **перед** `const existing = await existingNetworkPolicyNames(npAbs)` (рядок 6423) додати:
 
 ```js
-  if (existsSync(npAbs)) {
-    const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
-    if (migrated) {
-      passFn(`${npRel}: міграція legacy catch-all egress → канон з явними in-cluster портами (k8s.mdc)`)
-    }
+if (existsSync(npAbs)) {
+  const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
+  if (migrated) {
+    passFn(`${npRel}: міграція legacy catch-all egress → канон з явними in-cluster портами (k8s.mdc)`)
   }
+}
 ```
 
 - [ ] **Step 6: Run full schema test file — все PASS**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && \
   bun test rules/k8s/fix/manifests/check-schema.test.mjs
@@ -696,11 +716,12 @@ git add npm/rules/k8s/fix/manifests/check.mjs \
 ### Task 7: Update `k8s.mdc` documentation
 
 **Files:**
+
 - Modify: `npm/rules/k8s/k8s.mdc` — рядок 391 (прозовий опис), рядки 510-511 (YAML-snippet), `version` у front-matter (рядок 3).
 
 - [ ] **Step 1: Update prose description on line 391**
 
-Знайти у `k8s.mdc` рядок 391 (починається з `- **\`networkpolicy.yaml\`** —`), замінити фрагмент:
+Знайти у `k8s.mdc` рядок 391 (починається з `- **\`networkpolicy.yaml\`\*\* —`), замінити фрагмент:
 
 > «**Egress (усі workload-и):** kube-dns (UDP/TCP 53); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні, включно з metadata `169.254.169.254:80`); **інші порти** — лише in-cluster через `to.namespaceSelector: {}` (трафік на `*.svc` / Pod-и в кластері; Postgres лише `*.svc`, без Cloud SQL). Заборонено `egress: [{}]`.»
 
@@ -711,34 +732,36 @@ git add npm/rules/k8s/fix/manifests/check.mjs \
 - [ ] **Step 2: Update YAML snippet on lines 510-511**
 
 У YAML-snippet знайти останній блок (рядки 510-511):
+
 ```yaml
-    - to:
-        - namespaceSelector: {}
+- to:
+    - namespaceSelector: {}
 ```
 
 Замінити на:
+
 ```yaml
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-        - protocol: TCP
-          port: 5432
-        - protocol: TCP
-          port: 3306
-        - protocol: TCP
-          port: 1433
-        - protocol: TCP
-          port: 6379
-        - protocol: TCP
-          port: 8080
-        - protocol: TCP
-          port: 4317
-        - protocol: TCP
-          port: 4318
+- to:
+    - namespaceSelector: {}
+  ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 3306
+    - protocol: TCP
+      port: 1433
+    - protocol: TCP
+      port: 6379
+    - protocol: TCP
+      port: 8080
+    - protocol: TCP
+      port: 4317
+    - protocol: TCP
+      port: 4318
 ```
 
 - [ ] **Step 3: Bump rule version**
@@ -757,16 +780,20 @@ git add npm/rules/k8s/k8s.mdc && \
 ### Task 8: Version bump and CHANGELOG entry
 
 **Files:**
+
 - Modify: `npm/package.json` — bump `version`.
 - Modify: `npm/CHANGELOG.md` — додати запис.
 
 - [ ] **Step 1: Bump npm version**
 
 У `npm/package.json` (рядок 3), замінити:
+
 ```json
   "version": "1.13.47",
 ```
+
 на:
+
 ```json
   "version": "1.13.48",
 ```
@@ -786,6 +813,7 @@ git add npm/rules/k8s/k8s.mdc && \
 - [ ] **Step 3: Verify changelog format**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && \
   head -25 npm/CHANGELOG.md
@@ -809,6 +837,7 @@ git add npm/package.json npm/CHANGELOG.md && \
 - [ ] **Step 1: Запустити всі тести npm-пакета**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor/npm && bun test
 ```
@@ -818,6 +847,7 @@ Expected: усі тести PASS.
 - [ ] **Step 2: Запустити rego-тести**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && \
   conftest verify -p npm/rules/k8s/policy/network_policy --namespace k8s.network_policy
@@ -828,18 +858,21 @@ Expected: усі тести PASS (включно з новим `test_deny_cluste
 - [ ] **Step 3: Прогнати fix k8s на реальному репо (smoke-test міграції)**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra && \
   npx --yes /Users/vitaliytv/www/nitra/cursor/npm fix k8s
 ```
 
 Expected:
+
 - Існуючі `networkpolicy.yaml` з catch-all egress отримують повідомлення «міграція legacy catch-all egress → канон з явними in-cluster портами».
 - Після прогону повторний `check k8s` має проходити без `deny`-помилок про catch-all.
 
 - [ ] **Step 4: Перевірити, що ніщо не зламалось у lint**
 
 Run:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && bun run lint
 ```

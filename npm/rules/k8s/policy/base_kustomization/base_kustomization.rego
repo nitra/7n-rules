@@ -41,16 +41,20 @@ deny contains base_namespace_required_msg if {
 # (із зануренням у вкладені kustomization.yaml) — JS-оркестратор
 # `verifyK8sBaseKustomizeHasNoHpaPdb` у `check-k8s.mjs` (потребує fs-доступу). Цей
 # rego-deny — defense-in-depth: спрацює навіть якщо JS-крок упаде з винятку раніше.
-deny contains hpa_pdb_np_in_base_resources_msg(r) if {
+#
+# NetworkPolicy у base — навпаки, обов'язковий (k8s.mdc): обмеження мережі мають
+# діяти і на dev-середовищі, тож `base/networkpolicy.yaml` підключений через
+# `base/kustomization.yaml` `resources:` і не блокується цим правилом.
+deny contains hpa_pdb_in_base_resources_msg(r) if {
 	is_kustomization
 	some r in object.get(input, "resources", [])
 	is_string(r)
-	is_hpa_pdb_or_np_filename(r)
+	is_hpa_or_pdb_filename(r)
 }
 
-hpa_pdb_np_in_base_resources_msg(file) := sprintf(
+hpa_pdb_in_base_resources_msg(file) := sprintf(
 	concat("", [
-		"у base/kustomization.yaml `resources:` містить '%v' — HPA/PDB/NetworkPolicy заборонені у base, ",
+		"у base/kustomization.yaml `resources:` містить '%v' — HPA/PDB заборонені у base, ",
 		"перенесіть у sibling каталог components/ і підключайте з overlay (k8s.mdc)",
 	]),
 	[file],
@@ -61,14 +65,10 @@ is_kustomization if {
 	startswith(object.get(input, "apiVersion", ""), "kustomize.config.k8s.io/")
 }
 
-is_hpa_pdb_or_np_filename(p) if {
+is_hpa_or_pdb_filename(p) if {
 	basename(p) in {
 		"hpa.yaml",
 		"pdb.yaml",
-		"networkpolicy.yaml",
-		"hpa.yml",
-		"pdb.yml",
-		"networkpolicy.yml",
 	}
 }
 

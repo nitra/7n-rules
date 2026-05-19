@@ -91,14 +91,16 @@
  * **HPA / PDB / topologySpreadConstraints:** для кожного **`Deployment`** у шарі **`…/k8s/…/base/`**
  * (будь-який `.yaml` у цьому каталозі) обов'язкові канонічні **topologySpreadConstraints**, а HPA і PDB
  * живуть у sibling каталозі **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу `components`). У `base/`
- * заборонено тримати локальні `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` (file-existence error) і також у дереві
- * base-kustomize не повинно бути HPA/PDB/NetworkPolicy через `resources` / `components` / `bases`.
+ * заборонено тримати локальні `hpa.yaml` і `pdb.yaml` (file-existence error) і також у дереві
+ * base-kustomize не повинно бути HPA/PDB через `resources` / `components` / `bases`.
  * **NetworkPolicy:** для кожного **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s`
- * обов'язковий канонічний NetworkPolicy (base → `components/networkpolicy.yaml`, інші шари → `networkpolicy.yaml` поруч).
+ * обов'язковий канонічний NetworkPolicy у `networkpolicy.yaml` поруч з workload-маніфестом — у base
+ * (`base/networkpolicy.yaml`, підключений через `base/kustomization.yaml` `resources:` — обмеження діють і на dev)
+ * і у не-base overlay (опційно — overlay-specific override).
  * Egress: kube-dns; **TCP 80/443** на `0.0.0.0/0`; інші порти — `namespaceSelector: {}` (in-cluster / `*.svc`). Заборонено `egress: [{}]`.
  * Відсутні документи **`check k8s`** створює автоматично (multi-doc у одному файлі, якщо workload-ів кілька).
  * Структура `components/`: `kustomization.yaml` з `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`,
- * `resources` що містять `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml`, `hpa.yaml` (валідний `autoscaling/v2`
+ * `resources` що містять `hpa.yaml` і `pdb.yaml`, `hpa.yaml` (валідний `autoscaling/v2`
  * HorizontalPodAutoscaler з `scaleTargetRef.name` = ім'я Deployment, dev-like `min=max=1`), `pdb.yaml` (валідний
  * `policy/v1` PodDisruptionBudget з `selector.matchLabels.app` = мітка `app` Deployment, dev-like `minAvailable=0`).
  * Overlays (`ua/`, прод-overlays) підключають `components: [- ../components]` і додають JSON6902-патчі для
@@ -133,7 +135,7 @@
  * поки в наслідуваному `base` у дереві не з'явиться такий Deployment (k8s.mdc).
  */
 import { existsSync } from 'node:fs'
-import { mkdir, readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
+import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
@@ -1776,7 +1778,7 @@ export function baseKustomizationNamespaceViolation(obj) {
 }
 
 /**
- * Збирає всі `*.yaml` та `*.yml` під деревом від кореня cwd, якщо шлях містить сегмент `k8s` (для `.yml` далі — помилка перейменування).
+ * Збирає всі `*.yaml` та `*.yml` під деревом від кореня cwd, якщо шлях містить сегмент `k8s` (для `.yml` далі — fail з порадою перейменувати на `.yaml`; k8s.mdc).
  * @param {string} root корінь репозиторію (cwd)
  * @param {string[]} [ignorePaths] шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<string[]>} відсортовані абсолютні шляхи до файлів
@@ -5155,6 +5157,8 @@ function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, worklo
  *   що дорівнює `metadata.name` цього Deployment, з dev-like значеннями `min=max=1`.
  * - `components/pdb.yaml` — валідний `policy/v1` `PodDisruptionBudget` зі `selector.matchLabels.app`,
  *   що дорівнює мітці `app` Deployment, з dev-like `minAvailable=0`.
+ * - **NetworkPolicy** в components не живе — він підключений з `base/networkpolicy.yaml` через
+ *   `base/kustomization.yaml` `resources:` (див. `validateNetworkPoliciesForK8sWorkloads`).
  * @param {string} baseDir абсолютний шлях до `…/k8s/…/base/`
  * @param {string} deployName ім'я Deployment з base
  * @param {string} appLabel мітка `app` з `spec.selector.matchLabels.app`
@@ -5168,7 +5172,7 @@ export async function validateComponentsForBaseDeployment(baseDir, deployName, a
   const componentsRel = (relative(root, componentsDir) || componentsDir).replaceAll('\\', '/')
   if (!existsSync(componentsDir)) {
     fail(
-      `${componentsRel}: для Deployment '${deployName}' з sibling base/ обов'язковий каталог components/ з hpa.yaml, networkpolicy.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)`
+      `${componentsRel}: для Deployment '${deployName}' з sibling base/ обов'язковий каталог components/ з hpa.yaml і pdb.yaml (Kustomize Component) (k8s.mdc)`
     )
     return
   }
@@ -5184,21 +5188,13 @@ export async function validateComponentsForBaseDeployment(baseDir, deployName, a
   }
   await validateComponentsKustomizationManifest(componentsDir, componentsRel, fail, passFn)
   await validateComponentsHpaFile(componentsDir, componentsRel, deployName, fail, passFn)
-  await validateComponentsNetworkPolicyFile(
-    componentsDir,
-    componentsRel,
-    deployName,
-    appLabel,
-    'Deployment',
-    fail,
-    passFn
-  )
   await validateComponentsPdbFile(componentsDir, componentsRel, deployName, appLabel, fail, passFn)
 }
 
 /**
  * Перевіряє `components/kustomization.yaml`: `apiVersion: kustomize.config.k8s.io/v1alpha1`, `kind: Component`,
- * `resources` містить `hpa.yaml`, `networkpolicy.yaml` і `pdb.yaml` (як мінімум).
+ * `resources` містить `hpa.yaml` і `pdb.yaml` (як мінімум). NetworkPolicy у components вже не живе —
+ * він підключений з `base/networkpolicy.yaml`.
  * @param {string} componentsDir абсолютний шлях до каталогу `components/`
  * @param {string} componentsRel відносний шлях для повідомлень
  * @param {(msg: string) => void} fail callback при помилці
@@ -5228,21 +5224,15 @@ async function validateComponentsKustomizationManifest(componentsDir, components
   }
   const resources = Array.isArray(obj.resources) ? obj.resources.filter(x => typeof x === 'string') : []
   const hasHpa = resources.includes(HPA_FILENAME)
-  const hasNp = resources.includes(NETWORK_POLICY_FILENAME)
   const hasPdb = resources.includes(PDB_FILENAME)
   if (!hasHpa) {
     fail(`${componentsRel}/kustomization.yaml: у resources має бути '${HPA_FILENAME}' (k8s.mdc)`)
   }
-  if (!hasNp) {
-    fail(`${componentsRel}/kustomization.yaml: у resources має бути '${NETWORK_POLICY_FILENAME}' (k8s.mdc)`)
-  }
   if (!hasPdb) {
     fail(`${componentsRel}/kustomization.yaml: у resources має бути '${PDB_FILENAME}' (k8s.mdc)`)
   }
-  if (obj.apiVersion === KUSTOMIZE_COMPONENT_API_VERSION && obj.kind === 'Component' && hasHpa && hasNp && hasPdb) {
-    passFn(
-      `${componentsRel}/kustomization.yaml: канонічний Kustomize Component з hpa.yaml, networkpolicy.yaml і pdb.yaml (k8s.mdc)`
-    )
+  if (obj.apiVersion === KUSTOMIZE_COMPONENT_API_VERSION && obj.kind === 'Component' && hasHpa && hasPdb) {
+    passFn(`${componentsRel}/kustomization.yaml: канонічний Kustomize Component з hpa.yaml і pdb.yaml (k8s.mdc)`)
   }
 }
 
@@ -5264,36 +5254,6 @@ async function validateComponentsHpaFile(componentsDir, componentsRel, deployNam
   }
   const hpaDocs = await readAllDocsByKindFromFile(hpaAbs, 'HorizontalPodAutoscaler')
   validateHpaForDeployment(hpaDocs, deployName, true, hpaRel, fail, passFn)
-}
-
-/**
- * Перевіряє `components/networkpolicy.yaml`: NetworkPolicy для Deployment.
- * @param {string} componentsDir абсолютний шлях до каталогу `components/`
- * @param {string} componentsRel відносний шлях для повідомлень
- * @param {string} deployName ім'я Deployment з base
- * @param {string} appLabel мітка `app` Deployment
- * @param {string} workloadKind вид workload для повідомлень
- * @param {(msg: string) => void} fail callback при помилці
- * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>} результат
- */
-async function validateComponentsNetworkPolicyFile(
-  componentsDir,
-  componentsRel,
-  deployName,
-  appLabel,
-  workloadKind,
-  fail,
-  passFn
-) {
-  const npAbs = join(componentsDir, NETWORK_POLICY_FILENAME)
-  const npRel = `${componentsRel}/${NETWORK_POLICY_FILENAME}`
-  if (!existsSync(npAbs)) {
-    fail(`${npRel}: відсутній — додай NetworkPolicy для ${workloadKind} '${deployName}' (k8s.mdc)`)
-    return
-  }
-  const npDocs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
-  validateNetworkPolicyForWorkload(npDocs, deployName, appLabel, workloadKind, npRel, fail, passFn)
 }
 
 /**
@@ -5380,7 +5340,6 @@ async function validateDeploymentsInDir(deployments, dir, root, fail, passFn) {
   const deployRel = relDir === '' ? '.' : relDir
   if (isK8sBaseLayer && deployments.length > 0) {
     failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail)
-    failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail)
   }
   const hpaDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'HorizontalPodAutoscaler', HPA_FILENAME)
   const pdbDocs = isK8sBaseLayer ? [] : await readDocsByKindInDir(dir, 'PodDisruptionBudget', PDB_FILENAME)
@@ -5416,20 +5375,6 @@ function failIfBaseLayerHasLocalHpaOrPdb(dir, deployRel, fail) {
   if (existsSync(join(dir, PDB_FILENAME))) {
     fail(
       `${deployRel}/${PDB_FILENAME}: у шарі k8s/.../base не тримай локальний pdb.yaml — PDB живе у sibling components/ (k8s.mdc)`
-    )
-  }
-}
-
-/**
- * У шарі `…/k8s/…/base/` забороняє локальний `networkpolicy.yaml` (має жити у sibling `components/`).
- * @param {string} dir абсолютний каталог Deployment-маніфесту
- * @param {string} deployRel відносний шлях для повідомлень
- * @param {(msg: string) => void} fail callback при порушенні
- */
-function failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail) {
-  if (existsSync(join(dir, NETWORK_POLICY_FILENAME))) {
-    fail(
-      `${deployRel}/${NETWORK_POLICY_FILENAME}: у шарі k8s/.../base не тримай локальний networkpolicy.yaml — NetworkPolicy живе у sibling components/ (k8s.mdc)`
     )
   }
 }
@@ -5545,7 +5490,7 @@ async function validateDeploymentHpaPdbAndTopology(root, yamlFilesAbs, fail, pas
 
 /**
  * Перевіряє NetworkPolicy для **Deployment**, **StatefulSet**, **DaemonSet**, **Job**, **CronJob**
- * під `k8s` (base → `components/networkpolicy.yaml`, інші шари → `networkpolicy.yaml` поруч).
+ * під `k8s` — у `networkpolicy.yaml` поруч з workload-маніфестом (у base, у не-base — як overlay-specific override).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
@@ -5558,11 +5503,7 @@ async function validateNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, 
   for (const [dir, workloads] of workloadsByDir) {
     const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
     const deployRel = relDir === '' ? '.' : relDir
-    const isBase = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
-    if (isBase && workloads.length > 0) {
-      failIfBaseLayerHasLocalNetworkPolicy(dir, deployRel, fail)
-    }
-    const npAbs = isBase ? join(dir, '..', COMPONENTS_DIR, NETWORK_POLICY_FILENAME) : join(dir, NETWORK_POLICY_FILENAME)
+    const npAbs = join(dir, NETWORK_POLICY_FILENAME)
     const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
     const npDocs = existsSync(npAbs) ? await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy') : []
     for (const workload of workloads) {
@@ -6486,7 +6427,8 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
 }
 
 /**
- * Створює відсутні NetworkPolicy для workload-ів у каталозі (base → `components/`, інакше — поруч).
+ * Створює відсутні NetworkPolicy для workload-ів у каталозі (`networkpolicy.yaml` поруч з workload-маніфестом).
+ * Якщо каталог — base, додатково додає `networkpolicy.yaml` у `kustomization.yaml` `resources:` (якщо файл існує).
  * @param {string} dir абсолютний каталог workload-маніфесту
  * @param {Record<string, unknown>[]} workloads workload-документи з цього каталогу
  * @param {string} rootNorm корінь репо
@@ -6496,8 +6438,7 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
  */
 async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, fail, passFn) {
   const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
-  const isBase = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
-  const npAbs = isBase ? join(dir, '..', COMPONENTS_DIR, NETWORK_POLICY_FILENAME) : join(dir, NETWORK_POLICY_FILENAME)
+  const npAbs = join(dir, NETWORK_POLICY_FILENAME)
   const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
   if (existsSync(npAbs)) {
     const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
@@ -6519,19 +6460,15 @@ async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, 
   }
   if (toAdd.length === 0) return
   try {
-    if (isBase) await mkdir(dirname(npAbs), { recursive: true })
     await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn)
-    if (isBase) {
-      const componentsDir = dirname(npAbs)
-      const componentsRel = (relative(rootNorm, componentsDir) || componentsDir).replaceAll('\\', '/')
-      const kustAbs = join(componentsDir, 'kustomization.yaml')
-      if (existsSync(kustAbs)) {
-        const raw = await readFile(kustAbs, 'utf8')
-        const { changed, content } = ensureResourceInKustomizationYaml(raw, NETWORK_POLICY_FILENAME)
-        if (changed) {
-          await writeFile(kustAbs, content, 'utf8')
-          passFn(`${componentsRel}/kustomization.yaml: додано '${NETWORK_POLICY_FILENAME}' у resources (k8s.mdc)`)
-        }
+    const kustAbs = join(dir, 'kustomization.yaml')
+    if (existsSync(kustAbs)) {
+      const raw = await readFile(kustAbs, 'utf8')
+      const { changed, content } = ensureResourceInKustomizationYaml(raw, NETWORK_POLICY_FILENAME)
+      if (changed) {
+        await writeFile(kustAbs, content, 'utf8')
+        const kustRel = relDir === '' ? 'kustomization.yaml' : `${relDir}/kustomization.yaml`
+        passFn(`${kustRel}: додано '${NETWORK_POLICY_FILENAME}' у resources (k8s.mdc)`)
       }
     }
   } catch (error) {
@@ -6542,7 +6479,7 @@ async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, 
 
 /**
  * Автоматично створює відсутні **NetworkPolicy** для Deployment, StatefulSet, DaemonSet, Job і CronJob
- * під `k8s` (base → `components/`, інші шари → поруч).
+ * під `k8s` (`networkpolicy.yaml` поруч з workload-маніфестом, у base додаток — у `base/kustomization.yaml` resources).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs абсолютні шляхи yaml під `k8s`
  * @param {(msg: string) => void} fail callback при помилці

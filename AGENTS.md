@@ -8,7 +8,6 @@ This file is the entry point for all AI agents working with this repository.
 
 The primary development rules are stored in the Cursor rules directory:
 
-
 - .cursor/rules/conftest.mdc
 
 - .cursor/rules/dev-dep.mdc
@@ -23,17 +22,9 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/n-ga.mdc
 
-- .cursor/rules/n-image-avif.mdc
-
-- .cursor/rules/n-image-compress.mdc
-
-- .cursor/rules/n-js-bun-db.mdc
-
 - .cursor/rules/n-js-lint.mdc
 
 - .cursor/rules/n-js-run.mdc
-
-- .cursor/rules/n-nginx-default-tpl.mdc
 
 - .cursor/rules/n-npm-module.mdc
 
@@ -49,9 +40,7 @@ The primary development rules are stored in the Cursor rules directory:
 
 - .cursor/rules/scripts.mdc
 
-
 ## Skills
-
 
 - `.cursor/skills/mdc-check/SKILL.md` — Проаналізувати правило в npm/mdc: максимум перевірюваної логіки й деталей — у check-{id}.mjs з зрозумілими коментарями/JSDoc; у .mdc залишати людинозрозумілий зміст без дублювання алгоритму перевірки
 
@@ -67,11 +56,9 @@ The primary development rules are stored in the Cursor rules directory:
 
 - `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
 
-
 ## Commands
 
 Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
-
 
 - **Залежності**: `bun i`
 
@@ -85,13 +72,7 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 
 - **lint-ga**: `bun run lint-ga`
 
-- **lint-k8s**: `bun run lint-k8s`
-
-- **lint-docker**: `bun run lint-docker`
-
 - **start**: `bun run start`
-
-- **lint-image**: `bun run lint-image`
 
 - **lint-rego**: `bun run lint-rego`
 
@@ -104,7 +85,6 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **Перевірки правил (programmatic)**: `npx @nitra/cursor check`
 
 - **knip (невикористані залежності та експорти)**: `bunx knip`
-
 
 ## Instructions for all agents
 

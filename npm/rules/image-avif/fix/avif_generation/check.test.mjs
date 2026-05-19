@@ -410,11 +410,7 @@ describe('check-image-avif', () => {
       await writeFile(join('app/src', 'usage.png.avif'), 'fake-avif', 'utf8')
       await writeFile(join('app/src', 'orphan.png'), 'fake-png', 'utf8')
       await writeFile(join('app/src', 'orphan.png.avif'), 'fake-avif', 'utf8')
-      await writeFile(
-        join('app/src', 'App.vue'),
-        `<template>\n  <img src="./usage.png" />\n</template>\n`,
-        'utf8'
-      )
+      await writeFile(join('app/src', 'App.vue'), `<template>\n  <img src="./usage.png" />\n</template>\n`, 'utf8')
       expect(await check()).toBe(0)
       expect(existsSync(join('app/src', 'orphan.png.avif'))).toBe(false)
       expect(existsSync(join('app/src', 'orphan.png'))).toBe(true)

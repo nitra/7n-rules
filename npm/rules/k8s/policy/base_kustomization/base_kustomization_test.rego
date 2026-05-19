@@ -51,17 +51,17 @@ test_deny_pdb_yaml_in_resources if {
 	)
 }
 
-test_deny_networkpolicy_yaml_in_resources if {
-	count(base_kustomization.deny) > 0 with input as object.union(
+test_allow_networkpolicy_yaml_in_resources if {
+	count(base_kustomization.deny) == 0 with input as object.union(
 		base_kust_ok,
-		{"resources": ["networkpolicy.yaml"]},
+		{"resources": ["deployment.yaml", "networkpolicy.yaml"]},
 	)
 }
 
-test_deny_hpa_yml_in_subdir if {
+test_deny_hpa_yaml_in_subdir if {
 	count(base_kustomization.deny) > 0 with input as object.union(
 		base_kust_ok,
-		{"resources": ["nested/dir/hpa.yml"]},
+		{"resources": ["nested/dir/hpa.yaml"]},
 	)
 }
 

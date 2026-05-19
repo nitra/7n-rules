@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.54] - 2026-05-19
+
+### Changed
+
+- `check k8s` / `lint-k8s`: правила під `npm/rules/k8s/` спрощено — за каноном `k8s.mdc` тримаємо лише `.yaml`, тож **rego-цілі** і **rego-вирази** очищено від `.yml`. Зачеплено: глоби `walkGlob` у `npm/rules/k8s/policy/{manifest,base_manifest,gateway,hpa_pdb}/target.json` — лише `**/*.yaml`; у [base_kustomization.rego](rules/k8s/policy/base_kustomization/base_kustomization.rego) `is_hpa_or_pdb_filename` більше не містить `hpa.yml` / `pdb.yml`; тест `test_deny_hpa_yml_in_subdir` → `test_deny_hpa_yaml_in_subdir`. **Safety-net** у [check.mjs](rules/k8s/fix/manifests/check.mjs) **збережено**: `findK8sYamlFiles` та `checkK8sYamlFile` все ще пропускають `.yml` далі, але одразу падають з повідомленням `розширення .yml — перейменуй на .yaml (див. k8s.mdc)` — щоб випадково створений `*.yml` під `k8s/` не залишився непоміченим (автоматичне перейменування — окрема ручна команда `npx @nitra/cursor rename-yaml-extensions`, яка з `check k8s` не викликається). Згадки про `.github/workflows/*.yml` у JSDoc лишилися (це чуже правило `ga.mdc`, де канон — `.yml`). Bump `k8s.mdc` `1.40` → `1.41`.
+
+## [1.13.53] - 2026-05-19
+
+### Changed
+
+- `check k8s`: **NetworkPolicy переїхав з `components/` у `base/`**. Раніше канон вимагав `…/k8s/<pkg>/components/networkpolicy.yaml` (Kustomize Component, sibling до `base/`), а локальний `networkpolicy.yaml` у base був забороненим (file-existence error) — через що **dev-середовище** (рендер лише з base без overlay → без components) **не отримувало жодних мережевих обмежень** і pod'и були відкриті для будь-якого трафіку. Тепер NP лежить у `base/networkpolicy.yaml` поруч з workload-маніфестом і підключений через `base/kustomization.yaml` `resources:` — обмеження діють і на dev, і на всіх overlays через звичайний `resources: [- ../base]`. Канон `components/`: лише `hpa.yaml` + `pdb.yaml` (HPA/PDB лишаються env-залежними й підключаються тільки прод-overlays). У не-base overlays `networkpolicy.yaml` поруч з workload — опційний overlay-specific override. Зачеплено: [npm/rules/k8s/k8s.mdc](rules/k8s/k8s.mdc) (нова секція «NetworkPolicy у `base/`», оновлені приклади `components/kustomization.yaml` без NP і новий приклад `base/networkpolicy.yaml`), [npm/rules/k8s/fix/manifests/check.mjs](rules/k8s/fix/manifests/check.mjs) (видалено `failIfBaseLayerHasLocalNetworkPolicy` і `validateComponentsNetworkPolicyFile`; `validateNetworkPoliciesForK8sWorkloads` і `ensureNetworkPoliciesForWorkloadsInDir` тепер завжди шукають `networkpolicy.yaml` у `dir`, autofix додає його у `base/kustomization.yaml` `resources:`; `validateComponentsKustomizationManifest` більше не вимагає NP у resources), [npm/rules/k8s/policy/base_kustomization/base_kustomization.rego](rules/k8s/policy/base_kustomization/base_kustomization.rego) (deny прибирає `networkpolicy.yaml` зі списку заборонених у base resources — лишаються тільки HPA/PDB), [npm/rules/k8s/lint/lint.mjs](rules/k8s/lint/lint.mjs) (оновлено JSDoc про C-0260: NP тепер у base і kustomize-збірка нормалізує namespace природньо). Bump `k8s.mdc` `1.39` → `1.40`.
+
 ## [1.13.52] - 2026-05-19
 
 ### Added
