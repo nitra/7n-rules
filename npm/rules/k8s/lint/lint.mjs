@@ -14,7 +14,10 @@
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'
+
+import { parse } from 'yaml'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
@@ -23,6 +26,9 @@ import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 /** Per-project kubescape exceptions file; підмішується через --exceptions, якщо існує в корені. */
 const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
+
+/** Назва kustomization-файлу (під `k8s` дозволено лише `.yaml`, див. k8s.mdc). */
+const KUSTOMIZATION_FILE = 'kustomization.yaml'
 
 const PATH_SEPARATOR_RE = /[/\\]/u
 const YAML_EXT_RE = /\.yaml$/iu
@@ -134,37 +140,136 @@ export function buildKubescapeExceptionsArgs(root) {
 }
 
 /**
- * Запускає kubescape scan для кожного каталогу окремо (узгоджено з прикладами CLI).
- * Немає прапорця версії Kubernetes — за потреби додай `scan framework <ім’я>` під CIS/інші набори.
+ * Знаходить каталоги-«точки входу» Kustomize під `dir` — ті, що містять `kustomization.yaml`,
+ * чий перший YAML-документ має `kind: Kustomization` (або без `kind` — типово Kustomization).
+ * Kustomize Components (`kind: Component`) пропускаються: вони не білдяться окремо,
+ * а підключаються через `components:` із overlay (див. k8s.mdc, секція «Kustomize: структура каталогів»).
  *
- * Якщо в корені проєкту є `.kubescape-exceptions.json` — підмішується через `--exceptions <file>`.
- * Файл потрібен для точкових винятків control'ів kubescape (напр. C-0012 на ConfigMap, що містить
- * публічний JWT-конфіг типу `HASURA_GRAPHQL_JWT_SECRET={"jwk_url": "https://…"}` — control тригериться
- * на ім'я env, а не на значення; див. приклад у `k8s.mdc`).
+ * Семантика збігається з реальною поведінкою `kustomize build <dir>`: воно зчитує саме
+ * `kustomization.yaml`, тож пошук іде за назвою файлу (без `.yml`-варіанту — заборонено каноном).
+ * @param {string} dir абсолютний шлях до `…/k8s`
+ * @returns {Promise<string[]>} відсортовані абсолютні шляхи до dir-ів з білдабельним `kustomization.yaml`
+ */
+export async function findKustomizationDirs(dir) {
+  /** @type {string[]} */
+  const candidates = []
+  await walkDir(dir, p => {
+    if (basename(p) === KUSTOMIZATION_FILE) candidates.push(p)
+  })
+  /** @type {Set<string>} */
+  const result = new Set()
+  for (const p of candidates) {
+    let text
+    try {
+      text = await readFile(p, 'utf8')
+    } catch {
+      continue
+    }
+    let doc
+    try {
+      doc = parse(text)
+    } catch {
+      continue
+    }
+    if (doc && typeof doc === 'object' && doc.kind === 'Component') continue
+    result.add(dirname(p))
+  }
+  return [...result].toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Запускає `kustomize build <dir>` і повертає stdout як буфер. stderr інхеритимо в термінал,
+ * щоб помилки збірки (биті посилання, недозволені плагіни) було видно одразу.
+ * @param {string} kustomizePath абсолютний шлях до бінарника kustomize
+ * @param {string} dir абсолютний шлях до каталогу з `kustomization.yaml`
+ * @returns {{ status: number, stdout: Buffer }} статус процесу і зібраний маніфест
+ */
+function runKustomizeBuild(kustomizePath, dir) {
+  const r = spawnSync(kustomizePath, ['build', dir], {
+    stdio: ['ignore', 'pipe', 'inherit'],
+    shell: false
+  })
+  return { status: r.status ?? 1, stdout: r.stdout ?? Buffer.alloc(0) }
+}
+
+/**
+ * Запускає `kubescape scan -` зі stdin (буфер `manifest`). stdout/stderr інхерит у термінал.
+ * @param {string} kubescapePath абсолютний шлях до бінарника kubescape
+ * @param {Buffer} manifest зібраний kustomize-маніфест
+ * @param {string[]} exceptionsArgs `['--exceptions', '<file>']` або `[]`
+ * @returns {{ status: number, enoent: boolean }} статус процесу і прапор ENOENT
+ */
+function runKubescapeStdin(kubescapePath, manifest, exceptionsArgs) {
+  const r = spawnSync(kubescapePath, ['scan', '-', '--severity-threshold', 'high', ...exceptionsArgs], {
+    input: manifest,
+    stdio: ['pipe', 'inherit', 'inherit'],
+    shell: false
+  })
+  const enoent = Boolean(r.error && 'code' in r.error && r.error.code === 'ENOENT')
+  return { status: r.status ?? 1, enoent }
+}
+
+/**
+ * Запускає kubescape по зібраному kustomize-маніфесту для кожного `…/k8s`-кореня. Для кожного
+ * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kustomize build <dir>` і піпимо
+ * stdout у `kubescape scan -`. Це усуває false-positive C-0260 (`Missing network policy`) у випадках,
+ * коли NetworkPolicy живе у sibling `components/` без `metadata.namespace` (намспейс інжектить
+ * overlay через `kustomization.namespace`); сирий dir-скан не виконує kustomize й бачить порожній
+ * `namespace` у NetworkPolicy проти непорожнього у Deployment, через що `podSelector` не матчиться.
+ *
+ * Якщо в `…/k8s`-корені немає жодного білдабельного kustomization.yaml (проєкт без Kustomize) —
+ * fallback на старий dir-скан, щоб не блокувати чистий YAML-only набір маніфестів.
+ *
+ * Якщо в корені репо є `.kubescape-exceptions.json` — підмішується через `--exceptions <file>`
+ * (точкові винятки control'ів, напр. C-0012 на ConfigMap з публічним JWT-конфігом; див. k8s.mdc).
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
  * @param {string} root корінь репозиторію (для пошуку exceptions-файлу)
- * @returns {number} 0 при успіху, інакше код останнього невдалого scan або 127, якщо kubescape відсутній у PATH
+ * @returns {Promise<number>} 0 при успіху, інакше код невдалого процесу або 127, якщо kubescape/kustomize відсутні
  */
-function runKubescape(dirs, root) {
+async function runKubescape(dirs, root) {
   const exceptionsArgs = buildKubescapeExceptionsArgs(root)
   if (exceptionsArgs.length > 0) {
     console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
   }
+  const kubescapePath = resolveCmd('kubescape')
+  if (!kubescapePath) {
+    console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+    return 127
+  }
+  let kustomizePath = null
   for (const d of dirs) {
-    const kubescapePath = resolveCmd('kubescape')
-    if (!kubescapePath) {
-      console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
-      return 127
+    const kdirs = await findKustomizationDirs(d)
+    if (kdirs.length === 0) {
+      console.log(`run-k8s: kubescape scan ${d} (без kustomization — сирий dir-скан)`)
+      const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high', ...exceptionsArgs], {
+        stdio: 'inherit',
+        shell: false
+      })
+      if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
+        console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+        return 127
+      }
+      if (r.status !== 0) return r.status ?? 1
+      continue
     }
-    const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high', ...exceptionsArgs], {
-      stdio: 'inherit',
-      shell: false
-    })
-    if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
-      console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
-      return 127
+    if (kustomizePath === null) {
+      kustomizePath = resolveCmd('kustomize')
+      if (!kustomizePath) {
+        console.error('kustomize не знайдено в PATH. Встанови з https://kubectl.docs.kubernetes.io/installation/kustomize/')
+        return 127
+      }
     }
-    if (r.status !== 0) return r.status ?? 1
+    for (const kdir of kdirs) {
+      console.log(`run-k8s: kustomize build ${kdir} | kubescape scan -`)
+      const build = runKustomizeBuild(kustomizePath, kdir)
+      if (build.status !== 0) return build.status
+      const ks = runKubescapeStdin(kubescapePath, build.stdout, exceptionsArgs)
+      if (ks.enoent) {
+        console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+        return 127
+      }
+      if (ks.status !== 0) return ks.status
+    }
   }
   return 0
 }
@@ -190,7 +295,7 @@ export async function runLintK8s() {
   const kc = runKubeconform(dirs)
   if (kc !== 0) return kc
 
-  const ks = runKubescape(dirs, root)
+  const ks = await runKubescape(dirs, root)
   return ks
 }
 

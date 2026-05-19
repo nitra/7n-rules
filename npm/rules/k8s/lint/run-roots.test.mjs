@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { buildKubescapeExceptionsArgs, findK8sRoots, k8sRootFromFile } from './lint.mjs'
+import { buildKubescapeExceptionsArgs, findK8sRoots, findKustomizationDirs, k8sRootFromFile } from './lint.mjs'
 import { withTmpCwd } from '../../../scripts/utils/test-helpers.mjs'
 
 describe('k8sRootFromFile', () => {
@@ -46,6 +46,41 @@ describe('findK8sRoots', () => {
   test('повертає [], коли .kubescape-exceptions.json відсутній', async () => {
     await withTmpCwd(root => {
       expect(buildKubescapeExceptionsArgs(root)).toEqual([])
+    })
+  })
+
+  test('findKustomizationDirs: повертає dir-и з kustomization.yaml (kind ≠ Component)', async () => {
+    await withTmpCwd(async root => {
+      const k8sDir = join(root, 'app', 'k8s')
+      await mkdir(join(k8sDir, 'base'), { recursive: true })
+      await mkdir(join(k8sDir, 'components'), { recursive: true })
+      await mkdir(join(k8sDir, 'ua'), { recursive: true })
+      // base: Kustomization (без явного kind теж рахуємо)
+      await writeFile(join(k8sDir, 'base', 'kustomization.yaml'), 'namespace: dev\nresources:\n  - deploy.yaml\n', 'utf8')
+      // components: Component — пропускається
+      await writeFile(
+        join(k8sDir, 'components', 'kustomization.yaml'),
+        'apiVersion: kustomize.config.k8s.io/v1alpha1\nkind: Component\nresources:\n  - networkpolicy.yaml\n',
+        'utf8'
+      )
+      // ua: явний kind: Kustomization
+      await writeFile(
+        join(k8sDir, 'ua', 'kustomization.yaml'),
+        'apiVersion: kustomize.config.k8s.io/v1beta1\nkind: Kustomization\nnamespace: ua\nresources:\n  - ../base\n',
+        'utf8'
+      )
+      const dirs = await findKustomizationDirs(k8sDir)
+      expect(dirs).toEqual([join(k8sDir, 'base'), join(k8sDir, 'ua')])
+    })
+  })
+
+  test('findKustomizationDirs: порожній масив, якщо kustomization.yaml немає', async () => {
+    await withTmpCwd(async root => {
+      const k8sDir = join(root, 'plain', 'k8s')
+      await mkdir(k8sDir, { recursive: true })
+      await writeFile(join(k8sDir, 'deploy.yaml'), 'apiVersion: apps/v1\nkind: Deployment\n', 'utf8')
+      const dirs = await findKustomizationDirs(k8sDir)
+      expect(dirs).toEqual([])
     })
   })
 

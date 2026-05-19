@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.49] - 2026-05-19
+
+### Changed
+
+- `lint-k8s`: kubescape тепер сканує **зібраний kustomize-маніфест** через stdin (`kustomize build <dir> | kubescape scan -`) для кожного dir-у з `kustomization.yaml` під `…/k8s` (Kustomize Components — `kind: Component` — пропускаються, вони не білдяться окремо). Це усуває false-positive **C-0260** (`Missing network policy`) у каноні з sibling `components/networkpolicy.yaml` без `metadata.namespace`: сирий dir-скан не виконував kustomize, бачив порожній namespace у NetworkPolicy проти непорожнього у Deployment з `base/`, через що `podSelector` не матчився. Якщо `kustomization.yaml` під коренем `…/k8s` немає — fallback на старий dir-скан. Нова PATH-залежність — `kustomize` (додано крок у GHA-шаблоні `lint-k8s.yml`). Bump `k8s.mdc` `1.36` → `1.37`.
+
 ## [1.13.48] - 2026-05-19
 
 ### Changed
