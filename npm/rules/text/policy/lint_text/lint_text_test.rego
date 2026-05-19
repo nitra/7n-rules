@@ -32,9 +32,11 @@ template_data := {"snippet": {
 	}},
 }}
 
+# `"true"` (а не `"on"`), бо conftest парсить YAML 1.1, де `on:` без лапок
+# стає булевим ключем — так само як у `ga.lint_ga_test`.
 canonical_input := {
 	"name": "Lint Text",
-	"on": {
+	"true": {
 		"push": {"branches": ["dev", "main"], "paths": push_paths},
 		"pull_request": {"branches": ["dev", "main"]},
 	},

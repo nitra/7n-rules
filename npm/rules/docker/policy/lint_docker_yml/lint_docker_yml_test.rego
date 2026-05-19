@@ -17,9 +17,11 @@ template_data := {"snippet": {
 	]}},
 }}
 
+# `"true"` (а не `"on"`), бо conftest парсить YAML 1.1, де `on:` без лапок
+# стає булевим ключем — так само як у `ga.lint_ga_test`.
 valid_wf := {
 	"name": "Lint Docker",
-	"on": {"push": {
+	"true": {"push": {
 		"branches": ["dev", "main"],
 		"paths": ["**/Dockerfile", "**/*.Dockerfile", "**/*.dockerfile"],
 	}},
@@ -38,7 +40,7 @@ test_allow_canonical if {
 test_deny_missing_path_dockerfile if {
 	wf := json.patch(
 		valid_wf,
-		[{"op": "replace", "path": "/on/push/paths", "value": ["**/*.Dockerfile", "**/*.dockerfile"]}],
+		[{"op": "replace", "path": "/true/push/paths", "value": ["**/*.Dockerfile", "**/*.dockerfile"]}],
 	)
 	count(lint_docker_yml.deny) > 0 with input as wf with data.template as template_data
 }

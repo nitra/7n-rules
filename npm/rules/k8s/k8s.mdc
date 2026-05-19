@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.37'
+version: '1.38'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -29,11 +29,11 @@ alwaysApply: false
 
 Окремо від modeline `$schema` у редакторі варто ганяти CLI-лінтери (**kubeconform** і **kubescape**) по тих самих дерев’ях **`…/k8s`**.
 
-**Залежності:** виконувані файли kubeconform, kubescape і kustomize у **PATH**; не додавай їх у **devDependencies**.
+**Залежності:** виконувані файли kubeconform, kubescape і kubectl у **PATH** (kustomize використовуємо як вшиту підкоманду **`kubectl kustomize`** — окремий бінарник `kustomize` не потрібен); не додавай їх у **devDependencies**.
 
 **Версія Kubernetes для kubeconform** має відповідати PIN yannh у цьому правилі та в **`check-k8s.mjs`** (зараз **`-kubernetes-version 1.33.9`** — semver без префікса `v`, еквівалент релізу **v1.33.9**; набір схем **`v1.33.9-standalone-strict`**). Для CRD додатково підключай реєстр [datreeio/CRDs-catalog](https://github.com/datreeio/CRDs-catalog) другим **`-schema-location`**, як у [прикладах kubeconform](https://github.com/yannh/kubeconform#readme). За потреби **`-ignore-missing-schemas`**, якщо частина CRD ще без публічної схеми.
 
-**kubescape — вхід через зібраний kustomize-маніфест:** для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається — він не білдиться окремо) `lint-k8s` виконує **`kustomize build <dir> | kubescape scan -`** з порогом **`--severity-threshold high`**. Це усуває false-positive **C-0260** (`Missing network policy`) у каноні з sibling **`components/networkpolicy.yaml`** без `metadata.namespace`: сирий dir-скан не виконує kustomize-збірку й бачить порожній namespace у NetworkPolicy проти непорожнього у Deployment з `base/`, тож `podSelector` не матчиться. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` (проєкт без Kustomize) — fallback на старий dir-скан **`kubescape scan <каталог-k8s>`**. Перший запуск kubescape може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
+**kubescape — вхід через зібраний kustomize-маніфест:** для кожного dir-у з `kustomization.yaml` (`kind: Kustomization`; **`kind: Component`** пропускається — він не білдиться окремо) `lint-k8s` виконує **`kubectl kustomize <dir> | kubescape scan -`** з порогом **`--severity-threshold high`** (вбудована в kubectl підкоманда `kustomize` — окремий бінарник `kustomize` не потрібен; рендеринг локальний і не потребує доступу до кластера). Це усуває false-positive **C-0260** (`Missing network policy`) у каноні з sibling **`components/networkpolicy.yaml`** без `metadata.namespace`: сирий dir-скан не виконує kustomize-збірку й бачить порожній namespace у NetworkPolicy проти непорожнього у Deployment з `base/`, тож `podSelector` не матчиться. Якщо в дереві **`…/k8s`** немає жодного `kustomization.yaml` (проєкт без Kustomize) — fallback на старий dir-скан **`kubescape scan <каталог-k8s>`**. Перший запуск kubescape може завантажувати артефакти — у CI потрібна мережа або [offline](https://github.com/kubescape/kubescape#readme). На відміну від kubeconform, у **kubescape scan** немає прапорця **`-kubernetes-version`**: перевірка йде за **framework/control** (NSA, MITRE, CIS тощо), а не проти OpenAPI-схеми конкретного релізу Kubernetes. **Орієнтир** для репозиторію той самий, що й для kubeconform — кластер **v1.33.9** (див. **`-kubernetes-version 1.33.9`** вище); для CIS і подібних наближень обирай актуальний framework під політику команди (**`kubescape list frameworks`**, див. [CLI reference](https://github.com/kubescape/kubescape/blob/master/docs/cli-reference.md)).
 
 ### Винятки kubescape: `.kubescape-exceptions.json`
 
@@ -99,10 +99,8 @@ jobs:
           curl -s https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh | /bin/bash
           echo "$HOME/.kubescape/bin" >> $GITHUB_PATH
 
-      - name: Install kustomize
-        run: |
-          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/
+      # kustomize не встановлюємо окремо — використовуємо вбудовану підкоманду `kubectl kustomize`
+      # (kubectl уже доступний на github-hosted runner'ах: https://github.com/actions/runner-images).
 
       - name: Lint K8s
         run: bun run lint-k8s

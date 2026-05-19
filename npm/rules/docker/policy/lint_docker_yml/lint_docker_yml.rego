@@ -40,8 +40,10 @@ all_run_text := concat("\n", [run_text |
 	run_text := step_run_to_text(step)
 ])
 
+# conftest парсить YAML 1.1, тож канонічний `on:` без лапок стає булевим ключем
+# `true` (як у `ga.lint_ga`). Тому читаємо через `input["true"]`.
 push_paths_set := {p |
-	some p in object.get(object.get(object.get(input, "on", {}), "push", {}), "paths", [])
+	some p in object.get(object.get(object.get(input, "true", {}), "push", {}), "paths", [])
 }
 
 # ── deny: on.push.paths subset-of ──────────────────────────────────────

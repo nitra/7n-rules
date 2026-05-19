@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.50] - 2026-05-19
+
+### Changed
+
+- `lint-k8s`: kubescape тепер збирає kustomize-маніфест через **вшиту в kubectl підкоманду** — `kubectl kustomize <dir> | kubescape scan -` (замість окремого бінарника `kustomize build <dir>`, доданого в 1.13.49). Причина: на машинах без окремого `kustomize` lint-k8s падав з `kustomize не знайдено в PATH`, тоді як `kubectl` — штатний інструмент з вшитим Kustomize (рендеринг локальний, доступ до кластера не потрібен). PATH-залежність зведена з пари `kubectl+kustomize` до одного `kubectl`; крок `Install kustomize` у GHA-шаблоні `lint-k8s.yml` прибрано (на github-hosted runner'ах kubectl уже доступний). Bump `k8s.mdc` `1.37` → `1.38`.
+
 ## [1.13.49] - 2026-05-19
 
 ### Changed

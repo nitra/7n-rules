@@ -19,6 +19,10 @@ expected_runs_on := data.template.snippet.jobs.text["runs-on"]
 
 expected_perms := data.template.snippet.jobs.text.permissions
 
+# conftest парсить YAML 1.1, де канонічний `on:` без лапок стає булевим ключем
+# `true` (як у `ga.lint_ga`). Тому читаємо on-блок через `input["true"]`.
+gha_on := input["true"]
+
 job := input.jobs.text
 
 job_uses_set contains job.steps[_].uses
@@ -45,17 +49,17 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	not branches_superset_of(input.on.push.branches, expected_push_branches)
+	not branches_superset_of(gha_on.push.branches, expected_push_branches)
 	msg := "lint-text.yml: on.push.branches має містити dev і main (text.mdc)"
 }
 
 deny contains msg if {
-	not branches_superset_of(input.on.pull_request.branches, expected_pr_branches)
+	not branches_superset_of(gha_on.pull_request.branches, expected_pr_branches)
 	msg := "lint-text.yml: on.pull_request.branches має містити dev і main (text.mdc)"
 }
 
 deny contains msg if {
-	not paths_superset_of(input.on.push.paths, expected_push_paths)
+	not paths_superset_of(gha_on.push.paths, expected_push_paths)
 	msg := "lint-text.yml: on.push.paths має містити очікувані glob-и (text.mdc)"
 }
 

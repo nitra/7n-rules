@@ -178,14 +178,16 @@ export async function findKustomizationDirs(dir) {
 }
 
 /**
- * Запускає `kustomize build <dir>` і повертає stdout як буфер. stderr інхеритимо в термінал,
- * щоб помилки збірки (биті посилання, недозволені плагіни) було видно одразу.
- * @param {string} kustomizePath абсолютний шлях до бінарника kustomize
+ * Запускає `kubectl kustomize <dir>` і повертає stdout як буфер. stderr інхеритимо в термінал,
+ * щоб помилки збірки (биті посилання, недозволені плагіни) було видно одразу. Використовуємо
+ * вшитий у kubectl kustomize замість окремого бінарника — kubectl є штатним інструментом і не
+ * потребує доступу до кластера для підкоманди `kustomize` (рендеринг локальний).
+ * @param {string} kubectlPath абсолютний шлях до бінарника kubectl
  * @param {string} dir абсолютний шлях до каталогу з `kustomization.yaml`
  * @returns {{ status: number, stdout: Buffer }} статус процесу і зібраний маніфест
  */
-function runKustomizeBuild(kustomizePath, dir) {
-  const r = spawnSync(kustomizePath, ['build', dir], {
+function runKustomizeBuild(kubectlPath, dir) {
+  const r = spawnSync(kubectlPath, ['kustomize', dir], {
     stdio: ['ignore', 'pipe', 'inherit'],
     shell: false
   })
@@ -211,7 +213,7 @@ function runKubescapeStdin(kubescapePath, manifest, exceptionsArgs) {
 
 /**
  * Запускає kubescape по зібраному kustomize-маніфесту для кожного `…/k8s`-кореня. Для кожного
- * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kustomize build <dir>` і піпимо
+ * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kubectl kustomize <dir>` і піпимо
  * stdout у `kubescape scan -`. Це усуває false-positive C-0260 (`Missing network policy`) у випадках,
  * коли NetworkPolicy живе у sibling `components/` без `metadata.namespace` (намспейс інжектить
  * overlay через `kustomization.namespace`); сирий dir-скан не виконує kustomize й бачить порожній
@@ -224,7 +226,7 @@ function runKubescapeStdin(kubescapePath, manifest, exceptionsArgs) {
  * (точкові винятки control'ів, напр. C-0012 на ConfigMap з публічним JWT-конфігом; див. k8s.mdc).
  * @param {string[]} dirs абсолютні шляхи до `…/k8s`
  * @param {string} root корінь репозиторію (для пошуку exceptions-файлу)
- * @returns {Promise<number>} 0 при успіху, інакше код невдалого процесу або 127, якщо kubescape/kustomize відсутні
+ * @returns {Promise<number>} 0 при успіху, інакше код невдалого процесу або 127, якщо kubescape/kubectl відсутні
  */
 async function runKubescape(dirs, root) {
   const exceptionsArgs = buildKubescapeExceptionsArgs(root)
@@ -236,7 +238,7 @@ async function runKubescape(dirs, root) {
     console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
     return 127
   }
-  let kustomizePath = null
+  let kubectlPath = null
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)
     if (kdirs.length === 0) {
@@ -252,16 +254,16 @@ async function runKubescape(dirs, root) {
       if (r.status !== 0) return r.status ?? 1
       continue
     }
-    if (kustomizePath === null) {
-      kustomizePath = resolveCmd('kustomize')
-      if (!kustomizePath) {
-        console.error('kustomize не знайдено в PATH. Встанови з https://kubectl.docs.kubernetes.io/installation/kustomize/')
+    if (kubectlPath === null) {
+      kubectlPath = resolveCmd('kubectl')
+      if (!kubectlPath) {
+        console.error('kubectl не знайдено в PATH. Встанови з https://kubernetes.io/docs/tasks/tools/#kubectl')
         return 127
       }
     }
     for (const kdir of kdirs) {
-      console.log(`run-k8s: kustomize build ${kdir} | kubescape scan -`)
-      const build = runKustomizeBuild(kustomizePath, kdir)
+      console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan -`)
+      const build = runKustomizeBuild(kubectlPath, kdir)
       if (build.status !== 0) return build.status
       const ks = runKubescapeStdin(kubescapePath, build.stdout, exceptionsArgs)
       if (ks.enoent) {
