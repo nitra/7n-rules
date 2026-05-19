@@ -12,7 +12,7 @@ describe('inlineTemplateLinks', () => {
   test('json link → fenced json block', async () => {
     const text = '[snippet.json](./fix/foo/template/snippet.json)'
     const result = await inlineTemplateLinks(text, FIXTURES)
-    expect(result).toBe('`snippet.json`:\n\n```json\n{"key": "val"}\n```')
+    expect(result).toBe('`snippet.json`:\n\n```json\n{ "key": "val" }\n```')
   })
 
   test('toml link → fenced toml block (label normalized to .gitleaks.toml)', async () => {
@@ -88,7 +88,7 @@ describe('inlineTemplateLinks', () => {
       '[config.yml](./policy/bar/template/config.yml)'
     ].join(' and ')
     const result = await inlineTemplateLinks(text, FIXTURES)
-    expect(result).toBe('`snippet.json`:\n\n```json\n{"key": "val"}\n``` and `config.yml`:\n\n```yaml\nkey: val\n```')
+    expect(result).toBe('`snippet.json`:\n\n```json\n{ "key": "val" }\n``` and `config.yml`:\n\n```yaml\nkey: val\n```')
   })
 
   test('integration: security.mdc — 5 template links inlined, non-template links untouched', async () => {
@@ -113,7 +113,7 @@ describe('inlineTemplateLinks', () => {
 
     // Inline content from the actual template files is present
     expect(result).toContain(
-      '```json\n{ "scripts": { "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail" } }\n```'
+      '```json\n{\n  "scripts": {\n    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"\n  }\n}\n```'
     )
     expect(result).toContain('(^|/)node_modules(/|$)')
     expect(result).toContain('uses: trufflesecurity/trufflehog@main')

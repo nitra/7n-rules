@@ -1,7 +1,8 @@
 /**
  * Тести check-image-avif у ізольованих тимчасових каталогах.
  *
- * Покриває AVIF-етап: генерацію `--avif` (best-effort, у тестах вимкнена через
+ * Покриває AVIF-етап: pre-scan на raster-посилання у `.vue`/`.html` (порожній → exit 0
+ * без `--avif`), генерацію `--avif` (best-effort, у тестах вимкнена через
  * `NITRA_CURSOR_NO_AVIF_RUN=1`), переписування raster-посилань у `.vue`/`.html` на
  * `<...>.avif`, прибирання AVIF-сиріт, опт-аут пакета через
  * `"@nitra/minify-image": { "disable-avif": true }`.
@@ -185,7 +186,11 @@ describe('check-image-avif', () => {
     })
   })
 
-  test('успіх: реактивне `:src="dyn"` залишається; orphan .avif без посилань видаляється', async () => {
+  test('успіх: реактивне `:src="dyn"` не тригерить AVIF-етап — orphan лишається до наступного прогону з raster-ref', async () => {
+    // Тільки реактивне `:src="..."`, без import/static-src raster-посилань — pre-scan
+    // знаходить 0 кандидатів на rewrite, тож AVIF-етап (генерація + rewrite + cleanup)
+    // пропускається повністю. Orphan .avif лишається на диску: цей сценарій буде
+    // прибраний наступним прогоном, коли в .vue/.html зʼявиться хоча б одне raster.
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
@@ -201,7 +206,7 @@ describe('check-image-avif', () => {
       await writeFile(join('app/src', 'App.vue'), vue, 'utf8')
       expect(await check()).toBe(0)
       expect(await readFile(join('app/src', 'App.vue'), 'utf8')).toBe(vue)
-      expect(existsSync(join('app/src', 'lonely.png.avif'))).toBe(false)
+      expect(existsSync(join('app/src', 'lonely.png.avif'))).toBe(true)
       expect(existsSync(join('app/src', 'lonely.png'))).toBe(true)
     })
   })
@@ -388,7 +393,10 @@ describe('check-image-avif', () => {
     })
   })
 
-  test('успіх: AVIF-сирота без посилань у .vue видаляється', async () => {
+  test('успіх: AVIF-сирота поряд з raster-ref в іншому файлі — видаляється під час rewrite-пасу', async () => {
+    // Доки в .vue/.html є хоча б одне raster-посилання — pre-scan тригерить повний
+    // AVIF-етап, включно з cleanup. Orphan .avif (`orphan.png.avif` без посилань) тоді
+    // прибирається, як і раніше. Заодно `usage.png` переписується на `usage.png.avif`.
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
@@ -398,12 +406,19 @@ describe('check-image-avif', () => {
       await writeFile('.gitignore', 'node_modules/\n', 'utf8')
       await ensureDir('app/src')
       await writeJson('app/package.json', { name: 'app' })
-      await writeFile(join('app/src', 'App.vue'), `<template><div/></template>\n`, 'utf8')
+      await writeFile(join('app/src', 'usage.png'), 'fake-png', 'utf8')
+      await writeFile(join('app/src', 'usage.png.avif'), 'fake-avif', 'utf8')
       await writeFile(join('app/src', 'orphan.png'), 'fake-png', 'utf8')
       await writeFile(join('app/src', 'orphan.png.avif'), 'fake-avif', 'utf8')
+      await writeFile(
+        join('app/src', 'App.vue'),
+        `<template>\n  <img src="./usage.png" />\n</template>\n`,
+        'utf8'
+      )
       expect(await check()).toBe(0)
       expect(existsSync(join('app/src', 'orphan.png.avif'))).toBe(false)
       expect(existsSync(join('app/src', 'orphan.png'))).toBe(true)
+      expect(existsSync(join('app/src', 'usage.png.avif'))).toBe(true)
     })
   })
 

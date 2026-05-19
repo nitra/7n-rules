@@ -3,11 +3,16 @@
  * ув'язування `.avif`-двійників з посиланнями у `.vue`/`.html`.
  *
  * Дії під час `check image-avif`:
- * 1. `npx \@nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
- * 2. У кожному workspace-пакеті переписує raster-посилання у `.vue`/`.html` на `.avif`
+ * 1. **Pre-scan**: знайти в `.vue`/`.html` хоча б одне raster-посилання, яке потенційно
+ *    можна переписати на AVIF-двійник (через `import x from '...png'` або
+ *    `<img src="...png" />`). Пакети з opt-out `disable-avif: true` пропускаються.
+ *    Якщо жодного raster-посилання не знайдено → exit 0 одразу (`npx --avif` не запускаємо,
+ *    rewrite/cleanup-пасс теж пропускаємо — нічого не змінилось би).
+ * 2. `npx \@nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
+ * 3. У кожному workspace-пакеті переписує raster-посилання у `.vue`/`.html` на `.avif`
  *    (де AVIF-двійник реально існує на диску). Pakety з `"\@nitra/minify-image": {
  *    "disable-avif": true }` у `package.json` пропускаються.
- * 3. Прибирає AVIF-сироти — `<name>.<ext>.avif`, на які не лишилось жодного посилання
+ * 4. Прибирає AVIF-сироти — `<name>.<ext>.avif`, на які не лишилось жодного посилання
  *    у `.vue`/`.html` репозиторію, видаляються (умова правила: «AVIF лишається лише
  *    там, де заміна вдалася»).
  *
@@ -69,7 +74,6 @@ const VUE_RASTER_STATIC_SRC_RE = /(?<![:\-_.])\bsrc\s*=\s*['"]([^'"\s]+\.(?:png|
  * є сиротами і підлягають видаленню.
  */
 const VUE_AVIF_REF_RE = /['"]([^'"\s]+\.(?:png|jpe?g|gif)\.avif)['"]/giu
-const RASTER_IMAGE_EXT_RE = /\.(?:png|jpe?g|gif)$/iu
 
 /**
  * Чи у `package.json` пакета вимкнено avif-перевірку Vue-імпортів.
@@ -279,24 +283,51 @@ async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) 
 }
 
 /**
- * Чи є в репозиторії хоч один raster-файл, який мав би сенс конвертувати у AVIF.
- * Якщо немає — `npx \@nitra/minify-image` нема що робити, тож зайвий запуск пропускаємо
- * (важливо у тестах: фікстурні `.png`-імпорти посилаються на неіснуючі файли, тож
- * minify-image все одно нічого не згенерує — а зайвий npx-спавн повільний і робить шум).
+ * Pre-scan: чи є в `.vue`/`.html` хоча б одне raster-посилання, яке потенційно треба
+ * переписати на AVIF-двійник (через `import x from '...png'` або `<img src="...png" />`).
+ *
+ * Якщо false — весь подальший етап `image-avif` пропускаємо: ні `npx --avif`, ні rewrite,
+ * ні cleanup-сиріт не дали б ніяких змін. Сенс — не запускати дорогий `npx @nitra/minify-image`
+ * у проєктах, де AVIF не вживається (а опційно і не плануються).
+ *
+ * Скан робиться тими самими regexp-ами, що й основний rewrite-пасс (`VUE_RASTER_IMPORT_RE`
+ * + `VUE_RASTER_STATIC_SRC_RE`), і ходить лише по `.vue`/`.html` у workspace-пакетах, що НЕ
+ * мають opt-out `"@nitra/minify-image": { "disable-avif": true }` (інакше їхні шаблони ми
+ * все одно не сканували б, тож вони не мають провокувати запуск AVIF-етапу).
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
- * @returns {Promise<boolean>} `true`, якщо знайдено принаймні один `.png/.jpe?g/.gif`
+ * @returns {Promise<boolean>} `true`, якщо знайдено принаймні одне raster-посилання
  */
-async function hasAnyRasterImage(ignorePaths) {
-  let found = false
-  await walkDir(
-    process.cwd(),
-    absPath => {
-      if (found) return
-      if (RASTER_IMAGE_EXT_RE.test(absPath)) found = true
-    },
-    ignorePaths
-  )
-  return found
+async function hasAnyVueRasterReference(ignorePaths) {
+  const roots = await getMonorepoPackageRootDirs()
+  const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
+  for (const root of roots) {
+    const pkgPath = join(root, 'package.json')
+    if (existsSync(pkgPath)) {
+      const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
+      if (packageHasAvifDisabled(pkg)) continue
+    }
+    const absRoot = absRootsByRel.get(root) ?? join(process.cwd(), root)
+    const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
+    /** @type {string[]} */
+    const targetFiles = []
+    await walkDir(
+      absRoot,
+      absPath => {
+        if (!absPath.endsWith('.vue') && !absPath.endsWith('.html')) return
+        if (otherRootsAbs.some(other => absPath.startsWith(`${other}/`))) return
+        targetFiles.push(absPath)
+      },
+      ignorePaths
+    )
+    for (const absPath of targetFiles) {
+      const content = await readFile(absPath, 'utf8')
+      VUE_RASTER_IMPORT_RE.lastIndex = 0
+      if (VUE_RASTER_IMPORT_RE.test(content)) return true
+      VUE_RASTER_STATIC_SRC_RE.lastIndex = 0
+      if (VUE_RASTER_STATIC_SRC_RE.test(content)) return true
+    }
+  }
+  return false
 }
 
 /**
@@ -381,9 +412,14 @@ export async function check() {
 
   const ignorePaths = await loadCursorIgnorePaths(process.cwd())
 
-  if (await hasAnyRasterImage(ignorePaths)) {
-    runAvifGeneration()
+  if (!(await hasAnyVueRasterReference(ignorePaths))) {
+    pass(
+      'image-avif: у .vue/.html немає raster-посилань для переписування — AVIF-генерація і cleanup пропущені'
+    )
+    return reporter.getExitCode()
   }
+
+  runAvifGeneration()
 
   /** @type {Set<string>} */
   const usedAvifAbs = new Set()

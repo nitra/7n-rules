@@ -1,6 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/n-cursor.json",
-  "ignore": ["npm/rules"],
   "rules": [
     "adr",
     "bun",

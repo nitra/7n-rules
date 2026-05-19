@@ -139,6 +139,11 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup-bun-deps
       - uses: astral-sh/setup-uv@v8.0.0
+      - name: Install conftest
+        run: >-
+          curl -fsSL
+          https://github.com/open-policy-agent/conftest/releases/download/v0.62.0/conftest_0.62.0_Linux_x86_64.tar.gz
+          | sudo tar -xz -C /usr/local/bin conftest
       - name: Lint GA
         run: bun run lint-ga
 `,

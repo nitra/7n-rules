@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), dotenv-linter (.env*), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.28'
+version: '1.29'
 ---
 
 **oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **[dotenv-linter](https://dotenv-linter.github.io/)** (`.env*` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
@@ -233,7 +233,9 @@ version: '1.28'
 
 Додай workflow `.github/workflows/lint-text.yml`:
 
-```yaml title=".github/workflows/lint-text.yml"
+- Канон: `lint-text.yml`:
+
+```yaml
 name: Lint Text
 
 on:
@@ -285,11 +287,19 @@ jobs:
 
       - uses: ./.github/actions/setup-bun-deps
 
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Install dotenv-linter
+        run: >-
+          curl -sSfL https://git.io/JLbXn
+          | sh -s -- -b /usr/local/bin
+
       - name: Lint text
         run: bun run lint-text
 ```
 
-Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
+Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint-text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
 
 Не дублюй окремий workflow з тими самими кроками cspell/markdownlint.
 

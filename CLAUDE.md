@@ -1,11 +1,5 @@
 <!-- Цей файл генерується автоматично через `npx @nitra/cursor`. Не редагуй вручну. -->
 
-## Захищені директорії
-
-Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
-
-- `npm/rules/`
-
 @.cursor/rules/conftest.mdc
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-adr.mdc

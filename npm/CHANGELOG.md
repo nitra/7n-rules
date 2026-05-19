@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.45] - 2026-05-19
+
+### Fixed
+
+- `inlineTemplateLinks` tests: оновлено очікувані рядки для фікстури `__fixtures__/inline-template/fix/foo/template/snippet.json` (перейшла на форматований варіант `{ "key": "val" }` ще в 1.13.38) та для інтеграційного тесту `security.mdc` (snippet `package.json` тепер multi-line після lint-проходу). Без зміни рантайм-логіки.
+- `check-ga` тестова фікстура `setupCanonicalGaProject`: додано крок `Install conftest` у `.github/workflows/lint-ga.yml`, без якого `ga.lint_ga` rego-полісі забороняє workflow і `check()` повертав 1.
+
 ## [1.13.44] - 2026-05-18
 
 ### Added
