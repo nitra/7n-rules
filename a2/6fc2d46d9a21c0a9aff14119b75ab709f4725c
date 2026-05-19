@@ -1,0 +1,31 @@
+npm/package.json
+  s_56e95f1fdc1975::t_1b0f976d6756c3 3
+npm/rules/k8s/lint/lint.mjs
+  s_56e95f1fdc1975::t_bf874f2e116f61 278,281
+  s_56e95f1fdc1975::t_2ae0e893de1dfe 16,18
+  s_56e95f1fdc1975::t_fdde048180fe26 228-233
+  s_56e95f1fdc1975::t_7221c1efca6bf6 199-204,210-223
+npm/CHANGELOG.md
+  s_56e95f1fdc1975::t_f793a467907729 7-12
+npm/rules/k8s/k8s.mdc
+  s_56e95f1fdc1975::t_adee34a0c6939a 3
+  s_56e95f1fdc1975::t_4f05b29594b3e6 36
+docs/adr/20260519-143221-заміна-stdin-скану-kubescape-на-тимчасовий-файл.md
+  ai_agent 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "a26fc2d46d9a21c0a9aff14119b75ab709f4725c",
+  "prompts": {},
+  "sessions": {
+    "s_56e95f1fdc1975": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8a604541-32f2-4a17-b482-d057d3059bc4",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
