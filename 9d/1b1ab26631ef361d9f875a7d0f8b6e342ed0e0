@@ -1,0 +1,65 @@
+npm/rules/bun/fix/layout/check.mjs
+  s_681ae614847369::t_39e82e9d1e1c6a 78-79
+  s_681ae614847369::t_0e5389f9362c7c 141
+  s_681ae614847369::t_a6844aeb828ada 80-87,98,107
+  s_681ae614847369::t_873ed653dafc8e 118
+.cursor/rules/n-security.mdc
+  s_681ae614847369::t_679924b0a8f221 21,27
+.cursor/rules/n-npm-module.mdc
+  s_681ae614847369::t_679924b0a8f221 124,130
+.cspell.json
+  s_681ae614847369::t_4f7db68926360a 258
+  s_681ae614847369::t_a790fa6f677a89 433
+  s_681ae614847369::t_ba9912c0b9244d 90-91
+  s_681ae614847369::t_76a115a761f3fc 476
+  s_681ae614847369::t_8110ed24facfff 366
+  s_681ae614847369::t_e3cc174ccd37b2 264-267
+  s_681ae614847369::t_e57aa990e0fd0c 125
+  s_681ae614847369::t_de231dfda4a2b2 317
+  s_681ae614847369::t_485300ad32c4e1 86
+  s_681ae614847369::t_aaebcd49fee680 396,398-399
+  s_681ae614847369::t_a9a2538a35916c 148
+  s_681ae614847369::t_da95986e095045 500
+  s_681ae614847369::t_d255852ba93319 648
+  s_681ae614847369::t_72873edbb4e5ad 67
+  s_681ae614847369::t_a2d41b5fc4d714 183
+  s_681ae614847369::t_53536c8ff62434 280
+  s_681ae614847369::t_380ce23fda3cb7 580-581
+  s_681ae614847369::t_86c9c1ca2e6db1 644
+  s_681ae614847369::t_0d4df894402ad2 694-695
+  s_681ae614847369::t_d574124bd8906c 336
+npm/CHANGELOG.md
+  s_681ae614847369::t_2ee519876231e8 11
+npm/scripts/utils/bun-sql-scan.mjs
+  s_681ae614847369::t_139b03944d3ef5 787-790
+  ai_agent 877-878
+npm/rules/js-bun-db/fix/safety/check.test.mjs
+  s_681ae614847369::t_26b9014c988264 133
+.cursor/rules/n-style-lint.mdc
+  s_681ae614847369::t_679924b0a8f221 28
+npm/rules/js-bun-db/js-bun-db.mdc
+  s_681ae614847369::t_679924b0a8f221 358,382
+.cursor/rules/n-js-run.mdc
+  s_681ae614847369::t_679924b0a8f221 65,71
+npm/rules/js-bun-db/fix/safety/check.mjs
+  s_681ae614847369::t_2ee519876231e8 272
+  s_681ae614847369::t_ca59bfa1e9b1b5 56-61
+  s_681ae614847369::t_de8d72028bed31 406
+  s_681ae614847369::t_e27fcfaa7ada47 147
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "9d1b1ab26631ef361d9f875a7d0f8b6e342ed0e0",
+  "prompts": {},
+  "sessions": {
+    "s_681ae614847369": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ec9ce8fa-3022-405e-9bd9-e3ab3b1584f7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
