@@ -1,0 +1,50 @@
+npm/rules/docker/policy/lint_docker_yml/lint_docker_yml.rego
+  s_559127ff6087ae::t_525a9c79cf83de 43-44,46
+npm/rules/text/policy/lint_text/lint_text_test.rego
+  s_559127ff6087ae::t_a3bd3911b72350 35-36,39
+npm/CHANGELOG.md
+  s_2ef98bd67a16af::t_4eb3d07783ac10 7-12
+npm/rules/docker/policy/lint_docker_yml/lint_docker_yml_test.rego
+  s_559127ff6087ae::t_c6464468d04e7f 20-21,24
+  s_559127ff6087ae::t_055b1e8b416155 43
+npm/rules/text/policy/lint_text/lint_text.rego
+  s_559127ff6087ae::t_c03428d5ce2ab1 62
+  s_559127ff6087ae::t_65683382017238 57
+  s_559127ff6087ae::t_70c5f2432c13b7 22-25
+  s_559127ff6087ae::t_aa00db39837824 52
+npm/rules/k8s/lint/lint.mjs
+  s_2ef98bd67a16af::t_7d95f8b552857f 181-185,189-190
+  s_2ef98bd67a16af::t_e3425e570eed48 216
+  s_2ef98bd67a16af::t_f021ce856fdd6d 229,241,257-260,265-266
+npm/package.json
+  s_2ef98bd67a16af::t_e33597bf3d6d14 3
+npm/rules/k8s/k8s.mdc
+  s_2ef98bd67a16af::t_bc4c9c51e46a04 3
+  s_2ef98bd67a16af::t_c00183f5c63038 32
+  s_2ef98bd67a16af::t_e850d9079415b7 102-103
+  s_2ef98bd67a16af::t_23066e756733a5 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "a6f8c7d3169deaf5600c11f571678416d6f89763",
+  "prompts": {},
+  "sessions": {
+    "s_2ef98bd67a16af": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "344f127f-0f8d-475c-9cef-7c259d7fc757",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_559127ff6087ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4386bd3-d6bf-472c-9968-d65c554d8a70",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
