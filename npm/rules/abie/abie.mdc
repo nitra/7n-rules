@@ -1,7 +1,7 @@
 ---
 description: Правила для проєктів AbInBev Efes
 alwaysApply: true
-version: '1.20'
+version: '1.21'
 ---
 
 Правило **abie** для споживачів **@nitra/cursor**: **k8s** (Deployment + **HealthCheckPolicy** у **`hc.yaml`**, overlay **ua** — **nodeSelector**, **HTTPRoute** (будь-який непорожній **`target.name`**, для спільних сервісів **`auth-run-hl`** / **`file-link-hl`** — **`namespace: dev`** у base та patch **`…/backendRefs/…/namespace`** у **ua**)), гілки **dev**, **ua** у **clean-merged-branch**, а також заборона тримати артефакти **Firebase Hosting** у **підкаталогах першого рівня** (безпосередні діти кореня репозиторію; у самому корені ці імена не вимагаються до видалення).
@@ -140,6 +140,14 @@ KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 
 Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `check-hasura.mjs` приймає кластерний DNS-формат `<cluster>.internal`.
 
+## `@nitra/abie-docs` у `devDependencies`
+
+У кореневому **`package.json`** abie-проєкту в **`devDependencies`** має бути **`@nitra/abie-docs`** — пакет з канонічними контрактами/схемами abie-сервісів (наприклад, шляхи `node_modules/@nitra/abie-docs/...` для імпорту схем). Версію правило не фіксує — лише presence. Додати:
+
+```bash
+bun add -d @nitra/abie-docs
+```
+
 ## Firebase Hosting
 
 У **кожному** підкаталозі, що лежить **безпосередньо** в корені репозиторію, не тримати конфіг і кеш **Firebase Hosting**: у таких каталогах не повинно бути **`.firebaserc`**, **`firebase.json`** та каталогу **`.firebase/`** (у **самому** корені репозиторію ці імена перевіркою abie **не** розглядаються; `node_modules` / `.git` зі скану вилучаються).
@@ -160,5 +168,6 @@ KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 - **`health_check_policy/`** → `abie.health_check_policy` — структура HealthCheckPolicy: `apiVersion: networking.gke.io/v1`, `metadata.name`, `spec.default.config.type: HTTP`, `httpHealthCheck.requestPath` починається з `/`, `port: 8080`, `targetRef.kind: Service`, `targetRef.name` має суфікс `-hl`. **Цільові файли:** `…/k8s/.../hc.yaml`.
 - **`base_deployment_preem/`** → `abie.base_deployment_preem` — Deployment у base/ має `spec.template.spec.nodeSelector.preem` зі значенням `true` (boolean або рядок). **Цільові файли:** ресурсні YAML під `…/k8s/.../base/...`.
 - **`clean_merged_ignore_branches/`** → `abie.clean_merged_ignore_branches` — у workflow `.github/workflows/clean-merged-branch.yml` крок з `uses: phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches`, що містить токени `dev,ua` (case-insensitive). **Цільові файли:** `.github/workflows/clean-merged-branch.yml`.
+- **`package_json_docs/`** → `abie.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-docs` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.
 
 Cross-file логіка (парність HCP↔Deployment у каталозі, обчислений `<deployment.name>-hl` для `targetRef.name`, валідація ua-overlay JSON6902 patches на HTTPRoute, env→cluster DNS, аналіз cross-namespace backendRefs у пакетах) лишається у **`check-abie.mjs`** — Rego не читає файлову систему й не робить cross-document резолюцію.

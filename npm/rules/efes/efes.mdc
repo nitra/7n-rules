@@ -1,7 +1,23 @@
 ---
 description: Правила для проєктів Efes (репозиторії під github.com/efes-cloud)
 alwaysApply: true
-version: '1.0'
+version: '1.1'
 ---
 
-Правило **efes** для споживачів **@nitra/cursor** у репозиторіях під **`github.com/efes-cloud/*`**. Поки що зміст правила порожній — додавайте сюди вимоги, специфічні для efes-проєктів, у міру їх появи.
+Правило **efes** для споживачів **@nitra/cursor** у репозиторіях під **`github.com/efes-cloud/*`**.
+
+## `@nitra/efes-docs` у `devDependencies`
+
+У кореневому **`package.json`** efes-проєкту в **`devDependencies`** має бути **`@nitra/efes-docs`** — пакет з канонічними контрактами/схемами efes-сервісів (зокрема використовується у `graphql.mdc` як `node_modules/@nitra/efes-docs/schema/maya.graphql`). Версію правило не фіксує — лише presence. Додати:
+
+```bash
+bun add -d @nitra/efes-docs
+```
+
+## Швидкий gate через conftest (Rego)
+
+Пер-документні перевірки efes — rego-полісі у **`npm/rules/efes/policy/`** (запускається через **`npx @nitra/cursor check efes`**; синтаксичний lint — через **`bun run lint-rego`**). Деталі шаблону — у **conftest.mdc** / **n-rego.mdc**.
+
+Пакети (директорія в **`npm/rules/efes/policy/`** → namespace → що перевіряє):
+
+- **`package_json_docs/`** → `efes.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-docs` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.

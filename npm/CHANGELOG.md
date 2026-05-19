@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.44] - 2026-05-18
+
+### Added
+
+- `abie` rule: новий policy-концерн `abie.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-docs` (presence-only, версію не фіксуємо). Реалізація: `npm/rules/abie/policy/package_json_docs/` (target.json + .rego + _test.rego). Bump `abie.mdc` `1.20` → `1.21`.
+- `efes` rule: перший policy-концерн `efes.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-docs` (узгоджено з `graphql.mdc`, де схема береться з `node_modules/@nitra/efes-docs/schema/maya.graphql`). Реалізація: `npm/rules/efes/policy/package_json_docs/`. Bump `efes.mdc` `1.0` → `1.1`.
+
 ## [1.13.43] - 2026-05-18
 
 ### Removed
