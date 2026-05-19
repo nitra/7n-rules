@@ -4253,8 +4253,15 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
 }
 
 /**
+ * Канонічний список in-cluster TCP-портів у `to: [{namespaceSelector: {}}]` rule (k8s.mdc).
+ * Зовнішній доступ (80/443 → 0.0.0.0/0) і kube-dns (53 UDP/TCP) — окремі rule вище.
+ * Catch-all (`namespaceSelector: {}` без `ports:`) — заборонено.
+ */
+const NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS = [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]
+
+/**
  * Канонічний блок `spec.egress` NetworkPolicy (k8s.mdc): kube-dns; TCP 80/443 на 0.0.0.0/0;
- * інші порти — `namespaceSelector: {}` (in-cluster, зокрема `*.svc`).
+ * in-cluster `namespaceSelector: {}` зі списком `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`.
  */
 const NETWORK_POLICY_EGRESS_YAML = `  egress:
     - to:
@@ -4279,6 +4286,8 @@ const NETWORK_POLICY_EGRESS_YAML = `  egress:
           port: 443
     - to:
         - namespaceSelector: {}
+      ports:
+${NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS.map(p => `        - protocol: TCP\n          port: ${p}`).join('\n')}
 `
 
 /**

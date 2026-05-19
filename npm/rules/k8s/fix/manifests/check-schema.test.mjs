@@ -2363,16 +2363,17 @@ describe('NetworkPolicy helpers', () => {
     ).toBe('cron')
   })
 
-  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress', () => {
+  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
     const yaml = buildNetworkPolicyYaml('api', 'api')
     expect(yaml).toContain('name: api')
     expect(yaml).toContain('app: api')
     expect(yaml).toContain('kind: NetworkPolicy')
     expect(yaml).toContain('cidr: 0.0.0.0/0')
-    expect(yaml).toContain('port: 80')
-    expect(yaml).toContain('port: 443')
     expect(yaml).toContain('namespaceSelector: {}')
     expect(yaml).not.toContain('egress:\n    - {}')
+    for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
+      expect(yaml).toContain(`port: ${port}`)
+    }
   })
 
   test('networkPolicyManifestViolations порожній для канонічного документа', () => {
