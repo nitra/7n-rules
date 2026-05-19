@@ -130,7 +130,7 @@ export async function migrate() {
     })
   })
 
-  test('помилка: sql.unsafe з template-літералом і ${} навіть з allow-unsafe маркером', async () => {
+  test('помилка: sql.unsafe з template-літералом і інтерполяцією навіть з allow-unsafe маркером', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't' })
       await ensureDir('src')

@@ -53,6 +53,12 @@ import { findAllPackageJsonPaths } from '../../../../scripts/utils/find-package-
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 
+// Дешеві pre-filter regex'и для AST-сканера LISTEN/NOTIFY: уникаємо парсингу
+// файлів, у яких ніяких сигналів немає. Винесено в модульний скоуп, щоб не
+// перекомпілювати RegExp на кожному виклику `collectPgUsageForFile`.
+const LISTEN_NOTIFY_KEYWORD_RE = /\b(LISTEN|UNLISTEN|NOTIFY)\b/iu
+const NOTIFICATION_LITERAL_RE = /['"`]notification['"`]/u
+
 /**
  * Збирає абсолютні шляхи JS/TS джерел у репозиторії для скану Bun SQL патернів.
  * @param {string} repoRoot абсолютний шлях до кореня репозиторію
@@ -138,7 +144,7 @@ function collectPgUsageForFile(content, rel, pgUsage) {
   // Дешевий pre-filter за текстом: AST-парсинг тільки коли файл містить
   // або імпорт `'pg'`, або хоча б одне зі слів LISTEN / NOTIFY / UNLISTEN /
   // 'notification' — інакше LISTEN/NOTIFY у ньому точно немає.
-  const mayHaveListenNotify = /\b(LISTEN|UNLISTEN|NOTIFY)\b/iu.test(content) || /['"`]notification['"`]/u.test(content)
+  const mayHaveListenNotify = LISTEN_NOTIFY_KEYWORD_RE.test(content) || NOTIFICATION_LITERAL_RE.test(content)
   if (!textHasPgLibImport(content) && !mayHaveListenNotify) return
   const imports = findPgLibImportInText(content, rel)
   const listenNotify = findPgListenNotifyUsageInText(content, rel)
@@ -263,7 +269,7 @@ async function checkPgDependencyAndUsage(pkgJsonPaths, repoRoot, pgUsage, report
     }
     if (!pkg || typeof pkg !== 'object') continue
     const deps = pkg.dependencies
-    if (!deps || typeof deps !== 'object' || !Object.prototype.hasOwnProperty.call(deps, 'pg')) continue
+    if (!deps || typeof deps !== 'object' || !Object.hasOwn(deps, 'pg')) continue
     pgDepsFound++
     if (!hasAnyListenNotify) {
       pgDepFails++
@@ -397,7 +403,7 @@ export async function check() {
   }
   if (unsafeTemplateInterp === 0) {
     pass(
-      'js-bun-db: немає sql.unsafe(`...${x}...`) з template-інтерполяцією ' +
+      'js-bun-db: немає sql.unsafe(template literal з інтерполяцією) ' +
         '(identifiers через @scaleleap/pg-format %I, values — позиційні $N)'
     )
   }

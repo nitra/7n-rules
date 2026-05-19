@@ -784,9 +784,10 @@ export function findPgLibImportInText(content, virtualPath = 'scan.ts') {
  *   `LISTEN ` / `UNLISTEN ` / `NOTIFY ` (case-insensitive);
  * - `<obj>.on('notification', ...)` — pg-listener notification-подій (другий
  *   аргумент — функція; перший — точно рядок `'notification'`);
- * - TaggedTemplateExpression виду `sql\`LISTEN ...\`` — на випадок, якщо хтось
- *   використовує Bun SQL-tagged-template, а LISTEN/NOTIFY все одно лишається у
- *   тексті запиту (це не запрацює у Bun SQL, але як сигнал — приймаємо).
+ * - TaggedTemplateExpression виду sql tagged template з LISTEN/UNLISTEN/NOTIFY
+ *   на початку першого quasi — на випадок, якщо хтось використовує Bun
+ *   SQL-tagged-template, а LISTEN/NOTIFY все одно лишається у тексті запиту
+ *   (це не запрацює у Bun SQL, але як сигнал — приймаємо).
  *
  * Регістр SQL-слів не важливий, провідні пробіли допускаються.
  * @param {string} content вихідний код
@@ -873,8 +874,8 @@ function listenNotifyFromCallExpression(node) {
 }
 
 /**
- * Аналізує TaggedTemplateExpression `<tag>\`LISTEN ...\``: якщо перший quasi
- * починається з LISTEN/UNLISTEN/NOTIFY — повертає відповідний kind.
+ * Аналізує TaggedTemplateExpression: якщо перший quasi починається з
+ * LISTEN/UNLISTEN/NOTIFY — повертає відповідний kind.
  * @param {Record<string, unknown>} node AST node
  * @returns {'listen_sql' | 'notify_sql' | 'unlisten_sql' | null} kind знахідки
  */

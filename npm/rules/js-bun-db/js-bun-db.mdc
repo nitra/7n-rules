@@ -355,7 +355,7 @@ await sql.unsafe('SELECT pg_advisory_lock($1)', [lockId]) // allow-unsafe: pg_ad
 
 ### `sql.unsafe` з template-літералом і `${...}`-інтерполяцією — заборонено навіть з маркером
 
-`sql.unsafe(\`...\${x}...\`)` — окремий **hard fail**, який не знімається маркером `// allow-unsafe`. Шаблонна підстановка `${x}` у `sql.unsafe`-рядок:
+`sql.unsafe(\`...\${x}...\`)` — окремий **hard fail**, який не знімається маркером `// allow-unsafe`. Шаблонна підстановка`${x}` у `sql.unsafe`-рядок:
 
 - **не екранує** identifier'ів (reserved words, спецсимволи, пробіли в імені);
 - **не біндить** значень (вони потрапляють у запит сирим текстом, як injection-вектор);
@@ -379,7 +379,7 @@ const query = format('CREATE TABLE %I (id int)', tableName)
 await sql.unsafe(query)
 ```
 
-Статичні `sql.unsafe(\`SELECT 1\`)` (без `${...}`) і `sql.unsafe(text, [params])` зі змінною `text`, зібраною заздалегідь, — допустимі (за наявності `// allow-unsafe`-маркера).
+Статичні `sql.unsafe(\`SELECT 1\`)` (без `${...}`) і`sql.unsafe(text, [params])` зі змінною `text`, зібраною заздалегідь, — допустимі (за наявності`// allow-unsafe`-маркера).
 
 ❌ Заборонені кейси (треба переробити на tagged template):
 

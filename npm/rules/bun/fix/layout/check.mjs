@@ -53,8 +53,8 @@ async function loadNCursorRules() {
  */
 function lintChainHasScript(lintScript, target) {
   if (!lintScript) return false
-  const escaped = target.replaceAll(/[.*+?^${}()|[\]\\]/gu, '\\$&')
-  return new RegExp(`(?:^|\\s)bun\\s+run\\s+${escaped}(?:$|\\s)`, 'u').test(lintScript)
+  const escaped = target.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
+  return new RegExp(String.raw`(?:^|\s)bun\s+run\s+${escaped}(?:$|\s)`, 'u').test(lintScript)
 }
 
 /**
@@ -75,6 +75,17 @@ const RULE_SCRIPTS = [
 ]
 
 /**
+ * Загортає кожен ідентифікатор у backticks та зʼєднує через роздільник. Винесено
+ * окремою функцією, щоб не нестити template literals у `pass`/`fail`-повідомленнях.
+ * @param {string[]} items ідентифікатори правил
+ * @param {string} sep роздільник (наприклад `, ` або `/`)
+ * @returns {string} рядок виду "`a`, `b`"
+ */
+function backtickJoin(items, sep) {
+  return items.map(r => '`' + r + '`').join(sep)
+}
+
+/**
  * Описує стан правил-власників скрипта для повідомлень про reason. Повертає або список увімкнених
  * правил (для passing-кейсу «правило є»), або компактний опис, чому всі вимкнені (для inverse-fail).
  * @param {string[]} owners id правил-власників (>=1)
@@ -84,7 +95,7 @@ const RULE_SCRIPTS = [
 function ownerStatus(owners, cursorRules) {
   const enabled = owners.filter(r => cursorRules.rules.has(r))
   if (enabled.length > 0) {
-    return { enabled, reason: `правил${enabled.length === 1 ? 'о' : 'а'} ${enabled.map(r => `\`${r}\``).join(', ')}` }
+    return { enabled, reason: `правил${enabled.length === 1 ? 'о' : 'а'} ${backtickJoin(enabled, ', ')}` }
   }
   if (owners.length === 1) {
     const [only] = owners
@@ -93,7 +104,7 @@ function ownerStatus(owners, cursorRules) {
   }
   const disabledCount = owners.filter(r => cursorRules.disabled.has(r)).length
   const note = disabledCount === owners.length ? 'усі власники в disable-rules' : 'жоден власник не активний у rules'
-  return { enabled, reason: `${owners.map(r => `\`${r}\``).join('/')} — ${note}` }
+  return { enabled, reason: `${backtickJoin(owners, '/')} — ${note}` }
 }
 
 /**
@@ -104,7 +115,7 @@ function ownerStatus(owners, cursorRules) {
  * вимкненому правилі: `n-cursor lint-<id>` ігнорує `.n-cursor.json` і обходить дерево
  * незалежно від конфігу (як було в cursor-репо: `disable-rules: ["k8s"]` + залишений `lint-k8s`
  * ламав chain на template-сорцях власного правила).
- * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter
+ * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter callback-и `pass`/`fail` для звіту
  * @param {Record<string, string>} scripts scripts з package.json
  * @param {{ rules: Set<string>, disabled: Set<string> }} cursorRules `rules` та `disable-rules`
  */
@@ -127,7 +138,7 @@ function checkCursorRuleScripts(reporter, scripts, cursorRules) {
     }
     if (present) {
       fail(
-        `У .n-cursor.json немає активних власників ${owners.map(r => `\`${r}\``).join('/')} — прибери скрипт \`${script}\` з кореневого package.json (див. ${doc})`
+        `У .n-cursor.json немає активних власників ${backtickJoin(owners, '/')} — прибери скрипт \`${script}\` з кореневого package.json (див. ${doc})`
       )
     }
     if (inChain) {
