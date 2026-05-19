@@ -20,7 +20,6 @@ CLI [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image) (
   }
 }
 ```
-
 - Заборонені залежності `@nitra/minify-image` у deps/devDeps: `package.json`:
 
 ```json

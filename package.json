@@ -13,15 +13,12 @@
   "scripts": {
     "test": "bun test npm/tests",
     "start": "bun ./npm/bin/n-cursor.js",
-    "lint": "bun run lint-rego && bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-k8s && bun run lint-docker && bun run lint-style && bun run lint-image && bun run lint-security && oxfmt .",
+    "lint": "bun run lint-rego && bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-style && bun run lint-security && oxfmt .",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
     "lint-text": "n-cursor lint-text",
     "lint-ga": "n-cursor lint-ga",
     "lint-rego": "n-cursor lint-rego",
-    "lint-k8s": "n-cursor lint-k8s",
-    "lint-docker": "n-cursor lint-docker",
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
-    "lint-image": "npx @nitra/minify-image --src=. --write",
     "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"
   },
   "devDependencies": {

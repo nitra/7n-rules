@@ -6,13 +6,8 @@
     "changelog",
     "ci4",
     "ga",
-    "image-avif",
-    "image-compress",
-    "js-bun-db",
     "js-lint",
     "js-run",
-    "k8s",
-    "nginx-default-tpl",
     "npm-module",
     "rego",
     "security",
@@ -20,5 +15,20 @@
     "text",
     "vue"
   ],
-  "skills": ["adr-normalize", "fix", "lint", "llm-patch", "publish-telegram", "taze"]
+  "disable-rules": [
+    "docker",
+    "image-avif",
+    "image-compress",
+    "js-bun-db",
+    "k8s",
+    "nginx-default-tpl"
+  ],
+  "skills": [
+    "adr-normalize",
+    "fix",
+    "lint",
+    "llm-patch",
+    "publish-telegram",
+    "taze"
+  ]
 }

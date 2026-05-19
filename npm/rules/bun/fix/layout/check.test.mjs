@@ -68,4 +68,85 @@ describe('check-bun', () => {
       expect(await check()).toBe(0)
     })
   })
+
+  test('зворотній інваріант: правило k8s відсутнє, але scripts.lint-k8s є → fail', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson('.n-cursor.json', { rules: ['docker'], 'disable-rules': ['k8s'] })
+      await writeJson('package.json', {
+        name: 't',
+        scripts: {
+          'lint-docker': 'echo',
+          'lint-k8s': 'n-cursor lint-k8s',
+          lint: 'bun run lint-docker && oxfmt .'
+        }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('зворотній інваріант: правило k8s відсутнє, але scripts.lint містить bun run lint-k8s → fail', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson('.n-cursor.json', { rules: ['docker'] })
+      await writeJson('package.json', {
+        name: 't',
+        scripts: {
+          'lint-docker': 'echo',
+          lint: 'bun run lint-docker && bun run lint-k8s && oxfmt .'
+        }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('зворотній інваріант: правило k8s відсутнє і ніяких слідів → OK', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson('.n-cursor.json', { rules: ['docker'], 'disable-rules': ['k8s'] })
+      await writeJson('package.json', {
+        name: 't',
+        scripts: {
+          'lint-docker': 'echo',
+          lint: 'bun run lint-docker && oxfmt .'
+        }
+      })
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('multi-owner: достатньо одного активного власника (image-avif) щоб lint-image був дозволений', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson('.n-cursor.json', { rules: ['image-avif'], 'disable-rules': ['image-compress'] })
+      await writeJson('package.json', {
+        name: 't',
+        scripts: {
+          'lint-image': 'npx @nitra/minify-image',
+          lint: 'bun run lint-image && oxfmt .'
+        }
+      })
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('multi-owner: обидва image-* вимкнено, але lint-image у chain → fail', async () => {
+    await withTmpCwd(async () => {
+      await writeFile('bun.lock', '', 'utf8')
+      await writeFile('bunfig.toml', '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson('.n-cursor.json', { rules: ['bun'], 'disable-rules': ['image-avif', 'image-compress'] })
+      await writeJson('package.json', {
+        name: 't',
+        scripts: {
+          'lint-image': 'npx @nitra/minify-image',
+          lint: 'bun run lint-image && oxfmt .'
+        }
+      })
+      expect(await check()).toBe(1)
+    })
+  })
 })

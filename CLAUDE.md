@@ -12,7 +12,6 @@
 @.cursor/rules/n-js-bun-db.mdc
 @.cursor/rules/n-js-lint.mdc
 @.cursor/rules/n-js-run.mdc
-@.cursor/rules/n-k8s.mdc
 @.cursor/rules/n-nginx-default-tpl.mdc
 @.cursor/rules/n-npm-module.mdc
 @.cursor/rules/n-rego.mdc
@@ -25,6 +24,7 @@
 ## Лінт і ESLint (без паралельних запусків)
 
 Щоб не запускати **кілька** одночасних **`eslint`** (і не перевантажувати диск/CPU), **заборонено** стартувати `bun run lint` / `lint-js` / `eslint` **паралельно** в різних Bash-задачах, **фонових** shells чи **субагентах** (Task тощо). Має бути **один** послідовний прогон на сесію; команда **`/n-lint`** — **не** ділити на паралельні підзадачі. Деталі: `.cursor/skills/n-lint/SKILL.md`.
+
 
 ## Skills
 

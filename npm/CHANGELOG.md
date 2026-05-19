@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.52] - 2026-05-19
+
+### Added
+
+- `check bun`: **зворотній інваріант** для `lint-<id>`-скриптів. Раніше `checkCursorRuleScripts` ([npm/rules/bun/fix/layout/check.mjs](rules/bun/fix/layout/check.mjs)) перевіряв лише пряму імплікацію — «правило в `.n-cursor.json:rules` → скрипт у `package.json`». Тепер також fail-имо, коли правило **відсутнє** в `rules` (або явно перенесене в **`disable-rules`**), але в кореневому `package.json` залишилися: (а) сам скрипт `lint-<id>`, або (б) виклик `bun run lint-<id>` у агрегованому `scripts.lint`. Причина: `n-cursor lint-<id>` запускається напряму й **ігнорує** `.n-cursor.json`, тож `bun run lint` падає на вимкненому правилі (як було з `disable-rules: ["k8s"]` у cursor-репо, де `lint-k8s` обходив template-сорці власного правила). Покриті скрипти і їхні правила-власники: `lint-docker` ← `docker`, `lint-k8s` ← `k8s`, `lint-image` ← `image-avif`/`image-compress` (multi-owner — скрипт лишається дозволеним, поки активний **хоч один** власник). Розпізнавання згадки `bun run lint-<id>` у chain'і — через токен-границі (regex `\\bbun run <script>\\b`), щоб не матчити префікси (`lint-k8s-foo` ≠ `lint-k8s`). Bump `bun.mdc` `1.8` → `1.9`.
+
 ## [1.13.51] - 2026-05-19
 
 ### Fixed
