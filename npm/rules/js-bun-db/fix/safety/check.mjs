@@ -2,12 +2,20 @@
  * Перевіряє правило js-bun-db.mdc.
  *
  * 1) У жодному `package.json` (включно з workspace-пакетами) у `dependencies` не повинно
- *    бути `pg`, `pg-format` чи `mysql2` — ці бібліотеки треба замінити на Bun native SQL
- *    (`import { sql, SQL } from 'bun'`, https://bun.com/docs/runtime/sql).
- *    `pg-format` — ручне форматування SQL через escape; tagged template Bun SQL
- *    параметризує значення нативно і не лишає простору для injection.
+ *    бути `pg-format` чи `mysql2` — їх треба замінити на Bun native SQL
+ *    (`import { sql, SQL } from 'bun'`, https://bun.com/docs/runtime/sql). `pg-format` —
+ *    ручне форматування SQL через escape; tagged template Bun SQL параметризує значення
+ *    нативно і не лишає простору для injection. Перевірка цих двох — у Rego-полісі
+ *    `npm/policy/js_bun_db/package_json/`.
  *
- * 2) Якщо в коді використовується Bun SQL (імпорт `sql`/`SQL` з `'bun'`), додатково
+ * 2) Для `pg` діє виключення: Bun SQL поки не реалізує LISTEN/NOTIFY, тож якщо у
+ *    проекті знайдено реальне використання `LISTEN ...` / `NOTIFY ...` / `UNLISTEN ...`
+ *    або listener'а `.on('notification', ...)`, dependency `pg` дозволено. Інакше
+ *    `pg` лишається забороненим — fail з підказкою про виключення. Додатково — per-file:
+ *    кожен файл з `import ... from 'pg'` повинен сам містити LISTEN/NOTIFY-патерн;
+ *    звичайні SELECT/INSERT/UPDATE через `pg` (replace на Bun SQL!) не дозволені.
+ *
+ * 3) Якщо в коді використовується Bun SQL (імпорт `sql`/`SQL` з `'bun'`), додатково
  *    перевіряє небезпечні патерни:
  *    - `new SQL(...)` всередині функції (пул має бути singleton на рівні модуля).
  *    - Будь-який `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
@@ -30,12 +38,16 @@ import {
   findBunSqlPerRequestConnectionInText,
   findBunSqlPgLeftoverCallInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
+  findBunSqlUnsafeWithInterpolatedTemplateInText,
   findPgFormatLikeQueryWrapperInText,
   findPgFormatShimDefinitionInText,
+  findPgLibImportInText,
+  findPgListenNotifyUsageInText,
   findUnsafeBunSqlDynamicSqlListInText,
   findUnsafeBunSqlInListMissingEmptyGuardInText,
   isBunSqlScanSourceFile,
-  textHasBunSqlImport
+  textHasBunSqlImport,
+  textHasPgLibImport
 } from '../../../../scripts/utils/bun-sql-scan.mjs'
 import { findAllPackageJsonPaths } from '../../../../scripts/utils/find-package-json-paths.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
@@ -65,19 +77,32 @@ async function findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths) {
 }
 
 /**
- * Сканує JS/TS-джерела на небезпечні патерни Bun SQL.
+ * Сканує JS/TS-джерела на небезпечні патерни Bun SQL і збирає метадані про
+ * використання `pg`/LISTEN-NOTIFY (для виключення dependency `pg`).
  * @param {string[]} sourcePaths абсолютні шляхи джерел
  * @param {string} repoRoot абсолютний шлях до кореня
  * @param {{ pass: (m: string) => void, fail: (m: string) => void }} reporter колбеки pass і fail з перевірки
- * @returns {Promise<{ hasBunSqlImport: boolean, perRequest: number, unsafeCall: number, dynamicList: number, inListGuard: number, pgLeftover: number, pgFormatShim: number, queryWrapper: number }>}
- *   `hasBunSqlImport` — чи знайдено хоч один `import { sql|SQL } from 'bun'` у джерелах;
- *   решта — кількість порушень кожного типу.
+ * @returns {Promise<{
+ *   hasBunSqlImport: boolean,
+ *   perRequest: number,
+ *   unsafeCall: number,
+ *   dynamicList: number,
+ *   inListGuard: number,
+ *   pgLeftover: number,
+ *   pgFormatShim: number,
+ *   queryWrapper: number,
+ *   pgUsage: { rel: string, imports: { line: number, snippet: string }[], listenNotify: { line: number, snippet: string, kind: string }[] }[]
+ * }>}
+ *   `hasBunSqlImport` — чи є хоч один `import { sql|SQL } from 'bun'`;
+ *   `pgUsage` — список файлів, що або імпортують `'pg'`, або містять LISTEN/NOTIFY-патерн
+ *   (інші — пропущено, щоб не тримати в пам'яті метадані про всі файли).
  */
 async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
   const { fail } = reporter
   const counts = {
     perRequest: 0,
     unsafeCall: 0,
+    unsafeTemplateInterp: 0,
     dynamicList: 0,
     inListGuard: 0,
     pgLeftover: 0,
@@ -85,6 +110,8 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
     queryWrapper: 0
   }
   let hasBunSqlImport = false
+  /** @type {{ rel: string, imports: { line: number, snippet: string }[], listenNotify: { line: number, snippet: string, kind: string }[] }[]} */
+  const pgUsage = []
 
   for (const absPath of sourcePaths) {
     const rel = relative(repoRoot, absPath).split('\\').join('/')
@@ -93,9 +120,30 @@ async function scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter) {
       hasBunSqlImport = true
     }
     scanFileForBunSqlPatterns(content, rel, fail, counts)
+    collectPgUsageForFile(content, rel, pgUsage)
   }
 
-  return { hasBunSqlImport, ...counts }
+  return { hasBunSqlImport, pgUsage, ...counts }
+}
+
+/**
+ * Якщо у файлі є імпорт `'pg'` АБО LISTEN/NOTIFY-патерн — додає запис у `pgUsage`.
+ * Файли без жодного сигналу не зберігаються, щоб уникнути зайвої пам'яті.
+ * @param {string} content вміст файлу
+ * @param {string} rel posix-шлях відносно кореня
+ * @param {{ rel: string, imports: { line: number, snippet: string }[], listenNotify: { line: number, snippet: string, kind: string }[] }[]} pgUsage акумулятор
+ * @returns {void}
+ */
+function collectPgUsageForFile(content, rel, pgUsage) {
+  // Дешевий pre-filter за текстом: AST-парсинг тільки коли файл містить
+  // або імпорт `'pg'`, або хоча б одне зі слів LISTEN / NOTIFY / UNLISTEN /
+  // 'notification' — інакше LISTEN/NOTIFY у ньому точно немає.
+  const mayHaveListenNotify = /\b(LISTEN|UNLISTEN|NOTIFY)\b/iu.test(content) || /['"`]notification['"`]/u.test(content)
+  if (!textHasPgLibImport(content) && !mayHaveListenNotify) return
+  const imports = findPgLibImportInText(content, rel)
+  const listenNotify = findPgListenNotifyUsageInText(content, rel)
+  if (imports.length === 0 && listenNotify.length === 0) return
+  pgUsage.push({ rel, imports, listenNotify })
 }
 
 /**
@@ -122,6 +170,16 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
         `інакше переробити на tagged template sql\`...\${value}...\`. ` +
         `Якщо випадок легітимний — додай маркер "// allow-unsafe: <причина>" на тому ж рядку або рядком вище ` +
         `(js-bun-db.mdc): ${v.snippet}`
+    )
+  }
+  for (const v of findBunSqlUnsafeWithInterpolatedTemplateInText(content, rel)) {
+    counts.unsafeTemplateInterp++
+    fail(
+      `js-bun-db: ${rel}:${v.line} — sql.unsafe(\`...\${x}...\`) з template-літералом і \${...}-інтерполяцією ` +
+        `заборонено навіть з allow-unsafe маркером: шаблонна підстановка identifier'у не екранує (reserved words, ` +
+        `спецсимволи), а значення не біндяться. Збери text через @scaleleap/pg-format format('%I', name) для ` +
+        `identifiers або позиційні $N для values, потім sql.unsafe(text, [params]). Деталі — секція ` +
+        `«Динамічна SQL-структура» в js-bun-db.mdc: ${v.snippet}`
     )
   }
   for (const v of findBunSqlPgLeftoverCallInText(content, rel)) {
@@ -168,6 +226,71 @@ function scanFileForBunSqlPatterns(content, rel, fail, counts) {
         `sql\`...\${value}...\` (js-bun-db.mdc): ${v.snippet}`
     )
   }
+}
+
+/**
+ * Перевіряє виключення `pg` для LISTEN/NOTIFY: по кожному `package.json` з
+ * `dependencies.pg` — чи є у проекті хоч одне використання LISTEN/NOTIFY-патерну;
+ * додатково — кожен файл з `import 'pg'` повинен сам містити LISTEN/NOTIFY (інакше
+ * звичайні SELECT/INSERT/UPDATE через `pg` ховаються за легітимним dependency).
+ * @param {string[]} pkgJsonPaths абсолютні шляхи до всіх package.json
+ * @param {string} repoRoot абсолютний шлях до кореня
+ * @param {{ rel: string, imports: { line: number, snippet: string }[], listenNotify: { line: number, snippet: string, kind: string }[] }[]} pgUsage метадані з scanSourcesForBunSqlPatterns
+ * @param {{ fail: (m: string) => void }} reporter колбек fail для повідомлень
+ * @returns {Promise<{ pgDepFails: number, pgImportFails: number, pgDepsFound: number, hasAnyListenNotify: boolean, listenNotifyEvidence: string | null }>}
+ *   counters і метадані для підсумкового `pass`-повідомлення (де саме знайдено перший LISTEN/NOTIFY).
+ */
+async function checkPgDependencyAndUsage(pkgJsonPaths, repoRoot, pgUsage, reporter) {
+  const { fail } = reporter
+  let pgDepFails = 0
+  let pgImportFails = 0
+  let pgDepsFound = 0
+
+  const firstWithListenNotify = pgUsage.find(u => u.listenNotify.length > 0)
+  const hasAnyListenNotify = !!firstWithListenNotify
+  const listenNotifyEvidence = firstWithListenNotify
+    ? `${firstWithListenNotify.rel}:${firstWithListenNotify.listenNotify[0].line}`
+    : null
+
+  for (const absPkgPath of pkgJsonPaths) {
+    const relPkg = relative(repoRoot, absPkgPath).split('\\').join('/')
+    let pkg
+    try {
+      pkg = JSON.parse(await readFile(absPkgPath, 'utf8'))
+    } catch {
+      // невалідний JSON у package.json — це проблема інших правил, тут пропускаємо
+      continue
+    }
+    if (!pkg || typeof pkg !== 'object') continue
+    const deps = pkg.dependencies
+    if (!deps || typeof deps !== 'object' || !Object.prototype.hasOwnProperty.call(deps, 'pg')) continue
+    pgDepsFound++
+    if (!hasAnyListenNotify) {
+      pgDepFails++
+      fail(
+        `js-bun-db: ${relPkg}: dependencies.pg заборонено — у проекті не знайдено LISTEN / NOTIFY / UNLISTEN ` +
+          `(або listener'а .on('notification', ...)). Bun SQL покриває звичайні запити; ` +
+          `\`pg\` дозволений лише як виняток для LISTEN/NOTIFY (js-bun-db.mdc, ` +
+          `секція «pg для LISTEN/NOTIFY»)`
+      )
+    }
+  }
+
+  for (const f of pgUsage) {
+    if (f.imports.length === 0) continue
+    if (f.listenNotify.length > 0) continue
+    for (const imp of f.imports) {
+      pgImportFails++
+      fail(
+        `js-bun-db: ${f.rel}:${imp.line} — import 'pg' дозволено лише у файлах з LISTEN / NOTIFY / UNLISTEN ` +
+          `або .on('notification', ...). Перенеси звичайні запити на Bun SQL ` +
+          `(import { sql } from 'bun'), а LISTEN/NOTIFY-логіку лиши в окремому модулі ` +
+          `(js-bun-db.mdc): ${imp.snippet}`
+      )
+    }
+  }
+
+  return { pgDepFails, pgImportFails, pgDepsFound, hasAnyListenNotify, listenNotifyEvidence }
 }
 
 /**
@@ -218,9 +341,9 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  // Перевірку `dependencies` (заборона `pg` / `pg-format` / `mysql2`) перенесено
-  // в Rego-полісі `npm/policy/js_bun_db/package_json/`; `npx @nitra/cursor check`
-  // запускає її по всіх workspace-`package.json`. Тут лишився лише AST-скан коду.
+  // Заборону `pg-format` / `mysql2` у `dependencies` тримає Rego-поліс
+  // `npm/policy/js_bun_db/package_json/`. `pg` оброблено тут — як виняток для
+  // LISTEN/NOTIFY (Rego не бачить JS-коду, тож не може зважити сигнал).
 
   const sourcePaths = await findAllSourcePathsForBunSqlScan(repoRoot, ignorePaths)
   if (sourcePaths.length === 0) {
@@ -228,8 +351,38 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const { hasBunSqlImport, perRequest, unsafeCall, dynamicList, inListGuard, pgLeftover, pgFormatShim, queryWrapper } =
-    await scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter)
+  const {
+    hasBunSqlImport,
+    pgUsage,
+    perRequest,
+    unsafeCall,
+    unsafeTemplateInterp,
+    dynamicList,
+    inListGuard,
+    pgLeftover,
+    pgFormatShim,
+    queryWrapper
+  } = await scanSourcesForBunSqlPatterns(sourcePaths, repoRoot, reporter)
+
+  const { pgDepFails, pgImportFails, pgDepsFound, listenNotifyEvidence } = await checkPgDependencyAndUsage(
+    pkgJsonPaths,
+    repoRoot,
+    pgUsage,
+    reporter
+  )
+  if (pgDepFails === 0) {
+    if (pgDepsFound === 0) {
+      pass('js-bun-db: dependencies.pg відсутнє у жодному package.json')
+    } else {
+      pass(
+        `js-bun-db: dependencies.pg виправдано LISTEN/NOTIFY у коді (виключення з js-bun-db.mdc; ` +
+          `доказ: ${listenNotifyEvidence})`
+      )
+    }
+  }
+  if (pgImportFails === 0) {
+    pass("js-bun-db: усі `import 'pg'` або відсутні, або у файлах з LISTEN/NOTIFY")
+  }
 
   if (!hasBunSqlImport) {
     pass("js-bun-db: Bun SQL не використовується в коді (немає import { sql|SQL } from 'bun')")
@@ -241,6 +394,12 @@ export async function check() {
   }
   if (unsafeCall === 0) {
     pass('js-bun-db: усі sql.unsafe(...) або відсутні, або супроводжуються маркером "// allow-unsafe: <причина>"')
+  }
+  if (unsafeTemplateInterp === 0) {
+    pass(
+      'js-bun-db: немає sql.unsafe(`...${x}...`) з template-інтерполяцією ' +
+        '(identifiers через @scaleleap/pg-format %I, values — позиційні $N)'
+    )
   }
   if (pgLeftover === 0) {
     pass(

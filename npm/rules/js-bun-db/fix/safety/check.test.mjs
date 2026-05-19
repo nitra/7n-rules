@@ -109,7 +109,28 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не 
     })
   })
 
-  test('успіх: sql.unsafe з маркером allow-unsafe на попередньому рядку (DDL)', async () => {
+  test('успіх: sql.unsafe з маркером allow-unsafe + @scaleleap/pg-format для DDL identifier', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+import format from '@scaleleap/pg-format'
+const TABLE = 'users_2026'
+export async function migrate() {
+  const query = format('CREATE TABLE %I (id int)', TABLE)
+  // allow-unsafe: DDL — назву таблиці параметризувати не можна; ідентифікатор екранує pg-format
+  return sql.unsafe(query)
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('помилка: sql.unsafe з template-літералом і ${} навіть з allow-unsafe маркером', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', { name: 't' })
       await ensureDir('src')
@@ -121,6 +142,21 @@ export async function migrate() {
   // allow-unsafe: DDL — назву таблиці параметризувати не можна
   return sql.unsafe(\`CREATE TABLE \${TABLE} (id int)\`)
 }
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('успіх: sql.unsafe з template-літералом БЕЗ інтерполяції (статичний DDL)', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't' })
+      await ensureDir('src')
+      await writeFile(
+        'src/db.ts',
+        `import { sql } from 'bun'
+export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // allow-unsafe: статичний DDL
 `,
         'utf8'
       )
@@ -227,6 +263,109 @@ export const stop = () => stream.end()
 `,
         'utf8'
       )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  // ── виключення `pg` для LISTEN/NOTIFY ───────────────────────────────────────
+
+  test("успіх: dependencies.pg + import 'pg' у файлі з .query('LISTEN ...')", async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { pg: '^8.0.0' } })
+      await ensureDir('src')
+      await writeFile(
+        'src/pg-listen.ts',
+        `import { Client } from 'pg'
+const client = new Client()
+export async function start() {
+  await client.connect() // allow-pg-leftover: pg LISTEN-клієнт, не Bun SQL
+  await client.query('LISTEN orders_channel')
+  client.on('notification', msg => console.log(msg))
+}
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test("успіх: dependencies.pg + .on('notification', ...) без явного LISTEN-запиту", async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { pg: '^8.0.0' } })
+      await ensureDir('src')
+      await writeFile(
+        'src/notify-bus.ts',
+        `import { Client } from 'pg'
+const client = new Client()
+export const subscribe = () => client.on('notification', msg => console.log(msg))
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('помилка: dependencies.pg без LISTEN/NOTIFY у проекті', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { pg: '^8.0.0' } })
+      await ensureDir('src')
+      await writeFile(
+        'src/app.ts',
+        `import { Client } from 'pg'
+const client = new Client()
+export const findUser = (id: number) => client.query('SELECT * FROM users WHERE id = $1', [id])
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test("помилка: import 'pg' у файлі без LISTEN/NOTIFY (а в іншому файлі LISTEN є)", async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { pg: '^8.0.0' } })
+      await ensureDir('src')
+      await writeFile(
+        'src/pg-listen.ts',
+        `import { Client } from 'pg'
+const listener = new Client()
+export const start = () => listener.query('LISTEN orders_channel')
+`,
+        'utf8'
+      )
+      await writeFile(
+        'src/users.ts',
+        `import { Client } from 'pg'
+const db = new Client()
+export const getUser = (id: number) => db.query('SELECT * FROM users WHERE id = $1', [id])
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(1)
+    })
+  })
+
+  test('успіх: NOTIFY-запит теж виправдовує dependencies.pg', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { pg: '^8.0.0' } })
+      await ensureDir('src')
+      await writeFile(
+        'src/notify.ts',
+        `import { Client } from 'pg'
+const client = new Client()
+export const notify = (msg: string) => client.query(\`NOTIFY orders_channel, '\${msg}'\`)
+`,
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('успіх: dependencies без pg і без LISTEN/NOTIFY у коді — pg-перевірка пропускає', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 't', dependencies: { lodash: '^4.0.0' } })
+      await ensureDir('src')
+      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
       expect(await check()).toBe(0)
     })
   })

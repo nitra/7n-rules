@@ -1,6 +1,5 @@
 {
   "dependencies": {
-    "pg": "заміни на Bun native SQL (js-bun-db.mdc)",
     "pg-format": "заміни на Bun native SQL — без ручного форматування (js-bun-db.mdc)",
     "mysql2": "заміни на Bun native SQL (js-bun-db.mdc)"
   }

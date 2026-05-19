@@ -31,6 +31,16 @@ import {
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const BUN_SQL_IMPORT_RE = /\bimport\s*\{[\s\S]*?\b(sql|SQL)\b[\s\S]*?\}\s*from\s*["']bun["']/u
+// Імпорт із npm-пакета `pg` — будь-яка з форм: default, named, namespace, side-effect,
+// а також `require('pg')`. `pg-format`/`pg-pool` свідомо НЕ матчаться: на них діє
+// окрема заборона (denylist) і свої повідомлення. Виключення для LISTEN/NOTIFY
+// стосується лише самого клієнта `pg`.
+const PG_LIB_IMPORT_RE = /(?:\bimport\b[\s\S]*?\bfrom\s*["']pg["']|\brequire\s*\(\s*["']pg["']\s*\))/u
+// Першоквазі-рядок або string literal, що починається з LISTEN / UNLISTEN / NOTIFY
+// (case-insensitive), з опційним leading whitespace. Сигнал, що в коді запит
+// `LISTEN ch` / `NOTIFY ch, 'msg'` / `UNLISTEN *` — це функціонал, якого Bun SQL
+// поки не має, тож у проекті лишається легітимна потреба у клієнті `pg`.
+const PG_LISTEN_NOTIFY_SQL_RE = /^\s*(LISTEN|UNLISTEN|NOTIFY)\b/iu
 const IN_PLACEHOLDER_END_RE = /\bin\s*(\(\s*)?$/iu
 // `// allow-unsafe: <reason>` — `allow-unsafe`, двокрапка, **непорожня** причина.
 // Без причини маркер не приймається: ціль — лишити слід для ревʼюера, а не «німий» прапорець.
@@ -532,6 +542,43 @@ export function findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath
 }
 
 /**
+ * Знаходить `<obj>.unsafe(template_literal_with_interpolation)` — навіть із маркером
+ * `// allow-unsafe`. Шаблонна підстановка `${name}` у `sql.unsafe`-рядок **не екранує**
+ * identifier'ів (reserved words, спецсимволи) і ніяк не біндить значення — це
+ * структурна injection-поверхня, яку легко не помітити в ревʼю. Канон — побудувати
+ * `text` через `@scaleleap/pg-format` `format('%I', name)` (для identifiers) або
+ * звичайні позиційні `$N`-placeholder'и (для values), і передати в `sql.unsafe(text, [params])`.
+ *
+ * Прапорує саме `TemplateLiteral` з `expressions.length > 0`; статичні рядки
+ * (`Literal`, `StringLiteral`, `TemplateLiteral` без `${...}`) і виклики з готовим
+ * `text` як змінною — не зачіпає (для них діє основна перевірка allow-unsafe).
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string }[]} список порушень
+ */
+export function findBunSqlUnsafeWithInterpolatedTemplateInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    if (!isUnsafeCall(node)) return
+    const args = node.arguments
+    if (!Array.isArray(args) || args.length === 0) return
+    const first = args[0]
+    if (!first || first.type !== 'TemplateLiteral') return
+    const expressions = first.expressions
+    if (!Array.isArray(expressions) || expressions.length === 0) return
+    out.push({
+      line: offsetToLine(content, node.start),
+      snippet: normalizeSnippet(content.slice(node.start, node.end))
+    })
+  })
+  return out
+}
+
+/**
  * Знаходить pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` без маркера
  * `// allow-pg-leftover: <reason>` у файлах, де **в цьому ж файлі** є `import { sql|SQL } from 'bun'`.
  *
@@ -683,6 +730,192 @@ export function findUnsafeBunSqlInListMissingEmptyGuardInText(content, virtualPa
  */
 export function textHasBunSqlImport(content) {
   return BUN_SQL_IMPORT_RE.test(content)
+}
+
+/**
+ * Чи імпортує файл npm-пакет `pg` (`import ... from 'pg'` або `require('pg')`).
+ * Текстова перевірка — без AST, дешевий pre-filter; для строгої локалізації
+ * (рядок/snippet) використай `findPgLibImportInText`. Не матчить `pg-format`,
+ * `pg-pool`, `@types/pg` — лише сам клієнт.
+ * @param {string} content вміст файлу
+ * @returns {boolean} true, якщо у файлі є імпорт `'pg'`
+ */
+export function textHasPgLibImport(content) {
+  return PG_LIB_IMPORT_RE.test(content)
+}
+
+/**
+ * Знаходить ImportDeclaration / CallExpression `require('pg')` для пакета `pg`
+ * (саме точна назва, не `pg-format` тощо). Повертає рядок і snippet — щоб у
+ * повідомленнях `fail` показати конкретне місце.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string }[]} список місць, де імпортується `pg`
+ */
+export function findPgLibImportInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    if (node.type === 'ImportDeclaration' && getStringLiteralValue(node.source) === 'pg') {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end))
+      })
+      return
+    }
+    if (node.type === 'CallExpression' && isRequireOfModule(node, 'pg')) {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end))
+      })
+    }
+  })
+  return out
+}
+
+/**
+ * Знаходить використання PostgreSQL LISTEN/NOTIFY у коді — сигнал, що проект
+ * потребує `pg` як виняток (Bun SQL поки не реалізує LISTEN/NOTIFY). Прапорує:
+ * - `<obj>.query(...)` / `<obj>.queryArray(...)` / `<obj>.queryStream(...)`, де
+ *   перший аргумент — string literal або template literal, що починається з
+ *   `LISTEN ` / `UNLISTEN ` / `NOTIFY ` (case-insensitive);
+ * - `<obj>.on('notification', ...)` — pg-listener notification-подій (другий
+ *   аргумент — функція; перший — точно рядок `'notification'`);
+ * - TaggedTemplateExpression виду `sql\`LISTEN ...\`` — на випадок, якщо хтось
+ *   використовує Bun SQL-tagged-template, а LISTEN/NOTIFY все одно лишається у
+ *   тексті запиту (це не запрацює у Bun SQL, але як сигнал — приймаємо).
+ *
+ * Регістр SQL-слів не важливий, провідні пробіли допускаються.
+ * @param {string} content вихідний код
+ * @param {string} [virtualPath] шлях для вибору `lang`
+ * @returns {{ line: number, snippet: string, kind: 'listen_sql' | 'notify_sql' | 'unlisten_sql' | 'notification_listener' }[]} список знахідок
+ */
+export function findPgListenNotifyUsageInText(content, virtualPath = 'scan.ts') {
+  const program = parseProgramOrNull(content, virtualPath)
+  if (!program) return []
+
+  /** @type {{ line: number, snippet: string, kind: 'listen_sql' | 'notify_sql' | 'unlisten_sql' | 'notification_listener' }[]} */
+  const out = []
+  walkAstWithAncestors(program, [], node => {
+    const fromCall = listenNotifyFromCallExpression(node)
+    if (fromCall) {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end)),
+        kind: fromCall
+      })
+      return
+    }
+    const fromTagged = listenNotifyFromTaggedTemplate(node)
+    if (fromTagged) {
+      out.push({
+        line: offsetToLine(content, node.start),
+        snippet: normalizeSnippet(content.slice(node.start, node.end)),
+        kind: fromTagged
+      })
+    }
+  })
+  return out
+}
+
+/**
+ * @param {Record<string, unknown>} node ImportDeclaration.source або CallExpression.arguments[0]
+ * @returns {string | null} значення string literal або null
+ */
+function getStringLiteralValue(node) {
+  if (!node || typeof node !== 'object') return null
+  if ((node.type === 'Literal' || node.type === 'StringLiteral') && typeof node.value === 'string') {
+    return node.value
+  }
+  return null
+}
+
+/**
+ * Чи це `require('<moduleName>')` — CallExpression з callee Identifier `require`
+ * і єдиним string-літералом-аргументом.
+ * @param {Record<string, unknown>} node CallExpression
+ * @param {string} moduleName очікувана назва модуля (точне співпадіння)
+ * @returns {boolean} true, якщо це саме require цього модуля
+ */
+function isRequireOfModule(node, moduleName) {
+  const callee = node.callee
+  if (!callee || callee.type !== 'Identifier' || callee.name !== 'require') return false
+  const args = node.arguments
+  if (!Array.isArray(args) || args.length !== 1) return false
+  return getStringLiteralValue(args[0]) === moduleName
+}
+
+/**
+ * Аналізує CallExpression на предмет pg-style LISTEN/NOTIFY-запиту або listener'а
+ * подій `'notification'`. Повертає тип сигналу або `null`.
+ * @param {Record<string, unknown>} node AST node
+ * @returns {'listen_sql' | 'notify_sql' | 'unlisten_sql' | 'notification_listener' | null} kind знахідки
+ */
+function listenNotifyFromCallExpression(node) {
+  if (!node || node.type !== 'CallExpression') return null
+  const callee = node.callee
+  if (!callee || callee.type !== 'MemberExpression' || callee.computed) return null
+  const prop = callee.property
+  if (!prop || prop.type !== 'Identifier' || typeof prop.name !== 'string') return null
+  const args = node.arguments
+  if (!Array.isArray(args) || args.length === 0) return null
+
+  if (prop.name === 'on') {
+    return getStringLiteralValue(args[0]) === 'notification' ? 'notification_listener' : null
+  }
+  if (prop.name === 'query' || prop.name === 'queryArray' || prop.name === 'queryStream') {
+    return sqlStringStartsWithListenNotify(args[0])
+  }
+  return null
+}
+
+/**
+ * Аналізує TaggedTemplateExpression `<tag>\`LISTEN ...\``: якщо перший quasi
+ * починається з LISTEN/UNLISTEN/NOTIFY — повертає відповідний kind.
+ * @param {Record<string, unknown>} node AST node
+ * @returns {'listen_sql' | 'notify_sql' | 'unlisten_sql' | null} kind знахідки
+ */
+function listenNotifyFromTaggedTemplate(node) {
+  if (!node || node.type !== 'TaggedTemplateExpression') return null
+  const quasi = node.quasi
+  if (!quasi || quasi.type !== 'TemplateLiteral') return null
+  const text = templateQuasisText(quasi)
+  return kindFromListenNotifyMatch(text)
+}
+
+/**
+ * Перший аргумент виклику `.query(...)` — це string literal або template literal,
+ * текст якого починається з LISTEN / UNLISTEN / NOTIFY (case-insensitive)?
+ * @param {unknown} arg AST node першого аргумента
+ * @returns {'listen_sql' | 'notify_sql' | 'unlisten_sql' | null} kind знахідки або null
+ */
+function sqlStringStartsWithListenNotify(arg) {
+  if (!arg || typeof arg !== 'object') return null
+  if ((arg.type === 'Literal' || arg.type === 'StringLiteral') && typeof arg.value === 'string') {
+    return kindFromListenNotifyMatch(arg.value)
+  }
+  if (arg.type === 'TemplateLiteral') {
+    return kindFromListenNotifyMatch(templateQuasisText(arg))
+  }
+  return null
+}
+
+/**
+ * Перетворює текст SQL-рядка у kind знахідки (`listen_sql` / `notify_sql` /
+ * `unlisten_sql`) або `null`, якщо рядок не починається з ключового слова.
+ * @param {string} text SQL-текст
+ * @returns {'listen_sql' | 'notify_sql' | 'unlisten_sql' | null} kind знахідки
+ */
+function kindFromListenNotifyMatch(text) {
+  const m = PG_LISTEN_NOTIFY_SQL_RE.exec(text)
+  if (!m) return null
+  const keyword = m[1].toUpperCase()
+  if (keyword === 'LISTEN') return 'listen_sql'
+  if (keyword === 'NOTIFY') return 'notify_sql'
+  return 'unlisten_sql'
 }
 
 /**
