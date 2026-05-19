@@ -13,8 +13,9 @@
  * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
 
 import { parse } from 'yaml'
@@ -195,29 +196,41 @@ function runKustomizeBuild(kubectlPath, dir) {
 }
 
 /**
- * Запускає `kubescape scan -` зі stdin (буфер `manifest`). stdout/stderr інхерит у термінал.
+ * Запускає `kubescape scan <file>` для зібраного kustomize-маніфесту. stdout/stderr інхерит у термінал.
+ *
+ * Маніфест пишемо в тимчасовий файл, бо `kubescape scan` у v4.x **не читає stdin**: `-` як шлях
+ * не розпізнається (`no resources found to scan`), а прапорця типу `--input`/`--stdin` у CLI немає
+ * (`kubescape scan --help` показує лише шляхи й кластер). Тимчасова директорія створюється
+ * через `mkdtempSync` під `os.tmpdir()` і прибирається в `finally`.
  * @param {string} kubescapePath абсолютний шлях до бінарника kubescape
  * @param {Buffer} manifest зібраний kustomize-маніфест
  * @param {string[]} exceptionsArgs `['--exceptions', '<file>']` або `[]`
  * @returns {{ status: number, enoent: boolean }} статус процесу і прапор ENOENT
  */
-function runKubescapeStdin(kubescapePath, manifest, exceptionsArgs) {
-  const r = spawnSync(kubescapePath, ['scan', '-', '--severity-threshold', 'high', ...exceptionsArgs], {
-    input: manifest,
-    stdio: ['pipe', 'inherit', 'inherit'],
-    shell: false
-  })
-  const enoent = Boolean(r.error && 'code' in r.error && r.error.code === 'ENOENT')
-  return { status: r.status ?? 1, enoent }
+function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
+  const dir = mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))
+  const file = join(dir, 'manifest.yaml')
+  try {
+    writeFileSync(file, manifest)
+    const r = spawnSync(kubescapePath, ['scan', file, '--severity-threshold', 'high', ...exceptionsArgs], {
+      stdio: 'inherit',
+      shell: false
+    })
+    const enoent = Boolean(r.error && 'code' in r.error && r.error.code === 'ENOENT')
+    return { status: r.status ?? 1, enoent }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 /**
  * Запускає kubescape по зібраному kustomize-маніфесту для кожного `…/k8s`-кореня. Для кожного
- * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kubectl kustomize <dir>` і піпимо
- * stdout у `kubescape scan -`. Це усуває false-positive C-0260 (`Missing network policy`) у випадках,
- * коли NetworkPolicy живе у sibling `components/` без `metadata.namespace` (намспейс інжектить
- * overlay через `kustomization.namespace`); сирий dir-скан не виконує kustomize й бачить порожній
- * `namespace` у NetworkPolicy проти непорожнього у Deployment, через що `podSelector` не матчиться.
+ * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kubectl kustomize <dir>` і
+ * передаємо stdout у `kubescape scan <tmp-file>` через тимчасовий файл (kubescape v4.x не читає
+ * stdin — див. `runKubescapeManifest`). Це усуває false-positive C-0260 (`Missing network policy`)
+ * у випадках, коли NetworkPolicy живе у sibling `components/` без `metadata.namespace` (намспейс
+ * інжектить overlay через `kustomization.namespace`); сирий dir-скан не виконує kustomize й бачить
+ * порожній `namespace` у NetworkPolicy проти непорожнього у Deployment, через що `podSelector` не матчиться.
  *
  * Якщо в `…/k8s`-корені немає жодного білдабельного kustomization.yaml (проєкт без Kustomize) —
  * fallback на старий dir-скан, щоб не блокувати чистий YAML-only набір маніфестів.
@@ -262,10 +275,10 @@ async function runKubescape(dirs, root) {
       }
     }
     for (const kdir of kdirs) {
-      console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan -`)
+      console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
       const build = runKustomizeBuild(kubectlPath, kdir)
       if (build.status !== 0) return build.status
-      const ks = runKubescapeStdin(kubescapePath, build.stdout, exceptionsArgs)
+      const ks = runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs)
       if (ks.enoent) {
         console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
         return 127

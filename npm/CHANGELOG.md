@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.51] - 2026-05-19
+
+### Fixed
+
+- `lint-k8s`: `kubescape scan -` (stdin), доданий у 1.13.49 і збережений у 1.13.50, **не працює в kubescape v4.x** — `-` трактується як шлях до файлу й сканер виходить з `no resources found to scan` (fatal), тож `bun run lint` падав на `lint-k8s` навіть на чистих маніфестах. Прапорця `--input`/`--stdin` у CLI також немає. Тепер `runKubescapeManifest` пише зібраний kustomize-маніфест у тимчасовий файл під `os.tmpdir()` (через `fs.mkdtempSync`) і запускає **`kubescape scan <tmp-file>`**; тимчасова директорія прибирається у `finally`. Bump `k8s.mdc` `1.38` → `1.39`.
+
 ## [1.13.50] - 2026-05-19
 
 ### Changed
