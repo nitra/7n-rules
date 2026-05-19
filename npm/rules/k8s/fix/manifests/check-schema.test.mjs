@@ -1,7 +1,7 @@
 /**
  * Тести визначення очікуваного $schema та сегмента `k8s` у шляху (check-k8s).
  */
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
@@ -31,6 +31,7 @@ import {
   kustomizationInlinePatchOpsSortedViolation,
   kustomizePatchModifiedPaths,
   pdbManifestViolations,
+  regenerateLegacyNetworkPolicyDocsInFile,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
   k8sYamlFirstDocIsAlbYcHttpBackendGroup,
   isBaseKustomizationPath,
@@ -2427,5 +2428,80 @@ resources:
     const idxPdb = content.indexOf('pdb.yaml')
     expect(idxHpa).toBeLessThan(idxNp)
     expect(idxNp).toBeLessThan(idxPdb)
+  })
+})
+
+describe('regenerateLegacyNetworkPolicyDocsInFile', () => {
+  test('переписує catch-all egress на канон з 9 портами', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-migrate-'))
+    try {
+      const npAbs = join(dir, 'networkpolicy.yaml')
+      const legacy = `# yaml-language-server: $schema=https://example/networkpolicy.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+spec:
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+`
+      await writeFile(npAbs, legacy, 'utf8')
+      const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
+      expect(changed).toBe(true)
+      const out = await readFile(npAbs, 'utf8')
+      for (const port of [5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
+        expect(out).toContain(`port: ${port}`)
+      }
+      expect(out).toContain('app: api')
+      expect(out).toContain('name: api')
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('повертає false і не змінює файл, коли catch-all відсутній', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-migrate-noop-'))
+    try {
+      const npAbs = join(dir, 'networkpolicy.yaml')
+      const canonical = buildNetworkPolicyYaml('api', 'api')
+      await writeFile(npAbs, canonical, 'utf8')
+      const before = await readFile(npAbs, 'utf8')
+      const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
+      expect(changed).toBe(false)
+      const after = await readFile(npAbs, 'utf8')
+      expect(after).toBe(before)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })

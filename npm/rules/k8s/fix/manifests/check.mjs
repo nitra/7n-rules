@@ -6416,6 +6416,76 @@ async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn) {
 }
 
 /**
+ * Перевіряє, чи `spec.egress` містить in-cluster rule з порожнім namespaceSelector БЕЗ ports
+ * (legacy catch-all — заборонено новим каноном k8s.mdc).
+ * @param {unknown} doc розпарсений NetworkPolicy-документ
+ * @returns {boolean} true якщо doc має legacy catch-all rule
+ */
+function networkPolicyHasLegacyCatchAllEgress(doc) {
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return false
+  const spec = /** @type {Record<string, unknown>} */ (doc).spec
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return false
+  const egress = /** @type {Record<string, unknown>} */ (spec).egress
+  if (!Array.isArray(egress)) return false
+  for (const rule of egress) {
+    if (rule === null || typeof rule !== 'object' || Array.isArray(rule)) continue
+    const ruleRec = /** @type {Record<string, unknown>} */ (rule)
+    const to = ruleRec.to
+    if (!Array.isArray(to)) continue
+    const hasEmptyNsPeer = to.some(peer => {
+      if (peer === null || typeof peer !== 'object' || Array.isArray(peer)) return false
+      const ns = /** @type {Record<string, unknown>} */ (peer).namespaceSelector
+      return ns !== null && typeof ns === 'object' && !Array.isArray(ns) && Object.keys(ns).length === 0
+    })
+    if (!hasEmptyNsPeer) continue
+    const ports = ruleRec.ports
+    if (!Array.isArray(ports) || ports.length === 0) return true
+  }
+  return false
+}
+
+/**
+ * Migrate legacy `networkpolicy.yaml`: якщо хоч один документ має catch-all in-cluster egress —
+ * перезаписати **всі** документи у файлі через `buildNetworkPolicyYaml(name, appLabel)`. Деталі — k8s.mdc.
+ * @param {string} npAbs абсолютний шлях до networkpolicy.yaml
+ * @returns {Promise<boolean>} true якщо файл переписаний
+ */
+export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
+  if (!existsSync(npAbs)) return false
+  const docs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
+  if (docs.length === 0) return false
+  const needsMigration = docs.some(d => networkPolicyHasLegacyCatchAllEgress(d))
+  if (!needsMigration) return false
+  /**
+  @type {Array<{ name: string, appLabel: string }>}
+   */
+  const specs = []
+  for (const doc of docs) {
+    const name = manifestMetadataName(doc)
+    const spec = /** @type {Record<string, unknown>} */ (doc).spec
+    let appLabel = ''
+    if (spec !== null && typeof spec === 'object' && !Array.isArray(spec)) {
+      const podSelector = /** @type {Record<string, unknown>} */ (spec).podSelector
+      if (podSelector !== null && typeof podSelector === 'object' && !Array.isArray(podSelector)) {
+        const matchLabels = /** @type {Record<string, unknown>} */ (podSelector).matchLabels
+        if (matchLabels !== null && typeof matchLabels === 'object' && !Array.isArray(matchLabels)) {
+          const a = /** @type {Record<string, unknown>} */ (matchLabels).app
+          if (typeof a === 'string') appLabel = a
+        }
+      }
+    }
+    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
+  }
+  if (specs.length === 0) return false
+  const blocks = specs.map(({ name, appLabel }, i) => {
+    const block = buildNetworkPolicyYaml(name, appLabel)
+    return i === 0 ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
+  })
+  await writeFile(npAbs, `${blocks.join('\n---\n')}\n`, 'utf8')
+  return true
+}
+
+/**
  * Створює відсутні NetworkPolicy для workload-ів у каталозі (base → `components/`, інакше — поруч).
  * @param {string} dir абсолютний каталог workload-маніфесту
  * @param {Record<string, unknown>[]} workloads workload-документи з цього каталогу
@@ -6429,6 +6499,12 @@ async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, 
   const isBase = isK8sYamlUnderBaseDirectory(`${relDir}/probe.yaml`)
   const npAbs = isBase ? join(dir, '..', COMPONENTS_DIR, NETWORK_POLICY_FILENAME) : join(dir, NETWORK_POLICY_FILENAME)
   const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
+  if (existsSync(npAbs)) {
+    const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
+    if (migrated) {
+      passFn(`${npRel}: міграція legacy catch-all egress → канон з явними in-cluster портами (k8s.mdc)`)
+    }
+  }
   const existing = await existingNetworkPolicyNames(npAbs)
   /**
   @type {Array<{ name: string, appLabel: string, kind: string }>}
