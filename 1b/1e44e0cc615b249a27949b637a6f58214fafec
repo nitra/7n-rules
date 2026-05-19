@@ -1,0 +1,41 @@
+npm/rules/efes/policy/package_json_docs/package_json_docs_test.rego
+  s_85f9c025ba1fa9::t_8b6d9eb56602f6 1-29
+npm/rules/abie/abie.mdc
+  s_85f9c025ba1fa9::t_d14c01b8e75570 171
+  s_85f9c025ba1fa9::t_9a44ccd0ae3397 4
+  s_85f9c025ba1fa9::t_f3df7d112c292c 143-150
+npm/rules/efes/policy/package_json_docs/target.json
+  s_85f9c025ba1fa9::t_9f37cb18a2eebe 1-5
+npm/rules/efes/efes.mdc
+  s_85f9c025ba1fa9::t_023119d7ccaf25 4,7-23
+npm/package.json
+  s_85f9c025ba1fa9::t_6bbc3102466ba4 3
+npm/rules/abie/policy/package_json_docs/package_json_docs_test.rego
+  s_85f9c025ba1fa9::t_ba0a477d1ac8ea 1-29
+npm/rules/abie/policy/package_json_docs/target.json
+  s_85f9c025ba1fa9::t_85bd6bcd5eda2c 1-5
+docs/adr/20260518-210924-видалення-npm-claude-md-як-path-scoped-нагадування-для-агент.md
+  s_85f9c025ba1fa9::t_484e03d6424f62 1-32
+npm/CHANGELOG.md
+  s_85f9c025ba1fa9::t_532cba4f09270b 7-13
+npm/rules/efes/policy/package_json_docs/package_json_docs.rego
+  s_85f9c025ba1fa9::t_a34009615f3994 1-16
+npm/rules/abie/policy/package_json_docs/package_json_docs.rego
+  s_85f9c025ba1fa9::t_883a736c8f331b 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.9",
+  "base_commit_sha": "1b1e44e0cc615b249a27949b637a6f58214fafec",
+  "prompts": {},
+  "sessions": {
+    "s_85f9c025ba1fa9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f97d6f8-5b2c-472f-9d2b-42ac8442cf90",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
