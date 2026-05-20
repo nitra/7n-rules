@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.65] - 2026-05-20
+
+### Changed
+
+- Скіл **`n-abie-clean`**: розділ перекладів — апострофи та спецсимволи в англійських рядках (`tr`); після очистки — обовʼязкова локальна перевірка `bun vite build` поряд із `check abie`.
+
 ## [1.13.64] - 2026-05-20
 
 ### Added
