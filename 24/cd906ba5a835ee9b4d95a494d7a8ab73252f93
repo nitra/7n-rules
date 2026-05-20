@@ -1,0 +1,46 @@
+npm/rules/adr/adr.mdc
+  s_efd0ee24029e5a::t_1b1188e75b8a61 22
+  s_efd0ee24029e5a::t_85d355e3dabf39 85-86
+  s_efd0ee24029e5a::t_093643bc35814d 47
+  s_efd0ee24029e5a::t_4cf8c7aa9a5186 50
+  s_efd0ee24029e5a::t_d2c59be604b272 4
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 51,70
+npm/package.json
+  s_efd0ee24029e5a::t_c71468e737ee1a 3
+.cursor/rules/n-adr.mdc
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 4,22,47,50,85-86
+AGENTS.md
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 11,44,47,62,67
+.claude/hooks/normalize-decisions.sh
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 337-349
+npm/rules/security/fix/sample_secret/check.mjs
+  s_efd0ee24029e5a::t_bff4c343664ec3 93-94
+npm/skills/adr-normalize/SKILL.md
+  s_efd0ee24029e5a::t_a0af41de9c956e 51
+  s_efd0ee24029e5a::t_e0a40cb7f5de88 70
+CLAUDE.md
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 24
+.cursor/rules/n-security.mdc
+  s_efd0ee24029e5a::t_ea4a3ae05c2c70 2,5,100-114
+npm/CHANGELOG.md
+  s_efd0ee24029e5a::t_6d79c82065fccb 7-12
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_efd0ee24029e5a::t_5e3b89600e29b5 337-349
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "24cd906ba5a835ee9b4d95a494d7a8ab73252f93",
+  "prompts": {},
+  "sessions": {
+    "s_efd0ee24029e5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38b10f20-1ef3-4398-8bd4-bc25bbe3f37f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
