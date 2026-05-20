@@ -18,13 +18,11 @@ version: '2.1'
   }
 }
 ```
-
 - `lint` агрегатор повинен містити: `package.json`:
 
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
-
 - Заборонено `trufflehog` у `dependencies`/`devDependencies`: `package.json`:
 
 ```json
@@ -104,7 +102,7 @@ jobs:
 
 Фейкові credential-значення у **прикладних файлах** (`.env.example`, `.env.dist`, `*.example`, `*.sample`, `*.template`, вміст каталогів `fixtures/`) пиши як `sample-secret`, а не як bare `secret`.
 
-`sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює **гарантовано** й незалежно від версії. Bare `secret` наразі не репортиться лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка, версієзалежна поведінка.
+`sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює **гарантовано** й незалежно від версії. Bare `secret` наразі не фіксується сканером лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка поведінка, що залежить від версії інструмента.
 
 - Правильно: `DB_PASSWORD=sample-secret`, `password: "sample-secret"`
 - Неправильно: `DB_PASSWORD=secret`, `password: "secret"`

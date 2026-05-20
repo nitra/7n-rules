@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.62] - 2026-05-20
+
+### Changed
+
+- Скіл **`n-lint`** ([SKILL.md](skills/lint/SKILL.md)): перед правкою конфігів з винятками (`.jscpd.json` → `ignore`/`minLines`, `.cspell.json` → `words`/`ignorePaths`, `knip.json`, eslint/oxlint ignores, `eslint-disable` тощо) агент **зупиняється** і питає користувача через **`AskQuestion`** — рефакторинг (за замовчуванням), точковий виняток у конфігу (`ignore-once`), пропуск (`skip`) або детальніше пояснення (`explain`). Заборонено мовчки розширювати ignore/words лише щоб зеленіти лінт; без відповіді користувача — рефакторинг або червоний лінт з поясненням, без змін конфігу.
+
 ## [1.13.61] - 2026-05-20
 
 ### Fixed
