@@ -44,9 +44,12 @@ fi
 # Extract role + text + thinking + tool_use names from JSONL transcript.
 # We keep reasoning/decisions visible to the analyzer but drop large tool outputs.
 TRANSCRIPT=$(jq -r '
-  select(.type == "user" or .type == "assistant")
+  select(
+    .type == "user" or .type == "assistant"
+    or .role == "user" or .role == "assistant"
+  )
   | .message as $m
-  | ($m.role // .type) as $role
+  | ($m.role // .role // .type) as $role
   | ($m.content
       | if type == "string" then .
         else (
@@ -79,6 +82,7 @@ if (( ${#TRANSCRIPT} > MAX_CHARS )); then
 fi
 
 if [[ -z "$TRANSCRIPT" ]]; then
+  log "  → empty transcript after jq (Claude Code: .type; Cursor Agent: .role)"
   exit 0
 fi
 

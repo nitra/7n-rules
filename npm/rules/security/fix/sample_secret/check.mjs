@@ -6,9 +6,9 @@
  *
  * `sample-secret` містить підрядок `sample`, який є у вшитому списку
  * `DefaultFalsePositives` TruffleHog — таке значення сканер відсіює
- * гарантовано й незалежно від версії. Bare `secret` наразі не репортиться
- * лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка,
- * версієзалежна поведінка, на яку не варто покладатися.
+ * гарантовано й незалежно від версії. Bare `secret` наразі не фіксується сканером
+ * лише тому, що випадково присутнє у словнику `fp_words.txt`; це крихка поведінка,
+ * що залежить від версії інструмента, на яку не варто покладатися.
  *
  * Прикладними вважаються файли, чий basename має суфікс `.example` / `.sample`
  * / `.template` / `.dist` або infix `.example.` / `.sample.` / `.template.`, а
@@ -46,7 +46,7 @@ const FIXTURE_DIR_RE = /(?:^|\/)(?:__fixtures__|fixtures?)(?:\/|$)/u
  * далі лише пробіли / завершальна пунктуація / коментар до кінця рядка. Прив'язка
  * до `$` гарантує, що `secret` — увесь токен значення (`secret-key`, `secretValue`
  * не матчаться); прив'язка до `[:=]` відсікає імена ключів (`client_secret`).
- * Регістронезалежно.
+ * Без урахування регістру символів.
  */
 const VALUE_SECRET_RE = /[:=]>?\s*(['"]?)secret\1[\s,;}\])]*(?:(?:#|\/\/).*)?$/iu
 
@@ -90,8 +90,8 @@ export async function check() {
       continue
     }
     const lines = content.split('\n')
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].endsWith('\r') ? lines[i].slice(0, -1) : lines[i]
+    for (const [i, line_] of lines.entries()) {
+      const line = line_.endsWith('\r') ? line_.slice(0, -1) : line_
       if (!VALUE_SECRET_RE.test(line)) continue
       violations++
       fail(`${rel}:${i + 1}: \`${line.trim()}\` — заміни placeholder \`secret\` на \`sample-secret\` (security.mdc)`)

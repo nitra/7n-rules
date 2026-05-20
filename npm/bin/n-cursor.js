@@ -67,6 +67,7 @@ import { cwd, env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
+import { formatGeneratedMarkdownLines, renderAgentsTemplate } from '../scripts/utils/generated-markdown.mjs'
 import { inlineTemplateLinks } from '../scripts/utils/inline-template-links.mjs'
 import {
   detectAutoRules,
@@ -482,50 +483,6 @@ function formatClaudeCommandFrontmatter(descriptionRaw) {
 }
 
 /**
- * Розгортає в шаблоні блок Mustache {{#section}} … {{/section}} для масиву елементів
- * @param {string} template вихідний текст шаблону
- * @param {string} section ім'я секції (наприклад services)
- * @param {Record<string, string>[]} items елементи для повторення тіла секції
- * @param {string} prop ключ поля для підстановки замість {{prop}}
- * @returns {string} текст після розгортання усіх входжень блоку
- */
-function expandMustacheSection(template, section, items, prop) {
-  const open = `{{#${section}}}`
-  const close = `{{/${section}}}`
-  const placeholder = `{{${prop}}}`
-  let result = template
-  let start = result.indexOf(open)
-  let end = result.indexOf(close)
-  while (start !== -1 && end !== -1 && end > start) {
-    const inner = result.slice(start + open.length, end)
-    const rendered = items.map(item => inner.split(placeholder).join(String(item[prop]))).join('')
-    result = result.slice(0, start) + rendered + result.slice(end + close.length)
-    start = result.indexOf(open)
-    end = result.indexOf(close)
-  }
-  return result
-}
-
-/**
- * Підставляє у вміст AGENTS.template.md список шляхів до файлів правил, skills і команд з package.json
- * @param {string} templateText вміст AGENTS.template.md
- * @param {string[]} mdcBasenames імена файлів (*.mdc) з .cursor/rules
- * @param {{ name: string }[]} skillItems рядки для секції Skills
- * @param {{ name: string }[]} commandItems рядки для секції commands
- * @returns {string} готовий markdown для AGENTS.md
- */
-function renderAgentsTemplate(templateText, mdcBasenames, skillItems, commandItems) {
-  let result = templateText
-  const serviceItems = mdcBasenames.map(mdcName => ({
-    name: `- ${RULES_DIR}/${mdcName}`
-  }))
-  result = expandMustacheSection(result, 'services', serviceItems, 'name')
-  result = expandMustacheSection(result, 'skills', skillItems, 'name')
-  result = expandMustacheSection(result, 'commands', commandItems, 'name')
-  return result
-}
-
-/**
  * Повертає відсортовані імена *.mdc у .cursor/rules поточного проєкту
  * @returns {Promise<string[]>} базові імена файлів (лише .mdc)
  */
@@ -712,10 +669,10 @@ async function syncClaudeMd(ignore) {
   lines.push(...buildClaudeLintParallelismSectionLines())
 
   const skillsSectionLines = await buildClaudeSkillsSectionLines()
-  lines.push(...skillsSectionLines, '')
+  lines.push(...skillsSectionLines)
   const claudeMdPath = join(cwd(), 'CLAUDE.md')
   const hadFile = existsSync(claudeMdPath)
-  await writeFile(claudeMdPath, lines.join('\n'), 'utf8')
+  await writeFile(claudeMdPath, formatGeneratedMarkdownLines(lines), 'utf8')
   console.log(hadFile ? `📝 Оновлено CLAUDE.md` : `📝 Створено CLAUDE.md`)
 }
 
@@ -739,8 +696,7 @@ async function syncAgentsMd(agentsTemplatePath = BUNDLED_AGENTS_TEMPLATE_PATH) {
   const body = renderAgentsTemplate(templateText, mdcFiles, skillItems, commandItems)
   const agentsPath = join(cwd(), AGENTS_FILE)
   const hadFile = existsSync(agentsPath)
-  const out = body.endsWith('\n') ? body : `${body}\n`
-  await writeFile(agentsPath, out, 'utf8')
+  await writeFile(agentsPath, body.endsWith('\n') ? body : `${body}\n`, 'utf8')
   console.log(
     hadFile
       ? `📝 Оновлено ${AGENTS_FILE} з ${AGENTS_TEMPLATE_FILE}`

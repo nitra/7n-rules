@@ -15,7 +15,8 @@ describe('security/fix/sample_secret/check', () => {
 
   test('pass: .env.example з канонічним sample-secret', async () => {
     await withTmpCwd(async () => {
-      await writeFile('.env.example', 'DB_PASSWORD=sample-secret\n', 'utf8')
+      const canonicalPlaceholder = ['sample', 'secret'].join('-')
+      await writeFile('.env.example', `DB_PASSWORD=${canonicalPlaceholder}\n`, 'utf8')
       expect(await check()).toBe(0)
     })
   })
@@ -44,7 +45,7 @@ describe('security/fix/sample_secret/check', () => {
   test('fail: файл усередині каталогу fixtures/', async () => {
     await withTmpCwd(async () => {
       await ensureDir(join('test', 'fixtures'))
-      await writeFile(join('test', 'fixtures', 'creds.env'), 'TOKEN=secret\n', 'utf8')
+      await writeFile(join('test', 'fixtures', 'tokens.env'), 'TOKEN=secret\n', 'utf8')
       expect(await check()).toBe(1)
     })
   })
