@@ -4,6 +4,19 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.63] - 2026-05-20
+
+### Fixed
+
+- **`check changelog`**: новий local-only воркспейс (маніфест відсутній на merge-base з `dev`/`main`, напр. `demo/` на `main`) більше не вимагає штучного bump — достатньо початкової `version` і запису в `CHANGELOG.md` (раніше `Vbase === ∅` помилково трактувалось як «version не підвищено»).
+- **`check changelog`**: на гілці **`main`** база порівняння — **`origin/main`** (або `HEAD~1` без remote), не `dev`; коли `origin/main` збігається з `HEAD`, diff порожній (не fallback на `HEAD~1`); feature-гілки — `merge-base` з `dev`, інакше з `main` (репо без `dev`).
+
+### Changed
+
+- Правило **`changelog`** ([changelog.mdc](rules/changelog/changelog.mdc) `2.5`): блок **STOP** перенесено на початок (тригер шляхів, інверсія, три кроки до завершення відповіді) — щоб агент не пропускав bump після правок у `npm/skills/` тощо, коли чеклист губився внизу довгого alwaysApply-правила.
+- **`.cursor/rules/scripts.mdc`**: секція «Завершення задачі після правок у пакетному workspace» — cross-STOP з **n-changelog** (останні кроки сесії перед відповіддю).
+- **`hk.pkl`**: pre-commit крок **`npm-changelog`** (`glob: npm/**`, `bun ./npm/bin/n-cursor.js check changelog`) — програмний стоп-кран при commit, якщо агент забув bump.
+
 ## [1.13.62] - 2026-05-20
 
 ### Changed

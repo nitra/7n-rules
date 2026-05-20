@@ -10,6 +10,10 @@ local linters = new Mapping<String, Step> {
         check_first = false
         fix = "cd npm && bunx -p typescript tsc -p tsconfig.emit-types.json && find types -type f ! -path 'types/bin/n-cursor.d.ts' -delete && find types -depth -type d -empty -delete"
     }
+    ["npm-changelog"] {
+        glob = List("npm/**")
+        check = "bun ./npm/bin/n-cursor.js check changelog"
+    }
 }
 
 hooks {

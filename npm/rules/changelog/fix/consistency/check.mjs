@@ -10,8 +10,9 @@
  *    Якщо локальна версія відрізняється — потрібен CHANGELOG; для npm також `"CHANGELOG.md"`
  *    у `files`. Якщо версії збігаються, але в git є релевантні зміни без bump — fail.
  *
- * 2) **local-only** (приватні npm, без `files`, Python без імені/версії для реєстру): PR-scoped
- *    перевірка проти `dev` / `main` через `git merge-base`.
+ * 2) **local-only** (приватні npm, без `files`, Python без імені/версії для реєстру):
+ *    feature-гілка — `merge-base` з `dev`, інакше з `main`; на `main` — diff від
+ *    `origin/main` (попередній опублікований main) або `HEAD~1` без remote.
  *
  * Усі `git` і зовнішні виклики — через `execFile` / `fetch`, без shell-інтерполяції.
  */
@@ -31,11 +32,11 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-/** Кандидати інтеграційної гілки (перша наявна в репо; див. n-changelog.mdc) */
-const BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
+/** Кандидати інтеграційної гілки для feature-гілок (перша наявна; див. n-changelog.mdc). */
+const FEATURE_BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
 
-/** Гілки, на яких local-only перевірку пропускаємо (крім незакомічених registry-published). */
-const INTEGRATION_BRANCHES = Object.freeze(['dev', 'main'])
+/** Гілка `dev`: local-only не активний (крім незакомічених registry-published). */
+const LOCAL_ONLY_SKIP_BRANCH = 'dev'
 
 /** Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc). */
 const CHANGELOG_IGNORE_PATH_PREFIXES = Object.freeze(['docs/', 'doc/'])
@@ -79,19 +80,35 @@ async function currentBranchName() {
 }
 
 /**
- * @param {string | null} branch параметр
- * @returns {boolean} результат
- */
-function isIntegrationBranch(branch) {
-  return branch !== null && INTEGRATION_BRANCHES.includes(branch)
-}
-
-/**
  * @param {string} ref параметр
  * @returns {string} результат
  */
 function baseRefLabel(ref) {
   return ref.startsWith('origin/') ? ref.slice('origin/'.length) : ref
+}
+
+/**
+ * @param {string} ancestor предок
+ * @param {string} descendant нащадок
+ * @returns {Promise<boolean>} результат
+ */
+async function isGitAncestor(ancestor, descendant) {
+  const out = await gitOrNull(['merge-base', '--is-ancestor', ancestor, descendant])
+  return typeof out === 'string' && out.trim() === 'true'
+}
+
+/**
+ * @param {string} branchName локальна або remote-tracking гілка
+ * @returns {Promise<string | null>} ref для git або null
+ */
+async function resolveBranchRef(branchName) {
+  for (const ref of [branchName, `origin/${branchName}`]) {
+    const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref])
+    if (typeof out === 'string' && out.trim().length > 0) {
+      return ref
+    }
+  }
+  return null
 }
 
 /**
@@ -120,21 +137,6 @@ async function isPathGitIgnored(relPath) {
 }
 
 /**
- * @returns {Promise<string | null>} результат
- */
-async function resolveBaseRef() {
-  for (const name of BASE_BRANCH_CANDIDATES) {
-    for (const ref of [name, `origin/${name}`]) {
-      const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref])
-      if (typeof out === 'string' && out.trim().length > 0) {
-        return ref
-      }
-    }
-  }
-  return null
-}
-
-/**
  * @param {string} baseRef параметр
  * @returns {Promise<string | null>} результат
  */
@@ -143,6 +145,47 @@ async function resolveMergeBase(baseRef) {
   if (typeof out !== 'string') return null
   const sha = out.trim()
   return sha.length > 0 ? sha : null
+}
+
+/**
+ * Точка порівняння git для changelog (ref або SHA для `git diff` / `git show`).
+ * @param {string | null} branch поточна гілка
+ * @returns {Promise<{ ref: string, label: string } | null>} результат
+ */
+async function resolveChangelogComparisonPoint(branch) {
+  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
+    return null
+  }
+
+  if (branch === 'main') {
+    const originMainSha = (await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main']))?.trim()
+    const headSha = (await gitOrNull(['rev-parse', 'HEAD']))?.trim()
+    if (
+      originMainSha &&
+      headSha &&
+      (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD')))
+    ) {
+      return { ref: 'origin/main', label: 'main' }
+    }
+    const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'])
+    if (typeof parent === 'string' && parent.trim().length > 0) {
+      return { ref: parent.trim(), label: 'main~1' }
+    }
+    return null
+  }
+
+  for (const name of FEATURE_BASE_BRANCH_CANDIDATES) {
+    const baseRef = await resolveBranchRef(name)
+    if (!baseRef) {
+      continue
+    }
+    const mergeBase = await resolveMergeBase(baseRef)
+    if (!mergeBase) {
+      continue
+    }
+    return { ref: mergeBase, label: baseRefLabel(baseRef) }
+  }
+  return null
 }
 
 /**
@@ -355,7 +398,8 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
   }
 
   const branch = await currentBranchName()
-  if (isIntegrationBranch(branch)) {
+
+  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces)) {
       fail(
         `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
@@ -365,28 +409,32 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
     return
   }
 
-  const baseRef = await resolveBaseRef()
-  if (!baseRef) {
-    return
-  }
-  const mergeBase = await resolveMergeBase(baseRef)
-  if (!mergeBase) {
-    return
-  }
-  if (!(await workspaceHasRelevantChangesAgainstBase(mergeBase, manifest.ws, subWorkspaces))) {
-    return
+  const comparison = await resolveChangelogComparisonPoint(branch)
+  if (comparison && (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces))) {
+    const Vbase = await readBaseVersion(comparison.ref, manifest)
+    const baseLabel = comparison.label
+    if (Vbase === null) {
+      pass(
+        `${label}: новий registry-published воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`
+      )
+      await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail)
+      checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
+    } else if (Vbase === Vcurrent) {
+      fail(
+        `${label}: у цій гілці є зміни в registry-published пакеті, але version у ${mf} ` +
+          `не підвищено (на ${baseLabel} — ${Vbase}). Bump + запис у CHANGELOG.md обов'язкові (n-changelog.mdc)`
+      )
+    } else {
+      pass(`${label}: version змінено (${Vbase} → ${Vcurrent}) — очікується запис CHANGELOG після bump`)
+    }
   }
 
-  const Vbase = await readBaseVersion(mergeBase, manifest)
-  const baseLabel = baseRefLabel(baseRef)
-  if (Vbase === null || Vbase === Vcurrent) {
+  if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces))) {
     fail(
-      `${label}: у цій гілці є зміни в registry-published пакеті, але version у ${mf} ` +
-        `не підвищено (на ${baseLabel} — ${Vbase ?? '∅'}). Bump + запис у CHANGELOG.md обов'язкові на PR (n-changelog.mdc)`
+      `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
+        `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
     )
-    return
   }
-  pass(`${label}: version змінено (${Vbase} → ${Vcurrent}) — очікується запис CHANGELOG після bump`)
 }
 
 /**
@@ -426,13 +474,13 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
 }
 
 /**
- * @param {string} mergeBase параметр
+ * @param {string} comparisonRef ref/SHA для `git diff` / `git show`
  * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} baseLabel параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  */
-async function checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pass, fail) {
+async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
@@ -440,10 +488,16 @@ async function checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pa
     fail(`${label}: у ${mf} відсутнє поле version (потрібне для запису в CHANGELOG)`)
     return
   }
-  const Vbase = await readBaseVersion(mergeBase, manifest)
-  if (Vbase === null || Vbase === Vcurrent) {
+  const Vbase = await readBaseVersion(comparisonRef, manifest)
+  if (Vbase === null) {
+    pass(`${label}: новий воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`)
+    if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail))) return
+    checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
+    return
+  }
+  if (Vbase === Vcurrent) {
     fail(
-      `${label}: у цій гілці є зміни, але version у ${mf} не підвищено (на ${baseLabel} — ${Vbase ?? '∅'}). Bump + запис у CHANGELOG.md обов'язкові на PR`
+      `${label}: у цій гілці є зміни, але version у ${mf} не підвищено (на ${baseLabel} — ${Vbase}). Bump + запис у CHANGELOG.md обов'язкові на PR`
     )
     return
   }
@@ -466,30 +520,24 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
     return
   }
   const branch = await currentBranchName()
-  if (branch === 'dev') {
+  if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     pass('changelog: поточна гілка = dev — local-only перевірку пропущено')
     return
   }
-  const baseRef = await resolveBaseRef()
-  if (!baseRef) {
+  const comparison = await resolveChangelogComparisonPoint(branch)
+  if (!comparison) {
     pass('changelog: ref dev/main (та origin/*) не знайдено — local-only перевірку пропущено')
     return
   }
-  const mergeBase = await resolveMergeBase(baseRef)
-  if (!mergeBase) {
-    pass(`changelog: merge-base з ${baseRef} не знайдено — local-only перевірку пропущено`)
-    return
-  }
 
-  const baseLabel = baseRefLabel(baseRef)
   let checkedAny = false
   for (const manifest of localOnly) {
-    if (!(await workspaceHasRelevantChangesAgainstBase(mergeBase, manifest.ws, subWorkspaces))) continue
+    if (!(await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces))) continue
     checkedAny = true
-    await checkLocalOnlyChangedWorkspace(mergeBase, manifest, baseLabel, pass, fail)
+    await checkLocalOnlyChangedWorkspace(comparison.ref, manifest, comparison.label, pass, fail)
   }
   if (!checkedAny) {
-    pass(`changelog: local-only воркспейси без змін відносно merge-base(${baseRef})`)
+    pass(`changelog: local-only воркспейси без змін відносно ${comparison.label}`)
   }
 }
 

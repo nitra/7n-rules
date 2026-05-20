@@ -1,7 +1,23 @@
 ---
 description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння (npm і Python)
-version: '2.4'
+version: '2.5'
 alwaysApply: true
+---
+
+## STOP — перед завершенням відповіді агента
+
+> **Якщо в цій сесії ти змінив(ла) файли в пакетному workspace** (код, rego, правила, скіли, скрипти, конфіги, тести — **не** лише `docs/` / `doc/`) — **не завершуй задачу**, поки не виконаєш **усі три** кроки нижче в **тому ж** наборі змін. Це не «опційно після синку» — це частина PR.
+
+1. **`version`** у `<ws>/package.json` (або `[project].version` у `pyproject.toml`) → **patch +1** відносно `git show HEAD:<ws>/package.json`, якщо ще не піднято.
+2. **`CHANGELOG.md`** того workspace → **нова** секція `## [версія] - YYYY-MM-DD` **зверху** (не bullet-и в стару версію).
+3. **`npx @nitra/cursor check changelog`** (у репо `@nitra/cursor`: `bun ./npm/bin/n-cursor.js check changelog`) → exit **`0`**.
+
+**Тригер шляхів (приклади):** `npm/**`, `packages/foo/**`, будь-який каталог з власним `package.json` / `pyproject.toml`, куди потрапили правки.
+
+**Інверсія (bump не потрібен):** лише `docs/` / `doc/`; лише `.gitignore`; лише сам релізний крок (`CHANGELOG.md` + `version`).
+
+**Pre-commit (людина):** `hk` у цьому репо також запускає `check changelog` при змінах під `npm/**` — агент не покладайся лише на commit hook; виконай кроки 1–3 **до** фінальної відповіді.
+
 ---
 
 У кожному **пакетному** workspace (каталог із `package.json` або `pyproject.toml`) має бути власний **`CHANGELOG.md`**. Спільного на репозиторій змісту змін **не існує** — кожен пакет веде свій.
@@ -13,7 +29,9 @@ alwaysApply: true
 
 Каталоги лише з `pyproject.toml` (без `package.json`) теж враховуються; `node_modules/`, `.venv/`, `venv/` при пошуку ігноруються.
 
-## Чеклист агента (будь-який репозиторій з цим правилом)
+## Чеклист агента (деталі)
+
+Повний алгоритм — у блоці **STOP** вище; тут лише уточнення.
 
 **Інверсія (за замовчуванням не вимагають bump/CHANGELOG):**
 
@@ -21,13 +39,7 @@ alwaysApply: true
 - файли під **`.gitignore`**;
 - правки **лише** `CHANGELOG.md` або поля `version` у маніфесті як сам релізний крок.
 
-**Вимагають bump + нову секцію CHANGELOG** — усі інші зміни в каталозі workspace (код, rego, правила, конфіги, тести тощо).
-
-Перед завершенням задачі:
-
-1. **`version`** у `<ws>/package.json` або `[project].version` у `<ws>/pyproject.toml` підвищено (build/patch +1 на PR), якщо зміни входять у реліз.
-2. **`CHANGELOG.md`** — **нова** секція `## [версія] - YYYY-MM-DD` зверху (не дописуй bullet-и в стару версію).
-3. **`npx @nitra/cursor check changelog`** — exit `0`.
+**Вимагають bump + нову секцію CHANGELOG** — усі інші зміни в каталозі workspace (код, rego, правила, скіли, конфіги, тести тощо).
 
 Перевірка програмна (`changelog/fix/consistency/check.mjs`).
 

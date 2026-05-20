@@ -98,6 +98,10 @@ npm/rules/{rule}/
 
 Після змін у скриптах запускай тести: `bun test` у каталозі пакета (без аргументу — підбере всі `*.test.mjs` рекурсивно) або через `scripts.test` у `npm/package.json`. Після змін у rego/template — `bun run lint-rego` (regal + `conftest verify` для `_test.rego`).
 
+## Завершення задачі після правок у пакетному workspace
+
+> **STOP** разом із **n-changelog.mdc**: якщо редагував(ла) `npm/rules/`, `npm/skills/`, `npm/scripts/`, `npm/bin/` або інші файли під workspace з `package.json` / `pyproject.toml` (крім інверсії `docs/` only) — **останніми кроками сесії** (після тестів / sync, **перед** фінальною відповіддю користувачу): bump `version` → нова секція `CHANGELOG.md` → `check changelog`. Не відкладати на «користувач попросить commit».
+
 ## Аналіз JavaScript / TypeScript: Oxc AST
 
 За замовчуванням для **перевірки змісту JS/TS** у `npm/rules/<id>/fix/<concern>/` (check/run/lint) і утилітах `npm/scripts/utils/` намагайся використовувати саме **Oxc AST-парсер** — пакет **`oxc-parser`** (`parseSync` тощо), обхід **`module` / `program` / вузлів AST**, а не «сліпі» regex по всьому файлу.

@@ -307,7 +307,7 @@ describe('check-changelog (local-only merge-base логіка)', () => {
     })
   })
 
-  test('main після merge dev → main: merge-base = dev, diff порожній → pass', async () => {
+  test('main після merge dev → main: origin/main = HEAD, diff порожній → pass', async () => {
     await withTmpCwd(async () => {
       // dev створено, init на dev
       await git(['init', '-q', '-b', 'dev'])
@@ -324,10 +324,11 @@ describe('check-changelog (local-only merge-base логіка)', () => {
       await writeFile('CHANGELOG.md', `${changelogWithVersion('1.1.0')}\n${changelogWithVersion('1.0.0')}`, 'utf8')
       await git(['add', '-A'])
       await git(['commit', '-q', '-m', 'feat'])
-      // потім dev → main (fast-forward / merge --no-ff не критично)
+      // потім dev → main (merge --no-ff)
       await git(['checkout', '-q', 'main'])
       await git(['merge', '-q', '--no-ff', '--no-edit', 'dev'])
-      // тепер ми на main, merge-base(dev, HEAD) = поточний dev → diff порожній
+      // на main база = origin/main (попередній опублікований main), не dev
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'])
       expect(await checkChangelog()).toBe(0)
     })
   })
@@ -340,11 +341,59 @@ describe('check-changelog (local-only merge-base логіка)', () => {
       await git(['add', '-A'])
       await git(['commit', '-q', '-m', 'init'])
       await git(['checkout', '-q', '-b', 'main'])
-      // direct-commit на main без bump
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'])
+      // direct-commit на main без bump (порівняння з origin/main, не dev)
       await writeFile('hotfix.js', 'h\n', 'utf8')
       await git(['add', '-A'])
       await git(['commit', '-q', '-m', 'hotfix'])
       expect(await checkChangelog()).toBe(1)
+    })
+  })
+
+  test('main синхронізований з origin/main без локальних змін → pass', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'main'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'])
+      expect(await checkChangelog()).toBe(0)
+    })
+  })
+
+  test('main без dev: direct-commit vs origin/main → fail', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'main'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'])
+      await writeFile('hotfix.js', 'h\n', 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'hotfix'])
+      expect(await checkChangelog()).toBe(1)
+    })
+  })
+
+  test('feature-гілка: новий воркспейс з CHANGELOG для початкової version → pass без bump', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'dev'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true, workspaces: ['demo'] })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['checkout', '-q', '-b', 'feat/demo'])
+      await ensureDir('demo')
+      await writeJson(join('demo', 'package.json'), {
+        name: 'demo',
+        version: '0.0.0',
+        private: true
+      })
+      await writeFile(join('demo', 'CHANGELOG.md'), changelogWithVersion('0.0.0'), 'utf8')
+      await writeFile(join('demo', 'app.js'), 'x\n', 'utf8')
+      expect(await checkChangelog()).toBe(0)
     })
   })
 
