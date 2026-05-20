@@ -11,23 +11,17 @@ import { parse as parseToml } from 'smol-toml'
 import { getMonorepoPackageRootDirs } from './workspaces.mjs'
 
 /**
-  @typedef {'npm' | 'python'} PackageKind
+ * @typedef {'npm' | 'python'} PackageKind
  */
 
-/*
+/**
  * @typedef {object} PackageManifest
-
- * @property {PackageKind} kind поле
+ * @property {PackageKind} kind тип маніфесту
  * @property {string} ws відносний шлях воркспейсу (`'.'` для кореня)
-
  * @property {string} manifestRel `package.json` | `pyproject.toml`
-
  * @property {string | null} name ім'я пакета (npm / PyPI)
-
  * @property {string | null} version semver-рядок
-
  * @property {boolean} registryPublishable чи застосовується режим порівняння з реєстром
-
  * @property {string[] | null} [npmFiles] лише npm: `files` з package.json
  */
 

@@ -287,7 +287,7 @@ async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) 
  * переписати на AVIF-двійник (через `import x from '...png'` або `<img src="...png" />`).
  *
  * Якщо false — весь подальший етап `image-avif` пропускаємо: ні `npx --avif`, ні rewrite,
- * ні cleanup-сиріт не дали б ніяких змін. Сенс — не запускати дорогий `npx @nitra/minify-image`
+ * ні cleanup-сиріт не дали б ніяких змін. Сенс — не запускати дорогий `npx \@nitra/minify-image`
  * у проєктах, де AVIF не вживається (а опційно і не плануються).
  *
  * Скан робиться тими самими regexp-ами, що й основний rewrite-пасс (`VUE_RASTER_IMPORT_RE`

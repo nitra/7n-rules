@@ -31,6 +31,9 @@ const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
 /** Назва kustomization-файлу (під `k8s` дозволено лише `.yaml`, див. k8s.mdc). */
 const KUSTOMIZATION_FILE = 'kustomization.yaml'
 
+/** Підказка встановлення kubescape (PATH miss / ENOENT). */
+const KUBESCAPE_MISSING_HINT = 'kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme'
+
 const PATH_SEPARATOR_RE = /[/\\]/u
 const YAML_EXT_RE = /\.yaml$/iu
 
@@ -224,6 +227,50 @@ function runKubescapeManifest(kubescapePath, manifest, exceptionsArgs) {
 }
 
 /**
+ * Сирий dir-скан kubescape для `…/k8s`-кореня без білдабельного `kustomization.yaml`.
+ * @param {string} kubescapePath абсолютний шлях до бінарника kubescape
+ * @param {string} dir абсолютний шлях до `…/k8s`
+ * @param {string[]} exceptionsArgs `['--exceptions', '<file>']` або `[]`
+ * @returns {number} 0 при успіху, 127 якщо kubescape зник з PATH, інакше код процесу
+ */
+function scanRawK8sDir(kubescapePath, dir, exceptionsArgs) {
+  console.log(`run-k8s: kubescape scan ${dir} (без kustomization — сирий dir-скан)`)
+  const r = spawnSync(kubescapePath, ['scan', dir, '--severity-threshold', 'high', ...exceptionsArgs], {
+    stdio: 'inherit',
+    shell: false
+  })
+  if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
+    console.error(KUBESCAPE_MISSING_HINT)
+    return 127
+  }
+  return r.status ?? 1
+}
+
+/**
+ * Скан kubescape'ом зібраних kustomize-маніфестів: для кожного `kustomization.yaml`-каталогу
+ * `kubectl kustomize <dir>` → `kubescape scan <tmp>`.
+ * @param {string} kubectlPath абсолютний шлях до бінарника kubectl
+ * @param {string} kubescapePath абсолютний шлях до бінарника kubescape
+ * @param {string[]} kdirs абсолютні шляхи каталогів з білдабельним `kustomization.yaml`
+ * @param {string[]} exceptionsArgs `['--exceptions', '<file>']` або `[]`
+ * @returns {number} 0 при успіху, 127 якщо kubescape зник з PATH, інакше код невдалого процесу
+ */
+function scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs) {
+  for (const kdir of kdirs) {
+    console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
+    const build = runKustomizeBuild(kubectlPath, kdir)
+    if (build.status !== 0) return build.status
+    const ks = runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs)
+    if (ks.enoent) {
+      console.error(KUBESCAPE_MISSING_HINT)
+      return 127
+    }
+    if (ks.status !== 0) return ks.status
+  }
+  return 0
+}
+
+/**
  * Запускає kubescape по зібраному kustomize-маніфесту для кожного `…/k8s`-кореня. Для кожного
  * dir-у з `kustomization.yaml` (крім `kind: Component`) робимо `kubectl kustomize <dir>` і
  * передаємо stdout у `kubescape scan <tmp-file>` через тимчасовий файл (kubescape v4.x не читає
@@ -248,23 +295,15 @@ async function runKubescape(dirs, root) {
   }
   const kubescapePath = resolveCmd('kubescape')
   if (!kubescapePath) {
-    console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
+    console.error(KUBESCAPE_MISSING_HINT)
     return 127
   }
   let kubectlPath = null
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)
     if (kdirs.length === 0) {
-      console.log(`run-k8s: kubescape scan ${d} (без kustomization — сирий dir-скан)`)
-      const r = spawnSync(kubescapePath, ['scan', d, '--severity-threshold', 'high', ...exceptionsArgs], {
-        stdio: 'inherit',
-        shell: false
-      })
-      if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
-        console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
-        return 127
-      }
-      if (r.status !== 0) return r.status ?? 1
+      const rawStatus = scanRawK8sDir(kubescapePath, d, exceptionsArgs)
+      if (rawStatus !== 0) return rawStatus
       continue
     }
     if (kubectlPath === null) {
@@ -274,17 +313,8 @@ async function runKubescape(dirs, root) {
         return 127
       }
     }
-    for (const kdir of kdirs) {
-      console.log(`run-k8s: kubectl kustomize ${kdir} | kubescape scan <tmp>`)
-      const build = runKustomizeBuild(kubectlPath, kdir)
-      if (build.status !== 0) return build.status
-      const ks = runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs)
-      if (ks.enoent) {
-        console.error('kubescape не знайдено в PATH. Встанови з https://github.com/kubescape/kubescape#readme')
-        return 127
-      }
-      if (ks.status !== 0) return ks.status
-    }
+    const buildStatus = scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)
+    if (buildStatus !== 0) return buildStatus
   }
   return 0
 }

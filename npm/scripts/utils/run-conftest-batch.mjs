@@ -47,27 +47,19 @@ function failConftestMissing() {
   )
 }
 
-/*
+/**
  * @typedef {object} ConftestViolation
-
  * @property {string} filename абсолютний шлях до файла, що дав порушення (з output conftest)
-
  * @property {string} message текст порушення (як у `deny` rego-пакета)
-
  * @property {string} namespace namespace rego-пакета (наприклад `abie.base_deployment_preem`)
  */
 
-/*
+/**
  * @typedef {object} ConftestBatchOptions
-
  * @property {string} policyDirRel шлях до підкаталогу `npm/policy/...` (наприклад `abie/base_deployment_preem`)
-
  * @property {string} namespace повне імʼя rego-пакета (наприклад `abie.base_deployment_preem`)
-
  * @property {string[]} files список абсолютних шляхів файлів для перевірки (порожній — повертаємо порожньо)
-
  * @property {string[]} [extraArgs] додаткові аргументи для conftest (наприклад `--combine` для крос-документних правил)
-
  * @property {object} [templateData] опціональне merged-дерево; серіалізується у JSON `{ "template": <data> }` і передається як `--data <tmpfile>` (cleanup після завершення)
  */
 

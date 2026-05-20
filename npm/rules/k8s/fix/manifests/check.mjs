@@ -1319,15 +1319,11 @@ export async function collectResourceDescriptorsForKustomizationWalk(kustAbs, ro
    */
   const out = []
 
-  /*
- * @param {string} ref шлях з resources/bases/…
-  
- * @returns {Promise<void>} результат
- */
   /**
-   *
-   * @param {*} ref параметр
-   */ async function handleResourceDescriptorPathRef(ref) {
+   * @param {string} ref шлях з resources/bases/…
+   * @returns {Promise<void>} результат
+   */
+  async function handleResourceDescriptorPathRef(ref) {
     if (typeof ref !== 'string' || ref.includes('://')) {
       return
     }
@@ -2903,15 +2899,11 @@ export function collectGatewayApiRouteBackendServiceNames(spec) {
    */
   const out = []
 
-  /*
- * @param {unknown} node вузол для обходу
-  
- * @returns {void} результат
- */
   /**
-   *
-   * @param {*} node параметр
-   */ function walk(node) {
+   * @param {unknown} node вузол для обходу
+   * @returns {void} результат
+   */
+  function walk(node) {
     if (node === null || node === undefined) return
     if (Array.isArray(node)) {
       for (const x of node) {
@@ -2947,15 +2939,11 @@ export function collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, ro
    */
   const out = []
 
-  /*
- * @param {unknown} node вузол для обходу
-  
- * @returns {void} результат
- */
   /**
-   *
-   * @param {*} node параметр
-   */ function walk(node) {
+   * @param {unknown} node вузол для обходу
+   * @returns {void} результат
+   */
+  function walk(node) {
     if (node === null || node === undefined) return
     if (Array.isArray(node)) {
       for (const x of node) {
@@ -6386,6 +6374,21 @@ function networkPolicyHasLegacyCatchAllEgress(doc) {
 }
 
 /**
+ * Витягує `spec.podSelector.matchLabels.app` як рядок (порожній — якщо ланцюжок неповний).
+ * @param {unknown} spec значення `spec` NetworkPolicy-документа
+ * @returns {string} app-label або '' (коли структура не відповідає очікуваній)
+ */
+function networkPolicyPodSelectorAppLabel(spec) {
+  if (spec === null || typeof spec !== 'object' || Array.isArray(spec)) return ''
+  const podSelector = /** @type {Record<string, unknown>} */ (spec).podSelector
+  if (podSelector === null || typeof podSelector !== 'object' || Array.isArray(podSelector)) return ''
+  const matchLabels = /** @type {Record<string, unknown>} */ (podSelector).matchLabels
+  if (matchLabels === null || typeof matchLabels !== 'object' || Array.isArray(matchLabels)) return ''
+  const app = /** @type {Record<string, unknown>} */ (matchLabels).app
+  return typeof app === 'string' ? app : ''
+}
+
+/**
  * Migrate legacy `networkpolicy.yaml`: якщо хоч один документ має catch-all in-cluster egress —
  * перезаписати **всі** документи у файлі через `buildNetworkPolicyYaml(name, appLabel)`. Деталі — k8s.mdc.
  * @param {string} npAbs абсолютний шлях до networkpolicy.yaml
@@ -6404,17 +6407,7 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
   for (const doc of docs) {
     const name = manifestMetadataName(doc)
     const spec = /** @type {Record<string, unknown>} */ (doc).spec
-    let appLabel = ''
-    if (spec !== null && typeof spec === 'object' && !Array.isArray(spec)) {
-      const podSelector = /** @type {Record<string, unknown>} */ (spec).podSelector
-      if (podSelector !== null && typeof podSelector === 'object' && !Array.isArray(podSelector)) {
-        const matchLabels = /** @type {Record<string, unknown>} */ (podSelector).matchLabels
-        if (matchLabels !== null && typeof matchLabels === 'object' && !Array.isArray(matchLabels)) {
-          const a = /** @type {Record<string, unknown>} */ (matchLabels).app
-          if (typeof a === 'string') appLabel = a
-        }
-      }
-    }
+    const appLabel = networkPolicyPodSelectorAppLabel(spec)
     if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
   }
   if (specs.length === 0) return false

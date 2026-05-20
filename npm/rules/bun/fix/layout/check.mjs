@@ -22,6 +22,9 @@ import { readFile } from 'node:fs/promises'
 
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 
+/** Розділювач токенів у `scripts.lint` (послідовність пробільних символів). */
+const WHITESPACE_RE = /\s+/u
+
 // Перевірка `devDependencies` кореневого `package.json` (дозволено лише `@nitra/*`)
 // — у rego (`npm/policy/bun/package_json/`). JS-копії `isAllowedRootDevDependency`
 // видалено, щоб не було двох джерел істини.
@@ -53,8 +56,8 @@ async function loadNCursorRules() {
  */
 function lintChainHasScript(lintScript, target) {
   if (!lintScript) return false
-  const escaped = target.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`)
-  return new RegExp(String.raw`(?:^|\s)bun\s+run\s+${escaped}(?:$|\s)`, 'u').test(lintScript)
+  const tokens = lintScript.split(WHITESPACE_RE)
+  return tokens.some((tok, i) => tok === 'bun' && tokens[i + 1] === 'run' && tokens[i + 2] === target)
 }
 
 /**

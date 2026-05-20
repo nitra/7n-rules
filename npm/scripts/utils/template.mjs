@@ -3,7 +3,7 @@
  * by target basename. For each <target>, returns whichever of snippet/deny/contains
  * exist (parsed in native format by extension).
  * @param {string} concernDir absolute path to fix/<concern>/ or policy/<concern>/
- * @returns {Promise<Record<string, { snippet?: any, deny?: any, contains?: any }>>}
+ * @returns {Promise<Record<string, { snippet?: unknown, deny?: unknown, contains?: unknown }>>}
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile, stat } from 'node:fs/promises'
@@ -11,7 +11,12 @@ import { basename as _basename, extname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-const SLOTS = ['snippet', 'deny', 'contains']
+/** `<target>.<slot>.<ext>` класифікатори — статичні regexp-літерали (без `RegExp(variable)`). */
+const SLOT_CLASSIFIERS = [
+  { slot: 'snippet', re: /^(?<target>.+)\.snippet\.[^.]+$/ },
+  { slot: 'deny', re: /^(?<target>.+)\.deny\.[^.]+$/ },
+  { slot: 'contains', re: /^(?<target>.+)\.contains\.[^.]+$/ }
+]
 const IDENT_RE = /^[a-zA-Z_$][\w$]*$/
 const NEWLINE_RE = /\r?\n/
 const LEADING_BANG_RE = /^!/
@@ -66,8 +71,8 @@ async function walk(dir, base = dir) {
  */
 function classifyTemplateFile(relPath) {
   // Try ".<slot>." suffix detection
-  for (const slot of SLOTS) {
-    const m = relPath.match(new RegExp(String.raw`^(?<target>.+)\.${slot}\.[^.]+$`))
+  for (const { slot, re } of SLOT_CLASSIFIERS) {
+    const m = relPath.match(re)
     if (m?.groups?.target) return { target: m.groups.target, slot }
   }
   // No slot suffix → text-only canon for the literal target name
@@ -241,7 +246,7 @@ export function checkTextSubset(actual, template, opts) {
 
 /**
  * @param {string} concernDir абсолютний шлях до fix/<concern>/ або policy/<concern>/
- * @returns {Promise<Record<string, { snippet?: any, deny?: any, contains?: any }>>} merged template-дерево, індексоване за target
+ * @returns {Promise<Record<string, { snippet?: unknown, deny?: unknown, contains?: unknown }>>} merged template-дерево, індексоване за target
  */
 export async function loadTemplate(concernDir) {
   const tplDir = join(concernDir, 'template')
