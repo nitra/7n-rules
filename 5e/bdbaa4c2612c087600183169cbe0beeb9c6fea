@@ -1,0 +1,9 @@
+docs/adr/20260520-201029-зміна-формату-імені-clean-файлу-під-час-adr-нормалізації.md
+  ai_agent 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "5ebdbaa4c2612c087600183169cbe0beeb9c6fea",
+  "prompts": {}
+}
