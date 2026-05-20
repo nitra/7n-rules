@@ -1,0 +1,30 @@
+npm/rules/security/security.mdc
+  ai_agent 38-52
+  s_09643600d1bd34::t_afa0cafa857a7f 2,5
+npm/CHANGELOG.md
+  s_09643600d1bd34::t_592c1f15bc0bfe 7-12
+npm/rules/security/fix/sample_secret/check.test.mjs
+  s_09643600d1bd34::t_87ca7a76d66ee7 1-72
+npm/rules/security/fix/sample_secret/check.mjs
+  s_09643600d1bd34::t_aa1a5e9c082b3b 1-105
+npm/package.json
+  s_09643600d1bd34::t_b00ffc72679283 3
+docs/adr/20260520-064244-нормалізація-плейсхолдера-secret-sample-secret-замість-white.md
+  ai_agent 2-4,7,10,13-14,17,20-21,24-27,31,34,37-42,45,48,52-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.4.10",
+  "base_commit_sha": "d99b247916972827dce9fa39fca4105acf25f1bb",
+  "prompts": {},
+  "sessions": {
+    "s_09643600d1bd34": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4e002ac8-4d4d-43da-a6cd-e02a410a7858",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
