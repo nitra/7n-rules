@@ -31,3 +31,18 @@
 ## Зачіпає
 
 `npm/scripts/check-changelog.mjs`, `check-vue.mjs`, `check-js-run.mjs`, `check-nginx-default-tpl.mjs`, `check-js-bun-db.mjs`, `check-js-mssql.mjs`, `check-ga.mjs`, та ін.; утиліти `utils/walkDir.mjs`, `utils/load-cursor-config.mjs`, нова `utils/find-package-json-paths.mjs`; конфіги `.jscpd.json`, `.markdownlint-cli2.jsonc`, `.cspell.json`, `eslint.config.js`, `.github/workflows/git-ai.yml`; `demo/src/App.vue`, `npm/package.json`, `npm/CHANGELOG.md`.
+
+## Update 2026-05-18
+
+Після додавання `network_policy` та рефакторингу утиліт (`template.mjs`, `inline-template-links.mjs`, `package-manifest.mjs`) повний `bun run lint` відновлено до EXIT=0:
+
+- `YAML_LS_MODELINE_RE`, `LEADING_DOTSLASH_RE`, `MD_LINK_RE`, `IDENT_RE`, `NEWLINE_RE`, `LEADING_BANG_RE` — regex-літерали винесено на рівень модуля (`e18e/prefer-static-regex`, `sonarjs/slow-regex`).
+- `MD_LINK_RE` у `inline-template-links.mjs` — bounded quantifiers замість зворотнього відстеження.
+- `() => {}` → `() => undefined` у тест-файлах (`no-empty-function`).
+- `.jscpd.json`: `"npm/rules/*/policy/*/template/*.yml.snippet.yml"` додано в `ignore`.
+- `.v8rignore`: `npm/rules/*/policy/*/template/**`, `npm/rules/*/fix/*/template/**`, `.cursor/hooks.json`, `npm/scripts/utils/__fixtures__/**`.
+- `.n-cursor.json`: `"ignore": ["npm/rules/k8s/policy"]` — `runLintK8s` не запускає kubeconform/kubescape на template YAML.
+- `.cspell.json`: 62 нових технічних та українських слова.
+- `knip.json`: `trufflehog` додано до `ignoreBinaries`.
+- `markdownlint.rego`: виправлено кирилічний символ `v` → `в` у коментарі.
+- `ci4.mdc`, `n-ci4.mdc`: MD060 (ширина стовпців) і typo `apended` → `appended`.

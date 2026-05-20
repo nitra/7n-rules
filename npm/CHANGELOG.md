@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.58] - 2026-05-20
+
+### Added
+
+- `check security`: новий concern **`security.sample_secret`** — placeholder фейкових credential-значень у прикладних файлах має бути `sample-secret`, а не bare `secret`. Причина: `sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog і відсіюється сканером гарантовано та незалежно від версії; bare `secret` наразі ігнорується лише тому, що випадково присутнє у словнику `fp_words.txt` — крихка, версієзалежна поведінка. [check.mjs](rules/security/fix/sample_secret/check.mjs) обходить дерево, відбирає прикладні файли (basename із суфіксом `.example`/`.sample`/`.template`/`.dist` чи infix `.example.`/`.sample.`/`.template.`, а також усе всередині каталогів `fixtures`/`fixture`/`__fixtures__`) і порядково шукає `secret` у позиції значення — одразу після `=`, `:` або `=>` з опційними лапками; імена ключів (`client_secret`, `JWT_SECRET`) не чіпаються, бо матч прив'язаний до значення. Решта файлів не сканується — там `secret` майже завжди частина реального коду. Скан текстовий (regex, не AST/Rego): прикладні файли — різнорідні конфіги (`.env`, YAML, JSON, TOML, plain `.dist`) без єдиного AST, а відбір файлів потребує обходу дерева. Зачеплено: [check.mjs](rules/security/fix/sample_secret/check.mjs) і [check.test.mjs](rules/security/fix/sample_secret/check.test.mjs) (новий concern + 9 тестів), [security.mdc](rules/security/security.mdc) (нова секція «Placeholder для секретів — `sample-secret`» та секція «Перевірка»). Bump `security.mdc` `2.0` → `2.1`.
+
 ## [1.13.57] - 2026-05-19
 
 ### Changed
