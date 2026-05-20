@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.66] - 2026-05-20
+
+### Changed
+
+- `adr`: `normalize-decisions.sh` тепер зберігає `YYYYMMDD-HHMMSS-`-префікс чернетки в імені clean-файлу — операція `rewrite` пише результат у `<timestamp>-<slug>.md` замість bare `<slug>.md`. Причина: під час нормалізації LLM генерує `slug` заново, тож раніше чернетка `20260518-092807-foo.md` ставала clean-файлом з абсолютно іншим іменем `bar.md` — назва «стрибала» цілком. Тепер timestamp-префікс лишається стабільним якорем: між draft і clean змінюється лише slug-частина, а `docs/adr/` сортується хронологічно (capture-час). Чернетки без `YYYYMMDD-HHMMSS-`-префікса лишаються на fallback bare `<slug>.md`. Колізії resolve'яться як і раніше — детермінований суфікс `-2`, `-3`, тепер на повному імені `<timestamp>-<slug>-N.md`. Зачеплено: [normalize-decisions.sh](.claude-template/hooks/normalize-decisions.sh) (нова `case`-гілка у rewrite-операції обчислює `DEST_SLUG` з timestamp-префіксом перед `resolve_unique_slug_path`), [adr.mdc](rules/adr/adr.mdc) (опис clean-формату, рядок таблиці `rewrite`, дерево каталогу `docs/adr/` й абзац про `slug`), [SKILL.md](skills/adr-normalize/SKILL.md) (опис rewrite-результату й дублів імен). Bump `adr.mdc` `2.0` → `2.1`.
+
 ## [1.13.65] - 2026-05-20
 
 ### Changed

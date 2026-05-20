@@ -48,7 +48,7 @@ description: >-
    git diff docs/adr/
    ```
 
-   Видалені файли — `delete`-операція. Нові файли `<slug>.md` — `rewrite`. Модифіковані clean-файли — `merge-into`.
+   Видалені файли — `delete`-операція. Нові файли `<timestamp>-<slug>.md` (timestamp-префікс чернетки збережено) — `rewrite`. Модифіковані clean-файли — `merge-into`.
 
 4. **Прийняти / відкотити:**
    - Прийняти все: `git add docs/adr/ && git commit -m "adr: normalize batch"`.
@@ -67,4 +67,4 @@ description: >-
 
 - LLM повернув криву JSON → у логу буде `invalid JSON response (first 200 chars): …`. Запусти ще раз — нерідко це разовий збій.
 - Скрипт виходить миттєво без логу → перевір `ADR_NORMALIZE_RUNNING` у env (recursion guard) і чи репо не у стані merge/rebase.
-- Перейменування зробило слаги-дублі (`<slug>-2.md`) → це нормально, скрипт детермінований; під час review можна обʼєднати руками й видалити `-2`.
+- Перейменування зробило дублі імен (`<timestamp>-<slug>-2.md`) → це нормально, скрипт детермінований; під час review можна обʼєднати руками й видалити `-2`.

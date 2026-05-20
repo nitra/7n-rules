@@ -334,7 +334,19 @@ jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
           continue
           ;;
       esac
-      DEST_PATH=$(resolve_unique_slug_path "$SLUG")
+      # Keep the draft's `YYYYMMDD-HHMMSS-` prefix on the clean file: the name
+      # stays anchored to capture time, only the slug part changes between draft
+      # and clean, and docs/adr/ keeps sorting chronologically. Drafts without a
+      # timestamp prefix fall back to a bare `<slug>.md`.
+      case "$FILE" in
+        [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-*)
+          DEST_SLUG="$(printf '%s' "$FILE" | cut -c1-15)-$SLUG"
+          ;;
+        *)
+          DEST_SLUG="$SLUG"
+          ;;
+      esac
+      DEST_PATH=$(resolve_unique_slug_path "$DEST_SLUG")
       printf '%s\n' "$CONTENT" > "$DEST_PATH"
       rm -- "$SRC_PATH"
       log "rewrite: $FILE → $(basename "$DEST_PATH")"
