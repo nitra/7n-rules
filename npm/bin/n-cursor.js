@@ -1274,6 +1274,7 @@ async function runSync() {
     if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
     if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
     if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')
+    if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
     if (parts.length > 0) {
       console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
     }

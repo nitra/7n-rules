@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.64] - 2026-05-20
+
+### Added
+
+- **`sync-claude-config`**: при увімкненому правилі `adr` `npx @nitra/cursor` дописує в кореневий `.gitignore` канонічний фрагмент `rules/adr/fix/hooks/template/.gitignore.snippet` (`.claude/hooks/*.log`, `.normalize-state`, `.normalize.lock`) — логи ADR Stop-hook більше не потрапляють у git status.
+
+### Changed
+
+- Правило **`adr`**: посилання на канон `.gitignore.snippet` і згадка автоматичного дописування під час sync.
+- **`.gitignore.snippet`**: додано базові рядки `node_modules/`, `dist/`, `*.secret` (як у кореневому `.gitignore` пакета).
+
 ## [1.13.63] - 2026-05-20
 
 ### Fixed

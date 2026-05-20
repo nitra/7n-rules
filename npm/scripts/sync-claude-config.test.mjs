@@ -8,13 +8,15 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  ADR_GITIGNORE_SNIPPET_REL,
   ADR_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
   mergeCursorHooksConfig,
   mergeHooks,
   mergeSettings,
-  syncClaudeConfig
+  syncClaudeConfig,
+  syncGitignoreAdrFragment
 } from './sync-claude-config.mjs'
 import { withTmpCwd, writeJson } from './utils/test-helpers.mjs'
 
@@ -58,6 +60,19 @@ async function setupTemplate(cwdAbs, tpl = {}) {
     tpl.normalizeDecisionsSh ?? '#!/usr/bin/env bash\nexit 0\n',
     'utf8'
   )
+  const gitignoreSnippet =
+    tpl.gitignoreSnippet ??
+    `node_modules/
+dist/
+*.secret
+
+# @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти
+.claude/hooks/*.log
+.claude/hooks/.normalize-state
+.claude/hooks/.normalize.lock
+`
+  await mkdir(join(pkgRoot, 'rules/adr/fix/hooks/template'), { recursive: true })
+  await writeFile(join(pkgRoot, ADR_GITIGNORE_SNIPPET_REL), gitignoreSnippet, 'utf8')
   return pkgRoot
 }
 
@@ -225,7 +240,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
         cursorHooks: false,
         commands: [],
         adrHook: false,
-        adrNormalizeHook: false
+        adrNormalizeHook: false,
+        gitignoreAdr: false
       })
       expect(existsSync(join(cwdAbs, '.claude/settings.json'))).toBe(false)
     })
@@ -247,6 +263,52 @@ describe('syncClaudeConfig (інтеграція)', () => {
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
       expect(hasAdr).toBe(false)
+    })
+  })
+
+  test('з правилом "adr": дописує канонічний фрагмент у .gitignore', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr']
+      })
+      expect(result.gitignoreAdr).toBe(true)
+      const gi = await readFile('.gitignore', 'utf8')
+      expect(gi).toContain('.claude/hooks/*.log')
+      expect(gi).toContain('.claude/hooks/.normalize-state')
+      expect(gi).toContain('# @nitra/cursor (adr)')
+    })
+  })
+
+  test('syncGitignoreAdrFragment: повторний виклик не дублює рядки', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      const first = await syncGitignoreAdrFragment(cwdAbs, pkgRoot)
+      const second = await syncGitignoreAdrFragment(cwdAbs, pkgRoot)
+      expect(first.written).toBe(true)
+      expect(second.written).toBe(false)
+      const gitignoreContent = await readFile('.gitignore', 'utf8')
+      const lines = gitignoreContent.split('\n').filter(l => l.includes('.claude/hooks'))
+      expect(lines.filter(l => l.includes('*.log')).length).toBe(1)
+    })
+  })
+
+  test('без правила "adr": .gitignore не змінюється', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['text']
+      })
+      expect(result.gitignoreAdr).toBe(false)
+      expect(await readFile('.gitignore', 'utf8')).toBe('node_modules/\n')
     })
   })
 

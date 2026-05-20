@@ -18,6 +18,10 @@
  *   Stop-hook (батч-нормалізація чернеток); умови — ті самі, що для `capture`.
  * - `.cursor/hooks.json` — **merge**: користувацькі hooks зберігаються; ADR stop
  *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене.
+ * - `.gitignore` — **merge** (лише з `adr`): дописує відсутні рядки з канонічного
+ *   фрагмента `rules/adr/fix/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
+ *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`); існуючі
+ *   рядки не перезаписуються.
  *
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
@@ -51,6 +55,10 @@ const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const TEMPLATE_DIR_NAME = '.claude-template'
+/** Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета. */
+export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/fix/hooks/template/.gitignore.snippet'
+const GITIGNORE_FILE = '.gitignore'
+const EOL_RE = /\r?\n/u
 
 /** Канонічна група hooks для ADR capture Stop-hook'а — додається в settings, коли `adr` у `rules`. */
 const ADR_STOP_HOOK_GROUP = Object.freeze({
@@ -388,6 +396,60 @@ export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
 }
 
 /**
+ * Повертає змістовні (не коментар, не порожній) рядки з text-фрагмента `.gitignore`.
+ * @param {string} raw вміст snippet-файлу
+ * @returns {string[]} нормалізовані рядки патернів
+ */
+function parseGitignoreFragmentLines(raw) {
+  return raw
+    .split(EOL_RE)
+    .map(l => l.trim())
+    .filter(l => l !== '' && !l.startsWith('#'))
+}
+
+/**
+ * Дописує в кореневий `.gitignore` проєкту відсутні рядки з канонічного ADR-фрагмента.
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @param {string} bundledPackageRoot корінь установленого `@nitra/cursor`
+ * @returns {Promise<{ written: boolean, path: string }>} чи змінено файл і відносний шлях
+ */
+export async function syncGitignoreAdrFragment(projectRoot, bundledPackageRoot) {
+  const snippetPath = join(bundledPackageRoot, ADR_GITIGNORE_SNIPPET_REL)
+  if (!existsSync(snippetPath)) {
+    return { written: false, path: '' }
+  }
+  const fragment = await readFile(snippetPath, 'utf8')
+  const required = parseGitignoreFragmentLines(fragment)
+  if (required.length === 0) {
+    return { written: false, path: '' }
+  }
+
+  const destPath = join(projectRoot, GITIGNORE_FILE)
+  const existing = existsSync(destPath) ? await readFile(destPath, 'utf8') : ''
+  const existingLines = new Set(
+    existing
+      .split(EOL_RE)
+      .map(l => l.trim())
+      .filter(l => l !== '' && !l.startsWith('#'))
+  )
+  const missing = required.filter(l => !existingLines.has(l))
+  if (missing.length === 0) {
+    return { written: false, path: GITIGNORE_FILE }
+  }
+
+  const sectionHeader = '# @nitra/cursor (adr) — локальні артефакти Stop-hook, не коміти'
+  const hasHeader = existing.split(EOL_RE).some(l => l.trim() === sectionHeader)
+  const block = hasHeader ? missing.join('\n') : [sectionHeader, ...missing].join('\n')
+  let prefix = ''
+  if (existing.length > 0) {
+    prefix = existing.endsWith('\n') ? existing : `${existing}\n`
+  }
+  const next = `${prefix}${block}\n`
+  await writeFile(destPath, next, 'utf8')
+  return { written: true, path: GITIGNORE_FILE }
+}
+
+/**
  * Копіює всі slash-команди з `templateDir/commands/` у `.claude/commands/`.
  * Команди ідентифікуються тим, що вони лежать у темплейті — не перетинаються
  * з командами скілів (n-fix, n-lint, ...).
@@ -422,7 +484,7 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s) та список записаних slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, gitignoreAdr: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore` та список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
@@ -431,7 +493,8 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       cursorHooks: false,
       commands: [],
       adrHook: false,
-      adrNormalizeHook: false
+      adrNormalizeHook: false,
+      gitignoreAdr: false
     }
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
@@ -441,13 +504,17 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       cursorHooks: false,
       commands: [],
       adrHook: false,
-      adrNormalizeHook: false
+      adrNormalizeHook: false,
+      gitignoreAdr: false
     }
   }
   const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
   const adrHook = includeAdrHook ? await syncAdrHookScript(projectRoot, templateDir) : { written: false, path: '' }
   const adrNormalizeHook = includeAdrHook
     ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
+    : { written: false, path: '' }
+  const gitignoreAdr = includeAdrHook
+    ? await syncGitignoreAdrFragment(projectRoot, bundledPackageRoot)
     : { written: false, path: '' }
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
@@ -457,6 +524,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     cursorHooks: cursorHooks.written,
     commands,
     adrHook: adrHook.written,
-    adrNormalizeHook: adrNormalizeHook.written
+    adrNormalizeHook: adrNormalizeHook.written,
+    gitignoreAdr: gitignoreAdr.written
   }
 }

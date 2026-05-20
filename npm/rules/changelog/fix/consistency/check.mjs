@@ -158,13 +158,11 @@ async function resolveChangelogComparisonPoint(branch) {
   }
 
   if (branch === 'main') {
-    const originMainSha = (await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main']))?.trim()
-    const headSha = (await gitOrNull(['rev-parse', 'HEAD']))?.trim()
-    if (
-      originMainSha &&
-      headSha &&
-      (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD')))
-    ) {
+    const originMainRaw = await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main'])
+    const originMainSha = originMainRaw?.trim()
+    const headRaw = await gitOrNull(['rev-parse', 'HEAD'])
+    const headSha = headRaw?.trim()
+    if (originMainSha && headSha && (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD')))) {
       return { ref: 'origin/main', label: 'main' }
     }
     const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'])
