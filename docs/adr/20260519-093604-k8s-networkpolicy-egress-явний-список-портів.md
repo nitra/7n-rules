@@ -34,3 +34,23 @@ Chosen option: "B — Статичний явний список in-cluster по
 - Rego-перевірка: `npm/rules/k8s/policy/network_policy/network_policy.rego`.
 - Ідентифікація Adminer (первісний тригер): `metadata.name` містить підрядок `adminer` — DB-порти входять до загального списку, спеціальна гілка відпала.
 - Порти-аутлаєри, що не ввійшли до дефолту: `13133`, `3488`, `8000` (одиничні випадки у репо nitra).
+
+## Update 2026-05-19
+
+### Склад дефолтного in-cluster списку портів
+
+Після вибору підходу B (статичний список) визначено дефолтний набір: `80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`. Мінімальний набір (лише DB-порти) відхилено — зламав би ≥12 сервісів на 8080 (Hasura, HTTP-backends) та Redis (6379). Порт 1433 (MSSQL) включений як «канон Adminer» попри відсутність реальних інстансів у репо на момент рішення. Порти 3488 (`nitra/ai`) та 8000 (`open-webui`) — out-of-scope; власники мусять додавати extra-порти вручну.
+
+Семантика check: обов'язкова лише **структура** правила (`to: [{namespaceSelector: {}}]` + непорожній `ports:`); наявність усіх 9 дефолтних портів не перевіряється; extra-порти явно дозволені.
+
+Константа: `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS = [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]` у `npm/rules/k8s/fix/manifests/check.mjs`.
+
+### Стратегія міграції існуючих NetworkPolicy (M1)
+
+Chosen option: **M1 — автоматичний повний перезапис** через `buildNetworkPolicyYaml(deployName, appLabel)`: якщо NP містить catch-all `to: [{namespaceSelector: {}}]` без `ports:`, функція `fixNetworkPolicyFile` повністю переписує файл. M2 (ручне оновлення) — повільно і потребує координації; M3 (масове видалення + fix) — може знищити локальні правки. Один детермінований прогін `npx @nitra/cursor fix k8s` приводить увесь репо у відповідність без ручних правок.
+
+Повний перезапис знищить будь-які extra-порти чи коментарі, додані вручну після генерації — на момент міграції таких правок у репо не було (ризик прийнятий свідомо).
+
+- Spec: `docs/superpowers/specs/2026-05-19-networkpolicy-egress-explicit-ports-design.md`
+- Plan: `docs/superpowers/plans/2026-05-19-networkpolicy-egress-explicit-ports-plan.md`
+- Rego deny: `npm/rules/k8s/policy/network_policy/network_policy.rego`
