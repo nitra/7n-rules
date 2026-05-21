@@ -30,3 +30,19 @@ Chosen option: "Default `check` із `*.mdc`-файлів у `.cursor/rules/`", 
 - Явний виклик `npx @nitra/cursor check bun ga …` поведінки не змінює
 - Документація оновлена в: `npm/skills/fix/SKILL.md`, `docs/programmatic-checks-for-llm.md`, `.cursor/rules/scripts.mdc`
 - Версія пакета `@nitra/cursor`: `1.13.68` → `1.13.69`; запис додано до `npm/CHANGELOG.md`
+
+## Update 2026-05-21
+
+Реалізація: нова утиліта `npm/scripts/utils/discover-check-rules-from-cursor.mjs` — функції `discoverCheckRulesFromCursorRules()` та `mdcBasenameToCheckId()` (перетворення `n-bun.mdc` → `bun`, `conftest.mdc` → `conftest`). Тести: `npm/scripts/utils/discover-check-rules-from-cursor.test.mjs` (bun:test).
+
+Алгоритм: `readdir(.cursor/rules)` → `*.mdc` → id → перетин із `discoverCheckableRules()` пакета → алфавітний порядок.
+
+Edge case: якщо `.cursor/rules/` порожній (синк ще не запускався), `check` без аргументів падає з помилкою та підказкою запустити синк або передати правила явно.
+
+Змінені файли: `npm/bin/n-cursor.js` (заміна `discoverCheckRulesFromAgentsMd` на `discoverCheckRulesFromCursorRules`), `npm/skills/fix/SKILL.md`, `docs/programmatic-checks-for-llm.md`, `.cursor/rules/scripts.mdc`. Версія пакета `1.13.69`.
+
+## Update 2026-05-21
+
+Уточнення: генерація `agents.md` і `claude.md` читає `.cursor/rules/` без фільтрації — включає всі правила. Це підтверджує, що `check` і генератор працюють з одним набором правил і розбіжностей через фільтрацію не виникає.
+
+Edge case: якщо правило додано тільки до `agents.md` і не синхронізовано у `.cursor/rules/`, `check` його не знайде, що може дезорієнтувати розробника.
