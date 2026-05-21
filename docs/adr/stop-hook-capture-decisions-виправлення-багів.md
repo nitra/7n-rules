@@ -31,3 +31,32 @@
 ## Зачіпає
 
 `.claude/hooks/capture-decisions.sh`, `.claude/settings.local.json`, `docs/adr/_inbox/` (вихідний каталог чернеток).
+
+## Update 2026-05-20
+
+### Підтримка двох форматів JSONL: Claude Code (`.type`) та Cursor Agent (`.role`)
+
+`capture-decisions.sh` парсив transcript лише за полем `.type` (`{"type":"user",...}`) — формат Claude Code. Cursor Agent записує рядки у форматі `{"role":"user",...}`. Коли хук отримував Cursor-transcript, `jq`-фільтр повертав 0 байт і скрипт виходив мовчки без виклику LLM.
+
+Chosen option: "Підтримувати обидва поля в одному `select`-вираженні", because сесії Claude Code й Cursor Agent генерують різний JSONL, а одна умова `select` охоплює обидва випадки без гілки коду.
+
+```jq
+select(
+  .type == "user" or .type == "assistant"
+  or .role == "user" or .role == "assistant"
+)
+```
+
+- Good, because після виправлення capture для сесії Cursor Agent (`5b23f892`) успішно записав `docs/adr/20260520-085803-зворотний-звязок-зі-скілів-через-зворотний-канал-у-nitra-cur.md`.
+- Bad, because transcript не містить підтверджених негативних наслідків.
+
+Додано лог-рядок `empty transcript after jq (Claude Code: .type; Cursor Agent: .role)` для діагностики. Змінені файли: `npm/.claude-template/hooks/capture-decisions.sh` (канон), `.claude/hooks/capture-decisions.sh` (проєктна копія). Баг проявлявся лише в Cursor Agent-сесіях — сесія Claude Code (369795cd, 08:40) успішно створила ADR і проблеми не виявляла.
+
+## Update 2026-05-20
+
+### Розташування transcript-файлів за типом агента
+
+- Cursor Agent: `~/.cursor/projects/<project>/agent-transcripts/<session-id>/*.jsonl`
+- Claude Code: `~/.claude/projects/<project>/<session-id>.jsonl`
+
+Ці шляхи є діагностичним орієнтиром при зборі transcript вручну або при налагодженні хука.
