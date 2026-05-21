@@ -9,6 +9,32 @@ import { glob, readFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 
 const TRAILING_SLASH_RE = /\/$/
+const LEADING_DOTSLASH_RE = /^\.\//
+
+/** Glob-ігнор для workspace-патернів із `*` (узгоджено з `package-manifest.mjs`). */
+export const WORKSPACE_GLOB_IGNORE = Object.freeze([
+  '**/node_modules/**',
+  '**/.git/**',
+  '**/.venv/**',
+  '**/venv/**'
+])
+
+/**
+ * Чи слід виключити каталог зі списку workspace-коренів (не стосується `.`).
+ * @param {string} ws відносний шлях воркспейсу
+ * @returns {boolean} true — пропустити
+ */
+export function isIgnoredWorkspaceRoot(ws) {
+  if (ws === '.') return false
+  const p = ws.replaceAll('\\', '/').replace(LEADING_DOTSLASH_RE, '')
+  const segments = p.split('/')
+  return (
+    segments.includes('node_modules') ||
+    segments.includes('.git') ||
+    segments.includes('.venv') ||
+    segments.includes('venv')
+  )
+}
 
 /**
  * Нормалізує workspace-патерн до POSIX-формату і прибирає хвостові `/`.
@@ -33,16 +59,22 @@ function normalizeWorkspacePattern(pattern) {
 async function addWorkspaceRootsByPattern(roots, repoRoot, workspacePattern) {
   if (workspacePattern.includes('*')) {
     const globPat = `${workspacePattern}/package.json`
-    for await (const relPkgJsonPath of glob(globPat, { cwd: repoRoot })) {
+    for await (const relPkgJsonPath of glob(globPat, {
+      cwd: repoRoot,
+      ignore: [...WORKSPACE_GLOB_IGNORE]
+    })) {
       const absPkgJsonPath = join(repoRoot, relPkgJsonPath)
       const relRoot = relative(repoRoot, dirname(absPkgJsonPath))
-      roots.add(relRoot === '' ? '.' : relRoot)
+      const ws = relRoot === '' ? '.' : relRoot
+      if (!isIgnoredWorkspaceRoot(ws)) {
+        roots.add(ws)
+      }
     }
     return
   }
 
   const pkgJsonPath = join(repoRoot, workspacePattern, 'package.json')
-  if (existsSync(pkgJsonPath)) {
+  if (existsSync(pkgJsonPath) && !isIgnoredWorkspaceRoot(workspacePattern)) {
     roots.add(workspacePattern)
   }
 }
@@ -77,7 +109,7 @@ export async function getMonorepoPackageRootDirs(repoRoot = '.') {
     const workspacePattern = normalizeWorkspacePattern(raw)
     await addWorkspaceRootsByPattern(roots, repoRoot, workspacePattern)
   }
-  const list = [...roots]
+  const list = [...roots].filter(ws => !isIgnoredWorkspaceRoot(ws))
   list.sort((a, b) => {
     if (a === '.') return -1
     if (b === '.') return 1

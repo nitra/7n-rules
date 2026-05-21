@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.73] - 2026-05-21
+
+### Fixed
+
+- **Збір workspace-коренів** — `getMonorepoPackageRootDirs` / `getMonorepoProjectRootDirs` більше не трактують `package.json` у `node_modules/`, `.git/`, `.venv/`, `venv/` як воркспейси (glob ignore + `isIgnoredWorkspaceRoot`). Усуває хибні `check changelog` на транзитивних залежностях (наприклад `node-gyp/gyp`).
+
 ## [1.13.72] - 2026-05-21
 
 ### Changed

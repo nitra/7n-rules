@@ -8,7 +8,7 @@ import { dirname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { getMonorepoPackageRootDirs } from './workspaces.mjs'
+import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from './workspaces.mjs'
 
 /**
  * @typedef {'npm' | 'python'} PackageKind
@@ -132,12 +132,12 @@ export async function getMonorepoProjectRootDirs(repoRoot = '.') {
     const absDir = dirname(join(repoRoot, relPy))
     const relRoot = relative(repoRoot, absDir)
     const ws = relRoot === '' ? '.' : relRoot
-    if (!existsSync(join(repoRoot, ws, 'package.json'))) {
+    if (!isIgnoredWorkspaceRoot(ws) && !existsSync(join(repoRoot, ws, 'package.json'))) {
       roots.add(ws)
     }
   }
 
-  const list = [...roots]
+  const list = [...roots].filter(ws => !isIgnoredWorkspaceRoot(ws))
   list.sort((a, b) => {
     if (a === '.') return -1
     if (b === '.') return 1
