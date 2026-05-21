@@ -29,3 +29,12 @@ Chosen option: "Запис маніфесту у тимчасовий файл",
 - Коміт виправлення: `6e79e10`.
 - Команда для відтворення проблеми: `echo "apiVersion: v1..." | kubescape scan -` (kubescape v4.0.8) → `no resources found to scan`.
 - Підтверджений робочий варіант: `kubectl kustomize <dir> > /tmp/built.yaml && kubescape scan /tmp/built.yaml --severity-threshold high`.
+
+## Update 2026-05-19
+
+Деталі реалізації tmpfile-підходу:
+- Функція перейменована: `runKubescapeStdin` → `runKubescapeManifest` у `npm/rules/k8s/lint/lint.mjs`.
+- Тимчасова директорія: `mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))`, файл `manifest.yaml`, cleanup — `rmSync(dir, { recursive: true, force: true })` у `finally`.
+- `node_modules/@nitra/cursor` у cursor-репо є symlink на `../../npm` — фікс активний без перевстановлення.
+- kubescape версія: `4.0.8`, Homebrew build `2026-05-08`.
+- Відтворення помилки: `echo "apiVersion: v1..." | kubescape scan -` → `{"level":"fatal","msg":"no resources found to scan"}`; `kubescape scan --help` не містить жодної згадки про stdin або `--input`.

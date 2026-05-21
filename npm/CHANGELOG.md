@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.71] - 2026-05-21
+
+### Added
+
+- **Claude-first UX для скілів** — `npx @nitra/cursor claude taze "task"` і bin **`n-claude`** (`npx -p @nitra/cursor n-claude taze`): скіл першим аргументом після імені команди, всередині делегує в `claude -p`. Підкоманда `claude` у `n-cursor` не конфліктує з Anthropic CLI — це entry пакета. Зачеплено: [mapClaudeFirstArgv / runClaudeFirstSkillsCli](scripts/skills-cli.mjs), [n-claude.js](bin/n-claude.js).
+
+## [1.13.70] - 2026-05-21
+
+### Added
+
+- **CLI скілів без синку в проєкт** — `npx @nitra/cursor skill list|prompt|claude|cursor <id> "task"` і bin **`n-skills`** (`npx -p @nitra/cursor n-skills …`). Читає `skills/<id>/SKILL.md` з установленого пакета, збирає промпт із CWD (`package.json`, `tsconfig.json`, `.n-cursor.json`) і виводить на stdout або делегує в `claude -p` / `cursor-agent -p`. Id скілу — каталог у пакеті (`lint`, `fix`, …) або з префіксом `n-` (`n-lint` → `lint`). Зачеплено: [skills-cli.mjs](scripts/skills-cli.mjs), [n-skills.js](bin/n-skills.js), [n-cursor.js](bin/n-cursor.js).
+
 ## [1.13.69] - 2026-05-21
 
 ### Changed
