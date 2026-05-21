@@ -32,8 +32,8 @@ const USAGE_LINES = [
 ]
 
 /**
- * @param {string} name
- * @returns {boolean}
+ * @param {string} name ім'я бінарника
+ * @returns {boolean} чи знайдено бінарник у PATH
  */
 function isBinaryInPath(name) {
   const probe = spawnSync('command', ['-v', name], { shell: true, encoding: 'utf8' })
@@ -53,7 +53,7 @@ export function normalizeSkillId(name) {
 
 /**
  * @param {string} skillsRoot абсолютний шлях до `skills/` пакета
- * @returns {string[]}
+ * @returns {string[]} відсортовані id скілів, що мають `SKILL.md`
  */
 export function listSkillIds(skillsRoot) {
   if (!existsSync(skillsRoot)) {
@@ -64,32 +64,32 @@ export function listSkillIds(skillsRoot) {
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
     .filter(name => existsSync(join(skillsRoot, name, 'SKILL.md')))
-    .sort((a, b) => a.localeCompare(b))
+    .toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
- * @param {string} skillsRoot
+ * @param {string} skillsRoot абсолютний шлях до `skills/` пакета
  * @param {string} skillId нормалізований id (без префікса n-)
- * @returns {string}
+ * @returns {string} шлях до `SKILL.md` скілу
  */
 function getSkillMdPath(skillsRoot, skillId) {
   return join(skillsRoot, skillId, 'SKILL.md')
 }
 
 /**
- * @param {string} path
- * @returns {string | null}
+ * @param {string} path шлях до файлу
+ * @returns {string | null} вміст файлу або `null`, якщо файлу немає
  */
 function readIfExists(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : null
 }
 
 /**
- * @param {string} skillsRoot
- * @param {string} rawSkillName
- * @param {string} task
- * @param {string} [projectDir]
- * @returns {string}
+ * @param {string} skillsRoot абсолютний шлях до `skills/` пакета
+ * @param {string} rawSkillName ім'я скілу з CLI (можливо з префіксом n-)
+ * @param {string} task текст завдання для скілу
+ * @param {string} [projectDir] корінь цільового проєкту (типово — CWD)
+ * @returns {string} промпт: інструкція скілу + контекст поточного проєкту
  */
 export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cwd()) {
   const skillId = normalizeSkillId(rawSkillName)
@@ -124,10 +124,10 @@ export function buildSkillPrompt(skillsRoot, rawSkillName, task, projectDir = cw
 }
 
 /**
- * @param {'claude' | 'cursor'} kind
- * @param {string} prompt
- * @param {string} projectDir
- * @returns {number}
+ * @param {'claude' | 'cursor'} kind який LLM CLI запускати
+ * @param {string} prompt промпт для передачі у stdin
+ * @param {string} projectDir робочий каталог дочірнього процесу
+ * @returns {number} exit code дочірнього процесу
  */
 function runLlmCli(kind, prompt, projectDir) {
   if (kind === 'claude') {
@@ -159,8 +159,8 @@ function runLlmCli(kind, prompt, projectDir) {
 
 /**
  * Корінь пакета `@nitra/cursor` (каталог з `skills/`, `rules/`, …).
- * @param {string} [fromModuleUrl] для тестів — `import.meta.url` викликача
- * @returns {string}
+ * @param {string} [fromModuleUrl] для тестів — `import.meta.url`, відносно якого шукати корінь
+ * @returns {string} абсолютний шлях до кореня пакета
  */
 export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
   return join(dirname(fileURLToPath(fromModuleUrl)), '..')
@@ -168,10 +168,10 @@ export function resolveBundledPackageRoot(fromModuleUrl = import.meta.url) {
 
 /**
  * @param {string[]} argv аргументи після `skill` у `n-cursor`
- * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void }} [options]
- * @returns {Promise<number>} exit code
+ * @param {{ packageRoot?: string, projectDir?: string, log?: (line: string) => void, logError?: (line: string) => void }} [options] перевизначення кореня пакета, каталогу проєкту та функцій виводу (для тестів)
+ * @returns {number} exit code
  */
-export async function runSkillsCli(argv, options = {}) {
+export function runSkillsCli(argv, options = {}) {
   const log = options.log ?? (line => console.log(line))
   const logError = options.logError ?? (line => console.error(line))
   const packageRoot = options.packageRoot ?? resolveBundledPackageRoot()

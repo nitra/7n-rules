@@ -12,12 +12,7 @@ const TRAILING_SLASH_RE = /\/$/
 const LEADING_DOTSLASH_RE = /^\.\//
 
 /** Glob-ігнор для workspace-патернів із `*` (узгоджено з `package-manifest.mjs`). */
-export const WORKSPACE_GLOB_IGNORE = Object.freeze([
-  '**/node_modules/**',
-  '**/.git/**',
-  '**/.venv/**',
-  '**/venv/**'
-])
+export const WORKSPACE_GLOB_IGNORE = Object.freeze(['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'])
 
 /**
  * Чи слід виключити каталог зі списку workspace-коренів (не стосується `.`).
@@ -27,13 +22,8 @@ export const WORKSPACE_GLOB_IGNORE = Object.freeze([
 export function isIgnoredWorkspaceRoot(ws) {
   if (ws === '.') return false
   const p = ws.replaceAll('\\', '/').replace(LEADING_DOTSLASH_RE, '')
-  const segments = p.split('/')
-  return (
-    segments.includes('node_modules') ||
-    segments.includes('.git') ||
-    segments.includes('.venv') ||
-    segments.includes('venv')
-  )
+  const segments = new Set(p.split('/'))
+  return segments.has('node_modules') || segments.has('.git') || segments.has('.venv') || segments.has('venv')
 }
 
 /**

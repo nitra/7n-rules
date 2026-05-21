@@ -8,6 +8,10 @@ import { describe, expect, test } from 'bun:test'
 
 import { buildSkillPrompt, listSkillIds, normalizeSkillId, runSkillsCli } from './skills-cli.mjs'
 
+const UNKNOWN_SKILL_RE = /Unknown skill.*lint/
+const SKILL_NAME_REQUIRED_RE = /Skill name is required/
+const USAGE_HINT_RE = /skill list/
+
 describe('normalizeSkillId', () => {
   test('n-lint → lint', () => {
     expect(normalizeSkillId('n-lint')).toBe('lint')
@@ -42,19 +46,19 @@ describe('listSkillIds / buildSkillPrompt', () => {
     mkdirSync(join(skillsRoot, 'lint'), { recursive: true })
     writeFileSync(join(skillsRoot, 'lint', 'SKILL.md'), '# Lint\n')
 
-    expect(() => buildSkillPrompt(skillsRoot, 'missing', 'x', root)).toThrow(/Unknown skill.*lint/)
+    expect(() => buildSkillPrompt(skillsRoot, 'missing', 'x', root)).toThrow(UNKNOWN_SKILL_RE)
   })
 })
 
 describe('runSkillsCli', () => {
-  test('list виводить id скілів', async () => {
+  test('list виводить id скілів', () => {
     const root = join(tmpdir(), `skills-cli-run-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
     writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
 
     const lines = []
-    const code = await runSkillsCli(['list'], {
+    const code = runSkillsCli(['list'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -64,14 +68,14 @@ describe('runSkillsCli', () => {
     expect(lines).toEqual(['Available skills:', '- fix'])
   })
 
-  test('skill <id> — промпт на stdout', async () => {
+  test('skill <id> — промпт на stdout', () => {
     const root = join(tmpdir(), `skills-cli-id-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'taze'), { recursive: true })
     writeFileSync(join(skillsRoot, 'taze', 'SKILL.md'), '# Taze\n')
 
     const lines = []
-    const code = await runSkillsCli(['taze'], {
+    const code = runSkillsCli(['taze'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -81,14 +85,14 @@ describe('runSkillsCli', () => {
     expect(lines.join('\n')).toContain('# Taze')
   })
 
-  test('skill <id> "task"', async () => {
+  test('skill <id> "task"', () => {
     const root = join(tmpdir(), `skills-cli-task-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
     mkdirSync(join(skillsRoot, 'lint'), { recursive: true })
     writeFileSync(join(skillsRoot, 'lint', 'SKILL.md'), '# Lint\n')
 
     const lines = []
-    const code = await runSkillsCli(['lint', 'run', 'lint'], {
+    const code = runSkillsCli(['lint', 'run', 'lint'], {
       packageRoot: root,
       projectDir: root,
       log: line => lines.push(line)
@@ -98,35 +102,39 @@ describe('runSkillsCli', () => {
     expect(lines.join('\n')).toContain('run lint')
   })
 
-  test('cursor без skill — помилка', async () => {
+  test('cursor без skill — помилка', () => {
     const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
 
     const errors = []
-    const code = await runSkillsCli(['cursor'], {
+    const code = runSkillsCli(['cursor'], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        /* stdout не перевіряється в цьому тесті */
+      },
       logError: line => errors.push(line)
     })
 
     expect(code).toBe(1)
-    expect(errors.join('\n')).toMatch(/Skill name is required/)
+    expect(errors.join('\n')).toMatch(SKILL_NAME_REQUIRED_RE)
   })
 
-  test('невідома підкоманда — usage', async () => {
+  test('невідома підкоманда — usage', () => {
     const root = join(tmpdir(), `skills-cli-usage-${Date.now()}`)
     mkdirSync(join(root, 'skills'), { recursive: true })
 
     const errors = []
-    const code = await runSkillsCli(['nope'], {
+    const code = runSkillsCli(['nope'], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        /* stdout не перевіряється в цьому тесті */
+      },
       logError: line => errors.push(line)
     })
 
     expect(code).toBe(1)
-    expect(errors.join('\n')).toMatch(/skill list/)
+    expect(errors.join('\n')).toMatch(USAGE_HINT_RE)
   })
 })

@@ -6,11 +6,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ensureDir, withTmpCwd, writeJson } from './test-helpers.mjs'
-import {
-  getMonorepoPackageRootDirs,
-  isIgnoredWorkspaceRoot,
-  normalizeWorkspacePatterns
-} from './workspaces.mjs'
+import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot, normalizeWorkspacePatterns } from './workspaces.mjs'
 
 describe('normalizeWorkspacePatterns', () => {
   test('повертає [] для відсутнього значення', () => {

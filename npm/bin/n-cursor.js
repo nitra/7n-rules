@@ -1310,7 +1310,7 @@ try {
       break
     }
     case 'skill': {
-      process.exitCode = await runSkillsCli(args)
+      process.exitCode = runSkillsCli(args)
 
       break
     }

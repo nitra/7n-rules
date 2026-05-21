@@ -35,3 +35,14 @@ test_rejects_esbuild_and_old_vite if {
 		"esbuild": "^0.25.0",
 	})})
 }
+
+test_rejects_vitest_and_jsdom if {
+	count(package_json.deny) == 2 with input as object.union(valid_vue_package, {"devDependencies": object.union(valid_vue_package.devDependencies, {
+		"vitest": "^3.0.0",
+		"jsdom": "^25.0.0",
+	})})
+}
+
+test_non_vue_package_ignores_vitest_and_jsdom if {
+	count(package_json.deny) == 0 with input as {"devDependencies": {"vitest": "^3.0.0", "jsdom": "^25.0.0"}}
+}

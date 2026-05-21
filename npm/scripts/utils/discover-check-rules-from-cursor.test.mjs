@@ -1,9 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import {
-  discoverCheckRulesFromCursorRules,
-  mdcBasenameToCheckId
-} from './discover-check-rules-from-cursor.mjs'
+import { discoverCheckRulesFromCursorRules, mdcBasenameToCheckId } from './discover-check-rules-from-cursor.mjs'
 
 describe('mdcBasenameToCheckId', () => {
   test('n- prefix strips to rule id', () => {

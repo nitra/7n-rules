@@ -7,7 +7,8 @@
 #
 # Перевіряє: якщо в `dependencies` є `vue`, то потрібні канонічні Vue/Vite
 # залежності, `devDependencies.vite` має бути мажорної версії ≥ 8, а `esbuild`
-# у dependencies/devDependencies заборонений (міграція на rolldown).
+# (міграція на rolldown), `vitest` (заміна на Bun Test Runner) і `jsdom`
+# (заміна на happy-dom) у dependencies/devDependencies заборонені.
 #
 # AST-сканування коду (заборона явних value-імпортів `from 'vue'`, заборона
 # Node-нативних модулів у `.vue` SFC, перевірка `vite.config` на
@@ -63,6 +64,18 @@ deny contains msg if {
 	uses_vue
 	"esbuild" in all_dependency_names
 	msg := "Vue-пакет: esbuild заборонено — заміни на rolldown і прибери залежність (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	"vitest" in all_dependency_names
+	msg := "Vue-пакет: vitest заборонено — використовуй Bun Test Runner (`bun test`) і прибери залежність (vue.mdc)"
+}
+
+deny contains msg if {
+	uses_vue
+	"jsdom" in all_dependency_names
+	msg := "Vue-пакет: jsdom заборонено — використовуй happy-dom і прибери залежність (vue.mdc)"
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
