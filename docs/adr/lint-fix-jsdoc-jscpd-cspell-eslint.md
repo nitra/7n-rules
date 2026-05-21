@@ -52,3 +52,17 @@
 - `e18e/prefer-static-regex`: виносити regexp поза тіла функцій у модуль-рівневі `const`. Файли: `npm/rules/bun/fix/layout/check.mjs` (`WHITESPACE_RE`, `LINT_CHAIN_PART_RE`), `npm/scripts/utils/inline-template-links.mjs`, `npm/scripts/utils/template.mjs`.
 - JSDoc `any` → `unknown`: замінювати `{*}` і `{ prop?: any }` на `unknown` та об'єднувати дубльовані `@param`-блоки. Файли: `npm/scripts/utils/template.mjs`, `npm/rules/k8s/fix/manifests/check.mjs`.
 - `cspell` перефразування: `Прекомпільовані` → `Статичні` (`npm/scripts/utils/inline-template-links.mjs:7`, `npm/scripts/utils/template.mjs:14`); `білдів` → `зібраних kustomize-маніфестів` (`npm/rules/k8s/lint/lint.mjs:250`).
+
+## Update 2026-05-20
+
+### ESLint: витягування проміжних змінних (`unicorn/no-await-expression-member`)
+
+Файли `npm/rules/changelog/fix/consistency/check.mjs` і `npm/scripts/sync-claude-config.test.mjs` зверталися до методів напряму з `await`-виразу (`.trim()`), що порушувало `unicorn/no-await-expression-member`. Рішення: витягти результат у проміжну змінну (`originMainRaw`, `headRaw`, `gitignoreContent`) перед викликом методу — мінімальна зміна без порушення логіки.
+
+### ESLint: заміна вкладеного тернарного оператора (`sonarjs/no-nested-conditional`)
+
+Файл `npm/scripts/sync-claude-config.mjs` (~рядок 442) використовував вкладений тернарний оператор для `prefix`. Замінено на `let prefix = ''` із наступним `if`-блоком — усуває вкладеність умов і задовольняє `sonarjs/no-nested-conditional` без зміни поведінки.
+
+### cspell: заміна неологізму `автодопис`
+
+Слово `автодопис` (форма `автодопису`) у `npm/CHANGELOG.md` (рядок 15) не розпізнавалося `cspell` (`Unknown word (автодопису)`). Замінено на `автоматичного дописування` — слово одноразове, простіше переформулювати, ніж додавати виключення в словник.
