@@ -5,9 +5,9 @@
  *
  * Використання:
  *   `npx \@nitra/cursor`             — завантажити cursor-правила
- *   `npx \@nitra/cursor check`       — перевірити правила, перелічені в AGENTS.md (якщо є check-*.mjs);
+ *   `npx \@nitra/cursor check`       — перевірити правила з `.cursor/rules/*.mdc`, для яких у пакеті є check/policy;
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
- *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує AGENTS.md)
+ *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує `.cursor/rules/`)
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor stop-hook`   — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active`,
  *                                     інакше викликає `check`); прописується автоматично в `.claude/settings.json`
@@ -78,6 +78,7 @@ import {
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
+import { discoverCheckRulesFromCursorRules } from '../scripts/utils/discover-check-rules-from-cursor.mjs'
 import { discoverCheckableRules } from '../scripts/utils/discover-checkable-rules.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintDocker } from '../rules/docker/lint/lint.mjs'
@@ -978,57 +979,10 @@ function discoverCheckScripts() {
 }
 
 /**
- * Перетворює базове ім'я .mdc у .cursor/rules на id скрипта check-<id>.mjs
- * @param {string} mdcBasename наприклад n-bun.mdc або script.mdc
- * @returns {string} id без суфікса .mdc та без префікса n- для керованих правил
- */
-function mdcBasenameToCheckId(mdcBasename) {
-  const base = basename(mdcBasename)
-  const withoutExt = base.endsWith('.mdc') ? base.slice(0, -'.mdc'.length) : base
-  return withoutExt.startsWith(RULE_PREFIX) ? withoutExt.slice(RULE_PREFIX.length) : withoutExt
-}
-
-/**
- * Зчитує AGENTS.md і повертає унікальні id перевірок у порядку згадування, лише ті що є в available
- * @param {string[]} available імена з discoverCheckScripts()
- * @returns {Promise<string[]>} унікальні id перевірок у порядку згадування в AGENTS.md
- */
-async function discoverCheckRulesFromAgentsMd(available) {
-  const agentsPath = join(cwd(), AGENTS_FILE)
-  if (!existsSync(agentsPath)) {
-    throw new Error(
-      `Немає ${AGENTS_FILE}. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} check bun ga\``
-    )
-  }
-  const text = await readFile(agentsPath, 'utf8')
-  const re = /\.cursor\/rules\/([^\s#`>]+\.mdc)/g
-  const raw = []
-  let m
-  while ((m = re.exec(text)) !== null) {
-    raw.push(m[1])
-  }
-  if (raw.length === 0) {
-    throw new Error(
-      `У ${AGENTS_FILE} немає посилань \`.cursor/rules/….mdc\`. Оновіть файл (\`npx ${PACKAGE_NAME}\`) або передайте правила явно.`
-    )
-  }
-  const seen = new Set()
-  const ordered = []
-  for (const pathFragment of raw) {
-    const id = mdcBasenameToCheckId(pathFragment)
-    if (available.includes(id) && !seen.has(id)) {
-      seen.add(id)
-      ordered.push(id)
-    }
-  }
-  return ordered
-}
-
-/**
- * Запускає перевірки: без аргументів — за списком у AGENTS.md; з аргументами — лише вказані правила.
+ * Запускає перевірки: без аргументів — за `*.mdc` у `.cursor/rules/`; з аргументами — лише вказані правила.
  * Делегує оркестрацію concern-ів (JS-checks + policy через `runConftestBatch`) у `runRule`;
  * сам `runChecks` відповідає лише за фільтр id, агрегацію exit-кодів і shared walk-cache на прогон.
- * @param {string[]} requestedRules імена правил; порожній масив — брати з AGENTS.md
+ * @param {string[]} requestedRules імена правил; порожній масив — брати з `.cursor/rules/*.mdc`
  * @returns {Promise<void>}
  */
 async function runChecks(requestedRules) {
@@ -1054,10 +1008,16 @@ async function runChecks(requestedRules) {
   if (requestedRules.length > 0) {
     idsToCheck = requestedRules
   } else {
-    idsToCheck = await discoverCheckRulesFromAgentsMd(available)
+    const mdcFiles = await listProjectRulesMdcFiles()
+    if (mdcFiles.length === 0) {
+      throw new Error(
+        `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} check bun ga\``
+      )
+    }
+    idsToCheck = discoverCheckRulesFromCursorRules(available, mdcFiles)
     if (idsToCheck.length === 0) {
       console.log(
-        `\n🔍 ${PACKAGE_NAME} check — у ${AGENTS_FILE} немає правил з programmatic перевіркою ` +
+        `\n🔍 ${PACKAGE_NAME} check — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
           `(відповідного check-*.mjs або policy/<name>/target.json у пакеті). Нічого не запущено.\n`
       )
       return

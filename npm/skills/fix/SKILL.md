@@ -12,7 +12,7 @@ description: >-
 
 ## Workflow
 
-1. **Діагностика** — запусти перевірку (за замовчуванням лише правила з `AGENTS.md`, для яких є `check-*.mjs`; повний набір — явні аргументи: `npx @nitra/cursor check bun ga …`):
+1. **Діагностика** — запусти перевірку (за замовчуванням лише правила з `.cursor/rules/*.mdc`, для яких у пакеті є programmatic check; повний набір — явні аргументи: `npx @nitra/cursor check bun ga …`):
 
 ```bash
 npx @nitra/cursor check

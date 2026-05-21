@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.69] - 2026-05-21
+
+### Changed
+
+- **CLI `check` без аргументів** більше не парсить `AGENTS.md` — список правил для прогону будується з **`*.mdc` у `.cursor/rules/`** (той самий дисковий індекс, що для `AGENTS.md` / `CLAUDE.md`): `n-bun.mdc` → `check bun`, ручні `conftest.mdc` тощо — за наявності programmatic check у пакеті. Явний `check bun ga` без змін. Зачеплено: [discover-check-rules-from-cursor.mjs](scripts/utils/discover-check-rules-from-cursor.mjs), [n-cursor.js](bin/n-cursor.js), [fix/SKILL.md](skills/fix/SKILL.md).
+
 ## [1.13.68] - 2026-05-21
 
 ### Changed
