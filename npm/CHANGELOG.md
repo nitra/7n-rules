@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.68] - 2026-05-21
+
+### Changed
+
+- ADR-хук **`normalize-decisions.sh`**: нормалізація тепер активніше повторно використовує наявні ADR замість створення нових файлів. У промпт додано принцип вибору операції — перш ніж `rewrite` (новий файл), агент звіряє тему драфта з clean-списком і рештою драфтів батча; якщо рішення по суті вже зафіксоване і драфт лише уточнює/доповнює/виправляє його — обирає `merge-into`. Правило `merge-into` тепер явно дозволяє `target` двох видів: clean-файл зі списку або `<slug>.md` `rewrite`-операції цього ж батча; суперечливе обмеження «не вигадуй target поза clean-списком» узгоджено з цим. Зачеплено: [normalize-decisions.sh](.claude-template/hooks/normalize-decisions.sh).
+
+### Fixed
+
+- ADR-хук **`normalize-decisions.sh`**: `merge-into` більше не падає в `skip … target missing`, коли драфт треба влити в clean-ADR, який створює `rewrite` того самого батча, або в наявний clean-ADR, на який LLM послався голим `<slug>.md` без timestamp-префікса. Операції тепер застосовуються двома впорядкованими групами (спершу `delete`/`rewrite`, потім `merge-into`), а `target` резолвиться за трьома кроками: точна назва → slug-мапа rewrite-ів цього батча → єдиний наявний clean-файл із суфіксом `-<slug>.md`. Цикл застосування переведено з pipe на читання з файлу — лічильники `applied`/`skipped` виживають і потрапляють у фінальний рядок логу `done (applied N, skipped M)`. Зачеплено: [normalize-decisions.sh](.claude-template/hooks/normalize-decisions.sh).
+
 ## [1.13.67] - 2026-05-21
 
 ### Changed

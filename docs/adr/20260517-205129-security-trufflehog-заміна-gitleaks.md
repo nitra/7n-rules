@@ -58,3 +58,16 @@ Chosen option: "Додати вимогу template-first до `scripts.mdc`", be
 - `npm/package.json` — bump `1.13.25` → `1.13.26`
 
 Контекст template-first: узгоджується з «Rego-first» у `conftest.mdc` — спершу перевір `template/` перед додаванням literal у JS чи `.mdc`.
+
+## Update 2026-05-17
+
+### Канонічний workflow lint-security.yml перенесено до `policy/lint_security_yml/` з Rego-enforcement
+
+Workflow YAML для `.github/workflows/lint-security.yml` був прописаний як inline fenced block у `security.mdc`. Усі інші rules зберігають workflow-канон у `policy/<concern>/template/<name>.yml.snippet.yml` і валідують реальний файл через Rego policy; `security` rule був винятком без пояснення.
+
+Chosen option: "Перенести у `policy/lint_security_yml/` з Rego-enforcement", because користувач явно обрав варіант «Перенести + Rego полісі (повний canon)», щоб бути послідовним з іншими rules.
+
+- Good, because `conftest verify` проходить для нового policy; `npx @nitra/cursor check security` — чистий.
+- Bad, because `.github/workflows/lint-security.yml` у репо `cursor` відсутній — Rego-check на наявність workflow не активний до додавання цього файлу.
+
+Створені файли: `npm/rules/security/policy/lint_security_yml/target.json` (`{ "files": { "single": ".github/workflows/lint-security.yml" } }`), `lint_security_yml.rego`, `lint_security_yml_test.rego`, `template/lint-security.yml.snippet.yml` (канон workflow: trigger на `push`/`pull_request` до `dev`/`main`, `concurrency`, job `security` з `trufflehog/actions@main`). `npm/scripts/utils/inline-template-links.test.mjs` оновлено: «4 template links» → «5 template links».

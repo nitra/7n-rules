@@ -165,6 +165,8 @@ PROMPT_HEADER=$(cat <<'EOF'
   ]
 }
 
+Принцип вибору операції: уникай дрібних дублів. Перш ніж обрати `rewrite`, звір тему драфта з clean-списком і з рештою драфтів цього батча. Якщо рішення по суті вже зафіксоване — у наявному clean-ADR або в драфті, який ти переписуєш через `rewrite`, — і драфт лише уточнює / доповнює / виправляє / продовжує його, обери `merge-into`, а не `rewrite`. `rewrite` (новий файл) виправданий лише для справді самостійного, нового рішення. Краще один повний наскрізний ADR, ніж кілька майже однакових файлів.
+
 Правила:
 
 1. `delete` — драфт тривіальний / повністю покритий іншим існуючим clean-ADR-ом / порожній. Поясни короткою причиною українською.
@@ -180,14 +182,17 @@ PROMPT_HEADER=$(cat <<'EOF'
    - У `## More Information` перенеси файли, команди, публічні API, конфіги й transcript facts. Якщо нема — `Додаткової інформації в transcript не зафіксовано.`
    - `slug` — kebab-case українською (наприклад `ланцюжок-запуску-abie`, `npm-publish-flow`). Без розширення `.md`. Літери малі, дозволено цифри, дефіс, кирилиця. Якщо тема технічна англійською (назва пакету, ключове слово) — лиши англійською без транслітерації.
 
-3. `merge-into` — драфт повторює тему вже існуючого clean-файлу зі списку нижче. `target` — точна назва файлу зі списку (з `.md`). `additions` — лише новий зміст, який варто дописати в кінець target-файлу під підзаголовком `## Update YYYY-MM-DD` (date з `captured` драфта). Якщо нічого нового додати — використовуй `delete`.
+3. `merge-into` — рішення драфта НЕ самостійне: воно лише уточнює, доповнює, виправляє або продовжує рішення, яке вже зафіксоване або (а) в clean-файлі зі списку нижче, або (б) у драфті цього ж батча, який ти переписуєш через `rewrite`. `target`:
+   - для (а) — точна назва clean-файлу зі списку (з `.md`);
+   - для (б) — `<slug>.md`, де `<slug>` дорівнює полю `slug` тієї `rewrite`-операції (timestamp-префікс скрипт додасть сам — не дописуй його).
+   `additions` — лише новий зміст, який варто дописати в кінець target-файлу під підзаголовком `## Update YYYY-MM-DD` (date з `captured` драфта). Якщо нічого нового додати — використовуй `delete`.
 
 Жорсткі обмеження:
 
 - Поверни валідний JSON, нічого крім нього. Жодних code-fence, жодних коментарів.
 - Кожен файл з вхідного списку має зʼявитися у `operations` рівно один раз.
 - Слаги не повторювати між операціями того самого батча. Якщо дві чернетки про одну тему — одна `rewrite`, інша `merge-into target: <slug>.md` з тим самим slug-ом.
-- Не вигадуй target, якого нема у списку clean-файлів.
+- `target` у `merge-into` — це або файл зі списку clean-файлів, або `<slug>.md` rewrite-операції цього ж батча. Іншого target не вигадуй.
 - Не вигадуй альтернативи, decision drivers, наслідки, людей або зовнішній контекст. Якщо даних бракує — явно напиши, що transcript цього не містить.
 
 Вхідні драфти і clean-список — нижче.
@@ -278,7 +283,22 @@ resolve_unique_slug_path() {
 APPLIED=0
 SKIPPED=0
 
-jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
+# Apply operations in two ordered groups — delete/rewrite first, merge-into
+# last — so a merge-into can target a clean file that a rewrite of the same
+# batch only just created. Looping over a file (not a pipe) keeps the loop in
+# the main shell, so APPLIED/SKIPPED survive to the final summary line.
+OPS_FILE="$TMP_DIR/ops.jsonl"
+{
+  jq -c '.operations[] | select(.op != "merge-into")' "$RESPONSE_CLEAN_FILE"
+  jq -c '.operations[] | select(.op == "merge-into")' "$RESPONSE_CLEAN_FILE"
+} > "$OPS_FILE"
+
+# slug → created clean-file path: written by rewrite ops, read by merge-into
+# ops (one tab-separated "slug<TAB>path" line per rewrite).
+SLUG_MAP="$TMP_DIR/slug-map.txt"
+: > "$SLUG_MAP"
+
+while IFS= read -r op_json; do
   OP=$(printf '%s' "$op_json" | jq -r '.op // empty')
   FILE=$(printf '%s' "$op_json" | jq -r '.file // empty')
   SRC_PATH="$ADR_DIR/$FILE"
@@ -349,6 +369,9 @@ jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
       DEST_PATH=$(resolve_unique_slug_path "$DEST_SLUG")
       printf '%s\n' "$CONTENT" > "$DEST_PATH"
       rm -- "$SRC_PATH"
+      # Record bare slug → final path so a same-batch merge-into can target
+      # this freshly created file by `<slug>.md` despite the timestamp prefix.
+      printf '%s\t%s\n' "$SLUG" "$DEST_PATH" >> "$SLUG_MAP"
       log "rewrite: $FILE → $(basename "$DEST_PATH")"
       APPLIED=$(( APPLIED + 1 ))
       ;;
@@ -367,7 +390,32 @@ jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
           continue
           ;;
       esac
+      # Resolve the target clean file. The LLM gives a bare `<slug>.md`, but the
+      # real file usually carries a `YYYYMMDD-HHMMSS-` prefix. Try, in order:
+      #   1. exact name in docs/adr/,
+      #   2. a rewrite of this batch that produced that slug (SLUG_MAP),
+      #   3. a unique existing clean file whose name ends with `-<slug>.md`.
       TARGET_PATH="$ADR_DIR/$TARGET"
+      if [ ! -f "$TARGET_PATH" ]; then
+        TSLUG="${TARGET%.md}"
+        MAPPED=$(awk -F'\t' -v s="$TSLUG" '$1 == s { print $2; exit }' "$SLUG_MAP")
+        if [ -z "$MAPPED" ]; then
+          SUFFIX_HITS=0
+          for cf in "$ADR_DIR"/*-"$TSLUG".md; do
+            [ -f "$cf" ] || continue
+            MAPPED="$cf"
+            SUFFIX_HITS=$(( SUFFIX_HITS + 1 ))
+          done
+          if [ "$SUFFIX_HITS" -gt 1 ]; then
+            log "skip merge-into: target '$TARGET' ambiguous ($SUFFIX_HITS matches)"
+            SKIPPED=$(( SKIPPED + 1 ))
+            continue
+          fi
+        fi
+        if [ -n "$MAPPED" ]; then
+          TARGET_PATH="$MAPPED"
+        fi
+      fi
       if [ ! -f "$TARGET_PATH" ]; then
         log "skip merge-into: target '$TARGET' missing"
         SKIPPED=$(( SKIPPED + 1 ))
@@ -380,7 +428,7 @@ jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
       fi
       printf '\n%s\n' "$ADDITIONS" >> "$TARGET_PATH"
       rm -- "$SRC_PATH"
-      log "merge-into: $FILE → $TARGET"
+      log "merge-into: $FILE → $(basename "$TARGET_PATH")"
       APPLIED=$(( APPLIED + 1 ))
       ;;
     *)
@@ -388,6 +436,6 @@ jq -c '.operations[]' "$RESPONSE_CLEAN_FILE" | while IFS= read -r op_json; do
       SKIPPED=$(( SKIPPED + 1 ))
       ;;
   esac
-done
+done < "$OPS_FILE"
 
-log "done"
+log "done (applied $APPLIED, skipped $SKIPPED)"
