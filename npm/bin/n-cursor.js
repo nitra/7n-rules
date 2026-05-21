@@ -19,10 +19,10 @@
  *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
- *   `npx \@nitra/cursor skill list`  — скіли пакета без синку в проєкт; `skill prompt|claude|cursor <id> "task"`
- *   `npx -p \@nitra/cursor n-skills` — той самий раннер скілів (окремий bin, див. `bin/n-skills.js`)
- *   `npx \@nitra/cursor claude taze`     — скіл аргументом після `claude` (див. `bin/n-claude.js`)
- *   `npx -p \@nitra/cursor n-claude taze` — те саме через bin `n-claude`
+ *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
+ *   `npx \@nitra/cursor skill taze`     — промпт на stdout
+ *   `npx \@nitra/cursor skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
+ *   `npx \@nitra/cursor skill claude taze ["task"]` — Claude Code CLI (`claude -p`)
  *
  * Agent інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
@@ -94,7 +94,7 @@ import { runRule } from '../scripts/utils/run-rule.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
-import { runClaudeFirstSkillsCli, runSkillsCli } from '../scripts/skills-cli.mjs'
+import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
@@ -1314,11 +1314,6 @@ try {
 
       break
     }
-    case 'claude': {
-      process.exitCode = await runClaudeFirstSkillsCli(args)
-
-      break
-    }
     case undefined:
     case '': {
       await runSync()
@@ -1328,7 +1323,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, skill, claude`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, skill`
       )
       process.exitCode = 1
     }

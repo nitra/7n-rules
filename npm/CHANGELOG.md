@@ -4,11 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.72] - 2026-05-21
+
+### Changed
+
+- **CLI скілів спрощено** — лише `npx @nitra/cursor skill list`, `skill <id> ["task"]` (промпт на stdout), `skill cursor <id> ["task"]`, `skill claude <id> ["task"]`. Прибрано `skill prompt`, bins `n-skills` / `n-claude`, підкоманду `claude` у `n-cursor`. Зачеплено: [skills-cli.mjs](scripts/skills-cli.mjs).
+
 ## [1.13.71] - 2026-05-21
 
 ### Added
 
-- **Claude-first UX для скілів** — `npx @nitra/cursor claude taze "task"` і bin **`n-claude`** (`npx -p @nitra/cursor n-claude taze`): скіл першим аргументом після імені команди, всередині делегує в `claude -p`. Підкоманда `claude` у `n-cursor` не конфліктує з Anthropic CLI — це entry пакета. Зачеплено: [mapClaudeFirstArgv / runClaudeFirstSkillsCli](scripts/skills-cli.mjs), [n-claude.js](bin/n-claude.js).
+- **Claude-first UX для скілів** — `npx @nitra/cursor claude taze "task"` і bin **`n-claude`** (замінено спрощеним `skill` у 1.13.72).
 
 ## [1.13.70] - 2026-05-21
 
