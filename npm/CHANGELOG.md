@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.67] - 2026-05-21
+
+### Changed
+
+- Правило **`changelog`**: перевірка `changelog/consistency` більше не вимагає version-bump і запису в `CHANGELOG.md` за зміни синхронізованого з `@nitra/cursor` інструментарію. Інверсію шляхів розширено: до `docs/` / `doc/` додано префікси `.cursor/` (канонічні правила та скіли) і `.claude/` (ADR-хуки). Причина: синк tooling-пакета — це дзеркало `@nitra/cursor`, а не зміна логіки воркспейсу, тож раніше кожен `npx @nitra/cursor` тягнув за собою зайвий bump і секцію CHANGELOG, де описувалося лише оновлення інструментарію. Кореневі `AGENTS.md` / `CLAUDE.md` окремого запису в інверсії не потребують — їх покриває пропуск кореня монорепо (нижче). Джерело правил у самому репо `@nitra/cursor` лежить під `npm/`, тож на нього інверсія не поширюється — реальні зміни правил і далі вимагають bump. Зачеплено: [check.mjs](rules/changelog/fix/consistency/check.mjs) (`CHANGELOG_IGNORE_PATH_PREFIXES`), [changelog.mdc](rules/changelog/changelog.mdc) (секція «Інверсія», bump `2.5` → `2.6`).
+- Правило **`changelog`**: корінь монорепо (воркспейс `.` за наявності підпакетів) більше не перевіряється на bump/CHANGELOG. Причина: кореневий `package.json` монорепо — це glue/конфіг/tooling (`private`, `workspaces`), власного продуктового CHANGELOG він не веде, а помітні зміни документують підпакети. Раніше будь-яка правка в корені (конфіги, синк правил, bump `@nitra/cursor` у `devDependencies`) хибно вимагала bump кореневої `version`. Одно-пакетні репозиторії (корінь = єдиний воркспейс) перевіряються як і раніше. Зачеплено: [check.mjs](rules/changelog/fix/consistency/check.mjs) (`isMonorepoRoot` у `check()`), [changelog.mdc](rules/changelog/changelog.mdc).
+
+### Fixed
+
+- Правило **`changelog`**: перевірка `changelog/consistency` коректно опрацьовує файли з не-ASCII іменами (кирилиця тощо). `git diff` / `git ls-files` без `-z` застосовують `core.quotePath` і повертають такі шляхи у C-quoted формі `"docs/\320\262..."` — рядок не збігався з префіксами інверсії, тож, наприклад, чернетка ADR з кириличною назвою під `docs/` хибно вважалася зміною, що потребує bump, і валила перевірку. Усі переліки шляхів тепер читаються через `-z` (`NUL`-розділення, без quoting). Зачеплено: [check.mjs](rules/changelog/fix/consistency/check.mjs) (`splitNulPaths`, `listChangedPathsAgainstBase`), [check.test.mjs](rules/changelog/fix/consistency/check.test.mjs) (тести quotePath, синку tooling і пропуску кореня монорепо).
+
 ## [1.13.66] - 2026-05-20
 
 ### Changed

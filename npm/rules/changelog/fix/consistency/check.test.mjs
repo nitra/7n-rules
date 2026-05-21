@@ -279,6 +279,52 @@ describe('check-changelog (local-only merge-base логіка)', () => {
     })
   })
 
+  test('feature-гілка: лише синк tooling (.cursor/, .claude/) без bump → pass', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'dev'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['checkout', '-q', '-b', 'feat/sync'])
+      await ensureDir(join('.cursor', 'rules'))
+      await writeFile(join('.cursor', 'rules', 'n-adr.mdc'), '# rule\n', 'utf8')
+      await ensureDir(join('.claude', 'hooks'))
+      await writeFile(join('.claude', 'hooks', 'normalize.sh'), '#!/bin/sh\n', 'utf8')
+      expect(await checkChangelog()).toBe(0)
+    })
+  })
+
+  test('feature-гілка: untracked файл з не-ASCII назвою під docs/ → pass (quotePath -z)', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'dev'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['checkout', '-q', '-b', 'feat/docs'])
+      await ensureDir('docs')
+      await writeFile(join('docs', 'нотатка-про-зміни.md'), '# нотатка\n', 'utf8')
+      expect(await checkChangelog()).toBe(0)
+    })
+  })
+
+  test('монорепо: зміна root-файлу без bump кореня → pass (корінь не перевіряється)', async () => {
+    await withTmpCwd(async () => {
+      await git(['init', '-q', '-b', 'dev'])
+      await writeJson('package.json', { name: 'mono', version: '1.0.0', private: true, workspaces: ['pkg'] })
+      await writeFile('CHANGELOG.md', changelogWithVersion('1.0.0'), 'utf8')
+      await ensureDir('pkg')
+      await writeJson(join('pkg', 'package.json'), { name: 'pkg', version: '1.0.0', private: true })
+      await writeFile(join('pkg', 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'])
+      await git(['commit', '-q', '-m', 'init'])
+      await git(['checkout', '-q', '-b', 'feat/root'])
+      await writeFile('root-tool.js', 'x\n', 'utf8')
+      expect(await checkChangelog()).toBe(0)
+    })
+  })
+
   test('feature-гілка зі змінами без bump → fail', async () => {
     await withTmpCwd(async () => {
       await git(['init', '-q', '-b', 'dev'])

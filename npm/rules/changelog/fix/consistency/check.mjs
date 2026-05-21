@@ -38,11 +38,14 @@ const FEATURE_BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
 /** Гілка `dev`: local-only не активний (крім незакомічених registry-published). */
 const LOCAL_ONLY_SKIP_BRANCH = 'dev'
 
-/** Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc). */
-const CHANGELOG_IGNORE_PATH_PREFIXES = Object.freeze(['docs/', 'doc/'])
-
-/** Точні шляхи каталогів документації (posix), без bump. */
-const CHANGELOG_IGNORE_PATH_EXACT = Object.freeze(['docs', 'doc'])
+/**
+ * Префікси шляхів (posix), які не вважаються релізними змінами — інверсія glob (n-changelog.mdc):
+ * документація (`docs/`, `doc/`) та синхронізований із `@nitra/cursor` інструментарій
+ * (`.cursor/` — канонічні правила й скіли, `.claude/` — ADR-хуки). Останнє — дзеркало tooling-пакета,
+ * не логіка самого воркспейсу, тож bump CHANGELOG не потрібен. Джерело правил у репо `@nitra/cursor`
+ * лежить під `npm/`, тож на нього ця інверсія не поширюється.
+ */
+const CHANGELOG_IGNORE_PATH_PREFIXES = Object.freeze(['docs/', 'doc/', '.cursor/', '.claude/'])
 
 /** Таймаут на `npm view` / PyPI (мс) */
 const REGISTRY_TIMEOUT_MS = 10_000
@@ -117,9 +120,6 @@ async function resolveBranchRef(branchName) {
  */
 function isChangelogIgnoredPath(relPath) {
   const p = relPath.replaceAll('\\', '/').replace(LEADING_DOTSLASH_RE, '')
-  if (CHANGELOG_IGNORE_PATH_EXACT.includes(p)) {
-    return true
-  }
   return CHANGELOG_IGNORE_PATH_PREFIXES.some(prefix => p.startsWith(prefix))
 }
 
@@ -197,28 +197,30 @@ function pathspecForWorkspace(ws, subWorkspaces) {
 }
 
 /**
+ * Шляхи з `NUL`-розділеного виводу git (прапорець `-z`).
+ *
+ * `-z` критичний: без нього git застосовує `core.quotePath` і повертає не-ASCII імена файлів
+ * (кирилиця тощо) у C-quoted формі `"docs/\320\262..."`. Такий рядок не збігається з
+ * префіксами інверсії (`docs/`, `.cursor/`, ...), тож файл хибно вважався б зміною, що потребує bump.
+ * @param {string | null} nulSeparated сирий вивід git або `null`
+ * @returns {string[]} шляхи без обгортки/escape
+ */
+function splitNulPaths(nulSeparated) {
+  if (typeof nulSeparated !== 'string') {
+    return []
+  }
+  return nulSeparated.split('\0').filter(p => p.length > 0)
+}
+
+/**
  * @param {string} baseRef параметр
  * @param {string[]} pathspec параметр
  * @returns {Promise<string[]>} результат
  */
 async function listChangedPathsAgainstBase(baseRef, pathspec) {
-  /**
-  @type {string[]}
-   */
-  const out = []
-  const diffArgs =
-    baseRef === 'HEAD'
-      ? ['diff', '--name-only', 'HEAD', '--', ...pathspec]
-      : ['diff', '--name-only', baseRef, '--', ...pathspec]
-  const diffOut = await gitOrNull(diffArgs)
-  if (typeof diffOut === 'string' && diffOut.trim().length > 0) {
-    out.push(...diffOut.trim().split('\n'))
-  }
-  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '--', ...pathspec])
-  if (typeof untrackedOut === 'string' && untrackedOut.trim().length > 0) {
-    out.push(...untrackedOut.trim().split('\n'))
-  }
-  return [...new Set(out)]
+  const diffOut = await gitOrNull(['diff', '--name-only', '-z', baseRef, '--', ...pathspec])
+  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspec])
+  return [...new Set([...splitNulPaths(diffOut), ...splitNulPaths(untrackedOut)])]
 }
 
 /**
@@ -551,6 +553,9 @@ export async function check(opts = {}) {
 
   const workspaces = await getMonorepoProjectRootDirs(process.cwd())
   const subWorkspaces = workspaces.filter(w => w !== '.')
+  // Корінь монорепо (`.` за наявності підпакетів) — це glue/конфіг/tooling, а не логіка
+  // продукту: власного CHANGELOG він не веде, помітні зміни документують підпакети.
+  const isMonorepoRoot = subWorkspaces.length > 0
 
   /**
   @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]}
@@ -562,6 +567,12 @@ export async function check(opts = {}) {
   const localOnly = []
 
   for (const ws of workspaces) {
+    if (ws === '.' && isMonorepoRoot) {
+      pass(
+        '<root>: корінь монорепо (glue/конфіг/tooling) — перевірку CHANGELOG пропущено; помітні зміни документують підпакети'
+      )
+      continue
+    }
     const manifest = await readPackageManifest(ws)
     if (!manifest) {
       continue
