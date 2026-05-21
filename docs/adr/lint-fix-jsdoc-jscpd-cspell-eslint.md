@@ -46,3 +46,9 @@
 - `knip.json`: `trufflehog` додано до `ignoreBinaries`.
 - `markdownlint.rego`: виправлено кирилічний символ `v` → `в` у коментарі.
 - `ci4.mdc`, `n-ci4.mdc`: MD060 (ширина стовпців) і typo `apended` → `appended`.
+
+## Update 2026-05-20
+
+- `e18e/prefer-static-regex`: виносити regexp поза тіла функцій у модуль-рівневі `const`. Файли: `npm/rules/bun/fix/layout/check.mjs` (`WHITESPACE_RE`, `LINT_CHAIN_PART_RE`), `npm/scripts/utils/inline-template-links.mjs`, `npm/scripts/utils/template.mjs`.
+- JSDoc `any` → `unknown`: замінювати `{*}` і `{ prop?: any }` на `unknown` та об'єднувати дубльовані `@param`-блоки. Файли: `npm/scripts/utils/template.mjs`, `npm/rules/k8s/fix/manifests/check.mjs`.
+- `cspell` перефразування: `Прекомпільовані` → `Статичні` (`npm/scripts/utils/inline-template-links.mjs:7`, `npm/scripts/utils/template.mjs:14`); `білдів` → `зібраних kustomize-маніфестів` (`npm/rules/k8s/lint/lint.mjs:250`).
