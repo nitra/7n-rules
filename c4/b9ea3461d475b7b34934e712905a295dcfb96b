@@ -1,0 +1,35 @@
+npm/scripts/utils/worktree-fingerprint.test.mjs
+  s_f07340130f9ad5::t_be3ad83c2f1d4c 1-27
+npm/scripts/utils/with-lock.mjs
+  s_f07340130f9ad5::t_2d7ed31dc3627b 49,56
+  s_f07340130f9ad5::t_97c838faea2ca2 1-48,50-55,57-120
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_f07340130f9ad5::t_70a5503142e986 1-30
+npm/package.json
+  s_f07340130f9ad5::t_20d2d069325b0e 3
+npm/rules/ga/lint/lint.mjs
+  s_f07340130f9ad5::t_c628600f7b99ea 151
+  s_f07340130f9ad5::t_c0e5a497d853d1 167-168
+  s_f07340130f9ad5::t_34869a7cd2e57f 32
+npm/CHANGELOG.md
+  s_f07340130f9ad5::t_67f87b2758c3a0 7-12
+npm/scripts/utils/with-lock.test.mjs
+  ai_agent 60-63
+  s_f07340130f9ad5::t_aac168dc1d5d2e 1-59,64-75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "c4b9ea3461d475b7b34934e712905a295dcfb96b",
+  "prompts": {},
+  "sessions": {
+    "s_f07340130f9ad5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "df4b10be-f6c2-4d03-9dc2-731d9737d45e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
