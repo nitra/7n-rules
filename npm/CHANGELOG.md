@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.76] - 2026-05-22
+
+### Added
+
+- **`ga.workflow_common` — мінімальні версії marketplace actions у `uses:`:** `actions/checkout` >= major `v6` (`@v6` і `@v6.0.2` дозволені), `Infisical/secrets-action` >= `v1.0.16` (канон у `policy/workflow_common/template/uses-min-versions.snippet.json`; SHA-pin пропускається). `check-ga` передає template через `--data`. Bump `ga.mdc` `1.9` → `1.10`.
+
 ## [1.13.75] - 2026-05-22
 
 ### Removed

@@ -55,6 +55,11 @@ setup_bun_no_checkout_template := concat(" ", [
 	"інакше runner не знайде action.yml (ga.mdc)",
 ])
 
+min_uses_version_template := concat(" ", [
+	"jobs.%s.steps[%d]: %s має бути >= v%s (зараз %q) —",
+	"онови ref у uses: (ga.mdc)",
+])
+
 forbidden_run_command_template := concat(" ", [
 	"jobs.%s.steps[%d]: `%s` заборонено у workflow —",
 	"мігровано на knip (js-lint.mdc, ga.mdc)",
@@ -147,6 +152,28 @@ deny contains msg if {
 	msg := "concurrency.cancel-in-progress має бути true (ga.mdc)"
 }
 
+# ── deny: мінімальні версії marketplace actions у `uses:` ─────────────────
+#
+# Канон — `template/uses-min-versions.snippet.json` (через --data).
+# Перевіряє semver-подібні теги `vX.Y.Z` / `vN`; SHA-pin (40 hex) пропускаємо.
+
+deny contains msg if {
+	some entry in all_flat_steps
+	uses := object.get(entry.step, "uses", "")
+	uses != ""
+	some action_slug, min_ver in data.template.snippet
+	action_uses_matches(uses, action_slug)
+	ref := action_uses_ref(uses)
+	not action_ref_meets_min(ref, min_ver)
+	msg := sprintf(min_uses_version_template, [
+		entry.job_id,
+		entry.step_index,
+		action_slug,
+		min_ver,
+		ref,
+	])
+}
+
 # ── helpers ────────────────────────────────────────────────────────────────
 
 # Об'єднаний рядок `uses` + `run` для одного кроку — для substring-пошуку
@@ -181,4 +208,66 @@ has_checkout_before(job, before) if {
 	i < before
 	uses := object.get(step, "uses", "")
 	contains(uses, "actions/checkout@")
+}
+
+# `uses:` починається з `owner/repo@` для заданого slug.
+action_uses_matches(uses, slug) if {
+	startswith(uses, concat("", [slug, "@"]))
+}
+
+# Ref після останнього `@` у `uses:` (owner/repo@ref).
+action_uses_ref(uses) := ref if {
+	parts := split(uses, "@")
+	count(parts) >= 2
+	ref := parts[count(parts) - 1]
+}
+
+# SHA-pin — semver-політика не застосовується.
+action_ref_is_sha_pin(ref) if {
+	regex.match(`^[0-9a-fA-F]{40}$`, ref)
+}
+
+# Semver ref >= min (обидва як X.Y.Z після optional `v`).
+action_ref_meets_min(ref, _) if {
+	action_ref_is_sha_pin(ref)
+}
+
+action_ref_meets_min(ref, min_ver) if {
+	not action_ref_is_sha_pin(ref)
+	version_triple_gte(version_triple(ref), version_triple(min_ver))
+}
+
+version_triple(raw) := [major, minor, patch] if {
+	stripped := trim_prefix(trim_prefix(raw, "v"), "V")
+	parts := split_to_numbers(stripped)
+	major := version_part(parts, 0)
+	minor := version_part(parts, 1)
+	patch := version_part(parts, 2)
+}
+
+version_part(parts, idx) := parts[idx] if {
+	count(parts) > idx
+}
+
+else := 0
+
+version_triple_gte(a, b) if {
+	a[0] > b[0]
+}
+
+version_triple_gte(a, b) if {
+	a[0] == b[0]
+	a[1] > b[1]
+}
+
+version_triple_gte(a, b) if {
+	a[0] == b[0]
+	a[1] == b[1]
+	a[2] >= b[2]
+}
+
+split_to_numbers(spec) := nums if {
+	tokens := regex.split(`\D+`, spec)
+	non_empty := [t | some t in tokens; t != ""]
+	nums := [n | some t in non_empty; n := to_number(t)]
 }

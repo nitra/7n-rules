@@ -303,10 +303,14 @@ async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
 
   if (ymlWorkflows.length === 0) return
   const wfFiles = ymlWorkflows.map(f => join(wfDir, f))
+  const workflowCommonDir = join(GA_POLICY_DIR, 'workflow_common')
+  const workflowCommonTpl = await loadTemplate(workflowCommonDir)
+  const usesMinVersionsSnippet = workflowCommonTpl['uses-min-versions']?.snippet
   const violations = runConftestBatch({
     policyDirRel: 'ga/workflow_common',
     namespace: 'ga.workflow_common',
-    files: wfFiles
+    files: wfFiles,
+    templateData: usesMinVersionsSnippet ? { snippet: usesMinVersionsSnippet } : undefined
   })
   for (const v of violations) fail(`${v.filename}: ${v.message}`)
   if (violations.length === 0) {
