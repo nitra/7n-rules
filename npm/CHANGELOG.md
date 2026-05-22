@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.77] - 2026-05-22
+
+### Added
+
+- **`with-lock`:** атомарний `mkdirSync`-лок + SHA-256 fingerprint-дедуп для важких команд; пілот — `lint-ga` автоматично серіалізує паралельні запуски та пропускає дублікати при незміненому робочому дереві (TTL 10 хв). Нові модулі: `scripts/utils/worktree-fingerprint.mjs`, `scripts/utils/with-lock.mjs`.
+
 ## [1.13.76] - 2026-05-22
 
 ### Added

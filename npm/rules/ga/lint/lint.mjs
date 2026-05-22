@@ -29,6 +29,7 @@ import { platform } from 'node:process'
 import { check as checkGa } from '../fix/workflows/check.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
@@ -147,7 +148,7 @@ function preflight(dep) {
  * Першу помилку від actionlint/zizmor/check повертаємо як код виходу; наступні кроки не запускаються.
  * @returns {Promise<number>} 0 — все OK, інакше — код першого кроку, що впав
  */
-export async function runLintGaCli() {
+async function runLintGaSteps() {
   let preflightOk = true
   for (const dep of [SHELLCHECK_PREFLIGHT, UV_PREFLIGHT, CONFTEST_PREFLIGHT]) {
     if (!preflight(dep)) preflightOk = false
@@ -163,3 +164,5 @@ export async function runLintGaCli() {
   console.log('\n▶ check-ga (rego-полісі npm/policy/ga/ + JS cross-file перевірки)')
   return await checkGa()
 }
+
+export const runLintGaCli = () => withLock('lint-ga', runLintGaSteps)
