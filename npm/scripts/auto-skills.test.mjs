@@ -2,14 +2,14 @@
  * Тести автодетекту скілів для `.n-cursor.json` за `skills/<skill>/auto.md`.
  *
  * Скіли залежать від уже виявлених правил (вхід — `detectedRules`), а не безпосередньо
- * від файлів проєкту. Це навмисне: умови `abie-kustomize` й `taze` дзеркалять умови
- * правил `abie` й `bun`, тож не дублюються.
+ * від файлів проєкту. Це навмисне: умови `adr-normalize` й `taze` дзеркалять умови
+ * правил `adr` й `bun`, тож не дублюються.
  */
 import { describe, expect, test } from 'bun:test'
 
 import { detectAutoSkills } from './auto-skills.mjs'
 
-const ALL_SKILLS = ['abie-kustomize', 'efes-create-env', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
+const ALL_SKILLS = ['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
 
 describe('detectAutoSkills', () => {
   test('завжди-додавані скіли — без правил у конфігу', () => {
@@ -21,13 +21,13 @@ describe('detectAutoSkills', () => {
     expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
-  test('abie-kustomize додається, коли правило abie виявлене', () => {
+  test('adr-normalize додається, коли правило adr виявлене', () => {
     const actual = detectAutoSkills({
       availableSkills: ALL_SKILLS,
-      detectedRules: ['abie']
+      detectedRules: ['adr']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram'])
+    expect(actual.skills).toEqual(['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('taze додається разом з правилом bun', () => {
@@ -39,23 +39,23 @@ describe('detectAutoSkills', () => {
     expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
-  test('повний набір: abie + bun → всі скіли у фіксованому порядку', () => {
+  test('повний набір: adr + bun → всі скіли у фіксованому порядку', () => {
     const actual = detectAutoSkills({
       availableSkills: ALL_SKILLS,
-      detectedRules: ['abie', 'bun']
+      detectedRules: ['adr', 'bun']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
+    expect(actual.skills).toEqual(['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
   test('disable-skills блокує автододавання', () => {
     const actual = detectAutoSkills({
       availableSkills: ALL_SKILLS,
-      detectedRules: ['abie', 'bun'],
+      detectedRules: ['adr', 'bun'],
       disableSkills: ['fix', 'taze']
     })
 
-    expect(actual.skills).toEqual(['abie-kustomize', 'lint', 'llm-patch', 'publish-telegram'])
+    expect(actual.skills).toEqual(['adr-normalize', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('недоступні в пакеті скіли не додаються', () => {
@@ -76,30 +76,12 @@ describe('detectAutoSkills', () => {
     expect(actual.skills.includes('taze')).toBe(false)
   })
 
-  test('abie-kustomize НЕ додається без правила abie', () => {
+  test('adr-normalize НЕ додається без правила adr', () => {
     const actual = detectAutoSkills({
       availableSkills: ALL_SKILLS,
       detectedRules: ['bun']
     })
 
-    expect(actual.skills.includes('abie-kustomize')).toBe(false)
-  })
-
-  test('efes-create-env додається, коли правило efes виявлене', () => {
-    const actual = detectAutoSkills({
-      availableSkills: ALL_SKILLS,
-      detectedRules: ['efes']
-    })
-
-    expect(actual.skills.includes('efes-create-env')).toBe(true)
-  })
-
-  test('efes-create-env НЕ додається без правила efes', () => {
-    const actual = detectAutoSkills({
-      availableSkills: ALL_SKILLS,
-      detectedRules: ['abie', 'bun']
-    })
-
-    expect(actual.skills.includes('efes-create-env')).toBe(false)
+    expect(actual.skills.includes('adr-normalize')).toBe(false)
   })
 })

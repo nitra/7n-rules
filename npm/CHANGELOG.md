@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.75] - 2026-05-22
+
+### Removed
+
+- **Скіли `abie-clean` та `abie-kustomize`** прибрано з пакета — abie-специфічні скіли перенесено до `@nitra/abie-docs` і перейменовано на `clean` / `kustomize` (запуск через `npx @nitra/abie-docs skill <id>`). Автоактивація цих скілів за правилом `abie` більше не діє. Зачеплено: [auto-skills.mjs](scripts/auto-skills.mjs), [auto-skills.test.mjs](scripts/auto-skills.test.mjs), `skills/abie-clean/`, `skills/abie-kustomize/`.
+- **Скіл `efes-create-env`** прибрано з пакета — efes-специфічний скіл перенесено до `@nitra/efes-docs` і перейменовано на `create-env` (запуск через `npx @nitra/efes-docs skill create-env`). Автоактивація за правилом `efes` більше не діє. Зачеплено: [auto-skills.test.mjs](scripts/auto-skills.test.mjs), `skills/efes-create-env/`.
+
 ## [1.13.73] - 2026-05-21
 
 ### Fixed

@@ -6,7 +6,7 @@
  *  - `завжди` — скіл активується незалежно від інших правил
  *    (приклади: `fix`, `lint`, `llm-patch`, `publish-telegram`).
  *  - `[rule, rule, …]` — скіл активується, якщо ВСІ перелічені правила вже виявлені
- *    auto-rules (приклади: `abie-clean - [abie]`, `taze - [bun]`).
+ *    auto-rules (приклади: `adr-normalize - [adr]`, `taze - [bun]`).
  *  - файл відсутній або формат не розпізнано — скіл opt-in лише через `.n-cursor.json:skills`.
  *
  * Сканування `npm/skills/` — sync під час завантаження модуля (детермінізм + sync API
