@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.87] - 2026-05-23
+
+### Added
+
+- **`scripts/utils/run-standard-lint.mjs`** — спільна точка входу для всіх `lint-<rule>` підкоманд, дзеркально до `runStandardRule` для `fix-<id>`. Виводить ключ локу зі шляху (`basename(dirname(lintDir))`) і прокидає `opts` у `withLock`. Місце для майбутніх крос-cutting розширень (телеметрія, env-toggle вимкнення локу, common preflight-логування) — патчиш одне місце, не 5 файлів.
+
+### Changed
+
+- **5 `rules/<rule>/lint/lint.mjs` (ga, rego, text, k8s, docker)** більше не імпортують `withLock` напряму — використовують `runStandardLint(import.meta.dirname, runLint<Foo>Steps)`. Ім'я правила в одному місці — у каталозі.
+- **`.cursor/rules/scripts.mdc` 1.9 → 1.10:** канон патерну переписано на `runStandardLint` (а не прямий `withLock`); додано явну заборону імпортувати `withLock` у `rules/<rule>/lint/lint.mjs`. У кожному з 5 lint.mjs у top-JSDoc додано посилання «Канон патерну `lint-*` — `.cursor/rules/scripts.mdc`».
+
 ## [1.13.86] - 2026-05-23
 
 ### Fixed

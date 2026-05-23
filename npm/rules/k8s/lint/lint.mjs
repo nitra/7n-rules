@@ -11,6 +11,9 @@
  *
  * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у rules/k8s/fix.mjs / k8s.mdc.
  * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
+ *
+ * Канон патерну `lint-*` (серіалізація через `runStandardLint`, без прямого `withLock`) —
+ * `.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -24,7 +27,7 @@ import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 
 /** Per-project kubescape exceptions file; підмішується через --exceptions, якщо існує в корені. */
 const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
@@ -349,7 +352,7 @@ async function runLintK8sSteps() {
  * Експортовано як `runLintK8s` — використовується з `bin/n-cursor.js` як підкоманда `lint-k8s`.
  * @returns {Promise<number>} код виходу
  */
-export const runLintK8s = () => withLock('lint-k8s', runLintK8sSteps)
+export const runLintK8s = () => runStandardLint(import.meta.dirname, runLintK8sSteps)
 
 if (isRunAsCli()) {
   process.exitCode = await runLintK8s()

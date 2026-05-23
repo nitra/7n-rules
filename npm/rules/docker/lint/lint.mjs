@@ -6,6 +6,9 @@
  * Dockerfile та варіанти виду app.Dockerfile (регістр суфікса не важливий).
  *
  * Виклик hadolint — через ../js/lint/docker-hadolint.mjs (PATH або docker run).
+ *
+ * Канон патерну `lint-*` (серіалізація через `runStandardLint`, без прямого `withLock`) —
+ * `.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».
  */
 import { basename } from 'node:path'
 
@@ -14,7 +17,7 @@ import { lintDockerfileWithHadolint, posixRel } from '../js/lint/docker-hadolint
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 
 /**
  * Чи входить файл до набору lint-docker: Dockerfile або *.Dockerfile (*.dockerfile).
@@ -85,7 +88,7 @@ async function runLintDockerSteps() {
  * Експортовано як `runLintDocker` — використовується з `bin/n-cursor.js` як підкоманда `lint-docker`.
  * @returns {Promise<number>} код виходу
  */
-export const runLintDocker = () => withLock('lint-docker', runLintDockerSteps)
+export const runLintDocker = () => runStandardLint(import.meta.dirname, runLintDockerSteps)
 
 if (isRunAsCli()) {
   process.exitCode = await runLintDocker()

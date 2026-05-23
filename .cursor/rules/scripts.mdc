@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту та синхронізація з check-скриптами; rule-centric concern-based структура `npm/rules/` з канонічним `template/`
 alwaysApply: true
-version: '1.9'
+version: '1.10'
 ---
 
 ## Структура правила (rule-centric, concern-based layout)
@@ -104,7 +104,7 @@ npm/rules/{rule}/
 
 ## Серіалізація важких CLI-команд: `withLock`
 
-**Принцип:** кожна важка CLI-команда пакета `@nitra/cursor` (та її варіант через `bun run <script>`) **сама** серіалізується через `withLock(...)` з [`npm/scripts/utils/with-lock.mjs`](../../npm/scripts/utils/with-lock.mjs). Жодних окремих команд-обгорток, які скіли/агенти мають пам'ятати викликати, — лок інтринсивний.
+**Принцип:** кожна важка CLI-команда пакета `@nitra/cursor` (та її варіант через `bun run <script>`) **сама** серіалізується через спільну точку входу — [`runStandardLint`](../../npm/scripts/utils/run-standard-lint.mjs) для `lint-*` і [`runStandardRule`](../../npm/scripts/utils/run-standard-rule.mjs) для `fix-<id>`. Обидві обгортають [`withLock`](../../npm/scripts/utils/with-lock.mjs); самі `lint.mjs` / `fix.mjs` **не** мають викликати `withLock` напряму — це створить дрифт, коли в одне місце додаси нову поведінку (телеметрія, env-toggle вимкнення локу для дебагу, dry-run-режим) і її забудуть продублювати в інших.
 
 **Що це дає:**
 
@@ -117,31 +117,35 @@ npm/rules/{rule}/
 
 | Команда | Точка інтеграції | Ключ |
 | --- | --- | --- |
-| `lint-ga`, `lint-rego`, `lint-text`, `lint-k8s`, `lint-docker` | `npm/rules/<rule>/lint/lint.mjs` — публічна CLI-форма (`runLint{Foo}Cli`) | `lint-<rule>` |
+| `lint-ga`, `lint-rego`, `lint-text`, `lint-k8s`, `lint-docker` | `npm/scripts/utils/run-standard-lint.mjs` (виклик у публічній формі `runLint{Foo}Cli` через `runStandardLint(import.meta.dirname, …)`) | `lint-<rule>` |
 | `fix` (per-rule програмна перевірка) | `npm/scripts/utils/run-standard-rule.mjs` | `fix-<ruleId>` |
 
-`fix`-лок свідомо стоїть у `runStandardRule` (а не на рівні `runFixCommand` у `bin/n-cursor.js`): кожен `rules/<id>/fix.mjs` делегує туди — і `npx @nitra/cursor fix`, і прямий `bun rules/<id>/fix.mjs`, і `run(ctx)`-композиція з іншого правила однаково проходять через лок. **Не дублюй** `withLock` у самих `fix.mjs`.
+Обидві спільні точки входу обгортають один `withLock` і **виводять ключ зі шляху**: `runStandardLint` бере `basename(dirname(lintDir))`, `runStandardRule` — `basename(ruleDir)`. Якщо потім додаси нову поведінку «на старті важкої команди» (телеметрія, env-toggle вимкнення локу, common preflight-логування) — редагуєш одне з цих двох місць, не 30+ файлів. **Не дублюй** `withLock` у самих `lint.mjs` / `fix.mjs`.
 
 ### Канонічний патерн для нової `lint-*`-підкоманди
 
 `npm/rules/<rule>/lint/lint.mjs`:
 
 ```js
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 
 // 1. Уся реальна робота — у приватну `runLint{Foo}Steps()`
 async function runLintFooSteps() {
   // preflight, ланцюжок зовнішніх інструментів, повертає number/Promise<number>
 }
 
-// 2. Публічна CLI-форма — обгортка через withLock
-export const runLintFooCli = () => withLock('lint-foo', runLintFooSteps)
+// 2. Публічна CLI-форма — обгортка через спільну точку входу.
+// Ключ локу виводиться з шляху (`lint-${basename(dirname(import.meta.dirname))}`),
+// тож ім'я правила в одному місці — у каталозі.
+export const runLintFooCli = () => runStandardLint(import.meta.dirname, runLintFooSteps)
 
 // 3. Standalone-варіант поважає лок так само
 if (isRunAsCli()) {
   process.exitCode = await runLintFooCli()
 }
 ```
+
+**Не імпортуй `withLock` у `rules/<rule>/lint/lint.mjs` напряму** — це обходить `runStandardLint` і випадає з майбутніх крос-cutting-розширень.
 
 У `npm/bin/n-cursor.js` case завжди `await` (всі `lint-*` після обгортки async):
 

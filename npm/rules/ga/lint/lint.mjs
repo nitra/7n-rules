@@ -23,13 +23,16 @@
  * локально це виглядало як мовчазний exit 1.
  *
  * Експортовано окремо `runLintGaCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-ga`.
+ *
+ * Канон патерну `lint-*` (серіалізація через `runStandardLint`, без прямого `withLock`) —
+ * `.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».
  */
 import { platform } from 'node:process'
 
 import { check as checkGa } from '../js/workflows/check.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.
@@ -165,4 +168,4 @@ async function runLintGaSteps() {
   return await checkGa()
 }
 
-export const runLintGaCli = () => withLock('lint-ga', runLintGaSteps)
+export const runLintGaCli = () => runStandardLint(import.meta.dirname, runLintGaSteps)

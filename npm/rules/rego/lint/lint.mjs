@@ -22,6 +22,9 @@
  * `npm/rules/<id>/policy/<concern>/`). Усі три інструменти приймають один шлях
  * і самі рекурсивно знаходять `.rego` (ігноруючи інші розширення на кшталт
  * `target.json` чи template-фіх).
+ *
+ * Канон патерну `lint-*` (серіалізація через `runStandardLint`, без прямого `withLock`) —
+ * `.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -29,7 +32,7 @@ import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
 const LINT_TARGETS = ['npm/rules']
@@ -138,7 +141,7 @@ export function runLintRegoSteps(cwd = process.cwd()) {
  * Публічна CLI-форма: серіалізує через `withLock('lint-rego')` + дедуп за станом git-дерева.
  * @returns {Promise<number>} код виходу
  */
-export const runLintRego = () => withLock('lint-rego', () => runLintRegoSteps())
+export const runLintRego = () => runStandardLint(import.meta.dirname, () => runLintRegoSteps())
 
 if (isRunAsCli()) {
   process.exitCode = await runLintRego()

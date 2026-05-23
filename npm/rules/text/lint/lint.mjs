@@ -13,12 +13,15 @@
  *
  * Перший ненульовий код з ланцюжка повертається як код виходу; наступні кроки не запускаються.
  * Експортовано як `runLintTextCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-text`.
+ *
+ * Канон патерну `lint-*` (серіалізація через `runStandardLint`, без прямого `withLock`) —
+ * `.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».
  */
 import { platform } from 'node:process'
 
 import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { withLock } from '../../../scripts/utils/with-lock.mjs'
+import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
 import { runDotenvLinter } from './run-dotenv-linter.mjs'
 import { runShellcheckText } from './run-shellcheck.mjs'
 import { runV8rWithGlobs } from './run-v8r.mjs'
@@ -153,4 +156,4 @@ function runLintTextSteps() {
  * Публічна CLI-форма: серіалізує через `withLock('lint-text')` + дедуп за станом git-дерева.
  * @returns {Promise<number>} код виходу
  */
-export const runLintTextCli = () => withLock('lint-text', () => runLintTextSteps())
+export const runLintTextCli = () => runStandardLint(import.meta.dirname, () => runLintTextSteps())
