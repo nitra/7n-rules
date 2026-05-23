@@ -1,0 +1,79 @@
+npm/rules/abie/utils/k8s-tree.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 11
+npm/rules/k8s/k8s.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 42
+npm/rules/graphql/js/tooling/graphql-gql-scan.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 5
+.cursor/rules/n-changelog.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 46
+npm/rules/docker/lint/lint.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 8,13
+npm/rules/test/test.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 12
+npm/rules/js-lint/js/tooling/rebuild-oxlint-canonical.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 5
+.cursor/rules/conftest.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 81
+npm/rules/js-lint/js-lint.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 28,65
+.cursor/rules/n-js-lint.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 43,89
+.cursor/rules/n-vue.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 344
+npm/rules/js-bun-redis/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_e6b215e90a1660 6
+npm/rules/abie/policy/http_route_base/http_route_base.rego
+  s_36d194edc23b6f::t_e6b215e90a1660 11
+.cursor/rules/scripts.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 15,26,30,38,54,65,70-71,73,77,88,90,95,97,107
+npm/rules/ga/lint/lint.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 29
+npm/rules/docker/docker.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 10,102,112
+.cursor/rules/n-security.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 110
+npm/rules/abie/policy/health_check_policy/health_check_policy.rego
+  s_36d194edc23b6f::t_e6b215e90a1660 21-22
+npm/rules/adr/adr.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 98
+npm/rules/abie/policy/base_deployment_preem/base_deployment_preem.rego
+  s_36d194edc23b6f::t_e6b215e90a1660 5,14
+npm/rules/security/js/trufflehog/tests/check.test.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 37
+npm/rules/abie/abie.mdc
+  s_36d194edc23b6f::t_9c331ce94b1d2f 136,163,173,175-179
+npm/rules/vue/vue.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 344
+npm/rules/changelog/changelog.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 46
+npm/rules/hasura/policy/svc_hl/svc_hl.rego
+  s_36d194edc23b6f::t_e6b215e90a1660 11
+npm/rules/npm-module/js/package_structure/check.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 460
+npm/rules/js-lint/js/tooling/check.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 5,157,387
+npm/rules/security/js/sample_secret/tests/check.test.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 8
+npm/rules/test/js/location/tests/check.test.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 14-16,23-25
+npm/rules/security/security.mdc
+  s_36d194edc23b6f::t_e6b215e90a1660 27,48
+npm/rules/nginx-default-tpl/js/template/check.mjs
+  s_36d194edc23b6f::t_e6b215e90a1660 20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "87732d24e42f26d30865c45709530513ac61c2ba",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
