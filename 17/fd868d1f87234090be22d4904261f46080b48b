@@ -1,0 +1,74 @@
+docs/superpowers/specs/2026-05-22-lint-ga-concurrency-lock-design.md
+  s_ee1002fc9fef2b::t_6cc7a305063872 1,3-4
+  s_ee1002fc9fef2b::t_9c28be11b4b1f8 207-224,231-232
+npm/package.json
+  s_ee1002fc9fef2b::t_f018d935b9de1c 3
+npm/rules/text/lint/tests/lint.test.mjs
+  s_ee1002fc9fef2b::t_5c4f7ade2566e6 38
+npm/rules/rego/lint/lint.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 32,93-95,99,137-142,144
+npm/rules/text/lint/lint.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 21,124,127,151-156
+npm/CHANGELOG.md
+  s_ee1002fc9fef2b::t_055fd527f0a36f 7-21
+docs/superpowers/specs/2026-05-23-rust-rule-design.md
+  s_a4a35b867bfba2::t_ee9aa485f52eed 218
+  s_b8a6002c1a783b::t_7eaa0a12eb0aa4 1-5,7,11,13,15,17,19,32,34,36-38,63-64,66,68,70,76-78,80,82,90-91,93,95-96,98-100,104,111,115,120,122,125,127,130-132,198,231,233,235,237,239,244,246,250,252,254,260,262,266,268
+  s_a4a35b867bfba2::t_b605ccaf68b125 6,8-10,12,14,16,18,20-31,33,35,39-62,65,67,69,71-75,79,81,83-89,92,94,97,101-103,105-110,112-114,116-119,121,123-124,126,128-129,133-197,199-217,219-230,232,234,236,238,240-243,245,247-249,251,253,255-259,261,263-265,267,269-278
+npm/scripts/utils/with-lock.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 43-44
+npm/rules/docker/lint/lint.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 17,50,53,83-88
+  s_ee1002fc9fef2b::t_1d94502f14e37a 89
+npm/scripts/utils/run-standard-rule.mjs
+  s_ee1002fc9fef2b::t_02d5d6212d835e 6-11,18,38-42
+.claude/plans/2026-05-23-rust-rule-plan.md
+  s_b8a6002c1a783b::t_dc31118892d1ef 1-62
+npm/rules/k8s/lint/lint.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 27,324,327,347-352
+  s_ee1002fc9fef2b::t_5432452ebdaf1f 353
+docs/adr/20260523-222627-ідентифікатор-правила-rust-не-rust-lint.md
+  s_ee1002fc9fef2b::t_a50483723166c5 1-113
+npm/scripts/utils/tests/with-lock.test.mjs
+  s_ee1002fc9fef2b::t_cc727dcfbfc68e 50-52,54-55
+npm/rules/rego/lint/tests/lint.test.mjs
+  s_ee1002fc9fef2b::t_a50483723166c5 6
+.cursor/rules/scripts.mdc
+  s_ee1002fc9fef2b::t_06ae6d0824baaf 105-179
+  s_ee1002fc9fef2b::t_b5ed0d7b191713 4
+npm/bin/n-cursor.js
+  s_ee1002fc9fef2b::t_a50483723166c5 1265,1283
+  s_ee1002fc9fef2b::t_589f9324a0d931 981-984
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "17fd868d1f87234090be22d4904261f46080b48b",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b8a6002c1a783b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38b7186b-0e22-4e91-886d-874266eabce2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ee1002fc9fef2b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15a0a2e6-de28-4a12-8fa8-3cee36f7fe61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
