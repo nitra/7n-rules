@@ -1,0 +1,77 @@
+npm/rules/capacitor/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/k8s/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/ga/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/bun/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/vue/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/graphql/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/adr/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/style-lint/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/ci4/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/tauri/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/feedback/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/js-mssql/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/docker/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/rego/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/js-bun-redis/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/php/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/image-avif/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/image-compress/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/security/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/npm-module/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/js-bun-db/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/text/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/nginx-default-tpl/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/abie/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/test/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/hasura/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/js-lint/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/efes/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/js-run/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+npm/rules/changelog/fix.mjs
+  s_36d194edc23b6f::t_74d30e3fb1abe6 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5ae67f95127612389b72cb4fb75b5b35d36fefce",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
