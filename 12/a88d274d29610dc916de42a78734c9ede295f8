@@ -1,0 +1,21 @@
+npm/tests/discover-one-rule.test.mjs
+  ai_agent 1-57
+npm/scripts/utils/discover-checkable-rules.mjs
+  s_36d194edc23b6f::t_35e46bbc185ef8 89-100,115-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "12a88d274d29610dc916de42a78734c9ede295f8",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
