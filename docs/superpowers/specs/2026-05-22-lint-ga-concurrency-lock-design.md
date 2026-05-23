@@ -1,13 +1,13 @@
 # Лок паралельних запусків — пілот на `lint-ga`
 
-**Дата:** 2026-05-22
-**Статус:** дизайн затверджено, очікує написання плану реалізації
+**Дата:** 2026-05-22 (оновлено 2026-05-23 під актуальні конвенції)
+**Статус:** реалізовано в комміті `c4b9ea3` (12/12 тестів зелені); пілот живе в продакшені для `lint-ga`
 
 ## Проблема
 
 У проєкті паралельно працює кілька агентів (субагенти, окремі сесії Claude Code /
 Cursor). Кожен самостійно запускає важкі перевірки — `bun run lint`,
-`npx @nitra/cursor check` тощо. У результаті одночасно крутиться N копій одного й того
+`npx @nitra/cursor fix` тощо. У результаті одночасно крутиться N копій одного й того
 самого ланцюжка лінту: кожна — окремий процес `eslint` + `oxlint` + `jscpd` + інші
 інструменти. Диск і CPU на macOS перевантажуються, прогони сповільнюються або лагають.
 
@@ -74,14 +74,18 @@ macOS `flock` відсутній — хук це визнає і просто п
 **Публічний API:**
 
 ```js
-withLock(key, runFn, opts?) → Promise<{ exitCode: number, skipped: boolean }>
+withLock(key, runFn, opts?) → Promise<number>
 ```
 
 - `key` — ідентичність локу (для пілота `'lint-ga'`). Однаковий `key` = взаємне
   виключення; різні `key` незалежні.
 - `runFn` — `() => Promise<number>`, реальна робота перевірки; повертає код виходу.
-- `opts` (необов'язково, мають дефолти-константи): `ttlMs`, `pollMs`, `waitTimeoutMs`,
-  `staleAgeMs`.
+- Повертається код виходу: `0` на дедуп-пропуск або реальний код від `runFn`.
+  Інформація «пропущено» транслюється логом `♻️ <key>: …`, не структурно — каліру
+  достатньо exit-коду.
+- `opts` (необов'язково, мають дефолти-константи): `ttl`, `pollInterval`,
+  `waitTimeout`, `staleThreshold`, плюс точки розширення `cacheDir` (override
+  розташування стану) і `getFingerprint` (DI-хук для тестів).
 
 **Стан** (на корінь репозиторію, `process.cwd()`):
 `node_modules/.cache/n-cursor/<key>/`
@@ -109,8 +113,8 @@ withLock(key, runFn, opts?) → Promise<{ exitCode: number, skipped: boolean }>
 3. **Дедуп** (уже з локом): читаємо `result.json`. Якщо
    `exitCode === 0` **І** `result.fingerprint === fingerprint` **І**
    `now - finishedAt < ttlMs` (дефолт 10 хв):
-   - лог `♻️ <key>: дедуп — те саме дерево пройшло Nс тому, пропускаю`;
-   - звільняємо лок, повертаємо `{ exitCode: 0, skipped: true }`.
+   - лог `♻️ <key>: те саме дерево, Nс тому — пропускаю`;
+   - звільняємо лок, повертаємо `0`.
    - Дедуплікується **лише успіх**. Невдалий прогон (`exitCode !== 0`) завжди
      переганяється — наступному агенту потрібен свіжий вивід помилок.
 4. **Виконання:** `exitCode = await runFn()`; пишемо `result.json`
@@ -121,11 +125,13 @@ withLock(key, runFn, opts?) → Promise<{ exitCode: number, skipped: boolean }>
    `SIGKILL` / краш процесу `finally` не виконає — такий випадок ловиться перевіркою
    застарілості з кроку 2 (мертвий PID).
 
-**Чиста функція рішення дедупу** виноситься окремо для юніт-тестів:
+**Чиста функція рішення дедупу** експортується окремо для юніт-тестів:
 
 ```js
-shouldSkip(result, fingerprint, now, ttlMs) → boolean
+shouldDedup(result, fingerprint, ttl) → boolean
 ```
+
+(Поточний час береться всередині через `Date.now()`, тож сигнатура без параметра `now`.)
 
 ### 3. Інтеграція в `lint-ga`
 
@@ -136,15 +142,16 @@ shouldSkip(result, fingerprint, now, ttlMs) → boolean
 - Новий експорт:
 
   ```js
-  export const runLintGaCli = async () => {
-    const { exitCode } = await withLock('lint-ga', runLintGaSteps)
-    return exitCode
-  }
+  export const runLintGaCli = () => withLock('lint-ga', runLintGaSteps)
   ```
 
-Виклик у `npm/bin/n-cursor.js` (case `'lint-ga'`, рядок ~1284) **не змінюється** —
+Виклик у `npm/bin/n-cursor.js` (case `'lint-ga'`) **не змінюється** —
 `process.exitCode = await runLintGaCli()` працює як раніше. Скіли, кореневий
 `package.json`, поведінка агента — без змін. Лок повністю інтринсивний.
+
+Внутрішні JS cross-file перевірки `runLintGaSteps` делегують у
+`rules/ga/js/workflows/check.mjs` (раніше було `rules/ga/fix/workflows/check.mjs` —
+дир перейменована на `js/` згідно з ADR 20260523-215236).
 
 ## Потік даних
 
@@ -154,7 +161,7 @@ n-cursor lint-ga
         └─ withLock('lint-ga', runLintGaSteps)
              ├─ computeFingerprint(cwd) ─────────────► fingerprint
              ├─ acquire lock (mkdir, retry, stale-check)
-             ├─ read result.json ─── shouldSkip? ──► так → return {0, skipped:true}
+             ├─ read result.json ─── shouldDedup? ──► так → release + return 0
              │                                       ні  ↓
              ├─ runLintGaSteps() ───────────────────► exitCode
              ├─ write result.json {finishedAt, exitCode, fingerprint}
@@ -175,16 +182,19 @@ n-cursor lint-ga
 | Пошкоджений `owner.json` / `result.json` | Трактується як відсутній/застарілий, перезаписується |
 | Гонка двох `mkdir` одночасно | Атомарність `mkdir`: рівно один виграє, решта чекають |
 
-## План тестування (`bun test`, co-located `.test.mjs`)
+## План тестування (`bun test`, у `npm/scripts/utils/tests/`)
 
-`worktree-fingerprint.test.mjs`:
+Тести живуть у піддиректорії `tests/` поряд із кодом (`npm/scripts/utils/tests/`), а
+не co-located поруч із джерелом — це нова конвенція проєкту (ADR 20260523-154806).
+
+`tests/worktree-fingerprint.test.mjs`:
 - детермінізм: двічі поспіль на тому самому дереві → однаковий відбиток;
 - зміна tracked-файла → відбиток інакший;
 - поява untracked-файла → відбиток інакший;
 - поза git-репозиторієм → `null`.
 
-`with-lock.test.mjs`:
-- `shouldSkip` (чиста функція): успіх + збіг відбитка + у межах TTL → `true`;
+`tests/with-lock.test.mjs`:
+- `shouldDedup` (чиста функція): успіх + збіг відбитка + у межах TTL → `true`;
   невдача → `false`; розбіжність відбитка → `false`; протермінований TTL → `false`;
 - виявлення застарілого локу: мертвий PID → перехоплення; вік > `staleAgeMs` →
   перехоплення;
@@ -197,8 +207,10 @@ n-cursor lint-ga
 ## Поза обсягом пілота
 
 - Розкочування того самого `withLock` на `lint-rego`, `lint-text`, `lint-k8s`,
-  `lint-docker`, `check` — наступними ітераціями за зразком `lint-ga`.
-- Виведення `ttlMs` / таймаутів у конфіг `.n-cursor.json` — поки константи в модулі.
+  `lint-docker`, `fix` (раніше `check` — перейменовано в 1.13.84) — наступними
+  ітераціями за зразком `lint-ga`.
+- Виведення `ttl` / таймаутів у конфіг `.n-cursor.json` — поки константи в модулі
+  (override через `opts` лишається доступним як точка розширення).
 - Звуження скоупу відбитка per-command (напр. лише релевантні файли).
 - Дедуп невдалих прогонів (зберігання й відтворення виводу помилок).
 - Примусове застосування через PreToolUse-hook.
