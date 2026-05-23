@@ -1,29 +1,26 @@
 /**
- * Discovery rules для CLI `check`. Шукає правила, для яких є щось «прогонне»:
- *   - JS concerns:   `rules/<id>/js/<concern>/<check.mjs | check-*.mjs>` — кожен concern окремий вузол.
+ * Discovery rules для CLI `fix`. Шукає правила, для яких є щось «прогонне»:
+ *   - JS concerns:   `rules/<id>/js/<concern>.mjs` — один файл = один concern.
  *   - Policy concerns: `rules/<id>/policy/<concern>/target.json` — пара з `<concern>.rego`.
  *
- * Каталог `js/utils/` свідомо пропускається — це хелпери, не концерни.
- * Файли `*.test.mjs` фільтруються regex (`^check(?:-.+)?\.mjs$`).
+ * Файли з префіксом `_` (зокрема каталог `_lib/`) і `*.test.mjs` пропускаються — це хелпери й тести.
  *
  * Намеренно НЕ парсимо `target.json` тут (це робить runner). Discovery — швидкий скан структури:
  * шляхи + назви, без I/O вмісту.
  *
- * Історичний контекст: convention пройшла еволюцію `js/` (до 1.11.12) → `fix/` (1.11.10–1.13.79)
- * → знову `js/` (1.13.80+, після появи кореневого `fix.mjs` як entry-point правила, щоб не плутати
- * з папкою `fix/`). Convention тепер за технологією: `js/` ↔ `policy/`.
+ * Історичний контекст: convention пройшла еволюцію
+ *   `js/<concern>/check.mjs` (1.13.80–1.13.89)
+ *   → `js/<concern>.mjs` (1.13.90+, flat: концерн = файл, не каталог)
+ * Helpers, tests, templates і data винесені в окремі топ-level папки правила (`js/_lib/`,
+ * `tests/`, `templates/`, `data/`).
  */
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const CHECK_FILENAME_RE = /^check(?:-.+)?\.mjs$/u
-const TEST_SUFFIX = '.test.mjs'
-
 /**
  * @typedef {object} JsConcern
- * @property {string} name імʼя концерну (`<name>` у `js/<name>/`)
- * @property {string[]} files імена `check*.mjs` у концерні (відсортовані алфавітно)
+ * @property {string} name імʼя концерну (= basename файла `js/<name>.mjs` без розширення)
  */
 
 /**
@@ -39,30 +36,26 @@ const TEST_SUFFIX = '.test.mjs'
  */
 
 /**
- * Перелічує JS-концерни одного правила: підкаталоги `js/<name>/` з принаймні одним `check*.mjs`.
+ * Перелічує JS-концерни одного правила: файли `js/<name>.mjs` (один файл — один concern).
  *
- * `js/utils/` свідомо пропускається — це хелпери, а не концерни.
+ * Файли з префіксом `_` (наприклад каталог `_lib/`) і `*.test.mjs` пропускаються.
  * @param {string} jsDir абсолютний шлях `rules/<id>/js/`
  * @returns {Promise<JsConcern[]>} концерни в алфавітному порядку
  */
 async function listJsConcerns(jsDir) {
   if (!existsSync(jsDir)) return []
-  const topLevel = await readdir(jsDir, { withFileTypes: true })
-
+  const entries = await readdir(jsDir, { withFileTypes: true })
   /** @type {JsConcern[]} */
   const concerns = []
-  for (const entry of topLevel) {
-    if (!entry.isDirectory() || entry.name === 'utils' || entry.name.startsWith('.')) continue
-    const concernDir = join(jsDir, entry.name)
-    const dirContents = await readdir(concernDir)
-    const files = dirContents
-      .filter(n => CHECK_FILENAME_RE.test(n) && !n.endsWith(TEST_SUFFIX))
-      .toSorted((a, b) => a.localeCompare(b))
-    if (files.length > 0) {
-      concerns.push({ name: entry.name, files })
-    }
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    if (!entry.name.endsWith('.mjs')) continue
+    if (entry.name.endsWith('.test.mjs')) continue
+    if (entry.name.startsWith('_')) continue
+    if (entry.name.startsWith('.')) continue
+    const name = entry.name.slice(0, -'.mjs'.length)
+    concerns.push({ name })
   }
-
   return concerns.toSorted((a, b) => a.name.localeCompare(b.name))
 }
 

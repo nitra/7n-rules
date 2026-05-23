@@ -14,9 +14,9 @@ function makeFakeRule({ id, jsConcerns = [], policyConcerns = [] }) {
   const ruleDir = join(root, id)
   mkdirSync(ruleDir, { recursive: true })
 
+  mkdirSync(join(ruleDir, 'js'), { recursive: true })
   for (const concern of jsConcerns) {
-    mkdirSync(join(ruleDir, 'js', concern), { recursive: true })
-    writeFileSync(join(ruleDir, 'js', concern, 'check.mjs'), '')
+    writeFileSync(join(ruleDir, 'js', `${concern}.mjs`), '')
   }
   for (const concern of policyConcerns) {
     mkdirSync(join(ruleDir, 'policy', concern), { recursive: true })
