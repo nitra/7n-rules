@@ -1,0 +1,21 @@
+npm/scripts/utils/list-rule-ids.mjs
+  s_36d194edc23b6f::t_2b4eea15b50ffe 1-23
+npm/tests/list-rule-ids.test.mjs
+  ai_agent 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ec277d19b57e8f906d4a9519a3c4a2bd416a1d84",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
