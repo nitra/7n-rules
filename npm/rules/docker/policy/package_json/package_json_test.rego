@@ -13,7 +13,7 @@ test_allow_canonical if {
 }
 
 test_allow_lint_docker_absent if {
-	# rego не вимагає наявність — cross-file умовно вимагає `check-bun.mjs`.
+	# rego не вимагає наявність — cross-file умовно вимагає `rules/bun/fix.mjs`.
 	count(package_json.deny) == 0 with input as {"scripts": {}} with data.template as template_data
 }
 

@@ -1,6 +1,6 @@
 # Перевірка `.vscode/settings.json` для nginx-default-tpl (nginx-default-tpl.mdc).
 #
-# Викликається з `check-nginx-default-tpl.mjs` через `runConftestBatch` лише
+# Викликається з `rules/nginx-default-tpl/fix.mjs` через `runConftestBatch` лише
 # ПІСЛЯ того, як JS виявив `default.conf.template`. Без `target.json` поруч
 # не реєструється.
 #

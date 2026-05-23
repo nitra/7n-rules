@@ -138,7 +138,7 @@ KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 - DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal`;
 - namespace починався з `dev-` / `ua-` відповідно.
 
-Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `check-hasura.mjs` приймає кластерний DNS-формат `<cluster>.internal`.
+Загальне правило про **внутрішній** URL (не публічний домен) для `HASURA_GRAPHQL_ENDPOINT` лишається у **`hasura.mdc`** (для nitra і abie) — `rules/hasura/fix.mjs` приймає кластерний DNS-формат `<cluster>.internal`.
 
 ## `@nitra/abie-docs` у `devDependencies`
 

@@ -39,3 +39,9 @@ Chosen option: "Додати `deny`-блоки до `package_json.rego`", becaus
 - Ручна перевірка: `conftest test pkg-bad.json` → 2 deny (`vitest`, `jsdom`); `pkg-ok.json` → 0 deny.
 
 Конвенція: `import rego.v1`, multi-value `deny contains msg if { … }`, package-шлях відповідає каталогу.
+
+## Update 2026-05-21
+
+Підтвердження машинної перевірки після додавання `deny`-блоків до `npm/rules/vue/policy/package_json/package_json.rego`: `opa test npm/rules/vue/policy/package_json -v` — 6/6 PASS; `regal lint npm/rules/vue/policy/package_json` — 0 violations; `conftest test path/to/package.json -p npm/rules/vue/policy -n vue.package_json` підтвердив deny для `vitest` і `jsdom` та 0 deny без них. Змінені файли: `npm/rules/vue/policy/package_json/package_json.rego`, `npm/rules/vue/policy/package_json/package_json_test.rego`.
+
+На запит «дозволити jsdom для DOM-тестів» ухвалено рішення «лишити повну заборону»: Rego по `package.json` не може визначити наявність DOM-тестів, тому `jsdom` deny залишається беззастережним. `happy-dom` обов'язковим не зроблено з тієї ж причини.

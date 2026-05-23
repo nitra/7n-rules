@@ -1,5 +1,5 @@
 /**
- * Тести check-changelog.mjs.
+ * Тести rules/changelog/fix.mjs.
  *
  * Дві моделі бази:
  * - npm-published: порівняння локальної version з опублікованою (через стаб getPublishedVersion).

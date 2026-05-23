@@ -7,7 +7,7 @@ alwaysApply: false
 
 # Docker — hadolint
 
-Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/rules/docker/js/lint/docker-mirror.mjs`**.
+Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`rules/docker/fix.mjs`**, деталі в **`npm/rules/docker/js/lint/docker-mirror.mjs`**.
 
 Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
 
@@ -90,16 +90,16 @@ CMD ["./app"]
 
 ## Область
 
-- Усі файли з іменем **`Dockerfile`** або **`Dockerfile.*`** (наприклад `Dockerfile.prod`) у репозиторії, крім ігнорованих каталогів (`node_modules`, `.git`, `dist`, …) — як у **`check-docker.mjs`**.
+- Усі файли з іменем **`Dockerfile`** або **`Dockerfile.*`** (наприклад `Dockerfile.prod`) у репозиторії, крім ігнорованих каталогів (`node_modules`, `.git`, `dist`, …) — як у **`rules/docker/fix.mjs`**.
 - Також скрипт перевірки обробляє **`Containerfile`** та **`Containerfile.*`** (Podman / альтернативні імена), навіть якщо glob правила спрацьовує переважно на `Dockerfile*`.
 
 ## lint-docker
 
 CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE...]` у **`hadolint --help`**); обхід репозиторію робить CLI **`n-cursor lint-docker`** (реалізація — **`npm/rules/docker/js/run.mjs`**).
 
-**Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`check-docker.mjs`).
+**Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`rules/docker/fix.mjs`).
 
-Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`check-docker.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/rules/docker/js/lint/docker-hadolint.mjs`**.
+Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/rules/docker/js/lint/docker-hadolint.mjs`**.
 
 - Канон `package.json#scripts.lint-docker`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
@@ -116,7 +116,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 ## Запуск
 
 1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
-2. **`npx @nitra/cursor check docker`** — **`check-docker.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (**`PATH`** або **`docker run`** з **`hadolint/hadolint:v2.12.0`**).
+2. **`npx @nitra/cursor check docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (**`PATH`** або **`docker run`** з **`hadolint/hadolint:v2.12.0`**).
 3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
 
 ```yaml title=".hadolint.yaml"

@@ -1,4 +1,4 @@
-# Порт перевірки версії `@capacitor/core` з `npm/scripts/check-capacitor.mjs`
+# Порт перевірки версії `@capacitor/core` з `npm/scripts/rules/capacitor/fix.mjs`
 # (capacitor.mdc) — мінімальна мажорна версія = 8.
 #
 # Запуск (локально, у пакеті з Capacitor):
@@ -10,7 +10,7 @@
 # Підтримує `^8.0.0`, `>=8`, `8.x`, `workspace:*` тощо.
 #
 # Цей порт спрощує JS-логіку — повна семантика OR-діапазонів (`a || b`) і нижня
-# межа діапазону лишається в JS (`check-capacitor.mjs`: `capacitorVersionRangeMinMajor`).
+# межа діапазону лишається в JS (`rules/capacitor/fix.mjs`: `capacitorVersionRangeMinMajor`).
 # JS-перевірка лишилась authoritative й бігає через `npx @nitra/cursor check capacitor`;
 # ця Rego — швидкий gate для одиничного `package.json` (наприклад через IDE).
 #

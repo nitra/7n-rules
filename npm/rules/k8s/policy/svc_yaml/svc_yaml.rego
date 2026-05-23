@@ -1,12 +1,12 @@
 # Порт пер-документної структурної перевірки `svc.yaml` з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc): `Service` у файлі `svc.yaml` має
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc): `Service` у файлі `svc.yaml` має
 # мати `spec.type: ClusterIP`.
 #
 # Запуск (локально, лише для одного svc.yaml):
 #   conftest test path/to/k8s/.../svc.yaml -p npm/policy/k8s/svc_yaml \
 #     --namespace k8s.svc_yaml
 #
-# JS authoritative (`check-k8s.mjs`: `serviceSvcYamlClusterIpTypeViolation`,
+# JS authoritative (`rules/k8s/fix.mjs`: `serviceSvcYamlClusterIpTypeViolation`,
 # вибір файла `svc.yaml` через walk). Цю Rego JS викликає окремою таргет-командою
 # лише для basename == `svc.yaml`.
 #

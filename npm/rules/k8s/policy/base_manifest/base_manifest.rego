@@ -7,7 +7,7 @@
 #
 # JS відбирає файли під `…/k8s/.../base/…` (окрім `kustomization.yaml`) і
 # викликає conftest з цією намеспейс. JS authoritative
-# (`check-k8s.mjs`: `metadataNamespaceRequiredViolation` з `inBaseDir=true`,
+# (`rules/k8s/fix.mjs`: `metadataNamespaceRequiredViolation` з `inBaseDir=true`,
 # `deploymentResourcesViolation` з `inK8sBaseLayer=true`,
 # `isK8sBaseManifestYamlPath`).
 #
@@ -25,7 +25,7 @@ package k8s.base_manifest
 import rego.v1
 
 # Cluster-scoped kind (не вимагають metadata.namespace) — узгоджено з
-# `CLUSTER_SCOPED_KINDS` у `check-k8s.mjs`.
+# `CLUSTER_SCOPED_KINDS` у `rules/k8s/fix.mjs`.
 cluster_scoped_kinds := {
 	"APIService",
 	"CertificateSigningRequest",

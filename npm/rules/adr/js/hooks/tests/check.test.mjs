@@ -1,5 +1,5 @@
 /**
- * Тести check-adr.mjs: перевірка ADR Stop-hook (capture-decisions.sh) у Claude Code.
+ * Тести rules/adr/fix.mjs: перевірка ADR Stop-hook (capture-decisions.sh) у Claude Code.
  *
  * `withTmpCwd` створює тимчасовий cwd; усі шляхи у check обчислюються відносно нього.
  * Канонічний bundled-скрипт читається з реального пакета (`npm/.claude-template/hooks/`),

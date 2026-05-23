@@ -1,5 +1,5 @@
 /**
- * Тести check-capacitor.mjs: semver-підмноги, обхід `package.json` і iOS.
+ * Тести rules/capacitor/fix.mjs: semver-підмноги, обхід `package.json` і iOS.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'

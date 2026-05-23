@@ -1,5 +1,5 @@
 # Порт пер-документних перевірок для Gateway API і HealthCheckPolicy з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc).
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc).
 #
 # Запуск (локально, по одному файлу або по дереву):
 #   conftest test path/to/manifest.yaml -p npm/policy/k8s/gateway \
@@ -14,7 +14,7 @@
 #    `metadata.namespace` маршруту, — заборонено (надлишкове поле, ламається при
 #    overlay-перенесеннях).
 #
-# JS authoritative (`check-k8s.mjs` — функції `failIfGatewayRouteUsesNonHeadlessService`,
+# JS authoritative (`rules/k8s/fix.mjs` — функції `failIfGatewayRouteUsesNonHeadlessService`,
 # `healthCheckPolicyTargetRefHeadlessServiceViolation`,
 # `collectGatewayApiRouteBackendServiceNames`,
 # `collectGatewayApiRouteBackendRefsWithRedundantNamespace`); ця Rego — швидкий

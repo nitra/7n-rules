@@ -1,5 +1,5 @@
 # Порт пер-документних структурних перевірок `kustomization.yaml` з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc).
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc).
 #
 # Запуск (локально, на одному kustomization.yaml):
 #   conftest test path/to/kustomization.yaml -p npm/policy/k8s/kustomization \
@@ -14,7 +14,7 @@
 #
 # JS authoritative: повна резолюція kustomize-дерева, перевірка існування
 # refs на диску, парність `svc.yaml`/`svc-hl.yaml`, вибір conftest-цілей за
-# patternом `kustomization.yaml` — у `check-k8s.mjs`.
+# patternом `kustomization.yaml` — у `rules/k8s/fix.mjs`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

@@ -1,12 +1,12 @@
 # Порт пер-документної структурної перевірки `svc-hl.yaml` з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc): headless Service з суфіксом
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc): headless Service з суфіксом
 # `metadata.name` `-hl` і `spec.clusterIP: None`.
 #
 # Запуск (локально, лише для одного svc-hl.yaml):
 #   conftest test path/to/k8s/.../svc-hl.yaml -p npm/policy/k8s/svc_hl_yaml \
 #     --namespace k8s.svc_hl_yaml
 #
-# JS authoritative (`check-k8s.mjs`: `serviceSvcHlYamlHeadlessViolation`,
+# JS authoritative (`rules/k8s/fix.mjs`: `serviceSvcHlYamlHeadlessViolation`,
 # вибір файла `svc-hl.yaml` через walk).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).

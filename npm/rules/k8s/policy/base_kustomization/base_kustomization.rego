@@ -1,4 +1,4 @@
-# Порт перевірки `k8s/base/kustomization.yaml` з `npm/scripts/check-k8s.mjs`
+# Порт перевірки `k8s/base/kustomization.yaml` з `npm/scripts/rules/k8s/fix.mjs`
 # (k8s.mdc): у base-kustomization обов'язково має бути непорожнє поле
 # `namespace:`.
 #
@@ -7,7 +7,7 @@
 #     -p npm/policy/k8s/base_kustomization \
 #     --namespace k8s.base_kustomization
 #
-# JS authoritative (`check-k8s.mjs`: `baseKustomizationNamespaceViolation`,
+# JS authoritative (`rules/k8s/fix.mjs`: `baseKustomizationNamespaceViolation`,
 # `isBaseKustomizationPath` для відбору файла, `ensureBaseKustomizationHasNamespace`
 # як оркестратор).
 #
@@ -39,7 +39,7 @@ deny contains base_namespace_required_msg if {
 # на *локальний* `resources:` base/kustomization.yaml (точне ім'я `hpa.yaml`/`pdb.yaml`,
 # у будь-якому підкаталозі). Рекурсивний обхід `resources:`/`components:`/`bases:`
 # (із зануренням у вкладені kustomization.yaml) — JS-оркестратор
-# `verifyK8sBaseKustomizeHasNoHpaPdb` у `check-k8s.mjs` (потребує fs-доступу). Цей
+# `verifyK8sBaseKustomizeHasNoHpaPdb` у `rules/k8s/fix.mjs` (потребує fs-доступу). Цей
 # rego-deny — defense-in-depth: спрацює навіть якщо JS-крок упаде з винятку раніше.
 #
 # NetworkPolicy у base — навпаки, обов'язковий (k8s.mdc): обмеження мережі мають

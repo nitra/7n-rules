@@ -1,5 +1,5 @@
 # Порт **структурних** пер-документних перевірок HPA та PDB з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc). Перевіряє лише ті властивості, що
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc). Перевіряє лише ті властивості, що
 # не залежать від cross-file контексту (`expectedDeployName`, `expectedAppLabel`,
 # `isDevLike`-сегмента). Cross-file перевірки лишаються в JS
 # (`hpaManifestViolations`, `pdbManifestViolations`,

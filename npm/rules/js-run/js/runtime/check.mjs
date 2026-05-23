@@ -7,7 +7,7 @@
  *    (див. `utils/bunyan-imports.mjs`);
  *  - наявність `OTEL_RESOURCE_ATTRIBUTES` зі значеннями `service.name=` та `service.namespace=`
  *    у `k8s/base/configmap.yaml`, якщо такий файл існує (відповідність імені ConfigMap імені
- *    Deployment перевіряється в `check-k8s.mjs`);
+ *    Deployment перевіряється в `rules/k8s/fix.mjs`);
  *  - «Внутрішні аліаси» (`#conn/*`): імпорти `bun#SQL`, будь-який `mssql`, `@nitra/graphql-request#GraphQLClient`
  *    дозволені лише у каталозі conn (за замовчуванням `src/conn/`; за наявності
  *    `package.json#imports['#conn/*']` — у його цільовому каталозі); поза ним — порушення

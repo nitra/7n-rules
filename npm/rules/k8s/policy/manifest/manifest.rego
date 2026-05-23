@@ -1,4 +1,4 @@
-# Порт пер-документних структурних перевірок з `npm/scripts/check-k8s.mjs`
+# Порт пер-документних структурних перевірок з `npm/scripts/rules/k8s/fix.mjs`
 # (k8s.mdc). Цей пакет описує лише ті правила, що дивляться на ОДИН манифест
 # (один YAML-документ): conftest за замовчуванням розрізає файли по `---` і
 # запускає policy на кожен документ окремо.
@@ -24,8 +24,8 @@
 # CROSS-FILE логіка (Kustomize-резолюція ресурсів, парність svc.yaml/svc-hl.yaml,
 # HPA/PDB/topologySpreadConstraints за каталогом, BackendConfig-сепарація,
 # yaml-language-server schema modeline, namespace-перевірки за деревом
-# `…/k8s/base/`) лишається у `check-k8s.mjs`: вона потребує файлової системи.
-# JS authoritative (`check-k8s.mjs` робить ці ж пер-документні перевірки в ширшому
+# `…/k8s/base/`) лишається у `rules/k8s/fix.mjs`: вона потребує файлової системи.
+# JS authoritative (`rules/k8s/fix.mjs` робить ці ж пер-документні перевірки в ширшому
 # контексті); ця Rego — швидкий gate для одиничного маніфеста.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
@@ -45,7 +45,7 @@ forbidden_service_annotations := {
 }
 
 # Дозволені посилання на образ `hasura/graphql-engine` (узгоджено з
-# `HASURA_GRAPHQL_ENGINE_IMAGE` у `check-k8s.mjs`). Зараз — один канонічний тег
+# `HASURA_GRAPHQL_ENGINE_IMAGE` у `rules/k8s/fix.mjs`). Зараз — один канонічний тег
 # у двох варіантах префіксу (із `docker.io/` і без). Digest (`@sha256:…`)
 # відрізається перед звіркою.
 allowed_hasura_images := {

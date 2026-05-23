@@ -3,7 +3,7 @@
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Перевіряє ЛИШЕ зміст значення `scripts.lint-docker`, якщо ключ присутній.
 # Умовну обовʼязковість (правило `docker` у `.n-cursor.json` → `scripts.lint-docker`
-# зобовʼязаний існувати) перевіряє `check-bun.mjs` через cross-file логіку.
+# зобовʼязаний існувати) перевіряє `rules/bun/fix.mjs` через cross-file логіку.
 package docker.package_json
 
 import rego.v1

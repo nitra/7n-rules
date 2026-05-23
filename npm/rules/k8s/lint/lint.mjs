@@ -2,14 +2,14 @@
  * Запуск kubeconform та kubescape для каталогів `…/k8s`, де є YAML-маніфести (див. k8s.mdc).
  *
  * Знаходить унікальні корені каталогів із іменем `k8s` за шляхами файлів **`*.yaml`**
- * (той самий принцип сегмента `k8s`, що й у check-k8s.mjs; розширення **`.yml`** під `k8s` не використовується). Якщо таких файлів немає — вихід 0
+ * (той самий принцип сегмента `k8s`, що й у rules/k8s/fix.mjs; розширення **`.yml`** під `k8s` не використовується). Якщо таких файлів немає — вихід 0
  * без виклику зовнішніх CLI.
  *
  * kubeconform перевіряє маніфести проти OpenAPI-схем Kubernetes; kubescape — сканування на
  * misconfiguration / compliance (NSA, MITRE, CIS тощо). Обидві утиліти очікуються в PATH
  * (локально: Homebrew, релізи GitHub; у CI — крок установки з k8s.mdc).
  *
- * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у check-k8s.mjs / k8s.mdc.
+ * Версія `-kubernetes-version` для kubeconform узгоджена з PIN yannh у rules/k8s/fix.mjs / k8s.mdc.
  * Kubescape не має аналога цього прапорця; орієнтир цільового кластера — та сама лінія релізу (див. k8s.mdc).
  */
 import { spawnSync } from 'node:child_process'

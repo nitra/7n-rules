@@ -79,7 +79,7 @@
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
  * **`apiVersion`, `kind`, `type`** (для CRD без поля `type` у маніфесті — зірочка **`*`** як третій
  * компонент). Спочатку шукається збіг за фактичним `type`, потім за **`*`**.
- * Dockerfile — правило docker.mdc, скрипт check-docker.mjs.
+ * Dockerfile — правило docker.mdc, скрипт rules/docker/fix.mjs.
  *
  * **Структура `HTTPRoute` для Hasura-Deployment:** звіряється канон 4 правил у **`spec.rules`** (редиректи **`<prefix>/ql`** і **`<prefix>/ql/`** на **`<prefix>/ql/console`** 302, **`PathPrefix <prefix>/ql`** + **URLRewrite** на **`/`**, окреме WebSocket-правило з **`RequestHeaderModifier`** remove **`Authorization`**). **Префікс параметризовано** (рядок перед **`/ql`** у першому Hasura-правилі). **Прив'язка** — за **`metadata.name`** у тому ж каталозі, що й **Deployment** з образом **`hasura/graphql-engine`** (див. k8s.mdc). **Додаткові правила** поверх канону дозволені.
  *

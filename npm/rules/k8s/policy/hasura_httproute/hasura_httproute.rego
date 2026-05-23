@@ -1,4 +1,4 @@
-# Порт перевірки `httpRouteHasuraCanonViolation` з `npm/scripts/check-k8s.mjs`
+# Порт перевірки `httpRouteHasuraCanonViolation` з `npm/scripts/rules/k8s/fix.mjs`
 # (k8s.mdc): HTTPRoute, що сусідствує з Hasura-Deployment з тим самим
 # `metadata.name`, має містити канон з 4 правил у такому порядку:
 #

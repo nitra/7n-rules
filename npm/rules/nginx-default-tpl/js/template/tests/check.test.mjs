@@ -1,5 +1,5 @@
 /**
- * Тести допоміжних функцій check-nginx-default-tpl.mjs (HTTPRoute, ini, шаблон).
+ * Тести допоміжних функцій rules/nginx-default-tpl/fix.mjs (HTTPRoute, ini, шаблон).
  */
 import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'

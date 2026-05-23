@@ -2,7 +2,7 @@
 #
 # Порт `verifyNoDirectBunOrCache`, `verifyNoRunShellLineContinuationBackslash`,
 # `verifyCheckoutBeforeLocalSetupBunDeps` та `validateConcurrencyOnRoot` з
-# `npm/scripts/check-ga.mjs`. На відміну від `lint_ga`/`clean_ga_workflows`/
+# `npm/scripts/rules/ga/fix.mjs`. На відміну від `lint_ga`/`clean_ga_workflows`/
 # `clean_merged_branch`/`git_ai`, цей пакет не привʼязаний до конкретного
 # workflow — `conftest test` запускається на кожному файлі окремо з
 # `--namespace ga.workflow_common`, і `input` — це окремий розпарсений YAML.

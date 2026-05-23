@@ -11,7 +11,7 @@
  *  - абзац про український апостроф у `.cursor/rules/n-text.mdc` /
  *    `npm/mdc/text.mdc` (markdown-текст, не JSON/YAML);
  *  - складна валідація скрипта `lint-text` (cspell, markdownlint, v8r у трьох
- *    варіантах, run-shellcheck-text.mjs, обовʼязкові glob-и);
+ *    варіантах, run-shellrules/text/fix.mjs, обовʼязкові glob-и);
  *  - workflow `lint-text.yml` має крок `bun run lint-text` (структура — rego `text.lint_text`).
  *
  * **Що покрила Rego** (`npx \@nitra/cursor check`):

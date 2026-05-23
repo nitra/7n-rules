@@ -1,5 +1,5 @@
 /**
- * Тести run-shellcheck-text.mjs: авто-виправлення через diff+patch і фінальний shellcheck.
+ * Тести run-shellrules/text/fix.mjs: авто-виправлення через diff+patch і фінальний shellcheck.
  */
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
@@ -9,7 +9,7 @@ import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
 
-describe('run-shellcheck-text.mjs', () => {
+describe('run-shellrules/text/fix.mjs', () => {
   test('listShellScriptPaths у тимчасовому каталозі без git повертає вкладені .sh', async () => {
     await withTmpCwd(async () => {
       await ensureDir('a/b')

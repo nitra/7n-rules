@@ -2,13 +2,13 @@
  * CLI-обгортка над канонічним `lint-ga` (ga.mdc): робить preflight на `shellcheck`, `uv` (для `uvx`)
  * і `conftest` (для rego-полісі у `check-ga`),
  * тоді послідовно виконує `bunx github-actionlint`, `uvx zizmor --offline --collect=workflows .` і
- * делегує до `check-ga.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
+ * делегує до `rules/ga/fix.mjs::check()` — там і Rego-частина (через `runConftestBatch`),
  * і JS cross-file перевірки правил `ga.mdc`.
  *
  * Plan B-патерн (rego-authoritative): Rego-полісі (`npm/policy/ga/`) запускає вже сам
- * `check-ga.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
+ * `rules/ga/fix.mjs::check()` як перший крок — `lint-ga.mjs` про це не знає. Раніше `lint-ga.mjs` сам
  * спавнив conftest для `ga.<name>` per-workflow і `ga.workflow_common` (PoC); тепер ця логіка
- * централізована у `check-ga.mjs`, тож одне джерело істини, без дублювання між
+ * централізована у `rules/ga/fix.mjs`, тож одне джерело істини, без дублювання між
  * `lint-ga` і `npx \@nitra/cursor check ga`.
  *
  * Без preflight `actionlint` (через `bunx github-actionlint`) мовчки пропускає shell-перевірки в
@@ -18,7 +18,7 @@
  * `uv` потрібен для `uvx zizmor`. Якщо його нема — `uvx zizmor` падає неінформативно («command not
  * found»); підказка з командою встановлення коротша й корисніша.
  *
- * `conftest` потрібен для `check-ga.mjs::runAllGaRego` (`runConftestBatch`). Без preflight крок
+ * `conftest` потрібен для `rules/ga/fix.mjs::runAllGaRego` (`runConftestBatch`). Без preflight крок
  * check-ga кидає виняток, який глобальний `catch` у `bin/n-cursor.js` раніше ковтав без логу —
  * локально це виглядало як мовчазний exit 1.
  *
@@ -137,7 +137,7 @@ function preflight(dep) {
  * 1) preflight: `shellcheck`, `uv` (для `uvx zizmor`) і `conftest` (для check-ga); відсутній → exit 1;
  * 2) `bunx github-actionlint`;
  * 3) `uvx zizmor --offline --collect=workflows .`;
- * 4) `check-ga.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
+ * 4) `rules/ga/fix.mjs::check()` — Rego-полісі (батч conftest з `npm/policy/ga/`) + JS cross-file
  *    перевірки правил `ga.mdc`. Це **те саме**, що робить `npx \@nitra/cursor check ga`, тож
  *    `lint-ga` тепер є суперсетом перевірки правила: external-tools + check.
  *

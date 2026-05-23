@@ -1,5 +1,5 @@
 # Порт перевірки версій з `package.json` для Vue+Vite пакетів з
-# `npm/scripts/check-vue.mjs` (vue.mdc).
+# `npm/scripts/rules/vue/fix.mjs` (vue.mdc).
 #
 # Запуск (локально, у Vue+Vite-пакеті):
 #   conftest test path/to/package.json -p npm/policy/vue \

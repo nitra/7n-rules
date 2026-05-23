@@ -1,5 +1,5 @@
 /**
- * Допоміжні перевірки для check-js-lint.mjs.
+ * Допоміжні перевірки для rules/js-lint/fix.mjs.
  *
  * Канонічний рядок `lint-js` і мінімальну версію `@nitra/eslint-config` тестує
  * rego-полісі `js_lint.package_json` (див. `npm/policy/js_lint/package_json/package_json_test.rego`).

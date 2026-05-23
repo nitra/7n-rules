@@ -1,5 +1,5 @@
 # Порт перевірки ConfigMap для Hasura-Deployment з
-# `npm/scripts/check-k8s.mjs` (k8s.mdc): у ConfigMap, що сусідствує з
+# `npm/scripts/rules/k8s/fix.mjs` (k8s.mdc): у ConfigMap, що сусідствує з
 # Hasura-Deployment, у `data` обов'язково має бути ключ
 # `HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS` зі значенням `"true"`.
 #
@@ -8,7 +8,7 @@
 #     -p npm/policy/k8s/hasura_configmap \
 #     --namespace k8s.hasura_configmap
 #
-# Прив'язка ConfigMap-Deployment cross-file — у JS (`check-k8s.mjs`:
+# Прив'язка ConfigMap-Deployment cross-file — у JS (`rules/k8s/fix.mjs`:
 # `validateHasuraConfigMapRemoteSchemaPermissions` шукає Hasura-Deployment
 # у тому ж dir-у і викликає conftest з цією намеспейс лише для відповідних
 # ConfigMap-ів). JS authoritative (`hasuraConfigMapRemoteSchemaPermissionsViolation`,
@@ -20,7 +20,7 @@ package k8s.hasura_configmap
 
 import rego.v1
 
-# Обов'язковий ключ у `data` (узгоджено з `check-k8s.mjs`).
+# Обов'язковий ключ у `data` (узгоджено з `rules/k8s/fix.mjs`).
 required_key := "HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS"
 
 key_missing_template := concat(" ", [

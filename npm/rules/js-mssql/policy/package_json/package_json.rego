@@ -1,4 +1,4 @@
-# Порт перевірки версії `mssql` з `npm/scripts/check-js-mssql.mjs` (js-mssql.mdc).
+# Порт перевірки версії `mssql` з `npm/scripts/rules/js-mssql/fix.mjs` (js-mssql.mdc).
 #
 # Запуск (локально, для будь-якого `package.json`):
 #   conftest test path/to/package.json -p npm/policy/js_mssql \
@@ -9,7 +9,7 @@
 #
 # AST-скан коду на per-request `new sql.ConnectionPool(...)` всередині функцій
 # (потребує парсингу `.js` / `.ts` через oxc-parser), а також full-semver
-# (`major.minor.patch` triple-compare у `check-js-mssql.mjs`) лишаються у JS:
+# (`major.minor.patch` triple-compare у `rules/js-mssql/fix.mjs`) лишаються у JS:
 # JS-перевірка authoritative, ця Rego — швидкий gate для одиничного `package.json`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
