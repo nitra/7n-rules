@@ -1,0 +1,91 @@
+npm/rules/test/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/docker/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/nginx-default-tpl/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/bin/n-cursor.js
+  s_36d194edc23b6f::t_579da5f6a84d9c 1041
+npm/scripts/utils/run-standard-rule.mjs
+  s_36d194edc23b6f::t_17c731ec9158aa 25
+npm/rules/image-compress/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/js-bun-redis/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/js-bun-db/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/adr/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/tests/fix-mjs-contract.test.mjs
+  s_36d194edc23b6f::t_945e5764339d56 13-14
+npm/rules/js-lint/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/text/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/scripts/utils/discover-checkable-rules.mjs
+  s_36d194edc23b6f::t_859010b102260b 93
+npm/rules/js-run/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/hasura/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/php/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/feedback/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/ci4/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/graphql/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/efes/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/vue/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/bun/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/tauri/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/rego/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/changelog/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/package.json
+  s_36d194edc23b6f::t_6cff0a7d0d4b66 3
+npm/rules/capacitor/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/abie/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/ga/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/security/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/image-avif/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/npm-module/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/CHANGELOG.md
+  s_36d194edc23b6f::t_f9abbdfcfcc7c5 7-25
+npm/rules/style-lint/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/scripts/utils/walk-cache.mjs
+  s_36d194edc23b6f::t_0d502e72035056 12
+npm/rules/k8s/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+npm/rules/js-mssql/fix.mjs
+  s_36d194edc23b6f::t_fa8d926a1092b1 4-5,8,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "928abb50cb9b1b9a25c04bab353dd704bd279c4d",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
