@@ -1,0 +1,95 @@
+npm/rules/docker/docker.mdc
+  s_36d194edc23b6f::t_7d07bcad75ea29 10,93,100,102,119
+npm/rules/ga/policy/workflow_common/workflow_common.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 5
+npm/rules/k8s/policy/kustomization/kustomization.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,17
+.cursor/rules/n-feedback.mdc
+  s_36d194edc23b6f::t_d4ac7b873acee2 20
+npm/rules/capacitor/js/platforms/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/changelog/js/consistency/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/feedback/feedback.mdc
+  s_36d194edc23b6f::t_ccad5375db08fc 20
+npm/rules/npm-module/js/package_structure/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/k8s/policy/svc_hl_yaml/svc_hl_yaml.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,9
+npm/rules/graphql/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 3
+npm/rules/docker/policy/package_json/package_json_test.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 16
+npm/rules/js-lint/js/tooling/check.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 352
+npm/rules/k8s/policy/svc_yaml/svc_yaml.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,9
+.cursor/rules/conftest.mdc
+  s_36d194edc23b6f::t_7d07bcad75ea29 75,82
+npm/rules/k8s/policy/hasura_httproute/hasura_httproute.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 1
+npm/rules/docker/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 6
+npm/rules/text/js/formatting/check.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 14
+npm/rules/js-run/js/runtime/check.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 10
+npm/rules/k8s/policy/base_kustomization/base_kustomization.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 1,10,42
+npm/rules/nginx-default-tpl/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 3
+npm/rules/k8s/js/manifests/check.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 82
+npm/rules/k8s/policy/gateway/gateway.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,17
+npm/rules/vue/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/k8s/k8s.mdc
+  s_36d194edc23b6f::t_7d07bcad75ea29 20,34,155,257,296,300,326,411,415,620
+npm/rules/k8s/policy/manifest/manifest.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 1,27-28,48
+npm/rules/k8s/policy/hasura_configmap/hasura_configmap.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,11,23
+npm/rules/adr/js/hooks/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/js-mssql/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 1,12
+npm/rules/k8s/policy/hpa_pdb/hpa_pdb.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/js-lint/js/tooling/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/capacitor/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 1,13
+npm/rules/nginx-default-tpl/js/template/tests/check.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2
+npm/rules/k8s/policy/base_manifest/base_manifest.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 10,28
+npm/rules/k8s/lint/lint.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 5,12
+npm/rules/ga/lint/lint.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 5,9,11,21,140
+npm/rules/nginx-default-tpl/policy/vscode_settings/vscode_settings.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 3
+npm/rules/abie/abie.mdc
+  s_36d194edc23b6f::t_7d07bcad75ea29 141
+npm/rules/tauri/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_7d07bcad75ea29 3
+npm/rules/text/lint/tests/run-shellcheck.test.mjs
+  s_36d194edc23b6f::t_7d07bcad75ea29 2,12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "75cc6c62e5cbbbbf2f3719ee1b4d8d45a39af369",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
