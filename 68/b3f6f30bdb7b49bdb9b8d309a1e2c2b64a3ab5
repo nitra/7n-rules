@@ -1,0 +1,195 @@
+npm/rules/vue/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/image-avif/image-avif.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 8
+npm/skills/fix/SKILL.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 11,15,18,46,49
+npm/rules/image-avif/js/avif_generation/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 221
+.cursor/rules/n-bun.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 87
+.cursor/rules/n-vue.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 344
+npm/rules/js-lint/js-lint.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 67
+npm/rules/ga/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/hasura/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/schemas/n-cursor.json
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 48
+npm/scripts/claude-stop-hook.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 71
+npm/rules/js-lint/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/scripts/utils/discover-check-rules-from-cursor.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 2
+npm/rules/vue/vue.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 344
+npm/rules/k8s/k8s.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 26,56
+npm/rules/efes/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/bun/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/k8s/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/bin/n-cursor.js
+  s_36d194edc23b6f::t_df3be8152d5bd0 1224-1228,1230-1232
+  s_36d194edc23b6f::t_0acaf95e837428 976-981,984,987-988,991,993-999,1004,1007-1008,1010,1018-1021,1025
+npm/rules/security/security.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 52
+npm/scripts/build-agents-commands.mjs
+  s_36d194edc23b6f::t_a8fa5721d82ba6 84
+npm/rules/npm-module/js/package_structure/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 207,341
+npm/scripts/utils/read-n-cursor-config-lite.mjs
+  s_36d194edc23b6f::t_143907dfcc58b8 1-59
+npm/rules/js-bun-db/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+.cursor/skills/n-fix/SKILL.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 11,15,18,46,49
+npm/rules/php/js/tooling/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 31,38
+npm/rules/rego/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/security/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/image-compress/js/package_setup/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 103
+npm/rules/abie/abie.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 163
+npm/rules/image-avif/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/text/js/formatting/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 114
+npm/rules/efes/efes.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 19
+.cursor/rules/n-security.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 114
+npm/rules/php/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+.cursor/rules/n-text.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 417
+npm/README.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 55,59,69-70,118,126,137,139,141,168
+npm/rules/feedback/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/changelog/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/capacitor/policy/package_json/package_json.rego
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 14
+npm/rules/js-lint/js/tooling/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 350
+.cursor/rules/conftest.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 90
+npm/scripts/tests/build-agents-commands.test.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 20
+npm/rules/tauri/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_f325937f63e92c 6
+npm/rules/feedback/feedback.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 7
+npm/rules/js-bun-redis/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/CHANGELOG.md
+  s_36d194edc23b6f::t_452b9888d59743 770,799
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 37,50,78,232,702,709,736,756,763,777,781,784-785,812,824,959,963,1119,1215,1348,1538,1634,1741,1884,1900
+  s_36d194edc23b6f::t_0910781c740524 7-20
+npm/rules/abie/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/bun/bun.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 75
+npm/rules/style-lint/js/tooling/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 47,67
+npm/rules/text/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/nginx-default-tpl/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+.cursor/skills/mdc-check/SKILL.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 26,35,74,79,82
+.cursor/rules/n-ci4.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 33
+npm/package.json
+  s_36d194edc23b6f::t_70b62bf2a406e6 3
+.cursor/rules/n-changelog.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 13
+npm/rules/image-compress/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/capacitor/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/npm-module/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/nginx-default-tpl/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_f325937f63e92c 5
+npm/rules/text/text.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 263
+.cursor/rules/n-feedback.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 7
+npm/skills/lint/SKILL.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 117
+.cursor/rules/n-js-lint.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 91
+npm/rules/adr/js/hooks/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 119
+npm/rules/style-lint/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/bun/js/layout/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 186
+npm/scripts/utils/run-rule-cli.mjs
+  s_36d194edc23b6f::t_61804e1a45040d 1-3,5-37
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 4
+npm/rules/adr/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+.cursor/rules/scripts.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 16,77
+npm/rules/vue/js/packages/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 416
+npm/rules/docker/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/docker/docker.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 106,119
+npm/rules/js-run/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/ci4/ci4.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 33
+.cursor/skills/n-lint/SKILL.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 117
+npm/rules/changelog/changelog.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 13
+npm/rules/ci4/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/tauri/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/tauri/js/tooling/check.mjs
+  s_36d194edc23b6f::t_f325937f63e92c 15
+npm/rules/test/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/graphql/policy/vscode_extensions/vscode_extensions.rego
+  s_36d194edc23b6f::t_f325937f63e92c 5
+npm/.claude-template/commands/n-check.md
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 3,8
+npm/rules/js-run/js/runtime/check.mjs
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 337,421
+npm/rules/test/test.mdc
+  s_36d194edc23b6f::t_3a2d6ce763a6b4 56
+npm/rules/graphql/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+npm/rules/js-mssql/fix.mjs
+  s_36d194edc23b6f::t_08039054a7c62c 5,14-16,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "68b3f6f30bdb7b49bdb9b8d309a1e2c2b64a3ab5",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
