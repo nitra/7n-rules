@@ -160,7 +160,7 @@ bun add -d @nitra/abie-docs
 
 ## Швидкий gate через conftest (Rego)
 
-Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor check abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>/check.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
+Підмножину пер-документних правил продубльовано як rego-полісі у **`npm/rules/abie/policy/`** (запускається через **`bun run lint-rego`** для `*_test.rego` юніт-тестів і через **`npx @nitra/cursor fix abie`** для прогону по реальних YAML — деталі в **conftest.mdc** / **n-rego.mdc**). JS у **`js/<concern>/check.mjs`** authoritative — rego тільки швидкий gate для одиничного маніфеста (зокрема через IDE-розширення `tsandall.opa`).
 
 Пакети (директорія в **`npm/policy/abie/`** → namespace → що перевіряє):
 

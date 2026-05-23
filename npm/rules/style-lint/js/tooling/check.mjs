@@ -44,7 +44,7 @@ async function checkStylelintConfigPresence(reporter) {
 // `.vscode/extensions.json` (`stylelint.vscode-stylelint`) і `.vscode/settings.json`
 // (`css.validate`/`scss.validate`/`less.validate: false`) — у rego-пакетах
 // `style_lint.vscode_extensions` і `style_lint.vscode_settings`, прогоняє
-// `npx @nitra/cursor check`. JS-копії видалено, щоб не було двох джерел істини.
+// `npx @nitra/cursor fix`. JS-копії видалено, щоб не було двох джерел істини.
 
 /**
  * Перевіряє відповідність проєкту правилам style-lint.mdc
@@ -64,7 +64,7 @@ export async function check() {
 
   const wfPath = '.github/workflows/lint-style.yml'
   if (existsSync(wfPath)) {
-    pass(`${wfPath} є (структуру перевіряє npx @nitra/cursor check → style_lint.lint_style_yml)`)
+    pass(`${wfPath} є (структуру перевіряє npx @nitra/cursor fix → style_lint.lint_style_yml)`)
   } else {
     fail(`${wfPath} не існує — створи його`)
   }

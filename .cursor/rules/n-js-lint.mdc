@@ -88,7 +88,7 @@ version: '1.23'
 
 У корені проєкту має бути **`knip.json`**, який стартує з канонічного baseline з пакета `@nitra/cursor` — файл [`npm/rules/js-lint/js/tooling/knip-canonical.json`](../../npm/rules/js-lint/js/tooling/knip-canonical.json). Він покриває типові false-positives для наших правил: `entry` зі CLI-конфігами (eslint, stylelint, oxlint, jscpd, markdownlint-cli2, `commitlint`), `project` для `**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}`, `ignore` для `**/__fixtures__/**`, `ignoreDependencies` для пакетів, посилання на які є лише в не-JS-конфігах (`@nitra/cspell-dict`, `/@cspell\/dict-.+/`), і `ignoreBinaries` для CLI, які канон вимагає викликати через `npx`/`bunx` і яких заборонено додавати в `devDependencies` (`actionlint`, `cspell`, `depcheck`, `eslint`, `git-ai`, `jscpd`, `markdownlint-cli2`, `oxfmt`, `oxlint`, `shellcheck`, `uvx`, `v8r`, `zizmor`).
 
-Якщо `knip.json` відсутній — `npx @nitra/cursor check js-lint` копіює канон у корінь проєкту (side effect). Після створення модифікуй файл під свій проєкт як завгодно: перевіряємо лише наявність, зміст подальших змін не валідується.
+Якщо `knip.json` відсутній — `npx @nitra/cursor fix js-lint` копіює канон у корінь проєкту (side effect). Після створення модифікуй файл під свій проєкт як завгодно: перевіряємо лише наявність, зміст подальших змін не валідується.
 
 Пакет `knip` окремо в `devDependencies` не додавай — `bunx knip` тягне його ad-hoc, як oxlint/eslint/jscpd.
 

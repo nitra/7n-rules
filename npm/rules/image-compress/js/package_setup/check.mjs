@@ -100,7 +100,7 @@ export async function check() {
     fail('package.json не знайдено в корені — додай (image-compress.mdc)')
     return reporter.getExitCode()
   }
-  pass('package.json є (структуру перевіряє npx @nitra/cursor check → image_compress.package_json)')
+  pass('package.json є (структуру перевіряє npx @nitra/cursor fix → image_compress.package_json)')
 
   await checkHashCacheNotIgnored(pass, fail)
   await checkLegacyCacheRemoved(pass, fail)

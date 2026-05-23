@@ -116,7 +116,7 @@ async function checkHookScript(reporter, scriptName) {
 function checkProjectSettings(reporter) {
   const { pass, fail } = reporter
   if (existsSync(PROJECT_SETTINGS_PATH)) {
-    pass(`${PROJECT_SETTINGS_PATH} є (Stop-hook перевіряє npx @nitra/cursor check → adr.settings_json)`)
+    pass(`${PROJECT_SETTINGS_PATH} є (Stop-hook перевіряє npx @nitra/cursor fix → adr.settings_json)`)
   } else {
     fail(`${PROJECT_SETTINGS_PATH} не існує — запусти \`npx @nitra/cursor\``)
   }

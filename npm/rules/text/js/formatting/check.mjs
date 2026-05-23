@@ -111,7 +111,7 @@ function checkTextConfigsExistence(passFn, failFn) {
     ['.vscode/settings.json', 'text.vscode_settings']
   ]) {
     if (existsSync(path)) {
-      passFn(`${path} є (структуру перевіряє npx @nitra/cursor check → ${mdcRef})`)
+      passFn(`${path} є (структуру перевіряє npx @nitra/cursor fix → ${mdcRef})`)
     } else {
       failFn(`${path} не існує — створи згідно n-text.mdc`)
     }

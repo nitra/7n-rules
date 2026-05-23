@@ -90,7 +90,6 @@ import { runLintGaCli } from '../rules/ga/lint/lint.mjs'
 import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
 import { runLintRego } from '../rules/rego/lint/lint.mjs'
 import { runLintTextCli } from '../rules/text/lint/lint.mjs'
-import { getOrCreateWalkCache } from '../scripts/utils/walk-cache.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -974,86 +973,56 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Запускає перевірки: без аргументів — за `*.mdc` у `.cursor/rules/`; з аргументами — лише вказані правила.
- * Перебирає правила через `listRuleIds`, для кожного робить dynamic `import('<rules>/<id>/fix.mjs')`
- * і викликає `mod.run({ walkCache })`. Сам `runChecks` відповідає лише за фільтр id, агрегацію
- * exit-кодів і shared walk-cache на прогон.
- * @param {string[]} requestedRules імена правил; порожній масив — брати з `.cursor/rules/*.mdc`
+ * Spawn-wrapper для `npx @nitra/cursor fix [<rule>...]`. Один шлях у коді: для кожного правила
+ * робить `bun rules/<id>/fix.mjs` як окремий процес. Сам `fix.mjs` читає `.n-cursor.json`,
+ * перевіряє whitelist (`runRuleCli`) і друкує per-rule summary.
+ *
+ * Без аргументів — discover з `.cursor/rules/*.mdc` у проекті-споживачі.
+ * @param {string[]} requestedRules імена правил; порожній масив — discovery з `.cursor/rules/`
  * @returns {Promise<void>}
  */
-async function runChecks(requestedRules) {
+async function runFixCommand(requestedRules) {
   const available = await listRuleIds(BUNDLED_RULES_DIR)
   if (available.length === 0) {
-    console.error('❌ Не знайдено жодного check-скрипта у пакеті')
-    throw new Error('No check scripts found')
+    console.error('❌ Не знайдено жодного правила у пакеті')
+    throw new Error('No rules found')
   }
 
-  const root = cwd()
-  const legacyConfigPath = join(root, 'nitra-cursor.json')
-  if (existsSync(join(root, CONFIG_FILE)) || existsSync(legacyConfigPath)) {
-    try {
-      await readConfig()
-    } catch (error) {
-      console.error(`❌ ${error.message}`)
-      throw error
-    }
-  }
-
-  let idsToCheck
+  let idsToRun
   if (requestedRules.length > 0) {
-    idsToCheck = requestedRules
+    const unknown = requestedRules.filter(id => !available.includes(id))
+    if (unknown.length > 0) {
+      console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
+      console.log(`   Доступні: ${available.join(', ')}`)
+      throw new Error(`Unknown rules: ${unknown.join(', ')}`)
+    }
+    idsToRun = requestedRules
   } else {
     const mdcFiles = await listProjectRulesMdcFiles()
     if (mdcFiles.length === 0) {
       throw new Error(
-        `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} check bun ga\``
+        `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} fix bun ga\``
       )
     }
-    idsToCheck = discoverCheckRulesFromCursorRules(available, mdcFiles)
-    if (idsToCheck.length === 0) {
+    idsToRun = discoverCheckRulesFromCursorRules(available, mdcFiles)
+    if (idsToRun.length === 0) {
       console.log(
-        `\n🔍 ${PACKAGE_NAME} check — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
+        `\n🔍 ${PACKAGE_NAME} fix — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
           `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
       )
       return
     }
   }
 
-  const unknown = idsToCheck.filter(id => !available.includes(id))
-  if (unknown.length > 0) {
-    console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
-    console.log(`   Доступні: ${available.join(', ')}`)
-    throw new Error(`Unknown rules: ${unknown.join(', ')}`)
-  }
-
-  console.log(`\n🔍 ${PACKAGE_NAME} check — перевірка правил (${idsToCheck.length})\n`)
-
-  /** @type {Map<string, Promise<string[]>>} shared walk-cache (cross-concern, cross-rule у межах одного прогону) */
-  const walkCache = getOrCreateWalkCache()
   let totalFailed = 0
-
-  for (const id of idsToCheck) {
-    try {
-      const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
-      // eslint-disable-next-line no-unsanitized/method -- id з whitelist'у listRuleIds (readdir + existsSync), fixPath не з зовнішнього input
-      const mod = await import(fixPath)
-      if (typeof mod.run !== 'function') {
-        throw new TypeError(`${id}: rules/${id}/fix.mjs не експортує run()`)
-      }
-      const code = await mod.run({ walkCache })
-      if (code !== 0) totalFailed++
-    } catch (error) {
-      console.log(`  ❌ Помилка виконання: ${error.message}`)
-      totalFailed++
-    }
-    console.log()
+  for (const id of idsToRun) {
+    const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
+    const result = spawnSync('bun', [fixPath], { stdio: 'inherit' })
+    if (result.status !== 0) totalFailed++
   }
-
-  const passedCount = idsToCheck.length - totalFailed
-  console.log(`✨ Результат: ${passedCount}/${idsToCheck.length} правил без зауважень\n`)
 
   if (totalFailed > 0) {
-    throw new Error(`${totalFailed} з ${idsToCheck.length} правил мають проблеми`)
+    throw new Error(`${totalFailed} з ${idsToRun.length} правил мають проблеми`)
   }
 }
 
@@ -1252,8 +1221,15 @@ const [command, ...args] = process.argv.slice(2)
 try {
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
+    case 'fix': {
+      await runFixCommand(args)
+
+      break
+    }
     case 'check': {
-      await runChecks(args)
+      // Backward-compatibility alias. Перейменовано на `fix` у 1.13.84 (узгоджено з ім'ям файла `rules/<id>/fix.mjs`).
+      console.warn(`⚠️  Команда \`check\` deprecated — використовуйте \`fix\` (\`npx ${PACKAGE_NAME} fix [<rule>...]\`)`)
+      await runFixCommand(args)
 
       break
     }

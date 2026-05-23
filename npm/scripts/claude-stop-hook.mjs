@@ -68,7 +68,7 @@ export async function runStopHookCli() {
     const [code] = await once(child, 'exit')
     return code ?? 1
   } catch (error) {
-    process.stderr.write(`stop-hook: не вдалося запустити npx @nitra/cursor check — ${error.message}\n`)
+    process.stderr.write(`stop-hook: не вдалося запустити npx @nitra/cursor fix — ${error.message}\n`)
     return 1
   }
 }

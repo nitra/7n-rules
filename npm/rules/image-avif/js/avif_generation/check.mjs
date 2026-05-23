@@ -218,7 +218,7 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
       VUE_RASTER_IMPORT_RE,
       importPath =>
         `[${label}] ${rel}: import з '${importPath}' має посилатись на AVIF-двійник '${importPath}.avif' ` +
-        `(\`npx @nitra/cursor check image-avif\` створює його поряд, якщо оригінал є на диску). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
+        `(\`npx @nitra/cursor fix image-avif\` створює його поряд, якщо оригінал є на диску). Вимкнути локально: "@nitra/minify-image": { "disable-avif": true } у package.json пакета`
     )
     processMatches(
       VUE_RASTER_STATIC_SRC_RE,

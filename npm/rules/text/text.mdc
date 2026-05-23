@@ -260,4 +260,4 @@ kebab-case
 
 ## Перевірка
 
-`npx @nitra/cursor check text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`)
+`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`)

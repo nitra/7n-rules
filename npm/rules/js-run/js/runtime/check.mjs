@@ -334,7 +334,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
   // Frontend-пакети (vite у devDependencies) виходять за межі js-run:
   // браузерний бандл не має `node:process`, а `process.env.*` бандлер
   // обробляє самостійно. Перевірку process.env / conn-аліасів пропускаємо;
-  // bunyan-залежність валідується в Rego (`npx @nitra/cursor check`).
+  // bunyan-залежність валідується в Rego (`npx @nitra/cursor fix`).
   if (packageJsonHasViteDevDependency(pkgJson)) {
     passFn(`${label}vite-пакет (frontend) — js-run пропущено (process.env / conn-aliases / OTEL configmap)`)
     return
@@ -418,7 +418,7 @@ async function loadPackageJson(rootDir) {
 function checkOtelConfigmap(rootDir, passFn) {
   const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
   if (!existsSync(configmapPath)) return
-  passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @nitra/cursor check → js_run.configmap)`)
+  passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @nitra/cursor fix → js_run.configmap)`)
 }
 
 /**

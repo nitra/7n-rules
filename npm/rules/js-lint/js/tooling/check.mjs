@@ -347,7 +347,7 @@ async function checkOxlintRc(passFn, failFn) {
  */
 async function checkLintJsWorkflows(passFn, failFn) {
   if (existsSync('.github/workflows/lint-js.yml')) {
-    passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor check → js_lint.lint_js_yml)')
+    passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor fix → js_lint.lint_js_yml)')
   } else {
     failFn('.github/workflows/lint-js.yml не існує — створи його (див. rules/js-lint/fix.mjs / js-lint.mdc)')
   }

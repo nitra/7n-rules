@@ -23,7 +23,7 @@ alwaysApply: false
 
 **Скоп — поза `.github/`:** правило стосується YAML-маніфестів у каталогах **`k8s`** (визначаються відносно кореня репо, не за абсолютним шляхом). Файли під **`.github/workflows/`** та **`.github/actions/`** ця перевірка **не** зачіпає — їхній скоп визначає **`ga.mdc`** (там канон — **`.yml`**). Це робить два правила несуперечливими навіть у проєктах, де сам корінь репо випадково має ім'я `k8s/` (тоді сегмент `k8s` присутній у абсолютному шляху всіх файлів, але **відносно кореня** його там немає).
 
-**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor check docker`**.
+**Dockerfile / hadolint** — окреме правило **`docker.mdc`** і **`npx @nitra/cursor fix docker`**.
 
 ## lint-k8s: kubeconform і kubescape
 
@@ -53,7 +53,7 @@ alwaysApply: false
 }
 ```
 
-Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **мають** бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor check bun`**.
+Якщо правило **`k8s`** підключено в **`.n-cursor.json`** (масив **`rules`**), у **кореневому** `package.json` **мають** бути скрипт **`lint-k8s`** і виклик **`bun run lint-k8s`** у агрегованому **`lint`** (див. **`bun.mdc`**). Це перевіряє **`npx @nitra/cursor fix bun`**.
 
 Додай workflow **`.github/workflows/lint-k8s.yml`** (гілки **`dev`** і **`main`**, лише **`.yml`**, узгоджено з **`ga.mdc`**). **Не** дублюй **`setup-node`**, **`oven-sh/setup-bun`**, **`actions/cache`** і **`bun install`** у job — після **`checkout`** використовуй локальний composite **`setup-bun-deps`** (шлях **`./.github/actions/setup-bun-deps`** або **`./npm/github-actions/setup-bun-deps`**, як у репозиторії). Встановлення **kubeconform** / **kubescape** лишаються окремими кроками.
 

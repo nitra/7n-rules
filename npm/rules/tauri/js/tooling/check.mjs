@@ -12,7 +12,7 @@
  *   3. Інакше — для `.vscode/extensions.json` зробити FS-existence + делегувати
  *      content `rego.tauri.vscode_extensions` через `runConftestBatch`.
  *
- * Rego-полісі глобально без `target.json` поруч (не auto-discoverable через `n-cursor check`) — це conditional
+ * Rego-полісі глобально без `target.json` поруч (не auto-discoverable через `n-cursor fix`) — це conditional
  * правило. Plan B: Rego-authoritative + JS-orchestrator з `runConftestBatch`.
  */
 import { existsSync, statSync } from 'node:fs'

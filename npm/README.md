@@ -52,11 +52,11 @@
 
 - **Структура Kustomize:** спільне виноситься в **`base`**; вміст **base** відповідає тому, як має виглядати середовище **dev**; окремої директорії **`dev/`** немає — за dev відповідає **`base`**. У інших середовищах — тонкі **overlays** (часто лише **`kustomization.yaml`** і patches / оверрайди).
 - **Namespace** задається в **`kustomization.yaml`** (`namespace:`), а не через **`metadata.namespace`** у кожному ресурсі; окремі patches лише на зміну **namespace** не потрібні.
-- У **Deployment** для кожного контейнера: **`resources`** (перевіряє **`npx @nitra/cursor check k8s`**);
+- У **Deployment** для кожного контейнера: **`resources`** (перевіряє **`npx @nitra/cursor fix k8s`**);
 - Рядки в **base**, які змінюються в overlays, позначайте коментарем на рядку (узгоджено в команді), наприклад: `# буде замінено через kustomize`.
 - Після перенесення в **`base`** / overlays **видаляйте** застарілі маніфести та каталоги, які більше не потрібні.
 
-Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/rules/k8s/`**: JS-checks у `js/<concern>/check.mjs`, rego-policies у `policy/<concern>/<name>.rego` (обидва запускаються через `npx @nitra/cursor check k8s`).
+Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/rules/k8s/`**: JS-checks у `js/<concern>/check.mjs`, rego-policies у `policy/<concern>/<name>.rego` (обидва запускаються через `npx @nitra/cursor fix k8s`).
 
 ### v8r і власний каталог схем
 
@@ -66,8 +66,8 @@
 
 ```bash
 npx @nitra/cursor
-npx @nitra/cursor check
-npx @nitra/cursor check bun ga
+npx @nitra/cursor fix
+npx @nitra/cursor fix bun ga
 ```
 
 Команда `check` запускає programmatic перевірки з каталогу `scripts/` пакету. Якщо в корені репозиторію вже є `.n-cursor.json`, перед перевірками виконується зчитування конфігу — зокрема додається або виправляється поле `$schema`, якщо воно відсутнє або не збігається з очікуваним URL.
@@ -115,7 +115,7 @@ npm/
 npm/rules/<id>/
 ├── <id>.mdc              # текст правила (після синку — .cursor/rules/n-<id>.mdc)
 ├── auto.md               # умова автоактивації скілу (опційно)
-├── js/                  # JS для `npx @nitra/cursor check`
+├── js/                  # JS для `npx @nitra/cursor fix`
 │   └── <concern>/
 │       ├── check.mjs     # діагностика — повертає список violations
 │       ├── check.test.mjs
@@ -123,7 +123,7 @@ npm/rules/<id>/
 ├── lint/                 # JS, що живить `bun run lint-<id>` (для правил з канонічним lint-скриптом)
 │   ├── lint.mjs          # CLI entry для `n-cursor lint-<id>`
 │   └── run-*.mjs         # допоміжні runner-и (shellcheck, v8r тощо)
-└── policy/               # rego для `npx @nitra/cursor check`
+└── policy/               # rego для `npx @nitra/cursor fix`
     └── <concern>/
         ├── <concern>.rego       # правила (`deny contains msg if …`)
         ├── <concern>_test.rego  # юніт-тести (запускає `bun run lint-rego` → conftest verify)
@@ -134,11 +134,11 @@ npm/rules/<id>/
 
 | Що реалізує               | Канал виклику                                  | Куди                |
 | ------------------------- | ---------------------------------------------- | ------------------- |
-| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал)          | `js/<concern>/`    |
+| JS-діагностика + автофікс | `npx @nitra/cursor fix` (fix-канал)          | `js/<concern>/`    |
 | JS-orchestrator лінту     | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/`             |
-| Rego-діагностика          | `npx @nitra/cursor check` (fix-канал)          | `policy/<concern>/` |
+| Rego-діагностика          | `npx @nitra/cursor fix` (fix-канал)          | `policy/<concern>/` |
 
-`js/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor check` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `js/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
+`js/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor fix` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `js/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
 
 ## AGENTS.md у проєкті користувача
 
@@ -165,7 +165,7 @@ npm/rules/<id>/
 
 3. Для секції **Skills** використовуйте блок **`{{#skills}}` … `{{/skills}}`** з тим самим `{{name}}`: рядки формуються з каталогів у `.cursor/skills/` (див. також `buildSkillBulletItems` у `bin/n-cursor.js`).
 
-4. Для секції **Commands** використовуйте **`{{#commands}}` … `{{/commands}}`**: список генерується з кореневого **`package.json`** (поле `scripts` — відомі ключі у фіксованому порядку, плюс додаткові `lint-*`) та завжди доповнюється рядками про **`npx @nitra/cursor`** і **`npx @nitra/cursor check`**. Логіка винесена в **`npm/scripts/build-agents-commands.mjs`**.
+4. Для секції **Commands** використовуйте **`{{#commands}}` … `{{/commands}}`**: список генерується з кореневого **`package.json`** (поле `scripts` — відомі ключі у фіксованому порядку, плюс додаткові `lint-*`) та завжди доповнюється рядками про **`npx @nitra/cursor`** і **`npx @nitra/cursor fix`**. Логіка винесена в **`npm/scripts/build-agents-commands.mjs`**.
 
 5. Після змін у шаблоні перевірте локально: у тестовому репозиторії з `.n-cursor.json` виконайте `npx`/`bunx` на зібраному пакеті або `node npm/bin/n-cursor.js` з кореня того репозиторію і переконайтеся, що **`AGENTS.md`** виглядає як очікується.
 

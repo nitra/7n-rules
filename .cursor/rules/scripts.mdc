@@ -13,7 +13,7 @@ npm/rules/{rule}/
 ├── {rule}.mdc                              ← текст правила (frontmatter + body)
 ├── auto.md                                 ← умова автоактивації (опційно)
 ├── js/<concern>/                          ← FS / cross-file / autofix (JS-частина концерну; опційно)
-│   ├── check.mjs                           ← перевірка концерну (запускається через `npx @nitra/cursor check {rule}`)
+│   ├── check.mjs                           ← перевірка концерну (запускається через `npx @nitra/cursor fix {rule}`)
 │   ├── check.test.mjs                      ← Bun-тести поруч з джерелом
 │   └── template/<target>.<slot>.<ext>      ← канон концерну для FS-only кейсів (опційно)
 └── policy/<concern>/                       ← Rego-поліси концерну (один target-файл; опційно)
@@ -74,7 +74,7 @@ npm/rules/{rule}/
 
 ## Діагностика
 
-`npx @nitra/cursor check` — програмна перевірка відповідності проєкту правилам за **`*.mdc` у `.cursor/rules/`** (auto-discovery: правило вмикається, якщо є `js/<concern>/check.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor check bun ga`, `npx @nitra/cursor check changelog npm-module`.
+`npx @nitra/cursor fix` — програмна перевірка відповідності проєкту правилам за **`*.mdc` у `.cursor/rules/`** (auto-discovery: правило вмикається, якщо є `js/<concern>/check.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor fix bun ga`, `npx @nitra/cursor fix changelog npm-module`.
 
 Файл **`.n-cursor.json`** має містити **`$schema`** з посиланням на JSON Schema пакету: `https://unpkg.com/@nitra/cursor/schemas/n-cursor.json`. CLI `@nitra/cursor` записує або оновлює це поле при автоматичному створенні конфігу, при зчитуванні конфігу під час завантаження правил і перед запуском `check`, якщо в корені вже є `.n-cursor.json`.
 

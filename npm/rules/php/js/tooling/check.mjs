@@ -28,14 +28,14 @@ export function check() {
   }
 
   if (existsSync('package.json')) {
-    pass('package.json є (наявність lint-php перевіряє npx @nitra/cursor check → php.package_json)')
+    pass('package.json є (наявність lint-php перевіряє npx @nitra/cursor fix → php.package_json)')
   } else {
     fail('package.json не знайдено в корені — додай (php.mdc)')
   }
 
   const wfPath = '.github/workflows/lint-php.yml'
   if (existsSync(wfPath)) {
-    pass(`${wfPath} є (структуру перевіряє npx @nitra/cursor check → php.lint_php_yml)`)
+    pass(`${wfPath} є (структуру перевіряє npx @nitra/cursor fix → php.lint_php_yml)`)
   } else {
     fail(`${wfPath} не існує — створи згідно php.mdc`)
   }

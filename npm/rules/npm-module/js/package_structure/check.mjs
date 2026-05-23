@@ -204,7 +204,7 @@ function checkEmitTypesConfig(passFn, failFn) {
     )
     return
   }
-  passFn(`${EMIT_TYPES_CONFIG} є (структуру перевіряє npx @nitra/cursor check → npm_module.emit_types_config)`)
+  passFn(`${EMIT_TYPES_CONFIG} є (структуру перевіряє npx @nitra/cursor fix → npm_module.emit_types_config)`)
 }
 
 /**
@@ -338,7 +338,7 @@ async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
 function checkPublishWorkflow(passFn, failFn) {
   const publishWf = '.github/workflows/npm-publish.yml'
   if (existsSync(publishWf)) {
-    passFn(`${publishWf} є (структуру перевіряє npx @nitra/cursor check → npm_module.npm_publish_yml)`)
+    passFn(`${publishWf} є (структуру перевіряє npx @nitra/cursor fix → npm_module.npm_publish_yml)`)
   } else {
     failFn(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
   }

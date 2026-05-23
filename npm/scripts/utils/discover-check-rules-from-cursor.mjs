@@ -1,5 +1,5 @@
 /**
- * Визначає список id правил для `npx @nitra/cursor check` без аргументів:
+ * Визначає список id правил для `npx @nitra/cursor fix` без аргументів:
  * зчитує базові імена `*.mdc` у `.cursor/rules/` і залишає лише ті id,
  * для яких у пакеті є programmatic перевірка (JS-концерн або policy з target.json).
  */

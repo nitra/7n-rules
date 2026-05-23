@@ -183,7 +183,7 @@ export async function check() {
   }
 
   if (existsSync('bunfig.toml')) {
-    pass('bunfig.toml є (структуру перевіряє npx @nitra/cursor check → bun.bunfig)')
+    pass('bunfig.toml є (структуру перевіряє npx @nitra/cursor fix → bun.bunfig)')
   } else {
     fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
   }

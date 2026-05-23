@@ -111,4 +111,4 @@ jobs:
 
 ## Перевірка
 
-`npx @nitra/cursor check security`
+`npx @nitra/cursor fix security`

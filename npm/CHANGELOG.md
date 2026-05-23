@@ -4,6 +4,20 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.84] - 2026-05-23
+
+### Changed
+
+- **CLI команда `check` перейменована на `fix`** (узгоджено з ім'ям файла `rules/<id>/fix.mjs`). `npx @nitra/cursor fix [<rule>...]` — новий канонічний формат. Команда `check` залишається як deprecated alias з warning'ом — буде видалена в наступній major-версії.
+- **CLI стає spawn-wrapper:** замість inline dynamic import у `runChecks`, `fix [<rule>...]` тепер просто послідовно спавнить `bun rules/<id>/fix.mjs` per rule (один шлях у коді — `fix.mjs` як єдина авторитативна точка входу). Discovery з `.cursor/rules/*.mdc` без аргументів зберігається.
+- **`rules/<id>/fix.mjs` отримує standalone-режим:** блок `if (import.meta.main)` тепер делегує новій утиліті `runRuleCli`, яка читає `.n-cursor.json` (через light reader), перевіряє whitelist + друкує per-rule summary. `bun rules/<id>/fix.mjs` тепер повний еквівалент `npx @nitra/cursor fix <id>`.
+- **Документація переписана:** всі `npx @nitra/cursor check <rule>` у `.mdc`, `.cursor/rules/`, `README.md`, skills, JSDoc pass-повідомленнях оновлено на `fix`. Один формат у документації; CLI alias `check` лишається тільки для backward compatibility.
+
+### Added
+
+- **`scripts/utils/run-rule-cli.mjs`** — standalone runner з config-loading + summary; використовується `fix.mjs::main` блоком.
+- **`scripts/utils/read-n-cursor-config-lite.mjs`** — мінімальний read-only `.n-cursor.json` reader (без auto-detection / sync — це окрема справа CLI). API: `readNCursorConfigLite()`, `isRuleEnabled(config, ruleId)`. Open-by-default: якщо файл відсутній — правило вважається активним (для debug).
+
 ## [1.13.83] - 2026-05-23
 
 ### Changed
@@ -20,7 +34,7 @@
 
 ### Notes
 
-- Зворотна сумісність CLI: `npx @nitra/cursor check` та `npx @nitra/cursor check abie` працюють як раніше.
+- Зворотна сумісність CLI: `npx @nitra/cursor fix` та `npx @nitra/cursor fix abie` працюють як раніше.
 - Use-cases: `bun npm/rules/abie/fix.mjs` (debug); `bun npm/rules/${{ matrix.rule }}/fix.mjs` (CI per-rule jobs); IDE Run-button на `fix.mjs`.
 
 ## [1.13.82] - 2026-05-23
@@ -33,7 +47,7 @@
   - `rules/test/fix/location/check.mjs` — перевіряє **лише `*.test.mjs`**, `*_test.rego` свідомо виключено з область перевірки (зафіксовано у docstring).
   - Додано test-case у `rules/test/fix/location/tests/check.test.mjs`: `*_test.rego` поряд із полісі НЕ є порушенням.
 - **Відкат переміщення `*_test.rego`**: 69 файлів, які раніше було помилково перенесено у `policy/<concern>/tests/<name>_test.rego`, повернуто у `policy/<concern>/<name>_test.rego` через `git mv`. Порожні `tests/` піддиректорії під `policy/` видалено.
-- **`npx @nitra/cursor check test`** охоплює лише JS-тести: «✅ Всі 77 файлів *.test.mjs у каталозі tests/». Rego-тести продовжують перевірятись через `conftest verify` у правилі `rego`.
+- **`npx @nitra/cursor fix test`** охоплює лише JS-тести: «✅ Всі 77 файлів *.test.mjs у каталозі tests/». Rego-тести продовжують перевірятись через `conftest verify` у правилі `rego`.
 
 ## [1.13.81] - 2026-05-23
 
@@ -61,7 +75,7 @@
   - Ручні фіксапи 4 тестів із HERE/`..` path patterns (sync-setup-bun-deps-action, inline-template-links, rules/adr/fix/hooks, rules/abie/utils/enabled) — додано додатковий `..`, бо тести стали на рівень глибше.
   - `package.json#files` негативні globs (`!**/*.test.mjs`, `!**/__fixtures__/**`, `!**/fixtures/**`) працюють рекурсивно — без змін.
   - **77 тестів** проходять у новому layout (76 існуючих + 1 нового правила): `bun test` 843 pass / 2 fail (обидва — pre-existing `with-lock` issues, не пов'язані).
-  - `npx @nitra/cursor check test` → `✅ Всі 77 файлів *.test.mjs у каталозі tests/ (test.mdc)`.
+  - `npx @nitra/cursor fix test` → `✅ Всі 77 файлів *.test.mjs у каталозі tests/ (test.mdc)`.
 
 ## [1.13.79] - 2026-05-23
 
@@ -215,7 +229,7 @@
 
 ### Added
 
-- Нове `alwaysApply`-правило **`feedback`** ([feedback.mdc](rules/feedback/feedback.mdc)) — ефемерний канал зворотного звʼязку до пакета `@nitra/cursor`. Виконуючи будь-який скіл пакета (`n-lint`, `n-fix`, `n-taze`, `n-adr-normalize`, `n-llm-patch`, `n-publish-telegram`, `mdc-check`), агент проходить крізь `.cursor/rules/`, `SKILL.md` і `npx @nitra/cursor check` — і бачить «тертя»: неоднозначні інструкції, відсутні `check-*.mjs`, false positive, порушення без автофіксу, повторювані патерни. Правило вимагає наприкінці скілу, **після** основного резюме, додати у відповідь чату секцію `## 🔧 Покращення @nitra/cursor` з пунктами за схемою `target` (`rule`/`skill`/`check`) · `id` · `kind` (`ambiguous-doc`/`missing-check`/`false-positive`/`no-autofix`/`recurring-pattern`) · `evidence` · `suggestion`. Резюме **навмисно ефемерне** — живе лише у відповіді чату: правило забороняє запис файлів/чернеток, GitHub issue/PR і редагування самого пакета; розробник, читаючи відповідь, сам вирішує, чи переносити пункт у пакет. Якщо тертя не було — секція повністю пропускається. Правило чисто документаційне (як `ci4`), `check-*.mjs` не має, бо поведінка агента програмно не верифікується. Зачеплено: новий каталог [rules/feedback/](rules/feedback/) з `feedback.mdc` (`version: '1.0'`), додано `"feedback"` у `rules` кореневого `.n-cursor.json` — після синку правило копіюється як `.cursor/rules/n-feedback.mdc` і потрапляє в `AGENTS.md`.
+- Нове `alwaysApply`-правило **`feedback`** ([feedback.mdc](rules/feedback/feedback.mdc)) — ефемерний канал зворотного звʼязку до пакета `@nitra/cursor`. Виконуючи будь-який скіл пакета (`n-lint`, `n-fix`, `n-taze`, `n-adr-normalize`, `n-llm-patch`, `n-publish-telegram`, `mdc-check`), агент проходить крізь `.cursor/rules/`, `SKILL.md` і `npx @nitra/cursor fix` — і бачить «тертя»: неоднозначні інструкції, відсутні `check-*.mjs`, false positive, порушення без автофіксу, повторювані патерни. Правило вимагає наприкінці скілу, **після** основного резюме, додати у відповідь чату секцію `## 🔧 Покращення @nitra/cursor` з пунктами за схемою `target` (`rule`/`skill`/`check`) · `id` · `kind` (`ambiguous-doc`/`missing-check`/`false-positive`/`no-autofix`/`recurring-pattern`) · `evidence` · `suggestion`. Резюме **навмисно ефемерне** — живе лише у відповіді чату: правило забороняє запис файлів/чернеток, GitHub issue/PR і редагування самого пакета; розробник, читаючи відповідь, сам вирішує, чи переносити пункт у пакет. Якщо тертя не було — секція повністю пропускається. Правило чисто документаційне (як `ci4`), `check-*.mjs` не має, бо поведінка агента програмно не верифікується. Зачеплено: новий каталог [rules/feedback/](rules/feedback/) з `feedback.mdc` (`version: '1.0'`), додано `"feedback"` у `rules` кореневого `.n-cursor.json` — після синку правило копіюється як `.cursor/rules/n-feedback.mdc` і потрапляє в `AGENTS.md`.
 - `check security`: новий concern **`security.sample_secret`** — placeholder фейкових credential-значень у прикладних файлах має бути `sample-secret`, а не bare `secret`. Причина: `sample-secret` містить підрядок `sample` із вшитого списку `DefaultFalsePositives` TruffleHog і відсіюється сканером гарантовано та незалежно від версії; bare `secret` наразі ігнорується лише тому, що випадково присутнє у словнику `fp_words.txt` — крихка поведінка, що залежить від версії інструмента. [check.mjs](rules/security/fix/sample_secret/check.mjs) обходить дерево, відбирає прикладні файли (basename із суфіксом `.example`/`.sample`/`.template`/`.dist` чи infix `.example.`/`.sample.`/`.template.`, а також усе всередині каталогів `fixtures`/`fixture`/`__fixtures__`) і порядково шукає `secret` у позиції значення — одразу після `=`, `:` або `=>` з опційними лапками; імена ключів (`client_secret`, `JWT_SECRET`) не чіпаються, бо матч прив'язаний до значення. Решта файлів не сканується — там `secret` майже завжди частина реального коду. Скан текстовий (regex, не AST/Rego): прикладні файли — різнорідні конфіги (`.env`, YAML, JSON, TOML, plain `.dist`) без єдиного AST, а відбір файлів потребує обходу дерева. Зачеплено: [check.mjs](rules/security/fix/sample_secret/check.mjs) і [check.test.mjs](rules/security/fix/sample_secret/check.test.mjs) (новий concern + 9 тестів), [security.mdc](rules/security/security.mdc) (нова секція «Placeholder для секретів — `sample-secret`» та секція «Перевірка»). Bump `security.mdc` `2.0` → `2.1`.
 
 ## [1.13.57] - 2026-05-19
@@ -685,14 +699,14 @@
   - **`tauri`** (`1.0 → 1.1`) — `globs: "**/src-tauri/**,**/tauri.conf.json"`
   - **`js-lint`** (`1.21 → 1.22`) — `globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"`
   - **`js-run`** (`1.7 → 1.8`) — `globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"`
-- **Мотивація:** усі 9 правил мають повне покриття `npx @nitra/cursor check <rule>` (JS-перевірка + Rego policy). Тримати їх `alwaysApply: true` без потреби палить контекст AI у сесіях, де редагується непов'язаний код. Помилка → check ловить → AI виправляє — той самий цикл, що для `security@1.12.1` і `changelog`/`image-compress`/`php`/`vue`.
+- **Мотивація:** усі 9 правил мають повне покриття `npx @nitra/cursor fix <rule>` (JS-перевірка + Rego policy). Тримати їх `alwaysApply: true` без потреби палить контекст AI у сесіях, де редагується непов'язаний код. Помилка → check ловить → AI виправляє — той самий цикл, що для `security@1.12.1` і `changelog`/`image-compress`/`php`/`vue`.
 - **Залишено `alwaysApply: true`** — `text` (cross-cutting cspell-словник, апостроф), `adr` (про процес capture/normalize hooks), `ci4` (0 програмних чекерів — без AI-контексту правило мертве), `abie` (має JS `applies`-гейт, у не-abie репо мовчить; файли розкидані).
 
 ## [1.12.1] - 2026-05-17
 
 ### Changed
 
-- **`npm/rules/security/security.mdc`** — `alwaysApply: true` → `alwaysApply: false` + `globs: "**/.gitleaks.toml,**/package.json,**/.github/workflows/**/*.yml"`. AI-контекст правила тепер підвантажується лише при роботі з релевантними файлами (за зразком `changelog`/`image-compress`/`php`), а не на кожен турн. Програмна валідація через `npx @nitra/cursor check security` залишається завжди увімкненою (через `auto.md = завжди`) і ловить помилки незалежно від AI-контексту. Версія frontmatter `1.0` → `1.1`.
+- **`npm/rules/security/security.mdc`** — `alwaysApply: true` → `alwaysApply: false` + `globs: "**/.gitleaks.toml,**/package.json,**/.github/workflows/**/*.yml"`. AI-контекст правила тепер підвантажується лише при роботі з релевантними файлами (за зразком `changelog`/`image-compress`/`php`), а не на кожен турн. Програмна валідація через `npx @nitra/cursor fix security` залишається завжди увімкненою (через `auto.md = завжди`) і ловить помилки незалежно від AI-контексту. Версія frontmatter `1.0` → `1.1`.
 - **Мотивація:** правило має повне покриття перевіркою (Rego + JS-check); тримати його `alwaysApply: true` не дає AI додаткової цінності понад те, що `check security` ловить програмно — лише марно займає контекстне вікно при роботі з кодом, не повʼязаним з конфігурацією security.
 
 ## [1.12.0] - 2026-05-16
@@ -719,7 +733,7 @@
 
 ### Removed
 
-- **`npm/package.json#devDependencies`** — повторно видалено `@nitra/cursor: ^1.11.16` self-reference, який повернувся в коміті `8ae6e9e auto adr` (автоматичний stop-hook fix). Той самий блок уже прибирали в `1.11.14` (див. запис нижче) — потрапив назад через автофікс. `npx @nitra/cursor check npm-module` знову зелений.
+- **`npm/package.json#devDependencies`** — повторно видалено `@nitra/cursor: ^1.11.16` self-reference, який повернувся в коміті `8ae6e9e auto adr` (автоматичний stop-hook fix). Той самий блок уже прибирали в `1.11.14` (див. запис нижче) — потрапив назад через автофікс. `npx @nitra/cursor fix npm-module` знову зелений.
 
 ## [1.11.16] - 2026-05-16
 
@@ -739,36 +753,36 @@
 
 ### Removed
 
-- **`npm/package.json#devDependencies`** — повністю видалено блок (містив лише self-reference `@nitra/cursor: ^1.11.9`). `npx @nitra/cursor check npm-module` зафіксував порушення: `devDependencies` не публікуються користувачам пакета, але інструменти, що **потрібні** для розробки пакета, мають жити в кореневому `package.json` (у workspace-root) як `@nitra/cursor: workspace:*` (там уже є). Self-reference у `npm/package.json` лишався з попередньої практики, але **публікувався** у npm-tarball (хоч і ігнорувався установником, оскільки лізе у nested deps), забруднюючи метадані пакета.
+- **`npm/package.json#devDependencies`** — повністю видалено блок (містив лише self-reference `@nitra/cursor: ^1.11.9`). `npx @nitra/cursor fix npm-module` зафіксував порушення: `devDependencies` не публікуються користувачам пакета, але інструменти, що **потрібні** для розробки пакета, мають жити в кореневому `package.json` (у workspace-root) як `@nitra/cursor: workspace:*` (там уже є). Self-reference у `npm/package.json` лишався з попередньої практики, але **публікувався** у npm-tarball (хоч і ігнорувався установником, оскільки лізе у nested deps), забруднюючи метадані пакета.
 - **`knip.json#workspaces.npm.ignoreDependencies: ["@nitra/cursor"]`** — workaround, доданий у 1.11.13 для приховання knip-violation на self-reference, тепер не потрібен (першопричина прибрана). Знято, щоб конфіг лишався чистим.
 
 ## [1.11.13] - 2026-05-16
 
 ### Fixed
 
-- **`npm/rules/{bun,image-compress,js-bun-redis,js-run,php,style-lint,text}/fix/<concern>/check.mjs`** — escape `@nitra` як `\@nitra` у JSDoc-блоках (`/** … */`), де `npx @nitra/cursor check` стояв всередині backticks. ESLint-плагін `jsdoc/escape-inline-tags` парсив `@nitra` як інлайн-тег (false-positive у backticks) і видавав 8 warnings. Виправлення — escape-символ `\` перед `@`, як уже зроблено в інших місцях коду (CHANGELOG 1.11.5 для `js-run`). Pass-повідомлення та `//`-коментарі поза JSDoc не зачіпало — там парсер не активний.
+- **`npm/rules/{bun,image-compress,js-bun-redis,js-run,php,style-lint,text}/fix/<concern>/check.mjs`** — escape `@nitra` як `\@nitra` у JSDoc-блоках (`/** … */`), де `npx @nitra/cursor fix` стояв всередині backticks. ESLint-плагін `jsdoc/escape-inline-tags` парсив `@nitra` як інлайн-тег (false-positive у backticks) і видавав 8 warnings. Виправлення — escape-символ `\` перед `@`, як уже зроблено в інших місцях коду (CHANGELOG 1.11.5 для `js-run`). Pass-повідомлення та `//`-коментарі поза JSDoc не зачіпало — там парсер не активний.
 - **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — заголовок секції перейменовано з **«Скоуп»** на **«Scope»**, бо cspell флагав «Скоуп» як unknown word. Англійський «Scope» зрозумілий і не вимагає розширення словника. Тіло секції без змін.
 
 ## [1.11.12] - 2026-05-15
 
 ### Removed
 
-- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 3 реструктуризації: dual-mode підтримка `js/` (legacy) прибрана. Після завершення масового переїзду у 1.11.10 (всі 26 правил у `rules/<id>/fix/`) інфраструктура `n-cursor check` тепер сканує **тільки** `rules/<id>/fix/<concern>/check*.mjs`. Конкретно: (1) у `discoverCheckableRules` видалено `listJsConcerns(js/, 'js')`-виклик, утиліту `mergeJsConcerns` (fatal на дублікат `js/`+`fix/`) і поле `rootDir` у `JsConcern`-типі; (2) у `run-rule.mjs::resolveJsCheckPath` `concern.rootDir ?? 'js'` замінено на хардкод `'fix'`; (3) JSDoc на початку обох файлів і на `evaluateAppliesGate` оновлено з `js/applies/check.mjs` на `fix/applies/check.mjs`; (4) коментар на `discoverCheckScripts` у `npm/bin/n-cursor.js` оновлено — згадку legacy `js/check.mjs` прибрано. Жодне правило в `rules/` не торкається — лише сканер.
+- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 3 реструктуризації: dual-mode підтримка `js/` (legacy) прибрана. Після завершення масового переїзду у 1.11.10 (всі 26 правил у `rules/<id>/fix/`) інфраструктура `n-cursor fix` тепер сканує **тільки** `rules/<id>/fix/<concern>/check*.mjs`. Конкретно: (1) у `discoverCheckableRules` видалено `listJsConcerns(js/, 'js')`-виклик, утиліту `mergeJsConcerns` (fatal на дублікат `js/`+`fix/`) і поле `rootDir` у `JsConcern`-типі; (2) у `run-rule.mjs::resolveJsCheckPath` `concern.rootDir ?? 'js'` замінено на хардкод `'fix'`; (3) JSDoc на початку обох файлів і на `evaluateAppliesGate` оновлено з `js/applies/check.mjs` на `fix/applies/check.mjs`; (4) коментар на `discoverCheckScripts` у `npm/bin/n-cursor.js` оновлено — згадку legacy `js/check.mjs` прибрано. Жодне правило в `rules/` не торкається — лише сканер.
 - **`npm/scripts/utils/discover-checkable-rules.test.mjs`**, **`npm/scripts/utils/run-rule.test.mjs`** — прибрано тести dual-mode: `правило з тільки JS-концерном у legacy js/`, `правило з різними концернами у js/ і fix/`, `дублікат концерну в js/ і fix/ — fatal`, `пропускає js/utils/ як концерн`, `концерн з rootDir="fix"`, `концерн без rootDir (legacy-тести) fallback до js/`, `applies-гейт у fix/applies/`. Додано: `legacy js/-структура ігнорується (concern у js/<name>/ не підхоплюється)` — гарантує, що випадковий залишок `js/`-дерева у правилі не виконається, та `правило з кількома JS-концернами в fix/ — всі присутні, відсортовані`. Тестовий хелпер `addJsConcern` / `writeConcernJs` — за замовчуванням пишуть у `fix/` без параметра rootDir.
 
 ## [1.11.11] - 2026-05-15
 
 ### Removed
 
-- **`npm/scripts/lint-conftest.mjs`** — скрипт видалено повністю. Його єдина функція — ітерувати policy-концерни через `discoverCheckableRules` і запускати `runConftestBatch` на реальних файлах — **повністю дублювала** `npx @nitra/cursor check` (CHANGELOG 1.11.5: «`bun.bunfig`, `text.cspell`, `npm_module.npm_publish_yml` тепер прогоняються через CLI `check <id>` без додаткового `bun run lint-conftest`»). Окремий канал залишався лише як IDE-fast-feedback, але через одне джерело правди (`target.json` поруч з `.rego`) другий entry-point не дає нічого нового. Кореневий `package.json` оновлено: скрипт `lint-conftest` прибрано, ланцюжок `lint` тепер `bun run lint-rego && bun run lint-js && …` (без `lint-conftest`).
+- **`npm/scripts/lint-conftest.mjs`** — скрипт видалено повністю. Його єдина функція — ітерувати policy-концерни через `discoverCheckableRules` і запускати `runConftestBatch` на реальних файлах — **повністю дублювала** `npx @nitra/cursor fix` (CHANGELOG 1.11.5: «`bun.bunfig`, `text.cspell`, `npm_module.npm_publish_yml` тепер прогоняються через CLI `check <id>` без додаткового `bun run lint-conftest`»). Окремий канал залишався лише як IDE-fast-feedback, але через одне джерело правди (`target.json` поруч з `.rego`) другий entry-point не дає нічого нового. Кореневий `package.json` оновлено: скрипт `lint-conftest` прибрано, ланцюжок `lint` тепер `bun run lint-rego && bun run lint-js && …` (без `lint-conftest`).
 
 ### Changed
 
-- **`npm/README.md`** — секція «Структура пакету» переписана під поточний layout (`rules/<id>/<id>.mdc` замість застарілих `mdc/`). Додано підсекцію **«Структура одного правила»** з принципом fix/lint/policy: технологія реалізації визначає директорію — JS для `npx @nitra/cursor check` у `fix/<concern>/`, JS для `bun run lint-<id>` у `lint/`, rego для `npx @nitra/cursor check` у `policy/<concern>/`. Решта `mdc/`-посилань у README також виправлені на `rules/`.
+- **`npm/README.md`** — секція «Структура пакету» переписана під поточний layout (`rules/<id>/<id>.mdc` замість застарілих `mdc/`). Додано підсекцію **«Структура одного правила»** з принципом fix/lint/policy: технологія реалізації визначає директорію — JS для `npx @nitra/cursor fix` у `fix/<concern>/`, JS для `bun run lint-<id>` у `lint/`, rego для `npx @nitra/cursor fix` у `policy/<concern>/`. Решта `mdc/`-посилань у README також виправлені на `rules/`.
 - **`.cursor/rules/conftest.mdc`** — крок 5 у workflow «нова перевірка» переписано: окремої реєстрації нового rego-пакета в TARGETS більше не потрібно (TARGETS видалено разом із `lint-conftest.mjs`); `discoverCheckableRules` автоматично підхоплює пакет за наявності `target.json` поруч з `.rego`.
 - **`.cursor/rules/scripts.mdc`** — згадку `lint-conftest.mjs` прибрано зі списку «крос-правильної інфраструктури» у `npm/scripts/`.
-- **`npm/rules/abie/abie.mdc`** (cross-reference) — `npx @nitra/cursor lint-conftest` → `npx @nitra/cursor check abie`; `npm/policy/abie/` → `npm/rules/abie/policy/`; `check-abie.mjs` → `fix/<concern>/check.mjs`.
-- **`npm/rules/**/fix/<concern>/check.mjs`** (10 файлів) та **`npm/rules/**/policy/<concern>/<name>.rego`** (7 файлів) — у коментарях і `pass()`-повідомленнях `bun run lint-conftest` замінено на `npx @nitra/cursor check` (структурна валідація живить fix-канал; окремого `lint-conftest`-каналу більше немає). Для conditional rego-полісі без `target.json` (ті, що не auto-discoverable) текст коментарів переформульовано — замість «глобально у `lint-conftest` НЕ реєструється» тепер «без `target.json` поруч (не auto-discoverable через `n-cursor check`)».
+- **`npm/rules/abie/abie.mdc`** (cross-reference) — `npx @nitra/cursor lint-conftest` → `npx @nitra/cursor fix abie`; `npm/policy/abie/` → `npm/rules/abie/policy/`; `check-abie.mjs` → `fix/<concern>/check.mjs`.
+- **`npm/rules/**/fix/<concern>/check.mjs`** (10 файлів) та **`npm/rules/**/policy/<concern>/<name>.rego`** (7 файлів) — у коментарях і `pass()`-повідомленнях `bun run lint-conftest` замінено на `npx @nitra/cursor fix` (структурна валідація живить fix-канал; окремого `lint-conftest`-каналу більше немає). Для conditional rego-полісі без `target.json` (ті, що не auto-discoverable) текст коментарів переформульовано — замість «глобально у `lint-conftest` НЕ реєструється» тепер «без `target.json` поруч (не auto-discoverable через `n-cursor fix`)».
 
 ## [1.11.10] - 2026-05-15
 
@@ -782,7 +796,7 @@
 
 ### Changed
 
-- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 1 реструктуризації `rules/<id>/js/` → `rules/<id>/{fix,lint}/`: інфраструктура `n-cursor check` тепер **dual-mode** — сканує JS-концерни одночасно у `rules/<id>/js/<concern>/` (legacy) і `rules/<id>/fix/<concern>/` (новий формат). Кожен знайдений концерн штампується полем `rootDir: 'js' | 'fix'`; `runRule` використовує його для побудови шляху імпорту через `resolveJsCheckPath`. Концерн з однаковим іменем у обох каталогах одного правила — fatal-помилка з підказкою «заверши міграцію цього концерну у fix/ і видали `js/<name>/`», щоб не лишалось напіввиконаних move-ів. `utils/` пропускається в обох коренях. Жодне правило ще не переїхало у фазі 1 — це лише підготовка інфраструктури; для зворотної сумісності `resolveJsCheckPath` має fallback `rootDir ?? 'js'`, тож тести, що збирають `jsConcerns` вручну без `rootDir`, продовжують працювати без змін. CLI-точки входу `n-cursor lint-X` (статичні `import` у `npm/bin/n-cursor.js:79-83`) переїдуть пізніше — у фазах 2/3 (move + оновлення imports).
+- **`npm/scripts/utils/discover-checkable-rules.mjs`**, **`npm/scripts/utils/run-rule.mjs`** — фаза 1 реструктуризації `rules/<id>/js/` → `rules/<id>/{fix,lint}/`: інфраструктура `n-cursor fix` тепер **dual-mode** — сканує JS-концерни одночасно у `rules/<id>/js/<concern>/` (legacy) і `rules/<id>/fix/<concern>/` (новий формат). Кожен знайдений концерн штампується полем `rootDir: 'js' | 'fix'`; `runRule` використовує його для побудови шляху імпорту через `resolveJsCheckPath`. Концерн з однаковим іменем у обох каталогах одного правила — fatal-помилка з підказкою «заверши міграцію цього концерну у fix/ і видали `js/<name>/`», щоб не лишалось напіввиконаних move-ів. `utils/` пропускається в обох коренях. Жодне правило ще не переїхало у фазі 1 — це лише підготовка інфраструктури; для зворотної сумісності `resolveJsCheckPath` має fallback `rootDir ?? 'js'`, тож тести, що збирають `jsConcerns` вручну без `rootDir`, продовжують працювати без змін. CLI-точки входу `n-cursor lint-X` (статичні `import` у `npm/bin/n-cursor.js:79-83`) переїдуть пізніше — у фазах 2/3 (move + оновлення imports).
 - **`npm/scripts/utils/discover-checkable-rules.test.mjs`**, **`npm/scripts/utils/run-rule.test.mjs`** — додано покриття нового `fix/`-кореня: окремі тести на discovery концерну у `fix/`, mix `js/`+`fix/` різних концернів одного правила, fatal на дублікат, пропуск `fix/utils/`, runRule з `rootDir: 'fix'`, applies-гейт у `fix/applies/`, та fallback на `js/` для концернів без `rootDir` (зворотна сумісність із наявними тестовими фікстурами).
 
 ## [1.11.8] - 2026-05-15
@@ -795,7 +809,7 @@
 
 ### Changed
 
-- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — `/n-fix` більше **не запускає** `bun run lint` і **не делегує** до `/n-lint`. Крок 6 (`bun run lint` з делегуванням, доданий у 1.11.6) повністю видалено; замість нього на початку SKILL.md додано секцію **«Scope»**, де явно зафіксовано: `/n-fix` опікується лише структурою проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), а лінт-порушення у самому коді (ESLint/oxlint/jscpd/cspell/knip/sonarjs/stylelint) — поза скоупом і виправляються винятково через `/n-lint`. Кроки 7→6 і 8→7 переномеровано; остаточний пункт 7 додатково нагадує, що лінт-помилки не входять у критерій успіху `/n-fix`. Мета — щоб агент, що виконує `/n-fix`, не плутав свою задачу з `/n-lint` і не запускав важкий `bun run lint` без потреби; те, що діагностує `/n-lint`, виправляється там же, а не дублюється тут.
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк) — `/n-fix` більше **не запускає** `bun run lint` і **не делегує** до `/n-lint`. Крок 6 (`bun run lint` з делегуванням, доданий у 1.11.6) повністю видалено; замість нього на початку SKILL.md додано секцію **«Scope»**, де явно зафіксовано: `/n-fix` опікується лише структурою проєкту (правила `.cursor/rules/` + `npx @nitra/cursor fix`), а лінт-порушення у самому коді (ESLint/oxlint/jscpd/cspell/knip/sonarjs/stylelint) — поза скоупом і виправляються винятково через `/n-lint`. Кроки 7→6 і 8→7 переномеровано; остаточний пункт 7 додатково нагадує, що лінт-помилки не входять у критерій успіху `/n-fix`. Мета — щоб агент, що виконує `/n-fix`, не плутав свою задачу з `/n-lint` і не запускав важкий `bun run lint` без потреби; те, що діагностує `/n-lint`, виправляється там же, а не дублюється тут.
 
 ### Fixed
 
@@ -807,7 +821,7 @@
 
 - **`npm/rules/npm-module/npm-module.mdc`** — переформульовано вимогу про тести й фікстури. Раніше правило вимагало тримати їх **поза** будь-яким шляхом з `"files"` (канонічно — у `npm/tests/`). Тепер тести/фікстури можуть лежати **поруч з кодом** усередині `"files"`-шляхів, але `"files"` обовʼязково має містити **негативні glob-патерни**, що виключають їх із tarball (`!**/*.test.*`, `!**/*.spec.*`, `!**/test-helpers.*`, `!**/fixtures/**`, `!**/__tests__/**`, опційно `!**/*_test.rego`). Це краще відповідає реальному layout пакета (co-located test-файли у `rules/<id>/js/<concern>/`) і прибирає роз'їзд правила з фактичним `npm/package.json`. Версію `.mdc` піднято до `1.12`.
 - **`npm/rules/npm-module/js/package_structure/check.mjs::checkNoTestsInPublishedFiles`** — текст fail-повідомлення тепер однозначно радить додати негативний glob у `"files"`, без альтернативи «винеси за межі шляхів з "files"». Логіка перевірки (walk positive ∖ negative + класифікація test-style) не змінилась — пере-кваліфіковано лише підказку для агента й людини.
-- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк), **`npm/rules/style-lint/style-lint.mdc`** — розмежовано ролі скілів: `/n-fix` відповідає за **структуру** проєкту (правила `.cursor/rules/` + `npx @nitra/cursor check`), `/n-lint` — за **чистоту коду** (`bun run lint`). Крок 6 у `n-fix` (перебір `lint-js`/`lint-text`/`lint-style`) замінено на одиничний `bun run lint` з делегуванням до `/n-lint` — лінт-логіку (auto-fix, sonarjs-рефакторинг, заборона паралельних запусків ESLint) `n-fix` більше не дублює. У `style-lint.mdc` cross-reference «повний набір `lint-*` (навичка `n-fix`)» оновлено на «`bun run lint` (навичка `/n-lint`)».
+- **`npm/skills/fix/SKILL.md`** (+`.cursor/skills/n-fix/SKILL.md` синк), **`npm/rules/style-lint/style-lint.mdc`** — розмежовано ролі скілів: `/n-fix` відповідає за **структуру** проєкту (правила `.cursor/rules/` + `npx @nitra/cursor fix`), `/n-lint` — за **чистоту коду** (`bun run lint`). Крок 6 у `n-fix` (перебір `lint-js`/`lint-text`/`lint-style`) замінено на одиничний `bun run lint` з делегуванням до `/n-lint` — лінт-логіку (auto-fix, sonarjs-рефакторинг, заборона паралельних запусків ESLint) `n-fix` більше не дублює. У `style-lint.mdc` cross-reference «повний набір `lint-*` (навичка `n-fix`)» оновлено на «`bun run lint` (навичка `/n-lint`)».
 
 ## [1.11.5] - 2026-05-15
 
@@ -942,11 +956,11 @@
 
 ### Changed
 
-- **CLI auto-discovery** підхоплює `check-rego.mjs` і `check-tauri.mjs` через `discoverCheckScripts()` у `bin/n-cursor.js`. Окрема реєстрація не потрібна — будь-який `check-*.mjs` стає доступним через `npx @nitra/cursor check <rule>`.
+- **CLI auto-discovery** підхоплює `check-rego.mjs` і `check-tauri.mjs` через `discoverCheckScripts()` у `bin/n-cursor.js`. Окрема реєстрація не потрібна — будь-який `check-*.mjs` стає доступним через `npx @nitra/cursor fix <rule>`.
 
 ### Verified
 
-- **На цьому репо `npx @nitra/cursor check rego` детектує реальні гепи у `.vscode/extensions.json` (немає `tsandall.opa`) і `.vscode/settings.json` (немає `[rego]` блока).** Це true-positive: репо має `rego` у `.n-cursor.json:rules` і містить `.rego` файли, тож канонічний tooling-набір вимагається. Фікс — додати entries у `.vscode/*` згідно `rego.mdc`.
+- **На цьому репо `npx @nitra/cursor fix rego` детектує реальні гепи у `.vscode/extensions.json` (немає `tsandall.opa`) і `.vscode/settings.json` (немає `[rego]` блока).** Це true-positive: репо має `rego` у `.n-cursor.json:rules` і містить `.rego` файли, тож канонічний tooling-набір вимагається. Фікс — додати entries у `.vscode/*` згідно `rego.mdc`.
 
 ### Not migrated (explained)
 
@@ -1102,7 +1116,7 @@
 
 ### Changed
 
-- **AGENTS.md — додано `bunx knip` до секції Commands:** `build-agents-commands.mjs` тепер завжди додає рядок `- **knip (невикористані залежності та експорти)**: \`bunx knip\``після`npx @nitra/cursor check`; оновлено тест (`items.length`3 → 4, перевірка`toContain('bunx knip')`).
+- **AGENTS.md — додано `bunx knip` до секції Commands:** `build-agents-commands.mjs` тепер завжди додає рядок `- **knip (невикористані залежності та експорти)**: \`bunx knip\``після`npx @nitra/cursor fix`; оновлено тест (`items.length`3 → 4, перевірка`toContain('bunx knip')`).
 - **`knip.json` — `graphql` у `ignoreDependencies`:** повернуто `graphql` до кореневого `ignoreDependencies` (peer-залежність, яку knip фолсово репортить як unused; вимога `js-lint.mdc` / `check-js-lint.mjs`).
 
 ## [1.9.8] - 2026-05-12
@@ -1198,7 +1212,7 @@
 
 ### Changed
 
-- **ga / Plan B (rego-authoritative, повна централізація):** rego-крок переїхав із `lint-ga.mjs` у `check-ga.mjs::check()` як **перший крок**. Раніше `bun run lint-ga` сам викликав 4 per-workflow conftest + 1 batch для `ga.workflow_common`, а `npx @nitra/cursor check ga` цю частину не робив — тепер вся ga-логіка (rego + JS cross-file) в одному `check-ga.check()`. `lint-ga.mjs::runLintGaCli` спрощено: preflight (shellcheck/uv) → actionlint → zizmor → `await checkGa()`. Видалено: `CONFTEST_TARGETS`, `GA_POLICY_DIR`, `runConftestStep`, `runConftestWorkflowCommon` — і непотрібні імпорти `existsSync`/`readdirSync`/`dirname`/`join`/`fileURLToPath`. `runLintGaCli` тепер `async`; `bin/n-cursor.js` оновлено на `await runLintGaCli()`. Тест `lint-ga.test.mjs` оновлено: `await fn()` замість `fn()`. Тест `check-ga.test.mjs::"exit 1 коли shellcheck відсутній"` переведений на точковий виклик експортованої `checkShellcheckInstalled` (бо `withBinRemovedFromPath('shellcheck')` на macOS заодно видаляв `/opt/homebrew/bin` де conftest, ламаючи hard-fail у `runConftestBatch`).
+- **ga / Plan B (rego-authoritative, повна централізація):** rego-крок переїхав із `lint-ga.mjs` у `check-ga.mjs::check()` як **перший крок**. Раніше `bun run lint-ga` сам викликав 4 per-workflow conftest + 1 batch для `ga.workflow_common`, а `npx @nitra/cursor fix ga` цю частину не робив — тепер вся ga-логіка (rego + JS cross-file) в одному `check-ga.check()`. `lint-ga.mjs::runLintGaCli` спрощено: preflight (shellcheck/uv) → actionlint → zizmor → `await checkGa()`. Видалено: `CONFTEST_TARGETS`, `GA_POLICY_DIR`, `runConftestStep`, `runConftestWorkflowCommon` — і непотрібні імпорти `existsSync`/`readdirSync`/`dirname`/`join`/`fileURLToPath`. `runLintGaCli` тепер `async`; `bin/n-cursor.js` оновлено на `await runLintGaCli()`. Тест `lint-ga.test.mjs` оновлено: `await fn()` замість `fn()`. Тест `check-ga.test.mjs::"exit 1 коли shellcheck відсутній"` переведений на точковий виклик експортованої `checkShellcheckInstalled` (бо `withBinRemovedFromPath('shellcheck')` на macOS заодно видаляв `/opt/homebrew/bin` де conftest, ламаючи hard-fail у `runConftestBatch`).
 - **`check-ga.mjs::checkShellcheckInstalled`:** додано `export` (потрібен для точкового тесту після рефактору).
 - **тестова фікстура `setupCanonicalGaProject` у check-ga.test.mjs:** додано секцію `concurrency` (з канонічними `group` і `cancel-in-progress: true`) у workflow `clean-ga-workflows.yml`, `clean-merged-branch.yml`, `git-ai.yml` — `ga.workflow_common` rego тепер запускається у `check()`, а ці workflow раніше не мали concurrency у фікстурі (правило `lint-ga.yml` уже мало). Це **правильна** реакція: rego-перевірка тепер ловить порушення на тих самих фікстурах, на яких раніше не запускалась.
 
@@ -1331,7 +1345,7 @@
   `redis`, підшляхів `ioredis/...` / `redis/...` і `@redis/*`. Не зачіпає
   сторонні `redis-*` (наприклад, `redis-mock`).
 - `npm/scripts/check-js-bun-redis.mjs` запускає AST-скан по JS/TS-джерелах і
-  доступний як `npx @nitra/cursor check js-bun-redis`.
+  доступний як `npx @nitra/cursor fix js-bun-redis`.
 - Rego-полісі `npm/policy/js_bun_redis/package_json/` — заборона
   `ioredis` / `node-redis` / `redis` / `@redis/*` у `dependencies` будь-якого
   `package.json` у дереві; зареєстрована таргетом у
@@ -1521,7 +1535,7 @@
 
 ### Added
 
-- `mdc/rego.mdc` (нова версія 1.1, з 1.0): VS Code-секція з рекомендованим розширенням `tsandall.opa` (LSP від автора OPA: підсвічування, hover, go-to-definition, format-on-save через `opa fmt`), `.vscode/extensions.json` і `.vscode/settings.json` сніпети для `[rego]` (`editor.defaultFormatter: tsandall.opa`, `formatOnSave: true`); опис кроків `lint-rego` (preflight `opa`+`regal`, далі `opa check --strict` і `regal lint`); `package.json`-сніпет зі скриптом `lint-rego`; install-команди (`brew install opa regal` + universal лінки); приклад `.regal/config.yaml`. Раніше файл містив лише placeholder `npx @nitra/cursor check rego`.
+- `mdc/rego.mdc` (нова версія 1.1, з 1.0): VS Code-секція з рекомендованим розширенням `tsandall.opa` (LSP від автора OPA: підсвічування, hover, go-to-definition, format-on-save через `opa fmt`), `.vscode/extensions.json` і `.vscode/settings.json` сніпети для `[rego]` (`editor.defaultFormatter: tsandall.opa`, `formatOnSave: true`); опис кроків `lint-rego` (preflight `opa`+`regal`, далі `opa check --strict` і `regal lint`); `package.json`-сніпет зі скриптом `lint-rego`; install-команди (`brew install opa regal` + universal лінки); приклад `.regal/config.yaml`. Раніше файл містив лише placeholder `npx @nitra/cursor fix rego`.
 
 ### Changed
 
@@ -1617,7 +1631,7 @@
 - `image` правило розщеплене на два самостійні: **`image-compress`** (валідація `lint-image` / `.gitignore` / залежностей — стиснення raster/SVG через `@nitra/minify-image`) і **`image-avif`** (генерація AVIF-двійників, переписування raster-посилань у `.vue`/`.html` на `.avif`, прибирання AVIF-сиріт). Це дозволяє тримати компресію всюди, а AVIF — лише там, де його підтримка гарантована (адмінки), вимикаючи його для публічних сайтів через `disable-rules: ["image-avif"]` у `.n-cursor.json` чи опт-аут на рівні пакета (`"@nitra/minify-image": { "disable-avif": true }` у `package.json` сайту).
 - `auto-rules.md` / `auto-rules.mjs`: автодетект `image-compress - [bun]` (всюди, де є `package.json`), `image-avif - [vue, image-compress]` (лише для проєктів з `.vue`-файлами і вже активним `image-compress`).
 - Видалено `npm/scripts/check-image.mjs` і `npm/mdc/image.mdc` — їх замінили `check-image-compress.mjs` + `check-image-avif.mjs` і `image-compress.mdc` + `image-avif.mdc`.
-- Канонічний `lint-image` залишається без `--avif` (його перевіряє `image-compress`); `npx @nitra/cursor check image-avif` тепер є самостійною командою для AVIF-pipeline.
+- Канонічний `lint-image` залишається без `--avif` (його перевіряє `image-compress`); `npx @nitra/cursor fix image-avif` тепер є самостійною командою для AVIF-pipeline.
 
 ### Added
 
@@ -1724,7 +1738,7 @@
 
 ### Changed
 
-- `image` (mdc v1.4 → v1.5): прапорець `--avif` у `lint-image` тепер **заборонений** (інакше `bun run lint` плодив би `.avif` для зображень, що ніде не вживаються); канонічний `lint-image` — `npx @nitra/minify-image --src=. --write`. AVIF-генерацію виконує **виключно** `npx @nitra/cursor check image`. Секцію «AVIF-імпорти у `.vue`» переписано: тепер вона документує триетапну логіку `check image` — (1) запуск `npx @nitra/minify-image --src=. --write --avif`, (2) авто-заміна raster-посилань у `.vue`/`.html` на `.avif` у кожному workspace-пакеті, (3) прибирання AVIF-сиріт (файли `.avif` без жодного посилання у `.vue`/`.html` видаляються — AVIF лишається лише там, де заміна реально вдалася).
+- `image` (mdc v1.4 → v1.5): прапорець `--avif` у `lint-image` тепер **заборонений** (інакше `bun run lint` плодив би `.avif` для зображень, що ніде не вживаються); канонічний `lint-image` — `npx @nitra/minify-image --src=. --write`. AVIF-генерацію виконує **виключно** `npx @nitra/cursor fix image`. Секцію «AVIF-імпорти у `.vue`» переписано: тепер вона документує триетапну логіку `check image` — (1) запуск `npx @nitra/minify-image --src=. --write --avif`, (2) авто-заміна raster-посилань у `.vue`/`.html` на `.avif` у кожному workspace-пакеті, (3) прибирання AVIF-сиріт (файли `.avif` без жодного посилання у `.vue`/`.html` видаляються — AVIF лишається лише там, де заміна реально вдалася).
 - `check-image.mjs`: `checkLintImageScript` більше не вимагає `--avif`, натомість фейлить за його наявністю; додано `runAvifGeneration` (best-effort `npx ... --avif`, опт-аут через `NITRA_CURSOR_NO_AVIF_RUN=1` для тестів), `cleanupOrphanAvifs` (видаляє `<...>.avif` без живого посилання), `hasAnyRasterImage`, `resolveImagePath`. `checkVueAvifImportsInPackage` тепер не лише валідує, а й переписує raster-посилання на `.avif` (коли AVIF-двійник реально існує на диску); якщо `.avif` нема — фейл, як раніше. Сканування поширено на `.html` файли (раніше було тільки `.vue`).
 - `tests/check-image.test.mjs`: `CANONICAL_LINT_IMAGE` без `--avif`; кейс «без `--avif`» перейменовано/перекинуто на «з забороненим `--avif`»; додано тести на orphan-cleanup (`.avif` без посилань видаляється) та авто-заміну raster-імпорту, коли `.avif`-сусід реально існує.
 
@@ -1867,7 +1881,7 @@
 
 ### Added
 
-- `ga.mdc` (v1.4) / `check-ga.mjs`: нова перевірка локального [`shellcheck`](https://www.shellcheck.net/) у `PATH`. Без нього `actionlint` (`bunx github-actionlint`) мовчки пропускає shell-перевірки в `run:` блоках, тож локальний `bun lint-ga` дає зелений результат, який падає в CI на `ubuntu-latest` (де shellcheck передвстановлений). `npx @nitra/cursor check ga` тепер `fail` з підказкою встановлення (`brew install shellcheck` / `apt-get install -y shellcheck` / `pacman -S shellcheck`).
+- `ga.mdc` (v1.4) / `check-ga.mjs`: нова перевірка локального [`shellcheck`](https://www.shellcheck.net/) у `PATH`. Без нього `actionlint` (`bunx github-actionlint`) мовчки пропускає shell-перевірки в `run:` блоках, тож локальний `bun lint-ga` дає зелений результат, який падає в CI на `ubuntu-latest` (де shellcheck передвстановлений). `npx @nitra/cursor fix ga` тепер `fail` з підказкою встановлення (`brew install shellcheck` / `apt-get install -y shellcheck` / `pacman -S shellcheck`).
 
 ### Changed
 
@@ -1883,7 +1897,7 @@
 
 ### Added
 
-- `abie.mdc` (v1.16) / `check-abie.mjs`: нова перевірка `.github/actionlint.yaml`. Якщо файл відсутній — `npx @nitra/cursor check abie` створює його з канонічним вмістом (`self-hosted-runner.labels: ['ua', 'dev', 'ru']`); якщо є — звіряє, що в `self-hosted-runner.labels` присутні мітки `ua`, `dev`, `ru` (порядок, інші мітки й формат лапок дозволені). Експортовано `ABIE_REQUIRED_ACTIONLINT_LABELS`, `parseActionlintSelfHostedLabels`, `abieMissingActionlintLabels`.
+- `abie.mdc` (v1.16) / `check-abie.mjs`: нова перевірка `.github/actionlint.yaml`. Якщо файл відсутній — `npx @nitra/cursor fix abie` створює його з канонічним вмістом (`self-hosted-runner.labels: ['ua', 'dev', 'ru']`); якщо є — звіряє, що в `self-hosted-runner.labels` присутні мітки `ua`, `dev`, `ru` (порядок, інші мітки й формат лапок дозволені). Експортовано `ABIE_REQUIRED_ACTIONLINT_LABELS`, `parseActionlintSelfHostedLabels`, `abieMissingActionlintLabels`.
 
 ## [1.8.163] - 2026-05-01
 

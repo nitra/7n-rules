@@ -10,7 +10,7 @@ alwaysApply: true
 
 1. **`version`** у `<ws>/package.json` (або `[project].version` у `pyproject.toml`) → **patch +1** відносно `git show HEAD:<ws>/package.json`, якщо ще не піднято.
 2. **`CHANGELOG.md`** того workspace → **нова** секція `## [версія] - YYYY-MM-DD` **зверху** (не bullet-и в стару версію).
-3. **`npx @nitra/cursor check changelog`** (у репо `@nitra/cursor`: `bun ./npm/bin/n-cursor.js check changelog`) → exit **`0`**.
+3. **`npx @nitra/cursor fix changelog`** (у репо `@nitra/cursor`: `bun ./npm/bin/n-cursor.js check changelog`) → exit **`0`**.
 
 **Тригер шляхів (приклади):** `npm/**`, `packages/foo/**`, будь-який каталог з власним `package.json` / `pyproject.toml`, куди потрапили правки.
 
