@@ -1,0 +1,51 @@
+npm/scripts/utils/tests/run-standard-lint.test.mjs
+  s_ee1002fc9fef2b::t_37b3e342054733 1-39
+npm/rules/text/lint/lint.mjs
+  s_ee1002fc9fef2b::t_89c56e29bb72c0 24
+  s_ee1002fc9fef2b::t_f2b7244ef81f8d 159
+  s_ee1002fc9fef2b::t_b873d31adc5147 16-18
+npm/CHANGELOG.md
+  s_ee1002fc9fef2b::t_c07c437c4edef5 7-17
+npm/package.json
+  s_ee1002fc9fef2b::t_7c72fafcb6061a 3
+npm/rules/ga/lint/lint.mjs
+  s_ee1002fc9fef2b::t_6f6b582948c39e 171
+  s_ee1002fc9fef2b::t_d5094d4e6e5d36 35
+  s_ee1002fc9fef2b::t_0ed2f12d6c3e17 26-28
+npm/rules/rego/lint/lint.mjs
+  s_ee1002fc9fef2b::t_f206e0f3a401e5 35
+  s_ee1002fc9fef2b::t_c55860559b802b 25-27
+  s_ee1002fc9fef2b::t_dfad953ce44e44 144
+npm/scripts/utils/run-standard-lint.mjs
+  s_ee1002fc9fef2b::t_90dc9b33598a4a 1-35
+npm/rules/docker/lint/lint.mjs
+  s_ee1002fc9fef2b::t_c8bf6072e913b5 91
+  s_ee1002fc9fef2b::t_8d2b898ab732d5 20
+  s_ee1002fc9fef2b::t_3c352ff16bc881 9-11
+.cursor/rules/scripts.mdc
+  s_ee1002fc9fef2b::t_eaacfc75203ae6 123
+  s_ee1002fc9fef2b::t_5a7d669d22d488 120
+  s_ee1002fc9fef2b::t_4c20f59fd86011 130,137-140,148
+  s_ee1002fc9fef2b::t_49363f3b6029c4 4
+  s_ee1002fc9fef2b::t_ef0ed31f8291d1 107
+npm/rules/k8s/lint/lint.mjs
+  s_ee1002fc9fef2b::t_1462f66b4bb3f7 30
+  s_ee1002fc9fef2b::t_9d118023c5b886 355
+  s_ee1002fc9fef2b::t_1318c946ace29f 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e806f9374cf1b6ca358717f549ca6eb5186449fd",
+  "prompts": {},
+  "sessions": {
+    "s_ee1002fc9fef2b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15a0a2e6-de28-4a12-8fa8-3cee36f7fe61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
