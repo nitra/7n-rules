@@ -48,7 +48,7 @@ import {
   isBunSqlScanSourceFile,
   textHasBunSqlImport,
   textHasPgLibImport
-} from '../../../../scripts/utils/bun-sql-scan.mjs'
+} from './bun-sql-scan.mjs'
 import { findAllPackageJsonPaths } from '../../../../scripts/utils/find-package-json-paths.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'

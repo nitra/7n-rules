@@ -15,7 +15,7 @@ import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
-} from '../../../../scripts/utils/graphql-gql-scan.mjs'
+} from './graphql-gql-scan.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'

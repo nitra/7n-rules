@@ -1,9 +1,8 @@
-# Порт структурної перевірки `HealthCheckPolicy` з
-# `npm/scripts/check-abie.mjs` (abie.mdc).
+# Структурна перевірка `HealthCheckPolicy` (abie.mdc).
 #
 # Запуск (локально):
 #   conftest test path/to/k8s/.../hc.yaml \
-#     -p npm/policy/abie/health_check_policy \
+#     -p npm/rules/abie/policy/health_check_policy \
 #     --namespace abie.health_check_policy
 #
 # Перевіряє для `kind: HealthCheckPolicy`:
@@ -14,12 +13,13 @@
 #    починається з `/`;
 #  - `spec.default.config.httpHealthCheck.port: 8080`;
 #  - `spec.targetRef.kind: Service`;
-#  - `spec.targetRef.name` має суфікс `-hl` (headless backend).
+#  - `spec.targetRef.name` — `<hcp.metadata.name>-hl` (exact, з нормалізацією
+#    суфікса).
 #
-# Cross-file gating (правило `abie` у `.n-cursor.json`, парність з Deployment-каталогу,
-# точна звірка `targetRef.name` з обчисленим `<deployment.name>-hl`) — у JS
-# (`check-abie.mjs`: `validateAbieHcPolicy`, `checkHcYamlFiles`). JS authoritative;
-# ця Rego — швидкий gate для одиничного YAML (наприклад через IDE).
+# Cross-file gating: glob по `hc.yaml` у k8s-дереві — у
+# `policy/health_check_policy/target.json`. FS-парність HCP↔Deployment та
+# modeline `hc.yaml` — `fix/hc_pairing/check.mjs`. Rule-level applies-гейт —
+# `fix/applies/check.mjs`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`
@@ -122,8 +122,7 @@ deny contains msg if {
 }
 
 # Нормалізація: якщо `metadata.name` уже закінчується на `-hl` — використовуємо
-# як є; інакше додаємо суфікс. Узгоджено з `validateAbieHcPolicy`
-# у `check-abie.mjs`.
+# як є; інакше додаємо суфікс.
 expected_target_ref_name(name) := name if {
 	endswith(name, "-hl")
 } else := concat("", [name, "-hl"])

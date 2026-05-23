@@ -5,7 +5,7 @@
  *
  * Запускається лише якщо в кореневому `package.json` поле `repository`
  * вказує на `https://github.com/nitra/...` або `https://github.com/abinbevefes/...`
- * (інші репозиторії пропускаються без помилок — як у check-abie).
+ * (інші репозиторії пропускаються без помилок — як у abie-перевірках).
  *
  * Очікуваний формат URL — кластерний DNS-суфікс `<cluster>.internal`:
  *  - GKE / GCP: `http://<service>.<namespace>.svc.<cluster>.internal:<port>`

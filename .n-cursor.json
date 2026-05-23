@@ -13,8 +13,12 @@
     "rego",
     "security",
     "style-lint",
+    "test",
     "text",
     "vue"
+  ],
+  "ignore": [
+    ".claude/worktrees"
   ],
   "disable-rules": [
     "docker",

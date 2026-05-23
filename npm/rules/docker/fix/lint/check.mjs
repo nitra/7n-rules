@@ -2,7 +2,7 @@
  * Запускає hadolint для Dockerfile / Containerfile у всьому репозиторії (див. docker.mdc).
  *
  * Додатково переконуються, що образи `oven/bun`, `alpine`, `nginx`, `node` з Docker Hub
- * вказуються через `mirror.gcr.io` (див. `utils/docker-mirror.mjs`).
+ * вказуються через `mirror.gcr.io` (див. `./docker-mirror.mjs`).
  *
  * Також перевіряє, що Dockerfile/Containerfile має **multistage build** і що фінальний stage
  * використовує дозволений runtime-образ (див. docker.mdc):
@@ -30,8 +30,8 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
-import { getMirrorGcrHint, getFromImageToken } from '../../../../scripts/utils/docker-mirror.mjs'
-import { lintDockerfileWithHadolint, posixRel } from '../../../../scripts/utils/docker-hadolint.mjs'
+import { getMirrorGcrHint, getFromImageToken } from './docker-mirror.mjs'
+import { lintDockerfileWithHadolint, posixRel } from './docker-hadolint.mjs'
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'

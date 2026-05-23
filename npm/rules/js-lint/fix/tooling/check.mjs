@@ -2,7 +2,7 @@
  * Перевіряє лінт JavaScript за правилом js-lint.mdc.
  *
  * Flat ESLint з getConfig і ignore для auto-imports,
- * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/scripts/utils/oxlint-canonical.json`):
+ * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/rules/js-lint/fix/tooling/oxlint-canonical.json`):
  * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
  * globals, ignorePatterns. Також перевіряє workspace `package.json` на `type: "module"`
  * і `engines`, workflow-дубль у `lint.yml`, `knip.json` autofill і застарілі `.eslintrc*`.
@@ -20,24 +20,12 @@ import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mj
 /** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
 export const OXLINT_CANONICAL_JSON_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-  'scripts',
-  'utils',
   'oxlint-canonical.json'
 )
 
 /** Шлях до канонічного knip JSON у цьому пакеті — копіюється у корінь проєкту-споживача, якщо відсутній. */
 export const KNIP_CANONICAL_JSON_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
-  '..',
-  '..',
-  'scripts',
-  'utils',
   'knip-canonical.json'
 )
 
@@ -166,7 +154,7 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
 
     if (!deepEqualOxlintCanonical(actual, expected)) {
       failures.push(
-        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @nitra/cursor (npm/scripts/utils/oxlint-canonical.json)`
+        `.oxlintrc.json: поле "${key}" має збігатися з каноном пакета @nitra/cursor (npm/rules/js-lint/fix/tooling/oxlint-canonical.json)`
       )
     }
   }
@@ -396,7 +384,7 @@ async function checkKnipConfig(passFn, failFn) {
     return
   }
   await copyFile(KNIP_CANONICAL_JSON_PATH, 'knip.json')
-  passFn('knip.json створено з канонічного npm/scripts/utils/knip-canonical.json (js-lint.mdc)')
+  passFn('knip.json створено з канонічного npm/rules/js-lint/fix/tooling/knip-canonical.json (js-lint.mdc)')
 }
 
 /**

@@ -1,19 +1,17 @@
-# Порт перевірки `deploymentDocumentHasAbieBasePreemNodeSelector` з
-# `npm/scripts/check-abie.mjs` (abie.mdc): кожен `Deployment` у файлах під
-# `…/k8s/.../base/…` має `spec.template.spec.nodeSelector.preem` зі
-# значенням, що вважається істинним (boolean `true` або рядок `"true"`
-# без урахування регістру). Overlay ua далі підміняє селектор
-# JSON6902-патчем на `preem: false`.
+# Перевірка (abie.mdc): кожен `Deployment` у файлах під `…/k8s/.../base/…` має
+# `spec.template.spec.nodeSelector.preem` зі значенням, що вважається істинним
+# (boolean `true` або рядок `"true"` без урахування регістру). Overlay ua далі
+# підміняє селектор JSON6902-патчем на `preem: false`
+# (див. `fix/ua_node_selector/check.mjs`).
 #
 # Запуск (локально, лише для одного base-YAML з Deployment):
 #   conftest test path/to/k8s/base/deployment.yaml \
-#     -p npm/policy/abie/base_deployment_preem \
+#     -p npm/rules/abie/policy/base_deployment_preem \
 #     --namespace abie.base_deployment_preem
 #
-# JS відбирає файли під `…/k8s/.../base/…` (через `isAbieK8sBaseYamlPath`) і
-# викликає conftest з цією намеспейс. JS authoritative (`check-abie.mjs`:
-# `deploymentDocumentHasAbieBasePreemNodeSelector` + `ensureAbieBaseDeploymentPreemNodeSelector`).
-# Cross-file gating (правило `abie` у `.n-cursor.json`, шлях файла) — у JS.
+# Cross-file gating: шлях `…/k8s/.../base/…` фільтрується через
+# `policy/base_deployment_preem/target.json` (glob). Rule-level applies-гейт —
+# `fix/applies/check.mjs` (поле `rules` у `.n-cursor.json`).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

@@ -22,7 +22,7 @@ import {
   findUnsafeMssqlInListUnparsedInText,
   findUnsafeMssqlInListMissingEmptyGuardInText,
   isMssqlScanSourceFile
-} from '../../../../scripts/utils/mssql-pool-scan.mjs'
+} from './mssql-pool-scan.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 

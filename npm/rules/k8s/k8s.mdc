@@ -375,7 +375,7 @@ images:
 
    Для `$schema` у першому рядку див. приклад **HealthCheckPolicy** у тому ж розділі (datree CRDs-catalog).
 
-   **`spec.targetRef`** (типово **`kind: Service`**) має вказувати на **headless** сервіс — ім’я з суфіксом **`-hl`** (див. **«Service: `svc.yaml` і `svc-hl.yaml`»**); для проєктів **abie** точні умови — **`check-abie.mjs`** / **abie.mdc**.
+   **`spec.targetRef`** (типово **`kind: Service`**) має вказувати на **headless** сервіс — ім’я з суфіксом **`-hl`** (див. **«Service: `svc.yaml` і `svc-hl.yaml`»**); для проєктів **abie** точні умови — Rego-пакет **`abie.health_check_policy`** + **abie.mdc**.
 
    За потреби розшир **`target`** (`name`, `namespace`), щоб однозначно вказати об’єкт.
 

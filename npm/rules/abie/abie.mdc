@@ -36,7 +36,7 @@ spec:
 
 ### HTTPRoute: спільні сервіси **`auth-run-hl`**, **`file-link-hl`**
 
-У **HTTPRoute** у шляху з **`…/k8s/base/…`** у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (перевірка в **`check-abie.mjs`**).
+У **HTTPRoute** у шляху з **`…/k8s/base/…`** у **`spec.hostnames`** дозволені лише **`aiml.live`**, **`*.aiml.live`** та інші піддомени **aiml.live** (перевірка — Rego-пакет **`abie.http_route_base`**, див. розділ нижче).
 
 Ці **Service** (headless **`-hl`**) живуть у **базовому** неймспейсі **`dev`**. У маніфесті **HTTPRoute** під **`k8s`** (шар без **`ua/`** — наприклад **`…/k8s/base/hr.yaml`**) для кожного **`backendRefs`** до такого сервісу явно вкажи **`namespace: dev`** і порт **8080**:
 
@@ -133,7 +133,7 @@ KVCMS_URL=http://kvcms-hl.ua-apruv.svc.abie-ua.internal:8080
 
 `<namespace>` (наприклад `dev-apruv` / `ua-apruv`) — `metadata.name` цільового namespace після kustomize-overlay для відповідного середовища; `<service>` — `metadata.name` headless Service (`-hl`) того сервісу, до якого йде URL.
 
-**Перевірка `check-abie.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
+**Перевірка `fix/env_dns/check.mjs`** сканує всі `*.env` файли, basename яких збігається з `dev.env` / `ua.env` (з провідною крапкою чи без), знаходить **усі** internal URL (`http://<svc>.<ns>.svc.<dns>` — як для Hasura-ендпоінта, так і для KVCMS чи будь-якого іншого) і вимагає, щоб для кожного:
 
 - DNS-суфікс відповідав env: `abie-dev.internal` / `abie-ua.internal`;
 - namespace починався з `dev-` / `ua-` відповідно.
@@ -170,4 +170,12 @@ bun add -d @nitra/abie-docs
 - **`clean_merged_ignore_branches/`** → `abie.clean_merged_ignore_branches` — у workflow `.github/workflows/clean-merged-branch.yml` крок з `uses: phpdocker-io/github-actions-delete-abandoned-branches` має `with.ignore_branches`, що містить токени `dev,ua` (case-insensitive). **Цільові файли:** `.github/workflows/clean-merged-branch.yml`.
 - **`package_json_docs/`** → `abie.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/abie-docs` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.
 
-Cross-file логіка (парність HCP↔Deployment у каталозі, обчислений `<deployment.name>-hl` для `targetRef.name`, валідація ua-overlay JSON6902 patches на HTTPRoute, env→cluster DNS, аналіз cross-namespace backendRefs у пакетах) лишається у **`check-abie.mjs`** — Rego не читає файлову систему й не робить cross-document резолюцію.
+Cross-file / FS-логіка лишається у JS-частинах (`fix/<concern>/check.mjs`) — Rego не читає файлову систему й не робить cross-document резолюцію:
+
+- парність HCP↔Deployment у каталозі та modeline `hc.yaml` — `fix/hc_pairing/check.mjs`;
+- валідація ua-overlay JSON6902 patches на HTTPRoute + аналіз cross-namespace `backendRefs` у пакетах — `fix/ua_http_route/check.mjs`;
+- ua-overlay JSON6902 patch на `Deployment.nodeSelector` (`preem: false`) — `fix/ua_node_selector/check.mjs`;
+- env→cluster DNS (`*.dev.env` / `*.ua.env`) — `fix/env_dns/check.mjs`;
+- скан артефактів Firebase Hosting у підкаталогах першого рівня — `fix/firebase_hosting/check.mjs`.
+
+Точна звірка `targetRef.name` HealthCheckPolicy з суфіксом `-hl` обчислюється з `hcp.metadata.name` і живе у Rego (`abie.health_check_policy`); за конвенцією `hcp.metadata.name` дорівнює `<deployment.name>`, тому окремий cross-file lookup до маніфесту Deployment не потрібен.

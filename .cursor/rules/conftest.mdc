@@ -78,7 +78,7 @@ export async function check() {
 
 **Реальні приклади (порядок упровадження):**
 
-- **abie** (пілот) — `check-abie.mjs` делегує `abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base` через `runConftestBatch`. Видалені дублі: `deploymentDocumentHasAbieBasePreemNodeSelector`, `parseCleanMergedIgnoreBranches`, `validateAbieHcPolicy`, `abieBaseHttpRouteHostnamesErrors`. JS лишає лише cross-file (env→cluster DNS, ConfigMap↔Deployment pairing, kustomize JSON6902 patches).
+- **abie** (пілот) — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_docs`) і запускається CLI `@nitra/cursor check abie` через `policy/<pkg>/target.json`. JS-частини в `rules/abie/fix/<concern>/check.mjs` лишають лише cross-file / FS-логіку: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
 - **ga** — `check-ga.mjs::check()` починає з `runAllGaRego` (4 per-workflow + 1 batch для `ga.workflow_common`), далі — JS cross-file. `lint-ga.mjs` — `actionlint` + `zizmor` + `await checkGa()`. Раніше `lint-ga` сам спавнив conftest, а `check ga` цього не робив — тепер централізовано.
 
 ### Workflow для нової перевірки

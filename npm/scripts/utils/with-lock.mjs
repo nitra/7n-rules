@@ -2,9 +2,9 @@
  * Guard-механізм: атомарний lock + dedup для важких команд.
  * Алгоритм: mkdirSync-based lock, перевірка живості PID, sha256-dedup з TTL.
  */
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
+import * as os from 'node:os'
 import { worktreeFingerprint } from './worktree-fingerprint.mjs'
 
 const DEFAULTS = {
@@ -70,8 +70,8 @@ export async function withLock(key, runFn, opts = {}) {
       fs.writeFileSync(ownerFile, JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint }))
       locked = true
       break
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error
       let owner
       try { owner = JSON.parse(fs.readFileSync(ownerFile, 'utf8')) } catch {
         fs.rmSync(lockDir, { recursive: true, force: true })

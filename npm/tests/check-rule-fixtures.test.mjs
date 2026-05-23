@@ -14,7 +14,7 @@ import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.
 const nginxFixDir = join(
   fileURLToPath(new URL('.', import.meta.url)),
   '..',
-  'rules/nginx-default-tpl/fix/template/fixtures'
+  'rules/nginx-default-tpl/fix/template/tests/fixtures'
 )
 
 /**

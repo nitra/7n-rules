@@ -453,6 +453,11 @@ export function findTestFrameworkImport(content, virtualPath) {
  * Класифікує опублікований файл як test/fixture, якщо хоча б одна з ознак:
  * (1) у шляху є каталог із `TEST_DIR_NAMES`; (2) basename відповідає
  * `TEST_FILE_PATTERNS`; (3) для JS/TS-розширень — імпорт test-фреймворку.
+ *
+ * Carve-out: для шляху `rules/<rule-name>/...` сегмент `<rule-name>` (індекс 1)
+ * — це ім'я правила, а не каталог. Зокрема, правило з id `test` (або `tests`)
+ * описує конвенцію розміщення тестів і саме по собі не є test-fixture'ом.
+ * Подальші сегменти (наприклад, `rules/<r>/fix/<c>/tests/`) продовжують перевірятись.
  * @param {string} relPath posix-шлях відносно `npm/`
  * @returns {Promise<string | null>} причина порушення або `null`
  */
@@ -460,7 +465,12 @@ export async function classifyPublishedFileAsTest(relPath) {
   const segments = relPath.split('/')
   const base = segments.at(-1)
   const dirs = segments.slice(0, -1)
-  const testDir = dirs.find(seg => TEST_DIR_NAMES.has(seg.toLowerCase()))
+  const testDir = dirs.find((seg, idx) => {
+    if (idx === 1 && dirs[0] === 'rules') {
+      return false
+    }
+    return TEST_DIR_NAMES.has(seg.toLowerCase())
+  })
   if (testDir) return `test-style каталог "${testDir}/"`
   if (TEST_FILE_PATTERNS.some(re => re.test(base))) return `test-style ім'я файлу`
   if (JS_LIKE_EXT_RE.test(base)) {

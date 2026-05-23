@@ -28,7 +28,7 @@ import {
   manifestFilePath,
   parsePyprojectFields,
   readPackageManifest
-} from '../../../../scripts/utils/package-manifest.mjs'
+} from './package-manifest.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -247,7 +247,7 @@ async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces
 /**
  * Версія з маніфесту на `baseRef`.
  * @param {string} baseRef параметр
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @returns {Promise<string | null>} результат
  */
 async function readBaseVersion(baseRef, manifest) {
@@ -308,8 +308,8 @@ async function defaultGetPublishedPyPiVersion(name) {
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
- * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {(name: string, kind?: import('./package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
  * @returns {Promise<string | null>} результат
  */
 function resolvePublishedVersion(manifest, getPublishedVersion) {
@@ -319,7 +319,7 @@ function resolvePublishedVersion(manifest, getPublishedVersion) {
 
 /**
  * @param {string} name пакет
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageKind} [kind] тип пакета
+ * @param {import('./package-manifest.mjs').PackageKind} [kind] тип пакета
  * @returns {Promise<string | null>} опублікована версія або null
  */
 function defaultGetPublishedVersion(name, kind = 'npm') {
@@ -330,14 +330,14 @@ function defaultGetPublishedVersion(name, kind = 'npm') {
 }
 
 /**
- * @returns {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} стандартний резолвер
+ * @returns {(name: string, kind?: import('./package-manifest.mjs').PackageKind) => Promise<string | null>} стандартний резолвер
  */
 function createDefaultGetPublishedVersion() {
   return defaultGetPublishedVersion
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  */
@@ -375,7 +375,7 @@ async function verifyChangelogEntry(ws, version, pass, fail) {
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @returns {string} результат
  */
 function workspaceLabel(manifest) {
@@ -383,7 +383,7 @@ function workspaceLabel(manifest) {
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} Vcurrent параметр
  * @param {string[]} subWorkspaces параметр
  * @param {(msg: string) => void} pass параметр
@@ -438,9 +438,9 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string[]} subWorkspaces параметр
- * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
+ * @param {(name: string, kind?: import('./package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @returns {Promise<void>} результат
@@ -475,7 +475,7 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
 
 /**
  * @param {string} comparisonRef ref/SHA для `git diff` / `git show`
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {import('./package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} baseLabel параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
@@ -507,7 +507,7 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
 }
 
 /**
- * @param {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]} localOnly параметр
+ * @param {import('./package-manifest.mjs').PackageManifest[]} localOnly параметр
  * @param {string[]} subWorkspaces параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
@@ -543,7 +543,7 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
 
 /**
  * @param {object} [opts] опції перевірки
- * @param {(name: string, kind?: import('../../../../scripts/utils/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
+ * @param {(name: string, kind?: import('./package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
  * @returns {Promise<number>} exit-код перевірки
  */
 export async function check(opts = {}) {
@@ -558,11 +558,11 @@ export async function check(opts = {}) {
   const isMonorepoRoot = subWorkspaces.length > 0
 
   /**
-  @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]}
+  @type {import('./package-manifest.mjs').PackageManifest[]}
    */
   const published = []
   /**
-  @type {import('../../../../scripts/utils/package-manifest.mjs').PackageManifest[]}
+  @type {import('./package-manifest.mjs').PackageManifest[]}
    */
   const localOnly = []
 

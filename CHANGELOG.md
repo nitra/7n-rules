@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.0.3] - 2026-05-23
+
+### Changed
+
+- **`.cursor/rules/conftest.mdc`** — секцію «Реальні приклади» оновлено: видалено опис `check-abie.mjs` як делегатора `runConftestBatch` (того файла більше не існує). Тепер описуємо: пер-документна валідація abie вже живе в Rego-пакетах і запускається CLI `@nitra/cursor check abie` через `policy/<pkg>/target.json`; JS-частини в `rules/abie/fix/<concern>/check.mjs` зберігають лише cross-file / FS-логіку (`env_dns/`, `hc_pairing/`, `ua_http_route/`, `ua_node_selector/`, `firebase_hosting/`).
+
 ## [1.0.2] - 2026-05-16
 
 ### Added

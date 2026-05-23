@@ -5,12 +5,12 @@
  * check docker, не обробляються Dockerfile.*, Containerfile тощо — лише канонічне ім’я
  * Dockerfile та варіанти виду app.Dockerfile (регістр суфікса не важливий).
  *
- * Виклик hadolint — через utils/docker-hadolint.mjs (PATH або docker run).
+ * Виклик hadolint — через ../fix/lint/docker-hadolint.mjs (PATH або docker run).
  */
 import { basename } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { lintDockerfileWithHadolint, posixRel } from '../../../scripts/utils/docker-hadolint.mjs'
+import { lintDockerfileWithHadolint, posixRel } from '../fix/lint/docker-hadolint.mjs'
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'

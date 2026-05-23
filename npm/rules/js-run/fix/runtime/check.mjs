@@ -40,22 +40,22 @@ import {
   findBunyanImportsInText,
   isBunyanScanSourceFile,
   shouldSkipFileForBunyanScan
-} from '../../../../scripts/utils/bunyan-imports.mjs'
-import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../../../../scripts/utils/check-env-scan.mjs'
+} from './bunyan-imports.mjs'
+import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './check-env-scan.mjs'
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
 import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
-import { findConnFileRuleViolations, isConnFileRulesSourceFile } from '../../../../scripts/utils/conn-file-rules.mjs'
+import { findConnFileRuleViolations, isConnFileRulesSourceFile } from './conn-file-rules.mjs'
 import {
   findConnFactoryImportsInText,
   isConnImportsScanSourceFile,
   isInsideConnDir,
   resolveConnDirFromPackageJson
-} from '../../../../scripts/utils/conn-imports-scan.mjs'
+} from './conn-imports-scan.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import {
   findPromiseSetTimeoutInText,
   isPromiseSetTimeoutScanSourceFile
-} from '../../../../scripts/utils/promise-settimeout-scan.mjs'
+} from './promise-settimeout-scan.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
 

@@ -4,7 +4,71 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.13.77] - 2026-05-22
+## [1.13.82] - 2026-05-23
+
+### Changed
+
+- **`rules/test`: виняток для `*_test.rego` файлів — лишаються поряд із полісі (OPA/Conftest community-конвенція)**:
+  - **Rego unit-тести (`*_test.rego`) лежать у тому самому каталозі, що й `<name>.rego`** — за загальноприйнятим патерном OPA/Conftest. `package <name>` (полісі) ↔ `package <name>_test` (тест) семантично зв'язані через `package`-декларації, а не локацію файлу; `conftest verify -p <dir>` рекурсивний, тож знаходить тест незалежно від місця, але спільнота тримає їх поруч (бачимо у OPA examples, Gatekeeper library, Datree, Styra DAS bundles). Це **легітимне відхилення** від внутрішньої JS-конвенції «`tests/` всюди» на користь OPA-ідіоми.
+  - `rules/test/test.mdc` v1.1 — додано **окрему секцію про виняток** для Rego: «`*_test.rego` лишаються поряд із полісі, бо це загальноприйнятий OPA/Conftest community-патерн» (з прикладом структури `policy/<concern>/{<name>.rego, <name>_test.rego, target.json}`).
+  - `rules/test/fix/location/check.mjs` — перевіряє **лише `*.test.mjs`**, `*_test.rego` свідомо виключено з область перевірки (зафіксовано у docstring).
+  - Додано test-case у `rules/test/fix/location/tests/check.test.mjs`: `*_test.rego` поряд із полісі НЕ є порушенням.
+- **Відкат переміщення `*_test.rego`**: 69 файлів, які раніше було помилково перенесено у `policy/<concern>/tests/<name>_test.rego`, повернуто у `policy/<concern>/<name>_test.rego` через `git mv`. Порожні `tests/` піддиректорії під `policy/` видалено.
+- **`npx @nitra/cursor check test`** охоплює лише JS-тести: «✅ Всі 77 файлів *.test.mjs у каталозі tests/». Rego-тести продовжують перевірятись через `conftest verify` у правилі `rego`.
+
+## [1.13.81] - 2026-05-23
+
+### Fixed
+
+- **`npm-module.package_structure`: carve-out для rule-name сегмента** у `classifyPublishedFileAsTest`. Раніше для шляху `rules/<X>/...` сегмент `<X>` піддавався TEST_DIR_NAMES-перевірці, що давало false positive на правилах із id, що збігається з test-style ім'ям (`test`, `tests`, `fixtures` тощо). Тепер сегмент індекс 1 (ім'я правила, коли індекс 0 — `rules`) пропускається; глибші сегменти (`rules/<r>/fix/<c>/tests/`) продовжують перевірятись.
+
+### Added
+
+- **Нове правило `test` (`npm/rules/test/`)** — програмний канон розміщення тестів (ADR `docs/adr/20260523-154806-...`):
+  - `test.mdc` — конвенція «`*.test.mjs` живуть у `tests/` поряд із джерелом», з описом спецвипадків (root `tests/`, fixtures у `tests/__fixtures__/` і `tests/fixtures/`, test-helpers як shared-infra).
+  - `fix/location/check.mjs` — обхід дерева `walkDir`'ом (зі стандартним skip-листом + `.n-cursor.json:ignore`); для кожного `*.test.mjs` басенейм батьківської директорії має бути `tests`, інакше fail з вказівкою куди перенести.
+  - `fix/location/tests/check.test.mjs` — 6 тестів самого правила (eats own dogfood).
+  - `auto.md` — auto-enable умова: «якщо у проекті є хоча б один файл `*.test.mjs`».
+  - Додано `"test"` у `.n-cursor.json:rules` репо `@nitra/cursor`.
+  - Додано `"ignore": [".claude/worktrees"]` у `.n-cursor.json` — щоб правило не звітувало про знімки в git worktrees.
+
+### Changed
+
+- **Тести переміщено з-поряд-із-файлом у `dir/tests/` піддиректорію** (ADR `docs/adr/20260523-154806-...`):
+  - **73 sibling-тести** у `rules/...` і `scripts/...`: для кожного `dir/X.test.mjs` → `dir/tests/X.test.mjs` із автоматичним оновленням relative imports.
+  - **3 integration-тести у `npm/tests/`** — без змін (вже відповідали конвенції).
+  - **`npm/scripts/utils/__fixtures__/`** → `npm/scripts/utils/tests/__fixtures__/`.
+  - **`npm/rules/nginx-default-tpl/fix/template/fixtures/`** → `.../tests/fixtures/`; посилання в `npm/tests/check-rule-fixtures.test.mjs` оновлено.
+  - Ручні фіксапи 4 тестів із HERE/`..` path patterns (sync-setup-bun-deps-action, inline-template-links, rules/adr/fix/hooks, rules/abie/utils/enabled) — додано додатковий `..`, бо тести стали на рівень глибше.
+  - `package.json#files` негативні globs (`!**/*.test.mjs`, `!**/__fixtures__/**`, `!**/fixtures/**`) працюють рекурсивно — без змін.
+  - **77 тестів** проходять у новому layout (76 існуючих + 1 нового правила): `bun test` 843 pass / 2 fail (обидва — pre-existing `with-lock` issues, не пов'язані).
+  - `npx @nitra/cursor check test` → `✅ Всі 77 файлів *.test.mjs у каталозі tests/ (test.mdc)`.
+
+## [1.13.79] - 2026-05-23
+
+### Changed
+
+- **Перенесення single-rule сканерів і canonical-конфігів з `npm/scripts/utils/` у `npm/rules/<rule>/fix/<sub>/`** (узгоджено з конвенцією `rules/ga/fix/workflows/`, `rules/nginx-default-tpl/fix/template/` тощо; ADR `docs/adr/20260523-114913-...`, який supersede `20260523-112217-...`):
+  - **js-lint** (`rules/js-lint/fix/tooling/`): `knip-canonical.json`, `oxlint-canonical.json`, `oxlint-canonical-skeleton.json`, `oxlint-rules.tsv`, `rebuild-oxlint-canonical.mjs`. Константи `OXLINT_CANONICAL_JSON_PATH` / `KNIP_CANONICAL_JSON_PATH` у `check.mjs` стали локальними (без 4-річневих `..`).
+  - **js-run** (`rules/js-run/fix/runtime/`): `bunyan-imports.mjs` (+test), `check-env-scan.mjs`, `conn-file-rules.mjs` (+test), `conn-imports-scan.mjs` (+test), `promise-settimeout-scan.mjs` (+test).
+  - **docker** (`rules/docker/fix/lint/`): `docker-hadolint.mjs` (+test), `docker-mirror.mjs`. `rules/docker/lint/lint.mjs` тепер імпортує з `../fix/lint/docker-hadolint.mjs`.
+  - **js-bun-db** (`rules/js-bun-db/fix/safety/`): `bun-sql-scan.mjs`.
+  - **js-mssql** (`rules/js-mssql/fix/deps/`): `mssql-pool-scan.mjs`.
+  - **changelog** (`rules/changelog/fix/consistency/`): `package-manifest.mjs` (+test).
+  - **vue** (`rules/vue/fix/packages/`): `vue-forbidden-imports.mjs` (+test).
+  - **graphql** (`rules/graphql/fix/tooling/`): `graphql-gql-scan.mjs`. Cross-rule імпорту немає: `extractVueScriptBlocks`, локалізована `contentForGqlScan` і власні `isGqlScanSourceFile` / `shouldSkipFileForGqlScan` (з власною source-regex і skip-list `.d.ts` / `auto-imports.d.ts` / `components.d.ts`) дубльовані всередині `graphql-gql-scan.mjs` — правила залишаються самодостатніми.
+  - **`scripts/auto-rules.mjs`** оновлено: імпорти переадресовано на нові локації трьох сканерів (`bun-sql-scan`, `graphql-gql-scan`, `vue-forbidden-imports`).
+  - **`.mdc`-документація** оновлена: `rules/js-lint/js-lint.mdc`, `rules/docker/docker.mdc`, `rules/vue/vue.mdc`, `.cursor/rules/n-js-lint.mdc`, `.cursor/rules/n-vue.mdc` — посилання на нові шляхи canonical-файлів і сканерів.
+
+## [1.13.78] - 2026-05-23
+
+### Changed
+
+- **abie / k8s / hasura — актуалізація посилань на неіснуючий `check-abie.mjs`:** після реструктуризації `rules/abie/` на `fix/<concern>/check.mjs` (+ Rego-пакети у `policy/`) монолітного `check-abie.mjs` більше немає; застарілі посилання в активних `.mdc`/`.rego`/`.mjs` (поза історичним `CHANGELOG.md`) оновлено:
+  - `npm/rules/abie/abie.mdc` — три згадки замінено: пер-документна перевірка HTTPRoute base hostnames → Rego `abie.http_route_base`; env-DNS-скан → `fix/env_dns/check.mjs`; cross-file/FS-логіку розбито за концернами (`hc_pairing/`, `ua_http_route/`, `ua_node_selector/`, `env_dns/`, `firebase_hosting/`) з поясненням, що `targetRef.name -hl` cross-check обчислюється з `hcp.metadata.name` у Rego.
+  - `npm/rules/abie/policy/{http_route_base,base_deployment_preem,health_check_policy}/*.rego` — у шапках замінено `npm/scripts/check-abie.mjs` на актуальні джерела: cross-file gating через `policy/<pkg>/target.json` (glob), rule-level applies-гейт у `fix/applies/check.mjs`, FS-парність HCP↔Deployment у `fix/hc_pairing/check.mjs`. Прибрано згадки видалених JS-функцій (`validateAbieHcPolicy`, `deploymentDocumentHasAbieBasePreemNodeSelector`).
+  - `npm/rules/k8s/k8s.mdc` — рядок про `targetRef -hl` для abie-проєктів вказує на Rego-пакет `abie.health_check_policy` + `abie.mdc` (замість `check-abie.mjs`).
+  - `npm/rules/hasura/fix/internal_urls/check.mjs` — у JSDoc згадку `check-abie` замінено на нейтральне «abie-перевірки».
 
 ### Added
 

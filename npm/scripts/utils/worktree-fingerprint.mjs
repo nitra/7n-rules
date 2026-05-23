@@ -3,8 +3,8 @@
  * Повертає sha256-hex (64 символи) або null, якщо не в git-репо.
  * @param {typeof import('child_process').spawnSync} spawn
  */
-import { spawnSync } from 'child_process'
-import { createHash } from 'crypto'
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 
 export function worktreeFingerprint(spawn = spawnSync) {
   /** @param {string[]} args */

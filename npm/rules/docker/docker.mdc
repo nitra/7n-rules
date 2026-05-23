@@ -7,7 +7,7 @@ alwaysApply: false
 
 # Docker — hadolint
 
-Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/scripts/utils/docker-mirror.mjs`**.
+Для образів з Docker Hub — **`oven/bun`**, **`alpine`**, **`nginxinc/nginx-unprivileged`**, **`node`** — у **`FROM`** треба вказувати дзеркало GCR, а не pull напряму з Hub: **`mirror.gcr.io/oven/bun`**, **`mirror.gcr.io/library/alpine`**, **`mirror.gcr.io/nginxinc/nginx-unprivileged`**, **`mirror.gcr.io/library/node`**. Перевіряє **`check-docker.mjs`**, деталі в **`npm/rules/docker/fix/lint/docker-mirror.mjs`**.
 
 Також Dockerfile/Containerfile **має бути multistage build**: окремий build stage (залежності/компіляція) і окремий runtime stage. У фінальному stage дозволені лише мінімальні базові образи:
 
@@ -99,7 +99,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 **Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`check-docker.mjs`).
 
-Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`check-docker.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/scripts/utils/docker-hadolint.mjs`**.
+Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`check-docker.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/rules/docker/fix/lint/docker-hadolint.mjs`**.
 
 - Канон `package.json#scripts.lint-docker`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
@@ -109,7 +109,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 - Канон: [lint-docker.yml.snippet.yml](./policy/lint_docker_yml/template/lint-docker.yml.snippet.yml)
 
-Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/scripts/utils/docker-hadolint.mjs`**.
+Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/rules/docker/fix/lint/docker-hadolint.mjs`**.
 
 Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-docker`**, коли в проєкті підключено правило **`docker`**.
 

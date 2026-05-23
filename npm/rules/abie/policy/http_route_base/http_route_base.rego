@@ -1,15 +1,14 @@
-# Порт перевірки `HTTPRoute` у шарі `…/k8s/.../base/...` з
-# `npm/scripts/check-abie.mjs` (abie.mdc): дозволені лише hostnames з домену
-# `aiml.live` (включно з піддоменами та `*.aiml.live`).
+# Перевірка `HTTPRoute` у шарі `…/k8s/.../base/...` (abie.mdc): дозволені лише
+# hostnames з домену `aiml.live` (включно з піддоменами та `*.aiml.live`).
 #
 # Запуск (локально):
-#   conftest test path/to/k8s/base/hr.yaml -p npm/policy/abie \
+#   conftest test path/to/k8s/base/hr.yaml \
+#     -p npm/rules/abie/policy/http_route_base \
 #     --namespace abie.http_route_base
 #
-# Cross-file gating (саме шлях `…/base/…` визначає, чи застосовувати правило)
-# — у JS: conftest викликаємо лише на YAML-ах з base/. Тут — лише валідація вмісту
-# `spec.hostnames`. JS authoritative (`check-abie.mjs`) — ця Rego гейт для
-# одиничного YAML.
+# Cross-file gating (саме шлях `…/k8s/.../base/...` визначає, чи застосовувати
+# правило) задає glob у `policy/http_route_base/target.json`. Тут — лише
+# валідація вмісту `spec.hostnames`. Rule-level applies-гейт — `fix/applies/check.mjs`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

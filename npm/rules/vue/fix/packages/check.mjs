@@ -15,7 +15,7 @@
  * натомість використовуй `mode` з `defineConfig(({ mode }) => ...)`.
  *
  * Заборонені явні value-імпорти з `vue` у джерелах пакета — сканування `.vue`/`.ts`/`.js` тощо
- * через **oxc-parser** (`module.staticImports`; див. `utils/vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
+ * через **oxc-parser** (`module.staticImports`; див. `./vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
  *
  * Окремо в `.vue` SFC заборонено імпорти Node-нативних модулів — `node:*` префікс або bare-ім’я
  * вбудованого модуля Node (`fs`, `path`, `timers/promises` тощо). Vue SFC виконується у браузері,
@@ -31,7 +31,7 @@ import {
   findForbiddenVueImportsInSourceFile,
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
-} from '../../../../scripts/utils/vue-forbidden-imports.mjs'
+} from './vue-forbidden-imports.mjs'
 import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
