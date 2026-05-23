@@ -1,0 +1,21 @@
+npm/tests/walk-cache.test.mjs
+  s_36d194edc23b6f::t_cda3faf30b30d4 1-35
+npm/scripts/utils/walk-cache.mjs
+  s_36d194edc23b6f::t_b8b92b4c6bae04 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "aa84537efd05583def276456d33160794311dd1a",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
