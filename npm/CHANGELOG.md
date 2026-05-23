@@ -4,6 +4,27 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.89] - 2026-05-23
+
+### Changed
+
+- **Stop-hook кличе `fix` замість deprecated `check`:** `scripts/claude-stop-hook.mjs` тепер спавнить `npx --no @nitra/cursor fix` — без deprecation-warning'а на кожен Stop event Claude Code.
+- **`.claude-template/commands/n-check.md` видалено** (разом з локальним `.claude/commands/n-check.md`). Після CLI-перейменування `check` → `fix` slash-команда `/n-check` вказувала на застарілу команду. У `syncClaudeConfig` логіка sync `commands/*.md` залишилась; зараз темплейт порожній. Тест `створює settings.json + slash-команди` переписано на «без slash-команд, коли темплейт порожній».
+- **JSDoc/docstring чистка:** `bin/n-cursor.js` (CLI usage header), `scripts/claude-stop-hook.mjs`, `scripts/sync-claude-config.mjs`, `rules/image-compress/js/package_setup/check.mjs` — згадки `npx @nitra/cursor check`, `/n-check`, `npm/scripts/check-*.mjs` оновлено на актуальну CLI (`fix`) і шляхи (`rules/<id>/fix.mjs`, `rules/<id>/js/<concern>/check.mjs`).
+- **`.cursor/rules/conftest.mdc`** — алгоритм рішення / патерн Rego-authoritative / Workflow / Red-flags переписано під фактичну структуру `rules/<rule>/js/<concern>/check.mjs` + `rules/<rule>/policy/<name>/`. Прибрано згадки `npm/scripts/check-<rule>.mjs` та `npm/policy/<rule>/` (legacy шляхи); приклади `check abie`, `check ga` → `fix abie`, `fix ga`.
+- **`docs/fix-cursor-skill.md`** — ASCII-діаграми, workflow-кроки та таблиця "Анатомія Skill-файлу" → `npx @nitra/cursor fix`; згадка `check-*.mjs скрипти` → `rules/<id>/fix.mjs правил`.
+
+### Notes
+
+- Споживачі: після оновлення вручну видалити `.claude/commands/n-check.md` (sync не вичищає orphan slash-команди з темплейту). Активна команда — `/n-fix` (зі скілу `n-fix`).
+- В `.claude/settings.json` permission `Bash(npx @nitra/cursor check)` видалено як redundant — вайлдкард `Bash(npx @nitra/cursor *)` нижче вже покриває обидві команди.
+
+## [1.13.88] - 2026-05-23
+
+### Changed
+
+- **`scripts/utils/with-lock.mjs` + тести:** локальна `sleep(ms)` через `new Promise(r => setTimeout(r, ms))` замінена на іменований імпорт `setTimeout as sleep` із `node:timers/promises`. Відповідає правилу `js-run` (без ручних `setTimeout`-промісів) — перевірка `npx @nitra/cursor fix js-run` стала зеленою.
+
 ## [1.13.87] - 2026-05-23
 
 ### Added

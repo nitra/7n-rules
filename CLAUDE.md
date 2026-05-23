@@ -1,5 +1,10 @@
 <!-- Цей файл генерується автоматично через `npx @nitra/cursor`. Не редагуй вручну. -->
 
+## Захищені директорії
+
+Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
+- `.claude/worktrees/`
+
 @.cursor/rules/conftest.mdc
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-adr.mdc
@@ -14,6 +19,7 @@
 @.cursor/rules/n-rego.mdc
 @.cursor/rules/n-security.mdc
 @.cursor/rules/n-style-lint.mdc
+@.cursor/rules/n-test.mdc
 @.cursor/rules/n-text.mdc
 @.cursor/rules/n-vue.mdc
 @.cursor/rules/scripts.mdc

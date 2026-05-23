@@ -22,6 +22,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-rego.mdc
 - .cursor/rules/n-security.mdc
 - .cursor/rules/n-style-lint.mdc
+- .cursor/rules/n-test.mdc
 - .cursor/rules/n-text.mdc
 - .cursor/rules/n-vue.mdc
 - .cursor/rules/scripts.mdc
@@ -52,7 +53,7 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **lint-security**: `bun run lint-security`
 - **lint-style**: `bun run lint-style`
 - **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
-- **Перевірки правил (programmatic)**: `npx @nitra/cursor check`
+- **Перевірки правил (programmatic)**: `npx @nitra/cursor fix`
 - **knip (невикористані залежності та експорти)**: `bunx knip`
 
 ## Instructions for all agents

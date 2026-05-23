@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx @nitra/cursor check)",
       "WebFetch(domain:bun.com)",
       "Bash(bun *)",
       "Bash(bun run *)",

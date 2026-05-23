@@ -49,7 +49,6 @@ async function setupTemplate(cwdAbs, tpl = {}) {
     `${JSON.stringify(settings, null, 2)}\n`,
     'utf8'
   )
-  await writeFile(join(cwdAbs, TEMPLATE_REL, 'commands', 'n-check.md'), tpl.commandNCheck ?? '# n-check stub\n', 'utf8')
   await writeFile(
     join(cwdAbs, TEMPLATE_REL, 'hooks', 'capture-decisions.sh'),
     tpl.captureDecisionsSh ?? '#!/usr/bin/env bash\nexit 0\n',
@@ -184,15 +183,14 @@ describe('mergeCursorHooksConfig', () => {
 })
 
 describe('syncClaudeConfig (інтеграція)', () => {
-  test('створює settings.json + slash-команди', async () => {
+  test('створює settings.json без slash-команд, коли темплейт `commands/` порожній', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       expect(result.settings).toBe(true)
-      expect(result.commands).toEqual(['.claude/commands/n-check.md'])
+      expect(result.commands).toEqual([])
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       expect(settings.hooks.Stop[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
-      expect(await readFile('.claude/commands/n-check.md', 'utf8')).toBe('# n-check stub\n')
     })
   })
 

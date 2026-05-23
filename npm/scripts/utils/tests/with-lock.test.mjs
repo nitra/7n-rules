@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { shouldDedup, withLock } from '../with-lock.mjs'
 
 // --- unit tests for shouldDedup ---
@@ -43,8 +44,6 @@ describe('withLock integration', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true })
   })
 
-  const sleep = ms => new Promise(r => setTimeout(r, ms))
-
   it('serializes parallel calls', async () => {
     const start = Date.now()
     // getFingerprint: () => null вимикає дедуп — тут перевіряємо рівно серіалізацію,
@@ -52,14 +51,17 @@ describe('withLock integration', () => {
     const opts = { cacheDir: path.join(tmpDir, 'a'), pollInterval: 50, getFingerprint: () => null }
     await Promise.all([
       withLock('test', () => sleep(200).then(() => 0), opts),
-      withLock('test', () => sleep(200).then(() => 0), opts),
+      withLock('test', () => sleep(200).then(() => 0), opts)
     ])
     expect(Date.now() - start).toBeGreaterThanOrEqual(400)
   }, 10_000)
 
   it('deduplicates on same fingerprint', async () => {
     let calls = 0
-    const fn = () => { calls++; return Promise.resolve(0) }
+    const fn = () => {
+      calls++
+      return Promise.resolve(0)
+    }
     const getFingerprint = () => 'a'.repeat(64)
     const lockOpts = { cacheDir: path.join(tmpDir, 'b'), ttl: 60_000, getFingerprint }
     await withLock('test', fn, lockOpts)
@@ -71,7 +73,13 @@ describe('withLock integration', () => {
     const cacheDir = path.join(tmpDir, 'c')
     const lockDir = path.join(cacheDir, 'lock')
     try {
-      await withLock('test', () => { throw new Error('fail') }, { cacheDir })
+      await withLock(
+        'test',
+        () => {
+          throw new Error('fail')
+        },
+        { cacheDir }
+      )
     } catch {}
     expect(fs.existsSync(lockDir)).toBe(false)
   })

@@ -29,6 +29,9 @@ title: "правило rust для @nitra/cursor"
 | R8 | VSCode-extensions — `rust-lang.rust-analyzer` + `tamasfe.even-better-toml`. |
 | R9 | Архітектура — rego-heavy (як `js-lint`/`style-lint`): три policy-пакети + `js/tooling/check.mjs` як FS-existence + `runConftestBatch`-orchestrator. |
 | R10 | Refactor `tauri`: винести вимогу `rust-lang.rust-analyzer` у `rust`, лишити у `tauri` лише `tauri-apps.tauri-vscode`. |
+| R11 | Канон — лише у `template/<target>.<slot>.<ext>` ([scripts.mdc](../../.cursor/rules/scripts.mdc)). У `rust.mdc` — markdown-link на template (НЕ inline fenced-block з `title="<filename>"`). У `.rego` — читання `data.template.*`, без inline-літералів; drift-test у `_test.rego`. |
+| R12 | Слоти: `package.json.contains.json` (substring-вимога scripts.lint-rust), `extensions.json.snippet.json` (subset-of для recommendations), `lint-rust.yml.snippet.yml` (повний файл як єдиний канон). |
+| R13 | `withLock` делегується через `runStandardRule` ([scripts.mdc § withLock](../../.cursor/rules/scripts.mdc)) — у `fix.mjs` НЕ дублюємо. |
 
 ## Архітектура
 
@@ -36,49 +39,64 @@ title: "правило rust для @nitra/cursor"
 
 ```
 npm/rules/rust/
-├── rust.mdc                          — людиночитна спека
+├── rust.mdc                          — людиночитна спека (markdown-links на template, без inline-fenced з title)
 ├── auto.md                           — "якщо в проекті є хоч один Cargo.toml"
-├── fix.mjs                           — entry-point (делегує до runStandardRule)
+├── fix.mjs                           — entry-point (делегує до runStandardRule; withLock — там, не тут)
 ├── js/
 │   ├── applies/
-│   │   └── check.mjs                 — applies(): Cargo.toml у cwd або workspace
+│   │   ├── check.mjs                 — applies(): Cargo.toml у cwd або workspace
+│   │   └── check.test.mjs            — bun-тести поруч з джерелом
 │   └── tooling/
-│       └── check.mjs                 — JS-orchestrator: FS-existence + runConftestBatch
+│       ├── check.mjs                 — JS-orchestrator: FS-existence + runConftestBatch
+│       └── check.test.mjs
 └── policy/
     ├── package_json/
-    │   ├── target.json
-    │   ├── package_json.rego
-    │   ├── package_json_test.rego
-    │   └── template/package.json.snippet.json
+    │   ├── target.json               — {"files":{"single":"package.json","required":true},"missingMessage":"…"}
+    │   ├── package_json.rego         — `package rust.package_json` + `import rego.v1`; читає `data.template.contains.package_json`
+    │   ├── package_json_test.rego    — golden pass + per-substring fail + drift-test (підміна data.template → нова deny)
+    │   └── template/
+    │       └── package.json.contains.json    — масив підрядків для scripts.lint-rust
     ├── vscode_extensions/
-    │   ├── target.json
-    │   ├── vscode_extensions.rego
+    │   ├── target.json               — {"files":{"single":".vscode/extensions.json","required":true},"missingMessage":"…"}
+    │   ├── vscode_extensions.rego    — читає `data.template.snippet.extensions_json.recommendations` як subset-of
     │   ├── vscode_extensions_test.rego
-    │   └── template/extensions.json.snippet.json
+    │   └── template/
+    │       └── extensions.json.snippet.json  — {"recommendations":["rust-lang.rust-analyzer","tamasfe.even-better-toml"]}
     └── lint_rust_yml/
-        ├── target.json
-        ├── lint_rust_yml.rego
+        ├── target.json               — {"files":{"single":".github/workflows/lint-rust.yml","required":true},"missingMessage":"…"}
+        ├── lint_rust_yml.rego        — читає `data.template.snippet.lint_rust_yml` (повний файл як єдиний канон); інваріанти беруться з template
         ├── lint_rust_yml_test.rego
-        └── template/lint-rust.yml.snippet.yml
+        └── template/
+            └── lint-rust.yml.snippet.yml     — повний канонічний workflow
 ```
 
 Convention за технологією: `js/` (JS-implemented concerns) ↔ `policy/` (Rego-implemented). Узгоджено з [per-rule-fix-mjs-entry-point-design.md](2026-05-23-per-rule-fix-mjs-entry-point-design.md).
 
 ### Канонічні файли (предмет перевірки)
 
-#### `package.json` (root)
+Усі три канонічні форми **живуть у `template/`** ([scripts.mdc § Канон через template](../../.cursor/rules/scripts.mdc)). У `rust.mdc` — лише markdown-link на template; жодного inline-fenced-блоку з `title="<filename>"`. У `.rego` — лише `data.template.*`, жодного inline-літералу. Тут у спеці наводимо вміст для огляду; реальне джерело істини — `template/`.
+
+#### `npm/rules/rust/policy/package_json/template/package.json.contains.json`
+
+Слот **`.contains.json`** — масив підрядків, кожен з яких має бути присутнім у відповідному leaf (`scripts["lint-rust"]`):
 
 ```json
 {
   "scripts": {
-    "lint-rust": "cargo fmt --all && cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --all-targets --all-features -- -D warnings"
+    "lint-rust": [
+      "cargo fmt --all",
+      "cargo clippy --fix --allow-staged --allow-dirty",
+      "cargo clippy --all-targets --all-features -- -D warnings"
+    ]
   }
 }
 ```
 
-Rego `rust.package_json` перевіряє substring для `scripts["lint-rust"]`: має містити **усі** три кроки — `cargo fmt`, `cargo clippy --fix`, фінальний `cargo clippy ... -- -D warnings`. Точна форма (порядок, прапори) — як у каноні. `devDependencies` нічого не додає (Rust toolchain ставиться поза npm).
+`rust.package_json.rego` емітить один `deny contains msg` на кожен пропущений підрядок. Канонічна повна форма скрипта (для документації / `n-cursor fix`-репортів) — `cargo fmt --all && cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --all-targets --all-features -- -D warnings`.
 
-#### `.vscode/extensions.json`
+#### `npm/rules/rust/policy/vscode_extensions/template/extensions.json.snippet.json`
+
+Слот **`.snippet.json`** — subset-of для масивів (інші екстеншени дозволені):
 
 ```json
 {
@@ -89,9 +107,11 @@ Rego `rust.package_json` перевіряє substring для `scripts["lint-rust
 }
 ```
 
-Rego `rust.vscode_extensions` — `contains` для обох записів, не вимагає рівності множини (інші екстеншени дозволені).
+`rust.vscode_extensions.rego` емітить `deny` для кожного запису з `data.template.snippet.extensions_json.recommendations`, якого немає у `recommendations` цільового файлу.
 
-#### `.github/workflows/lint-rust.yml`
+#### `npm/rules/rust/policy/lint_rust_yml/template/lint-rust.yml.snippet.yml`
+
+Слот **`.snippet.yml`** — повний канонічний workflow (єдине джерело істини для CI):
 
 ```yaml
 name: Lint Rust
@@ -140,12 +160,22 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Rego `rust.lint_rust_yml` перевіряє інваріанти:
-- `name == "Lint Rust"`,
-- `concurrency.cancel-in-progress == true`,
-- `jobs.lint.steps` містить у послідовності: `actions/checkout@v6` → `dtolnay/rust-toolchain@stable` з `components` що включає `rustfmt` і `clippy` → `Swatinem/rust-cache@v2` → step з `cargo fmt ... --check` → step з `cargo clippy ... -D warnings`.
+`rust.lint_rust_yml.rego` рахує інваріанти **на льоту з `data.template.snippet.lint_rust_yml`** (drift-safe): `name`, `concurrency.cancel-in-progress`, послідовність `jobs.lint.steps` (uses + run-blob як `concat` з template) — щоб зміна template автоматично рухала перевірку. CI **без `--fix`** (fmt у `--check`, clippy без `--fix`).
 
-CI **без `--fix`** (на відміну від локального `lint-rust`): fmt у `--check`, clippy без `--fix`.
+#### `target.json` формат (для всіх трьох концернів)
+
+За [scripts.mdc](../../.cursor/rules/scripts.mdc):
+
+```json
+{
+  "files": { "single": "<шлях>", "required": true },
+  "missingMessage": "<людиночитне повідомлення з посиланням на rust.mdc>"
+}
+```
+
+- `package_json/target.json`: `"single": "package.json"`
+- `vscode_extensions/target.json`: `"single": ".vscode/extensions.json"`
+- `lint_rust_yml/target.json`: `"single": ".github/workflows/lint-rust.yml"`
 
 #### `auto.md`
 
@@ -155,9 +185,18 @@ CI **без `--fix`** (на відміну від локального `lint-rus
 
 Стиль узгоджений з `capacitor/auto.md`.
 
+### `fix.mjs` (entry-point)
+
+Канонічна форма 8-рядкового entry-point ([per-rule-fix-mjs-entry-point-design.md](2026-05-23-per-rule-fix-mjs-entry-point-design.md)). Делегує до `runStandardRule`; `withLock` живе там — у `fix.mjs` НЕ дублюємо ([scripts.mdc § withLock](../../.cursor/rules/scripts.mdc)). Перед `import` — багаторядковий JSDoc українською (вимога scripts.mdc).
+
 ### `js/applies/check.mjs`
 
 ```js
+/**
+ * Applies-гейт правила rust: маркер — наявність `Cargo.toml` у `cwd` або
+ * в будь-якому workspace-пакеті. Якщо повертає `false` — CLI пропускає всі
+ * концерни (JS і policy) цього правила. `check()` друкує тільки context-pass.
+ */
 import { existsSync } from 'node:fs'
 
 import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
@@ -174,13 +213,18 @@ export function check() {
 }
 ```
 
-Точне ім'я walker-утиліти (`hasCargoTomlInWorkspaces` / еквівалент) визначається при реалізації — за патерном існуючих walker'ів у `npm/scripts/utils/` (з `walkCache`).
+Точне ім'я walker-утиліти (`hasCargoTomlInWorkspaces` / еквівалент) визначається при реалізації — за патерном існуючих walker'ів у `npm/scripts/utils/` (з `walkCache`). Якщо такого helper'а ще немає — вводимо у спільні `utils/` (не локально у правилі), бо логіка «знайти файл по workspaces» — крос-правильна.
 
 ### `js/tooling/check.mjs` (orchestrator)
 
-Виключно FS-existence + делегування до rego через `runConftestBatch` (точний патерн з `tauri/js/tooling/check.mjs`):
+Виключно FS-existence + делегування до rego через `runConftestBatch` (точний патерн з `tauri/js/tooling/check.mjs`). FS-існування target-файлів технічно дублюється з `target.json`'s `"required": true` + `missingMessage` — але `tooling/check.mjs` дає краще UX-повідомлення з посиланням на `rust.mdc`, тому залишаємо явну перевірку (як у `tauri`). Перед `import` — багаторядковий JSDoc українською.
 
 ```js
+/**
+ * Перевіряє Rust-інструментарій (rust.mdc): FS-існування трьох канонічних
+ * документів + делегування content-перевірок у rego через runConftestBatch.
+ * Cross-file gating (applies) винесено у `js/applies/check.mjs`.
+ */
 const docs = [
   { path: 'package.json',                    policyDir: 'rust/package_json',      ns: 'rust.package_json' },
   { path: '.vscode/extensions.json',         policyDir: 'rust/vscode_extensions', ns: 'rust.vscode_extensions' },
@@ -199,17 +243,27 @@ for (const d of docs) {
 
 ### Rego policies — контракти
 
-| Policy | `deny` фіксує |
-|---|---|
-| `rust.package_json` | `scripts["lint-rust"]` не містить `cargo fmt`, `cargo clippy --fix`, фінальний `cargo clippy ... -D warnings` (по одному `deny` на пропуск) |
-| `rust.vscode_extensions` | `recommendations` не містить `rust-lang.rust-analyzer` або `tamasfe.even-better-toml` |
-| `rust.lint_rust_yml` | `name != "Lint Rust"`; відсутня `concurrency.cancel-in-progress`; відсутній або порушений порядок steps (checkout → rust-toolchain з components → rust-cache → fmt --check → clippy -D warnings) |
+Кожен `.rego` має `package rust.<concern>` + `import rego.v1`. Канонічні літерали — **виключно** через `data.template.*` (рунер передає через `--data`), без inline-рядків ([scripts.mdc § Канон через template](../../.cursor/rules/scripts.mdc)).
 
-Кожен `.rego` має `_test.rego` з 3–5 кейсами: golden pass + по одному per-vimoga fail.
+| Policy | Слот | `deny` логіка |
+|---|---|---|
+| `rust.package_json` | `data.template.contains.package_json.scripts["lint-rust"]` (масив підрядків) | для кожного `s` із масиву: якщо `contains(input.scripts["lint-rust"], s) == false` → `deny` |
+| `rust.vscode_extensions` | `data.template.snippet.extensions_json.recommendations` (subset-of) | для кожного `ext` із template: якщо `ext` не в `input.recommendations` → `deny` |
+| `rust.lint_rust_yml` | `data.template.snippet.lint_rust_yml` (повний YAML) | `input.name == template.name`; `input.concurrency["cancel-in-progress"] == template.concurrency["cancel-in-progress"]`; для кожного step з `template.jobs.lint.steps` (uses або run) — присутній у `input.jobs.lint.steps` у тому ж порядку. Run-blob беремо через `concat` з `template.jobs.lint.steps[].run`, щоб зміна template автоматично рухала перевірку. |
 
-### `template/*` (snippet-фрагменти)
+Кожен `.rego` має `_test.rego` з 3–5 кейсами: golden pass + по одному per-vимога fail + **drift-test**: при підміні `data.template.*` правило emit-ить нову очікувану `deny` substring ([scripts.mdc § Drift-tests](../../.cursor/rules/scripts.mdc)). Drift-test гарантує, що template веде перевірку, а не задубльована inline-константа.
 
-Кожен policy має `template/<basename>.snippet.*` — мінімальний фрагмент канону, до якого `.mdc` посилається через `inlineTemplateLinks` (як у js-lint/style-lint). Snippet — джерело правди для прикладів у `n-rust.mdc`, що формується CLI.
+### Використання template у JS-orchestrator та `.mdc`
+
+- **`js/tooling/check.mjs`**: FS-existence check + делегування у rego через `runConftestBatch` (rego сам читає `data.template.*` через `--data`). Для repotting `template/`-шляхів — `loadTemplate` / `resolveConcernTemplateData` з `npm/scripts/utils/template.mjs`, якщо знадобиться FS-only логіка (наразі не потрібно — усе делегується у rego).
+- **`rust.mdc`**: для кожного target — markdown-link на template-файл, формат:
+  > Канон `scripts.lint-rust` (substring requirement): [`package.json.contains.json`](./policy/package_json/template/package.json.contains.json)
+  >
+  > Канон `.vscode/extensions.json` recommendations: [`extensions.json.snippet.json`](./policy/vscode_extensions/template/extensions.json.snippet.json)
+  >
+  > Канон CI workflow `.github/workflows/lint-rust.yml`: [`lint-rust.yml.snippet.yml`](./policy/lint_rust_yml/template/lint-rust.yml.snippet.yml)
+
+  `inlineTemplateLinks` під час `npx @nitra/cursor` sync підставить вміст у `.cursor/rules/n-rust.mdc` як fenced-блок з мітками native-формату. **Не** додавати inline fenced-block з `title="<filename>"` поруч з лінком — це другий source of truth (red flag за scripts.mdc).
 
 ## Інтеграція з пакетом
 
@@ -260,19 +314,26 @@ Tauri-проєкт автоматично активує обидва прави
 
 ## CHANGELOG / version bump
 
+За [scripts.mdc § Завершення задачі](../../.cursor/rules/scripts.mdc) + [n-changelog.mdc](../../.cursor/rules/n-changelog.mdc): останніми кроками сесії (після тестів / sync, **перед** фінальною відповіддю користувачу) — bump `version` у `npm/package.json` → нова секція у `npm/CHANGELOG.md` → `npx @nitra/cursor fix changelog`.
+
 Зміна додає нове правило + рефакторить `tauri.mdc` → minor bump `@nitra/cursor`. Запис у CHANGELOG:
 - **Added:** правило `rust` (lint-rust): rustfmt + clippy, канонічний `lint-rust` скрипт, CI workflow `lint-rust.yml`, VSCode extensions `rust-analyzer` + `even-better-toml`.
 - **Changed:** правило `tauri` звужено — `rust-lang.rust-analyzer` перенесено у нове правило `rust`.
 
 ## Послідовність реалізації (для writing-plans)
 
-1. Створити скелет `npm/rules/rust/` (директорії, `fix.mjs`, `auto.md`, `rust.mdc`).
-2. Створити три rego policy-пакети з `target.json`, `*.rego`, `*_test.rego`, `template/`.
-3. Реалізувати `js/applies/check.mjs` (Cargo.toml gating).
-4. Реалізувати `js/tooling/check.mjs` (orchestrator).
-5. Інтегрувати у `auto-rules.mjs` (+ тести).
-6. Рефакторити `tauri/policy/vscode_extensions/*` (звузити required_extensions).
-7. Оновити `tauri.mdc` (приклад + посилання на rust).
-8. Додати `@.cursor/rules/n-rust.mdc` у `CLAUDE.md`.
-9. Записати CHANGELOG, bump версії `@nitra/cursor`.
-10. Прогнати `npx @nitra/cursor check` + cursor self-check.
+1. **Скелет правила:** створити `npm/rules/rust/{rust.mdc, auto.md, fix.mjs}` (fix.mjs — 8-рядковий entry-point, делегує до `runStandardRule`, без власного `withLock`).
+2. **`policy/<concern>/`** для кожного з трьох (`package_json`, `vscode_extensions`, `lint_rust_yml`):
+   - `target.json` за форматом `{"files":{"single":"...","required":true},"missingMessage":"..."}`,
+   - `template/<basename>.<slot>.<ext>` як єдиний source-of-truth (`.contains.json` для package_json, `.snippet.*` для двох інших),
+   - `<concern>.rego` (`package rust.<concern>` + `import rego.v1`, читає `data.template.*` через `--data`, без inline-літералів),
+   - `<concern>_test.rego` (golden pass + per-vимога fail + **drift-test** з підміною `data.template.*`).
+3. **`js/applies/check.mjs`** + `check.test.mjs` (Cargo.toml gating; якщо потрібен новий walker — додати у `npm/scripts/utils/`).
+4. **`js/tooling/check.mjs`** + `check.test.mjs` (FS-existence + `runConftestBatch` orchestrator, точний патерн з `tauri/js/tooling/check.mjs`).
+5. **`rust.mdc`**: лише markdown-links на `template/*` файли; жодного inline-fenced-блока з `title="<filename>"`. JSDoc / human-text українською.
+6. **`auto-rules.mjs`** інтеграція: `AUTO_RULE_ORDER` (між `rego` і `security`), fact `hasCargoToml`, `autoRuleChecks` запис + розширення тестів у `npm/scripts/tests/auto-rules.test.mjs`.
+7. **Refactor `tauri`**: звузити `policy/vscode_extensions/vscode_extensions.rego` (required_extensions = `tauri-vscode`), оновити `_test.rego`, оновити `tauri.mdc` (приклад + посилання на rust).
+8. **`CLAUDE.md`** (`/Users/vitaliytv/www/nitra/cursor/CLAUDE.md`): додати `@.cursor/rules/n-rust.mdc` (між `n-rego.mdc` і `n-security.mdc`).
+9. **Тести**: `bun test` у `npm/`; `bun run lint-rego` (regal + `conftest verify` для `_test.rego`).
+10. **Verification:** прогнати `npx @nitra/cursor fix` (за `n-fix`-скілом) на fixture-проєкті з Cargo.toml і без; самоперевірка `npx @nitra/cursor fix` у самому пакеті.
+11. **Завершення задачі** (scripts.mdc § Завершення): bump `npm/package.json` version → секція у `npm/CHANGELOG.md` → `npx @nitra/cursor fix changelog` — у тому ж логічному кроці, до фінальної відповіді.

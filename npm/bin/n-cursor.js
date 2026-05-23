@@ -5,12 +5,12 @@
  *
  * Використання:
  *   `npx \@nitra/cursor`             — завантажити cursor-правила
- *   `npx \@nitra/cursor check`       — перевірити правила з `.cursor/rules/*.mdc`, для яких у пакеті є check/policy;
+ *   `npx \@nitra/cursor fix`         — перевірити правила з `.cursor/rules/*.mdc`, для яких у пакеті є `fix.mjs`/policy;
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
- *   `npx \@nitra/cursor check bun`   — перевірити лише вказані правила (ігнорує `.cursor/rules/`)
+ *   `npx \@nitra/cursor fix bun`     — перевірити лише вказані правила (ігнорує `.cursor/rules/`)
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor stop-hook`   — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active`,
- *                                     інакше викликає `check`); прописується автоматично в `.claude/settings.json`
+ *                                     інакше викликає `fix`); прописується автоматично в `.claude/settings.json`
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
  *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
  *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
@@ -25,9 +25,8 @@
  *   `npx \@nitra/cursor skill claude taze ["task"]` — Claude Code CLI (`claude -p`)
  *
  * Agent інтеграція: під час синку, окрім `.cursor/rules` і `.claude/commands` (з skills), CLI ще раз
- * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються),
- * `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються),
- * і slash-команди checks (`/n-check`).
+ * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються)
+ * і `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються).
  * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;

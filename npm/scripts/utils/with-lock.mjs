@@ -5,21 +5,23 @@
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as os from 'node:os'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { worktreeFingerprint } from './worktree-fingerprint.mjs'
 
 const DEFAULTS = {
   ttl: 600_000,
   staleThreshold: 1_800_000,
   waitTimeout: 1_200_000,
-  pollInterval: 1_500,
+  pollInterval: 1_500
 }
 
 function isAlive(pid) {
-  try { process.kill(pid, 0); return true } catch { return false }
-}
-
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms))
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function makeRelease(lockDir) {
@@ -67,18 +69,23 @@ export async function withLock(key, runFn, opts = {}) {
     }
     try {
       fs.mkdirSync(lockDir)
-      fs.writeFileSync(ownerFile, JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint }))
+      fs.writeFileSync(
+        ownerFile,
+        JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint })
+      )
       locked = true
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
       let owner
-      try { owner = JSON.parse(fs.readFileSync(ownerFile, 'utf8')) } catch {
+      try {
+        owner = JSON.parse(fs.readFileSync(ownerFile, 'utf8'))
+      } catch {
         fs.rmSync(lockDir, { recursive: true, force: true })
         continue
       }
-      const stale = (Date.now() - owner.startedAt > staleThreshold) ||
-        (os.hostname() === owner.host && !isAlive(owner.pid))
+      const stale =
+        Date.now() - owner.startedAt > staleThreshold || (os.hostname() === owner.host && !isAlive(owner.pid))
       if (stale) {
         console.error(`🧹 ${key}: знайдено застарілий лок — очищаю`)
         fs.rmSync(lockDir, { recursive: true, force: true })
@@ -100,9 +107,14 @@ export async function withLock(key, runFn, opts = {}) {
       release()
       return 0
     }
-  } catch { /* result.json не існує або пошкоджений */ }
+  } catch {
+    /* result.json не існує або пошкоджений */
+  }
 
-  const onSignal = () => { release(); process.exit(130) }
+  const onSignal = () => {
+    release()
+    process.exit(130)
+  }
   process.once('SIGINT', onSignal)
   process.once('SIGTERM', onSignal)
 

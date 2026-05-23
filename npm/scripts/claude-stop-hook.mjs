@@ -1,6 +1,6 @@
 /**
  * Stop-hook для Claude Code: запускається hook'ом із `.claude/settings.json` після того,
- * як агент сигналізує завершення ходу. Прозоро прокидає `npx \@nitra/cursor check`
+ * як агент сигналізує завершення ходу. Прозоро прокидає `npx \@nitra/cursor fix`
  * і повертає його exit code, щоб помилки правил блокували завершення.
  *
  * Захист від нескінченної рекурсії: якщо stdin містить `"stop_hook_active": true`
@@ -63,7 +63,7 @@ export async function runStopHookCli() {
     return 0
   }
 
-  const child = spawn('npx', ['--no', '@nitra/cursor', 'check'], { stdio: 'inherit' })
+  const child = spawn('npx', ['--no', '@nitra/cursor', 'fix'], { stdio: 'inherit' })
   try {
     const [code] = await once(child, 'exit')
     return code ?? 1

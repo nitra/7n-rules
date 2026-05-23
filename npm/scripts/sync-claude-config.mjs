@@ -1,14 +1,15 @@
 /**
  * Синхронізує конфігурацію Claude Code (`.claude/settings.json`,
- * slash-команди для checks, ADR Stop-hook) і Cursor hooks (`.cursor/hooks.json`)
- * у поточний проєкт із темплейтів пакету
+ * slash-команди з `commands/` темплейту, ADR Stop-hook) і Cursor hooks
+ * (`.cursor/hooks.json`) у поточний проєкт із темплейтів пакету
  * `npm/.claude-template/`.
  *
  * Архітектура:
  * - `settings.json` — **merge**: користувацькі поля зберігаються; наші hooks
  *   ідентифікуються командою-маркером (`MANAGED_HOOK_COMMAND_MARKERS`) і
  *   перезаписуються; permissions.allow зливається через union (із дедублікацією).
- * - `.claude/commands/n-check.md` — fully owned slash-команда.
+ * - `.claude/commands/*.md` — fully owned slash-команди з темплейту
+ *   `.claude-template/commands/` (зараз порожньо; sync no-op).
  * - `.claude/hooks/capture-decisions.sh` — fully owned bash-скрипт ADR capture Stop-hook;
  *   копіюється з `.claude-template/hooks/`, лише коли в `.n-cursor.json` `rules`
  *   присутнє `adr` (правило увімкнене за замовчуванням; вимикається через
