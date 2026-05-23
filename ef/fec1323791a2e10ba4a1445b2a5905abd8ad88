@@ -1,0 +1,82 @@
+docs/fix-cursor-skill.md
+  s_31049ff0153a46::t_36d584a0a6dcba 255-260
+  s_31049ff0153a46::t_32a2cefd08c9ab 131,137
+  s_31049ff0153a46::t_b0be08e25db45f 40
+  s_31049ff0153a46::t_d9cc90adef7511 94-100
+  s_31049ff0153a46::t_d71bc50db451d4 176,179
+  s_31049ff0153a46::t_1a50bc13812e2a 196-197
+  s_31049ff0153a46::t_ef9bc17d6b8e85 81
+npm/scripts/sync-claude-config.mjs
+  s_31049ff0153a46::t_1b2d2416b2d567 3-4,11-12
+npm/rules/image-compress/js/package_setup/check.mjs
+  s_31049ff0153a46::t_b1903fb1422392 12-13
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_31049ff0153a46::t_35d37abbdb0975 186,191
+npm/scripts/utils/with-lock.mjs
+  s_d16be2ec9de584::t_5d6059769d3a41 8
+  s_d16be2ec9de584::t_a6c8ee0ed29ec4 15,19-24,72-75,81-83,87-88,110-112,114-117
+npm/package.json
+  s_31049ff0153a46::t_b90e6636e2adc8 3
+docs/superpowers/specs/2026-05-23-rust-rule-design.md
+  s_a4a35b867bfba2::t_0209db5b750727 77-81,86-90,95-97,99,110,112-114,163-165,167-178
+  s_a4a35b867bfba2::t_25d30e8eb92544 220,223-227
+  s_a4a35b867bfba2::t_4212612c70d101 246-252,254,256,258-266
+  s_a4a35b867bfba2::t_dade5b5f43b120 32-34
+  s_a4a35b867bfba2::t_bd013e67222d8d 188-191,195-199,216
+  s_a4a35b867bfba2::t_2074904a02e3bc 317-318,325-339
+  s_a4a35b867bfba2::t_ce020b8b512cd5 42,44,47-48,50-51,54-58,60-61,63-64,66-67,69-70
+npm/scripts/claude-stop-hook.mjs
+  s_31049ff0153a46::t_d909896912ba5c 66
+  s_31049ff0153a46::t_30b3271e6170c6 3
+npm/CHANGELOG.md
+  s_31049ff0153a46::t_bf65f8fee21c8d 7-21
+  s_d16be2ec9de584::t_950c9a7adbfb0e 22-27
+.cursor/rules/conftest.mdc
+  s_31049ff0153a46::t_f84754c10ce86d 25,27,29,37
+  s_31049ff0153a46::t_76c6b3b5d98718 41
+  s_31049ff0153a46::t_45b2a6ccbaaffe 49
+  s_31049ff0153a46::t_7f88f2b78cb67a 65
+  s_31049ff0153a46::t_6354bc92242f7c 87-89
+  s_31049ff0153a46::t_5acc7ba35a86cf 96
+  s_31049ff0153a46::t_e213dd5a0a8f73 109
+  s_31049ff0153a46::t_514bdcf8f300ee 75,77,81-82
+  s_31049ff0153a46::t_33574e7ee05692 58
+npm/bin/n-cursor.js
+  s_31049ff0153a46::t_c0a06a8e286dd0 28-29
+  s_31049ff0153a46::t_21719994528ace 8,10,13
+npm/scripts/utils/tests/with-lock.test.mjs
+  s_d16be2ec9de584::t_49d4fcac9c9807 5
+  s_d16be2ec9de584::t_a6c8ee0ed29ec4 54,61-64,76-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "effec1323791a2e10ba4a1445b2a5905abd8ad88",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d16be2ec9de584": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c469b949-3ff0-4c2d-a47f-a6083ebaaf12",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
