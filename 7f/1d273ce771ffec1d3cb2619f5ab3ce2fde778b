@@ -1,0 +1,33 @@
+npm/scripts/utils/tests/run-rule.test.mjs
+  s_36d194edc23b6f::t_0e44522e24455f 25-26
+npm/tests/check-rule-fixtures.test.mjs
+  s_36d194edc23b6f::t_465a343eeb8ca9 9-11,17
+npm/tests/check-empty-trees.test.mjs
+  s_36d194edc23b6f::t_465a343eeb8ca9 7-8
+npm/scripts/utils/tests/discover-checkable-rules.test.mjs
+  s_36d194edc23b6f::t_0e44522e24455f 19-20,89-90,99
+  s_36d194edc23b6f::t_a53925ecb0827c 52
+  s_36d194edc23b6f::t_ac74e9c9bce241 60
+  s_36d194edc23b6f::t_1da87190f86d8f 78
+  s_36d194edc23b6f::t_c1d636dbc0bb0c 87
+npm/scripts/utils/tests/inline-template-links.test.mjs
+  s_36d194edc23b6f::t_9d81918191024d 81
+npm/tests/integration-repo-checks.test.mjs
+  s_36d194edc23b6f::t_465a343eeb8ca9 8-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "7f1d273ce771ffec1d3cb2619f5ab3ce2fde778b",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
