@@ -17,8 +17,10 @@ export function worktreeFingerprint(spawn = spawnSync) {
   try {
     const commitHash = git(['rev-parse', 'HEAD']).trim()
     const diffText = git(['diff', 'HEAD'])
-    const untrackedRaw = git(['ls-files', '--others', '--exclude-standard'])
-    const untrackedFiles = untrackedRaw.split('\n').filter(Boolean)
+    // -z: NUL-розділення без C-екранування. Без нього імена з не-ASCII символами
+    // повертаються у `"..."` формі, і `git hash-object` не знаходить файл → throw → fingerprint=null.
+    const untrackedRaw = git(['ls-files', '-z', '--others', '--exclude-standard'])
+    const untrackedFiles = untrackedRaw.split('\0').filter(Boolean)
     const pairs = untrackedFiles
       .map(f => `${f}:${git(['hash-object', f]).trim()}`)
       .sort()

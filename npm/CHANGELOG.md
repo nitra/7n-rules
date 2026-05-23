@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.86] - 2026-05-23
+
+### Fixed
+
+- **`worktreeFingerprint` повертав `null` при untracked-файлах з не-ASCII іменами:** `git ls-files --others --exclude-standard` без `-z` повертає такі шляхи у C-escape виді (`"docs/adr/20260523-...кирилиця..."` з `\321\201`-послідовностями), і наступний `git hash-object <escaped>` не знаходить файл — увесь fingerprint падав у `null`, через що дедуп ніколи не спрацьовував у репах з кирилицею в untracked-іменах. Перехід на `-z` + `\0`-розбиття дає сирий байтовий шлях.
+
 ## [1.13.85] - 2026-05-23
 
 ### Changed
