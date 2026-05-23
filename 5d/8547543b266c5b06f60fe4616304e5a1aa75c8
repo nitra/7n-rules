@@ -1,0 +1,23 @@
+npm/CHANGELOG.md
+  s_ee1002fc9fef2b::t_1b797f8469611d 7-12
+npm/package.json
+  s_ee1002fc9fef2b::t_4fb4c6576fa15b 3
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_ee1002fc9fef2b::t_3ea167941aed9e 20-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5d8547543b266c5b06f60fe4616304e5a1aa75c8",
+  "prompts": {},
+  "sessions": {
+    "s_ee1002fc9fef2b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15a0a2e6-de28-4a12-8fa8-3cee36f7fe61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
