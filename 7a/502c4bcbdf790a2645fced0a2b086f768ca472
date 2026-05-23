@@ -1,0 +1,28 @@
+docs/superpowers/specs/2026-05-22-lint-ga-concurrency-lock-design.md
+  s_ee1002fc9fef2b::t_fab0a117f85f13 128,131,134
+  s_ee1002fc9fef2b::t_79f55e12bf16ad 145,148,152-154
+  s_ee1002fc9fef2b::t_359415a0756e38 116-117
+  s_ee1002fc9fef2b::t_011df6cd400c15 10
+  s_ee1002fc9fef2b::t_fe9294b5197b44 3-4
+  s_ee1002fc9fef2b::t_69efd006cdf2be 164
+  s_ee1002fc9fef2b::t_583cf9643c3a72 185-188,190
+  s_ee1002fc9fef2b::t_834ce97fb4cd77 77,83-88
+  s_ee1002fc9fef2b::t_c653af371506b7 196-197
+  s_ee1002fc9fef2b::t_7b2043e4aa6872 210-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "7a502c4bcbdf790a2645fced0a2b086f768ca472",
+  "prompts": {},
+  "sessions": {
+    "s_ee1002fc9fef2b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "15a0a2e6-de28-4a12-8fa8-3cee36f7fe61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
