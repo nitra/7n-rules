@@ -978,6 +978,10 @@ function logRemovedManagedItems(title, basePath, names) {
  * перевіряє whitelist (`runRuleCli`) і друкує per-rule summary.
  *
  * Без аргументів — discover з `.cursor/rules/*.mdc` у проекті-споживачі.
+ *
+ * Серіалізація паралельних запусків — per-rule, всередині `runStandardRule` (`withLock('fix-<id>')`).
+ * На рівні `runFixCommand` локу нема: різні набори правил можуть прогресувати незалежно,
+ * а однакові правила серіалізуються в spawn'ах нижче.
  * @param {string[]} requestedRules імена правил; порожній масив — discovery з `.cursor/rules/`
  * @returns {Promise<void>}
  */
@@ -1258,7 +1262,7 @@ try {
     }
     case 'lint-rego': {
       // Канонічний lint-rego: preflight opa/regal → opa check --strict → regal lint → conftest verify (опц.).
-      process.exitCode = runLintRego()
+      process.exitCode = await runLintRego()
 
       break
     }
@@ -1276,7 +1280,7 @@ try {
     }
     case 'lint-text': {
       // Канонічний lint-text: cspell → run-shellcheck → markdownlint-cli2 --fix → run-v8r (text.mdc).
-      process.exitCode = runLintTextCli()
+      process.exitCode = await runLintTextCli()
 
       break
     }

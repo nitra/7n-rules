@@ -35,7 +35,7 @@ async function withIsolatedPath(fn) {
     /* мовчимо: success-повідомлення preflight у тесті не цікавлять */
   }
   try {
-    const code = fn()
+    const code = await fn()
     return { code, errBlob: errs.join('\n') }
   } finally {
     console.error = origErr

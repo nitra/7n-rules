@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { runLintRego } from '../lint.mjs'
+import { runLintRegoSteps as runLintRego } from '../lint.mjs'
 
 /**
  * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії

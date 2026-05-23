@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.85] - 2026-05-23
+
+### Changed
+
+- **`withLock` розгорнуто на всі важкі CLI-команди:** додано серіалізацію + дедуп у `lint-rego`, `lint-text`, `lint-k8s`, `lint-docker` за тим самим зразком, що `lint-ga` (приватна `runLint<Foo>Steps()` + публічна `runLint<Foo>Cli = () => withLock('lint-<rule>', …)`).
+- **`fix`-лок переїхав у `runStandardRule`:** замість зовнішньої обгортки навколо `runFixCommand` у `bin/n-cursor.js`, `withLock('fix-<ruleId>')` тепер всередині `scripts/utils/run-standard-rule.mjs`. Кожен `rules/<id>/fix.mjs` отримує лок «безкоштовно» через делегацію; `npx @nitra/cursor fix`, прямий `bun rules/<id>/fix.mjs` і `run(ctx)`-композиція проходять через одну точку. Per-rule гранулярність — різні правила паралельно, однакові серіалізуються.
+- **`runLintRego` тепер async** (наслідок обгортки), додано окремий export `runLintRegoSteps(cwd)` для тестів — щоб не дедупувати проти попереднього прогону, який лишив cached result у `node_modules/.cache/n-cursor/lint-rego/`.
+- **`.cursor/rules/scripts.mdc` 1.8 → 1.9:** додано канонічну секцію «Серіалізація важких CLI-команд: `withLock`» з патерном інтеграції, таблицею ключів і red flags.
+
+### Fixed
+
+- Тест `withLock integration > serializes parallel calls` падав через дедуп (обидва виклики бачили однаковий fingerprint і другий пропускав). Тест явно вимикає дедуп через `getFingerprint: () => null` — окремо тестується серіалізація, окремо дедуп.
+- Тест `runLintTextCli` після обгортки повертає Promise; `withIsolatedPath` тепер `await fn()`.
+- JSDoc-тип `withLock` opts розширено `getFingerprint?` (вже використовувався у runtime, але був відсутній у сигнатурі — TS видавав error 2353).
+
 ## [1.13.84] - 2026-05-23
 
 ### Changed

@@ -14,6 +14,7 @@ import { lintDockerfileWithHadolint, posixRel } from '../js/lint/docker-hadolint
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
 /**
  * Чи входить файл до набору lint-docker: Dockerfile або *.Dockerfile (*.dockerfile).
@@ -46,11 +47,10 @@ export async function findLintDockerfilePaths(root, ignorePaths = []) {
 }
 
 /**
- * Запуск hadolint по Dockerfile та *.Dockerfile.
- * Експортовано як `runLintDocker` — використовується з `bin/n-cursor.js` як підкоманда `lint-docker`.
+ * Внутрішні кроки `lint-docker` без локу: hadolint по Dockerfile та *.Dockerfile.
  * @returns {Promise<number>} 0 — OK, 1 — зауваження або помилка
  */
-export async function runLintDocker() {
+async function runLintDockerSteps() {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
@@ -79,6 +79,13 @@ export async function runLintDocker() {
 
   return reporter.getExitCode()
 }
+
+/**
+ * Публічна CLI-форма: серіалізує через `withLock('lint-docker')` + дедуп за станом git-дерева.
+ * Експортовано як `runLintDocker` — використовується з `bin/n-cursor.js` як підкоманда `lint-docker`.
+ * @returns {Promise<number>} код виходу
+ */
+export const runLintDocker = () => withLock('lint-docker', runLintDockerSteps)
 
 if (isRunAsCli()) {
   process.exitCode = await runLintDocker()

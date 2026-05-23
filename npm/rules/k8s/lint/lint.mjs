@@ -24,6 +24,7 @@ import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
 /** Per-project kubescape exceptions file; підмішується через --exceptions, якщо існує в корені. */
 const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'
@@ -320,11 +321,10 @@ async function runKubescape(dirs, root) {
 }
 
 /**
- * Головна точка входу: kubeconform + kubescape для усіх знайдених дерев `k8s`.
- * Експортовано як `runLintK8s` — використовується з `bin/n-cursor.js` як підкоманда `lint-k8s`.
+ * Внутрішні кроки `lint-k8s` без локу: kubeconform + kubescape для усіх знайдених дерев `k8s`.
  * @returns {Promise<number>} код виходу для `process.exitCode` (0 — успіх або пропуск)
  */
-export async function runLintK8s() {
+async function runLintK8sSteps() {
   const root = process.cwd()
   const ignorePaths = await loadCursorIgnorePaths(root)
   const dirs = await findK8sRoots(root, ignorePaths)
@@ -343,6 +343,13 @@ export async function runLintK8s() {
   const ks = await runKubescape(dirs, root)
   return ks
 }
+
+/**
+ * Публічна CLI-форма: серіалізує через `withLock('lint-k8s')` + дедуп за станом git-дерева.
+ * Експортовано як `runLintK8s` — використовується з `bin/n-cursor.js` як підкоманда `lint-k8s`.
+ * @returns {Promise<number>} код виходу
+ */
+export const runLintK8s = () => withLock('lint-k8s', runLintK8sSteps)
 
 if (isRunAsCli()) {
   process.exitCode = await runLintK8s()

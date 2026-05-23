@@ -1,7 +1,7 @@
 ---
 description: Програмна перевірка проєкту та синхронізація з check-скриптами; rule-centric concern-based структура `npm/rules/` з канонічним `template/`
 alwaysApply: true
-version: '1.8'
+version: '1.9'
 ---
 
 ## Структура правила (rule-centric, concern-based layout)
@@ -101,6 +101,81 @@ npm/rules/{rule}/
 ## Завершення задачі після правок у пакетному workspace
 
 > **STOP** разом із **n-changelog.mdc**: якщо редагував(ла) `npm/rules/`, `npm/skills/`, `npm/scripts/`, `npm/bin/` або інші файли під workspace з `package.json` / `pyproject.toml` (крім інверсії `docs/` only) — **останніми кроками сесії** (після тестів / sync, **перед** фінальною відповіддю користувачу): bump `version` → нова секція `CHANGELOG.md` → `check changelog`. Не відкладати на «користувач попросить commit».
+
+## Серіалізація важких CLI-команд: `withLock`
+
+**Принцип:** кожна важка CLI-команда пакета `@nitra/cursor` (та її варіант через `bun run <script>`) **сама** серіалізується через `withLock(...)` з [`npm/scripts/utils/with-lock.mjs`](../../npm/scripts/utils/with-lock.mjs). Жодних окремих команд-обгорток, які скіли/агенти мають пам'ятати викликати, — лок інтринсивний.
+
+**Що це дає:**
+
+- Кілька паралельних агентів / субагентів / shell'ів у тому самому проєкті, які запускають той самий тяжкий процес (eslint/oxlint/jscpd, kubeconform, opa+regal, hadolint, per-rule fix.mjs), **не** перевантажують CPU/диск на macOS — другий і далі чекають у черзі.
+- При збігу stан-у git-дерева й TTL — другий прогон **дедуплікується** (`♻️ <key>: …`) і повертає `0` без виконання.
+
+**Алгоритм всередині `withLock`** — атомарний `mkdirSync`-lock у `node_modules/.cache/n-cursor/<key>/`, перевірка живості PID на `process.kill(pid, 0)` (той самий host) + межовий вік 30 хв проти зависань; невдалі прогони (`exitCode !== 0`) НЕ дедупляться; fingerprint = sha256(`git rev-parse HEAD` + `git diff HEAD` + untracked-файли); поза git-репо дедуп вимикається, лок лишається.
+
+### Де живе лок
+
+| Команда | Точка інтеграції | Ключ |
+| --- | --- | --- |
+| `lint-ga`, `lint-rego`, `lint-text`, `lint-k8s`, `lint-docker` | `npm/rules/<rule>/lint/lint.mjs` — публічна CLI-форма (`runLint{Foo}Cli`) | `lint-<rule>` |
+| `fix` (per-rule програмна перевірка) | `npm/scripts/utils/run-standard-rule.mjs` | `fix-<ruleId>` |
+
+`fix`-лок свідомо стоїть у `runStandardRule` (а не на рівні `runFixCommand` у `bin/n-cursor.js`): кожен `rules/<id>/fix.mjs` делегує туди — і `npx @nitra/cursor fix`, і прямий `bun rules/<id>/fix.mjs`, і `run(ctx)`-композиція з іншого правила однаково проходять через лок. **Не дублюй** `withLock` у самих `fix.mjs`.
+
+### Канонічний патерн для нової `lint-*`-підкоманди
+
+`npm/rules/<rule>/lint/lint.mjs`:
+
+```js
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
+
+// 1. Уся реальна робота — у приватну `runLint{Foo}Steps()`
+async function runLintFooSteps() {
+  // preflight, ланцюжок зовнішніх інструментів, повертає number/Promise<number>
+}
+
+// 2. Публічна CLI-форма — обгортка через withLock
+export const runLintFooCli = () => withLock('lint-foo', runLintFooSteps)
+
+// 3. Standalone-варіант поважає лок так само
+if (isRunAsCli()) {
+  process.exitCode = await runLintFooCli()
+}
+```
+
+У `npm/bin/n-cursor.js` case завжди `await` (всі `lint-*` після обгортки async):
+
+```js
+case 'lint-foo': {
+  process.exitCode = await runLintFooCli()
+  break
+}
+```
+
+### Коли потрібна **інша** експортна форма без локу
+
+Якщо тести або інший код викликають перевірку напряму з нестандартним cwd / у тимчасовій директорії — фінgerprint все одно обчислюється від `process.cwd()`, а не від переданого cwd. Тоді другий тестовий виклик з тим самим `process.cwd()` дедуплікується проти першого, і реальна логіка **не виконається** → тест не перевіряє те, що мав. Експортуй обидві форми:
+
+```js
+export function runLintFooSteps(cwd = process.cwd()) { /* … */ }   // для тестів
+export const runLintFooCli = (cwd = process.cwd()) =>              // для CLI
+  withLock('lint-foo', () => runLintFooSteps(cwd))
+```
+
+Приклад — [`runLintRegoSteps`](../../npm/rules/rego/lint/lint.mjs) (тести імпортують `Steps`, CLI — публічну форму).
+
+### Що **не** обгортати
+
+- `npx @nitra/cursor` (sync-команда без аргументів), `rename-yaml-extensions`, `stop-hook`, `skill`, `discover-*`, `auto-*` — це швидкі mgmt-операції без зовнішніх інструментів.
+- `bun rules/<id>/fix.mjs` як standalone — **не додавай** `withLock` у `fix.mjs`; він уже всередині `runStandardRule`.
+- Юніт- і fixture-тести `*.test.mjs` — викликай `*Steps` форму, інакше дедуп проти попереднього прогону зробить тест nondeterministic.
+
+### Red flags
+
+- Новий `lint-<rule>` чи інша важка команда без `withLock(...)` у `runLint<Foo>Cli` — додай за зразком вище.
+- `withLock(...)` всередині `rules/<id>/fix.mjs` — він уже в `runStandardRule`, не дублюй.
+- Тест викликає `runLint<Foo>Cli` (з локом) у циклі з різними тимчасовими станами — після першого успіху всі наступні дедупляться. Переключай на `runLint<Foo>Steps` або змішуй унікальний `cwd`/idx у custom `getFingerprint`.
+- `bun run lint` лагає на macOS під час кількох паралельних агентів — переконайся, що ВСІ скрипти-кроки `lint` (`lint-rego`, `lint-js`, `lint-text`, `lint-ga`, `lint-style`, `lint-security`) проходять через `withLock` (або зовнішні тулзи, які серіалізувати не можна — і це осмислений виняток).
 
 ## Аналіз JavaScript / TypeScript: Oxc AST
 

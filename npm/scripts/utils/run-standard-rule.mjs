@@ -3,12 +3,19 @@
  *
  * Інкапсулює: `discoverOneRule` → `runRule(applies → JS → policy → mdc-refs)`.
  * Локальна логіка в правилах заборонена; розширення поведінки — через `ctx`-опції.
+ *
+ * Серіалізація: загортає виконання у `withLock('fix-<ruleId>')` — паралельні запуски
+ * того самого правила (через `npx @nitra/cursor fix`, прямий `bun rules/<id>/fix.mjs`
+ * чи `run(ctx)`-композицію) дедупляться за станом git-дерева; різні правила можуть
+ * виконуватись паралельно. Точка інтеграції — тут, щоб не дублювати лок у кожному
+ * `fix.mjs`.
  */
 import { basename, dirname } from 'node:path'
 
 import { discoverOneRule } from './discover-checkable-rules.mjs'
 import { runRule } from './run-rule.mjs'
 import { getOrCreateWalkCache } from './walk-cache.mjs'
+import { withLock } from './with-lock.mjs'
 
 /**
  * @typedef {object} RuleContext
@@ -28,7 +35,9 @@ import { getOrCreateWalkCache } from './walk-cache.mjs'
 export async function runStandardRule(ruleDir, ctx = {}) {
   const ruleId = basename(ruleDir)
   const bundledRulesDir = dirname(ruleDir)
-  const rule = await discoverOneRule(ruleDir, ruleId)
-  const walkCache = ctx.walkCache ?? getOrCreateWalkCache()
-  return runRule(rule, bundledRulesDir, walkCache)
+  return withLock(`fix-${ruleId}`, async () => {
+    const rule = await discoverOneRule(ruleDir, ruleId)
+    const walkCache = ctx.walkCache ?? getOrCreateWalkCache()
+    return runRule(rule, bundledRulesDir, walkCache)
+  })
 }

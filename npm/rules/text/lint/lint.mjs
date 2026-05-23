@@ -18,6 +18,7 @@ import { platform } from 'node:process'
 
 import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
 import { runDotenvLinter } from './run-dotenv-linter.mjs'
 import { runShellcheckText } from './run-shellcheck.mjs'
 import { runV8rWithGlobs } from './run-v8r.mjs'
@@ -120,10 +121,10 @@ function preflight(dep) {
 }
 
 /**
- * Виконує канонічний `lint-text` з preflight і ланцюжком cspell → shellcheck → dotenv → markdownlint → v8r.
+ * Внутрішні кроки `lint-text` без локу.
  * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
  */
-export function runLintTextCli() {
+function runLintTextSteps() {
   let preflightOk = true
   for (const dep of [SHELLCHECK_PREFLIGHT, PATCH_PREFLIGHT, DOTENV_LINTER_PREFLIGHT]) {
     if (!preflight(dep)) preflightOk = false
@@ -147,3 +148,9 @@ export function runLintTextCli() {
   console.log('\n▶ v8r (schema-валідація json/json5/yaml/yml/toml)')
   return runV8rWithGlobs()
 }
+
+/**
+ * Публічна CLI-форма: серіалізує через `withLock('lint-text')` + дедуп за станом git-дерева.
+ * @returns {Promise<number>} код виходу
+ */
+export const runLintTextCli = () => withLock('lint-text', () => runLintTextSteps())

@@ -29,6 +29,7 @@ import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
+import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
 const LINT_TARGETS = ['npm/rules']
@@ -89,10 +90,13 @@ function runStep(bin, args, cwd) {
 /**
  * Запускає `opa check --strict` і `regal lint` по існуючих цілях. Якщо жодної цілі немає —
  * пропускає лінт із кодом 0. Якщо хоча б один preflight не пройшов — exit 1 ще до запусків.
+ *
+ * Внутрішня форма без локу — для тестів, які працюють у тимчасових каталогах і мають
+ * можливість запускати fresh без дедуплікації проти попереднього прогону.
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
  * @returns {number} 0 — OK або skip; інакше код виходу першого кроку, що впав
  */
-export function runLintRego(cwd = process.cwd()) {
+export function runLintRegoSteps(cwd = process.cwd()) {
   const root = resolve(cwd)
   const opa = resolveCmd('opa')
   const regal = resolveCmd('regal')
@@ -130,6 +134,12 @@ export function runLintRego(cwd = process.cwd()) {
   return runStep(conftest, ['verify', ...targets.flatMap(t => ['-p', t])], root)
 }
 
+/**
+ * Публічна CLI-форма: серіалізує через `withLock('lint-rego')` + дедуп за станом git-дерева.
+ * @returns {Promise<number>} код виходу
+ */
+export const runLintRego = () => withLock('lint-rego', () => runLintRegoSteps())
+
 if (isRunAsCli()) {
-  process.exitCode = runLintRego()
+  process.exitCode = await runLintRego()
 }

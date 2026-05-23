@@ -40,8 +40,8 @@ export function shouldDedup(result, fingerprint, ttl) {
 
 /**
  * @param {string} key
- * @param {() => Promise<number>} runFn
- * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, cacheDir?:string}} [opts]
+ * @param {() => number | Promise<number>} runFn
+ * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, cacheDir?:string, getFingerprint?:() => string | null}} [opts]
  * @returns {Promise<number>}
  */
 export async function withLock(key, runFn, opts = {}) {
