@@ -1,0 +1,42 @@
+npm/scripts/utils/tests/discover-checkable-rules.test.mjs
+  s_36d194edc23b6f::t_7f72965d1ba6c9 12
+npm/scripts/sync-claude-config.mjs
+  s_36d194edc23b6f::t_c910cb34191add 22,59
+npm/scripts/utils/tests/inline-template-links.test.mjs
+  s_36d194edc23b6f::t_245b3d2c039237 13,19,67,73,79,87,108
+npm/scripts/utils/workspaces.mjs
+  s_36d194edc23b6f::t_c910cb34191add 14
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_36d194edc23b6f::t_c910cb34191add 74
+npm/scripts/utils/tests/run-rule.test.mjs
+  s_36d194edc23b6f::t_7f72965d1ba6c9 17
+npm/bin/n-cursor.js
+  s_36d194edc23b6f::t_7515a359410e0a 93
+  s_36d194edc23b6f::t_a2ec7c493e2b4f 978-980,985-986,1016,1032,1037-1043
+  s_36d194edc23b6f::t_44538b7e45c60a 86
+npm/scripts/utils/tests/__fixtures__/mdc-refs/with-refs/with-refs.mdc
+  s_36d194edc23b6f::t_245b3d2c039237 9
+npm/README.md
+  s_36d194edc23b6f::t_2db8d223cc18c0 59,112,118,137,141
+npm/scripts/utils/ast-scan-utils.mjs
+  s_36d194edc23b6f::t_7f72965d1ba6c9 8
+  s_36d194edc23b6f::t_c910cb34191add 9-10
+npm/scripts/auto-rules.mjs
+  s_36d194edc23b6f::t_c910cb34191add 19,24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f5c8993c0b0418338362437c385de444678e5cb9",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
