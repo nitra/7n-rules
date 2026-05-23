@@ -11,7 +11,7 @@ import { dirname, join, relative } from 'node:path'
 const TRAILING_SLASH_RE = /\/$/
 const LEADING_DOTSLASH_RE = /^\.\//
 
-/** Glob-ігнор для workspace-патернів із `*` (узгоджено з `rules/changelog/fix/consistency/package-manifest.mjs`). */
+/** Glob-ігнор для workspace-патернів із `*` (узгоджено з `rules/changelog/js/consistency/package-manifest.mjs`). */
 export const WORKSPACE_GLOB_IGNORE = Object.freeze(['**/node_modules/**', '**/.git/**', '**/.venv/**', '**/venv/**'])
 
 /**

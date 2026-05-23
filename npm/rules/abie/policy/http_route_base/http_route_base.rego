@@ -8,7 +8,7 @@
 #
 # Cross-file gating (саме шлях `…/k8s/.../base/...` визначає, чи застосовувати
 # правило) задає glob у `policy/http_route_base/target.json`. Тут — лише
-# валідація вмісту `spec.hostnames`. Rule-level applies-гейт — `fix/applies/check.mjs`.
+# валідація вмісту `spec.hostnames`. Rule-level applies-гейт — `js/applies/check.mjs`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

@@ -2,7 +2,7 @@
 # `spec.template.spec.nodeSelector.preem` зі значенням, що вважається істинним
 # (boolean `true` або рядок `"true"` без урахування регістру). Overlay ua далі
 # підміняє селектор JSON6902-патчем на `preem: false`
-# (див. `fix/ua_node_selector/check.mjs`).
+# (див. `js/ua_node_selector/check.mjs`).
 #
 # Запуск (локально, лише для одного base-YAML з Deployment):
 #   conftest test path/to/k8s/base/deployment.yaml \
@@ -11,7 +11,7 @@
 #
 # Cross-file gating: шлях `…/k8s/.../base/…` фільтрується через
 # `policy/base_deployment_preem/target.json` (glob). Rule-level applies-гейт —
-# `fix/applies/check.mjs` (поле `rules` у `.n-cursor.json`).
+# `js/applies/check.mjs` (поле `rules` у `.n-cursor.json`).
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

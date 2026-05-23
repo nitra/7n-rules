@@ -14,7 +14,7 @@ import { runRule } from '../run-rule.mjs'
 import { ensureDir, withTmpCwd } from '../test-helpers.mjs'
 
 /**
- * Записує JS-файл у `rules/<id>/fix/<concern>/<name>` з довільним вмістом.
+ * Записує JS-файл у `rules/<id>/js/<concern>/<name>` з довільним вмістом.
  * @param {string} ruleId id правила
  * @param {string} concern імʼя концерну
  * @param {string} fileName наприклад `check.mjs`
@@ -22,8 +22,8 @@ import { ensureDir, withTmpCwd } from '../test-helpers.mjs'
  * @returns {Promise<void>}
  */
 async function writeConcernJs(ruleId, concern, fileName, body) {
-  await ensureDir(join('rules', ruleId, 'fix', concern))
-  await writeFile(join('rules', ruleId, 'fix', concern, fileName), body, 'utf8')
+  await ensureDir(join('rules', ruleId, 'js', concern))
+  await writeFile(join('rules', ruleId, 'js', concern, fileName), body, 'utf8')
 }
 
 describe('runRule — applies gate', () => {

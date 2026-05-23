@@ -56,7 +56,7 @@
 - Рядки в **base**, які змінюються в overlays, позначайте коментарем на рядку (узгоджено в команді), наприклад: `# буде замінено через kustomize`.
 - Після перенесення в **`base`** / overlays **видаляйте** застарілі маніфести та каталоги, які більше не потрібні.
 
-Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/rules/k8s/`**: JS-checks у `fix/<concern>/check.mjs`, rego-policies у `policy/<concern>/<name>.rego` (обидва запускаються через `npx @nitra/cursor check k8s`).
+Повний текст правил — у **`k8s.mdc`**; programmatic перевірки — у **`npm/rules/k8s/`**: JS-checks у `js/<concern>/check.mjs`, rego-policies у `policy/<concern>/<name>.rego` (обидва запускаються через `npx @nitra/cursor check k8s`).
 
 ### v8r і власний каталог схем
 
@@ -109,13 +109,13 @@ npm/
 
 ### Структура одного правила
 
-Кожне правило `npm/rules/<id>/` ділиться за **технологією реалізації** на три сиблінги — `fix/`, `lint/`, `policy/`:
+Кожне правило `npm/rules/<id>/` ділиться за **технологією реалізації** на три сиблінги — `js/`, `lint/`, `policy/`:
 
 ```
 npm/rules/<id>/
 ├── <id>.mdc              # текст правила (після синку — .cursor/rules/n-<id>.mdc)
 ├── auto.md               # умова автоактивації скілу (опційно)
-├── fix/                  # JS для `npx @nitra/cursor check`
+├── js/                  # JS для `npx @nitra/cursor check`
 │   └── <concern>/
 │       ├── check.mjs     # діагностика — повертає список violations
 │       ├── check.test.mjs
@@ -134,11 +134,11 @@ npm/rules/<id>/
 
 | Що реалізує               | Канал виклику                                  | Куди                |
 | ------------------------- | ---------------------------------------------- | ------------------- |
-| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал)          | `fix/<concern>/`    |
+| JS-діагностика + автофікс | `npx @nitra/cursor check` (fix-канал)          | `js/<concern>/`    |
 | JS-orchestrator лінту     | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/`             |
 | Rego-діагностика          | `npx @nitra/cursor check` (fix-канал)          | `policy/<concern>/` |
 
-`fix/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor check` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `fix/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
+`js/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor check` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `js/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
 
 ## AGENTS.md у проєкті користувача
 

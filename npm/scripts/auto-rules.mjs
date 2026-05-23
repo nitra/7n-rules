@@ -16,13 +16,13 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'
 
-import { textHasBunSqlImport } from '../rules/js-bun-db/fix/safety/bun-sql-scan.mjs'
+import { textHasBunSqlImport } from '../rules/js-bun-db/js/safety/bun-sql-scan.mjs'
 import {
   isGqlScanSourceFile,
   shouldSkipFileForGqlScan,
   sourceFileHasGqlTaggedTemplate
-} from '../rules/graphql/fix/tooling/graphql-gql-scan.mjs'
-import { contentForVueImportScan } from '../rules/vue/fix/packages/vue-forbidden-imports.mjs'
+} from '../rules/graphql/js/tooling/graphql-gql-scan.mjs'
+import { contentForVueImportScan } from '../rules/vue/js/packages/vue-forbidden-imports.mjs'
 
 /** Порядок автододавання правил відповідно до `rules/<rule>/auto.md`. */
 export const AUTO_RULE_ORDER = Object.freeze([

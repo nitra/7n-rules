@@ -43,7 +43,7 @@ alwaysApply: true
 
 **Вимагають bump + нову секцію CHANGELOG** — усі інші зміни в каталозі workspace (код, rego, правила, скіли, конфіги, тести тощо). Виняток `.cursor/` / `.claude/` **не** поширюється на джерело правил у репо `@nitra/cursor` — воно лежить під `npm/`, тож зміни в ньому далі вимагають bump.
 
-Перевірка програмна (`changelog/fix/consistency/check.mjs`).
+Перевірка програмна (`changelog/js/consistency/check.mjs`).
 
 ## Дві моделі бази порівняння
 

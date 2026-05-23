@@ -9,7 +9,7 @@ alwaysApply: true
 JS-тести у пакеті лежать у **піддиректорії `tests/`** поряд із кодом, який тестується, а **не безпосередньо біля джерельного файлу**.
 
 ```
-rules/foo/fix/bar/
+rules/foo/js/bar/
 ├── check.mjs               ← JS-джерело
 └── tests/
     └── check.test.mjs      ← тест check.mjs

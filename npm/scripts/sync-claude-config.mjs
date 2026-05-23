@@ -19,7 +19,7 @@
  * - `.cursor/hooks.json` — **merge**: користувацькі hooks зберігаються; ADR stop
  *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене.
  * - `.gitignore` — **merge** (лише з `adr`): дописує відсутні рядки з канонічного
- *   фрагмента `rules/adr/fix/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
+ *   фрагмента `rules/adr/js/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
  *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`); існуючі
  *   рядки не перезаписуються.
  *
@@ -56,7 +56,7 @@ const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const TEMPLATE_DIR_NAME = '.claude-template'
 /** Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета. */
-export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/fix/hooks/template/.gitignore.snippet'
+export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/js/hooks/template/.gitignore.snippet'
 const GITIGNORE_FILE = '.gitignore'
 const EOL_RE = /\r?\n/u
 

@@ -5,9 +5,9 @@
  * розпізнавання типових вузлів (функцій, `*.join(...)`),
  * робота з `TemplateLiteral` (текст quasis, контекст SQL-списку).
  *
- * Використовується сканерами у `rules/<rule>/fix/...` (наприклад,
- * `rules/js-bun-db/fix/safety/bun-sql-scan.mjs`, `rules/js-mssql/fix/deps/mssql-pool-scan.mjs`,
- * `rules/js-run/fix/runtime/*-scan.mjs`) для уникнення дублювання boilerplate.
+ * Використовується сканерами у `rules/<rule>/js/...` (наприклад,
+ * `rules/js-bun-db/js/safety/bun-sql-scan.mjs`, `rules/js-mssql/js/deps/mssql-pool-scan.mjs`,
+ * `rules/js-run/js/runtime/*-scan.mjs`) для уникнення дублювання boilerplate.
  */
 import { parseSync } from 'oxc-parser'
 

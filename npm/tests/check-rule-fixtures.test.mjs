@@ -6,15 +6,15 @@ import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { check as checkNginx } from '../rules/nginx-default-tpl/fix/template/check.mjs'
-import { check as checkStyle } from '../rules/style-lint/fix/tooling/check.mjs'
-import { check as checkVue } from '../rules/vue/fix/packages/check.mjs'
+import { check as checkNginx } from '../rules/nginx-default-tpl/js/template/check.mjs'
+import { check as checkStyle } from '../rules/style-lint/js/tooling/check.mjs'
+import { check as checkVue } from '../rules/vue/js/packages/check.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const nginxFixDir = join(
   fileURLToPath(new URL('.', import.meta.url)),
   '..',
-  'rules/nginx-default-tpl/fix/template/tests/fixtures'
+  'rules/nginx-default-tpl/js/template/tests/fixtures'
 )
 
 /**

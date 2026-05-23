@@ -4,6 +4,25 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.83] - 2026-05-23
+
+### Changed
+
+- **Per-rule `fix.mjs` entry-point + rename `fix/` → `js/`:** кожне з 30 правил тепер має `rules/<id>/fix.mjs` — 11-рядковий wrapper над новим `runStandardRule`. CLI більше не робить convention-based discovery на верхньому рівні — перебирає правила через `listRuleIds` і викликає `await import(rules/<id>/fix.mjs).run({ walkCache })`. Каталог `fix/<concern>/` перейменовано на `js/<concern>/` для усунення колізії з кореневим `fix.mjs` та узгодження з `policy/` (за технологією, не функцією).
+- **Локальна логіка в `fix.mjs` заборонена** — розширення поведінки правил тільки через опції в `RuleContext` (зараз: `walkCache`; зарезервовано на майбутнє: `skipMdcRefs`, `skipApplies`, `onlyConcerns`). Простір варіацій повністю описано в `RuleContext` JSDoc; convention-drift виключений на рівні дизайну.
+- **Shared `walkCache`** як module-level singleton у `scripts/utils/walk-cache.mjs` (`getOrCreateWalkCache` + `resetWalkCache` для тестів). CLI створює один cache на прогон і прокидає через ctx до всіх concerns.
+- **Нові utils:** `scripts/utils/run-standard-rule.mjs`, `scripts/utils/list-rule-ids.mjs`, `scripts/utils/walk-cache.mjs`. Експорт `discoverOneRule(ruleDir, ruleId)` з `discover-checkable-rules.mjs` (виокремлено з існуючого `discoverCheckableRules` — DRY).
+- **Нові тести:** `tests/fix-mjs-contract.test.mjs` (91 кейс — smoke на всі 30 правил), `tests/run-standard-rule.test.mjs`, `tests/list-rule-ids.test.mjs`, `tests/walk-cache.test.mjs`, `tests/discover-one-rule.test.mjs`. Існуючі тести оновлено в частині import-шляхів `/fix/<concern>` → `/js/<concern>` (логіка не змінювалась); видалено застарілий `discoverCheckableRules > legacy js/-структура ігнорується` — `js/` тепер canonical convention.
+
+### Breaking
+
+- **Для зовнішніх інтеграторів, що пишуть власні правила:** каталог `rules/<id>/fix/<concern>/check.mjs` перейменовано на `rules/<id>/js/<concern>/check.mjs`; додатково потрібен файл `rules/<id>/fix.mjs` з канонічним вмістом (див. будь-яке вбудоване правило для шаблону). CLI більше не запустить правило без `fix.mjs`.
+
+### Notes
+
+- Зворотна сумісність CLI: `npx @nitra/cursor check` та `npx @nitra/cursor check abie` працюють як раніше.
+- Use-cases: `bun npm/rules/abie/fix.mjs` (debug); `bun npm/rules/${{ matrix.rule }}/fix.mjs` (CI per-rule jobs); IDE Run-button на `fix.mjs`.
+
 ## [1.13.82] - 2026-05-23
 
 ### Changed

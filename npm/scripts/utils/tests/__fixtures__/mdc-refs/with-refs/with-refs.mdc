@@ -6,4 +6,4 @@ alwaysApply: false
 
 Канон фрагментів:
 
-- [package.json.snippet.json](./fix/foo/template/package.json.snippet.json)
+- [package.json.snippet.json](./js/foo/template/package.json.snippet.json)

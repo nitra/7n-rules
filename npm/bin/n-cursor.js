@@ -83,14 +83,14 @@ import {
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
 import { discoverCheckRulesFromCursorRules } from '../scripts/utils/discover-check-rules-from-cursor.mjs'
-import { discoverCheckableRules } from '../scripts/utils/discover-checkable-rules.mjs'
+import { listRuleIds } from '../scripts/utils/list-rule-ids.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintDocker } from '../rules/docker/lint/lint.mjs'
 import { runLintGaCli } from '../rules/ga/lint/lint.mjs'
 import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
 import { runLintRego } from '../rules/rego/lint/lint.mjs'
 import { runLintTextCli } from '../rules/text/lint/lint.mjs'
-import { runRule } from '../scripts/utils/run-rule.mjs'
+import { getOrCreateWalkCache } from '../scripts/utils/walk-cache.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
@@ -974,25 +974,16 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Знаходить правила, для яких є хоча б щось прогонне: JS-концерн у `rules/<id>/fix/<concern>/check*.mjs`
- * або policy-концерн у `rules/<id>/policy/<concern>/target.json`. Делегує у `discoverCheckableRules`
- * — див. `scripts/utils/discover-checkable-rules.mjs`.
- * @returns {import('../scripts/utils/discover-checkable-rules.mjs').CheckableRule[]} опис правил у алфавітному порядку
- */
-function discoverCheckScripts() {
-  return discoverCheckableRules(BUNDLED_RULES_DIR)
-}
-
-/**
  * Запускає перевірки: без аргументів — за `*.mdc` у `.cursor/rules/`; з аргументами — лише вказані правила.
- * Делегує оркестрацію concern-ів (JS-checks + policy через `runConftestBatch`) у `runRule`;
- * сам `runChecks` відповідає лише за фільтр id, агрегацію exit-кодів і shared walk-cache на прогон.
+ * Перебирає правила через `listRuleIds`, для кожного робить dynamic `import('<rules>/<id>/fix.mjs')`
+ * і викликає `mod.run({ walkCache })`. Сам `runChecks` відповідає лише за фільтр id, агрегацію
+ * exit-кодів і shared walk-cache на прогон.
  * @param {string[]} requestedRules імена правил; порожній масив — брати з `.cursor/rules/*.mdc`
  * @returns {Promise<void>}
  */
 async function runChecks(requestedRules) {
-  const allRules = await discoverCheckScripts()
-  if (allRules.length === 0) {
+  const available = await listRuleIds(BUNDLED_RULES_DIR)
+  if (available.length === 0) {
     console.error('❌ Не знайдено жодного check-скрипта у пакеті')
     throw new Error('No check scripts found')
   }
@@ -1008,7 +999,6 @@ async function runChecks(requestedRules) {
     }
   }
 
-  const available = allRules.map(r => r.id)
   let idsToCheck
   if (requestedRules.length > 0) {
     idsToCheck = requestedRules
@@ -1023,7 +1013,7 @@ async function runChecks(requestedRules) {
     if (idsToCheck.length === 0) {
       console.log(
         `\n🔍 ${PACKAGE_NAME} check — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
-          `(відповідного check-*.mjs або policy/<name>/target.json у пакеті). Нічого не запущено.\n`
+          `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
       )
       return
     }
@@ -1038,14 +1028,19 @@ async function runChecks(requestedRules) {
 
   console.log(`\n🔍 ${PACKAGE_NAME} check — перевірка правил (${idsToCheck.length})\n`)
 
-  const ruleMap = new Map(allRules.map(r => [r.id, r]))
   /** @type {Map<string, Promise<string[]>>} shared walk-cache (cross-concern, cross-rule у межах одного прогону) */
-  const walkCache = new Map()
+  const walkCache = getOrCreateWalkCache()
   let totalFailed = 0
 
   for (const id of idsToCheck) {
     try {
-      const code = await runRule(ruleMap.get(id), BUNDLED_RULES_DIR, walkCache)
+      const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
+      // eslint-disable-next-line no-unsanitized/method -- id з whitelist'у listRuleIds (readdir + existsSync), fixPath не з зовнішнього input
+      const mod = await import(fixPath)
+      if (typeof mod.run !== 'function') {
+        throw new TypeError(`${id}: rules/${id}/fix.mjs не експортує run()`)
+      }
+      const code = await mod.run({ walkCache })
       if (code !== 0) totalFailed++
     } catch (error) {
       console.log(`  ❌ Помилка виконання: ${error.message}`)
