@@ -1,0 +1,180 @@
+npm/rules/js-run/fix/runtime/conn-imports-scan.mjs
+  s_8d5271a6a972aa::t_93322da09e46cc 19
+npm/rules/js-run/fix/runtime/conn-file-rules.mjs
+  s_8d5271a6a972aa::t_a663d8540cae89 17
+npm/rules/js-run/fix/runtime/promise-settimeout-scan.mjs
+  s_8d5271a6a972aa::t_e783f3a3914b94 15
+npm/rules/changelog/fix/consistency/package-manifest.mjs
+  s_8d5271a6a972aa::t_6f2203ea5220de 11
+npm/rules/hasura/fix/internal_urls/check.mjs
+  s_36d194edc23b6f::t_18839110715be4 8
+npm/rules/js-lint/fix/tooling/rebuild-oxlint-canonical.mjs
+  s_8d5271a6a972aa::t_4f17a9258f65c2 5
+npm/rules/abie/abie.mdc
+  s_36d194edc23b6f::t_067903cfaa6497 136
+  s_36d194edc23b6f::t_a33d7cf6765e24 173-181
+  s_36d194edc23b6f::t_ce9f67219495b2 39
+npm/rules/js-run/fix/runtime/bunyan-imports.mjs
+  s_8d5271a6a972aa::t_f7292a1a794acd 21
+npm/rules/vue/fix/packages/check.mjs
+  s_8d5271a6a972aa::t_240e4dd1553f7b 34
+  s_8d5271a6a972aa::t_3e356c45eaa571 18
+npm/CHANGELOG.md
+  s_8d5271a6a972aa::t_7cf47d651e54cc 20,35-36,42-43,46
+  s_f3e4889f5bdbf9::t_a16e98251ec8d7 7-10,18
+  s_8d5271a6a972aa::t_0708071e4e9563 47-58,60-62
+  s_8d5271a6a972aa::t_53b48c8b6fce67 12
+  s_8d5271a6a972aa::t_94d26f1eeb306e 11,13-15,17
+  s_8d5271a6a972aa::t_64f93d91b6a64e 16
+  s_8d5271a6a972aa::t_3a034a45291882 59
+  s_8d5271a6a972aa::t_492fa00fe71de5 21-24
+  s_36d194edc23b6f::t_1a8e89e2f48e5e 63-71
+  s_8d5271a6a972aa::t_348e9f85101358 19,25-34,37-41,44-45
+npm/rules/test/fix/location/tests/check.test.mjs
+  s_8d5271a6a972aa::t_385998fc407b2c 1-60,70
+  s_8d5271a6a972aa::t_e4781726bae6fb 61-69
+npm/rules/k8s/k8s.mdc
+  s_36d194edc23b6f::t_2ef1419f7f9d21 378
+npm/rules/graphql/fix/tooling/graphql-gql-scan.mjs
+  s_8d5271a6a972aa::t_d511f0e891c9d0 4-6,12-42
+  s_8d5271a6a972aa::t_4d5b9cbdbcc9a4 111
+  s_8d5271a6a972aa::t_c3641f3cec60e9 126,131,135-136,141-148
+npm/rules/js-run/fix/runtime/check.mjs
+  s_8d5271a6a972aa::t_4431faacc7f6c1 43-44,47,53,58
+docs/adr/20260523-114913-перенесення-single-rule-сканерів-з-scripts-utils-у-rules-fix.md
+  s_8d5271a6a972aa::t_e68dec3d284a92 1-12,15-29,31,33-37,40-47
+  s_8d5271a6a972aa::t_f79631e60b2832 13-14
+  s_8d5271a6a972aa::t_79184bcfac82a4 32
+  s_8d5271a6a972aa::t_0465b209ac0d9f 30
+  s_8d5271a6a972aa::t_50bc62f998741d 38-39
+npm/rules/npm-module/fix/package_structure/check.mjs
+  s_8d5271a6a972aa::t_2ccc8eb280d417 456-460,468-473
+npm/rules/abie/policy/http_route_base/http_route_base.rego
+  s_36d194edc23b6f::t_55667db9e1e741 1-2,5-6,9-11
+.cursor/rules/conftest.mdc
+  s_36d194edc23b6f::t_b0f4a6b70dc093 81
+npm/package.json
+  s_f3e4889f5bdbf9::t_8cecf1105818a4 3
+npm/rules/js-run/fix/runtime/check-env-scan.mjs
+  s_8d5271a6a972aa::t_19e03b559fc325 32
+npm/rules/js-bun-db/fix/safety/bun-sql-scan.mjs
+  s_8d5271a6a972aa::t_1b5596bd14fd5b 30
+npm/rules/test/test.mdc
+  s_d446ab18cdf1e1::t_d344298b430750 2-3,9,23-24,26-32,37,55-56,58
+  s_f3e4889f5bdbf9::t_5b096f2e177387 13,15
+  s_f3e4889f5bdbf9::t_6e893168b4f334 45,52
+  s_8d5271a6a972aa::t_c35744699dbe57 1,4-8,10-12,14,16-22,25,33-36,38-44,46-51,53-54,57,59-60
+npm/rules/js-bun-db/fix/safety/check.mjs
+  s_8d5271a6a972aa::t_2cb03498699a82 51
+npm/rules/vue/vue.mdc
+  s_8d5271a6a972aa::t_47379a7d9aec55 344
+npm/rules/abie/policy/base_deployment_preem/base_deployment_preem.rego
+  s_36d194edc23b6f::t_12df54e4642cc7 1-5,9,12-14
+npm/rules/abie/policy/health_check_policy/health_check_policy.rego
+  s_36d194edc23b6f::t_902fceda9a8141 1,5,16-17,19-22
+  s_36d194edc23b6f::t_56cb6d4068a266 125
+CHANGELOG.md
+  s_36d194edc23b6f::t_db30bedd52a3dc 7-12
+npm/rules/docker/lint/lint.mjs
+  s_8d5271a6a972aa::t_358d75932a1efc 8
+  s_8d5271a6a972aa::t_ea1065e2a7580c 13
+npm/rules/js-lint/fix/tooling/check.mjs
+  s_8d5271a6a972aa::t_e4ad68c730978e 387
+  s_8d5271a6a972aa::t_1d45147efa86f4 5
+  s_8d5271a6a972aa::t_d159c2ed58cb14 157
+npm/rules/docker/fix/lint/docker-hadolint.mjs
+  s_8d5271a6a972aa::t_863a654da8ed6f 5-6
+  s_8d5271a6a972aa::t_bc28f09f9c83aa 11
+npm/rules/docker/fix/lint/check.mjs
+  s_8d5271a6a972aa::t_b3e5b09efe68a6 5
+  s_8d5271a6a972aa::t_592c7925d1e461 33-34
+docs/adr/20260523-112217-розміщення-canonical-конфігів-у-npm-scripts-utils.md
+  s_8d5271a6a972aa::t_c6c632961f5131 5,8
+npm/scripts/utils/ast-scan-utils.mjs
+  s_8d5271a6a972aa::t_11db39e293205d 8-10
+npm/rules/js-mssql/fix/deps/mssql-pool-scan.mjs
+  s_8d5271a6a972aa::t_393e708395acf4 33
+npm/rules/graphql/fix/tooling/check.mjs
+  s_8d5271a6a972aa::t_16297c5e61834f 18
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_8d5271a6a972aa::t_1c0951737c0475 6-7
+npm/scripts/auto-rules.mjs
+  s_8d5271a6a972aa::t_1ed6231fc182b8 19
+  s_8d5271a6a972aa::t_713bce2355f946 24-25
+package.json
+  s_36d194edc23b6f::t_742ab29198b825 3
+.cursor/rules/n-vue.mdc
+  s_8d5271a6a972aa::t_1c32a4328dd02e 344
+.cursor/rules/n-js-lint.mdc
+  s_8d5271a6a972aa::t_be7d16251a5989 43
+  s_8d5271a6a972aa::t_c340385589a78f 89
+npm/rules/test/auto.md
+  s_8d5271a6a972aa::t_4fce3ba3bb1f57 1
+npm/scripts/utils/workspaces.mjs
+  s_8d5271a6a972aa::t_9afc7d5ba9dc65 14
+npm/rules/docker/docker.mdc
+  s_8d5271a6a972aa::t_864e47fb79c3fe 10
+  s_8d5271a6a972aa::t_534569ef903fe7 102
+  s_8d5271a6a972aa::t_f2b09ba7d4a7f2 112
+npm/rules/js-mssql/fix/deps/check.mjs
+  s_8d5271a6a972aa::t_ef38cc126b05c8 25
+npm/rules/js-lint/js-lint.mdc
+  s_8d5271a6a972aa::t_2948728f59080f 65
+  s_8d5271a6a972aa::t_134ec940d611ca 28
+npm/rules/test/fix/location/check.mjs
+  s_8d5271a6a972aa::t_64c7529c59c94c 1,3,6-7,9-18,20,22-23,25-27,29-36,38-44,46-65,67-77
+  s_8d5271a6a972aa::t_033d32ef21f7b6 45
+  s_d446ab18cdf1e1::t_053ee229aed20b 66
+  s_f3e4889f5bdbf9::t_5f7c6bcfe268b1 21,28,37
+  s_d446ab18cdf1e1::t_e7cce76b086ce2 19,24
+  s_d446ab18cdf1e1::t_73b9400e754685 2,4-5,8
+npm/rules/changelog/fix/consistency/check.mjs
+  s_8d5271a6a972aa::t_5e3114a5958eb0 31,250,311-312,322,333,340,378,386,441,443,478,510,546,561,565
+.n-cursor.json
+  s_8d5271a6a972aa::t_22630ef424c806 16
+  s_8d5271a6a972aa::t_3653c6773c9471 20-22
+npm/tests/check-rule-fixtures.test.mjs
+  s_8d5271a6a972aa::t_6d363f00df7242 17
+npm/scripts/utils/with-lock.mjs
+  s_8d5271a6a972aa::t_1c0951737c0475 5-7,73-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "13077a9bb91926415dd8e6c4cb0b8e06940d1acf",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8d5271a6a972aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bcdba371-cfb8-46ab-a284-8869588499a7",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d446ab18cdf1e1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d1ce094f-ab30-4227-a42d-8ab64f2f1201",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3e4889f5bdbf9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8f17f9d8-d51d-457b-9fb1-183f44a10f59",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
