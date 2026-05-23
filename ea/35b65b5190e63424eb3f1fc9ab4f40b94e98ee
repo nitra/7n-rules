@@ -1,0 +1,30 @@
+docs/superpowers/specs/2026-05-23-per-rule-fix-mjs-entry-point-design.md
+  s_36d194edc23b6f::t_4460f998e78631 286
+  s_36d194edc23b6f::t_ea9fd4f9c7df70 232
+  s_36d194edc23b6f::t_0ae9952b1d41e0 45,52,55-56
+  s_36d194edc23b6f::t_3abc44ca49a033 275
+  s_36d194edc23b6f::t_3f9a7be6400b95 33
+  s_36d194edc23b6f::t_b457d4655263d3 260
+  s_36d194edc23b6f::t_da58c8a9c1c2d6 294-296
+  s_36d194edc23b6f::t_d56df9b85c0906 27,34
+  s_36d194edc23b6f::t_39e0044cb8ae61 1-26,28-32,35-44,46-51,53-54,57-76,78-150,152-224,231,236-238,240-242,245,247,249-259,261-274,276-278,282-285,287-293
+  s_36d194edc23b6f::t_4055d03dc212df 77,151,225,243,279-280
+  s_36d194edc23b6f::t_1039a601dfc89c 226-230,233-235,239,246,248
+  s_36d194edc23b6f::t_1835520e42f826 281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ea35b65b5190e63424eb3f1fc9ab4f40b94e98ee",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
