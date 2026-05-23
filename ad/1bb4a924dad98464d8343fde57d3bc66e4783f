@@ -1,0 +1,28 @@
+npm/scripts/utils/tests/discover-checkable-rules.test.mjs
+  s_7591779d37277b::t_e449844b2d638b 86,88-89,91,96,99,101
+  s_7591779d37277b::t_62da280f854b1c 12,14,17-19
+  s_7591779d37277b::t_d6290f628ee13f 55
+  s_7591779d37277b::t_7a62bd6b5e7ebb 68-69
+npm/scripts/utils/discover-checkable-rules.mjs
+  s_7591779d37277b::t_7cacaeb0641b02 2-3,6,11-15
+  s_7591779d37277b::t_ea4d9a93f1e30c 39,41,47,50-57
+  s_7591779d37277b::t_092697fc92490b 23
+npm/tests/discover-one-rule.test.mjs
+  s_7591779d37277b::t_19336f622109ea 17,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ad1bb4a924dad98464d8343fde57d3bc66e4783f",
+  "prompts": {},
+  "sessions": {
+    "s_7591779d37277b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bd5f260a-6baf-43fd-bd06-9e7b7357932f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
