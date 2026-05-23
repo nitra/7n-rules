@@ -1,0 +1,19 @@
+npm/tests/fix-mjs-contract.test.mjs
+  s_36d194edc23b6f::t_aec8a5a95eb8e0 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "c19b8902f19b88fccdbf59eb9750ca57a314cec9",
+  "prompts": {},
+  "sessions": {
+    "s_36d194edc23b6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c3ee6058-20c8-4e12-8aef-0a36a996fed5",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
