@@ -1,0 +1,23 @@
+docs/superpowers/specs/2026-05-24-coverage-rule-design.md
+  s_17dce3cec43c9d::t_e9c37b991bfa59 347
+  s_17dce3cec43c9d::t_2c59e7619de550 315-317
+  s_17dce3cec43c9d::t_a1d8de4d9350a6 1-314,318-346,348-446
+docs/adr/20260524-084040-перейменування-rules-utils-rules-lib-за-правилом-utils-vs-li.md
+  ai_agent 1-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "84f9680d1711ccec00049b85250aba610e7fe6f3",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
