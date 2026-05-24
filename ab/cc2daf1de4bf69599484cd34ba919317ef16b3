@@ -1,0 +1,25 @@
+npm/rules/rust/policy/vscode_extensions/vscode_extensions_test.rego
+  s_a4a35b867bfba2::t_5899f49cf38258 1-39
+npm/rules/rust/policy/vscode_extensions/target.json
+  s_a4a35b867bfba2::t_64cf0ac5ababc5 1-4
+npm/rules/rust/policy/vscode_extensions/template/extensions.json.snippet.json
+  s_a4a35b867bfba2::t_f21755351ce062 1
+npm/rules/rust/policy/vscode_extensions/vscode_extensions.rego
+  ai_agent 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "abcc2daf1de4bf69599484cd34ba919317ef16b3",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
