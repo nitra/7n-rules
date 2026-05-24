@@ -1,0 +1,19 @@
+npm/package.json
+  s_31049ff0153a46::t_afd6dbb51252f2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b230e460e2d3055c1275fbf849dfbe62d06766f3",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
