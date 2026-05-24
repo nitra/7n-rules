@@ -736,7 +736,7 @@ cat .cursor/rules/scripts.mdc | head -60
 
 Знайди й заміни:
 - `rules/<rule>/js/<concern>/check.mjs` → `rules/<rule>/js/<concern>.mjs`
-- `rules/<rule>/js/<concern>/<helper>.mjs` → `rules/<rule>/js/_lib/<concern>/<helper>.mjs`
+- `rules/<rule>/js/<concern>/<helper>.mjs` → `rules/<rule>/utils/<helper>.mjs`
 - `rules/<rule>/js/<concern>/tests/` → `rules/<rule>/js/tests/`
 
 Зроби через Edit-тулзу точечно (бо це канон-документ, треба зрозуміти кожну згадку в контексті).
@@ -746,21 +746,29 @@ cat .cursor/rules/scripts.mdc | head -60
 Додати після опису структури `rules/<rule>/` коротку нотатку:
 
 ```markdown
-## Flat концерн-лейаут (з 1.13.90)
+## Flat концерн-лейаут (з 1.14.0)
 
 Кожен JS-концерн правила — це **один файл** `npm/rules/<rule>/js/<concern>.mjs`. Каталоги
 `js/<concern>/` більше не використовуються.
 
-- **Helpers (sub-модулі)** — `npm/rules/<rule>/js/_lib/<concern>/<helper>.mjs`. Префікс `_`
-  виключає їх з discovery (`listJsConcerns` пропускає файли/папки на `_`).
+- **Concerns** — `npm/rules/<rule>/js/<concern>.mjs`. Discovery (`listJsConcerns`) сканує
+  `<rule>/js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги пропускаються через
+  `!entry.isFile()`. Кожен файл = окремий concern; ім'я concern'у = basename(file, '.mjs').
 - **Tests** — `npm/rules/<rule>/js/tests/<concern>.test.mjs` (single) або
   `npm/rules/<rule>/js/tests/<concern>/<name>.test.mjs` (multi-file + fixtures).
   Симетрія з `policy/<concern>_test.rego` — тести там, де імплементація.
 - **Templates** — `npm/rules/<rule>/js/templates/<concern>/`.
 - **Data** (json/tsv) — `npm/rules/<rule>/js/data/<concern>/`.
+- **Helpers (cross-concern та concern-private)** — `npm/rules/<rule>/utils/<helper>.mjs`,
+  peer до `js/` (existing convention з `abie/utils/`). Плоско, з namespace'ованими іменами
+  (`vue-forbidden-imports.mjs`, `docker-mirror.mjs`, `mssql-pool-scan.mjs`). Тести для helpers —
+  у `npm/rules/<rule>/utils/tests/<helper>.test.mjs` (так уже робить abie).
 
-Discovery: `listJsConcerns` сканує `<rule>/js/`, повертає файли `*.mjs` без `.test.mjs` і без
-префікса `_`. Кожен файл — окремий concern; ім'я concern'у = basename(file, '.mjs').
+Імпорти:
+- Concern → helper: `from '../utils/<helper>.mjs'`
+- Test (single) → concern: `from '../<concern>.mjs'` (з `js/tests/<concern>.test.mjs`)
+- Test (multi) → concern: `from '../../<concern>.mjs'` (з `js/tests/<concern>/<name>.test.mjs`)
+- Test (multi) → helper: `from '../../../utils/<helper>.mjs'` (з `js/tests/<concern>/<name>.test.mjs`)
 ```
 
 - [ ] **Step 6.4: Bump version-comment у scripts.mdc (якщо є метадані версії)**
@@ -774,7 +782,8 @@ git add .cursor/rules/scripts.mdc
 git commit -m "docs(scripts): оновити канон під flat js/<concern>.mjs
 
 Шляхи rules/<rule>/js/<concern>/check.mjs → js/<concern>.mjs;
-додано секцію про helpers (_lib/), tests/, templates/, data/.
+додано секцію про tests/, templates/, data/ всередині js/, helpers
+у <rule>/utils/ (peer до js/, existing convention з abie/utils/).
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ```
@@ -915,18 +924,18 @@ Edit `npm/CHANGELOG.md` — після `# Changelog ...` header додати:
 
 ### Changed (BREAKING)
 
-- **Flat концерн-лейаут:** кожен JS-концерн правила тепер — один файл `npm/rules/<rule>/js/<concern>.mjs` замість вкладеного `js/<concern>/check.mjs`. Helpers переїхали в `js/_lib/<concern>/<helper>.mjs`, tests — у `js/tests/<concern>.test.mjs` (single) або `js/tests/<concern>/` (multi+fixtures), templates — у `js/templates/<concern>/`, data (json/tsv) — у `js/data/<concern>/`.
+- **Flat концерн-лейаут:** кожен JS-концерн правила тепер — один файл `npm/rules/<rule>/js/<concern>.mjs` замість вкладеного `js/<concern>/check.mjs`. Tests — у `js/tests/<concern>.test.mjs` (single) або `js/tests/<concern>/` (multi+fixtures), templates — у `js/templates/<concern>/`, data (json/tsv) — у `js/data/<concern>/`. Helpers — у `<rule>/utils/<helper>.mjs` peer до `js/` (існуюча конвенція з `abie/utils/`, поширена на всі правила).
 - **`JsConcern.files` removed:** один файл на concern, поле більше не потрібне. `runRule` обчислює шлях як `<rule>/js/<concern.name>.mjs`.
-- **`CHECK_FILENAME_RE` removed:** discovery більше не використовує regex `check-*.mjs` — `listJsConcerns` фільтрує `*.mjs` без `_`-префікса і без `.test.mjs`.
+- **`CHECK_FILENAME_RE` removed:** discovery більше не використовує regex `check-*.mjs` — `listJsConcerns` фільтрує `*.mjs` без `.test.mjs` (підкаталоги скіпаються через `!isFile()`).
 
 ### Breaking
 
-- **Для зовнішніх інтеграторів власних правил:** Old `npm/rules/<rule>/js/<concern>/check.mjs` тепер `npm/rules/<rule>/js/<concern>.mjs`. Tests → `js/tests/`, templates → `js/templates/`, data → `js/data/`, helpers → `js/_lib/` (усе всередині `js/`). Міграційний скрипт у git-історії: коміт `refactor(rules): flat layout`. Один раз `git mv`-сей по правилу.
+- **Для зовнішніх інтеграторів власних правил:** Old `npm/rules/<rule>/js/<concern>/check.mjs` тепер `npm/rules/<rule>/js/<concern>.mjs`. Tests → `js/tests/`, templates → `js/templates/`, data → `js/data/` (усе всередині `js/`); helpers → `<rule>/utils/<helper>.mjs` (peer до `js/`, як `abie/utils/`). Імпорти helpers з concern-файлів: `from '../utils/<helper>.mjs'`. Міграційний скрипт у git-історії: коміт `refactor(rules): flat layout`.
 
 ### Notes
 
 - Internal `JsConcern.files` дроп: якщо ваші скрипти будували шлях вручну через `concern.files[0]`, тепер це `${concern.name}.mjs`.
-- `_lib/` префікс — конвенція виключення з discovery. Можна використовувати інші `_`-prefixed імена для допоміжних артефактів усередині `js/`.
+- Convention для helper-імен: namespace-префікс (наприклад `<rule>-` або `<concern>-`) робить колізії в плоскому `utils/` неможливими (як уже робить abie: `k8s-tree.mjs`, `kustomization-patches.mjs`; docker: `docker-mirror.mjs`; vue: `vue-forbidden-imports.mjs`).
 ```
 
 (Дату підкорегувати, якщо PR іде не 2026-05-23.)
@@ -947,10 +956,10 @@ git commit -m "release: 1.14.0 — flat концерн-лейаут (BREAKING)
 
 CHANGELOG + minor bump. Структурний refactor:
 - js/<concern>/check.mjs → js/<concern>.mjs
-- helpers → js/_lib/<concern>/
 - tests → js/tests/
 - templates → js/templates/
 - data → js/data/
+- helpers → <rule>/utils/ (peer до js/, existing convention з abie/utils/)
 JsConcern.files і CHECK_FILENAME_RE removed.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
@@ -973,10 +982,11 @@ Expected: усі п'ять успішні.
 ## Acceptance Criteria
 
 - [ ] Усі 34 концерни мають файл `npm/rules/<rule>/js/<concern>.mjs`.
-- [ ] Жодного каталогу `npm/rules/<rule>/js/<concern>/` (окрім `_lib/`).
-- [ ] Helpers всі в `npm/rules/<rule>/js/_lib/<concern>/<helper>.mjs`.
+- [ ] Жодного каталогу `npm/rules/<rule>/js/<concern>/` (тільки `tests/`, `templates/`, `data/` всередині `js/`).
+- [ ] Helpers всі в `npm/rules/<rule>/utils/<helper>.mjs` (peer до `js/`).
 - [ ] Per-rule тести в `npm/rules/<rule>/js/tests/<concern>.test.mjs` (single) або `npm/rules/<rule>/js/tests/<concern>/...` (multi).
 - [ ] Templates в `npm/rules/<rule>/js/templates/<concern>/`, data в `npm/rules/<rule>/js/data/<concern>/`.
+- [ ] `abie/utils/` лишилися без змін (existing convention reference).
 - [ ] `cd npm && bun test` — усе зелено.
 - [ ] `npx @nitra/cursor fix` (no args) — перебирає всі правила без crash'у.
 - [ ] `npx @nitra/cursor fix abie` — той самий вивід, що `bun npm/rules/abie/fix.mjs`.
@@ -1008,5 +1018,7 @@ git reset --hard <hash-before-task-3>
 2. **Migration script (Task 3) — одноразовий**. Не комічай разом з рештою. Окремий комміт → можна revert тільки міграцію, якщо потрібно.
 3. **Один послідовний прогон lint** на сесію — без `&` фону, без паралелі (CLAUDE.md правило `n-lint`).
 4. **Smoke CLI (Task 5)** — якщо abie дає crash, найімовірніша причина — забутий імпорт у helper або в інтеграційному тесті. Stack trace вкаже точку.
-5. **`_lib/` префікс важливий** — `listJsConcerns` пропускає файли/папки на `_`. Якщо помилково назвати helper-каталог без префікса (наприклад `lib/`), discovery вважатиме його concern'ом і впаде.
+5. **Helpers — у `<rule>/utils/`** (peer до `js/`, не всередині). Discovery в `js/` не торкається `utils/`. Імена helpers — namespace'овані префіксом (rule або concern), щоб у плоскому каталозі не було колізій.
 6. **При rename (Task 3) перевірити `git status` перед запуском** — якщо є untracked файли в `npm/rules/`, спершу їх закомітити або винести з дерева.
+7. **Migration script має guard на utils collision** — якщо два concerns мають helper з однаковим іменем (наприклад обидва називаються `scan.mjs`), скрипт кине помилку й зупиниться. Виправити вручну: перейменувати один із helpers додаючи префікс concern'у.
+8. **`abie/utils/` уже існує** і має 8 helpers + tests/. Міграційний скрипт його не торкається (всі helpers abie вже на правильному місці; concerns abie у `js/<concern>/check.mjs` НЕ мають інших helpers поруч). Якщо в майбутньому з'являться concern-private helpers в abie — вони теж їдуть у `abie/utils/` плоско.

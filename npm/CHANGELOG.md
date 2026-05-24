@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.13.90] - 2026-05-24
+
+### Added
+
+- **`js-lint` 1.23 → 1.24 — конвенція `utils/` vs `lib/`:** додано секцію «Структура спільних модулів». `utils/` — низькорівневі generic helpers без домену (могли б жити окремим npm-пакетом); `lib/` — внутрішні модулі з доменним state/конфігом/side effects. Канонічні назви лише ці дві — не `shared/`, не `common/`. Дзеркало `.cursor/rules/n-js-lint.mdc` оновлено.
+
 ## [1.13.89] - 2026-05-23
 
 ### Changed

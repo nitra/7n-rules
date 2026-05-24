@@ -1,21 +1,29 @@
 ---
-description: Програмна перевірка проєкту та синхронізація з check-скриптами; rule-centric concern-based структура `npm/rules/` з канонічним `template/`
+description: Програмна перевірка проєкту та flat концерн-лейаут npm/rules/ — концерн = файл, не каталог; helpers у utils/, tests/templates/data усередині js/
 alwaysApply: true
-version: '1.10'
+version: '1.11'
 ---
 
-## Структура правила (rule-centric, concern-based layout)
+## Структура правила (rule-centric, flat concern layout — з 1.14.0)
 
-Кожне правило живе в **одній** директорії `npm/rules/{rule}/`, розбитій за **концернами** (`<concern>` — окрема перевірювана властивість: один target-файл або одна окрема перевірка):
+Кожне правило живе в **одній** директорії `npm/rules/{rule}/`, де JS-концерн — це **один файл** `js/<concern>.mjs` (не каталог). Helpers — у peer-каталозі `utils/` (existing convention з `abie/utils/`):
 
 ```
 npm/rules/{rule}/
 ├── {rule}.mdc                              ← текст правила (frontmatter + body)
 ├── auto.md                                 ← умова автоактивації (опційно)
-├── js/<concern>/                          ← FS / cross-file / autofix (JS-частина концерну; опційно)
-│   ├── check.mjs                           ← перевірка концерну (запускається через `npx @nitra/cursor fix {rule}`)
-│   ├── check.test.mjs                      ← Bun-тести поруч з джерелом
-│   └── template/<target>.<slot>.<ext>      ← канон концерну для FS-only кейсів (опційно)
+├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
+├── js/                                     ← JS-частина (опційно)
+│   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
+│   ├── tests/                              ← Bun-тести
+│   │   ├── <concern>.test.mjs              ← single-test concern
+│   │   └── <concern>/                      ← multi-test concern (+ fixtures/)
+│   │       └── <name>.test.mjs
+│   ├── templates/<concern>/<target>.<slot>.<ext>  ← JS template assets (опційно)
+│   └── data/<concern>/<name>.<ext>         ← JS data (json/tsv, опційно)
+├── utils/                                  ← cross-concern та concern-private helpers (опційно)
+│   ├── <helper>.mjs                        ← плоско, namespace'ованим іменем (`docker-mirror`, `vue-forbidden-imports`)
+│   └── tests/<helper>.test.mjs             ← тести helpers (як в abie/utils/tests/)
 └── policy/<concern>/                       ← Rego-поліси концерну (один target-файл; опційно)
     ├── <concern>.rego                      ← `package {rule}.<concern>` + `import rego.v1`
     ├── <concern>_test.rego                 ← тести rego-полісі (запускає `bun run lint-rego` через `conftest verify`)
@@ -23,11 +31,24 @@ npm/rules/{rule}/
     └── template/<target>.<slot>.<ext>      ← канон концерну для Rego-перевірюваних кейсів (опційно)
 ```
 
-Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case**. Файли всередині `js/<concern>/` — **без суфікса правила** чи концерну (директорія вже namespace): не `check-{concern}.mjs`, а просто `check.mjs`.
+Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case**, помічники — **kebab-case** з префіксом rule/concern (`docker-mirror.mjs`, `vue-forbidden-imports.mjs`).
+
+**Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
+
+**Імпорти** (з `js/<concern>.mjs`):
+
+- Helper: `from '../utils/<helper>.mjs'`
+- Cross-rule concern: `from '../../<rule>/js/<concern>.mjs'`
+- Scripts util: `from '../../../scripts/utils/<X>.mjs'`
+
+**Імпорти з тестів:**
+
+- `js/tests/<concern>.test.mjs` → concern: `'../<concern>.mjs'`, helper: `'../../utils/<helper>.mjs'`, scripts: `'../../../../scripts/utils/<X>.mjs'`
+- `js/tests/<concern>/<name>.test.mjs` → concern: `'../../<concern>.mjs'`, helper: `'../../../utils/<helper>.mjs'`, scripts: `'../../../../../scripts/utils/<X>.mjs'`
 
 **Інваріанта:** видалив `npm/rules/{rule}/` → правило зникло без слідів (нема мертвих посилань у `bin/auto-rules.md`, `npm/scripts/`, `.cursor/rules/`).
 
-Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor), `auto.md` (опційно), `js/<concern>/` (опційно, з тестами).
+Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor), `auto.md` (опційно).
 
 **Крос-правильна інфраструктура** (CLI, оркестратори, спільні утиліти) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом.
 
@@ -62,19 +83,19 @@ npm/rules/{rule}/
 
 ## Перш ніж писати / розширювати `check.mjs`
 
-**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `js/<concern>/check.mjs`: подивись `npm/rules/<rule>/policy/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
+**STOP — спершу пройди алгоритм Rego-first** (`.cursor/rules/conftest.mdc`, alwaysApply). Це стосується **і нової** перевірки, **і додавання нового deny у вже існуючий** `js/<concern>.mjs`: подивись `npm/rules/<rule>/policy/`, чи задача не лягає у вже існуючий rego-пакет як ще одне `deny contains`.
 
 Швидкий self-check для нової перевірки (порядок важливий):
 
 1. **Це пер-документна перевірка одного JSON/YAML?** (наявність / форма поля, regex по значенню, перелік дозволених літералів). → **Rego, без JS-коду.** Пиши у `npm/rules/<rule>/policy/<concern>/<concern>.rego` + `<concern>_test.rego`.
-2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `js/<concern>/check.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
+2. Потрібен `readdir`, `stat`, парність файлів, AST-парсинг JS/TS, autofix, modeline до YAML-body? → **JS** у `js/<concern>.mjs`. Per-document частина (якщо є) усе одно лишається у rego — JS викликає її через `runConftestBatch`.
 3. Не впевнений? Подивись референс **`npm/rules/k8s/policy/*`** ↔ **`npm/rules/k8s/js/*/check.mjs`** (Plan B: Rego-authoritative + JS-orchestrator) і список «що Rego об'єктивно не вміє» у `conftest.mdc`.
 
-**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/<concern>/check.mjs`.
+**Червоний прапор:** дописуєш `if (pkg.<field>) fail(…)` у JS — майже завжди це варто було робити як `deny contains msg if { … }` у відповідному rego-пакеті. Перевір `npm/rules/<rule>/policy/` **перед** редагуванням `js/<concern>.mjs`.
 
 ## Діагностика
 
-`npx @nitra/cursor fix` — програмна перевірка відповідності проєкту правилам за **`*.mdc` у `.cursor/rules/`** (auto-discovery: правило вмикається, якщо є `js/<concern>/check.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor fix bun ga`, `npx @nitra/cursor fix changelog npm-module`.
+`npx @nitra/cursor fix` — програмна перевірка відповідності проєкту правилам за **`*.mdc` у `.cursor/rules/`** (auto-discovery: правило вмикається, якщо є `js/<concern>.mjs` або `policy/<concern>/target.json` у його каталозі `npm/rules/{rule}/`). Явні приклади: `npx @nitra/cursor fix bun ga`, `npx @nitra/cursor fix changelog npm-module`.
 
 Файл **`.n-cursor.json`** має містити **`$schema`** з посиланням на JSON Schema пакету: `https://unpkg.com/@nitra/cursor/schemas/n-cursor.json`. CLI `@nitra/cursor` записує або оновлює це поле при автоматичному створенні конфігу, при зчитуванні конфігу під час завантаження правил і перед запуском `check`, якщо в корені вже є `.n-cursor.json`.
 
@@ -85,16 +106,16 @@ npm/rules/{rule}/
 
 Правило без актуальної перевірки (або з застарілою логікою) дає хибну впевненість: агенти й CI покладаються на `check`.
 
-- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/<id>.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `js/<concern>/check.mjs` та/або `policy/<concern>/<concern>.rego`.
+- **Завжди** тримай узгодженими текст правила (`npm/rules/<id>/<id>.mdc` у пакеті та/або `.cursor/rules/n-<id>.mdc` локально) і відповідну перевірку — `js/<concern>.mjs` та/або `policy/<concern>/<concern>.rego`.
 - Додав або змінив вимогу в правилі — **у тому ж логічному кроці** онови відповідний `check.mjs` / `<concern>.rego` / `template/<target>.<slot>.<ext>`: умови, повідомлення `fail` / `pass`, deny-rules, drift-тести. Канонічний літерал — у template; перевірка читає його звідти.
-- Якщо нова вимога **перевірювана програмно**, а концерну ще немає — створи концерн за алгоритмом `conftest.mdc` (Rego-first): пер-документні валідації → `policy/<concern>/<concern>.rego` + `template/`; FS / cross-file / AST → `js/<concern>/check.mjs`.
+- Якщо нова вимога **перевірювана програмно**, а концерну ще немає — створи концерн за алгоритмом `conftest.mdc` (Rego-first): пер-документні валідації → `policy/<concern>/<concern>.rego` + `template/`; FS / cross-file / AST → `js/<concern>.mjs`.
 - Не закривай задачу лише оновленням `.mdc`, якщо для цього правила вже існує check/policy або з'явилась нова перевірювана умова — check має відображати актуальні критерії.
 
 При створенні або редагуванні правил перенось максимум логіки в скрипти / rego / `template/`, щоб LLM зосереджувалась на виправленні порушень, а не на ручному відтворенні правил.
 
-У кожному `.mjs`-файлі (`npm/rules/<id>/js/<concern>/`, `npm/skills/<id>/js/<concern>/`, `npm/scripts/`) **на початку** (перед `import`) — **багаторядковий** верхній JSDoc з описом українською, **що робить** файл: кілька рядків `* …`, логічні переноси за змістом; між абзацами — окремий рядок `*` у блоці JSDoc. **Без** службових префіксів — з перших рядків має бути зрозуміло призначення. Для утиліт з одним експортом допустимо обʼєднати цей опис з JSDoc функції в один блок, також багаторядково.
+У кожному `.mjs`-файлі (`npm/rules/<id>/js/`, `npm/skills/<id>/js/`, `npm/scripts/`) **на початку** (перед `import`) — **багаторядковий** верхній JSDoc з описом українською, **що робить** файл: кілька рядків `* …`, логічні переноси за змістом; між абзацами — окремий рядок `*` у блоці JSDoc. **Без** службових префіксів — з перших рядків має бути зрозуміло призначення. Для утиліт з одним експортом допустимо обʼєднати цей опис з JSDoc функції в один блок, також багаторядково.
 
-Тести **співрозташовуються з джерелом**: `check.mjs` ↔ `check.test.mjs` у тій самій директорії; `<concern>.rego` ↔ `<concern>_test.rego` у `policy/<concern>/`. Bun-тести правила — `npm/rules/<id>/js/<concern>/*.test.mjs`, тести крос-правильної інфраструктури — поруч у `npm/scripts/` чи `npm/scripts/utils/`. Окремої директорії `npm/tests/` для нових тестів **не використовуй** — лишай тільки для справді спільних fixtures, які потрібні ≥2 правилам.
+Тести **співрозташовуються з джерелом**: `check.mjs` ↔ `check.test.mjs` у тій самій директорії; `<concern>.rego` ↔ `<concern>_test.rego` у `policy/<concern>/`. Bun-тести правила — `npm/rules/<id>/js/*.test.mjs`, тести крос-правильної інфраструктури — поруч у `npm/scripts/` чи `npm/scripts/utils/`. Окремої директорії `npm/tests/` для нових тестів **не використовуй** — лишай тільки для справді спільних fixtures, які потрібні ≥2 правилам.
 
 Після змін у скриптах запускай тести: `bun test` у каталозі пакета (без аргументу — підбере всі `*.test.mjs` рекурсивно) або через `scripts.test` у `npm/package.json`. Після змін у rego/template — `bun run lint-rego` (regal + `conftest verify` для `_test.rego`).
 
@@ -183,7 +204,7 @@ export const runLintFooCli = (cwd = process.cwd()) =>              // для CLI
 
 ## Аналіз JavaScript / TypeScript: Oxc AST
 
-За замовчуванням для **перевірки змісту JS/TS** у `npm/rules/<id>/js/<concern>/` (check/run/lint) і утилітах `npm/scripts/utils/` намагайся використовувати саме **Oxc AST-парсер** — пакет **`oxc-parser`** (`parseSync` тощо), обхід **`module` / `program` / вузлів AST**, а не «сліпі» regex по всьому файлу.
+За замовчуванням для **перевірки змісту JS/TS** у `npm/rules/<id>/js/` (check/run/lint) і утилітах `npm/scripts/utils/` намагайся використовувати саме **Oxc AST-парсер** — пакет **`oxc-parser`** (`parseSync` тощо), обхід **`module` / `program` / вузлів AST**, а не «сліпі» regex по всьому файлу.
 
 Той самий підхід застосовуй до **інших файлів**, якщо всередині є перевірюваний JS/TS: наприклад, **Vue SFC** (`.vue`) — спочатку **виділи** вміст релевантних `<script>` / `<script setup>` (і за потреби ігноруй `<template>` / `<style>`), потім передай рядок у **`oxc-parser`** з **віртуальним шляхом** на кшталт `*.ts` / `*.tsx`, щоб коректно обробити `lang` і compiler directives. Для **MDX**, **Astro** чи згенерованого коду — аналогічно: дістань фрагмент, який має бути валідним JS/TS, і прогнати його через Oxc AST.
 
