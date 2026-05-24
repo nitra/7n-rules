@@ -1,0 +1,23 @@
+npm/scripts/utils/tests/run-rule.test.mjs
+  s_31049ff0153a46::t_f60d05dd46e19a 17,19,23-25,45,71,81,84,96-97,100
+npm/scripts/utils/run-rule.mjs
+  s_31049ff0153a46::t_cb29dc88ac398a 2,5,7
+  s_31049ff0153a46::t_3258ebc62cd165 116-121
+  s_31049ff0153a46::t_b1ddf7c31605ac 27-28,34-35,39-40,47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "c6d1b5541700a30d774fb2983bc7a35445bde892",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
