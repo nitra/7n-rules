@@ -1,0 +1,29 @@
+npm/rules/adr/adr.mdc
+  s_4fbe26b0a58925::t_b5d5499517a164 98
+npm/package.json
+  s_4fbe26b0a58925::t_0b4e0a1537d79e 3
+npm/CHANGELOG.md
+  s_4fbe26b0a58925::t_8575c81e62b55b 7-12
+docs/adr/20260524-080410-шлях-до-артефактів-тулінгу-в-js-lint-js-tooling-vs-js-data-t.md
+  ai_agent 1-28
+docs/adr/20260524-080434-розрізнення-js-templates-vs-js-data-у-правилах-nitra-cursor.md
+  ai_agent 1-44
+docs/adr/20260524-080555-виправлення-stale-template-лінка-після-flat-layout-міграції.md
+  ai_agent 1-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a29703e32f37614dac3e0b5aeae4c679c18b1521",
+  "prompts": {},
+  "sessions": {
+    "s_4fbe26b0a58925": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0bdb26d7-a893-4fa6-b1c5-b51dd0d4b627",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
