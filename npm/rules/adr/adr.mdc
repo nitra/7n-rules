@@ -95,7 +95,7 @@ docs/adr/
 └── hooks.json                 # Cursor Agent stop-hooks для тих самих скриптів
 ```
 
-`.gitignore` у корені проєкту повинен містити базові рядки (`node_modules/`, `dist/`, `*.secret`) і патерни для ADR Stop-hook (**`.claude/hooks/*.log`**, `.claude/hooks/.normalize-state`, `.claude/hooks/.normalize.lock`). Канонічний фрагмент (дописується `npx @nitra/cursor`, коли правило `adr` увімкнене): [.gitignore.snippet](./js/hooks/template/.gitignore.snippet).
+`.gitignore` у корені проєкту повинен містити базові рядки (`node_modules/`, `dist/`, `*.secret`) і патерни для ADR Stop-hook (**`.claude/hooks/*.log`**, `.claude/hooks/.normalize-state`, `.claude/hooks/.normalize.lock`). Канонічний фрагмент (дописується `npx @nitra/cursor`, коли правило `adr` увімкнене): [.gitignore.snippet](./js/templates/hooks/.gitignore.snippet).
 
 ## Stop-hook у `.claude/settings.json`
 

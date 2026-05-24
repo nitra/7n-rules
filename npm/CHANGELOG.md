@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.15.1] - 2026-05-24
+
+### Fixed
+
+- `adr.mdc`: виправлено stale template-лінк `./js/hooks/template/.gitignore.snippet` → `./js/templates/hooks/.gitignore.snippet` (після flat-layout міграції `js/<concern>.mjs` у комміті `6ecd84c` шлях не оновили, через що `inlineTemplateLinks` падав під час `bun start` із `file not found`).
+
 ## [1.15.0] - 2026-05-24
 
 ### Added
