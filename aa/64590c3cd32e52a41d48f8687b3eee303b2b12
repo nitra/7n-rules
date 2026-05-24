@@ -1,0 +1,23 @@
+.cursor/rules/n-changelog.mdc
+  s_a4a35b867bfba2::t_75ae9e8bab341a 46
+.cursor/rules/n-feedback.mdc
+  s_a4a35b867bfba2::t_75ae9e8bab341a 20
+.cursor/rules/n-security.mdc
+  s_a4a35b867bfba2::t_75ae9e8bab341a 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "aa64590c3cd32e52a41d48f8687b3eee303b2b12",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
