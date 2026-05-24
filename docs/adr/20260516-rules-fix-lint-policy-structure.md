@@ -59,3 +59,18 @@ npm/rules/<id>/
 `npm/scripts/lint-conftest.mjs` видалено: скрипт дублював `discoverCheckableRules → runConftestBatch`, яку `npx @nitra/cursor check` вже виконує. Всі посилання на `bun run lint-conftest` у `.mdc`, `.rego` і кореневому `package.json` замінені на `npx @nitra/cursor check` або видалені.
 
 `npm/README.md` оновлено: секція «Структура пакету» тепер документує ієрархію `rules/<id>/{fix,lint,policy}/` замість застарілої `mdc/`. Версію `npm/package.json` підвищено до `1.11.11`.
+
+## Update 2026-05-23
+
+### Актуалізація крос-посилань на `check-abie.mjs` після розбиття на `fix/<concern>/check.mjs`
+
+Після реструктуризації `rules/*/js/ → fix/lint/policy` монолітний `npm/scripts/check-abie.mjs` розбито на per-concern файли `npm/rules/abie/fix/<concern>/check.mjs`. Документаційні посилання на неіснуючий `check-abie.mjs` залишались у `abie.mdc`, трьох `.rego`-коментарях, `k8s.mdc`, `hasura/fix/internal_urls/check.mjs` та `conftest.mdc`. Замінено на конкретні шляхи:
+
+- `npm/rules/abie/abie.mdc` (рядки 39, 136, 173) → `fix/ua_http_route/check.mjs`, `fix/env_dns/check.mjs`, `fix/hc_pairing/check.mjs`, `fix/ua_node_selector/check.mjs`.
+- `npm/rules/abie/policy/http_route_base/http_route_base.rego` → `fix/ua_http_route/check.mjs`.
+- `npm/rules/abie/policy/base_deployment_preem/base_deployment_preem.rego` → `fix/ua_node_selector/check.mjs`.
+- `npm/rules/abie/policy/health_check_policy/health_check_policy.rego` → `fix/hc_pairing/check.mjs`.
+- `npm/rules/k8s/k8s.mdc` → `fix/hc_pairing/check.mjs`.
+- `npm/rules/hasura/fix/internal_urls/check.mjs` та `.cursor/rules/conftest.mdc` — JSDoc-коментарі оновлено.
+
+Валідація: `grep -rn "check-abie" --include="*.mdc" --include="*.mjs" --include="*.rego"` повертає порожній вивід після правок — нульові dangling references. Версія `@nitra/cursor`: `1.13.77 → 1.13.78`; кореневий workspace `n-cursor`: `1.0.2 → 1.0.3`.

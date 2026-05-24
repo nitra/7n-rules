@@ -45,3 +45,14 @@ Cross-rule імпорту немає: у `rules/graphql/fix/tooling/graphql-gql-
 - `npm/scripts/auto-rules.mjs` — оновлені імпорти `bun-sql-scan` / `graphql-gql-scan` / `vue-forbidden-imports` через `../rules/<rule>/fix/<sub>/`.
 - `npm/scripts/utils/ast-scan-utils.mjs` — оновлений docstring зі списком нових локацій споживачів.
 - Старий ADR `20260523-112217-розміщення-canonical-конфігів-у-npm-scripts-utils.md` помічений `superseded_by` цим документом.
+
+## Update 2026-05-23
+
+Додатковий контекст із розширеного аналізу (captured 11:55:42):
+
+- Cross-rule залежність: `graphql-gql-scan.mjs` імпортує `contentForVueImportScan` з `../../../vue/fix/packages/vue-forbidden-imports.mjs` — правило graphql залежить від vue; transcript не містить підтверджених негативних наслідків від цього вибору.
+- Файли `discover-check-rules-from-cursor.mjs`, `generated-markdown.mjs`, `inline-template-links.mjs` початково класифіковано як мертвий код і видалено, але відновлено після виявлення активних імпортів у `npm/bin/n-cursor.js`.
+- `npm/scripts/auto-rules.mjs` оновлено: `textHasBunSqlImport` — з `../rules/js-bun-db/fix/safety/bun-sql-scan.mjs`; graphql/vue імпорти — на нові шляхи.
+- Посилання в `.mdc` оновлено: `npm/rules/js-lint/js-lint.mdc`, `npm/rules/docker/docker.mdc`, `npm/rules/vue/vue.mdc`, `.cursor/rules/n-js-lint.mdc`, `.cursor/rules/n-vue.mdc`.
+- Версія пакета: `1.13.78` → `1.13.79`; запис у `npm/CHANGELOG.md`.
+- Supersedes (явно): `docs/adr/20260523-112217-розміщення-canonical-конфігів-у-npm-scripts-utils.md`.
