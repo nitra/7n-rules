@@ -4,6 +4,27 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.14.0] - 2026-05-24
+
+### Changed (BREAKING)
+
+- **Flat концерн-лейаут:** кожен JS-концерн правила тепер один файл `npm/rules/<rule>/js/<concern>.mjs` замість вкладеного `js/<concern>/check.mjs`. Tests — у `js/tests/<concern>.test.mjs` (single) або `js/tests/<concern>/<name>.test.mjs` (multi+fixtures). Templates — у `js/templates/<concern>/`. Data (json/tsv) — у `js/data/<concern>/`. Helpers (cross-concern і concern-private) — у `<rule>/utils/<helper>.mjs` peer до `js/` (existing convention з `abie/utils/`).
+- **`JsConcern.files` removed:** один файл на concern, поле більше не потрібне. `runRule` обчислює шлях як `<rule>/js/<concern.name>.mjs`; `resolveJsCheckPath` тепер `(bundledRulesDir, ruleId, concern)` без `fileName`.
+- **`CHECK_FILENAME_RE` і `TEST_SUFFIX` removed:** discovery більше не використовує regex `check-*.mjs` — `listJsConcerns` фільтрує `*.mjs` без `.test.mjs` (підкаталоги скіпаються через `!isFile()`).
+- **`scripts/sync-claude-config.mjs::ADR_GITIGNORE_SNIPPET_REL`** змінено: `rules/adr/js/hooks/template/.gitignore.snippet` → `rules/adr/js/templates/hooks/.gitignore.snippet`.
+- **`scripts/utils/inline-template-links.mjs::TEMPLATE_SEGMENT_RE`** розширено з `/\/template\//` до `/\/templates?\//` — підтримує і `js/templates/` (нова конвенція), і `policy/<concern>/template/` (існуюча).
+
+### Breaking (для зовнішніх інтеграторів)
+
+- Каталог `npm/rules/<rule>/js/<concern>/check.mjs` тепер `npm/rules/<rule>/js/<concern>.mjs`. Tests → `js/tests/`, templates → `js/templates/`, data → `js/data/` (усе всередині `js/`); helpers → `<rule>/utils/<helper>.mjs` (peer до `js/`, як `abie/utils/`). Імпорти helpers з concern-файлів: `from '../utils/<helper>.mjs'`. Міграційний скрипт у git-історії — комміт `refactor(rules): flat layout js/<concern>.mjs (міграційний move)`.
+
+### Notes
+
+- Convention для helper-імен: namespace-префікс (`<rule>-` або `<concern>-`) робить колізії у плоскому `utils/` неможливими (як уже робить abie: `k8s-tree`, `kustomization-patches`; docker: `docker-mirror`; vue: `vue-forbidden-imports`).
+- Шпаргалка імпорт-шляхів у `.cursor/rules/scripts.mdc` (1.10 → 1.11).
+- `.cursor/rules/conftest.mdc` — алгоритм Rego-first переписаний під flat-layout.
+- Канонічні `security.mdc` і `k8s.mdc` markdown-лінки на template-файли оновлені (`./js/templates/<concern>/`).
+
 ## [1.13.90] - 2026-05-24
 
 ### Added
