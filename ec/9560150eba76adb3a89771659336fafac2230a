@@ -1,0 +1,21 @@
+npm/rules/rust/js/applies.mjs
+  s_a4a35b867bfba2::t_a63ed23784e5f6 1-31
+npm/rules/rust/js/tests/applies.test.mjs
+  s_a4a35b867bfba2::t_0bf7df99401160 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ec9560150eba76adb3a89771659336fafac2230a",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
