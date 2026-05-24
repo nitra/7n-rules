@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.15.0] - 2026-05-24
+
+### Added
+
+- **Нове правило `rust`** (`npm/rules/rust/`): канонічний скрипт `lint-rust` у `package.json` (`cargo fmt` → `cargo clippy --fix` → `cargo clippy ... -D warnings`), CI workflow `.github/workflows/lint-rust.yml` з `dtolnay/rust-toolchain@stable` (`components: rustfmt, clippy`) + `Swatinem/rust-cache@v2`, VSCode-розширення `rust-lang.rust-analyzer` + `tamasfe.even-better-toml`. Auto-trigger — наявність `Cargo.toml` (`hasCargoToml` fact у `auto-rules.mjs`). Три rego policy-пакети (`package_json`, `vscode_extensions`, `lint_rust_yml`) читають канон через `data.template.*` з drift-тестами.
+
+### Changed
+
+- **Правило `tauri` (1.1 → 1.2) звужено:** `rust-lang.rust-analyzer` більше не вимагається у `tauri.vscode_extensions` — перенесено в нове правило `rust`. Tauri-проєкт автоматично активує `rust` через `src-tauri/Cargo.toml`. Канон `tauri.mdc` оновлено: лишається лише `tauri-apps.tauri-vscode`.
+
 ## [1.14.0] - 2026-05-24
 
 ### Changed (BREAKING)
