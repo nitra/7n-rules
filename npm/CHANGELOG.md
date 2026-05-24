@@ -4,6 +4,26 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.17.0] - 2026-05-24
+
+### Added
+
+- CLI-команда `n-cursor coverage` — оркестратор покриття + мутаційного тестування з discovery провайдерів через `.n-cursor.json#rules`. Канон `scripts.coverage` (контейнер `package.json`) у правилі `test`. Лок — прямий `withLock('coverage', ...)`.
+- Провайдер `js-lint/coverage/` — `bun test --coverage --coverage-reporter=lcov` + `bunx stryker run`; парсить lcov.info і `reports/stryker/mutation.json`.
+- Провайдер `rust/coverage/` — `cargo llvm-cov --json` + `cargo mutants --in-place`; парсить `data[0].totals` і `outcomes.json` (caught = caught + timeout; total = caught + missed; unviable виключено).
+- Policy `test.package_json` з template `package.json.contains.json` — substring-вимога `scripts.coverage` містити `n-cursor coverage`.
+
+### Fixed
+
+- `test/coverage/coverage.mjs::loadProvider` — коли правило `test` присутнє у `.n-cursor.json#rules` (як у самому `@nitra/cursor`), оркестратор знаходив власний файл `npm/rules/test/coverage/coverage.mjs` і намагався викликати його як провайдер (`provider.detect is not a function`). `loadProvider` тепер перевіряє, що модуль експортує обидва `detect` і `collect` як функції — інакше silently skip. Regression-тест: `пропускає модулі без detect/collect (наприклад сам оркестратор)`.
+
+### Changed
+
+- `test.mdc` 1.1 → 1.2: додано секцію «Покриття + мутаційне тестування» з посиланням на template.
+- `js-lint.mdc` 1.24 → 1.25: додано параграф із посиланням на JS-coverage-провайдер.
+- `rust.mdc` 1.0 → 1.1: додано параграф із посиланням на Rust-coverage-провайдер.
+- `npm/bin/n-cursor.js`: новий `case 'coverage'` + розширений help-string.
+
 ## [1.16.1] - 2026-05-24
 
 ### Fixed
@@ -162,7 +182,7 @@
   - `rules/test/fix/location/check.mjs` — перевіряє **лише `*.test.mjs`**, `*_test.rego` свідомо виключено з область перевірки (зафіксовано у docstring).
   - Додано test-case у `rules/test/fix/location/tests/check.test.mjs`: `*_test.rego` поряд із полісі НЕ є порушенням.
 - **Відкат переміщення `*_test.rego`**: 69 файлів, які раніше було помилково перенесено у `policy/<concern>/tests/<name>_test.rego`, повернуто у `policy/<concern>/<name>_test.rego` через `git mv`. Порожні `tests/` піддиректорії під `policy/` видалено.
-- **`npx @nitra/cursor fix test`** охоплює лише JS-тести: «✅ Всі 77 файлів *.test.mjs у каталозі tests/». Rego-тести продовжують перевірятись через `conftest verify` у правилі `rego`.
+- **`npx @nitra/cursor fix test`** охоплює лише JS-тести: «✅ Всі 77 файлів \*.test.mjs у каталозі tests/». Rego-тести продовжують перевірятись через `conftest verify` у правилі `rego`.
 
 ## [1.13.81] - 2026-05-23
 

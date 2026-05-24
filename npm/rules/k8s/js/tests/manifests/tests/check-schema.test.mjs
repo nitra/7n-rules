@@ -62,7 +62,7 @@ import {
   splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
   serviceSvcYamlClusterIpTypeViolation
-} from '../../manifests.mjs'
+} from '../../../manifests.mjs'
 
 const SERVICE_V1_JSON_RE = /service-v1\.json$/
 

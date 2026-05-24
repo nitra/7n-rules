@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { getMultistageAndRuntimeHint, parseFromStages } from '../../lint.mjs'
+import { getMultistageAndRuntimeHint, parseFromStages } from '../../../lint.mjs'
 
 describe('parseFromStages', () => {
   test('збирає всі FROM з номерами рядків', () => {

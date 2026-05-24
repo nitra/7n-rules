@@ -6,7 +6,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { getNginxAlpineSlimTagHint } from '../../lint.mjs'
+import { getNginxAlpineSlimTagHint } from '../../../lint.mjs'
 
 describe('getNginxAlpineSlimTagHint', () => {
   test('ok: nginx-unprivileged з тегом alpine-slim', () => {

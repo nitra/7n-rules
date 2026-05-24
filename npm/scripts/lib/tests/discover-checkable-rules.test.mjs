@@ -64,10 +64,7 @@ describe('discoverCheckableRules', () => {
       expect(out).toEqual([
         {
           id: 'text',
-          jsConcerns: [
-            { name: 'cspell' },
-            { name: 'shellcheck' }
-          ],
+          jsConcerns: [{ name: 'cspell' }, { name: 'shellcheck' }],
           policyConcerns: []
         }
       ])

@@ -6,12 +6,29 @@
     "npm",
     "demo"
   ],
+  "type": "module",
   "scripts": {
+    "start": "bun ./npm/bin/n-cursor.js",
+    "lint": "bun run lint-ga && bun run lint-js && bun run lint-rego && bun run lint-style && bun run lint-text && bun run lint-security && oxfmt .",
     "lint-ga": "n-cursor lint-ga",
-    "lint-text": "n-cursor lint-text"
+    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
+    "lint-rego": "n-cursor lint-rego",
+    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail",
+    "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
+    "lint-text": "n-cursor lint-text",
+    "coverage": "n-cursor coverage"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.0.0",
-    "@nitra/cursor": "^1.16.0"
+    "@nitra/cursor": "^1.16.1",
+    "@nitra/eslint-config": "^3.9.4",
+    "@nitra/stylelint-config": "^1.4.0"
+  },
+  "stylelint": {
+    "extends": "@nitra/stylelint-config"
+  },
+  "engines": {
+    "bun": ">=1.3",
+    "node": ">=24"
   }
 }

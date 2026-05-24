@@ -1231,7 +1231,9 @@ try {
     }
     case 'check': {
       // Backward-compatibility alias. Перейменовано на `fix` у 1.13.84 (узгоджено з ім'ям файла `rules/<id>/fix.mjs`).
-      console.warn(`⚠️  Команда \`check\` deprecated — використовуйте \`fix\` (\`npx ${PACKAGE_NAME} fix [<rule>...]\`)`)
+      console.warn(
+        `⚠️  Команда \`check\` deprecated — використовуйте \`fix\` (\`npx ${PACKAGE_NAME} fix [<rule>...]\`)`
+      )
       await runFixCommand(args)
 
       break
@@ -1283,6 +1285,14 @@ try {
 
       break
     }
+    case 'coverage': {
+      // n-cursor coverage — оркестратор покриття + мутаційного тестування з discovery
+      // провайдерів через .n-cursor.json#rules (test.mdc).
+      const { runCoverageCli } = await import('../rules/test/coverage/coverage.mjs')
+      process.exitCode = await runCoverageCli()
+
+      break
+    }
     case 'skill': {
       process.exitCode = runSkillsCli(args)
 
@@ -1297,7 +1307,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, skill`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
       )
       process.exitCode = 1
     }

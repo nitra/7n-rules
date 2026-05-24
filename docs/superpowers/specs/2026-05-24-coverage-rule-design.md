@@ -1,6 +1,6 @@
 ---
 type: spec
-title: "n-cursor coverage — оркестратор покриття + мутаційного тестування"
+title: 'n-cursor coverage — оркестратор покриття + мутаційного тестування'
 ---
 
 # `n-cursor coverage` — design
@@ -17,17 +17,17 @@ title: "n-cursor coverage — оркестратор покриття + мута
 
 ## Прийняті рішення (підсумок brainstorm)
 
-| # | Рішення |
-|---|---|
-| C1 | Перенесення повне: `scripts/coverage.js` і `scripts/with-lock.js` видаляються з mlmail; команда `n-cursor coverage` живе в `@nitra/cursor`. |
-| C2 | Сегментація провайдерів — **per-rule**: кожне правило мови/рантайму, що активне в `.n-cursor.json#rules`, постачає свій `coverage/coverage.mjs`. Зараз: `js-lint`, `rust`. Майбутнє: `python` тощо. |
-| C3 | Discovery провайдерів — через існуючий **`.n-cursor.json#rules`** (варіант δ з brainstorm). Жодних нових полів конфігу, нових механізмів активації. |
-| C4 | Лок — **прямий виклик `withLock('coverage', steps)` у `test/coverage/coverage.mjs`**. Канонічне обмеження «не імпортуй `withLock` напряму» з [`scripts.mdc § withLock`](../../.cursor/rules/scripts.mdc) націлене на дедуплікацію preamble серед багатьох `lint.mjs`/`fix.mjs` (5+/20+ файлів). Для одного оркестратора покриття абстракція YAGNI: один consumer, один callsite — спільна точка входу не створюється. |
-| C5 | Ключ локу — **константа `'coverage'`** (один оркестратор → один ключ). |
-| C6 | Канон `scripts.coverage` у `package.json` — через **rego policy + template snippet** у `npm/rules/test/policy/package_json/` ([`scripts.mdc § Канон через template`](../../.cursor/rules/scripts.mdc)). У `test.mdc` — markdown-link, не inline fenced-block з `title="<filename>"`. |
-| C7 | Канонічна форма скрипта — `"coverage": "n-cursor coverage"` (substring-вимога через слот `.contains.json` — узгоджено з підходом `rust.package_json` у `2026-05-23-rust-rule-design.md`). |
-| C8 | `app/package.json` у mlmail втрачає `test:mutation` і `test:rust:mutation` — Stryker і `cargo-mutants` тепер запускаються виключно через провайдери. `test:coverage` (workspace-локальний `bun test --coverage`) **лишається** — провайдер JS викликає його через `bun --cwd=app run test:coverage` (або еквівалент). |
-| C9 | Правило `rust` уже імплементоване (`npm/rules/rust/` із `rust.mdc` v1.0, policy для package_json/vscode_extensions/lint_rust_yml, applies через `Cargo.toml`). Цей spec **додає 4-й концерн** `rust/coverage/` — без правок існуючої lint-частини. |
+| #   | Рішення                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| C1  | Перенесення повне: `scripts/coverage.js` і `scripts/with-lock.js` видаляються з mlmail; команда `n-cursor coverage` живе в `@nitra/cursor`.                                                                                                                                                                                                                                                                           |
+| C2  | Сегментація провайдерів — **per-rule**: кожне правило мови/рантайму, що активне в `.n-cursor.json#rules`, постачає свій `coverage/coverage.mjs`. Зараз: `js-lint`, `rust`. Майбутнє: `python` тощо.                                                                                                                                                                                                                   |
+| C3  | Discovery провайдерів — через існуючий **`.n-cursor.json#rules`** (варіант δ з brainstorm). Жодних нових полів конфігу, нових механізмів активації.                                                                                                                                                                                                                                                                   |
+| C4  | Лок — **прямий виклик `withLock('coverage', steps)` у `test/coverage/coverage.mjs`**. Канонічне обмеження «не імпортуй `withLock` напряму» з [`scripts.mdc § withLock`](../../.cursor/rules/scripts.mdc) націлене на дедуплікацію preamble серед багатьох `lint.mjs`/`fix.mjs` (5+/20+ файлів). Для одного оркестратора покриття абстракція YAGNI: один consumer, один callsite — спільна точка входу не створюється. |
+| C5  | Ключ локу — **константа `'coverage'`** (один оркестратор → один ключ).                                                                                                                                                                                                                                                                                                                                                |
+| C6  | Канон `scripts.coverage` у `package.json` — через **rego policy + template snippet** у `npm/rules/test/policy/package_json/` ([`scripts.mdc § Канон через template`](../../.cursor/rules/scripts.mdc)). У `test.mdc` — markdown-link, не inline fenced-block з `title="<filename>"`.                                                                                                                                  |
+| C7  | Канонічна форма скрипта — `"coverage": "n-cursor coverage"` (substring-вимога через слот `.contains.json` — узгоджено з підходом `rust.package_json` у `2026-05-23-rust-rule-design.md`).                                                                                                                                                                                                                             |
+| C8  | `app/package.json` у mlmail втрачає `test:mutation` і `test:rust:mutation` — Stryker і `cargo-mutants` тепер запускаються виключно через провайдери. `test:coverage` (workspace-локальний `bun test --coverage`) **лишається** — провайдер JS викликає його через `bun --cwd=app run test:coverage` (або еквівалент).                                                                                                 |
+| C9  | Правило `rust` уже імплементоване (`npm/rules/rust/` із `rust.mdc` v1.0, policy для package_json/vscode_extensions/lint_rust_yml, applies через `Cargo.toml`). Цей spec **додає 4-й концерн** `rust/coverage/` — без правок існуючої lint-частини.                                                                                                                                                                    |
 
 ## Архітектура
 
@@ -69,6 +69,7 @@ npm/bin/n-cursor.js                         ← case 'coverage': await runCovera
 ```
 
 **Convention відповідно до [`scripts.mdc`](../../.cursor/rules/scripts.mdc):**
+
 - `coverage/` — peer-dir, як `lint/` у `ga` — призначений для CLI-підкоманди (`n-cursor coverage`), що НЕ обслуговується `js/<concern>.mjs` discovery'єм. Файли тут НЕ авто-реєструються в `fix`-flow.
 - Тести співрозташовані з джерелом (`coverage/tests/coverage.test.mjs`).
 - `withLock('coverage', ...)` викликається **напряму** з `test/coverage/coverage.mjs` (єдиний CLI-консумер; спільна точка входу не створюється — YAGNI, див. C4).
@@ -106,9 +107,11 @@ export async function collect(cwd)
 #### `js-lint/coverage/coverage.mjs` — JS-провайдер
 
 `detect(cwd)`:
+
 - `package.json` існує **І** містить `scripts["test:coverage"]` або `scripts["test"]` з `--coverage`-сумісністю.
 
 `collect(cwd)`:
+
 1. `bun --cwd=<jsRoot> run test:coverage --coverage-reporter=lcov --coverage-dir=<tmpdir>` (де `<jsRoot>` — `app/` у workspace-проєктах або корінь у single-package). Парс `lcov.info`.
 2. `bunx stryker run` у `<jsRoot>` — парс `reports/stryker/mutation.json`. Killed + Timeout = `caught`; Survived + NoCoverage = до `total`; Compile/Runtime errors виключені.
 
@@ -119,9 +122,11 @@ export async function collect(cwd)
 #### `rust/coverage/coverage.mjs` — Rust-провайдер
 
 `detect(cwd)`:
+
 - Існує `Cargo.toml` у `cwd` або у будь-якому workspace-каталозі (повторне використання walker'а з `rust/js/applies/check.mjs` — `hasCargoTomlInWorkspaces`).
 
 `collect(cwd)`:
+
 1. `cargo llvm-cov --manifest-path <Cargo.toml> --json --summary-only` — парс `data[0].totals`.
 2. `cargo mutants --in-place -o <tmpOutDir> --manifest-path <Cargo.toml>` — парс `<tmpOutDir>/mutants.out/outcomes.json`. `caught = outcomes.caught + outcomes.timeout`; `total = caught + outcomes.missed`. Не-нульовий exit code від cargo-mutants очікуваний (мутанти missed → exit ≠ 0); вірогідний справжній крах детектиться відсутністю `outcomes.json`.
 3. Errors: `cargo-llvm-cov` / `cargo-mutants` не встановлені → відповідь з конкретною інструкцією `cargo install cargo-llvm-cov` / `cargo install cargo-mutants`.
@@ -148,10 +153,10 @@ import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { loadNCursorConfig } from '../../../scripts/utils/load-cursor-config.mjs'  // або read-n-cursor-config-lite; уточниться при реалізації
+import { loadNCursorConfig } from '../../../scripts/utils/load-cursor-config.mjs' // або read-n-cursor-config-lite; уточниться при реалізації
 import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
-const RULES_DIR = dirname(dirname(fileURLToPath(import.meta.url)))  // .../rules/test → .../rules
+const RULES_DIR = dirname(dirname(fileURLToPath(import.meta.url))) // .../rules/test → .../rules
 
 async function loadProvider(ruleId) {
   const providerPath = join(RULES_DIR, ruleId, 'coverage', 'coverage.mjs')
@@ -305,17 +310,17 @@ case 'coverage': {
 
 ## Зміни в mlmail (post-release у `@nitra/cursor`)
 
-| Файл/каталог | Дія |
-|---|---|
-| `scripts/coverage.js` | Видалити. |
-| `scripts/with-lock.js` | Видалити. |
-| `scripts/__tests__/` | Видалити (тести, що покривають coverage.js / with-lock.js). Якщо там є unrelated-тести — мігрувати в `scripts/tests/` за конвенцією `test.mdc#location`. |
-| `package.json#scripts.test:scripts` | Видалити (host для `__tests__/`). |
-| `package.json#scripts.coverage` | `"bun scripts/with-lock.js bun scripts/coverage.js"` → `"n-cursor coverage"`. |
-| `app/package.json#scripts.test:mutation` | Видалити. Stryker тепер запускається тільки через `js-lint/coverage/coverage.mjs`. |
-| `app/package.json#scripts.test:rust:mutation` | Видалити. cargo-mutants тепер тільки через `rust/coverage/coverage.mjs`. |
-| `app/package.json#scripts.test:coverage` | **Лишається** — workspace-локальний `bun test --coverage --preload …`; провайдер JS викликає його через `bun --cwd=app run test:coverage`. |
-| `.n-cursor.json#rules` | Уже містить `rust` (підтверджено `vitaliytv`). **Опційно додати `test`**, щоб `npx @nitra/cursor fix` валідував канон `scripts.coverage` через `test/policy/package_json/`. Без `test` у списку CLI-команда `n-cursor coverage` усе одно працює (provider-discovery агностичний). |
+| Файл/каталог                                  | Дія                                                                                                                                                                                                                                                                               |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/coverage.js`                         | Видалити.                                                                                                                                                                                                                                                                         |
+| `scripts/with-lock.js`                        | Видалити.                                                                                                                                                                                                                                                                         |
+| `scripts/__tests__/`                          | Видалити (тести, що покривають coverage.js / with-lock.js). Якщо там є unrelated-тести — мігрувати в `scripts/tests/` за конвенцією `test.mdc#location`.                                                                                                                          |
+| `package.json#scripts.test:scripts`           | Видалити (host для `__tests__/`).                                                                                                                                                                                                                                                 |
+| `package.json#scripts.coverage`               | `"bun scripts/with-lock.js bun scripts/coverage.js"` → `"n-cursor coverage"`.                                                                                                                                                                                                     |
+| `app/package.json#scripts.test:mutation`      | Видалити. Stryker тепер запускається тільки через `js-lint/coverage/coverage.mjs`.                                                                                                                                                                                                |
+| `app/package.json#scripts.test:rust:mutation` | Видалити. cargo-mutants тепер тільки через `rust/coverage/coverage.mjs`.                                                                                                                                                                                                          |
+| `app/package.json#scripts.test:coverage`      | **Лишається** — workspace-локальний `bun test --coverage --preload …`; провайдер JS викликає його через `bun --cwd=app run test:coverage`.                                                                                                                                        |
+| `.n-cursor.json#rules`                        | Уже містить `rust` (підтверджено `vitaliytv`). **Опційно додати `test`**, щоб `npx @nitra/cursor fix` валідував канон `scripts.coverage` через `test/policy/package_json/`. Без `test` у списку CLI-команда `n-cursor coverage` усе одно працює (provider-discovery агностичний). |
 
 **Verification у mlmail після перенесення:** `bun run coverage` → той самий `COVERAGE.md`, що генерувався локальним скриптом до перенесення (порівняти git diff на згенерованому файлі).
 
@@ -324,6 +329,7 @@ case 'coverage': {
 ### Unit-тести (співрозташовані з джерелом)
 
 `npm/rules/test/coverage/tests/coverage.test.mjs`:
+
 - `runCoverageSteps`: коли `.n-cursor.json#rules = ['js-lint']` і `js-lint` provider stub повертає 1 рядок → COVERAGE.md записаний з 2 рядками (`js` + total).
 - Коли `rules = ['js-lint', 'rust']` і обидва провайдери активні → 3 рядки (`js`, `rust`, total).
 - Коли `rules = ['js-lint']` але `detect` повертає `false` → 0 рядків зібрано, exit `1` з повідомленням про відсутніх провайдерів.
@@ -331,11 +337,13 @@ case 'coverage': {
 - `renderMarkdown`, `addCoverage`, `addMutation`, `formatCoverage`, `formatScore` — golden tests (перевірити, що формат `COVERAGE.md` ідентичний поточному mlmail).
 
 `npm/rules/js-lint/coverage/tests/coverage.test.mjs`:
+
 - `detect(cwd)`: повертає `true` у fixture-проєкті з `app/package.json#scripts.test:coverage`, `false` у проєкті без.
 - `collect(cwd)`: stub Bun.spawn → ідентичний lcov-парсинг як у mlmail; ідентичний Stryker JSON-парсинг.
 - Парс edge cases: пустий lcov, лише `LF:0`, лише `Survived` мутанти.
 
 `npm/rules/rust/coverage/tests/coverage.test.mjs`:
+
 - `detect(cwd)`: `true` у fixture з `Cargo.toml`, `false` без.
 - `collect(cwd)`: stub spawn → ідентичний JSON-парсинг cargo-llvm-cov і cargo-mutants outcomes.
 - Edge: cargo-mutants exit ≠ 0 але outcomes.json є → не помилка; outcomes.json відсутній → помилка з install-підказкою.
@@ -343,6 +351,7 @@ case 'coverage': {
 ### Rego-тести
 
 `npm/rules/test/policy/package_json/package_json_test.rego`:
+
 - golden pass (`scripts.coverage = "n-cursor coverage"`).
 - per-substring fail (`scripts.coverage = "echo nope"`).
 - drift-test: підміна `data.template.contains.package_json.scripts.coverage` → нова `deny` з новою substring.
@@ -350,6 +359,7 @@ case 'coverage': {
 ### Інтеграційний smoke
 
 `npm/tests/coverage-smoke.test.mjs` (опційно — у `npm/tests/` як package-level integration):
+
 - Мінімальний fixture-проєкт із `.n-cursor.json#rules = ['js-lint']`, фіктивні `bun test --coverage` через mock.
 - `runCoverageCli` повертає 0 і пише валідний `COVERAGE.md`.
 

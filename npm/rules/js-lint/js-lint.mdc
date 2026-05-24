@@ -2,7 +2,7 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.24'
+version: '1.25'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
@@ -200,3 +200,7 @@ for (const item of arr) {
 ## Тести
 
 Проєкт має бути покритий unit-тестами (**Bun test**). Код: синтаксис Node **24+**, **top level await** (узгоджено з `engines.node` у `package.json`).
+
+## Покриття + мутаційне тестування JS
+
+Покриття + мутаційне тестування JS постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/js-lint/coverage/coverage.mjs`: `bun test --coverage --coverage-reporter=lcov` + `bunx stryker run`. Stryker конфігурується в `stryker.config.mjs` у JS-корені (single-package або `workspaces[0]`).

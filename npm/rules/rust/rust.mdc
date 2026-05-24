@@ -2,7 +2,7 @@
 description: Перевірка Rust коду
 globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
 alwaysApply: false
-version: '1.0'
+version: '1.1'
 ---
 
 **rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. У скрипті **`lint-rust`** локально йдуть три кроки в одному рядку: `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`. У CI — без `--fix`: `cargo fmt --all -- --check` і `cargo clippy ... -- -D warnings` (див. `lint-rust.yml`).
@@ -25,3 +25,7 @@ Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому прав
 - `tauri` — `tauri-apps.tauri-vscode` (див. **tauri.mdc**).
 
 Обидва правила перевіряють `.vscode/extensions.json` за `contains`-семантикою; конкурентного запису немає.
+
+## Покриття + мутаційне тестування Rust
+
+Покриття + мутаційне тестування Rust постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/rust/coverage/coverage.mjs`: `cargo llvm-cov --json --summary-only` + `cargo mutants --in-place`. Бінарники: `cargo install cargo-llvm-cov && cargo install cargo-mutants`.

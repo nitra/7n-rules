@@ -36,11 +36,7 @@ import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import {
-  findBunyanImportsInText,
-  isBunyanScanSourceFile,
-  shouldSkipFileForBunyanScan
-} from '../lib/bunyan-imports.mjs'
+import { findBunyanImportsInText, isBunyanScanSourceFile, shouldSkipFileForBunyanScan } from '../lib/bunyan-imports.mjs'
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../lib/check-env-scan.mjs'
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
@@ -52,10 +48,7 @@ import {
   resolveConnDirFromPackageJson
 } from '../lib/conn-imports-scan.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
-import {
-  findPromiseSetTimeoutInText,
-  isPromiseSetTimeoutScanSourceFile
-} from '../lib/promise-settimeout-scan.mjs'
+import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from '../lib/promise-settimeout-scan.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 

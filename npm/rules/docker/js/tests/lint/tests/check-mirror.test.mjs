@@ -9,7 +9,7 @@ import {
   getRequiredMirrorGcrImage,
   normalizeHubRepoPath,
   isDockerHubStyleImageRef
-} from '../../../lib/docker-mirror.mjs'
+} from '../../../../lib/docker-mirror.mjs'
 
 describe('getFromImageToken', () => {
   test('токен після змінних FROM', () => {

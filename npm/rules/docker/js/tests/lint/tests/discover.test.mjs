@@ -5,9 +5,9 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { findDockerfilePaths, isDockerfileName } from '../../lint.mjs'
-import { findLintDockerfilePaths, isLintDockerfileName } from '../../../lint/lint.mjs'
-import { withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
+import { findDockerfilePaths, isDockerfileName } from '../../../lint.mjs'
+import { findLintDockerfilePaths, isLintDockerfileName } from '../../../../lint/lint.mjs'
+import { withTmpCwd } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('isDockerfileName', () => {
   test('канонічні імена', () => {

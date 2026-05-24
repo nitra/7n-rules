@@ -22,16 +22,16 @@
 
 ## Прийняті рішення
 
-| # | Рішення |
-|---|---|
-| R1 | Entry-point — `rules/<id>/fix.mjs`. |
-| R2 | Контракт `fix.mjs`: `export async function run(ctx?) → Promise<number>` + auto-run через `if (import.meta.main)`. |
-| R3 | Усе оркестрування інкапсульовано в новому `scripts/utils/run-standard-rule.mjs`. Локальна логіка в `fix.mjs` заборонена. |
-| R4 | Convention-drift керується через **enumerated options у `RuleContext`** (типізовано, документовано), не через локальні відхилення. |
-| R5 | CLI більше не робить convention-based discovery на верхньому рівні — лише перебір каталогів + dynamic import `<id>/fix.mjs`. |
-| R6 | Shared `walkCache` — **module-level singleton** у `scripts/utils/walk-cache.mjs` з API `getOrCreateWalkCache()` / `resetWalkCache()`. |
-| R7 | Міграція — **атомарна** в одній PR: скрипт-генератор створює 30 `fix.mjs` файлів + rename `fix/` → `js/` + patch CLI. Жодного перехідного fallback. |
-| R8 | Папку `rules/<id>/fix/` перейменовуємо на `rules/<id>/js/`, щоб не плутати з корневим `fix.mjs`. Convention стає consistent за технологією: `js/` (JavaScript concerns) ↔ `policy/` (Rego concerns) ↔ `lint/` (зовнішні linter integrations). |
+| #   | Рішення                                                                                                                                                                                                                                       |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Entry-point — `rules/<id>/fix.mjs`.                                                                                                                                                                                                           |
+| R2  | Контракт `fix.mjs`: `export async function run(ctx?) → Promise<number>` + auto-run через `if (import.meta.main)`.                                                                                                                             |
+| R3  | Усе оркестрування інкапсульовано в новому `scripts/utils/run-standard-rule.mjs`. Локальна логіка в `fix.mjs` заборонена.                                                                                                                      |
+| R4  | Convention-drift керується через **enumerated options у `RuleContext`** (типізовано, документовано), не через локальні відхилення.                                                                                                            |
+| R5  | CLI більше не робить convention-based discovery на верхньому рівні — лише перебір каталогів + dynamic import `<id>/fix.mjs`.                                                                                                                  |
+| R6  | Shared `walkCache` — **module-level singleton** у `scripts/utils/walk-cache.mjs` з API `getOrCreateWalkCache()` / `resetWalkCache()`.                                                                                                         |
+| R7  | Міграція — **атомарна** в одній PR: скрипт-генератор створює 30 `fix.mjs` файлів + rename `fix/` → `js/` + patch CLI. Жодного перехідного fallback.                                                                                           |
+| R8  | Папку `rules/<id>/fix/` перейменовуємо на `rules/<id>/js/`, щоб не плутати з корневим `fix.mjs`. Convention стає consistent за технологією: `js/` (JavaScript concerns) ↔ `policy/` (Rego concerns) ↔ `lint/` (зовнішні linter integrations). |
 
 ## Архітектура
 
@@ -184,12 +184,13 @@ export function resetWalkCache() {
 ```
 
 **Чому singleton:**
+
 - CLI — одиничний процес, одне дерево FS, один час життя кешу.
 - Зайвий зайвий шар прокидання (CLI → fix.mjs → runStandardRule → runRule) усувається.
 - Тести викликають `resetWalkCache()` у `beforeEach`.
 - Прямий `bun rules/abie/fix.mjs` автоматично отримує власний свіжий cache (новий процес — нова module-instance).
 
-## Розширення поведінки — *тільки* через `RuleContext`
+## Розширення поведінки — _тільки_ через `RuleContext`
 
 **Заборонено** додавати локальну логіку в `rules/<id>/fix.mjs` за межі двох рядків wrapper'а.
 
@@ -203,14 +204,14 @@ export function resetWalkCache() {
 
 ## Use-cases — як виконуються
 
-| Use-case | Команда |
-|---|---|
-| Debug одного правила | `bun npm/rules/abie/fix.mjs` |
-| IDE Run-button | Open `rules/abie/fix.mjs`, Run File |
-| CI per-rule (matrix) | `bun npm/rules/${{ matrix.rule }}/fix.mjs` |
-| Всі правила | `npx @nitra/cursor check` |
-| Конкретне через CLI | `npx @nitra/cursor check abie` (зворотна сумісність) |
-| Future portability | Файл `fix.mjs` — готовий entry-point; для відриву додати `package.json` і `bin`. |
+| Use-case             | Команда                                                                          |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Debug одного правила | `bun npm/rules/abie/fix.mjs`                                                     |
+| IDE Run-button       | Open `rules/abie/fix.mjs`, Run File                                              |
+| CI per-rule (matrix) | `bun npm/rules/${{ matrix.rule }}/fix.mjs`                                       |
+| Всі правила          | `npx @nitra/cursor check`                                                        |
+| Конкретне через CLI  | `npx @nitra/cursor check abie` (зворотна сумісність)                             |
+| Future portability   | Файл `fix.mjs` — готовий entry-point; для відриву додати `package.json` і `bin`. |
 
 ## Міграція — атомарна, в одній PR
 
@@ -249,13 +250,13 @@ export function resetWalkCache() {
 
 ## Тестування — що покривати
 
-| Файл | Що тестує |
-|---|---|
-| `tests/run-standard-rule.test.mjs` | `runStandardRule(ruleDir, ctx)` — викликає `discoverOneRule(ruleDir, id)` + `runRule(rule, bundleDir, cache, ctx)` з правильними аргументами. Mock'и обох. |
-| `tests/walk-cache.test.mjs` | `getOrCreateWalkCache()` повертає той самий instance; `resetWalkCache()` створює новий. |
-| `tests/list-rule-ids.test.mjs` | Фільтрація через `--rule`; сортування; пропуск каталогів без `fix.mjs`; пропуск `.skip`-prefix. |
-| `tests/cli-entry.test.mjs` | Integration: `n-cursor check abie` повертає 0 на чистому test-fixture; повертає 1 коли concern fails. |
-| `tests/fix-mjs-contract.test.mjs` (новий smoke) | Для кожного каталогу `rules/<id>/` існує `fix.mjs`; модуль експортує функцію `run`; `await run()` повертає `number`. |
+| Файл                                            | Що тестує                                                                                                                                                  |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/run-standard-rule.test.mjs`              | `runStandardRule(ruleDir, ctx)` — викликає `discoverOneRule(ruleDir, id)` + `runRule(rule, bundleDir, cache, ctx)` з правильними аргументами. Mock'и обох. |
+| `tests/walk-cache.test.mjs`                     | `getOrCreateWalkCache()` повертає той самий instance; `resetWalkCache()` створює новий.                                                                    |
+| `tests/list-rule-ids.test.mjs`                  | Фільтрація через `--rule`; сортування; пропуск каталогів без `fix.mjs`; пропуск `.skip`-prefix.                                                            |
+| `tests/cli-entry.test.mjs`                      | Integration: `n-cursor check abie` повертає 0 на чистому test-fixture; повертає 1 коли concern fails.                                                      |
+| `tests/fix-mjs-contract.test.mjs` (новий smoke) | Для кожного каталогу `rules/<id>/` існує `fix.mjs`; модуль експортує функцію `run`; `await run()` повертає `number`.                                       |
 
 Існуючі `tests/*.test.mjs` для concerns — логіка без змін; модифікуються лише `import`-шляхи `/fix/<concern>/` → `/js/<concern>/` (див. крок 5 міграції).
 
@@ -267,12 +268,12 @@ export function resetWalkCache() {
 
 ## Відкриті ризики
 
-| Ризик | Митigaція |
-|---|---|
-| Хтось додасть локальну логіку в `fix.mjs` (порушить convention) | ESLint-правило / lint-конвенція: `fix.mjs` мусить містити лише дозволений шаблон (2 imports, 1 export, 1 main-блок). Можна як smoke-тест: парсити AST і порівнювати з template. |
-| `import.meta.main` (Bun-specific) — не працює в Node.js | Sprint обмежений Bun-середовищем (`engines.bun >= 1.3` у root `package.json`). Для Node.js — `process.argv[1] === fileURLToPath(import.meta.url)` як fallback, але це YAGNI поки немає вимоги Node-сумісності. |
-| Прямий `bun rules/abie/fix.mjs` не отримує CLI-флагів (`--rule`, формат) | `import.meta.main` блок не парсить `process.argv` — для debug це ОК, для CI можна додати мінімальний argv-парсер пізніше якщо знадобиться. |
-| 30 однакових `fix.mjs` файлів — duplication смутку | Прийнято свідомо: це trivial wrapper з 8 рядків. Альтернатива (генерація на ходу через "magic" loader) — складніше. Можна додати ESLint-rule, що блокує модифікацію `fix.mjs` без спеціального коментаря — захист від "розумних" правок. |
+| Ризик                                                                    | Митigaція                                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Хтось додасть локальну логіку в `fix.mjs` (порушить convention)          | ESLint-правило / lint-конвенція: `fix.mjs` мусить містити лише дозволений шаблон (2 imports, 1 export, 1 main-блок). Можна як smoke-тест: парсити AST і порівнювати з template.                                                          |
+| `import.meta.main` (Bun-specific) — не працює в Node.js                  | Sprint обмежений Bun-середовищем (`engines.bun >= 1.3` у root `package.json`). Для Node.js — `process.argv[1] === fileURLToPath(import.meta.url)` як fallback, але це YAGNI поки немає вимоги Node-сумісності.                           |
+| Прямий `bun rules/abie/fix.mjs` не отримує CLI-флагів (`--rule`, формат) | `import.meta.main` блок не парсить `process.argv` — для debug це ОК, для CI можна додати мінімальний argv-парсер пізніше якщо знадобиться.                                                                                               |
+| 30 однакових `fix.mjs` файлів — duplication смутку                       | Прийнято свідомо: це trivial wrapper з 8 рядків. Альтернатива (генерація на ходу через "magic" loader) — складніше. Можна додати ESLint-rule, що блокує модифікацію `fix.mjs` без спеціального коментаря — захист від "розумних" правок. |
 
 ## Acceptance criteria
 

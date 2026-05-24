@@ -12,34 +12,35 @@
 
 ## Файли
 
-| Дія | Шлях |
-|-----|------|
-| CREATE | `npm/scripts/lib/run-standard-coverage.mjs` |
-| CREATE | `npm/scripts/lib/tests/run-standard-coverage.test.mjs` |
-| CREATE | `npm/rules/test/policy/package_json/target.json` |
-| CREATE | `npm/rules/test/policy/package_json/template/package.json.contains.json` |
-| CREATE | `npm/rules/test/policy/package_json/package_json.rego` |
-| CREATE | `npm/rules/test/policy/package_json/package_json_test.rego` |
-| CREATE | `npm/rules/test/coverage/coverage.mjs` |
-| CREATE | `npm/rules/test/coverage/tests/coverage.test.mjs` |
-| CREATE | `npm/rules/js-lint/coverage/coverage.mjs` |
-| CREATE | `npm/rules/js-lint/coverage/tests/coverage.test.mjs` |
-| CREATE | `npm/rules/rust/coverage/coverage.mjs` |
-| CREATE | `npm/rules/rust/coverage/tests/coverage.test.mjs` |
-| MODIFY | `npm/rules/test/test.mdc` |
-| MODIFY | `npm/rules/js-lint/js-lint.mdc` |
-| MODIFY | `npm/rules/rust/rust.mdc` |
-| MODIFY | `npm/bin/n-cursor.js` |
-| MODIFY | `npm/package.json` |
-| MODIFY | `npm/CHANGELOG.md` |
-| DELETE (separate PR in mlmail) | `scripts/coverage.js`, `scripts/with-lock.js`, `scripts/__tests__/` |
-| MODIFY (separate PR in mlmail) | `package.json`, `app/package.json` |
+| Дія                            | Шлях                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| CREATE                         | `npm/scripts/lib/run-standard-coverage.mjs`                              |
+| CREATE                         | `npm/scripts/lib/tests/run-standard-coverage.test.mjs`                   |
+| CREATE                         | `npm/rules/test/policy/package_json/target.json`                         |
+| CREATE                         | `npm/rules/test/policy/package_json/template/package.json.contains.json` |
+| CREATE                         | `npm/rules/test/policy/package_json/package_json.rego`                   |
+| CREATE                         | `npm/rules/test/policy/package_json/package_json_test.rego`              |
+| CREATE                         | `npm/rules/test/coverage/coverage.mjs`                                   |
+| CREATE                         | `npm/rules/test/coverage/tests/coverage.test.mjs`                        |
+| CREATE                         | `npm/rules/js-lint/coverage/coverage.mjs`                                |
+| CREATE                         | `npm/rules/js-lint/coverage/tests/coverage.test.mjs`                     |
+| CREATE                         | `npm/rules/rust/coverage/coverage.mjs`                                   |
+| CREATE                         | `npm/rules/rust/coverage/tests/coverage.test.mjs`                        |
+| MODIFY                         | `npm/rules/test/test.mdc`                                                |
+| MODIFY                         | `npm/rules/js-lint/js-lint.mdc`                                          |
+| MODIFY                         | `npm/rules/rust/rust.mdc`                                                |
+| MODIFY                         | `npm/bin/n-cursor.js`                                                    |
+| MODIFY                         | `npm/package.json`                                                       |
+| MODIFY                         | `npm/CHANGELOG.md`                                                       |
+| DELETE (separate PR in mlmail) | `scripts/coverage.js`, `scripts/with-lock.js`, `scripts/__tests__/`      |
+| MODIFY (separate PR in mlmail) | `package.json`, `app/package.json`                                       |
 
 ---
 
 ### Task 1: `runStandardCoverage` wrapper
 
 **Files:**
+
 - Create: `npm/scripts/lib/run-standard-coverage.mjs`
 - Create: `npm/scripts/lib/tests/run-standard-coverage.test.mjs`
 
@@ -61,7 +62,10 @@ describe('runStandardCoverage', () => {
     try {
       let called = 0
       const code = await runStandardCoverage(
-        () => { called++; return 0 },
+        () => {
+          called++
+          return 0
+        },
         { cacheDir, getFingerprint: () => null }
       )
       expect(code).toBe(0)
@@ -76,8 +80,14 @@ describe('runStandardCoverage', () => {
     try {
       let called = 0
       const opts = { cacheDir, ttl: 60_000, getFingerprint: () => 'a'.repeat(64) }
-      await runStandardCoverage(() => { called++; return 0 }, opts)
-      await runStandardCoverage(() => { called++; return 0 }, opts)
+      await runStandardCoverage(() => {
+        called++
+        return 0
+      }, opts)
+      await runStandardCoverage(() => {
+        called++
+        return 0
+      }, opts)
       expect(called).toBe(1)
     } finally {
       rmSync(cacheDir, { recursive: true, force: true })
@@ -127,6 +137,7 @@ Expected: PASS (2 tests)
 ### Task 2: Rego policy для `scripts.coverage`
 
 **Files:**
+
 - Create: `npm/rules/test/policy/package_json/target.json`
 - Create: `npm/rules/test/policy/package_json/template/package.json.contains.json`
 - Create: `npm/rules/test/policy/package_json/package_json.rego`
@@ -238,6 +249,7 @@ PASS - 4 tests passed, 0 tests failed
 ### Task 3: Оркестратор `test/coverage/coverage.mjs`
 
 **Files:**
+
 - Create: `npm/rules/test/coverage/coverage.mjs`
 - Create: `npm/rules/test/coverage/tests/coverage.test.mjs`
 
@@ -252,14 +264,7 @@ import { readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import {
-  addCoverage,
-  addMutation,
-  buildTotalsRow,
-  formatCoverage,
-  formatScore,
-  renderMarkdown
-} from '../coverage.mjs'
+import { addCoverage, addMutation, buildTotalsRow, formatCoverage, formatScore, renderMarkdown } from '../coverage.mjs'
 
 // ── pure functions ──────────────────────────────────────────────────────────
 
@@ -303,8 +308,16 @@ describe('formatScore', () => {
 describe('buildTotalsRow', () => {
   it('агрегує кілька рядків у "Разом"', () => {
     const rows = [
-      { area: 'JS', coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } }, mutation: { caught: 3, total: 5 } },
-      { area: 'Rust', coverage: { lines: { covered: 30, total: 40 }, functions: { covered: 15, total: 20 } }, mutation: { caught: 7, total: 10 } }
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 5 }
+      },
+      {
+        area: 'Rust',
+        coverage: { lines: { covered: 30, total: 40 }, functions: { covered: 15, total: 20 } },
+        mutation: { caught: 7, total: 10 }
+      }
     ]
     const total = buildTotalsRow(rows)
     expect(total.area).toBe('**Разом**')
@@ -316,7 +329,11 @@ describe('buildTotalsRow', () => {
 describe('renderMarkdown', () => {
   it('повертає markdown-таблицю з заголовком Coverage', () => {
     const rows = [
-      { area: 'JS', coverage: { lines: { covered: 80, total: 100 }, functions: { covered: 40, total: 50 } }, mutation: { caught: 8, total: 10 } }
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 80, total: 100 }, functions: { covered: 40, total: 50 } },
+        mutation: { caught: 8, total: 10 }
+      }
     ]
     const md = renderMarkdown(rows)
     expect(md).toContain('# Coverage')
@@ -457,6 +474,7 @@ Expected: PASS (6 tests)
 ### Task 4: JS-провайдер `js-lint/coverage/coverage.mjs`
 
 **Files:**
+
 - Create: `npm/rules/js-lint/coverage/coverage.mjs`
 - Create: `npm/rules/js-lint/coverage/tests/coverage.test.mjs`
 
@@ -497,10 +515,16 @@ describe('parseLcov', () => {
   it('агрегує кілька SF-записів', () => {
     const lcov = [
       'SF:a.js',
-      'LF:10', 'LH:8', 'FNF:5', 'FNH:4',
+      'LF:10',
+      'LH:8',
+      'FNF:5',
+      'FNH:4',
       'end_of_record',
       'SF:b.js',
-      'LF:20', 'LH:15', 'FNF:10', 'FNH:8',
+      'LF:20',
+      'LH:15',
+      'FNF:10',
+      'FNH:8',
       'end_of_record'
     ].join('\n')
     const result = parseLcov(lcov)
@@ -520,24 +544,37 @@ describe('parseLcov', () => {
 describe('detect', () => {
   let tmpRoot
 
-  beforeEach(() => { tmpRoot = mkdtempSync(join(tmpdir(), 'jscov-detect-')) })
-  afterEach(() => { rmSync(tmpRoot, { recursive: true, force: true }) })
+  beforeEach(() => {
+    tmpRoot = mkdtempSync(join(tmpdir(), 'jscov-detect-'))
+  })
+  afterEach(() => {
+    rmSync(tmpRoot, { recursive: true, force: true })
+  })
 
   it('true коли workspace[0]/package.json має scripts.test:coverage', async () => {
-    writeFileSync(join(tmpRoot, 'package.json'), JSON.stringify({
-      workspaces: ['app']
-    }))
+    writeFileSync(
+      join(tmpRoot, 'package.json'),
+      JSON.stringify({
+        workspaces: ['app']
+      })
+    )
     mkdirSync(join(tmpRoot, 'app'))
-    writeFileSync(join(tmpRoot, 'app', 'package.json'), JSON.stringify({
-      scripts: { 'test:coverage': 'bun test --coverage' }
-    }))
+    writeFileSync(
+      join(tmpRoot, 'app', 'package.json'),
+      JSON.stringify({
+        scripts: { 'test:coverage': 'bun test --coverage' }
+      })
+    )
     expect(await detect(tmpRoot)).toBe(true)
   })
 
   it('true коли cwd/package.json має scripts.test:coverage (single-package)', async () => {
-    writeFileSync(join(tmpRoot, 'package.json'), JSON.stringify({
-      scripts: { 'test:coverage': 'bun test --coverage' }
-    }))
+    writeFileSync(
+      join(tmpRoot, 'package.json'),
+      JSON.stringify({
+        scripts: { 'test:coverage': 'bun test --coverage' }
+      })
+    )
     expect(await detect(tmpRoot)).toBe(true)
   })
 
@@ -546,9 +583,12 @@ describe('detect', () => {
   })
 
   it('false коли scripts.test:coverage відсутній', async () => {
-    writeFileSync(join(tmpRoot, 'package.json'), JSON.stringify({
-      scripts: { 'test': 'bun test' }
-    }))
+    writeFileSync(
+      join(tmpRoot, 'package.json'),
+      JSON.stringify({
+        scripts: { test: 'bun test' }
+      })
+    )
     expect(await detect(tmpRoot)).toBe(false)
   })
 })
@@ -621,10 +661,11 @@ export async function detect(cwd) {
 async function collectJsCoverage(jsRoot) {
   const dir = await mkdtemp(join(tmpdir(), 'ncursor-jscov-'))
   try {
-    const proc = Bun.spawn(
-      ['bun', 'run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${dir}`],
-      { cwd: jsRoot, stdout: 'inherit', stderr: 'inherit' }
-    )
+    const proc = Bun.spawn(['bun', 'run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${dir}`], {
+      cwd: jsRoot,
+      stdout: 'inherit',
+      stderr: 'inherit'
+    })
     const code = await proc.exited
     if (code !== 0) throw new Error(`JS coverage run failed (exit ${code})`)
     return parseLcov(await readFile(join(dir, 'lcov.info'), 'utf8'))
@@ -685,6 +726,7 @@ Expected: PASS (6 tests: 3 parseLcov + 4 detect)
 ### Task 5: Rust-провайдер `rust/coverage/coverage.mjs`
 
 **Files:**
+
 - Create: `npm/rules/rust/coverage/coverage.mjs`
 - Create: `npm/rules/rust/coverage/tests/coverage.test.mjs`
 
@@ -705,12 +747,14 @@ import { detect, parseLlvmCovJson, parseMutantsOutcomes } from '../coverage.mjs'
 describe('parseLlvmCovJson', () => {
   it('витягує lines і functions з cargo-llvm-cov JSON', () => {
     const json = {
-      data: [{
-        totals: {
-          lines: { covered: 80, count: 100 },
-          functions: { covered: 40, count: 50 }
+      data: [
+        {
+          totals: {
+            lines: { covered: 80, count: 100 },
+            functions: { covered: 40, count: 50 }
+          }
         }
-      }]
+      ]
     }
     const result = parseLlvmCovJson(json)
     expect(result.lines).toEqual({ covered: 80, total: 100 })
@@ -738,8 +782,12 @@ describe('parseMutantsOutcomes', () => {
 describe('detect', () => {
   let tmpRoot
 
-  beforeEach(() => { tmpRoot = mkdtempSync(join(tmpdir(), 'rustcov-detect-')) })
-  afterEach(() => { rmSync(tmpRoot, { recursive: true, force: true }) })
+  beforeEach(() => {
+    tmpRoot = mkdtempSync(join(tmpdir(), 'rustcov-detect-'))
+  })
+  afterEach(() => {
+    rmSync(tmpRoot, { recursive: true, force: true })
+  })
 
   it('true коли Cargo.toml у cwd', async () => {
     writeFileSync(join(tmpRoot, 'Cargo.toml'), '[package]\nname="x"\n')
@@ -805,7 +853,9 @@ function findFirstCargoToml(dir) {
   let entries
   try {
     entries = readdirSync(dir, { withFileTypes: true })
-  } catch { return null }
+  } catch {
+    return null
+  }
   for (const entry of entries) {
     if (IGNORED_DIR_NAMES.has(entry.name)) continue
     if (entry.isFile() && entry.name === 'Cargo.toml') return join(dir, 'Cargo.toml')
@@ -832,10 +882,10 @@ export async function detect(cwd) {
 }
 
 async function collectRustCoverage(cargoToml) {
-  const proc = Bun.spawn(
-    ['cargo', 'llvm-cov', '--manifest-path', cargoToml, '--json', '--summary-only'],
-    { stdout: 'pipe', stderr: 'inherit' }
-  )
+  const proc = Bun.spawn(['cargo', 'llvm-cov', '--manifest-path', cargoToml, '--json', '--summary-only'], {
+    stdout: 'pipe',
+    stderr: 'inherit'
+  })
   const stdout = await new Response(proc.stdout).text()
   const code = await proc.exited
   if (code !== 0) {
@@ -847,10 +897,10 @@ async function collectRustCoverage(cargoToml) {
 async function collectRustMutation(cargoToml) {
   const outDir = await mkdtemp(join(tmpdir(), 'cargo-mutants-'))
   try {
-    const proc = Bun.spawn(
-      ['cargo', 'mutants', '--in-place', '-o', outDir, '--manifest-path', cargoToml],
-      { stdout: 'inherit', stderr: 'inherit' }
-    )
+    const proc = Bun.spawn(['cargo', 'mutants', '--in-place', '-o', outDir, '--manifest-path', cargoToml], {
+      stdout: 'inherit',
+      stderr: 'inherit'
+    })
     await proc.exited
 
     const outcomesPath = join(outDir, 'mutants.out', 'outcomes.json')
@@ -890,6 +940,7 @@ Expected: PASS (5 tests)
 ### Task 6: Оновити `.mdc` файли
 
 **Files:**
+
 - Modify: `npm/rules/test/test.mdc`
 - Modify: `npm/rules/js-lint/js-lint.mdc`
 - Modify: `npm/rules/rust/rust.mdc`
@@ -943,6 +994,7 @@ Expected: файл існує (лінк у `test.mdc` веде на правил
 ### Task 7: CLI інтеграція
 
 **Files:**
+
 - Modify: `npm/bin/n-cursor.js`
 
 - [ ] **Step 1: Додати `case 'coverage'` у `n-cursor.js`**
@@ -962,11 +1014,13 @@ case 'coverage': {
 - [ ] **Step 2: Оновити рядок help в `default` case**
 
 Знайди рядок (близько рядка 1300):
+
 ```
 `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, skill`
 ```
 
 Додай `coverage,` у список:
+
 ```
 `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, coverage, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, skill`
 ```
@@ -984,6 +1038,7 @@ Expected: рядок `Очікується:` містить `coverage`
 ### Task 8: Фінальні перевірки і version bump
 
 **Files:**
+
 - Modify: `npm/package.json`
 - Modify: `npm/CHANGELOG.md`
 
@@ -1040,6 +1095,7 @@ Expected: PASS (нова секція `[1.17.0]` відповідає format-в�
 ### Task 9: mlmail cleanup (окрема PR — виконувати після публікації `@nitra/cursor@1.17.0`)
 
 **Files:**
+
 - Delete: `scripts/coverage.js`
 - Delete: `scripts/with-lock.js`
 - Delete: `scripts/__tests__/` (якщо там немає unrelated тестів — перевір перед видаленням)

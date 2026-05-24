@@ -134,9 +134,9 @@ npm/rules/<id>/
 
 | Що реалізує               | Канал виклику                                  | Куди                |
 | ------------------------- | ---------------------------------------------- | ------------------- |
-| JS-діагностика + автофікс | `npx @nitra/cursor fix` (fix-канал)          | `js/<concern>/`    |
+| JS-діагностика + автофікс | `npx @nitra/cursor fix` (fix-канал)            | `js/<concern>/`     |
 | JS-orchestrator лінту     | `bun run lint-<id>` через `n-cursor lint-<id>` | `lint/`             |
-| Rego-діагностика          | `npx @nitra/cursor fix` (fix-канал)          | `policy/<concern>/` |
+| Rego-діагностика          | `npx @nitra/cursor fix` (fix-канал)            | `policy/<concern>/` |
 
 `js/` і `policy/` обидва живлять fix-канал (`npx @nitra/cursor fix` запускає і JS-checks, і rego-policies), але **розділені за технологією**: JS у `js/`, rego у `policy/`. `lint/` тримає лише JS, що оркеструє `bun run lint-<id>`.
 

@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { findConnFileRuleViolations, isConnFileNameValid, kebabToCamel } from '../../../lib/conn-file-rules.mjs'
+import { findConnFileRuleViolations, isConnFileNameValid, kebabToCamel } from '../../../../lib/conn-file-rules.mjs'
 
 describe('isConnFileNameValid: префікс mssql-', () => {
   test('mssql-read / mssql-write приймаються', () => {

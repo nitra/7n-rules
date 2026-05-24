@@ -14,10 +14,10 @@ import {
   migrateDefaultTplConfFiles,
   nginxTemplateViolations,
   parseIniVariableNames
-} from '../../template.mjs'
-import { ensureDir, withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
+} from '../../../template.mjs'
+import { ensureDir, withTmpCwd } from '../../../../../../scripts/utils/test-helpers.mjs'
 
-const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')
+const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), '../fixtures')
 
 describe('parseIniVariableNames / iniKeysMissingInTemplate', () => {
   test('парсить ключі та вимагає $KEY у шаблоні', () => {

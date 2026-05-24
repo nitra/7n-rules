@@ -13,7 +13,10 @@ describe('runStandardLint', () => {
       let called = 0
       const code = await runStandardLint(
         fakeLintDir,
-        () => { called++; return 0 },
+        () => {
+          called++
+          return 0
+        },
         { cacheDir, getFingerprint: () => null }
       )
       expect(code).toBe(0)
@@ -29,8 +32,22 @@ describe('runStandardLint', () => {
       const fakeLintDir = '/repo/rules/bar/lint'
       let called = 0
       const opts = { cacheDir, ttl: 60_000, getFingerprint: () => 'a'.repeat(64) }
-      await runStandardLint(fakeLintDir, () => { called++; return 0 }, opts)
-      await runStandardLint(fakeLintDir, () => { called++; return 0 }, opts)
+      await runStandardLint(
+        fakeLintDir,
+        () => {
+          called++
+          return 0
+        },
+        opts
+      )
+      await runStandardLint(
+        fakeLintDir,
+        () => {
+          called++
+          return 0
+        },
+        opts
+      )
       expect(called).toBe(1)
     } finally {
       rmSync(cacheDir, { recursive: true, force: true })

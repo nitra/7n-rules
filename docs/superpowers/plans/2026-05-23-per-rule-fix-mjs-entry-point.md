@@ -16,33 +16,34 @@
 
 ## File Structure
 
-| File | Action | Responsibility |
-|---|---|---|
-| `npm/scripts/utils/walk-cache.mjs` | **Create** | Lazy-init Map singleton + reset (~15 LOC). |
-| `npm/scripts/utils/list-rule-ids.mjs` | **Create** | Перебір `rules/<id>/` з фільтром `fix.mjs` (~20 LOC). |
-| `npm/scripts/utils/run-standard-rule.mjs` | **Create** | Public API per-rule оркестрації; обгортка `discoverOneRule + runRule` (~25 LOC). |
-| `npm/scripts/utils/discover-checkable-rules.mjs` | **Modify** | Виокремити `discoverOneRule(ruleDir, ruleId)`; rename константи `fix` → `js` у listJsConcerns. |
-| `npm/scripts/utils/run-rule.mjs` | **Modify** | Шляхи `'fix'` → `'js'` у `resolveJsCheckPath`; JSDoc оновити. |
-| `npm/scripts/cli-entry.mjs` | **Modify** | `discoverCheckableRules + foreach runRule` → `listRuleIds + dynamic import fix.mjs`. |
-| `npm/rules/<id>/fix.mjs` × 30 | **Create** | 8-рядковий wrapper над `runStandardRule`. |
-| `npm/rules/<id>/fix/` × 30 | **Rename → `js/`** | Через `git mv`, історія зберігається. |
-| `npm/rules/<id>/policy/<concern>/*.rego` | **Modify** | Коментарі з `fix/<concern>` → `js/<concern>`. |
-| `npm/rules/*/*.mdc` | **Modify** | Згадки `fix/<concern>` → `js/<concern>`. |
-| `.cursor/rules/conftest.mdc` | **Modify** | Згадки `fix/<concern>` → `js/<concern>`. |
-| `npm/tests/walk-cache.test.mjs` | **Create** | Контракт singleton + reset. |
-| `npm/tests/list-rule-ids.test.mjs` | **Create** | Алфавіт, фільтр, hidden, missing fix.mjs. |
-| `npm/tests/run-standard-rule.test.mjs` | **Create** | Прокидання ctx, повернення exit-коду. |
-| `npm/tests/discover-one-rule.test.mjs` | **Create** | Контракт `discoverOneRule(ruleDir, ruleId)`. |
-| `npm/tests/fix-mjs-contract.test.mjs` | **Create** | Smoke: всі 30 правил мають `fix.mjs` + `js/`. |
-| `npm/tests/*.test.mjs` | **Modify** | Import-шляхи `rules/<id>/fix/<concern>/` → `rules/<id>/js/<concern>/`. |
-| `npm/CHANGELOG.md` | **Modify** | Опис breaking + entry-point. |
-| `npm/package.json` | **Modify** | `version` patch-bump. |
+| File                                             | Action             | Responsibility                                                                                 |
+| ------------------------------------------------ | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `npm/scripts/utils/walk-cache.mjs`               | **Create**         | Lazy-init Map singleton + reset (~15 LOC).                                                     |
+| `npm/scripts/utils/list-rule-ids.mjs`            | **Create**         | Перебір `rules/<id>/` з фільтром `fix.mjs` (~20 LOC).                                          |
+| `npm/scripts/utils/run-standard-rule.mjs`        | **Create**         | Public API per-rule оркестрації; обгортка `discoverOneRule + runRule` (~25 LOC).               |
+| `npm/scripts/utils/discover-checkable-rules.mjs` | **Modify**         | Виокремити `discoverOneRule(ruleDir, ruleId)`; rename константи `fix` → `js` у listJsConcerns. |
+| `npm/scripts/utils/run-rule.mjs`                 | **Modify**         | Шляхи `'fix'` → `'js'` у `resolveJsCheckPath`; JSDoc оновити.                                  |
+| `npm/scripts/cli-entry.mjs`                      | **Modify**         | `discoverCheckableRules + foreach runRule` → `listRuleIds + dynamic import fix.mjs`.           |
+| `npm/rules/<id>/fix.mjs` × 30                    | **Create**         | 8-рядковий wrapper над `runStandardRule`.                                                      |
+| `npm/rules/<id>/fix/` × 30                       | **Rename → `js/`** | Через `git mv`, історія зберігається.                                                          |
+| `npm/rules/<id>/policy/<concern>/*.rego`         | **Modify**         | Коментарі з `fix/<concern>` → `js/<concern>`.                                                  |
+| `npm/rules/*/*.mdc`                              | **Modify**         | Згадки `fix/<concern>` → `js/<concern>`.                                                       |
+| `.cursor/rules/conftest.mdc`                     | **Modify**         | Згадки `fix/<concern>` → `js/<concern>`.                                                       |
+| `npm/tests/walk-cache.test.mjs`                  | **Create**         | Контракт singleton + reset.                                                                    |
+| `npm/tests/list-rule-ids.test.mjs`               | **Create**         | Алфавіт, фільтр, hidden, missing fix.mjs.                                                      |
+| `npm/tests/run-standard-rule.test.mjs`           | **Create**         | Прокидання ctx, повернення exit-коду.                                                          |
+| `npm/tests/discover-one-rule.test.mjs`           | **Create**         | Контракт `discoverOneRule(ruleDir, ruleId)`.                                                   |
+| `npm/tests/fix-mjs-contract.test.mjs`            | **Create**         | Smoke: всі 30 правил мають `fix.mjs` + `js/`.                                                  |
+| `npm/tests/*.test.mjs`                           | **Modify**         | Import-шляхи `rules/<id>/fix/<concern>/` → `rules/<id>/js/<concern>/`.                         |
+| `npm/CHANGELOG.md`                               | **Modify**         | Опис breaking + entry-point.                                                                   |
+| `npm/package.json`                               | **Modify**         | `version` patch-bump.                                                                          |
 
 ---
 
 ## Task 1: `walk-cache.mjs` — module-singleton
 
 **Files:**
+
 - Create: `npm/scripts/utils/walk-cache.mjs`
 - Test: `npm/tests/walk-cache.test.mjs`
 
@@ -145,6 +146,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 2: `list-rule-ids.mjs` — discover rules by `fix.mjs`
 
 **Files:**
+
 - Create: `npm/scripts/utils/list-rule-ids.mjs`
 - Test: `npm/tests/list-rule-ids.test.mjs`
 
@@ -271,6 +273,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 Поточна `discoverCheckableRules(bundledRulesDir)` сканує всі правила. Витягнути логіку "побудувати `CheckableRule` для одного каталогу" в окрему публічну функцію `discoverOneRule(ruleDir, ruleId)`.
 
 **Files:**
+
 - Modify: `npm/scripts/utils/discover-checkable-rules.mjs`
 - Test: `npm/tests/discover-one-rule.test.mjs`
 
@@ -419,6 +422,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 4: `run-standard-rule.mjs` — public orchestration API
 
 **Files:**
+
 - Create: `npm/scripts/utils/run-standard-rule.mjs`
 - Test: `npm/tests/run-standard-rule.test.mjs`
 
@@ -546,6 +550,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 > ⚠️ Цей крок robить великий діф (~300 файлів). Виконуй у чистому стані (`git status` без unstaged змін у `rules/`).
 
 **Files:**
+
 - Rename: `npm/rules/*/fix/` → `npm/rules/*/js/`
 
 - [ ] **Step 5.1: Перелічити правила**
@@ -608,6 +613,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 6: Patch `discover-checkable-rules.mjs` + `run-rule.mjs` — `'fix'` → `'js'`
 
 **Files:**
+
 - Modify: `npm/scripts/utils/discover-checkable-rules.mjs`
 - Modify: `npm/scripts/utils/run-rule.mjs`
 - Modify: `npm/tests/discover-one-rule.test.mjs` (fixture'и теж міняються на `js/`)
@@ -716,6 +722,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 7: Оновити references у `.rego`, `.mdc`, `.cursor/rules/conftest.mdc`
 
 **Files:**
+
 - Modify: `npm/rules/*/policy/*/check-*.rego`, `*.rego` — коментарі
 - Modify: `npm/rules/*/*.mdc` — згадки `fix/<concern>`
 - Modify: `.cursor/rules/conftest.mdc`
@@ -779,6 +786,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 8: Згенерувати 30 `fix.mjs` через скрипт
 
 **Files:**
+
 - Create (temporary): `npm/scripts/generate-fix-mjs.mjs`
 - Create: `npm/rules/<id>/fix.mjs` × 30
 
@@ -892,6 +900,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 9: Smoke-тест "all rules have fix.mjs + js/"
 
 **Files:**
+
 - Create: `npm/tests/fix-mjs-contract.test.mjs`
 
 - [ ] **Step 9.1: Write the test**
@@ -966,6 +975,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 10: Patch CLI — `cli-entry.mjs` використовує `listRuleIds` + dynamic import
 
 **Files:**
+
 - Modify: `npm/scripts/cli-entry.mjs`
 
 - [ ] **Step 10.1: Прочитати поточну реалізацію check-команди**
@@ -1045,6 +1055,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 11: Оновити import-шляхи в існуючих `tests/*.test.mjs`
 
 **Files:**
+
 - Modify: `npm/tests/integration-repo-checks.test.mjs`
 - Modify: `npm/tests/check-empty-trees.test.mjs`
 - Modify: `npm/tests/check-rule-fixtures.test.mjs`
@@ -1107,6 +1118,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 12: CHANGELOG + version bump + фінальна верифікація
 
 **Files:**
+
 - Modify: `npm/CHANGELOG.md`
 - Modify: `npm/package.json`
 
@@ -1145,7 +1157,6 @@ Edit `npm/CHANGELOG.md` — після `# Changelog ...` header додати:
 
 - Зворотна сумісність CLI: `npx @nitra/cursor check` та `npx @nitra/cursor check abie` працюють як раніше.
 - Use-cases: `bun npm/rules/abie/fix.mjs` (debug); `bun npm/rules/${{ matrix.rule }}/fix.mjs` (CI per-rule jobs); IDE Run-button на `fix.mjs`.
-
 ```
 
 (Дату підкорегувати, якщо коміт іде не 2026-05-23. Версію — на реальний наступний patch.)
@@ -1233,6 +1244,7 @@ git reset --hard <hash-before-task-1>
 ```
 
 Кожна Task закомічена окремо → можна відкочуватися інкрементально:
+
 - Task 5 (rename) ламає світ → решта tasks теж зламана. Відкат після Task 5 простий: `git revert <rename-commit>`.
 - Якщо тільки Task 10 (CLI) зламав — `git revert` лише цей коміт; rules + utils лишаються в новому стані.
 

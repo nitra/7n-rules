@@ -54,26 +54,27 @@ npm/rules/<rule>/
 
 **Stats з поточного дерева (станом на момент написання плану):**
 
-| Сутність | Кількість | Дія |
-|---|---|---|
-| `js/<concern>/check.mjs` файлів | 34 | rename → `js/<concern>.mjs` |
-| Helper-модулів (поряд з check.mjs у concern) | ~12 | move → `<rule>/utils/<helper>.mjs` (peer до `js/`, плоско) |
-| `js/<concern>/tests/` каталогів | 21 | move → `js/tests/<concern>.test.mjs` або `js/tests/<concern>/` |
-| `js/<concern>/template/` каталогів | 3 | move → `js/templates/<concern>/` |
-| Data-файлів (.json/.tsv у `js-lint/tooling/`) | 4 | move → `js/data/<concern>/` |
-| `abie/utils/` existing | (no-op) | вже в правильному місці; convention reference |
-| `npm/scripts/utils/*.mjs` для оновлення | 2 | `discover-checkable-rules.mjs`, `run-rule.mjs` |
-| `npm/scripts/utils/tests/*.mjs` для оновлення | 3 | `discover-one-rule.test.mjs`, `discover-checkable-rules.test.mjs`, `run-rule.test.mjs` |
-| Integration-тести в `npm/tests/` для оновлення imports | 3 | `integration-repo-checks.test.mjs`, `check-empty-trees.test.mjs`, `check-rule-fixtures.test.mjs` |
-| `.cursor/rules/*.mdc` для оновлення тексту | 2 ключові (`scripts.mdc`, `conftest.mdc`) + ~10 правил | sweep |
-| `.rego` коментарі що згадують `js/<concern>/` | ~5–10 файлів | sweep |
-| CHANGELOG + package.json | 2 | minor bump + BREAKING note |
+| Сутність                                               | Кількість                                              | Дія                                                                                              |
+| ------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `js/<concern>/check.mjs` файлів                        | 34                                                     | rename → `js/<concern>.mjs`                                                                      |
+| Helper-модулів (поряд з check.mjs у concern)           | ~12                                                    | move → `<rule>/utils/<helper>.mjs` (peer до `js/`, плоско)                                       |
+| `js/<concern>/tests/` каталогів                        | 21                                                     | move → `js/tests/<concern>.test.mjs` або `js/tests/<concern>/`                                   |
+| `js/<concern>/template/` каталогів                     | 3                                                      | move → `js/templates/<concern>/`                                                                 |
+| Data-файлів (.json/.tsv у `js-lint/tooling/`)          | 4                                                      | move → `js/data/<concern>/`                                                                      |
+| `abie/utils/` existing                                 | (no-op)                                                | вже в правильному місці; convention reference                                                    |
+| `npm/scripts/utils/*.mjs` для оновлення                | 2                                                      | `discover-checkable-rules.mjs`, `run-rule.mjs`                                                   |
+| `npm/scripts/utils/tests/*.mjs` для оновлення          | 3                                                      | `discover-one-rule.test.mjs`, `discover-checkable-rules.test.mjs`, `run-rule.test.mjs`           |
+| Integration-тести в `npm/tests/` для оновлення imports | 3                                                      | `integration-repo-checks.test.mjs`, `check-empty-trees.test.mjs`, `check-rule-fixtures.test.mjs` |
+| `.cursor/rules/*.mdc` для оновлення тексту             | 2 ключові (`scripts.mdc`, `conftest.mdc`) + ~10 правил | sweep                                                                                            |
+| `.rego` коментарі що згадують `js/<concern>/`          | ~5–10 файлів                                           | sweep                                                                                            |
+| CHANGELOG + package.json                               | 2                                                      | minor bump + BREAKING note                                                                       |
 
 ---
 
 ## Task 1: TDD — `listJsConcerns` повертає flat-concerns
 
 **Files:**
+
 - Modify: `npm/scripts/utils/discover-checkable-rules.mjs`
 - Modify: `npm/scripts/utils/tests/discover-checkable-rules.test.mjs`
 - Modify: `npm/tests/discover-one-rule.test.mjs`
@@ -204,6 +205,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 2: TDD — `runRule`/`resolveJsCheckPath` під flat-layout
 
 **Files:**
+
 - Modify: `npm/scripts/utils/run-rule.mjs`
 - Modify: `npm/scripts/utils/tests/run-rule.test.mjs`
 
@@ -338,6 +340,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 Згенерувати скрипт, що для кожного правила переносить структуру. Скрипт використовується ОДИН раз, після виконання — видаляється.
 
 **Files:**
+
 - Create: `npm/scripts/migrate-flat-concerns.mjs`
 
 - [ ] **Step 3.1: Створити скрипт**
@@ -373,8 +376,9 @@ async function migrateOneRule(ruleDir, ruleId) {
   const jsDir = join(ruleDir, 'js')
   if (!existsSync(jsDir)) return
 
-  const concerns = (await readdir(jsDir, { withFileTypes: true }))
-    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
+  const concerns = (await readdir(jsDir, { withFileTypes: true })).filter(
+    e => e.isDirectory() && !e.name.startsWith('.')
+  )
 
   for (const concernEntry of concerns) {
     const concern = concernEntry.name
@@ -422,9 +426,7 @@ async function migrateOneRule(ruleDir, ruleId) {
       const testsSrc = join(concernDir, 'tests')
       const testsContents = await readdir(testsSrc, { withFileTypes: true })
       const onlyOneTestFile =
-        testsContents.length === 1 &&
-        testsContents[0].isFile() &&
-        testsContents[0].name === 'check.test.mjs'
+        testsContents.length === 1 && testsContents[0].isFile() && testsContents[0].name === 'check.test.mjs'
       await mkdir(join(jsDir, 'tests'), { recursive: true })
       if (onlyOneTestFile) {
         gitMv(join(testsSrc, 'check.test.mjs'), join(jsDir, 'tests', `${concern}.test.mjs`))
@@ -526,6 +528,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 4: Fix imports у integration tests
 
 **Files:**
+
 - Modify: `npm/tests/integration-repo-checks.test.mjs`
 - Modify: `npm/tests/check-empty-trees.test.mjs`
 - Modify: `npm/tests/check-rule-fixtures.test.mjs`
@@ -566,10 +569,12 @@ grep -rn "from '\.\./\.\./check\.mjs'" npm/rules/*/js/tests/ 2>/dev/null
 ```
 
 Для одиничних test файлів типу `<rule>/js/tests/<concern>.test.mjs`:
+
 - Старе (було в `js/<concern>/tests/`): `from '../check.mjs'`
 - Нове (живе в `<rule>/js/tests/`): `from '../<concern>.mjs'`
 
 Аналогічно для нинішніх `<rule>/js/tests/<concern>/*.test.mjs` (multi-test concerns):
+
 - Старе (було в `js/<concern>/tests/`): `from '../check.mjs'`, `from '../<helper>.mjs'`
 - Нове (живе в `<rule>/js/tests/<concern>/`): `from '../../<concern>.mjs'`, `from '../../../utils/<helper>.mjs'` (три рівні вгору від `js/tests/<concern>/` → корінь правила → `utils/`)
 
@@ -623,6 +628,7 @@ grep -rn "from '\\./[a-z0-9_-]\\+\\.mjs'" npm/rules/*/js/*.mjs 2>/dev/null | gre
 ```
 
 Для кожного знайденого:
+
 - Якщо це import helper'а, що переїхав у `utils/` — замінити `from './<helper>.mjs'` → `from '../utils/<helper>.mjs'`.
 - Якщо це import іншого concern'а — лишити (бо вони обидва в `js/`).
 
@@ -722,6 +728,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 6: Оновити `.cursor/rules/scripts.mdc` canon
 
 **Files:**
+
 - Modify: `.cursor/rules/scripts.mdc`
 
 - [ ] **Step 6.1: Прочитати поточну версію scripts.mdc**
@@ -735,6 +742,7 @@ cat .cursor/rules/scripts.mdc | head -60
 - [ ] **Step 6.2: Замінити усі legacy-шляхи**
 
 Знайди й заміни:
+
 - `rules/<rule>/js/<concern>/check.mjs` → `rules/<rule>/js/<concern>.mjs`
 - `rules/<rule>/js/<concern>/<helper>.mjs` → `rules/<rule>/utils/<helper>.mjs`
 - `rules/<rule>/js/<concern>/tests/` → `rules/<rule>/js/tests/`
@@ -765,6 +773,7 @@ cat .cursor/rules/scripts.mdc | head -60
   у `npm/rules/<rule>/utils/tests/<helper>.test.mjs` (так уже робить abie).
 
 Імпорти:
+
 - Concern → helper: `from '../utils/<helper>.mjs'`
 - Test (single) → concern: `from '../<concern>.mjs'` (з `js/tests/<concern>.test.mjs`)
 - Test (multi) → concern: `from '../../<concern>.mjs'` (з `js/tests/<concern>/<name>.test.mjs`)
@@ -793,6 +802,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 7: Оновити `.cursor/rules/conftest.mdc` + sweep всіх rule .mdc
 
 **Files:**
+
 - Modify: `.cursor/rules/conftest.mdc`
 - Modify: `npm/rules/*/<rule>.mdc` (якщо є згадки старих шляхів)
 - Modify: `npm/rules/*/policy/*/*.rego` (коментарі)
@@ -804,6 +814,7 @@ grep -n "js/<concern>/check\|rules/<rule>/js/<concern>/" .cursor/rules/conftest.
 ```
 
 Заміни усі знайдені patterns:
+
 - `rules/<rule>/js/<concern>/check.mjs` → `rules/<rule>/js/<concern>.mjs`
 - `js/<concern>/check.mjs::check()` → `js/<concern>.mjs::check()`
 - `rules/<rule>/js/<concern>/tests/check.test.mjs` → `rules/<rule>/js/tests/<concern>.test.mjs`
@@ -849,6 +860,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 8: Видалити migration script + final verification
 
 **Files:**
+
 - Delete: `npm/scripts/migrate-flat-concerns.mjs`
 
 - [ ] **Step 8.1: Видалити one-off скрипт**
@@ -897,6 +909,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 9: CHANGELOG + version bump + BREAKING note
 
 **Files:**
+
 - Modify: `npm/CHANGELOG.md`
 - Modify: `npm/package.json`
 
@@ -1007,6 +1020,7 @@ git reset --hard <hash-before-task-3>
 ```
 
 Кожен Task — окремий комміт → можна відкочуватись інкрементально:
+
 - Якщо тести в Task 4 (imports) проблема — revert лише цей комміт; Task 3 (move) лишається.
 - Якщо тільки Task 6/7 (docs) — revert лише doc-комміт.
 

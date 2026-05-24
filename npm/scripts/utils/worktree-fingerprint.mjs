@@ -21,9 +21,7 @@ export function worktreeFingerprint(spawn = spawnSync) {
     // повертаються у `"..."` формі, і `git hash-object` не знаходить файл → throw → fingerprint=null.
     const untrackedRaw = git(['ls-files', '-z', '--others', '--exclude-standard'])
     const untrackedFiles = untrackedRaw.split('\0').filter(Boolean)
-    const pairs = untrackedFiles
-      .map(f => `${f}:${git(['hash-object', f]).trim()}`)
-      .sort()
+    const pairs = untrackedFiles.map(f => `${f}:${git(['hash-object', f]).trim()}`).sort()
     const raw = [commitHash, diffText, ...pairs].join('\n')
     return createHash('sha256').update(raw).digest('hex')
   } catch {

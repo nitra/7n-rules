@@ -1,6 +1,6 @@
 ---
 type: spec
-title: "правило rust для @nitra/cursor"
+title: 'правило rust для @nitra/cursor'
 ---
 
 # Нове правило `rust` (lint-rust) — design
@@ -17,21 +17,21 @@ title: "правило rust для @nitra/cursor"
 
 ## Прийняті рішення (підсумок brainstorm)
 
-| # | Рішення |
-|---|---|
-| R1 | Ідентифікатор — `rust` (паритет з `vue`, `tauri`, `capacitor`). Не `rust-lint` / `lint-rust`. |
-| R2 | Auto-trigger — наявність `Cargo.toml` у корені або в будь-якому workspace-пакеті. |
-| R3 | Скрипт-host — `scripts.lint-rust` у root `package.json`. Чисто Rust-проєкти без `package.json` поза скоупом цієї ітерації. |
-| R4 | Канонічна команда — `cargo fmt --all && cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --all-targets --all-features -- -D warnings`. Локально з `--fix`, у CI без. |
-| R5 | Без канонічних `rustfmt.toml` / `clippy.toml` — defaults + `-D warnings` достатньо для baseline. |
-| R6 | CI — окремий `.github/workflows/lint-rust.yml` із канонічним вмістом (rego policy `policy/lint_rust_yml/`). |
-| R7 | Toolchain у CI — `dtolnay/rust-toolchain@stable` (community standard) + `Swatinem/rust-cache@v2` для кешу target/registry. Без власного composite-action. |
-| R8 | VSCode-extensions — `rust-lang.rust-analyzer` + `tamasfe.even-better-toml`. |
-| R9 | Архітектура — rego-heavy (як `js-lint`/`style-lint`): три policy-пакети + `js/tooling/check.mjs` як FS-existence + `runConftestBatch`-orchestrator. |
-| R10 | Refactor `tauri`: винести вимогу `rust-lang.rust-analyzer` у `rust`, лишити у `tauri` лише `tauri-apps.tauri-vscode`. |
+| #   | Рішення                                                                                                                                                                                                                                                                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Ідентифікатор — `rust` (паритет з `vue`, `tauri`, `capacitor`). Не `rust-lint` / `lint-rust`.                                                                                                                                                                                       |
+| R2  | Auto-trigger — наявність `Cargo.toml` у корені або в будь-якому workspace-пакеті.                                                                                                                                                                                                   |
+| R3  | Скрипт-host — `scripts.lint-rust` у root `package.json`. Чисто Rust-проєкти без `package.json` поза скоупом цієї ітерації.                                                                                                                                                          |
+| R4  | Канонічна команда — `cargo fmt --all && cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features && cargo clippy --all-targets --all-features -- -D warnings`. Локально з `--fix`, у CI без.                                                                    |
+| R5  | Без канонічних `rustfmt.toml` / `clippy.toml` — defaults + `-D warnings` достатньо для baseline.                                                                                                                                                                                    |
+| R6  | CI — окремий `.github/workflows/lint-rust.yml` із канонічним вмістом (rego policy `policy/lint_rust_yml/`).                                                                                                                                                                         |
+| R7  | Toolchain у CI — `dtolnay/rust-toolchain@stable` (community standard) + `Swatinem/rust-cache@v2` для кешу target/registry. Без власного composite-action.                                                                                                                           |
+| R8  | VSCode-extensions — `rust-lang.rust-analyzer` + `tamasfe.even-better-toml`.                                                                                                                                                                                                         |
+| R9  | Архітектура — rego-heavy (як `js-lint`/`style-lint`): три policy-пакети + `js/tooling/check.mjs` як FS-existence + `runConftestBatch`-orchestrator.                                                                                                                                 |
+| R10 | Refactor `tauri`: винести вимогу `rust-lang.rust-analyzer` у `rust`, лишити у `tauri` лише `tauri-apps.tauri-vscode`.                                                                                                                                                               |
 | R11 | Канон — лише у `template/<target>.<slot>.<ext>` ([scripts.mdc](../../.cursor/rules/scripts.mdc)). У `rust.mdc` — markdown-link на template (НЕ inline fenced-block з `title="<filename>"`). У `.rego` — читання `data.template.*`, без inline-літералів; drift-test у `_test.rego`. |
-| R12 | Слоти: `package.json.contains.json` (substring-вимога scripts.lint-rust), `extensions.json.snippet.json` (subset-of для recommendations), `lint-rust.yml.snippet.yml` (повний файл як єдиний канон). |
-| R13 | `withLock` делегується через `runStandardRule` ([scripts.mdc § withLock](../../.cursor/rules/scripts.mdc)) — у `fix.mjs` НЕ дублюємо. |
+| R12 | Слоти: `package.json.contains.json` (substring-вимога scripts.lint-rust), `extensions.json.snippet.json` (subset-of для recommendations), `lint-rust.yml.snippet.yml` (повний файл як єдиний канон).                                                                                |
+| R13 | `withLock` делегується через `runStandardRule` ([scripts.mdc § withLock](../../.cursor/rules/scripts.mdc)) — у `fix.mjs` НЕ дублюємо.                                                                                                                                               |
 
 ## Архітектура
 
@@ -100,10 +100,7 @@ Convention за технологією: `js/` (JS-implemented concerns) ↔ `pol
 
 ```json
 {
-  "recommendations": [
-    "rust-lang.rust-analyzer",
-    "tamasfe.even-better-toml"
-  ]
+  "recommendations": ["rust-lang.rust-analyzer", "tamasfe.even-better-toml"]
 }
 ```
 
@@ -226,9 +223,9 @@ export function check() {
  * Cross-file gating (applies) винесено у `js/applies/check.mjs`.
  */
 const docs = [
-  { path: 'package.json',                    policyDir: 'rust/package_json',      ns: 'rust.package_json' },
-  { path: '.vscode/extensions.json',         policyDir: 'rust/vscode_extensions', ns: 'rust.vscode_extensions' },
-  { path: '.github/workflows/lint-rust.yml', policyDir: 'rust/lint_rust_yml',     ns: 'rust.lint_rust_yml' }
+  { path: 'package.json', policyDir: 'rust/package_json', ns: 'rust.package_json' },
+  { path: '.vscode/extensions.json', policyDir: 'rust/vscode_extensions', ns: 'rust.vscode_extensions' },
+  { path: '.github/workflows/lint-rust.yml', policyDir: 'rust/lint_rust_yml', ns: 'rust.lint_rust_yml' }
 ]
 for (const d of docs) {
   if (!existsSync(d.path)) {
@@ -245,11 +242,11 @@ for (const d of docs) {
 
 Кожен `.rego` має `package rust.<concern>` + `import rego.v1`. Канонічні літерали — **виключно** через `data.template.*` (рунер передає через `--data`), без inline-рядків ([scripts.mdc § Канон через template](../../.cursor/rules/scripts.mdc)).
 
-| Policy | Слот | `deny` логіка |
-|---|---|---|
-| `rust.package_json` | `data.template.contains.package_json.scripts["lint-rust"]` (масив підрядків) | для кожного `s` із масиву: якщо `contains(input.scripts["lint-rust"], s) == false` → `deny` |
-| `rust.vscode_extensions` | `data.template.snippet.extensions_json.recommendations` (subset-of) | для кожного `ext` із template: якщо `ext` не в `input.recommendations` → `deny` |
-| `rust.lint_rust_yml` | `data.template.snippet.lint_rust_yml` (повний YAML) | `input.name == template.name`; `input.concurrency["cancel-in-progress"] == template.concurrency["cancel-in-progress"]`; для кожного step з `template.jobs.lint.steps` (uses або run) — присутній у `input.jobs.lint.steps` у тому ж порядку. Run-blob беремо через `concat` з `template.jobs.lint.steps[].run`, щоб зміна template автоматично рухала перевірку. |
+| Policy                   | Слот                                                                         | `deny` логіка                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rust.package_json`      | `data.template.contains.package_json.scripts["lint-rust"]` (масив підрядків) | для кожного `s` із масиву: якщо `contains(input.scripts["lint-rust"], s) == false` → `deny`                                                                                                                                                                                                                                                                      |
+| `rust.vscode_extensions` | `data.template.snippet.extensions_json.recommendations` (subset-of)          | для кожного `ext` із template: якщо `ext` не в `input.recommendations` → `deny`                                                                                                                                                                                                                                                                                  |
+| `rust.lint_rust_yml`     | `data.template.snippet.lint_rust_yml` (повний YAML)                          | `input.name == template.name`; `input.concurrency["cancel-in-progress"] == template.concurrency["cancel-in-progress"]`; для кожного step з `template.jobs.lint.steps` (uses або run) — присутній у `input.jobs.lint.steps` у тому ж порядку. Run-blob беремо через `concat` з `template.jobs.lint.steps[].run`, щоб зміна template автоматично рухала перевірку. |
 
 Кожен `.rego` має `_test.rego` з 3–5 кейсами: golden pass + по одному per-vимога fail + **drift-test**: при підміні `data.template.*` правило emit-ить нову очікувану `deny` substring ([scripts.mdc § Drift-tests](../../.cursor/rules/scripts.mdc)). Drift-test гарантує, що template веде перевірку, а не задубльована inline-константа.
 
@@ -257,6 +254,7 @@ for (const d of docs) {
 
 - **`js/tooling/check.mjs`**: FS-existence check + делегування у rego через `runConftestBatch` (rego сам читає `data.template.*` через `--data`). Для repotting `template/`-шляхів — `loadTemplate` / `resolveConcernTemplateData` з `npm/scripts/utils/template.mjs`, якщо знадобиться FS-only логіка (наразі не потрібно — усе делегується у rego).
 - **`rust.mdc`**: для кожного target — markdown-link на template-файл, формат:
+
   > Канон `scripts.lint-rust` (substring requirement): [`package.json.contains.json`](./policy/package_json/template/package.json.contains.json)
   >
   > Канон `.vscode/extensions.json` recommendations: [`extensions.json.snippet.json`](./policy/vscode_extensions/template/extensions.json.snippet.json)
@@ -299,6 +297,7 @@ for (const d of docs) {
 ### Чому композиція без дублювання
 
 Tauri-проєкт автоматично активує обидва правила:
+
 - `rust` (Cargo.toml у `src-tauri/`) → `rust-analyzer`, `even-better-toml`, lint-rust, CI.
 - `tauri` (src-tauri/ маркер) → `tauri-vscode`.
 
@@ -317,6 +316,7 @@ Tauri-проєкт автоматично активує обидва прави
 За [scripts.mdc § Завершення задачі](../../.cursor/rules/scripts.mdc) + [n-changelog.mdc](../../.cursor/rules/n-changelog.mdc): останніми кроками сесії (після тестів / sync, **перед** фінальною відповіддю користувачу) — bump `version` у `npm/package.json` → нова секція у `npm/CHANGELOG.md` → `npx @nitra/cursor fix changelog`.
 
 Зміна додає нове правило + рефакторить `tauri.mdc` → minor bump `@nitra/cursor`. Запис у CHANGELOG:
+
 - **Added:** правило `rust` (lint-rust): rustfmt + clippy, канонічний `lint-rust` скрипт, CI workflow `lint-rust.yml`, VSCode extensions `rust-analyzer` + `even-better-toml`.
 - **Changed:** правило `tauri` звужено — `rust-lang.rust-analyzer` перенесено у нове правило `rust`.
 
