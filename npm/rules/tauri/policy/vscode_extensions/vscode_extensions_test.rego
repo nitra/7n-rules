@@ -6,10 +6,7 @@ import rego.v1
 
 import data.tauri.vscode_extensions
 
-canonical := {"recommendations": [
-	"tauri-apps.tauri-vscode",
-	"rust-lang.rust-analyzer",
-]}
+canonical := {"recommendations": ["tauri-apps.tauri-vscode"]}
 
 test_allow_canonical if {
 	count(vscode_extensions.deny) == 0 with input as canonical
@@ -20,6 +17,7 @@ test_allow_with_additional_extensions if {
 		"dbaeumer.vscode-eslint",
 		"tauri-apps.tauri-vscode",
 		"rust-lang.rust-analyzer",
+		"tamasfe.even-better-toml",
 		"oxc.oxc-vscode",
 	]}
 	count(vscode_extensions.deny) == 0 with input as cfg
@@ -27,12 +25,15 @@ test_allow_with_additional_extensions if {
 
 test_deny_missing_tauri if {
 	cfg := {"recommendations": ["rust-lang.rust-analyzer"]}
-	count(vscode_extensions.deny) > 0 with input as cfg
+	some msg in vscode_extensions.deny with input as cfg
+	contains(msg, "tauri-apps.tauri-vscode")
 }
 
-test_deny_missing_rust_analyzer if {
+# rust-lang.rust-analyzer більше НЕ обов'язковий для tauri.vscode_extensions:
+# його вимагає правило rust (rust.mdc).
+test_allow_without_rust_analyzer if {
 	cfg := {"recommendations": ["tauri-apps.tauri-vscode"]}
-	count(vscode_extensions.deny) > 0 with input as cfg
+	count(vscode_extensions.deny) == 0 with input as cfg
 }
 
 test_deny_empty_recommendations if {
