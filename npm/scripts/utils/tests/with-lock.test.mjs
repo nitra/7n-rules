@@ -62,8 +62,11 @@ describe('withLock integration', () => {
       calls++
       return Promise.resolve(0)
     }
-    const getFingerprint = () => 'a'.repeat(64)
-    const lockOpts = { cacheDir: path.join(tmpDir, 'b'), ttl: 60_000, getFingerprint }
+    const lockOpts = {
+      cacheDir: path.join(tmpDir, 'b'),
+      ttl: 60_000,
+      getFingerprint: () => 'a'.repeat(64)
+    }
     await withLock('test', fn, lockOpts)
     await withLock('test', fn, lockOpts)
     expect(calls).toBe(1)
@@ -80,7 +83,9 @@ describe('withLock integration', () => {
         },
         { cacheDir }
       )
-    } catch {}
+    } catch {
+      /* runFn навмисно кидає — перевіряємо звільнення локу */
+    }
     expect(fs.existsSync(lockDir)).toBe(false)
   })
 })

@@ -8,6 +8,13 @@ import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 /** @type {string[]} */
 const tmpRoots = []
 
+/**
+ *
+ * @param root0
+ * @param root0.withFix
+ * @param root0.withoutFix
+ * @param root0.hidden
+ */
 function makeFakeRules({ withFix = [], withoutFix = [], hidden = [] }) {
   const root = mkdtempSync(join(tmpdir(), 'list-rule-ids-'))
   tmpRoots.push(root)

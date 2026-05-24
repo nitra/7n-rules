@@ -14,6 +14,10 @@ afterEach(() => {
   while (tmpRoots.length > 0) rmSync(tmpRoots.pop(), { recursive: true, force: true })
 })
 
+/**
+ *
+ * @param id
+ */
 function makeMinimalRule(id) {
   const root = mkdtempSync(join(tmpdir(), 'run-standard-rule-'))
   tmpRoots.push(root)

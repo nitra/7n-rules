@@ -17,17 +17,17 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo', 't
 
 /**
  * Чи провайдер застосовний у поточному cwd.
- * @param {string} cwd
- * @returns {Promise<boolean>}
+ * @param {string} cwd корінь проєкту
+ * @returns {Promise<boolean>} true, якщо знайдено Cargo.toml у cwd або workspace-піддереві
  */
-export async function detect(cwd) {
-  if (existsSync(join(cwd, 'Cargo.toml'))) return true
-  return hasCargoTomlInTree(cwd, IGNORED_DIR_NAMES)
+export function detect(cwd) {
+  if (existsSync(join(cwd, 'Cargo.toml'))) return Promise.resolve(true)
+  return Promise.resolve(hasCargoTomlInTree(cwd, IGNORED_DIR_NAMES))
 }
 
 /**
  * Знайти Cargo.toml: cwd/Cargo.toml або в одному з workspace-підкаталогів.
- * @param {string} cwd
+ * @param {string} cwd корінь проєкту
  * @returns {Promise<string>} абсолютний шлях до Cargo.toml
  */
 async function resolveCargoManifest(cwd) {
@@ -59,7 +59,7 @@ const defaultRunner = {
     const exitCode = await proc.exited
     return { exitCode, stdout }
   },
-  async runCargoMutants({ manifestPath, outDir }) {
+  runCargoMutants({ manifestPath, outDir }) {
     const proc = Bun.spawn(['cargo', 'mutants', '--in-place', '-o', outDir, '--manifest-path', manifestPath], {
       stdout: 'inherit',
       stderr: 'inherit'
@@ -71,8 +71,8 @@ const defaultRunner = {
 /**
  * Збирає Rust-метрики покриття + мутаційного тестування.
  * @param {string} cwd корінь проєкту
- * @param {{runner?: typeof defaultRunner}} [opts]
- * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>}
+ * @param {{runner?: typeof defaultRunner}} [opts] ін'єкція runner-а для тестів
+ * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>} рядки для COVERAGE.md
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner

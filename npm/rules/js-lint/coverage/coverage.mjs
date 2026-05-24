@@ -14,7 +14,7 @@ import { join } from 'node:path'
  * Резолвить cwd, у якому стоять JS-тести. Workspace-проєкти — перший workspace
  * (mlmail: app/), single-package — корінь.
  * @param {string} cwd корінь проєкту
- * @returns {Promise<string|null>} абсолютний шлях або null якщо package.json відсутній
+ * @returns {Promise<string|null>} абсолютний шлях до JS-root або null без package.json
  */
 async function resolveJsRoot(cwd) {
   const rootPkgPath = join(cwd, 'package.json')
@@ -30,8 +30,8 @@ async function resolveJsRoot(cwd) {
 
 /**
  * Чи `scripts` містить coverage-сумісну команду.
- * @param {Record<string, string> | undefined} scripts
- * @returns {boolean}
+ * @param {Record<string, string> | undefined} scripts секція scripts з package.json
+ * @returns {boolean} true, якщо є test:coverage або test з --coverage
  */
 function hasCoverageScript(scripts) {
   if (!scripts || typeof scripts !== 'object') return false
@@ -42,8 +42,8 @@ function hasCoverageScript(scripts) {
 
 /**
  * Чи провайдер застосовний у поточному cwd.
- * @param {string} cwd
- * @returns {Promise<boolean>}
+ * @param {string} cwd корінь проєкту
+ * @returns {Promise<boolean>} true, якщо знайдено coverage-сумісний test-скрипт
  */
 export async function detect(cwd) {
   const jsRoot = await resolveJsRoot(cwd)
@@ -56,8 +56,8 @@ export async function detect(cwd) {
 
 /**
  * Парс lcov.info: сумує LF/LH (рядки) і FNF/FNH (функції) по всіх records.
- * @param {string} text
- * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}}
+ * @param {string} text вміст lcov.info
+ * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} агреговані totals
  */
 function parseLcov(text) {
   const acc = { lines: { covered: 0, total: 0 }, functions: { covered: 0, total: 0 } }
@@ -73,8 +73,8 @@ function parseLcov(text) {
 /**
  * Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
  * Compile/Runtime errors виключаються з total.
- * @param {{files:Record<string,{mutants:Array<{status:string}>}>}} report
- * @returns {{caught:number,total:number}}
+ * @param {{files:Record<string,{mutants:Array<{status:string}>}>}} report розпарсений mutation.json
+ * @returns {{caught:number,total:number}} агрегований mutation score
  */
 function parseStrykerReport(report) {
   let caught = 0
@@ -96,7 +96,7 @@ function parseStrykerReport(report) {
  * Default runner — спавнить реальні bun-команди. Замінюється у тестах.
  */
 const defaultRunner = {
-  async runJsCoverage({ cwd, lcovDir }) {
+  runJsCoverage({ cwd, lcovDir }) {
     const proc = Bun.spawn(['bun', 'run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${lcovDir}`], {
       cwd,
       stdout: 'inherit',
@@ -104,7 +104,7 @@ const defaultRunner = {
     })
     return proc.exited
   },
-  async runStryker({ cwd }) {
+  runStryker({ cwd }) {
     const proc = Bun.spawn(['bunx', 'stryker', 'run'], { cwd, stdout: 'inherit', stderr: 'inherit' })
     return proc.exited
   }
@@ -114,7 +114,7 @@ const defaultRunner = {
  * Збирає JS-метрики покриття + мутаційного тестування.
  * @param {string} cwd корінь проєкту
  * @param {{runner?: typeof defaultRunner}} [opts] runner-ін'єкція для тестів
- * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>}
+ * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>} рядки для COVERAGE.md
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner

@@ -18,7 +18,7 @@ const TESTS_DIR_NAME = 'tests'
 /**
  * Чи файл є JS-тестом (`*.test.mjs`).
  * @param {string} absPath абсолютний шлях
- * @returns {boolean}
+ * @returns {boolean} true для шляхів із суфіксом `.test.mjs`
  */
 function isTestFile(absPath) {
   return basename(absPath).endsWith('.test.mjs')

@@ -25,9 +25,9 @@ const RULES_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
 /**
  * Сума двох coverage-totals.
- * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} a
- * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} b
- * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}}
+ * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} a перший subtotal
+ * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} b другий subtotal
+ * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} сумарні lines/functions
  */
 export function addCoverage(a, b) {
   return {
@@ -41,9 +41,9 @@ export function addCoverage(a, b) {
 
 /**
  * Сума двох mutation-counts.
- * @param {{caught:number,total:number}} a
- * @param {{caught:number,total:number}} b
- * @returns {{caught:number,total:number}}
+ * @param {{caught:number,total:number}} a перший subtotal
+ * @param {{caught:number,total:number}} b другий subtotal
+ * @returns {{caught:number,total:number}} сумарні caught/total
  */
 export function addMutation(a, b) {
   return { caught: a.caught + b.caught, total: a.total + b.total }
@@ -51,8 +51,8 @@ export function addMutation(a, b) {
 
 /**
  * Форматує covered/total як `XX.XX% (covered/total)`.
- * @param {{covered:number,total:number}} metric
- * @returns {string}
+ * @param {{covered:number,total:number}} metric метрика lines або functions
+ * @returns {string} відформатований рядок для таблиці COVERAGE.md
  */
 export function formatCoverage({ covered, total }) {
   const percent = total === 0 ? '—' : `${((covered / total) * 100).toFixed(2)}%`
@@ -61,8 +61,8 @@ export function formatCoverage({ covered, total }) {
 
 /**
  * Форматує мутаційний score як `XX.XX%`.
- * @param {{caught:number,total:number}} metric
- * @returns {string}
+ * @param {{caught:number,total:number}} metric агрегований mutation score
+ * @returns {string} відформатований score або прочерк
  */
 export function formatScore({ caught, total }) {
   return total === 0 ? '—' : `${((caught / total) * 100).toFixed(2)}%`
@@ -71,8 +71,8 @@ export function formatScore({ caught, total }) {
 /**
  * Рендерить таблицю покриття + мутаційного тестування як Markdown.
  * Без timestamp, щоб git diff рухався лише при зміні метрик.
- * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}}>} rows
- * @returns {string}
+ * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}}>} rows рядки провайдерів
+ * @returns {string} Markdown-таблиця з заголовком `# Coverage`
  */
 export function renderMarkdown(rows) {
   const lines = [
@@ -96,9 +96,9 @@ export function renderMarkdown(rows) {
  *   - файлу немає (rule без coverage-провайдера),
  *   - файл існує, але не експортує `detect` + `collect` як функції (наприклад,
  *     `rules/test/coverage/coverage.mjs` — сам оркестратор, не провайдер).
- * @param {string} rulesDir
- * @param {string} ruleId
- * @returns {Promise<{detect:Function, collect:Function}|null>}
+ * @param {string} rulesDir корінь `npm/rules/`
+ * @param {string} ruleId id правила з `.n-cursor.json#rules`
+ * @returns {Promise<{detect:Function, collect:Function}|null>} provider-модуль або null
  */
 async function loadProvider(rulesDir, ruleId) {
   const providerPath = join(rulesDir, ruleId, 'coverage', 'coverage.mjs')
@@ -110,22 +110,23 @@ async function loadProvider(rulesDir, ruleId) {
 
 /**
  * Будує підсумковий рядок «Разом» через сумування всіх coverage/mutation.
- * @param {Array<{area:string, coverage:object, mutation:object}>} rows
- * @returns {{area:string, coverage:object, mutation:{caught:number,total:number}}}
+ * @param {Array<{area:string, coverage:object, mutation:object}>} rows рядки провайдерів без totals
+ * @returns {{area:string, coverage:object, mutation:{caught:number,total:number}}} агрегований рядок «Разом»
  */
 function buildTotalsRow(rows) {
-  const totalCoverage = rows.reduce((acc, row) => addCoverage(acc, row.coverage), {
-    lines: { covered: 0, total: 0 },
-    functions: { covered: 0, total: 0 }
-  })
-  const totalMutation = rows.reduce((acc, row) => addMutation(acc, row.mutation), { caught: 0, total: 0 })
+  let totalCoverage = { lines: { covered: 0, total: 0 }, functions: { covered: 0, total: 0 } }
+  let totalMutation = { caught: 0, total: 0 }
+  for (const row of rows) {
+    totalCoverage = addCoverage(totalCoverage, row.coverage)
+    totalMutation = addMutation(totalMutation, row.mutation)
+  }
   return { area: '**Разом**', coverage: totalCoverage, mutation: totalMutation }
 }
 
 /**
  * Виконує coverage-pipeline: discovery провайдерів за `.n-cursor.json#rules`,
  * detect+collect для кожного, агрегація, запис COVERAGE.md.
- * @param {{cwd?:string, rulesDir?:string}} [opts] ін'єкція для тестів
+ * @param {{cwd?:string, rulesDir?:string}} [opts] ін'єкція cwd/rulesDir для тестів
  * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних)
  */
 export async function runCoverageSteps(opts = {}) {

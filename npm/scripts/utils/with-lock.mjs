@@ -12,9 +12,13 @@ const DEFAULTS = {
   ttl: 600_000,
   staleThreshold: 1_800_000,
   waitTimeout: 1_200_000,
-  pollInterval: 1_500
+  pollInterval: 1500
 }
 
+/**
+ *
+ * @param pid
+ */
 function isAlive(pid) {
   try {
     process.kill(pid, 0)
@@ -24,14 +28,20 @@ function isAlive(pid) {
   }
 }
 
+/**
+ *
+ * @param lockDir
+ */
 function makeRelease(lockDir) {
   return () => fs.rmSync(lockDir, { recursive: true, force: true })
 }
 
 /**
- * @param {{exitCode:number, fingerprint:string|null, finishedAt:number}} result
- * @param {string|null} fingerprint
- * @param {number} ttl
+ * Чи можна пропустити повторний прогін за кешованим result.json.
+ * @param {{exitCode:number, fingerprint:string|null, finishedAt:number}} result попередній результат з result.json
+ * @param {string|null} fingerprint поточний fingerprint робочого дерева
+ * @param {number} ttl TTL дедуплікації в мілісекундах
+ * @returns {boolean} true, якщо попередній успішний прогін можна повторно використати
  */
 export function shouldDedup(result, fingerprint, ttl) {
   if (result.exitCode !== 0) return false
@@ -41,10 +51,11 @@ export function shouldDedup(result, fingerprint, ttl) {
 }
 
 /**
- * @param {string} key
- * @param {() => number | Promise<number>} runFn
- * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, cacheDir?:string, getFingerprint?:() => string | null}} [opts]
- * @returns {Promise<number>}
+ * Серіалізує важку команду через атомарний lock і dedup за fingerprint.
+ * @param {string} key ключ локу (наприклад `lint-ga`, `fix-bun`)
+ * @param {() => number | Promise<number>} runFn основна робота; повертає exit code
+ * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, cacheDir?:string, getFingerprint?:() => string | null}} [opts] TTL, шлях кешу та override fingerprint
+ * @returns {Promise<number>} exit code виконаної або дедуплікованої команди
  */
 export async function withLock(key, runFn, opts = {}) {
   const { ttl, staleThreshold, waitTimeout, pollInterval } = { ...DEFAULTS, ...opts }
@@ -59,9 +70,8 @@ export async function withLock(key, runFn, opts = {}) {
   fs.mkdirSync(cacheDir, { recursive: true })
 
   const loopStart = Date.now()
-  let locked = false
 
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     if (Date.now() - loopStart >= waitTimeout) {
       console.error(`⚠️ ${key}: чекав ${waitTimeout / 60_000} хв — запускаю без локу`)
@@ -73,7 +83,6 @@ export async function withLock(key, runFn, opts = {}) {
         ownerFile,
         JSON.stringify({ pid: process.pid, host: os.hostname(), startedAt: Date.now(), fingerprint })
       )
-      locked = true
       break
     } catch (error) {
       if (error.code !== 'EEXIST') throw error
@@ -113,6 +122,7 @@ export async function withLock(key, runFn, opts = {}) {
 
   const onSignal = () => {
     release()
+    // eslint-disable-next-line unicorn/no-process-exit -- SIGINT/SIGTERM мають завершити процес із кодом 130
     process.exit(130)
   }
   process.once('SIGINT', onSignal)

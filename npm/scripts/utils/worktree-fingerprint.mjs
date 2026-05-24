@@ -1,13 +1,20 @@
 /**
  * Fingerprint поточного стану git-робочого дерева.
- * Повертає sha256-hex (64 символи) або null, якщо не в git-репо.
- * @param {typeof import('child_process').spawnSync} spawn
+ * @param {typeof import('child_process').spawnSync} [spawn=spawnSync] sync-виклик git (ін'єкція для тестів)
+ * @returns {string|null} sha256-hex (64 символи) або null, якщо не в git-репо
  */
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 
+/**
+ *
+ * @param spawn
+ */
 export function worktreeFingerprint(spawn = spawnSync) {
-  /** @param {string[]} args */
+  /**
+   * @param {string[]} args аргументи підкоманди git
+   * @returns {string} stdout git-команди
+   */
   function git(args) {
     const r = spawn('git', args, { encoding: 'utf8' })
     if (r.status !== 0 || r.error) throw new Error(`git ${args[0]} failed`)

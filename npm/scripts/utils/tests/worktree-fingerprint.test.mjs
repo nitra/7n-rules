@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import { worktreeFingerprint } from '../worktree-fingerprint.mjs'
 
+/** @returns {{status:number, error:Error, stdout:string}} mock spawnSync для fallback-тесту */
+function mockSpawnFail() {
+  return { status: 1, error: new Error('no git'), stdout: '' }
+}
+
 describe('worktreeFingerprint', () => {
   it('returns string or null without throwing', () => {
     const result = worktreeFingerprint()
@@ -21,7 +26,6 @@ describe('worktreeFingerprint', () => {
   })
 
   it('returns null on git error (via mock spawn)', () => {
-    const mockSpawn = () => ({ status: 1, error: new Error('no git'), stdout: '' })
-    expect(worktreeFingerprint(mockSpawn)).toBeNull()
+    expect(worktreeFingerprint(mockSpawnFail)).toBeNull()
   })
 })

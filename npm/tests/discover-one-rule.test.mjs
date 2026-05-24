@@ -8,6 +8,13 @@ import { discoverOneRule } from '../scripts/lib/discover-checkable-rules.mjs'
 /** @type {string[]} */
 const tmpRoots = []
 
+/**
+ *
+ * @param root0
+ * @param root0.id
+ * @param root0.jsConcerns
+ * @param root0.policyConcerns
+ */
 function makeFakeRule({ id, jsConcerns = [], policyConcerns = [] }) {
   const root = mkdtempSync(join(tmpdir(), 'discover-one-rule-'))
   tmpRoots.push(root)

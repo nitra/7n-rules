@@ -26,19 +26,21 @@ const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
 
+/** @returns {Promise<number>} exit code abie-check chain на поточному cwd */
+async function checkAbie() {
+  if (!(await appliesAbie())) return 0
+  let code = 0
+  for (const fn of [checkAbieFirebase, checkAbieHc, checkAbieEnv, checkAbieUaNs, checkAbieUaHr]) {
+    if ((await fn()) !== 0) code = 1
+  }
+  return code
+}
+
 describe('check-* на реальному репозиторії', () => {
   test('узгоджені з поточним деревом cursor', async () => {
     const prev = process.cwd()
     process.chdir(REPO_ROOT)
     try {
-      const checkAbie = async () => {
-        if (!(await appliesAbie())) return 0
-        let code = 0
-        for (const fn of [checkAbieFirebase, checkAbieHc, checkAbieEnv, checkAbieUaNs, checkAbieUaHr]) {
-          if ((await fn()) !== 0) code = 1
-        }
-        return code
-      }
       await withShellcheckStubInPath(async () => {
         expect(await checkAbie()).toBe(0)
         expect(await checkBun()).toBe(0)

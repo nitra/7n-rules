@@ -225,6 +225,22 @@ async function migrateLegacyConfigIfNeeded() {
 }
 
 /**
+ * Повертає розпарсений package.json з кореня або null, якщо файл відсутній/некоректний.
+ * @returns {Promise<unknown | null>} обʼєкт package.json або null
+ */
+async function readRootPackageJsonSafe() {
+  const packageJsonPath = join(cwd(), 'package.json')
+  if (!existsSync(packageJsonPath)) {
+    return null
+  }
+  try {
+    return JSON.parse(await readFile(packageJsonPath, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+/**
  * Зчитує конфіг .n-cursor.json з поточної директорії
  * @param {{ bundledRulesDir?: string, bundledSkillsDir?: string }} [paths] каталоги з пакету-джерела (після `bun i` — зазвичай `node_modules/@nitra/cursor`)
  * @returns {Promise<{ $schema: string, rules: string[], skills: string[], version?: string } & Record<string, unknown>>} rules, skills (id без префікса n-); поле version у файлі за наявності ігнорується при синхронізації правил
@@ -236,22 +252,6 @@ async function readConfig(paths = {}) {
   const configPath = join(cwd(), CONFIG_FILE)
   const availableRules = await discoverBundledRuleNames(bundledRulesDir)
   const availableSkills = await discoverBundledSkillNames(bundledSkillsDir)
-
-  /**
-   * Повертає розпарсений package.json з кореня або null, якщо файл відсутній/некоректний.
-   * @returns {Promise<unknown | null>} Обʼєкт package.json або null, якщо файл недоступний чи JSON невалідний.
-   */
-  async function readRootPackageJsonSafe() {
-    const packageJsonPath = join(cwd(), 'package.json')
-    if (!existsSync(packageJsonPath)) {
-      return null
-    }
-    try {
-      return JSON.parse(await readFile(packageJsonPath, 'utf8'))
-    } catch {
-      return null
-    }
-  }
 
   /**
    * Автодописує правила/skills за `rules/<rule>/auto.md` і синхронізує `$schema`.

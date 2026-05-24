@@ -6,12 +6,12 @@ import { describe, expect, test } from 'bun:test'
 
 import { applies } from '../applies.mjs'
 
-describe('rust applies', () => {
-  /** @returns {string} абсолютний шлях тимчасового кореня */
-  function makeRoot() {
-    return mkdtempSync(join(tmpdir(), 'rust-applies-'))
-  }
+/** @returns {string} абсолютний шлях тимчасового кореня */
+function makeRoot() {
+  return mkdtempSync(join(tmpdir(), 'rust-applies-'))
+}
 
+describe('rust applies', () => {
   test('true коли Cargo.toml у cwd', async () => {
     const root = makeRoot()
     const orig = process.cwd()

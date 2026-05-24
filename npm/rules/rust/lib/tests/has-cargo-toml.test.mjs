@@ -8,12 +8,12 @@ import { hasCargoTomlInTree } from '../has-cargo-toml.mjs'
 
 const IGNORED_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 
-describe('hasCargoTomlInTree', () => {
-  /** @returns {string} абсолютний шлях до тимчасового кореня */
-  function makeRoot() {
-    return mkdtempSync(join(tmpdir(), 'rust-has-cargo-'))
-  }
+/** @returns {string} абсолютний шлях до тимчасового кореня */
+function makeRoot() {
+  return mkdtempSync(join(tmpdir(), 'rust-has-cargo-'))
+}
 
+describe('hasCargoTomlInTree', () => {
   test('повертає true при наявності Cargo.toml у корені', () => {
     const root = makeRoot()
     writeFileSync(join(root, 'Cargo.toml'), '[package]\nname="x"\n')

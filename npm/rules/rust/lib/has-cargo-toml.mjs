@@ -29,9 +29,7 @@ export function hasCargoTomlInTree(root, ignoredDirNames) {
     }
     for (const entry of entries) {
       if (entry.isFile() && entry.name === 'Cargo.toml') return true
-      if (entry.isDirectory() && !ignoredDirNames.has(entry.name)) {
-        if (walk(join(dir, entry.name))) return true
-      }
+      if (entry.isDirectory() && !ignoredDirNames.has(entry.name) && walk(join(dir, entry.name))) return true
     }
     return false
   }

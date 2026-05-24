@@ -32,7 +32,7 @@ import { withLock } from '../utils/with-lock.mjs'
  * @param {RuleContext} [ctx] контекст прогону (walkCache тощо)
  * @returns {Promise<number>} 0 OK, 1 violations
  */
-export async function runStandardRule(ruleDir, ctx = {}) {
+export function runStandardRule(ruleDir, ctx = {}) {
   const ruleId = basename(ruleDir)
   const bundledRulesDir = dirname(ruleDir)
   return withLock(`fix-${ruleId}`, async () => {

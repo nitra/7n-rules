@@ -10,6 +10,12 @@ import { join } from 'node:path'
 
 import { collect, detect } from '../coverage.mjs'
 
+/**
+ *
+ * @param root0
+ * @param root0.withCargo
+ * @param root0.nested
+ */
 function makeFixture({ withCargo = true, nested = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'rust-coverage-'))
   if (withCargo) {
@@ -48,7 +54,7 @@ describe('rust coverage collect()', () => {
     const dir = makeFixture()
     const calls = []
     const runner = {
-      async runLlvmCov({ manifestPath }) {
+      runLlvmCov({ manifestPath }) {
         calls.push({ kind: 'llvm-cov', manifestPath })
         return {
           exitCode: 0,
@@ -64,7 +70,7 @@ describe('rust coverage collect()', () => {
           })
         }
       },
-      async runCargoMutants({ manifestPath, outDir }) {
+      runCargoMutants({ manifestPath, outDir }) {
         calls.push({ kind: 'mutants', manifestPath, outDir })
         const dotOut = join(outDir, 'mutants.out')
         mkdirSync(dotOut, { recursive: true })
@@ -89,10 +95,10 @@ describe('rust coverage collect()', () => {
   test('падає якщо llvm-cov exit ≠ 0 — explainer з install-командою', async () => {
     const dir = makeFixture()
     const runner = {
-      async runLlvmCov() {
+      runLlvmCov() {
         return { exitCode: 1, stdout: '' }
       },
-      async runCargoMutants() {
+      runCargoMutants() {
         return 0
       }
     }
@@ -103,7 +109,7 @@ describe('rust coverage collect()', () => {
   test('падає якщо cargo-mutants не залишив outcomes.json', async () => {
     const dir = makeFixture()
     const runner = {
-      async runLlvmCov() {
+      runLlvmCov() {
         return {
           exitCode: 0,
           stdout: JSON.stringify({
@@ -111,7 +117,7 @@ describe('rust coverage collect()', () => {
           })
         }
       },
-      async runCargoMutants() {
+      runCargoMutants() {
         return 0
       }
     }

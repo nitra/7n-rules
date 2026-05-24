@@ -89,7 +89,9 @@ const SKIP_PROVIDER = `
 `
 
 /**
- * @param {{rules?: string[], providers?: Record<string,string>}} [opts]
+ * Тимчасовий cwd + rulesDir з ін'єктованими coverage-провайдерами для runCoverageSteps.
+ * @param {{rules?: string[], providers?: Record<string,string>}} [opts] активні rules і provider source
+ * @returns {{cwd: string, rulesDir: string, cleanup: () => void}} fixture з функцією cleanup
  */
 function makeOrchestratorFixture({ rules = [], providers = {} } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-cwd-'))

@@ -11,6 +11,12 @@ import { join } from 'node:path'
 
 import { collect, detect } from '../coverage.mjs'
 
+/**
+ *
+ * @param pkg
+ * @param root0
+ * @param root0.workspaceRoot
+ */
 function makeFixture(pkg, { workspaceRoot = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-'))
   if (workspaceRoot) {
@@ -74,12 +80,12 @@ describe('js-lint coverage collect()', () => {
 
     const calls = []
     const runner = {
-      async runJsCoverage({ cwd, lcovDir }) {
+      runJsCoverage({ cwd, lcovDir }) {
         calls.push({ kind: 'js', cwd, lcovDir })
         writeFileSync(join(lcovDir, 'lcov.info'), ['LF:100', 'LH:50', 'FNF:20', 'FNH:10', ''].join('\n'))
         return 0
       },
-      async runStryker({ cwd }) {
+      runStryker({ cwd }) {
         calls.push({ kind: 'stryker', cwd })
         return 0
       }
@@ -102,10 +108,10 @@ describe('js-lint coverage collect()', () => {
   test('падає з explainer-ом якщо JS-coverage exit ≠ 0', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
     const runner = {
-      async runJsCoverage() {
+      runJsCoverage() {
         return 1
       },
-      async runStryker() {
+      runStryker() {
         return 0
       }
     }
@@ -116,11 +122,11 @@ describe('js-lint coverage collect()', () => {
   test('падає якщо Stryker не залишив mutation.json', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
     const runner = {
-      async runJsCoverage({ lcovDir }) {
+      runJsCoverage({ lcovDir }) {
         writeFileSync(join(lcovDir, 'lcov.info'), 'LF:0\nLH:0\nFNF:0\nFNH:0\n')
         return 0
       },
-      async runStryker() {
+      runStryker() {
         return 0
       }
     }
