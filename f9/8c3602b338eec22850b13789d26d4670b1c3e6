@@ -1,0 +1,56 @@
+docs/superpowers/specs/2026-05-24-coverage-rule-design.md
+  s_17dce3cec43c9d::t_feb98fbd681943 16
+  s_17dce3cec43c9d::t_1535e6cb7e81c0 152
+  s_17dce3cec43c9d::t_62568a37494aa1 30
+  s_17dce3cec43c9d::t_3df657a15ba0f2 74
+  s_17dce3cec43c9d::t_dd610a6097105b 365
+  s_17dce3cec43c9d::t_af5e4ac9704908 190
+  s_8bb687d93d7dc9::t_53c6f7a3021f8e 244
+  s_17dce3cec43c9d::t_0cae5a9ad3dfe1 356,358,360-361
+  s_17dce3cec43c9d::t_4beaa6732427f9 44,56,62-63
+  s_17dce3cec43c9d::t_72d317da5cdd15 264
+  s_17dce3cec43c9d::t_242f0ae2108a77 374,376
+  s_17dce3cec43c9d::t_73a7491e7e19d1 25
+  s_17dce3cec43c9d::t_1e56584841ab2c 300
+  s_17dce3cec43c9d::t_afeaef527d16bf 382,384,386,388,390,392,394,396,398
+  s_17dce3cec43c9d::t_142a2af5153b5f 26
+  s_17dce3cec43c9d::t_10a098b8394ae5 186-189
+docs/superpowers/plans/2026-05-24-coverage-provider-architecture.md
+  s_46fe3b2bb10a04::t_02cbd3360c80f7 933,936,939
+  s_46fe3b2bb10a04::t_243a8152401ac6 1-773,776-824,829-866,871-879,881-932,934-935,937-938,940-1122
+  s_46fe3b2bb10a04::t_e47aafdf5b7e8f 774-775,825-828,867-870,880
+docs/superpowers/plans/2026-05-24-coverage-rule.md
+  s_17dce3cec43c9d::t_6f11b9bffac1e1 1-1765
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f98c3602b338eec22850b13789d26d4670b1c3e6",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_46fe3b2bb10a04": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07f0c3c1-210a-4dca-8bca-0ebcad697bcc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8bb687d93d7dc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cd80b58-040a-422f-86a5-277586e67b7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
