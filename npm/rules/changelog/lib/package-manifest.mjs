@@ -8,7 +8,7 @@ import { dirname, join, relative } from 'node:path'
 
 import { parse as parseToml } from 'smol-toml'
 
-import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scripts/utils/workspaces.mjs'
+import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot } from '../../../scripts/lib/workspaces.mjs'
 
 /**
  * @typedef {'npm' | 'python'} PackageKind

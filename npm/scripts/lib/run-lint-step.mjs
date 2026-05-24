@@ -8,7 +8,7 @@
  */
 import { spawnSync } from 'node:child_process'
 
-import { resolveCmd } from './resolve-cmd.mjs'
+import { resolveCmd } from '../utils/resolve-cmd.mjs'
 
 /**
  * Запускає один крок lint-обгортки: резолвить `cmd` у PATH і `spawnSync` із успадкованим stdio.

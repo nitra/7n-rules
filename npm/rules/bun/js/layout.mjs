@@ -20,7 +20,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 /** Розділювач токенів у `scripts.lint` (послідовність пробільних символів). */
 const WHITESPACE_RE = /\s+/u

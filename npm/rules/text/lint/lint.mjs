@@ -19,9 +19,9 @@
  */
 import { platform } from 'node:process'
 
-import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
+import { runLintStep } from '../../../scripts/lib/run-lint-step.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 import { runDotenvLinter } from './run-dotenv-linter.mjs'
 import { runShellcheckText } from './run-shellcheck.mjs'
 import { runV8rWithGlobs } from './run-v8r.mjs'

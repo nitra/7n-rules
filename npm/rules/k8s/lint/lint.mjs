@@ -24,10 +24,10 @@ import { basename, dirname, join, relative } from 'node:path'
 import { parse } from 'yaml'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 /** Per-project kubescape exceptions file; підмішується через --exceptions, якщо існує в корені. */
 const KUBESCAPE_EXCEPTIONS_FILE = '.kubescape-exceptions.json'

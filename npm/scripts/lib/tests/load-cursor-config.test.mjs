@@ -6,7 +6,7 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { sep } from 'node:path'
 
-import { withTmpCwd, writeJson } from '../test-helpers.mjs'
+import { withTmpCwd, writeJson } from '../../utils/test-helpers.mjs'
 import { loadCursorIgnorePaths } from '../load-cursor-config.mjs'
 
 const TRAILING_SLASH_RE = /\/$/

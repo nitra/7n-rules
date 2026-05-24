@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { parsePyprojectFields, readPackageManifest } from '../../../utils/package-manifest.mjs'
+import { parsePyprojectFields, readPackageManifest } from '../../../lib/package-manifest.mjs'
 import { withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
 
 describe('parsePyprojectFields', () => {

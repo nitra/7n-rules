@@ -18,7 +18,7 @@ import { isAbsolute, join, normalize, relative, sep } from 'node:path'
 import picomatch from 'picomatch'
 
 import { loadCursorIgnorePaths } from './load-cursor-config.mjs'
-import { walkDir } from './walkDir.mjs'
+import { walkDir } from '../utils/walkDir.mjs'
 
 /** Узгоджений regex для path-traversal: `..` як сегмент або абсолютний шлях. */
 const PARENT_SEGMENT_RE = /(^|[\\/])\.\.([\\/]|$)/u

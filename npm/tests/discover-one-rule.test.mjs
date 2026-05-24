@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { discoverOneRule } from '../scripts/utils/discover-checkable-rules.mjs'
+import { discoverOneRule } from '../scripts/lib/discover-checkable-rules.mjs'
 
 /** @type {string[]} */
 const tmpRoots = []

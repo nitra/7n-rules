@@ -24,7 +24,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 /** Один hook-артефакт: bash-скрипт + його лог-файл, які перевіряємо однотипно. */
 const HOOK_ARTIFACTS = /** @type {const} */ ([
@@ -82,7 +82,7 @@ function gitignoreLineCoversHookLog(line, logPath) {
 
 /**
  * Перевіряє наявність і канонічність одного hook-скрипта.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
  * @param {string} scriptName базове ім'я скрипта (наприклад `capture-decisions.sh`)
  * @returns {Promise<void>}
  */
@@ -111,7 +111,7 @@ async function checkHookScript(reporter, scriptName) {
  * `.claude/settings.local.json`. Структуру (`hooks.Stop[]` містить групу з
  * `capture-decisions.sh`; `settings.local.json` не дублює) валідують
  * `npm/policy/adr/settings_json/` і `npm/policy/adr/settings_local_json/`.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер
  */
 function checkProjectSettings(reporter) {
   const { pass, fail } = reporter
@@ -164,7 +164,7 @@ function cursorConfigHasStopHook(config, marker) {
 
 /**
  * Перевіряє project-level Cursor hooks config для ADR stop-hooks.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер
  * @returns {Promise<void>}
  */
 async function checkCursorHooks(reporter) {
@@ -190,7 +190,7 @@ async function checkCursorHooks(reporter) {
 
 /**
  * Перевіряє `.gitignore` на ігнорування лог-файлу одного хука.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
  * @param {string} logName базове ім'я лог-файлу (наприклад `capture-decisions.log`)
  * @param {string} gitignoreContent попередньо прочитаний вміст `.gitignore`
  * @returns {void}
@@ -211,7 +211,7 @@ function checkGitignoreForLog(reporter, logName, gitignoreContent) {
 
 /**
  * Перевіряє `.gitignore` для всіх hook-логів одним проходом.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
  * @returns {Promise<void>}
  */
 async function checkGitignore(reporter) {
@@ -251,7 +251,7 @@ function isBinaryInPath(name) {
 /**
  * Інформативна перевірка: чи доступний бодай один LLM CLI (`claude` або `cursor-agent`).
  * Якщо жодного немає — це warning (`pass` з підказкою), бо хук просто мовчки no-op'ає.
- * @param {import('../../../../scripts/utils/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {import('../../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
  * @returns {void}
  */
 function checkLlmCliAvailable(reporter) {

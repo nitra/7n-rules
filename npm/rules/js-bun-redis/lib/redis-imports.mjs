@@ -26,7 +26,7 @@ import {
   offsetToLine,
   requireCallModule,
   walkAstWithAncestors
-} from './ast-scan-utils.mjs'
+} from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const FORBIDDEN_MODULE_NAMES = new Set([

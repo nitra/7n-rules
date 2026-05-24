@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.16.0] - 2026-05-24
+
+### Changed
+
+- **`utils/` vs `lib/` (js-lint.mdc):** усі 10 каталогів `npm/rules/<rule>/utils/` перейменовано в `npm/rules/<rule>/lib/` — їхній вміст domain-bound (запускає hadolint, парсить kustomize/k8s-tree, конкретні AST-сканери правила, читання `.n-cursor.json` тощо), що за правилом `utils/` vs `lib/` має жити в `lib/`. Зачеплені правила: `abie`, `changelog`, `docker`, `graphql`, `js-bun-db`, `js-lint`, `js-mssql`, `js-run`, `rust`, `vue`. Тести й `__fixtures__/` переїхали разом із батьківським каталогом. 26 внутрішніх `'../utils/'`-імпортів у `js/`/`lint/` і 3 зовнішніх з `npm/scripts/auto-rules.mjs` оновлено на `'../lib/'` / `'../<rule>/lib/'`. JSDoc-шлях у `npm/rules/js-lint/lib/rebuild-oxlint-canonical.mjs` (приклад запуску) і JSDoc-натяк у `npm/rules/rust/lib/has-cargo-toml.mjs` теж оновлені.
+- **`npm/scripts/utils/` розщеплено на `utils/` + `lib/`:** 19 файлів (`run-rule`, `run-rule-cli`, `run-standard-rule`, `run-standard-lint`, `run-lint-step`, `run-conftest-batch`, `discover-checkable-rules`, `discover-check-rules-from-cursor`, `list-rule-ids`, `load-cursor-config`, `read-n-cursor-config-lite`, `resolve-target-files`, `check-mdc-template-refs`, `check-reporter`, `gha-workflow`, `generated-markdown`, `inline-template-links`, `template`, `workspaces`) і 14 відповідних тестів + `__fixtures__/` переїхали у `npm/scripts/lib/`. У `npm/scripts/utils/` залишилися 9 справді generic-файлів (`ast-scan-utils`, `find-package-json-paths`, `pass`, `resolve-cmd`, `test-helpers`, `walk-cache`, `walkDir`, `with-lock`, `worktree-fingerprint`) + 4 їхні тести. `~220` імпортів `scripts/utils/<lib-file>` по всьому `npm/` оновлено на `scripts/lib/<lib-file>`; внутрішні lib→utils переходи (`check-reporter→pass`, `resolve-target-files→walkDir`, `run-conftest-batch→resolve-cmd`, `run-lint-step→resolve-cmd`, `run-rule-cli→walk-cache`, `run-standard-lint→with-lock`, `run-standard-rule→walk-cache,with-lock`) переписані на `'../utils/<file>'`; lib-тести з залежністю від `test-helpers` — на `'../../utils/test-helpers.mjs'`.
+- **`scripts/utils/redis-imports.mjs` → `npm/rules/js-bun-redis/lib/redis-imports.mjs`** (+тест). Симетрично до `bunyan-imports`/`vue-forbidden-imports`: per-rule сканер живе в самому правилі, а не в спільних скриптах. Імпорт `scripts/utils/ast-scan-utils.mjs` зберігся (це справді generic helper).
+
+### Added
+
+- **Новий концерн `js-lint.utils_imports`** (`npm/rules/js-lint/js/utils_imports.mjs`): обходить кожен `utils/`-каталог у monorepo-воркспейсах і падає, якщо знаходить relative-імпорт з `..` у не-тестовому `.[cm]?[jt]sx?`-файлі. Дозволені лише same-dir (`./X`), bare-пакети та `node:*`; cross-rule, конфіги проєкту чи sibling-utils → fail з підказкою «перенеси у `lib/`». Тести (`*.test.mjs`) і будь-який `__fixtures__/` пропускаються — тестам легально треба `../X`. У `js-lint.mdc` під секцією «Структура спільних модулів: `utils/` vs `lib/`» додано абзац про автоматичну перевірку.
+
 ## [1.15.1] - 2026-05-24
 
 ### Fixed

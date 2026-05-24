@@ -32,7 +32,7 @@ import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
 const LINT_TARGETS = ['npm/rules']

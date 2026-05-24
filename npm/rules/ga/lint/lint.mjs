@@ -31,8 +31,8 @@ import { platform } from 'node:process'
 
 import { check as checkGa } from '../js/workflows.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
-import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+import { runLintStep } from '../../../scripts/lib/run-lint-step.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 /**
  * Опис залежності preflight-ом: бінарник, для чого потрібен, і команди встановлення.

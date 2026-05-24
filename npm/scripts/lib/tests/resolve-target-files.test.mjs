@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { resolveTargetFiles } from '../resolve-target-files.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../utils/test-helpers.mjs'
 
 const ABSOLUTE_PATH_HINT_RE = /відносним/u
 const PARENT_TRAVERSAL_HINT_RE = /\.\./u

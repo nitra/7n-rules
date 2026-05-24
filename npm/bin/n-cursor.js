@@ -70,8 +70,8 @@ import { cwd, env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { buildAgentsCommandBulletItems } from '../scripts/build-agents-commands.mjs'
-import { formatGeneratedMarkdownLines, renderAgentsTemplate } from '../scripts/utils/generated-markdown.mjs'
-import { inlineTemplateLinks } from '../scripts/utils/inline-template-links.mjs'
+import { formatGeneratedMarkdownLines, renderAgentsTemplate } from '../scripts/lib/generated-markdown.mjs'
+import { inlineTemplateLinks } from '../scripts/lib/inline-template-links.mjs'
 import {
   detectAutoRules,
   detectLegacyRuleIds,
@@ -81,8 +81,8 @@ import {
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
-import { discoverCheckRulesFromCursorRules } from '../scripts/utils/discover-check-rules-from-cursor.mjs'
-import { listRuleIds } from '../scripts/utils/list-rule-ids.mjs'
+import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
+import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { runLintDocker } from '../rules/docker/lint/lint.mjs'
 import { runLintGaCli } from '../rules/ga/lint/lint.mjs'

@@ -12,7 +12,7 @@
  * Інтеграція з боку правила:
  *
  * ```js
- * import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+ * import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
  *
  * async function runLintFooSteps() { ... }
  *
@@ -21,7 +21,7 @@
  */
 import { basename, dirname } from 'node:path'
 
-import { withLock } from './with-lock.mjs'
+import { withLock } from '../utils/with-lock.mjs'
 
 /**
  * @param {string} lintDir абсолютний шлях до `rules/<id>/lint/` (передавай `import.meta.dirname`)

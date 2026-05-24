@@ -10,11 +10,11 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
-import { validateAbieHcModeline } from '../utils/hc-yaml.mjs'
-import { collectDeploymentDirs, findK8sYamlFiles } from '../utils/k8s-tree.mjs'
+import { validateAbieHcModeline } from '../lib/hc-yaml.mjs'
+import { collectDeploymentDirs, findK8sYamlFiles } from '../lib/k8s-tree.mjs'
 
 /**
  * @returns {Promise<number>} результат

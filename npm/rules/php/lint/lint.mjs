@@ -13,7 +13,7 @@ import { existsSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 const PHPCS_CODE_DIR_CANDIDATES = ['app', 'src', 'lib', 'public', 'www']

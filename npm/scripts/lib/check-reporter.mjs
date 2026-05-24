@@ -6,7 +6,7 @@
  *
  * Використовуй `getExitCode()` у `return`, а не деструктуризацію `exitCode` — геттер «знімається» один раз.
  */
-import { pass } from './pass.mjs'
+import { pass } from '../utils/pass.mjs'
 
 /**
  * Створює пару `pass` / `fail` з накопиченням ненульового коду виходу.

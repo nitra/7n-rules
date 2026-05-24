@@ -20,11 +20,11 @@ import { execFileSync } from 'node:child_process'
 import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../scripts/utils/gha-workflow.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { eventPathsIncludeExact, parseWorkflowYaml } from '../../../scripts/lib/gha-workflow.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
-import { loadTemplate } from '../../../scripts/utils/template.mjs'
+import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
+import { loadTemplate } from '../../../scripts/lib/template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const GA_POLICY_DIR = join(HERE, '..', '..', 'policy')

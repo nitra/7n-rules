@@ -10,20 +10,20 @@
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 
-import { analyzeAbieSharedBackendRefsInPackageK8s } from '../utils/http-route.mjs'
-import { findK8sYamlFiles } from '../utils/k8s-tree.mjs'
+import { analyzeAbieSharedBackendRefsInPackageK8s } from '../lib/http-route.mjs'
+import { findK8sYamlFiles } from '../lib/k8s-tree.mjs'
 import {
   getCombinedNginxRunPatchTextFromKustomization,
   validateAbieNginxRunHttpRoutePatches
-} from '../utils/kustomization-patches.mjs'
+} from '../lib/kustomization-patches.mjs'
 import {
   abiePackageDirFromK8sOverlay,
   abieOverlayRequiresHttpRouteByVite,
   isUaKustomizationPath
-} from '../utils/overlay-paths.mjs'
+} from '../lib/overlay-paths.mjs'
 
 /**
  * @returns {Promise<number>} результат

@@ -13,11 +13,11 @@
 import { basename } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { lintDockerfileWithHadolint, posixRel } from '../utils/docker-hadolint.mjs'
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { lintDockerfileWithHadolint, posixRel } from '../lib/docker-hadolint.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'
+import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 /**
  * Чи входить файл до набору lint-docker: Dockerfile або *.Dockerfile (*.dockerfile).

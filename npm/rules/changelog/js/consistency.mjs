@@ -22,13 +22,13 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import {
   getMonorepoProjectRootDirs,
   manifestFilePath,
   parsePyprojectFields,
   readPackageManifest
-} from '../utils/package-manifest.mjs'
+} from '../lib/package-manifest.mjs'
 
 const execFileAsync = promisify(execFile)
 

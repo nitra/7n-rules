@@ -7,9 +7,9 @@
  */
 import { existsSync } from 'node:fs'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
-import { hasCargoTomlInTree } from '../utils/has-cargo-toml.mjs'
+import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
 
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 

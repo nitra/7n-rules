@@ -11,7 +11,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { runRule } from '../run-rule.mjs'
-import { ensureDir, withTmpCwd } from '../test-helpers.mjs'
+import { ensureDir, withTmpCwd } from '../../utils/test-helpers.mjs'
 
 /**
  * Записує JS-файл у `rules/<id>/js/<concern>.mjs` з довільним вмістом (flat-layout з 1.14.0).

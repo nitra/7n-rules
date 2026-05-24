@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { resolveCmd } from './resolve-cmd.mjs'
+import { resolveCmd } from '../utils/resolve-cmd.mjs'
 
 /**
   Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил.

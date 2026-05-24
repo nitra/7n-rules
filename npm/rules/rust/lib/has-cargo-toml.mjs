@@ -4,7 +4,7 @@
  * `.next`, `.turbo` за тим самим списком, що `npm/scripts/auto-rules.mjs`.
  *
  * Утиліта rule-local, бо лише `rust` потребує "знайти Cargo.toml у дереві";
- * якщо з'явиться другий споживач — підняти у `npm/scripts/utils/`.
+ * якщо з'явиться другий споживач — підняти у `npm/scripts/lib/`.
  */
 import { readdirSync } from 'node:fs'
 import { join } from 'node:path'

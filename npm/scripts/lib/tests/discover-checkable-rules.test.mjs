@@ -6,7 +6,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { discoverCheckableRules } from '../discover-checkable-rules.mjs'
-import { ensureDir, withTmpCwd } from '../test-helpers.mjs'
+import { ensureDir, withTmpCwd } from '../../utils/test-helpers.mjs'
 
 /**
  * Створює `rules/<id>/js/<concern>.mjs`.

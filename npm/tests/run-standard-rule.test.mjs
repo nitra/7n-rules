@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { runStandardRule } from '../scripts/utils/run-standard-rule.mjs'
+import { runStandardRule } from '../scripts/lib/run-standard-rule.mjs'
 import { resetWalkCache } from '../scripts/utils/walk-cache.mjs'
 
 /** @type {string[]} */

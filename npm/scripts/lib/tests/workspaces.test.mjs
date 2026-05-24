@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ensureDir, withTmpCwd, writeJson } from '../test-helpers.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../utils/test-helpers.mjs'
 import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot, normalizeWorkspacePatterns } from '../workspaces.mjs'
 
 describe('normalizeWorkspacePatterns', () => {

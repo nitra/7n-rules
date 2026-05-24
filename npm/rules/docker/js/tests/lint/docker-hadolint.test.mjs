@@ -4,7 +4,7 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
-import { HADOLINT_IMAGE, posixRel } from '../../../utils/docker-hadolint.mjs'
+import { HADOLINT_IMAGE, posixRel } from '../../../lib/docker-hadolint.mjs'
 
 const HADOLINT_IMAGE_RE = /^hadolint\/hadolint:v[\d.]+$/
 

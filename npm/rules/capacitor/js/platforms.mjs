@@ -25,7 +25,7 @@ import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 /** Мінімальна допустима мажорна версія Capacitor (capacitor.mdc) */
 const MIN_CAPACITOR_MAJOR = 8

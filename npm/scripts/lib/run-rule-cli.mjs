@@ -10,7 +10,7 @@ import { basename } from 'node:path'
 
 import { isRuleEnabled, readNCursorConfigLite } from './read-n-cursor-config-lite.mjs'
 import { runStandardRule } from './run-standard-rule.mjs'
-import { getOrCreateWalkCache } from './walk-cache.mjs'
+import { getOrCreateWalkCache } from '../utils/walk-cache.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 

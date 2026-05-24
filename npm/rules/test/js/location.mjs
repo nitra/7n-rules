@@ -9,8 +9,8 @@
  */
 import { basename, dirname, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 const TESTS_DIR_NAME = 'tests'

@@ -14,8 +14,8 @@ import { basename, dirname } from 'node:path'
 
 import { discoverOneRule } from './discover-checkable-rules.mjs'
 import { runRule } from './run-rule.mjs'
-import { getOrCreateWalkCache } from './walk-cache.mjs'
-import { withLock } from './with-lock.mjs'
+import { getOrCreateWalkCache } from '../utils/walk-cache.mjs'
+import { withLock } from '../utils/with-lock.mjs'
 
 /**
  * @typedef {object} RuleContext

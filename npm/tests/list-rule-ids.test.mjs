@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { listRuleIds } from '../scripts/utils/list-rule-ids.mjs'
+import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 
 /** @type {string[]} */
 const tmpRoots = []

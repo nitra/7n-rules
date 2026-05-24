@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { findAllPackageJsonPaths } from '../../../scripts/utils/find-package-json-paths.mjs'
 import {
   findMssqlPerRequestConnectionInText,
@@ -22,8 +22,8 @@ import {
   findUnsafeMssqlInListUnparsedInText,
   findUnsafeMssqlInListMissingEmptyGuardInText,
   isMssqlScanSourceFile
-} from '../utils/mssql-pool-scan.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+} from '../lib/mssql-pool-scan.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 const VERSION_PREFIX_RE = /^[\^~>=<]+\s*/u

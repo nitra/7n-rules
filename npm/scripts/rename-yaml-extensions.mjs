@@ -14,7 +14,7 @@ import { rename } from 'node:fs/promises'
 import { cwd } from 'node:process'
 import { relative, resolve } from 'node:path'
 
-import { loadCursorIgnorePaths } from './utils/load-cursor-config.mjs'
+import { loadCursorIgnorePaths } from './lib/load-cursor-config.mjs'
 import { walkDir } from './utils/walkDir.mjs'
 
 const K8S_YML_RE = /\.yml$/iu

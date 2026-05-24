@@ -3,9 +3,9 @@
  * Якщо повертає `false` — CLI пропускає всі концерни (JS і policy) цього правила.
  * `check()` друкує тільки context-pass; решта концернів роблять справжню роботу.
  */
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
-import { isAbieRuleEnabled } from '../utils/enabled.mjs'
+import { isAbieRuleEnabled } from '../lib/enabled.mjs'
 
 /**
  * @returns {Promise<boolean>} `true` — правило застосовне; `false` — пропустити

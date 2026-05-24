@@ -9,8 +9,8 @@
  * JS тут лишається лише як cross-file гейт: walkDir не виразити декларативно через `target.json`.
  * Друк короткого pass-повідомлення з контекстом робить `check()` (необовʼязковий).
  */
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 /**

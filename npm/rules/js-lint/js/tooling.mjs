@@ -15,7 +15,7 @@ import { copyFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
 /** Шлях до канонічного oxlint JSON у цьому пакеті (для перевірки та тестів). */
 export const OXLINT_CANONICAL_JSON_PATH = join(

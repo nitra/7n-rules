@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from '../../../utils/promise-settimeout-scan.mjs'
+import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from '../../../lib/promise-settimeout-scan.mjs'
 
 describe('promise-settimeout-scan (oxc)', () => {
   test('await new Promise(r => setTimeout(r, 500)) — порушення', () => {
