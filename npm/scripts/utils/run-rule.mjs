@@ -1,10 +1,10 @@
 /**
- * Оркестратор одного правила під CLI `check`.
+ * Оркестратор одного правила під CLI `fix`.
  *
  * Послідовність (concerns у межах правила — алфавітно):
- *   1. **applies-гейт** з `js/applies/check.mjs`. Якщо модуль експортує `applies()` і вона повертає
+ *   1. **applies-гейт** з `js/applies.mjs`. Якщо модуль експортує `applies()` і вона повертає
  *      false — друкуємо `✅ правило не застосовне` і завершуємо без подальших викликів.
- *   2. **JS-концерни** — кожен `check*.mjs` у `js/<concern>/`. Concern `applies` теж може мати
+ *   2. **JS-концерни** — кожен файл `js/<concern>.mjs`. Concern `applies` теж може мати
  *      `check()` для друку контексту (його `applies()` уже відпрацював на кроці 1, він не повторюється).
  *   3. **Policy-концерни** — кожен `policy/<concern>/target.json` через `runConftestBatch`.
  *      Резолвер `resolveTargetFiles` ділить cache (`walkCache`) між концернами.
@@ -24,32 +24,29 @@ import { resolveConcernTemplateData } from './template.mjs'
 const APPLIES_CONCERN_NAME = 'applies'
 
 /**
- * Обчислює абсолютний шлях до файла-check у JS-концерні: `rules/<id>/js/<concern>/<file>`.
- * Convention `js/` (за технологією) повернулась у 1.13.80 після короткої епохи `fix/`
- * (1.11.10–1.13.79) — щоб не плутати з кореневим `fix.mjs` entry-point'ом.
+ * Обчислює абсолютний шлях до файла-концерну: `rules/<id>/js/<concern>.mjs`.
+ * Flat-convention з 1.14.0 — концерн = файл, не каталог.
  * @param {string} bundledRulesDir абсолютний `rules/`
  * @param {string} ruleId id правила
  * @param {import('./discover-checkable-rules.mjs').JsConcern} concern опис концерну
- * @param {string} fileName імʼя файла з `concern.files`
  * @returns {string} абсолютний шлях
  */
-function resolveJsCheckPath(bundledRulesDir, ruleId, concern, fileName) {
-  return join(bundledRulesDir, ruleId, 'js', concern.name, fileName)
+function resolveJsCheckPath(bundledRulesDir, ruleId, concern) {
+  return join(bundledRulesDir, ruleId, 'js', `${concern.name}.mjs`)
 }
 
 /**
- * Спробувати викликати applies() гейт з `js/applies/check.mjs` правила.
- * Гейт активний лише за наявності концерну з імʼям `applies` і експортом-функцією `applies` у його
- * першому check-файлі (алфавіт).
+ * Спробувати викликати applies() гейт з `js/applies.mjs` правила.
+ * Гейт активний лише за наявності концерну з імʼям `applies` і експортом-функцією `applies`.
  * @param {string} bundledRulesDir абсолютний `rules/`
  * @param {import('./discover-checkable-rules.mjs').CheckableRule} rule опис правила
  * @returns {Promise<boolean>} `true` — правило застосовне (або гейту немає); `false` — пропустити
  */
 async function evaluateAppliesGate(bundledRulesDir, rule) {
   const concern = rule.jsConcerns.find(c => c.name === APPLIES_CONCERN_NAME)
-  if (!concern || concern.files.length === 0) return true
-  const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern, concern.files[0])
-  // eslint-disable-next-line no-unsanitized/method -- path будується з discovered concern/file, які пройшли regex CHECK_FILENAME_RE
+  if (!concern) return true
+  const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern)
+  // eslint-disable-next-line no-unsanitized/method -- path з discovered concern, файл з whitelist'у readdir
   const mod = await import(path)
   if (typeof mod.applies !== 'function') return true
   return Boolean(await mod.applies())
@@ -116,14 +113,12 @@ export async function runRule(rule, bundledRulesDir, walkCache) {
   let totalCode = 0
 
   for (const concern of rule.jsConcerns) {
-    for (const fileName of concern.files) {
-      const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern, fileName)
-      // eslint-disable-next-line no-unsanitized/method -- path будується з discovered concern/file, які пройшли regex CHECK_FILENAME_RE
-      const mod = await import(path)
-      if (typeof mod.check === 'function') {
-        const code = await mod.check()
-        if (code !== 0) totalCode = 1
-      }
+    const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern)
+    // eslint-disable-next-line no-unsanitized/method -- path з discovered concern, файл з whitelist'у readdir
+    const mod = await import(path)
+    if (typeof mod.check === 'function') {
+      const code = await mod.check()
+      if (code !== 0) totalCode = 1
     }
   }
 

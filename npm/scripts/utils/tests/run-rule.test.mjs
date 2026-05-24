@@ -14,16 +14,15 @@ import { runRule } from '../run-rule.mjs'
 import { ensureDir, withTmpCwd } from '../test-helpers.mjs'
 
 /**
- * Записує JS-файл у `rules/<id>/js/<concern>/<name>` з довільним вмістом.
+ * Записує JS-файл у `rules/<id>/js/<concern>.mjs` з довільним вмістом (flat-layout з 1.14.0).
  * @param {string} ruleId id правила
- * @param {string} concern імʼя концерну
- * @param {string} fileName наприклад `check.mjs`
+ * @param {string} concern імʼя концерну (стає basename файла)
  * @param {string} body вміст файла
  * @returns {Promise<void>}
  */
-async function writeConcernJs(ruleId, concern, fileName, body) {
-  await ensureDir(join('rules', ruleId, 'js', concern))
-  await writeFile(join('rules', ruleId, 'js', concern, fileName), body, 'utf8')
+async function writeConcernJs(ruleId, concern, body) {
+  await ensureDir(join('rules', ruleId, 'js'))
+  await writeFile(join('rules', ruleId, 'js', `${concern}.mjs`), body, 'utf8')
 }
 
 describe('runRule — applies gate', () => {
@@ -32,7 +31,6 @@ describe('runRule — applies gate', () => {
       await writeConcernJs(
         'rego',
         'applies',
-        'check.mjs',
         `export const applies = async () => false
          export const check = async () => { throw new Error('не має викликатись') }
         `
@@ -40,15 +38,11 @@ describe('runRule — applies gate', () => {
       await writeConcernJs(
         'rego',
         'other',
-        'check.mjs',
         `export const check = async () => { throw new Error('не має викликатись') }`
       )
       const rule = {
         id: 'rego',
-        jsConcerns: [
-          { name: 'applies', files: ['check.mjs'] },
-          { name: 'other', files: ['check.mjs'] }
-        ],
+        jsConcerns: [{ name: 'applies' }, { name: 'other' }],
         policyConcerns: []
       }
       const code = await runRule(rule, join(dir, 'rules'), new Map())
@@ -61,7 +55,6 @@ describe('runRule — applies gate', () => {
       await writeConcernJs(
         'rego',
         'applies',
-        'check.mjs',
         `export const applies = async () => true
          export const check = async () => 0
         `
@@ -69,17 +62,13 @@ describe('runRule — applies gate', () => {
       await writeConcernJs(
         'rego',
         'other',
-        'check.mjs',
         `let called = false
          export const check = async () => { called = true; return 0 }
          export const wasCalled = () => called`
       )
       const rule = {
         id: 'rego',
-        jsConcerns: [
-          { name: 'applies', files: ['check.mjs'] },
-          { name: 'other', files: ['check.mjs'] }
-        ],
+        jsConcerns: [{ name: 'applies' }, { name: 'other' }],
         policyConcerns: []
       }
       const code = await runRule(rule, join(dir, 'rules'), new Map())
@@ -89,10 +78,10 @@ describe('runRule — applies gate', () => {
 
   test('відсутній applies-концерн → правило просто запускається', async () => {
     await withTmpCwd(async dir => {
-      await writeConcernJs('text', 'cspell', 'check.mjs', `export const check = async () => 0`)
+      await writeConcernJs('text', 'cspell', `export const check = async () => 0`)
       const rule = {
         id: 'text',
-        jsConcerns: [{ name: 'cspell', files: ['check.mjs'] }],
+        jsConcerns: [{ name: 'cspell' }],
         policyConcerns: []
       }
       const code = await runRule(rule, join(dir, 'rules'), new Map())
@@ -104,14 +93,11 @@ describe('runRule — applies gate', () => {
 describe('runRule — exit-код агрегується', () => {
   test('1, якщо хоча б один JS-концерн повернув ненульовий', async () => {
     await withTmpCwd(async dir => {
-      await writeConcernJs('mix', 'a', 'check.mjs', `export const check = async () => 0`)
-      await writeConcernJs('mix', 'b', 'check.mjs', `export const check = async () => 1`)
+      await writeConcernJs('mix', 'a', `export const check = async () => 0`)
+      await writeConcernJs('mix', 'b', `export const check = async () => 1`)
       const rule = {
         id: 'mix',
-        jsConcerns: [
-          { name: 'a', files: ['check.mjs'] },
-          { name: 'b', files: ['check.mjs'] }
-        ],
+        jsConcerns: [{ name: 'a' }, { name: 'b' }],
         policyConcerns: []
       }
       const code = await runRule(rule, join(dir, 'rules'), new Map())
