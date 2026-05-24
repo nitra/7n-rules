@@ -1,0 +1,25 @@
+npm/rules/rust/utils/has-cargo-toml.mjs
+  s_a4a35b867bfba2::t_3807f54a24c09c 1-39
+npm/rules/rust/utils/tests/has-cargo-toml.test.mjs
+  s_a4a35b867bfba2::t_72006acc680a47 1-58
+npm/rules/rust/fix.mjs
+  s_a4a35b867bfba2::t_4f28088a25ebca 1-19
+npm/rules/rust/auto.md
+  s_a4a35b867bfba2::t_25c65b719c724e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "7d21ee3f0f618099789e6e37aade5d43986d2283",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
