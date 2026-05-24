@@ -1,0 +1,33 @@
+npm/CHANGELOG.md
+  s_31049ff0153a46::t_09e022dbee9ddf 7-12
+.cursor/rules/n-js-lint.mdc
+  s_31049ff0153a46::t_09e022dbee9ddf 5,106-114
+npm/package.json
+  s_31049ff0153a46::t_09e022dbee9ddf 3
+.cursor/rules/scripts.mdc
+  s_31049ff0153a46::t_1b0036065db0c8 51
+  s_31049ff0153a46::t_80c55c987cceeb 86,91,94,98,109,111,116,118,207
+  s_31049ff0153a46::t_4436e178c5754f 39-45
+docs/adr/20260524-065424-581c8d8b.md
+  ai_agent 1-33
+npm/rules/js-lint/js-lint.mdc
+  s_31049ff0153a46::t_09e022dbee9ddf 5,82-90
+docs/superpowers/plans/2026-05-23-flat-concern-layout.md
+  s_31049ff0153a46::t_09e022dbee9ddf 739,749,754-756,762-771,785-786,927,929,933,938,962,985-986,989,1021,1023-1024
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1cde37a74f39855680b5b4eee1e3bec3b0385db4",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
