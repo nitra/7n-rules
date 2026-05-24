@@ -1,0 +1,25 @@
+npm/rules/rust/policy/package_json/package_json.rego
+  ai_agent 1-18
+npm/rules/rust/policy/package_json/package_json_test.rego
+  ai_agent 1-55
+npm/rules/rust/policy/package_json/target.json
+  ai_agent 1-4
+npm/rules/rust/policy/package_json/template/package.json.contains.json
+  s_a4a35b867bfba2::t_63b51152ef3c6f 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "83a32deccf654f16956abc2dcba814a5b21ae08d",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
