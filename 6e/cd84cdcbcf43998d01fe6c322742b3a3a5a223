@@ -1,0 +1,19 @@
+npm/scripts/migrate-flat-concerns.mjs
+  s_31049ff0153a46::t_c3440638bf782d 2-8,10,12,15-17,19,21-24,26-28,30-31,33-40,43-55,57-63,65-69,71-86,88-91,93-96,98,100-102,104-106,108-109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "6ecd84cdcbcf43998d01fe6c322742b3a3a5a223",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
