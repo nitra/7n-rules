@@ -70,7 +70,7 @@ dist/
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
 `
-  await mkdir(join(pkgRoot, 'rules/adr/js/hooks/template'), { recursive: true })
+  await mkdir(join(pkgRoot, 'rules/adr/js/templates/hooks'), { recursive: true })
   await writeFile(join(pkgRoot, ADR_GITIGNORE_SNIPPET_REL), gitignoreSnippet, 'utf8')
   return pkgRoot
 }
