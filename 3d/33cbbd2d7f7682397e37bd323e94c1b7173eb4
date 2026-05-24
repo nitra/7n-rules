@@ -1,0 +1,77 @@
+npm/bin/n-cursor.js
+  s_abead69ea94468::t_761297aa95eb2d 228-242
+npm/rules/rust/coverage/coverage.mjs
+  s_abead69ea94468::t_fb364e87dc7790 74-75
+  s_abead69ea94468::t_d95ebcece83634 62
+  s_abead69ea94468::t_ded429198faaab 20-21,23-25
+  s_abead69ea94468::t_5fbeac9073bedd 30
+npm/tests/integration-repo-checks.test.mjs
+  s_abead69ea94468::t_d56e8a17d3edae 29-38
+npm/rules/test/coverage/coverage.mjs
+  s_abead69ea94468::t_6c14dc0204182f 99-101
+  s_abead69ea94468::t_e1988ff213f164 74-75
+  s_abead69ea94468::t_e7d8c972ead0bf 129
+  s_abead69ea94468::t_4e8b10c98d623e 64-65
+  s_abead69ea94468::t_dad2e57a38dc7c 28-30
+  s_abead69ea94468::t_2a9fc4fca0f695 44-46
+  s_abead69ea94468::t_134d76b1838132 54-55
+  s_abead69ea94468::t_14fdf0f9962987 113-114,117-122
+npm/rules/rust/lib/tests/has-cargo-toml.test.mjs
+  s_abead69ea94468::t_6bd98a04e88312 11-14,16
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_abead69ea94468::t_a0586b2baa9ec6 111,114
+  s_abead69ea94468::t_e6043d4ef5336b 125,129
+  s_abead69ea94468::t_0b356cc0bf791d 83,88
+npm/rules/test/js/location.mjs
+  s_abead69ea94468::t_169eb22562935c 21
+npm/rules/js-lint/coverage/coverage.mjs
+  s_abead69ea94468::t_3d55b5972edfa8 33-34
+  s_abead69ea94468::t_4bdd976119e4a6 99,107
+  s_abead69ea94468::t_3b3bbbf8f1cc19 117
+  s_abead69ea94468::t_64c0164635214a 17
+  s_abead69ea94468::t_37cc23e77853ae 59-60
+  s_abead69ea94468::t_8dd981ef0ebf27 76-77
+  s_abead69ea94468::t_5c18c412325a0d 45-46
+npm/rules/rust/coverage/tests/coverage.test.mjs
+  s_abead69ea94468::t_c885d9778726ab 98,101
+  s_abead69ea94468::t_1ccd4c824a08e9 57,73
+  s_abead69ea94468::t_f9e5e0ac0ed4ba 112,120
+npm/rules/rust/lib/has-cargo-toml.mjs
+  s_abead69ea94468::t_cef984512394c8 32
+npm/scripts/lib/run-standard-rule.mjs
+  s_abead69ea94468::t_0399adfb8364ee 35
+npm/scripts/utils/tests/with-lock.test.mjs
+  s_abead69ea94468::t_cdfaf32034b56f 65-69
+  s_abead69ea94468::t_824f146da00187 86-88
+npm/rules/rust/js/tests/applies.test.mjs
+  s_abead69ea94468::t_4bb8cc2dfab30d 9-12,14
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_abead69ea94468::t_3203c1e7f96d5b 92-94
+npm/scripts/utils/with-lock.mjs
+  s_abead69ea94468::t_cfe0811c2415ea 125
+  s_abead69ea94468::t_c3b1374d40b0f9 54-58
+  s_abead69ea94468::t_e3f991c8d5e211 40-44
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_abead69ea94468::t_20099406f5f064 3-4
+  s_abead69ea94468::t_2ce2d0c4599d3d 14-17
+npm/scripts/utils/tests/worktree-fingerprint.test.mjs
+  s_abead69ea94468::t_68ae84964e3189 29
+  s_abead69ea94468::t_bf0b9f84406944 4
+  s_abead69ea94468::t_cae485a41c1153 5-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "3d33cbbd2d7f7682397e37bd323e94c1b7173eb4",
+  "prompts": {},
+  "sessions": {
+    "s_abead69ea94468": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "afe17d4d-8855-4421-8f0e-6343a88c312b",
+        "model": "composer-2.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
