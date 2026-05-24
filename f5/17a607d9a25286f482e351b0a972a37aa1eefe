@@ -1,0 +1,160 @@
+docs/superpowers/specs/2026-05-24-coverage-rule-design.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 3,20-30,72,110,114,125,129,156,159,313-323,332,340,346,354,362
+npm/rules/text/js/tests/formatting/tests/check-fixture.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-96
+npm/package.json
+  s_17dce3cec43c9d::t_b4e8dcc1ef0bfe 3
+.cursor/rules/n-test.mdc
+  s_17dce3cec43c9d::t_9f7219a83970b1 3,61-80
+npm/rules/k8s/js/tests/manifests/tests/check-images.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-769
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_17dce3cec43c9d::t_dd4798f24029b6 1-68,70-130
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 69
+npm/scripts/lib/tests/discover-checkable-rules.test.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 67
+npm/rules/js-run/js/tests/runtime/tests/check-fixture.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-297
+.n-cursor.json
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 20-22
+docs/superpowers/plans/2026-05-23-per-rule-fix-mjs-entry-point.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 19-39,46,149,276,425,553,616,725,789,903,978,1058,1121,1247
+docs/superpowers/specs/2026-05-23-rust-rule-design.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 3,20-31,33-34,103,226-228,245-249,257,300,319
+npm/rules/docker/js/tests/lint/tests/check-multistage.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-146
+npm/rules/test/policy/package_json/template/package.json.contains.json
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 3
+  s_17dce3cec43c9d::t_ec7af4f82c520a 1-2,4-5
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-123
+npm/rules/vue/js/tests/packages/tests/vue-forbidden-imports.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-135
+docs/superpowers/specs/2026-05-22-lint-ga-concurrency-lock-design.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 30-36,173-183,191,198
+npm/rules/rust/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 54-57,63-66
+  s_17dce3cec43c9d::t_9542eea53e57af 1-53,58-62,67-112
+npm/rules/docker/js/tests/lint/tests/docker-hadolint.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-23
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-2347
+npm/rules/js-bun-redis/js/imports.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 19
+npm/rules/test/policy/package_json/package_json_test.rego
+  s_17dce3cec43c9d::t_aa631ef36f78b1 1-39
+npm/rules/docker/js/tests/lint/tests/check-nginx-slim.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-41
+CLAUDE.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 6
+npm/rules/docker/js/tests/lint/tests/check-mirror.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-97
+npm/rules/js-run/js/tests/runtime/tests/check-env-scan.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-119
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_17dce3cec43c9d::t_6bd86b45aa2f74 2-5,8-10,12-19
+  s_17dce3cec43c9d::t_9bd7d047be627c 155-172
+  s_17dce3cec43c9d::t_388dce3d9b6ff9 74-154,173-187
+  s_17dce3cec43c9d::t_e8e1df636b9bdf 1,6-7,11,20-73
+npm/rules/rust/rust.mdc
+  s_17dce3cec43c9d::t_2a768e762d2b10 5
+  s_17dce3cec43c9d::t_8e8e5bdb7f7df3 28-31
+package.json
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 9,29-32
+  s_abead69ea94468::t_e5a1b92abd43e0 12,14-19,23-28
+npm/rules/js-run/js/tests/runtime/tests/bunyan-imports.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-6,12-63
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 7-11
+npm/rules/test/policy/package_json/package_json.rego
+  s_17dce3cec43c9d::t_6cc0f58cd6129c 1-17
+npm/rules/test/test.mdc
+  s_17dce3cec43c9d::t_dcdb1ad0f04e93 3
+  s_17dce3cec43c9d::t_74a00ca1ec3987 61-70
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-584
+npm/rules/js-run/js/tests/runtime/tests/conn-imports-scan.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-85
+npm/rules/js-lint/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_52685b4a8b6384 1-99,105-146
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 100-104
+npm/rules/js-run/js/tests/runtime/tests/conn-file-rules.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-79
+docs/superpowers/plans/2026-05-23-flat-concern-layout.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 57-70,77,208,343,379-381,429,531,572,577,631,731,745,776,805,817,863,912,1023
+npm/rules/js-lint/js-lint.mdc
+  s_17dce3cec43c9d::t_427c32e624f962 203-206
+  s_17dce3cec43c9d::t_a36076116c289d 5
+.cursor/rules/n-js-lint.mdc
+  s_17dce3cec43c9d::t_9f7219a83970b1 5,116-117,274-277
+docs/superpowers/plans/2026-05-23-rust-rule.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 18,180,305,412,637,757,849,857,901,925-929,931,933,935,937-939,941,943,945,968-970,1027,1121,1144,1146,1150,1152,1174,1253,1274,1278
+npm/bin/n-cursor.js
+  s_17dce3cec43c9d::t_00874d7003e473 1310
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 1234-1236
+  s_17dce3cec43c9d::t_efccb2d925511e 1288-1295
+.claude/plans/2026-05-23-rust-rule-plan.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 3,19,24,29,34,39,44,49,54,59
+npm/rules/test/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_d6f83ab71c2982 1-91
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 117-120
+  s_17dce3cec43c9d::t_321fc5cce94166 92-94,99-105,109-116,121-163
+  s_17dce3cec43c9d::t_4fe98bfbc46423 95-98,106-108
+npm/rules/docker/js/tests/lint/tests/check-compile.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-82
+npm/rules/js-run/js/tests/runtime/tests/promise-settimeout-scan.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-6,11-91
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 7-10
+docs/superpowers/specs/2026-05-23-per-rule-fix-mjs-entry-point-design.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 25-34,187,193,207-214,253-259,271-276
+docs/superpowers/plans/2026-05-24-coverage-provider-architecture.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 15-36,43,65-68,83-90,140,252,267,311-320,332-336,477,518-521,524-527,547-552,555-560,562-567,572-577,586-591,664-668,729,750-755,757,785-790,856-858,885-888,900-903,943,997,1017,1023,1041,1098
+npm/rules/changelog/js/tests/consistency/tests/package-manifest.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-42
+npm/rules/docker/js/tests/lint/tests/check-nonroot.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-101
+npm/rules/js-run/js/runtime.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 39,51
+npm/scripts/lib/tests/run-standard-lint.test.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 16-19,35-50
+npm/rules/rust/coverage/tests/coverage.test.mjs
+  s_17dce3cec43c9d::t_8f81ef21c3205e 1-70,72-121
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 71
+npm/CHANGELOG.md
+  s_17dce3cec43c9d::t_1760111dcd41bb 7-15,20-26
+  s_17dce3cec43c9d::t_401736b0a06ccf 16-19
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 185
+npm/README.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 137,139
+npm/rules/test/policy/package_json/target.json
+  s_17dce3cec43c9d::t_c2bc41ed9d45f5 1-5
+docs/superpowers/plans/2026-05-24-coverage-rule.md
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 14,83,102,122,225,407,558,587,626-631,644-646,715-719,785,897,916-921,923,931,941,952-957,969-971,974-976,1028-1031,1037-1040,1111,1254-1257,1323,1354,1381,1419,1491,1551,1577,1603,1643,1715,1772
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_17dce3cec43c9d::t_d70dfb7d6eaf12 24
+npm/rules/docker/js/tests/lint/tests/discover.test.mjs
+  s_17dce3cec43c9d::t_c3b5ff101dc040 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f517a607d9a25286f482e351b0a972a37aa1eefe",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_abead69ea94468": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "afe17d4d-8855-4421-8f0e-6343a88c312b",
+        "model": "composer-2.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
