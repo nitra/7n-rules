@@ -1,0 +1,25 @@
+npm/rules/tauri/policy/vscode_extensions/vscode_extensions.rego
+  s_a4a35b867bfba2::t_83066343b0e091 3-7,9-11,16
+npm/rules/tauri/tauri.mdc
+  s_a4a35b867bfba2::t_f7cce93e70e0ed 5,8,12,15-16
+npm/rules/tauri/policy/vscode_extensions/vscode_extensions_test.rego
+  s_a4a35b867bfba2::t_3115cf5da8f89f 9,20,28-29,32-34,36
+npm/rules/tauri/js/tooling.mjs
+  s_a4a35b867bfba2::t_bde606d857f37f 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "da3a07c0501333f90ee15d864d9df07ded12ba2e",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
