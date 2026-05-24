@@ -1,0 +1,40 @@
+npm/rules/js-bun-redis/policy/package_json/package_json.rego
+  s_31049ff0153a46::t_3a92f44d2b773d 6
+npm/rules/changelog/changelog.mdc
+  s_31049ff0153a46::t_5802e3f129238f 46
+npm/rules/abie/abie.mdc
+  s_31049ff0153a46::t_5802e3f129238f 136,163,173,175-179
+.cursor/rules/conftest.mdc
+  s_31049ff0153a46::t_5802e3f129238f 25,27,29,37,41,58,75,81-82,88-89,96
+  s_31049ff0153a46::t_35947a8634e6fd 77
+npm/rules/security/security.mdc
+  s_31049ff0153a46::t_5802e3f129238f 48
+npm/rules/hasura/policy/svc_hl/svc_hl.rego
+  s_31049ff0153a46::t_3a92f44d2b773d 11
+npm/rules/abie/utils/enabled.mjs
+  s_31049ff0153a46::t_5d483ff07c8755 3
+npm/rules/abie/policy/http_route_base/http_route_base.rego
+  s_31049ff0153a46::t_3a92f44d2b773d 11
+npm/rules/feedback/feedback.mdc
+  s_31049ff0153a46::t_5802e3f129238f 20
+npm/rules/abie/policy/base_deployment_preem/base_deployment_preem.rego
+  s_31049ff0153a46::t_3a92f44d2b773d 5,14
+npm/rules/abie/policy/health_check_policy/health_check_policy.rego
+  s_31049ff0153a46::t_3a92f44d2b773d 21-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "c4e62d4bc66aff4b42a8bc2fd7868e4130b3c00e",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
