@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../check.mjs'
+import { check } from '../../formatting.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
 
 describe('check-text (мінімальний проєкт)', () => {

@@ -29,7 +29,7 @@
  */
 import { platform } from 'node:process'
 
-import { check as checkGa } from '../js/workflows/check.mjs'
+import { check as checkGa } from '../js/workflows.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runLintStep } from '../../../scripts/utils/run-lint-step.mjs'
 import { runStandardLint } from '../../../scripts/utils/run-standard-lint.mjs'

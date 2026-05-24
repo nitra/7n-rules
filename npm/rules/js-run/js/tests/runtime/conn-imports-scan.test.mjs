@@ -8,7 +8,7 @@ import {
   isConnImportsScanSourceFile,
   isInsideConnDir,
   resolveConnDirFromPackageJson
-} from '../conn-imports-scan.mjs'
+} from '../../../utils/conn-imports-scan.mjs'
 
 describe('conn-imports-scan: classify imports', () => {
   test("import { SQL } from 'bun' — порушення", () => {

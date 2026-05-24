@@ -30,11 +30,11 @@
 import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
-import { getMirrorGcrHint, getFromImageToken } from './docker-mirror.mjs'
-import { lintDockerfileWithHadolint, posixRel } from './docker-hadolint.mjs'
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
-import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { getMirrorGcrHint, getFromImageToken } from '../utils/docker-mirror.mjs'
+import { lintDockerfileWithHadolint, posixRel } from '../utils/docker-hadolint.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 const NEWLINE_RE = /\r?\n/
 const BUN_INSTALL_RE = /\bbun\s+(?:install|i)\b/iu

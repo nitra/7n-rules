@@ -7,14 +7,14 @@ import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 
-import { check, checkShellcheckInstalled } from '../check.mjs'
+import { check, checkShellcheckInstalled } from '../workflows.mjs'
 import {
   ensureDir,
   withBinRemovedFromPath,
   withShellcheckStubInPath,
   withTmpCwd,
   writeJson
-} from '../../../../../scripts/utils/test-helpers.mjs'
+} from '../../../../scripts/utils/test-helpers.mjs'
 
 const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
 

@@ -8,12 +8,12 @@
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 
-import { collectDeploymentDirs, findK8sYamlFiles } from '../../utils/k8s-tree.mjs'
-import { kustomizationHasAbieDeploymentNodeSelectorPatch } from '../../utils/kustomization-patches.mjs'
-import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../../utils/overlay-paths.mjs'
+import { collectDeploymentDirs, findK8sYamlFiles } from '../utils/k8s-tree.mjs'
+import { kustomizationHasAbieDeploymentNodeSelectorPatch } from '../utils/kustomization-patches.mjs'
+import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../utils/overlay-paths.mjs'
 
 /**
  * @returns {Promise<number>} результат

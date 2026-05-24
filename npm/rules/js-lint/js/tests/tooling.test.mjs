@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 
 import { describe, expect, test } from 'bun:test'
 
-import { OXLINT_CANONICAL_JSON_PATH, verifyOxlintRcAgainstCanonical } from '../check.mjs'
+import { OXLINT_CANONICAL_JSON_PATH, verifyOxlintRcAgainstCanonical } from '../tooling.mjs'
 
 const canonicalOxlint = JSON.parse(readFileSync(OXLINT_CANONICAL_JSON_PATH, 'utf8'))
 

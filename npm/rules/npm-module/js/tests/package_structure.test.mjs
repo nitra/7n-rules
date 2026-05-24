@@ -11,8 +11,8 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../check.mjs'
-import { ensureDir, withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
+import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
+import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('globToRegex', () => {
   test('globstar матчить нуль і більше сегментів', () => {

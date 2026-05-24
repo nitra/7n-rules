@@ -30,7 +30,7 @@ import {
   normalizeSnippet,
   offsetToLine,
   walkAstWithAncestors
-} from '../../../../scripts/utils/ast-scan-utils.mjs'
+} from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
 const IN_PLACEHOLDER_END_RE = /\bin\s*\(\s*$/iu

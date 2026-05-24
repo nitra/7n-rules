@@ -8,7 +8,7 @@
 import { spawnSync } from 'node:child_process'
 import { relative, sep } from 'node:path'
 
-import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
+import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Тег образу для резервного запуску (узгоджуй з docker.mdc). */
 export const HADOLINT_IMAGE = 'hadolint/hadolint:v2.12.0'

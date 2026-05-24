@@ -10,8 +10,8 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../check.mjs'
-import { withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
+import { check } from '../layout.mjs'
+import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Перевірка дозволених кореневих devDependencies (лише `@nitra/*`) — у rego
 // (`npm/policy/bun/package_json/package_json_test.rego`).

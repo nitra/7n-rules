@@ -24,7 +24,7 @@ import { delimiter, dirname, join } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 
 /** Один hook-артефакт: bash-скрипт + його лог-файл, які перевіряємо однотипно. */
 const HOOK_ARTIFACTS = /** @type {const} */ ([

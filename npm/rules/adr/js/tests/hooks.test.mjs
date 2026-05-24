@@ -10,8 +10,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { check } from '../check.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
+import { check } from '../hooks.mjs'
+import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '..', '.claude-template', 'hooks')

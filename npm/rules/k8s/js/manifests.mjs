@@ -140,10 +140,10 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 
 import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
-import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
-import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 /** Версія набору схем yannh — узгоджено з k8s.mdc */
 const YAML_LS_MODELINE_RE = /^# yaml-language-server: \$schema=.*\n/

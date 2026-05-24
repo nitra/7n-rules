@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ensureDir, withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
-import { check } from '../check.mjs'
+import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { check } from '../sample_secret.mjs'
 
 describe('security/js/sample_secret/check', () => {
   test('pass: прикладних файлів немає', async () => {

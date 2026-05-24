@@ -5,7 +5,7 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../check.mjs'
+import { check } from '../../runtime.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
 
 /** Канонічний jsconfig для backend-пакетів із `src/` (js-run.mdc). */

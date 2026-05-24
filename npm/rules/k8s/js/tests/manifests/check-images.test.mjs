@@ -14,7 +14,7 @@ import {
   convertImagePatchesToImagesInKustomization,
   imageReplaceDeploymentPatchInfo,
   splitImageNameTagDigest
-} from '../check.mjs'
+} from '../../manifests.mjs'
 
 describe('splitImageNameTagDigest', () => {
   test('звичайний image:tag', () => {

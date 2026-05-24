@@ -4,7 +4,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { findBunyanImportsInText, isBunyanScanSourceFile, shouldSkipFileForBunyanScan } from '../bunyan-imports.mjs'
+import { findBunyanImportsInText, isBunyanScanSourceFile, shouldSkipFileForBunyanScan } from '../../../utils/bunyan-imports.mjs'
 
 describe('bunyan-imports (oxc)', () => {
   test('default import з @nitra/bunyan', () => {

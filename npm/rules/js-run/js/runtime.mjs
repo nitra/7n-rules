@@ -40,24 +40,24 @@ import {
   findBunyanImportsInText,
   isBunyanScanSourceFile,
   shouldSkipFileForBunyanScan
-} from './bunyan-imports.mjs'
-import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './check-env-scan.mjs'
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { runConftestBatch } from '../../../../scripts/utils/run-conftest-batch.mjs'
-import { findConnFileRuleViolations, isConnFileRulesSourceFile } from './conn-file-rules.mjs'
+} from '../utils/bunyan-imports.mjs'
+import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../utils/check-env-scan.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { runConftestBatch } from '../../../scripts/utils/run-conftest-batch.mjs'
+import { findConnFileRuleViolations, isConnFileRulesSourceFile } from '../utils/conn-file-rules.mjs'
 import {
   findConnFactoryImportsInText,
   isConnImportsScanSourceFile,
   isInsideConnDir,
   resolveConnDirFromPackageJson
-} from './conn-imports-scan.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+} from '../utils/conn-imports-scan.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import {
   findPromiseSetTimeoutInText,
   isPromiseSetTimeoutScanSourceFile
-} from './promise-settimeout-scan.mjs'
-import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
-import { getMonorepoPackageRootDirs } from '../../../../scripts/utils/workspaces.mjs'
+} from '../utils/promise-settimeout-scan.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
+import { getMonorepoPackageRootDirs } from '../../../scripts/utils/workspaces.mjs'
 
 /**
  * Чи існує непорожній за змістом маркер каталогу `src/` (рекомендована структура js-run).

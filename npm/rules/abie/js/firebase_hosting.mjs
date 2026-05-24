@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 
 const SKIP_TOP_DIR_NAMES = new Set(['.git', 'node_modules'])
 

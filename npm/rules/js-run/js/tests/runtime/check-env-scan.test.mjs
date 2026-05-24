@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../check-env-scan.mjs'
+import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../../../utils/check-env-scan.mjs'
 
 describe('check-env-scan: process.env завжди тригерить заміну на env', () => {
   test('process.env.X — порушення з kind=process-env', () => {

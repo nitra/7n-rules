@@ -27,7 +27,7 @@ import {
   parseProgramOrNull,
   templateQuasisText,
   walkAstWithAncestors
-} from '../../../../scripts/utils/ast-scan-utils.mjs'
+} from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const BUN_SQL_IMPORT_RE = /\bimport\s*\{[\s\S]*?\b(sql|SQL)\b[\s\S]*?\}\s*from\s*["']bun["']/u

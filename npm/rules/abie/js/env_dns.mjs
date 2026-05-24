@@ -9,10 +9,10 @@
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 
-import { abieEnvNameFromBasename, collectAbieEnvFiles, validateAbieEnvInternalUrls } from '../../utils/env-dns.mjs'
+import { abieEnvNameFromBasename, collectAbieEnvFiles, validateAbieEnvInternalUrls } from '../utils/env-dns.mjs'
 
 /**
  * @returns {Promise<number>} результат

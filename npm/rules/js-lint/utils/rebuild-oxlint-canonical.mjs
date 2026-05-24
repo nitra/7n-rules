@@ -2,14 +2,14 @@
  * Збирає `oxlint-canonical.json` з `oxlint-canonical-skeleton.json` (без поля rules) та списку
  * правил у `oxlint-rules.tsv` (колонки: ім’я правила, TAB, severity: deny | off | error).
  *
- * Після змін у TSV або скелеті запускай з каталогу пакета: `bun ./rules/js-lint/js/tooling/rebuild-oxlint-canonical.mjs`,
+ * Після змін у TSV або скелеті запускай з каталогу пакета: `bun ./rules/js-lint/utils/rebuild-oxlint-canonical.mjs`,
  * потім скопіюй оновлений канон у корінь споживача як `.oxlintrc.json` за потреби.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const dir = dirname(fileURLToPath(import.meta.url))
+const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'js', 'data', 'tooling')
 const rules = {}
 for (const line of readFileSync(join(dir, 'oxlint-rules.tsv'), 'utf8').split('\n')) {
   const t = line.trim()

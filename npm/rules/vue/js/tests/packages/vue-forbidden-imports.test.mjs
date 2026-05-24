@@ -13,7 +13,7 @@ import {
   isNodeBuiltinSpecifier,
   isVueImportScanSourceFile,
   shouldSkipFileForVueImportScan
-} from '../vue-forbidden-imports.mjs'
+} from '../../../utils/vue-forbidden-imports.mjs'
 
 describe('vue-forbidden-imports (oxc)', () => {
   test('дозволені type-only / side-effect — без порушень', () => {

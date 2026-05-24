@@ -13,7 +13,7 @@
 import { basename } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { lintDockerfileWithHadolint, posixRel } from '../js/lint/docker-hadolint.mjs'
+import { lintDockerfileWithHadolint, posixRel } from '../utils/docker-hadolint.mjs'
 import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'

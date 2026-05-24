@@ -11,11 +11,11 @@ import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { checkTextSubset } from '../../../../scripts/utils/template.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { checkTextSubset } from '../../../scripts/utils/template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const SNIPPET_PATH = join(HERE, 'template', '.trufflehog-exclude.snippet.txt')
+const SNIPPET_PATH = join(HERE, 'templates', 'trufflehog', '.trufflehog-exclude.snippet.txt')
 
 /**
  * @returns {Promise<number>} exit-код перевірки

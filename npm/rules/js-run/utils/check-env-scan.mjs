@@ -29,7 +29,7 @@
  * Якщо ключ обчислюваний (`process.env[varName]`) — пропускаємо без помилки,
  * бо за статичним AST неможливо встановити, яка саме змінна оточення використовується.
  */
-import { offsetToLine, parseProgramOrNull, walkAstWithAncestors } from '../../../../scripts/utils/ast-scan-utils.mjs'
+import { offsetToLine, parseProgramOrNull, walkAstWithAncestors } from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 const IGNORE_DIRECTIVE_RE = /\/\/\s*@nitra\/cursor\s+ignore-next-line\s+checkEnv\b/u

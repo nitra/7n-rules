@@ -19,7 +19,7 @@
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
 
 /**
  * Альтернатива полю `stylelint` у `package.json` — зовнішній файл конфігу. Якщо

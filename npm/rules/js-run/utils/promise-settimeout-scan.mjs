@@ -12,7 +12,7 @@
  * Сканер не вимагає, щоб файл компілювався: при синтаксичних помилках повертається
  * порожній результат (як інші сканери — спочатку треба полагодити синтаксис).
  */
-import { normalizeSnippet, offsetToLine, parseProgramOrNull } from '../../../../scripts/utils/ast-scan-utils.mjs'
+import { normalizeSnippet, offsetToLine, parseProgramOrNull } from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/
 

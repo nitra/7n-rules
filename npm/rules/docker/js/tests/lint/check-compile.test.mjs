@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { getBunCompileHint } from '../check.mjs'
+import { getBunCompileHint } from '../../lint.mjs'
 
 describe('getBunCompileHint', () => {
   test('ok: bun install + bun build --compile + final alpine без bun', () => {

@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 
-import { getNonRootRuntimeHint } from '../check.mjs'
+import { getNonRootRuntimeHint } from '../../lint.mjs'
 
 describe('getNonRootRuntimeHint', () => {
   test('ok: USER app у фінальному stage', () => {

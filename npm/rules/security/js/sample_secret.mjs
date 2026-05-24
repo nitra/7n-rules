@@ -29,8 +29,8 @@
 import { readFile } from 'node:fs/promises'
 import { relative, sep } from 'node:path'
 
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 /** Суфікс basename'а прикладного файлу (`config.example`, `.env.dist`). */
 const EXAMPLE_SUFFIX_RE = /\.(?:example|sample|template|dist)$/iu

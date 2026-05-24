@@ -5,8 +5,8 @@ import { describe, expect, test } from 'bun:test'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { check } from '../check.mjs'
-import { withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
+import { check } from '../location.mjs'
+import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check test.location', () => {
   test('успіх: усі *.test.mjs у tests/ → exit 0', async () => {

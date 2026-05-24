@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { basename, extname, join } from 'node:path'
 
 const MD_LINK_RE = /\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
-const TEMPLATE_SEGMENT_RE = /\/template\//
+const TEMPLATE_SEGMENT_RE = /\/templates?\//
 /** Статичні regexp-літерали `^(.+)\.<slot>\.<ext>$` — без `RegExp(variable)`. */
 const SLOT_SUFFIX_RES = [/^(.+)\.snippet\.[^.]+$/, /^(.+)\.deny\.[^.]+$/, /^(.+)\.contains\.[^.]+$/]
 

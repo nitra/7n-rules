@@ -14,7 +14,7 @@ import {
   migrateDefaultTplConfFiles,
   nginxTemplateViolations,
   parseIniVariableNames
-} from '../check.mjs'
+} from '../../template.mjs'
 import { ensureDir, withTmpCwd } from '../../../../../scripts/utils/test-helpers.mjs'
 
 const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), 'fixtures')

@@ -16,7 +16,7 @@
  * використовується. Якщо файл не парситься — повертаємо порожній результат, спочатку
  * треба полагодити синтаксис.
  */
-import { langFromPath, normalizeSnippet, offsetToLine } from '../../../../scripts/utils/ast-scan-utils.mjs'
+import { langFromPath, normalizeSnippet, offsetToLine } from '../../../scripts/utils/ast-scan-utils.mjs'
 import { parseSync } from 'oxc-parser'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u

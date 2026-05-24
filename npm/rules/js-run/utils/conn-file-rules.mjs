@@ -14,7 +14,7 @@
  * Парсимо через oxc-parser; коли файл не парситься — повертаємо порожні результати, щоб
  * не змішувати помилки синтаксису з порушеннями цього правила.
  */
-import { parseProgramOrNull } from '../../../../scripts/utils/ast-scan-utils.mjs'
+import { parseProgramOrNull } from '../../../scripts/utils/ast-scan-utils.mjs'
 
 const SOURCE_FILE_RE = /\.([cm]?[jt]sx?)$/u
 

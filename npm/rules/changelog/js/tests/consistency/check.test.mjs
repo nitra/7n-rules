@@ -14,7 +14,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
-import { check as checkChangelog } from '../check.mjs'
+import { check as checkChangelog } from '../../consistency.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
 
 const execFileAsync = promisify(execFile)

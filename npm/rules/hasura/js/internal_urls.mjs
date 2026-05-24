@@ -28,10 +28,10 @@ import { basename, join, relative } from 'node:path'
 
 import { parseAllDocuments } from 'yaml'
 
-import { getRepositoryUrl } from '../../../../scripts/auto-rules.mjs'
-import { createCheckReporter } from '../../../../scripts/utils/check-reporter.mjs'
-import { loadCursorIgnorePaths } from '../../../../scripts/utils/load-cursor-config.mjs'
-import { walkDir } from '../../../../scripts/utils/walkDir.mjs'
+import { getRepositoryUrl } from '../../../scripts/auto-rules.mjs'
+import { createCheckReporter } from '../../../scripts/utils/check-reporter.mjs'
+import { loadCursorIgnorePaths } from '../../../scripts/utils/load-cursor-config.mjs'
+import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 
 const NITRA_REPOSITORY_URL_MARKER = 'https://github.com/nitra/'
 const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'

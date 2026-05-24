@@ -15,8 +15,8 @@
 import { describe, expect, test } from 'bun:test'
 import { writeFile } from 'node:fs/promises'
 
-import { check } from '../check.mjs'
-import { withTmpCwd, writeJson } from '../../../../../scripts/utils/test-helpers.mjs'
+import { check } from '../package_setup.mjs'
+import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**
  * Створює мінімальний валідний проєкт під image-compress в поточному cwd.

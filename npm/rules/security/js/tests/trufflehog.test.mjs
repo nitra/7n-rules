@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { check } from '../check.mjs'
+import { check } from '../trufflehog.mjs'
 
 const CANON_EXCLUDE = [
   '(^|/)node_modules(/|$)',
