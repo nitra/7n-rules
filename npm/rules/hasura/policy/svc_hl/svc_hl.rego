@@ -8,7 +8,7 @@
 #   conftest test hasura/k8s/base/svc-hl.yaml -p npm/rules/hasura/policy/svc_hl \
 #     --namespace hasura.svc_hl
 #
-# Cross-file (`HASURA_GRAPHQL_ENDPOINT` ↔ YAML) — `js/internal_urls/check.mjs`.
+# Cross-file (`HASURA_GRAPHQL_ENDPOINT` ↔ YAML) — `js/internal_urls.mjs`.
 package hasura.svc_hl
 
 import rego.v1

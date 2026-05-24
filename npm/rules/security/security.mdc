@@ -45,7 +45,7 @@ Workflow обовʼязковий — забезпечує незалежний 
 - Правильно: `DB_PASSWORD=sample-secret`, `password: "sample-secret"`
 - Неправильно: `DB_PASSWORD=secret`, `password: "secret"`
 
-Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються. Concern `security.sample_secret` — деталі скану в `js/sample_secret/check.mjs`.
+Перевіряється лише `secret` у позиції значення (після `=`, `:`, `=>`); імена ключів на кшталт `client_secret` не чіпаються. Concern `security.sample_secret` — деталі скану в `js/sample_secret.mjs`.
 
 ## Перевірка
 

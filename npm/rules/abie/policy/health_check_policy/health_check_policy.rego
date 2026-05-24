@@ -18,8 +18,8 @@
 #
 # Cross-file gating: glob по `hc.yaml` у k8s-дереві — у
 # `policy/health_check_policy/target.json`. FS-парність HCP↔Deployment та
-# modeline `hc.yaml` — `js/hc_pairing/check.mjs`. Rule-level applies-гейт —
-# `js/applies/check.mjs`.
+# modeline `hc.yaml` — `js/hc_pairing.mjs`. Rule-level applies-гейт —
+# `js/applies.mjs`.
 #
 # Структура каталогу збігається зі шляхом пакету (regal: directory-package-mismatch).
 # Конвенція проєкту — `import rego.v1` + multi-value `deny contains msg if { … }`

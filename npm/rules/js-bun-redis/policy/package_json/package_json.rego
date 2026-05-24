@@ -3,7 +3,7 @@
 # Канон надходить через --data: { "template": { "deny": ... } }
 # Структура --data сформована з template/package.json.deny.json.
 # AST-скан коду (`import`/`require`/dynamic `import()` тих самих пакетів)
-# лишається у `js-bun-redis/js/imports/check.mjs`.
+# лишається у `js-bun-redis/js/imports.mjs`.
 package js_bun_redis.package_json
 
 import rego.v1

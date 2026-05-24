@@ -1,6 +1,6 @@
 /**
  * Rule-level applies-гейт abie: чи `.n-cursor.json:rules` містить `abie`.
- * Використовується `js/applies/check.mjs` як `applies()`-експорт — якщо false,
+ * Використовується `js/applies.mjs` як `applies()`-експорт — якщо false,
  * CLI пропускає всі концерни правила (включно з policy).
  */
 import { existsSync } from 'node:fs'
