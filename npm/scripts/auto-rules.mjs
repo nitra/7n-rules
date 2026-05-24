@@ -48,6 +48,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'npm-module',
   'php',
   'rego',
+  'rust',
   'security',
   'style-lint',
   'text',
@@ -291,6 +292,7 @@ function updateDirFacts(dirName, facts) {
  * @param {string} relPath шлях відносно кореня
  * @param {{
  *   hasCapacitorConfig: boolean,
+ *   hasCargoToml: boolean,
  *   hasDockerfile: boolean,
  *   hasJsLikeSource: boolean,
  *   hasNginxDefaultTplFile: boolean,
@@ -303,6 +305,9 @@ function updateDirFacts(dirName, facts) {
 function updateFileFacts(fileName, relPath, facts) {
   if (fileName === 'capacitor.config.json') {
     facts.hasCapacitorConfig = true
+  }
+  if (fileName === 'Cargo.toml') {
+    facts.hasCargoToml = true
   }
   if (fileName === 'Dockerfile' || fileName.startsWith('Dockerfile.')) {
     facts.hasDockerfile = true
@@ -407,6 +412,7 @@ async function updateHasuraFactFromFile(absPath, fileName, facts) {
  * @param {{
  *   hasBunSqlImport: boolean,
  *   hasCapacitorConfig: boolean,
+ *   hasCargoToml: boolean,
  *   hasDockerfile: boolean,
  *   hasGqlTaggedTemplates: boolean,
  *   hasHasuraConfig: boolean,
@@ -493,6 +499,7 @@ export function isMonorepoPackage(packageJson) {
  * @param {string} root абсолютний шлях кореня репозиторію
  * @returns {Promise<{
  *   hasCapacitorConfig: boolean,
+ *   hasCargoToml: boolean,
  *   hasDockerfile: boolean,
  *   hasGaWorkflowsDir: boolean,
  *   hasBunSqlImport: boolean,
@@ -511,6 +518,7 @@ export async function collectAutoRuleFacts(root) {
   const facts = {
     hasBunSqlImport: false,
     hasCapacitorConfig: false,
+    hasCargoToml: false,
     hasDockerfile: false,
     hasGaWorkflowsDir: existsSync(join(root, '.github', 'workflows')),
     hasGqlTaggedTemplates: false,
@@ -656,6 +664,7 @@ export async function detectAutoRules({
     { enabled: npmDirExists, id: 'npm-module' },
     { enabled: composerJsonExists, id: 'php' },
     { enabled: facts.hasRegoFile, id: 'rego' },
+    { enabled: facts.hasCargoToml, id: 'rust' },
     { enabled: facts.hasVueOrCssSource, id: 'style-lint' }
   ]
   for (const item of autoRuleChecks) {

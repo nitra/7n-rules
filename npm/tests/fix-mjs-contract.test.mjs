@@ -17,8 +17,8 @@ const ruleIds = rulesEntries
   .toSorted((a, b) => a.localeCompare(b))
 
 describe('fix.mjs contract — усі правила', () => {
-  test('30 правил знайдено', () => {
-    expect(ruleIds.length).toBe(30)
+  test('31 правил знайдено', () => {
+    expect(ruleIds.length).toBe(31)
   })
 
   for (const id of ruleIds) {

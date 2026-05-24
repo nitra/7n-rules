@@ -29,6 +29,7 @@ const ALL_RULES = [
   'k8s',
   'nginx-default-tpl',
   'npm-module',
+  'rust',
   'security',
   'style-lint',
   'text',
@@ -341,6 +342,28 @@ describe('detectAutoRules', () => {
       const actual = await detectAutoRulesInCwd()
 
       expect(actual.rules.includes('efes')).toBe(false)
+    })
+  })
+
+  test('додає "rust" коли в дереві є Cargo.toml', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'rust-app' })
+      await ensureDir('src-tauri')
+      await writeFile('src-tauri/Cargo.toml', '[package]\nname = "x"\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('rust')).toBe(true)
+    })
+  })
+
+  test('НЕ додає "rust" коли Cargo.toml відсутній', async () => {
+    await withTmpCwd(async () => {
+      await writeJson('package.json', { name: 'js-only' })
+
+      const actual = await detectAutoRulesInCwd()
+
+      expect(actual.rules.includes('rust')).toBe(false)
     })
   })
 })
