@@ -1,0 +1,19 @@
+docs/adr/20260524-072728-конвенція-неймінгу-kebab-case-для-зовнішнього-snakecase-для.md
+  s_31049ff0153a46::t_3d835d2c372c99 1-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "9f945c6d45f4a75cb15ad4099233b8f06f8cb55a",
+  "prompts": {},
+  "sessions": {
+    "s_31049ff0153a46": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ad2778ec-2972-4dc6-84de-95c0327ff501",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
