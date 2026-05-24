@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
-  "files": { "single": ".github/workflows/lint-rust.yml" }
+  "files": { "single": ".github/workflows/lint-rust.yml", "required": true },
+  "missingMessage": ".github/workflows/lint-rust.yml не існує — створи з канонічним вмістом (rust.mdc)"
 }
