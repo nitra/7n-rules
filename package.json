@@ -1,37 +1,5 @@
 {
-  "name": "n-cursor",
-  "version": "1.0.3",
-  "description": "cursor helper",
-  "homepage": "https://github.com/n/cursor",
-  "bugs": "https://github.com/n/cursor/issues",
-  "license": "MIT",
-  "workspaces": [
-    "demo",
-    "npm"
-  ],
-  "type": "module",
-  "scripts": {
-    "test": "bun test npm/tests",
-    "start": "bun ./npm/bin/n-cursor.js",
-    "lint": "bun run lint-rego && bun run lint-js && bun run lint-text && bun run lint-ga && bun run lint-style && bun run lint-security && oxfmt .",
-    "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
-    "lint-text": "n-cursor lint-text",
-    "lint-ga": "n-cursor lint-ga",
-    "lint-rego": "n-cursor lint-rego",
-    "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
-    "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail"
-  },
-  "devDependencies": {
-    "@nitra/cspell-dict": "^2.1.0",
-    "@nitra/cursor": "workspace:*",
-    "@nitra/eslint-config": "^3.9.4",
-    "@nitra/stylelint-config": "^1.4.0"
-  },
-  "stylelint": {
-    "extends": "@nitra/stylelint-config"
-  },
-  "engines": {
-    "bun": ">=1.3",
-    "node": ">=24"
-  }
+  "name": "mono",
+  "version": "1.0.0",
+  "private": true
 }
