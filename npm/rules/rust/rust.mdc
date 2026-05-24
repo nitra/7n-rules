@@ -1,0 +1,27 @@
+---
+description: Перевірка Rust коду
+globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
+alwaysApply: false
+version: '1.0'
+---
+
+**rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. У скрипті **`lint-rust`** локально йдуть три кроки в одному рядку: `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`. У CI — без `--fix`: `cargo fmt --all -- --check` і `cargo clippy ... -- -D warnings` (див. `lint-rust.yml`).
+
+`cargo`, `rustfmt`, `clippy` не додавай у `devDependencies` — це Rust toolchain, ставиться через `rustup` локально або через `dtolnay/rust-toolchain@stable` у CI.
+
+Канон `scripts.lint-rust` (substring requirement): [package.json.contains.json](./policy/package_json/template/package.json.contains.json)
+
+У `.vscode/extensions.json` `recommendations` мають містити `rust-lang.rust-analyzer` і `tamasfe.even-better-toml`: [extensions.json.snippet.json](./policy/vscode_extensions/template/extensions.json.snippet.json)
+
+Канон workflow `.github/workflows/lint-rust.yml`: [lint-rust.yml.snippet.yml](./policy/lint_rust_yml/template/lint-rust.yml.snippet.yml)
+
+Перед **`./.github/actions/setup-bun-deps`** в інших workflows йде **`actions/checkout@v6`** (див. **ga.mdc**). У **lint-rust.yml** після checkout — `dtolnay/rust-toolchain@stable` (з `components: rustfmt, clippy`) + `Swatinem/rust-cache@v2` для кешу `~/.cargo` і `target/`. Bun composite дії тут не потрібен — toolchain ставиться напряму.
+
+## Композиція з Tauri
+
+Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому правило `rust` активується автоматично разом з `tauri`. Поділ обов'язків:
+
+- `rust` — `lint-rust` скрипт, `rust-analyzer`, `even-better-toml`, CI workflow.
+- `tauri` — `tauri-apps.tauri-vscode` (див. **tauri.mdc**).
+
+Обидва правила перевіряють `.vscode/extensions.json` за `contains`-семантикою; конкурентного запису немає.
