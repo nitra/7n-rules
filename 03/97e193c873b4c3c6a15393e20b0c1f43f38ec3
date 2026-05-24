@@ -1,0 +1,367 @@
+npm/rules/security/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/js-run/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/rust/js/applies.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 10
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 12
+npm/rules/changelog/lib/package-manifest.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-157
+npm/scripts/lib/tests/__fixtures__/inline-template/policy/package_json/template/package.json.deny.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/rules/js-run/js/tests/runtime/conn-file-rules.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 7
+npm/rules/rego/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/load-cursor-config.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-55
+npm/rules/rust/lib/has-cargo-toml.mjs
+  s_8bb687d93d7dc9::t_afc04f0775773d 7
+npm/rules/adr/js/hooks.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 27,85,114,167,193,214,254
+npm/rules/js-lint/js/tooling.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 18
+npm/package.json
+  s_8bb687d93d7dc9::t_8fb3a23ea54872 3
+npm/rules/js-run/js/tests/runtime/bunyan-imports.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 7
+npm/rules/abie/lib/tests/enabled.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-29
+npm/rules/js-run/lib/check-env-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-337
+npm/CHANGELOG.md
+  s_8bb687d93d7dc9::t_84e648f71aa697 7-18
+npm/rules/abie/lib/overlay-paths.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-97
+npm/tests/discover-one-rule.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 6
+npm/scripts/lib/tests/__fixtures__/mdc-refs/with-refs/js/foo/template/package.json.snippet.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/rules/js-bun-redis/lib/redis-imports.mjs
+  s_8bb687d93d7dc9::t_640f35054c769f 1-130
+npm/rules/graphql/lib/graphql-gql-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-149
+npm/rules/php/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/js-run/js/tests/runtime/check-env-scan.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 6
+npm/scripts/lib/tests/__fixtures__/mdc-refs/with-refs/with-refs.mdc
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-9
+npm/tests/run-standard-rule.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 6
+npm/rules/adr/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/text/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/security/js/trufflehog.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 14-15
+npm/scripts/lib/gha-workflow.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-402
+npm/rules/abie/lib/http-route.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-93
+npm/rules/js-bun-redis/lib/tests/redis-imports.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-80
+npm/rules/vue/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/tests/__fixtures__/inline-template/policy/bar/template/file.txt
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/scripts/lib/tests/workspaces.test.mjs
+  s_8bb687d93d7dc9::t_cfc565c4be982c 1-90
+npm/scripts/lib/tests/run-rule.test.mjs
+  s_8bb687d93d7dc9::t_cfc565c4be982c 1-107
+npm/rules/image-compress/js/package_setup.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 22
+npm/scripts/rename-yaml-extensions.mjs
+  s_8bb687d93d7dc9::t_c4bd0917860d82 17
+npm/rules/abie/lib/yaml.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-72
+npm/scripts/lib/tests/run-conftest-batch.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-62
+npm/rules/abie/lib/env-dns.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-81
+npm/rules/js-run/js/tests/runtime/promise-settimeout-scan.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 7
+npm/rules/docker/lib/docker-mirror.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-155
+npm/rules/image-avif/js/avif_generation.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 33-34,37
+npm/rules/image-avif/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/ci4/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/php/lint/lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 16
+npm/scripts/lib/tests/check-reporter.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-31
+npm/rules/js-run/lib/conn-imports-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-154
+npm/scripts/lib/tests/generated-markdown.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-69
+npm/scripts/lib/workspaces.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-109
+npm/rules/abie/js/env_dns.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 12-13
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 15
+npm/rules/abie/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/abie/js/firebase_hosting.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 10
+npm/scripts/lib/discover-check-rules-from-cursor.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-40
+npm/rules/js-bun-redis/js/imports.mjs
+  s_8bb687d93d7dc9::t_640f35054c769f 23
+  s_8bb687d93d7dc9::t_6f7444df062e74 17-18
+npm/rules/test/js/location.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 12-13
+npm/scripts/lib/tests/__fixtures__/inline-template/policy/bar/template/config.yml
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/scripts/lib/tests/gha-workflow.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-136
+npm/rules/changelog/js/tests/consistency/package-manifest.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 7
+npm/rules/js-lint/js/utils_imports.mjs
+  s_8bb687d93d7dc9::t_230c31305f9367 19-20
+  s_8bb687d93d7dc9::t_136c02cbafd9d6 145
+  s_8bb687d93d7dc9::t_a7e45acf2c980c 1-18,21-144,146-199
+npm/rules/php/js/tooling.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 14
+npm/rules/security/js/sample_secret.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 32
+npm/rules/js-run/js/tests/runtime/conn-imports-scan.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 11
+npm/rules/docker/lib/docker-hadolint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-88
+npm/rules/rego/lint/lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 35
+npm/scripts/lib/tests/__fixtures__/mdc-refs/no-templates/no-templates.mdc
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-7
+npm/scripts/lib/tests/check-mdc-template-refs.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-26
+npm/scripts/lib/tests/__fixtures__/inline-template/policy/package_json/template/package.json.snippet.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/rules/docker/js/lint.mjs
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 33-34
+  s_8bb687d93d7dc9::t_6f7444df062e74 35-36
+npm/scripts/auto-rules.mjs
+  s_8bb687d93d7dc9::t_e6cfc73ce660e9 19,24-25
+npm/rules/docker/js/tests/lint/check-mirror.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 12
+npm/rules/graphql/js/tooling.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 13,19-20
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 18
+npm/rules/abie/lib/tests/overlay-paths.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-60
+npm/rules/docker/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/vue/js/tests/packages/vue-forbidden-imports.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 16
+npm/tests/list-rule-ids.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 6
+npm/rules/js-lint/lib/rebuild-oxlint-canonical.mjs
+  s_8bb687d93d7dc9::t_70ae8b8c22181d 5
+npm/scripts/lib/tests/__fixtures__/mdc-refs/missing-ref/missing-ref.mdc
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-7
+npm/scripts/lib/run-conftest-batch.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-146
+npm/scripts/lib/tests/discover-check-rules-from-cursor.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-33
+npm/rules/nginx-default-tpl/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/js-mssql/js/deps.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 15,26
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 25
+npm/scripts/lib/check-reporter.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-27
+npm/scripts/lib/tests/resolve-target-files.test.mjs
+  s_8bb687d93d7dc9::t_cfc565c4be982c 1-107
+npm/rules/js-bun-db/lib/bun-sql-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-929
+npm/rules/js-run/lib/conn-file-rules.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-214
+npm/scripts/lib/check-mdc-template-refs.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-57
+npm/rules/text/lint/lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 22,24
+npm/rules/changelog/js/consistency.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 25
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 31
+npm/rules/vue/lib/vue-forbidden-imports.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-267
+npm/scripts/lib/run-rule-cli.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-37
+npm/rules/npm-module/js/package_structure.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 41-42
+npm/rules/js-bun-db/js/safety.mjs
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 51
+  s_8bb687d93d7dc9::t_6f7444df062e74 36,53
+npm/scripts/lib/resolve-target-files.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-109
+npm/rules/docker/js/tests/lint/docker-hadolint.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 7
+npm/rules/vue/js/packages.mjs
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 34
+  s_8bb687d93d7dc9::t_6f7444df062e74 28,35,37
+npm/rules/abie/lib/enabled.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-35
+npm/scripts/lib/run-lint-step.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-33
+npm/rules/js-run/js/runtime.mjs
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 43-44,47,53,58
+  s_8bb687d93d7dc9::t_6f7444df062e74 45-46,54,60
+npm/scripts/lib/run-standard-lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 15
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-14,16-35
+npm/bin/n-cursor.js
+  s_8bb687d93d7dc9::t_6f7444df062e74 73-74,84-85
+npm/rules/feedback/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/js-mssql/lib/mssql-pool-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-614
+npm/scripts/lib/discover-checkable-rules.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-114
+npm/rules/abie/lib/kustomization-patches.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-224
+npm/scripts/lib/list-rule-ids.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-23
+npm/rules/abie/js/hc_pairing.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 13-14
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 16-17
+npm/rules/js-lint/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/nginx-default-tpl/js/template.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 21-23
+npm/rules/npm-module/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/read-n-cursor-config-lite.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-59
+npm/scripts/lib/tests/load-cursor-config.test.mjs
+  s_8bb687d93d7dc9::t_cfc565c4be982c 1-87
+npm/rules/image-compress/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/run-rule.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-141
+npm/scripts/lib/template.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-289
+npm/scripts/lib/tests/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.contains.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/scripts/lib/tests/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.snippet.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-5
+npm/scripts/lib/tests/run-standard-lint.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-39
+npm/rules/bun/js/layout.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 23
+npm/rules/rust/lib/tests/has-cargo-toml.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-58
+npm/rules/abie/lib/k8s-tree.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-110
+npm/rules/changelog/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/bun/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/graphql/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/ga/lint/lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 34-35
+npm/rules/rego/js/applies.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 12-13
+npm/rules/js-run/lib/bunyan-imports.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-98
+npm/rules/docker/lint/lint.mjs
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 16
+  s_8bb687d93d7dc9::t_6f7444df062e74 17-18,20
+npm/rules/abie/js/applies.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 6
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 8
+npm/rules/ga/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/abie/lib/hc-yaml.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-27
+npm/rules/hasura/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/k8s/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/rust/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/style-lint/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/generated-markdown.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-71
+npm/rules/tauri/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/run-standard-rule.mjs
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 1-43
+npm/scripts/lib/tests/__fixtures__/template/security-pkgjson/policy/package_json/template/package.json.deny.json
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-4
+npm/rules/ga/js/workflows.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 23-24,26-27
+npm/scripts/lib/tests/inline-template-links.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-124
+npm/rules/abie/lib/tests/kustomization-patches.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-123
+npm/scripts/lib/tests/__fixtures__/mdc-refs/missing-ref/policy/bar/template/.gitleaks.toml.snippet.toml
+  s_8bb687d93d7dc9::t_6f7444df062e74 1
+npm/scripts/lib/tests/discover-checkable-rules.test.mjs
+  s_8bb687d93d7dc9::t_cfc565c4be982c 1-113
+npm/rules/capacitor/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/abie/js/ua_node_selector.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 11-12
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 14-16
+npm/scripts/lib/tests/template.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-252
+npm/rules/js-bun-redis/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/text/js/formatting.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 35-36
+npm/rules/js-run/lib/promise-settimeout-scan.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-129
+npm/rules/js-mssql/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/abie/js/ua_http_route.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 13-14
+  s_8bb687d93d7dc9::t_7c2cfc0469d686 16-17,21,26
+npm/rules/test/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/hasura/js/internal_urls.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 32-33
+npm/rules/k8s/lint/lint.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 27,30
+npm/rules/graphql/js/tests/tooling.test.mjs
+  s_8bb687d93d7dc9::t_44ff048e582f96 6
+npm/rules/capacitor/js/platforms.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 28
+npm/rules/efes/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/rules/k8s/js/manifests.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 143-145
+npm/rules/abie/lib/tests/env-dns.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-50
+npm/rules/js-bun-db/fix.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1,6,16
+npm/scripts/lib/inline-template-links.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-68
+npm/rules/js-lint/js-lint.mdc
+  s_8bb687d93d7dc9::t_2cad41c68e4906 92-93
+npm/rules/style-lint/js/tooling.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 22,28
+npm/rules/abie/lib/tests/http-route.test.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 1-59
+npm/rules/tauri/js/tooling.mjs
+  s_8bb687d93d7dc9::t_6f7444df062e74 21-22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "0397e193c873b4c3c6a15393e20b0c1f43f38ec3",
+  "prompts": {},
+  "sessions": {
+    "s_8bb687d93d7dc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cd80b58-040a-422f-86a5-277586e67b7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
