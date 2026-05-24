@@ -1,0 +1,25 @@
+npm/rules/rust/policy/lint_rust_yml/target.json
+  ai_agent 1-4
+npm/rules/rust/policy/lint_rust_yml/lint_rust_yml_test.rego
+  s_a4a35b867bfba2::t_c81602de169a1e 1-67
+npm/rules/rust/policy/lint_rust_yml/template/lint-rust.yml.snippet.yml
+  ai_agent 1-44
+npm/rules/rust/policy/lint_rust_yml/lint_rust_yml.rego
+  s_a4a35b867bfba2::t_c90a7da011b17a 1-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "569892de21dd2141cececc1211e2f6c5d06faf94",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
