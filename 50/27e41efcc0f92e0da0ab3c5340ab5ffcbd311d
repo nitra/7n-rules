@@ -1,0 +1,24 @@
+npm/scripts/auto-rules.mjs
+  s_a4a35b867bfba2::t_75ae9e8bab341a 51,295,309-311,415,502,521,667
+npm/scripts/tests/auto-rules.test.mjs
+  s_a4a35b867bfba2::t_f2055d7e799763 367-368
+  s_a4a35b867bfba2::t_75ae9e8bab341a 32,347-366
+npm/tests/fix-mjs-contract.test.mjs
+  s_a4a35b867bfba2::t_53c2e605b6858d 20-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5027e41efcc0f92e0da0ab3c5340ab5ffcbd311d",
+  "prompts": {},
+  "sessions": {
+    "s_a4a35b867bfba2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cd601c3c-0f14-4351-9c41-ac2e633456c0",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
