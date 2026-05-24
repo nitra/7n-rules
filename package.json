@@ -1,5 +1,17 @@
 {
   "name": "mono",
   "version": "1.0.0",
-  "private": true
+  "private": true,
+  "workspaces": [
+    "npm",
+    "demo"
+  ],
+  "scripts": {
+    "lint-ga": "n-cursor lint-ga",
+    "lint-text": "n-cursor lint-text"
+  },
+  "devDependencies": {
+    "@nitra/cspell-dict": "^2.0.0",
+    "@nitra/cursor": "^1.16.0"
+  }
 }

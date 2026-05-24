@@ -27,7 +27,7 @@ import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
 import { loadTemplate } from '../../../scripts/lib/template.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const GA_POLICY_DIR = join(HERE, '..', '..', 'policy')
+const GA_POLICY_DIR = join(HERE, '..', 'policy')
 
 /** Шаблони наявності MegaLinter у вмісті workflow */
 const MEGALINTER_USE_PATTERNS = [/oxsecurity\/megalinter-action/i, /megalinter\/megalinter/i]

@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.16.1] - 2026-05-24
+
+### Fixed
+
+- **`npm/rules/ga/js/workflows.mjs::GA_POLICY_DIR`** — flat-layout regression: `join(HERE, '..', '..', 'policy')` давав `npm/rules/policy/` замість `npm/rules/ga/policy/`. `HERE` для `rules/<rule>/js/<concern>.mjs` живе на 1 рівень ближче до `rules/<rule>/`, ніж попередній nested layout. Виправлено на `join(HERE, '..', 'policy')` — `loadTemplate(concernDir)` тепер реально читає `template/<workflow>.snippet.yml`, замість тихо повертати `{}` і втрачати `data.template.snippet.*` у rego-перевірках (`step0_with_canonical` і т.д. падали з-за `null`). Тест `check-ga: shellcheck в PATH > exit 0` тепер pass.
+- **`npm/rules/adr/js/hooks.mjs::BUNDLED_HOOKS_DIR`** і **`npm/rules/adr/js/tests/hooks.test.mjs::BUNDLED_HOOKS_DIR`** — той самий клас regression-у: `..` на одне більше за потрібне після flat-layout, тож шлях зривався у `cursor/.claude-template/hooks/` замість `npm/.claude-template/hooks/`, через що `check-adr` та 4 тести у `hooks.test.mjs` падали з `ENOENT`/`канонічний скрипт не знайдено`. У `hooks.mjs` `..×4` → `..×3`; у тесті `..×5` → `..×4`.
+
 ## [1.16.0] - 2026-05-24
 
 ### Changed

@@ -14,7 +14,7 @@ import { check } from '../hooks.mjs'
 import { ensureDir, withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '..', '.claude-template', 'hooks')
+const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '.claude-template', 'hooks')
 
 /** Канонічні вмісти hook-скриптів з пакета — спільне джерело правди для тестів. */
 const bundledCaptureContent = await readFile(join(BUNDLED_HOOKS_DIR, 'capture-decisions.sh'), 'utf8')

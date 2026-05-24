@@ -37,7 +37,7 @@ const CURSOR_HOOKS_PATH = '.cursor/hooks.json'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
-const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '..', '.claude-template', 'hooks')
+const BUNDLED_HOOKS_DIR = join(here, '..', '..', '..', '.claude-template', 'hooks')
 
 /**
  * Відносний шлях до managed hook-скрипта у проєкті.
