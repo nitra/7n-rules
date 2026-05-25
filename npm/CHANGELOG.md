@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.17.4] - 2026-05-24
+
+### Changed
+
+- Концерн `stryker_config`: gitignore-патерн `**/reports/stryker/.tmp/` + `**/reports/stryker/mutation.json` замінено на один broader `**/reports/stryker/` — увесь каталог Stryker-output-у. Покриває не лише `.tmp/` + `mutation.json`, а й HTML/dashboard-репорти якщо користувач додасть інші reporter-и. Існуючі дрібніші патерни в `.gitignore` користувача не видаляються (idempotent helper лише дописує), але стають надлишковими — користувач може почистити вручну за бажанням.
+- `test.mdc` 2.1 → 2.2: оновлено опис gitignore-керування під новий broader patern.
+
 ## [1.17.3] - 2026-05-24
 
 ### Added

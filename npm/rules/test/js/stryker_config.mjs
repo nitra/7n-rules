@@ -23,11 +23,11 @@ import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
 
-// Stryker-output патерни для .gitignore: temp-каталог з backup-файлами
-// (`tempDirName: 'reports/stryker/.tmp'` у baseline) і JSON-репорт мутацій.
-// Канон in-place mode у baseline лишає backup'и у `reports/stryker/.tmp/backup-XXX/`,
-// які НЕ можна комітити. Подвійний-зірочка-префікс покриває всі workspaces.
-const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/.tmp/', '**/reports/stryker/mutation.json']
+// Stryker-output патерн для .gitignore: увесь каталог reports/stryker/ — це
+// build-артефакти (`tempDirName` backup'и, mutation.json, HTML/dashboard-репорти
+// якщо користувач додасть інші reporter-и). Покриваємо одним патерном замість
+// перелічування під-патернів. Подвійний-зірочка-префікс — для monorepo workspaces.
+const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/']
 
 /**
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення

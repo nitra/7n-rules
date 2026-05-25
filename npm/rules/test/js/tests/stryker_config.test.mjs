@@ -126,18 +126,14 @@ describe('stryker_config concern', () => {
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const gitignore = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
-    expect(gitignore).toContain('**/reports/stryker/.tmp/')
-    expect(gitignore).toContain('**/reports/stryker/mutation.json')
+    expect(gitignore).toContain('**/reports/stryker/')
     expect(gitignore).toContain('# Stryker mutation testing')
     proj.cleanup()
   })
 
-  test('js-lint enabled + .gitignore вже має Stryker-патерни — не дублює', async () => {
+  test('js-lint enabled + .gitignore вже має Stryker-патерн — не дублює', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
-    writeFileSync(
-      join(proj.dir, '.gitignore'),
-      'node_modules/\n**/reports/stryker/.tmp/\n**/reports/stryker/mutation.json\n'
-    )
+    writeFileSync(join(proj.dir, '.gitignore'), 'node_modules/\n**/reports/stryker/\n')
     const before = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
