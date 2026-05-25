@@ -1,0 +1,33 @@
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_2a60aea2b7e73b::t_21b434a2307f63 73,75-78,80-81,83-88,91-94,98-100
+  s_2a60aea2b7e73b::t_c8f3953ae736a3 89-90
+  s_a282ea1c9cf92c::t_2c27c85725b063 103-151
+  s_a282ea1c9cf92c::t_5a471ae7c56e1e 74,79,82,95-97
+npm/rules/test/coverage/coverage.mjs
+  s_2a60aea2b7e73b::t_fa3c8c71d9af87 92-94,103-104
+  s_a282ea1c9cf92c::t_180413a20cddd5 73-74,76-77,95-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "ebdb82869ccfa5636bca131bd7c1ac97bd0dfac2",
+  "prompts": {},
+  "sessions": {
+    "s_2a60aea2b7e73b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b31ad6d3-8583-4022-8f31-4f8e081eb0d0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_a282ea1c9cf92c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0f4ef73-ad6c-4e43-928b-8a6a1e508aae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
