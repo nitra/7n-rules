@@ -30,8 +30,10 @@ import { existsSync } from 'node:fs'
 import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-/** Маркер lint Stop-hook'а (`npx --no \@nitra/cursor stop-hook`). */
-export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
+/** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-fix`). */
+export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-fix'
+/** Legacy-маркер старого Stop-hook'а — лишаємо для cleanup-у при оновленні існуючих інсталяцій. */
+export const LEGACY_STOP_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
 /** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта capture-decisions. */
 export const ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
 /** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта normalize-decisions. */
@@ -40,9 +42,13 @@ export const ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisi
 export const CURSOR_ADR_HOOK_COMMAND_MARKER = '.claude/hooks/capture-decisions.sh'
 /** Маркер Cursor ADR Normalize Stop-hook'а — той самий script path, але в `.cursor/hooks.json`. */
 export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize-decisions.sh'
-/** Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких. */
+/**
+ * Усі маркери managed-hook'ів пакета — за ними відрізняємо свої записи від користувацьких.
+ * Legacy stop-hook включений сюди, щоб старі entries автоматично видалялись при наступному sync-у.
+ */
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
+  LEGACY_STOP_HOOK_COMMAND_MARKER,
   ADR_HOOK_COMMAND_MARKER,
   ADR_NORMALIZE_HOOK_COMMAND_MARKER
 ])
@@ -189,9 +195,13 @@ export function mergeAllowList(existing, fromTemplate) {
 }
 
 /**
- * Зливає hooks-секцію: для кожної події в темплейті видаляємо managed-групи
- * з існуючої конфігурації і додаємо актуальні з темплейту. Немені події в
- * темплейті не чіпаються.
+ * Зливає hooks-секцію. Для **кожної події** з обох сторін:
+ *   1) видаляємо managed-групи з існуючої конфігурації (їх ідентифікують маркери з
+ *      `MANAGED_HOOK_COMMAND_MARKERS`, включно з legacy-маркерами — це автоматично
+ *      прибирає застарілі hook'и при переході на нову версію темплейту);
+ *   2) дописуємо managed-групи з темплейту.
+ * Перебір union-у подій важливий: коли пакет переносить hook між подіями (напр. `Stop`
+ * → `PostToolUse`), старі managed entries у вже-непотрібній події теж мають піти.
  * @param {Record<string, HookGroup[]> | undefined} existing поточна `hooks`-секція з .claude/settings.json
  * @param {Record<string, HookGroup[]> | undefined} fromTemplate цільова `hooks`-секція з темплейту
  * @returns {Record<string, HookGroup[]>} результат злиття (порожні події видаляються)
@@ -199,14 +209,13 @@ export function mergeAllowList(existing, fromTemplate) {
 export function mergeHooks(existing, fromTemplate) {
   /** @type {Record<string, HookGroup[]>} */
   const out = {}
-  for (const [event, groups] of Object.entries(existing ?? {})) {
-    out[event] = Array.isArray(groups) ? [...groups] : []
-  }
-  for (const [event, templateGroups] of Object.entries(fromTemplate ?? {})) {
-    const existingGroups = (out[event] ?? []).filter(g => !isManagedHookGroup(g))
-    out[event] = [...existingGroups, ...(templateGroups ?? [])]
-    if (out[event].length === 0) {
-      delete out[event]
+  const allEvents = new Set([...Object.keys(existing ?? {}), ...Object.keys(fromTemplate ?? {})])
+  for (const event of allEvents) {
+    const existingClean = (existing?.[event] ?? []).filter(g => !isManagedHookGroup(g))
+    const templateGroups = fromTemplate?.[event] ?? []
+    const combined = [...existingClean, ...templateGroups]
+    if (combined.length > 0) {
+      out[event] = combined
     }
   }
   return out

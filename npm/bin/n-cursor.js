@@ -9,8 +9,10 @@
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor fix bun`     — перевірити лише вказані правила (ігнорує `.cursor/rules/`)
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
- *   `npx \@nitra/cursor stop-hook`   — точка входу Stop hook Claude Code (читає stdin, виходить 0 при `stop_hook_active`,
- *                                     інакше викликає `fix`); прописується автоматично в `.claude/settings.json`
+ *   `npx \@nitra/cursor post-tool-use-fix` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
+ *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
+ *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
+ *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
  *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
  *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
@@ -83,7 +85,7 @@ import {
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
-import { runStopHookCli } from '../scripts/claude-stop-hook.mjs'
+import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
 import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
 import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
@@ -1427,10 +1429,10 @@ try {
 
       break
     }
-    case 'stop-hook': {
-      // Викликається з .claude/settings.json як Stop hook Claude Code.
-      // Прокидає `check` і поважає stop_hook_active, щоб не зациклюватись.
-      const code = await runStopHookCli()
+    case 'post-tool-use-fix': {
+      // Викликається з .claude/settings.json як PostToolUse hook Claude Code.
+      // Маршрутизує змінений файл у релевантні правила і прокидає `fix` лише з ними.
+      const code = await runPostToolUseFixCli()
       process.exitCode = code
 
       break
@@ -1488,7 +1490,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, stop-hook, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
       )
       process.exitCode = 1
     }

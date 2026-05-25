@@ -103,22 +103,12 @@ docs/adr/
 
 ## Stop-hook у `.claude/settings.json`
 
-Канонічний запис, який вставляє sync (поряд із lint stop-hook):
+Канонічний запис, який вставляє sync (поряд із PostToolUse fix-хуком — той живе в іншій події, тут не показаний):
 
 ```json title=".claude/settings.json"
 {
   "hooks": {
     "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npx --no @nitra/cursor stop-hook",
-            "timeout": 60
-          }
-        ]
-      },
       {
         "matcher": "",
         "hooks": [
@@ -146,7 +136,7 @@ docs/adr/
 }
 ```
 
-Усі три групи ідентифікуються пакетом за маркером у `command` (`@nitra/cursor stop-hook`, `.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
+Обидві ADR-групи ідентифікуються пакетом за маркером у `command` (`.claude/hooks/capture-decisions.sh`, `.claude/hooks/normalize-decisions.sh`) — користувацькі hook-групи поряд не чіпаються. Якщо `adr` прибрати з `rules`, обидві ADR-групи автоматично видаляються на наступному `npx @nitra/cursor`.
 
 ## Stop-hook у `.cursor/hooks.json`
 

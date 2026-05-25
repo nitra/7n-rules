@@ -1,6 +1,10 @@
 /**
  * Тести sync-claude-config: merge-логіка settings.json, опт-аут,
  * синхронізація slash-команд і ADR Stop-hook'ів.
+ *
+ * Управлений хук пакета зараз — PostToolUse (`@nitra/cursor post-tool-use-fix`).
+ * Legacy Stop-hook (`@nitra/cursor stop-hook`) усе ще ідентифікується як managed,
+ * щоб при оновленні старих інсталяцій автоматично прибиратись.
  */
 import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
@@ -10,6 +14,7 @@ import { join } from 'node:path'
 import {
   ADR_GITIGNORE_SNIPPET_REL,
   ADR_HOOK_COMMAND_MARKER,
+  LEGACY_STOP_HOOK_COMMAND_MARKER,
   MANAGED_HOOK_COMMAND_MARKER,
   mergeAllowList,
   mergeCursorHooksConfig,
@@ -36,10 +41,10 @@ async function setupTemplate(cwdAbs, tpl = {}) {
   const settings = tpl.settings ?? {
     permissions: { allow: ['Bash(bun *)'] },
     hooks: {
-      Stop: [
+      PostToolUse: [
         {
-          matcher: '',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook' }]
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix', timeout: 300 }]
         }
       ]
     }
@@ -94,6 +99,46 @@ describe('mergeAllowList', () => {
 describe('mergeHooks', () => {
   test('видаляє managed-групу і вставляє актуальну з темплейту', () => {
     const existing = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+        }
+      ]
+    }
+    const fromTemplate = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix --updated' }]
+        }
+      ]
+    }
+    const merged = mergeHooks(existing, fromTemplate)
+    expect(merged.PostToolUse).toHaveLength(1)
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('npx --no @nitra/cursor post-tool-use-fix --updated')
+  })
+
+  test('зберігає користувацькі групи поряд з managed', () => {
+    const existing = {
+      PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo my-custom-hook' }] }]
+    }
+    const fromTemplate = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+        }
+      ]
+    }
+    const merged = mergeHooks(existing, fromTemplate)
+    expect(merged.PostToolUse).toHaveLength(2)
+    expect(merged.PostToolUse[0].hooks[0].command).toBe('echo my-custom-hook')
+    expect(merged.PostToolUse[1].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+  })
+
+  test('legacy Stop-hook (`@nitra/cursor stop-hook`) видаляється навіть якщо темплейт уже не має події Stop', () => {
+    const existing = {
       Stop: [
         {
           matcher: '',
@@ -102,37 +147,51 @@ describe('mergeHooks', () => {
       ]
     }
     const fromTemplate = {
-      Stop: [
+      PostToolUse: [
         {
-          matcher: '',
-          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook --updated' }]
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
+        }
+      ]
+    }
+    const merged = mergeHooks(existing, fromTemplate)
+    expect(merged.Stop).toBeUndefined()
+    expect(merged.PostToolUse).toHaveLength(1)
+  })
+
+  test('зберігає користувацькі groups в Stop, навіть коли темплейт переніс managed у PostToolUse', () => {
+    const existing = {
+      Stop: [
+        // legacy managed — має зникнути
+        { matcher: '', hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook' }] },
+        // користувацька — має лишитись
+        { matcher: '', hooks: [{ type: 'command', command: 'echo user-stop' }] }
+      ]
+    }
+    const fromTemplate = {
+      PostToolUse: [
+        {
+          matcher: 'Edit|Write|MultiEdit',
+          hooks: [{ type: 'command', command: 'npx --no @nitra/cursor post-tool-use-fix' }]
         }
       ]
     }
     const merged = mergeHooks(existing, fromTemplate)
     expect(merged.Stop).toHaveLength(1)
-    expect(merged.Stop[0].hooks[0].command).toBe('npx --no @nitra/cursor stop-hook --updated')
+    expect(merged.Stop[0].hooks[0].command).toBe('echo user-stop')
+    expect(merged.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
   })
 
-  test('зберігає користувацькі групи поряд з managed', () => {
-    const existing = {
-      Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'echo my-custom-hook' }] }]
-    }
-    const fromTemplate = {
-      Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook' }] }]
-    }
-    const merged = mergeHooks(existing, fromTemplate)
-    expect(merged.Stop).toHaveLength(2)
-    expect(merged.Stop[0].hooks[0].command).toBe('echo my-custom-hook')
-    expect(merged.Stop[1].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
-  })
-
-  test('не чіпає події, яких немає в темплейті', () => {
+  test('не чіпає чужі події, яких немає в темплейті і які не містять managed-маркера', () => {
     const existing = {
       PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'echo pre' }] }]
     }
     const merged = mergeHooks(existing, {})
     expect(merged.PreToolUse).toEqual(existing.PreToolUse)
+  })
+
+  test('LEGACY_STOP_HOOK_COMMAND_MARKER експортовано як константа', () => {
+    expect(LEGACY_STOP_HOOK_COMMAND_MARKER).toBe('@nitra/cursor stop-hook')
   })
 })
 
@@ -183,45 +242,73 @@ describe('mergeCursorHooksConfig', () => {
 })
 
 describe('syncClaudeConfig (інтеграція)', () => {
-  test('створює settings.json без slash-команд, коли темплейт `commands/` порожній', async () => {
+  test('створює settings.json із managed PostToolUse групою', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       expect(result.settings).toBe(true)
       expect(result.commands).toEqual([])
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      expect(settings.hooks.Stop[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+      expect(settings.hooks.PostToolUse).toHaveLength(1)
+      expect(settings.hooks.PostToolUse[0].matcher).toBe('Edit|Write|MultiEdit')
+      expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+      expect(settings.hooks.PostToolUse[0].hooks[0].timeout).toBe(300)
+      expect(settings.hooks.Stop).toBeUndefined()
     })
   })
 
-  test('зберігає користувацькі permissions і hooks при повторному синку', async () => {
+  test('міграція: існуючий legacy Stop-hook видаляється; PostToolUse додається', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await mkdir(join(cwdAbs, '.claude'), { recursive: true })
+      await writeJson('.claude/settings.json', {
+        hooks: {
+          Stop: [
+            {
+              matcher: '',
+              hooks: [{ type: 'command', command: 'npx --no @nitra/cursor stop-hook', timeout: 60 }]
+            }
+          ]
+        }
+      })
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
+      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      expect(settings.hooks.Stop).toBeUndefined()
+      expect(settings.hooks.PostToolUse).toHaveLength(1)
+      expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+    })
+  })
+
+  test('зберігає користувацькі permissions і користувацькі групи у Stop при повторному синку', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await mkdir(join(cwdAbs, '.claude'), { recursive: true })
       await writeJson('.claude/settings.json', {
         permissions: { allow: ['Bash(git *)'], deny: ['WebFetch(domain:evil.com)'] },
         hooks: {
-          Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'echo user-hook' }] }]
+          Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'echo user-stop-hook' }] }]
         }
       })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       expect(settings.permissions.allow).toEqual(['Bash(git *)', 'Bash(bun *)'])
       expect(settings.permissions.deny).toEqual(['WebFetch(domain:evil.com)'])
-      expect(settings.hooks.Stop).toHaveLength(2)
-      expect(settings.hooks.Stop[0].hooks[0].command).toBe('echo user-hook')
-      expect(settings.hooks.Stop[1].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
+      // User Stop entry preserved
+      expect(settings.hooks.Stop).toHaveLength(1)
+      expect(settings.hooks.Stop[0].hooks[0].command).toBe('echo user-stop-hook')
+      // Managed PostToolUse added
+      expect(settings.hooks.PostToolUse).toHaveLength(1)
+      expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
     })
   })
 
-  test('повторний sync ідемпотентний: managed-група не дублюється', async () => {
+  test('повторний sync ідемпотентний: managed PostToolUse група не дублюється', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const stopHooks = settings.hooks.Stop
-      const managedCount = stopHooks.filter(g =>
+      const managedCount = settings.hooks.PostToolUse.filter(g =>
         g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER))
       ).length
       expect(managedCount).toBe(1)
@@ -259,8 +346,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(result.cursorHooks).toBe(false)
       expect(existsSync(join(cwdAbs, '.cursor/hooks.json'))).toBe(false)
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
-      expect(hasAdr).toBe(false)
+      // ADR не в Stop і взагалі немає події Stop
+      expect(settings.hooks.Stop).toBeUndefined()
     })
   })
 
@@ -310,7 +397,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
     })
   })
 
-  test('з правилом "adr": копіюються обидва hook-скрипти і додаються managed-групи у Stop', async () => {
+  test('з правилом "adr": копіюються обидва hook-скрипти і ADR-групи додаються у Stop, managed fix — у PostToolUse', async () => {
     await withTmpCwd(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs, {
         captureDecisionsSh: '#!/usr/bin/env bash\necho adr-capture\n',
@@ -338,6 +425,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(cursorHooks.hooks.stop[0].timeout).toBe(180)
       expect(cursorHooks.hooks.stop[1].command).toContain('.claude/hooks/normalize-decisions.sh')
       expect(cursorHooks.hooks.stop[1].timeout).toBe(600)
+      // ADR групи у Stop event
       const captureGroup = settings.hooks.Stop.find(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
       )
@@ -349,10 +437,11 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(normalizeGroup).toBeTruthy()
       expect(normalizeGroup.hooks[0].async).toBe(true)
       expect(normalizeGroup.hooks[0].timeout).toBe(600)
-      const lintGroup = settings.hooks.Stop.find(g =>
+      // Managed fix hook — у PostToolUse, не у Stop
+      const fixGroup = settings.hooks.PostToolUse.find(g =>
         g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER))
       )
-      expect(lintGroup).toBeTruthy()
+      expect(fixGroup).toBeTruthy()
     })
   })
 
@@ -375,8 +464,11 @@ describe('syncClaudeConfig (інтеграція)', () => {
       })
       const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
       const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
-      const hasAdr = settings.hooks.Stop.some(g => g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER)))
-      const hasNormalize = settings.hooks.Stop.some(g =>
+      // Stop взагалі не має managed entries — отже або відсутній, або має лише user-entries
+      const hasAdr = (settings.hooks.Stop ?? []).some(g =>
+        g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
+      )
+      const hasNormalize = (settings.hooks.Stop ?? []).some(g =>
         g.hooks?.some(h => h.command?.includes('.claude/hooks/normalize-decisions.sh'))
       )
       expect(hasAdr).toBe(false)

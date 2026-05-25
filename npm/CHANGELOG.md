@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.21.0] - 2026-05-25
+
+### Changed
+
+- **Stop-hook → PostToolUse з маршрутизацією за типом файла** (BREAKING для консьюмерів із кастомним `stop-hook` записом). `.claude-template/settings.template.json` тепер реєструє `PostToolUse` (matcher `Edit|Write|MultiEdit`, timeout 300) із командою `npx --no @nitra/cursor post-tool-use-fix` замість попереднього синхронного `Stop`-хука, що ганяв повний `fix` усіх правил на кожному turn-і. Новий хук читає `tool_input.file_path` зі stdin і запускає `fix` **лише** з релевантними правилами: `*.{mjs,js,cjs,ts,tsx,jsx}` → `js-lint`; `*.vue` → `js-lint style-lint vue`; `*.{css,scss,sass}` → `style-lint`; `**/k8s/**/*.{yaml,yml}` → `k8s`; `*.rego` → `rego`; `Dockerfile`/`*.Dockerfile` → `docker`; `.github/workflows/*.{yml,yaml}` → `ga`; `package.json` → `npm-module bun`; `*.sh` → `security`; `*.md` → `text` (поза `docs/adr/**` — там покриває async `normalize-decisions.sh`).
+- **CLI**: підкоманду `npx @nitra/cursor stop-hook` видалено; замість неї — `npx @nitra/cursor post-tool-use-fix`. `MANAGED_HOOK_COMMAND_MARKER` у `sync-claude-config.mjs` змінено на `@nitra/cursor post-tool-use-fix`; legacy-маркер `@nitra/cursor stop-hook` лишається у `MANAGED_HOOK_COMMAND_MARKERS` для автоматичного cleanup-у старих entries при наступному `npx @nitra/cursor`. `mergeHooks` тепер обходить union usually template+existing events, тому застарілі managed-групи у вже-непотрібних подіях (`Stop` у даному випадку) теж зачищаються.
+
+### Added
+
+- `npm/scripts/post-tool-use-fix.mjs` — реалізація `routeFilePathToRules(filePath)` (чиста функція, picomatch) і `runPostToolUseFixCli({ stdinJson, spawnFn })` (DI-friendly для тестів). 21 тест у `npm/scripts/tests/post-tool-use-fix.test.mjs`.
+- `LEGACY_STOP_HOOK_COMMAND_MARKER` — публічний export для тестів і потенційних консьюмерів, які перевіряють відсутність застарілого хука.
+
+### Removed
+
+- `npm/scripts/claude-stop-hook.mjs` — більше не потрібен.
+
 ## [1.20.0] - 2026-05-25
 
 ### Added

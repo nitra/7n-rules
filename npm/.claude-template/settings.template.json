@@ -10,14 +10,14 @@
     ]
   },
   "hooks": {
-    "Stop": [
+    "PostToolUse": [
       {
-        "matcher": "",
+        "matcher": "Edit|Write|MultiEdit",
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor stop-hook",
-            "timeout": 60
+            "command": "npx --no @nitra/cursor post-tool-use-fix",
+            "timeout": 300
           }
         ]
       }
