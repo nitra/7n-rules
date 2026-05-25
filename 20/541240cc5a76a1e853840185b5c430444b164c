@@ -1,0 +1,43 @@
+.pi/skills/n-llm-patch/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+npm/package.json
+  s_1b1b055c883315::t_2913b1f1bc78cc 3
+.pi/skills/n-lint/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+.pi/skills/n-start-check/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+.pi/skills/n-publish-telegram/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+npm/CHANGELOG.md
+  s_1b1b055c883315::t_2913b1f1bc78cc 7-13
+.pi/skills/n-adr-normalize/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+.pi/skills/mdc-check/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+npm/bin/n-cursor.js
+  s_1b1b055c883315::t_66f1decb6ed865 1365-1367
+  s_1b1b055c883315::t_2913b1f1bc78cc 31-33,110,493-508,924-1061,1350-1364
+  s_1b1b055c883315::t_674990c8846c41 1062-1066
+.pi/skills/n-fix/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+package.json
+  s_1b1b055c883315::t_8b5f2ffa22576e 23
+.pi/skills/n-taze/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 1-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "20541240cc5a76a1e853840185b5c430444b164c",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
