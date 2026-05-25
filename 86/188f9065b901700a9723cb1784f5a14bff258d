@@ -1,0 +1,41 @@
+npm/scripts/lib/timing-summary.mjs
+  s_b04f45c0cd93a7::t_d08729a15fbc96 1-67
+npm/scripts/lib/run-lint-cli.mjs
+  s_b04f45c0cd93a7::t_1d112039cbfea3 1-118
+.cursor/skills/n-fix/SKILL.md
+  s_b04f45c0cd93a7::t_84c5bc83f69fea 50-53
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_b04f45c0cd93a7::t_599328360b617a 1-212
+.cursor/skills/n-lint/SKILL.md
+  s_b04f45c0cd93a7::t_956477e37d198a 39
+npm/bin/n-cursor.js
+  s_b04f45c0cd93a7::t_87a2bad0ed67dd 1512
+  s_b04f45c0cd93a7::t_80736337fcbde5 105-106
+  s_b04f45c0cd93a7::t_73ba5846d9bf8d 16-18
+  s_b04f45c0cd93a7::t_c68e5efb421537 1191-1192,1195,1197-1199,1202
+  s_b04f45c0cd93a7::t_33d24e57e7c473 1452-1458
+npm/scripts/lib/tests/timing-summary.test.mjs
+  s_b04f45c0cd93a7::t_5f2c98a42e614c 1-70
+npm/package.json
+  s_b04f45c0cd93a7::t_34d6e49aac7faf 3
+npm/CHANGELOG.md
+  s_b04f45c0cd93a7::t_39c71c2c72c541 7-20
+package.json
+  s_b04f45c0cd93a7::t_9aa68badff24bf 12,19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "86188f9065b901700a9723cb1784f5a14bff258d",
+  "prompts": {},
+  "sessions": {
+    "s_b04f45c0cd93a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8895738-4fcd-44ff-891e-24ef7cfe8874",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
