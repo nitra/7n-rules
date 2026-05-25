@@ -17,10 +17,17 @@ import { fileURLToPath } from 'node:url'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
+import { ensureGitignoreEntries } from '../../../scripts/utils/ensure-gitignore-entries.mjs'
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+
+// Stryker-output патерни для .gitignore: temp-каталог з backup-файлами
+// (`tempDirName: 'reports/stryker/.tmp'` у baseline) і JSON-репорт мутацій.
+// Канон in-place mode у baseline лишає backup'и у `reports/stryker/.tmp/backup-XXX/`,
+// які НЕ можна комітити. Подвійний-зірочка-префікс покриває всі workspaces.
+const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/.tmp/', '**/reports/stryker/mutation.json']
 
 /**
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
@@ -56,6 +63,13 @@ export async function check() {
     }
     await copyFile(BASELINE_PATH, target)
     reporter.pass(`stryker.config.mjs створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+  }
+
+  // Гарантуємо що Stryker temp/output ніколи не комітяться. Patterns
+  // покривають усі workspaces через `**/`-префікс (єдиний root .gitignore).
+  const { added } = await ensureGitignoreEntries(cwd, STRYKER_GITIGNORE_ENTRIES, 'Stryker mutation testing (test.mdc)')
+  if (added.length > 0) {
+    reporter.pass(`.gitignore: додано Stryker-патерни (${added.join(', ')}) (test.mdc)`)
   }
   return reporter.getExitCode()
 }

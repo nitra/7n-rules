@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.17.3] - 2026-05-24
+
+### Added
+
+- Концерн `stryker_config` правила `test` тепер ідемпотентно додає у кореневий `.gitignore` патерни Stryker-output-у:
+  - `**/reports/stryker/.tmp/` — in-place backup-каталог (з baseline-у `tempDirName`).
+  - `**/reports/stryker/mutation.json` — JSON-репорт мутацій.
+  - Header-секція `# Stryker mutation testing (test.mdc)`, sectioning через `ensureGitignoreEntries`.
+- Спільний helper `npm/scripts/utils/ensure-gitignore-entries.mjs` — append-only оновлювач `.gitignore` з header-секціями. Idempotent (точне співпадіння рядка після `trim`), створює файл якщо немає, зберігає trailing-newline. 5 unit-тестів.
+
+### Changed
+
+- `test.mdc` 2.0 → 2.1: додано параграф про gitignore-керування Stryker-output-у в секцію «Налаштування mutation-testing».
+- `stryker_config` concern: додано виклик `ensureGitignoreEntries` після копіювання baseline-ів; репортер видає pass-повідомлення про додані патерни.
+
 ## [1.17.2] - 2026-05-24
 
 ### Added
