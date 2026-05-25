@@ -1,0 +1,9 @@
+spec:
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {}

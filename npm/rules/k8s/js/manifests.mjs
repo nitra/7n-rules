@@ -134,11 +134,12 @@
  * У `kustomization.yaml` overlay, який підключає каталог `…/k8s/…/base`, не додавай окремі YAML-файли з HPA / PDB,
  * поки в наслідуваному `base` у дереві не з'явиться такий Deployment (k8s.mdc).
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
+import { isSeq, parseAllDocuments, parseDocument, stringify } from 'yaml'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
@@ -4242,124 +4243,71 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
   return errs
 }
 
-/**
- * Канонічний список in-cluster TCP-портів у `to: [{namespaceSelector: {}}]` rule (k8s.mdc).
- * Зовнішній доступ (80/443 → 0.0.0.0/0) і kube-dns (53 UDP/TCP) — окремі rule вище.
- * Catch-all (`namespaceSelector: {}` без `ports:`) — заборонено.
- */
-const NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS = [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]
+const NETWORK_POLICY_COMMON_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/common.snippet.yaml',
+  import.meta.url
+)
+const NETWORK_POLICY_STATEFULSET_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/statefulset.snippet.yaml',
+  import.meta.url
+)
+
+/** @type {Record<string, Record<string, unknown>>} */
+const _snippetCache = {}
 
 /**
- * Канонічний блок `spec.egress` NetworkPolicy (k8s.mdc): kube-dns; TCP 80/443 на 0.0.0.0/0;
- * in-cluster `namespaceSelector: {}` зі списком `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`.
+ * Читає snippet-файл і повертає розпарсений spec. Результат кешується в пам'яті процесу.
+ * @param {'common' | 'statefulset'} snippetName ім'я сніпету
+ * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }}
  */
-const NETWORK_POLICY_EGRESS_YAML = `  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
-      ports:
-${NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS.map(p => `        - protocol: TCP\n          port: ${p}`).join('\n')}
-`
+export function loadSnippetSpec(snippetName) {
+  if (_snippetCache[snippetName]) return _snippetCache[snippetName]
+  const url = snippetName === 'statefulset'
+    ? NETWORK_POLICY_STATEFULSET_SNIPPET_URL
+    : NETWORK_POLICY_COMMON_SNIPPET_URL
+  const raw = readFileSync(fileURLToPath(url), 'utf8')
+  _snippetCache[snippetName] = /** @type {any} */ (parseDocument(raw).toJS()).spec
+  return _snippetCache[snippetName]
+}
 
 /**
- * Канонічний YAML **NetworkPolicy** для workload з іменем `workloadName` і міткою `app`.
+ * Читає common.snippet.yaml і повертає розпарсений spec.
+ * @deprecated Використовуй loadSnippetSpec('common')
+ * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }}
+ */
+export function readNetworkPolicySnippet() {
+  return loadSnippetSpec('common')
+}
+
+/**
+ * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName` і міткою `app`.
+ * Структура spec береться зі snippet — не дублюється в коді.
  * @param {string} deployName `metadata.name` workload (Deployment, StatefulSet, …)
  * @param {string} appLabel `spec.selector.matchLabels.app` (або selector у `jobTemplate` для CronJob)
+ * @param {string} [kind] `kind` workload — впливає на набір canonical правил (default: 'Deployment')
  * @returns {string} вміст `networkpolicy.yaml`
  */
-export function buildNetworkPolicyYaml(deployName, appLabel) {
+export function buildNetworkPolicyYaml(deployName, appLabel, kind = 'Deployment') {
   const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
+  const spec = JSON.parse(JSON.stringify(loadSnippetSpec('common')))
+  spec.podSelector.matchLabels = { app: appLabel }
+  if (kind === 'StatefulSet') {
+    const ssSpec = loadSnippetSpec('statefulset')
+    spec.egress = [...(spec.egress ?? []), ...(ssSpec.egress ?? [])]
+    spec.ingress = [...(spec.ingress ?? []), ...(ssSpec.ingress ?? [])]
+  }
+  const specYaml = stringify(spec, { indent: 2 }).replaceAll(/^(?!$)/gm, '  ').trimEnd()
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: ${deployName}
+  annotations:
+    nitra.dev/workload-kind: ${kind}
 spec:
-  podSelector:
-    matchLabels:
-      app: ${appLabel}
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-${NETWORK_POLICY_EGRESS_YAML}`
+${specYaml}`
 }
 
-/**
- * Перевіряє **NetworkPolicy** (`networking.k8s.io/v1`): структура й прив'язка до workload.
- * @param {unknown} manifest корінь YAML-документа NetworkPolicy
- * @param {string} expectedDeployName очікуване `metadata.name` workload
- * @param {string} expectedAppLabel очікувана мітка `app` у `podSelector.matchLabels`
- * @returns {string[]} список порушень (порожній — ок)
- */
-export function networkPolicyManifestViolations(manifest, expectedDeployName, expectedAppLabel) {
-  /**
-  @type {string[]}
-   */
-  const errs = []
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest)) {
-    errs.push('NetworkPolicy має бути обʼєктом YAML')
-    return errs
-  }
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  if (rec.kind !== 'NetworkPolicy') errs.push(`kind має бути NetworkPolicy (зараз: ${JSON.stringify(rec.kind)})`)
-  if (rec.apiVersion !== 'networking.k8s.io/v1')
-    errs.push(`apiVersion має бути networking.k8s.io/v1 (зараз: ${JSON.stringify(rec.apiVersion)})`)
-  const name = manifestMetadataName(rec)
-  if (name !== expectedDeployName)
-    errs.push(`metadata.name має бути '${expectedDeployName}' (зараз: ${JSON.stringify(name)})`)
-  const spec = rec.spec
-  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) {
-    errs.push('spec відсутній або некоректний')
-    return errs
-  }
-  const s = /** @type {Record<string, unknown>} */ (spec)
-  const podSelector = s.podSelector
-  if (
-    podSelector === null ||
-    podSelector === undefined ||
-    typeof podSelector !== 'object' ||
-    Array.isArray(podSelector)
-  ) {
-    errs.push('spec.podSelector відсутній')
-    return errs
-  }
-  const matchLabels = /** @type {Record<string, unknown>} */ (podSelector).matchLabels
-  if (
-    matchLabels === null ||
-    matchLabels === undefined ||
-    typeof matchLabels !== 'object' ||
-    Array.isArray(matchLabels)
-  ) {
-    errs.push('spec.podSelector.matchLabels відсутній')
-    return errs
-  }
-  const app = /** @type {Record<string, unknown>} */ (matchLabels).app
-  if (app !== expectedAppLabel)
-    errs.push(`spec.podSelector.matchLabels.app має бути '${expectedAppLabel}' (зараз: ${JSON.stringify(app)})`)
-  return errs
-}
 
 /**
  * Додає `resourceName` у `resources:` kustomization/Component YAML, якщо ще немає; сортує за алфавітом (en).
@@ -5126,11 +5074,14 @@ function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, worklo
     )
     return
   }
-  const npErrs = networkPolicyManifestViolations(matchedNp, workloadName, appLabel)
-  if (npErrs.length === 0) {
-    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
+  const spec = /** @type {Record<string, unknown>} */ (matchedNp).spec
+  const foundLabel = networkPolicyPodSelectorAppLabel(spec)
+  if (foundLabel !== appLabel) {
+    fail(
+      `${npRel}: NetworkPolicy '${workloadName}' spec.podSelector.matchLabels.app='${foundLabel}' не відповідає мітці workload '${appLabel}' (k8s.mdc)`
+    )
   } else {
-    for (const e of npErrs) fail(`${npRel}: ${e} (k8s.mdc)`)
+    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
   }
 }
 
@@ -6332,8 +6283,8 @@ async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn) {
     const raw = await readFile(npAbs, 'utf8')
     content = raw.trimEnd()
   }
-  const blocks = toAdd.map(({ name, appLabel }, i) => {
-    const block = buildNetworkPolicyYaml(name, appLabel)
+  const blocks = toAdd.map(({ name, appLabel, kind }, i) => {
+    const block = buildNetworkPolicyYaml(name, appLabel, kind)
     return i === 0 && content === '' ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
   })
   const joined = blocks.join('\n---\n')
@@ -6401,18 +6352,27 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
   const needsMigration = docs.some(d => networkPolicyHasLegacyCatchAllEgress(d))
   if (!needsMigration) return false
   /**
-  @type {Array<{ name: string, appLabel: string }>}
+  @type {Array<{ name: string, appLabel: string, kind: string }>}
    */
   const specs = []
   for (const doc of docs) {
     const name = manifestMetadataName(doc)
-    const spec = /** @type {Record<string, unknown>} */ (doc).spec
+    const docRec = /** @type {Record<string, unknown>} */ (doc)
+    const spec = docRec.spec
     const appLabel = networkPolicyPodSelectorAppLabel(spec)
-    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
+    const meta = docRec.metadata
+    const annotations = (meta !== null && typeof meta === 'object' && !Array.isArray(meta))
+      ? /** @type {Record<string, unknown>} */ (meta).annotations
+      : null
+    const rawKind = (annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations))
+      ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
+      : null
+    const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
+    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
   }
   if (specs.length === 0) return false
-  const blocks = specs.map(({ name, appLabel }, i) => {
-    const block = buildNetworkPolicyYaml(name, appLabel)
+  const blocks = specs.map(({ name, appLabel, kind }, i) => {
+    const block = buildNetworkPolicyYaml(name, appLabel, kind)
     return i === 0 ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
   })
   await writeFile(npAbs, `${blocks.join('\n---\n')}\n`, 'utf8')
@@ -6582,13 +6542,21 @@ function runAllK8sRego(root, yamlFiles, fail) {
   })
 
   /**
-  @type {Array<{ ns: string, dir: string, files: string[] }>}
+  @type {Array<{ ns: string, dir: string, files: string[], templateData?: Record<string, unknown> }>}
    */
   const targets = [
     { ns: 'k8s.manifest', dir: 'k8s/manifest', files: allYaml },
     { ns: 'k8s.gateway', dir: 'k8s/gateway', files: allYaml },
     { ns: 'k8s.hpa_pdb', dir: 'k8s/hpa_pdb', files: allYaml },
-    { ns: 'k8s.network_policy', dir: 'k8s/network_policy', files: allYaml },
+    {
+      ns: 'k8s.network_policy',
+      dir: 'k8s/network_policy',
+      files: allYaml,
+      templateData: {
+        snippet: loadSnippetSpec('common'),
+        statefulset_snippet: loadSnippetSpec('statefulset'),
+      },
+    },
     { ns: 'k8s.kustomization', dir: 'k8s/kustomization', files: kustYaml },
     { ns: 'k8s.svc_yaml', dir: 'k8s/svc_yaml', files: svcYaml },
     { ns: 'k8s.svc_hl_yaml', dir: 'k8s/svc_hl_yaml', files: svcHlYaml },
@@ -6598,7 +6566,7 @@ function runAllK8sRego(root, yamlFiles, fail) {
 
   for (const t of targets) {
     if (t.files.length === 0) continue
-    const violations = runConftestBatch({ policyDirRel: t.dir, namespace: t.ns, files: t.files })
+    const violations = runConftestBatch({ policyDirRel: t.dir, namespace: t.ns, files: t.files, templateData: t.templateData })
     for (const v of violations) {
       fail(`${relOf(v.filename)}: ${v.message}`)
     }

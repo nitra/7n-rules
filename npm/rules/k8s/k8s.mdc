@@ -393,7 +393,7 @@ images:
 - **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, **без** `metadata.namespace` (namespace задає kustomization-споживач), `spec.scaleTargetRef.name` **= `metadata.name`** Deployment з base, dev-like значення `minReplicas: 1`, `maxReplicas: 1`.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, **без** `metadata.namespace`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment, dev-like `minAvailable: 0`.
 
-**Канонічний `base/networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace` (namespace додає `base/kustomization.yaml`); один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у тому ж `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns (UDP/TCP 53); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні, включно з metadata `169.254.169.254:80`); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові in-cluster порти можна додати вручну у `ports:` цього rule. Канон: [networkpolicy.snippet.yaml](./policy/network_policy/template/networkpolicy.snippet.yaml). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
+**Канонічний `base/networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace` (namespace додає `base/kustomization.yaml`); один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у тому ж `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns через `kube-system` namespaceSelector (UDP/TCP 53); link-local DNS `169.254.0.0/16` (UDP/TCP 53, GKE NodeLocal DNSCache); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). **StatefulSet** додатково має egress/ingress `to/from.podSelector: {}` для intra-replica реплікації. Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові правила можна дописати поряд — superset-підхід. Канон: [common.snippet.yaml](./policy/network_policy/template/common.snippet.yaml) та [statefulset.snippet.yaml](./policy/network_policy/template/statefulset.snippet.yaml). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
 
 Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
 
@@ -490,6 +490,8 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: backend-api
+  annotations:
+    nitra.dev/workload-kind: Deployment
 spec:
   podSelector:
     matchLabels:
@@ -508,6 +510,14 @@ spec:
           podSelector:
             matchLabels:
               k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - ipBlock:
+            cidr: 169.254.0.0/16
       ports:
         - protocol: UDP
           port: 53

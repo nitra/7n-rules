@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.20.0] - 2026-05-25
+
+### Added
+
+- **NetworkPolicy snippet як єдине джерело правди**: `common.snippet.yaml` і `statefulset.snippet.yaml` замінюють жорстко закодований список портів у JS. `loadSnippetSpec('common'|'statefulset')` у `manifests.mjs` читає snippet із YAML, кешує і передає через `templateData` у conftest. Rego-правило (`network_policy.rego`) перевіряє superset-підхід: кожне canonical правило має бути присутнє, extra-правила дозволені. `StatefulSet` через анотацію `nitra.dev/workload-kind: StatefulSet` отримує додаткову перевірку intra-replica egress/ingress (з `statefulset.snippet.yaml`). GKE NodeLocal DNSCache: link-local DNS правило `169.254.0.0/16` UDP/TCP 53 додано до `common.snippet.yaml` — обов'язкове для всіх workload-ів.
+- **`n-cursor coverage --fix`**: новий режим, який після збору метрик запускає Claude Code SDK агента для написання тестів по вижилих мутантах Stryker, а тоді повторно збирає coverage для валідації результату. Агент отримує список вижилих мутантів з контекстом (файл, рядок, оригінальний код, варіант-мутант, тип мутації) і самостійно знаходить або створює відповідні test-файли.
+- **Stryker incremental mode** у `stryker.config.baseline.mjs`: `incremental: true` + `incrementalFile: 'reports/stryker/stryker-incremental.json'` — Stryker зберігає прогрес між прогонами, відновлює стан після переривання (SIGURG, OOM тощо).
+- **Секція `## Вижилі мутанти`** у `COVERAGE.md`: якщо після Stryker-прогону є вижилі мутанти, COVERAGE.md містить структурований JSON-блок для `/n-fix-tests` та таблицю з деталями (файл, рядок, оригінал, мутант, тип мутації).
+- **`scripts/coverage-fix.mjs`**: `fixSurvivedMutants(survived, projectRoot)` — ізольований модуль запуску Claude Code SDK агента; динамічно імпортує `@anthropic-ai/claude-code` лише при `--fix`.
+- **`@anthropic-ai/claude-code`** у dependencies — потрібен для `coverage --fix`.
+
 ## [1.19.2] - 2026-05-25
 
 ### Fixed

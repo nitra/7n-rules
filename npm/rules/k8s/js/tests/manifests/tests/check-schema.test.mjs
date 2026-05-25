@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
 import { describe, expect, test } from 'bun:test'
+import { parse as parseYaml } from 'yaml'
 import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
@@ -14,11 +15,12 @@ import {
   deploymentResourcesViolation,
   deploymentTopologySpreadConstraintsViolation,
   buildNetworkPolicyYaml,
+  loadSnippetSpec,
+  readNetworkPolicySnippet,
   ensureResourceInKustomizationYaml,
   workloadAppLabel,
   WORKLOAD_KINDS_WITH_NETWORK_POLICY,
   expectedSchemaUrl,
-  networkPolicyManifestViolations,
   hasuraConfigMapRemoteSchemaPermissionsViolation,
   HASURA_GRAPHQL_ENGINE_IMAGE,
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
@@ -2204,53 +2206,43 @@ describe('NetworkPolicy helpers', () => {
     ).toBe('cron')
   })
 
-  test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
-    const yaml = buildNetworkPolicyYaml('api', 'api')
-    expect(yaml).toContain('name: api')
-    expect(yaml).toContain('app: api')
-    expect(yaml).toContain('kind: NetworkPolicy')
-    expect(yaml).toContain('cidr: 0.0.0.0/0')
-    expect(yaml).toContain('namespaceSelector: {}')
-    expect(yaml).not.toContain('egress:\n    - {}')
-    for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-      expect(yaml).toContain(`port: ${port}`)
-    }
+  test('readNetworkPolicySnippet: парситься без помилок, link-local 169.254.0.0/16 присутній', () => {
+    const spec = readNetworkPolicySnippet()
+    expect(Array.isArray(spec.egress)).toBe(true)
+    const hasLinkLocal = spec.egress.some(
+      rule => Array.isArray(rule.to) && rule.to.some(peer => peer?.ipBlock?.cidr === '169.254.0.0/16')
+    )
+    expect(hasLinkLocal).toBe(true)
   })
 
-  test('networkPolicyManifestViolations порожній для канонічного документа', () => {
-    const doc = {
-      apiVersion: 'networking.k8s.io/v1',
-      kind: 'NetworkPolicy',
-      metadata: { name: 'api' },
-      spec: {
-        podSelector: { matchLabels: { app: 'api' } },
-        policyTypes: ['Ingress', 'Egress'],
-        ingress: [{ from: [{ podSelector: {} }] }],
-        egress: [
-          {
-            to: [
-              {
-                namespaceSelector: { matchLabels: { 'kubernetes.io/metadata.name': 'kube-system' } },
-                podSelector: { matchLabels: { 'k8s-app': 'kube-dns' } }
-              }
-            ],
-            ports: [
-              { protocol: 'UDP', port: 53 },
-              { protocol: 'TCP', port: 53 }
-            ]
-          },
-          {
-            to: [{ ipBlock: { cidr: '0.0.0.0/0' } }],
-            ports: [
-              { protocol: 'TCP', port: 80 },
-              { protocol: 'TCP', port: 443 }
-            ]
-          },
-          { to: [{ namespaceSelector: {} }] }
-        ]
-      }
+  test('buildNetworkPolicyYaml: name, app та spec.egress/ingress відповідають snippet', () => {
+    const snippet = readNetworkPolicySnippet()
+    const result = parseYaml(buildNetworkPolicyYaml('api', 'api'))
+    expect(result.metadata.name).toBe('api')
+    expect(result.spec.podSelector.matchLabels.app).toBe('api')
+    expect(result.spec.egress).toEqual(snippet.egress)
+    expect(result.spec.ingress).toEqual(snippet.ingress)
+  })
+
+  test('buildNetworkPolicyYaml StatefulSet: містить common + statefulset egress/ingress та анотацію', () => {
+    const common = loadSnippetSpec('common')
+    const ss = loadSnippetSpec('statefulset')
+    const result = parseYaml(buildNetworkPolicyYaml('postgres', 'postgres', 'StatefulSet'))
+    expect(result.metadata.name).toBe('postgres')
+    expect(result.metadata.annotations?.['nitra.dev/workload-kind']).toBe('StatefulSet')
+    expect(result.spec.podSelector.matchLabels.app).toBe('postgres')
+    // common egress rules must all be present
+    for (const rule of common.egress) {
+      expect(result.spec.egress).toContainEqual(rule)
     }
-    expect(networkPolicyManifestViolations(doc, 'api', 'api')).toEqual([])
+    // statefulset egress rules must all be present
+    for (const rule of ss.egress) {
+      expect(result.spec.egress).toContainEqual(rule)
+    }
+    // statefulset ingress rules must all be present
+    for (const rule of ss.ingress) {
+      expect(result.spec.ingress).toContainEqual(rule)
+    }
   })
 
   test('ensureResourceInKustomizationYaml додає networkpolicy.yaml і сортує resources', () => {
@@ -2319,8 +2311,11 @@ spec:
       const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
       expect(changed).toBe(true)
       const out = await readFile(npAbs, 'utf8')
-      for (const port of [5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-        expect(out).toContain(`port: ${port}`)
+      const snippet = readNetworkPolicySnippet()
+      for (const rule of snippet.egress) {
+        for (const p of rule.ports ?? []) {
+          expect(out).toContain(`port: ${p.port}`)
+        }
       }
       expect(out).toContain('app: api')
       expect(out).toContain('name: api')
