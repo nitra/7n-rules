@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.23.0] - 2026-05-25
+
+### Added
+
+- **Pi.dev ADR hooks** — bundled TS-extension `npm/.pi-template/extensions/n-cursor-adr/index.ts` копіюється у `.pi/extensions/n-cursor-adr/index.ts` проєкту-споживача коли `adr` ∈ `.n-cursor.json#rules`. На pi `agent_end` event серіалізує `ctx.sessionManager.getEntries()` у Claude-сумісний JSONL у `tmpdir()`, спавнить існуючі `.claude/hooks/{capture,normalize}-decisions.sh` через `pi.exec` (async, `signal: ctx.signal`, timeouts 180s/600s). Жодного дублювання bash-логіки: skip/throttle/LLM-CLI-selection лишається у bash. Recursion guard через env-vars `CAPTURE_DECISIONS_RUNNING` / `ADR_NORMALIZE_RUNNING`, які bash виставляє перед спавном LLM CLI.
+- `npm/scripts/sync-claude-config.mjs`: експорт `PI_DIR`, `PI_EXTENSIONS_DIR`, `PI_TEMPLATE_DIR_NAME`, `PI_EXTENSION_NAME`; нова функція `syncPiExtensions(projectRoot, bundledPackageRoot)` (copy) і `removeOrphanPiExtension(projectRoot)` (cleanup); поле `piExtension: boolean` у відповіді `syncClaudeConfig` (gated на `adr` ∈ rules).
+- `npm/package.json` `files` array: додано `.pi-template` — bundled-директорія шипиться разом із пакетом.
+- `npm/bin/n-cursor.js`: у `🤖 Claude-конфіг`-логу після sync додається `.pi/extensions/n-cursor-adr/index.ts` коли pi-extension згенерована.
+
 ## [1.22.0] - 2026-05-25
 
 ### Added

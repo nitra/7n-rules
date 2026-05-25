@@ -66,9 +66,9 @@ export default function (pi: PiExec): void {
         .join('\n')
       jsonlPath = join(tmpdir(), `n-cursor-pi-transcript-${Date.now()}-${randomUUID()}.jsonl`)
       writeFileSync(jsonlPath, lines + '\n', 'utf8')
-    } catch (err) {
+    } catch (error) {
       ctx.ui?.notify?.(
-        `@nitra/cursor: transcript serialization failed — ${(err as Error).message}`,
+        `@nitra/cursor: transcript serialization failed — ${(error as Error).message}`,
         'error'
       )
       return
