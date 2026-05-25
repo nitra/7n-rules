@@ -4,7 +4,7 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.18.0] - 2026-05-24
+## [1.17.2] - 2026-05-24
 
 ### Added
 
