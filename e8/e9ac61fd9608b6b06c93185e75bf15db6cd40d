@@ -1,0 +1,254 @@
+npm/rules/js-mssql/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/rust/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_243cb0f12c5905 9
+  s_17dce3cec43c9d::t_c9b23d46d6fc3d 54-57,59,62-64,66
+npm/rules/security/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/k8s/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/ci4/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+knip.json
+  s_abead69ea94468::t_65da494354295a 18,23,31-34
+  s_abead69ea94468::t_de7b248e0c65fb 19-20
+  s_abead69ea94468::t_ba4515531352fb 5-9
+npm/rules/js-lint/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_78aaaa37dad09d 8
+  s_abead69ea94468::t_e256f2ab67a410 16
+  s_17dce3cec43c9d::t_fc8877911743cf 97-98,102,104-105,107,110-111
+npm/rules/tauri/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/js-lint/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/scripts/utils/worktree-fingerprint.mjs
+  s_abead69ea94468::t_a53abc45398c96 6
+  s_abead69ea94468::t_beb59deee97fa5 5,7,27
+npm/scripts/lib/run-rule-cli.mjs
+  s_abead69ea94468::t_30f128728541a0 19-27
+  s_abead69ea94468::t_1453ce02cb00f1 10
+  s_8bb687d93d7dc9::t_5de0eb3fc98d18 18
+npm/rules/bun/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/php/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/tests/fix-mjs-contract.test.mjs
+  s_abead69ea94468::t_8ed753c7df3c3a 31
+  s_abead69ea94468::t_b6dd233592d9e5 32
+  s_abead69ea94468::t_f59695332b7802 10
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_abead69ea94468::t_d050e389803ca9 121
+  s_abead69ea94468::t_527963296bf606 136
+  s_abead69ea94468::t_4febb69ea6469c 18-21
+  s_abead69ea94468::t_955416a6b512e2 14-16
+npm/package.json
+  s_17dce3cec43c9d::t_aa4a5b562e4047 3
+  s_17dce3cec43c9d::t_23bf0bb1ac56de 46
+.cspell.json
+  s_abead69ea94468::t_c1f2113900c755 614
+  s_abead69ea94468::t_2f562e49bc54fb 648
+  s_abead69ea94468::t_6e541f6b06a63a 234
+  s_abead69ea94468::t_4a66d71b180e96 573
+  s_abead69ea94468::t_7e7613ddfe3961 293
+  s_abead69ea94468::t_c14d17a5c34121 732
+  s_abead69ea94468::t_d29fe0d57d7851 328-331
+  s_abead69ea94468::t_f7317b9ac19af6 400
+  s_abead69ea94468::t_dc2771e5c3f4c7 334
+  s_abead69ea94468::t_91d08c0d079ce6 168-169
+  s_abead69ea94468::t_5d1bfd595a4cda 257
+  s_abead69ea94468::t_6f0e86d393ff7e 379-380
+  s_abead69ea94468::t_b5bac9c7538544 686
+  s_abead69ea94468::t_c9f3260a69f070 486-487
+  s_abead69ea94468::t_65d20b1a097c5f 354
+  s_abead69ea94468::t_e1d3cb1732c0b1 543
+  s_abead69ea94468::t_cefbae56584951 589
+  s_abead69ea94468::t_1cd267ef363e58 66-75
+  s_abead69ea94468::t_66e94b2190775b 65
+  s_abead69ea94468::t_2acccebbd2d092 389-390
+npm/rules/test/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/tests/list-rule-ids.test.mjs
+  s_abead69ea94468::t_3c8ef6dc6a98b0 12-14
+npm/scripts/utils/tests/with-lock.test.mjs
+  s_abead69ea94468::t_737a3465cae688 51
+  s_abead69ea94468::t_341e21c0fef02f 66
+  s_abead69ea94468::t_0d05fa408f1967 40
+  s_abead69ea94468::t_5316913593bf3b 76-77
+  s_abead69ea94468::t_fe4eec6b0007e0 4
+npm/rules/vue/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+docs/superpowers/specs/2026-05-24-test-rule-mutation-config-design.md
+  s_17dce3cec43c9d::t_96a73b749f70b6 1-378
+npm/rules/rust/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/js-run/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/capacitor/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/ga/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/changelog/js/consistency.mjs
+  s_abead69ea94468::t_9fc7b66ef8a387 250,311-312,322,333,340,378,386,441,443,478,510,546,561,565
+.jscpd.json
+  s_abead69ea94468::t_0f1335c1f0f5ad 8,14
+npm/rules/style-lint/js/tooling.mjs
+  s_abead69ea94468::t_6dcc5b028dc7d3 28
+npm/rules/abie/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/hasura/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+docs/superpowers/specs/2026-05-24-test-rule-stryker-config-design.md
+  s_9c4784fcd77360::t_7d5d7d51a122e4 1,5-8,10-11,14-15
+  s_b474f924b0d8a1::t_ec9d47e87634a6 2-4,9,12-13,16-21,28-29,31-62,64-65,67-80,90-93,96,98-100,102-103,105-110,112,149-152
+  s_9c4784fcd77360::t_95bce2d18da27d 81-89,94-95,97,101,111,113,115-137,139-148,153
+  s_9c4784fcd77360::t_b18e022b363ac9 22
+npm/rules/image-compress/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/image-avif/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/npm-module/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/scripts/utils/tests/worktree-fingerprint.test.mjs
+  s_abead69ea94468::t_feabf58ac0996b 20
+  s_abead69ea94468::t_7f73becc356707 4-5
+npm/rules/js-bun-db/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+.v8rignore
+  s_abead69ea94468::t_4ca57844452156 11-14
+  s_abead69ea94468::t_4f4bcf0fdfb051 18
+npm/rules/rust/coverage/tests/coverage.test.mjs
+  s_abead69ea94468::t_27da0b09c43a1f 107
+  s_abead69ea94468::t_08fbdc907f6402 13-15,17-19
+  s_abead69ea94468::t_cd10efb96039c2 126
+npm/rules/changelog/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+.gitignore
+  s_abead69ea94468::t_9aff80a8821940 10
+.markdownlint-cli2.jsonc
+  s_abead69ea94468::t_7556b8ae40d462 3
+docs/superpowers/plans/2026-05-24-test-mutation-config-management.md
+  s_4083b34a411b94::t_b996447739bbc3 1-292
+npm/scripts/utils/with-lock.mjs
+  s_abead69ea94468::t_2273a2b9e0dad2 6,19-21,33-35,65-68,126
+npm/CHANGELOG.md
+  s_17dce3cec43c9d::t_ee17def068a27f 11
+  s_17dce3cec43c9d::t_c0aa195108bfaa 7-10,12
+npm/rules/feedback/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/rego/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/graphql/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/adr/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/nginx-default-tpl/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/style-lint/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/rules/js-bun-redis/fix.mjs
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+npm/tests/discover-one-rule.test.mjs
+  s_abead69ea94468::t_68cbe322012288 12-14
+npm/rules/docker/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/tests/run-standard-rule.test.mjs
+  s_abead69ea94468::t_f573510b7c5551 18-20
+  s_abead69ea94468::t_819168311d5466 44
+npm/rules/adr/js/hooks.mjs
+  s_abead69ea94468::t_7cdc8b019e63eb 85,114,167,193,214,254
+npm/rules/efes/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+npm/rules/test/coverage/coverage.mjs
+  s_abead69ea94468::t_ce7f87df84c3b9 101,107
+  s_abead69ea94468::t_92b5177ecf2715 18
+  s_abead69ea94468::t_5e2ff7b63baaf3 106
+npm/rules/text/fix.mjs
+  s_17dce3cec43c9d::t_c4645373fe3bd4 17
+  s_17dce3cec43c9d::t_a81d1579f80ea4 1,14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "e8e9ac61fd9608b6b06c93185e75bf15db6cd40d",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4083b34a411b94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "626cbf88-0e2b-44a3-b68a-bfa95b8427b7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8bb687d93d7dc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cd80b58-040a-422f-86a5-277586e67b7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9c4784fcd77360": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d4457396-083c-4109-b604-3844116613f0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_abead69ea94468": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "afe17d4d-8855-4421-8f0e-6343a88c312b",
+        "model": "composer-2.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b474f924b0d8a1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "781f0b11-f072-4bc9-9d1b-b556d192cffd",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
