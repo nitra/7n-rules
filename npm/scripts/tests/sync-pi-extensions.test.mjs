@@ -11,6 +11,7 @@ import {
   PI_EXTENSIONS_DIR,
   PI_EXTENSION_NAME,
   PI_TEMPLATE_DIR_NAME,
+  removeOrphanPiExtension,
   syncPiExtensions
 } from '../sync-claude-config.mjs'
 import { withTmpCwd } from '../utils/test-helpers.mjs'
@@ -102,6 +103,42 @@ describe('syncPiExtensions', () => {
       )
       expect(content).toContain('bundled pi extension stub')
       expect(content).not.toContain('stale content')
+    })
+  })
+})
+
+describe('removeOrphanPiExtension', () => {
+  test('видаляє .pi/extensions/n-cursor-adr/ якщо існує', async () => {
+    await withTmpCwd(async cwd => {
+      const extDir = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
+      await mkdir(extDir, { recursive: true })
+      await writeFile(join(extDir, 'index.ts'), '// stale\n', 'utf8')
+      const result = await removeOrphanPiExtension(cwd)
+      expect(result.removed).toBe(true)
+      expect(result.path).toBe(`${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}`)
+      expect(existsSync(extDir)).toBe(false)
+    })
+  })
+
+  test('no-op якщо директорії немає', async () => {
+    await withTmpCwd(async cwd => {
+      const result = await removeOrphanPiExtension(cwd)
+      expect(result.removed).toBe(false)
+      expect(result.path).toBe('')
+    })
+  })
+
+  test('не чіпає інші extensions у .pi/extensions/', async () => {
+    await withTmpCwd(async cwd => {
+      const ours = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
+      const userOwn = join(cwd, PI_EXTENSIONS_DIR, 'user-custom')
+      await mkdir(ours, { recursive: true })
+      await mkdir(userOwn, { recursive: true })
+      await writeFile(join(ours, 'index.ts'), '', 'utf8')
+      await writeFile(join(userOwn, 'index.ts'), '// user\n', 'utf8')
+      await removeOrphanPiExtension(cwd)
+      expect(existsSync(ours)).toBe(false)
+      expect(existsSync(userOwn)).toBe(true)
     })
   })
 })

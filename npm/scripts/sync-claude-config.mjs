@@ -27,7 +27,7 @@
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
 import { existsSync } from 'node:fs'
-import { chmod, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 /** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-fix`). */
@@ -441,6 +441,23 @@ export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
   const destPath = join(destDir, 'index.ts')
   await writeFile(destPath, content, 'utf8')
   return { written: true, path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}/index.ts` }
+}
+
+/**
+ * Видаляє `.pi/extensions/n-cursor-adr/` директорію з проєкту-споживача.
+ * Викликається коли правило `adr` вимкнено у `.n-cursor.json` (симетрично до
+ * cleanup-у `.claude/hooks/{capture,normalize}-decisions.sh`).
+ *
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @returns {Promise<{ removed: boolean, path: string }>} чи було щось видалено та відносний шлях
+ */
+export async function removeOrphanPiExtension(projectRoot) {
+  const extDir = join(projectRoot, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
+  if (!existsSync(extDir)) {
+    return { removed: false, path: '' }
+  }
+  await rm(extDir, { recursive: true, force: true })
+  return { removed: true, path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}` }
 }
 
 /**
