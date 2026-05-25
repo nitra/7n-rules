@@ -1,0 +1,20 @@
+docs/superpowers/plans/2026-05-25-networkpolicy-snippet-single-source-of-truth.md
+  s_01f6fd3e784a6e::t_986868bd0df69d 109-114
+  s_01f6fd3e784a6e::t_c11358c5b0cd19 1-108,115-433
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "1c902d7596b60a5be4e9088fc0c92a4596ab83aa",
+  "prompts": {},
+  "sessions": {
+    "s_01f6fd3e784a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d7a1ba2-06c2-469d-8794-ff65e118d20b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
