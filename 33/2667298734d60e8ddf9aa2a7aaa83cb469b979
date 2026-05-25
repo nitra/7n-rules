@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-05-25-adr-cspell-tooling-only.md
+  s_ba3fa061d83959::t_7c770edd947d01 1-908
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "332667298734d60e8ddf9aa2a7aaa83cb469b979",
+  "prompts": {},
+  "sessions": {
+    "s_ba3fa061d83959": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ce74495-ae37-461c-a696-487f7361df48",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
