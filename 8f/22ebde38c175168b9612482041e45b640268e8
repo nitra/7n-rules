@@ -1,0 +1,35 @@
+npm/rules/test/coverage/coverage.mjs
+  s_2a60aea2b7e73b::t_fa3c8c71d9af87 92-94,105-106
+  s_a282ea1c9cf92c::t_180413a20cddd5 73-74,76-77
+  s_2a60aea2b7e73b::t_0617f5e84d161a 147-149,176-185,189-204
+  s_a282ea1c9cf92c::t_90e410d37caa37 95-104
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_2a60aea2b7e73b::t_21b434a2307f63 73,75-78,80-81,83-88,91-94,98-100
+  s_a282ea1c9cf92c::t_2c27c85725b063 103-151
+  s_a282ea1c9cf92c::t_5a471ae7c56e1e 74,79,82,95-97
+  s_2a60aea2b7e73b::t_c8f3953ae736a3 89-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "8f22ebde38c175168b9612482041e45b640268e8",
+  "prompts": {},
+  "sessions": {
+    "s_2a60aea2b7e73b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b31ad6d3-8583-4022-8f31-4f8e081eb0d0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_a282ea1c9cf92c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0f4ef73-ad6c-4e43-928b-8a6a1e508aae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}
