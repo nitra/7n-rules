@@ -1,0 +1,29 @@
+docs/superpowers/specs/2026-05-25-networkpolicy-snippet-single-source-of-truth-design.md
+  s_01f6fd3e784a6e::t_087eff641f9c30 1-175
+npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml
+  s_8823fa886a7950::t_d2cecc772e4fec 23-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "383774f3b67cd8cc8bb05de12e8657c3c7e7417e",
+  "prompts": {},
+  "sessions": {
+    "s_01f6fd3e784a6e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1d7a1ba2-06c2-469d-8794-ff65e118d20b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8823fa886a7950": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "67092753-dd58-41fc-95cc-62403acd1407",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
