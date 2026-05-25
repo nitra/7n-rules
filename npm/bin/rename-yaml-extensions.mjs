@@ -34,7 +34,7 @@ export async function runRenameYamlExtensionsCli(argv) {
   return errors.length > 0 ? 1 : 0
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   const code = await runRenameYamlExtensionsCli(process.argv.slice(2))
   if (code !== 0) {
     process.exitCode = 1

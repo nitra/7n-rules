@@ -90,6 +90,6 @@ export function runDotenvLinter(cwd = process.cwd()) {
   return 1
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = runDotenvLinter()
 }

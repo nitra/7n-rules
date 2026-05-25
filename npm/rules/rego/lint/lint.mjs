@@ -143,6 +143,6 @@ export function runLintRegoSteps(cwd = process.cwd()) {
  */
 export const runLintRego = () => runStandardLint(import.meta.dirname, () => runLintRegoSteps())
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = await runLintRego()
 }

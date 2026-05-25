@@ -354,6 +354,6 @@ async function runLintK8sSteps() {
  */
 export const runLintK8s = () => runStandardLint(import.meta.dirname, runLintK8sSteps)
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = await runLintK8s()
 }

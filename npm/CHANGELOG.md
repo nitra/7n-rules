@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.18.1] - 2026-05-25
+
+### Fixed
+
+- **`scripts/cli-entry.mjs::isRunAsCli`** + **`scripts/lib/run-rule-cli.mjs::isRunAsCli`** — функція приймала `()` без аргументів і всередині дивилася на власний `import.meta.url`, а не на caller'а. Через те, що `import.meta` лексично прив'язаний до файлу, де записаний, helper-функція ВСІГДА бачила свій файл — `cli-entry.mjs` / `run-rule-cli.mjs` — і ніколи не дорівнювала `process.argv[1]`. Результат: усі ~40 `if (isRunAsCli())` у `rules/<id>/fix.mjs` / `lint/*.mjs` / `bin/rename-yaml-extensions.mjs` ВСІГДА йшли в else-гілку, і `bun rules/<id>/fix.mjs` мовчки виходив `0` без жодного output'у. `npx @nitra/cursor fix <rule>` → `runFixCommand` → `spawnSync('bun', [fix.mjs])` → exit 0 без жодного reporter-звіту.
+- **Fix:** функція тепер приймає `metaUrl` параметром: `isRunAsCli(import.meta.url)`. Реалізація через `realpathSync(fileURLToPath(metaUrl)) === realpathSync(resolve(process.argv[1]))` — `realpath` знімає різницю «symlink vs canonical» (macOS `/tmp` ↔ `/private/tmp`, pnpm content-addressable links, `node_modules/.bin/*` shim).
+- **Консолідація:** `run-rule-cli.mjs::isRunAsCli` тепер `export { isRunAsCli } from '../cli-entry.mjs'` — одне джерело правди. Existing import paths у callers лишилися без змін.
+- **Callsites:** всі ~40 викликів `isRunAsCli()` оновлено на `isRunAsCli(import.meta.url)`.
+- **Tests:** додано три нові кейси у `scripts/tests/cli-entry.test.mjs` (entry-detection через spawn-fixture, symlink-нормалізація через `/tmp` → `/private/tmp`, no-arg fallback). Fixture — `scripts/tests/fixtures/cli-entry-as-cli.mjs`.
+
 ## [1.18.0] - 2026-05-25
 
 ### Added

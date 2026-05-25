@@ -215,6 +215,6 @@ function runFinalShellcheck(shellcheck, files, root) {
   return 1
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = runShellcheckText()
 }

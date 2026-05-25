@@ -120,6 +120,6 @@ export function run() {
   return reporter.getExitCode()
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = run()
 }

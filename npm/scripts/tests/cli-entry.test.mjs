@@ -1,12 +1,54 @@
 /**
  * Тести визначення прямого запуску CLI-модуля.
+ *
+ * `isRunAsCli(metaUrl)` — true тоді, коли файл, з якого передано `metaUrl`,
+ * є `process.argv[1]`. Помилкове припущення «`isRunAsCli` сама дізнається свого
+ * caller'а» не працює: `import.meta.url` лексично прив'язаний до файла, де записаний,
+ * а helper-функція бачить власний URL, не URL виклику.
  */
 import { describe, expect, test } from 'bun:test'
+import { spawnSync } from 'node:child_process'
+import { unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { isRunAsCli } from '../cli-entry.mjs'
 
+const here = dirname(fileURLToPath(import.meta.url))
+
 describe('isRunAsCli', () => {
-  test('при імпорті модуля з тесту — false (головний файл — тест)', () => {
+  test('коли metaUrl — НЕ entry (тут підставляємо URL `cli-entry.mjs` під тест) → false', () => {
+    // bun test → argv[1] = шлях до цього тесту. cli-entry.mjs ≠ entry, тому false.
+    const nonEntryUrl = pathToFileURL(join(here, '..', 'cli-entry.mjs')).href
+    expect(isRunAsCli(nonEntryUrl)).toBe(false)
+  })
+
+  test('без параметра metaUrl — false', () => {
     expect(isRunAsCli()).toBe(false)
+  })
+
+  test('коли файл запущено як entry — true (через caller `import.meta.url`)', () => {
+    const fixture = join(here, 'fixtures', 'cli-entry-as-cli.mjs')
+    const r = spawnSync('node', [fixture], { encoding: 'utf8' })
+    expect(r.status).toBe(0)
+    expect(r.stdout.trim()).toBe('TRUE')
+  })
+
+  test('symlink-нормалізація: macOS /tmp ↔ /private/tmp — true', () => {
+    // На macOS /tmp resolve'иться у /private/tmp; realpathSync на обох сторонах знімає різницю.
+    const tmpFixture = '/tmp/__cli-entry-symlink-probe.mjs'
+    const cliEntryUrl = pathToFileURL(join(here, '..', 'cli-entry.mjs')).href
+    writeFileSync(
+      tmpFixture,
+      `import { isRunAsCli } from ${JSON.stringify(cliEntryUrl)}\n` +
+        `process.stdout.write(isRunAsCli(import.meta.url) ? 'TRUE' : 'FALSE')\n`,
+      'utf8'
+    )
+    try {
+      const r = spawnSync('node', [tmpFixture], { encoding: 'utf8' })
+      expect(r.stdout.trim()).toBe('TRUE')
+    } finally {
+      unlinkSync(tmpFixture)
+    }
   })
 })

@@ -90,6 +90,6 @@ async function runLintDockerSteps() {
  */
 export const runLintDocker = () => runStandardLint(import.meta.dirname, runLintDockerSteps)
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   process.exitCode = await runLintDocker()
 }

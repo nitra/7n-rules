@@ -76,7 +76,7 @@ export function runV8rWithGlobs(globs = DEFAULT_V8R_GLOBS) {
   return 0
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   const globs = process.argv.length > 2 ? process.argv.slice(2) : DEFAULT_V8R_GLOBS
   process.exitCode = runV8rWithGlobs(globs)
 }

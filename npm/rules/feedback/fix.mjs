@@ -11,7 +11,7 @@ export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }
 
-if (isRunAsCli()) {
+if (isRunAsCli(import.meta.url)) {
   // Standalone: bun rules/<id>/fix.mjs — повний еквівалент `npx @nitra/cursor fix <id>`
   // (config-loading + whitelist + summary). Дві ролі fix.mjs: library (run) + standalone (main).
   // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
