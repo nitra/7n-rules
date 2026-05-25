@@ -1,0 +1,65 @@
+npm/rules/k8s/js/manifests.mjs
+  s_0de096dada28e8::t_3d1cf08484c3a5 6355,6360-6361,6363-6371,6374-6375
+  s_9a8b2a66568e37::t_c8edbfcbbd12bf 6545,6569
+  s_0de096dada28e8::t_38df505a92774a 6551-6559
+  s_0de096dada28e8::t_d2d39ab50c7343 4246-4247,4250-4257,4259-4275,4279,4284,4287,4290,4292,4294-4298,4305-4306
+  s_0de096dada28e8::t_164cea82d8110a 5077-5082,5084
+  s_9a8b2a66568e37::t_9032f783f8ae58 142
+  s_9a8b2a66568e37::t_baedc78a362fac 4248-4249,4276-4278,4280-4283,4293,4299,4308
+  s_0de096dada28e8::t_6c10f8f29634ad 6286-6287
+  s_9a8b2a66568e37::t_0d82cce20b1802 137,140
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_9a8b2a66568e37::t_2e85e2099b2339 2220
+  s_0de096dada28e8::t_ba4ac501a3cfd3 2227-2236,2238-2244
+  s_9a8b2a66568e37::t_3ac4bc40e78365 19
+  s_9a8b2a66568e37::t_eb9d7e79333df0 9
+  s_9a8b2a66568e37::t_964cb08a1ff138 2209-2219,2221-2224
+  s_9a8b2a66568e37::t_7ae84b41ac1091 2314-2318
+  s_0de096dada28e8::t_4dbfc19bd9f8a6 18
+npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml
+  s_0de096dada28e8::t_c03f95362de157 1-9
+npm/rules/k8s/policy/network_policy/network_policy.rego
+  s_9a8b2a66568e37::t_397b452ceb0294 1-2,10-12,20,26,43,47-51,54,58-59,62,66,82,88,91
+  s_0de096dada28e8::t_7116f7f8b07734 4-8,69-70,72-78,81,84-87,89-90,94-95,97-104,129-132
+npm/CHANGELOG.md
+  s_2a60aea2b7e73b::t_daa75bea817646 7-10,12-17
+  s_0de096dada28e8::t_e0165f21d6aa4e 11
+npm/rules/k8s/k8s.mdc
+  s_0de096dada28e8::t_5d5c627986f61b 396
+  s_0de096dada28e8::t_daef1ba21afab9 493-494,518-520
+npm/rules/k8s/policy/network_policy/network_policy_test.rego
+  s_0de096dada28e8::t_e1ee65ba83a5d0 7-9,11-12,16,19-20,22-23,27,32-44,50-59,65-67,74-76,83-85,90-91,93-96,100-101,103-118,121-123,125-128,131-134,136-139
+  s_9a8b2a66568e37::t_b35c64e3a68164 10,13-15,17-18,21,80-81,86,89,99,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "72bec68355bc1cd29b9d1b5bf3c71993c4f3671c",
+  "prompts": {},
+  "sessions": {
+    "s_0de096dada28e8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8fe63f31-4312-4c76-be05-f80c2b58c2c2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_2a60aea2b7e73b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b31ad6d3-8583-4022-8f31-4f8e081eb0d0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9a8b2a66568e37": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "79896794-d30e-4a5e-89d2-bf6ebe5c3d53",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
