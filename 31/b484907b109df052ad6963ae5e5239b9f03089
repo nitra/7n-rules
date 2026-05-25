@@ -1,0 +1,29 @@
+npm/package.json
+  ai_agent 2-3,5-7
+npm/rules/js-lint/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_233861185eb793 94
+npm/stryker.config.mjs
+  s_17dce3cec43c9d::t_cd71e8d7c67624 11-18
+npm/CHANGELOG.md
+  ai_agent 3,7
+docs/adr/20260525-174550-стратегія-виклику-skills-у-claude-acp-режимі.md
+  ai_agent 2-4,7,10-11,14-17,20-21,24-26,29-32
+npm/lib/x.js
+  ai_agent 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "31b484907b109df052ad6963ae5e5239b9f03089",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
