@@ -1,0 +1,26 @@
+npm/tests/integration-repo-checks.test.mjs
+  s_1b1b055c883315::t_e0170f615ba0e3 40-66
+npm/package.json
+  s_1b1b055c883315::t_f162d3f973bdf6 45-46
+  s_1b1b055c883315::t_780ec0f66919e2 3
+package.json
+  s_1b1b055c883315::t_19b24d9fb44fa2 23
+npm/CHANGELOG.md
+  s_1b1b055c883315::t_55bd77c21c4ca3 7-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "25839d88281c5d7346c974b1b62e0d4045767c57",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
