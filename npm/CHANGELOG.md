@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.18.0] - 2026-05-24
+
+### Added
+
+- Правило `test`: два нових концерни — `stryker_config` і `cargo_mutants_config`. Self-gating через `.n-cursor.json#rules`: концерн активний лише якщо відповідне залежне правило (`js-lint` / `rust`) enabled. **Iterate-all-workspaces**: при відсутності цільового файлу копіює canonical baseline у КОЖЕН workspace-каталог (не лише workspaces[0]).
+  - `stryker.config.mjs` у кожному JS-root (всі workspaces з package.json, або cwd у single-package) — мінімум для роботи з `bun test`.
+  - `.cargo/mutants.toml` у каталозі КОЖНОГО Cargo.toml-маніфесту: корінь + workspaces (з підтримкою Tauri-патерну `<ws>/src-tauri/Cargo.toml`) — комент-плейсхолдер; cargo-mutants має робочі defaults.
+- Спільні резолвери у `npm/scripts/utils/`: `resolveJsRoot` (single, для coverage-провайдера) + `resolveAllJsRoots` (plural, для test-концерну); `resolveCargoManifest` (single) + `resolveAllCargoManifests` (plural). Coverage-провайдери js-lint і rust реюзають single-варіанти.
+
+### Changed
+
+- `test.mdc` 1.2 → 2.0 (major): `alwaysApply: true → false`; явні `globs` (`.n-cursor.json`, `package.json`, `Cargo.toml`, mutation-config-цілі, `*.test.mjs`). Нова секція «Налаштування mutation-testing» з посиланнями на baselines.
+- `js-lint/coverage/coverage.mjs`: hint при missing `mutation.json` тепер вказує на `npx @nitra/cursor fix test`. `resolveJsRoot` витягнуто у спільний модуль.
+- `rust/coverage/coverage.mjs`: `resolveCargoManifest` витягнуто у спільний модуль (контракт `null` замість throw для missing manifest; user-facing throw зберігся на callsite).
+
 ## [1.17.1] - 2026-05-24
 
 ### Fixed

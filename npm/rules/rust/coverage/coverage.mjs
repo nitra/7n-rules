@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
+import { resolveCargoManifest } from '../../../scripts/utils/resolve-cargo-manifest.mjs'
 
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo', 'target'])
 
@@ -24,30 +25,6 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo', 't
 export function detect(cwd) {
   if (existsSync(join(cwd, 'Cargo.toml'))) return Promise.resolve(true)
   return Promise.resolve(hasCargoTomlInTree(cwd, IGNORED_DIR_NAMES))
-}
-
-/**
- * Знайти Cargo.toml: cwd/Cargo.toml або в одному з workspace-підкаталогів.
- * @param {string} cwd корінь проєкту
- * @returns {Promise<string>} абсолютний шлях до Cargo.toml
- */
-async function resolveCargoManifest(cwd) {
-  const rootManifest = join(cwd, 'Cargo.toml')
-  if (existsSync(rootManifest)) return rootManifest
-
-  const rootPkgPath = join(cwd, 'package.json')
-  if (existsSync(rootPkgPath)) {
-    const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
-    const workspaces = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []
-    for (const ws of workspaces) {
-      const tauriManifest = join(cwd, ws, 'src-tauri', 'Cargo.toml')
-      if (existsSync(tauriManifest)) return tauriManifest
-      const flatManifest = join(cwd, ws, 'Cargo.toml')
-      if (existsSync(flatManifest)) return flatManifest
-    }
-  }
-
-  throw new Error('rust coverage: Cargo.toml не знайдено (cwd + workspaces)')
 }
 
 const defaultRunner = {
@@ -76,6 +53,9 @@ const defaultRunner = {
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
   const manifestPath = await resolveCargoManifest(cwd)
+  if (manifestPath === null) {
+    throw new Error('rust coverage: Cargo.toml не знайдено (cwd + workspaces)')
+  }
 
   // 1. Coverage через cargo llvm-cov
   const { exitCode: llvmCode, stdout: llvmJson } = await runner.runLlvmCov({ manifestPath })

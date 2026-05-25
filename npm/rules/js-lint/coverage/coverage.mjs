@@ -11,23 +11,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-/**
- * Резолвить cwd, у якому стоять JS-тести. Workspace-проєкти — перший workspace
- * (наприклад: app/), single-package — корінь.
- * @param {string} cwd корінь проєкту
- * @returns {Promise<string|null>} абсолютний шлях до JS-root або null без package.json
- */
-async function resolveJsRoot(cwd) {
-  const rootPkgPath = join(cwd, 'package.json')
-  if (!existsSync(rootPkgPath)) return null
-  const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
-  const workspaces = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []
-  if (workspaces.length > 0) {
-    const wsPath = join(cwd, workspaces[0])
-    if (existsSync(join(wsPath, 'package.json'))) return wsPath
-  }
-  return cwd
-}
+import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 
 /**
  * Чи `scripts` містить coverage-сумісну команду.
@@ -140,7 +124,11 @@ export async function collect(cwd, opts = {}) {
   try {
     mutationReport = JSON.parse(await readFile(join(jsRoot, 'reports', 'stryker', 'mutation.json'), 'utf8'))
   } catch {
-    throw new Error('js-lint coverage: stryker не залишив mutation.json — перевір stryker.config.mjs у проєкті')
+    throw new Error(
+      'js-lint coverage: stryker не залишив mutation.json — ' +
+        'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
+        'або налаштуй його вручну'
+    )
   }
   const mutation = parseStrykerReport(mutationReport)
 

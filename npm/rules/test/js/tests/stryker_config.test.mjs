@@ -1,0 +1,123 @@
+/**
+ * Тести концерну `stryker_config` (test.mdc): self-gates через js-lint
+ * у `.n-cursor.json#rules`, side-effect-копіює canonical baseline у jsRoot
+ * якщо stryker.config.mjs відсутній.
+ */
+import { describe, expect, test } from 'bun:test'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { chdir, cwd as getCwd } from 'node:process'
+
+import { check } from '../stryker_config.mjs'
+
+/**
+ * Створює тимчасовий проєкт із заданим `.n-cursor.json#rules` і опційним
+ * workspace-layout.
+ * @param {{rules?: string[], disableRules?: string[], workspaceRoot?: boolean}} [opts]
+ */
+function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {}) {
+  const dir = mkdtempSync(join(tmpdir(), 'stryker-config-concern-'))
+  writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules, 'disable-rules': disableRules }))
+  if (workspaceRoot) {
+    mkdirSync(join(dir, 'app'), { recursive: true })
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
+    writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app' }))
+  } else {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'pkg' }))
+  }
+  return {
+    dir,
+    cleanup() {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  }
+}
+
+/**
+ * Викликає check() з chdir у заданий каталог, щоб концерн читав .n-cursor.json
+ * саме звідти (бо check читає process.cwd()).
+ */
+async function runCheckIn(dir) {
+  const prev = getCwd()
+  chdir(dir)
+  try {
+    return await check()
+  } finally {
+    chdir(prev)
+  }
+}
+
+describe('stryker_config concern', () => {
+  test('js-lint НЕ в rules — silent skip, exit 0, файл не створюється', async () => {
+    const proj = makeProj({ rules: ['test'] })
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
+    proj.cleanup()
+  })
+
+  test('js-lint у disable-rules — silent skip', async () => {
+    const proj = makeProj({ rules: ['js-lint', 'test'], disableRules: ['js-lint'] })
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + stryker.config.mjs відсутній — копіює baseline у cwd (single-package)', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    const target = join(proj.dir, 'stryker.config.mjs')
+    expect(existsSync(target)).toBe(true)
+    const content = readFileSync(target, 'utf8')
+    expect(content).toContain("testRunner: 'command'")
+    expect(content).toContain("commandRunner: { command: 'bun test' }")
+    expect(content).toContain("jsonReporter: { fileName: 'reports/stryker/mutation.json' }")
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + workspace — копіює у workspaces[0] (app/)', async () => {
+    const proj = makeProj({ rules: ['js-lint'], workspaceRoot: true })
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(proj.dir, 'app', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + кілька workspaces — копіює baseline у КОЖЕН', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'stryker-multi-ws-'))
+    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'scripts'] }))
+    mkdirSync(join(dir, 'app'), { recursive: true })
+    mkdirSync(join(dir, 'scripts'), { recursive: true })
+    writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app' }))
+    writeFileSync(join(dir, 'scripts', 'package.json'), JSON.stringify({ name: 'scripts' }))
+    const exitCode = await runCheckIn(dir)
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(dir, 'app', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(dir, 'scripts', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(dir, 'stryker.config.mjs'))).toBe(false)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('js-lint enabled + stryker.config.mjs існує — не перезаписує', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(target, '// custom config')
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(readFileSync(target, 'utf8')).toBe('// custom config')
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + кореневий package.json відсутній — fail', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'stryker-no-pkg-'))
+    writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    const exitCode = await runCheckIn(dir)
+    expect(exitCode).toBe(1)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})

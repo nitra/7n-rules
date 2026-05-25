@@ -1,0 +1,4 @@
+# .cargo/mutants.toml — конфігурація cargo-mutants (опційно).
+# cargo-mutants має робочі defaults; цей файл — стартова точка для customization.
+# Документація: https://mutants.rs/
+# Канон постачає правило `test` (@nitra/cursor).

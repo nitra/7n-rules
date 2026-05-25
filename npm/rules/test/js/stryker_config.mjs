@@ -1,0 +1,61 @@
+/**
+ * Концерн `stryker_config` правила test (test.mdc): якщо `js-lint` присутнє в
+ * `.n-cursor.json#rules` і не у `disable-rules` — резолвить ВСІ JS-roots
+ * (всі workspaces з package.json, або cwd у single-package) і копіює canonical
+ * baseline `stryker.config.mjs` у кожен root, де файлу немає.
+ *
+ * Self-gating: концерн silently skips коли `js-lint` не enabled — це навмисно,
+ * щоб не шуміти у single-language проєктах без JS coverage tooling.
+ *
+ * Baseline — мінімум для запуску Stryker з bun test runner; mutate-патерни
+ * лишаються на Stryker defaults (`src/**\/*.{js,mjs,ts,jsx,tsx,cjs}`).
+ */
+import { existsSync } from 'node:fs'
+import { copyFile } from 'node:fs/promises'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
+import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+
+/**
+ * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
+ */
+export async function check() {
+  const reporter = createCheckReporter()
+  const cwd = process.cwd()
+  const config = await readNCursorConfigLite(cwd)
+
+  // Self-gate: js-lint має бути enabled
+  if (!config.rules.includes('js-lint') || config.disableRules.includes('js-lint')) {
+    return reporter.getExitCode()
+  }
+
+  const jsRoots = await resolveAllJsRoots(cwd)
+  if (jsRoots.length === 0) {
+    reporter.fail('test: js-lint enabled, але кореневий package.json не знайдено (test.mdc)')
+    return reporter.getExitCode()
+  }
+
+  if (!existsSync(BASELINE_PATH)) {
+    reporter.fail(
+      `stryker.config.mjs canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`
+    )
+    return reporter.getExitCode()
+  }
+
+  for (const jsRoot of jsRoots) {
+    const target = join(jsRoot, 'stryker.config.mjs')
+    if (existsSync(target)) {
+      reporter.pass(`stryker.config.mjs існує (${relative(cwd, target)})`)
+      continue
+    }
+    await copyFile(BASELINE_PATH, target)
+    reporter.pass(`stryker.config.mjs створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+  }
+  return reporter.getExitCode()
+}

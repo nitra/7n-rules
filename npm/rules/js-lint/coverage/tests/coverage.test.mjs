@@ -12,7 +12,7 @@ import { join } from 'node:path'
 import { collect, detect } from '../coverage.mjs'
 
 const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
-const MUTATION_JSON_RE = /mutation\.json/
+const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
 
 /**
  * Тимчасова fixture-директорія з package.json для js-lint coverage-тестів.
