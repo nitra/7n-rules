@@ -70,6 +70,85 @@ describe('renderMarkdown', () => {
     expect(md).toContain('| JS | 50.00% (50/100) | 50.00% (10/20) | 7/10 | 70.00% |')
     expect(md.endsWith('\n')).toBe(true)
   })
+
+  test('рядки без survived не додають розділ Вижилі мутанти', () => {
+    const rows = [
+      { area: 'JS', coverage: { lines: { covered: 10, total: 10 }, functions: { covered: 5, total: 5 } }, mutation: { caught: 5, total: 5 } }
+    ]
+    const md = renderMarkdown(rows)
+    expect(md).not.toContain('## Вижилі мутанти')
+  })
+
+  test('додає секцію Вижилі мутанти як JSON коли є survived мутанти', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 5 },
+        survived: [
+          { file: 'src/auth.js', line: 12, col: 0, original: 'if (x === null)', replacement: 'false', mutantType: 'ConditionalExpression' },
+          { file: 'src/auth.js', line: 15, col: 0, original: 'return true', replacement: 'return false', mutantType: 'BooleanLiteral' }
+        ]
+      }
+    ]
+    const md = renderMarkdown(rows)
+    expect(md).toContain('## Вижилі мутанти')
+    expect(md).toContain('```json')
+    expect(md).toContain('src/auth.js')
+    expect(md).toContain('ConditionalExpression')
+    expect(md).toContain('BooleanLiteral')
+  })
+})
+
+describe('renderMarkdown — секція вижилих мутантів', () => {
+  test('додає секцію ## Вижилі мутанти коли survived непустий', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
+        mutation: { caught: 1, total: 2 },
+        survived: [
+          {
+            file: 'src/foo.js',
+            line: 5,
+            col: 10,
+            mutantType: 'ConditionalExpression',
+            original: 'x !== null',
+            replacement: 'false'
+          }
+        ]
+      }
+    ]
+    const md = renderMarkdown(rows)
+    expect(md).toContain('## Вижилі мутанти')
+    expect(md).toContain('> Структуровані дані для `/n-fix-tests`')
+    expect(md).toContain('```json')
+    const jsonBlock = md.slice(md.indexOf('```json\n') + 8, md.lastIndexOf('\n```'))
+    const parsed = JSON.parse(jsonBlock)
+    expect(parsed).toEqual([
+      { file: 'src/foo.js', line: 5, col: 10, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }
+    ])
+  })
+
+  test('НЕ додає секцію коли survived порожній або відсутній', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
+        mutation: { caught: 2, total: 2 },
+        survived: []
+      }
+    ]
+    expect(renderMarkdown(rows)).not.toContain('## Вижилі мутанти')
+    const rows2 = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
+        mutation: { caught: 2, total: 2 }
+      }
+    ]
+    expect(renderMarkdown(rows2)).not.toContain('## Вижилі мутанти')
+  })
 })
 
 const ONE_ROW_PROVIDER = `

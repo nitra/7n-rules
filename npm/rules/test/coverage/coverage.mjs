@@ -70,9 +70,11 @@ export function formatScore({ caught, total }) {
 
 /**
  * Рендерить таблицю покриття + мутаційного тестування як Markdown.
+ * Якщо будь-який рядок містить непустий `survived`, додає секцію
+ * `## Вижилі мутанти` з JSON-блоком для `/n-fix-tests`.
  * Без timestamp, щоб git diff рухався лише при зміні метрик.
- * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}}>} rows рядки провайдерів
- * @returns {string} Markdown-таблиця з заголовком `# Coverage`
+ * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}, survived?: Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>}>} rows рядки провайдерів
+ * @returns {string} Markdown з заголовком `# Coverage`
  */
 export function renderMarkdown(rows) {
   const lines = [
@@ -87,6 +89,21 @@ export function renderMarkdown(rows) {
         `${row.mutation.caught}/${row.mutation.total} | ${formatScore(row.mutation)} |`
     )
   }
+
+  const allSurvived = rows.flatMap(r => r.survived ?? [])
+  if (allSurvived.length > 0) {
+    lines.push(
+      '',
+      '## Вижилі мутанти',
+      '',
+      '> Структуровані дані для `/n-fix-tests`',
+      '',
+      '```json',
+      JSON.stringify(allSurvived, null, 2),
+      '```'
+    )
+  }
+
   return `${lines.join('\n')}\n`
 }
 
@@ -127,7 +144,9 @@ function buildTotalsRow(rows) {
 /**
  * Виконує coverage-pipeline: discovery провайдерів за `.n-cursor.json#rules`,
  * detect+collect для кожного, агрегація, запис COVERAGE.md.
- * @param {{cwd?:string, rulesDir?:string}} [opts] ін'єкція cwd/rulesDir для тестів
+ * При `opts.fix === true` після запису COVERAGE.md запускає агента (coverage-fix.mjs)
+ * для написання тестів по вижилих мутантах.
+ * @param {{cwd?:string, rulesDir?:string, fix?:boolean}} [opts] ін'єкція cwd/rulesDir для тестів; fix — --fix режим
  * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних)
  */
 export async function runCoverageSteps(opts = {}) {
@@ -154,12 +173,32 @@ export async function runCoverageSteps(opts = {}) {
   const md = renderMarkdown(rows)
   await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
   console.log('✓ COVERAGE.md')
+
+  if (opts.fix) {
+    const allSurvived = rows.flatMap(r => r.survived ?? [])
+    // eslint-disable-next-line no-unsanitized/method -- шлях відносний до пакету, не user-input
+    const { fixSurvivedMutants } = await import(
+      new URL('../../scripts/coverage-fix.mjs', import.meta.url).href
+    )
+    await fixSurvivedMutants(allSurvived, cwd)
+  }
+
   return 0
 }
 
-// Один оркестратор, один callsite — `withLock` викликається напряму, без спільної
-// точки входу. Канонічне обмеження «не імпортуй withLock у lint.mjs/fix.mjs напряму»
-// (scripts.mdc § withLock) націлене на дедуплікацію preamble серед багатьох файлів —
-// для одного coverage-консумера не релевантне (див. C4 у
-// specs/2026-05-24-coverage-rule-design.md).
-export const runCoverageCli = () => withLock('coverage', runCoverageSteps)
+/**
+ * CLI entrypoint для `n-cursor coverage [--fix]`.
+ * Із `--fix`: збирає метрики → запускає агента → повторно збирає метрики.
+ * Без `--fix`: лише збирає метрики.
+ * Лок охоплює кожен coverage-прогін окремо.
+ * @param {{fix?:boolean}} [opts] прапор --fix
+ * @returns {Promise<number>} exit code
+ */
+export async function runCoverageCli(opts = {}) {
+  const code = await withLock('coverage', () => runCoverageSteps(opts))
+  if (code === 0 && opts.fix) {
+    console.log('\n♻️  Повторний coverage після агента…\n')
+    return withLock('coverage', () => runCoverageSteps({ fix: false }))
+  }
+  return code
+}
