@@ -1,0 +1,29 @@
+npm/CHANGELOG.md
+  s_1b1b055c883315::t_fa3b08e2e0a2ac 7-15
+npm/.pi-template/extensions/n-cursor-adr/index.ts
+  s_b04f45c0cd93a7::t_a70f46a8055d25 69,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "d6be09acd845c42a524550cc9dda9f6607aa3ac3",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b04f45c0cd93a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8895738-4fcd-44ff-891e-24ef7cfe8874",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
