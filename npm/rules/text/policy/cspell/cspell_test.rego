@@ -14,6 +14,7 @@ template_data := {
 			"report",
 			"*.svg",
 			"**/k8s/**/*.yaml",
+			"docs/adr/**",
 		],
 	},
 	"contains": {"import": ["@nitra/cspell-dict"]},
@@ -32,6 +33,7 @@ valid_cfg := {
 		"report",
 		"*.svg",
 		"**/k8s/**/*.yaml",
+		"docs/adr/**",
 	],
 }
 
@@ -72,4 +74,19 @@ test_data_template_drives_version if {
 	drifted := json.patch(template_data, [{"op": "replace", "path": "/snippet/version", "value": "0.3"}])
 	some msg in cspell.deny with input as valid_cfg with data.template as drifted
 	contains(msg, "0.3")
+}
+
+# canon має включати docs/adr/** (адр-чернетки).
+test_deny_missing_docs_adr if {
+	bad := json.patch(valid_cfg, [{"op": "replace", "path": "/ignorePaths", "value": [
+		"**/node_modules/**",
+		"**/vscode-extension/**",
+		"**/.git/**",
+		".vscode",
+		"report",
+		"*.svg",
+		"**/k8s/**/*.yaml",
+	]}])
+	some msg in cspell.deny with input as bad with data.template as template_data
+	contains(msg, "docs/adr/**")
 }

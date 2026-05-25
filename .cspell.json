@@ -9,6 +9,7 @@
     "report",
     "*.svg",
     "**/k8s/**/*.yaml",
+    "docs/adr/**",
     "**/adr/**",
     "docs/superpowers/**",
     "**/dist/**"

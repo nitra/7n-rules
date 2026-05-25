@@ -34,6 +34,62 @@ mkdir -p "$ADR_DIR" "$LOG_DIR"
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
+# Структурний скіп ADR-генерації для "tooling-only" сесій.
+# Вхід: рядки-шляхи у stdin (один шлях на лінію), відносні до $PROJECT_ROOT
+# або абсолютні з префіксом $PROJECT_ROOT (нормалізуємо тут).
+# Вихід: 0 — усі шляхи в allowlist; 1 — є хоч один змістовний шлях.
+# Bash 3.2: без mapfile/асоц. масивів.
+is_tooling_only_change() {
+  local proj="$1"
+  local had_file=0
+  local f rel
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    had_file=1
+    case "$f" in
+      "$proj"/*) rel="${f#"$proj"/}" ;;
+      /*) return 1 ;;
+      *)  rel="$f" ;;
+    esac
+    case "$rel" in
+      .cspell.json) ;;
+      docs/adr/*.md) ;;
+      AGENTS.md|CLAUDE.md) ;;
+      CHANGELOG.md) ;;
+      */CHANGELOG.md) ;;
+      package.json|*/package.json)
+        if ! git_diff_only_version_field "$proj" "$rel"; then
+          return 1
+        fi
+        ;;
+      *) return 1 ;;
+    esac
+  done
+  [ "$had_file" = "1" ] && return 0
+  return 1
+}
+
+# Допоміжна: чи git-diff для файлу торкається ЛИШЕ рядків з `"version":`.
+# Поза git-репо або при помилці — вертаємо 1 (не tooling).
+git_diff_only_version_field() {
+  local proj="$1" path="$2"
+  [ -d "$proj/.git" ] || return 1
+  local diff
+  diff=$(cd "$proj" && git diff HEAD --unified=0 -- "$path" 2>/dev/null) || return 1
+  [ -z "$diff" ] && return 1
+  local line
+  while IFS= read -r line; do
+    case "$line" in
+      '+++ '*|'--- '*|'@@ '*|'') continue ;;
+      [+-]*'"version":'*) continue ;;
+      [+-]*) return 1 ;;
+    esac
+  done <<EOF
+$diff
+EOF
+  return 0
+}
+
 log "fired: $SESSION_ID"
 
 if [[ -z "$TRANSCRIPT_PATH" || ! -f "$TRANSCRIPT_PATH" ]]; then
@@ -84,6 +140,29 @@ fi
 if [[ -z "$TRANSCRIPT" ]]; then
   log "  → empty transcript after jq (Claude Code: .type; Cursor Agent: .role)"
   exit 0
+fi
+
+# Structural skip: якщо в сесії змінювалися лише tooling-файли — не викликаємо LLM.
+# ENV `ADR_NORMALIZE_SKIP_TOOLING_ONLY=0` вимикає скіп.
+if [[ "${ADR_NORMALIZE_SKIP_TOOLING_ONLY:-1}" = "1" ]]; then
+  CHANGED_FILES=$(jq -r '
+    select(.type == "assistant" or .role == "assistant")
+    | .message as $m
+    | ($m.content // [])
+    | if type == "array" then
+        map(select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit"))
+            | .input.file_path // empty)
+        | .[]
+      else empty end
+  ' "$TRANSCRIPT_PATH" 2>/dev/null | sort -u || true)
+
+  if [[ -n "$CHANGED_FILES" ]]; then
+    if printf '%s\n' "$CHANGED_FILES" | is_tooling_only_change "$PROJECT_ROOT"; then
+      log "  → skipping ADR capture: tooling-only session"
+      log "    files: $(printf '%s' "$CHANGED_FILES" | tr '\n' ' ')"
+      exit 0
+    fi
+  fi
 fi
 
 PROMPT=$(cat <<'EOF'

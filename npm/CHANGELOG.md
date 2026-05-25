@@ -4,6 +4,25 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.18.0] - 2026-05-25
+
+### Added
+
+- `text`: `docs/adr/**` у канонічному `ignorePaths` правила `.cspell.json` (`policy/cspell/template/.cspell.json.snippet.json`). Машинно-генеровані ADR-документи більше не валідуються cspell-ом — це розриває петлю «правка `.cspell.json` → новий ADR-draft → знову `cspell` ламається на ньому». Локальні розширення `ignorePaths` лишаються дозволені (rego subset-of).
+- `adr`: ENV `ADR_NORMALIZE_SKIP_TOOLING_ONLY` (default `1`) — вимикає structural skip у capture-/normalize-хуках. Документація в `adr.mdc` (таблиця ENV) і `skills/adr-normalize/SKILL.md`.
+
+### Changed
+
+- `adr`: `.claude-template/hooks/capture-decisions.sh` — перед LLM-викликом перевіряє список `tool_use`-правок із transcript'у. Якщо всі правки у вузькому allowlist (`.cspell.json`, `docs/adr/*.md`, кореневі `AGENTS.md`/`CLAUDE.md`, `CHANGELOG.md`, `*/package.json` із diff виключно по ключу `version`) — `exit 0` із записом `skipping ADR capture: tooling-only session` у лог. Inline-функція `is_tooling_only_change` + `git_diff_only_version_field`, bash 3.2-сумісно.
+- `adr`: `.claude-template/hooks/normalize-decisions.sh` — після формування батча для кожної чернетки читає `transcript:` із frontmatter і та сама перевірка allowlist'у. Tooling-only чернетки видаляються без виклику LLM; якщо батч порожній — `exit 0`.
+- `text.mdc` 1.29 → 1.30: документація `docs/adr/**` у `ignorePaths`; приклади `.cspell.json` оновлено.
+- `adr.mdc` 2.1 → 2.2: нова секція «Tooling-only skip» у Фазі 1, bullet у Фазі 2, рядок у таблиці ENV.
+
+### Notes
+
+- Існуючі ENV (`ADR_NORMALIZE_THRESHOLD`, `…_MIN_INTERVAL_HOURS`, `…_BATCH`, `…_DRY`, recursion-guard `CAPTURE_DECISIONS_RUNNING` / `ADR_NORMALIZE_RUNNING`) поведінку не змінюють.
+- `cspell.rego` subset-of-перевірку зберігає — нічого не зламано для проєктів, де користувач уже руками додав `docs/adr/**` у свій `.cspell.json`.
+
 ## [1.17.4] - 2026-05-24
 
 ### Changed
