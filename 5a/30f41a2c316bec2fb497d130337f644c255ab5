@@ -1,0 +1,31 @@
+.cursor/rules/n-text.mdc
+  s_1b1b055c883315::t_bc0e11d1144f8c 4,314,332-333,352-353,390
+.cursor/rules/n-test.mdc
+  s_1b1b055c883315::t_bc0e11d1144f8c 2-5,76,80-93
+docs/adr/20260525-111316-docs-adr-у-канонічному-cspell-ignorepaths.md
+  s_1b1b055c883315::t_0f4b92c2c0f021 1-89
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 65,72
+AGENTS.md
+  s_1b1b055c883315::t_bc0e11d1144f8c 46-47,51-53
+.claude/hooks/normalize-decisions.sh
+  s_1b1b055c883315::t_bc0e11d1144f8c 42-100,182-219
+.claude/hooks/capture-decisions.sh
+  s_1b1b055c883315::t_bc0e11d1144f8c 37-92,145-165
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5a30f41a2c316bec2fb497d130337f644c255ab5",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
