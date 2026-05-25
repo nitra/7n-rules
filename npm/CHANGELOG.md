@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.19.0] - 2026-05-25
+
+### Added
+
+- **Pi.dev інтеграція** — CLI під час синку генерує `.pi/skills/<dir>/SKILL.md` для кожного скілу з `.cursor/skills/<dir>/` із frontmatter `name`+`description` (формат pi.dev: 1-64 chars, `[a-z0-9-]`). Тіло — делегат `Виконай інструкції зі скілу .cursor/skills/<dir>/SKILL.md.`, симетрично до `.claude/commands/<dir>.md`. Always-on, без флагу. Покриває керовані (з пакета) і локальні скіли; orphan-cleanup видаляє `.pi/skills/n-*` дири, яких немає у конфігу, і локальні дири, яких більше немає у `.cursor/skills/`.
+- `npm/bin/n-cursor.js`: константа `PI_SKILLS_DIR='.pi/skills'`, функція `formatPiSkillFrontmatter(name, desc)`, синки `syncPiSkills`/`syncLocalOnlyPiSkills` + cleanups `removeOrphanManagedPiSkillDirs`/`removeOrphanLocalPiSkillDirs`. Новий `runSyncStep('❌ Pi skills: ', …)` після Commands-блоку у головному потоці.
+
 ## [1.18.3] - 2026-05-25
 
 ### Changed

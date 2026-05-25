@@ -28,6 +28,9 @@
  * синхронізує `.claude/settings.json` (hooks + permissions; merge — користувацькі поля зберігаються)
  * і `.cursor/hooks.json` (Cursor Agent hooks; merge — користувацькі hooks зберігаються).
  * Опт-аут — поле `claude-config: false` у `.n-cursor.json`.
+ * Pi.dev інтеграція: для кожного skill у `.cursor/skills/<dir>/` CLI генерує
+ * `.pi/skills/<dir>/SKILL.md` із frontmatter `name`+`description` (формат pi.dev). Тіло — делегат
+ * на джерельний `.cursor/skills/<dir>/SKILL.md`. Always-on, симетрично до `.claude/commands/`.
  *
  * Якщо у корені репозиторію немає .n-cursor.json, спочатку перейменовується за наявності nitra-cursor.json;
  * у `.cursor/rules` файли `nitra-*.mdc` перейменовуються на `n-*.mdc`; інакше конфіг створюється автоматично
@@ -104,6 +107,7 @@ const AGENTS_TEMPLATE_FILE = 'AGENTS.template.md'
 const RULES_DIR = '.cursor/rules'
 const SKILLS_DIR = '.cursor/skills'
 const COMMANDS_DIR = '.claude/commands'
+const PI_SKILLS_DIR = '.pi/skills'
 const RULE_PREFIX = 'n-'
 
 const binDir = dirname(fileURLToPath(import.meta.url))
@@ -484,6 +488,22 @@ function formatClaudeCommandFrontmatter(descriptionRaw) {
     text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
   }
   return `---\ndescription: >-\n  ${text}\n---\n\n`
+}
+
+/**
+ * YAML frontmatter для `.pi/skills/<dir>/SKILL.md` згідно зі специфікацією pi.dev:
+ * обов'язкові поля `name` (1-64, `[a-z0-9-]`) і `description` (≤ 1024). Текст description збігається
+ * з полем `description` у frontmatter джерельного `SKILL.md`.
+ * @param {string} skillName ім'я скілу (наприклад `n-fix`); має бути валідним pi-name
+ * @param {string} descriptionRaw значення з `extractSkillDescription` (може бути порожнім)
+ * @returns {string} блок `---` … `---` і порожній рядок після
+ */
+function formatPiSkillFrontmatter(skillName, descriptionRaw) {
+  let text = skillDescriptionSafeForMarkdownInline(String(descriptionRaw || '').trim())
+  if (!text) {
+    text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
+  }
+  return `---\nname: ${skillName}\ndescription: >-\n  ${text}\n---\n\n`
 }
 
 /**
@@ -902,6 +922,149 @@ async function removeOrphanLocalSkillCommandFiles(commandsDir, configSkills) {
 }
 
 /**
+ * Синхронізує .pi/skills/n-<id>/SKILL.md зі skills пакету для pi.dev-сумісності.
+ * Pi-skill — це директорія з SKILL.md (frontmatter `name`+`description`), тіло-делегат на джерельний
+ * `.cursor/skills/<dir>/SKILL.md`. Симетрично до `syncCommands`, але дир замість `.md`-файлу.
+ * @param {string[]} configSkills id без префікса n-
+ * @param {string} [bundledSkillsDir] каталог `skills/` у корені пакету-джерела
+ * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
+ */
+async function syncPiSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
+  if (configSkills.length === 0 || !existsSync(bundledSkillsDir)) {
+    return { success: 0, fail: 0 }
+  }
+
+  const piSkillsRoot = join(cwd(), PI_SKILLS_DIR)
+  await mkdir(piSkillsRoot, { recursive: true })
+
+  let success = 0
+  let fail = 0
+
+  for (const skillId of configSkills) {
+    const id = normalizeSkillId(skillId)
+    const srcSkillMd = join(bundledSkillsDir, id, 'SKILL.md')
+    const destDirName = managedSkillDirName(skillId)
+    const destDir = join(piSkillsRoot, destDirName)
+    const destFile = join(destDir, 'SKILL.md')
+
+    process.stdout.write(`  ⬇  ${id} → ${PI_SKILLS_DIR}/${destDirName}/SKILL.md ... `)
+    if (existsSync(srcSkillMd)) {
+      try {
+        const raw = await readFile(srcSkillMd, 'utf8')
+        const descRaw = extractSkillDescription(raw)
+        await mkdir(destDir, { recursive: true })
+        const frontmatter = formatPiSkillFrontmatter(destDirName, descRaw || '')
+        const header = `# ${destDirName}\n\n`
+        const body = `${frontmatter}${header}Виконай інструкції зі скілу \`.cursor/skills/${destDirName}/SKILL.md\`.\n`
+        await writeFile(destFile, body, 'utf8')
+        console.log(`✅`)
+        success++
+      } catch (error) {
+        console.log(`❌`)
+        console.error(`     Помилка: ${errorMessage(error)}`)
+        fail++
+      }
+    } else {
+      console.log(`❌`)
+      console.error(`     Немає SKILL.md у пакеті: skills/${id}`)
+      fail++
+    }
+  }
+  return { success, fail }
+}
+
+/**
+ * Синхронізує .pi/skills/{dirName}/SKILL.md для всіх локальних скілів з .cursor/skills/
+ * що не керуються пакетом. Симетрично до `syncLocalOnlySkillCommands`.
+ * @param {string[]} configSkills id керованих skills (уже оброблені syncPiSkills)
+ * @returns {Promise<{ success: number, fail: number }>} лічильники успішних і невдалих записів
+ */
+async function syncLocalOnlyPiSkills(configSkills) {
+  const skillsRoot = join(cwd(), SKILLS_DIR)
+  if (!existsSync(skillsRoot)) return { success: 0, fail: 0 }
+
+  const piSkillsRoot = join(cwd(), PI_SKILLS_DIR)
+  await mkdir(piSkillsRoot, { recursive: true })
+
+  const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
+  const allDirNames = await listProjectSkillDirNames()
+  const localOnly = allDirNames.filter(d => !managedDirNames.has(d))
+
+  let success = 0
+  let fail = 0
+
+  for (const dirName of localOnly) {
+    const skillMdPath = join(skillsRoot, dirName, 'SKILL.md')
+    const destDir = join(piSkillsRoot, dirName)
+    const destFile = join(destDir, 'SKILL.md')
+
+    process.stdout.write(`  ⬇  ${dirName} → ${PI_SKILLS_DIR}/${dirName}/SKILL.md ... `)
+    try {
+      let descRaw = ''
+      if (existsSync(skillMdPath)) {
+        const raw = await readFile(skillMdPath, 'utf8')
+        const parsed = extractSkillDescription(raw)
+        if (parsed) descRaw = parsed
+      }
+      await mkdir(destDir, { recursive: true })
+      const frontmatter = formatPiSkillFrontmatter(dirName, descRaw)
+      const header = `# ${dirName}\n\n`
+      const body = `${frontmatter}${header}Виконай інструкції зі скілу \`${SKILLS_DIR}/${dirName}/SKILL.md\`.\n`
+      await writeFile(destFile, body, 'utf8')
+      console.log(`✅`)
+      success++
+    } catch (error) {
+      console.log(`❌`)
+      console.error(`     Помилка: ${errorMessage(error)}`)
+      fail++
+    }
+  }
+  return { success, fail }
+}
+
+/**
+ * Видаляє n-* директорії у .pi/skills, яких немає у конфігурації skills.
+ * @param {string} piSkillsDir абсолютний шлях до .pi/skills
+ * @param {string[]} configSkills id без префікса n-
+ * @returns {Promise<string[]>} імена видалених директорій
+ */
+async function removeOrphanManagedPiSkillDirs(piSkillsDir, configSkills) {
+  if (!existsSync(piSkillsDir)) return []
+  const expected = new Set(configSkills.map(s => managedSkillDirName(s)))
+  const entries = await readdir(piSkillsDir, { withFileTypes: true })
+  const removed = []
+  for (const entry of entries) {
+    if (entry.isDirectory() && entry.name.startsWith(RULE_PREFIX) && !expected.has(entry.name)) {
+      await rm(join(piSkillsDir, entry.name), { recursive: true, force: true })
+      removed.push(entry.name)
+    }
+  }
+  return removed.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
+ * Видаляє .pi/skills/{dirName} директорії локальних скілів, яких більше немає в .cursor/skills/.
+ * @param {string} piSkillsDir абсолютний шлях до .pi/skills
+ * @param {string[]} configSkills id керованих skills
+ * @returns {Promise<string[]>} імена видалених директорій
+ */
+async function removeOrphanLocalPiSkillDirs(piSkillsDir, configSkills) {
+  if (!existsSync(piSkillsDir)) return []
+  const managedDirNames = new Set(configSkills.map(s => managedSkillDirName(s)))
+  const allDirNames = new Set(await listProjectSkillDirNames())
+  const entries = await readdir(piSkillsDir, { withFileTypes: true })
+  const removed = []
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith(RULE_PREFIX)) continue
+    if (!managedDirNames.has(entry.name) && !allDirNames.has(entry.name)) {
+      await rm(join(piSkillsDir, entry.name), { recursive: true, force: true })
+      removed.push(entry.name)
+    }
+  }
+  return removed.toSorted((a, b) => a.localeCompare(b))
+}
+
+/**
  * Людинозрозумілий текст винятку для логів.
  * @param {unknown} error виняток із catch
  * @returns {string} текст повідомлення
@@ -1181,6 +1344,24 @@ async function runSync() {
     logRemovedManagedItems('commands (local)', COMMANDS_DIR, removedLocalCmds)
     if (totalFail > 0) {
       throw new Error(`Не вдалося скопіювати ${totalFail} commands`)
+    }
+  })
+
+  await runSyncStep('❌ Pi skills: ', async () => {
+    const { success: piOk, fail: piFail } = await syncPiSkills(skills, bundledSkillsDir)
+    const { success: piLocalOk, fail: piLocalFail } = await syncLocalOnlyPiSkills(skills)
+    const totalOk = piOk + piLocalOk
+    const totalFail = piFail + piLocalFail
+    if (totalOk + totalFail > 0) {
+      console.log(`\n🥧 Pi skills: ${totalOk} скопійовано, ${totalFail} з помилками`)
+    }
+    const piSkillsDir = join(cwd(), PI_SKILLS_DIR)
+    const removedPi = await removeOrphanManagedPiSkillDirs(piSkillsDir, skills)
+    logRemovedManagedItems('pi skills', PI_SKILLS_DIR, removedPi)
+    const removedLocalPi = await removeOrphanLocalPiSkillDirs(piSkillsDir, skills)
+    logRemovedManagedItems('pi skills (local)', PI_SKILLS_DIR, removedLocalPi)
+    if (totalFail > 0) {
+      throw new Error(`Не вдалося скопіювати ${totalFail} pi skills`)
     }
   })
 
