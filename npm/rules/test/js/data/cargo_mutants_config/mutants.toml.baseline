@@ -3,6 +3,6 @@
 # Документація: https://mutants.rs/
 # Канон постачає правило `test` (@nitra/cursor).
 
-# Виключаємо --doc фазу: rustdoc щоразу компілює doc-tests навіть якщо їх 0,
-# що збільшує час кожного мутанту з секунд до хвилин на Tauri/великих проєктах.
-additional_cargo_test_args = ["--lib", "--bins", "--tests"]
+# Виключаємо --bins і --doc: бінарник Tauri та doc-tests щоразу перезбираються
+# з нуля навіть з кешем, що збільшує час кожного мутанту з секунд до хвилин.
+additional_cargo_test_args = ["--lib", "--tests"]

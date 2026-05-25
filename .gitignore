@@ -12,3 +12,6 @@ dist/
 # Stryker mutation testing (test.mdc)
 **/reports/stryker/.tmp/
 **/reports/stryker/mutation.json
+
+# Stryker mutation testing (test.mdc)
+**/reports/stryker/
