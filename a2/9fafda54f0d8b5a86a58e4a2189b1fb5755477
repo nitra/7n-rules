@@ -1,0 +1,21 @@
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_1b1b055c883315::t_466832697d2a4b 1-39
+npm/.pi-template/extensions/n-cursor-adr/index.ts
+  s_1b1b055c883315::t_ccd1fb95e087e9 1-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "a29fafda54f0d8b5a86a58e4a2189b1fb5755477",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
