@@ -1,0 +1,39 @@
+npm/rules/js-lint/coverage/coverage.mjs
+  s_a282ea1c9cf92c::t_0f9f04ac7ea477 85
+  s_a282ea1c9cf92c::t_fe3f567fa7c8e1 174
+  s_a282ea1c9cf92c::t_572716f78588e6 9
+  s_2a60aea2b7e73b::t_caa821949399c6 176
+  s_2a60aea2b7e73b::t_b3ddf57b1f36eb 89,100,102,104-106,113-114,118
+  s_a282ea1c9cf92c::t_57ef0c1bbf818e 59-62,64-84,88,90-92,98-99,101,103,107-112
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_2a60aea2b7e73b::t_efaff9080ec21d 163-164,166-190,192-194,196-199,201-205,208-211,213,215-217,219-226,229-231
+  s_a282ea1c9cf92c::t_f1b56f81359f5b 195
+  s_a282ea1c9cf92c::t_13856980742f9d 71-73,81-87,89-91,115-125
+  s_2a60aea2b7e73b::t_ce30010578715b 12
+  s_a282ea1c9cf92c::t_7462e72829d076 88
+  s_a282ea1c9cf92c::t_34d97f0e25489b 165,191,200,206-207,212,214,218,227-228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "3a104e9deee0e001a4158462e48f3c86fcabc24b",
+  "prompts": {},
+  "sessions": {
+    "s_2a60aea2b7e73b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b31ad6d3-8583-4022-8f31-4f8e081eb0d0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_a282ea1c9cf92c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0f4ef73-ad6c-4e43-928b-8a6a1e508aae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
