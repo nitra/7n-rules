@@ -1,0 +1,73 @@
+npm/rules/test/test.mdc
+  s_17dce3cec43c9d::t_574041ad92bc64 75,79,83
+  s_17dce3cec43c9d::t_f18a3273ca208d 2-5
+  s_17dce3cec43c9d::t_52340e39a970a6 72-74,76-78,80-82
+npm/scripts/utils/resolve-cargo-manifest.mjs
+  s_17dce3cec43c9d::t_6d337834cbe971 32-62
+  s_17dce3cec43c9d::t_9589ea693a4c30 1-31
+demo/stryker.config.mjs
+  s_17dce3cec43c9d::t_e25fab7b5b046e 1-4,9-12
+  s_17dce3cec43c9d::t_a8c19aa4b320f7 5-8
+npm/rules/test/js/cargo_mutants_config.mjs
+  s_17dce3cec43c9d::t_52340e39a970a6 1-2,6-7,10-19,21-37,40-45,47-50,64-65
+  s_17dce3cec43c9d::t_07eed8a7bf3334 3-5,8-9,20,38-39,46,51-63
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  s_17dce3cec43c9d::t_52340e39a970a6 1-109,128
+  s_17dce3cec43c9d::t_41e2d79ee3bbfb 110-127
+npm/rules/test/js/stryker_config.mjs
+  s_17dce3cec43c9d::t_029e15b4ef3fbc 1-2,6-19,21-37,40-45,47-50,60-61
+  s_17dce3cec43c9d::t_5df604649962ea 3-5,20,38-39,46,51-59
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_17dce3cec43c9d::t_e9704ff70d1e85 15
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_17dce3cec43c9d::t_07eed8a7bf3334 90-105
+  s_17dce3cec43c9d::t_2183c2b6f9042e 1-89,106-123
+npm/scripts/utils/resolve-js-root.mjs
+  s_17dce3cec43c9d::t_81ee49e78f4a17 1-24
+  s_17dce3cec43c9d::t_f72b544ae5e80a 25-46
+npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs
+  s_17dce3cec43c9d::t_48c1942db62530 64-106
+  s_17dce3cec43c9d::t_a9c489c6437b72 1-9,11-63
+  s_17dce3cec43c9d::t_1d3e213ab94a7b 10
+docs/superpowers/plans/2026-05-24-test-rule-mutation-config.md
+  s_17dce3cec43c9d::t_a4be9e35cca330 1-1194
+npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline
+  s_17dce3cec43c9d::t_0da5a16d819bf8 1-4
+npm/scripts/utils/tests/resolve-js-root.test.mjs
+  s_17dce3cec43c9d::t_a4739fc0bd7612 1-9,11-47
+  s_17dce3cec43c9d::t_1601caa716c706 10
+  s_17dce3cec43c9d::t_dfcb423263bfaf 48-89
+npm/CHANGELOG.md
+  s_17dce3cec43c9d::t_e025bda188d7e5 7-10,15-21
+  s_17dce3cec43c9d::t_bccbed33cafae5 11-14
+npm/package.json
+  s_17dce3cec43c9d::t_ff891613bf6187 3
+npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  s_17dce3cec43c9d::t_63f246b6e12216 5-8
+  s_17dce3cec43c9d::t_4353b7c56962b6 1-4,9-12
+npm/rules/rust/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_38a212323144cc 16
+  s_17dce3cec43c9d::t_52340e39a970a6 56-58
+npm/rules/js-lint/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_ce02c2e3762a7c 127-131
+  s_17dce3cec43c9d::t_bcb216f19ac687 14
+npm/stryker.config.mjs
+  s_17dce3cec43c9d::t_a8c19aa4b320f7 5-8
+  s_17dce3cec43c9d::t_aeded522cea9cf 1-4,9-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5511a04f557f41bc987cbf42c66fedacf1bd5bf2",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
