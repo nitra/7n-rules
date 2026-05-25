@@ -2,432 +2,831 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Зробити `networkpolicy.snippet.yaml` єдиним джерелом правди для канону `spec` NetworkPolicy — `buildNetworkPolicyYaml` читає snippet, рядкова константа `NETWORK_POLICY_EGRESS_YAML` видаляється.
+**Goal:** Зробити `common.snippet.yaml` єдиним джерелом правди для canonical NetworkPolicy spec: JS читає snippet, rego перевіряє через superset-порівняння з snippet (через conftest `templateData`), StatefulSet отримує окремий snippet для intra-replica правил.
 
-**Architecture:** Snippet вже оновлений (4 egress-правила: kube-dns, link-local DNS 169.254/16, HTTP/S, in-cluster). JS читає snippet одноразово при завантаженні модуля (`readFileSync` + `parseDocument`), клонує `spec`, підставляє `podSelector.matchLabels` і серіалізує через `yaml.stringify`. Bun-тест асертує структуру результату; rego `valid_np` оновлюється вручну.
+**Architecture:** JS-тонкий шар читає snippet-файли й передає їх у `templateData` → `runConftestBatch`. Rego отримує `data.template.snippet` (common) і `data.template.statefulset_snippet` (для StatefulSet) та перевіряє що всі canonical-правила присутні в `input.spec.egress` (superset, не exact-match). `buildNetworkPolicyYaml` приймає `kind`, додає анотацію `nitra.dev/workload-kind`, для StatefulSet вливає правила з `statefulset.snippet.yaml`.
 
-**Tech Stack:** Bun (тести), yaml v2 (`parseDocument`, `stringify`), Node.js `readFileSync`, OPA rego.
-
----
-
-### Task 1: Верифікація поточного стану snippet
-
-**Files:**
-- Read: `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml`
-
-- [ ] **Step 1: Переконатись, що snippet містить всі 4 egress-правила**
-
-```bash
-cat npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml
-```
-
-Expected: файл містить `169.254.0.0/16`, `0.0.0.0/0`, `kube-system`, `namespaceSelector: {}` з портами 80 443 5432 3306 1433 6379 8080 4317 4318.
-
-- [ ] **Step 2: Запустити bun test, щоб зафіксувати поточний стан тестів**
-
-```bash
-cd npm && bun test --parallel rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -20
-```
-
-Зафіксуй результат. Якщо тести проходять — продовжуй. Якщо ні — зупинись і розберись перед рефакторингом.
+**Tech Stack:** Bun (tester), `yaml` npm package, OPA Rego 1.x + conftest 0.62, JSDoc, ESM modules.
 
 ---
 
-### Task 2: Оновити `manifests.mjs` — читати snippet замість рядкового шаблону
+## Поточний стан (вже зроблено в working tree)
+
+До початку виконання плану — ці зміни вже є в uncommitted diff:
+- `buildNetworkPolicyYaml` читає з snippet, `readNetworkPolicySnippet()` — новий export
+- `NETWORK_POLICY_EGRESS_YAML`, `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` — видалено
+- Тести `check-schema.test.mjs` оновлені під нові функції
+- `networkpolicy.snippet.yaml` оновлено (link-local DNS блок)
+- Line 6510: `templateData: { snippet: readNetworkPolicySnippet() }` — вже передає snippet у conftest
+
+**Залишається зробити:** Tasks 1-8 нижче.
+
+---
+
+## Файли змін
+
+| Дія | Файл |
+|-----|------|
+| Rename | `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` → `common.snippet.yaml` |
+| Create | `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml` |
+| Modify | `npm/rules/k8s/js/manifests.mjs` (4 місця) |
+| Modify | `npm/rules/k8s/policy/network_policy/network_policy.rego` |
+| Modify | `npm/rules/k8s/policy/network_policy/network_policy_test.rego` |
+| Modify | `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` |
+| Modify | `npm/rules/k8s/k8s.mdc` |
+| Modify | `npm/CHANGELOG.md` |
+
+---
+
+## Task 1: Перейменувати snippet і створити statefulset.snippet.yaml
 
 **Files:**
-- Modify: `npm/rules/k8s/js/manifests.mjs` (рядки ~137-145 imports, ~4250-4307 constants + function)
+- Rename: `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` → `common.snippet.yaml`
+- Create: `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml`
+- Modify: `npm/rules/k8s/js/manifests.mjs:~4247`
 
-- [ ] **Step 1: Додати `readFileSync` і `stringify` до imports**
+- [ ] **Крок 1: Перейменувати файл**
 
-Знайди рядок (≈137):
-```js
-import { existsSync } from 'node:fs'
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+mv npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml \
+   npm/rules/k8s/policy/network_policy/template/common.snippet.yaml
 ```
+
+- [ ] **Крок 2: Оновити URL у manifests.mjs (~рядок 4247)**
+
+Знайти:
+```js
+const NETWORK_POLICY_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/networkpolicy.snippet.yaml',
+  import.meta.url
+)
+```
+
 Замінити на:
 ```js
-import { existsSync, readFileSync } from 'node:fs'
+const NETWORK_POLICY_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/common.snippet.yaml',
+  import.meta.url
+)
 ```
 
-Знайди рядок (≈141):
-```js
-import { isSeq, parseAllDocuments, parseDocument } from 'yaml'
+- [ ] **Крок 3: Створити statefulset.snippet.yaml**
+
+Файл `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml`:
+
+```yaml
+spec:
+  egress:
+    # intra-replica реплікація (StatefulSet pod ↔ pod у тому ж namespace)
+    - to:
+        - podSelector:
+            matchLabels: {}
+  ingress:
+    # intra-replica реплікація (StatefulSet pod ↔ pod у тому ж namespace)
+    - from:
+        - podSelector:
+            matchLabels: {}
 ```
+
+- [ ] **Крок 4: Запустити bun test**
+
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+bun test npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -5
+```
+
+Очікується: усі тести pass.
+
+- [ ] **Крок 5: Commit**
+
+```bash
+git add npm/rules/k8s/policy/network_policy/template/
+git add npm/rules/k8s/js/manifests.mjs
+git commit -m "refactor(k8s): rename networkpolicy.snippet.yaml → common.snippet.yaml, add statefulset.snippet.yaml"
+```
+
+---
+
+## Task 2: Виправити dangling виклик networkPolicyManifestViolations
+
+**Files:**
+- Modify: `npm/rules/k8s/js/manifests.mjs:~5040-5054`
+
+Функція `networkPolicyManifestViolations` видалена у working tree, але виклик у `validateNetworkPolicyForWorkload` (~5048) лишився — runtime-помилка при реальному виконанні. Структурна перевірка делегована rego.
+
+- [ ] **Крок 1: Переписати validateNetworkPolicyForWorkload**
+
+Знайти (~5040-5054):
+```js
+function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn) {
+  const matchedNp = findNetworkPolicyByDeployName(npDocs, workloadName)
+  if (matchedNp === undefined) {
+    fail(
+      `${npRel}: відсутній або не знайдено NetworkPolicy з metadata.name='${workloadName}' для ${workloadKind} (k8s.mdc)`
+    )
+    return
+  }
+  const npErrs = networkPolicyManifestViolations(matchedNp, workloadName, appLabel)
+  if (npErrs.length === 0) {
+    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
+  } else {
+    for (const e of npErrs) fail(`${npRel}: ${e} (k8s.mdc)`)
+  }
+}
+```
+
 Замінити на:
 ```js
-import { isSeq, parseAllDocuments, parseDocument, stringify } from 'yaml'
+function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn) {
+  const matchedNp = findNetworkPolicyByDeployName(npDocs, workloadName)
+  if (matchedNp === undefined) {
+    fail(
+      `${npRel}: відсутній або не знайдено NetworkPolicy з metadata.name='${workloadName}' для ${workloadKind} (k8s.mdc)`
+    )
+    return
+  }
+  const spec = /** @type {Record<string, unknown>} */ (matchedNp).spec
+  const app = networkPolicyPodSelectorAppLabel(spec)
+  if (app !== appLabel) {
+    fail(
+      `${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}': podSelector.matchLabels.app='${app}' не збігається з очікуваним '${appLabel}' (k8s.mdc)`
+    )
+    return
+  }
+  passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' знайдено (k8s.mdc)`)
+}
 ```
 
-- [ ] **Step 2: Видалити `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` і `NETWORK_POLICY_EGRESS_YAML`**
+- [ ] **Крок 2: Переконатись що bun test проходить**
 
-Видали блок (≈рядки 4245–4281):
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+bun test npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -5
+```
+
+Очікується: pass.
+
+- [ ] **Крок 3: Commit**
+
+```bash
+git add npm/rules/k8s/js/manifests.mjs
+git commit -m "fix(k8s): remove dangling networkPolicyManifestViolations call, delegate structural check to rego"
+```
+
+---
+
+## Task 3: Додати kind-параметр і StatefulSet-підтримку в buildNetworkPolicyYaml
+
+**Files:**
+- Modify: `npm/rules/k8s/js/manifests.mjs` (~4246-4280, ~6247-6265, ~6316-6339, ~6510)
+- Modify: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
+
+- [ ] **Крок 1: Додати loadSnippetSpec і оновити buildNetworkPolicyYaml**
+
+Знайти у `manifests.mjs` від `const NETWORK_POLICY_SNIPPET_URL` до кінця `buildNetworkPolicyYaml` (~4246-4280), замінити весь блок:
+
 ```js
+const NETWORK_POLICY_COMMON_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/common.snippet.yaml',
+  import.meta.url
+)
+const NETWORK_POLICY_STATEFULSET_SNIPPET_URL = new URL(
+  '../policy/network_policy/template/statefulset.snippet.yaml',
+  import.meta.url
+)
+
+/** @type {Record<string, Record<string, unknown>>} */
+const _snippetCache = {}
+
 /**
- * Канонічний список in-cluster TCP-портів у `to: [{namespaceSelector: {}}]` rule (k8s.mdc).
- * Зовнішній доступ (80/443 → 0.0.0.0/0) і kube-dns (53 UDP/TCP) — окремі rule вище.
- * Catch-all (`namespaceSelector: {}` без `ports:`) — заборонено.
+ * Читає snippet-файл і повертає розпарсений spec. Результат кешується.
+ * @param {'common' | 'statefulset'} snippetName ім'я сніпету
+ * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }}
  */
-const NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS = [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]
+export function loadSnippetSpec(snippetName) {
+  if (_snippetCache[snippetName]) return _snippetCache[snippetName]
+  const url = snippetName === 'statefulset'
+    ? NETWORK_POLICY_STATEFULSET_SNIPPET_URL
+    : NETWORK_POLICY_COMMON_SNIPPET_URL
+  const raw = readFileSync(fileURLToPath(url), 'utf-8')
+  _snippetCache[snippetName] = /** @type {any} */ (parseDocument(raw).toJS()).spec
+  return _snippetCache[snippetName]
+}
 
 /**
- * Канонічний блок `spec.egress` NetworkPolicy (k8s.mdc): kube-dns; TCP 80/443 на 0.0.0.0/0;
- * in-cluster `namespaceSelector: {}` зі списком `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS`.
+ * Читає common.snippet.yaml і повертає розпарсений spec.
+ * @deprecated Використовуй loadSnippetSpec('common')
  */
-const NETWORK_POLICY_EGRESS_YAML = `  egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-          podSelector:
-            matchLabels:
-              k8s-app: kube-dns
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-    - to:
-        - ipBlock:
-            cidr: 0.0.0.0/0
-      ports:
-        - protocol: TCP
-          port: 80
-        - protocol: TCP
-          port: 443
-    - to:
-        - namespaceSelector: {}
-      ports:
-${NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS.map(p => `        - protocol: TCP\n          port: ${p}`).join('\n')}
-`
-```
+export function readNetworkPolicySnippet() {
+  return loadSnippetSpec('common')
+}
 
-- [ ] **Step 3: Додати `_snippetSpec` у місці видалених констант**
-
-На місці видалених констант (≈рядок 4245, перед `/**` для `buildNetworkPolicyYaml`) вставити:
-
-```js
-const _snippetSpec = parseDocument(
-  readFileSync(
-    new URL('../policy/network_policy/template/networkpolicy.snippet.yaml', import.meta.url),
-    'utf8'
-  )
-).toJS().spec
-```
-
-- [ ] **Step 4: Замінити тіло `buildNetworkPolicyYaml`**
-
-Знайди функцію (≈рядки 4289–4307):
-```js
-export function buildNetworkPolicyYaml(deployName, appLabel) {
+/**
+ * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName` і міткою `app`.
+ * Структура spec береться зі snippet — не дублюється в коді.
+ * @param {string} deployName `metadata.name` workload (Deployment, StatefulSet, …)
+ * @param {string} appLabel `spec.selector.matchLabels.app`
+ * @param {string} [kind] `kind` workload — впливає на набір canonical правил (default: 'Deployment')
+ * @returns {string} вміст `networkpolicy.yaml`
+ */
+export function buildNetworkPolicyYaml(deployName, appLabel, kind = 'Deployment') {
   const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
+  const spec = JSON.parse(JSON.stringify(loadSnippetSpec('common')))
+  spec.podSelector.matchLabels = { app: appLabel }
+  if (kind === 'StatefulSet') {
+    const ssSpec = loadSnippetSpec('statefulset')
+    spec.egress = [...(spec.egress ?? []), ...(ssSpec.egress ?? [])]
+    spec.ingress = [...(spec.ingress ?? []), ...(ssSpec.ingress ?? [])]
+  }
+  const specYaml = stringify(spec, { indent: 2 }).replace(/^(?!$)/gm, '  ').trimEnd()
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: ${deployName}
+  annotations:
+    nitra.dev/workload-kind: ${kind}
 spec:
-  podSelector:
-    matchLabels:
-      app: ${appLabel}
-  policyTypes:
-    - Ingress
-    - Egress
-  ingress:
-    - from:
-        - podSelector: {}
-${NETWORK_POLICY_EGRESS_YAML}`
+${specYaml}`
 }
+```
+
+- [ ] **Крок 2: Оновити appendNetworkPolicyDocuments (~6247) — передати kind**
+
+Знайти у функції `appendNetworkPolicyDocuments` виклик `buildNetworkPolicyYaml(name, appLabel)` і замінити на `buildNetworkPolicyYaml(name, appLabel, kind)`.
+
+Переконатись що `for (const { name, appLabel, kind } of toAdd)` деструктурує `kind`.
+
+- [ ] **Крок 3: Оновити regenerateLegacyNetworkPolicyDocsInFile (~6316) — читати kind з анотації**
+
+Знайти у функції `regenerateLegacyNetworkPolicyDocsInFile` цикл `for (const doc of docs)`. Замінити:
+```js
+    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
+```
+На:
+```js
+    const docRec = /** @type {Record<string, unknown>} */ (doc)
+    const meta = docRec.metadata
+    const annotations = (meta !== null && typeof meta === 'object' && !Array.isArray(meta))
+      ? /** @type {Record<string, unknown>} */ (meta).annotations
+      : null
+    const rawKind = (annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations))
+      ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
+      : null
+    const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
+    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
+```
+
+Оновити `.map` нижче:
+```js
+  const blocks = specs.map(({ name, appLabel, kind }, i) => {
+    const block = buildNetworkPolicyYaml(name, appLabel, kind)
+```
+
+- [ ] **Крок 4: Оновити templateData (~6510)**
+
+Знайти:
+```js
+{ ns: 'k8s.network_policy', dir: 'k8s/network_policy', files: allYaml, templateData: { snippet: readNetworkPolicySnippet() } },
 ```
 
 Замінити на:
 ```js
-export function buildNetworkPolicyYaml(deployName, appLabel) {
-  const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
-  const spec = structuredClone(_snippetSpec)
-  spec.podSelector.matchLabels = { app: appLabel }
-  return (
-    `# yaml-language-server: $schema=${schemaUrl}\n` +
-    stringify({
-      apiVersion: 'networking.k8s.io/v1',
-      kind: 'NetworkPolicy',
-      metadata: { name: deployName },
-      spec,
-    })
-  )
-}
+{
+  ns: 'k8s.network_policy',
+  dir: 'k8s/network_policy',
+  files: allYaml,
+  templateData: {
+    snippet: loadSnippetSpec('common'),
+    statefulset_snippet: loadSnippetSpec('statefulset'),
+  },
+},
 ```
 
-- [ ] **Step 5: Запустити bun test, щоб побачити яких тестів торкнулась зміна**
+- [ ] **Крок 5: Запустити bun test**
 
 ```bash
-cd npm && bun test --parallel rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -40
+cd /Users/vitaliytv/www/nitra/cursor
+bun test npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -5
 ```
 
-Якщо тести зелені — зупинись на Task 3.  
-Якщо є падіння — розберись зараз: типова причина — `yaml.stringify` серіалізує `{}` чи порядок ключів не збігається з рядковим порівнянням у тесті.
+Очікується: pass.
+
+- [ ] **Крок 6: Оновити тести у check-schema.test.mjs**
+
+Додати `loadSnippetSpec` до imports (поряд з `readNetworkPolicySnippet`).
+
+Знайти тест `'buildNetworkPolicyYaml: name, app та spec.egress/ingress відповідають snippet'` (~2217), замінити на два тести:
+
+```js
+test('buildNetworkPolicyYaml (Deployment): name, app, annotation та spec відповідають common snippet', () => {
+  const snippet = loadSnippetSpec('common')
+  const result = parseYaml(buildNetworkPolicyYaml('api', 'api', 'Deployment'))
+  expect(result.metadata.name).toBe('api')
+  expect(result.metadata.annotations['nitra.dev/workload-kind']).toBe('Deployment')
+  expect(result.spec.podSelector.matchLabels.app).toBe('api')
+  expect(result.spec.egress).toEqual(snippet.egress)
+  expect(result.spec.ingress).toEqual(snippet.ingress)
+})
+
+test('buildNetworkPolicyYaml (StatefulSet): annotation та egress/ingress = common + statefulset merged', () => {
+  const common = loadSnippetSpec('common')
+  const ss = loadSnippetSpec('statefulset')
+  const result = parseYaml(buildNetworkPolicyYaml('db', 'db', 'StatefulSet'))
+  expect(result.metadata.annotations['nitra.dev/workload-kind']).toBe('StatefulSet')
+  expect(result.spec.podSelector.matchLabels.app).toBe('db')
+  for (const rule of common.egress) {
+    expect(result.spec.egress).toContainEqual(rule)
+  }
+  for (const rule of ss.egress) {
+    expect(result.spec.egress).toContainEqual(rule)
+  }
+})
+```
+
+- [ ] **Крок 7: Запустити bun test фінально**
+
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+bun test npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -5
+```
+
+Очікується: pass.
+
+- [ ] **Крок 8: Commit**
+
+```bash
+git add npm/rules/k8s/js/manifests.mjs
+git add npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+git commit -m "feat(k8s): buildNetworkPolicyYaml kind param, nitra.dev/workload-kind annotation, StatefulSet snippet merge"
+```
 
 ---
 
-### Task 3: Оновити bun-тести
+## Task 4: Переписати network_policy.rego на superset check
 
 **Files:**
-- Modify: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` (≈рядки 2207–2218 та ≈2275–2330)
+- Modify: `npm/rules/k8s/policy/network_policy/network_policy.rego`
 
-- [ ] **Step 1: Додати перевірку link-local до тесту `buildNetworkPolicyYaml`**
+- [ ] **Крок 1: Написати новий network_policy.rego**
 
-Знайди тест (≈рядок 2207):
-```js
-test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
-  const yaml = buildNetworkPolicyYaml('api', 'api')
-  expect(yaml).toContain('name: api')
-  expect(yaml).toContain('app: api')
-  expect(yaml).toContain('kind: NetworkPolicy')
-  expect(yaml).toContain('cidr: 0.0.0.0/0')
-  expect(yaml).toContain('namespaceSelector: {}')
-  expect(yaml).not.toContain('egress:\n    - {}')
-  for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-    expect(yaml).toContain(`port: ${port}`)
-  }
-})
+Замінити файл повністю:
+
+```rego
+# Пер-документна структурна перевірка NetworkPolicy.
+# Cross-file (metadata.name = workload, podSelector.app = мітка app) — JS (validateNetworkPolicyForWorkload).
+# Структура spec.egress перевіряється через superset-порівняння зі snippet (common.snippet.yaml,
+# statefulset.snippet.yaml). Snippet передається через templateData → data.template.snippet /
+# data.template.statefulset_snippet при виклику runConftestBatch для k8s.network_policy.
+#
+# Семантика: кожне canonical-правило зі snippet має бути присутнє в input.spec.egress/ingress.
+# Додаткові правила (extra egress/ingress) — дозволені (superset, не exact-match).
+#
+# Запуск (dev):
+#   conftest test path/to/networkpolicy.yaml -p npm/rules/k8s/policy/network_policy \
+#     --namespace k8s.network_policy --data <template-data.json>
+# де template-data.json = {"template": {"snippet": <common.spec>, "statefulset_snippet": <ss.spec>}}
+package k8s.network_policy
+
+import rego.v1
+
+deny contains msg if {
+	is_np_doc
+	input.kind != "NetworkPolicy"
+	msg := sprintf("kind має бути NetworkPolicy (зараз: %v) (k8s.mdc)", [input.kind])
+}
+
+deny contains msg if {
+	is_np_doc
+	input.apiVersion != "networking.k8s.io/v1"
+	msg := sprintf("apiVersion має бути networking.k8s.io/v1 (зараз: %v) (k8s.mdc)", [input.apiVersion])
+}
+
+deny contains "spec відсутній або некоректний (NetworkPolicy; k8s.mdc)" if {
+	is_np_doc
+	not is_object(object.get(input, "spec", null))
+}
+
+deny contains "spec.podSelector.matchLabels відсутній (NetworkPolicy; k8s.mdc)" if {
+	is_np_doc
+	spec := object.get(input, "spec", null)
+	is_object(spec)
+	selector := object.get(spec, "podSelector", null)
+	is_object(selector)
+	not is_object(object.get(selector, "matchLabels", null))
+}
+
+deny contains "spec.podSelector.matchLabels.app відсутній або порожній (NetworkPolicy; k8s.mdc)" if {
+	is_np_doc
+	spec := object.get(input, "spec", null)
+	is_object(spec)
+	selector := object.get(spec, "podSelector", null)
+	is_object(selector)
+	ml := object.get(selector, "matchLabels", null)
+	is_object(ml)
+	object.get(ml, "app", null) == null
+}
+
+deny contains "spec.policyTypes має містити Ingress і Egress (NetworkPolicy; k8s.mdc)" if {
+	is_np_doc
+	spec := object.get(input, "spec", null)
+	is_object(spec)
+	types := object.get(spec, "policyTypes", [])
+	not policy_types_has_ingress_and_egress(types)
+}
+
+deny contains "spec.ingress має містити from.podSelector (NetworkPolicy; k8s.mdc)" if {
+	is_np_doc
+	spec := object.get(input, "spec", null)
+	is_object(spec)
+	not ingress_has_pod_selector_rule(spec)
+}
+
+# Superset check: кожне canonical egress-правило зі common.snippet має бути присутнє в input.spec.egress.
+deny contains msg if {
+	is_np_doc
+	is_object(input.spec)
+	some canon_rule in data.template.snippet.egress
+	not list_contains(input.spec.egress, canon_rule)
+	msg := sprintf(
+		"NetworkPolicy %v: відсутнє обов'язкове egress-правило (common.snippet.yaml; k8s.mdc): %v",
+		[input.metadata.name, json.marshal(canon_rule)],
+	)
+}
+
+# Superset check для StatefulSet: intra-replica egress-правила зі statefulset.snippet.
+deny contains msg if {
+	is_np_doc
+	input.metadata.annotations["nitra.dev/workload-kind"] == "StatefulSet"
+	is_object(input.spec)
+	some canon_rule in data.template.statefulset_snippet.egress
+	not list_contains(input.spec.egress, canon_rule)
+	msg := sprintf(
+		"NetworkPolicy %v (StatefulSet): відсутнє intra-replica egress-правило (statefulset.snippet.yaml; k8s.mdc): %v",
+		[input.metadata.name, json.marshal(canon_rule)],
+	)
+}
+
+# Superset check для StatefulSet: intra-replica ingress-правила зі statefulset.snippet.
+deny contains msg if {
+	is_np_doc
+	input.metadata.annotations["nitra.dev/workload-kind"] == "StatefulSet"
+	is_object(input.spec)
+	some canon_rule in data.template.statefulset_snippet.ingress
+	not list_contains(input.spec.ingress, canon_rule)
+	msg := sprintf(
+		"NetworkPolicy %v (StatefulSet): відсутнє intra-replica ingress-правило (statefulset.snippet.yaml; k8s.mdc): %v",
+		[input.metadata.name, json.marshal(canon_rule)],
+	)
+}
+
+is_np_doc if input.kind == "NetworkPolicy"
+
+is_np_doc if startswith(object.get(input, "apiVersion", ""), "networking.k8s.io/")
+
+policy_types_has_ingress_and_egress(types) if {
+	is_array(types)
+	"Ingress" in types
+	"Egress" in types
+}
+
+ingress_has_pod_selector_rule(spec) if {
+	ingress := object.get(spec, "ingress", null)
+	is_array(ingress)
+	some rule in ingress
+	is_object(rule)
+	from_list := object.get(rule, "from", null)
+	is_array(from_list)
+	some peer in from_list
+	is_object(peer)
+	object.get(peer, "podSelector", null) != null
+}
+
+# Helper: перевіряє чи список items містить елемент item (структурна рівність, порядок байдужий).
+list_contains(items, item) if {
+	is_array(items)
+	some i
+	items[i] == item
+}
 ```
 
-Замінити на:
-```js
-test('buildNetworkPolicyYaml містить імʼя workload, мітку app і канонічний egress з явними in-cluster портами', () => {
-  const yaml = buildNetworkPolicyYaml('api', 'api')
-  expect(yaml).toContain('name: api')
-  expect(yaml).toContain('app: api')
-  expect(yaml).toContain('kind: NetworkPolicy')
-  expect(yaml).toContain('cidr: 0.0.0.0/0')
-  expect(yaml).toContain('cidr: 169.254.0.0/16')
-  expect(yaml).toContain('namespaceSelector: {}')
-  expect(yaml).not.toContain('egress:\n    - {}')
-  for (const port of [80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-    expect(yaml).toContain(`port: ${port}`)
-  }
-})
-```
-
-- [ ] **Step 2: Оновити тест `regenerateLegacyNetworkPolicyDocsInFile` — додати link-local до перевірки виводу**
-
-Знайди тест (≈рядок 2275):
-```js
-test('переписує catch-all egress на канон з 9 портами', async () => {
-  ...
-  for (const port of [5432, 3306, 1433, 6379, 8080, 4317, 4318]) {
-    expect(out).toContain(`port: ${port}`)
-  }
-  expect(out).toContain('app: api')
-  expect(out).toContain('name: api')
-```
-
-Після рядка `expect(out).toContain('name: api')` додати:
-```js
-expect(out).toContain('169.254.0.0/16')
-```
-
-- [ ] **Step 3: Запустити тести і переконатись, що всі зелені**
+- [ ] **Крок 2: Перевірити синтаксис**
 
 ```bash
-cd npm && bun test --parallel rules/k8s/js/tests/manifests/tests/check-schema.test.mjs 2>&1 | tail -20
+which opa && opa check --strict npm/rules/k8s/policy/network_policy/network_policy.rego || echo "opa not in PATH, skip"
 ```
 
-Expected: all tests pass.
-
-- [ ] **Step 4: Commit**
+- [ ] **Крок 3: Commit**
 
 ```bash
-git add npm/rules/k8s/js/manifests.mjs npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
-git commit -m "refactor(k8s): networkpolicy snippet як єдине джерело правди — buildNetworkPolicyYaml reads snippet"
+git add npm/rules/k8s/policy/network_policy/network_policy.rego
+git commit -m "refactor(k8s/rego): superset check for NetworkPolicy egress/ingress, StatefulSet annotation dispatch"
 ```
 
 ---
 
-### Task 4: Оновити rego `valid_np` та json.patch indices
+## Task 5: Переписати network_policy_test.rego
 
 **Files:**
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy_test.rego`
 
-- [ ] **Step 1: Додати link-local блок у `valid_np`**
+Тести не залежать від реального snippet-файлу (OPA tests mock via `with data as`). Використовуємо мінімальний `mock_template` з двома правилами — достатньо, щоб перевірити superset-логіку rego.
 
-Знайди `valid_np` (≈рядки 7–49). Поточна структура `egress`:
-- `egress[0]` — kube-dns (kube-system namespaceSelector + podSelector)
-- `egress[1]` — HTTP/S (0.0.0.0/0)
-- `egress[2]` — in-cluster (namespaceSelector: {})
-
-Вставити новий блок між `egress[0]` і поточним `egress[1]`:
+- [ ] **Крок 1: Написати новий network_policy_test.rego**
 
 ```rego
+package k8s.network_policy_test
+
+import rego.v1
+
+import data.k8s.network_policy
+
+# Мінімальний мок canonical даних для тестів.
+# Реальний canonical (common.snippet.yaml) передається через runConftestBatch templateData у CI;
+# тут — мінімальний набір для перевірки superset-логіки rego, без синхронізації з файлом.
+mock_common_egress := [
+	{
+		"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}}, "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}}],
+		"ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}],
+	},
+	{
+		"to": [{"ipBlock": {"cidr": "169.254.0.0/16"}}],
+		"ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}],
+	},
+]
+
+mock_ss_egress := [{"to": [{"podSelector": {"matchLabels": {}}}]}]
+
+mock_ss_ingress := [{"from": [{"podSelector": {"matchLabels": {}}}]}]
+
+mock_template := {
+	"snippet": {
+		"egress": mock_common_egress,
+		"ingress": [{"from": [{"podSelector": {}}]}],
+	},
+	"statefulset_snippet": {
+		"egress": mock_ss_egress,
+		"ingress": mock_ss_ingress,
+	},
+}
+
 valid_np := {
 	"apiVersion": "networking.k8s.io/v1",
 	"kind": "NetworkPolicy",
-	"metadata": {"name": "api"},
+	"metadata": {"name": "api", "annotations": {"nitra.dev/workload-kind": "Deployment"}},
 	"spec": {
 		"podSelector": {"matchLabels": {"app": "api"}},
 		"policyTypes": ["Ingress", "Egress"],
 		"ingress": [{"from": [{"podSelector": {}}]}],
-		"egress": [
-			{
-				"to": [{
-					"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
-					"podSelector": {"matchLabels": {"k8s-app": "kube-dns"}},
-				}],
-				"ports": [
-					{"protocol": "UDP", "port": 53},
-					{"protocol": "TCP", "port": 53},
-				],
-			},
-			{
-				"to": [{"ipBlock": {"cidr": "169.254.0.0/16"}}],
-				"ports": [
-					{"protocol": "UDP", "port": 53},
-					{"protocol": "TCP", "port": 53},
-				],
-			},
-			{
-				"to": [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
-				"ports": [
-					{"protocol": "TCP", "port": 80},
-					{"protocol": "TCP", "port": 443},
-				],
-			},
-			{
-				"to": [{"namespaceSelector": {}}],
-				"ports": [
-					{"protocol": "TCP", "port": 80},
-					{"protocol": "TCP", "port": 443},
-					{"protocol": "TCP", "port": 5432},
-					{"protocol": "TCP", "port": 3306},
-					{"protocol": "TCP", "port": 1433},
-					{"protocol": "TCP", "port": 6379},
-					{"protocol": "TCP", "port": 8080},
-					{"protocol": "TCP", "port": 4317},
-					{"protocol": "TCP", "port": 4318},
-				],
-			},
-		],
+		"egress": mock_common_egress,
 	},
+}
+
+test_valid_network_policy if {
+	count(network_policy.deny) == 0 with input as valid_np
+		with data.template as mock_template
+}
+
+test_extra_egress_rules_allowed if {
+	extra_rule := {"to": [{"ipBlock": {"cidr": "203.0.113.0/24"}}], "ports": [{"protocol": "TCP", "port": 9000}]}
+	extra_np := json.patch(valid_np, [{"op": "replace", "path": "/spec/egress", "value": array.concat(mock_common_egress, [extra_rule])}])
+	count(network_policy.deny) == 0 with input as extra_np
+		with data.template as mock_template
+}
+
+test_wrong_kind if {
+	bad := json.patch(valid_np, [{"op": "replace", "path": "/kind", "value": "Service"}])
+	some msg in network_policy.deny with input as bad
+		with data.template as mock_template
+	contains(msg, "kind має бути NetworkPolicy")
+}
+
+test_missing_match_labels if {
+	bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/podSelector/matchLabels"}])
+	some msg in network_policy.deny with input as bad
+		with data.template as mock_template
+	contains(msg, "podSelector.matchLabels")
+}
+
+test_deny_missing_app_label if {
+	bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/podSelector/matchLabels/app"}])
+	some msg in network_policy.deny with input as bad
+		with data.template as mock_template
+	contains(msg, "matchLabels.app")
+}
+
+test_deny_egress_missing_canonical_rule if {
+	# Виймаємо link-local правило — superset-check повинен поскаржитись
+	egress_without_link_local := [r | some r in mock_common_egress; r.to[0] != {"ipBlock": {"cidr": "169.254.0.0/16"}}]
+	bad := json.patch(valid_np, [{"op": "replace", "path": "/spec/egress", "value": egress_without_link_local}])
+	some msg in network_policy.deny with input as bad
+		with data.template as mock_template
+	contains(msg, "відсутнє обов'язкове egress-правило")
+}
+
+test_statefulset_requires_intra_replica_egress if {
+	ss_np := json.patch(valid_np, [
+		{"op": "replace", "path": "/metadata/annotations/nitra.dev~1workload-kind", "value": "StatefulSet"},
+		{"op": "replace", "path": "/spec/egress", "value": mock_common_egress},
+	])
+	some msg in network_policy.deny with input as ss_np
+		with data.template as mock_template
+	contains(msg, "intra-replica egress-правило")
+}
+
+test_statefulset_valid_with_all_rules if {
+	full_egress := array.concat(mock_common_egress, mock_ss_egress)
+	full_ingress := array.concat([{"from": [{"podSelector": {}}]}], mock_ss_ingress)
+	ss_np := json.patch(valid_np, [
+		{"op": "replace", "path": "/metadata/annotations/nitra.dev~1workload-kind", "value": "StatefulSet"},
+		{"op": "replace", "path": "/spec/egress", "value": full_egress},
+		{"op": "replace", "path": "/spec/ingress", "value": full_ingress},
+	])
+	count(network_policy.deny) == 0 with input as ss_np
+		with data.template as mock_template
 }
 ```
 
-- [ ] **Step 2: Оновити json.patch indices у тестах**
-
-Після вставки link-local нові індекси egress:
-- `egress[0]` — kube-dns
-- `egress[1]` — link-local ← новий
-- `egress[2]` — HTTP/S (0.0.0.0/0)
-- `egress[3]` — in-cluster (namespaceSelector: {})
-
-Знайди і оновити:
-
-`test_deny_missing_internet_ports` — видаляє HTTP/S:
-```rego
-# Було:
-bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/egress/1"}])
-# Стає:
-bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/egress/2"}])
-```
-
-`test_deny_missing_cluster_egress` — видаляє in-cluster:
-```rego
-# Було:
-bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/egress/2"}])
-# Стає:
-bad := json.patch(valid_np, [{"op": "remove", "path": "/spec/egress/3"}])
-```
-
-`test_deny_cluster_egress_catch_all` — замінює in-cluster на catch-all:
-```rego
-# Було:
-bad := json.patch(valid_np, [{
-    "op": "replace",
-    "path": "/spec/egress/2",
-    "value": {"to": [{"namespaceSelector": {}}]},
-}])
-# Стає:
-bad := json.patch(valid_np, [{
-    "op": "replace",
-    "path": "/spec/egress/3",
-    "value": {"to": [{"namespaceSelector": {}}]},
-}])
-```
-
-- [ ] **Step 3: Запустити OPA тести**
+- [ ] **Крок 2: Перевірити rego-тести (якщо є conftest у PATH)**
 
 ```bash
-opa test npm/rules/k8s/policy/network_policy/ -v
+which conftest && conftest verify \
+  -p npm/rules/k8s/policy/network_policy \
+  --namespace k8s.network_policy_test || echo "conftest not in PATH — тести запустить CI (lint-js.yml)"
 ```
 
-Expected: всі тести pass. Якщо `opa` не встановлений — встанови: `brew install opa` або перевір `which opa`.  
-Альтернативно: `conftest verify --policy npm/rules/k8s/policy/network_policy/`
-
-- [ ] **Step 4: Commit**
+- [ ] **Крок 3: Commit**
 
 ```bash
 git add npm/rules/k8s/policy/network_policy/network_policy_test.rego
-git commit -m "test(k8s): додати link-local 169.254/16 до valid_np + оновити json.patch indices"
+git commit -m "test(k8s/rego): rewrite network_policy tests — superset semantics, StatefulSet dispatch, extra-rules-allowed"
 ```
 
 ---
 
-### Task 5: Bump CHANGELOG
+## Task 6: Оновити k8s.mdc
+
+**Files:**
+- Modify: `npm/rules/k8s/k8s.mdc`
+
+- [ ] **Крок 1: Знайти NetworkPolicy-блок у k8s.mdc**
+
+```bash
+grep -n "NetworkPolicy\|network_policy\|5432\|kube-dns\|169\.254" /Users/vitaliytv/www/nitra/cursor/npm/rules/k8s/k8s.mdc | head -20
+```
+
+Визначити рядки, де перераховані порти (5432, 3306, 6379 тощо) у контексті NetworkPolicy egress.
+
+- [ ] **Крок 2: Прибрати вбудований перелік портів і структуру egress**
+
+Знайти і видалити/замінити YAML-блок з переліком egress-правил та портів у `.mdc`.
+
+Замінити на:
+```markdown
+**Канон NetworkPolicy spec:**
+
+Структура `spec.egress`/`ingress`/`policyTypes` визначається **виключно** у snippet-файлах:
+- `npm/rules/k8s/policy/network_policy/template/common.snippet.yaml` — для всіх workload-типів.
+- `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml` — для StatefulSet (intra-replica).
+
+Для зміни канону — редагуй лише ці файли. JS-генератор (`buildNetworkPolicyYaml`) і rego-перевірка підтягнуться автоматично.
+
+**DNS через GKE NodeLocal DNSCache:**
+
+У GKE з NodeLocal DNSCache `/etc/resolv.conf` podу вказує не на ClusterIP kube-dns, а на link-local адресу ноди (`169.254.0.0/16`, RFC 3927). Запит спочатку йде туди → CoreDNS. Тому `egress` без `ipBlock: cidr: 169.254.0.0/16` блокує DNS навіть при наявності kube-system-правила. Обидва правила — у `common.snippet.yaml`.
+
+**StatefulSet:** annotate NP з `nitra.dev/workload-kind: StatefulSet` (проставляє `buildNetworkPolicyYaml`) → rego також перевіряє intra-replica правила з `statefulset.snippet.yaml`.
+```
+
+- [ ] **Крок 3: Перевірити lint-text**
+
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+npx @nitra/cursor lint-text 2>&1 | tail -10
+```
+
+- [ ] **Крок 4: Commit**
+
+```bash
+git add npm/rules/k8s/k8s.mdc
+git commit -m "docs(k8s): NetworkPolicy — remove duplicate port list, reference snippets as source of truth"
+```
+
+---
+
+## Task 7: CHANGELOG + version bump
 
 **Files:**
 - Modify: `npm/CHANGELOG.md`
+- Modify: `npm/package.json` (version field)
 
-- [ ] **Step 1: Перевірити поточну версію**
+- [ ] **Крок 1: Перевірити поточну версію**
 
 ```bash
-npx @nitra/cursor check changelog 2>&1 | head -5
+cat /Users/vitaliytv/www/nitra/cursor/npm/package.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['version'])"
 ```
 
-- [ ] **Step 2: Додати запис у CHANGELOG та bump version**
+- [ ] **Крок 2: Перевірити check changelog**
 
-У `npm/CHANGELOG.md` в `[Unreleased]` або новий `## [X.Y.Z]` блок додай:
+```bash
+cd /Users/vitaliytv/www/nitra/cursor
+npx @nitra/cursor check changelog 2>&1 | tail -10
+```
 
+- [ ] **Крок 3: Додати запис у CHANGELOG.md**
+
+Видалення `networkPolicyManifestViolations` (було public export) → **major** bump або minor якщо вже видалена в попередній версії. Додавання `loadSnippetSpec` + 3rd param у `buildNetworkPolicyYaml` → minor. Обери відповідно.
+
+Приклад запису (адаптуй номер версії):
 ```markdown
-### Changed
-- `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` стає єдиним джерелом правди для канону `spec` NetworkPolicy. `buildNetworkPolicyYaml` в `manifests.mjs` читає snippet через `readFileSync` + `parseDocument` замість рядкового шаблону `NETWORK_POLICY_EGRESS_YAML`. Видалено `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` і `NETWORK_POLICY_EGRESS_YAML` як окремі константи.
+## [X.Y.0] — 2026-05-25
 
 ### Added
-- Egress-правило `169.254.0.0/16:53/UDP+TCP` для GKE NodeLocal DNSCache у канонічному NetworkPolicy snippet та `valid_np` rego-фікстурі.
+- `loadSnippetSpec(snippetName)` — reads and caches canonical NetworkPolicy spec from snippet files (`common` | `statefulset`).
+- `buildNetworkPolicyYaml` optional `kind` parameter (default: `'Deployment'`); adds `nitra.dev/workload-kind` annotation.
+- `statefulset.snippet.yaml` — canonical intra-replica egress/ingress rules for StatefulSet NetworkPolicy.
+
+### Changed
+- `network_policy.rego` uses **superset check**: all canonical rules from snippet must be present; additional rules allowed.
+- StatefulSet NetworkPolicy also validated against `statefulset.snippet.yaml` via `nitra.dev/workload-kind` annotation dispatch.
+- `networkpolicy.snippet.yaml` renamed to `common.snippet.yaml`.
+
+### Deprecated
+- `readNetworkPolicySnippet()` — use `loadSnippetSpec('common')`.
 ```
 
-- [ ] **Step 3: Commit**
+- [ ] **Крок 4: Bump версія у npm/package.json**
+
+Оновити `version` поле.
+
+- [ ] **Крок 5: Commit**
 
 ```bash
-git add npm/CHANGELOG.md
-git commit -m "chore(k8s): changelog — networkpolicy snippet single source of truth + link-local DNS"
+git add npm/CHANGELOG.md npm/package.json
+git commit -m "chore(npm): CHANGELOG + version bump for NetworkPolicy snippet-as-source-of-truth"
 ```
 
 ---
 
-### Task 6: Фінальна верифікація
+## Task 8: Фінальна перевірка
 
-- [ ] **Step 1: Запустити повний bun test suite для k8s rules**
+- [ ] **Крок 1: Повний bun test**
 
 ```bash
-cd npm && bun test --parallel rules/k8s/ 2>&1 | tail -30
+cd /Users/vitaliytv/www/nitra/cursor
+bun test npm/rules/k8s/ 2>&1 | tail -10
 ```
 
-Expected: всі тести pass, 0 failures.
+Очікується: усі pass.
 
-- [ ] **Step 2: Перевірити що новий `buildNetworkPolicyYaml` справді читає snippet**
+- [ ] **Крок 2: Rego-тести через conftest verify (якщо є)**
 
 ```bash
-node --input-type=module <<'EOF'
-import { buildNetworkPolicyYaml } from '/Users/vitaliytv/www/nitra/cursor/npm/rules/k8s/js/manifests.mjs'
-const yaml = buildNetworkPolicyYaml('test-svc', 'test-svc')
-console.log(yaml)
+which conftest && conftest verify \
+  -p npm/rules/k8s/policy/network_policy \
+  --namespace k8s.network_policy_test || echo "skip: conftest not in PATH"
+```
+
+- [ ] **Крок 3: Smoke check — що n-fix не падає на порожньому дереві**
+
+```bash
+tmp=$(mktemp -d)
+mkdir -p "$tmp/k8s/base"
+cat > "$tmp/k8s/base/deployment.yaml" << 'EOF'
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.27.0/deployment-apps-v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: test
+spec:
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      containers:
+        - name: api
+          image: example.com/api:1.0.0
+          resources:
+            requests:
+              cpu: '0.02'
+              memory: 128Mi
 EOF
+cd "$tmp" && npx @nitra/cursor check k8s 2>&1 | grep -E "NetworkPolicy|Error|error" | head -5
+rm -rf "$tmp"
 ```
 
-Expected: виводить повний NetworkPolicy YAML з `169.254.0.0/16`, `0.0.0.0/0`, kube-dns і in-cluster портами.
+Очікується: повідомлення «відсутній NetworkPolicy» (не crash, не unhandled).
 
-- [ ] **Step 3: Перевірити що NETWORK_POLICY_EGRESS_YAML більше не існує в кодовій базі**
+- [ ] **Крок 4: Перевірити чистий working tree**
 
 ```bash
-grep -r 'NETWORK_POLICY_EGRESS_YAML\|NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS' npm/rules/k8s/js/manifests.mjs
+git status
 ```
 
-Expected: порожній вивід (grep нічого не знаходить).
+Очікується: `nothing to commit, working tree clean`.
