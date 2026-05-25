@@ -326,7 +326,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
         commands: [],
         adrHook: false,
         adrNormalizeHook: false,
-        gitignoreAdr: false
+        gitignoreAdr: false,
+        piExtension: false
       })
       expect(existsSync(join(cwdAbs, '.claude/settings.json'))).toBe(false)
     })

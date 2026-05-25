@@ -12,6 +12,7 @@ import {
   PI_EXTENSION_NAME,
   PI_TEMPLATE_DIR_NAME,
   removeOrphanPiExtension,
+  syncClaudeConfig,
   syncPiExtensions
 } from '../sync-claude-config.mjs'
 import { withTmpCwd } from '../utils/test-helpers.mjs'
@@ -139,6 +140,77 @@ describe('removeOrphanPiExtension', () => {
       await removeOrphanPiExtension(cwd)
       expect(existsSync(ours)).toBe(false)
       expect(existsSync(userOwn)).toBe(true)
+    })
+  })
+})
+
+/**
+ * Створює мінімальний bundled-пакет із .claude-template і .pi-template одночасно.
+ * @param {string} cwdAbs корінь тимчасового проєкту
+ * @returns {Promise<string>} абсолютний шлях до bundledPackageRoot (`<cwd>/pkg`)
+ */
+async function setupFullTemplate(cwdAbs) {
+  const pkgRoot = await setupPiTemplate(cwdAbs)
+  await mkdir(join(pkgRoot, '.claude-template', 'hooks'), { recursive: true })
+  await mkdir(join(pkgRoot, '.claude-template', 'commands'), { recursive: true })
+  await writeFile(join(pkgRoot, '.claude-template', 'settings.template.json'), '{}', 'utf8')
+  await writeFile(
+    join(pkgRoot, '.claude-template', 'hooks', 'capture-decisions.sh'),
+    '#!/usr/bin/env bash\n',
+    'utf8'
+  )
+  await writeFile(
+    join(pkgRoot, '.claude-template', 'hooks', 'normalize-decisions.sh'),
+    '#!/usr/bin/env bash\n',
+    'utf8'
+  )
+  return pkgRoot
+}
+
+describe('syncClaudeConfig + pi extension gating', () => {
+  test('коли adr ∈ rules — створює .pi/extensions/n-cursor-adr/index.ts', async () => {
+    await withTmpCwd(async cwd => {
+      const pkgRoot = await setupFullTemplate(cwd)
+      const result = await syncClaudeConfig({
+        projectRoot: cwd,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr']
+      })
+      expect(result.piExtension).toBe(true)
+      expect(existsSync(join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'))).toBe(true)
+    })
+  })
+
+  test('коли adr ∉ rules — видаляє існуючий .pi/extensions/n-cursor-adr/', async () => {
+    await withTmpCwd(async cwd => {
+      const pkgRoot = await setupFullTemplate(cwd)
+      const existing = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
+      await mkdir(existing, { recursive: true })
+      await writeFile(join(existing, 'index.ts'), '// stale\n', 'utf8')
+
+      const result = await syncClaudeConfig({
+        projectRoot: cwd,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: []
+      })
+      expect(result.piExtension).toBe(false)
+      expect(existsSync(existing)).toBe(false)
+    })
+  })
+
+  test('коли claude-config: false — pi extension не створюється', async () => {
+    await withTmpCwd(async cwd => {
+      const pkgRoot = await setupFullTemplate(cwd)
+      const result = await syncClaudeConfig({
+        projectRoot: cwd,
+        bundledPackageRoot: pkgRoot,
+        enabled: false,
+        rules: ['adr']
+      })
+      expect(result.piExtension).toBe(false)
+      expect(existsSync(join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'))).toBe(false)
     })
   })
 })

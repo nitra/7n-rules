@@ -549,7 +549,7 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, gitignoreAdr: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore` та список slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, gitignoreAdr: boolean, piExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension та список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
@@ -559,7 +559,8 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       commands: [],
       adrHook: false,
       adrNormalizeHook: false,
-      gitignoreAdr: false
+      gitignoreAdr: false,
+      piExtension: false
     }
   }
   const templateDir = join(bundledPackageRoot, TEMPLATE_DIR_NAME)
@@ -570,7 +571,8 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       commands: [],
       adrHook: false,
       adrNormalizeHook: false,
-      gitignoreAdr: false
+      gitignoreAdr: false,
+      piExtension: false
     }
   }
   const includeAdrHook = Array.isArray(rules) && rules.includes('adr')
@@ -581,6 +583,9 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
   const gitignoreAdr = includeAdrHook
     ? await syncGitignoreAdrFragment(projectRoot, bundledPackageRoot)
     : { written: false, path: '' }
+  const piExtension = includeAdrHook
+    ? await syncPiExtensions(projectRoot, bundledPackageRoot)
+    : await removeOrphanPiExtension(projectRoot).then(r => ({ written: false, path: r.path }))
   const settings = await syncClaudeSettings(projectRoot, templateDir, { includeAdrHook })
   const cursorHooks = await syncCursorHooksConfig(projectRoot, { includeAdrHook })
   const commands = await syncClaudeCommands(projectRoot, templateDir)
@@ -590,6 +595,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     commands,
     adrHook: adrHook.written,
     adrNormalizeHook: adrNormalizeHook.written,
-    gitignoreAdr: gitignoreAdr.written
+    gitignoreAdr: gitignoreAdr.written,
+    piExtension: piExtension.written
   }
 }
