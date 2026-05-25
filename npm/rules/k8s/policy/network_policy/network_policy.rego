@@ -1,15 +1,21 @@
 # Пер-документна структурна перевірка NetworkPolicy.
 # Cross-file (metadata.name = workload, podSelector.app = мітка app) — JS (validateNetworkPolicyForWorkload).
 #
-# Superset-перевірка egress/ingress: кожне правило з canonical snippet має бути
-# присутнє у NetworkPolicy (extra-правила дозволені). Snippet передається через
-# templateData при виклику runConftestBatch для k8s.network_policy:
-#   data.template.snippet        — common.snippet.yaml (всі workload)
-#   data.template.statefulset_snippet — statefulset.snippet.yaml (StatefulSet)
+# Superset-перевірка egress/ingress: кожне правило з обраного canon-snippet'у
+# має бути присутнє в input (extra-правила дозволені). Канон обирається за
+# анотацією `nitra.dev/workload-kind`:
+#   StatefulSet → data.template.statefulset_snippet (повний канон з intra-replica)
+#   решта      → data.template.deployment_snippet  (повний канон, default fallback)
+#
+# Обидва snippets — самодостатні (без merge на runtime).
+#
+# Snippets передаються через templateData при виклику runConftestBatch для k8s.network_policy.
 #
 # Запуск (dev):
 #   conftest test path/to/networkpolicy.yaml -p npm/rules/k8s/policy/network_policy \
-#     --namespace k8s.network_policy --data <snippet-as-json>
+#     --namespace k8s.network_policy \
+#     --data npm/rules/k8s/policy/network_policy/template/deployment.snippet.yaml \
+#     --data npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml
 package k8s.network_policy
 
 import rego.v1
@@ -66,42 +72,56 @@ deny contains "spec.ingress має містити from.podSelector (NetworkPolic
 	not ingress_has_pod_selector_rule(spec)
 }
 
-# Superset-check: кожне canonical egress-правило (common.snippet.yaml) має бути присутнє.
+# Dispatch на повний canon-snippet за анотацією nitra.dev/workload-kind.
+# StatefulSet → statefulset_snippet (з intra-replica), решта → deployment_snippet.
+canon_for_kind("StatefulSet") := data.template.statefulset_snippet
+
+canon_for_kind(kind) := data.template.deployment_snippet if {
+	kind != "StatefulSet"
+}
+
+snippet_name_for_kind("StatefulSet") := "statefulset"
+
+snippet_name_for_kind(kind) := "deployment" if {
+	kind != "StatefulSet"
+}
+
+workload_kind := kind if {
+	kind := object.get(object.get(input.metadata, "annotations", {}), "nitra.dev/workload-kind", "")
+}
+
+# Superset-check egress: кожне канонічне правило має бути в input.spec.egress.
 deny contains msg if {
 	is_np_doc
 	is_object(object.get(input, "spec", null))
-	some canon_rule in data.template.snippet.egress
-	not list_contains(input.spec.egress, canon_rule)
+	canon := canon_for_kind(workload_kind)
+	some canon_rule in canon.egress
+	not list_contains(object.get(input.spec, "egress", []), canon_rule)
 	msg := sprintf(
-		"NetworkPolicy %v: відсутнє обов'язкове egress-правило (common.snippet.yaml; k8s.mdc): %v",
-		[input.metadata.name, json.marshal(canon_rule)],
+		"NetworkPolicy %v: відсутнє обовʼязкове egress-правило (%v.snippet.yaml; k8s.mdc): %v",
+		[input.metadata.name, snippet_name_for_kind(workload_kind), json.marshal(canon_rule)],
 	)
 }
 
-# Superset-check StatefulSet egress (statefulset.snippet.yaml).
+# Superset-check ingress.
 deny contains msg if {
 	is_np_doc
-	input.metadata.annotations["nitra.dev/workload-kind"] == "StatefulSet"
 	is_object(object.get(input, "spec", null))
-	some canon_rule in data.template.statefulset_snippet.egress
-	not list_contains(input.spec.egress, canon_rule)
+	canon := canon_for_kind(workload_kind)
+	some canon_rule in canon.ingress
+	not list_contains(object.get(input.spec, "ingress", []), canon_rule)
 	msg := sprintf(
-		"NetworkPolicy %v (StatefulSet): відсутнє обов'язкове egress-правило (statefulset.snippet.yaml; k8s.mdc): %v",
-		[input.metadata.name, json.marshal(canon_rule)],
+		"NetworkPolicy %v: відсутнє обовʼязкове ingress-правило (%v.snippet.yaml; k8s.mdc): %v",
+		[input.metadata.name, snippet_name_for_kind(workload_kind), json.marshal(canon_rule)],
 	)
 }
 
-# Superset-check StatefulSet ingress (statefulset.snippet.yaml).
-deny contains msg if {
+# Safety-net: allow-all `egress: [{}]` — заборонено навіть як extra-правило.
+deny contains "spec.egress: заборонено allow-all {} — додавай явні правила (k8s.mdc)" if {
 	is_np_doc
-	input.metadata.annotations["nitra.dev/workload-kind"] == "StatefulSet"
-	is_object(object.get(input, "spec", null))
-	some canon_rule in data.template.statefulset_snippet.ingress
-	not list_contains(input.spec.ingress, canon_rule)
-	msg := sprintf(
-		"NetworkPolicy %v (StatefulSet): відсутнє обов'язкове ingress-правило (statefulset.snippet.yaml; k8s.mdc): %v",
-		[input.metadata.name, json.marshal(canon_rule)],
-	)
+	some rule in object.get(input.spec, "egress", [])
+	is_object(rule)
+	count(object.keys(rule)) == 0
 }
 
 is_np_doc if input.kind == "NetworkPolicy"

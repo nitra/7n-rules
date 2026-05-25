@@ -92,16 +92,23 @@ export function renderMarkdown(rows) {
 
   const allSurvived = rows.flatMap(r => r.survived ?? [])
   if (allSurvived.length > 0) {
-    lines.push(
-      '',
-      '## Вижилі мутанти',
-      '',
-      '> Структуровані дані для `/n-fix-tests`',
-      '',
-      '```json',
-      JSON.stringify(allSurvived, null, 2),
-      '```'
-    )
+    lines.push('', '## Recommendations')
+    for (const group of allSurvived) {
+      lines.push('', `### ${group.file}`, '')
+      lines.push('| Рядок | Оригінал | Заміна | Тип |')
+      lines.push('| --- | --- | --- | --- |')
+      for (const m of group.mutants) {
+        lines.push(`| ${m.line} | \`${m.original}\` | \`${m.replacement}\` | ${m.mutantType} |`)
+      }
+      if (group.exampleTest) {
+        lines.push('', `**Приклад тесту** (\`${group.exampleTest.testFile}\`):`, '', '```js')
+        lines.push(group.exampleTest.code ?? '')
+        lines.push('```')
+      }
+      if (group.recommendationText) {
+        lines.push('', '**Що треба протестувати:**', '', group.recommendationText)
+      }
+    }
   }
 
   return `${lines.join('\n')}\n`

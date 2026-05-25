@@ -71,37 +71,44 @@ describe('renderMarkdown', () => {
     expect(md.endsWith('\n')).toBe(true)
   })
 
-  test('рядки без survived не додають розділ Вижилі мутанти', () => {
+  test('рядки без survived не додають розділ Recommendations', () => {
     const rows = [
       { area: 'JS', coverage: { lines: { covered: 10, total: 10 }, functions: { covered: 5, total: 5 } }, mutation: { caught: 5, total: 5 } }
     ]
     const md = renderMarkdown(rows)
-    expect(md).not.toContain('## Вижилі мутанти')
+    expect(md).not.toContain('## Recommendations')
   })
 
-  test('додає секцію Вижилі мутанти як JSON коли є survived мутанти', () => {
+  test('додає секцію Recommendations як таблицю коли є survived мутанти', () => {
     const rows = [
       {
         area: 'JS',
         coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
         mutation: { caught: 3, total: 5 },
         survived: [
-          { file: 'src/auth.js', line: 12, col: 0, original: 'if (x === null)', replacement: 'false', mutantType: 'ConditionalExpression' },
-          { file: 'src/auth.js', line: 15, col: 0, original: 'return true', replacement: 'return false', mutantType: 'BooleanLiteral' }
+          {
+            file: 'src/auth.js',
+            mutants: [
+              { line: 12, col: 0, original: 'if (x === null)', replacement: 'false', mutantType: 'ConditionalExpression' },
+              { line: 15, col: 0, original: 'return true', replacement: 'return false', mutantType: 'BooleanLiteral' }
+            ],
+            exampleTest: null,
+            recommendationText: null
+          }
         ]
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Вижилі мутанти')
-    expect(md).toContain('```json')
-    expect(md).toContain('src/auth.js')
+    expect(md).toContain('## Recommendations')
+    expect(md).toContain('### src/auth.js')
+    expect(md).toContain('| 12 |')
     expect(md).toContain('ConditionalExpression')
     expect(md).toContain('BooleanLiteral')
   })
 })
 
 describe('renderMarkdown — секція вижилих мутантів', () => {
-  test('додає секцію ## Вижилі мутанти коли survived непустий', () => {
+  test('додає секцію ## Recommendations коли survived непустий', () => {
     const rows = [
       {
         area: 'JS',
@@ -110,24 +117,20 @@ describe('renderMarkdown — секція вижилих мутантів', () =
         survived: [
           {
             file: 'src/foo.js',
-            line: 5,
-            col: 10,
-            mutantType: 'ConditionalExpression',
-            original: 'x !== null',
-            replacement: 'false'
+            mutants: [{ line: 5, col: 10, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }],
+            exampleTest: null,
+            recommendationText: null
           }
         ]
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Вижилі мутанти')
-    expect(md).toContain('> Структуровані дані для `/n-fix-tests`')
-    expect(md).toContain('```json')
-    const jsonBlock = md.slice(md.indexOf('```json\n') + 8, md.lastIndexOf('\n```'))
-    const parsed = JSON.parse(jsonBlock)
-    expect(parsed).toEqual([
-      { file: 'src/foo.js', line: 5, col: 10, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }
-    ])
+    expect(md).toContain('## Recommendations')
+    expect(md).toContain('### src/foo.js')
+    expect(md).toContain('| Рядок | Оригінал | Заміна | Тип |')
+    expect(md).toContain('| 5 |')
+    expect(md).toContain('ConditionalExpression')
+    expect(md).toContain('x !== null')
   })
 
   test('НЕ додає секцію коли survived порожній або відсутній', () => {
@@ -139,7 +142,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
         survived: []
       }
     ]
-    expect(renderMarkdown(rows)).not.toContain('## Вижилі мутанти')
+    expect(renderMarkdown(rows)).not.toContain('## Recommendations')
     const rows2 = [
       {
         area: 'JS',
@@ -147,7 +150,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
         mutation: { caught: 2, total: 2 }
       }
     ]
-    expect(renderMarkdown(rows2)).not.toContain('## Вижилі мутанти')
+    expect(renderMarkdown(rows2)).not.toContain('## Recommendations')
   })
 })
 

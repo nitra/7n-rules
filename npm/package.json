@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.0",
+    "@anthropic-ai/sdk": "^0.54.0",
     "oxc-parser": "^0.128.0",
     "picomatch": "^4.0.4",
     "smol-toml": "^1.6.1",

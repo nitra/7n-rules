@@ -16,6 +16,7 @@ import {
   deploymentTopologySpreadConstraintsViolation,
   buildNetworkPolicyYaml,
   loadSnippetSpec,
+  snippetNameForKind,
   readNetworkPolicySnippet,
   ensureResourceInKustomizationYaml,
   workloadAppLabel,
@@ -2206,8 +2207,8 @@ describe('NetworkPolicy helpers', () => {
     ).toBe('cron')
   })
 
-  test('readNetworkPolicySnippet: парситься без помилок, link-local 169.254.0.0/16 присутній', () => {
-    const spec = readNetworkPolicySnippet()
+  test('loadSnippetSpec("deployment"): парситься, link-local 169.254.0.0/16 присутній', () => {
+    const spec = loadSnippetSpec('deployment')
     expect(Array.isArray(spec.egress)).toBe(true)
     const hasLinkLocal = spec.egress.some(
       rule => Array.isArray(rule.to) && rule.to.some(peer => peer?.ipBlock?.cidr === '169.254.0.0/16')
@@ -2215,34 +2216,54 @@ describe('NetworkPolicy helpers', () => {
     expect(hasLinkLocal).toBe(true)
   })
 
-  test('buildNetworkPolicyYaml: name, app та spec.egress/ingress відповідають snippet', () => {
-    const snippet = readNetworkPolicySnippet()
-    const result = parseYaml(buildNetworkPolicyYaml('api', 'api'))
+  test('loadSnippetSpec("statefulset"): повний канон з intra-replica правилами', () => {
+    const spec = loadSnippetSpec('statefulset')
+    // intra-replica egress: останнє правило — podSelector з matchLabels:{}
+    const lastEgress = spec.egress[spec.egress.length - 1]
+    expect(lastEgress.to[0].podSelector.matchLabels).toEqual({})
+    // intra-replica ingress: друге правило (перше — звичайний {from:[{podSelector:{}}]})
+    expect(spec.ingress.length).toBe(2)
+    expect(spec.ingress[1].from[0].podSelector.matchLabels).toEqual({})
+    // link-local теж присутній — це повний канон, не delta
+    const hasLinkLocal = spec.egress.some(
+      rule => Array.isArray(rule.to) && rule.to.some(peer => peer?.ipBlock?.cidr === '169.254.0.0/16')
+    )
+    expect(hasLinkLocal).toBe(true)
+  })
+
+  test('snippetNameForKind: Deployment/Job/CronJob/DaemonSet → deployment, StatefulSet → statefulset', () => {
+    for (const k of ['Deployment', 'Job', 'CronJob', 'DaemonSet']) {
+      expect(snippetNameForKind(k)).toBe('deployment')
+    }
+    expect(snippetNameForKind('StatefulSet')).toBe('statefulset')
+  })
+
+  test('snippetNameForKind: невідомий kind → throws', () => {
+    expect(() => snippetNameForKind('Pod')).toThrow(/Unknown workload kind/)
+  })
+
+  test('buildNetworkPolicyYaml(name, app, "Deployment"): метадані, анотація, deployment-канон', () => {
+    const snippet = loadSnippetSpec('deployment')
+    const result = parseYaml(buildNetworkPolicyYaml('api', 'api', 'Deployment'))
     expect(result.metadata.name).toBe('api')
+    expect(result.metadata.annotations?.['nitra.dev/workload-kind']).toBe('Deployment')
     expect(result.spec.podSelector.matchLabels.app).toBe('api')
     expect(result.spec.egress).toEqual(snippet.egress)
     expect(result.spec.ingress).toEqual(snippet.ingress)
   })
 
-  test('buildNetworkPolicyYaml StatefulSet: містить common + statefulset egress/ingress та анотацію', () => {
-    const common = loadSnippetSpec('common')
-    const ss = loadSnippetSpec('statefulset')
+  test('buildNetworkPolicyYaml(name, app, "StatefulSet"): метадані, анотація, statefulset-канон з intra-replica', () => {
+    const snippet = loadSnippetSpec('statefulset')
     const result = parseYaml(buildNetworkPolicyYaml('postgres', 'postgres', 'StatefulSet'))
     expect(result.metadata.name).toBe('postgres')
     expect(result.metadata.annotations?.['nitra.dev/workload-kind']).toBe('StatefulSet')
     expect(result.spec.podSelector.matchLabels.app).toBe('postgres')
-    // common egress rules must all be present
-    for (const rule of common.egress) {
-      expect(result.spec.egress).toContainEqual(rule)
-    }
-    // statefulset egress rules must all be present
-    for (const rule of ss.egress) {
-      expect(result.spec.egress).toContainEqual(rule)
-    }
-    // statefulset ingress rules must all be present
-    for (const rule of ss.ingress) {
-      expect(result.spec.ingress).toContainEqual(rule)
-    }
+    expect(result.spec.egress).toEqual(snippet.egress)
+    expect(result.spec.ingress).toEqual(snippet.ingress)
+  })
+
+  test('buildNetworkPolicyYaml(name, app, undefined): throws (kind обовʼязковий)', () => {
+    expect(() => buildNetworkPolicyYaml('api', 'api', undefined)).toThrow(/Unknown workload kind/)
   })
 
   test('ensureResourceInKustomizationYaml додає networkpolicy.yaml і сортує resources', () => {
@@ -2328,7 +2349,7 @@ spec:
     const dir = await mkdtemp(join(tmpdir(), 'np-migrate-noop-'))
     try {
       const npAbs = join(dir, 'networkpolicy.yaml')
-      const canonical = buildNetworkPolicyYaml('api', 'api')
+      const canonical = buildNetworkPolicyYaml('api', 'api', 'Deployment')
       await writeFile(npAbs, canonical, 'utf8')
       const before = await readFile(npAbs, 'utf8')
       const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)

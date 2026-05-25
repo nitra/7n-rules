@@ -8,9 +8,14 @@
 
 ### Added
 
-- **`rules/js-lint/coverage`**: `parseStrykerReport` тепер зчитує оригінальний код вижилих мутантів (`extractOriginal`) і повертає `survived: [{file, line, col, mutantType, original, replacement}]` у кожному рядку результату `collect()`
-- **`rules/test/coverage`**: `renderMarkdown` додає секцію `## Вижилі мутанти` з JSON-блоком у COVERAGE.md коли є вижилі мутанти — машинозчитувані дані для `/n-fix-tests`
-- **`skills/fix-tests`**: новий скіл `/n-fix-tests` — ітеративно дописує тести що вловлюють вижилих мутантів зі Stryker до конвергенції mutation score
+- **NetworkPolicy: два повних канон-snippets**: `deployment.snippet.yaml` (для `Deployment`/`Job`/`CronJob`/`DaemonSet`) і `statefulset.snippet.yaml` (повний канон для `StatefulSet` з intra-replica правилами). Жодного runtime-merge — JS-генератор/rego обирають один за `kind` workload-у через анотацію `metadata.annotations['nitra.dev/workload-kind']`. Нові publiс exports: `loadSnippetSpec('deployment'|'statefulset')`, `KIND_TO_SNIPPET`, `snippetNameForKind(kind)`. `buildNetworkPolicyYaml(deployName, appLabel, kind)` — `kind` тепер обовʼязковий (throws на невідомий). Rego (`network_policy.rego`) робить superset-перевірку проти обраного канону; safety-net deny на allow-all `egress: [{}]`. GKE NodeLocal DNSCache: link-local `169.254.0.0/16` UDP/TCP 53 — у обох канонах. **Breaking** з v1.19.x: видалено `networkPolicyManifestViolations` (структуру тримає rego); `buildNetworkPolicyYaml` без `kind` тепер throws. Перейменування `common.snippet.yaml` → `deployment.snippet.yaml`; `data.template.snippet` → `data.template.deployment_snippet` у rego.
+- **`rules/js-lint/coverage`**: `parseStrykerReport` тепер зчитує оригінальний код вижилих мутантів (`extractOriginal`), групує по файлах і повертає `survived: [{file, mutants: [{line,col,mutantType,original,replacement}], exampleTest, recommendationText}]`; `findExampleTest` + `extractFirstTestBlock` знаходять і витягують перший тест-блок із тест-файлу поруч — для стилю.
+- **LLM-рекомендації у COVERAGE.md**: коли встановлено `ANTHROPIC_API_KEY`, `n-cursor coverage` робить один Anthropic API-виклик на кожен файл з вижилими мутантами та записує рекомендацію «Що треба протестувати» у секцію `## Recommendations`. Модель: `claude-haiku-4-5-20251001` з prompt caching (`ephemeral`). Без ключа — секція генерується без LLM-тексту.
+- **`rules/js-lint/coverage/lib/generate-recommendation.mjs`**: `generateMutantRecommendation(client, sourceContent, mutants)` — ізольований модуль LLM-виклику.
+- **`@anthropic-ai/sdk`** у dependencies — потрібен для LLM-рекомендацій (опціонально: якщо `ANTHROPIC_API_KEY` не задано, sdk не викликається).
+- **`rules/test/coverage`**: `renderMarkdown` генерує секцію `## Recommendations` з per-file підрозділами (`### <file>`) — таблиця мутантів + приклад тесту + LLM-текст (якщо є).
+- **Stryker incremental mode** у `stryker.config.baseline.mjs`: `incremental: true` + `incrementalFile: 'reports/stryker/stryker-incremental.json'` — Stryker зберігає прогрес між прогонами, відновлює стан після переривання (SIGURG, OOM тощо).
+- **`skills/coverage-fix`**: новий скіл `/n-coverage-fix` — читає `## Recommendations` з COVERAGE.md і ітеративно дописує тести до конвергенції mutation score, включаючи LLM-рекомендації та приклади тестів у промпт агента.
 
 ## [1.19.2] - 2026-05-25
 

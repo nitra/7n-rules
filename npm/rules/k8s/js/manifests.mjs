@@ -4243,59 +4243,77 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
   return errs
 }
 
-const NETWORK_POLICY_COMMON_SNIPPET_URL = new URL(
-  '../policy/network_policy/template/common.snippet.yaml',
-  import.meta.url
-)
-const NETWORK_POLICY_STATEFULSET_SNIPPET_URL = new URL(
-  '../policy/network_policy/template/statefulset.snippet.yaml',
-  import.meta.url
-)
+const NETWORK_POLICY_SNIPPET_URLS = {
+  deployment: new URL('../policy/network_policy/template/deployment.snippet.yaml', import.meta.url),
+  statefulset: new URL('../policy/network_policy/template/statefulset.snippet.yaml', import.meta.url),
+}
 
 /** @type {Record<string, Record<string, unknown>>} */
 const _snippetCache = {}
 
 /**
  * Читає snippet-файл і повертає розпарсений spec. Результат кешується в пам'яті процесу.
- * @param {'common' | 'statefulset'} snippetName ім'я сніпету
+ * Кожен snippet — повний самодостатній канон NetworkPolicy для своєї групи workload-типів
+ * (без merge між snippets у runtime).
+ * @param {'deployment' | 'statefulset'} snippetName ім'я сніпету
  * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }}
  */
 export function loadSnippetSpec(snippetName) {
   if (_snippetCache[snippetName]) return _snippetCache[snippetName]
-  const url = snippetName === 'statefulset'
-    ? NETWORK_POLICY_STATEFULSET_SNIPPET_URL
-    : NETWORK_POLICY_COMMON_SNIPPET_URL
+  const url = NETWORK_POLICY_SNIPPET_URLS[snippetName]
+  if (!url) throw new Error(`Unknown NetworkPolicy snippet: ${snippetName}`)
   const raw = readFileSync(fileURLToPath(url), 'utf8')
   _snippetCache[snippetName] = /** @type {any} */ (parseDocument(raw).toJS()).spec
   return _snippetCache[snippetName]
 }
 
 /**
- * Читає common.snippet.yaml і повертає розпарсений spec.
- * @deprecated Використовуй loadSnippetSpec('common')
- * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }}
+ * Mapping workload-kind → snippet name. Єдине джерело dispatch'а в JS;
+ * rego використовує симетричний mapping через анотацію `nitra.dev/workload-kind`.
+ * @type {Record<string, 'deployment' | 'statefulset'>}
  */
-export function readNetworkPolicySnippet() {
-  return loadSnippetSpec('common')
+export const KIND_TO_SNIPPET = {
+  Deployment: 'deployment',
+  Job: 'deployment',
+  CronJob: 'deployment',
+  DaemonSet: 'deployment',
+  StatefulSet: 'statefulset',
 }
 
 /**
- * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName` і міткою `app`.
- * Структура spec береться зі snippet — не дублюється в коді.
- * @param {string} deployName `metadata.name` workload (Deployment, StatefulSet, …)
- * @param {string} appLabel `spec.selector.matchLabels.app` (або selector у `jobTemplate` для CronJob)
- * @param {string} [kind] `kind` workload — впливає на набір canonical правил (default: 'Deployment')
+ * Обирає snippet name для конкретного workload-kind; throws на невідомий.
+ * @param {string} kind workload-kind
+ * @returns {'deployment' | 'statefulset'}
+ */
+export function snippetNameForKind(kind) {
+  const name = KIND_TO_SNIPPET[kind]
+  if (!name) throw new Error(`Unknown workload kind for NetworkPolicy canon: ${kind}`)
+  return name
+}
+
+/**
+ * Читає deployment.snippet.yaml і повертає розпарсений spec.
+ * @deprecated Використовуй loadSnippetSpec('deployment')
+ * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }}
+ */
+export function readNetworkPolicySnippet() {
+  return /** @type {any} */ (loadSnippetSpec('deployment'))
+}
+
+/**
+ * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName`, міткою `app` і типом `kind`.
+ * Snippet обирається за `kind` через `KIND_TO_SNIPPET` (без merge — кожен snippet самодостатній).
+ * Анотація `nitra.dev/workload-kind` додається, щоб rego диспатчив на правильний канон.
+ * @param {string} deployName `metadata.name` workload
+ * @param {string} appLabel `spec.selector.matchLabels.app`
+ * @param {string} kind `kind` workload (обовʼязковий: Deployment | StatefulSet | Job | CronJob | DaemonSet)
  * @returns {string} вміст `networkpolicy.yaml`
  */
-export function buildNetworkPolicyYaml(deployName, appLabel, kind = 'Deployment') {
+export function buildNetworkPolicyYaml(deployName, appLabel, kind) {
   const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
-  const spec = JSON.parse(JSON.stringify(loadSnippetSpec('common')))
+  const snippetName = snippetNameForKind(kind)
+  const spec = JSON.parse(JSON.stringify(loadSnippetSpec(snippetName)))
   spec.podSelector.matchLabels = { app: appLabel }
-  if (kind === 'StatefulSet') {
-    const ssSpec = loadSnippetSpec('statefulset')
-    spec.egress = [...(spec.egress ?? []), ...(ssSpec.egress ?? [])]
-    spec.ingress = [...(spec.ingress ?? []), ...(ssSpec.ingress ?? [])]
-  }
   const specYaml = stringify(spec, { indent: 2 }).replaceAll(/^(?!$)/gm, '  ').trimEnd()
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
@@ -6553,7 +6571,7 @@ function runAllK8sRego(root, yamlFiles, fail) {
       dir: 'k8s/network_policy',
       files: allYaml,
       templateData: {
-        snippet: loadSnippetSpec('common'),
+        deployment_snippet: loadSnippetSpec('deployment'),
         statefulset_snippet: loadSnippetSpec('statefulset'),
       },
     },
