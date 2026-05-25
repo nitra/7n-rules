@@ -1,0 +1,25 @@
+npm/CHANGELOG.md
+  s_16d0fba9dca81b::t_f6808cf540a05a 7-12
+  s_16d0fba9dca81b::t_c6c1d5ee73a3da 3-6,13-2045,2049-2183
+npm/package.json
+  s_16d0fba9dca81b::t_539c387718c95e 3
+  s_16d0fba9dca81b::t_c6c1d5ee73a3da 2,4-59
+npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline
+  s_16d0fba9dca81b::t_527d2222b82174 6-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a22ad5dd55d4ffd8746d722d0763bf383a4a70b6",
+  "prompts": {},
+  "sessions": {
+    "s_16d0fba9dca81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51f93571-76cb-45a9-b80e-402459c6c47f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
