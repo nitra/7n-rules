@@ -59,7 +59,7 @@ function parseLcov(text) {
  * Витягує оригінальний фрагмент коду з рядків файлу за позицією мутанта.
  * @param {string[]} fileLines рядки файлу (0-indexed)
  * @param {{start:{line:number,column:number},end:{line:number,column:number}}} loc позиція (рядки 1-indexed)
- * @returns {string}
+ * @returns {string} оригінальний текст мутанта
  */
 function extractOriginal(fileLines, loc) {
   const startLine = loc.start.line - 1
@@ -78,15 +78,69 @@ function extractOriginal(fileLines, loc) {
 }
 
 /**
+ * Витягує перший `it(` або `test(` блок з вмісту тест-файлу.
+ * Відстежує глибину `{}` для коректного завершення.
+ * @param {string} content вміст тест-файлу
+ * @returns {string | null} перший тест-блок або null
+ */
+export function extractFirstTestBlock(content) {
+  const lines = content.split('\n')
+  let startLine = -1
+  let depth = 0
+  let inBlock = false
+  const result = []
+  for (let i = 0; i < lines.length; i++) {
+    if (startLine === -1 && /^\s*(it|test)\(/.test(lines[i])) startLine = i
+    if (startLine === -1) continue
+    result.push(lines[i])
+    for (const ch of lines[i]) {
+      if (ch === '{') { depth++; inBlock = true }
+      else if (ch === '}') depth--
+    }
+    if (inBlock && depth === 0) break
+  }
+  return result.length > 0 ? result.join('\n') : null
+}
+
+/**
+ * Шукає тест-файл для заданого source-файлу і повертає перший тест-блок як приклад стилю.
+ * Кандидати: `<base>.test.js`, `<base>.test.mjs`, `<dir>/tests/<name>.test.js`.
+ * @param {string} jsRoot абсолютний шлях до JS-кореня
+ * @param {string} filename відносний шлях source-файлу (від jsRoot)
+ * @returns {{testFile:string, code:string|null} | null} null — якщо тест-файл не знайдено
+ */
+export function findExampleTest(jsRoot, filename) {
+  const base = filename.replace(/\.[^.]+$/, '')
+  const candidates = [`${base}.test.js`, `${base}.test.mjs`, `${base}.test.ts`]
+  const lastSlash = base.lastIndexOf('/')
+  if (lastSlash !== -1) {
+    const dir = base.slice(0, lastSlash)
+    const name = base.slice(lastSlash + 1)
+    candidates.push(`${dir}/tests/${name}.test.js`, `${dir}/tests/${name}.test.mjs`)
+  }
+  for (const rel of candidates) {
+    const full = join(jsRoot, rel)
+    if (!existsSync(full)) continue
+    const content = readFileSync(full, 'utf8')
+    return { testFile: rel, code: extractFirstTestBlock(content) }
+  }
+  return null
+}
+
+/**
+ * Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
+ * Compile/Runtime errors виключаються з total.
+ * Survived мутанти групуються по файлах з exampleTest.
  * @param {{files:Record<string,{mutants:Array<{status:string,mutatorName?:string,replacement?:string,location?:{start:{line:number,column:number},end:{line:number,column:number}}}>}>}} report
- * @param {string|null} [jsRoot]
- * @returns {{caught:number,total:number,survived:Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>}}
+ * @param {string|null} [jsRoot] корінь для читання source-рядків і пошуку тест-файлів
+ * @returns {{caught:number,total:number,survived:Array<{file:string,mutants:Array<{line:number,col:number,mutantType:string,original:string,replacement:string}>,exampleTest:{testFile:string,code:string|null}|null,recommendationText:string|null}>}}
  */
 export function parseStrykerReport(report, jsRoot) {
   let caught = 0
   let total = 0
-  /** @type {Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>} */
-  const survived = []
+  /** @type {Map<string, Array<{line:number,col:number,mutantType:string,original:string,replacement:string}>>} */
+  const byFile = new Map()
+
   for (const [filePath, fileData] of Object.entries(report.files)) {
     let fileLines = null
     for (const mutant of fileData.mutants) {
@@ -103,8 +157,8 @@ export function parseStrykerReport(report, jsRoot) {
               fileLines = []
             }
           }
-          survived.push({
-            file: filePath,
+          if (!byFile.has(filePath)) byFile.set(filePath, [])
+          byFile.get(filePath).push({
             line: mutant.location.start.line,
             col: mutant.location.start.column,
             mutantType: mutant.mutatorName ?? 'Unknown',
@@ -115,6 +169,17 @@ export function parseStrykerReport(report, jsRoot) {
       }
     }
   }
+
+  const survived = []
+  for (const [file, mutants] of byFile) {
+    survived.push({
+      file,
+      mutants,
+      exampleTest: jsRoot ? findExampleTest(jsRoot, file) : null,
+      recommendationText: null
+    })
+  }
+
   return { caught, total, survived }
 }
 

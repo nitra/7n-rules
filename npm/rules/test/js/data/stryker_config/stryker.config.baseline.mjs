@@ -8,5 +8,8 @@ export default {
   tempDirName: 'reports/stryker/.tmp',
   reporters: ['json', 'clear-text'],
   jsonReporter: { fileName: 'reports/stryker/mutation.json' },
-  coverageAnalysis: 'off'
+  coverageAnalysis: 'off',
+  // incremental: зберігає прогрес між прогонами — відновлення після переривання без старту з нуля.
+  incremental: true,
+  incrementalFile: 'reports/stryker/stryker-incremental.json',
 }

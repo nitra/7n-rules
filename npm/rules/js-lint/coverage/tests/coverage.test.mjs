@@ -116,11 +116,9 @@ describe('js-lint coverage collect()', () => {
         survived: [
           {
             file: 'src/a.js',
-            line: 2,
-            col: 6,
-            mutantType: 'ConditionalExpression',
-            original: 'x !== null',
-            replacement: 'false'
+            mutants: [{ line: 2, col: 6, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }],
+            exampleTest: null,
+            recommendationText: null
           }
         ]
       }
@@ -192,7 +190,12 @@ describe('parseStrykerReport', () => {
     expect(result.caught).toBe(1)
     expect(result.total).toBe(2)
     expect(result.survived).toEqual([
-      { file: 'src/foo.js', line: 2, col: 2, mutantType: 'ConditionalExpression', original: 'if (x === 1)', replacement: 'false' }
+      {
+        file: 'src/foo.js',
+        mutants: [{ line: 2, col: 2, mutantType: 'ConditionalExpression', original: 'if (x === 1)', replacement: 'false' }],
+        exampleTest: null,
+        recommendationText: null
+      }
     ])
     rmSync(dir, { recursive: true, force: true })
   })
@@ -211,7 +214,7 @@ describe('parseStrykerReport', () => {
     }
     const result = parseStrykerReport(report, dir)
     expect(result.survived).toHaveLength(1)
-    expect(result.survived[0].mutantType).toBe('BooleanLiteral')
+    expect(result.survived[0].mutants[0].mutantType).toBe('BooleanLiteral')
     rmSync(dir, { recursive: true, force: true })
   })
 

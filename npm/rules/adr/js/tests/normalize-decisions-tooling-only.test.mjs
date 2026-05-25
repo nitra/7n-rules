@@ -109,7 +109,7 @@ describe('normalize-decisions.sh — structural tooling-only delete', () => {
       await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
       for (const id of ['a', 'b', 'c']) {
         await writeFile(
-          `docs/adr/20260520-10101${id.charCodeAt(0) % 10}-${id}.md`,
+          `docs/adr/20260520-10101${id.codePointAt(0) % 10}-${id}.md`,
           draftMd({ session: `sess${id}`, captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
         )
       }

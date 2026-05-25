@@ -1470,7 +1470,7 @@ try {
       // n-cursor coverage — оркестратор покриття + мутаційного тестування з discovery
       // провайдерів через .n-cursor.json#rules (test.mdc).
       const { runCoverageCli } = await import('../rules/test/coverage/coverage.mjs')
-      process.exitCode = await runCoverageCli()
+      process.exitCode = await runCoverageCli({ fix: args.includes('--fix') })
 
       break
     }
