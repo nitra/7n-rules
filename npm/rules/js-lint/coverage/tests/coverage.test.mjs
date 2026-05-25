@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { collect, detect } from '../coverage.mjs'
+import { collect, detect, parseStrykerReport } from '../coverage.mjs'
 
 const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
 const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
@@ -68,6 +68,9 @@ describe('js-lint coverage collect()', () => {
   test('парсить lcov + stryker mutation.json і повертає один CoverageRow', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
 
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'a.js'), 'export function f() {\n  if (x !== null) return 1\n}\n')
+
     const reportDir = join(dir, 'reports', 'stryker')
     mkdirSync(reportDir, { recursive: true })
     writeFileSync(
@@ -75,7 +78,17 @@ describe('js-lint coverage collect()', () => {
       JSON.stringify({
         files: {
           'src/a.js': {
-            mutants: [{ status: 'Killed' }, { status: 'Killed' }, { status: 'Survived' }, { status: 'CompileError' }]
+            mutants: [
+              { status: 'Killed' },
+              { status: 'Killed' },
+              {
+                status: 'Survived',
+                mutatorName: 'ConditionalExpression',
+                replacement: 'false',
+                location: { start: { line: 2, column: 6 }, end: { line: 2, column: 16 } }
+              },
+              { status: 'CompileError' }
+            ]
           }
         }
       })
@@ -99,7 +112,17 @@ describe('js-lint coverage collect()', () => {
       {
         area: 'JS',
         coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
-        mutation: { caught: 2, total: 3 }
+        mutation: { caught: 2, total: 3 },
+        survived: [
+          {
+            file: 'src/a.js',
+            line: 2,
+            col: 6,
+            mutantType: 'ConditionalExpression',
+            original: 'x !== null',
+            replacement: 'false'
+          }
+        ]
       }
     ])
     expect(calls[0].kind).toBe('js')
@@ -134,6 +157,75 @@ describe('js-lint coverage collect()', () => {
       }
     }
     await expect(collect(dir, { runner })).rejects.toThrow(MUTATION_JSON_RE)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('parseStrykerReport', () => {
+  test('повертає survived мутанти з file/line/col/mutantType/original/replacement', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-'))
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'foo.js'), 'export function f(x) {\n  if (x === 1) return true\n}\n')
+
+    const report = {
+      files: {
+        'src/foo.js': {
+          mutants: [
+            {
+              status: 'Survived',
+              mutatorName: 'ConditionalExpression',
+              replacement: 'false',
+              location: { start: { line: 2, column: 2 }, end: { line: 2, column: 14 } }
+            },
+            {
+              status: 'Killed',
+              mutatorName: 'EqualityOperator',
+              replacement: 'x !== 1',
+              location: { start: { line: 2, column: 6 }, end: { line: 2, column: 13 } }
+            }
+          ]
+        }
+      }
+    }
+
+    const result = parseStrykerReport(report, dir)
+    expect(result.caught).toBe(1)
+    expect(result.total).toBe(2)
+    expect(result.survived).toEqual([
+      { file: 'src/foo.js', line: 2, col: 2, mutantType: 'ConditionalExpression', original: 'if (x === 1)', replacement: 'false' }
+    ])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('NoCoverage не входить у survived', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-'))
+    const report = {
+      files: {
+        'src/bar.js': {
+          mutants: [
+            { status: 'NoCoverage', mutatorName: 'BooleanLiteral', replacement: 'true', location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } } },
+            { status: 'Survived', mutatorName: 'BooleanLiteral', replacement: 'false', location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } } }
+          ]
+        }
+      }
+    }
+    const result = parseStrykerReport(report, dir)
+    expect(result.survived).toHaveLength(1)
+    expect(result.survived[0].mutantType).toBe('BooleanLiteral')
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('мутанти без location не входять у survived', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-'))
+    const report = {
+      files: {
+        'src/x.js': {
+          mutants: [{ status: 'Survived' }]
+        }
+      }
+    }
+    const result = parseStrykerReport(report, dir)
+    expect(result.survived).toEqual([])
     rmSync(dir, { recursive: true, force: true })
   })
 })

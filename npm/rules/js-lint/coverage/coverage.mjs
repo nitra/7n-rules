@@ -6,7 +6,7 @@
  * Контракт провайдера — у docs/superpowers/specs/2026-05-24-coverage-rule-design.md.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -56,25 +56,66 @@ function parseLcov(text) {
 }
 
 /**
- * Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
- * Compile/Runtime errors виключаються з total.
- * @param {{files:Record<string,{mutants:Array<{status:string}>}>}} report розпарсений mutation.json
- * @returns {{caught:number,total:number}} агрегований mutation score
+ * Витягує оригінальний фрагмент коду з рядків файлу за позицією мутанта.
+ * @param {string[]} fileLines рядки файлу (0-indexed)
+ * @param {{start:{line:number,column:number},end:{line:number,column:number}}} loc позиція (рядки 1-indexed)
+ * @returns {string}
  */
-function parseStrykerReport(report) {
+function extractOriginal(fileLines, loc) {
+  const startLine = loc.start.line - 1
+  const endLine = loc.end.line - 1
+  if (startLine === endLine) {
+    return fileLines[startLine]?.slice(loc.start.column, loc.end.column) ?? ''
+  }
+  const parts = []
+  for (let i = startLine; i <= endLine; i++) {
+    const line = fileLines[i] ?? ''
+    if (i === startLine) parts.push(line.slice(loc.start.column))
+    else if (i === endLine) parts.push(line.slice(0, loc.end.column))
+    else parts.push(line)
+  }
+  return parts.join('\n')
+}
+
+/**
+ * @param {{files:Record<string,{mutants:Array<{status:string,mutatorName?:string,replacement?:string,location?:{start:{line:number,column:number},end:{line:number,column:number}}}>}>}} report
+ * @param {string|null} [jsRoot]
+ * @returns {{caught:number,total:number,survived:Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>}}
+ */
+export function parseStrykerReport(report, jsRoot) {
   let caught = 0
   let total = 0
-  for (const file of Object.values(report.files)) {
-    for (const mutant of file.mutants) {
+  /** @type {Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>} */
+  const survived = []
+  for (const [filePath, fileData] of Object.entries(report.files)) {
+    let fileLines = null
+    for (const mutant of fileData.mutants) {
       if (mutant.status === 'Killed' || mutant.status === 'Timeout') {
         caught += 1
         total += 1
       } else if (mutant.status === 'Survived' || mutant.status === 'NoCoverage') {
         total += 1
+        if (mutant.status === 'Survived' && jsRoot && mutant.location) {
+          if (!fileLines) {
+            try {
+              fileLines = readFileSync(join(jsRoot, filePath), 'utf8').split('\n')
+            } catch {
+              fileLines = []
+            }
+          }
+          survived.push({
+            file: filePath,
+            line: mutant.location.start.line,
+            col: mutant.location.start.column,
+            mutantType: mutant.mutatorName ?? 'Unknown',
+            original: extractOriginal(fileLines, mutant.location),
+            replacement: mutant.replacement ?? ''
+          })
+        }
       }
     }
   }
-  return { caught, total }
+  return { caught, total, survived }
 }
 
 /**
@@ -130,7 +171,7 @@ export async function collect(cwd, opts = {}) {
         'або налаштуй його вручну'
     )
   }
-  const mutation = parseStrykerReport(mutationReport)
+  const { caught, total, survived } = parseStrykerReport(mutationReport, jsRoot)
 
-  return [{ area: 'JS', coverage, mutation }]
+  return [{ area: 'JS', coverage, mutation: { caught, total }, survived }]
 }
