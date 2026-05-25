@@ -39,6 +39,65 @@ mkdir -p "$LOG_DIR"
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
+# Структурний скіп ADR-нормалізації для "tooling-only" сесій.
+# Дублікат із capture-decisions.sh: `.claude-template/hooks/` копіюється плоско,
+# спільний helper-файл туди не вписується.
+is_tooling_only_change() {
+  proj="$1"
+  had_file=0
+  while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    had_file=1
+    case "$f" in
+      "$proj"/*) rel="${f#"$proj"/}" ;;
+      /*) return 1 ;;
+      *)  rel="$f" ;;
+    esac
+    case "$rel" in
+      .cspell.json) ;;
+      docs/adr/*.md) ;;
+      AGENTS.md|CLAUDE.md) ;;
+      CHANGELOG.md) ;;
+      */CHANGELOG.md) ;;
+      package.json|*/package.json)
+        if ! git_diff_only_version_field "$proj" "$rel"; then
+          return 1
+        fi
+        ;;
+      *) return 1 ;;
+    esac
+  done
+  [ "$had_file" = "1" ] && return 0
+  return 1
+}
+
+# Допоміжна: чи git-diff для файлу торкається ЛИШЕ рядків з `"version":`.
+git_diff_only_version_field() {
+  proj="$1"; path="$2"
+  [ -d "$proj/.git" ] || return 1
+  diff=$(cd "$proj" && git diff HEAD --unified=0 -- "$path" 2>/dev/null) || return 1
+  [ -z "$diff" ] && return 1
+  while IFS= read -r line; do
+    case "$line" in
+      '+++ '*|'--- '*|'@@ '*|'') continue ;;
+      [+-]*'"version":'*) continue ;;
+      [+-]*) return 1 ;;
+    esac
+  done <<EOF
+$diff
+EOF
+  return 0
+}
+
+# Витягає поле `transcript:` з YAML frontmatter ADR-чернетки.
+draft_transcript_path() {
+  awk '
+    NR==1 && /^---$/ { fm=1; next }
+    fm && /^---$/    { exit }
+    fm && /^transcript: / { sub(/^transcript: /, ""); print; exit }
+  ' "$1" 2>/dev/null
+}
+
 # Skip if repo is mid-rebase / mid-merge — editing files now would tangle the user.
 if [ -d "$PROJECT_ROOT/.git" ]; then
   for marker in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-apply rebase-merge; do
@@ -119,6 +178,45 @@ fi
 head -n "$BATCH_SIZE" "$DRAFTS_LIST" > "$BATCH_LIST"
 BATCH_COUNT=$(wc -l < "$BATCH_LIST" | tr -d ' ')
 log "batch size: $BATCH_COUNT"
+
+# Structural skip: чернетки з tooling-only сесій видаляємо без виклику LLM.
+if [ "${ADR_NORMALIZE_SKIP_TOOLING_ONLY:-1}" = "1" ]; then
+  FILTERED_LIST="$TMP_DIR/batch-filtered.txt"
+  : > "$FILTERED_LIST"
+  TOOLING_REMOVED=0
+  while IFS= read -r draft; do
+    [ -f "$draft" ] || continue
+    tpath=$(draft_transcript_path "$draft")
+    if [ -n "$tpath" ] && [ -f "$tpath" ]; then
+      changed=$(jq -r '
+        select(.type == "assistant" or .role == "assistant")
+        | .message as $m
+        | ($m.content // [])
+        | if type == "array" then
+            map(select(.type == "tool_use" and (.name == "Edit" or .name == "Write" or .name == "MultiEdit"))
+                | .input.file_path // empty)
+            | .[]
+          else empty end
+      ' "$tpath" 2>/dev/null | sort -u || true)
+      if [ -n "$changed" ] && printf '%s\n' "$changed" | is_tooling_only_change "$PROJECT_ROOT"; then
+        rm -f -- "$draft"
+        log "tooling-only delete: $(basename "$draft") (files: $(printf '%s' "$changed" | tr '\n' ' '))"
+        TOOLING_REMOVED=$(( TOOLING_REMOVED + 1 ))
+        continue
+      fi
+    fi
+    printf '%s\n' "$draft" >> "$FILTERED_LIST"
+  done < "$BATCH_LIST"
+  mv "$FILTERED_LIST" "$BATCH_LIST"
+  BATCH_COUNT=$(wc -l < "$BATCH_LIST" | tr -d ' ')
+  if [ "$TOOLING_REMOVED" -gt 0 ]; then
+    log "after tooling-only filter: $BATCH_COUNT drafts remain (removed $TOOLING_REMOVED)"
+  fi
+  if [ "$BATCH_COUNT" -eq 0 ]; then
+    log "batch is empty after tooling-only filter — exit"
+    exit 0
+  fi
+fi
 
 # Find clean ADR files at root of docs/adr/ (no `session:`).
 find "$ADR_DIR" -maxdepth 1 -type f -name '*.md' 2>/dev/null | while IFS= read -r f; do

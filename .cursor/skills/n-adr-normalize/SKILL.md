@@ -62,9 +62,11 @@ description: >-
 - `ADR_NORMALIZE_BATCH=30` — більший батч (менше викликів LLM, більше токенів за раз).
 - `ADR_NORMALIZE_MODEL=opus` — інша модель `claude -p`.
 - `ADR_NORMALIZE_CURSOR_MODEL=…` — інша модель для cursor-agent fallback.
+- `ADR_NORMALIZE_SKIP_TOOLING_ONLY=0` — вимкнути structural skip для tooling-only сесій (default `1`). Корисно лише якщо хочеш зберегти чернетки навіть для правок у `.cspell.json` / `CHANGELOG.md` / `version`-bump-ів.
 
 ## Якщо щось пішло не так
 
 - LLM повернув криву JSON → у логу буде `invalid JSON response (first 200 chars): …`. Запусти ще раз — нерідко це разовий збій.
 - Скрипт виходить миттєво без логу → перевір `ADR_NORMALIZE_RUNNING` у env (recursion guard) і чи репо не у стані merge/rebase.
 - Перейменування зробило дублі імен (`<timestamp>-<slug>-2.md`) → це нормально, скрипт детермінований; під час review можна обʼєднати руками й видалити `-2`.
+- ADR-чернетки видаляються мовчки → це structural tooling-only skip. Перевір лог: `tail .claude/hooks/normalize-decisions.log | grep tooling-only`. Для діагностики на capture-стороні: `tail .claude/hooks/capture-decisions.log | grep tooling-only`. Аби тимчасово вимкнути — `ADR_NORMALIZE_SKIP_TOOLING_ONLY=0 bash .claude/hooks/normalize-decisions.sh`.

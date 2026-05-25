@@ -1,7 +1,7 @@
 ---
 description: Обробка та перевірка текстових файлів, oxfmt, cspell, shellcheck (sh), dotenv-linter (.env*), markdownlint-cli2, v8r, CI
 alwaysApply: true
-version: '1.29'
+version: '1.30'
 ---
 
 **oxfmt** (`.oxfmtrc.json`, редактор), **cspell**, **shellcheck** (tracked `*.sh` у `lint-text`), **[dotenv-linter](https://dotenv-linter.github.io/)** (`.env*` у `lint-text`), **markdownlint-cli2**, **[v8r](https://chris48s.github.io/v8r/)** ([Schema Store](https://www.schemastore.org/)), розширення **DavidAnson.vscode-markdownlint** / **timonwong.shellcheck**, workflow **`lint-text`**.
@@ -311,7 +311,7 @@ jobs:
 {
   "version": "0.2",
   "language": "nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml", "docs/adr/**"],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": []
 }
@@ -329,7 +329,8 @@ jobs:
     ".vscode",
     "report",
     "*.svg",
-    "**/k8s/**/*.yaml"
+    "**/k8s/**/*.yaml",
+    "docs/adr/**"
   ]
 }
 ```. Обовʼязковий запис у `import`: `.cspell.json`:
@@ -347,6 +348,8 @@ jobs:
   }
 }
 ```.
+
+`docs/adr/**` у канонічному `ignorePaths` — машинно-генеровані MADR-документи (драфти `capture-decisions.sh` + clean-ADR-и після `normalize-decisions.sh`). cspell-перевірка там безглузда: чернетка стирається наступним прогоном хук-ланцюжка, а будь-яка ручна правка правопису перезаписується. Локальні розширення `ignorePaths` дозволені — це лише мінімум.
 
 ```json title="package.json"
 {
@@ -384,7 +387,7 @@ jobs:
 {
   "version": "0.2",
   "language": "en,uk,ru-ru,nitra",
-  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml"],
+  "ignorePaths": ["**/node_modules/**", "**/vscode-extension/**", "**/.git/**", ".vscode", "report", "*.svg", "**/k8s/**/*.yaml", "docs/adr/**"],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": []
 }

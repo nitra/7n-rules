@@ -43,9 +43,14 @@ The primary development rules are stored in the Cursor rules directory:
 Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer `bun run <script>` for project scripts.
 
 - **Залежності**: `bun i`
+- **lint**: `bun run lint`
+- **lint-js**: `bun run lint-js`
 - **lint-text**: `bun run lint-text`
 - **lint-ga**: `bun run lint-ga`
 - **start**: `bun run start`
+- **lint-rego**: `bun run lint-rego`
+- **lint-security**: `bun run lint-security`
+- **lint-style**: `bun run lint-style`
 - **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): `npx @nitra/cursor`
 - **Перевірки правил (programmatic)**: `npx @nitra/cursor fix`
 - **knip (невикористані залежності та експорти)**: `bunx knip`
