@@ -1,0 +1,21 @@
+npm/skills/fix-tests/SKILL.md
+  s_a282ea1c9cf92c::t_9cde0d5d206fac 1-109
+npm/skills/fix-tests/auto.md
+  s_a282ea1c9cf92c::t_4422790ec569fe 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "fa973fefe2c10112d83335b7044f3feb8cc81346",
+  "prompts": {},
+  "sessions": {
+    "s_a282ea1c9cf92c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0f4ef73-ad6c-4e43-928b-8a6a1e508aae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
