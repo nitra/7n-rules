@@ -2,3 +2,7 @@
 # cargo-mutants має робочі defaults; цей файл — стартова точка для customization.
 # Документація: https://mutants.rs/
 # Канон постачає правило `test` (@nitra/cursor).
+
+# Виключаємо --doc фазу: rustdoc щоразу компілює doc-tests навіть якщо їх 0,
+# що збільшує час кожного мутанту з секунд до хвилин на Tauri/великих проєктах.
+additional_cargo_test_args = ["--lib", "--bins", "--tests"]

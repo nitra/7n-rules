@@ -66,7 +66,9 @@ describe('cargo_mutants_config concern', () => {
     expect(exitCode).toBe(0)
     const target = join(proj.dir, '.cargo', 'mutants.toml')
     expect(existsSync(target)).toBe(true)
-    expect(readFileSync(target, 'utf8')).toContain('cargo-mutants')
+    const content = readFileSync(target, 'utf8')
+    expect(content).toContain('cargo-mutants')
+    expect(content).toContain('additional_cargo_test_args')
     proj.cleanup()
   })
 
