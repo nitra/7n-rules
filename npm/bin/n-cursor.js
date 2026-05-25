@@ -13,6 +13,9 @@
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
  *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@nitra/cursor lint`        — оркестратор lint-ланцюжка з кореневого `package.json` з тайменгом
+ *                                     кожного `lint-*` / `oxfmt` скрипта (fail-fast); канонічна заміна
+ *                                     раніше ручного `lint-ga && lint-js && …` агрегатора.
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
  *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
  *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
@@ -99,6 +102,8 @@ import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitr
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
+import { runLintCli } from '../scripts/lib/run-lint-cli.mjs'
+import { formatTimingSummary } from '../scripts/lib/timing-summary.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 const CONFIG_FILE = '.n-cursor.json'
@@ -1183,11 +1188,18 @@ async function runFixCommand(requestedRules) {
   }
 
   let totalFailed = 0
+  /** @type {{ id: string, ms: number, ok: boolean }[]} */
+  const timings = []
   for (const id of idsToRun) {
     const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
+    const startedAt = Date.now()
     const result = spawnSync('bun', [fixPath], { stdio: 'inherit' })
-    if (result.status !== 0) totalFailed++
+    const ok = result.status === 0
+    timings.push({ id: `fix-${id}`, ms: Date.now() - startedAt, ok })
+    if (!ok) totalFailed++
   }
+
+  process.stdout.write(formatTimingSummary('Fix timing', timings))
 
   if (totalFailed > 0) {
     throw new Error(`${totalFailed} з ${idsToRun.length} правил мають проблеми`)
@@ -1437,6 +1449,13 @@ try {
 
       break
     }
+    case 'lint': {
+      // Оркестратор lint-ланцюжка з тайменгом на кожен крок (fail-fast).
+      // Замінює раніше використовуваний агрегатор `bun run lint-ga && bun run lint-js && …` у root package.json.
+      process.exitCode = runLintCli()
+
+      break
+    }
     case 'lint-ga': {
       // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor → check-ga (ga.mdc).
       // Останній крок (check-ga) async — тому await обов'язковий, інакше process.exitCode буде Promise.
@@ -1490,7 +1509,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
       )
       process.exitCode = 1
     }

@@ -4,6 +4,20 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.22.0] - 2026-05-25
+
+### Added
+
+- **`npx @nitra/cursor lint`** — оркестратор лінт-ланцюжка з тайменгом на кожен крок. Послідовно запускає присутні у root `package.json` скрипти з фіксованого списку (`lint-ga`, `lint-js`, `lint-rego`, `lint-style`, `lint-text`, `lint-security`, `oxfmt`), **fail-fast** на першому ненульовому exit-коді. Наприкінці друкує таблицю `⏱ Lint timing` з часом кожного кроку — для атрибуції повільних кроків замість анонімного `&&`-агрегатора.
+- **`runFixCommand` тепер друкує `⏱ Fix timing`** після прогону всіх `rules/<id>/fix.mjs` — per-rule час + сума. Маркер `❌` на впалих рядках.
+- `npm/scripts/lib/timing-summary.mjs` — чистий форматер `formatTimingSummary(title, entries)` (спільний для fix і lint). 9 тестів у `tests/timing-summary.test.mjs`.
+- `npm/scripts/lib/run-lint-cli.mjs` — `runLintCli({ cwd, spawnSyncFn, now, log, logError })` з DI для юніт-тестів. 7 тестів у `tests/run-lint-cli.test.mjs`.
+
+### Changed
+
+- Кореневий `package.json` цього монорепо: `lint` → `n-cursor lint`; додано окремий скрипт `oxfmt: "oxfmt ."`, який раніше йшов у хвості ланцюжка прямою командою.
+- Скіли `/n-fix` і `/n-lint`: додано вимогу копіювати таблицю `⏱` з виводу інструмента у фінальне резюме відповіді користувачу.
+
 ## [1.21.0] - 2026-05-25
 
 ### Changed
