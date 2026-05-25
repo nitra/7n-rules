@@ -1,0 +1,24 @@
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_1b1b055c883315::t_9748cdbc61e601 15
+  s_1b1b055c883315::t_b896982c42d2e7 146-216
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_1b1b055c883315::t_910ee9d9884758 329-330
+npm/scripts/sync-claude-config.mjs
+  s_1b1b055c883315::t_2596271c7808ed 552,562-563,574-575,586-588,598-599
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "28e6bb202c0e8bd804ae7bff5c87a1b0f50880bb",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
