@@ -62,6 +62,15 @@ const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
 const TEMPLATE_DIR_NAME = '.claude-template'
+
+/** Корінь pi.dev артефактів у проєкті-споживачі. */
+export const PI_DIR = '.pi'
+/** Директорія pi.dev TS-extensions у проєкті-споживачі. */
+export const PI_EXTENSIONS_DIR = `${PI_DIR}/extensions`
+/** Назва bundled-директорії pi-template у пакеті `@nitra/cursor`. */
+export const PI_TEMPLATE_DIR_NAME = '.pi-template'
+/** Імʼя bundled pi-extension'а для ADR capture/normalize. */
+export const PI_EXTENSION_NAME = 'n-cursor-adr'
 /** Відносний шлях до канонічного фрагмента `.gitignore` для ADR Stop-hook'ів у tarball пакета. */
 export const ADR_GITIGNORE_SNIPPET_REL = 'rules/adr/js/templates/hooks/.gitignore.snippet'
 const GITIGNORE_FILE = '.gitignore'
@@ -403,6 +412,35 @@ export function syncAdrHookScript(projectRoot, templateDir) {
  */
 export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
   return syncHookScript(projectRoot, templateDir, ADR_NORMALIZE_HOOK_SCRIPT_NAME)
+}
+
+/**
+ * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/index.ts`
+ * у `.pi/extensions/n-cursor-adr/index.ts` проєкту-споживача. Файл fully-owned: при кожному
+ * sync-у перезаписується. Якщо bundled template відсутній (наприклад, у legacy-версіях
+ * пакета без `.pi-template/`) — повертаємо `{written: false}` без помилки.
+ *
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @param {string} bundledPackageRoot корінь установленого `@nitra/cursor` (із `.pi-template/`)
+ * @returns {Promise<{ written: boolean, path: string }>} чи писали файл, та його відносний шлях
+ */
+export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
+  const srcPath = join(
+    bundledPackageRoot,
+    PI_TEMPLATE_DIR_NAME,
+    'extensions',
+    PI_EXTENSION_NAME,
+    'index.ts'
+  )
+  if (!existsSync(srcPath)) {
+    return { written: false, path: '' }
+  }
+  const content = await readFile(srcPath, 'utf8')
+  const destDir = join(projectRoot, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
+  await mkdir(destDir, { recursive: true })
+  const destPath = join(destDir, 'index.ts')
+  await writeFile(destPath, content, 'utf8')
+  return { written: true, path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}/index.ts` }
 }
 
 /**
