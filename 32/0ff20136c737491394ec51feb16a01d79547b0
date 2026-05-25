@@ -1,0 +1,111 @@
+npm/rules/k8s/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/nginx-default-tpl/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/adr/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/CHANGELOG.md
+  s_ba3fa061d83959::t_f2035c577d8f7e 7-16
+npm/rules/hasura/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/text/lint/run-shellcheck.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 218
+npm/rules/docker/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/scripts/cli-entry.mjs
+  s_ba3fa061d83959::t_1c87e7d4778712 4-8,10,16-17,19-26,28-30
+npm/rules/style-lint/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/rust/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/tauri/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/image-compress/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/js-lint/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/php/lint/lint.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 123
+npm/rules/text/lint/run-dotenv-linter.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 93
+npm/rules/text/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/scripts/tests/cli-entry.test.mjs
+  s_ba3fa061d83959::t_b8153bfeeceea3 11,38,40-41,43-44,51
+  s_ba3fa061d83959::t_2bfb0ebf0b1e4b 3-7,13,20-23,35-37,39,42,45-50,52
+  s_ba3fa061d83959::t_6427d87f1e0c47 10,12,17-18,24-26,29-34
+npm/rules/bun/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/js-run/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/image-avif/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/rego/lint/lint.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 146
+npm/rules/efes/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/changelog/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/ga/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/js-bun-db/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/test/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/docker/lint/lint.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 93
+npm/rules/ci4/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/rego/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/graphql/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/security/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/vue/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/js-mssql/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/feedback/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/package.json
+  s_ba3fa061d83959::t_bf3f8b51ee8e77 3
+npm/rules/js-bun-redis/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/text/lint/run-v8r.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 79
+npm/rules/capacitor/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/scripts/tests/fixtures/cli-entry-as-cli.mjs
+  s_ba3fa061d83959::t_13a3912bea4e24 1-8
+npm/bin/rename-yaml-extensions.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 37
+npm/scripts/lib/run-rule-cli.mjs
+  s_ba3fa061d83959::t_f010486363b025 15-18
+npm/rules/abie/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/npm-module/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+npm/rules/k8s/lint/lint.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 357
+npm/rules/php/fix.mjs
+  s_ba3fa061d83959::t_df94a3c634c17e 14
+docs/adr/20260525-103014-додати-docs-adr-до-канонічного-cspell-ignorepaths.md
+  s_ba3fa061d83959::t_7883f7192cb633 1-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "320ff20136c737491394ec51feb16a01d79547b0",
+  "prompts": {},
+  "sessions": {
+    "s_ba3fa061d83959": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ce74495-ae37-461c-a696-487f7361df48",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
