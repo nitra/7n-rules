@@ -1,0 +1,24 @@
+npm/skills/n-coverage-fix/auto.md
+  s_768e3c10ee0cd9::t_8083ed4512a77a 1
+npm/skills/n-coverage-fix/SKILL.md
+  s_768e3c10ee0cd9::t_c1e5d1bfb90180 1-106
+npm/scripts/tests/auto-skills.test.mjs
+  s_768e3c10ee0cd9::t_e4b97c96301c6b 12
+  s_768e3c10ee0cd9::t_d69c72a39e8e15 87-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "92182071581fa66e388889c589ed6347d0bbd698",
+  "prompts": {},
+  "sessions": {
+    "s_768e3c10ee0cd9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "deb2223e-5821-4d63-81e3-7e2518666e10",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
