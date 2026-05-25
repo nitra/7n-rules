@@ -1,60 +1,8 @@
 {
-  "name": "@nitra/cursor",
-  "version": "1.19.1",
-  "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
-  "keywords": [
-    "cli",
-    "cursor",
-    "cursor-rules",
-    "mdc",
-    "n"
-  ],
-  "homepage": "https://github.com/n/cursor#readme",
-  "bugs": {
-    "url": "https://github.com/n/cursor/issues"
-  },
-  "license": "ISC",
-  "author": "v@nitra.ai",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/n/cursor.git"
-  },
-  "bin": {
-    "n-cursor": "./bin/n-cursor.js"
-  },
+  "name": "@x/lib",
+  "version": "1.0.0",
   "files": [
-    "types",
-    "rules",
-    "bin",
-    "github-actions",
-    "schemas",
-    "scripts",
-    "skills",
-    ".claude-template",
-    "AGENTS.template.md",
-    "CHANGELOG.md",
-    "!**/*.test.mjs",
-    "!**/*_test.rego",
-    "!**/test-helpers.mjs",
-    "!**/fixtures/**",
-    "!**/__fixtures__/**"
-  ],
-  "type": "module",
-  "types": "./types/bin/n-cursor.d.ts",
-  "scripts": {
-    "test": "bun test --parallel",
-    "test:coverage": "bun test --parallel --coverage",
-    "start": "bun ./bin/n-cursor.js",
-    "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
-  },
-  "dependencies": {
-    "oxc-parser": "^0.128.0",
-    "picomatch": "^4.0.4",
-    "smol-toml": "^1.6.1",
-    "yaml": "^2.8.3"
-  },
-  "engines": {
-    "bun": ">=1.3",
-    "node": ">=25"
-  }
+    "lib",
+    "CHANGELOG.md"
+  ]
 }

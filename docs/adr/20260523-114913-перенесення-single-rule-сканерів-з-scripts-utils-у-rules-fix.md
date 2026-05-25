@@ -56,3 +56,9 @@ Cross-rule імпорту немає: у `rules/graphql/fix/tooling/graphql-gql-
 - Посилання в `.mdc` оновлено: `npm/rules/js-lint/js-lint.mdc`, `npm/rules/docker/docker.mdc`, `npm/rules/vue/vue.mdc`, `.cursor/rules/n-js-lint.mdc`, `.cursor/rules/n-vue.mdc`.
 - Версія пакета: `1.13.78` → `1.13.79`; запис у `npm/CHANGELOG.md`.
 - Supersedes (явно): `docs/adr/20260523-112217-розміщення-canonical-конфігів-у-npm-scripts-utils.md`.
+
+## Update 2026-05-23
+
+### Дублювання екстрактора SFC замість cross-rule імпорту (graphql → vue)
+
+Після переміщення `graphql-gql-scan.mjs` у `rules/graphql/fix/tooling/` він потребував функцій для витягу вмісту Vue SFC, аналогічних реалізованим у `vue-forbidden-imports.mjs`. Обрано дублювання ~25 рядків локально у `graphql-gql-scan.mjs` замість cross-rule імпорту (`graphql → vue`), тому що залежність між двома несполученими правилами порушує принцип самодостатності. Продубльований код: `extractVueScriptBlocks`, `contentForGqlScan`, `SOURCE_FILE_RE`, `isGqlScanSourceFile`. Docstring позначає це свідомим дублюванням: «паралельна реалізація; аналог у `vue-forbidden-imports.mjs` — модулі не діляться кодом». Зміна SFC-парсингу потребує оновлення обох файлів. Верифікація: `bun test rules/graphql rules/vue` → 18 pass / 0 fail.

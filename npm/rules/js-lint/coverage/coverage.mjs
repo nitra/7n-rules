@@ -91,7 +91,7 @@ const defaultRunner = {
     return r.status ?? 1
   },
   runStryker({ cwd }) {
-    const r = spawnSync('bunx', ['stryker', 'run'], { cwd, stdio: 'inherit', env: process.env })
+    const r = spawnSync('bunx', ['@stryker-mutator/core', 'run'], { cwd, stdio: 'inherit', env: process.env })
     return r.status ?? 1
   }
 }

@@ -8,5 +8,12 @@ export default {
   tempDirName: 'reports/stryker/.tmp',
   reporters: ['json', 'clear-text'],
   jsonReporter: { fileName: 'reports/stryker/mutation.json' },
-  coverageAnalysis: 'off'
+  coverageAnalysis: 'off',
+  // Mutate тільки скрипти та coverage-провайдери, що мають юніт-тести.
+  // Виключаємо rule-fix/check .mjs (сотні файлів, покриті інтеграційно).
+  mutate: [
+    'scripts/*.mjs',
+    'scripts/utils/*.mjs',
+    'rules/*/coverage/coverage.mjs'
+  ]
 }
