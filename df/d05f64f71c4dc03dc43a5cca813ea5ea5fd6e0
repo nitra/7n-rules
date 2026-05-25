@@ -1,0 +1,44 @@
+npm/CHANGELOG.md
+  s_384cf42391b328::t_f706f0b1486ce2 7-22
+.claude/settings.json
+  s_384cf42391b328::t_4123e52fce79de 20-22,31,33,36-38,40,44-45
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_384cf42391b328::t_8163c4dc88e44a 121
+  s_384cf42391b328::t_6e3436000e468c 1-109,111-120,122-128,130-135,137-142,144-150,152-158,160-164
+  s_384cf42391b328::t_57dac2728dc1c7 110,129,151
+  s_384cf42391b328::t_ef8bf0dbb2afde 136
+  s_384cf42391b328::t_00661e285cd205 143
+  s_384cf42391b328::t_4a2e8e36a4208b 159
+npm/.claude-template/settings.template.json
+  s_384cf42391b328::t_1fa370bf191d16 13,15,19-20
+npm/rules/adr/adr.mdc
+  s_384cf42391b328::t_6d67dcb33caa5c 106,139
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_384cf42391b328::t_12f5cd1f99c534 4-7,17,44,46-47,101-140,150,152-153,158-159,162,164-169,172-177,180-182,185,192-195,245,252-256,260-282,289,296-301,305,311,349-350,400,428,440-441,444,467-471
+npm/scripts/sync-claude-config.mjs
+  s_384cf42391b328::t_1c37241492ac23 33-36,45-48,51
+  s_384cf42391b328::t_0e6885b1806cec 198-204,212-218
+npm/bin/n-cursor.js
+  s_384cf42391b328::t_b6392c73a2e6c3 1432-1435
+  s_384cf42391b328::t_efb94fb9b75be9 88
+  s_384cf42391b328::t_d0c3ffc6c2e0aa 1493
+  s_384cf42391b328::t_542def0e2e1df2 12-15
+npm/package.json
+  s_384cf42391b328::t_9477a71e780e02 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "dfd05f64f71c4dc03dc43a5cca813ea5ea5fd6e0",
+  "prompts": {},
+  "sessions": {
+    "s_384cf42391b328": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a159a310-54ca-4004-9344-9a953824d66b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
