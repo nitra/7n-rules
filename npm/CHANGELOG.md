@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.17.1] - 2026-05-24
+
+### Fixed
+
+- **`js-lint/coverage/coverage.mjs` + `rust/coverage/coverage.mjs`** — `Bun.spawn` (runtime-only) замінено на `node:child_process.spawnSync`. CLI `n-cursor` запускається через `#!/usr/bin/env node` shebang, отже Node-runtime — `Bun.*` API недоступні в реальному прогоні (тести використовували ін'єктований runner і не виявляли цього). Тестова ін'єкція runner-а лишається тією самою (контракт `runJsCoverage`/`runStryker`/`runLlvmCov`/`runCargoMutants` mock-ів — без змін).
+
 ## [1.17.0] - 2026-05-24
 
 ### Added

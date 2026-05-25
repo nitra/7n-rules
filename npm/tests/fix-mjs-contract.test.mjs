@@ -7,6 +7,7 @@ import { describe, expect, test } from 'bun:test'
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const RULES_DIR = new URL('../rules/', import.meta.url).pathname
 
@@ -27,7 +28,8 @@ describe('fix.mjs contract — усі правила', () => {
     })
 
     test(`${id}: rules/${id}/fix.mjs експортує run()`, async () => {
-      const mod = await import(join(RULES_DIR, id, 'fix.mjs'))
+      // eslint-disable-next-line no-unsanitized/method -- id з readdir whitelist'у rules/
+      const mod = await import(pathToFileURL(join(RULES_DIR, id, 'fix.mjs')).href)
       expect(typeof mod.run).toBe('function')
     })
 

@@ -25,6 +25,7 @@ alwaysApply: false
   }
 }
 ```
+
 - `stylelint.extends`: `package.json`:
 
 ```json

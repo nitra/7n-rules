@@ -2,7 +2,11 @@
   "ignoreDependencies": ["graphql", "@nitra/cspell-dict", "@nitra/stylelint-config", "globals"],
   "ignoreBinaries": ["cspell", "oxfmt", "stylelint", "trufflehog"],
   "ignoreExportsUsedInFile": true,
-  "ignore": ["npm/scripts/utils/gha-workflow.mjs"],
+  "ignoreIssues": {
+    "npm/rules/**/js/applies.mjs": ["exports"],
+    "npm/rules/k8s/js/manifests.mjs": ["exports"],
+    "npm/scripts/lib/gha-workflow.mjs": ["exports"]
+  },
   "workspaces": {
     ".": {
       "entry": ["eslint.config.{js,mjs}"]
@@ -11,10 +15,12 @@
       "entry": [
         "bin/n-cursor.js",
         "bin/rename-yaml-extensions.mjs",
-        "rules/*/fix/**/check.mjs",
-        "rules/*/fix/**/check-*.mjs",
+        "rules/*/fix.mjs",
+        "rules/*/js/*.mjs",
+        "rules/*/lib/*.mjs",
         "rules/*/lint/lint.mjs",
         "rules/*/lint/run-*.mjs",
+        "rules/*/coverage/coverage.mjs",
         "scripts/auto-*.mjs",
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
@@ -22,7 +28,10 @@
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
         "scripts/upgrade-nitra-cursor-and-install.mjs",
-        "scripts/utils/rebuild-oxlint-canonical.mjs",
+        "scripts/lib/run-rule-cli.mjs",
+        "scripts/lib/run-rule.mjs",
+        "scripts/lib/run-standard-rule.mjs",
+        "rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs"

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
-import * as path from 'node:path'
+import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { shouldDedup, withLock } from '../with-lock.mjs'
 
@@ -37,7 +37,7 @@ describe('withLock integration', () => {
   let tmpDir
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'with-lock-test-'))
+    tmpDir = fs.mkdtempSync(join(os.tmpdir(), 'with-lock-test-'))
   })
 
   afterEach(() => {
@@ -48,7 +48,7 @@ describe('withLock integration', () => {
     const start = Date.now()
     // getFingerprint: () => null вимикає дедуп — тут перевіряємо рівно серіалізацію,
     // не короткий замикач через однаковий fingerprint (для цього є окремий тест нижче).
-    const opts = { cacheDir: path.join(tmpDir, 'a'), pollInterval: 50, getFingerprint: () => null }
+    const opts = { cacheDir: join(tmpDir, 'a'), pollInterval: 50, getFingerprint: () => null }
     await Promise.all([
       withLock('test', () => sleep(200).then(() => 0), opts),
       withLock('test', () => sleep(200).then(() => 0), opts)
@@ -63,7 +63,7 @@ describe('withLock integration', () => {
       return Promise.resolve(0)
     }
     const lockOpts = {
-      cacheDir: path.join(tmpDir, 'b'),
+      cacheDir: join(tmpDir, 'b'),
       ttl: 60_000,
       getFingerprint: () => 'a'.repeat(64)
     }
@@ -73,8 +73,8 @@ describe('withLock integration', () => {
   })
 
   it('releases lock on runFn error', async () => {
-    const cacheDir = path.join(tmpDir, 'c')
-    const lockDir = path.join(cacheDir, 'lock')
+    const cacheDir = join(tmpDir, 'c')
+    const lockDir = join(cacheDir, 'lock')
     try {
       await withLock(
         'test',

@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 import { withLock } from '../../../scripts/utils/with-lock.mjs'
@@ -98,12 +98,13 @@ export function renderMarkdown(rows) {
  *     `rules/test/coverage/coverage.mjs` — сам оркестратор, не провайдер).
  * @param {string} rulesDir корінь `npm/rules/`
  * @param {string} ruleId id правила з `.n-cursor.json#rules`
- * @returns {Promise<{detect:Function, collect:Function}|null>} provider-модуль або null
+ * @returns {Promise<{detect:(cwd:string)=>Promise<boolean>, collect:(cwd:string)=>Promise<Array<object>>}|null>} provider-модуль або null
  */
 async function loadProvider(rulesDir, ruleId) {
   const providerPath = join(rulesDir, ruleId, 'coverage', 'coverage.mjs')
   if (!existsSync(providerPath)) return null
-  const mod = await import(providerPath)
+  // eslint-disable-next-line no-unsanitized/method -- providerPath з join(rulesDir, ruleId, …), ruleId з конфігу
+  const mod = await import(pathToFileURL(providerPath).href)
   if (typeof mod.detect !== 'function' || typeof mod.collect !== 'function') return null
   return mod
 }

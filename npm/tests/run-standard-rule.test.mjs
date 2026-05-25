@@ -15,8 +15,9 @@ afterEach(() => {
 })
 
 /**
- *
- * @param id
+ * Мінімальне правило з applies() === false для unit-тестів runStandardRule.
+ * @param {string} id ідентифікатор правила в тимчасовому дереві
+ * @returns {string} абсолютний шлях до `rules/<id>/`
  */
 function makeMinimalRule(id) {
   const root = mkdtempSync(join(tmpdir(), 'run-standard-rule-'))
@@ -40,8 +41,7 @@ describe('runStandardRule', () => {
 
   test('використовує переданий walkCache замість singleton', async () => {
     const ruleDir = makeMinimalRule('test-rule')
-    const customCache = new Map()
-    customCache.set('marker', Promise.resolve(['fake']))
+    const customCache = new Map([['marker', Promise.resolve(['fake'])]])
     await runStandardRule(ruleDir, { walkCache: customCache })
     expect(customCache.has('marker')).toBe(true)
   })

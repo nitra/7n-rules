@@ -7,12 +7,23 @@
  * Library-mode виклик з CLI orchestration — інше: див. `runStandardRule` + `fix.mjs::run(ctx)`.
  */
 import { basename } from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import { isRuleEnabled, readNCursorConfigLite } from './read-n-cursor-config-lite.mjs'
 import { runStandardRule } from './run-standard-rule.mjs'
 import { getOrCreateWalkCache } from '../utils/walk-cache.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
+
+/**
+ * Чи поточний модуль запущено як CLI entry-point (`bun rules/<id>/fix.mjs`).
+ * @returns {boolean} true, коли `import.meta.url` збігається з `process.argv[1]`
+ */
+export function isRunAsCli() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  return import.meta.url === pathToFileURL(entry).href
+}
 
 /**
  * @param {string} ruleDir абсолютний шлях до `rules/<id>/`

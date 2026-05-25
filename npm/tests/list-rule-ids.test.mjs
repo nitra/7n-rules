@@ -9,11 +9,9 @@ import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 const tmpRoots = []
 
 /**
- *
- * @param root0
- * @param root0.withFix
- * @param root0.withoutFix
- * @param root0.hidden
+ * Створює тимчасове дерево rules/ з fix.mjs і прихованими каталогами.
+ * @param {{withFix?: string[], withoutFix?: string[], hidden?: string[]}} opts набори id правил
+ * @returns {string} абсолютний шлях до кореня fake rules/
  */
 function makeFakeRules({ withFix = [], withoutFix = [], hidden = [] }) {
   const root = mkdtempSync(join(tmpdir(), 'list-rule-ids-'))

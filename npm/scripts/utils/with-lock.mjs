@@ -3,7 +3,7 @@
  * Алгоритм: mkdirSync-based lock, перевірка живості PID, sha256-dedup з TTL.
  */
 import * as fs from 'node:fs'
-import * as path from 'node:path'
+import { join } from 'node:path'
 import * as os from 'node:os'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { worktreeFingerprint } from './worktree-fingerprint.mjs'
@@ -16,8 +16,9 @@ const DEFAULTS = {
 }
 
 /**
- *
- * @param pid
+ * Чи процес із заданим PID ще живий на поточному host.
+ * @param {number} pid ідентифікатор процесу з owner.json
+ * @returns {boolean} true, якщо process.kill(pid, 0) не кинув помилку
  */
 function isAlive(pid) {
   try {
@@ -29,8 +30,9 @@ function isAlive(pid) {
 }
 
 /**
- *
- * @param lockDir
+ * Повертає функцію, що знімає lock-директорію.
+ * @param {string} lockDir абсолютний шлях до lock-директорії
+ * @returns {() => void} release-колбек для finally/signal handler
  */
 function makeRelease(lockDir) {
   return () => fs.rmSync(lockDir, { recursive: true, force: true })
@@ -60,10 +62,10 @@ export function shouldDedup(result, fingerprint, ttl) {
 export async function withLock(key, runFn, opts = {}) {
   const { ttl, staleThreshold, waitTimeout, pollInterval } = { ...DEFAULTS, ...opts }
   const getFingerprint = opts.getFingerprint ?? worktreeFingerprint
-  const cacheDir = opts.cacheDir ?? path.join(process.cwd(), 'node_modules/.cache/n-cursor', key)
-  const lockDir = path.join(cacheDir, 'lock')
-  const ownerFile = path.join(lockDir, 'owner.json')
-  const resultFile = path.join(cacheDir, 'result.json')
+  const cacheDir = opts.cacheDir ?? join(process.cwd(), 'node_modules/.cache/n-cursor', key)
+  const lockDir = join(cacheDir, 'lock')
+  const ownerFile = join(lockDir, 'owner.json')
+  const resultFile = join(cacheDir, 'result.json')
   const release = makeRelease(lockDir)
 
   const fingerprint = getFingerprint()
@@ -71,7 +73,6 @@ export async function withLock(key, runFn, opts = {}) {
 
   const loopStart = Date.now()
 
-   
   while (true) {
     if (Date.now() - loopStart >= waitTimeout) {
       console.error(`⚠️ ${key}: чекав ${waitTimeout / 60_000} хв — запускаю без локу`)
@@ -122,7 +123,7 @@ export async function withLock(key, runFn, opts = {}) {
 
   const onSignal = () => {
     release()
-    // eslint-disable-next-line unicorn/no-process-exit -- SIGINT/SIGTERM мають завершити процес із кодом 130
+    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- SIGINT/SIGTERM мають завершити процес із кодом 130
     process.exit(130)
   }
   process.once('SIGINT', onSignal)

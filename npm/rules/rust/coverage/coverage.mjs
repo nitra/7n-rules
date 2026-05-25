@@ -6,6 +6,7 @@
  *
  * Контракт провайдера — у docs/superpowers/specs/2026-05-24-coverage-rule-design.md.
  */
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -50,21 +51,19 @@ async function resolveCargoManifest(cwd) {
 }
 
 const defaultRunner = {
-  async runLlvmCov({ manifestPath }) {
-    const proc = Bun.spawn(['cargo', 'llvm-cov', '--manifest-path', manifestPath, '--json', '--summary-only'], {
-      stdout: 'pipe',
-      stderr: 'inherit'
+  runLlvmCov({ manifestPath }) {
+    const r = spawnSync('cargo', ['llvm-cov', '--manifest-path', manifestPath, '--json', '--summary-only'], {
+      stdio: ['inherit', 'pipe', 'inherit'],
+      env: process.env
     })
-    const stdout = await new Response(proc.stdout).text()
-    const exitCode = await proc.exited
-    return { exitCode, stdout }
+    return { exitCode: r.status ?? 1, stdout: r.stdout?.toString('utf8') ?? '' }
   },
   runCargoMutants({ manifestPath, outDir }) {
-    const proc = Bun.spawn(['cargo', 'mutants', '--in-place', '-o', outDir, '--manifest-path', manifestPath], {
-      stdout: 'inherit',
-      stderr: 'inherit'
+    const r = spawnSync('cargo', ['mutants', '--in-place', '-o', outDir, '--manifest-path', manifestPath], {
+      stdio: 'inherit',
+      env: process.env
     })
-    return proc.exited
+    return r.status ?? 1
   }
 }
 

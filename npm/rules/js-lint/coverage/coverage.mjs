@@ -5,6 +5,7 @@
  *
  * Контракт провайдера — у docs/superpowers/specs/2026-05-24-coverage-rule-design.md.
  */
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -12,7 +13,7 @@ import { join } from 'node:path'
 
 /**
  * Резолвить cwd, у якому стоять JS-тести. Workspace-проєкти — перший workspace
- * (mlmail: app/), single-package — корінь.
+ * (наприклад: app/), single-package — корінь.
  * @param {string} cwd корінь проєкту
  * @returns {Promise<string|null>} абсолютний шлях до JS-root або null без package.json
  */
@@ -93,20 +94,21 @@ function parseStrykerReport(report) {
 }
 
 /**
- * Default runner — спавнить реальні bun-команди. Замінюється у тестах.
+ * Default runner — спавнить реальні bun-команди через `node:child_process.spawnSync`
+ * (працює і в Node-runtime через shebang `n-cursor`, і в Bun). Замінюється у тестах.
  */
 const defaultRunner = {
   runJsCoverage({ cwd, lcovDir }) {
-    const proc = Bun.spawn(['bun', 'run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${lcovDir}`], {
+    const r = spawnSync('bun', ['run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${lcovDir}`], {
       cwd,
-      stdout: 'inherit',
-      stderr: 'inherit'
+      stdio: 'inherit',
+      env: process.env
     })
-    return proc.exited
+    return r.status ?? 1
   },
   runStryker({ cwd }) {
-    const proc = Bun.spawn(['bunx', 'stryker', 'run'], { cwd, stdout: 'inherit', stderr: 'inherit' })
-    return proc.exited
+    const r = spawnSync('bunx', ['stryker', 'run'], { cwd, stdio: 'inherit', env: process.env })
+    return r.status ?? 1
   }
 }
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'bun:test'
 import { worktreeFingerprint } from '../worktree-fingerprint.mjs'
 
+const HEX_FINGERPRINT_RE = /^[0-9a-f]{64}$/
+
 /** @returns {{status:number, error:Error, stdout:string}} mock spawnSync для fallback-тесту */
 function mockSpawnFail() {
   return { status: 1, error: new Error('no git'), stdout: '' }
@@ -15,7 +17,7 @@ describe('worktreeFingerprint', () => {
   it('result is 64-char hex string when in a git repo', () => {
     const result = worktreeFingerprint()
     if (result !== null) {
-      expect(result).toMatch(/^[0-9a-f]{64}$/)
+      expect(result).toMatch(HEX_FINGERPRINT_RE)
     }
   })
 

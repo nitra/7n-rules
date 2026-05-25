@@ -10,11 +10,13 @@ import { join } from 'node:path'
 
 import { collect, detect } from '../coverage.mjs'
 
+const CARGO_LLVM_COV_INSTALL_RE = /cargo install cargo-llvm-cov/
+const CARGO_MUTANTS_INSTALL_RE = /cargo install cargo-mutants/
+
 /**
- *
- * @param root0
- * @param root0.withCargo
- * @param root0.nested
+ * Тимчасова fixture-директорія з опційним Cargo.toml.
+ * @param {{withCargo?: boolean, nested?: boolean}} [opts] чи створювати manifest і де саме
+ * @returns {string} абсолютний шлях до тимчасового кореня
  */
 function makeFixture({ withCargo = true, nested = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'rust-coverage-'))
@@ -102,7 +104,7 @@ describe('rust coverage collect()', () => {
         return 0
       }
     }
-    await expect(collect(dir, { runner })).rejects.toThrow(/cargo install cargo-llvm-cov/)
+    await expect(collect(dir, { runner })).rejects.toThrow(CARGO_LLVM_COV_INSTALL_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -121,7 +123,7 @@ describe('rust coverage collect()', () => {
         return 0
       }
     }
-    await expect(collect(dir, { runner })).rejects.toThrow(/cargo install cargo-mutants/)
+    await expect(collect(dir, { runner })).rejects.toThrow(CARGO_MUTANTS_INSTALL_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 })

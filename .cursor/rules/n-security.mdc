@@ -18,11 +18,13 @@ version: '2.1'
   }
 }
 ```
+
 - `lint` агрегатор повинен містити: `package.json`:
 
 ```json
 { "scripts": { "lint": ["bun run lint-security"] } }
 ```
+
 - Заборонено `trufflehog` у `dependencies`/`devDependencies`: `package.json`:
 
 ```json

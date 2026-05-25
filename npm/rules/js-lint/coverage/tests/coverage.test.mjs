@@ -11,11 +11,14 @@ import { join } from 'node:path'
 
 import { collect, detect } from '../coverage.mjs'
 
+const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
+const MUTATION_JSON_RE = /mutation\.json/
+
 /**
- *
- * @param pkg
- * @param root0
- * @param root0.workspaceRoot
+ * Тимчасова fixture-директорія з package.json для js-lint coverage-тестів.
+ * @param {Record<string, unknown>} pkg вміст package.json workspace-пакета
+ * @param {{workspaceRoot?: boolean}} [opts] чи емулювати monorepo з workspaces: ['app']
+ * @returns {string} абсолютний шлях до тимчасового кореня
  */
 function makeFixture(pkg, { workspaceRoot = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-'))
@@ -115,7 +118,7 @@ describe('js-lint coverage collect()', () => {
         return 0
       }
     }
-    await expect(collect(dir, { runner })).rejects.toThrow(/JS coverage.*exit 1/)
+    await expect(collect(dir, { runner })).rejects.toThrow(JS_COVERAGE_EXIT_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -130,7 +133,7 @@ describe('js-lint coverage collect()', () => {
         return 0
       }
     }
-    await expect(collect(dir, { runner })).rejects.toThrow(/mutation\.json/)
+    await expect(collect(dir, { runner })).rejects.toThrow(MUTATION_JSON_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 })

@@ -5,12 +5,13 @@
   "reporters": ["console"],
   "ignore": [
     ".claude/worktrees/**",
+    "**/.stryker-tmp/**",
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
     "npm/.claude-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
-    "npm/scripts/utils/oxlint-canonical.json",
+    "npm/rules/js-lint/js/data/tooling/oxlint-canonical.json",
     "docs/adr/_inbox/**",
     "docs/superpowers/**",
     "npm/rules/*/policy/*/template/*.yml.snippet.yml"

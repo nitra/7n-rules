@@ -9,11 +9,9 @@ import { discoverOneRule } from '../scripts/lib/discover-checkable-rules.mjs'
 const tmpRoots = []
 
 /**
- *
- * @param root0
- * @param root0.id
- * @param root0.jsConcerns
- * @param root0.policyConcerns
+ * Створює тимчасове fake-правило з JS/policy concerns для discoverOneRule.
+ * @param {{id: string, jsConcerns?: string[], policyConcerns?: string[]}} opts параметри fake-правила
+ * @returns {string} абсолютний шлях до `rules/<id>/`
  */
 function makeFakeRule({ id, jsConcerns = [], policyConcerns = [] }) {
   const root = mkdtempSync(join(tmpdir(), 'discover-one-rule-'))
