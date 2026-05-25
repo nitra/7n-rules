@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
@@ -48,7 +49,7 @@ function runCaptureHook(payload, extraEnv = {}) {
       // Тільки системні шляхи без `claude`/`cursor-agent`.
       PATH: '/usr/bin:/bin',
       CLAUDE_PROJECT_DIR: process.cwd(),
-      HOME: process.env.HOME,
+      HOME: env.HOME,
       ...extraEnv
     },
     encoding: 'utf8'

@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
@@ -53,7 +54,7 @@ function runNormalizeHook(extraEnv = {}) {
     env: {
       PATH: '/usr/bin:/bin',
       CLAUDE_PROJECT_DIR: process.cwd(),
-      HOME: process.env.HOME,
+      HOME: env.HOME,
       ADR_NORMALIZE_THRESHOLD: '1',
       ADR_NORMALIZE_MIN_INTERVAL_HOURS: '0',
       ...extraEnv

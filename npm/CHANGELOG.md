@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.18.2] - 2026-05-25
+
+### Fixed
+
+- `rules/adr/js/tests/capture-decisions-tooling-only.test.mjs`, `rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs` — `process.env.HOME` → `env.HOME` із `'node:process'` (js-run.mdc: `process.env` deprecated, треба `env` з `node:process` або `@nitra/check-env`).
+
 ## [1.18.1] - 2026-05-25
 
 ### Fixed
