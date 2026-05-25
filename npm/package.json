@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -42,8 +42,8 @@
   "type": "module",
   "types": "./types/bin/n-cursor.d.ts",
   "scripts": {
-    "test": "bun test",
-    "test:coverage": "bun test --coverage",
+    "test": "bun test --parallel",
+    "test:coverage": "bun test --parallel --coverage",
     "start": "bun ./bin/n-cursor.js",
     "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
   },

@@ -37,24 +37,31 @@ async function checkAbie() {
 }
 
 describe('check-* на реальному репозиторії', () => {
-  test('узгоджені з поточним деревом cursor', async () => {
-    const prev = process.cwd()
-    process.chdir(REPO_ROOT)
-    try {
-      await withShellcheckStubInPath(async () => {
-        expect(await checkAbie()).toBe(0)
-        expect(await checkBun()).toBe(0)
-        expect(await checkGa()).toBe(0)
-        expect(await checkGraphql()).toBe(0)
-        expect(await checkJsLint()).toBe(0)
-        expect(await checkText()).toBe(0)
-        expect(await checkNpmModule()).toBe(0)
-        expect(await checkDocker()).toBe(0)
-        expect(await checkK8s()).toBe(0)
-        expect(await checkJsRun()).toBe(0)
-      })
-    } finally {
-      process.chdir(prev)
-    }
-  })
+  // 10 послідовних checkов з subprocess-викликами (shellcheck-стаб, k8s/ga/text валідатори
+  // через conftest/opa/regal) на macOS вкладаються у ~5-7с — дефолтний 5000ms-timeout bun-test'у
+  // не вистачає. Збільшуємо до 30с для запасу на повільних машинах і у CI.
+  test(
+    'узгоджені з поточним деревом cursor',
+    async () => {
+      const prev = process.cwd()
+      process.chdir(REPO_ROOT)
+      try {
+        await withShellcheckStubInPath(async () => {
+          expect(await checkAbie()).toBe(0)
+          expect(await checkBun()).toBe(0)
+          expect(await checkGa()).toBe(0)
+          expect(await checkGraphql()).toBe(0)
+          expect(await checkJsLint()).toBe(0)
+          expect(await checkText()).toBe(0)
+          expect(await checkNpmModule()).toBe(0)
+          expect(await checkDocker()).toBe(0)
+          expect(await checkK8s()).toBe(0)
+          expect(await checkJsRun()).toBe(0)
+        })
+      } finally {
+        process.chdir(prev)
+      }
+    },
+    30000
+  )
 })

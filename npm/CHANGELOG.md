@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.19.1] - 2026-05-25
+
+### Fixed
+
+- **`bun test --parallel`** як default у `npm/package.json` (`test`, `test:coverage`). Без флагу bun-test крутить усі 95 файлів у одному процесі — а `withTmpCwd` (`scripts/utils/test-helpers.mjs`) міняє глобальний `process.cwd()`, через що тести гонять один за одного: `prev = process.cwd()` ловить tmp-dir сусіднього тесту, `chdir(prev)` на restore падає `ENOENT` (бо сусід уже видалив свій tmp), або `git commit` з `cwd: process.cwd()` злітає в реальний repo з `npm/CHANGELOG.md`/`npm/package.json` як stub-fixture. `--parallel` дає окремий worker-процес на файл (з `process.cwd()` per-process), що геть знімає race. Знизило 22 тести з fail до pass, час suite'у — 211с → 47с.
+- **`tests/integration-repo-checks.test.mjs`** — додано explicit `30000`ms timeout для `check-* на реальному репозиторії > узгоджені з поточним деревом cursor`. Тест послідовно ганяє 10 check-функцій із subprocess-викликами (shellcheck-стаб + conftest/opa/regal/kubeconform/kubescape) — на macOS виходить ~3-7с, дефолтний 5000ms-timeout bun-test'у не вистачає.
+
 ## [1.19.0] - 2026-05-25
 
 ### Added
