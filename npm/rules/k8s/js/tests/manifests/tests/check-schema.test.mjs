@@ -2263,7 +2263,7 @@ describe('NetworkPolicy helpers', () => {
   })
 
   test('buildNetworkPolicyYaml(name, app, undefined): throws (kind обовʼязковий)', () => {
-    expect(() => buildNetworkPolicyYaml('api', 'api', undefined)).toThrow(/Unknown workload kind/)
+    expect(() => buildNetworkPolicyYaml('api', 'api')).toThrow(/Unknown workload kind/)
   })
 
   test('ensureResourceInKustomizationYaml додає networkpolicy.yaml і сортує resources', () => {

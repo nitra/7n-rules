@@ -8,8 +8,8 @@ import { LINT_SCRIPTS, runLintCli } from '../run-lint-cli.mjs'
 /**
  * Створює тимчасову теку з package.json, у якому задані scripts.
  *
- * @param {Record<string, string>} scripts
- * @returns {{ root: string, cleanup: () => void }}
+ * @param {Record<string, string>} scripts мапа `scripts` для тестового `package.json`
+ * @returns {{ root: string, cleanup: () => void }} абсолютний шлях до теки і функція прибирання
  */
 function makeProject(scripts) {
   const root = mkdtempSync(join(tmpdir(), 'run-lint-cli-'))
@@ -20,7 +20,8 @@ function makeProject(scripts) {
 /**
  * Фабрика мокованого spawnSync: повертає послідовність exit-кодів і тривалостей.
  *
- * @param {Array<{ status: number, ms: number }>} sequence
+ * @param {Array<{ status: number, ms: number }>} sequence послідовність відповідей spawnSync у порядку викликів
+ * @returns {{ spawnSyncFn: Function, now: () => number, calls: {name: string, status: number}[] }} моки + журнал викликів
  */
 function makeSpawnSync(sequence) {
   let i = 0

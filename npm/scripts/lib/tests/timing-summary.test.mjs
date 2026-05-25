@@ -63,7 +63,7 @@ describe('formatTimingSummary', () => {
     expect(out).toContain('⏱  Lint timing:')
   })
 
-  test('кінчається на \\n', () => {
+  test(String.raw`кінчається на \n`, () => {
     const out = formatTimingSummary('Fix timing', [{ id: 'fix-ga', ms: 100, ok: true }])
     expect(out.endsWith('\n')).toBe(true)
   })

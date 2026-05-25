@@ -99,7 +99,7 @@ describe('routeFilePathToRules', () => {
 
   test('некоректні входи — пустий масив', () => {
     expect(routeFilePathToRules('')).toEqual([])
-    expect(routeFilePathToRules(undefined)).toEqual([])
+    expect(routeFilePathToRules()).toEqual([])
     expect(routeFilePathToRules(null)).toEqual([])
     expect(routeFilePathToRules(42)).toEqual([])
   })
