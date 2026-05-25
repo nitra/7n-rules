@@ -1,0 +1,29 @@
+npm/tests/integration-repo-checks.test.mjs
+  s_17dce3cec43c9d::t_4f43b3b4f2a230 42-43
+  s_17dce3cec43c9d::t_4d4d8459c48b55 66
+npm/package.json
+  s_17dce3cec43c9d::t_00b3f8e1b8eb6c 2-24,26-45,47-59
+npm/CHANGELOG.md
+  s_17dce3cec43c9d::t_18c37666968504 12
+  s_17dce3cec43c9d::t_a29283173355e5 3-11,13-2066,2070-2204
+npm/stryker.config.mjs
+  s_17dce3cec43c9d::t_f5749f9eb277f2 5-6
+  s_17dce3cec43c9d::t_2eb804d832543e 4
+  s_17dce3cec43c9d::t_a970c33f9fcc02 16-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "d3998d6a9e09ed6ee81ffac097665f048ea15d0d",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
