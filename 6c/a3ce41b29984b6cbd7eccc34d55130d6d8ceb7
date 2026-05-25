@@ -1,0 +1,66 @@
+docs/adr/20260525-201811-egress-правило-для-gke-nodelocal-dnscache-у-networkpolicy-ша.md
+  ai_agent 1-78
+npm/package.json
+  s_2a60aea2b7e73b::t_a7e737bd953af2 3,51
+docs/adr/20260525-204219-egress-правило-169-254-0-0-16-для-dns-через-gke-nodelocal-dn.md
+  ai_agent 1-54
+docs/adr/20260525-204009-egress-правило-для-dns-через-gke-nodelocal-dnscache-у-networ.md
+  ai_agent 1-118
+docs/adr/20260525-200646-egress-правило-для-dns-через-nodelocal-dnscache-gke-у-networ.md
+  ai_agent 1-32
+docs/adr/20260525-203253-egress-правило-для-dns-через-gke-nodelocal-dnscache-у-networ.md
+  ai_agent 1-72
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_2a60aea2b7e73b::t_e81108c6d85b04 217
+  s_2a60aea2b7e73b::t_487b608421d408 119-121
+  s_2a60aea2b7e73b::t_e3d4a369a1fe5d 193-198
+docs/adr/20260525-203053-egress-правило-для-gke-nodelocal-dnscache-у-networkpolicy.md
+  ai_agent 1-57
+docs/adr/20260525-204057-egress-правило-dns-через-gke-nodelocal-dnscache-169-254-0-0.md
+  ai_agent 1-64
+npm/CHANGELOG.md
+  s_a282ea1c9cf92c::t_19ada3b8213d99 13
+  s_a282ea1c9cf92c::t_928a6d57d054f9 11-12
+docs/adr/20260525-210318-примусовий-запуск-nitra-cursor-fix-через-claude-code-stop-ho.md
+  ai_agent 1-71
+docs/adr/20260525-210558-синхронний-stop-hook-як-блокуючий-quality-gate-перед-поверне.md
+  ai_agent 1-36
+npm/bin/n-cursor.js
+  ai_agent 1473
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  ai_agent 112
+npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  ai_agent 11-14
+docs/superpowers/plans/2026-05-25-networkpolicy-snippet-v2-delta.md
+  ai_agent 1-1521
+docs/adr/20260525-205034-egress-правило-для-dns-через-gke-nodelocal-dnscache-у-networ.md
+  ai_agent 1-107
+npm/scripts/coverage-fix.mjs
+  s_2a60aea2b7e73b::t_d4697ed498ef5b 13-87
+docs/adr/20260525-203700-networkpolicy-snippet-як-єдине-джерело-правди.md
+  ai_agent 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "6ca3ce41b29984b6cbd7eccc34d55130d6d8ceb7",
+  "prompts": {},
+  "sessions": {
+    "s_2a60aea2b7e73b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b31ad6d3-8583-4022-8f31-4f8e081eb0d0",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_a282ea1c9cf92c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e0f4ef73-ad6c-4e43-928b-8a6a1e508aae",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
