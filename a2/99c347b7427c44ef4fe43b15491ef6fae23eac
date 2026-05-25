@@ -1,0 +1,25 @@
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  s_16d0fba9dca81b::t_be5277a08cd9bd 69-71
+npm/CHANGELOG.md
+  ai_agent 3,7
+npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline
+  s_16d0fba9dca81b::t_52bdb02721bbf6 5-8
+npm/package.json
+  ai_agent 2-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a299c347b7427c44ef4fe43b15491ef6fae23eac",
+  "prompts": {},
+  "sessions": {
+    "s_16d0fba9dca81b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "51f93571-76cb-45a9-b80e-402459c6c47f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
