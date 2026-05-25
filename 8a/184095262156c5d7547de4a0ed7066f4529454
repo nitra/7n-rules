@@ -1,0 +1,57 @@
+npm/CHANGELOG.md
+  s_ba3fa061d83959::t_be6132594fd34d 7-25
+docs/superpowers/plans/2026-05-25-adr-cspell-tooling-only.md
+  s_ba3fa061d83959::t_0826cf3a07dcfb 1-908
+npm/rules/text/policy/cspell/cspell_test.rego
+  s_ba3fa061d83959::t_9c9b8495cf6c81 17,36
+  s_ba3fa061d83959::t_0f15359a0c76a7 78-92
+npm/.claude-template/hooks/capture-decisions.sh
+  s_ba3fa061d83959::t_06c2d620cf4cb4 145-167
+  s_ba3fa061d83959::t_b6a1387be0c457 37-92
+.cspell.json
+  s_ba3fa061d83959::t_7c59b1b1883538 12
+npm/rules/text/policy/cspell/template/.cspell.json.snippet.json
+  s_ba3fa061d83959::t_86b6822f4d173c 10-11
+.cursor/rules/n-adr.mdc
+  s_ba3fa061d83959::t_27322b54696eb7 4,32-33,43,71
+npm/rules/adr/js/tests/capture-decisions-tooling-only.test.mjs
+  s_ba3fa061d83959::t_1dc00eb0bb0e9a 1-126
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_ba3fa061d83959::t_5b6f6712794acf 42-100
+  s_ba3fa061d83959::t_d45d500da1e1a3 182-220
+package.json
+  s_ba3fa061d83959::t_27322b54696eb7 23
+npm/rules/text/text.mdc
+  s_ba3fa061d83959::t_bf96074e6cc90e 4
+  s_ba3fa061d83959::t_c7da45f122d306 197
+  s_ba3fa061d83959::t_6bd37dab511290 198
+  s_ba3fa061d83959::t_6734947e78523d 235
+  s_ba3fa061d83959::t_9d2dd4c5fb8903 189
+npm/rules/adr/adr.mdc
+  s_ba3fa061d83959::t_9249a44d2453cb 4
+  s_ba3fa061d83959::t_59ea3f2bd377a9 32-33
+  s_ba3fa061d83959::t_31131bdbbd56c5 71
+npm/package.json
+  s_ba3fa061d83959::t_ef0ff097245a2c 3
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  s_ba3fa061d83959::t_768c1637b3c98f 1-138
+npm/skills/adr-normalize/SKILL.md
+  s_ba3fa061d83959::t_faebff3a44ff47 72
+  s_ba3fa061d83959::t_7d5b48e6b18682 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "8a184095262156c5d7547de4a0ed7066f4529454",
+  "prompts": {},
+  "sessions": {
+    "s_ba3fa061d83959": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2ce74495-ae37-461c-a696-487f7361df48",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
