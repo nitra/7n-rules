@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-05-25-pi-extensions-adr-hooks.md
+  s_1b1b055c883315::t_a36a815d66532c 1-808
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "5b1aadc33578969062ea9c81d71b6aff37943f00",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
