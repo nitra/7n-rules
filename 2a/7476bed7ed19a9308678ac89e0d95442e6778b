@@ -1,0 +1,25 @@
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_b04f45c0cd93a7::t_ef6939090770dc 102
+npm/scripts/lib/tests/timing-summary.test.mjs
+  s_b04f45c0cd93a7::t_ef6939090770dc 66
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_b04f45c0cd93a7::t_ef6939090770dc 2266
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_b04f45c0cd93a7::t_8b731e5bbb4dd4 11-12,23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "2a7476bed7ed19a9308678ac89e0d95442e6778b",
+  "prompts": {},
+  "sessions": {
+    "s_b04f45c0cd93a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8895738-4fcd-44ff-891e-24ef7cfe8874",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
