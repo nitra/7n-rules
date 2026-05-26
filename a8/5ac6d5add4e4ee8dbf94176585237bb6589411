@@ -1,0 +1,259 @@
+npm/rules/test/js/tests/location.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/text/lint/tests/run-shellcheck.test.mjs
+  s_e9bf4a184b5a4c::t_31eec0a30d8ab2 37
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+  s_e9bf4a184b5a4c::t_f18a2fb753ff52 5
+npm/rules/abie/lib/tests/overlay-paths.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_e9bf4a184b5a4c::t_94bc0c3adf84e3 8,2355,2404,2449,2507,2546,2562,2606,2670,2708,2778
+npm/scripts/tests/auto-rules.test.mjs
+  s_e9bf4a184b5a4c::t_fb2cff780b3912 7
+  s_e9bf4a184b5a4c::t_d7ef103d1bbf34 46
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/tests/auto-skills.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 8
+npm/scripts/tests/skills-cli.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+npm/CHANGELOG.md
+  s_e9bf4a184b5a4c::t_fb37cb3391c6b3 7-17
+npm/rules/ga/lint/tests/lint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+COVERAGE.md
+  s_e9bf4a184b5a4c::t_1eda1723612a1b 3-193
+npm/tests/fix-mjs-contract.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 6
+npm/scripts/lib/tests/discover-checkable-rules.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/lib/tests/load-cursor-config.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+eslint.config.js
+  s_e9bf4a184b5a4c::t_38a0d98f8b3f5e 19-31
+npm/rules/tauri/js/tests/cargo_mutants_config.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 12
+npm/scripts/lib/tests/workspaces.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+docs/adr/20260526-210437-spike-перед-міграцією-verify-first-перед-переходом-на-vitest.md
+  s_0ecea1a7251a03::t_a5b4046eef7344 1-85
+npm/rules/docker/js/tests/lint/tests/check-nginx-slim.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+npm/rules/docker/js/tests/lint/tests/check-multistage.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/utils/tests/walkDir.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/security/js/tests/sample_secret.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/abie/lib/tests/kustomization-patches.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+  s_e9bf4a184b5a4c::t_bcbef81fafaa54 57-68
+npm/rules/js-run/js/tests/runtime/tests/conn-file-rules.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/abie/lib/tests/http-route.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/lib/tests/generated-markdown.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/docker/js/tests/lint/tests/check-nonroot.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/js-lint/js/tests/tooling.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 9
+npm/rules/k8s/lint/tests/run-roots.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/lib/tests/discover-check-rules-from-cursor.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/abie/lib/tests/enabled.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/tests/walk-cache.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/lib/tests/run-rule.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 9
+npm/rules/js-run/js/tests/runtime/tests/bunyan-imports.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/lib/tests/gha-workflow.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/text/lint/tests/run-v8r-catalog.test.mjs
+  s_e9bf4a184b5a4c::t_ccf968380af966 17,21
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/js-run/js/tests/runtime/tests/conn-imports-scan.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/lib/tests/check-mdc-template-refs.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/lib/tests/template.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/utils/tests/worktree-fingerprint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/rust/coverage/tests/coverage.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 6
+npm/rules/bun/js/tests/layout.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 10
+npm/scripts/utils/tests/ensure-gitignore-entries.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/tests/check-empty-trees.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/tests/run-standard-rule.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_e9bf4a184b5a4c::t_a56548f7b4a799 25
+  s_e9bf4a184b5a4c::t_94bc0c3adf84e3 12,112,123,131,138,145,153,161
+npm/rules/vue/vue.mdc
+  s_e9bf4a184b5a4c::t_6dc1b8a7de1eff 107,109-111,113-119,124
+  s_e9bf4a184b5a4c::t_16a5b77e6db4bb 3
+npm/rules/rego/lint/tests/lint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/stryker.config.mjs
+  s_e9bf4a184b5a4c::t_20d3a95f915f1c 3-9,13-16
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/utils/tests/resolve-js-root.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/ga/js/tests/workflows.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 6
+npm/scripts/lib/tests/timing-summary.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/hasura/js/tests/internal_urls.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/tests/build-agents-commands.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 8
+npm/rules/k8s/js/tests/manifests/tests/check-images.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 10
+npm/rules/js-lint/coverage/coverage.mjs
+  s_e9bf4a184b5a4c::t_16d322e098c4ac 32-36,46-51,54-58
+  s_e9bf4a184b5a4c::t_9e19e35d474210 25
+npm/rules/docker/js/tests/lint/tests/check-compile.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/tests/ensure-nitra-cursor-dev-dependencies.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 6
+npm/scripts/lib/tests/check-reporter.test.mjs
+  s_e9bf4a184b5a4c::t_94bc0c3adf84e3 4,23
+npm/rules/image-compress/js/tests/package_setup.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 15
+npm/tests/check-rule-fixtures.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/vue/js/tests/packages/tests/vue-forbidden-imports.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/lib/tests/resolve-target-files.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/security/js/tests/trufflehog.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/tests/sync-setup-bun-deps-action.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/tests/integration-repo-checks.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/docker/js/tests/lint/tests/discover.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+npm/scripts/lib/tests/run-conftest-batch.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_e9bf4a184b5a4c::t_8a90f404907635 32
+  s_e9bf4a184b5a4c::t_8fa9bc98aa0ae7 10,13-14
+  s_e9bf4a184b5a4c::t_442ee8765bdd38 624,629,631-632,634
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 9
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 6
+npm/tests/discover-one-rule.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/docker/js/tests/lint/tests/check-mirror.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/capacitor/js/tests/platforms.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/graphql/js/tests/tooling.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/js-bun-db/js/tests/safety.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/package.json
+  s_e9bf4a184b5a4c::t_39939a81727cf2 3
+  s_e9bf4a184b5a4c::t_aea21cea222def 47-49
+npm/rules/js-bun-redis/lib/tests/redis-imports.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/tests/rename-yaml-extensions.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 9
+npm/scripts/utils/tests/with-lock.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+package.json
+  s_e9bf4a184b5a4c::t_bd325f8995504f 28-31
+npm/scripts/lib/tests/run-standard-lint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_e9bf4a184b5a4c::t_74f2301048ebce 8-9,21-22
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/rust/js/tests/applies.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/text/js/tests/formatting/tests/check-fixture.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/scripts/utils/tests/pass.test.mjs
+  s_e9bf4a184b5a4c::t_94bc0c3adf84e3 4,17
+npm/tests/list-rule-ids.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/adr/js/tests/hooks.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 8
+npm/rules/npm-module/js/tests/package_structure.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 10
+npm/scripts/tests/upgrade-nitra-cursor-and-install.test.mjs
+  s_e9bf4a184b5a4c::t_94bc0c3adf84e3 6,67,78
+npm/rules/js-run/js/tests/runtime/tests/check-fixture.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/abie/lib/tests/env-dns.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/rules/text/lint/tests/lint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/adr/js/tests/capture-decisions-tooling-only.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 7
+npm/rules/docker/js/tests/lint/tests/docker-hadolint.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/image-avif/js/tests/avif_generation.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 12
+npm/rules/changelog/js/tests/consistency/tests/package-manifest.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/js-run/js/tests/runtime/tests/promise-settimeout-scan.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/rules/rust/lib/tests/has-cargo-toml.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+npm/scripts/lib/tests/inline-template-links.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 1
+npm/scripts/tests/cli-entry.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 9
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 11
+npm/rules/js-run/js/tests/runtime/tests/check-env-scan.test.mjs
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 4
+npm/rules/text/lint/tests/run-dotenv-linter.test.mjs
+  s_e9bf4a184b5a4c::t_5c016e6a719899 6
+  s_e9bf4a184b5a4c::t_2a5d58ab802497 5
+  s_e9bf4a184b5a4c::t_2abb5dff89eb76 32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a85ac6d5add4e4ee8dbf94176585237bb6589411",
+  "prompts": {},
+  "sessions": {
+    "s_0ecea1a7251a03": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019e6575-76ca-7fd6-8488-d54229b8c19f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e9bf4a184b5a4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2208c7de-d9d4-4720-b355-d3b5587de978",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
