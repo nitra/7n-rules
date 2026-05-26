@@ -3,11 +3,15 @@
  * проєктів, у яких є маркер Tauri.
  *
  * Cross-file gating (JS):
- *   1. Tauri-маркер визначаємо за **будь-яким** з:
- *      - існує каталог `src-tauri/` у `cwd`;
- *      - існує файл `tauri.conf.json` у `cwd` або в workspace-пакетах;
- *      - кореневий `package.json#devDependencies` або `dependencies` містить
- *        ключ з префіксом `@tauri-apps/`.
+ *   1. Tauri-маркер визначаємо обходом усіх workspace-пакетів через
+ *      `getMonorepoPackageRootDirs()` (корінь + workspaces). Кожен workspace
+ *      перевіряється за **будь-яким** з:
+ *      - існує каталог `<ws>/src-tauri/`;
+ *      - існує файл `<ws>/src-tauri/Cargo.toml`;
+ *      - існує файл `<ws>/src-tauri/tauri.conf.json`;
+ *      - існує файл `<ws>/tauri.conf.json` (legacy flat-layout);
+ *      - `<ws>/package.json#dependencies` чи `devDependencies` містить ключ
+ *        з префіксом `@tauri-apps/`.
  *   2. Якщо маркера немає — пропустити перевірку (tauri-tooling не вимагається).
  *   3. Інакше — для `.vscode/extensions.json` зробити FS-existence + делегувати
  *      content `rego.tauri.vscode_extensions` через `runConftestBatch`.
@@ -17,9 +21,11 @@
  */
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { runConftestBatch } from '../../../scripts/lib/run-conftest-batch.mjs'
+import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
 /**
  * Чи є префікс `@tauri-apps/` у ключах `dependencies` або `devDependencies`.
@@ -39,16 +45,34 @@ function packageHasTauriDep(pkg) {
 }
 
 /**
- * Чи є у проєкті маркер Tauri: `src-tauri/`, `tauri.conf.json` (root або
- * workspace), або `@tauri-apps/*` у залежностях кореневого `package.json`.
+ * Чи має одиничний workspace-пакет маркер Tauri.
+ * @param {string} cwd корінь репо
+ * @param {string} ws відносний шлях workspace ('.' для root)
+ * @returns {Promise<boolean>} true, якщо в цьому workspace є Tauri
+ */
+async function workspaceHasTauriMarker(cwd, ws) {
+  const base = ws === '.' ? cwd : join(cwd, ws)
+  const srcTauri = join(base, 'src-tauri')
+  if (existsSync(srcTauri) && statSync(srcTauri).isDirectory()) return true
+  if (existsSync(join(base, 'src-tauri', 'Cargo.toml'))) return true
+  if (existsSync(join(base, 'src-tauri', 'tauri.conf.json'))) return true
+  if (existsSync(join(base, 'tauri.conf.json'))) return true
+  const pkgPath = join(base, 'package.json')
+  if (!existsSync(pkgPath)) return false
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
+  return packageHasTauriDep(pkg)
+}
+
+/**
+ * Чи є у проєкті (root або будь-якому workspace-пакеті) маркер Tauri.
  * @returns {Promise<boolean>} true, якщо проєкт використовує Tauri
  */
 async function projectHasTauriMarker() {
-  if (existsSync('src-tauri') && statSync('src-tauri').isDirectory()) return true
-  if (existsSync('tauri.conf.json')) return true
-  if (!existsSync('package.json')) return false
-  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
-  if (packageHasTauriDep(pkg)) return true
+  const cwd = process.cwd()
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  for (const ws of roots) {
+    if (await workspaceHasTauriMarker(cwd, ws)) return true
+  }
   return false
 }
 

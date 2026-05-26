@@ -4,6 +4,21 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.26.3] - 2026-05-26
+
+### Added
+
+- **`rules/tauri/js/cargo_mutants_config.mjs`**: новий концерн tauri-правила. Для кожного `<ws>/src-tauri/Cargo.toml` ідемпотентно гарантує наявність Tauri-канонічних ключів у `<ws>/src-tauri/.cargo/mutants.toml` — `additional_cargo_test_args = ["--lib", "--tests"]` та `exclude_globs` для `src/main.rs` (binary shell) і platform-bridge файлів (`*android.rs`, `*ios.rs`, `*mobile.rs`, `*desktop.rs`, `*macos.rs`, `*windows.rs`, `*linux.rs`). Семантика: ці файли — boundary, бізнес-логіка повинна жити у platform-neutral модулях. Файл відсутній → створює повний baseline; всі канонічні ключі є → `manual cargo-mutants config preserved`; частина ключів відсутня → додає лише відсутні в окремий блок у кінці, без зміни існуючих значень.
+- **`rules/tauri/js/tests/cargo_mutants_config.test.mjs`**: 7 тестів — silent skip без Tauri, створення baseline, ідемпотентність (повторний прогон байт-в-байт), збереження ручних налаштувань, partial-merge (додаються лише відсутні ключі), кілька src-tauri у різних workspaces, augmentation поверх нейтрального test-rule baseline.
+- **`rules/tauri/tauri.mdc` v1.3**: нові розділи «Виявлення проєкту Tauri» (опис маркерів і workspace-обходу) та «Mutation-testing: семантика app shell та platform bridge» з фіксованою семантикою boundary-файлів і ідемпотентністю взаємодії з `test`-rule.
+
+### Changed
+
+- **`rules/test/js/data/cargo_mutants_config/mutants.toml.baseline`**: видалено Tauri-specific `additional_cargo_test_args = ["--lib", "--tests"]` — `test`-rule baseline тепер універсальний (тільки коментар, ніяких exclude'ів та framework-припущень). Customization-семантика framework-rules-ів описана в коментарі baseline'а.
+- **`rules/test/test.mdc` v2.3**: додано розділ «Універсальний baseline і framework-specific tuning» — `test` володіє нейтральним baseline, framework-rules (tauri, capacitor) зобов'язані доповнювати ідемпотентно і не перетирати ручні налаштування.
+- **`rules/tauri/js/tooling.mjs`**: виявлення Tauri тепер обходить усі workspace-пакети через `getMonorepoPackageRootDirs()` (раніше — тільки корінь). Маркером є будь-що з: `<ws>/src-tauri/`, `<ws>/src-tauri/Cargo.toml`, `<ws>/src-tauri/tauri.conf.json`, `<ws>/tauri.conf.json`, `<ws>/package.json#dependencies/devDependencies` з `@tauri-apps/*`. Дозволяє tauri-rule працювати в monorepo-проєктах, де Tauri живе в одному з пакетів, а не в корені.
+- **`rules/test/js/tests/cargo_mutants_config.test.mjs`**: тест базлайну тепер перевіряє відсутність framework-specific ключів (`additional_cargo_test_args`, `exclude_globs`) у нейтральному baseline-файлі.
+
 ## [1.26.2] - 2026-05-26
 
 ### Changed

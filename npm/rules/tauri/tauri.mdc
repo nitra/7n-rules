@@ -2,7 +2,7 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.2'
+version: '1.3'
 ---
 
 У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
@@ -14,3 +14,53 @@ version: '1.2'
 ```
 
 Розширені Rust-вимоги (`rust-lang.rust-analyzer`, `tamasfe.even-better-toml`, скрипт `lint-rust`, CI `lint-rust.yml`) — у правилі **`rust`** (`n-rust.mdc`). Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому `rust` активується автоматично разом з `tauri`.
+
+## Виявлення проєкту Tauri
+
+Правило активується, якщо хоч у одному workspace-пакеті (корінь або будь-який пакет з `package.json#workspaces`) виявлений маркер Tauri:
+
+- існує каталог `<ws>/src-tauri/`;
+- існує `<ws>/src-tauri/Cargo.toml`;
+- існує `<ws>/src-tauri/tauri.conf.json`;
+- існує `<ws>/tauri.conf.json` (legacy flat-layout);
+- `<ws>/package.json#dependencies` чи `devDependencies` містить ключ з префіксом `@tauri-apps/`.
+
+Виявлення виконує `js/tooling.mjs` через `getMonorepoPackageRootDirs()`. Це дозволяє Tauri-rule працювати у монорепо, де Tauri живе в одному з пакетів (а не в корені), не вимагаючи кореневих маркерів.
+
+## Mutation-testing: семантика app shell та platform bridge
+
+`tauri` rule володіє Tauri-specific семантикою mutation-testing для каталога `src-tauri/`. Концерн `js/cargo_mutants_config.mjs` ідемпотентно додає у `<ws>/src-tauri/.cargo/mutants.toml` такі канонічні ключі:
+
+```toml title="<ws>/src-tauri/.cargo/mutants.toml"
+additional_cargo_test_args = ["--lib", "--tests"]
+
+exclude_globs = [
+  "src/main.rs",
+  "src/**/android.rs",
+  "src/**/ios.rs",
+  "src/**/mobile.rs",
+  "src/**/desktop.rs",
+  "src/**/macos.rs",
+  "src/**/windows.rs",
+  "src/**/linux.rs"
+]
+```
+
+Семантика (фіксована між Tauri-проєктами):
+
+- **`src/main.rs`** — binary shell entrypoint: запускає Tauri runtime, реєструє plugins/handlers і повертає управління циклу подій. Тестується smoke/e2e (запуск бінарника), не mutation unit;
+- **`*android.rs`, `*ios.rs`, `*mobile.rs`** — mobile plugin bridge / platform glue: тонка обгортка над JNI/Objective-C виклики, mapping platform errors, виклики Tauri AppHandle і native API;
+- **`*macos.rs`, `*windows.rs`, `*linux.rs`, `*desktop.rs`** — desktop platform bridge / OS integration glue: opener/window APIs, OS-specific I/O, mapping platform errors.
+
+Ці файли мають містити **тільки platform boundary**: виклик plugin/native API, Tauri AppHandle, opener/window APIs, OS-specific I/O, mapping platform errors. Якщо у bridge-файлі з'являється pure/business logic — її потрібно винести у platform-neutral модуль (`src/auth/oauth.rs`, `src/gmail/message.rs`, …) і тестувати mutation-testing там.
+
+Це створює фіксовану семантику: `*android.rs`/`*macos.rs` — boundary-файли, а не місце для бізнес-логіки.
+
+### Ідемпотентність і взаємодія з `test`-rule
+
+- `test` rule створює універсальний нейтральний `.cargo/mutants.toml` (порожній з коментом) для кожного Cargo.toml-manifesta — без framework-specific exclude'ів. Це наш baseline.
+- `tauri` rule додає Tauri-канонічні ключі **поверх** того, що вже є у `<ws>/src-tauri/.cargo/mutants.toml`:
+  - якщо файла немає — створює з повного Tauri-baseline;
+  - якщо обидва канонічні ключі (`additional_cargo_test_args`, `exclude_globs`) вже присутні — `manual cargo-mutants config preserved`, нічого не зміниться;
+  - якщо якийсь канонічний ключ відсутній — додається окремим блоком у кінці файла, без зміни існуючих значень.
+- Послідовний `fix test` → `fix tauri` створює Tauri-config; повторний `fix tauri` не дублює секцій; повторний `fix test` не перетирає Tauri-tuning.

@@ -1,8 +1,7 @@
-# .cargo/mutants.toml — конфігурація cargo-mutants (опційно).
+# .cargo/mutants.toml — universal cargo-mutants baseline (test.mdc).
+# Цей baseline нейтральний: він не робить припущень про framework/app shell,
+# не виключає platform glue, generated wrappers або binary entrypoints.
+# Framework-specific tuning (Tauri, Capacitor тощо) належить відповідним
+# правилам — вони ідемпотентно доповнюють цей файл, не перетирають його.
 # cargo-mutants має робочі defaults; цей файл — стартова точка для customization.
 # Документація: https://mutants.rs/
-# Канон постачає правило `test` (@nitra/cursor).
-
-# Виключаємо --bins і --doc: бінарник Tauri та doc-tests щоразу перезбираються
-# з нуля навіть з кешем, що збільшує час кожного мутанту з секунд до хвилин.
-additional_cargo_test_args = ["--lib", "--tests"]

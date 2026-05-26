@@ -75,7 +75,9 @@ describe('cargo_mutants_config concern', () => {
     expect(existsSync(target)).toBe(true)
     const content = readFileSync(target, 'utf8')
     expect(content).toContain('cargo-mutants')
-    expect(content).toContain('additional_cargo_test_args')
+    // Neutral baseline: жодних framework-specific ключів (tauri-tuning живе у tauri-rule).
+    expect(content).not.toContain('additional_cargo_test_args')
+    expect(content).not.toContain('exclude_globs')
     proj.cleanup()
   })
 
