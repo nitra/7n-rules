@@ -1,0 +1,38 @@
+npm/package.json
+  s_db9561316a6bd6::t_5861c373dcbbf1 3
+npm/CHANGELOG.md
+  s_db9561316a6bd6::t_d52b82673b81a9 7-21
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  s_db9561316a6bd6::t_1deb3f842d6565 78-80
+npm/rules/tauri/js/cargo_mutants_config.mjs
+  s_db9561316a6bd6::t_09e1cc3c7d8c71 1-148
+npm/rules/test/test.mdc
+  s_db9561316a6bd6::t_ff50e7ed8d6d67 3
+  s_db9561316a6bd6::t_5b00227756a179 85-95
+npm/rules/tauri/js/tests/cargo_mutants_config.test.mjs
+  s_db9561316a6bd6::t_618cba031490ae 29-30,32-35,41-44,52-55
+  s_db9561316a6bd6::t_b85df343add948 1-28,31,37-38,40,45-47,50-51,56-176
+  s_db9561316a6bd6::t_fdb94a4f4f157a 36,39,48-49
+npm/rules/tauri/tauri.mdc
+  s_db9561316a6bd6::t_c9bdd7f312754e 5,17-66
+npm/rules/tauri/js/tooling.mjs
+  s_db9561316a6bd6::t_becef218d9266c 6-14,24,28,48-67,71-75
+npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline
+  s_db9561316a6bd6::t_55d96942bed7c2 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b521cec25165263f3047a584ea34f323b1416893",
+  "prompts": {},
+  "sessions": {
+    "s_db9561316a6bd6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3dea9d92-7b78-4852-b1e4-db1fb01170da",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
