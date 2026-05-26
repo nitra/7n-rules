@@ -1,7 +1,7 @@
 ---
 name: n-coverage-fix
 description: >-
-  Автономна команда: запускає coverage, читає ## Recommendations у COVERAGE.md, ітеративно пише тести для вижилих мутантів до конвергенції
+  Автономна команда: запускає n-cursor coverage → читає вижилих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
 ---
 
 # n-coverage-fix

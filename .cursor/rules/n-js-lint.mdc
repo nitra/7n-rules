@@ -2,7 +2,7 @@
 description: Перевірка JavaScript коду
 globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
 alwaysApply: false
-version: '1.25'
+version: '1.26'
 ---
 
 **oxlint**, **ESLint**, **jscpd**, **knip**. У скрипті **`lint-js`** і в CI — **`bunx oxlint`**, **`bunx eslint`**, **`bunx jscpd`**, **`bunx knip`** (у CI без **`--fix`** для oxlint/eslint — див. приклад workflow нижче). Без **prettier** і **@nitra/prettier-config**. У **`devDependencies`** має бути **`@nitra/eslint-config` мінімум `^3.9.2`** (з **3.8.0** правило `no-restricted-syntax` забороняє `for...in`; з **3.9.2** у `getConfig` вбудовано ignore для **`**/adr/**`** — ADR-документи не валідуються ESLint, локально цей glob додавати не потрібно; також транзитивно йде **`@e18e/eslint-plugin`** для oxlint); пакет **`@e18e/eslint-plugin`** окремо не додавай. Пакети oxlint/eslint/jscpd/knip не додавай без потреби монорепо.
@@ -57,24 +57,27 @@ version: '1.25'
 
 Каталог `.claude/worktrees/` (робочі копії, які Claude Code створює через **superpowers:using-git-worktrees**) має ігноруватися: додай його у кореневий `.gitignore` (це штатне місце для не-комітних робочих копій), а в `.jscpd.json` додай `.claude/worktrees/**` у `ignore` як страховку на випадок запуску без `gitignore: true`. Без цього jscpd сканує паралельну копію репо в worktree і фіксує самозбіги між дзеркальними файлами.
 
+`**/CHANGELOG.md` теж у каноні `ignore`: release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog), і `jscpd` за `minLines: 25` фіксує їх як клон, хоч це false positive — кожен `CHANGELOG.md` веде свій per-package журнал за каноном `n-changelog`, спільної історії не існує. Без цього в монорепо легко зловити блокуюче `bun run lint` на парі CHANGELOG-ів довжиною від ~25 рядків.
+
 ```json title=".jscpd.json"
 {
   "gitignore": true,
   "exitCode": 1,
   "reporters": ["console"],
   "minLines": 25,
-  "ignore": [".claude/worktrees/**", "**/dist/**"]
+  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
 }
 ```
 
-Канон базових ключів `.jscpd.json` (`gitignore`, `exitCode`, `reporters`, `minLines`): `.jscpd.json`:
+Канон ключів `.jscpd.json` (`gitignore`, `exitCode`, `reporters`, `minLines`, `ignore` як subset-of): `.jscpd.json`:
 
 ```json
 {
   "gitignore": true,
   "exitCode": 1,
   "reporters": ["console"],
-  "minLines": 25
+  "minLines": 25,
+  "ignore": [".claude/worktrees/**", "**/dist/**", "**/CHANGELOG.md"]
 }
 ```
 

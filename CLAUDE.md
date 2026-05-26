@@ -3,7 +3,6 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
-
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
@@ -35,7 +34,7 @@
   Команда: `/mdc-check`
 - `.cursor/skills/n-adr-normalize/SKILL.md` — Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного батчу чернеток через LLM, перегляд результату через git diff
   Команда: `/n-adr-normalize`
-- `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає coverage, читає ## Recommendations у COVERAGE.md, ітеративно пише тести для вижилих мутантів до конвергенції
+- `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає n-cursor coverage → читає вижилих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
   Команда: `/n-coverage-fix`
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
   Команда: `/n-fix`

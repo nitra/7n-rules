@@ -45,14 +45,18 @@ description: >-
 
 Згрупуй мутанти по полю `file`. Для кожної групи виконай:
 
-**3a. Знайди файли:**
+**3a. Знайди / визнач test файл (завжди у `tests/` директорії):**
+
+Цільовий файл завжди: `<dir>/tests/<basename>.test.mjs`
+(де `<dir>` — директорія source-файлу, `<basename>` — ім'я без розширення)
 
 - Source: `<cwd>/<file>` (прочитай вміст)
-- Test файл (перший що існує):
-  - `<dir>/<basename>.test.<ext>` — поруч із source
-  - `<dir>/tests/<basename>.test.<ext>`
-  - `tests/<basename>.test.<ext>` від кореня
-  - Якщо жоден не знайдено — буде створено поруч із source
+- Test файл:
+  1. Якщо `<dir>/tests/<basename>.test.mjs` існує → використай його
+  2. Якщо `<dir>/<basename>.test.js` або `<dir>/<basename>.test.mjs` існує (co-located) →
+     - Перенеси файл до `<dir>/tests/<basename>.test.mjs`
+     - Оновити відносні `import` шляхи якщо є (тепер треба `../` рівень вгору)
+  3. Якщо жоден не знайдено → буде створено `<dir>/tests/<basename>.test.mjs`
 
 **3b. Сформуй промпт для Agent:**
 
@@ -79,7 +83,9 @@ description: >-
 Правила:
 - НЕ видаляй і НЕ змінюй наявні тести
 - Стиль тестів — відповідно до наявного файлу (той самий фреймворк, той самий стиль describe/test)
-- Якщо файл ще не існує — створи його з правильними імпортами відповідно до файлів у тому самому каталозі
+- Якщо файл ще не існує — створи `<dir>/tests/<basename>.test.mjs` з правильними імпортами.
+  Приклад: source `src/services/auth-store.js` → test `src/services/tests/auth-store.test.mjs`,
+  import: `import { ... } from '../auth-store.js'`
 - Після написання запусти: `bun test <test-file>` і переконайся що всі тести проходять (виправ якщо падають)
 ```
 
