@@ -20,6 +20,8 @@ import {
   mergeCursorHooksConfig,
   mergeHooks,
   mergeSettings,
+  removeOrphanAdrHookLib,
+  syncAdrHookLibScripts,
   syncClaudeConfig,
   syncGitignoreAdrFragment
 } from '../sync-claude-config.mjs'
@@ -37,7 +39,12 @@ const TEMPLATE_REL = 'pkg/.claude-template'
 async function setupTemplate(cwdAbs, tpl = {}) {
   const pkgRoot = join(cwdAbs, 'pkg')
   await mkdir(join(cwdAbs, TEMPLATE_REL, 'commands'), { recursive: true })
-  await mkdir(join(cwdAbs, TEMPLATE_REL, 'hooks'), { recursive: true })
+  await mkdir(join(cwdAbs, TEMPLATE_REL, 'hooks', 'lib'), { recursive: true })
+  await writeFile(
+    join(cwdAbs, TEMPLATE_REL, 'hooks', 'lib', 'tooling-only.sh'),
+    tpl.toolingOnlyLib ?? '#!/usr/bin/env bash\nis_tooling_only_change() { return 1; }\n',
+    'utf8'
+  )
   const settings = tpl.settings ?? {
     permissions: { allow: ['Bash(bun *)'] },
     hooks: {
@@ -326,6 +333,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
         commands: [],
         adrHook: false,
         adrNormalizeHook: false,
+        adrHookLib: [],
         gitignoreAdr: false,
         piExtension: false
       })
@@ -504,6 +512,121 @@ describe('syncClaudeConfig (інтеграція)', () => {
       ).length
       expect(cursorCaptureCount).toBe(1)
       expect(cursorNormalizeCount).toBe(1)
+    })
+  })
+
+  test('з правилом "adr": копіює .claude/hooks/lib/*.sh без exec-біта', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const libBody = '#!/usr/bin/env bash\nis_tooling_only_change() { return 1; }\n'
+      const pkgRoot = await setupTemplate(cwdAbs, { toolingOnlyLib: libBody })
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: ['adr']
+      })
+      expect(result.adrHookLib).toEqual(['.claude/hooks/lib/tooling-only.sh'])
+      const libDest = join(cwdAbs, '.claude/hooks/lib/tooling-only.sh')
+      expect(existsSync(libDest)).toBe(true)
+      expect(await readFile(libDest, 'utf8')).toBe(libBody)
+      // Source-only — execute-bit не виставляємо (на відміну від caller-скриптів).
+      // accessSync(X_OK) кидає коли файл невиконуваний — це й контракт.
+      const { accessSync, constants: fsConst } = await import('node:fs')
+      let executable = true
+      try {
+        accessSync(libDest, fsConst.X_OK)
+      } catch {
+        executable = false
+      }
+      expect(executable).toBe(false)
+    })
+  })
+
+  test('повторний sync — lib-файли перезаписуються (idempotent)', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs, { toolingOnlyLib: '#!/usr/bin/env bash\n# v1\n' })
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      // Користувач "псує" lib-файл; пакет має його повернути.
+      await writeFile(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'), '# tampered\n', 'utf8')
+      await writeFile(join(cwdAbs, 'pkg/.claude-template/hooks/lib/tooling-only.sh'), '#!/usr/bin/env bash\n# v2\n', 'utf8')
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      expect(await readFile(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'), 'utf8')).toBe(
+        '#!/usr/bin/env bash\n# v2\n'
+      )
+    })
+  })
+
+  test('видалення "adr" з rules: .claude/hooks/lib/ прибирається з диска', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      expect(existsSync(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'))).toBe(true)
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: pkgRoot,
+        enabled: true,
+        rules: []
+      })
+      expect(result.adrHookLib).toEqual([])
+      expect(existsSync(join(cwdAbs, '.claude/hooks/lib'))).toBe(false)
+    })
+  })
+
+  test('syncAdrHookLibScripts: повертає [] якщо темплейту lib/ нема', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      // Видаляємо lib-каталог із темплейту — sync має тихо повернути порожній масив.
+      const { rm } = await import('node:fs/promises')
+      await rm(join(cwdAbs, TEMPLATE_REL, 'hooks', 'lib'), { recursive: true, force: true })
+      const written = await syncAdrHookLibScripts(cwdAbs, join(pkgRoot, '.claude-template'))
+      expect(written).toEqual([])
+      expect(existsSync(join(cwdAbs, '.claude/hooks/lib'))).toBe(false)
+    })
+  })
+
+  test('removeOrphanAdrHookLib: no-op коли теки нема', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const result = await removeOrphanAdrHookLib(cwdAbs)
+      expect(result).toEqual({ removed: false, path: '' })
+    })
+  })
+
+  test('source helper із capture-decisions.sh без помилок (bash 3.2 fixture)', async () => {
+    await withTmpCwd(async cwdAbs => {
+      const captureBody = `#!/usr/bin/env bash
+set -eu
+LOG=/dev/null
+log() { :; }
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/tooling-only.sh
+. "$SCRIPT_DIR/lib/tooling-only.sh"
+# Smoke: empty stdin → не tooling.
+if printf '' | is_tooling_only_change "$PWD"; then
+  exit 10
+fi
+# Smoke: docs/adr/foo.md → tooling-only (returns 0).
+if ! printf 'docs/adr/foo.md\n' | is_tooling_only_change "$PWD"; then
+  exit 11
+fi
+exit 0
+`
+      const pkgRoot = await setupTemplate(cwdAbs, {
+        captureDecisionsSh: captureBody,
+        toolingOnlyLib: await readFile(
+          join(import.meta.dir, '..', '..', '.claude-template', 'hooks', 'lib', 'tooling-only.sh'),
+          'utf8'
+        )
+      })
+      await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
+      const proc = Bun.spawn(['bash', join(cwdAbs, '.claude/hooks/capture-decisions.sh')], {
+        cwd: cwdAbs,
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe'
+      })
+      proc.stdin.end()
+      const code = await proc.exited
+      expect(code).toBe(0)
     })
   })
 })

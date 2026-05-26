@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.25.0] - 2026-05-26
+
+### Added
+
+- **`.claude-template/hooks/lib/tooling-only.sh`** — спільний bash-helper із функціями `is_tooling_only_change` і `git_diff_only_version_field`. Source'ається з `capture-decisions.sh` і `normalize-decisions.sh` через `. "$SCRIPT_DIR/lib/tooling-only.sh"` — caller'и більше не дублюють ~27 рядків логіки розпізнавання "tooling-only" сесій. Bash 3.2 (macOS `/bin/bash`) сумісний.
+- **`syncAdrHookLibScripts(projectRoot, templateDir)`** у `npm/scripts/sync-claude-config.mjs` — копіює всі `*.sh` із `.claude-template/hooks/lib/` у `.claude/hooks/lib/` проєкту-споживача без exec-біта (source-only). Експортується разом із новою `removeOrphanAdrHookLib(projectRoot)` для cleanup-у при вимкненому `adr` правилі.
+- Поле `adrHookLib: string[]` у відповіді `syncClaudeConfig` — список синкнутих lib-файлів. `npm/bin/n-cursor.js` виводить їх у `🤖 Claude-конфіг` логу окремими записами.
+
+### Changed
+
+- **`.claude-template/hooks/{capture,normalize}-decisions.sh`** — обидва скрипти `source`-ять спільний `lib/tooling-only.sh` замість локальних копій функцій. Заголовок `# shellcheck source=lib/tooling-only.sh` тримає shellcheck-аналіз чистим.
+
+### Fixed
+
+- Усунено jscpd-дублікат `is_tooling_only_change`/`git_diff_only_version_field` між `capture-decisions.sh` і `normalize-decisions.sh` (~27 рядків / ~194 токени). Споживачам більше не потрібен ignore-запис для цих файлів у `.jscpd.json`.
+
 ## [1.24.0] - 2026-05-26
 
 ### Added

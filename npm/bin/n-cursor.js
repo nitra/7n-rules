@@ -1401,6 +1401,11 @@ async function runSync() {
     if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
     if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
     if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')
+    if (result.adrHookLib?.length > 0) {
+      for (const libPath of result.adrHookLib) {
+        parts.push(libPath)
+      }
+    }
     if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
     if (result.piExtension) parts.push('.pi/extensions/n-cursor-adr/')
     if (parts.length > 0) {

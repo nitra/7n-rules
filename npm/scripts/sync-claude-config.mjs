@@ -61,6 +61,7 @@ const CURSOR_DIR = '.cursor'
 const CURSOR_HOOKS_FILE = `${CURSOR_DIR}/hooks.json`
 const ADR_HOOK_SCRIPT_NAME = 'capture-decisions.sh'
 const ADR_NORMALIZE_HOOK_SCRIPT_NAME = 'normalize-decisions.sh'
+const ADR_HOOK_LIB_DIR = 'lib'
 const TEMPLATE_DIR_NAME = '.claude-template'
 
 /** Корінь pi.dev артефактів у проєкті-споживачі. */
@@ -415,6 +416,51 @@ export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
 }
 
 /**
+ * Копіює всі `.sh`-файли з `.claude-template/hooks/lib/` у `.claude/hooks/lib/` проєкту.
+ * Файли source-only (без exec bit) — їх `source`-ять capture/normalize-decisions.sh,
+ * щоб не дублювати спільну bash-логіку (`is_tooling_only_change`,
+ * `git_diff_only_version_field`).
+ * Тека fully-owned: при кожному sync-у перезаписується.
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @param {string} templateDir каталог `.claude-template/` усередині пакету
+ * @returns {Promise<Array<{ written: boolean, path: string }>>} перелік записаних файлів (порожній, якщо темплейту нема)
+ */
+export async function syncAdrHookLibScripts(projectRoot, templateDir) {
+  const libTemplateDir = join(templateDir, 'hooks', ADR_HOOK_LIB_DIR)
+  if (!existsSync(libTemplateDir)) {
+    return []
+  }
+  const entries = await readdir(libTemplateDir, { withFileTypes: true })
+  const libDestDir = join(projectRoot, CLAUDE_HOOKS_DIR, ADR_HOOK_LIB_DIR)
+  await mkdir(libDestDir, { recursive: true })
+  const written = []
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.sh')) continue
+    const content = await readFile(join(libTemplateDir, entry.name), 'utf8')
+    // НЕ chmod 755 — source-файли не виконувані (їх лише `.`-ять caller-скрипти).
+    await writeFile(join(libDestDir, entry.name), content, 'utf8')
+    written.push({ written: true, path: `${CLAUDE_HOOKS_DIR}/${ADR_HOOK_LIB_DIR}/${entry.name}` })
+  }
+  return written
+}
+
+/**
+ * Видаляє `.claude/hooks/lib/` директорію з проєкту-споживача.
+ * Викликається коли правило `adr` вимкнено — lib-файли не самостійні, без хуків,
+ * що їх source-ять, вони нікому не потрібні (симетрично до `removeOrphanPiExtension`).
+ * @param {string} projectRoot корінь проєкту-споживача
+ * @returns {Promise<{ removed: boolean, path: string }>} чи було щось видалено та відносний шлях
+ */
+export async function removeOrphanAdrHookLib(projectRoot) {
+  const libDir = join(projectRoot, CLAUDE_HOOKS_DIR, ADR_HOOK_LIB_DIR)
+  if (!existsSync(libDir)) {
+    return { removed: false, path: '' }
+  }
+  await rm(libDir, { recursive: true, force: true })
+  return { removed: true, path: `${CLAUDE_HOOKS_DIR}/${ADR_HOOK_LIB_DIR}` }
+}
+
+/**
  * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/` (усі файли —
  * `index.ts`, `tsconfig.json`, потенційні `package.json`/`.gitignore` тощо) у
  * `.pi/extensions/n-cursor-adr/` проєкту-споживача. Тека fully-owned: при кожному sync-у
@@ -558,7 +604,7 @@ export async function syncClaudeCommands(projectRoot, templateDir) {
  * @param {string} options.bundledPackageRoot корінь установленого `@nitra/cursor`
  * @param {boolean} options.enabled чи увімкнено sync (з `.n-cursor.json` `claude-config`)
  * @param {string[]} [options.rules] список увімкнених правил із `.n-cursor.json` — впливає на ADR Stop-hook (`adr`)
- * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, gitignoreAdr: boolean, piExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension та список slash-команд
+ * @returns {Promise<{ settings: boolean, cursorHooks: boolean, commands: string[], adrHook: boolean, adrNormalizeHook: boolean, adrHookLib: string[], gitignoreAdr: boolean, piExtension: boolean }>} прапорці записів settings/Cursor hooks/ADR-hook(s)/`.gitignore`/pi-extension, перелік lib-файлів і список slash-команд
  */
 export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enabled, rules = [] }) {
   if (!enabled) {
@@ -568,6 +614,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       commands: [],
       adrHook: false,
       adrNormalizeHook: false,
+      adrHookLib: [],
       gitignoreAdr: false,
       piExtension: false
     }
@@ -580,6 +627,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
       commands: [],
       adrHook: false,
       adrNormalizeHook: false,
+      adrHookLib: [],
       gitignoreAdr: false,
       piExtension: false
     }
@@ -589,6 +637,11 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
   const adrNormalizeHook = includeAdrHook
     ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
     : { written: false, path: '' }
+  // Lib-файли мають сенс лише з активним хоча б одним ADR-хуком — без caller'а
+  // нікому source-ити; при вимкненому правилі прибираємо орфан-теку.
+  const adrHookLibEntries = includeAdrHook
+    ? await syncAdrHookLibScripts(projectRoot, templateDir)
+    : (await removeOrphanAdrHookLib(projectRoot), [])
   const gitignoreAdr = includeAdrHook
     ? await syncGitignoreAdrFragment(projectRoot, bundledPackageRoot)
     : { written: false, path: '' }
@@ -604,6 +657,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     commands,
     adrHook: adrHook.written,
     adrNormalizeHook: adrNormalizeHook.written,
+    adrHookLib: adrHookLibEntries.map(e => e.path),
     gitignoreAdr: gitignoreAdr.written,
     piExtension: piExtension.written
   }
