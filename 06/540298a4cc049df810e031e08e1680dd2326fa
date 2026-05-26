@@ -1,0 +1,34 @@
+npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  s_17dce3cec43c9d::t_da79ccff569f01 11-14
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_17dce3cec43c9d::t_48c2dd28028e62 78-79
+npm/CHANGELOG.md
+  s_c248352a65c805::t_eb232bfc03545c 7
+  s_17dce3cec43c9d::t_71cdd90ba6359b 8-12
+npm/package.json
+  s_c248352a65c805::t_716fadc08e99b2 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "06540298a4cc049df810e031e08e1680dd2326fa",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c248352a65c805": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3f09c3-d797-4a19-8562-749c424953c1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
