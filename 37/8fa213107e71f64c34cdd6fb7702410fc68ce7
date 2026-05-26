@@ -1,0 +1,79 @@
+npm/rules/js-lint/coverage/coverage.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 19-20
+npm/package.json
+  s_b359146b2b9ea8::t_509a4999fc7b26 3
+benchmarks/runner-comparison/demo/tests/promise-pool.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 5-13,15-22,27-35,39
+npm/rules/tauri/js/tests/cargo_mutants_config.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 30-55,151
+benchmarks/runner-comparison/README.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 12-18,35-38
+benchmarks/runner-comparison/demo/tests/currency.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 5-31,35-46,50-61
+benchmarks/runner-comparison/run.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 23-33,45-48,80-83,93,99-102,120-124
+docs/superpowers/plans/2026-05-26-networkpolicy-httproute-ingress.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 17-23,32,57,122,306,516,525-529,553,556,560-562,582,654,738,835,841,874,900,1043,1069,1136,1142,1147,1166,1177,1213,1245,1410,1426
+benchmarks/runner-comparison/SPIKE.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 7-11
+npm/vitest.config.js
+  s_ca3c01937d3b2f::t_6848640077659c 1-11
+benchmarks/runner-comparison/demo/src/currency.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 20
+docs/superpowers/plans/2026-05-26-vitest-runner-spike.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 12,21,53,113,143-178,210,255-278,282-299,331,353,375-382,388-396,401-408,413-421,427-434,440-447,481,516-524,526-533,538-546,550,586,613,625-651,655-666,670-681,713,758,815,870,875,898-908,920-923,961-964,974,980-983,1002-1006,1041,1071,1076,1088-1094,1102,1112-1115,1133-1134,1141,1181,1191,1199,1212
+benchmarks/runner-comparison/demo/tests/url-parse.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 5-28,32-49
+npm/rules/k8s/js/manifests.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 4454-4455
+npm/rules/test/coverage/coverage.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 103-110
+demo/vitest.config.js
+  s_ca3c01937d3b2f::t_6848640077659c 1-11
+benchmarks/runner-comparison/demo/tests/slugify.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 5-40
+BENCHMARKS.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 9-13
+npm/rules/test/js/stryker_config.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 78-84
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 38
+demo/CHANGELOG.md
+  s_b359146b2b9ea8::t_417388771b718c 7-12
+benchmarks/runner-comparison/demo/src/retry.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 15
+package.json
+  s_b359146b2b9ea8::t_684980dbabe7da 12
+demo/package.json
+  s_b359146b2b9ea8::t_0d8d1e925a6243 3
+npm/CHANGELOG.md
+  s_b359146b2b9ea8::t_0614f88b120af7 7-12
+benchmarks/runner-comparison/demo/tests/retry.test.mjs
+  s_b359146b2b9ea8::t_d0b209499e15e8 12-19,25-33,38-45,50-58,64-71,77-84
+docs/superpowers/specs/2026-05-26-networkpolicy-httproute-ingress-design.md
+  s_b359146b2b9ea8::t_d0b209499e15e8 21-26,52,64,96-97,99-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "378fa213107e71f64c34cdd6fb7702410fc68ce7",
+  "prompts": {},
+  "sessions": {
+    "s_b359146b2b9ea8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019e6569-0e63-7110-a484-e60034876050",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ca3c01937d3b2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21e669d1-1834-437f-9026-66c8f7d2a895",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
