@@ -4,11 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.2] - 2026-05-26
+
+### Changed
+
+- **`package.json#dependencies`**: `@anthropic-ai/claude-code` (^1.0.0) → `@anthropic-ai/claude-agent-sdk` (^0.3.0). У claude-code v2.x пакет реструктуризовано в CLI-only (бінарі через optionalDependencies, без `sdk.mjs`); SDK з функцією `query` винесли в окремий пакет `@anthropic-ai/claude-agent-sdk`. Сигнатура `query({ prompt, options })` і поля `options.cwd/maxTurns/allowedTools` зберігаються.
+- **`scripts/coverage-fix.mjs`**: дзеркальна заміна імпорту `@anthropic-ai/claude-code` → `@anthropic-ai/claude-agent-sdk`. Тіло споживача без змін.
+
+### Fixed
+
+- **ADR Stop-hook у Node v26 / Zed**: `capture-decisions.sh` спавнить bare `claude -p` як subprocess. PATH у Zed Claude Agent-сесіях має `node_modules/.bin` попереду `/opt/homebrew/bin`, тож резолвив локальний `@anthropic-ai/claude-code@1.0.128`, який краш-падає на старті під Node 26 (`TypeError: Cannot read properties of undefined (reading 'prototype')` у bundled google-auth-library коді, який припускає, що `require('stream')` повертає клас зі `.prototype`). Хук фіксував `empty response from LLM CLI` і виходив без створення чернетки. Після зняття v1-залежності з канона `node_modules/.bin/claude` shadow зникає, subprocess резолвить системний `claude` (homebrew або інший global) — той працює під Node 26 без правок.
+
 ## [1.27.1] - 2026-05-26
 
 ### Changed
 
-- Додано workspace-level `vitest.config.js` baseline і follow-up правки для Vitest/Stryker coverage-концернів після переходу тестового правила на Vitest runner.
+- Стилістичні правки бенчмарк-артефактів `benchmarks/runner-comparison/` (форматування таблиць, code blocks) після ручного `bun run lint` у dev-репо. Без змін у поведінці rules чи правила `test`.
 
 ## [1.27.0] - 2026-05-26
 

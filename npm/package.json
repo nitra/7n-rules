@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.27.1",
+  "version": "1.27.2",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -50,7 +50,7 @@
     "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
   },
   "dependencies": {
-    "@anthropic-ai/claude-code": "^1.0.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.0",
     "@anthropic-ai/sdk": "^0.54.0",
     "oxc-parser": "^0.128.0",
     "picomatch": "^4.0.4",

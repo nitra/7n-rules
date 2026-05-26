@@ -4,7 +4,7 @@
  * (file, line, оригінальний код, вижилий варіант, тип мутації) і самостійно
  * знаходить або створює відповідні test-файли.
  *
- * Залежить від `@anthropic-ai/claude-code` (dependencies у npm/package.json).
+ * Залежить від `@anthropic-ai/claude-agent-sdk` (dependencies у npm/package.json).
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -30,9 +30,9 @@ export async function fixSurvivedMutants(survived, projectRoot) {
   const prompt = await buildFixPrompt(survived, projectRoot)
   console.log(`\n🤖 coverage --fix: запускаю агента для ${totalMutants} вижилих мутантів...\n`)
 
-  // Dynamic import: @anthropic-ai/claude-code завантажується лише при --fix,
+  // Dynamic import: @anthropic-ai/claude-agent-sdk завантажується лише при --fix,
   // щоб не гальмувати звичайний coverage-прогін за відсутності пакету.
-  const { query } = await import('@anthropic-ai/claude-code')
+  const { query } = await import('@anthropic-ai/claude-agent-sdk')
 
   for await (const msg of query({
     prompt,
