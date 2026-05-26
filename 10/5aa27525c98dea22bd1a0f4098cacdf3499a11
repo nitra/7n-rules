@@ -1,0 +1,35 @@
+.cspell.json
+  ai_agent 23
+  s_4fb9d8bb3d2d89::t_cb32b85422fbb2 21-22
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_4fb9d8bb3d2d89::t_1347c950b3f1b1 76-86
+  s_4fb9d8bb3d2d89::t_04889c5c5db0b1 73-75
+  s_4fb9d8bb3d2d89::t_ad66ccd98e0fd3 2355,2404,2449,2507,2546,2562,2606,2670,2708,2778
+  s_4fb9d8bb3d2d89::t_258c6a7d5eed29 2330
+  s_4fb9d8bb3d2d89::t_54c020471a660b 2567-2569
+  s_4fb9d8bb3d2d89::t_3cec3f2e1e92de 2290
+  s_4fb9d8bb3d2d89::t_5c0ccc25a7d318 2675,2783
+  s_4fb9d8bb3d2d89::t_5ec243306d79c2 2307
+npm/CHANGELOG.md
+  s_4fb9d8bb3d2d89::t_76d21fed716c3b 7-16
+npm/package.json
+  s_4fb9d8bb3d2d89::t_e05bb9857f2ea2 3
+npm/rules/k8s/js/manifests.mjs
+  s_4fb9d8bb3d2d89::t_60a15fd02c53d4 4304-4310,4317,4319,4321,4345,4442,6562
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "105aa27525c98dea22bd1a0f4098cacdf3499a11",
+  "prompts": {},
+  "sessions": {
+    "s_4fb9d8bb3d2d89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "603f8abd-6f4d-49f1-b014-1d14dff25e61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
