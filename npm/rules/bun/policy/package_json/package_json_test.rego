@@ -36,7 +36,21 @@ test_allow_no_dev_dependencies if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
-# ── deny: devDependencies лише @nitra/* (логіка лишається в rego — inverse-pattern) ─
+test_allow_root_test_peer_deps if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {
+			"@nitra/eslint-config": "^3.9.2",
+			"@stryker-mutator/vitest-runner": "^9.6.1",
+			"@vitest/coverage-v8": "^4.1.7",
+			"vitest": "^4.1.7",
+		},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
+# ── deny: devDependencies лише @nitra/* або root-only test peers ─
 
 test_deny_non_nitra_devdep if {
 	cases := [{"@cspell/dict-uk-ua": "^2.0.0"}, {"lodash": "*"}, {"@types/node": "^24.0.0"}]

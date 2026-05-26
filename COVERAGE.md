@@ -1,9 +1,9 @@
 # Coverage
 
-| Область | Рядки | Функції | Вбито мутацій | Score |
-| --- | --- | --- | --- | --- |
-| JS | 77.23% (6558/8492) | 84.06% (1081/1286) | 93/143 | 65.03% |
-| **Разом** | 77.23% (6558/8492) | 84.06% (1081/1286) | 93/143 | 65.03% |
+| Область   | Рядки              | Функції            | Вбито мутацій | Score  |
+| --------- | ------------------ | ------------------ | ------------- | ------ |
+| JS        | 77.23% (6558/8492) | 84.06% (1081/1286) | 93/143        | 65.03% |
+| **Разом** | 77.23% (6558/8492) | 84.06% (1081/1286) | 93/143        | 65.03% |
 
 ## Вцілілі мутанти
 
@@ -157,40 +157,40 @@
 
 ### rules/test/coverage/coverage.mjs
 
-| Рядок | Оригінал | Заміна | Тип |
-| --- | --- | --- | --- |
-| 82 | `',` | `"Stryker was here!"` | StringLiteral |
-| 84 | `table separator row` | `""` | StringLiteral |
-| 95 | `',` | `"Stryker was here!"` | StringLiteral |
-| 95 | `',` | `"Stryker was here!"` | StringLiteral |
-| 98 | `',` | `"Stryker was here!"` | StringLiteral |
-| 98 | `',` | `"Stryker was here!"` | StringLiteral |
-| 112 | `group.recommendationText)` | `true` | ConditionalExpression |
-| 102 | `group.exampleTest)` | `false` | ConditionalExpression |
-| 98 | `table separator row` | `""` | StringLiteral |
-| 112 | `group.recommendationText)` | `false` | ConditionalExpression |
-| 136 | `typeof mod.detect !== 'function'` | `false` | ConditionalExpression |
-| 136 | `typeof mod.detect !== 'function' OR typeof mod.collect !== 'function')` | `typeof mod.detect !== 'function' && typeof mod.collect !== 'function'` | LogicalOperator |
-| 136 | `typeof mod.collect !== 'function')` | `false` | ConditionalExpression |
-| 170 | `config.disableRules.includes(ruleId))` | `false` | ConditionalExpression |
-| 174 | `→ ${ruleId} coverage…`)` | ```` | StringLiteral |
-| 179 | `✗ Жодного провайдера покриття не знайдено для активних правил у .n-cursor.json#rules')` | `""` | StringLiteral |
-| 185 | `utf8')` | `""` | StringLiteral |
-| 186 | `✓ COVERAGE.md')` | `""` | StringLiteral |
-| 188 | `pts.fix)` | `false` | ConditionalExpression |
+| Рядок | Оригінал                                                                                 | Заміна                                                                  | Тип                   |
+| ----- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------- |
+| 82    | `',`                                                                                     | `"Stryker was here!"`                                                   | StringLiteral         |
+| 84    | `table separator row`                                                                    | `""`                                                                    | StringLiteral         |
+| 95    | `',`                                                                                     | `"Stryker was here!"`                                                   | StringLiteral         |
+| 95    | `',`                                                                                     | `"Stryker was here!"`                                                   | StringLiteral         |
+| 98    | `',`                                                                                     | `"Stryker was here!"`                                                   | StringLiteral         |
+| 98    | `',`                                                                                     | `"Stryker was here!"`                                                   | StringLiteral         |
+| 112   | `group.recommendationText)`                                                              | `true`                                                                  | ConditionalExpression |
+| 102   | `group.exampleTest)`                                                                     | `false`                                                                 | ConditionalExpression |
+| 98    | `table separator row`                                                                    | `""`                                                                    | StringLiteral         |
+| 112   | `group.recommendationText)`                                                              | `false`                                                                 | ConditionalExpression |
+| 136   | `typeof mod.detect !== 'function'`                                                       | `false`                                                                 | ConditionalExpression |
+| 136   | `typeof mod.detect !== 'function' OR typeof mod.collect !== 'function')`                 | `typeof mod.detect !== 'function' && typeof mod.collect !== 'function'` | LogicalOperator       |
+| 136   | `typeof mod.collect !== 'function')`                                                     | `false`                                                                 | ConditionalExpression |
+| 170   | `config.disableRules.includes(ruleId))`                                                  | `false`                                                                 | ConditionalExpression |
+| 174   | `→ ${ruleId} coverage…`)`                                                                | ````                                                                    | StringLiteral         |
+| 179   | `✗ Жодного провайдера покриття не знайдено для активних правил у .n-cursor.json#rules')` | `""`                                                                    | StringLiteral         |
+| 185   | `utf8')`                                                                                 | `""`                                                                    | StringLiteral         |
+| 186   | `✓ COVERAGE.md')`                                                                        | `""`                                                                    | StringLiteral         |
+| 188   | `pts.fix)`                                                                               | `false`                                                                 | ConditionalExpression |
 
 **Приклад тесту** (`rules/test/coverage/tests/coverage.test.mjs`):
 
 ```js
-  import { expect, test } from 'vitest'
-  import { addCoverage } from '../coverage.mjs'
+import { expect, test } from 'vitest'
+import { addCoverage } from '../coverage.mjs'
 
-  test('покомпонентне додавання lines та functions', () => {
-    const a = { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } }
-    const b = { lines: { covered: 5, total: 8 }, functions: { covered: 2, total: 4 } }
-    expect(addCoverage(a, b)).toEqual({
-      lines: { covered: 15, total: 28 },
-      functions: { covered: 5, total: 9 }
-    })
+test('покомпонентне додавання lines та functions', () => {
+  const a = { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } }
+  const b = { lines: { covered: 5, total: 8 }, functions: { covered: 2, total: 4 } }
+  expect(addCoverage(a, b)).toEqual({
+    lines: { covered: 15, total: 28 },
+    functions: { covered: 5, total: 9 }
   })
+})
 ```

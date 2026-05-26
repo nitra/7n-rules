@@ -1,5 +1,5 @@
 {
-  "$schema": "https://json.schemastore.org/tsconfig",
+  "$schema": "https://json.schemastore.org/tsconfig.json",
   "$comment": "TS-конфіг для pi.dev extension. Не компілюється сам пакетом (синкається як є у .pi/extensions/<name>/), потрібен лише для IDE/TS-сервера у проєкті-споживачі, щоб резолвити node:* модулі. Споживачу треба мати @types/node у devDependencies (зазвичай уже є транзитивно).",
   "compilerOptions": {
     "module": "NodeNext",

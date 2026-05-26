@@ -12,12 +12,8 @@ describe('run-v8r', () => {
     expect(existsSync(p)).toBe(true)
   })
 
-  test(
-    'runV8rWithGlobs для glob без збігів завершується 0 або 98 (без падіння)',
-    { timeout: 20_000 },
-    () => {
-      const code = runV8rWithGlobs(['**/this-glob-should-not-exist-xyz-12345/*.json'])
-      expect([0, 98]).toContain(code)
-    }
-  )
+  test('runV8rWithGlobs для glob без збігів завершується 0 або 98 (без падіння)', { timeout: 20_000 }, () => {
+    const code = runV8rWithGlobs(['**/this-glob-should-not-exist-xyz-12345/*.json'])
+    expect([0, 98]).toContain(code)
+  })
 })

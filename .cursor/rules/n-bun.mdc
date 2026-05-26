@@ -47,7 +47,7 @@ linker = "hoisted"
 - Якщо залежність потрібна лише одному пакету, додавати її в директорії цього пакета.
 - У CI та локально запускати скрипти через `bun run`.
 
-В кореневому в package.json не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`. Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn.
+В кореневому в package.json не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`. Виняток для цього dog food-репозиторію `@nitra/cursor`: root-only Vitest/Stryker peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`), бо published workspace `npm/` не має devDependencies за `npm-module.mdc`. Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn.
 
 - Заборонені top-level поля у root `package.json` (з причинами): `package.json`:
 

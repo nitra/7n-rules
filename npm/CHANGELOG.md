@@ -4,6 +4,29 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.5] - 2026-05-26
+
+### Added
+
+- **`text` rule — strict programmatic checks для Prettier-артефактів**: новий JS concern `rules/text/js/forbidden-prettier.mjs` падає (exit 1) при наявності у корені будь-якого з `.prettierignore`, `.prettierrc`, `.prettierrc.{json,jsonc,json5,yaml,yml,toml,js,cjs,mjs,ts,cts,mts}`, `prettier.config.{js,cjs,mjs,ts,cts,mts}`. Раніше `npx @nitra/cursor fix text` пропускав `.prettierignore` і нові 3.x-формати, бо у `formatting.mjs` мав hardcoded старий короткий список.
+- **`text.package_json` Rego — token-based deny для `scripts.*`**: `bunx prettier --write .`, `npx prettier --check .`, `prettier --write src`, `./node_modules/.bin/prettier …` тепер ловляться у `deny` через regex `(^|[\s/"'])prettier($|[\s'"@])`. Покривається unit-тестами (`rules/text/policy/package_json/package_json_test.rego` + `js/tests/forbidden-prettier.test.mjs`).
+
+### Changed
+
+- **`rules/text/js/formatting.mjs`**: inline стародавній цикл по `['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', '.prettierrc.yml']` видалено — Prettier-FS-сторону тепер цілком покриває окремий concern `text.forbidden-prettier`.
+- **`rules/text/text.mdc` (`## Перевірка`)**: явно зафіксовано, що `npx @nitra/cursor fix text` падає на `.prettierignore`, `.prettierrc*`, `prettier.config.*` і будь-який `package.json#scripts` із токеном `prettier`.
+
+## [1.27.4] - 2026-05-26
+
+### Fixed
+
+- **`lint-text` / v8r**: локальний catalog тепер явно матчить `tsconfig.json` у `.pi/extensions/*/` та `npm/.pi-template/extensions/*/`, щоб schema validation не падала на hidden/template шляхах.
+- **`text` rule**: додано Rego-перевірку, що забороняє `prettier` у `package.json#scripts`; canonical formatter лишається `oxfmt`.
+
+### Changed
+
+- **Dog food dependencies**: bun-rule явно дозволяє root-only Vitest/Stryker peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`) у цьому monorepo, бо `npm-module` забороняє `devDependencies` у published workspace `npm/`.
+
 ## [1.27.3] - 2026-05-26
 
 ### Fixed

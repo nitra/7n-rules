@@ -104,7 +104,7 @@ const additionalInstructions = `
 
 ### Тестування
 
-- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.js` реюзає `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
+- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.js` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
 
 ```js title="vitest.config.js"
 import { defineConfig, mergeConfig } from 'vitest/config'

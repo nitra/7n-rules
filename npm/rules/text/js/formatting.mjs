@@ -7,7 +7,6 @@
  *    `.vscode/settings.json` (`editor.formatOnSave`, `[lang].editor.defaultFormatter`);
  *  - наявність FS-файлів `.oxfmtrc.json`, `.cspell.json`, `.markdownlint-cli2.jsonc`,
  *    `package.json` (саме *існування* — структуру вже валідує Rego);
- *  - конфіги Prettier у корені (заборонено — FS);
  *  - абзац про український апостроф у `.cursor/rules/n-text.mdc` /
  *    `npm/mdc/text.mdc` (markdown-текст, не JSON/YAML);
  *  - складна валідація скрипта `lint-text` (cspell, markdownlint, v8r у трьох
@@ -176,9 +175,7 @@ export async function check() {
   await checkV8rIgnore(pass, fail)
   await checkTextConfigsExistence(pass, fail)
 
-  for (const f of ['.prettierrc', '.prettierrc.json', '.prettierrc.js', 'prettier.config.js', '.prettierrc.yml']) {
-    if (existsSync(f)) fail(`Знайдено конфіг prettier: ${f} — видали його`)
-  }
+  // Prettier-конфіги/ignore — окремий concern `text.forbidden-prettier` (rules/text/js/forbidden-prettier.mjs).
 
   const textRulePaths = ['.cursor/rules/n-text.mdc', 'npm/mdc/text.mdc'].filter(p => existsSync(p))
   if (textRulePaths.length === 0) {

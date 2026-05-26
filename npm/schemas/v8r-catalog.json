@@ -19,6 +19,12 @@
       "description": "Каталог схем Schema Store (v8r-catalog.json у пакеті)",
       "url": "https://json.schemastore.org/schema-catalog.json",
       "fileMatch": ["npm/schemas/v8r-catalog.json"]
+    },
+    {
+      "name": "tsconfig",
+      "description": "TypeScript config для pi extension templates, які Schema Store не матчить через вкладений/прихований шлях",
+      "url": "https://json.schemastore.org/tsconfig.json",
+      "fileMatch": [".pi/extensions/*/tsconfig.json", "npm/.pi-template/extensions/*/tsconfig.json"]
     }
   ]
 }

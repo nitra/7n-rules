@@ -5,7 +5,7 @@
 # (top-level fields заборонені у root).
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse-patterns, не виносяться у template):
-#  - `devDependencies` лише `@nitra/*` (inverse-pattern: every dep must match)
+#  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для dog food (inverse-pattern)
 #  - Агрегований `lint` скрипт (cross-script aggregation logic)
 #
 # Перевірки, які ЗАЛИШИЛИСЬ у JS (потребують FS / cross-file):
@@ -32,13 +32,13 @@ deny contains msg if {
 	msg := sprintf("package.json: поле %s — %s", [field, reason])
 }
 
-# ── deny: devDependencies — лише `@nitra/*` (inverse pattern; не виноситься у template) ─
+# ── deny: devDependencies — лише `@nitra/*` + root-only тестові peer/tools ─
 
 deny contains msg if {
 	is_object(input.devDependencies)
 	some name, _ in input.devDependencies
-	not startswith(name, "@nitra/")
-	msg := sprintf("Кореневі devDependencies: дозволені лише @nitra/* — прибери або перенеси: %s (bun.mdc)", [name])
+	not allowed_root_dev_dependency(name)
+	msg := sprintf("Кореневі devDependencies: дозволені лише @nitra/* або root-only test peers — прибери або перенеси: %s (bun.mdc)", [name])
 }
 
 # ── deny: агрегований lint-скрипт (cross-script aggregation logic) ───────
@@ -65,6 +65,16 @@ deny contains msg if {
 }
 
 # ── helpers ────────────────────────────────────────────────────────────────
+
+allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner"}
+
+allowed_root_dev_dependency(name) if {
+	startswith(name, "@nitra/")
+} else if {
+	# Ці пакети потрібні на рівні root для dog food-прогонів Vitest/Stryker у монорепо,
+	# але npm-module забороняє класти devDependencies у published workspace `npm/`.
+	name in allowed_root_test_deps
+}
 
 lint_prefixed_scripts := [name |
 	some name, _ in object.get(input, "scripts", {})

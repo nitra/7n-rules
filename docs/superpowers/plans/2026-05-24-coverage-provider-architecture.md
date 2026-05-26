@@ -12,26 +12,26 @@
 
 ## Файли
 
-| Дія                            | Шлях                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| CREATE                         | `npm/scripts/lib/run-standard-coverage.mjs`                              |
-| CREATE                         | `npm/scripts/lib/tests/run-standard-coverage.test.mjs`                   |
-| CREATE                         | `npm/rules/test/policy/package_json/target.json`                         |
-| CREATE                         | `npm/rules/test/policy/package_json/template/package.json.contains.json` |
-| CREATE                         | `npm/rules/test/policy/package_json/package_json.rego`                   |
-| CREATE                         | `npm/rules/test/policy/package_json/package_json_test.rego`              |
-| CREATE                         | `npm/rules/test/coverage/coverage.mjs`                                   |
-| CREATE                         | `npm/rules/test/coverage/tests/coverage.test.mjs`                        |
-| CREATE                         | `npm/rules/js-lint/coverage/coverage.mjs`                                |
-| CREATE                         | `npm/rules/js-lint/coverage/tests/coverage.test.mjs`                     |
-| CREATE                         | `npm/rules/rust/coverage/coverage.mjs`                                   |
-| CREATE                         | `npm/rules/rust/coverage/tests/coverage.test.mjs`                        |
-| MODIFY                         | `npm/rules/test/test.mdc`                                                |
-| MODIFY                         | `npm/rules/js-lint/js-lint.mdc`                                          |
-| MODIFY                         | `npm/rules/rust/rust.mdc`                                                |
-| MODIFY                         | `npm/bin/n-cursor.js`                                                    |
-| MODIFY                         | `npm/package.json`                                                       |
-| MODIFY                         | `npm/CHANGELOG.md`                                                       |
+| Дія                              | Шлях                                                                     |
+| -------------------------------- | ------------------------------------------------------------------------ |
+| CREATE                           | `npm/scripts/lib/run-standard-coverage.mjs`                              |
+| CREATE                           | `npm/scripts/lib/tests/run-standard-coverage.test.mjs`                   |
+| CREATE                           | `npm/rules/test/policy/package_json/target.json`                         |
+| CREATE                           | `npm/rules/test/policy/package_json/template/package.json.contains.json` |
+| CREATE                           | `npm/rules/test/policy/package_json/package_json.rego`                   |
+| CREATE                           | `npm/rules/test/policy/package_json/package_json_test.rego`              |
+| CREATE                           | `npm/rules/test/coverage/coverage.mjs`                                   |
+| CREATE                           | `npm/rules/test/coverage/tests/coverage.test.mjs`                        |
+| CREATE                           | `npm/rules/js-lint/coverage/coverage.mjs`                                |
+| CREATE                           | `npm/rules/js-lint/coverage/tests/coverage.test.mjs`                     |
+| CREATE                           | `npm/rules/rust/coverage/coverage.mjs`                                   |
+| CREATE                           | `npm/rules/rust/coverage/tests/coverage.test.mjs`                        |
+| MODIFY                           | `npm/rules/test/test.mdc`                                                |
+| MODIFY                           | `npm/rules/js-lint/js-lint.mdc`                                          |
+| MODIFY                           | `npm/rules/rust/rust.mdc`                                                |
+| MODIFY                           | `npm/bin/n-cursor.js`                                                    |
+| MODIFY                           | `npm/package.json`                                                       |
+| MODIFY                           | `npm/CHANGELOG.md`                                                       |
 | DELETE (separate PR in mail app) | `scripts/coverage.js`, `scripts/with-lock.js`, `scripts/__tests__/`      |
 | MODIFY (separate PR in mail app) | `package.json`, `app/package.json`                                       |
 

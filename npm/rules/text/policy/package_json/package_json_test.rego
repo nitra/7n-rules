@@ -58,3 +58,42 @@ test_data_template_drives_deny if {
 		with data.template as {"deny": {"top-level": {"customField": "заборонено для тесту"}}}
 	contains(msg, "customField")
 }
+
+test_deny_scripts_bunx_prettier if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"fix": "bunx prettier --write ."}}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "scripts.fix")
+	contains(msg, "prettier")
+}
+
+test_deny_scripts_npx_prettier if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"format": "npx prettier --check ."}}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "scripts.format")
+}
+
+test_deny_scripts_bare_prettier if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"f": "prettier --write src"}}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "scripts.f")
+}
+
+test_deny_scripts_path_prettier if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"f": "./node_modules/.bin/prettier --check ."}}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "scripts.f")
+}
+
+test_allow_scripts_without_prettier if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {
+		"lint-text": "n-cursor lint-text",
+		"format": "oxfmt --write .",
+	}}])
+	count(package_json.deny) == 0 with input as bad with data.template as template_data
+}
+
+# Уникнути false-positive на слово `prettier-ignore` всередині іншого ідентифікатора.
+test_allow_scripts_prettier_ignore_substring if {
+	bad := json.patch(valid_pkg, [{"op": "add", "path": "/scripts", "value": {"f": "echo not-prettier-thing"}}])
+	count(package_json.deny) == 0 with input as bad with data.template as template_data
+}
