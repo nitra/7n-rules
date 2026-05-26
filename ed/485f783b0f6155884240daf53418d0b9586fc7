@@ -1,0 +1,21 @@
+docs/superpowers/plans/2026-05-26-networkpolicy-httproute-ingress.md
+  s_4fb9d8bb3d2d89::t_0caaf52ae33b44 1378
+  s_4fb9d8bb3d2d89::t_08fa0a0188c6d9 1-1377,1379-1417,1419-1421
+  s_4fb9d8bb3d2d89::t_9b78ecf12e91b6 1418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ed485f783b0f6155884240daf53418d0b9586fc7",
+  "prompts": {},
+  "sessions": {
+    "s_4fb9d8bb3d2d89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "603f8abd-6f4d-49f1-b014-1d14dff25e61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
