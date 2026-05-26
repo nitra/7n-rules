@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.25.1] - 2026-05-26
+
+### Added
+
+- **`skills/coverage-fix/SKILL.md`** — автономна команда `/n-coverage-fix`: запускає `n-cursor coverage`, читає JSON-масив вижилих мутантів із секції `## Вижилі мутанти` у COVERAGE.md і ітеративно пише тести до конвергенції (max 3 ітерації). Включає заборону паралельного запуску (Stryker пише в одну директорію).
+
+### Changed
+
+- **`rules/test/coverage/coverage.mjs` → `renderMarkdown`**: секція вижилих мутантів перейменована `## Recommendations` → `## Вижилі мутанти`; доданий ` ```json ` блок з масивом survived перед таблицею — парситься скілами `/n-fix-tests` і `/n-coverage-fix`.
+- **`skills/fix-tests/SKILL.md`**: конвенція test-файлів оновлена — цільовий файл завжди `<dir>/tests/<basename>.test.mjs`; якщо знайдено co-located тест (`.test.js`/`.test.mjs`) — переноситься в `tests/` з оновленням imports.
+
 ## [1.25.0] - 2026-05-26
 
 ### Added
