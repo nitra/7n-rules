@@ -1,0 +1,74 @@
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_b04f45c0cd93a7::t_1caf6685ceae92 54-55,60-61,66,71-72
+  s_b04f45c0cd93a7::t_33bc5f4906a39f 77,82-83,90-104,111
+  s_b04f45c0cd93a7::t_1f997929e280e1 22-29
+.pi/extensions/n-cursor-adr/tsconfig.json
+  s_b04f45c0cd93a7::t_f330453ff83c11 1-16
+.pi/skills/n-coverage-fix/SKILL.md
+  s_b04f45c0cd93a7::t_f330453ff83c11 1-9
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_b04f45c0cd93a7::t_f330453ff83c11 1-114
+npm/scripts/sync-claude-config.mjs
+  s_b04f45c0cd93a7::t_dabfa75967a702 418-422,424-426,429,432-435,439-452
+npm/package.json
+  s_1b1b055c883315::t_b87577d361f7d4 10-11,13-16
+  s_b04f45c0cd93a7::t_a2d197f87559a6 3
+npm/.pi-template/extensions/n-cursor-adr/tsconfig.json
+  s_b04f45c0cd93a7::t_a45411cdc16f7c 1-16
+npm/skills/coverage-fix/SKILL.md
+  s_bb853a236b6b6d::t_4c975e525572cf 1-114
+npm/skills/coverage-fix/auto.md
+  s_bb853a236b6b6d::t_336dee20f18ed0 1
+.pi/extensions/n-cursor-adr/index.ts
+  s_b04f45c0cd93a7::t_f330453ff83c11 13-18
+CLAUDE.md
+  s_b04f45c0cd93a7::t_f330453ff83c11 37-38
+npm/.pi-template/extensions/n-cursor-adr/index.ts
+  s_b04f45c0cd93a7::t_4ff909632090b8 13-18
+  s_b04f45c0cd93a7::t_a7073a59501e06 50
+.claude/commands/n-coverage-fix.md
+  s_b04f45c0cd93a7::t_f330453ff83c11 1-8
+.n-cursor.json
+  s_b04f45c0cd93a7::t_f330453ff83c11 33
+AGENTS.md
+  s_b04f45c0cd93a7::t_f330453ff83c11 34
+npm/bin/n-cursor.js
+  s_b04f45c0cd93a7::t_6fba402ca0e7f3 1405
+package.json
+  s_b04f45c0cd93a7::t_f330453ff83c11 24
+npm/CHANGELOG.md
+  s_b04f45c0cd93a7::t_5a94e38607a972 7-11,14-19
+  s_1b1b055c883315::t_99100d2e9b4cde 12-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "9daa3d0377d9c0eb2caa349c096a2e432fc42d31",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b04f45c0cd93a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8895738-4fcd-44ff-891e-24ef7cfe8874",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_bb853a236b6b6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3b6a64b-57ea-4a39-a8ac-60866e7d3d2a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
