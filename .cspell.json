@@ -18,6 +18,9 @@
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
   "words": [
     "BACKENDREF",
+    "GCLB",
+    "gclb",
+    "байтово",
     "CONFTEST",
     "Conftest",
     "DOTSLASH",

@@ -4301,19 +4301,54 @@ export function readNetworkPolicySnippet() {
 }
 
 /**
+ * No-op fail-callback (повертає аргумент). Використовується як дефолт у `regenerateLegacyNetworkPolicyDocsInFile`,
+ * коли caller не передає власний `fail` — щоб `collectHttpRouteIngressForWorkload` не падав.
+ * @param {string} msg повідомлення помилки
+ * @returns {string} той самий аргумент
+ */
+const noopFail = msg => msg
+
+/**
+ * `from`-peers для HTTPRoute-aware ingress-правила (GCP HC global + Envoy data-plane / proxy-only subnet).
+ * Порядок зафіксовано детерміністичним (HC-global → 10.0.0.0/8). Див. розділ «HTTPRoute → NetworkPolicy ingress» у k8s.mdc.
+ * @type {ReadonlyArray<{ ipBlock: { cidr: string } }>}
+ */
+const NETWORK_POLICY_GCLB_INGRESS_FROM = Object.freeze([
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '35.191.0.0/16' } },
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '130.211.0.0/22' } },
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '10.0.0.0/8' } }
+])
+
+/**
  * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName`, міткою `app` і типом `kind`.
  * Snippet обирається за `kind` через `KIND_TO_SNIPPET` (без merge — кожен snippet самодостатній).
  * Анотація `nitra.dev/workload-kind` додається, щоб rego диспатчив на правильний канон.
+ *
+ * Якщо `gclbPorts` непорожній — після canon ingress-правил додається одне ingress-правило
+ * з фіксованими CIDR-ами (GCP HC global + Envoy data-plane) і відсортованими унікальними TCP-портами
+ * (для HTTPRoute-paired workload-ів; див. `collectHttpRouteIngressForWorkload` і k8s.mdc).
  * @param {string} deployName `metadata.name` workload
  * @param {string} appLabel `spec.selector.matchLabels.app`
  * @param {string} kind `kind` workload (обовʼязковий: Deployment | StatefulSet | Job | CronJob | DaemonSet)
+ * @param {readonly number[]} [gclbPorts] TCP-порти з backendRefs HTTPRoute (опційно)
  * @returns {string} вміст `networkpolicy.yaml`
  */
-export function buildNetworkPolicyYaml(deployName, appLabel, kind) {
+export function buildNetworkPolicyYaml(deployName, appLabel, kind, gclbPorts) {
   const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
   const snippetName = snippetNameForKind(kind)
   const spec = structuredClone(loadSnippetSpec(snippetName))
   spec.podSelector.matchLabels = { app: appLabel }
+  if (Array.isArray(gclbPorts) && gclbPorts.length > 0) {
+    const uniqueSorted = [...new Set(gclbPorts)].toSorted((a, b) => a - b)
+    const gclbRule = {
+      from: structuredClone(NETWORK_POLICY_GCLB_INGRESS_FROM),
+      ports: uniqueSorted.map(port => ({ protocol: 'TCP', port }))
+    }
+    spec.ingress = [...(spec.ingress ?? []), gclbRule]
+  }
   const specYaml = stringify(spec, { indent: 2 })
     .replaceAll(/^(?!$)/gm, '  ')
     .trimEnd()
@@ -4326,6 +4361,127 @@ metadata:
     nitra.dev/workload-kind: ${kind}
 spec:
 ${specYaml}`
+}
+
+/**
+ * Збирає унікальні TCP-порти з `HTTPRoute.backendRefs`, які адресують workload з міткою `appLabel`.
+ *
+ * Mapping: `backendRef.name` → `Service.metadata.name` у тому ж каталозі → `service.spec.selector.matchLabels.app === appLabel`.
+ * Використовується для побудови HTTPRoute-aware ingress-правила в NetworkPolicy (GCLB + Envoy data-plane CIDR-и; див. k8s.mdc).
+ * @param {string} dir абсолютний каталог
+ * @param {string} appLabel `spec.selector.matchLabels.app` цільового workload
+ * @param {(msg: string) => void} fail callback при read/parse-помилці YAML у каталозі
+ * @returns {Promise<{ ports: number[] } | null>} відсортовані унікальні TCP-порти або null, якщо HTTPRoute не вказує на цей workload
+ */
+export async function collectHttpRouteIngressForWorkload(dir, appLabel, fail) {
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return null
+  }
+  const yamlFiles = entries
+    .filter(e => e.isFile() && (e.name.endsWith('.yaml') || e.name.endsWith('.yml')))
+    .map(e => join(dir, e.name))
+  if (yamlFiles.length === 0) return null
+
+  /** @type {Array<{ name: string, port: number }>} */
+  const allBackendRefs = []
+  /** @type {Map<string, string>} */
+  const servicesByName = new Map()
+
+  for (const abs of yamlFiles) {
+    let raw
+    try {
+      raw = await readFile(abs, 'utf8')
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${abs}: не вдалося прочитати для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
+      continue
+    }
+    const lines = toLines(raw)
+    const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+    /** @type {import('yaml').Document[]} */
+    let docs
+    try {
+      docs = parseAllDocuments(body)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      fail(`${abs}: не вдалося розпарсити YAML для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
+      continue
+    }
+    for (const doc of docs) {
+      if (doc.errors.length > 0) {
+        fail(
+          `${abs}: YAML містить помилки для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${doc.errors[0].message}`
+        )
+        continue
+      }
+      const rec = asPlainRecord(doc.toJSON())
+      if (rec === null) continue
+      const av = rec.apiVersion
+      if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
+        collectHttpRouteBackendRefsInto(rec.spec, allBackendRefs)
+      } else if (rec.kind === 'Service') {
+        const name = manifestMetadataName(rec)
+        if (name !== null) {
+          const app = serviceSelectorAppLabel(rec.spec)
+          if (app !== null) servicesByName.set(name, app)
+        }
+      }
+    }
+  }
+
+  /** @type {Set<number>} */
+  const ports = new Set()
+  for (const { name, port } of allBackendRefs) {
+    const targetApp = servicesByName.get(name)
+    if (targetApp === appLabel) ports.add(port)
+  }
+  if (ports.size === 0) return null
+  return { ports: [...ports].toSorted((a, b) => a - b) }
+}
+
+/**
+ * Витягує мітку `app` з `Service.spec.selector.app` (плоский селектор, без `matchLabels`).
+ * Окремий helper від `appLabelFromSpecSelector` (той — для Deployment/StatefulSet, де `selector.matchLabels.app`).
+ * @param {unknown} spec значення `spec` Service
+ * @returns {string | null} мітка `app` або null
+ */
+function serviceSelectorAppLabel(spec) {
+  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
+  const selector = /** @type {Record<string, unknown>} */ (spec).selector
+  if (selector === null || selector === undefined || typeof selector !== 'object' || Array.isArray(selector)) return null
+  const app = /** @type {Record<string, unknown>} */ (selector).app
+  return typeof app === 'string' && app.trim() !== '' ? app : null
+}
+
+/**
+ * Обходить `spec` HTTPRoute (`spec.rules[*].backendRefs[*]`) і додає `(name, port)` у акумулятор.
+ * Дублює walk-логіку `collectGatewayApiRouteBackendServiceNames`, але зберігає `port` поруч з `name`.
+ * @param {unknown} spec значення `spec` маршруту
+ * @param {Array<{ name: string, port: number }>} out акумулятор
+ * @returns {void} результат
+ */
+function collectHttpRouteBackendRefsInto(spec, out) {
+  /**
+   * @param {unknown} node вузол для обходу
+   * @returns {void} результат
+   */
+  function walk(node) {
+    if (node === null || node === undefined) return
+    if (Array.isArray(node)) {
+      for (const x of node) walk(x)
+      return
+    }
+    if (typeof node !== 'object') return
+    if (isGatewayApiBackendRefToService(node)) {
+      const o = /** @type {Record<string, unknown>} */ (node)
+      out.push({ name: String(o.name), port: /** @type {number} */ (o.port) })
+    }
+    for (const v of Object.values(node)) walk(v)
+  }
+  walk(spec)
 }
 
 /**
@@ -6289,23 +6445,30 @@ async function existingNetworkPolicyNames(npAbs) {
 
 /**
  * Дописує відсутні NetworkPolicy-документи у `networkpolicy.yaml` (multi-doc через `---`).
+ * Перед побудовою YAML для кожного workload викликає `collectHttpRouteIngressForWorkload`,
+ * щоб додати GCLB-aware ingress-правило, якщо в каталозі є paired HTTPRoute (k8s.mdc).
  * @param {string} npAbs абсолютний шлях до файлу
  * @param {Array<{ name: string, appLabel: string, kind: string }>} toAdd workload-и без NP
  * @param {string} npRel відносний шлях для повідомлень
+ * @param {(msg: string) => void} fail callback при read/parse-помилках HTTPRoute/Service
  * @param {(msg: string) => void} passFn callback при успіху
  * @returns {Promise<void>} результат
  */
-async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn) {
+async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn) {
   if (toAdd.length === 0) return
   let content = ''
   if (existsSync(npAbs)) {
     const raw = await readFile(npAbs, 'utf8')
     content = raw.trimEnd()
   }
-  const blocks = toAdd.map(({ name, appLabel, kind }, i) => {
-    const block = buildNetworkPolicyYaml(name, appLabel, kind)
-    return i === 0 && content === '' ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
-  })
+  const dir = dirname(npAbs)
+  const blocks = []
+  for (const [i, { name, appLabel, kind }] of toAdd.entries()) {
+    const gclb = await collectHttpRouteIngressForWorkload(dir, appLabel, fail)
+    const gclbPorts = gclb === null ? undefined : gclb.ports
+    const block = buildNetworkPolicyYaml(name, appLabel, kind, gclbPorts)
+    blocks.push(i === 0 && content === '' ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd())
+  }
   const joined = blocks.join('\n---\n')
   content = content === '' ? `${joined}\n` : `${content}\n---\n${joined}\n`
   await writeFile(npAbs, content, 'utf8')
@@ -6360,11 +6523,14 @@ function networkPolicyPodSelectorAppLabel(spec) {
 
 /**
  * Migrate legacy `networkpolicy.yaml`: якщо хоч один документ має catch-all in-cluster egress —
- * перезаписати **всі** документи у файлі через `buildNetworkPolicyYaml(name, appLabel)`. Деталі — k8s.mdc.
+ * перезаписати **всі** документи у файлі через `buildNetworkPolicyYaml(name, appLabel, kind, gclbPorts)`.
+ * `gclbPorts` витягуються з HTTPRoute paired у тому ж каталозі (див. `collectHttpRouteIngressForWorkload`).
+ * Деталі — k8s.mdc.
  * @param {string} npAbs абсолютний шлях до networkpolicy.yaml
+ * @param {(msg: string) => void} [fail] callback при read/parse-помилці HTTPRoute/Service (опційно — для backward compat)
  * @returns {Promise<boolean>} true якщо файл переписаний
  */
-export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
+export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
   if (!existsSync(npAbs)) return false
   const docs = await readAllDocsByKindFromFile(npAbs, 'NetworkPolicy')
   if (docs.length === 0) return false
@@ -6392,10 +6558,15 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
     if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
   }
   if (specs.length === 0) return false
-  const blocks = specs.map(({ name, appLabel, kind }, i) => {
-    const block = buildNetworkPolicyYaml(name, appLabel, kind)
-    return i === 0 ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd()
-  })
+  const dir = dirname(npAbs)
+  const failCb = typeof fail === 'function' ? fail : noopFail
+  const blocks = []
+  for (const [i, { name, appLabel, kind }] of specs.entries()) {
+    const gclb = await collectHttpRouteIngressForWorkload(dir, appLabel, failCb)
+    const gclbPorts = gclb === null ? undefined : gclb.ports
+    const block = buildNetworkPolicyYaml(name, appLabel, kind, gclbPorts)
+    blocks.push(i === 0 ? block.trimEnd() : stripYamlLanguageServerModeline(block).trimEnd())
+  }
   await writeFile(npAbs, `${blocks.join('\n---\n')}\n`, 'utf8')
   return true
 }
@@ -6415,7 +6586,7 @@ async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, 
   const npAbs = join(dir, NETWORK_POLICY_FILENAME)
   const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
   if (existsSync(npAbs)) {
-    const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
+    const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
     if (migrated) {
       passFn(`${npRel}: міграція legacy catch-all egress → канон з явними in-cluster портами (k8s.mdc)`)
     }
@@ -6434,7 +6605,7 @@ async function ensureNetworkPoliciesForWorkloadsInDir(dir, workloads, rootNorm, 
   }
   if (toAdd.length === 0) return
   try {
-    await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn)
+    await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn)
     const kustAbs = join(dir, 'kustomization.yaml')
     if (existsSync(kustAbs)) {
       const raw = await readFile(kustAbs, 'utf8')

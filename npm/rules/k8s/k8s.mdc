@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.41'
+version: '1.42'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -414,6 +414,34 @@ images:
 
 **Порядок `resources`:** у маніфесті з **`apiVersion: kustomize.config.k8s.io/…`**, **`kind: Kustomization`**, елементи **`resources:`** (лише непорожні рядки) мають бути **відсортовані за алфавітом (англ. локаль, як `localeCompare('en')` у `rules/k8s/fix.mjs`)**. Поля **`bases`**, **`components`**, **`crds`** цією перевіркою **не** впорядковуються.
 
+### HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)
+
+Якщо в каталозі workload є **`HTTPRoute`** (Gateway API; `apiVersion: gateway.networking.k8s.io/*`) з **`backendRef`** на **`<workload>-hl`** Service (mapping через `service.spec.selector.app`), **`check k8s`** автоматично додає в NetworkPolicy цього workload **ingress-правило** з фіксованим набором CIDR-ів і **TCP-портами з `backendRefs[].port`** (дедуп, відсортовано за зростанням).
+
+Без цього правила трафік від **GKE Gateway** (Envoy data-plane з proxy-only subnet регіону, наприклад `us-central1-proxy-only` = `10.10.0.0/23`) і **Google health checks** (`35.191.0.0/16`, `130.211.0.0/22`) блокується базовим NetworkPolicy (бо canon ingress допускає тільки `podSelector: {}` — intra-namespace pod ↔ pod).
+
+CIDR-набір зафіксовано (без конфігурації):
+
+- `35.191.0.0/16` — GCP HC global
+- `130.211.0.0/22` — GCP HC global (legacy)
+- `10.0.0.0/8` — широкий range, покриває proxy-only subnets усіх регіонів GKE
+
+Приклад згенерованого ingress-правила (поверх baseline canon):
+
+```yaml
+ingress:
+  - from:
+      - podSelector: {}
+  - from:
+      - ipBlock: { cidr: 35.191.0.0/16 }
+      - ipBlock: { cidr: 130.211.0.0/22 }
+      - ipBlock: { cidr: 10.0.0.0/8 }
+    ports:
+      - { protocol: TCP, port: 8080 }
+```
+
+Якщо workload не прив'язаний до жодного HTTPRoute — правило **не** додається; NP лишається baseline (intra-namespace + canon egress). Не-HTTP routes (`GRPCRoute`, `TCPRoute`, `TLSRoute`, `UDPRoute`) поки не покриті — додається лише за HTTPRoute. Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`rules/k8s/js/manifests.mjs`** індексує `HTTPRoute.backendRefs` і `Service` у каталозі, резолвить через `selector.app`, дедуп TCP-портів. Виклики — з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile`.
+
 ### Env-залежні межі (за сегментом після `/k8s/`)
 
 **Dev-like середовища** — сегмент `base`, `dev`, або з суфіксом `-qa` (напр. `tr-qa`):
@@ -552,6 +580,34 @@ spec:
           port: 4317
         - protocol: TCP
           port: 4318
+```
+
+```yaml title="k8s/base/networkpolicy.yaml — workload з HTTPRoute (з GCLB ingress)"
+# yaml-language-server: $schema=https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/v1.33.9-standalone-strict/networkpolicy-networking-v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-api
+  annotations:
+    nitra.dev/workload-kind: Deployment
+spec:
+  podSelector:
+    matchLabels:
+      app: backend-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+    - from: # auto-added by check k8s for HTTPRoute-paired workloads
+        - ipBlock: { cidr: 35.191.0.0/16 }
+        - ipBlock: { cidr: 130.211.0.0/22 }
+        - ipBlock: { cidr: 10.0.0.0/8 }
+      ports:
+        - { protocol: TCP, port: 8080 }
+  egress:
+    # ... (ідентично до базового прикладу вище)
 ```
 
 ```yaml title="k8s/components/hpa.yaml"

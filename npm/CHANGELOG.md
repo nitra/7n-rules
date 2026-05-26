@@ -4,6 +4,28 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.26.1] - 2026-05-26
+
+### Fixed
+
+- **`k8s/js/manifests.mjs`**: `Set.prototype.toSorted` не існує — повернено `Array.from(new Set(...)).toSorted(...)` (oxlint `--fix` помилково замінив `[...new Set(...)].sort(...)` на невалідний `new Set(...).toSorted(...)`).
+- **`k8s/js/manifests.mjs`**: hardcoded CIDR-и (`35.191.0.0/16`, `130.211.0.0/22`, `10.0.0.0/8`) у `NETWORK_POLICY_GCLB_INGRESS_FROM` тепер з `// eslint-disable-next-line sonarjs/no-hardcoded-ip` (це канон GCLB, який не змінюється).
+- **`k8s/js/manifests.mjs`**: `() => {}` default callback → іменована константа `noopFail` (eslint `no-empty-function`).
+- **`k8s/js/tests/manifests/tests/check-schema.test.mjs`**: винесено `HR_YAML_RE`, `HTTPROUTE_NP_MAPPING_RE`, `K8S_MDC_RE`, `EXPECTED_GCLB_INGRESS_FROM`, `GCLB_HC_GLOBAL_CIDR` як module-scope константи (e18e `prefer-static-regex` + sonarjs `no-hardcoded-ip`); `mock(() => {})` → `mock(msg => msg)`.
+- **`.cspell.json`**: додано `GCLB`, `gclb`, `байтово` до words.
+
+## [1.26.0] - 2026-05-26
+
+### Added
+
+- **`k8s/js/manifests.mjs`**: нова `collectHttpRouteIngressForWorkload(dir, appLabel, fail)` — резолвить HTTPRoute → `-hl` Service → `selector.app` mapping і повертає унікальні TCP-порти з `backendRefs[].port` для workload з міткою `appLabel`. Викликається з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` під час `check k8s`.
+- **`k8s/js/manifests.mjs:buildNetworkPolicyYaml`**: опційний 4-й параметр `gclbPorts: number[]` — якщо непорожній, додає ingress-правило з `ipBlock` 35.191.0.0/16, 130.211.0.0/22, 10.0.0.0/8 і TCP-портами (відсортовано). Без параметра output байтово ідентичний baseline canon.
+- **`k8s.mdc` v1.42**: новий розділ «HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)» з описом mapping і прикладом NetworkPolicy для HTTPRoute-paired workload.
+
+### Fixed
+
+- **Service blocking via NetworkPolicy** для workload-ів, прив'язаних до `HTTPRoute` через GKE Gateway: попередній canon допускав тільки `podSelector: {}` ingress, що блокувало трафік від Envoy data-plane (`10.10.0.0/23` для `us-central1-proxy-only`) і Google health checks (`35.191.0.0/16`, `130.211.0.0/22`). Тепер правило автоматично додається.
+
 ## [1.25.3] - 2026-05-26
 
 ### Fixed

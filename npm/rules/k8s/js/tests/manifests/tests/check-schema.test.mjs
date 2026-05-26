@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, mock, test } from 'bun:test'
 import { parse as parseYaml } from 'yaml'
 import {
   baseKustomizationNamespaceViolation,
@@ -15,6 +15,7 @@ import {
   deploymentResourcesViolation,
   deploymentTopologySpreadConstraintsViolation,
   buildNetworkPolicyYaml,
+  collectHttpRouteIngressForWorkload,
   loadSnippetSpec,
   snippetNameForKind,
   readNetworkPolicySnippet,
@@ -69,6 +70,20 @@ import {
 
 const SERVICE_V1_JSON_RE = /service-v1\.json$/
 const UNKNOWN_WORKLOAD_KIND_RE = /Unknown workload kind/
+const HR_YAML_RE = /hr\.yaml/
+const HTTPROUTE_NP_MAPPING_RE = /HTTPRoute → NetworkPolicy mapping/
+const K8S_MDC_RE = /k8s\.mdc/
+
+const EXPECTED_GCLB_INGRESS_FROM = [
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '35.191.0.0/16' } },
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '130.211.0.0/22' } },
+  // eslint-disable-next-line sonarjs/no-hardcoded-ip
+  { ipBlock: { cidr: '10.0.0.0/8' } }
+]
+// eslint-disable-next-line sonarjs/no-hardcoded-ip
+const GCLB_HC_GLOBAL_CIDR = '35.191.0.0/16'
 // AWS link-local CIDR (IMDS) — канонічне правило egress у NetworkPolicy snippet (k8s.mdc).
 // Збираємо з частин, щоб sonarjs/no-hardcoded-ip не флагав літерал у тестовому assert.
 const LINK_LOCAL_CIDR = ['169', '254', '0', '0'].join('.') + '/16'
@@ -2270,6 +2285,51 @@ describe('NetworkPolicy helpers', () => {
     expect(() => buildNetworkPolicyYaml('api', 'api')).toThrow(UNKNOWN_WORKLOAD_KIND_RE)
   })
 
+  test('buildNetworkPolicyYaml: gclbPorts undefined → output ідентичний baseline canon', () => {
+    const baseline = buildNetworkPolicyYaml('api', 'api', 'Deployment')
+    const withUndef = buildNetworkPolicyYaml('api', 'api', 'Deployment')
+    expect(withUndef).toBe(baseline)
+  })
+
+  test('buildNetworkPolicyYaml: gclbPorts=[] → output ідентичний baseline canon', () => {
+    const baseline = buildNetworkPolicyYaml('api', 'api', 'Deployment')
+    const withEmpty = buildNetworkPolicyYaml('api', 'api', 'Deployment', [])
+    expect(withEmpty).toBe(baseline)
+  })
+
+  test('buildNetworkPolicyYaml: gclbPorts=[8080] (Deployment) → ingress містить GCLB-правило з TCP/8080', () => {
+    const yaml = buildNetworkPolicyYaml('api', 'api', 'Deployment', [8080])
+    const result = parseYaml(yaml)
+    const ingress = result.spec.ingress
+    expect(ingress).toHaveLength(2)
+    expect(ingress[0]).toEqual({ from: [{ podSelector: {} }] })
+    expect(ingress[1]).toEqual({
+      from: EXPECTED_GCLB_INGRESS_FROM,
+      ports: [{ protocol: 'TCP', port: 8080 }]
+    })
+  })
+
+  test('buildNetworkPolicyYaml: gclbPorts=[9090, 8080] → одне правило з обома портами (сортовано)', () => {
+    const yaml = buildNetworkPolicyYaml('api', 'api', 'Deployment', [9090, 8080])
+    const result = parseYaml(yaml)
+    const gclbRule = result.spec.ingress[1]
+    expect(gclbRule.ports).toEqual([
+      { protocol: 'TCP', port: 8080 },
+      { protocol: 'TCP', port: 9090 }
+    ])
+  })
+
+  test('buildNetworkPolicyYaml: gclbPorts=[8080] для StatefulSet → правило додається; intra-replica залишається', () => {
+    const yaml = buildNetworkPolicyYaml('pg', 'pg', 'StatefulSet', [8080])
+    const result = parseYaml(yaml)
+    const ingress = result.spec.ingress
+    expect(ingress).toHaveLength(3)
+    expect(ingress[0]).toEqual({ from: [{ podSelector: {} }] })
+    expect(ingress[1]).toEqual({ from: [{ podSelector: { matchLabels: {} } }] })
+    expect(ingress[2].ports).toEqual([{ protocol: 'TCP', port: 8080 }])
+    expect(ingress[2].from).toEqual(EXPECTED_GCLB_INGRESS_FROM)
+  })
+
   test('ensureResourceInKustomizationYaml додає networkpolicy.yaml і сортує resources', () => {
     const raw = `apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
@@ -2285,6 +2345,447 @@ resources:
     const idxPdb = content.indexOf('pdb.yaml')
     expect(idxHpa).toBeLessThan(idxNp)
     expect(idxNp).toBeLessThan(idxPdb)
+  })
+})
+
+describe('collectHttpRouteIngressForWorkload', () => {
+  test('каталог без YAML → null', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-empty-'))
+    try {
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toBeNull()
+      expect(fail).not.toHaveBeenCalled()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('HTTPRoute з backendRef foo-hl:8080 + Service foo-hl з selector.app=foo → ports=[8080]', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-single-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: foo
+  namespace: dev
+spec:
+  parentRefs:
+    - name: gw
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: foo-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: foo-hl
+  namespace: dev
+spec:
+  clusterIP: None
+  selector:
+    app: foo
+  ports:
+    - port: 8080
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toEqual({ ports: [8080] })
+      expect(fail).not.toHaveBeenCalled()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('HTTPRoute з двома різними портами 8080/9090 → ports=[8080, 9090]', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-multi-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: foo
+  namespace: dev
+spec:
+  rules:
+    - backendRefs:
+        - name: foo-hl
+          port: 8080
+    - backendRefs:
+        - name: foo-hl
+          port: 9090
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: foo-hl
+spec:
+  selector:
+    app: foo
+  ports:
+    - port: 8080
+    - port: 9090
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toEqual({ ports: [8080, 9090] })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('Hasura-канон з 4 правилами того самого backendRef:8080 → дедуп до [8080]', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-dedup-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: db-h
+  namespace: dev
+spec:
+  rules:
+    - matches:
+        - path: { type: Exact, value: /ql }
+      filters:
+        - type: RequestRedirect
+          requestRedirect:
+            path: { type: ReplaceFullPath, replaceFullPath: /ql/console }
+            statusCode: 302
+    - matches:
+        - path: { type: PathPrefix, value: /ql }
+      backendRefs:
+        - name: db-h-hl
+          port: 8080
+    - matches:
+        - path: { type: PathPrefix, value: /ql }
+          headers:
+            - type: Exact
+              name: Upgrade
+              value: websocket
+      backendRefs:
+        - name: db-h-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: db-h-hl
+spec:
+  selector:
+    app: db-h
+  ports:
+    - port: 8080
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'db-h', fail)
+      expect(result).toEqual({ ports: [8080] })
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('HTTPRoute з backendRef, що не матчить appLabel → null', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-nomatch-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bar
+spec:
+  rules:
+    - backendRefs:
+        - name: bar-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: bar-hl
+spec:
+  selector:
+    app: bar
+  ports:
+    - port: 8080
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toBeNull()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('зламаний hr.yaml → fail callback з конкретним повідомленням; функція повертає null', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-broken-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n  bad: : : indent\n',
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toBeNull()
+      expect(fail).toHaveBeenCalled()
+      const msg = String(fail.mock.calls[0][0])
+      expect(msg).toMatch(HR_YAML_RE)
+      expect(msg).toMatch(HTTPROUTE_NP_MAPPING_RE)
+      expect(msg).toMatch(K8S_MDC_RE)
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('Service без selector.app → правило не додається (null)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-noapp-'))
+    try {
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: foo
+spec:
+  rules:
+    - backendRefs:
+        - name: foo-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: foo-hl
+spec:
+  selector:
+    component: foo
+  ports:
+    - port: 8080
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(result).toBeNull()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('NP generation з HTTPRoute pairing', () => {
+  test('end-to-end: HTTPRoute paired → NP містить GCLB ingress правило з портом 8080', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-e2e-pair-'))
+    try {
+      await writeFile(
+        join(dir, 'deploy.yaml'),
+        `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: foo
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: foo
+  template:
+    metadata:
+      labels:
+        app: foo
+    spec:
+      containers:
+        - name: foo
+          image: example/foo:dev
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: foo-hl
+spec:
+  clusterIP: None
+  selector:
+    app: foo
+  ports:
+    - port: 8080
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: foo
+spec:
+  rules:
+    - backendRefs:
+        - name: foo-hl
+          port: 8080
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const ports = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
+      expect(ports).toEqual({ ports: [8080] })
+      const yamlContent = buildNetworkPolicyYaml('foo', 'foo', 'Deployment', ports.ports)
+      const parsed = parseYaml(yamlContent)
+      const gclbRule = parsed.spec.ingress.find(r => r.from?.[0]?.ipBlock?.cidr === GCLB_HC_GLOBAL_CIDR)
+      expect(gclbRule).toBeDefined()
+      expect(gclbRule.ports).toEqual([{ protocol: 'TCP', port: 8080 }])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('workload без HTTPRoute → NP без GCLB-правила (baseline canon)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-e2e-nopair-'))
+    try {
+      await writeFile(
+        join(dir, 'deploy.yaml'),
+        `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lonely
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: lonely
+  template:
+    metadata:
+      labels:
+        app: lonely
+    spec:
+      containers:
+        - name: lonely
+          image: example/lonely:dev
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const ports = await collectHttpRouteIngressForWorkload(dir, 'lonely', fail)
+      expect(ports).toBeNull()
+      const yamlContent = buildNetworkPolicyYaml('lonely', 'lonely', 'Deployment', ports?.ports)
+      const parsed = parseYaml(yamlContent)
+      const gclbRule = parsed.spec.ingress.find(r => r.from?.[0]?.ipBlock !== undefined)
+      expect(gclbRule).toBeUndefined()
+      expect(parsed.spec.ingress).toEqual([{ from: [{ podSelector: {} }] }])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('regenerateLegacyNetworkPolicyDocsInFile інжектить GCLB-правило, якщо HTTPRoute paired', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'np-e2e-regen-pair-'))
+    try {
+      await writeFile(
+        join(dir, 'svc-hl.yaml'),
+        `apiVersion: v1
+kind: Service
+metadata:
+  name: bar-hl
+spec:
+  clusterIP: None
+  selector:
+    app: bar
+  ports:
+    - port: 9090
+`,
+        'utf8'
+      )
+      await writeFile(
+        join(dir, 'hr.yaml'),
+        `apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bar
+spec:
+  rules:
+    - backendRefs:
+        - name: bar-hl
+          port: 9090
+`,
+        'utf8'
+      )
+      const npAbs = join(dir, 'networkpolicy.yaml')
+      await writeFile(
+        npAbs,
+        `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bar
+  annotations:
+    nitra.dev/workload-kind: Deployment
+spec:
+  podSelector:
+    matchLabels:
+      app: bar
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+  egress:
+    - to:
+        - namespaceSelector: {}
+`,
+        'utf8'
+      )
+      const fail = mock(msg => msg)
+      const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
+      expect(changed).toBe(true)
+      const written = await readFile(npAbs, 'utf8')
+      const parsed = parseYaml(written)
+      const gclbRule = parsed.spec.ingress.find(r => r.from?.[0]?.ipBlock?.cidr === GCLB_HC_GLOBAL_CIDR)
+      expect(gclbRule).toBeDefined()
+      expect(gclbRule.ports).toEqual([{ protocol: 'TCP', port: 9090 }])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 })
 
