@@ -1,0 +1,26 @@
+npm/skills/coverage-fix/SKILL.md
+  s_17dce3cec43c9d::t_c18024f0bcd32a 4,7,9,11,13-15,17,19-25,30,33,35-41,43,45,48,51,53,55,57,59-60,62-66,68-72,74-77,79-89,92-95,98,100,106,108,111,114-115,118-120,123-128,130-133
+npm/skills/fix-tests/SKILL.md
+  s_17dce3cec43c9d::t_2a923e22c01c5b 46-50,52-57
+  s_17dce3cec43c9d::t_a7ff0edf47b12b 84-86
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_17dce3cec43c9d::t_14ea91873aab1f 74,79,82,102-103,112-124,128-130,134-135,138,142-144,147-155,158-160,163-178
+npm/rules/test/coverage/coverage.mjs
+  s_17dce3cec43c9d::t_f5c528558ae306 95-100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "ac2a05644a72467285e9ac85a02209521ca8e479",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
