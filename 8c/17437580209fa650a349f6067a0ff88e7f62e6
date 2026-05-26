@@ -1,0 +1,19 @@
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_17dce3cec43c9d::t_21ed6f405ffae2 78-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "8c17437580209fa650a349f6067a0ff88e7f62e6",
+  "prompts": {},
+  "sessions": {
+    "s_17dce3cec43c9d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7f5ba429-36ec-467b-9e23-77334562da7a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
