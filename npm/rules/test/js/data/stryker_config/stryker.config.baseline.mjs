@@ -9,7 +9,7 @@ export default {
   reporters: ['json', 'clear-text'],
   jsonReporter: { fileName: 'reports/stryker/mutation.json' },
   coverageAnalysis: 'off',
-  // incremental: зберігає прогрес між прогонами — відновлення після переривання без старту з нуля.
+  // incremental: зберігає результати між запусками, відновлює після краш/kill.
   incremental: true,
-  incrementalFile: 'reports/stryker/stryker-incremental.json',
+  incrementalFile: 'reports/stryker/incremental.json',
 }

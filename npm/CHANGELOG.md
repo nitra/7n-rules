@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.25.2] - 2026-05-26
+
+### Added
+
+- **`stryker.config.mjs` baseline**: `incremental: true` + `incrementalFile: 'reports/stryker/incremental.json'` — Stryker зберігає результати між запусками і відновлює після краш/kill (SIGURG). Важливо для машин з обмеженою RAM де Stryker вбивається системою після ~100 мутантів.
+
 ## [1.25.1] - 2026-05-26
 
 ### Added
@@ -14,87 +20,6 @@
 
 - **`rules/test/coverage/coverage.mjs` → `renderMarkdown`**: секція вижилих мутантів перейменована `## Recommendations` → `## Вижилі мутанти`; доданий ` ```json ` блок з масивом survived перед таблицею — парситься скілами `/n-fix-tests` і `/n-coverage-fix`.
 - **`skills/fix-tests/SKILL.md`**: конвенція test-файлів оновлена — цільовий файл завжди `<dir>/tests/<basename>.test.mjs`; якщо знайдено co-located тест (`.test.js`/`.test.mjs`) — переноситься в `tests/` з оновленням imports.
-
-## [1.25.0] - 2026-05-26
-
-### Added
-
-- **`.claude-template/hooks/lib/tooling-only.sh`** — спільний bash-helper із функціями `is_tooling_only_change` і `git_diff_only_version_field`. Source'ається з `capture-decisions.sh` і `normalize-decisions.sh` через `. "$SCRIPT_DIR/lib/tooling-only.sh"` — caller'и більше не дублюють ~27 рядків логіки розпізнавання "tooling-only" сесій. Bash 3.2 (macOS `/bin/bash`) сумісний.
-- **`syncAdrHookLibScripts(projectRoot, templateDir)`** у `npm/scripts/sync-claude-config.mjs` — копіює всі `*.sh` із `.claude-template/hooks/lib/` у `.claude/hooks/lib/` проєкту-споживача без exec-біта (source-only). Експортується разом із новою `removeOrphanAdrHookLib(projectRoot)` для cleanup-у при вимкненому `adr` правилі.
-- Поле `adrHookLib: string[]` у відповіді `syncClaudeConfig` — список синкнутих lib-файлів. `npm/bin/n-cursor.js` виводить їх у `🤖 Claude-конфіг` логу окремими записами.
-
-### Changed
-
-- **`.claude-template/hooks/{capture,normalize}-decisions.sh`** — обидва скрипти `source`-ять спільний `lib/tooling-only.sh` замість локальних копій функцій. Заголовок `# shellcheck source=lib/tooling-only.sh` тримає shellcheck-аналіз чистим.
-
-### Fixed
-
-- Усунено jscpd-дублікат `is_tooling_only_change`/`git_diff_only_version_field` між `capture-decisions.sh` і `normalize-decisions.sh` (~27 рядків / ~194 токени). Споживачам більше не потрібен ignore-запис для цих файлів у `.jscpd.json`.
-
-## [1.24.0] - 2026-05-26
-
-### Added
-
-- **`.pi-template/extensions/n-cursor-adr/tsconfig.json`** — мінімальний TS-конфіг шаблону pi.dev extension, який синкається у `.pi/extensions/n-cursor-adr/` разом із `index.ts`. Дозволяє IDE/TS-серверу резолвити `node:*` модулі без project-wide tsconfig у проєкті-споживачі (`types: ["node"]`, `module/target: ES2022 + NodeNext`, `noEmit`, `isolatedModules`). Споживачу потрібен `@types/node` у devDeps (зазвичай уже є транзитивно).
-- **`pi` manifest у `npm/package.json`** — `{"skills":"skills","extensions":".pi-template/extensions"}`. Pi.dev під час `pi install npm:@nitra/cursor` тепер бачить explicit-шляхи до bundled-ресурсів, замість convention-auto-discovery. `extensions: ".pi-template/extensions"` критичний — pi за замовч. шукає `extensions/` у корені пакета, а у нас шлях нестандартний.
-- **`"pi-package"` keyword** у `npm/package.json` — пакет з’являється у pi-gallery для discoverability.
-
-### Changed
-
-- **`syncPiExtensions`** тепер копіює **всі файли** з теки `.pi-template/extensions/<name>/`, а не лише `index.ts`. Контракт повернення: `{ written, path, files }` — `path` тепер тека (а не файл), `files` — відсортований список базових імен. У `🤖 Claude-конфіг` логу та у `result.piExtension` caller-стороні виводиться тека.
-- **`.pi-template/extensions/n-cursor-adr/index.ts`** — порядок імпортів виправлено (всі `node:*` імпорти підняті на самий верх, перед `interface PiContext`). Усувало `import/first` ESLint-помилку; функціонально без змін.
-
-## [1.23.0] - 2026-05-25
-
-### Added
-
-- **Pi.dev ADR hooks** — bundled TS-extension `npm/.pi-template/extensions/n-cursor-adr/index.ts` копіюється у `.pi/extensions/n-cursor-adr/index.ts` проєкту-споживача коли `adr` ∈ `.n-cursor.json#rules`. На pi `agent_end` event серіалізує `ctx.sessionManager.getEntries()` у Claude-сумісний JSONL у `tmpdir()`, спавнить існуючі `.claude/hooks/{capture,normalize}-decisions.sh` через `pi.exec` (async, `signal: ctx.signal`, timeouts 180s/600s). Жодного дублювання bash-логіки: skip/throttle/LLM-CLI-selection лишається у bash. Recursion guard через env-vars `CAPTURE_DECISIONS_RUNNING` / `ADR_NORMALIZE_RUNNING`, які bash виставляє перед спавном LLM CLI.
-- `npm/scripts/sync-claude-config.mjs`: експорт `PI_DIR`, `PI_EXTENSIONS_DIR`, `PI_TEMPLATE_DIR_NAME`, `PI_EXTENSION_NAME`; нова функція `syncPiExtensions(projectRoot, bundledPackageRoot)` (copy) і `removeOrphanPiExtension(projectRoot)` (cleanup); поле `piExtension: boolean` у відповіді `syncClaudeConfig` (gated на `adr` ∈ rules).
-- `npm/package.json` `files` array: додано `.pi-template` — bundled-директорія шипиться разом із пакетом.
-- `npm/bin/n-cursor.js`: у `🤖 Claude-конфіг`-логу після sync додається `.pi/extensions/n-cursor-adr/index.ts` коли pi-extension згенерована.
-
-## [1.22.0] - 2026-05-25
-
-### Added
-
-- **`npx @nitra/cursor lint`** — оркестратор лінт-ланцюжка з тайменгом на кожен крок. Послідовно запускає присутні у root `package.json` скрипти з фіксованого списку (`lint-ga`, `lint-js`, `lint-rego`, `lint-style`, `lint-text`, `lint-security`, `oxfmt`), **fail-fast** на першому ненульовому exit-коді. Наприкінці друкує таблицю `⏱ Lint timing` з часом кожного кроку — для атрибуції повільних кроків замість анонімного `&&`-агрегатора.
-- **`runFixCommand` тепер друкує `⏱ Fix timing`** після прогону всіх `rules/<id>/fix.mjs` — per-rule час + сума. Маркер `❌` на впалих рядках.
-- `npm/scripts/lib/timing-summary.mjs` — чистий форматер `formatTimingSummary(title, entries)` (спільний для fix і lint). 9 тестів у `tests/timing-summary.test.mjs`.
-- `npm/scripts/lib/run-lint-cli.mjs` — `runLintCli({ cwd, spawnSyncFn, now, log, logError })` з DI для юніт-тестів. 7 тестів у `tests/run-lint-cli.test.mjs`.
-
-### Changed
-
-- Кореневий `package.json` цього монорепо: `lint` → `n-cursor lint`; додано окремий скрипт `oxfmt: "oxfmt ."`, який раніше йшов у хвості ланцюжка прямою командою.
-- Скіли `/n-fix` і `/n-lint`: додано вимогу копіювати таблицю `⏱` з виводу інструмента у фінальне резюме відповіді користувачу.
-
-## [1.21.0] - 2026-05-25
-
-### Changed
-
-- **Stop-hook → PostToolUse з маршрутизацією за типом файла** (BREAKING для консьюмерів із кастомним `stop-hook` записом). `.claude-template/settings.template.json` тепер реєструє `PostToolUse` (matcher `Edit|Write|MultiEdit`, timeout 300) із командою `npx --no @nitra/cursor post-tool-use-fix` замість попереднього синхронного `Stop`-хука, що ганяв повний `fix` усіх правил на кожному turn-і. Новий хук читає `tool_input.file_path` зі stdin і запускає `fix` **лише** з релевантними правилами: `*.{mjs,js,cjs,ts,tsx,jsx}` → `js-lint`; `*.vue` → `js-lint style-lint vue`; `*.{css,scss,sass}` → `style-lint`; `**/k8s/**/*.{yaml,yml}` → `k8s`; `*.rego` → `rego`; `Dockerfile`/`*.Dockerfile` → `docker`; `.github/workflows/*.{yml,yaml}` → `ga`; `package.json` → `npm-module bun`; `*.sh` → `security`; `*.md` → `text` (поза `docs/adr/**` — там покриває async `normalize-decisions.sh`).
-- **CLI**: підкоманду `npx @nitra/cursor stop-hook` видалено; замість неї — `npx @nitra/cursor post-tool-use-fix`. `MANAGED_HOOK_COMMAND_MARKER` у `sync-claude-config.mjs` змінено на `@nitra/cursor post-tool-use-fix`; legacy-маркер `@nitra/cursor stop-hook` лишається у `MANAGED_HOOK_COMMAND_MARKERS` для автоматичного cleanup-у старих entries при наступному `npx @nitra/cursor`. `mergeHooks` тепер обходить union usually template+existing events, тому застарілі managed-групи у вже-непотрібних подіях (`Stop` у даному випадку) теж зачищаються.
-
-### Added
-
-- `npm/scripts/post-tool-use-fix.mjs` — реалізація `routeFilePathToRules(filePath)` (чиста функція, picomatch) і `runPostToolUseFixCli({ stdinJson, spawnFn })` (DI-friendly для тестів). 21 тест у `npm/scripts/tests/post-tool-use-fix.test.mjs`.
-- `LEGACY_STOP_HOOK_COMMAND_MARKER` — публічний export для тестів і потенційних консьюмерів, які перевіряють відсутність застарілого хука.
-
-### Removed
-
-- `npm/scripts/claude-stop-hook.mjs` — більше не потрібен.
-
-## [1.20.0] - 2026-05-25
-
-### Added
-
-- **NetworkPolicy: два повних канон-snippets**: `deployment.snippet.yaml` (для `Deployment`/`Job`/`CronJob`/`DaemonSet`) і `statefulset.snippet.yaml` (повний канон для `StatefulSet` з intra-replica правилами). Жодного runtime-merge — JS-генератор/rego обирають один за `kind` workload-у через анотацію `metadata.annotations['nitra.dev/workload-kind']`. Нові publiс exports: `loadSnippetSpec('deployment'|'statefulset')`, `KIND_TO_SNIPPET`, `snippetNameForKind(kind)`. `buildNetworkPolicyYaml(deployName, appLabel, kind)` — `kind` тепер обовʼязковий (throws на невідомий). Rego (`network_policy.rego`) робить superset-перевірку проти обраного канону; safety-net deny на allow-all `egress: [{}]`. GKE NodeLocal DNSCache: link-local `169.254.0.0/16` UDP/TCP 53 — у обох канонах. **Breaking** з v1.19.x: видалено `networkPolicyManifestViolations` (структуру тримає rego); `buildNetworkPolicyYaml` без `kind` тепер throws. Перейменування `common.snippet.yaml` → `deployment.snippet.yaml`; `data.template.snippet` → `data.template.deployment_snippet` у rego.
-- **`rules/js-lint/coverage`**: `parseStrykerReport` тепер зчитує оригінальний код вижилих мутантів (`extractOriginal`), групує по файлах і повертає `survived: [{file, mutants: [{line,col,mutantType,original,replacement}], exampleTest, recommendationText}]`; `findExampleTest` + `extractFirstTestBlock` знаходять і витягують перший тест-блок із тест-файлу поруч — для стилю.
-- **LLM-рекомендації у COVERAGE.md**: коли встановлено `ANTHROPIC_API_KEY`, `n-cursor coverage` робить один Anthropic API-виклик на кожен файл з вижилими мутантами та записує рекомендацію «Що треба протестувати» у секцію `## Recommendations`. Модель: `claude-haiku-4-5-20251001` з prompt caching (`ephemeral`). Без ключа — секція генерується без LLM-тексту.
-- **`rules/js-lint/coverage/lib/generate-recommendation.mjs`**: `generateMutantRecommendation(client, sourceContent, mutants)` — ізольований модуль LLM-виклику.
-- **`@anthropic-ai/sdk`** у dependencies — потрібен для LLM-рекомендацій (опціонально: якщо `ANTHROPIC_API_KEY` не задано, sdk не викликається).
-- **`rules/test/coverage`**: `renderMarkdown` генерує секцію `## Recommendations` з per-file підрозділами (`### <file>`) — таблиця мутантів + приклад тесту + LLM-текст (якщо є).
-- **Stryker incremental mode** у `stryker.config.baseline.mjs`: `incremental: true` + `incrementalFile: 'reports/stryker/stryker-incremental.json'` — Stryker зберігає прогрес між прогонами, відновлює стан після переривання (SIGURG, OOM тощо).
-- **`skills/coverage-fix`**: новий скіл `/n-coverage-fix` — читає `## Recommendations` з COVERAGE.md і ітеративно дописує тести до конвергенції mutation score, включаючи LLM-рекомендації та приклади тестів у промпт агента.
 
 ## [1.19.2] - 2026-05-25
 
