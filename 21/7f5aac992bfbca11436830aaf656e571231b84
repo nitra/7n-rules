@@ -1,0 +1,23 @@
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_4fb9d8bb3d2d89::t_55c590aec12f54 2304-2352
+npm/rules/k8s/js/manifests.mjs
+  s_4fb9d8bb3d2d89::t_a3cdfc490b2694 4352-4392,4395-4410,4425-4449
+  s_4fb9d8bb3d2d89::t_27da14969760a6 4393-4394
+  s_4fb9d8bb3d2d89::t_57dcfb8c319926 4411-4424
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "217f5aac992bfbca11436830aaf656e571231b84",
+  "prompts": {},
+  "sessions": {
+    "s_4fb9d8bb3d2d89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "603f8abd-6f4d-49f1-b014-1d14dff25e61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
