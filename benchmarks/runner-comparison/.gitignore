@@ -1,0 +1,6 @@
+node_modules/
+demo/reports/
+demo/node_modules/
+results/*.json
+results/*.log
+!results/.gitkeep
