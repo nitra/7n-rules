@@ -13,6 +13,7 @@
 ## Поточний стан (вже зроблено в working tree)
 
 До початку виконання плану — ці зміни вже є в uncommitted diff:
+
 - `buildNetworkPolicyYaml` читає з snippet, `readNetworkPolicySnippet()` — новий export
 - `NETWORK_POLICY_EGRESS_YAML`, `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` — видалено
 - Тести `check-schema.test.mjs` оновлені під нові функції
@@ -25,22 +26,23 @@
 
 ## Файли змін
 
-| Дія | Файл |
-|-----|------|
+| Дія    | Файл                                                                                              |
+| ------ | ------------------------------------------------------------------------------------------------- |
 | Rename | `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` → `common.snippet.yaml` |
-| Create | `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml` |
-| Modify | `npm/rules/k8s/js/manifests.mjs` (4 місця) |
-| Modify | `npm/rules/k8s/policy/network_policy/network_policy.rego` |
-| Modify | `npm/rules/k8s/policy/network_policy/network_policy_test.rego` |
-| Modify | `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` |
-| Modify | `npm/rules/k8s/k8s.mdc` |
-| Modify | `npm/CHANGELOG.md` |
+| Create | `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml`                           |
+| Modify | `npm/rules/k8s/js/manifests.mjs` (4 місця)                                                        |
+| Modify | `npm/rules/k8s/policy/network_policy/network_policy.rego`                                         |
+| Modify | `npm/rules/k8s/policy/network_policy/network_policy_test.rego`                                    |
+| Modify | `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`                                    |
+| Modify | `npm/rules/k8s/k8s.mdc`                                                                           |
+| Modify | `npm/CHANGELOG.md`                                                                                |
 
 ---
 
 ## Task 1: Перейменувати snippet і створити statefulset.snippet.yaml
 
 **Files:**
+
 - Rename: `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` → `common.snippet.yaml`
 - Create: `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml`
 - Modify: `npm/rules/k8s/js/manifests.mjs:~4247`
@@ -56,6 +58,7 @@ mv npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml \
 - [ ] **Крок 2: Оновити URL у manifests.mjs (~рядок 4247)**
 
 Знайти:
+
 ```js
 const NETWORK_POLICY_SNIPPET_URL = new URL(
   '../policy/network_policy/template/networkpolicy.snippet.yaml',
@@ -64,11 +67,9 @@ const NETWORK_POLICY_SNIPPET_URL = new URL(
 ```
 
 Замінити на:
+
 ```js
-const NETWORK_POLICY_SNIPPET_URL = new URL(
-  '../policy/network_policy/template/common.snippet.yaml',
-  import.meta.url
-)
+const NETWORK_POLICY_SNIPPET_URL = new URL('../policy/network_policy/template/common.snippet.yaml', import.meta.url)
 ```
 
 - [ ] **Крок 3: Створити statefulset.snippet.yaml**
@@ -111,6 +112,7 @@ git commit -m "refactor(k8s): rename networkpolicy.snippet.yaml → common.snipp
 ## Task 2: Виправити dangling виклик networkPolicyManifestViolations
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs:~5040-5054`
 
 Функція `networkPolicyManifestViolations` видалена у working tree, але виклик у `validateNetworkPolicyForWorkload` (~5048) лишився — runtime-помилка при реальному виконанні. Структурна перевірка делегована rego.
@@ -118,6 +120,7 @@ git commit -m "refactor(k8s): rename networkpolicy.snippet.yaml → common.snipp
 - [ ] **Крок 1: Переписати validateNetworkPolicyForWorkload**
 
 Знайти (~5040-5054):
+
 ```js
 function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn) {
   const matchedNp = findNetworkPolicyByDeployName(npDocs, workloadName)
@@ -137,6 +140,7 @@ function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, worklo
 ```
 
 Замінити на:
+
 ```js
 function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, workloadKind, npRel, fail, passFn) {
   const matchedNp = findNetworkPolicyByDeployName(npDocs, workloadName)
@@ -179,6 +183,7 @@ git commit -m "fix(k8s): remove dangling networkPolicyManifestViolations call, d
 ## Task 3: Додати kind-параметр і StatefulSet-підтримку в buildNetworkPolicyYaml
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs` (~4246-4280, ~6247-6265, ~6316-6339, ~6510)
 - Modify: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
@@ -206,9 +211,7 @@ const _snippetCache = {}
  */
 export function loadSnippetSpec(snippetName) {
   if (_snippetCache[snippetName]) return _snippetCache[snippetName]
-  const url = snippetName === 'statefulset'
-    ? NETWORK_POLICY_STATEFULSET_SNIPPET_URL
-    : NETWORK_POLICY_COMMON_SNIPPET_URL
+  const url = snippetName === 'statefulset' ? NETWORK_POLICY_STATEFULSET_SNIPPET_URL : NETWORK_POLICY_COMMON_SNIPPET_URL
   const raw = readFileSync(fileURLToPath(url), 'utf-8')
   _snippetCache[snippetName] = /** @type {any} */ (parseDocument(raw).toJS()).spec
   return _snippetCache[snippetName]
@@ -239,7 +242,9 @@ export function buildNetworkPolicyYaml(deployName, appLabel, kind = 'Deployment'
     spec.egress = [...(spec.egress ?? []), ...(ssSpec.egress ?? [])]
     spec.ingress = [...(spec.ingress ?? []), ...(ssSpec.ingress ?? [])]
   }
-  const specYaml = stringify(spec, { indent: 2 }).replace(/^(?!$)/gm, '  ').trimEnd()
+  const specYaml = stringify(spec, { indent: 2 })
+    .replace(/^(?!$)/gm, '  ')
+    .trimEnd()
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -261,24 +266,30 @@ ${specYaml}`
 - [ ] **Крок 3: Оновити regenerateLegacyNetworkPolicyDocsInFile (~6316) — читати kind з анотації**
 
 Знайти у функції `regenerateLegacyNetworkPolicyDocsInFile` цикл `for (const doc of docs)`. Замінити:
+
 ```js
-    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
+if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel })
 ```
+
 На:
+
 ```js
-    const docRec = /** @type {Record<string, unknown>} */ (doc)
-    const meta = docRec.metadata
-    const annotations = (meta !== null && typeof meta === 'object' && !Array.isArray(meta))
-      ? /** @type {Record<string, unknown>} */ (meta).annotations
-      : null
-    const rawKind = (annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations))
-      ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
-      : null
-    const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
-    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
+const docRec = /** @type {Record<string, unknown>} */ (doc)
+const meta = docRec.metadata
+const annotations =
+  meta !== null && typeof meta === 'object' && !Array.isArray(meta)
+    ? /** @type {Record<string, unknown>} */ (meta).annotations
+    : null
+const rawKind =
+  annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations)
+    ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
+    : null
+const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
+if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
 ```
 
 Оновити `.map` нижче:
+
 ```js
   const blocks = specs.map(({ name, appLabel, kind }, i) => {
     const block = buildNetworkPolicyYaml(name, appLabel, kind)
@@ -287,11 +298,13 @@ ${specYaml}`
 - [ ] **Крок 4: Оновити templateData (~6510)**
 
 Знайти:
+
 ```js
 { ns: 'k8s.network_policy', dir: 'k8s/network_policy', files: allYaml, templateData: { snippet: readNetworkPolicySnippet() } },
 ```
 
 Замінити на:
+
 ```js
 {
   ns: 'k8s.network_policy',
@@ -367,6 +380,7 @@ git commit -m "feat(k8s): buildNetworkPolicyYaml kind param, nitra.dev/workload-
 ## Task 4: Переписати network_policy.rego на superset check
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy.rego`
 
 - [ ] **Крок 1: Написати новий network_policy.rego**
@@ -529,6 +543,7 @@ git commit -m "refactor(k8s/rego): superset check for NetworkPolicy egress/ingre
 ## Task 5: Переписати network_policy_test.rego
 
 **Files:**
+
 - Modify: `npm/rules/k8s/policy/network_policy/network_policy_test.rego`
 
 Тести не залежать від реального snippet-файлу (OPA tests mock via `with data as`). Використовуємо мінімальний `mock_template` з двома правилами — достатньо, щоб перевірити superset-логіку rego.
@@ -668,6 +683,7 @@ git commit -m "test(k8s/rego): rewrite network_policy tests — superset semanti
 ## Task 6: Оновити k8s.mdc
 
 **Files:**
+
 - Modify: `npm/rules/k8s/k8s.mdc`
 
 - [ ] **Крок 1: Знайти NetworkPolicy-блок у k8s.mdc**
@@ -683,10 +699,12 @@ grep -n "NetworkPolicy\|network_policy\|5432\|kube-dns\|169\.254" /Users/vitaliy
 Знайти і видалити/замінити YAML-блок з переліком egress-правил та портів у `.mdc`.
 
 Замінити на:
+
 ```markdown
 **Канон NetworkPolicy spec:**
 
 Структура `spec.egress`/`ingress`/`policyTypes` визначається **виключно** у snippet-файлах:
+
 - `npm/rules/k8s/policy/network_policy/template/common.snippet.yaml` — для всіх workload-типів.
 - `npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml` — для StatefulSet (intra-replica).
 
@@ -718,6 +736,7 @@ git commit -m "docs(k8s): NetworkPolicy — remove duplicate port list, referenc
 ## Task 7: CHANGELOG + version bump
 
 **Files:**
+
 - Modify: `npm/CHANGELOG.md`
 - Modify: `npm/package.json` (version field)
 
@@ -739,20 +758,24 @@ npx @nitra/cursor check changelog 2>&1 | tail -10
 Видалення `networkPolicyManifestViolations` (було public export) → **major** bump або minor якщо вже видалена в попередній версії. Додавання `loadSnippetSpec` + 3rd param у `buildNetworkPolicyYaml` → minor. Обери відповідно.
 
 Приклад запису (адаптуй номер версії):
+
 ```markdown
 ## [X.Y.0] — 2026-05-25
 
 ### Added
+
 - `loadSnippetSpec(snippetName)` — reads and caches canonical NetworkPolicy spec from snippet files (`common` | `statefulset`).
 - `buildNetworkPolicyYaml` optional `kind` parameter (default: `'Deployment'`); adds `nitra.dev/workload-kind` annotation.
 - `statefulset.snippet.yaml` — canonical intra-replica egress/ingress rules for StatefulSet NetworkPolicy.
 
 ### Changed
+
 - `network_policy.rego` uses **superset check**: all canonical rules from snippet must be present; additional rules allowed.
 - StatefulSet NetworkPolicy also validated against `statefulset.snippet.yaml` via `nitra.dev/workload-kind` annotation dispatch.
 - `networkpolicy.snippet.yaml` renamed to `common.snippet.yaml`.
 
 ### Deprecated
+
 - `readNetworkPolicySnippet()` — use `loadSnippetSpec('common')`.
 ```
 

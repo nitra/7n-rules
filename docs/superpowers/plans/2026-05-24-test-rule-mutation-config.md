@@ -54,6 +54,7 @@ npm/rules/test/js/
 ## Task 1: `resolveJsRoot` shared utility
 
 **Files:**
+
 - Create: `npm/scripts/utils/resolve-js-root.mjs`
 - Create: `npm/scripts/utils/tests/resolve-js-root.test.mjs`
 
@@ -167,6 +168,7 @@ git status npm/scripts/utils/resolve-js-root.mjs npm/scripts/utils/tests/resolve
 ## Task 2: `resolveCargoManifest` shared utility
 
 **Files:**
+
 - Create: `npm/scripts/utils/resolve-cargo-manifest.mjs`
 - Create: `npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs`
 
@@ -301,6 +303,7 @@ git status npm/scripts/utils/resolve-cargo-manifest.mjs npm/scripts/utils/tests/
 ## Task 3: Refactor js-lint coverage provider — реюз resolveJsRoot
 
 **Files:**
+
 - Modify: `npm/rules/js-lint/coverage/coverage.mjs`
 
 - [ ] **Step 3.1: Замінити локальну `resolveJsRoot` на імпорт**
@@ -308,6 +311,7 @@ git status npm/scripts/utils/resolve-cargo-manifest.mjs npm/scripts/utils/tests/
 У `npm/rules/js-lint/coverage/coverage.mjs`:
 
 Замінити:
+
 ```js
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -335,6 +339,7 @@ async function resolveJsRoot(cwd) {
 ```
 
 На:
+
 ```js
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -348,6 +353,7 @@ import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 - [ ] **Step 3.2: Оновити error hint при missing `mutation.json`**
 
 Замінити в `collect()`:
+
 ```js
 } catch {
   throw new Error('js-lint coverage: stryker не залишив mutation.json — перевір stryker.config.mjs у проєкті')
@@ -355,6 +361,7 @@ import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 ```
 
 На:
+
 ```js
 } catch {
   throw new Error(
@@ -372,11 +379,13 @@ import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 - [ ] **Step 3.4: Оновити тест на новий hint-format**
 
 У `npm/rules/js-lint/coverage/tests/coverage.test.mjs` знайти:
+
 ```js
 const MUTATION_JSON_RE = /mutation\.json/
 ```
 
 Замінити на:
+
 ```js
 const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
 ```
@@ -402,6 +411,7 @@ git diff npm/rules/js-lint/coverage/coverage.mjs npm/rules/js-lint/coverage/test
 ## Task 4: Refactor rust coverage provider — реюз resolveCargoManifest
 
 **Files:**
+
 - Modify: `npm/rules/rust/coverage/coverage.mjs`
 
 - [ ] **Step 4.1: Замінити локальну `resolveCargoManifest` на імпорт**
@@ -409,6 +419,7 @@ git diff npm/rules/js-lint/coverage/coverage.mjs npm/rules/js-lint/coverage/test
 У `npm/rules/rust/coverage/coverage.mjs`:
 
 Замінити:
+
 ```js
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -448,6 +459,7 @@ async function resolveCargoManifest(cwd) {
 ```
 
 На:
+
 ```js
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -466,6 +478,7 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo', 't
 - [ ] **Step 4.2: Адаптувати null-контракт у `collect()`**
 
 Знайти в `collect()`:
+
 ```js
 const manifestPath = await resolveCargoManifest(cwd)
 ```
@@ -500,6 +513,7 @@ git diff npm/rules/rust/coverage/coverage.mjs
 ## Task 5: Концерн `stryker_config` — baseline data
 
 **Files:**
+
 - Create: `npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs`
 
 - [ ] **Step 5.1: Створити каталог + baseline**
@@ -536,6 +550,7 @@ Expected: 7-line baseline видно.
 ## Task 6: Концерн `stryker_config` — TDD test → impl
 
 **Files:**
+
 - Create: `npm/rules/test/js/stryker_config.mjs`
 - Create: `npm/rules/test/js/tests/stryker_config.test.mjs`
 
@@ -745,6 +760,7 @@ git status npm/rules/test/js/stryker_config.mjs npm/rules/test/js/tests/stryker_
 ## Task 7: Концерн `cargo_mutants_config` — baseline data
 
 **Files:**
+
 - Create: `npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline`
 
 - [ ] **Step 7.1: Створити каталог + baseline**
@@ -777,6 +793,7 @@ Expected: 4-line comment baseline видно.
 ## Task 8: Концерн `cargo_mutants_config` — TDD test → impl
 
 **Files:**
+
 - Create: `npm/rules/test/js/cargo_mutants_config.mjs`
 - Create: `npm/rules/test/js/tests/cargo_mutants_config.test.mjs`
 
@@ -993,6 +1010,7 @@ git status npm/rules/test/js/cargo_mutants_config.mjs npm/rules/test/js/tests/ca
 ## Task 9: `test.mdc` — alwaysApply: false + нові globs + секція
 
 **Files:**
+
 - Modify: `npm/rules/test/test.mdc`
 
 - [ ] **Step 9.1: Оновити frontmatter**
@@ -1013,7 +1031,7 @@ alwaysApply: true
 ---
 description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs (якщо js-lint enabled) і .cargo/mutants.toml (якщо rust enabled).
 version: '2.0'
-globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,.cargo/mutants.toml},**/*.test.mjs"
+globs: '**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,.cargo/mutants.toml},**/*.test.mjs'
 alwaysApply: false
 ---
 ```
@@ -1023,7 +1041,6 @@ alwaysApply: false
 Після поточної секції «Покриття + мутаційне тестування» (приблизно після останнього markdown-лінка на `package.json.contains.json`) додати:
 
 ```markdown
-
 ## Налаштування mutation-testing
 
 Якщо у `.n-cursor.json#rules` присутнє правило `js-lint` — правило `test` створює canonical baseline `stryker.config.mjs` у JS-root проєкту (`workspaces[0]` або корінь), якщо файлу немає.
@@ -1072,16 +1089,20 @@ Expected: exit 0, 497+ conftest tests pass, regal 0 violations.
 ## Task 11: Version bump + CHANGELOG
 
 **Files:**
+
 - Modify: `npm/package.json`
 - Modify: `npm/CHANGELOG.md`
 
 - [ ] **Step 11.1: Bump version**
 
 У `npm/package.json` замінити:
+
 ```json
   "version": "1.17.1",
 ```
+
 на:
+
 ```json
   "version": "1.18.0",
 ```
@@ -1089,6 +1110,7 @@ Expected: exit 0, 497+ conftest tests pass, regal 0 violations.
 - [ ] **Step 11.2: Додати секцію в CHANGELOG**
 
 У `npm/CHANGELOG.md` знайти рядок:
+
 ```
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 ```
@@ -1096,7 +1118,6 @@ Expected: exit 0, 497+ conftest tests pass, regal 0 violations.
 Додати після нього (перед `## [1.17.1]`):
 
 ```markdown
-
 ## [1.18.0] - 2026-05-24
 
 ### Added
@@ -1142,6 +1163,7 @@ npx @nitra/cursor fix test 2>&1 | tail -20
 ```
 
 Expected:
+
 - `location` концерн: проходить (всі `*.test.mjs` у `tests/`).
 - `stryker_config` концерн: `js-lint` у `.n-cursor.json#rules` → видить що `npm/stryker.config.mjs` (workspaces[0] = 'npm') відсутній → копіює baseline → `pass`.
 - `cargo_mutants_config` концерн: `rust` НЕ в `.n-cursor.json#rules` у `@nitra/cursor` (немає Cargo.toml у корені) → silent skip.
@@ -1156,6 +1178,7 @@ git diff --stat
 ```
 
 Expected:
+
 - Modified: `npm/package.json`, `npm/CHANGELOG.md`, `npm/rules/test/test.mdc`, `npm/rules/js-lint/coverage/coverage.mjs`, `npm/rules/js-lint/coverage/tests/coverage.test.mjs`, `npm/rules/rust/coverage/coverage.mjs`
 - Untracked: `npm/scripts/utils/resolve-js-root.mjs`, `npm/scripts/utils/resolve-cargo-manifest.mjs`, `npm/scripts/utils/tests/resolve-js-root.test.mjs`, `npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs`, `npm/rules/test/js/stryker_config.mjs`, `npm/rules/test/js/cargo_mutants_config.mjs`, `npm/rules/test/js/data/`, `npm/rules/test/js/tests/stryker_config.test.mjs`, `npm/rules/test/js/tests/cargo_mutants_config.test.mjs`
 - Possibly: `npm/stryker.config.mjs` (створений self-перевіркою у Step 11.5)
@@ -1177,6 +1200,7 @@ Expected:
 **Placeholder scan:** жодного "TBD/TODO/implement later/appropriate error handling". Усі steps з конкретним кодом або командами. ✓
 
 **Type consistency:**
+
 - `resolveJsRoot(cwd) → Promise<string|null>` узгоджено: Tasks 1, 3, 6.
 - `resolveCargoManifest(cwd) → Promise<string|null>` узгоджено: Tasks 2, 4, 8.
 - `check() → Promise<number>` (exit code) — стандартний концерн-контракт; Tasks 6, 8.

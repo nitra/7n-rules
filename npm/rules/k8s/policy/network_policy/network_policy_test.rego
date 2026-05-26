@@ -20,13 +20,9 @@ mock_deployment_egress := [
 mock_deployment_ingress := [{"from": [{"podSelector": {}}]}]
 
 # Statefulset mock = deployment + intra-replica (повний канон).
-mock_statefulset_egress := array.concat(mock_deployment_egress, [
-	{"to": [{"podSelector": {"matchLabels": {}}}]},
-])
+mock_statefulset_egress := array.concat(mock_deployment_egress, [{"to": [{"podSelector": {"matchLabels": {}}}]}])
 
-mock_statefulset_ingress := array.concat(mock_deployment_ingress, [
-	{"from": [{"podSelector": {"matchLabels": {}}}]},
-])
+mock_statefulset_ingress := array.concat(mock_deployment_ingress, [{"from": [{"podSelector": {"matchLabels": {}}}]}])
 
 mock_data := {"template": {
 	"deployment_snippet": {"egress": mock_deployment_egress, "ingress": mock_deployment_ingress},

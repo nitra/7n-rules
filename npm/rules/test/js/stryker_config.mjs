@@ -49,9 +49,7 @@ export async function check() {
   }
 
   if (!existsSync(BASELINE_PATH)) {
-    reporter.fail(
-      `stryker.config.mjs canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`
-    )
+    reporter.fail(`stryker.config.mjs canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`)
     return reporter.getExitCode()
   }
 

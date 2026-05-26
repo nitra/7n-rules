@@ -39,7 +39,7 @@ export async function fixSurvivedMutants(survived, projectRoot) {
     options: {
       cwd: projectRoot,
       maxTurns: 20,
-      allowedTools: ['Read', 'Edit', 'Bash'],
+      allowedTools: ['Read', 'Edit', 'Bash']
     }
   })) {
     if (msg.type === 'text') process.stdout.write(msg.text)
@@ -50,9 +50,9 @@ export async function fixSurvivedMutants(survived, projectRoot) {
 /**
  * Формує rich-промпт для агента: список вижилих мутантів згрупований по файлах,
  * з контекстом ±3 рядки навколо кожного мутанта з source-файлу.
- * @param {SurvivedFileGroup[]} survived
- * @param {string} projectRoot
- * @returns {Promise<string>}
+ * @param {SurvivedFileGroup[]} survived групи вижилих мутантів по файлах
+ * @param {string} projectRoot корінь проєкту
+ * @returns {Promise<string>} текст rich-промпту
  */
 async function buildFixPrompt(survived, projectRoot) {
   const sections = []
@@ -60,25 +60,30 @@ async function buildFixPrompt(survived, projectRoot) {
   for (const { file, mutants, exampleTest } of survived) {
     let srcLines = []
     try {
-      srcLines = (await readFile(join(projectRoot, file), 'utf8')).split('\n')
+      const src = await readFile(join(projectRoot, file), 'utf8')
+      srcLines = src.split('\n')
     } catch {
       // файл може бути недоступним — пропускаємо контекст, але продовжуємо
     }
 
-    const mutantDescs = mutants.map(m => {
-      const ctxStart = Math.max(0, m.line - 4)
-      const ctxEnd = Math.min(srcLines.length, m.line + 3)
-      const context = srcLines
-        .slice(ctxStart, ctxEnd)
-        .map((l, i) => `${ctxStart + i + 1}: ${l}`)
-        .join('\n')
-      return [
-        `  - Рядок ${m.line}, колонка ${m.col}, тип мутації \`${m.mutantType}\``,
-        `    Оригінал: \`${m.original}\``,
-        `    Вижив варіант: \`${m.replacement}\``,
-        context ? `    Контекст:\n\`\`\`\n${context}\n\`\`\`` : ''
-      ].filter(Boolean).join('\n')
-    }).join('\n')
+    const mutantDescs = mutants
+      .map(m => {
+        const ctxStart = Math.max(0, m.line - 4)
+        const ctxEnd = Math.min(srcLines.length, m.line + 3)
+        const context = srcLines
+          .slice(ctxStart, ctxEnd)
+          .map((l, i) => `${ctxStart + i + 1}: ${l}`)
+          .join('\n')
+        return [
+          `  - Рядок ${m.line}, колонка ${m.col}, тип мутації \`${m.mutantType}\``,
+          `    Оригінал: \`${m.original}\``,
+          `    Вижив варіант: \`${m.replacement}\``,
+          context ? `    Контекст:\n\`\`\`\n${context}\n\`\`\`` : ''
+        ]
+          .filter(Boolean)
+          .join('\n')
+      })
+      .join('\n')
 
     const exampleSection = exampleTest?.code
       ? `\n\nПриклад тесту з \`${exampleTest.testFile}\`:\n\`\`\`js\n${exampleTest.code}\n\`\`\``

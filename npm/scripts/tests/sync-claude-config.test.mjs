@@ -548,7 +548,11 @@ describe('syncClaudeConfig (інтеграція)', () => {
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       // Користувач "псує" lib-файл; пакет має його повернути.
       await writeFile(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'), '# tampered\n', 'utf8')
-      await writeFile(join(cwdAbs, 'pkg/.claude-template/hooks/lib/tooling-only.sh'), '#!/usr/bin/env bash\n# v2\n', 'utf8')
+      await writeFile(
+        join(cwdAbs, 'pkg/.claude-template/hooks/lib/tooling-only.sh'),
+        '#!/usr/bin/env bash\n# v2\n',
+        'utf8'
+      )
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       expect(await readFile(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'), 'utf8')).toBe(
         '#!/usr/bin/env bash\n# v2\n'

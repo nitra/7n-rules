@@ -32,10 +32,12 @@ description: >-
 Прочитай `package.json` у кореневій директорії.
 
 **test-команда** (перша що існує):
+
 1. `scripts["test"]` з `package.json`
 2. fallback: `bun test`
 
 **coverage-команда** (перша що існує):
+
 1. `scripts["coverage"]` з `package.json` → виклик: `bun run coverage`
 2. fallback: `n-cursor coverage`
 
@@ -44,6 +46,7 @@ description: >-
 Згрупуй мутанти по полю `file`. Для кожної групи виконай:
 
 **3a. Знайди файли:**
+
 - Source: `<cwd>/<file>` (прочитай вміст)
 - Test файл (перший що існує):
   - `<dir>/<basename>.test.<ext>` — поруч із source
@@ -100,6 +103,7 @@ bun run coverage  # або coverage-команда з кроку 2
 `newCount = новий масив.length`
 
 **Рішення:**
+
 - Якщо `newCount < prevCount` → повтор з Кроку 1 з оновленим масивом
 - Якщо `newCount >= prevCount` → зупинись:
   `✓ Конвергенція: mutation score більше не покращується. Вижило: <newCount> мутантів.`

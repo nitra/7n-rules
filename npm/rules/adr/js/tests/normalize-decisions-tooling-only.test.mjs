@@ -18,7 +18,7 @@ const HOOK_SCRIPT = resolve(here, '..', '..', '..', '..', '.claude-template', 'h
 /**
  * Build a draft markdown file content with frontmatter.
  * @param {{session: string, captured: string, transcript: string}} fm frontmatter
- * @returns {string}
+ * @returns {string} markdown content
  */
 function draftMd(fm) {
   return `---\nsession: ${fm.session}\ncaptured: ${fm.captured}\ntranscript: ${fm.transcript}\n---\n\n## ADR Тестова чернетка\n\n## Context and Problem Statement\nstub\n`
@@ -27,7 +27,7 @@ function draftMd(fm) {
 /**
  * jsonl helper: assistant tool_use edits.
  * @param {Array<{name: string, file: string}>} edits масив правок
- * @returns {string}
+ * @returns {string} JSONL транскрипт
  */
 function transcriptJsonl(edits) {
   return edits
@@ -46,7 +46,7 @@ function transcriptJsonl(edits) {
 /**
  * Run normalize-decisions.sh з обходом порогів і без LLM CLI.
  * @param {Record<string, string>} [extraEnv] додаткові ENV
- * @returns {{ exitCode: number, log: string, drafts: string[] }}
+ * @returns {{ exitCode: number, log: string, drafts: string[] }} результат прогону
  */
 function runNormalizeHook(extraEnv = {}) {
   const result = spawnSync('bash', [HOOK_SCRIPT], {

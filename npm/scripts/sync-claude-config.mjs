@@ -502,7 +502,6 @@ export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
  * Видаляє `.pi/extensions/n-cursor-adr/` директорію з проєкту-споживача.
  * Викликається коли правило `adr` вимкнено у `.n-cursor.json` (симетрично до
  * cleanup-у `.claude/hooks/{capture,normalize}-decisions.sh`).
- *
  * @param {string} projectRoot корінь проєкту-споживача
  * @returns {Promise<{ removed: boolean, path: string }>} чи було щось видалено та відносний шлях
  */

@@ -17,6 +17,7 @@ Copy the existing inline `resolveJsRoot` function from `npm/rules/js-lint/covera
 `npm/scripts/utils/resolve-js-root.mjs` — NEW: exports `resolveJsRoot(cwd): Promise<string|null>`
 
 **Verification:**
+
 - File exists at `npm/scripts/utils/resolve-js-root.mjs`.
 
 ### Step 1.2: Create `scripts/utils/resolve-cargo-manifest.mjs`
@@ -27,11 +28,13 @@ Copy the existing inline `resolveCargoManifest` function from `npm/rules/rust/co
 `npm/scripts/utils/resolve-cargo-manifest.mjs` — NEW: exports `resolveCargoManifest(cwd): Promise<string>` (throws if not found)
 
 **Verification:**
+
 - File exists at `npm/scripts/utils/resolve-cargo-manifest.mjs`.
 
 ### Step 1.3: Write tests for both resolvers
 
 Create test files with these cases:
+
 - `resolveJsRoot`: workspace-project → returns `workspaces[0]` path; single-package → returns cwd; no package.json → returns null.
 - `resolveCargoManifest`: cwd has `Cargo.toml` → returns it; workspace with `ws/src-tauri/Cargo.toml` → returns that; workspace with `ws/Cargo.toml` → returns that; none → throws.
 
@@ -42,6 +45,7 @@ Use `mkdtemp` + real filesystem (no mocks needed, functions are pure fs readers)
 `npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs` — NEW
 
 **Verification:**
+
 ```bash
 bun test scripts/utils/tests/resolve-js-root.test.mjs scripts/utils/tests/resolve-cargo-manifest.test.mjs
 # Expect: all pass, 0 fail
@@ -58,6 +62,7 @@ In `npm/rules/rust/coverage/coverage.mjs`: remove the inline `resolveCargoManife
 `npm/rules/rust/coverage/coverage.mjs` — remove inline, add import
 
 **Verification:**
+
 ```bash
 bun test rules/js-lint/coverage rules/rust/coverage
 # Expect: 8+6 = 14 pass, 0 fail (existing tests still green)
@@ -86,11 +91,13 @@ export default {
 `npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs` — NEW
 
 **Verification:**
+
 - File exists.
 
 ### Step 2.2: Write failing test for `stryker_config.mjs`
 
 Create `npm/rules/test/js/tests/stryker_config.test.mjs` with 5 test cases:
+
 1. `js-lint` in rules + `stryker.config.mjs` missing → baseline copied, check returns 0.
 2. `js-lint` in rules + `stryker.config.mjs` exists → pass, no copy, returns 0.
 3. `.n-cursor.json` absent (`exists: false`) → silently skip (exit 0, no reporter output).
@@ -103,6 +110,7 @@ Use `mkdtemp` for isolated temp dirs. Mock `resolveJsRoot` via injected dependen
 `npm/rules/test/js/tests/stryker_config.test.mjs` — NEW
 
 **Verification:**
+
 ```bash
 bun test rules/test/js/tests/stryker_config.test.mjs
 # Expect: module not found error (stryker_config.mjs does not exist yet)
@@ -113,6 +121,7 @@ bun test rules/test/js/tests/stryker_config.test.mjs
 Create `npm/rules/test/js/stryker_config.mjs` exporting `check(opts?)`.
 
 Algorithm:
+
 1. `const config = await readNCursorConfigLite(cwd)`.
 2. `if (!isRuleEnabled(config, 'js-lint')) return 0` — silently skip, no reporter output.
 3. `const jsRoot = opts?.jsRootOverride ?? await resolveJsRoot(cwd)`.
@@ -128,6 +137,7 @@ Import: `readNCursorConfigLite`, `isRuleEnabled` from `'../../../scripts/lib/rea
 `npm/rules/test/js/stryker_config.mjs` — NEW
 
 **Verification:**
+
 ```bash
 bun test rules/test/js/tests/stryker_config.test.mjs
 # Expect: 5 pass, 0 fail
@@ -150,11 +160,13 @@ Create `npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline` with 
 `npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline` — NEW
 
 **Verification:**
+
 - File exists.
 
 ### Step 3.2: Write failing test for `cargo_mutants_config.mjs`
 
 Create `npm/rules/test/js/tests/cargo_mutants_config.test.mjs` with 5 test cases:
+
 1. `rust` in rules + `.cargo/mutants.toml` missing → baseline copied, check returns 0.
 2. `rust` in rules + `.cargo/mutants.toml` exists → pass, no copy.
 3. `.n-cursor.json` absent → silently skip.
@@ -167,6 +179,7 @@ Use `mkdtemp` + injected `cargoManifestOverride` option.
 `npm/rules/test/js/tests/cargo_mutants_config.test.mjs` — NEW
 
 **Verification:**
+
 ```bash
 bun test rules/test/js/tests/cargo_mutants_config.test.mjs
 # Expect: module not found error (cargo_mutants_config.mjs not created yet)
@@ -177,6 +190,7 @@ bun test rules/test/js/tests/cargo_mutants_config.test.mjs
 Create `npm/rules/test/js/cargo_mutants_config.mjs` exporting `check(opts?)`.
 
 Algorithm:
+
 1. `const config = await readNCursorConfigLite(cwd)`.
 2. `if (!isRuleEnabled(config, 'rust')) return 0`.
 3. `const manifestPath = opts?.cargoManifestOverride ?? await resolveCargoManifest(cwd).catch(() => null)`.
@@ -193,6 +207,7 @@ Algorithm:
 `npm/rules/test/js/cargo_mutants_config.mjs` — NEW
 
 **Verification:**
+
 ```bash
 bun test rules/test/js/tests/cargo_mutants_config.test.mjs
 # Expect: 5 pass, 0 fail
@@ -216,6 +231,7 @@ Keep as a thrown `Error` (not process.exit) so the orchestrator can catch and su
 `npm/rules/js-lint/coverage/coverage.mjs` — update error message
 
 **Verification:**
+
 ```bash
 bun test rules/js-lint/coverage/tests/coverage.test.mjs
 # Expect: 8 pass, 0 fail (existing tests still green — they mock the runner)
@@ -228,6 +244,7 @@ bun test rules/js-lint/coverage/tests/coverage.test.mjs
 ### Step 5.1: Update `test.mdc`
 
 Open `npm/rules/test/test.mdc` and apply:
+
 - Frontmatter: `alwaysApply: true` → `alwaysApply: false`; add `globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs},**/.cargo/mutants.toml,**/*.test.mjs"`.
 - Version: `'1.2'` → `'2.0'`.
 - Add new section **«Mutation testing config»** after the existing «Покриття + мутаційне тестування» section:
@@ -247,6 +264,7 @@ Baseline файли надані пакетом `@nitra/cursor`; локальн�
 `npm/rules/test/test.mdc` — update frontmatter + version + new section
 
 **Verification:**
+
 - `grep 'alwaysApply' npm/rules/test/test.mdc` → `alwaysApply: false`
 - `grep 'version' npm/rules/test/test.mdc` → `version: '2.0'`
 
@@ -274,6 +292,7 @@ In `npm/CHANGELOG.md`: prepend new `## [1.18.0] - 2026-05-24` section with:
 `npm/CHANGELOG.md` — new section
 
 **Verification:**
+
 ```bash
 npx @nitra/cursor fix changelog
 # Expect: ✅ npm: @nitra/cursor — нова локальна версія (1.17.1 → 1.18.0)

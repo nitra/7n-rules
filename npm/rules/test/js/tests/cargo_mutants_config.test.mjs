@@ -13,7 +13,8 @@ import { check } from '../cargo_mutants_config.mjs'
 
 /**
  * Створює тимчасовий проєкт з опційним Cargo-layout-ом.
- * @param {{rules?: string[], disableRules?: string[], layout?: 'flat'|'tauri'|'noCargo'}} [opts]
+ * @param {{rules?: string[], disableRules?: string[], layout?: 'flat'|'tauri'|'noCargo'}} [opts] параметри генерації проєкту
+ * @returns {{dir: string, cleanup: () => void}} шлях до проєкту і cleanup
  */
 function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'mutants-config-concern-'))
@@ -34,6 +35,12 @@ function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
   }
 }
 
+/**
+ * Викликає check() з chdir у заданий каталог, щоб концерн читав .n-cursor.json
+ * саме звідти (бо check читає process.cwd()).
+ * @param {string} dir каталог проєкту
+ * @returns {Promise<number>} exit code
+ */
 async function runCheckIn(dir) {
   const prev = getCwd()
   chdir(dir)

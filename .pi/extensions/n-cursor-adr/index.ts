@@ -36,10 +36,7 @@ interface PiExec {
       timeout?: number
     }
   ) => Promise<{ code: number; stdout: string; stderr: string }>
-  on: (
-    event: string,
-    handler: (event: unknown, ctx: PiContext) => Promise<void> | void
-  ) => void
+  on: (event: string, handler: (event: unknown, ctx: PiContext) => Promise<void> | void) => void
 }
 
 const CAPTURE_HOOK = '.claude/hooks/capture-decisions.sh'
@@ -47,7 +44,7 @@ const NORMALIZE_HOOK = '.claude/hooks/normalize-decisions.sh'
 
 /**
  * Pi extension entry point.
- * @param pi pi.dev extension API
+ * @param {PiExec} pi pi.dev extension API
  */
 export default function (pi: PiExec): void {
   pi.on('agent_end', async (_event, ctx) => {
@@ -68,10 +65,7 @@ export default function (pi: PiExec): void {
       jsonlPath = join(tmpdir(), `n-cursor-pi-transcript-${Date.now()}-${randomUUID()}.jsonl`)
       writeFileSync(jsonlPath, lines + '\n', 'utf8')
     } catch (error) {
-      ctx.ui?.notify?.(
-        `@nitra/cursor: transcript serialization failed — ${(error as Error).message}`,
-        'error'
-      )
+      ctx.ui?.notify?.(`@nitra/cursor: transcript serialization failed — ${(error as Error).message}`, 'error')
       return
     }
 

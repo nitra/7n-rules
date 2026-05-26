@@ -4245,7 +4245,7 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
 
 const NETWORK_POLICY_SNIPPET_URLS = {
   deployment: new URL('../policy/network_policy/template/deployment.snippet.yaml', import.meta.url),
-  statefulset: new URL('../policy/network_policy/template/statefulset.snippet.yaml', import.meta.url),
+  statefulset: new URL('../policy/network_policy/template/statefulset.snippet.yaml', import.meta.url)
 }
 
 /** @type {Record<string, Record<string, unknown>>} */
@@ -4256,7 +4256,7 @@ const _snippetCache = {}
  * Кожен snippet — повний самодостатній канон NetworkPolicy для своєї групи workload-типів
  * (без merge між snippets у runtime).
  * @param {'deployment' | 'statefulset'} snippetName ім'я сніпету
- * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }}
+ * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }} розпарсений spec
  */
 export function loadSnippetSpec(snippetName) {
   if (_snippetCache[snippetName]) return _snippetCache[snippetName]
@@ -4277,13 +4277,13 @@ export const KIND_TO_SNIPPET = {
   Job: 'deployment',
   CronJob: 'deployment',
   DaemonSet: 'deployment',
-  StatefulSet: 'statefulset',
+  StatefulSet: 'statefulset'
 }
 
 /**
  * Обирає snippet name для конкретного workload-kind; throws на невідомий.
  * @param {string} kind workload-kind
- * @returns {'deployment' | 'statefulset'}
+ * @returns {'deployment' | 'statefulset'} snippet name
  */
 export function snippetNameForKind(kind) {
   const name = KIND_TO_SNIPPET[kind]
@@ -4294,7 +4294,7 @@ export function snippetNameForKind(kind) {
 /**
  * Читає deployment.snippet.yaml і повертає розпарсений spec.
  * @deprecated Використовуй loadSnippetSpec('deployment')
- * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }}
+ * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }} розпарсений spec deployment snippet
  */
 export function readNetworkPolicySnippet() {
   return /** @type {any} */ (loadSnippetSpec('deployment'))
@@ -4312,9 +4312,11 @@ export function readNetworkPolicySnippet() {
 export function buildNetworkPolicyYaml(deployName, appLabel, kind) {
   const schemaUrl = `${YANNH_BASE}networkpolicy-networking-v1.json`
   const snippetName = snippetNameForKind(kind)
-  const spec = JSON.parse(JSON.stringify(loadSnippetSpec(snippetName)))
+  const spec = structuredClone(loadSnippetSpec(snippetName))
   spec.podSelector.matchLabels = { app: appLabel }
-  const specYaml = stringify(spec, { indent: 2 }).replaceAll(/^(?!$)/gm, '  ').trimEnd()
+  const specYaml = stringify(spec, { indent: 2 })
+    .replaceAll(/^(?!$)/gm, '  ')
+    .trimEnd()
   return `# yaml-language-server: $schema=${schemaUrl}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -4325,7 +4327,6 @@ metadata:
 spec:
 ${specYaml}`
 }
-
 
 /**
  * Додає `resourceName` у `resources:` kustomization/Component YAML, якщо ще немає; сортує за алфавітом (en).
@@ -5094,12 +5095,12 @@ function validateNetworkPolicyForWorkload(npDocs, workloadName, appLabel, worklo
   }
   const spec = /** @type {Record<string, unknown>} */ (matchedNp).spec
   const foundLabel = networkPolicyPodSelectorAppLabel(spec)
-  if (foundLabel !== appLabel) {
+  if (foundLabel === appLabel) {
+    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
+  } else {
     fail(
       `${npRel}: NetworkPolicy '${workloadName}' spec.podSelector.matchLabels.app='${foundLabel}' не відповідає мітці workload '${appLabel}' (k8s.mdc)`
     )
-  } else {
-    passFn(`${npRel}: NetworkPolicy для ${workloadKind} '${workloadName}' валідний (k8s.mdc)`)
   }
 }
 
@@ -6379,12 +6380,14 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs) {
     const spec = docRec.spec
     const appLabel = networkPolicyPodSelectorAppLabel(spec)
     const meta = docRec.metadata
-    const annotations = (meta !== null && typeof meta === 'object' && !Array.isArray(meta))
-      ? /** @type {Record<string, unknown>} */ (meta).annotations
-      : null
-    const rawKind = (annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations))
-      ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
-      : null
+    const annotations =
+      meta !== null && typeof meta === 'object' && !Array.isArray(meta)
+        ? /** @type {Record<string, unknown>} */ (meta).annotations
+        : null
+    const rawKind =
+      annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations)
+        ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
+        : null
     const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
     if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
   }
@@ -6572,8 +6575,8 @@ function runAllK8sRego(root, yamlFiles, fail) {
       files: allYaml,
       templateData: {
         deployment_snippet: loadSnippetSpec('deployment'),
-        statefulset_snippet: loadSnippetSpec('statefulset'),
-      },
+        statefulset_snippet: loadSnippetSpec('statefulset')
+      }
     },
     { ns: 'k8s.kustomization', dir: 'k8s/kustomization', files: kustYaml },
     { ns: 'k8s.svc_yaml', dir: 'k8s/svc_yaml', files: svcYaml },
@@ -6584,7 +6587,12 @@ function runAllK8sRego(root, yamlFiles, fail) {
 
   for (const t of targets) {
     if (t.files.length === 0) continue
-    const violations = runConftestBatch({ policyDirRel: t.dir, namespace: t.ns, files: t.files, templateData: t.templateData })
+    const violations = runConftestBatch({
+      policyDirRel: t.dir,
+      namespace: t.ns,
+      files: t.files,
+      templateData: t.templateData
+    })
     for (const v of violations) {
       fail(`${relOf(v.filename)}: ${v.message}`)
     }

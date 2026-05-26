@@ -17,17 +17,8 @@
     "text",
     "vue"
   ],
-  "ignore": [
-    ".claude/worktrees"
-  ],
-  "disable-rules": [
-    "docker",
-    "image-avif",
-    "image-compress",
-    "js-bun-db",
-    "k8s",
-    "nginx-default-tpl"
-  ],
+  "ignore": [".claude/worktrees"],
+  "disable-rules": ["docker", "image-avif", "image-compress", "js-bun-db", "k8s", "nginx-default-tpl"],
   "skills": [
     "adr-normalize",
     "coverage-fix",

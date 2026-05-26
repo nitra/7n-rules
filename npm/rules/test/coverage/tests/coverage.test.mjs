@@ -18,6 +18,8 @@ import {
   runCoverageSteps
 } from '../coverage.mjs'
 
+const SURVIVED_JSON_BLOCK = /```json\n([\s\S]*?)\n```/
+
 describe('addCoverage', () => {
   test('покомпонентне додавання lines та functions', () => {
     const a = { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } }
@@ -73,7 +75,11 @@ describe('renderMarkdown', () => {
 
   test('рядки без survived не додають розділ Вижилі мутанти', () => {
     const rows = [
-      { area: 'JS', coverage: { lines: { covered: 10, total: 10 }, functions: { covered: 5, total: 5 } }, mutation: { caught: 5, total: 5 } }
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 10 }, functions: { covered: 5, total: 5 } },
+        mutation: { caught: 5, total: 5 }
+      }
     ]
     const md = renderMarkdown(rows)
     expect(md).not.toContain('## Вижилі мутанти')
@@ -89,7 +95,13 @@ describe('renderMarkdown', () => {
           {
             file: 'src/auth.js',
             mutants: [
-              { line: 12, col: 0, original: 'if (x === null)', replacement: 'false', mutantType: 'ConditionalExpression' },
+              {
+                line: 12,
+                col: 0,
+                original: 'if (x === null)',
+                replacement: 'false',
+                mutantType: 'ConditionalExpression'
+              },
               { line: 15, col: 0, original: 'return true', replacement: 'return false', mutantType: 'BooleanLiteral' }
             ],
             exampleTest: null,
@@ -145,7 +157,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
       }
     ]
     const md = renderMarkdown(rows)
-    const jsonMatch = md.match(/```json\n([\s\S]*?)\n```/)
+    const jsonMatch = md.match(SURVIVED_JSON_BLOCK)
     expect(jsonMatch).not.toBeNull()
     const parsed = JSON.parse(jsonMatch[1])
     expect(parsed).toEqual(survivedFixture)
@@ -169,11 +181,20 @@ describe('renderMarkdown — секція вижилих мутантів', () =
 
   test('НЕ додає секцію коли survived порожній або відсутній', () => {
     const rowsEmpty = [
-      { area: 'JS', coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } }, mutation: { caught: 2, total: 2 }, survived: [] }
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
+        mutation: { caught: 2, total: 2 },
+        survived: []
+      }
     ]
     expect(renderMarkdown(rowsEmpty)).not.toContain('## Вижилі мутанти')
     const rowsNone = [
-      { area: 'JS', coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } }, mutation: { caught: 2, total: 2 } }
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
+        mutation: { caught: 2, total: 2 }
+      }
     ]
     expect(renderMarkdown(rowsNone)).not.toContain('## Вижилі мутанти')
   })

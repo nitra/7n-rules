@@ -7,13 +7,13 @@
 
 Канон egress-правил NetworkPolicy зараз дублюється у 5+ місцях:
 
-| Файл | Роль |
-|------|------|
-| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | Шаблон «для очей» |
-| `NETWORK_POLICY_EGRESS_YAML` у `manifests.mjs` | **Фактичний генератор** (рядковий шаблон) |
-| `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` у `manifests.mjs` | Список динамічних портів |
-| `network_policy.rego` / `network_policy_test.rego` | OPA-перевірка + `valid_np` фікстура |
-| `npm/rules/k8s/k8s.mdc` | Документація |
+| Файл                                                                      | Роль                                      |
+| ------------------------------------------------------------------------- | ----------------------------------------- |
+| `npm/rules/k8s/policy/network_policy/template/networkpolicy.snippet.yaml` | Шаблон «для очей»                         |
+| `NETWORK_POLICY_EGRESS_YAML` у `manifests.mjs`                            | **Фактичний генератор** (рядковий шаблон) |
+| `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` у `manifests.mjs`               | Список динамічних портів                  |
+| `network_policy.rego` / `network_policy_test.rego`                        | OPA-перевірка + `valid_np` фікстура       |
+| `npm/rules/k8s/k8s.mdc`                                                   | Документація                              |
 
 Наслідок: зміна одного правила (наприклад, додавання link-local DNS `169.254.0.0/16`) потребує ручної синхронізації у всіх 5 файлах. Якщо щось пропустили — JS генерує старий канон, а snippet показує новий.
 
@@ -25,14 +25,14 @@
 
 **Ключові рішення (прийняті під час брейнштормінгу):**
 
-| Питання | Обраний варіант |
-|---------|-----------------|
-| Хто тримає канон | C: snippet → rego (через `conftest --data`) + JS читає snippet; JS — лише cross-file I/O |
-| Snippet → rego зв'язок | 1: `conftest test --data snippet.yaml`; rego читає `data.snippet.spec` |
-| Форма snippet'а | α: `spec` без `metadata`/modeline; `matchLabels: {}` — порожньо |
-| Dispatch по workload-типу | α: анотація `nitra.dev/workload-kind: <kind>` → rego обирає потрібний snippet |
-| Семантика перевірки | **superset**: кожне canonical-правило має бути присутнє у списку; додаткові правила — дозволені |
-| Порядок при superset | β: порядок байдужий — rego шукає кожне canonical-правило через `some i; input[i] == canon_rule` |
+| Питання                   | Обраний варіант                                                                                 |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| Хто тримає канон          | C: snippet → rego (через `conftest --data`) + JS читає snippet; JS — лише cross-file I/O        |
+| Snippet → rego зв'язок    | 1: `conftest test --data snippet.yaml`; rego читає `data.snippet.spec`                          |
+| Форма snippet'а           | α: `spec` без `metadata`/modeline; `matchLabels: {}` — порожньо                                 |
+| Dispatch по workload-типу | α: анотація `nitra.dev/workload-kind: <kind>` → rego обирає потрібний snippet                   |
+| Семантика перевірки       | **superset**: кожне canonical-правило має бути присутнє у списку; додаткові правила — дозволені |
+| Порядок при superset      | β: порядок байдужий — rego шукає кожне canonical-правило через `some i; input[i] == canon_rule` |
 
 ## Архітектура (огляд)
 
@@ -64,6 +64,7 @@
 ```
 
 **Інваріанти:**
+
 - Snippet парситься обома сторонами (JS + conftest) як plain YAML — жодних плейсхолдерів у файлі.
 - Кожен snippet — **повний канон** для своєї групи workload-типів; жодного мерджу між snippet'ами в runtime.
 - Rego — єдиний owner структурної перевірки `spec.egress`/`ingress`/`policyTypes`; за анотацією обирає ОДИН snippet.
@@ -239,16 +240,16 @@ JS-генератор при створенні NP-документа додає
 metadata:
   name: <deployName>
   annotations:
-    nitra.dev/workload-kind: Deployment  # або StatefulSet, Job, CronJob, DaemonSet
+    nitra.dev/workload-kind: Deployment # або StatefulSet, Job, CronJob, DaemonSet
 ```
 
 Rego читає `input.metadata.annotations["nitra.dev/workload-kind"]` → обирає **ОДИН** snippet для superset-перевірки:
 
-| Значення анотації | Snippet для перевірки |
-|---|---|
-| `Deployment`, `Job`, `CronJob`, `DaemonSet` | `deployment.snippet.yaml` |
-| `StatefulSet` | `statefulset.snippet.yaml` |
-| відсутня / невідома | `deployment.snippet.yaml` (conservative fallback) + `warn` про відсутню анотацію |
+| Значення анотації                           | Snippet для перевірки                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------- |
+| `Deployment`, `Job`, `CronJob`, `DaemonSet` | `deployment.snippet.yaml`                                                        |
+| `StatefulSet`                               | `statefulset.snippet.yaml`                                                       |
+| відсутня / невідома                         | `deployment.snippet.yaml` (conservative fallback) + `warn` про відсутню анотацію |
 
 Conftest-виклик завантажує обидва файли:
 
@@ -330,6 +331,7 @@ snippet_name_for_kind(_) := "deployment"
 В тестах використовується `with data as { "common_snippet": ..., "statefulset_snippet": ... }`, де значення — програмно побудовані з правильної структури, або тести запускаються через `conftest verify --data …` (тоді `data` вже завантажено).
 
 **Мінімальний набір тестів:**
+
 - `valid_np` з annotation `Deployment` + усі правила з `deployment.snippet` → 0 deny.
 - `valid_np` з annotation `Deployment` без link-local DNS правила → deny з посиланням на `deployment.snippet`.
 - `valid_np` з annotation `StatefulSet` + усі правила з `statefulset.snippet` → 0 deny.
@@ -348,12 +350,10 @@ snippet_name_for_kind(_) := "deployment"
 // Lazy-кешований завантажувач snippets по імені файлу (без '.snippet.yaml')
 const _snippetCache = {}
 
-function loadSnippetSpec(snippetName) {  // 'deployment' | 'statefulset'
+function loadSnippetSpec(snippetName) {
+  // 'deployment' | 'statefulset'
   if (_snippetCache[snippetName]) return _snippetCache[snippetName]
-  const path = new URL(
-    `../policy/network_policy/template/${snippetName}.snippet.yaml`,
-    import.meta.url
-  )
+  const path = new URL(`../policy/network_policy/template/${snippetName}.snippet.yaml`, import.meta.url)
   _snippetCache[snippetName] = parseDocument(readFileSync(path, 'utf8')).toJS().spec
   return _snippetCache[snippetName]
 }
@@ -364,7 +364,7 @@ const KIND_TO_SNIPPET = {
   Job: 'deployment',
   CronJob: 'deployment',
   DaemonSet: 'deployment',
-  StatefulSet: 'statefulset',
+  StatefulSet: 'statefulset'
 }
 function snippetNameForKind(kind) {
   const name = KIND_TO_SNIPPET[kind]
@@ -391,10 +391,10 @@ export function buildNetworkPolicyYaml(deployName, appLabel, kind) {
       kind: 'NetworkPolicy',
       metadata: {
         name: deployName,
-        annotations: { 'nitra.dev/workload-kind': kind },
+        annotations: { 'nitra.dev/workload-kind': kind }
       },
-      spec,
-    }),
+      spec
+    })
   ].join('\n')
 }
 ```
@@ -403,11 +403,11 @@ export function buildNetworkPolicyYaml(deployName, appLabel, kind) {
 
 ### Що видаляється з JS
 
-| Символ | Рядки (~) | Причина |
-|--------|-----------|---------|
-| `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` | 4250 | порти у snippet |
-| `NETWORK_POLICY_EGRESS_YAML` | 4256-4281 | замінено `loadSnippetSpec` |
-| `networkPolicyManifestViolations` | 4316-4362 | структуру тримає rego; **breaking** → major bump |
+| Символ                                    | Рядки (~) | Причина                                          |
+| ----------------------------------------- | --------- | ------------------------------------------------ |
+| `NETWORK_POLICY_IN_CLUSTER_DEFAULT_PORTS` | 4250      | порти у snippet                                  |
+| `NETWORK_POLICY_EGRESS_YAML`              | 4256-4281 | замінено `loadSnippetSpec`                       |
+| `networkPolicyManifestViolations`         | 4316-4362 | структуру тримає rego; **breaking** → major bump |
 
 ### Що залишається (без змін)
 
@@ -448,8 +448,10 @@ GHA workflow `.github/workflows/…` — додати крок «Install conftes
 function networkPolicySpecDiffersFromCanon(npDoc, kind) {
   const canon = loadSnippetSpec(snippetNameForKind(kind))
   // superset: кожне канонічне правило має бути в npDoc.spec
-  return !canonContainedIn(canon.egress ?? [], npDoc.spec?.egress ?? [])
-      || !canonContainedIn(canon.ingress ?? [], npDoc.spec?.ingress ?? [])
+  return (
+    !canonContainedIn(canon.egress ?? [], npDoc.spec?.egress ?? []) ||
+    !canonContainedIn(canon.ingress ?? [], npDoc.spec?.ingress ?? [])
+  )
 }
 // canonContainedIn(canonList, actualList): every item in canonList deep-equal-matches some item in actualList
 ```
@@ -476,6 +478,7 @@ function networkPolicySpecDiffersFromCanon(npDoc, kind) {
 **Прибрати:** перелік портів (5432, 6379, …) — порти у snippet'і.  
 **Прибрати:** структуру egress в тексті — вона у snippet'і.  
 **Залишити:**
+
 - Коли потрібна NetworkPolicy (для кожного workload)
 - Прив'язка `metadata.name = workload-name`, `podSelector.matchLabels.app = workload-app`
 - `nitra.dev/workload-kind` анотація (що означає, звідки береться)
@@ -485,14 +488,14 @@ function networkPolicySpecDiffersFromCanon(npDoc, kind) {
 
 ## §8 — Open risks
 
-| Risk | Severity | Mitigant |
-|------|----------|----------|
-| Snippet парситься у JS і conftest (два парсери) | Low | Snippet без anchors/multi-doc/complex types; тест «snippet існує і парситься» |
-| Relative path до snippet'а зашитий у JS | Low | Bun-тест «loadCanonSpec('common') не кидає» |
-| conftest --data ключ = basename без .yaml (перевірити) | Medium | Перевірити через `conftest test --trace` у перший день реалізації |
-| n-fix масово перепише NP-файли | Expected | Окремий PR, не змішувати з реалізаційним |
-| DaemonSet host-network mode — інший канон | Out of scope | Не покривається; існуючий код уже зламаний; окремий дизайн |
-| Додаткові правила (extra-egress) — тепер дозволені, але rego не попереджає про drift | Low | Свідоме рішення (superset); при необхідності — окремий `warn` |
+| Risk                                                                                 | Severity     | Mitigant                                                                      |
+| ------------------------------------------------------------------------------------ | ------------ | ----------------------------------------------------------------------------- |
+| Snippet парситься у JS і conftest (два парсери)                                      | Low          | Snippet без anchors/multi-doc/complex types; тест «snippet існує і парситься» |
+| Relative path до snippet'а зашитий у JS                                              | Low          | Bun-тест «loadCanonSpec('common') не кидає»                                   |
+| conftest --data ключ = basename без .yaml (перевірити)                               | Medium       | Перевірити через `conftest test --trace` у перший день реалізації             |
+| n-fix масово перепише NP-файли                                                       | Expected     | Окремий PR, не змішувати з реалізаційним                                      |
+| DaemonSet host-network mode — інший канон                                            | Out of scope | Не покривається; існуючий код уже зламаний; окремий дизайн                    |
+| Додаткові правила (extra-egress) — тепер дозволені, але rego не попереджає про drift | Low          | Свідоме рішення (superset); при необхідності — окремий `warn`                 |
 
 ## Файли змін
 

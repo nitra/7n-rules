@@ -36,11 +36,7 @@ async function setupPiTemplate(cwdAbs) {
   const pkgRoot = join(cwdAbs, 'pkg')
   const extDir = join(pkgRoot, PI_TEMPLATE_DIR_NAME, 'extensions', PI_EXTENSION_NAME)
   await mkdir(extDir, { recursive: true })
-  await writeFile(
-    join(extDir, 'index.ts'),
-    '// bundled pi extension stub\nexport default function (pi) {}\n',
-    'utf8'
-  )
+  await writeFile(join(extDir, 'index.ts'), '// bundled pi extension stub\nexport default function (pi) {}\n', 'utf8')
   return pkgRoot
 }
 
@@ -116,16 +112,9 @@ describe('syncPiExtensions', () => {
     await withTmpCwd(async cwd => {
       const pkgRoot = await setupPiTemplate(cwd)
       await mkdir(join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME), { recursive: true })
-      await writeFile(
-        join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'),
-        '// stale content\n',
-        'utf8'
-      )
+      await writeFile(join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'), '// stale content\n', 'utf8')
       await syncPiExtensions(cwd, pkgRoot)
-      const content = await readFile(
-        join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'),
-        'utf8'
-      )
+      const content = await readFile(join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts'), 'utf8')
       expect(content).toContain('bundled pi extension stub')
       expect(content).not.toContain('stale content')
     })
@@ -178,16 +167,8 @@ async function setupFullTemplate(cwdAbs) {
   await mkdir(join(pkgRoot, '.claude-template', 'hooks'), { recursive: true })
   await mkdir(join(pkgRoot, '.claude-template', 'commands'), { recursive: true })
   await writeFile(join(pkgRoot, '.claude-template', 'settings.template.json'), '{}', 'utf8')
-  await writeFile(
-    join(pkgRoot, '.claude-template', 'hooks', 'capture-decisions.sh'),
-    '#!/usr/bin/env bash\n',
-    'utf8'
-  )
-  await writeFile(
-    join(pkgRoot, '.claude-template', 'hooks', 'normalize-decisions.sh'),
-    '#!/usr/bin/env bash\n',
-    'utf8'
-  )
+  await writeFile(join(pkgRoot, '.claude-template', 'hooks', 'capture-decisions.sh'), '#!/usr/bin/env bash\n', 'utf8')
+  await writeFile(join(pkgRoot, '.claude-template', 'hooks', 'normalize-decisions.sh'), '#!/usr/bin/env bash\n', 'utf8')
   return pkgRoot
 }
 

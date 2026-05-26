@@ -1,6 +1,6 @@
 {
   "name": "@nitra/cursor",
-  "version": "1.25.2",
+  "version": "1.25.3",
   "description": "CLI для завантаження cursor-правил (префікс n-) у локальний репозиторій",
   "keywords": [
     "cli",
@@ -10,10 +10,6 @@
     "n",
     "pi-package"
   ],
-  "pi": {
-    "skills": "skills",
-    "extensions": ".pi-template/extensions"
-  },
   "homepage": "https://github.com/n/cursor#readme",
   "bugs": {
     "url": "https://github.com/n/cursor/issues"
@@ -64,5 +60,9 @@
   "engines": {
     "bun": ">=1.3",
     "node": ">=25"
+  },
+  "pi": {
+    "skills": "skills",
+    "extensions": ".pi-template/extensions"
   }
 }

@@ -83,16 +83,18 @@ export default function (pi: ExtensionAPI) {
     const jsonlPath = join(tmpdir(), `n-cursor-pi-transcript-${Date.now()}.jsonl`)
     const lines = entries
       .filter(e => e.message?.role === 'user' || e.message?.role === 'assistant')
-      .map(e => JSON.stringify({
-        type: e.message.role,          // bash: .type == "user"|"assistant"
-        message: e.message               // .role / .content[]
-      }))
+      .map(e =>
+        JSON.stringify({
+          type: e.message.role, // bash: .type == "user"|"assistant"
+          message: e.message // .role / .content[]
+        })
+      )
       .join('\n')
     writeFileSync(jsonlPath, lines + '\n', 'utf8')
 
     const stdinPayload = JSON.stringify({
       transcript_path: jsonlPath,
-      session_id: ctx.sessionId ?? 'pi-unknown',
+      session_id: ctx.sessionId ?? 'pi-unknown'
       // CLAUDE_PROJECT_DIR — bash дефолтить на $CURSOR_WORKSPACE_ROOT або $PWD;
       // передаємо ctx.cwd як CLAUDE_PROJECT_DIR через env (нижче).
     })
@@ -175,6 +177,7 @@ Pi-extension пише у Claude-format:
 ### 4. Recursion guard
 
 Bash вже має recursion guards через env vars:
+
 - `CAPTURE_DECISIONS_RUNNING=1` у `capture-decisions.sh:19-22`
 - `ADR_NORMALIZE_RUNNING=1` у `normalize-decisions.sh:25-28`
 
@@ -183,10 +186,12 @@ Pi-extension перевіряє ці env vars на старті `agent_end` hand
 ### 5. Gating
 
 Pi extension створюється тільки коли `adr` ∈ `.n-cursor.json#rules` — точна копія current Claude flow:
+
 - `syncClaudeConfig` уже має `if (rules.includes('adr'))` checks для `syncAdrHook` / `syncAdrNormalizeHook`.
 - `syncPiExtensions` додається з тим самим check.
 
 Якщо проєкт прибирає `adr` з `rules`:
+
 - Claude hooks: `removeOrphanAdrHook` видаляє `.claude/hooks/{capture,normalize}-decisions.sh`.
 - Pi extension: симетричний cleanup видаляє `.pi/extensions/n-cursor-adr/`.
 
@@ -220,12 +225,15 @@ Pi extension створюється тільки коли `adr` ∈ `.n-cursor.j
 ## Testing strategy
 
 **Unit (npm/scripts/tests/):**
+
 - `pi-extension-template.test.mjs` — fixture-based, перевіряє що bundled `.pi-template/extensions/n-cursor-adr/index.ts` валідний TS і експортує default factory.
 
 **Integration:**
+
 - `sync-claude-config.test.mjs` — нові тести: `syncPiExtensions copies bundled template when adr enabled`, `removes .pi/extensions/n-cursor-adr/ when adr disabled`.
 
 **Manual smoke:**
+
 - `pi -e .pi/extensions/n-cursor-adr/index.ts` із test session, перевірити що `.claude/hooks/capture-decisions.sh` спавниться і пише у `.claude/hooks/capture-decisions.log`.
 
 Жодних змін у bash-тестах (`rules/adr/js/tests/`): bash unchanged.

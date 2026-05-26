@@ -11,5 +11,5 @@ export default {
   coverageAnalysis: 'off',
   // incremental: зберігає результати між запусками, відновлює після краш/kill.
   incremental: true,
-  incrementalFile: 'reports/stryker/incremental.json',
+  incrementalFile: 'reports/stryker/incremental.json'
 }

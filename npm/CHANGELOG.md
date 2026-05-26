@@ -4,6 +4,27 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.25.3] - 2026-05-26
+
+### Fixed
+
+- **JSDoc**: дописано опис `@returns`/`@param`-описи й типи в `rules/js-lint/coverage/coverage.mjs`, `rules/k8s/js/manifests.mjs`, `rules/adr/js/tests/*.test.mjs`, `rules/test/js/tests/*.test.mjs`, `scripts/coverage-fix.mjs`, `scripts/post-tool-use-fix.mjs`, `scripts/utils/tests/resolve-*.test.mjs` (oxlint/eslint jsdoc-правила).
+- **`k8s/js/manifests.mjs`**: `JSON.parse(JSON.stringify(...))` → `structuredClone(...)` (unicorn `prefer-structured-clone`); інверсія негованої умови в `validateNetworkPolicyForWorkload` (eslint `no-negated-condition`).
+- **`k8s/policy/network_policy/network_policy.rego`**: `list_contains` → `contains_item` (regal `avoid-get-and-list-prefix`); `items[i] == item` → `some candidate in items` (`prefer-some-in-iteration`); `workload_kind` без зайвого `if {}` (`unconditional-assignment`); helper-правила переміщено після всіх `deny`, щоб задовольнити `messy-rule`. `network_policy_test.rego` переформатовано через `opa fmt`.
+- **`scripts/tests/post-tool-use-fix.test.mjs`**: fake-child перероблено з `EventEmitter` на duck-typed `addListener`/`removeListener` (unicorn `prefer-event-target`).
+- **`scripts/tests/cli-entry.test.mjs`**: symlink-тест /tmp ↔ /private/tmp використовує `mkdtempSync` з префіксом, зібраним з частин (sonarjs `publicly-writable-directories`).
+- **`rules/test/coverage/coverage.mjs`**: множинні `push()` об’єднано в один виклик (unicorn `prefer-single-call`).
+- Винесено повторно-компільовані regex у module scope (`e18e/prefer-static-regex`) у `coverage.mjs`, `test/coverage/tests/coverage.test.mjs`, `k8s/tests/manifests/tests/check-schema.test.mjs`.
+- Видалено невикористаний `npm/lib/x.js` (unicorn `no-empty-file`).
+
+### Changed
+
+- **`.claude/hooks/{capture,normalize}-decisions.sh`** синхронізовано з `npm/.claude-template/hooks/` (включно з новим `lib/tooling-only.sh`).
+- **`knip.json`**: додано entry-патерни для динамічно імпортованих/зовнішніх скриптів (stryker configs, pi extensions, fixtures, `coverage-fix.mjs`); `@anthropic-ai/claude-code`, `@anthropic-ai/sdk`, `@stryker-mutator/core` додано в `ignoreDependencies` (тип-only або dynamic import).
+- **`.jscpd.json`**: ігнор-патерни розширено для template/canonical пар тієї ж природи, що вже були в винятках (`npm/.pi-template/**`, `knip-canonical.json`, `*.snippet.yaml`).
+- **`.cspell.json`**: до `ignorePaths` додано `**/reports/stryker/**` (генеровані Stryker-репорти, вже в .gitignore).
+- **Кореневий `package.json#scripts.lint`** — чейн `bun run lint-ga && lint-js && lint-rego && lint-security && lint-style && lint-text && oxfmt .` замість делегування до CLI (bun.mdc + security.mdc).
+
 ## [1.25.2] - 2026-05-26
 
 ### Added

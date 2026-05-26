@@ -12,23 +12,24 @@
 
 ## File Map
 
-| Статус | Файл | Відповідальність |
-|--------|------|-----------------|
-| Create | `npm/rules/test/js/stryker_config.mjs` | JS-концерн: check Stryker config |
-| Create | `npm/rules/test/js/cargo_mutants_config.mjs` | Rust-концерн: check cargo-mutants config |
-| Create | `npm/rules/test/js/data/stryker.config.canonical.mjs` | Canonical Stryker baseline |
-| Create | `npm/rules/test/js/data/mutants.toml.canonical` | Canonical cargo-mutants baseline |
-| Create | `npm/rules/test/js/tests/stryker_config.test.mjs` | Unit-тести JS-концерну |
-| Create | `npm/rules/test/js/tests/cargo_mutants_config.test.mjs` | Unit-тести Rust-концерну |
-| Modify | `npm/rules/test/test.mdc` | Документація: секція mutation config |
-| Modify | `npm/package.json` | Version: `1.17.1 → 1.18.0` |
-| Modify | `npm/CHANGELOG.md` | Секція `[1.18.0]` |
+| Статус | Файл                                                    | Відповідальність                         |
+| ------ | ------------------------------------------------------- | ---------------------------------------- |
+| Create | `npm/rules/test/js/stryker_config.mjs`                  | JS-концерн: check Stryker config         |
+| Create | `npm/rules/test/js/cargo_mutants_config.mjs`            | Rust-концерн: check cargo-mutants config |
+| Create | `npm/rules/test/js/data/stryker.config.canonical.mjs`   | Canonical Stryker baseline               |
+| Create | `npm/rules/test/js/data/mutants.toml.canonical`         | Canonical cargo-mutants baseline         |
+| Create | `npm/rules/test/js/tests/stryker_config.test.mjs`       | Unit-тести JS-концерну                   |
+| Create | `npm/rules/test/js/tests/cargo_mutants_config.test.mjs` | Unit-тести Rust-концерну                 |
+| Modify | `npm/rules/test/test.mdc`                               | Документація: секція mutation config     |
+| Modify | `npm/package.json`                                      | Version: `1.17.1 → 1.18.0`               |
+| Modify | `npm/CHANGELOG.md`                                      | Секція `[1.18.0]`                        |
 
 ---
 
 ## Task 1: Canonical baselines
 
 **Files:**
+
 - Create: `npm/rules/test/js/data/stryker.config.canonical.mjs`
 - Create: `npm/rules/test/js/data/mutants.toml.canonical`
 
@@ -49,7 +50,7 @@ export default {
   commandRunner: { command: 'bun test' },
   reporters: ['json', 'clear-text'],
   jsonReporter: { fileName: 'reports/stryker/mutation.json' },
-  coverageAnalysis: 'off',
+  coverageAnalysis: 'off'
 }
 ```
 
@@ -75,6 +76,7 @@ ls /Users/vitaliytv/www/nitra/cursor/npm/rules/test/js/data/
 ## Task 2: Stryker config концерн — TDD
 
 **Files:**
+
 - Create: `npm/rules/test/js/tests/stryker_config.test.mjs`
 - Create: `npm/rules/test/js/stryker_config.mjs`
 
@@ -98,7 +100,7 @@ function makeRunner({ copied = [], exists = /** @type {Record<string,boolean>} *
     existsSync: (/** @type {string} */ p) => (p in exists ? exists[p] : false),
     copyFile: async (/** @type {string} */ _src, /** @type {string} */ dst) => {
       copied.push(dst)
-    },
+    }
   }
 }
 
@@ -134,7 +136,7 @@ describe('checkStrykerConfig', () => {
       const copied = /** @type {string[]} */ ([])
       const code = await checkStrykerConfig({
         cwd: dir,
-        runner: makeRunner({ copied, exists: { [strykerPath]: true } }),
+        runner: makeRunner({ copied, exists: { [strykerPath]: true } })
       })
       expect(code).toBe(0)
       expect(copied).toHaveLength(0)
@@ -143,14 +145,8 @@ describe('checkStrykerConfig', () => {
 
   test('monorepo: jsRoot = workspaces[0] → copy у app/stryker.config.mjs', async () => {
     await withTmpCwd(async dir => {
-      await writeFile(
-        join(dir, '.n-cursor.json'),
-        JSON.stringify({ rules: ['js-lint', 'test'] }),
-      )
-      await writeFile(
-        join(dir, 'package.json'),
-        JSON.stringify({ name: 'mono', workspaces: ['app'] }),
-      )
+      await writeFile(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint', 'test'] }))
+      await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'mono', workspaces: ['app'] }))
       await mkdir(join(dir, 'app'), { recursive: true })
       await writeFile(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app' }))
       const copied = /** @type {string[]} */ ([])
@@ -164,7 +160,7 @@ describe('checkStrykerConfig', () => {
     await withTmpCwd(async dir => {
       await writeFile(
         join(dir, '.n-cursor.json'),
-        JSON.stringify({ rules: ['js-lint', 'test'], 'disable-rules': ['js-lint'] }),
+        JSON.stringify({ rules: ['js-lint', 'test'], 'disable-rules': ['js-lint'] })
       )
       await writeFile(join(dir, 'package.json'), JSON.stringify({ name: 'pkg' }))
       const copied = /** @type {string[]} */ ([])
@@ -229,7 +225,7 @@ async function resolveJsRoot(cwd, runner) {
 const defaultRunner = {
   existsSync,
   copyFile,
-  readFile,
+  readFile
 }
 
 /**
@@ -285,6 +281,7 @@ git status --short
 ## Task 3: cargo-mutants config концерн — TDD
 
 **Files:**
+
 - Create: `npm/rules/test/js/tests/cargo_mutants_config.test.mjs`
 - Create: `npm/rules/test/js/cargo_mutants_config.mjs`
 
@@ -318,7 +315,7 @@ function makeRunner({ copied = [], madeDir = [], exists = /** @type {Record<stri
       if (exists[direct]) return cwd
       // shallow check перший рівень
       return null
-    },
+    }
   }
 }
 
@@ -341,7 +338,7 @@ describe('checkCargoMutantsConfig', () => {
       const copied = /** @type {string[]} */ ([])
       const code = await checkCargoMutantsConfig({
         cwd: dir,
-        runner: makeRunner({ copied, exists: { [cargoPath]: true } }),
+        runner: makeRunner({ copied, exists: { [cargoPath]: true } })
       })
       expect(code).toBe(0)
       expect(copied).toHaveLength(1)
@@ -357,7 +354,7 @@ describe('checkCargoMutantsConfig', () => {
       const copied = /** @type {string[]} */ ([])
       const code = await checkCargoMutantsConfig({
         cwd: dir,
-        runner: makeRunner({ copied, exists: { [cargoPath]: true, [mutantsPath]: true } }),
+        runner: makeRunner({ copied, exists: { [cargoPath]: true, [mutantsPath]: true } })
       })
       expect(code).toBe(0)
       expect(copied).toHaveLength(0)
@@ -366,10 +363,7 @@ describe('checkCargoMutantsConfig', () => {
 
   test('monorepo: Cargo.toml у app/src-tauri/ → copy у app/src-tauri/.cargo/mutants.toml', async () => {
     await withTmpCwd(async dir => {
-      await writeFile(
-        join(dir, '.n-cursor.json'),
-        JSON.stringify({ rules: ['rust', 'test'] }),
-      )
+      await writeFile(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['rust', 'test'] }))
       await mkdir(join(dir, 'app', 'src-tauri'), { recursive: true })
       await writeFile(join(dir, 'app', 'src-tauri', 'Cargo.toml'), '[package]\nname = "app"\n')
       const cargoInSubdir = join(dir, 'app', 'src-tauri', 'Cargo.toml')
@@ -377,7 +371,7 @@ describe('checkCargoMutantsConfig', () => {
       const madeDir = /** @type {string[]} */ ([])
       const code = await checkCargoMutantsConfig({
         cwd: dir,
-        runner: makeRunner({ copied, madeDir, exists: { [cargoInSubdir]: true } }),
+        runner: makeRunner({ copied, madeDir, exists: { [cargoInSubdir]: true } })
       })
       expect(code).toBe(0)
       expect(copied[0]).toContain(join('src-tauri', '.cargo', 'mutants.toml'))
@@ -449,7 +443,7 @@ const defaultRunner = {
   existsSync,
   mkdir,
   copyFile,
-  findCargoTomlDir: async (/** @type {string} */ cwd) => findCargoTomlDirSync(cwd),
+  findCargoTomlDir: async (/** @type {string} */ cwd) => findCargoTomlDirSync(cwd)
 }
 
 /**
@@ -500,6 +494,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bun test rules/test/js/tests/cargo_m
 ## Task 4: End-to-end та полний suite
 
 **Files:**
+
 - None нових — верифікація
 
 - [ ] **Step 4.1: Запустити повний suite**
@@ -517,6 +512,7 @@ cd /Users/vitaliytv/www/vitaliytv/mlmail && bun /Users/vitaliytv/www/nitra/curso
 ```
 
 Очікувано:
+
 - `✅ stryker.config.mjs OK` (існує в `app/`) або `stryker.config.mjs створено`
 - `✅ .cargo/mutants.toml OK` (існує у `app/src-tauri/`) або `.cargo/mutants.toml створено`
 - `✅ Всі N файлів *.test.mjs у каталозі tests/`
@@ -529,6 +525,7 @@ cd /Users/vitaliytv/www/nitra/cursor && bun npm/bin/n-cursor.js fix test 2>&1 | 
 ```
 
 Очікувано:
+
 - `stryker config пропущено` (js-lint в rules, але package.json → workspaces → npm; stryker.config.mjs відсутня там → copy)
 - АБО `stryker.config.mjs OK` (якщо вже створено)
 - `⚠ не знайдено Cargo.toml — cargo-mutants config пропущено` (rust не в rules для @nitra/cursor)
@@ -538,6 +535,7 @@ cd /Users/vitaliytv/www/nitra/cursor && bun npm/bin/n-cursor.js fix test 2>&1 | 
 ## Task 5: Документація та version bump
 
 **Files:**
+
 - Modify: `npm/rules/test/test.mdc`
 - Modify: `npm/package.json`
 - Modify: `npm/CHANGELOG.md`
@@ -578,7 +576,6 @@ version: '1.3'
 - JS-концерн `test/js/stryker_config.mjs` — автоматично розміщує canonical `stryker.config.mjs` у `jsRoot`, якщо правило `js-lint` активне. Не перезаписує існуючі конфіги.
 - Rust-концерн `test/js/cargo_mutants_config.mjs` — автоматично розміщує canonical `.cargo/mutants.toml` у rustRoot, якщо правило `rust` активне. Не перезаписує існуючі конфіги.
 - Canonical baselines: `test/js/data/stryker.config.canonical.mjs`, `test/js/data/mutants.toml.canonical`.
-
 ```
 
 - [ ] **Step 5.5: Перевірити fix changelog**
@@ -602,6 +599,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bun test 2>&1 | tail -6
 ## Self-Review
 
 **Spec coverage:**
+
 - ✓ JS концерн (`stryker_config.mjs`) — Task 2
 - ✓ Rust концерн (`cargo_mutants_config.mjs`) — Task 3
 - ✓ Baselines (мінімум Б) — Task 1
@@ -614,6 +612,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bun test 2>&1 | tail -6
 **Placeholder scan:** жодного "TBD"/"TODO"/"implement later". ✓
 
 **Type consistency:**
+
 - `checkStrykerConfig({ cwd, runner })` — підпис однаковий у тесті (Step 2.1) і реалізації (Step 2.3) ✓
 - `checkCargoMutantsConfig({ cwd, runner })` — підпис однаковий у тесті (Step 3.1) і реалізації (Step 3.3) ✓
 - `runner.findCargoTomlDir(cwd)` — async у defaultRunner (Step 3.3), і тест-runner (Step 3.1) теж async ✓

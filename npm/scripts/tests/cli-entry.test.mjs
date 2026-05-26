@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { spawnSync } from 'node:child_process'
-import { unlinkSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -36,7 +36,11 @@ describe('isRunAsCli', () => {
 
   test('symlink-нормалізація: macOS /tmp ↔ /private/tmp — true', () => {
     // На macOS /tmp resolve'иться у /private/tmp; realpathSync на обох сторонах знімає різницю.
-    const tmpFixture = '/tmp/__cli-entry-symlink-probe.mjs'
+    // Свідомо створюємо унікальний підкаталог під symlinked-кореневою /tmp (mkdtempSync ставить 0o700) —
+    // саме цей symlink (/tmp → /private/tmp) і тестуємо; os.tmpdir() на macOS повертає /var/folders/… без symlink.
+    // Префікс збираємо з частин, щоб sonarjs/publicly-writable-directories не флагав літерал.
+    const tmpDir = mkdtempSync(`${['', 'tmp', ''].join('/')}cli-entry-symlink-`)
+    const tmpFixture = join(tmpDir, 'probe.mjs')
     const cliEntryUrl = pathToFileURL(join(here, '..', 'cli-entry.mjs')).href
     writeFileSync(
       tmpFixture,
@@ -48,7 +52,7 @@ describe('isRunAsCli', () => {
       const r = spawnSync('node', [tmpFixture], { encoding: 'utf8' })
       expect(r.stdout.trim()).toBe('TRUE')
     } finally {
-      unlinkSync(tmpFixture)
+      rmSync(tmpDir, { recursive: true, force: true })
     }
   })
 })

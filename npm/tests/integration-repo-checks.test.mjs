@@ -41,28 +41,24 @@ describe('check-* на реальному репозиторії', () => {
   // через conftest/opa/regal) на macOS вкладаються у ~5-7с — дефолтний 5000ms-timeout bun-test'у
   // не вистачає. Збільшуємо до 120с: у стані з великим git-diff (напр. відновлені файли після
   // bad commit) деякі checks (checkK8s, checkJsRun) можуть займати до 60-90с.
-  test(
-    'узгоджені з поточним деревом cursor',
-    async () => {
-      const prev = process.cwd()
-      process.chdir(REPO_ROOT)
-      try {
-        await withShellcheckStubInPath(async () => {
-          expect(await checkAbie()).toBe(0)
-          expect(await checkBun()).toBe(0)
-          expect(await checkGa()).toBe(0)
-          expect(await checkGraphql()).toBe(0)
-          expect(await checkJsLint()).toBe(0)
-          expect(await checkText()).toBe(0)
-          expect(await checkNpmModule()).toBe(0)
-          expect(await checkDocker()).toBe(0)
-          expect(await checkK8s()).toBe(0)
-          expect(await checkJsRun()).toBe(0)
-        })
-      } finally {
-        process.chdir(prev)
-      }
-    },
-    120000
-  )
+  test('узгоджені з поточним деревом cursor', async () => {
+    const prev = process.cwd()
+    process.chdir(REPO_ROOT)
+    try {
+      await withShellcheckStubInPath(async () => {
+        expect(await checkAbie()).toBe(0)
+        expect(await checkBun()).toBe(0)
+        expect(await checkGa()).toBe(0)
+        expect(await checkGraphql()).toBe(0)
+        expect(await checkJsLint()).toBe(0)
+        expect(await checkText()).toBe(0)
+        expect(await checkNpmModule()).toBe(0)
+        expect(await checkDocker()).toBe(0)
+        expect(await checkK8s()).toBe(0)
+        expect(await checkJsRun()).toBe(0)
+      })
+    } finally {
+      process.chdir(prev)
+    }
+  }, 120000)
 })

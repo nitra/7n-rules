@@ -104,7 +104,7 @@ function extractFilePath(stdinJson) {
  * Точка входу. Викликається з `bin/n-cursor.js` коли argv[0] === `post-tool-use-fix`.
  * Параметри ін'єктовні для тестів: `stdinJson` обходить read від `process.stdin`,
  * `spawnFn` — заміна `node:child_process.spawn` (повертає EventEmitter-сумісний об'єкт).
- * @param {{ stdinJson?: string, spawnFn?: typeof spawn }} [options]
+ * @param {{ stdinJson?: string, spawnFn?: typeof spawn }} [options] параметри для тестів (ін'єкція stdin/spawn)
  * @returns {Promise<number>} exit code (0 — пропущено / fix ОК; інше — exit-код `fix`)
  */
 export async function runPostToolUseFixCli(options = {}) {

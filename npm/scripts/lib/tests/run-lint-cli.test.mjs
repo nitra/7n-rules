@@ -41,7 +41,9 @@ function makeSpawnSync(sequence) {
   let nowCalls = 0
   const now = () => {
     // парні виклики (0, 2, 4) — startedAt; непарні — endedAt
-    const t = tickByCallIndex(Math.floor(nowCalls / 2)) + (nowCalls % 2 === 0 ? 0 : sequence[Math.floor(nowCalls / 2)]?.ms ?? 0)
+    const t =
+      tickByCallIndex(Math.floor(nowCalls / 2)) +
+      (nowCalls % 2 === 0 ? 0 : (sequence[Math.floor(nowCalls / 2)]?.ms ?? 0))
     nowCalls++
     return t
   }

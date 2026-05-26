@@ -39,55 +39,10 @@ mkdir -p "$LOG_DIR"
 
 log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
-# Структурний скіп ADR-нормалізації для "tooling-only" сесій.
-# Дублікат із capture-decisions.sh: `.claude-template/hooks/` копіюється плоско,
-# спільний helper-файл туди не вписується.
-is_tooling_only_change() {
-  proj="$1"
-  had_file=0
-  while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    had_file=1
-    case "$f" in
-      "$proj"/*) rel="${f#"$proj"/}" ;;
-      /*) return 1 ;;
-      *)  rel="$f" ;;
-    esac
-    case "$rel" in
-      .cspell.json) ;;
-      docs/adr/*.md) ;;
-      AGENTS.md|CLAUDE.md) ;;
-      CHANGELOG.md) ;;
-      */CHANGELOG.md) ;;
-      package.json|*/package.json)
-        if ! git_diff_only_version_field "$proj" "$rel"; then
-          return 1
-        fi
-        ;;
-      *) return 1 ;;
-    esac
-  done
-  [ "$had_file" = "1" ] && return 0
-  return 1
-}
-
-# Допоміжна: чи git-diff для файлу торкається ЛИШЕ рядків з `"version":`.
-git_diff_only_version_field() {
-  proj="$1"; path="$2"
-  [ -d "$proj/.git" ] || return 1
-  diff=$(cd "$proj" && git diff HEAD --unified=0 -- "$path" 2>/dev/null) || return 1
-  [ -z "$diff" ] && return 1
-  while IFS= read -r line; do
-    case "$line" in
-      '+++ '*|'--- '*|'@@ '*|'') continue ;;
-      [+-]*'"version":'*) continue ;;
-      [+-]*) return 1 ;;
-    esac
-  done <<EOF
-$diff
-EOF
-  return 0
-}
+# Підвантажуємо спільний helper (sourcing — не sub-shell, функції видимі поточному скрипту).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/tooling-only.sh
+. "$SCRIPT_DIR/lib/tooling-only.sh"
 
 # Витягає поле `transcript:` з YAML frontmatter ADR-чернетки.
 draft_transcript_path() {

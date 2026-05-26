@@ -14,7 +14,8 @@ import { check } from '../stryker_config.mjs'
 /**
  * Створює тимчасовий проєкт із заданим `.n-cursor.json#rules` і опційним
  * workspace-layout.
- * @param {{rules?: string[], disableRules?: string[], workspaceRoot?: boolean}} [opts]
+ * @param {{rules?: string[], disableRules?: string[], workspaceRoot?: boolean}} [opts] параметри генерації проєкту
+ * @returns {{dir: string, cleanup: () => void}} шлях до проєкту і cleanup
  */
 function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'stryker-config-concern-'))
@@ -37,6 +38,8 @@ function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {})
 /**
  * Викликає check() з chdir у заданий каталог, щоб концерн читав .n-cursor.json
  * саме звідти (бо check читає process.cwd()).
+ * @param {string} dir каталог проєкту
+ * @returns {Promise<number>} exit code
  */
 async function runCheckIn(dir) {
   const prev = getCwd()

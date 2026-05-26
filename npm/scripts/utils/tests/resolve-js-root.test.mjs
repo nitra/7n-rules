@@ -9,6 +9,13 @@ import { join } from 'node:path'
 
 import { resolveAllJsRoots, resolveJsRoot } from '../resolve-js-root.mjs'
 
+/**
+ * Створює тимчасовий проєкт із заданими package.json у корені і опційним workspace.
+ * @param {object} root0 параметри
+ * @param {Record<string, unknown>} [root0.root] вміст root package.json
+ * @param {Record<string, unknown>} [root0.workspace] вміст app/package.json
+ * @returns {string} шлях до тимчасового каталогу
+ */
 function makeProj({ root, workspace }) {
   const dir = mkdtempSync(join(tmpdir(), 'resolve-js-root-'))
   if (root) writeFileSync(join(dir, 'package.json'), JSON.stringify(root))

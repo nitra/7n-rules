@@ -10,20 +10,34 @@
  * передає у `routeFilePathToRules` і за наявності правил spawn'ить `npx @nitra/cursor fix <rules>`.
  */
 import { describe, expect, mock, test } from 'bun:test'
-import { EventEmitter } from 'node:events'
 
 import { routeFilePathToRules, runPostToolUseFixCli } from '../post-tool-use-fix.mjs'
 
 /**
- * Будує мінімальний EventEmitter-сумісний "child", що асинхронно емітить `exit`.
- * `once(child, 'exit')` у src отримає `[exitCode]`.
+ * Будує мінімальний duck-typed "child" із addListener/removeListener, що асинхронно
+ * емітить `exit`. `events.once(child, 'exit')` у src отримає `[exitCode]`.
+ * Реалізуємо без `EventEmitter`/`EventTarget`, щоб не тягти Node-only клас у тести.
  * @param {number} exitCode код, який емітнути в `exit`
- * @returns {EventEmitter}
+ * @returns {{ addListener: (name: string, cb: (...args: unknown[]) => void) => void, removeListener: (name: string, cb: (...args: unknown[]) => void) => void }} fake child
  */
 function makeFakeChild(exitCode) {
-  const ee = new EventEmitter()
-  setImmediate(() => ee.emit('exit', exitCode))
-  return ee
+  /** @type {Record<string, Array<(...args: unknown[]) => void>>} */
+  const listeners = { exit: [], error: [] }
+  setImmediate(() => {
+    for (const cb of listeners.exit) cb(exitCode)
+  })
+  return {
+    addListener(name, cb) {
+      if (!listeners[name]) listeners[name] = []
+      listeners[name].push(cb)
+    },
+    removeListener(name, cb) {
+      const arr = listeners[name]
+      if (!arr) return
+      const i = arr.indexOf(cb)
+      if (i !== -1) arr.splice(i, 1)
+    }
+  }
 }
 
 describe('routeFilePathToRules', () => {

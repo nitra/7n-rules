@@ -58,9 +58,6 @@ export function formatTimingSummary(title, timings) {
     const failMark = ok ? '' : '  ❌'
     lines.push(`   ${id.padEnd(idWidth)}  ${formatDurationMs(ms)}${failMark}`)
   }
-  lines.push(
-    `   ${RULER.repeat(idWidth + 2 + 6)}`,
-    `   ${'total'.padEnd(idWidth)}  ${formatDurationMs(totalMs)}`
-  )
+  lines.push(`   ${RULER.repeat(idWidth + 2 + 6)}`, `   ${'total'.padEnd(idWidth)}  ${formatDurationMs(totalMs)}`)
   return `${lines.join('\n')}\n`
 }

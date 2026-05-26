@@ -13,6 +13,9 @@ import { join } from 'node:path'
 
 import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 
+const TEST_BLOCK_START = /^\s*(it|test)\(/
+const FILE_EXTENSION = /\.[^.]+$/
+
 /**
  * Чи `scripts` містить coverage-сумісну команду.
  * @param {Record<string, string> | undefined} scripts секція scripts з package.json
@@ -89,13 +92,15 @@ export function extractFirstTestBlock(content) {
   let depth = 0
   let inBlock = false
   const result = []
-  for (let i = 0; i < lines.length; i++) {
-    if (startLine === -1 && /^\s*(it|test)\(/.test(lines[i])) startLine = i
+  for (const [i, line] of lines.entries()) {
+    if (startLine === -1 && TEST_BLOCK_START.test(line)) startLine = i
     if (startLine === -1) continue
-    result.push(lines[i])
-    for (const ch of lines[i]) {
-      if (ch === '{') { depth++; inBlock = true }
-      else if (ch === '}') depth--
+    result.push(line)
+    for (const ch of line) {
+      if (ch === '{') {
+        depth++
+        inBlock = true
+      } else if (ch === '}') depth--
     }
     if (inBlock && depth === 0) break
   }
@@ -110,7 +115,7 @@ export function extractFirstTestBlock(content) {
  * @returns {{testFile:string, code:string|null} | null} null — якщо тест-файл не знайдено
  */
 export function findExampleTest(jsRoot, filename) {
-  const base = filename.replace(/\.[^.]+$/, '')
+  const base = filename.replace(FILE_EXTENSION, '')
   const candidates = [`${base}.test.js`, `${base}.test.mjs`, `${base}.test.ts`]
   const lastSlash = base.lastIndexOf('/')
   if (lastSlash !== -1) {
@@ -131,9 +136,9 @@ export function findExampleTest(jsRoot, filename) {
  * Парс Stryker mutation.json: Killed+Timeout → caught; Survived+NoCoverage → до total.
  * Compile/Runtime errors виключаються з total.
  * Survived мутанти групуються по файлах з exampleTest.
- * @param {{files:Record<string,{mutants:Array<{status:string,mutatorName?:string,replacement?:string,location?:{start:{line:number,column:number},end:{line:number,column:number}}}>}>}} report
+ * @param {{files:Record<string,{mutants:Array<{status:string,mutatorName?:string,replacement?:string,location?:{start:{line:number,column:number},end:{line:number,column:number}}}>}>}} report Stryker mutation.json
  * @param {string|null} [jsRoot] корінь для читання source-рядків і пошуку тест-файлів
- * @returns {{caught:number,total:number,survived:Array<{file:string,mutants:Array<{line:number,col:number,mutantType:string,original:string,replacement:string}>,exampleTest:{testFile:string,code:string|null}|null,recommendationText:string|null}>}}
+ * @returns {{caught:number,total:number,survived:Array<{file:string,mutants:Array<{line:number,col:number,mutantType:string,original:string,replacement:string}>,exampleTest:{testFile:string,code:string|null}|null,recommendationText:string|null}>}} результат парсу: caught/total та згруповані survived мутанти
  */
 export function parseStrykerReport(report, jsRoot) {
   let caught = 0

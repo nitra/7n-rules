@@ -1,5 +1,11 @@
 {
-  "ignoreDependencies": ["graphql", "@nitra/cspell-dict", "@nitra/stylelint-config", "globals"],
+  "ignoreDependencies": [
+    "graphql",
+    "@nitra/cspell-dict",
+    "@nitra/stylelint-config",
+    "globals",
+    "@stryker-mutator/core"
+  ],
   "ignoreBinaries": ["cspell", "oxfmt", "stylelint", "trufflehog"],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
@@ -9,7 +15,7 @@
   },
   "workspaces": {
     ".": {
-      "entry": ["eslint.config.{js,mjs}"]
+      "entry": ["eslint.config.{js,mjs}", ".pi/extensions/**/index.ts"]
     },
     "npm": {
       "entry": [
@@ -24,6 +30,7 @@
         "scripts/auto-*.mjs",
         "scripts/build-*.mjs",
         "scripts/claude-stop-hook.mjs",
+        "scripts/coverage-fix.mjs",
         "scripts/ensure-nitra-cursor-dev-dependencies.mjs",
         "scripts/rename-yaml-extensions.mjs",
         "scripts/sync-*.mjs",
@@ -34,12 +41,17 @@
         "rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
-        "tests/**/*.test.mjs"
+        "tests/**/*.test.mjs",
+        "scripts/tests/fixtures/**/*.mjs",
+        "rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+        "stryker.config.mjs"
       ],
-      "project": ["**/*.{js,mjs}"]
+      "project": ["**/*.{js,mjs}"],
+      "ignoreDependencies": ["@anthropic-ai/claude-code", "@anthropic-ai/sdk"]
     },
     "demo": {
-      "ignoreDependencies": ["vite-plugin-vue-layouts-next"]
+      "ignoreDependencies": ["vite-plugin-vue-layouts-next"],
+      "entry": ["stryker.config.mjs"]
     }
   }
 }

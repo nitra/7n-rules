@@ -116,7 +116,9 @@ describe('js-lint coverage collect()', () => {
         survived: [
           {
             file: 'src/a.js',
-            mutants: [{ line: 2, col: 6, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }],
+            mutants: [
+              { line: 2, col: 6, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }
+            ],
             exampleTest: null,
             recommendationText: null
           }
@@ -192,7 +194,9 @@ describe('parseStrykerReport', () => {
     expect(result.survived).toEqual([
       {
         file: 'src/foo.js',
-        mutants: [{ line: 2, col: 2, mutantType: 'ConditionalExpression', original: 'if (x === 1)', replacement: 'false' }],
+        mutants: [
+          { line: 2, col: 2, mutantType: 'ConditionalExpression', original: 'if (x === 1)', replacement: 'false' }
+        ],
         exampleTest: null,
         recommendationText: null
       }
@@ -206,8 +210,18 @@ describe('parseStrykerReport', () => {
       files: {
         'src/bar.js': {
           mutants: [
-            { status: 'NoCoverage', mutatorName: 'BooleanLiteral', replacement: 'true', location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } } },
-            { status: 'Survived', mutatorName: 'BooleanLiteral', replacement: 'false', location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } } }
+            {
+              status: 'NoCoverage',
+              mutatorName: 'BooleanLiteral',
+              replacement: 'true',
+              location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } }
+            },
+            {
+              status: 'Survived',
+              mutatorName: 'BooleanLiteral',
+              replacement: 'false',
+              location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } }
+            }
           ]
         }
       }

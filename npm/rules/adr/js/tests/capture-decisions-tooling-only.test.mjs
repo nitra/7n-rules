@@ -40,7 +40,7 @@ function transcriptJsonl(edits) {
  * Run capture-decisions.sh in tmp cwd with empty PATH-сегмент для LLM CLI.
  * @param {string} payload JSON stdin для скрипта (`{transcript_path, session_id}`)
  * @param {Record<string, string>} [extraEnv] додаткові ENV
- * @returns {{exitCode: number, log: string, adrFiles: string[]}}
+ * @returns {{exitCode: number, log: string, adrFiles: string[]}} результат прогону
  */
 function runCaptureHook(payload, extraEnv = {}) {
   const result = spawnSync('bash', [HOOK_SCRIPT], {

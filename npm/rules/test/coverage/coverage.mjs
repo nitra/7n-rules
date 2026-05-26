@@ -92,23 +92,15 @@ export function renderMarkdown(rows) {
 
   const allSurvived = rows.flatMap(r => r.survived ?? [])
   if (allSurvived.length > 0) {
-    lines.push('', '## Вижилі мутанти')
-    // JSON-блок для /n-fix-tests skill — парситься скілом для написання тестів
-    lines.push('', '```json')
-    lines.push(JSON.stringify(allSurvived, null, 2))
-    lines.push('```')
+    lines.push('', '## Вижилі мутанти', '', '```json', JSON.stringify(allSurvived, null, 2), '```')
     // Людиночитабельна таблиця
     for (const group of allSurvived) {
-      lines.push('', `### ${group.file}`, '')
-      lines.push('| Рядок | Оригінал | Заміна | Тип |')
-      lines.push('| --- | --- | --- | --- |')
+      lines.push('', `### ${group.file}`, '', '| Рядок | Оригінал | Заміна | Тип |', '| --- | --- | --- | --- |')
       for (const m of group.mutants) {
         lines.push(`| ${m.line} | \`${m.original}\` | \`${m.replacement}\` | ${m.mutantType} |`)
       }
       if (group.exampleTest) {
-        lines.push('', `**Приклад тесту** (\`${group.exampleTest.testFile}\`):`, '', '```js')
-        lines.push(group.exampleTest.code ?? '')
-        lines.push('```')
+        lines.push('', `**Приклад тесту** (\`${group.exampleTest.testFile}\`):`, '', '```js', group.exampleTest.code ?? '', '```')
       }
       if (group.recommendationText) {
         lines.push('', '**Що треба протестувати:**', '', group.recommendationText)
@@ -189,9 +181,7 @@ export async function runCoverageSteps(opts = {}) {
   if (opts.fix) {
     const allSurvived = rows.flatMap(r => r.survived ?? [])
     // eslint-disable-next-line no-unsanitized/method -- шлях відносний до пакету, не user-input
-    const { fixSurvivedMutants } = await import(
-      new URL('../../scripts/coverage-fix.mjs', import.meta.url).href
-    )
+    const { fixSurvivedMutants } = await import(new URL('../../scripts/coverage-fix.mjs', import.meta.url).href)
     await fixSurvivedMutants(allSurvived, cwd)
   }
 

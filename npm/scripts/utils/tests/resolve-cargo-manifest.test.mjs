@@ -9,6 +9,15 @@ import { join } from 'node:path'
 
 import { resolveAllCargoManifests, resolveCargoManifest } from '../resolve-cargo-manifest.mjs'
 
+/**
+ * Створює тимчасовий проєкт з опційними Cargo.toml та workspace-layout-ами.
+ * @param {object} root0 параметри
+ * @param {boolean} [root0.rootCargo] чи створити Cargo.toml у корені
+ * @param {boolean} [root0.workspaceFlat] чи створити flat workspace app/Cargo.toml
+ * @param {boolean} [root0.workspaceTauri] чи створити Tauri workspace app/src-tauri/Cargo.toml
+ * @param {{workspaces?: string[]}} [root0.rootPkg] вміст root package.json
+ * @returns {string} шлях до тимчасового каталогу
+ */
 function makeProj({ rootCargo, workspaceFlat, workspaceTauri, rootPkg }) {
   const dir = mkdtempSync(join(tmpdir(), 'resolve-cargo-'))
   if (rootCargo) writeFileSync(join(dir, 'Cargo.toml'), '[package]\nname="foo"\nversion="0.1.0"\n')

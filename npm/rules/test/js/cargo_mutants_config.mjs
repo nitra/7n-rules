@@ -42,9 +42,7 @@ export async function check() {
   }
 
   if (!existsSync(BASELINE_PATH)) {
-    reporter.fail(
-      `.cargo/mutants.toml canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`
-    )
+    reporter.fail(`.cargo/mutants.toml canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`)
     return reporter.getExitCode()
   }
 

@@ -9,11 +9,14 @@
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
     "npm/.claude-template/**",
+    "npm/.pi-template/**",
     ".github/actions/setup-bun-deps/action.yml",
     "npm/github-actions/setup-bun-deps/action.yml",
     "npm/rules/js-lint/js/data/tooling/oxlint-canonical.json",
+    "npm/rules/js-lint/js/data/tooling/knip-canonical.json",
     "docs/adr/_inbox/**",
     "docs/superpowers/**",
-    "npm/rules/*/policy/*/template/*.yml.snippet.yml"
+    "npm/rules/*/policy/*/template/*.yml.snippet.yml",
+    "npm/rules/*/policy/*/template/*.snippet.yaml"
   ]
 }
