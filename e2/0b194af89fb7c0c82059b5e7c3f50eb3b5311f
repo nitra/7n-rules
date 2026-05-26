@@ -1,0 +1,21 @@
+npm/rules/k8s/k8s.mdc
+  s_4fb9d8bb3d2d89::t_152d4ca2c5320b 585-612
+  s_4fb9d8bb3d2d89::t_4b01a4e64be668 3
+  s_4fb9d8bb3d2d89::t_1697221ce92e80 417-444
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e20b194af89fb7c0c82059b5e7c3f50eb3b5311f",
+  "prompts": {},
+  "sessions": {
+    "s_4fb9d8bb3d2d89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "603f8abd-6f4d-49f1-b014-1d14dff25e61",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
