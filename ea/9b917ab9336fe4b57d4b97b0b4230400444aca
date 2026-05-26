@@ -1,0 +1,264 @@
+npm/scripts/utils/resolve-cargo-manifest.mjs
+  s_0ecea1a7251a03::t_952e80b083f78c 5
+npm/rules/test/coverage/coverage.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 74,95-96,159
+docs/superpowers/plans/2026-05-23-flat-concern-layout.md
+  s_0ecea1a7251a03::t_952e80b083f78c 7,395,1034
+npm/rules/image-avif/js/tests/avif_generation.test.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 300,325,349
+docs/superpowers/plans/2026-05-24-test-rule-mutation-config.md
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 65,685,931
+  s_0ecea1a7251a03::t_952e80b083f78c 128,258,1128,1194
+  s_0ecea1a7251a03::t_0b6bac129849a4 7
+docs/superpowers/plans/2026-05-26-vitest-runner-spike.md
+  s_0ecea1a7251a03::t_952e80b083f78c 153
+docs/adr/npm-module-тести-негативні-glob-у-files.md
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 31
+npm/rules/test/js/cargo_mutants_config.mjs
+  s_0ecea1a7251a03::t_76f138ad8447de 11
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 3
+docs/superpowers/specs/2026-05-24-test-rule-mutation-config-design.md
+  s_0ecea1a7251a03::t_952e80b083f78c 75,82,141,271,295,365
+benchmarks/runner-comparison/demo/tests/retry.test.mjs
+  s_0ecea1a7251a03::t_5f9c5b10f16ee2 13,27,39,52,65,78
+benchmarks/runner-comparison/demo/tests/promise-pool.test.mjs
+  ai_agent 1,7,10,13,19,32,40,43
+npm/stryker.config.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 10
+  s_0ecea1a7251a03::t_47ae31e9c787a1 1-2
+  s_0ecea1a7251a03::t_952e80b083f78c 20
+npm/.pi-template/extensions/n-cursor-adr/tsconfig.json
+  s_0ecea1a7251a03::t_b0a5cc2a074217 2
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 25,69
+benchmarks/runner-comparison/demo/tests/slugify.test.mjs
+  s_0ecea1a7251a03::t_952e80b083f78c 15
+.cursor/rules/n-vue.mdc
+  s_0ecea1a7251a03::t_0b6bac129849a4 107,109-111,113
+  s_0ecea1a7251a03::t_952e80b083f78c 3,114-119,124
+npm/rules/test/js/data/cargo_mutants_config/mutants.toml.baseline
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 5
+docs/adr/нормалізація-батчу-adr-2026-05-07.md
+  s_0ecea1a7251a03::t_952e80b083f78c 14
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_0ecea1a7251a03::t_5cc61e341afa09 98
+  s_0ecea1a7251a03::t_0b6bac129849a4 12
+npm/scripts/utils/tests/ensure-gitignore-entries.test.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 2
+npm/rules/test/test.mdc
+  s_0ecea1a7251a03::t_0b6bac129849a4 81,123
+  s_0ecea1a7251a03::t_76f138ad8447de 116
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 121
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 89
+benchmarks/runner-comparison/demo/src/retry.mjs
+  s_0ecea1a7251a03::t_bb7ce1c91c968d 1-2,19,23
+  s_0ecea1a7251a03::t_d97851cc5a22d2 4-7
+  s_0ecea1a7251a03::t_f998517acc76a0 26
+npm/rules/vue/vue.mdc
+  s_0ecea1a7251a03::t_0b6bac129849a4 107
+npm/rules/changelog/js/consistency.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 35
+npm/rules/js-mssql/js/deps.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 245
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 87
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 2721
+  s_0ecea1a7251a03::t_952e80b083f78c 2576,2684
+  s_0ecea1a7251a03::t_12c3b421c1e336 2238-2239,2253,2257,2274-2275
+.cursor/rules/n-security.mdc
+  ai_agent 21,27
+docs/adr/inline-template-links-у-mdc-при-sync.md
+  s_0ecea1a7251a03::t_952e80b083f78c 23
+npm/rules/k8s/policy/network_policy/network_policy.rego
+  s_0ecea1a7251a03::t_603aea352e617f 7,110-111
+  s_0ecea1a7251a03::t_0640a0b21212bf 117
+  s_0ecea1a7251a03::t_12c3b421c1e336 18
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_0ecea1a7251a03::t_952e80b083f78c 43,53
+  ai_agent 121,126,128
+npm/.claude-template/hooks/capture-decisions.sh
+  s_0ecea1a7251a03::t_1778605fd78293 39
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 18,21,122,160
+docs/superpowers/plans/2026-05-24-coverage-provider-architecture.md
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 1028
+  s_0ecea1a7251a03::t_952e80b083f78c 5,35-36,1095,1108,1113,1116,1124-1126,1131,1151,1162,1167,1172,1175
+npm/rules/k8s/k8s.mdc
+  s_0ecea1a7251a03::t_12c3b421c1e336 396
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 36,124,261,332,361,443,690,732
+docs/adr/20260523-224715-серіалізація-важких-cli-команд-через-withlock-з-mkdirsync-пр.md
+  s_0ecea1a7251a03::t_952e80b083f78c 36
+npm/rules/test/js/stryker_config.mjs
+  s_0ecea1a7251a03::t_0b6bac129849a4 39
+  s_0ecea1a7251a03::t_952e80b083f78c 88
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 3
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_0ecea1a7251a03::t_bcab2a78a7d4d3 44
+docs/adr/oxlint-buildFromOxlintConfigFile-eslint-config.md
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 12
+npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 9
+npm/scripts/lib/timing-summary.mjs
+  s_0ecea1a7251a03::t_952e80b083f78c 43
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 2,9
+docs/superpowers/specs/2026-05-24-coverage-rule-design.md
+  s_0ecea1a7251a03::t_952e80b083f78c 14,22,29,118,134,198,293,311,325,337,342,371,392,394,396,408
+BENCHMARKS.md
+  s_0ecea1a7251a03::t_952e80b083f78c 15
+npm/rules/tauri/tauri.mdc
+  s_0ecea1a7251a03::t_0b6bac129849a4 32
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 61
+docs/adr/20260523-154806-розміщення-тестів-у-tests-піддиректорії-поряд-із-кодом.md
+  s_0ecea1a7251a03::t_952e80b083f78c 8
+benchmarks/runner-comparison/demo/src/url-parse.mjs
+  s_0ecea1a7251a03::t_40ee4e562149e7 2-5,24-27
+npm/scripts/utils/resolve-js-root.mjs
+  s_0ecea1a7251a03::t_952e80b083f78c 3
+npm/rules/k8s/policy/network_policy/network_policy_test.rego
+  s_0ecea1a7251a03::t_12c3b421c1e336 108,114
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 22
+  s_0ecea1a7251a03::t_603aea352e617f 23,25,29,51-52,60,104-105,111
+npm/scripts/sync-claude-config.mjs
+  s_0ecea1a7251a03::t_0b6bac129849a4 470
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 640
+npm/scripts/lib/run-lint-cli.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 2,5,17,75,77
+npm/bin/n-cursor.js
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 16,1459
+.cursor/rules/n-js-run.mdc
+  ai_agent 65,71
+.cursor/skills/n-fix-tests/SKILL.md
+  s_0ecea1a7251a03::t_952e80b083f78c 23,44
+.claude/hooks/normalize-decisions.sh
+  s_0ecea1a7251a03::t_2fa11a3d97e572 44
+CLAUDE.md
+  ai_agent 6
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 38,42
+docs/adr/20260520-085631-зворотний-звязок-зі-скілів-ефемерне-резюме.md
+  s_0ecea1a7251a03::t_952e80b083f78c 26
+benchmarks/runner-comparison/run.mjs
+  s_0ecea1a7251a03::t_cfc59d94f65d99 12,14-15
+  s_0ecea1a7251a03::t_0b6bac129849a4 21-23,32,35,41-42,48-49
+  s_0ecea1a7251a03::t_e92600b00c778a 16,69,98,100
+  s_0ecea1a7251a03::t_3789c3eaeaabe8 104-120
+  s_0ecea1a7251a03::t_fc750ccfd3412d 24,31,33-34,36,40,47,130
+COVERAGE.md
+  s_0ecea1a7251a03::t_04aa3e13c8aede 185-187
+  ai_agent 163,170,173
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 8
+  s_0ecea1a7251a03::t_e0ea44e406bd7a 172
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 61,68,82,89,96,103,110,168-169,171,174-175
+docs/adr/check-mjs-міграція-на-rego-conftest.md
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 25
+.cursor/rules/n-style-lint.mdc
+  ai_agent 28
+eslint.config.js
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 21
+npm/CHANGELOG.md
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 22,62,70-71,100,126,130,151,170,173,200,210,223,1622
+  s_0ecea1a7251a03::t_952e80b083f78c 224
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 527,677,2228
+  s_0ecea1a7251a03::t_0b6bac129849a4 15,39,55,64,120,206
+  s_0ecea1a7251a03::t_d533bd984cb8e9 144,171
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 27,87,137,641,1520,2190
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_0ecea1a7251a03::t_0b6bac129849a4 40
+npm/rules/k8s/js/manifests.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 764,4955
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 49,76,2931
+  s_0ecea1a7251a03::t_952e80b083f78c 892,1706,1836,4328,4410,5327,6181,6392
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 4258
+  s_0ecea1a7251a03::t_603aea352e617f 6750
+  s_0ecea1a7251a03::t_12c3b421c1e336 4248,4273,4280,4286
+benchmarks/runner-comparison/demo/src/currency.mjs
+  s_0ecea1a7251a03::t_952e80b083f78c 2-6,19-24,30-34
+docs/adr/template-mjs-stripjsoncomments-glob-фікс.md
+  s_0ecea1a7251a03::t_952e80b083f78c 17
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 76,85,88,114,123,136,146,166,191,199
+npm/scripts/lib/run-rule.mjs
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 57
+npm/scripts/lib/run-lint-step.mjs
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 14
+docs/adr/20260526-212952-повна-міграція-nitra-cursor-з-bun-test-на-vitest-догфудінг-к.md
+  s_0ecea1a7251a03::t_952e80b083f78c 19
+npm/scripts/utils/tests/resolve-js-root.test.mjs
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 2
+npm/skills/coverage-fix/SKILL.md
+  s_0ecea1a7251a03::t_952e80b083f78c 43,53
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 4,39,41,48,71,84,114,124
+  ai_agent 121,126,128
+  s_0ecea1a7251a03::t_76f138ad8447de 72,131
+npm/scripts/utils/walkDir.mjs
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 45,57
+npm/scripts/post-tool-use-fix.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 9,11,86,105
+npm/rules/image-avif/js/avif_generation.mjs
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 103
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 168
+docs/superpowers/plans/2026-05-26-networkpolicy-httproute-ingress.md
+  s_0ecea1a7251a03::t_952e80b083f78c 456,666,1076
+  s_0ecea1a7251a03::t_7c4c28efbfac2c 1187,1270
+npm/scripts/coverage-fix.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 3-4,18-19,31,51,53,69,92,96,98,100
+docs/superpowers/plans/2026-05-24-test-mutation-config-management.md
+  s_0ecea1a7251a03::t_952e80b083f78c 282
+npm/rules/tauri/js/cargo_mutants_config.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 3,31,106
+docs/superpowers/plans/2026-05-25-networkpolicy-snippet-v2-delta.md
+  s_0ecea1a7251a03::t_952e80b083f78c 48
+npm/skills/fix-tests/SKILL.md
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 4,11,15,21,26,28,64,77,108
+  s_0ecea1a7251a03::t_952e80b083f78c 23,44
+  s_0ecea1a7251a03::t_76f138ad8447de 65,115
+.cursor/rules/n-npm-module.mdc
+  ai_agent 124,130
+docs/adr/k8s-gateway-prefix-та-hpa-pdb-rego.md
+  s_0ecea1a7251a03::t_952e80b083f78c 25
+benchmarks/runner-comparison/demo/src/promise-pool.mjs
+  s_0ecea1a7251a03::t_258925e1402fd5 11
+  s_0ecea1a7251a03::t_1ae949587eb6f2 2-6
+npm/tests/integration-repo-checks.test.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 40
+docs/adr/20260519-184830-k8s-yml-розширення-safety-net.md
+  s_0ecea1a7251a03::t_a29cd8b82ac2dc 27
+docs/superpowers/specs/2026-05-23-per-rule-fix-mjs-entry-point-design.md
+  s_0ecea1a7251a03::t_952e80b083f78c 241
+npm/rules/js-lint/js-lint.mdc
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 45
+docs/superpowers/plans/2026-05-24-mutation-config-management.md
+  s_0ecea1a7251a03::t_952e80b083f78c 508,511,610
+docs/superpowers/plans/2026-05-24-coverage-rule.md
+  s_0ecea1a7251a03::t_952e80b083f78c 5,63,72,222,492,1544,1552,1558,1585,1600,1640,1685,1722,1745
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 26
+  s_0ecea1a7251a03::t_952e80b083f78c 180,202
+.pi/extensions/n-cursor-adr/tsconfig.json
+  s_0ecea1a7251a03::t_e1883ba2b243a0 2
+.claude/hooks/capture-decisions.sh
+  s_0ecea1a7251a03::t_801a7cb03b2a54 39
+AGENTS.md
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 34,36
+npm/scripts/utils/ensure-gitignore-entries.mjs
+  s_0ecea1a7251a03::t_a33cdbf62ea15a 2,4
+benchmarks/runner-comparison/demo/src/slugify.mjs
+  s_0ecea1a7251a03::t_cfd5d171017999 6-8
+.cursor/rules/n-js-lint.mdc
+  s_0ecea1a7251a03::t_952e80b083f78c 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ea9b917ab9336fe4b57d4b97b0b4230400444aca",
+  "prompts": {},
+  "sessions": {
+    "s_0ecea1a7251a03": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019e6575-76ca-7fd6-8488-d54229b8c19f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
