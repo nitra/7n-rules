@@ -17,7 +17,8 @@
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
     "lint-text": "n-cursor lint-text",
     "oxfmt": "oxfmt .",
-    "coverage": "n-cursor coverage"
+    "coverage": "n-cursor coverage",
+    "benchmark": "bun benchmarks/runner-comparison/run.mjs"
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.0.0",

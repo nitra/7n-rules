@@ -1,7 +1,8 @@
 /**
- * JS-провайдер для `n-cursor coverage`: збирає метрики покриття (`bun test --coverage`)
- * і мутаційного тестування (Stryker) для JS/TS коду. Активується через `js-lint`
- * правило в `.n-cursor.json#rules`; реальна applies-логіка — у `detect(cwd)`.
+ * JS-провайдер для `n-cursor coverage`: збирає метрики покриття (`vitest run --coverage`)
+ * і мутаційного тестування (Stryker з vitest-runner + perTest) для JS/TS коду.
+ * Активується через `js-lint` правило в `.n-cursor.json#rules`; реальна applies-логіка
+ * — у `detect(cwd)`.
  *
  * Контракт провайдера — у docs/superpowers/specs/2026-05-24-coverage-rule-design.md.
  */
@@ -15,23 +16,22 @@ import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const TEST_BLOCK_START = /^\s*(it|test)\(/
 const FILE_EXTENSION = /\.[^.]+$/
+const VITEST_HINT = 'js-lint coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
 
 /**
- * Чи `scripts` містить coverage-сумісну команду.
- * @param {Record<string, string> | undefined} scripts секція scripts з package.json
- * @returns {boolean} true, якщо є test:coverage або test з --coverage
+ * Чи у пакеті встановлено vitest (через dependencies або devDependencies).
+ * @param {{dependencies?: Record<string,string>, devDependencies?: Record<string,string>}} pkg package.json
+ * @returns {boolean}
  */
-function hasCoverageScript(scripts) {
-  if (!scripts || typeof scripts !== 'object') return false
-  if (typeof scripts['test:coverage'] === 'string' && scripts['test:coverage'].length > 0) return true
-  if (typeof scripts.test === 'string' && scripts.test.includes('--coverage')) return true
-  return false
+function hasVitestDep(pkg) {
+  return Boolean(pkg.devDependencies?.vitest) || Boolean(pkg.dependencies?.vitest)
 }
 
 /**
- * Чи провайдер застосовний у поточному cwd.
+ * Чи провайдер застосовний у поточному cwd. Активується, коли у JS-root знайдено
+ * `vitest` як залежність — інакше silent skip із hint у stderr (одноразово).
  * @param {string} cwd корінь проєкту
- * @returns {Promise<boolean>} true, якщо знайдено coverage-сумісний test-скрипт
+ * @returns {Promise<boolean>} true, якщо проєкт сумісний з vitest-based coverage
  */
 export async function detect(cwd) {
   const jsRoot = await resolveJsRoot(cwd)
@@ -39,7 +39,14 @@ export async function detect(cwd) {
   const pkgPath = join(jsRoot, 'package.json')
   if (!existsSync(pkgPath)) return false
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-  return hasCoverageScript(pkg.scripts)
+  if (!hasVitestDep(pkg)) {
+    if (!detect._hinted) {
+      console.error(VITEST_HINT)
+      detect._hinted = true
+    }
+    return false
+  }
+  return true
 }
 
 /**
@@ -194,11 +201,11 @@ export function parseStrykerReport(report, jsRoot) {
  */
 const defaultRunner = {
   runJsCoverage({ cwd, lcovDir }) {
-    const r = spawnSync('bun', ['run', 'test:coverage', '--coverage-reporter=lcov', `--coverage-dir=${lcovDir}`], {
-      cwd,
-      stdio: 'inherit',
-      env: process.env
-    })
+    const r = spawnSync(
+      'bunx',
+      ['vitest', 'run', '--coverage', '--coverage.reporter=lcov', `--coverage.reportsDirectory=${lcovDir}`],
+      { cwd, stdio: 'inherit', env: process.env }
+    )
     return r.status ?? 1
   },
   runStryker({ cwd }) {
@@ -218,7 +225,7 @@ export async function collect(cwd, opts = {}) {
   const jsRoot = await resolveJsRoot(cwd)
   if (jsRoot === null) throw new Error('js-lint coverage: package.json не знайдено')
 
-  // 1. Coverage через bun test --coverage
+  // 1. Coverage через vitest run --coverage (v8 provider пише lcov.info у lcovDir)
   const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
   let coverage
   try {

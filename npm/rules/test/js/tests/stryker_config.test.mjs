@@ -75,24 +75,40 @@ describe('stryker_config concern', () => {
     const target = join(proj.dir, 'stryker.config.mjs')
     expect(existsSync(target)).toBe(true)
     const content = readFileSync(target, 'utf8')
-    expect(content).toContain("testRunner: 'command'")
-    expect(content).toContain("commandRunner: { command: 'bun test' }")
+    expect(content).toContain("testRunner: 'vitest'")
+    expect(content).toContain("vitest: { configFile: 'vitest.config.js' }")
+    expect(content).toContain("coverageAnalysis: 'perTest'")
     expect(content).toContain("jsonReporter: { fileName: 'reports/stryker/mutation.json' }")
     expect(content).toContain('incremental: true')
     expect(content).toContain("incrementalFile: 'reports/stryker/incremental.json'")
     proj.cleanup()
   })
 
-  test('js-lint enabled + workspace — копіює у workspaces[0] (app/)', async () => {
+  test('js-lint enabled — копіює також vitest.config.js разом зі stryker.config.mjs', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    const vitestTarget = join(proj.dir, 'vitest.config.js')
+    expect(existsSync(vitestTarget)).toBe(true)
+    const content = readFileSync(vitestTarget, 'utf8')
+    expect(content).toContain("from 'vitest/config'")
+    expect(content).toContain('defineConfig')
+    expect(content).toContain("provider: 'v8'")
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + workspace — копіює обидва файли у workspaces[0] (app/)', async () => {
     const proj = makeProj({ rules: ['js-lint'], workspaceRoot: true })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(proj.dir, 'app', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(proj.dir, 'app', 'vitest.config.js'))).toBe(true)
     expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
+    expect(existsSync(join(proj.dir, 'vitest.config.js'))).toBe(false)
     proj.cleanup()
   })
 
-  test('js-lint enabled + кілька workspaces — копіює baseline у КОЖЕН', async () => {
+  test('js-lint enabled + кілька workspaces — копіює обидва baseline у КОЖЕН', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'stryker-multi-ws-'))
     writeFileSync(join(dir, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'scripts'] }))
@@ -103,7 +119,9 @@ describe('stryker_config concern', () => {
     const exitCode = await runCheckIn(dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(dir, 'app', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(dir, 'app', 'vitest.config.js'))).toBe(true)
     expect(existsSync(join(dir, 'scripts', 'stryker.config.mjs'))).toBe(true)
+    expect(existsSync(join(dir, 'scripts', 'vitest.config.js'))).toBe(true)
     expect(existsSync(join(dir, 'stryker.config.mjs'))).toBe(false)
     rmSync(dir, { recursive: true, force: true })
   })
@@ -115,6 +133,16 @@ describe('stryker_config concern', () => {
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     expect(readFileSync(target, 'utf8')).toBe('// custom config')
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + vitest.config.js існує — не перезаписує', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const target = join(proj.dir, 'vitest.config.js')
+    writeFileSync(target, '// custom vitest config')
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(readFileSync(target, 'utf8')).toBe('// custom vitest config')
     proj.cleanup()
   })
 

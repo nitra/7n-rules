@@ -3,9 +3,15 @@ package test.package_json_test
 import data.test.package_json
 import rego.v1
 
-template_data := {"contains": {"scripts": {"coverage": ["n-cursor coverage"]}}}
+template_data := {"contains": {"scripts": {
+	"coverage": ["n-cursor coverage"],
+	"test": ["vitest"],
+}}}
 
-valid_pkg := {"scripts": {"coverage": "n-cursor coverage"}}
+valid_pkg := {"scripts": {
+	"coverage": "n-cursor coverage",
+	"test": "vitest run",
+}}
 
 test_allow_canonical if {
 	count(package_json.deny) == 0 with input as valid_pkg with data.template as template_data
@@ -27,6 +33,27 @@ test_allow_extended_coverage_command if {
 	extended := json.patch(valid_pkg, [{
 		"op": "replace", "path": "/scripts/coverage",
 		"value": "bun run pre-coverage && n-cursor coverage",
+	}])
+	count(package_json.deny) == 0 with input as extended with data.template as template_data
+}
+
+test_deny_missing_test_script if {
+	bad := json.patch(valid_pkg, [{"op": "remove", "path": "/scripts/test"}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "vitest")
+}
+
+test_deny_test_script_not_vitest if {
+	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/scripts/test", "value": "bun test"}])
+	some msg in package_json.deny with input as bad with data.template as template_data
+	contains(msg, "vitest")
+}
+
+test_allow_extended_test_command if {
+	# substring-семантика: `bun run pre && vitest run` — ОК, бо містить "vitest"
+	extended := json.patch(valid_pkg, [{
+		"op": "replace", "path": "/scripts/test",
+		"value": "bun run pre-test && vitest run",
 	}])
 	count(package_json.deny) == 0 with input as extended with data.template as template_data
 }

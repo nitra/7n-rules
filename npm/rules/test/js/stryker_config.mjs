@@ -2,12 +2,12 @@
  * Концерн `stryker_config` правила test (test.mdc): якщо `js-lint` присутнє в
  * `.n-cursor.json#rules` і не у `disable-rules` — резолвить ВСІ JS-roots
  * (всі workspaces з package.json, або cwd у single-package) і копіює canonical
- * baseline `stryker.config.mjs` у кожен root, де файлу немає.
+ * baseline `stryker.config.mjs` + `vitest.config.js` у кожен root, де файлу немає.
  *
  * Self-gating: концерн silently skips коли `js-lint` не enabled — це навмисно,
  * щоб не шуміти у single-language проєктах без JS coverage tooling.
  *
- * Baseline — мінімум для запуску Stryker з bun test runner; mutate-патерни
+ * Baseline — мінімум для запуску Stryker з vitest-runner + perTest; mutate-патерни
  * лишаються на Stryker defaults (`src/**\/*.{js,mjs,ts,jsx,tsx,cjs}`).
  */
 import { existsSync } from 'node:fs'
@@ -21,13 +21,32 @@ import { ensureGitignoreEntries } from '../../../scripts/utils/ensure-gitignore-
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+const STRYKER_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
 // Stryker-output патерн для .gitignore: увесь каталог reports/stryker/ — це
 // build-артефакти (`tempDirName` backup'и, mutation.json, HTML/dashboard-репорти
 // якщо користувач додасть інші reporter-и). Покриваємо одним патерном замість
 // перелічування під-патернів. Подвійний-зірочка-префікс — для monorepo workspaces.
 const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/']
+
+/**
+ * Копіює baseline у target, якщо target ще не існує. Idempotent.
+ * @param {ReturnType<typeof createCheckReporter>} reporter check-reporter для логу pass/fail
+ * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
+ * @param {string} baselinePath абсолютний шлях до canonical baseline
+ * @param {string} target абсолютний шлях, куди копіювати
+ * @param {string} label людиночитна мітка ("stryker.config.mjs" / "vitest.config.js")
+ * @returns {Promise<void>}
+ */
+async function ensureBaselineFile(reporter, cwd, baselinePath, target, label) {
+  if (existsSync(target)) {
+    reporter.pass(`${label} існує (${relative(cwd, target)})`)
+    return
+  }
+  await copyFile(baselinePath, target)
+  reporter.pass(`${label} створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+}
 
 /**
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
@@ -48,19 +67,16 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  if (!existsSync(BASELINE_PATH)) {
-    reporter.fail(`stryker.config.mjs canonical baseline не знайдено (${BASELINE_PATH}) — перевстанови @nitra/cursor`)
-    return reporter.getExitCode()
+  for (const baselinePath of [STRYKER_BASELINE_PATH, VITEST_BASELINE_PATH]) {
+    if (!existsSync(baselinePath)) {
+      reporter.fail(`canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`)
+      return reporter.getExitCode()
+    }
   }
 
   for (const jsRoot of jsRoots) {
-    const target = join(jsRoot, 'stryker.config.mjs')
-    if (existsSync(target)) {
-      reporter.pass(`stryker.config.mjs існує (${relative(cwd, target)})`)
-      continue
-    }
-    await copyFile(BASELINE_PATH, target)
-    reporter.pass(`stryker.config.mjs створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
+    await ensureBaselineFile(reporter, cwd, STRYKER_BASELINE_PATH, join(jsRoot, 'stryker.config.mjs'), 'stryker.config.mjs')
+    await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
   }
 
   // Гарантуємо що Stryker temp/output ніколи не комітяться. Patterns

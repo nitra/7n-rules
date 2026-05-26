@@ -4,6 +4,22 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.0] - 2026-05-26
+
+### Changed
+
+- **`rules/test/js/data/stryker_config/stryker.config.baseline.mjs`**: канон Stryker перейшов з `command` runner (`bun test`, `concurrency: 1`, `inPlace: true`, `coverageAnalysis: 'off'`) на `vitest` runner з `coverageAnalysis: 'perTest'`. У verify-first spike (158 мутантів, `benchmarks/runner-comparison/SPIKE.md`) це дало 31×–57× прискорення повного прогону і ≈262× для incremental noop-прогону. `inPlace` більше не потрібен — vitest-runner ізолює мутантів через AST-патчінг у пам'яті, без копіювання node_modules у sandbox (стара проблема command runner у Bun monorepo).
+- **`rules/test/js/stryker_config.mjs`**: концерн тепер копіює два canonical baseline-и у кожен JS-root: `stryker.config.mjs` + `vitest.config.js`. Ідемпотентність збережена — обидва файли копіюються лише якщо ще немає.
+- **`rules/js-lint/coverage/coverage.mjs`**: `detect()` тепер шукає `vitest` у `dependencies`/`devDependencies` (раніше — `scripts.test:coverage` або `scripts.test` з `--coverage`). `runJsCoverage` спавнить `bunx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=…` замість `bun run test:coverage --coverage-reporter=lcov`. `parseLcov` без змін — формат lcov у Vitest v8-coverage співпадає з тим, що віддавало `bun test --coverage`. Якщо vitest відсутній — `detect` повертає `false` із одноразовим hint у stderr.
+- **`rules/test/policy/package_json/template/package.json.contains.json`**: канон scripts тепер містить додатково `"test": ["vitest"]` (substring-вимога). `coverage` як було — `["n-cursor coverage"]`.
+- **`rules/test/test.mdc` v2.4**: нові розділи «Vitest baseline та `package.json#scripts`» і «Frontend-варіант (Vue/Vite + happy-dom)». Текст про purpose `bun test --coverage` оновлено на `vitest run --coverage`. `globs` додатково ловить `vitest.config.js`.
+
+### Added
+
+- **`rules/test/js/data/vitest_config/vitest.config.baseline.js`**: новий canonical baseline для Vitest (`environment: 'node'`, `coverage.provider: 'v8'` із lcov+text-summary, `include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}']`). Концерн `stryker_config` копіює його як `vitest.config.js` у кожен JS-root.
+- **`rules/test/js/tests/stryker_config.test.mjs`**: нові кейси — копіювання `vitest.config.js`, перевірка вмісту нового Stryker baseline (`testRunner: 'vitest'`, `coverageAnalysis: 'perTest'`), ідемпотентність `vitest.config.js`.
+- **`rules/test/policy/package_json/package_json_test.rego`**: нові кейси для `scripts.test` — deny при відсутності/некоректному значенні, allow при substring-розширенні.
+
 ## [1.26.3] - 2026-05-26
 
 ### Added

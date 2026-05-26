@@ -1,10 +1,10 @@
 /**
- * Тести JS-coverage-провайдера (js-lint.mdc): detect() читає `package.json`
- * у cwd або workspace, повертає true якщо є `scripts.test:coverage` чи
- * `scripts.test` з прапором --coverage. collect() спавнить bun test + Stryker,
- * парсить lcov і mutation.json — тестується з ін'єктованим runner-ом.
+ * Тести JS-coverage-провайдера (js-lint.mdc): detect() читає `package.json` у cwd
+ * або workspace, повертає true якщо `vitest` присутній у dependencies/devDependencies.
+ * collect() спавнить vitest run --coverage + Stryker (vitest-runner perTest), парсить
+ * lcov і mutation.json — тестується з ін'єктованим runner-ом.
  */
-import { describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -32,26 +32,35 @@ function makeFixture(pkg, { workspaceRoot = false } = {}) {
   return dir
 }
 
+// Reset detect's one-shot `_hinted` flag між тестами, щоб порядок не впливав на console.error-перевірки.
+function resetDetectHinted() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime-only сайд-стейт
+  delete /** @type {any} */ (detect)._hinted
+}
+
 describe('js-lint coverage detect()', () => {
-  test('повертає true коли scripts.test:coverage існує в кореневому package.json', async () => {
-    const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
+  beforeEach(() => resetDetectHinted())
+  afterEach(() => resetDetectHinted())
+
+  test('повертає true коли vitest у devDependencies', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
     expect(await detect(dir)).toBe(true)
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('повертає true коли scripts.test:coverage існує в workspace-пакеті', async () => {
-    const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } }, { workspaceRoot: true })
+  test('повертає true коли vitest у workspace-пакеті', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } }, { workspaceRoot: true })
     expect(await detect(dir)).toBe(true)
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('повертає true коли scripts.test містить --coverage', async () => {
-    const dir = makeFixture({ scripts: { test: 'bun test --coverage src' } })
+  test('повертає true коли vitest у (звичайних) dependencies', async () => {
+    const dir = makeFixture({ dependencies: { vitest: '*' } })
     expect(await detect(dir)).toBe(true)
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('повертає false коли немає coverage-сумісного скрипта', async () => {
+  test('повертає false коли vitest відсутній', async () => {
     const dir = makeFixture({ scripts: { test: 'bun test src' } })
     expect(await detect(dir)).toBe(false)
     rmSync(dir, { recursive: true, force: true })
