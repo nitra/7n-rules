@@ -2,6 +2,6 @@
 # Цей baseline нейтральний: він не робить припущень про framework/app shell,
 # не виключає platform glue, generated wrappers або binary entrypoints.
 # Framework-specific tuning (Tauri, Capacitor тощо) належить відповідним
-# правилам — вони ідемпотентно доповнюють цей файл, не перетирають його.
+# правилам — вони без дублювання доповнюють цей файл, не перетирають його.
 # cargo-mutants має робочі defaults; цей файл — стартова точка для customization.
 # Документація: https://mutants.rs/

@@ -505,10 +505,10 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bun test 2>&1 | tail -6
 
 Очікувано: `~1000 pass 0 fail`
 
-- [ ] **Step 4.2: Smoke-test `npx @nitra/cursor fix test` у mlmail**
+- [ ] **Step 4.2: Smoke-test `npx @nitra/cursor fix test` у mail app**
 
 ```bash
-cd /Users/vitaliytv/www/vitaliytv/mlmail && bun /Users/vitaliytv/www/nitra/cursor/npm/bin/n-cursor.js fix test 2>&1 | tail -15
+cd /Users/vitaliytv/www/vitaliytv/mail app && bun /Users/vitaliytv/www/nitra/cursor/npm/bin/n-cursor.js fix test 2>&1 | tail -15
 ```
 
 Очікувано:
@@ -607,7 +607,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bun test 2>&1 | tail -6
 - ✓ `runner` DI для тестів — Task 2/3
 - ✓ `test.mdc` version 1.2 → 1.3 + секція — Task 5
 - ✓ Version `1.17.1 → 1.18.0` + CHANGELOG — Task 5
-- ✓ E2E smoke test у mlmail + @nitra/cursor — Task 4
+- ✓ E2E smoke test у mail app + @nitra/cursor — Task 4
 
 **Placeholder scan:** жодного "TBD"/"TODO"/"implement later". ✓
 

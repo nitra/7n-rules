@@ -16,7 +16,7 @@ transcript: /Users/vitaliytv/.claude/projects/-Users-vitaliytv-www-nitra-cursor/
 * (D) Тимчасово прибрати `js-lint` з `.n-cursor.json#rules`
 
 ## Decision Outcome
-Chosen option: "(A) Повна міграція cursor на vitest", because 328b89c вже задекларував канонічний baseline для споживачів — пакет мусить «їсти своє власне приготоване» (dogfooding); варіанти B та C давали симптомні фікси без усунення суперечності між канонічним baseline та власним тест-раннером.
+Chosen option: "(A) Повна міграція cursor на vitest", because 328b89c вже задекларував канонічний baseline для споживачів — пакет мусить «їсти своє власне приготоване» (dogfood); варіанти B та C давали симптомні фікси без усунення суперечності між канонічним baseline та власним тест-раннером.
 
 ### Consequences
 * Good, because `n-cursor coverage` тепер успішно завершується: 1146 тестів passed, `COVERAGE.md` генерується з JS-coverage 77.23% / mutation score 65.03%.

@@ -45,7 +45,7 @@
 sed -n '5100,5140p' npm/rules/k8s/js/manifests.mjs
 ```
 
-Очікувано: видно `validateNetworkPolicyForWorkload` із викликом `networkPolicyManifestViolations(matchedNp, workloadName, appLabel)` на ~5048 (рядки можуть зсунутися — шукай `networkPolicyManifestViolations`).
+Очікувано: видно `validateNetworkPolicyForWorkload` із викликом `networkPolicyManifestViolations(matchedNp, workloadName, appLabel)` на ~5048 (рядки можуть зсупропуститися — шукай `networkPolicyManifestViolations`).
 
 - [ ] **Step 2: Видалити виклик і блок про npErrs**
 

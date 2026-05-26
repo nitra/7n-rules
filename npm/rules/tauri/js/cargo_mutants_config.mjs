@@ -1,6 +1,6 @@
 /**
  * Концерн `cargo_mutants_config` правила tauri (tauri.mdc): для кожного
- * `<workspace>/src-tauri/Cargo.toml` ідемпотентно гарантує наявність
+ * `<workspace>/src-tauri/Cargo.toml` без дублювання гарантує наявність
  * Tauri-specific cargo-mutants налаштувань у `<workspace>/src-tauri/.cargo/mutants.toml`.
  *
  * Семантика (фіксована між Tauri-проєктами):
@@ -28,7 +28,7 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
 const TAURI_BASELINE_HEADER = `# .cargo/mutants.toml — Tauri canonical cargo-mutants config (tauri.mdc).
-# Виключаємо --bins і --doc щоб бінарник Tauri та doc-tests не перезбиралися
+# Виключаємо --bins і --doc щоб бінарник Tauri та doc-tests не збиралися повторно
 # з нуля під кожного мутанта (секунди → хвилини).
 `
 
@@ -103,7 +103,7 @@ function buildBaseline() {
 }
 
 /**
- * Обробляє один `src-tauri/` каталог: створює або ідемпотентно доповнює `.cargo/mutants.toml`.
+ * Обробляє один `src-tauri/` каталог: створює або без дублювання доповнює `.cargo/mutants.toml`.
  * @param {string} srcTauriDir абсолютний шлях до `src-tauri/`
  * @param {string} cwd корінь проєкту (для relative-шляхів у репортах)
  * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер концерну

@@ -1,5 +1,5 @@
 /**
- * Тести `resolveJsRoot`: резолвить JS-root проєкту (workspaces[0] якщо є,
+ * Тести `resolveJsRoot`: визначає JS-root проєкту (workspaces[0] якщо є,
  * інакше cwd; null без кореневого package.json).
  */
 import { describe, expect, test } from 'vitest'

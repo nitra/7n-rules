@@ -73,7 +73,7 @@ describe('renderMarkdown', () => {
     expect(md.endsWith('\n')).toBe(true)
   })
 
-  test('рядки без survived не додають розділ Вижилі мутанти', () => {
+  test('рядки без survived не додають розділ Вцілілі мутанти', () => {
     const rows = [
       {
         area: 'JS',
@@ -82,10 +82,10 @@ describe('renderMarkdown', () => {
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).not.toContain('## Вижилі мутанти')
+    expect(md).not.toContain('## Вцілілі мутанти')
   })
 
-  test('додає секцію Вижилі мутанти з таблицею коли є survived мутанти', () => {
+  test('додає секцію Вцілілі мутанти з таблицею коли є survived мутанти', () => {
     const rows = [
       {
         area: 'JS',
@@ -111,7 +111,7 @@ describe('renderMarkdown', () => {
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Вижилі мутанти')
+    expect(md).toContain('## Вцілілі мутанти')
     expect(md).not.toContain('## Recommendations')
     expect(md).toContain('### src/auth.js')
     expect(md).toContain('| 12 |')
@@ -120,7 +120,7 @@ describe('renderMarkdown', () => {
   })
 })
 
-describe('renderMarkdown — секція вижилих мутантів', () => {
+describe('renderMarkdown — секція вцілілих мутантів', () => {
   const survivedFixture = [
     {
       file: 'src/auth.js',
@@ -133,7 +133,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
     }
   ]
 
-  test('секція називається "Вижилі мутанти", а не "Recommendations"', () => {
+  test('секція називається "Вцілілі мутанти", а не "Recommendations"', () => {
     const rows = [
       {
         area: 'JS',
@@ -143,7 +143,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Вижилі мутанти')
+    expect(md).toContain('## Вцілілі мутанти')
     expect(md).not.toContain('## Recommendations')
   })
 
@@ -163,7 +163,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
     expect(parsed).toEqual(survivedFixture)
   })
 
-  test('людиночитабельна таблиця залишається після JSON-блоку', () => {
+  test('зрозуміла для людини таблиця залишається після JSON-блоку', () => {
     const rows = [
       {
         area: 'JS',
@@ -188,7 +188,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
         survived: []
       }
     ]
-    expect(renderMarkdown(rowsEmpty)).not.toContain('## Вижилі мутанти')
+    expect(renderMarkdown(rowsEmpty)).not.toContain('## Вцілілі мутанти')
     const rowsNone = [
       {
         area: 'JS',
@@ -196,7 +196,7 @@ describe('renderMarkdown — секція вижилих мутантів', () =
         mutation: { caught: 2, total: 2 }
       }
     ]
-    expect(renderMarkdown(rowsNone)).not.toContain('## Вижилі мутанти')
+    expect(renderMarkdown(rowsNone)).not.toContain('## Вцілілі мутанти')
   })
 })
 

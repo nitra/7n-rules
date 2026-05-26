@@ -33,9 +33,11 @@ function makeFixture(pkg, { workspaceRoot = false } = {}) {
 }
 
 // Reset detect's one-shot `_hinted` flag між тестами, щоб порядок не впливав на console.error-перевірки.
+/**
+ *
+ */
 function resetDetectHinted() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime-only сайд-стейт
-  delete (/** @type {any} */ (detect)._hinted)
+  delete (/** @type {typeof detect & {_hinted?: boolean}} */ (detect)._hinted)
 }
 
 describe('js-lint coverage detect()', () => {

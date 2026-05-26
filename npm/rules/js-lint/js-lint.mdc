@@ -42,7 +42,7 @@ version: '1.26'
 
 Каталог `.claude/worktrees/` (робочі копії, які Claude Code створює через **superpowers:using-git-worktrees**) має ігноруватися: додай його у кореневий `.gitignore` (це штатне місце для не-комітних робочих копій), а в `.jscpd.json` додай `.claude/worktrees/**` у `ignore` як страховку на випадок запуску без `gitignore: true`. Без цього jscpd сканує паралельну копію репо в worktree і фіксує самозбіги між дзеркальними файлами.
 
-`**/CHANGELOG.md` теж у каноні `ignore`: release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog), і `jscpd` за `minLines: 25` фіксує їх як клон, хоч це false positive — кожен `CHANGELOG.md` веде свій per-package журнал за каноном `n-changelog`, спільної історії не існує. Без цього в монорепо легко зловити блокуюче `bun run lint` на парі CHANGELOG-ів довжиною від ~25 рядків.
+`**/CHANGELOG.md` теж у каноні `ignore`: release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog), і `jscpd` за `minLines: 25` фіксує їх як клон, хоч це false positive — кожен `CHANGELOG.md` веде свій per-package журнал за каноном `n-changelog`, спільної історії не існує. Без цього в монорепо легко зловити критичне `bun run lint` на парі CHANGELOG-ів довжиною від ~25 рядків.
 
 ```json title=".jscpd.json"
 {

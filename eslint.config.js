@@ -18,7 +18,7 @@ export default [
     }
   },
   // npm-module rule забороняє devDependencies у npm/package.json (compact published
-  // tarball), тож vitest stack живе у кореневому package.json і резолвиться через
+  // tarball), тож vitest stack живе у кореневому package.json і визначається через
   // bun hoisted node_modules. `n/no-extraneous-import` цього не бачить — allowModules
   // ставить exception лише для канонічного vitest-runner baseline (test.mdc).
   {

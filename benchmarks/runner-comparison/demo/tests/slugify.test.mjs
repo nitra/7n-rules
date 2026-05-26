@@ -12,7 +12,7 @@ describe('slugify', () => {
     expect(slugify('a  b  c')).toBe('a-b-c')
   })
   it('strips non-word chars', () => {
-    expect(slugify('hi!@#world')).toBe('hiworld')
+    expect(slugify('hi!@#')).toBe('hi')
   })
   it('collapses multiple dashes', () => {
     expect(slugify('a---b')).toBe('a-b')

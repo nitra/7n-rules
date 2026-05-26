@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { chdir, cwd as getCwd } from 'node:process'
 
+import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
 import { check } from '../stryker_config.mjs'
 
 /**
@@ -94,6 +95,7 @@ describe('stryker_config concern', () => {
     expect(content).toContain("from 'vitest/config'")
     expect(content).toContain('defineConfig')
     expect(content).toContain("provider: 'v8'")
+    expect(vitestBaseline.test.environment).toBe('node')
     proj.cleanup()
   })
 

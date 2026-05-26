@@ -15,10 +15,10 @@ import { EventEmitter } from 'node:events'
 import { routeFilePathToRules, runPostToolUseFixCli } from '../post-tool-use-fix.mjs'
 
 /**
- * Будує мінімальний EventEmitter-сумісний "child", що асинхронно емітить `exit`.
+ * Будує мінімальний EventEmitter-сумісний "child", що асинхронно надсилає `exit`.
  * `events.once(child, 'exit')` у src отримає `[exitCode]`. Node-у `events.once`
  * вимагає інстанс EventEmitter — duck-typing не приймає.
- * @param {number} exitCode код, який емітнути в `exit`
+ * @param {number} exitCode код, який надіслати в `exit`
  * @returns {EventEmitter} fake child
  */
 function makeFakeChild(exitCode) {
@@ -119,7 +119,7 @@ describe('runPostToolUseFixCli', () => {
     expect(args).toEqual(['--no', '@nitra/cursor', 'fix', 'js-lint'])
   })
 
-  test('коли file_path не маршрутизується (LICENSE) — exit 0, без spawn', async () => {
+  test('коли file_path не має маршрут (LICENSE) — exit 0, без spawn', async () => {
     const spawnFn = vi.fn(() => makeFakeChild(1))
     const stdinJson = JSON.stringify({ tool_name: 'Write', tool_input: { file_path: 'LICENSE' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
@@ -157,7 +157,7 @@ describe('runPostToolUseFixCli', () => {
     expect(args).toEqual(['--no', '@nitra/cursor', 'fix', 'js-lint', 'style-lint', 'vue'])
   })
 
-  test('код виходу `fix` пробрасується назовні', async () => {
+  test('код виходу `fix` передається назовні', async () => {
     const spawnFn = vi.fn(() => makeFakeChild(2))
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'foo.mjs' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })

@@ -1,6 +1,6 @@
 /**
  * Резолвить корінь JS-коду в проєкті: для workspace-projects — перший workspace
- * (наприклад `app/` у mlmail), для single-package — корінь cwd. Спільна утиліта
+ * (наприклад `app/` у mail app), для single-package — корінь cwd. Спільна утиліта
  * для coverage-провайдера js-lint і test-концерну stryker_config (DRY).
  */
 import { existsSync } from 'node:fs'

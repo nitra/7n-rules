@@ -1,6 +1,6 @@
 /**
  * Концерн `cargo_mutants_config` правила test (test.mdc): якщо `rust` присутнє
- * в `.n-cursor.json#rules` і не у `disable-rules` — резолвить ВСІ Cargo.toml
+ * в `.n-cursor.json#rules` і не у `disable-rules` — визначає ВСІ Cargo.toml
  * (cwd і всі workspaces, з підтримкою Tauri-патерну) і копіює canonical
  * baseline `.cargo/mutants.toml` у каталог кожного manifest'а, якщо файлу немає.
  *
@@ -8,7 +8,7 @@
  * Якщо `rust` enabled, але жодного Cargo.toml не знайдено — теж silently skip
  * (manifest може з'явитися пізніше; це не помилка).
  *
- * Baseline — порожній файл з коментом; cargo-mutants має робочі defaults.
+ * Baseline — порожній файл з коментарем; cargo-mutants має робочі defaults.
  */
 import { existsSync } from 'node:fs'
 import { copyFile, mkdir } from 'node:fs/promises'

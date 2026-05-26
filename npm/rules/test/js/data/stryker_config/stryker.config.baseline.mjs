@@ -6,7 +6,7 @@ export default {
   // швидкості проти command runner (де треба було б ганяти ввесь test-suite на кожен мутант).
   coverageAnalysis: 'perTest',
   // concurrency: за замовч. Stryker обирає os.cpus().length - 1.
-  // inPlace більше не потрібен — vitest-runner ізолює мутантів у пам'яті через AST-патчінг,
+  // inPlace більше не потрібен — vitest-runner ізолює мутантів у пам'яті через AST-patching,
   // без копіювання node_modules у sandbox (стара проблема command runner у Bun monorepo).
   tempDirName: 'reports/stryker/.tmp',
   reporters: ['json', 'clear-text'],

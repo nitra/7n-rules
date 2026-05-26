@@ -1,7 +1,7 @@
 /**
- * Idempotent append-only оновлювач `.gitignore` у корені проєкту. Перевіряє,
+ * Idempotent append-only модуль оновлення `.gitignore` у корені проєкту. Перевіряє,
  * чи задані entries уже присутні (точне співпадіння рядка після `trim`); відсутні
- * дописує під header-комент, не порушуючи решту файлу. Якщо `.gitignore` немає —
+ * дописує під header-коментар, не порушуючи решту файлу. Якщо `.gitignore` немає —
  * створюється з заданими entries + header.
  *
  * Викликається з test-концерну `stryker_config` (gitignore Stryker temp dirs).

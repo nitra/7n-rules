@@ -1,7 +1,7 @@
 /**
  * `n-cursor coverage --fix`: запускає Claude Code агента для написання тестів
- * по вижилих мутантах Stryker. Агент отримує список мутантів з контекстом
- * (file, line, оригінальний код, вижилий варіант, тип мутації) і самостійно
+ * по вцілілих мутантах Stryker. Агент отримує список мутантів з контекстом
+ * (file, line, оригінальний код, вцілілий варіант, тип мутації) і самостійно
  * знаходить або створює відповідні test-файли.
  *
  * Залежить від `@anthropic-ai/claude-agent-sdk` (dependencies у npm/package.json).
@@ -15,8 +15,8 @@ import { join } from 'node:path'
  */
 
 /**
- * Запускає Claude Code агента для написання тестів по вижилих мутантах.
- * @param {SurvivedFileGroup[]} survived вижилі мутанти, згруповані по файлах
+ * Запускає Claude Code агента для написання тестів по вцілілих мутантах.
+ * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
  * @returns {Promise<void>}
  */
@@ -28,7 +28,7 @@ export async function fixSurvivedMutants(survived, projectRoot) {
   }
 
   const prompt = await buildFixPrompt(survived, projectRoot)
-  console.log(`\n🤖 coverage --fix: запускаю агента для ${totalMutants} вижилих мутантів...\n`)
+  console.log(`\n🤖 coverage --fix: запускаю агента для ${totalMutants} вцілілих мутантів...\n`)
 
   // Dynamic import: @anthropic-ai/claude-agent-sdk завантажується лише при --fix,
   // щоб не гальмувати звичайний coverage-прогін за відсутності пакету.
@@ -48,9 +48,9 @@ export async function fixSurvivedMutants(survived, projectRoot) {
 }
 
 /**
- * Формує rich-промпт для агента: список вижилих мутантів згрупований по файлах,
+ * Формує rich-промпт для агента: список вцілілих мутантів згрупований по файлах,
  * з контекстом ±3 рядки навколо кожного мутанта з source-файлу.
- * @param {SurvivedFileGroup[]} survived групи вижилих мутантів по файлах
+ * @param {SurvivedFileGroup[]} survived групи вцілілих мутантів по файлах
  * @param {string} projectRoot корінь проєкту
  * @returns {Promise<string>} текст rich-промпту
  */
@@ -66,7 +66,7 @@ async function buildFixPrompt(survived, projectRoot) {
       // файл може бути недоступним — пропускаємо контекст, але продовжуємо
     }
 
-    const mutantDescs = mutants
+    const mutantDescriptions = mutants
       .map(m => {
         const ctxStart = Math.max(0, m.line - 4)
         const ctxEnd = Math.min(srcLines.length, m.line + 3)
@@ -89,15 +89,15 @@ async function buildFixPrompt(survived, projectRoot) {
       ? `\n\nПриклад тесту з \`${exampleTest.testFile}\`:\n\`\`\`js\n${exampleTest.code}\n\`\`\``
       : ''
 
-    sections.push(`### \`${file}\`${exampleSection}\n${mutantDescs}`)
+    sections.push(`### \`${file}\`${exampleSection}\n${mutantDescriptions}`)
   }
 
   return [
-    'Твоє завдання — написати unit-тести, що вбивають наступні вижилі мутанти Stryker.',
+    'Твоє завдання — написати unit-тести, що вбивають наступні вцілілі мутанти Stryker.',
     'Для кожного мутанта: знайди або створи відповідний test-файл, додай тест-кейс,',
-    'що явно перевіряє цю гілку/умову і провалиться якщо код замінити на "вижилий варіант".',
+    'що явно перевіряє цю гілку/умову і провалиться якщо код замінити на "вцілілий варіант".',
     '',
-    '## Вижилі мутанти',
+    '## Вцілілі мутанти',
     '',
     ...sections,
     '',

@@ -46,7 +46,7 @@
  * (**`HTTPRoute`**, **`GRPCRoute`**, **`TCPRoute`**, **`TLSRoute`**, **`UDPRoute`**, група **`gateway.networking.k8s.io`**)
  * посилання **`backendRefs` / `backendRef`** на **Service** мають вказувати лише сервіси з суфіксом **`-hl`** у **`name`**.
  * Поле **`namespace`** у **`backendRef`**, що збігається з **`metadata.namespace`** самого маршруту, — надлишкове:
- * прибери його, бо за замовчуванням Gateway API резолвить backend у тому ж namespace, що й маршрут (див. k8s.mdc).
+ * прибери його, бо за замовчуванням Gateway API визначає backend у тому ж namespace, що й маршрут (див. k8s.mdc).
  * **HealthCheckPolicy** (**`networking.gke.io/v1`**, GKE): **`spec.targetRef`** на **Service** — **`name`** з суфіксом **`-hl`** (див. k8s.mdc).
  * Якщо **`kustomization.yaml`** посилається на **`svc.yaml`** (**`resources`**, **`bases`**, **`components`**, **`crds`**,
  * **`patches[].path`**, **`patchesStrategicMerge`**), у **тому ж** файлі має бути посилання на відповідний **`svc-hl.yaml`**
@@ -73,7 +73,7 @@
  *
  * **Зайві `group` / `version` у `patches[].target` / `patchesJson6902[].target`:** якщо в інвентарі **`resources`** /
  * **`bases`** / **`components`** / **`crds`** (рекурсивно) за **`kind`** + **`name`** немає колізії між різними
- * API-групами/версіями, поля **`group`** і **`version`** у **`target`** треба прибрати — Kustomize резолвить ціль
+ * API-групами/версіями, поля **`group`** і **`version`** у **`target`** треба прибрати — Kustomize визначає ціль
  * за **GVK + name**, а зайві поля ламаються мовчки під час змін API (k8s.mdc «patches[].target: лише kind і name»).
  *
  * Явні винятки до загальної логіки yannh/datree — таблиця **`EXPLICIT_K8S_SCHEMAS`** (`Map`): ключ
@@ -761,7 +761,7 @@ export function kustomizePathRefsForExistenceCheck(obj) {
  * @param {string} kustDir каталог kustomization.yaml
  * @param {string} rootNorm нормалізований корінь
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>} резолвиться по завершенню перевірки
+ * @returns {Promise<void>} визначається по завершенню перевірки
  */
 async function validateKustomizationRef(rel, r, kustDir, rootNorm, fail) {
   const target = resolve(kustDir, r.trim())
@@ -889,7 +889,7 @@ async function validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail) {
   try {
     docs = parseAllDocuments(body)
   } catch {
-    fail(`${rel}: не вдалося розпарсити YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
+    fail(`${rel}: не вдалося розібрати YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
     return
   }
   const first = docs[0]?.toJSON()
@@ -1703,7 +1703,7 @@ async function validatePatchTargetsOneKustomizationFile(root, kustAbs, rootNorm,
   try {
     docs = parseAllDocuments(body)
   } catch {
-    fail(`${rel}: не вдалося розпарсити YAML для перевірки patch target`)
+    fail(`${rel}: не вдалося розібрати YAML для перевірки patch target`)
     return
   }
   const first = docs[0]?.toJSON()
@@ -1833,7 +1833,7 @@ function updateBackendConfigKindFlags(kind, acc) {
 /**
  * Чи всі нетривіальні документи у тілі — **`kind: BackendConfig`**, чи є змішування з іншими kind.
  * @param {string} body YAML без обов’язкового modeline (див. `k8sYamlBodyForDocumentParse`)
- * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розпарсити YAML
+ * @returns {'none' | 'only' | 'mixed' | 'unparsed'} unparsed — не вдалося розібрати YAML
  */
 export function classifyBackendConfigManifestPresence(body) {
   /**
@@ -2928,7 +2928,7 @@ export function collectGatewayApiRouteBackendServiceNames(spec) {
 /**
  * Збирає **`backendRef`** до **Service** з полем **`namespace`**, що збігається з namespace маршруту.
  *
- * Поле **`namespace`** у такому **`backendRef`** надлишкове: за замовчуванням Gateway API резолвить backend
+ * Поле **`namespace`** у такому **`backendRef`** надлишкове: за замовчуванням Gateway API визначає backend
  * у тому ж namespace, що й сам маршрут (див. k8s.mdc). Зайві поля у YAML — джерело розсинхрону між середовищами.
  * @param {unknown} spec значення **`spec`** маршруту
  * @param {string} routeNs **`metadata.namespace`** маршруту (непорожній рядок)
@@ -4245,7 +4245,7 @@ export function pdbManifestViolations(manifest, expectedAppLabel, isDevLike) {
 
 const NETWORK_POLICY_SNIPPET_URLS = {
   deployment: new URL('../policy/network_policy/template/deployment.snippet.yaml', import.meta.url),
-  statefulset: new URL('../policy/network_policy/template/statefulset.snippet.yaml', import.meta.url)
+  statefulSet: new URL('../policy/network_policy/template/stateful-set.snippet.yaml', import.meta.url)
 }
 
 /** @type {Record<string, Record<string, unknown>>} */
@@ -4255,7 +4255,7 @@ const _snippetCache = {}
  * Читає snippet-файл і повертає розпарсений spec. Результат кешується в пам'яті процесу.
  * Кожен snippet — повний самодостатній канон NetworkPolicy для своєї групи workload-типів
  * (без merge між snippets у runtime).
- * @param {'deployment' | 'statefulset'} snippetName ім'я сніпету
+ * @param {'deployment' | 'statefulSet'} snippetName ім'я snippet
  * @returns {{ podSelector?: Record<string, unknown>, policyTypes?: string[], ingress?: unknown[], egress?: unknown[] }} розпарсений spec
  */
 export function loadSnippetSpec(snippetName) {
@@ -4270,20 +4270,20 @@ export function loadSnippetSpec(snippetName) {
 /**
  * Mapping workload-kind → snippet name. Єдине джерело dispatch'а в JS;
  * rego використовує симетричний mapping через анотацію `nitra.dev/workload-kind`.
- * @type {Record<string, 'deployment' | 'statefulset'>}
+ * @type {Record<string, 'deployment' | 'statefulSet'>}
  */
 export const KIND_TO_SNIPPET = {
   Deployment: 'deployment',
   Job: 'deployment',
   CronJob: 'deployment',
   DaemonSet: 'deployment',
-  StatefulSet: 'statefulset'
+  StatefulSet: 'statefulSet'
 }
 
 /**
  * Обирає snippet name для конкретного workload-kind; throws на невідомий.
  * @param {string} kind workload-kind
- * @returns {'deployment' | 'statefulset'} snippet name
+ * @returns {'deployment' | 'statefulSet'} snippet name
  */
 export function snippetNameForKind(kind) {
   const name = KIND_TO_SNIPPET[kind]
@@ -4325,7 +4325,7 @@ const NETWORK_POLICY_GCLB_INGRESS_FROM = Object.freeze([
 /**
  * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName`, міткою `app` і типом `kind`.
  * Snippet обирається за `kind` через `KIND_TO_SNIPPET` (без merge — кожен snippet самодостатній).
- * Анотація `nitra.dev/workload-kind` додається, щоб rego диспатчив на правильний канон.
+ * Анотація `nitra.dev/workload-kind` додається, щоб rego обрав на правильний канон.
  *
  * Якщо `gclbPorts` непорожній — після canon ingress-правил додається одне ingress-правило
  * з фіксованими CIDR-ами (GCP HC global + Envoy data-plane) і відсортованими унікальними TCP-портами
@@ -4407,7 +4407,7 @@ export async function collectHttpRouteIngressForWorkload(dir, appLabel, fail) {
       docs = parseAllDocuments(body)
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error)
-      fail(`${abs}: не вдалося розпарсити YAML для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
+      fail(`${abs}: не вдалося розібрати YAML для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
       continue
     }
     for (const doc of docs) {
@@ -4952,7 +4952,7 @@ async function verifyOverlayHpaPdbFileRefsRespectBaseDeployment(
  * @param {boolean} anyBaseHasDep чи є Deployment у base
  * @param {(msg: string) => void} fail callback при помилці
  * @param {(msg: string) => void} passFn callback при успіху
- * @returns {Promise<void>} резолвиться по завершенню перевірки
+ * @returns {Promise<void>} визначається по завершенню перевірки
  */
 async function checkOverlayRefHpaPdb(root, kustDir, rel, ref, baseDirs, anyBaseHasDep, fail, passFn) {
   const fAbs = resolve(kustDir, ref.trim())
@@ -5324,7 +5324,7 @@ async function validateComponentsKustomizationManifest(componentsDir, components
   }
   const obj = await readFirstYamlObject(kustAbs)
   if (obj === null) {
-    fail(`${componentsRel}/kustomization.yaml: не вдалося розпарсити перший YAML-документ (k8s.mdc)`)
+    fail(`${componentsRel}/kustomization.yaml: не вдалося розібрати перший YAML-документ (k8s.mdc)`)
     return
   }
   if (obj.apiVersion !== KUSTOMIZE_COMPONENT_API_VERSION) {
@@ -6178,7 +6178,7 @@ export async function convertImagePatchesToImagesInKustomization(kustAbs, rootNo
 /**
  * Парсить kustomization.yaml як Document і повертає його разом зі списком кандидатів-патчів
  * (по одному кандидату на кожну image-replace op у `patches[i].patch` — патч може містити кілька).
- * Повертає null, якщо документ не розпарсився, не є Kustomization або не має масиву `patches:`.
+ * Повертає null, якщо документ не розібрався, не є Kustomization або не має масиву `patches:`.
  * @param {string} raw текст файлу
  * @returns {{
  *   doc: ReturnType<typeof parseDocument>,
@@ -6389,7 +6389,7 @@ function appendConvertedImagesNode(doc, conversions) {
 
 /**
  * Видаляє ops за списком індексів з inline `patch:` (текст YAML-масиву JSON6902-ops)
- * і повертає переписаний текст. Зберігає block-style. Повертає null, якщо не вдалося розпарсити
+ * і повертає переписаний текст. Зберігає block-style. Повертає null, якщо не вдалося розібрати
  * або після видалення не лишилось ops.
  * @param {string} patchText текст YAML-масиву ops (literal block scalar)
  * @param {number[]} opIndices індекси ops, які треба видалити
@@ -6747,7 +6747,7 @@ function runAllK8sRego(root, yamlFiles, fail) {
       files: allYaml,
       templateData: {
         deployment_snippet: loadSnippetSpec('deployment'),
-        statefulset_snippet: loadSnippetSpec('statefulset')
+        stateful_set_snippet: loadSnippetSpec('statefulSet')
       }
     },
     { ns: 'k8s.kustomization', dir: 'k8s/kustomization', files: kustYaml },

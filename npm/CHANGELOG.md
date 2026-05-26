@@ -12,19 +12,19 @@
 
 ### Changed
 
-- **Dogfooding-міграція cursor → vitest**: 100 `*.test.mjs` файлів у `npm/` перенесено з `bun:test` на `vitest`; `npm/stryker.config.mjs` оновлено до canonical baseline (vitest-runner + perTest + incremental); додано `npm/vitest.config.js`; кореневий `package.json#devDependencies` отримав `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`. Node-сумісність: `Bun.file().text()` → `readFile(..., 'utf8')`, `Bun.spawn` → `spawnSync`, `import.meta.dir` → `dirname(fileURLToPath(import.meta.url))`, EventEmitter duck-typing → `new EventEmitter()` (node-у `events.once` приймає лише EventEmitter інстанси).
+- **Dog food-міграція cursor → vitest**: 100 `*.test.mjs` файлів у `npm/` перенесено з `bun:test` на `vitest`; `npm/stryker.config.mjs` оновлено до canonical baseline (vitest-runner + perTest + incremental); додано `npm/vitest.config.js`; кореневий `package.json#devDependencies` отримав `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`. Node-сумісність: `Bun.file().text()` → `readFile(..., 'utf8')`, `Bun.spawn` → `spawnSync`, `import.meta.dir` → `dirname(fileURLToPath(import.meta.url))`, EventEmitter duck-typing → `new EventEmitter()` (node-у `events.once` приймає лише EventEmitter екземпляри).
 - **`npm/rules/vue/vue.mdc` v2.4**: секцію «Тестування» приведено у відповідність із новим canon-ом (`test.mdc` v2.4 → Vitest+happy-dom). Замість прямого заперечення Vitest у Vue-проєктах рекомендується frontend-варіант `vitest.config.js` з `environment: 'happy-dom'`.
 
 ## [1.27.2] - 2026-05-26
 
 ### Changed
 
-- **`package.json#dependencies`**: `@anthropic-ai/claude-code` (^1.0.0) → `@anthropic-ai/claude-agent-sdk` (^0.3.0). У claude-code v2.x пакет реструктуризовано в CLI-only (бінарі через optionalDependencies, без `sdk.mjs`); SDK з функцією `query` винесли в окремий пакет `@anthropic-ai/claude-agent-sdk`. Сигнатура `query({ prompt, options })` і поля `options.cwd/maxTurns/allowedTools` зберігаються.
+- **`package.json#dependencies`**: `@anthropic-ai/claude-code` (^1.0.0) → `@anthropic-ai/claude-agent-sdk` (^0.3.0). У claude-code v2.x пакет реструктуризовано в CLI-only (binary через optionalDependencies, без `sdk.mjs`); SDK з функцією `query` винесли в окремий пакет `@anthropic-ai/claude-agent-sdk`. Сигнатура `query({ prompt, options })` і поля `options.cwd/maxTurns/allowedTools` зберігаються.
 - **`scripts/coverage-fix.mjs`**: дзеркальна заміна імпорту `@anthropic-ai/claude-code` → `@anthropic-ai/claude-agent-sdk`. Тіло споживача без змін.
 
 ### Fixed
 
-- **ADR Stop-hook у Node v26 / Zed**: `capture-decisions.sh` спавнить bare `claude -p` як subprocess. PATH у Zed Claude Agent-сесіях має `node_modules/.bin` попереду `/opt/homebrew/bin`, тож резолвив локальний `@anthropic-ai/claude-code@1.0.128`, який краш-падає на старті під Node 26 (`TypeError: Cannot read properties of undefined (reading 'prototype')` у bundled google-auth-library коді, який припускає, що `require('stream')` повертає клас зі `.prototype`). Хук фіксував `empty response from LLM CLI` і виходив без створення чернетки. Після зняття v1-залежності з канона `node_modules/.bin/claude` shadow зникає, subprocess резолвить системний `claude` (homebrew або інший global) — той працює під Node 26 без правок.
+- **ADR Stop-hook у Node v26 / Zed**: `capture-decisions.sh` спавнить bare `claude -p` як subprocess. PATH у Zed Claude Agent-сесіях має `node_modules/.bin` попереду `/opt/homebrew/bin`, тож визначав локальний `@anthropic-ai/claude-code@1.0.128`, який краш-падає на старті під Node 26 (`TypeError: Cannot read properties of undefined (reading 'prototype')` у bundled google-auth-library коді, який припускає, що `require('stream')` повертає клас зі `.prototype`). Хук фіксував `empty response from LLM CLI` і виходив без створення чернетки. Після зняття v1-залежності з канона `node_modules/.bin/claude` shadow зникає, subprocess визначає системний `claude` (homebrew або інший global) — той працює під Node 26 без правок.
 
 ## [1.27.1] - 2026-05-26
 
@@ -36,7 +36,7 @@
 
 ### Changed
 
-- **`rules/test/js/data/stryker_config/stryker.config.baseline.mjs`**: канон Stryker перейшов з `command` runner (`bun test`, `concurrency: 1`, `inPlace: true`, `coverageAnalysis: 'off'`) на `vitest` runner з `coverageAnalysis: 'perTest'`. У verify-first spike (158 мутантів, `benchmarks/runner-comparison/SPIKE.md`) це дало 31×–57× прискорення повного прогону і ≈262× для incremental noop-прогону. `inPlace` більше не потрібен — vitest-runner ізолює мутантів через AST-патчінг у пам'яті, без копіювання node_modules у sandbox (стара проблема command runner у Bun monorepo).
+- **`rules/test/js/data/stryker_config/stryker.config.baseline.mjs`**: канон Stryker перейшов з `command` runner (`bun test`, `concurrency: 1`, `inPlace: true`, `coverageAnalysis: 'off'`) на `vitest` runner з `coverageAnalysis: 'perTest'`. У verify-first spike (158 мутантів, `benchmarks/runner-comparison/SPIKE.md`) це дало 31×–57× прискорення повного прогону і ≈262× для incremental noop-прогону. `inPlace` більше не потрібен — vitest-runner ізолює мутантів через AST-patching у пам'яті, без копіювання node_modules у sandbox (стара проблема command runner у Bun monorepo).
 - **`rules/test/js/stryker_config.mjs`**: концерн тепер копіює два canonical baseline-и у кожен JS-root: `stryker.config.mjs` + `vitest.config.js`. Ідемпотентність збережена — обидва файли копіюються лише якщо ще немає.
 - **`rules/js-lint/coverage/coverage.mjs`**: `detect()` тепер шукає `vitest` у `dependencies`/`devDependencies` (раніше — `scripts.test:coverage` або `scripts.test` з `--coverage`). `runJsCoverage` спавнить `bunx vitest run --coverage --coverage.reporter=lcov --coverage.reportsDirectory=…` замість `bun run test:coverage --coverage-reporter=lcov`. `parseLcov` без змін — формат lcov у Vitest v8-coverage співпадає з тим, що віддавало `bun test --coverage`. Якщо vitest відсутній — `detect` повертає `false` із одноразовим hint у stderr.
 - **`rules/test/policy/package_json/template/package.json.contains.json`**: канон scripts тепер містить додатково `"test": ["vitest"]` (substring-вимога). `coverage` як було — `["n-cursor coverage"]`.
@@ -52,23 +52,23 @@
 
 ### Added
 
-- **`rules/tauri/js/cargo_mutants_config.mjs`**: новий концерн tauri-правила. Для кожного `<ws>/src-tauri/Cargo.toml` ідемпотентно гарантує наявність Tauri-канонічних ключів у `<ws>/src-tauri/.cargo/mutants.toml` — `additional_cargo_test_args = ["--lib", "--tests"]` та `exclude_globs` для `src/main.rs` (binary shell) і platform-bridge файлів (`*android.rs`, `*ios.rs`, `*mobile.rs`, `*desktop.rs`, `*macos.rs`, `*windows.rs`, `*linux.rs`). Семантика: ці файли — boundary, бізнес-логіка повинна жити у platform-neutral модулях. Файл відсутній → створює повний baseline; всі канонічні ключі є → `manual cargo-mutants config preserved`; частина ключів відсутня → додає лише відсутні в окремий блок у кінці, без зміни існуючих значень.
+- **`rules/tauri/js/cargo_mutants_config.mjs`**: новий концерн tauri-правила. Для кожного `<ws>/src-tauri/Cargo.toml` без дублювання гарантує наявність Tauri-канонічних ключів у `<ws>/src-tauri/.cargo/mutants.toml` — `additional_cargo_test_args = ["--lib", "--tests"]` та `exclude_globs` для `src/main.rs` (binary shell) і platform-bridge файлів (`*android.rs`, `*ios.rs`, `*mobile.rs`, `*desktop.rs`, `*macos.rs`, `*windows.rs`, `*linux.rs`). Семантика: ці файли — boundary, бізнес-логіка повинна жити у platform-neutral модулях. Файл відсутній → створює повний baseline; всі канонічні ключі є → `manual cargo-mutants config preserved`; частина ключів відсутня → додає лише відсутні в окремий блок у кінці, без зміни існуючих значень.
 - **`rules/tauri/js/tests/cargo_mutants_config.test.mjs`**: 7 тестів — silent skip без Tauri, створення baseline, ідемпотентність (повторний прогон байт-в-байт), збереження ручних налаштувань, partial-merge (додаються лише відсутні ключі), кілька src-tauri у різних workspaces, augmentation поверх нейтрального test-rule baseline.
 - **`rules/tauri/tauri.mdc` v1.3**: нові розділи «Виявлення проєкту Tauri» (опис маркерів і workspace-обходу) та «Mutation-testing: семантика app shell та platform bridge» з фіксованою семантикою boundary-файлів і ідемпотентністю взаємодії з `test`-rule.
 
 ### Changed
 
 - **`rules/test/js/data/cargo_mutants_config/mutants.toml.baseline`**: видалено Tauri-specific `additional_cargo_test_args = ["--lib", "--tests"]` — `test`-rule baseline тепер універсальний (тільки коментар, ніяких exclude'ів та framework-припущень). Customization-семантика framework-rules-ів описана в коментарі baseline'а.
-- **`rules/test/test.mdc` v2.3**: додано розділ «Універсальний baseline і framework-specific tuning» — `test` володіє нейтральним baseline, framework-rules (tauri, capacitor) зобов'язані доповнювати ідемпотентно і не перетирати ручні налаштування.
+- **`rules/test/test.mdc` v2.3**: додано розділ «Універсальний baseline і framework-specific tuning» — `test` володіє нейтральним baseline, framework-rules (tauri, capacitor) зобов'язані доповнювати без дублювання і не перетирати ручні налаштування.
 - **`rules/tauri/js/tooling.mjs`**: виявлення Tauri тепер обходить усі workspace-пакети через `getMonorepoPackageRootDirs()` (раніше — тільки корінь). Маркером є будь-що з: `<ws>/src-tauri/`, `<ws>/src-tauri/Cargo.toml`, `<ws>/src-tauri/tauri.conf.json`, `<ws>/tauri.conf.json`, `<ws>/package.json#dependencies/devDependencies` з `@tauri-apps/*`. Дозволяє tauri-rule працювати в monorepo-проєктах, де Tauri живе в одному з пакетів, а не в корені.
-- **`rules/test/js/tests/cargo_mutants_config.test.mjs`**: тест базлайну тепер перевіряє відсутність framework-specific ключів (`additional_cargo_test_args`, `exclude_globs`) у нейтральному baseline-файлі.
+- **`rules/test/js/tests/cargo_mutants_config.test.mjs`**: тест baseline тепер перевіряє відсутність framework-specific ключів (`additional_cargo_test_args`, `exclude_globs`) у нейтральному baseline-файлі.
 
 ## [1.26.2] - 2026-05-26
 
 ### Changed
 
-- **`rules/js-lint/policy/jscpd/template/.jscpd.json.snippet.json`**: канон тепер містить поле `ignore` із трьома обов'язковими патернами — `.claude/worktrees/**`, `**/dist/**`, `**/CHANGELOG.md`. `**/CHANGELOG.md` додано тому, що release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog) і `jscpd` при `minLines: 25` фіксує їх як клон — false positive (кожен `CHANGELOG.md` per-package за каноном `n-changelog`). Існуючий rego (`policy/jscpd/jscpd.rego`) уже застосовує subset-of до будь-якого масиву в снипеті, тож зміна не потребує правок коду — лише новий test-case у `jscpd_test.rego`.
-- **`rules/js-lint/js-lint.mdc` v1.26**: оновлено приклад `.jscpd.json` і опис під ним (тепер посилається на снипет як source of truth і пояснює, чому `**/CHANGELOG.md` у каноні).
+- **`rules/js-lint/policy/jscpd/template/.jscpd.json.snippet.json`**: канон тепер містить поле `ignore` із трьома обов'язковими патернами — `.claude/worktrees/**`, `**/dist/**`, `**/CHANGELOG.md`. `**/CHANGELOG.md` додано тому, що release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog) і `jscpd` при `minLines: 25` фіксує їх як клон — false positive (кожен `CHANGELOG.md` per-package за каноном `n-changelog`). Існуючий rego (`policy/jscpd/jscpd.rego`) уже застосовує subset-of до будь-якого масиву в snippet, тож зміна не потребує правок коду — лише новий test-case у `jscpd_test.rego`.
+- **`rules/js-lint/js-lint.mdc` v1.26**: оновлено приклад `.jscpd.json` і опис під ним (тепер посилається на snippet як source of truth і пояснює, чому `**/CHANGELOG.md` у каноні).
 
 ## [1.26.1] - 2026-05-26
 
@@ -84,7 +84,7 @@
 
 ### Added
 
-- **`k8s/js/manifests.mjs`**: нова `collectHttpRouteIngressForWorkload(dir, appLabel, fail)` — резолвить HTTPRoute → `-hl` Service → `selector.app` mapping і повертає унікальні TCP-порти з `backendRefs[].port` для workload з міткою `appLabel`. Викликається з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` під час `check k8s`.
+- **`k8s/js/manifests.mjs`**: нова `collectHttpRouteIngressForWorkload(dir, appLabel, fail)` — визначає HTTPRoute → `-hl` Service → `selector.app` mapping і повертає унікальні TCP-порти з `backendRefs[].port` для workload з міткою `appLabel`. Викликається з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` під час `check k8s`.
 - **`k8s/js/manifests.mjs:buildNetworkPolicyYaml`**: опційний 4-й параметр `gclbPorts: number[]` — якщо непорожній, додає ingress-правило з `ipBlock` 35.191.0.0/16, 130.211.0.0/22, 10.0.0.0/8 і TCP-портами (відсортовано). Без параметра output байтово ідентичний baseline canon.
 - **`k8s.mdc` v1.42**: новий розділ «HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)» з описом mapping і прикладом NetworkPolicy для HTTPRoute-paired workload.
 
@@ -97,7 +97,7 @@
 ### Fixed
 
 - **JSDoc**: дописано опис `@returns`/`@param`-описи й типи в `rules/js-lint/coverage/coverage.mjs`, `rules/k8s/js/manifests.mjs`, `rules/adr/js/tests/*.test.mjs`, `rules/test/js/tests/*.test.mjs`, `scripts/coverage-fix.mjs`, `scripts/post-tool-use-fix.mjs`, `scripts/utils/tests/resolve-*.test.mjs` (oxlint/eslint jsdoc-правила).
-- **`k8s/js/manifests.mjs`**: `JSON.parse(JSON.stringify(...))` → `structuredClone(...)` (unicorn `prefer-structured-clone`); інверсія негованої умови в `validateNetworkPolicyForWorkload` (eslint `no-negated-condition`).
+- **`k8s/js/manifests.mjs`**: `JSON.parse(JSON.stringify(...))` → `structuredClone(...)` (unicorn `prefer-structured-clone`); інверсія запереченої умови в `validateNetworkPolicyForWorkload` (eslint `no-negated-condition`).
 - **`k8s/policy/network_policy/network_policy.rego`**: `list_contains` → `contains_item` (regal `avoid-get-and-list-prefix`); `items[i] == item` → `some candidate in items` (`prefer-some-in-iteration`); `workload_kind` без зайвого `if {}` (`unconditional-assignment`); helper-правила переміщено після всіх `deny`, щоб задовольнити `messy-rule`. `network_policy_test.rego` переформатовано через `opa fmt`.
 - **`scripts/tests/post-tool-use-fix.test.mjs`**: fake-child перероблено з `EventEmitter` на duck-typed `addListener`/`removeListener` (unicorn `prefer-event-target`).
 - **`scripts/tests/cli-entry.test.mjs`**: symlink-тест /tmp ↔ /private/tmp використовує `mkdtempSync` з префіксом, зібраним з частин (sonarjs `publicly-writable-directories`).
@@ -117,38 +117,38 @@
 
 ### Added
 
-- **`stryker.config.mjs` baseline**: `incremental: true` + `incrementalFile: 'reports/stryker/incremental.json'` — Stryker зберігає результати між запусками і відновлює після краш/kill (SIGURG). Важливо для машин з обмеженою RAM де Stryker вбивається системою після ~100 мутантів.
+- **`stryker.config.mjs` baseline**: `incremental: true` + `incrementalFile: 'reports/stryker/incremental.json'` — Stryker зберігає результати між запусками і відновлює після краш/kill (сигнал ОС). Важливо для машин з обмеженою RAM де Stryker вбивається системою після ~100 мутантів.
 
 ## [1.25.1] - 2026-05-26
 
 ### Added
 
-- **`skills/coverage-fix/SKILL.md`** — автономна команда `/n-coverage-fix`: запускає `n-cursor coverage`, читає JSON-масив вижилих мутантів із секції `## Вижилі мутанти` у COVERAGE.md і ітеративно пише тести до конвергенції (max 3 ітерації). Включає заборону паралельного запуску (Stryker пише в одну директорію).
+- **`skills/coverage-fix/SKILL.md`** — автономна команда `/n-coverage-fix`: запускає `n-cursor coverage`, читає JSON-масив вцілілих мутантів із секції `## Вцілілі мутанти` у COVERAGE.md і ітеративно пише тести до конвергенції (max 3 ітерації). Включає заборону паралельного запуску (Stryker пише в одну директорію).
 
 ### Changed
 
-- **`rules/test/coverage/coverage.mjs` → `renderMarkdown`**: секція вижилих мутантів перейменована `## Recommendations` → `## Вижилі мутанти`; доданий ` ```json ` блок з масивом survived перед таблицею — парситься скілами `/n-fix-tests` і `/n-coverage-fix`.
+- **`rules/test/coverage/coverage.mjs` → `renderMarkdown`**: секція вцілілих мутантів перейменована `## Recommendations` → `## Вцілілі мутанти`; доданий ` ```json ` блок з масивом survived перед таблицею — парситься skills `/n-fix-tests` і `/n-coverage-fix`.
 - **`skills/fix-tests/SKILL.md`**: конвенція test-файлів оновлена — цільовий файл завжди `<dir>/tests/<basename>.test.mjs`; якщо знайдено co-located тест (`.test.js`/`.test.mjs`) — переноситься в `tests/` з оновленням imports.
 
 ## [1.19.2] - 2026-05-25
 
 ### Fixed
 
-- **`js-lint` coverage провайдер**: виправлено `bunx stryker run` → `bunx @stryker-mutator/core run`. Стара команда (`bunx stryker`) резолвить deprecated unscoped-пакет без CLI, через що `mutation.json` не створювався і coverage падав з помилкою.
+- **`js-lint` coverage провайдер**: виправлено `bunx stryker run` → `bunx @stryker-mutator/core run`. Стара команда (`bunx stryker`) визначає deprecated unscoped-пакет без CLI, через що `mutation.json` не створювався і coverage падав з помилкою.
 - **`npm/stryker.config.mjs`**: додано `mutate: ['scripts/*.mjs', 'scripts/utils/*.mjs', 'rules/*/coverage/coverage.mjs']` — без обмеження Stryker намагався мутувати 422 файли, що робить coverage-прогін нереалістичним. `commandRunner.command` змінено на `bun test --parallel` (раніше `bun test` без флагу) — ізолює worker-процеси та запобігає git-race у withTmpCwd-тестах.
 
 ## [1.19.1] - 2026-05-25
 
 ### Fixed
 
-- **`bun test --parallel`** як default у `npm/package.json` (`test`, `test:coverage`). Без флагу bun-test крутить усі 95 файлів у одному процесі — а `withTmpCwd` (`scripts/utils/test-helpers.mjs`) міняє глобальний `process.cwd()`, через що тести гонять один за одного: `prev = process.cwd()` ловить tmp-dir сусіднього тесту, `chdir(prev)` на restore падає `ENOENT` (бо сусід уже видалив свій tmp), або `git commit` з `cwd: process.cwd()` злітає в реальний repo з `npm/CHANGELOG.md`/`npm/package.json` як stub-fixture. `--parallel` дає окремий worker-процес на файл (з `process.cwd()` per-process), що геть знімає race. Знизило 22 тести з fail до pass, час suite'у — 211с → 47с.
+- **`bun test --parallel`** як default у `npm/package.json` (`test`, `test:coverage`). Без флагу bun-test крутить усі 95 файлів у одному процесі — а `withTmpCwd` (`scripts/utils/test-helpers.mjs`) міняє глобальний `process.cwd()`, через що тести гонять один за одного: `prev = process.cwd()` ловить tmp-dir сусіднього тесту, restore робочої директорії падає `ENOENT` (бо сусід уже видалив свій tmp), або `git commit` з `cwd: process.cwd()` злітає в реальний repo з `npm/CHANGELOG.md`/`npm/package.json` як stub-fixture. `--parallel` дає окремий worker-процес на файл (з `process.cwd()` per-process), що геть знімає race. Знизило 22 тести з fail до pass, час suite'у — 211с → 47с.
 - **`tests/integration-repo-checks.test.mjs`** — додано explicit `30000`ms timeout для `check-* на реальному репозиторії > узгоджені з поточним деревом cursor`. Тест послідовно ганяє 10 check-функцій із subprocess-викликами (shellcheck-стаб + conftest/opa/regal/kubeconform/kubescape) — на macOS виходить ~3-7с, дефолтний 5000ms-timeout bun-test'у не вистачає.
 
 ## [1.19.0] - 2026-05-25
 
 ### Added
 
-- **Pi.dev інтеграція** — CLI під час синку генерує `.pi/skills/<dir>/SKILL.md` для кожного скілу з `.cursor/skills/<dir>/` із frontmatter `name`+`description` (формат pi.dev: 1-64 chars, `[a-z0-9-]`). Тіло — делегат `Виконай інструкції зі скілу .cursor/skills/<dir>/SKILL.md.`, симетрично до `.claude/commands/<dir>.md`. Always-on, без флагу. Покриває керовані (з пакета) і локальні скіли; orphan-cleanup видаляє `.pi/skills/n-*` дири, яких немає у конфігу, і локальні дири, яких більше немає у `.cursor/skills/`.
+- **Pi.dev інтеграція** — CLI під час синку генерує `.pi/skills/<dir>/SKILL.md` для кожного скілу з `.cursor/skills/<dir>/` із frontmatter `name`+`description` (формат pi.dev: 1-64 chars, `[a-z0-9-]`). Тіло — делегат `Виконай інструкції зі скілу .cursor/skills/<dir>/SKILL.md.`, симетрично до `.claude/commands/<dir>.md`. Always-on, без флагу. Покриває керовані (з пакета) і локальні скіли; orphan-cleanup видаляє `.pi/skills/n-*` директорії, яких немає у конфігу, і локальні директорії, яких більше немає у `.cursor/skills/`.
 - `npm/bin/n-cursor.js`: константа `PI_SKILLS_DIR='.pi/skills'`, функція `formatPiSkillFrontmatter(name, desc)`, синки `syncPiSkills`/`syncLocalOnlyPiSkills` + cleanups `removeOrphanManagedPiSkillDirs`/`removeOrphanLocalPiSkillDirs`. Новий `runSyncStep('❌ Pi skills: ', …)` після Commands-блоку у головному потоці.
 
 ## [1.18.3] - 2026-05-25
@@ -167,10 +167,10 @@
 
 ### Fixed
 
-- **`scripts/cli-entry.mjs::isRunAsCli`** + **`scripts/lib/run-rule-cli.mjs::isRunAsCli`** — функція приймала `()` без аргументів і всередині дивилася на власний `import.meta.url`, а не на caller'а. Через те, що `import.meta` лексично прив'язаний до файлу, де записаний, helper-функція ВСІГДА бачила свій файл — `cli-entry.mjs` / `run-rule-cli.mjs` — і ніколи не дорівнювала `process.argv[1]`. Результат: усі ~40 `if (isRunAsCli())` у `rules/<id>/fix.mjs` / `lint/*.mjs` / `bin/rename-yaml-extensions.mjs` ВСІГДА йшли в else-гілку, і `bun rules/<id>/fix.mjs` мовчки виходив `0` без жодного output'у. `npx @nitra/cursor fix <rule>` → `runFixCommand` → `spawnSync('bun', [fix.mjs])` → exit 0 без жодного reporter-звіту.
-- **Fix:** функція тепер приймає `metaUrl` параметром: `isRunAsCli(import.meta.url)`. Реалізація через `realpathSync(fileURLToPath(metaUrl)) === realpathSync(resolve(process.argv[1]))` — `realpath` знімає різницю «symlink vs canonical» (macOS `/tmp` ↔ `/private/tmp`, pnpm content-addressable links, `node_modules/.bin/*` shim).
+- **`scripts/cli-entry.mjs::isRunAsCli`** + **`scripts/lib/run-rule-cli.mjs::isRunAsCli`** — функція приймала `()` без аргументів і всередині дивилася на власний `import.meta.url`, а не на caller'а. Через те, що `import.meta` лексично прив'язаний до файлу, де записаний, helper-функція ЗАВЖДИ бачила свій файл — `cli-entry.mjs` / `run-rule-cli.mjs` — і ніколи не дорівнювала `process.argv[1]`. Результат: усі ~40 `if (isRunAsCli())` у `rules/<id>/fix.mjs` / `lint/*.mjs` / `bin/rename-yaml-extensions.mjs` ЗАВЖДИ йшли в else-гілку, і `bun rules/<id>/fix.mjs` мовчки виходив `0` без жодного output'у. `npx @nitra/cursor fix <rule>` → `runFixCommand` → `spawnSync('bun', [fix.mjs])` → exit 0 без жодного reporter-звіту.
+- **Fix:** функція тепер приймає `metaUrl` параметром: `isRunAsCli(import.meta.url)`. Реалізація через порівняння канонічних шляхів — це знімає різницю «symlink vs canonical» (macOS `/tmp` ↔ `/private/tmp`, pnpm content-addressable links, `node_modules/.bin/*` shim).
 - **Консолідація:** `run-rule-cli.mjs::isRunAsCli` тепер `export { isRunAsCli } from '../cli-entry.mjs'` — одне джерело правди. Existing import paths у callers лишилися без змін.
-- **Callsites:** всі ~40 викликів `isRunAsCli()` оновлено на `isRunAsCli(import.meta.url)`.
+- **Call sites:** всі ~40 викликів `isRunAsCli()` оновлено на `isRunAsCli(import.meta.url)`.
 - **Tests:** додано три нові кейси у `scripts/tests/cli-entry.test.mjs` (entry-detection через spawn-fixture, symlink-нормалізація через `/tmp` → `/private/tmp`, no-arg fallback). Fixture — `scripts/tests/fixtures/cli-entry-as-cli.mjs`.
 
 ## [1.18.0] - 2026-05-25
@@ -197,17 +197,17 @@
 ### Changed
 
 - Концерн `stryker_config`: gitignore-патерн `**/reports/stryker/.tmp/` + `**/reports/stryker/mutation.json` замінено на один broader `**/reports/stryker/` — увесь каталог Stryker-output-у. Покриває не лише `.tmp/` + `mutation.json`, а й HTML/dashboard-репорти якщо користувач додасть інші reporter-и. Існуючі дрібніші патерни в `.gitignore` користувача не видаляються (idempotent helper лише дописує), але стають надлишковими — користувач може почистити вручну за бажанням.
-- `test.mdc` 2.1 → 2.2: оновлено опис gitignore-керування під новий broader patern.
+- `test.mdc` 2.1 → 2.2: оновлено опис gitignore-керування під новий broader pattern.
 
 ## [1.17.3] - 2026-05-24
 
 ### Added
 
-- Концерн `stryker_config` правила `test` тепер ідемпотентно додає у кореневий `.gitignore` патерни Stryker-output-у:
+- Концерн `stryker_config` правила `test` тепер без дублювання додає у кореневий `.gitignore` патерни Stryker-output-у:
   - `**/reports/stryker/.tmp/` — in-place backup-каталог (з baseline-у `tempDirName`).
   - `**/reports/stryker/mutation.json` — JSON-репорт мутацій.
   - Header-секція `# Stryker mutation testing (test.mdc)`, sectioning через `ensureGitignoreEntries`.
-- Спільний helper `npm/scripts/utils/ensure-gitignore-entries.mjs` — append-only оновлювач `.gitignore` з header-секціями. Idempotent (точне співпадіння рядка після `trim`), створює файл якщо немає, зберігає trailing-newline. 5 unit-тестів.
+- Спільний helper `npm/scripts/utils/ensure-gitignore-entries.mjs` — append-only модуль оновлення `.gitignore` з header-секціями. Idempotent (точне співпадіння рядка після `trim`), створює файл якщо немає, зберігає trailing-newline. 5 unit-тестів.
 
 ### Changed
 
@@ -220,8 +220,8 @@
 
 - Правило `test`: два нових концерни — `stryker_config` і `cargo_mutants_config`. Self-gating через `.n-cursor.json#rules`: концерн активний лише якщо відповідне залежне правило (`js-lint` / `rust`) enabled. **Iterate-all-workspaces**: при відсутності цільового файлу копіює canonical baseline у КОЖЕН workspace-каталог (не лише workspaces[0]).
   - `stryker.config.mjs` у кожному JS-root (всі workspaces з package.json, або cwd у single-package) — мінімум для роботи з `bun test`.
-  - `.cargo/mutants.toml` у каталозі КОЖНОГО Cargo.toml-маніфесту: корінь + workspaces (з підтримкою Tauri-патерну `<ws>/src-tauri/Cargo.toml`) — комент-плейсхолдер; cargo-mutants має робочі defaults.
-- Спільні резолвери у `npm/scripts/utils/`: `resolveJsRoot` (single, для coverage-провайдера) + `resolveAllJsRoots` (plural, для test-концерну); `resolveCargoManifest` (single) + `resolveAllCargoManifests` (plural). Coverage-провайдери js-lint і rust реюзають single-варіанти.
+  - `.cargo/mutants.toml` у каталозі КОЖНОГО Cargo.toml-маніфесту: корінь + workspaces (з підтримкою Tauri-патерну `<ws>/src-tauri/Cargo.toml`) — коментар-плейсхолдер; cargo-mutants має робочі defaults.
+- Спільні модулі визначення у `npm/scripts/utils/`: `resolveJsRoot` (single, для coverage-провайдера) + `resolveAllJsRoots` (plural, для test-концерну); `resolveCargoManifest` (single) + `resolveAllCargoManifests` (plural). Coverage-провайдери js-lint і rust повторно використовують single-варіанти.
 
 ### Changed
 
@@ -524,7 +524,7 @@
 
 ### Fixed
 
-- ADR-хук **`normalize-decisions.sh`**: `merge-into` більше не падає в `skip … target missing`, коли драфт треба влити в clean-ADR, який створює `rewrite` того самого батча, або в наявний clean-ADR, на який LLM послався голим `<slug>.md` без timestamp-префікса. Операції тепер застосовуються двома впорядкованими групами (спершу `delete`/`rewrite`, потім `merge-into`), а `target` резолвиться за трьома кроками: точна назва → slug-мапа rewrite-ів цього батча → єдиний наявний clean-файл із суфіксом `-<slug>.md`. Цикл застосування переведено з pipe на читання з файлу — лічильники `applied`/`skipped` виживають і потрапляють у фінальний рядок логу `done (applied N, skipped M)`. Зачеплено: [normalize-decisions.sh](.claude-template/hooks/normalize-decisions.sh).
+- ADR-хук **`normalize-decisions.sh`**: `merge-into` більше не падає в `skip … target missing`, коли драфт треба влити в clean-ADR, який створює `rewrite` того самого батча, або в наявний clean-ADR, на який LLM послався голим `<slug>.md` без timestamp-префікса. Операції тепер застосовуються двома впорядкованими групами (спершу `delete`/`rewrite`, потім `merge-into`), а `target` визначається за трьома кроками: точна назва → slug-мапа rewrite-ів цього батча → єдиний наявний clean-файл із суфіксом `-<slug>.md`. Цикл застосування переведено з pipe на читання з файлу — лічильники `applied`/`skipped` виживають і потрапляють у фінальний рядок логу `done (applied N, skipped M)`. Зачеплено: [normalize-decisions.sh](.claude-template/hooks/normalize-decisions.sh).
 
 ## [1.13.67] - 2026-05-21
 
@@ -638,7 +638,7 @@
 
 ### Fixed
 
-- `lint-k8s`: `kubescape scan -` (stdin), доданий у 1.13.49 і збережений у 1.13.50, **не працює в kubescape v4.x** — `-` трактується як шлях до файлу й сканер виходить з `no resources found to scan` (fatal), тож `bun run lint` падав на `lint-k8s` навіть на чистих маніфестах. Прапорця `--input`/`--stdin` у CLI також немає. Тепер `runKubescapeManifest` пише зібраний kustomize-маніфест у тимчасовий файл під `os.tmpdir()` (через `fs.mkdtempSync`) і запускає **`kubescape scan <tmp-file>`**; тимчасова директорія прибирається у `finally`. Bump `k8s.mdc` `1.38` → `1.39`.
+- `lint-k8s`: `kubescape scan -` (stdin), доданий у 1.13.49 і збережений у 1.13.50, **не працює в kubescape v4.x** — `-` трактується як шлях до файлу й сканер виходить з `no resources found to scan` (fatal), тож `bun run lint` падав на `lint-k8s` навіть на чистих manifest-файлах. Прапорця `--input`/`--stdin` у CLI також немає. Тепер `runKubescapeManifest` пише зібраний kustomize-маніфест у тимчасовий файл під `os.tmpdir()` (через `fs.mkdtempSync`) і запускає **`kubescape scan <tmp-file>`**; тимчасова директорія прибирається у `finally`. Bump `k8s.mdc` `1.38` → `1.39`.
 
 ## [1.13.50] - 2026-05-19
 
@@ -674,7 +674,7 @@
 
 ### Fixed
 
-- `inlineTemplateLinks` tests: оновлено очікувані рядки для фікстури `__fixtures__/inline-template/fix/foo/template/snippet.json` (перейшла на форматований варіант `{ "key": "val" }` ще в 1.13.38) та для інтеграційного тесту `security.mdc` (snippet `package.json` тепер multi-line після lint-проходу). Без зміни рантайм-логіки.
+- `inlineTemplateLinks` tests: оновлено очікувані рядки для фікстури `__fixtures__/inline-template/fix/foo/template/snippet.json` (перейшла на форматований варіант `{ "key": "val" }` ще в 1.13.38) та для інтеграційними testing тесту `security.mdc` (snippet `package.json` тепер multi-line після lint-проходу). Без зміни рантайм-логіки.
 - `check-ga` тестова фікстура `setupCanonicalGaProject`: додано крок `Install conftest` у `.github/workflows/lint-ga.yml`, без якого `ga.lint_ga` rego-полісі забороняє workflow і `check()` повертав 1.
 
 ## [1.13.44] - 2026-05-18
@@ -1517,7 +1517,7 @@
 
 - **npm-module — компактний пакет: whitelist `files`, без `devDependencies`, тести/фікстури поза опублікованим деревом:** правило `npm-module.mdc` тепер вимагає максимально компактний tarball. (1) Поле `"files"` у `npm/package.json` обовʼязкове як whitelist (без нього npm пакує майже все). (2) `npm/package.json` не повинен містити `devDependencies` — інструментарій для розробки тримаємо у кореневому `package.json` монорепо, щоб `npm install @nitra/<pkg>` не тягнув його кінцевим користувачам. (3) Тести й фікстури не повинні потрапляти у tarball: канонічне місце — `npm/tests/` (не додається до `"files"`); це стосується і test-style каталогів (`tests/`, `__tests__/`, `fixtures/`, `__fixtures__/`, `spec/`, `test/`), і файлів за патернами `*.test.*` / `*.spec.*`, і JS/TS-файлів з імпортами test-фреймворків (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, `jest`, `ava`, …). **Виняток — Rego (`*_test.rego`):** за конвенцією conftest юніт-тест лежить поруч з полісі у тому самому `package`, тож rego-тести дозволені всередині опублікованого `policy/`-каталогу і входять у tarball.
 - **npm-module — пер-документні deny у rego (Rego-authoritative):** `npm/policy/npm_module/npm_package_json/npm_package_json.rego` розширено двома deny: (а) `"files"` як whitelist обовʼязковий (відсутній / не масив / порожній); (б) `"devDependencies"` мають бути відсутні або порожні. Додано `npm_package_json_test.rego` з happy-path + 7 негативних кейсів (`json.patch` фікстури). Покривається `bun run lint-rego` (`conftest verify`) і `bun run lint-conftest` (батч проти реального `npm/package.json`). Раніше я помилково реалізував ці перевірки у JS — це порушує `.cursor/rules/conftest.mdc` (Rego-default для пер-документних структурних перевірок). Тепер виправлено: JS-функцію `checkPackageCompactness` видалено з `check-npm-module.mjs` разом з виклик-сайтом.
-- **npm-module — `check-npm-module.mjs` лишає лише FS/AST-частину:** функція `checkNoTestsInPublishedFiles` резолвить позитивні patterns поля `files`, віднімає негативні (підтримка `!…` glob з `*` / `**` / `?`), і для кожного файлу-кандидата ловить test-style ім'я каталога/файлу або імпорт тест-фреймворку через oxc-parser (`module.staticImports` + `require()` + динамічний `import()`). `*_test.rego` свідомо не входить у `TEST_FILE_PATTERNS` — дозволений виняток для conftest-конвенції (юніт-тест поруч з полісі у тому самому `package`).
+- **npm-module — `check-npm-module.mjs` лишає лише FS/AST-частину:** функція `checkNoTestsInPublishedFiles` визначає позитивні patterns поля `files`, віднімає негативні (підтримка `!…` glob з `*` / `**` / `?`), і для кожного файлу-кандидата ловить test-style ім'я каталога/файлу або імпорт тест-фреймворку через oxc-parser (`module.staticImports` + `require()` + динамічний `import()`). `*_test.rego` свідомо не входить у `TEST_FILE_PATTERNS` — дозволений виняток для conftest-конвенції (юніт-тест поруч з полісі у тому самому `package`).
 - **npm/package.json — приведено до правила:** видалено секцію `devDependencies` (`@nitra/cursor` вже є у корені як `workspace:*`). `policy/**/*_test.rego` свідомо лишаються у tarball — як виняток для conftest-конвенції.
 - **conftest.mdc + npm/.claude-template/npm-CLAUDE.md — гостріший Rego-first сигнал:** у `.cursor/rules/conftest.mdc` додано STOP-блок перед `Edit` будь-якого `check-<rule>.mjs` (стосується і нових перевірок, і розширення вже існуючих; типовий ляп — `if (pkg.<field>) fail(…)` у JS замість ще одного `deny contains` у відповідному rego-пакеті). Перший пункт алгоритму уточнено прикладом «заборона/наявність ключа верхнього рівня типу `devDependencies` / `scripts.<name>`». У `npm-CLAUDE.md` секцію «Перш ніж писати `check-*.mjs`» переписано у self-check з 3 пунктів і червоним прапором. Регенеровано `npm/CLAUDE.md`.
 
@@ -1619,7 +1619,7 @@
 
 ### Added
 
-- **k8s / rego-полісі:** розширено `npm/policy/k8s/manifest/manifest.rego` (Deployment cpu+memory у `requests`, Hasura image pin із білим списком тегів, канонічний `topologySpreadConstraints` з мітки `app` самого Deployment). Додано `manifest_test.rego` із вхідними фікстурами; rego тестується через `conftest verify` (опційний крок у `bun run lint-rego`). JS у `check-k8s.mjs` лишається authoritative — нові правила Rego — швидкий gate для одиничного маніфеста.
+- **k8s / rego-полісі:** розширено `npm/policy/k8s/manifest/manifest.rego` (Deployment cpu+memory у `requests`, Hasura image pin із білим списком тегів, канонічний `topologySpreadConstraints` з мітки `app` самого Deployment). Додано `manifest_test.rego` із вхідними фікстурами; rego тестується через `conftest verify` (опційний крок у `bun run lint-rego`). JS у `check-k8s.mjs` лишається authoritative — нові правила Rego — швидкий gate для одиничного manifest.
 - **k8s / нові rego-пакети:** `npm/policy/k8s/gateway/` (Gateway API: backendRef з суфіксом `-hl`, redundant `namespace` у backendRef, HCP `targetRef.name` `-hl`); `npm/policy/k8s/kustomization/` (resources/patches алфавітне сортування, JSON6902 `remove`+`add` на той самий `path`); `npm/policy/k8s/svc_yaml/` (`Service.spec.type: ClusterIP`); `npm/policy/k8s/svc_hl_yaml/` (headless Service з суфіксом `-hl` і `clusterIP: None`); `npm/policy/k8s/base_kustomization/` (обов'язковий `namespace:`); `npm/policy/k8s/base_manifest/` (`metadata.namespace` у base, base-canon `cpu='0.02'`/`memory='128Mi'`); `npm/policy/k8s/kustomize_managed/` (заборона `metadata.namespace` у kustomize-managed файлах); `npm/policy/k8s/hasura_configmap/` (`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"`); `npm/policy/k8s/hasura_httproute/` (канон 4 правил Hasura: `/ql` Exact + `/ql/` Exact + PathPrefix + WebSocket); `npm/policy/k8s/hpa_pdb/` (структурний gate HPA/PDB: `apiVersion`, `behavior.scaleUp/Down`, `metrics`, `selector.matchLabels`). До кожного пакета додано `*_test.rego` фікстури.
 - **lint-rego:** додано опційний крок `conftest verify` у `npm/scripts/lint-rego.mjs` після `regal lint` для виконання `*_test.rego`. Якщо `conftest` не у PATH — крок мовчки пропускається з install-hint.
 
@@ -2187,7 +2187,7 @@
 
 ### Added
 
-- `k8s.mdc` / `check-k8s.mjs`: у маршрутах Gateway API (**HTTPRoute**, **GRPCRoute**, **TCPRoute**, **TLSRoute**, **UDPRoute**, група `gateway.networking.k8s.io`) забороняється поле `namespace` у `spec.rules[*].backendRefs[*]` (і однини `backendRef`), якщо його значення збігається з `metadata.namespace` самого маршруту. За замовчуванням Gateway API резолвить backend у тому ж namespace, що й маршрут — дублювання у `backendRef` мертве й заважає Kustomize-overlay, що міняє namespace маршруту. Cross-namespace backendRef (з відмінним `namespace`) правило не торкається. Експортовано `collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, routeNs)`; перевіряється усередині існуючого `failIfGatewayRouteUsesNonHeadlessService` (той самий обхід дерева, що й для headless-перевірки). Додано приклад «погано/добре» у `k8s.mdc` і відповідні юніт-тести.
+- `k8s.mdc` / `check-k8s.mjs`: у маршрутах Gateway API (**HTTPRoute**, **GRPCRoute**, **TCPRoute**, **TLSRoute**, **UDPRoute**, група `gateway.networking.k8s.io`) забороняється поле `namespace` у `spec.rules[*].backendRefs[*]` (і однини `backendRef`), якщо його значення збігається з `metadata.namespace` самого маршруту. За замовчуванням Gateway API визначає backend у тому ж namespace, що й маршрут — дублювання у `backendRef` мертве й заважає Kustomize-overlay, що міняє namespace маршруту. Cross-namespace backendRef (з відмінним `namespace`) правило не торкається. Експортовано `collectGatewayApiRouteBackendRefsWithRedundantNamespace(spec, routeNs)`; перевіряється усередині існуючого `failIfGatewayRouteUsesNonHeadlessService` (той самий обхід дерева, що й для headless-перевірки). Додано приклад «погано/добре» у `k8s.mdc` і відповідні юніт-тести.
 
 ## [1.8.174] - 2026-05-05
 
@@ -2225,7 +2225,7 @@
 ### Added
 
 - `image.mdc` (v1.3) / `check-image.mjs`: нове правило `image` для оптимізації зображень через [`@nitra/minify-image`](https://www.npmjs.com/package/@nitra/minify-image). Перевіряє лише локальну конфігурацію (CI-workflow не вимагається — sharp/svgo тягнуть бінарні залежності, цінність на ubuntu-runner-ах нижча за час прогону): скрипт `lint-image` у `package.json` з обовʼязковим викликом `npx @nitra/minify-image --src=. --write --avif` (авто-оптимізація на місці + AVIF-двійники для PNG/JPEG/GIF), `bun run lint-image` в агрегованому `lint`, заборона `@nitra/minify-image` у `dependencies`/`devDependencies` (CLI лише через `npx`, симетрично до `markdownlint-cli2` у `text.mdc`) і рядок `.minify-image-cache.tsv` у `.gitignore` (або, рідше, у `files` пакета). AVIF-двійники (`<name>.<ext>.avif`) зберігаються в git як готові артефакти для віддачі браузеру.
-- `image.mdc` (v1.3) / `check-image.mjs`: у `.vue` файлах кожного workspace-пакета raster-посилання мають вести на AVIF-двійник (`...png.avif`) у двох формах: (а) `import x from '...png|jpg|jpeg|gif'` (далі `:src="x"`); (б) прямі статичні атрибути `<img src="...png" />` у `<template>` (Vite перетворює їх на asset-імпорти при збірці). Реактивне `:src="..."` не сканується (JS-вираз — резолвиться через імпорт, який ловиться у формі (а)); `data-src=`, `obj.src=` у `<script>`, SVG-імпорти теж пропускаємо. Опт-аут на рівні воркспейс-пакета: `"@nitra/minify-image": { "disable-avif": true }` у `package.json` цього пакета. Дедуплікація обходу: при walk-у кореня `.` піддерева інших workspace-роди пропускаються (інакше `App.vue` у `demo/` доповідався б двічі).
+- `image.mdc` (v1.3) / `check-image.mjs`: у `.vue` файлах кожного workspace-пакета raster-посилання мають вести на AVIF-двійник (`...png.avif`) у двох формах: (а) `import x from '...png|jpg|jpeg|gif'` (далі `:src="x"`); (б) прямі статичні атрибути `<img src="...png" />` у `<template>` (Vite перетворює їх на asset-імпорти при збірці). Реактивне `:src="..."` не сканується (JS-вираз — визначається через імпорт, який ловиться у формі (а)); `data-src=`, `obj.src=` у `<script>`, SVG-імпорти теж пропускаємо. Опт-аут на рівні воркспейс-пакета: `"@nitra/minify-image": { "disable-avif": true }` у `package.json` цього пакета. Дедуплікація обходу: при walk-у кореня `.` піддерева інших workspace-роди пропускаються (інакше `App.vue` у `demo/` доповідався б двічі).
 - `auto-rules.mjs` / `auto-rules.md`: введено граф залежностей між правилами (`AUTO_RULE_DEPENDENCIES`, синтаксис у `auto-rules.md` — `rule - [other]`). Правило `image` описане як `image - [vue]` — варто автододати лише разом з `vue`, без дублювання вихідної умови «`.vue`-файли». Транзитивне розгортання дозволяє ланцюги (`a → b → c`) і поважає `disable-rules` (якщо vue вимкнено — image теж не додається).
 - `vue.mdc` (v1.4) / `check-vue.mjs`: посилено перевірку `vite.config` — окрім згадки `AutoImport` тепер вимагається, щоб у виклику `AutoImport({ imports: [...] })` був присутній рядковий елемент `'vue'`. Без цього `unplugin-auto-import` не надасть `ref` / `createApp` / тощо, і прибирати явні value-імпорти з `'vue'` стає небезпечно (зламає код). Якщо `'vue'` у `imports` відсутній — value-імпорти більше не оголошуються забороненими, а fail зʼявляється на конфізі vite. Балансована екстракція аргументів `AutoImport(...)` через `extractAutoImportCallArgs` працює для багаторядкових об'єктів.
 

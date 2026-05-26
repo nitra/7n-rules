@@ -54,7 +54,7 @@ async function evaluateAppliesGate(bundledRulesDir, rule) {
 
 /**
  * Запускає одну policy-полісі через `runConftestBatch`. Створює локальний репортер,
- * читає `target.json`, резолвить файли, фіксує fail/pass — і повертає exit-код.
+ * читає `target.json`, визначає файли, фіксує fail/pass — і повертає exit-код.
  * @param {string} bundledRulesDir абсолютний `rules/`
  * @param {string} ruleId id правила
  * @param {string} concernName імʼя полісі (= підкаталог у `policy/`)

@@ -3,6 +3,7 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
+
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
@@ -34,11 +35,11 @@
   Команда: `/mdc-check`
 - `.cursor/skills/n-adr-normalize/SKILL.md` — Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного батчу чернеток через LLM, перегляд результату через git diff
   Команда: `/n-adr-normalize`
-- `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає n-cursor coverage → читає вижилих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
+- `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
   Команда: `/n-coverage-fix`
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
   Команда: `/n-fix`
-- `.cursor/skills/n-fix-tests/SKILL.md` — Ітеративно дописати тести щоб підвищити mutation score — читає вижилі мутанти з COVERAGE.md і запускає агент до конвергенції
+- `.cursor/skills/n-fix-tests/SKILL.md` — Ітеративно дописати тести щоб підвищити mutation score — читає вцілілі мутанти з COVERAGE.md і запускає агент до конвергенції
   Команда: `/n-fix-tests`
 - `.cursor/skills/n-lint/SKILL.md` — Запустити кореневий bun run lint, виправити порушення й підтвердити чистий вихід
   Команда: `/n-lint`

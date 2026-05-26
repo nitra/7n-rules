@@ -20,7 +20,7 @@ Chosen option: "Inline-підстановка під час sync", because `.mdc
 Три додаткові рішення в межах реалізації:
 - **Fail hard**: sync кидає `Error` `inlineTemplateLinks: <rel> не знайдено` — щоб помилка була помітна.
 - **Function-replacer**: `.gitleaks.toml.snippet.toml` містить `'''.*\.lock$'''`; `$'` у string-replacer → реінжекція хвоста документа. Рішення: `result.replace(fullMatch, () => replacement)`.
-- **Нормалізація label**: `normalizeTargetName` відкидає `.<slot>.<ext>` суфікс, щоб синкнутий файл показував `package.json` замість `package.json.snippet.json`.
+- **Нормалізація label**: `normalizeTargetName` відкидає `.<slot>.<ext>` суфікс, щоб синкпропуститий файл показував `package.json` замість `package.json.snippet.json`.
 
 ### Consequences
 

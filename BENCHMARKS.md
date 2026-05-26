@@ -12,7 +12,7 @@ Canonical Stryker baseline у `@nitra/cursor` перейшов з `command` runn
 | `full-vitest` (vitest + perTest, concurrency default) | 17.9s  | 158      | 88.6% | **31×**  |
 | `incremental-vitest-noop` (другий прогін без змін)    | 2.4s   | 158      | 88.6% | **234×** |
 
-Run-to-run jitter повного vitest-прогону: 10–18 с (порядково стабільний). Mutation score ідентичний на обох ранерах → міграція не змінює correctness, лише швидкість.
+Run-to-run jitter повного vitest-прогону: 10–18 с (порядково стабільний). Mutation score ідентичний на обох runners → міграція не змінює correctness, лише швидкість.
 
 Прогнозований ефект на проєктах-споживачах (наприклад app/ з 142 мутантами + `bun test --parallel`-baseline ~20 хв): ~20 секунд для повного, секунди для incremental dev-циклу.
 

@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process'
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
 
 /**
- * Запускає один крок lint-обгортки: резолвить `cmd` у PATH і `spawnSync` із успадкованим stdio.
+ * Запускає один крок lint-обгортки: визначає `cmd` у PATH і `spawnSync` із успадкованим stdio.
  * @param {string} title заголовок для логу (наприклад `actionlint`)
  * @param {string} cmd ім'я команди (`bunx`, `uvx`, `npx`, …)
  * @param {string[]} args аргументи команди

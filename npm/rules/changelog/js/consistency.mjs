@@ -32,7 +32,7 @@ import {
 
 const execFileAsync = promisify(execFile)
 
-/** Кандидати інтеграційної гілки для feature-гілок (перша наявна; див. n-changelog.mdc). */
+/** Кандидати інтеграційними тести гілки для feature-гілок (перша наявна; див. n-changelog.mdc). */
 const FEATURE_BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
 
 /** Гілка `dev`: local-only не активний (крім незакомічених registry-published). */

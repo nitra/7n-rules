@@ -29,7 +29,7 @@ version: '1.3'
 
 ## Mutation-testing: семантика app shell та platform bridge
 
-`tauri` rule володіє Tauri-specific семантикою mutation-testing для каталога `src-tauri/`. Концерн `js/cargo_mutants_config.mjs` ідемпотентно додає у `<ws>/src-tauri/.cargo/mutants.toml` такі канонічні ключі:
+`tauri` rule володіє Tauri-specific семантикою mutation-testing для каталога `src-tauri/`. Концерн `js/cargo_mutants_config.mjs` без дублювання додає у `<ws>/src-tauri/.cargo/mutants.toml` такі канонічні ключі:
 
 ```toml title="<ws>/src-tauri/.cargo/mutants.toml"
 additional_cargo_test_args = ["--lib", "--tests"]
@@ -58,7 +58,7 @@ exclude_globs = [
 
 ### Ідемпотентність і взаємодія з `test`-rule
 
-- `test` rule створює універсальний нейтральний `.cargo/mutants.toml` (порожній з коментом) для кожного Cargo.toml-manifesta — без framework-specific exclude'ів. Це наш baseline.
+- `test` rule створює універсальний нейтральний `.cargo/mutants.toml` (порожній з коментарем) для кожного Cargo.toml-manifest-файла — без framework-specific exclude'ів. Це наш baseline.
 - `tauri` rule додає Tauri-канонічні ключі **поверх** того, що вже є у `<ws>/src-tauri/.cargo/mutants.toml`:
   - якщо файла немає — створює з повного Tauri-baseline;
   - якщо обидва канонічні ключі (`additional_cargo_test_args`, `exclude_globs`) вже присутні — `manual cargo-mutants config preserved`, нічого не зміниться;

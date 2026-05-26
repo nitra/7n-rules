@@ -2,7 +2,7 @@
  * Резолвить шлях до Cargo.toml у проєкті: cwd/Cargo.toml або в одному з
  * workspace-підкаталогів (з підтримкою Tauri-патерну `<workspace>/src-tauri/`).
  * Спільна утиліта для coverage-провайдера rust і test-концерну cargo_mutants_config.
- * Повертає null (а не throw) щоб callsite-и могли gracefully skip-нути.
+ * Повертає null (а не throw) щоб callsite-и могли gracefully skip-пропустити.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'

@@ -23,7 +23,7 @@ function makeProject(scripts) {
 }
 
 /**
- * Фабрика мокованого spawnSync: повертає послідовність exit-кодів і тривалостей.
+ * Фабрика підміненого spawnSync: повертає послідовність exit-кодів і тривалостей.
  * @param {Array<{ status: number, ms: number }>} sequence послідовність відповідей spawnSync у порядку викликів
  * @returns {{ spawnSyncFn: (cmd: string, args: string[]) => {status: number}, now: () => number, calls: {name: string, status: number}[] }} моки + журнал викликів
  */
@@ -177,7 +177,7 @@ describe('runLintCli', () => {
   })
 
   test('немає package.json → exit 1 + повідомлення у stderr', () => {
-    const root = mkdtempSync(join(tmpdir(), 'run-lint-cli-nopkg-'))
+    const root = mkdtempSync(join(tmpdir(), 'run-lint-cli-no-pkg-'))
     try {
       let errOutput = ''
       const code = runLintCli({
@@ -199,7 +199,7 @@ describe('runLintCli', () => {
   })
 
   test('некоректний JSON у package.json → exit 1', () => {
-    const root = mkdtempSync(join(tmpdir(), 'run-lint-cli-badjson-'))
+    const root = mkdtempSync(join(tmpdir(), 'run-lint-cli-bad-json-'))
     writeFileSync(join(root, 'package.json'), '{not json', 'utf8')
     try {
       const code = runLintCli({

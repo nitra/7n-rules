@@ -9,10 +9,18 @@
  *   bun run.mjs --scenario=full-vitest
  *   bun run.mjs --scenario=incremental-vitest-noop
  */
+import console from 'node:console'
 import { spawnSync } from 'node:child_process'
+import { performance } from 'node:perf_hooks'
+import process from 'node:process'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+import bunStrykerConfig from './demo/stryker.bun.config.mjs'
+import vitestStrykerConfig from './demo/stryker.vitest.config.mjs'
+import vitestConfig from './demo/vitest.config.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const DEMO = join(HERE, 'demo')
@@ -20,16 +28,25 @@ const RESULTS = join(HERE, 'results')
 const REPORTS = join(DEMO, 'reports')
 
 const SCENARIOS = {
-  'full-bun': { config: 'stryker.bun.config.mjs', cleanReports: true, incrementalFile: 'incremental-bun.json' },
+  'full-bun': {
+    config: 'stryker.bun.config.mjs',
+    cleanReports: true,
+    incrementalFile: 'incremental-bun.json',
+    testRunner: bunStrykerConfig.testRunner
+  },
   'full-vitest': {
     config: 'stryker.vitest.config.mjs',
     cleanReports: true,
-    incrementalFile: 'incremental-vitest.json'
+    incrementalFile: 'incremental-vitest.json',
+    testRunner: vitestStrykerConfig.testRunner,
+    vitestEnvironment: vitestConfig.test.environment
   },
   'incremental-vitest-noop': {
     config: 'stryker.vitest.config.mjs',
     cleanReports: false,
-    incrementalFile: 'incremental-vitest.json'
+    incrementalFile: 'incremental-vitest.json',
+    testRunner: vitestStrykerConfig.testRunner,
+    vitestEnvironment: vitestConfig.test.environment
   }
 }
 
@@ -49,10 +66,10 @@ for (const name of list) {
 
   if (cfg.cleanReports && existsSync(REPORTS)) rmSync(REPORTS, { recursive: true, force: true })
 
-  if (summary.length > 0) await new Promise(r => setTimeout(r, 2000))
+  if (summary.length > 0) await sleep(2000)
 
   console.log(`\n=== ${name} ===`)
-  const ts = new Date().toISOString().replace(/[:.]/g, '-')
+  const ts = new Date().toISOString().replaceAll(/[:.]/g, '-')
   const logPath = join(RESULTS, `${name}-${ts}.log`)
 
   const t0 = performance.now()
@@ -78,15 +95,30 @@ for (const name of list) {
   }
   const report = JSON.parse(readFileSync(mutationPath, 'utf8'))
   let killed = 0,
+    noCoverage = 0,
     survived = 0,
-    timeout = 0,
-    noCoverage = 0
+    timeout = 0
   for (const file of Object.values(report.files ?? {})) {
     for (const m of file.mutants ?? []) {
-      if (m.status === 'Killed') killed++
-      else if (m.status === 'Survived') survived++
-      else if (m.status === 'Timeout') timeout++
-      else if (m.status === 'NoCoverage') noCoverage++
+      switch (m.status) {
+        case 'Killed': {
+          killed++
+          break
+        }
+        case 'Survived': {
+          survived++
+          break
+        }
+        case 'Timeout': {
+          timeout++
+          break
+        }
+        case 'NoCoverage': {
+          noCoverage++
+          break
+        }
+        // No default
+      }
     }
   }
   const total = killed + survived + timeout + noCoverage
@@ -95,6 +127,7 @@ for (const name of list) {
   const result = {
     scenario: name,
     durationMs,
+    testRunner: cfg.testRunner,
     totalMutants: total,
     killed,
     survived,

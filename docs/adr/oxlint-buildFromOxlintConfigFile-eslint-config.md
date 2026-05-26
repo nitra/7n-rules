@@ -9,7 +9,7 @@
 
 ## Рішення
 
-У `npm/index.js` `oxlint.configs['flat/recommended']` замінено на виклик `buildFromOxlintConfigFile('.oxlintrc.json')` із пакету `eslint-plugin-oxlint`. Цей метод генерує flat-конфіг, що вимикає в ESLint рівно ті правила, які увімкнені у фактичному `.oxlintrc.json` споживача. Шлях резолвиться відносно `process.cwd()`; якщо файл відсутній — fallback на `flat/recommended` з виводом `console.warn`. Публічна сигнатура `getConfig({ node, vue, vue2 })` не змінюється; доданий необов'язковий параметр `oxlintConfigFile`. Версія пакету bumped `3.9.2 → 3.10.0`, у `npm/CHANGELOG.md` додано запис `## [3.10.0]`. Додано bun-тест із тимчасовим `.oxlintrc.json`, що підтверджує появу його правил як `'off'` у вихідному масиві `getConfig`.
+У `npm/index.js` `oxlint.configs['flat/recommended']` замінено на виклик `buildFromOxlintConfigFile('.oxlintrc.json')` із пакету `eslint-plugin-oxlint`. Цей метод генерує flat-конфіг, що вимикає в ESLint рівно ті правила, які увімкнені у фактичному `.oxlintrc.json` споживача. Шлях визначається відносно `process.cwd()`; якщо файл відсутній — fallback на `flat/recommended` з виводом `console.warn`. Публічна сигнатура `getConfig({ node, vue, vue2 })` не змінюється; доданий необов'язковий параметр `oxlintConfigFile`. Версія пакету bumped `3.9.2 → 3.10.0`, у `npm/CHANGELOG.md` додано запис `## [3.10.0]`. Додано bun-тест із тимчасовим `.oxlintrc.json`, що підтверджує появу його правил як `'off'` у вихідному масиві `getConfig`.
 
 ## Обґрунтування
 

@@ -4,7 +4,7 @@
 
 **Goal:** Правило `test` керує `stryker.config.mjs` (якщо `js-lint` у `.n-cursor.json#rules`) і `.cargo/mutants.toml` (якщо `rust`). Два self-gating JS-концерни + витяг спільних резолверів `resolveJsRoot`/`resolveCargoManifest` у `npm/scripts/utils/`.
 
-**Architecture:** Кожен концерн читає `.n-cursor.json` через `readNCursorConfigLite`, silently skip-ить якщо gate-rule не enabled. Інакше — резолвить target dir через shared utility, копіює canonical baseline якщо файл відсутній (side-effect, як `knip.json` у `js-lint`). Coverage-провайдери реюзають резолвери замість локальних копій.
+**Architecture:** Кожен концерн читає `.n-cursor.json` через `readNCursorConfigLite`, silently skip-ить якщо gate-rule не enabled. Інакше — визначає target dir через shared utility, копіює canonical baseline якщо файл відсутній (side-effect, як `knip.json` у `js-lint`). Coverage-провайдери реюзають модулі визначення замість локальних копій.
 
 **Tech Stack:** Bun (runtime + test), Node `fs/promises` + `child_process`, `readNCursorConfigLite` з `scripts/lib/`.
 
@@ -62,7 +62,7 @@ npm/rules/test/js/
 
 ```js
 /**
- * Тести `resolveJsRoot`: резолвить JS-root проєкту (workspaces[0] якщо є,
+ * Тести `resolveJsRoot`: визначає JS-root проєкту (workspaces[0] якщо є,
  * інакше cwd; null без кореневого package.json).
  */
 import { describe, expect, test } from 'bun:test'
@@ -125,7 +125,7 @@ Expected: FAIL — `Cannot find module '../resolve-js-root.mjs'`.
 ```js
 /**
  * Резолвить корінь JS-коду в проєкті: для workspace-projects — перший workspace
- * (наприклад `app/` у mlmail), для single-package — корінь cwd. Спільна утиліта
+ * (наприклад `app/` у mail app), для single-package — корінь cwd. Спільна утиліта
  * для coverage-провайдера js-lint і test-концерну stryker_config (DRY).
  */
 import { existsSync } from 'node:fs'
@@ -255,7 +255,7 @@ Expected: FAIL — `Cannot find module '../resolve-cargo-manifest.mjs'`.
  * Резолвить шлях до Cargo.toml у проєкті: cwd/Cargo.toml або в одному з
  * workspace-підкаталогів (з підтримкою Tauri-патерну `<workspace>/src-tauri/`).
  * Спільна утиліта для coverage-провайдера rust і test-концерну cargo_mutants_config.
- * Повертає null (а не throw) щоб callsite-и могли gracefully skip-нути.
+ * Повертає null (а не throw) щоб callsite-и могли gracefully skip-пропустити.
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -682,7 +682,7 @@ Expected: FAIL — `Cannot find module '../stryker_config.mjs'`.
 ```js
 /**
  * Концерн `stryker_config` правила test (test.mdc): якщо `js-lint` присутнє в
- * `.n-cursor.json#rules` і не у `disable-rules` — резолвить jsRoot (workspaces[0]
+ * `.n-cursor.json#rules` і не у `disable-rules` — визначає jsRoot (workspaces[0]
  * або cwd) і копіює canonical baseline `stryker.config.mjs` якщо файлу немає.
  *
  * Self-gating: концерн silently skips коли `js-lint` не enabled — це навмисно,
@@ -928,7 +928,7 @@ Expected: FAIL — `Cannot find module '../cargo_mutants_config.mjs'`.
 ```js
 /**
  * Концерн `cargo_mutants_config` правила test (test.mdc): якщо `rust` присутнє
- * в `.n-cursor.json#rules` і не у `disable-rules` — резолвить Cargo.toml
+ * в `.n-cursor.json#rules` і не у `disable-rules` — визначає Cargo.toml
  * (cwd або workspace) і копіює canonical baseline `.cargo/mutants.toml` у
  * каталог manifest'а, якщо файлу немає.
  *
@@ -1125,7 +1125,7 @@ Expected: exit 0, 497+ conftest tests pass, regal 0 violations.
 - Правило `test`: два нових концерни — `stryker_config` і `cargo_mutants_config`. Self-gating через `.n-cursor.json#rules`: концерн активний лише якщо відповідне залежне правило (`js-lint` / `rust`) enabled. При відсутності цільового файлу копіює canonical baseline:
   - `stryker.config.mjs` у JS-root (workspaces[0] або cwd) — мінімум для роботи з `bun test`.
   - `.cargo/mutants.toml` у dir-і Cargo.toml-маніфесту (з підтримкою Tauri-патерну) — комент-плейсхолдер; cargo-mutants має робочі defaults.
-- Спільні резолвери `resolveJsRoot` і `resolveCargoManifest` у `npm/scripts/utils/`. Замінюють локальні копії в coverage-провайдерах js-lint і rust.
+- Спільні модулі визначення `resolveJsRoot` і `resolveCargoManifest` у `npm/scripts/utils/`. Замінюють локальні копії в coverage-провайдерах js-lint і rust.
 
 ### Changed
 
@@ -1191,7 +1191,7 @@ Expected:
 
 - [ ] M1 (per-concern self-gating через readNCursorConfigLite): Tasks 6, 8 — концерни читають config і skip silently. ✓
 - [ ] M2 (мінімум baseline): Tasks 5, 7 — Stryker 7-line + mutants.toml порожній з коментами. ✓
-- [ ] M3 (резолвери в scripts/utils/): Tasks 1, 2. Refactor у Tasks 3, 4. ✓
+- [ ] M3 (модулі визначення в scripts/utils/): Tasks 1, 2. Refactor у Tasks 3, 4. ✓
 - [ ] M4 (test.mdc alwaysApply: false + globs + версія 2.0): Task 9. ✓
 - [ ] M5 (coverage provider hints): Task 3 Step 3.2 для js-lint. Rust — без змін за дизайном. ✓
 - [ ] M6 (скоуп — лише config-management, не змінюємо парсинг): тести й код підтверджують. ✓

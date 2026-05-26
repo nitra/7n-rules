@@ -297,7 +297,7 @@ describe('check-image-avif', () => {
     })
   })
 
-  test('успіх: Quasar-style `src="/api-page/1.png"` резолвиться через `<pkg>/public/...`', async () => {
+  test('успіх: Quasar-style `src="/api-page/1.png"` визначається через `<pkg>/public/...`', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
@@ -322,7 +322,7 @@ describe('check-image-avif', () => {
     })
   })
 
-  test('успіх: голий шлях у `.html` (`assets/images/x.png`) резолвиться відносно файла', async () => {
+  test('успіх: голий шлях у `.html` (`assets/images/x.png`) визначається відносно файла', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',
@@ -346,7 +346,7 @@ describe('check-image-avif', () => {
     })
   })
 
-  test('успіх: `src="start-page-ua/logo.png"` резолвиться через `<pkg>/public/start-page-ua/logo.png`', async () => {
+  test('успіх: `src="start-page-ua/logo.png"` визначається через `<pkg>/public/start-page-ua/logo.png`', async () => {
     await withTmpCwd(async () => {
       await writeJson('package.json', {
         name: 'mono',

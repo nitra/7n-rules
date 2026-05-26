@@ -238,7 +238,7 @@ export function resetWalkCache() {
    - Прибрати top-level виклик `discoverCheckableRules` із CLI. Функція залишається — використовується всередині `runStandardRule`.
 
 5. **Оновити тести:**
-   - Додати `tests/run-standard-rule.test.mjs` (контракт util'у — mock'нути `discoverOneRule` + `runRule`, перевірити прокидання `ctx`).
+   - Додати `tests/run-standard-rule.test.mjs` (контракт util'у — mock'пропустити `discoverOneRule` + `runRule`, перевірити прокидання `ctx`).
    - Додати `tests/walk-cache.test.mjs` (singleton + reset).
    - Додати `tests/list-rule-ids.test.mjs` (фільтрація, сортування).
    - Smoke-тест "усі 30 правил мають `fix.mjs` з валідним експортом `run` та папку `js/`" — швидко детектить пропущене правило в майбутньому.

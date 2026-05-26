@@ -1,3 +1,8 @@
+/**
+ * Parse a query string into key-value pairs.
+ * @param {string} qs query string with optional leading question mark
+ * @returns {Record<string, string>} parsed query parameters
+ */
 export function parseQuery(qs) {
   if (typeof qs !== 'string' || qs.length === 0) return {}
   const out = {}
@@ -16,6 +21,11 @@ export function parseQuery(qs) {
   return out
 }
 
+/**
+ * Build a query string from key-value pairs.
+ * @param {Record<string, unknown>} params query parameters
+ * @returns {string} encoded query string
+ */
 export function buildQuery(params) {
   if (!params || typeof params !== 'object') return ''
   const parts = []

@@ -467,7 +467,7 @@ export async function removeOrphanAdrHookLib(projectRoot) {
  * перезаписується. Якщо bundled template відсутній (legacy-версії пакета без `.pi-template/`)
  * або в ньому немає `index.ts` — повертаємо `{written: false}` без помилки.
  *
- * Розширення поверх `index.ts` (tsconfig тощо) потрібні, бо `.pi/extensions/` синкається як є
+ * Розширення поверх `index.ts` (tsconfig тощо) потрібні, бо `.pi/extensions/` синхронізується як є
  * у проєкти-споживачі, а IDE/TS-сервер мусить резолвити `node:*` модулі без додаткових
  * project-wide конфігів.
  * @param {string} projectRoot корінь проєкту-споживача
@@ -637,7 +637,7 @@ export async function syncClaudeConfig({ projectRoot, bundledPackageRoot, enable
     ? await syncAdrNormalizeHookScript(projectRoot, templateDir)
     : { written: false, path: '' }
   // Lib-файли мають сенс лише з активним хоча б одним ADR-хуком — без caller'а
-  // нікому source-ити; при вимкненому правилі прибираємо орфан-теку.
+  // нікому source-ити; при вимкненому правилі прибираємо осиротілу-теку.
   const adrHookLibEntries = includeAdrHook
     ? await syncAdrHookLibScripts(projectRoot, templateDir)
     : (await removeOrphanAdrHookLib(projectRoot), [])

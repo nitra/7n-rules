@@ -84,7 +84,7 @@ const EXPECTED_GCLB_INGRESS_FROM = [
 ]
 // eslint-disable-next-line sonarjs/no-hardcoded-ip
 const GCLB_HC_GLOBAL_CIDR = '35.191.0.0/16'
-// AWS link-local CIDR (IMDS) — канонічне правило egress у NetworkPolicy snippet (k8s.mdc).
+// AWS link-local CIDR (metadata service) — канонічне правило egress у NetworkPolicy snippet (k8s.mdc).
 // Збираємо з частин, щоб sonarjs/no-hardcoded-ip не флагав літерал у тестовому assert.
 const LINK_LOCAL_CIDR = ['169', '254', '0', '0'].join('.') + '/16'
 
@@ -2235,8 +2235,8 @@ describe('NetworkPolicy helpers', () => {
     expect(hasLinkLocal).toBe(true)
   })
 
-  test('loadSnippetSpec("statefulset"): повний канон з intra-replica правилами', () => {
-    const spec = loadSnippetSpec('statefulset')
+  test('loadSnippetSpec("statefulSet"): повний канон з intra-replica правилами', () => {
+    const spec = loadSnippetSpec('statefulSet')
     // intra-replica egress: останнє правило — podSelector з matchLabels:{}
     const lastEgress = spec.egress.at(-1)
     expect(lastEgress.to[0].podSelector.matchLabels).toEqual({})
@@ -2250,11 +2250,11 @@ describe('NetworkPolicy helpers', () => {
     expect(hasLinkLocal).toBe(true)
   })
 
-  test('snippetNameForKind: Deployment/Job/CronJob/DaemonSet → deployment, StatefulSet → statefulset', () => {
+  test('snippetNameForKind: Deployment/Job/CronJob/DaemonSet → deployment, StatefulSet → statefulSet', () => {
     for (const k of ['Deployment', 'Job', 'CronJob', 'DaemonSet']) {
       expect(snippetNameForKind(k)).toBe('deployment')
     }
-    expect(snippetNameForKind('StatefulSet')).toBe('statefulset')
+    expect(snippetNameForKind('StatefulSet')).toBe('statefulSet')
   })
 
   test('snippetNameForKind: невідомий kind → throws', () => {
@@ -2271,8 +2271,8 @@ describe('NetworkPolicy helpers', () => {
     expect(result.spec.ingress).toEqual(snippet.ingress)
   })
 
-  test('buildNetworkPolicyYaml(name, app, "StatefulSet"): метадані, анотація, statefulset-канон з intra-replica', () => {
-    const snippet = loadSnippetSpec('statefulset')
+  test('buildNetworkPolicyYaml(name, app, "StatefulSet"): метадані, анотація, StatefulSet-канон з intra-replica', () => {
+    const snippet = loadSnippetSpec('statefulSet')
     const result = parseYaml(buildNetworkPolicyYaml('postgres', 'postgres', 'StatefulSet'))
     expect(result.metadata.name).toBe('postgres')
     expect(result.metadata.annotations?.['nitra.dev/workload-kind']).toBe('StatefulSet')
@@ -2573,7 +2573,7 @@ spec:
   })
 
   test('Service без selector.app → правило не додається (null)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-noapp-'))
+    const dir = await mkdtemp(join(tmpdir(), 'np-httproute-no-app-'))
     try {
       await writeFile(
         join(dir, 'hr.yaml'),
@@ -2681,7 +2681,7 @@ spec:
   })
 
   test('workload без HTTPRoute → NP без GCLB-правила (baseline canon)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'np-e2e-nopair-'))
+    const dir = await mkdtemp(join(tmpdir(), 'np-e2e-no-pair-'))
     try {
       await writeFile(
         join(dir, 'deploy.yaml'),
@@ -2718,7 +2718,7 @@ spec:
     }
   })
 
-  test('regenerateLegacyNetworkPolicyDocsInFile інжектить GCLB-правило, якщо HTTPRoute paired', async () => {
+  test('regenerateLegacyNetworkPolicyDocsInFile додає GCLB-правило, якщо HTTPRoute paired', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'np-e2e-regen-pair-'))
     try {
       await writeFile(

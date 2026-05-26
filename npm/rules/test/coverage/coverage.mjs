@@ -71,7 +71,7 @@ export function formatScore({ caught, total }) {
 /**
  * Рендерить таблицю покриття + мутаційного тестування як Markdown.
  * Якщо будь-який рядок містить непустий `survived`, додає секцію
- * `## Вижилі мутанти` з JSON-блоком для `/n-fix-tests`.
+ * `## Вцілілі мутанти` з JSON-блоком для `/n-fix-tests`.
  * Без timestamp, щоб git diff рухався лише при зміні метрик.
  * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}, survived?: Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>}>} rows рядки провайдерів
  * @returns {string} Markdown з заголовком `# Coverage`
@@ -92,8 +92,8 @@ export function renderMarkdown(rows) {
 
   const allSurvived = rows.flatMap(r => r.survived ?? [])
   if (allSurvived.length > 0) {
-    lines.push('', '## Вижилі мутанти', '', '```json', JSON.stringify(allSurvived, null, 2), '```')
-    // Людиночитабельна таблиця
+    lines.push('', '## Вцілілі мутанти', '', '```json', JSON.stringify(allSurvived, null, 2), '```')
+    // Зрозуміла для людини таблиця
     for (const group of allSurvived) {
       lines.push('', `### ${group.file}`, '', '| Рядок | Оригінал | Заміна | Тип |', '| --- | --- | --- | --- |')
       for (const m of group.mutants) {
@@ -156,7 +156,7 @@ function buildTotalsRow(rows) {
  * Виконує coverage-pipeline: discovery провайдерів за `.n-cursor.json#rules`,
  * detect+collect для кожного, агрегація, запис COVERAGE.md.
  * При `opts.fix === true` після запису COVERAGE.md запускає агента (coverage-fix.mjs)
- * для написання тестів по вижилих мутантах.
+ * для написання тестів по вцілілих мутантах.
  * @param {{cwd?:string, rulesDir?:string, fix?:boolean}} [opts] ін'єкція cwd/rulesDir для тестів; fix — --fix режим
  * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних)
  */

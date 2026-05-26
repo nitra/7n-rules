@@ -28,7 +28,7 @@
 Додано перевірку компактності пакету у `check-npm-module.mjs`:
 
 - `checkPackageCompactness` — перевіряє наявність поля `"files"` у `npm/package.json` та відсутність `devDependencies`.
-- `checkNoTestsInPublishedFiles` — резолвить glob-патерни з `"files"`, для кожного файлу перевіряє назву, приналежність до тестового каталогу (`TEST_DIR_NAMES`) та AST-імпорт тестового фреймворку через oxc-parser.
+- `checkNoTestsInPublishedFiles` — визначає glob-патерни з `"files"`, для кожного файлу перевіряє назву, приналежність до тестового каталогу (`TEST_DIR_NAMES`) та AST-імпорт тестового фреймворку через oxc-parser.
 - Допоміжна функція `globToRegex` підтримує `**`, `*`, `?` та негативні патерни.
 - До `"files"` у `npm/package.json` додано `"!**/*_test.rego"` — 14 rego-юніт-тестів більше не потрапляють до tarball (підтверджено `npm pack --dry-run`).
 - Видалено `devDependencies: { "@nitra/cursor": ... }` з `npm/package.json` — пакет підключений через `workspace:*` у кореневому `package.json`.

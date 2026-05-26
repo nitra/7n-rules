@@ -42,7 +42,7 @@ function isIgnoredDir(dirAbsPosix, ignorePosix) {
  * @param {string} dir абсолютний шлях
  * @param {(filePath: string) => void} onFile виклик для кожного файлу
  * @param {string[]} [ignorePaths] шляхи каталогів (відносні від cwd або абсолютні), що повністю виключаються з обходу
- * @returns {Promise<void>} резолвиться по завершенню обходу
+ * @returns {Promise<void>} визначається по завершенню обходу
  */
 export async function walkDir(dir, onFile, ignorePaths = []) {
   const ignorePosix = ignorePaths.map(p => toAbsPosix(p))
@@ -54,7 +54,7 @@ export async function walkDir(dir, onFile, ignorePaths = []) {
  * @param {string} dir абсолютний шлях каталогу для обходу
  * @param {(filePath: string) => void} onFile колбек, що викликається для кожного звичайного файлу
  * @param {string[]} ignorePosix вже нормалізовані абсолютні posix-шляхи ігнорованих каталогів
- * @returns {Promise<void>} резолвиться по завершенню рекурсії
+ * @returns {Promise<void>} визначається по завершенню рекурсії
  */
 async function walkDirInner(dir, onFile, ignorePosix) {
   if (ignorePosix.length > 0 && isIgnoredDir(toAbsPosix(dir), ignorePosix)) return

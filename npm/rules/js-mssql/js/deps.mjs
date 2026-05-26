@@ -242,7 +242,7 @@ function reportZeroMssqlSourceViolations(counters, pass) {
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} pass pass callback
  * @param {(msg: string) => void} fail fail callback
- * @returns {Promise<void>} резолвиться по завершенню аудиту всіх знайдених джерел
+ * @returns {Promise<void>} визначається по завершенню аудиту всіх знайдених джерел
  */
 async function auditMssqlSources(repoRoot, ignorePaths, pass, fail) {
   const sourcePaths = await findAllSourcePathsForMssqlScan(repoRoot, ignorePaths)

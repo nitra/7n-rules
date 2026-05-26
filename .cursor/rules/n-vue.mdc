@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '1.9'
+version: '2.0'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -104,20 +104,24 @@ const additionalInstructions = `
 
 ### Тестування
 
-- **Unit:** **Bun Test Runner** (`bun test`) — використовуй його замість **Vitest**. API сумісне (`describe` / `it` / `expect` з `bun:test`), моки через `mock` і `mock.module`. У `package.json` тримай `"test": "bun test <шляхи>"`; не додавай `vitest`, `vitest.config.*` і пов’язані залежності.
-- **Component / DOM:** **Vue Test Utils** + **Bun Test Runner** з **happy-dom** як DOM-середовищем. Підключення — через `@happy-dom/global-registrator` у preload-файлі та `bunfig.toml`:
+- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.js` реюзає `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
 
-```toml title="bunfig.toml"
-[test]
-preload = ["./test/happy-dom.preload.js"]
-```
+```js title="vitest.config.js"
+import { defineConfig, mergeConfig } from 'vitest/config'
+import viteConfig from './vite.config.js'
 
-```js title="test/happy-dom.preload.js"
-import { GlobalRegistrator } from '@happy-dom/global-registrator'
-GlobalRegistrator.register()
+export default mergeConfig(viteConfig, defineConfig({
+  test: {
+    include: ['**/*.test.{js,mjs}', 'tests/**/*.test.{js,mjs}'],
+    environment: 'happy-dom',
+    coverage: { provider: 'v8', reporter: ['lcov', 'text-summary'] }
+  }
+}))
 ```
 
 `jsdom` не використовуй — happy-dom швидший і достатній для типових Vue-компонентних тестів.
+
+У `package.json#scripts` тримай `"test": "vitest run"`; vitest devDeps (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`) — у кореневому `devDependencies` (npm-module rule забороняє devDeps у published workspace-у).
 
 - **E2E:** **Playwright** змістовні сценарії користувацьких потоків.
 

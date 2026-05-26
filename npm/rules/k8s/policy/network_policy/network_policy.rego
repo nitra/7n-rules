@@ -4,7 +4,7 @@
 # Superset-перевірка egress/ingress: кожне правило з обраного canon-snippet'у
 # має бути присутнє в input (extra-правила дозволені). Канон обирається за
 # анотацією `nitra.dev/workload-kind`:
-#   StatefulSet → data.template.statefulset_snippet (повний канон з intra-replica)
+#   StatefulSet → data.template.stateful_set_snippet (повний канон з intra-replica)
 #   решта      → data.template.deployment_snippet  (повний канон, default fallback)
 #
 # Обидва snippets — самодостатні (без merge на runtime).
@@ -15,7 +15,7 @@
 #   conftest test path/to/networkpolicy.yaml -p npm/rules/k8s/policy/network_policy \
 #     --namespace k8s.network_policy \
 #     --data npm/rules/k8s/policy/network_policy/template/deployment.snippet.yaml \
-#     --data npm/rules/k8s/policy/network_policy/template/statefulset.snippet.yaml
+#     --data npm/rules/k8s/policy/network_policy/template/stateful-set.snippet.yaml
 package k8s.network_policy
 
 import rego.v1
@@ -107,14 +107,14 @@ deny contains "spec.egress: заборонено allow-all {} — додавай
 }
 
 # Dispatch на повний canon-snippet за анотацією nitra.dev/workload-kind.
-# StatefulSet → statefulset_snippet (з intra-replica), решта → deployment_snippet.
-canon_for_kind("StatefulSet") := data.template.statefulset_snippet
+# StatefulSet → stateful_set_snippet (з intra-replica), решта → deployment_snippet.
+canon_for_kind("StatefulSet") := data.template.stateful_set_snippet
 
 canon_for_kind(kind) := data.template.deployment_snippet if {
 	kind != "StatefulSet"
 }
 
-snippet_name_for_kind("StatefulSet") := "statefulset"
+snippet_name_for_kind("StatefulSet") := "stateful-set"
 
 snippet_name_for_kind(kind) := "deployment" if {
 	kind != "StatefulSet"

@@ -37,7 +37,7 @@ async function checkAbie() {
 }
 
 describe('check-* на реальному репозиторії', () => {
-  // 10 послідовних checkов з subprocess-викликами (shellcheck-стаб, k8s/ga/text валідатори
+  // 10 послідовних checks з subprocess-викликами (shellcheck-стаб, k8s/ga/text валідатори
   // через conftest/opa/regal) на macOS вкладаються у ~5-7с — дефолтний 5000ms-timeout bun-test'у
   // не вистачає. Збільшуємо до 120с: у стані з великим git-diff (напр. відновлені файли після
   // bad commit) деякі checks (checkK8s, checkJsRun) можуть займати до 60-90с.

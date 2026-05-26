@@ -1,6 +1,6 @@
 /**
  * Концерн `stryker_config` правила test (test.mdc): якщо `js-lint` присутнє в
- * `.n-cursor.json#rules` і не у `disable-rules` — резолвить ВСІ JS-roots
+ * `.n-cursor.json#rules` і не у `disable-rules` — визначає ВСІ JS-roots
  * (всі workspaces з package.json, або cwd у single-package) і копіює canonical
  * baseline `stryker.config.mjs` + `vitest.config.js` у кожен root, де файлу немає.
  *
@@ -36,7 +36,7 @@ const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/']
  * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
  * @param {string} baselinePath абсолютний шлях до canonical baseline
  * @param {string} target абсолютний шлях, куди копіювати
- * @param {string} label людиночитна мітка ("stryker.config.mjs" / "vitest.config.js")
+ * @param {string} label зрозуміла для людини мітка ("stryker.config.mjs" / "vitest.config.js")
  * @returns {Promise<void>}
  */
 async function ensureBaselineFile(reporter, cwd, baselinePath, target, label) {
@@ -85,7 +85,7 @@ export async function check() {
     await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
   }
 
-  // Гарантуємо що Stryker temp/output ніколи не комітяться. Patterns
+  // Гарантуємо що Stryker temp/output ніколи не потрапляють у commit. Patterns
   // покривають усі workspaces через `**/`-префікс (єдиний root .gitignore).
   const { added } = await ensureGitignoreEntries(cwd, STRYKER_GITIGNORE_ENTRIES, 'Stryker mutation testing (test.mdc)')
   if (added.length > 0) {

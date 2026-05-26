@@ -22,7 +22,7 @@
 - **Гібрид** (JSON/YAML-частина → Rego; AST/FS/CLI-частина → JS): `check-js-lint`, `check-js-mssql`, `check-js-bun-db`, `check-js-run`, `check-vue`, `check-capacitor`, `check-graphql`, `check-image-compress`, `check-hasura`, `check-adr`.
 - **Не для Rego**: `lint-ga.mjs`, `lint-rego.mjs`, `run-*.mjs`, `check-docker`, `check-image-avif`, `check-nginx-default-tpl`, `check-changelog`.
 
-Написано `npm/scripts/lint-conftest.mjs` — єдиний runner, що читає `rules` з `.n-cursor.json`, пропускає GA-поліси (вони у `lint-ga`), і для кожної активної поліси резолвить target-файли (single або walk) та запускає conftest. Скрипт додано до кореневого `lint`.
+Написано `npm/scripts/lint-conftest.mjs` — єдиний runner, що читає `rules` з `.n-cursor.json`, пропускає GA-поліси (вони у `lint-ga`), і для кожної активної поліси визначає target-файли (single або walk) та запускає conftest. Скрипт додано до кореневого `lint`.
 
 Виправлено Rego-трап: `not is_object(missing_field)` повертає `undefined` замість `true` при відсутньому полі — замінено на `object.get(input, "field", false) == false`.
 

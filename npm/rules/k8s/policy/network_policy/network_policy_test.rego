@@ -19,14 +19,14 @@ mock_deployment_egress := [
 
 mock_deployment_ingress := [{"from": [{"podSelector": {}}]}]
 
-# Statefulset mock = deployment + intra-replica (повний канон).
-mock_statefulset_egress := array.concat(mock_deployment_egress, [{"to": [{"podSelector": {"matchLabels": {}}}]}])
+# StatefulSet mock = deployment + intra-replica (повний канон).
+mock_stateful_set_egress := array.concat(mock_deployment_egress, [{"to": [{"podSelector": {"matchLabels": {}}}]}])
 
-mock_statefulset_ingress := array.concat(mock_deployment_ingress, [{"from": [{"podSelector": {"matchLabels": {}}}]}])
+mock_stateful_set_ingress := array.concat(mock_deployment_ingress, [{"from": [{"podSelector": {"matchLabels": {}}}]}])
 
 mock_data := {"template": {
 	"deployment_snippet": {"egress": mock_deployment_egress, "ingress": mock_deployment_ingress},
-	"statefulset_snippet": {"egress": mock_statefulset_egress, "ingress": mock_statefulset_ingress},
+	"stateful_set_snippet": {"egress": mock_stateful_set_egress, "ingress": mock_stateful_set_ingress},
 }}
 
 valid_np := {
@@ -48,8 +48,8 @@ valid_ss_np := {
 	"spec": {
 		"podSelector": {"matchLabels": {"app": "postgres"}},
 		"policyTypes": ["Ingress", "Egress"],
-		"ingress": mock_statefulset_ingress,
-		"egress": mock_statefulset_egress,
+		"ingress": mock_stateful_set_ingress,
+		"egress": mock_stateful_set_egress,
 	},
 }
 
@@ -57,7 +57,7 @@ test_valid_deployment_np if {
 	count(network_policy.deny) == 0 with input as valid_np with data.template as mock_data.template
 }
 
-test_valid_statefulset_np if {
+test_valid_stateful_set_np if {
 	count(network_policy.deny) == 0 with input as valid_ss_np with data.template as mock_data.template
 }
 
@@ -101,17 +101,17 @@ test_allow_extra_egress_rules if {
 	count(network_policy.deny) == 0 with input as ok with data.template as mock_data.template
 }
 
-test_deny_statefulset_missing_intra_replica_egress if {
-	# StatefulSet, але egress = тільки deployment (без intra-replica) → fail з посиланням на statefulset.snippet
+test_deny_stateful_set_missing_intra_replica_egress if {
+	# StatefulSet, але egress = тільки deployment (без intra-replica) → fail з посиланням на stateful_set.snippet
 	bad := json.patch(valid_ss_np, [{"op": "replace", "path": "/spec/egress", "value": mock_deployment_egress}])
 	some msg in network_policy.deny with input as bad with data.template as mock_data.template
-	contains(msg, "statefulset.snippet.yaml")
+	contains(msg, "stateful-set.snippet.yaml")
 }
 
-test_deny_statefulset_missing_intra_replica_ingress if {
+test_deny_stateful_set_missing_intra_replica_ingress if {
 	bad := json.patch(valid_ss_np, [{"op": "replace", "path": "/spec/ingress", "value": mock_deployment_ingress}])
 	some msg in network_policy.deny with input as bad with data.template as mock_data.template
-	contains(msg, "statefulset.snippet.yaml")
+	contains(msg, "stateful-set.snippet.yaml")
 }
 
 test_deny_allow_all_egress_blocked_by_safety_net if {

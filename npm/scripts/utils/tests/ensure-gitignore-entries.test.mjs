@@ -1,5 +1,5 @@
 /**
- * Тести `ensureGitignoreEntries`: idempotent append-only оновлювач .gitignore.
+ * Тести `ensureGitignoreEntries`: idempotent append-only модуль оновлення .gitignore.
  */
 import { describe, expect, test } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'

@@ -13,7 +13,7 @@
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
  *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
- *   `npx \@nitra/cursor lint`        — оркестратор lint-ланцюжка з кореневого `package.json` з тайменгом
+ *   `npx \@nitra/cursor lint`        — оркестратор lint-ланцюжка з кореневого `package.json` з вимірюванням часу
  *                                     кожного `lint-*` / `oxfmt` скрипта (fail-fast); канонічна заміна
  *                                     раніше ручного `lint-ga && lint-js && …` агрегатора.
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
@@ -1456,7 +1456,7 @@ try {
       break
     }
     case 'lint': {
-      // Оркестратор lint-ланцюжка з тайменгом на кожен крок (fail-fast).
+      // Оркестратор lint-ланцюжка з вимірюванням часу на кожен крок (fail-fast).
       // Замінює раніше використовуваний агрегатор `bun run lint-ga && bun run lint-js && …` у root package.json.
       process.exitCode = runLintCli()
 

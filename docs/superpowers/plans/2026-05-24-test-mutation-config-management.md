@@ -279,7 +279,7 @@ In `npm/CHANGELOG.md`: prepend new `## [1.18.0] - 2026-05-24` section with:
 
 - **`test/js/stryker_config.mjs`** — новий JS-концерн: якщо `js-lint` у `.n-cursor.json#rules` і `stryker.config.mjs` відсутній у jsRoot — копіює canonical baseline (mінімум: `testRunner: 'command'`, `commandRunner.command: 'bun test'`, JSON-репортер).
 - **`test/js/cargo_mutants_config.mjs`** — новий JS-концерн: якщо `rust` у `.n-cursor.json#rules` і `.cargo/mutants.toml` відсутній — копіює comment-only baseline.
-- **`scripts/utils/resolve-js-root.mjs`** + **`scripts/utils/resolve-cargo-manifest.mjs`** — спільні резолвери (DRY: реюзяться концернами й coverage-провайдерами).
+- **`scripts/utils/resolve-js-root.mjs`** + **`scripts/utils/resolve-cargo-manifest.mjs`** — спільні модулі визначення (DRY: реюзяться концернами й coverage-провайдерами).
 
 ### Changed
 

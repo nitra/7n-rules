@@ -4,7 +4,7 @@
 
 **Goal:** Перенести структуру JS-частини правил `@nitra/cursor` з вкладеної `npm/rules/<rule>/js/<concern>/check.mjs` на пласку `npm/rules/<rule>/js/<concern>.mjs`. Tests → `js/tests/`, templates → `js/templates/`, data → `js/data/` (JS-specific assets усередині `js/`). Helpers → `<rule>/utils/<helper>.mjs` peer до `js/` (existing convention від `abie/utils/`).
 
-**Architecture:** Концерн — це **файл**, не каталог. `listJsConcerns` сканує `<rule>/js/` на `*.mjs`-файли (виключаючи `.test.mjs`; усі каталоги ігноруються через `!entry.isFile()`). `JsConcern.files` deprecated → drop'нутий (1 файл на концерн); `runRule` обчислює шлях як `js/<concern>.mjs`. JS-specific assets (tests/templates/data) живуть у власних підпапках усередині `js/` — симетрично до того, як rego-тести живуть у `policy/<concern>_test.rego`. Helpers — у peer-каталозі `utils/` поряд з `js/` (продовження existing convention з `npm/rules/abie/utils/` — 8 helpers + `tests/`).
+**Architecture:** Концерн — це **файл**, не каталог. `listJsConcerns` сканує `<rule>/js/` на `*.mjs`-файли (виключаючи `.test.mjs`; усі каталоги ігноруються через `!entry.isFile()`). `JsConcern.files` deprecated → drop'пропуститий (1 файл на концерн); `runRule` обчислює шлях як `js/<concern>.mjs`. JS-specific assets (tests/templates/data) живуть у власних підпапках усередині `js/` — симетрично до того, як rego-тести живуть у `policy/<concern>_test.rego`. Helpers — у peer-каталозі `utils/` поряд з `js/` (продовження existing convention з `npm/rules/abie/utils/` — 8 helpers + `tests/`).
 
 **Tech Stack:** Node.js ESM, Bun 1.3+, `bun:test`, `git mv`, JSDoc, POSIX shell. Без нових deps.
 
@@ -392,7 +392,7 @@ async function migrateOneRule(ruleDir, ruleId) {
 
     // 2. Move helpers → <rule>/utils/<helper>.mjs (peer до js/, плоско)
     //    Якщо ім'я не має namespace-префікса (rule/concern), варто проконтролювати вручну,
-    //    щоб не зіткнутися з існуючими файлами в utils/. Зараз усі helpers вже мають
+    //    щоб не зіткпропуститися з існуючими файлами в utils/. Зараз усі helpers вже мають
     //    префікси (vue-, docker-, mssql-, bun-, bunyan-, check-env-, conn-, promise-).
     for (const entry of entries) {
       if (!entry.isFile()) continue
@@ -1031,7 +1031,7 @@ git reset --hard <hash-before-task-3>
 1. **TDD дисципліна для Task 1, 2** — фікстури тестів спершу, потім код. Не змішуй.
 2. **Migration script (Task 3) — одноразовий**. Не комічай разом з рештою. Окремий комміт → можна revert тільки міграцію, якщо потрібно.
 3. **Один послідовний прогон lint** на сесію — без `&` фону, без паралелі (CLAUDE.md правило `n-lint`).
-4. **Smoke CLI (Task 5)** — якщо abie дає crash, найімовірніша причина — забутий імпорт у helper або в інтеграційному тесті. Stack trace вкаже точку.
+4. **Smoke CLI (Task 5)** — якщо abie дає crash, найімовірніша причина — забутий імпорт у helper або в інтеграційними тестамиму тесті. Stack trace вкаже точку.
 5. **Helpers — у `<rule>/utils/`** (peer до `js/`, не всередині). Discovery в `js/` не торкається `utils/`. Імена helpers — namespace'овані префіксом (rule або concern), щоб у плоскому каталозі не було колізій.
 6. **При rename (Task 3) перевірити `git status` перед запуском** — якщо є untracked файли в `npm/rules/`, спершу їх закомітити або винести з дерева.
 7. **Migration script має guard на utils collision** — якщо два concerns мають helper з однаковим іменем (наприклад обидва називаються `scan.mjs`), скрипт кине помилку й зупиниться. Виправити вручну: перейменувати один із helpers додаючи префікс concern'у.

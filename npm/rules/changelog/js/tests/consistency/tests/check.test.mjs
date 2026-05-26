@@ -22,7 +22,7 @@ const execFileAsync = promisify(execFile)
 /**
  * Викликає `git` із заглушеним global config (для CI).
  * @param {string[]} args аргументи `git`-команди
- * @returns {Promise<void>} резолвиться по завершенню `git`-команди
+ * @returns {Promise<void>} визначається по завершенню `git`-команди
  */
 async function git(args) {
   await execFileAsync(
@@ -66,7 +66,7 @@ async function writePyproject(fields, dir = '.') {
 
 /**
  * Завжди-null стаб (registry недосяжний / пакет не публікувався).
- * @returns {Promise<null>} завжди резолвиться у `null`, імітуючи недоступність npm-реєстру.
+ * @returns {Promise<null>} завжди визначається у `null`, імітуючи недоступність npm-реєстру.
  */
 const offlineStub = () => Promise.resolve(null)
 

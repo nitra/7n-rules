@@ -100,7 +100,7 @@ function packageHasAvifDisabled(pkg) {
  *   `public/`, потім сам корінь пакета (на випадок mono-репо без `public/`), нарешті
  *   `<cwd>/x.png` як legacy fallback (щоб не зламати проєкти з кореневими ассетами).
  * - голий шлях з принаймні одним `/` (`assets/img.png`, `start-page-ua/logo.png`) — у
- *   HTML/Vue браузер резолвить його відносно документа, тому повертаємо relative-to-source
+ *   HTML/Vue браузер визначає його відносно документа, тому повертаємо relative-to-source
  *   та `<packageRoot>/public/<path>` як другий кандидат (Quasar-проєкти кладуть public-assets
  *   саме туди).
  * - bare без `/` (`foo`) — ймовірно alias resolver (Vite/Webpack), резолвити не вміємо,
@@ -165,7 +165,7 @@ function resolveImageCandidates(importPath, sourceAbsPath, packageRootAbs) {
  * хоч одне посилання у `.vue`/`.html` (доповнюється у цій функції)
  * @param {RewriteStats} stats глобальні лічильники, що мутуються тут
  * @param {(msg: string) => void} fail callback при помилці
- * @returns {Promise<void>} резолвиться по завершенню перевірки одного пакета
+ * @returns {Promise<void>} визначається по завершенню перевірки одного пакета
  */
 async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail) {
   const absRoot = join(process.cwd(), packageRoot)

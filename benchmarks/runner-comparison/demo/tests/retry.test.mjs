@@ -10,7 +10,7 @@ describe('retry', () => {
   it('retries until success', async () => {
     let i = 0
     const result = await retry(
-      async () => {
+      () => {
         i += 1
         if (i < 3) throw new Error('boom')
         return 'ok'
@@ -24,7 +24,7 @@ describe('retry', () => {
     let i = 0
     await expect(
       retry(
-        async () => {
+        () => {
           i += 1
           throw new Error(`e${i}`)
         },
@@ -36,7 +36,7 @@ describe('retry', () => {
   it('passes attempt index to fn', async () => {
     const attempts = []
     await retry(
-      async n => {
+      n => {
         attempts.push(n)
         if (n < 2) throw new Error('x')
         return 'ok'
@@ -49,7 +49,7 @@ describe('retry', () => {
     let i = 0
     await expect(
       retry(
-        async () => {
+        () => {
           i += 1
           throw new Error('x')
         },
@@ -62,7 +62,7 @@ describe('retry', () => {
     const start = Date.now()
     let i = 0
     await retry(
-      async () => {
+      () => {
         i += 1
         if (i < 2) throw new Error('x')
         return 'ok'
@@ -75,7 +75,7 @@ describe('retry', () => {
     const start = Date.now()
     let i = 0
     await retry(
-      async () => {
+      () => {
         i += 1
         if (i < 3) throw new Error('x')
         return 'ok'

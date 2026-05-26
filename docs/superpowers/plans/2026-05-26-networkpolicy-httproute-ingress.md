@@ -453,7 +453,7 @@ spec:
 })
 
 test('Service без selector.matchLabels.app → правило не додається (null)', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'np-httproute-noapp-'))
+  const dir = await mkdtemp(join(tmpdir(), 'np-httproute-no-app-'))
   try {
     await writeFile(
       join(dir, 'hr.yaml'),
@@ -663,7 +663,7 @@ Expected:
 /**
  * Канонічний YAML **NetworkPolicy** для workload з іменем `deployName`, міткою `app` і типом `kind`.
  * Snippet обирається за `kind` через `KIND_TO_SNIPPET` (без merge — кожен snippet самодостатній).
- * Анотація `nitra.dev/workload-kind` додається, щоб rego диспатчив на правильний канон.
+ * Анотація `nitra.dev/workload-kind` додається, щоб rego обрав на правильний канон.
  *
  * Якщо `gclbPorts` непорожній — після canon ingress-правил додається одне ingress-правило
  * з фіксованими CIDR-ами (GCP HC global + Envoy data-plane) і відсортованими унікальними TCP-портами
@@ -1073,7 +1073,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 
 ```javascript
 test('workload без HTTPRoute → NP без GCLB-правила (baseline canon)', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'np-e2e-nopair-'))
+  const dir = await mkdtemp(join(tmpdir(), 'np-e2e-no-pair-'))
   try {
     await writeFile(
       join(dir, 'deploy.yaml'),
@@ -1184,7 +1184,7 @@ ingress:
 
 Якщо workload не прив'язаний до жодного HTTPRoute — правило **не** додається; NP лишається baseline (intra-namespace + canon egress). **Не-HTTP routes** (`GRPCRoute`, `TCPRoute`, `TLSRoute`, `UDPRoute`) поки не покриті — додамо в окремому правилі за потреби.
 
-Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`rules/k8s/js/manifests.mjs`** — індексує `HTTPRoute.backendRefs` і `Service` у каталозі, резолвить через `selector.matchLabels.app`, дедуп TCP-портів. Виклики — з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile`.
+Алгоритм: функція `collectHttpRouteIngressForWorkload` у **`rules/k8s/js/manifests.mjs`** — індексує `HTTPRoute.backendRefs` і `Service` у каталозі, визначає через `selector.matchLabels.app`, дедуп TCP-портів. Виклики — з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile`.
 ````
 
 - [ ] **Step 9.3: Update example `base/networkpolicy.yaml`**
@@ -1267,7 +1267,7 @@ cd /Users/vitaliytv/www/nitra/cursor && cat npm/package.json | grep '"version"'
 
 ### Added
 
-- **`k8s/js/manifests.mjs`**: нова `collectHttpRouteIngressForWorkload(dir, appLabel, fail)` — резолвить HTTPRoute → `-hl` Service → `selector.app` mapping і повертає унікальні TCP-порти з `backendRefs[].port` для workload з міткою `appLabel`. Викликається з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` під час `check k8s`.
+- **`k8s/js/manifests.mjs`**: нова `collectHttpRouteIngressForWorkload(dir, appLabel, fail)` — визначає HTTPRoute → `-hl` Service → `selector.app` mapping і повертає унікальні TCP-порти з `backendRefs[].port` для workload з міткою `appLabel`. Викликається з `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` під час `check k8s`.
 - **`k8s/js/manifests.mjs:buildNetworkPolicyYaml`**: опційний 4-й параметр `gclbPorts: number[]` — якщо непорожній, додає ingress-правило з `ipBlock` 35.191.0.0/16, 130.211.0.0/22, 10.0.0.0/8 і TCP-портами (відсортовано). Без параметра output байтово ідентичний baseline canon.
 - **`k8s.mdc` v1.42**: новий розділ «HTTPRoute → NetworkPolicy ingress (GCLB + Envoy)» з описом mapping і прикладом NetworkPolicy для HTTPRoute-paired workload.
 
