@@ -1,0 +1,19 @@
+npm/.claude-template/hooks/lib/tooling-only.sh
+  s_5138c4fa1bdd21::t_f8c7e23e4691c7 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "bfc57006ab0a19bd04d7669e02c83c139c43a7e3",
+  "prompts": {},
+  "sessions": {
+    "s_5138c4fa1bdd21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8af04b2-e03a-4179-945c-835db4632de9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
