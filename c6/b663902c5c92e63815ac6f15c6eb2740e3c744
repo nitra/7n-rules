@@ -1,0 +1,37 @@
+npm/.claude-template/hooks/capture-decisions.sh
+  s_5138c4fa1bdd21::t_8faf7b721ecba4 37-40
+npm/bin/n-cursor.js
+  s_5138c4fa1bdd21::t_84c92637613354 1404-1408
+npm/CHANGELOG.md
+  s_5138c4fa1bdd21::t_faad519f5f5793 7-22
+npm/scripts/sync-claude-config.mjs
+  s_5138c4fa1bdd21::t_f26b545975c890 607,617,630,640-644,660
+  s_5138c4fa1bdd21::t_3e13ac5638215b 64
+  s_5138c4fa1bdd21::t_1f00ff2628119e 419-462
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_5138c4fa1bdd21::t_6855a1611a73e5 23-24
+  s_5138c4fa1bdd21::t_5dde48b2cf3df7 42-47
+  s_5138c4fa1bdd21::t_a690e4d60e5847 336
+  s_5138c4fa1bdd21::t_64734bb75ef611 517-532,542-631
+  s_5138c4fa1bdd21::t_5fbb4cc614ff3c 533-541
+npm/package.json
+  s_5138c4fa1bdd21::t_b1b1ebdfe8f32e 3
+npm/.claude-template/hooks/normalize-decisions.sh
+  s_5138c4fa1bdd21::t_ae62e1d95aff99 42-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "c6b663902c5c92e63815ac6f15c6eb2740e3c744",
+  "prompts": {},
+  "sessions": {
+    "s_5138c4fa1bdd21": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c8af04b2-e03a-4179-945c-835db4632de9",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
