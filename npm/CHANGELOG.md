@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.26.2] - 2026-05-26
+
+### Changed
+
+- **`rules/js-lint/policy/jscpd/template/.jscpd.json.snippet.json`**: канон тепер містить поле `ignore` із трьома обов'язковими патернами — `.claude/worktrees/**`, `**/dist/**`, `**/CHANGELOG.md`. `**/CHANGELOG.md` додано тому, що release-журнали різних пакетів структурно повторюються (заголовки `## [x.y.z] - YYYY-MM-DD`, секції `### Added` / `### Changed` / `### Fixed` за Keep a Changelog) і `jscpd` при `minLines: 25` фіксує їх як клон — false positive (кожен `CHANGELOG.md` per-package за каноном `n-changelog`). Існуючий rego (`policy/jscpd/jscpd.rego`) уже застосовує subset-of до будь-якого масиву в снипеті, тож зміна не потребує правок коду — лише новий test-case у `jscpd_test.rego`.
+- **`rules/js-lint/js-lint.mdc` v1.26**: оновлено приклад `.jscpd.json` і опис під ним (тепер посилається на снипет як source of truth і пояснює, чому `**/CHANGELOG.md` у каноні).
+
 ## [1.26.1] - 2026-05-26
 
 ### Fixed

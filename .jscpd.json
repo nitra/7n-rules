@@ -5,6 +5,8 @@
   "reporters": ["console"],
   "ignore": [
     ".claude/worktrees/**",
+    "**/dist/**",
+    "**/CHANGELOG.md",
     "**/.stryker-tmp/**",
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
