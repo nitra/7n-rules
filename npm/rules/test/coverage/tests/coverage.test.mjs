@@ -71,15 +71,15 @@ describe('renderMarkdown', () => {
     expect(md.endsWith('\n')).toBe(true)
   })
 
-  test('рядки без survived не додають розділ Recommendations', () => {
+  test('рядки без survived не додають розділ Вижилі мутанти', () => {
     const rows = [
       { area: 'JS', coverage: { lines: { covered: 10, total: 10 }, functions: { covered: 5, total: 5 } }, mutation: { caught: 5, total: 5 } }
     ]
     const md = renderMarkdown(rows)
-    expect(md).not.toContain('## Recommendations')
+    expect(md).not.toContain('## Вижилі мутанти')
   })
 
-  test('додає секцію Recommendations як таблицю коли є survived мутанти', () => {
+  test('додає секцію Вижилі мутанти з таблицею коли є survived мутанти', () => {
     const rows = [
       {
         area: 'JS',
@@ -99,7 +99,8 @@ describe('renderMarkdown', () => {
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Recommendations')
+    expect(md).toContain('## Вижилі мутанти')
+    expect(md).not.toContain('## Recommendations')
     expect(md).toContain('### src/auth.js')
     expect(md).toContain('| 12 |')
     expect(md).toContain('ConditionalExpression')
@@ -108,49 +109,73 @@ describe('renderMarkdown', () => {
 })
 
 describe('renderMarkdown — секція вижилих мутантів', () => {
-  test('додає секцію ## Recommendations коли survived непустий', () => {
+  const survivedFixture = [
+    {
+      file: 'src/auth.js',
+      mutants: [
+        { line: 12, col: 0, mutantType: 'ConditionalExpression', original: 'if (x === null)', replacement: 'false' },
+        { line: 15, col: 0, mutantType: 'BooleanLiteral', original: 'return true', replacement: 'return false' }
+      ],
+      exampleTest: null,
+      recommendationText: null
+    }
+  ]
+
+  test('секція називається "Вижилі мутанти", а не "Recommendations"', () => {
     const rows = [
       {
         area: 'JS',
-        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
-        mutation: { caught: 1, total: 2 },
-        survived: [
-          {
-            file: 'src/foo.js',
-            mutants: [{ line: 5, col: 10, mutantType: 'ConditionalExpression', original: 'x !== null', replacement: 'false' }],
-            exampleTest: null,
-            recommendationText: null
-          }
-        ]
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 5 },
+        survived: survivedFixture
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('## Recommendations')
-    expect(md).toContain('### src/foo.js')
-    expect(md).toContain('| Рядок | Оригінал | Заміна | Тип |')
-    expect(md).toContain('| 5 |')
-    expect(md).toContain('ConditionalExpression')
-    expect(md).toContain('x !== null')
+    expect(md).toContain('## Вижилі мутанти')
+    expect(md).not.toContain('## Recommendations')
   })
 
-  test('НЕ додає секцію коли survived порожній або відсутній', () => {
+  test('містить ```json блок з масивом survived, придатний для /n-fix-tests', () => {
     const rows = [
       {
         area: 'JS',
-        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
-        mutation: { caught: 2, total: 2 },
-        survived: []
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 5 },
+        survived: survivedFixture
       }
     ]
-    expect(renderMarkdown(rows)).not.toContain('## Recommendations')
-    const rows2 = [
+    const md = renderMarkdown(rows)
+    const jsonMatch = md.match(/```json\n([\s\S]*?)\n```/)
+    expect(jsonMatch).not.toBeNull()
+    const parsed = JSON.parse(jsonMatch[1])
+    expect(parsed).toEqual(survivedFixture)
+  })
+
+  test('людиночитабельна таблиця залишається після JSON-блоку', () => {
+    const rows = [
       {
         area: 'JS',
-        coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } },
-        mutation: { caught: 2, total: 2 }
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 5 },
+        survived: survivedFixture
       }
     ]
-    expect(renderMarkdown(rows2)).not.toContain('## Recommendations')
+    const md = renderMarkdown(rows)
+    expect(md).toContain('### src/auth.js')
+    expect(md).toContain('| Рядок | Оригінал | Заміна | Тип |')
+    expect(md).toContain('| 12 |')
+    expect(md).toContain('ConditionalExpression')
+  })
+
+  test('НЕ додає секцію коли survived порожній або відсутній', () => {
+    const rowsEmpty = [
+      { area: 'JS', coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } }, mutation: { caught: 2, total: 2 }, survived: [] }
+    ]
+    expect(renderMarkdown(rowsEmpty)).not.toContain('## Вижилі мутанти')
+    const rowsNone = [
+      { area: 'JS', coverage: { lines: { covered: 50, total: 100 }, functions: { covered: 10, total: 20 } }, mutation: { caught: 2, total: 2 } }
+    ]
+    expect(renderMarkdown(rowsNone)).not.toContain('## Вижилі мутанти')
   })
 })
 

@@ -92,7 +92,12 @@ export function renderMarkdown(rows) {
 
   const allSurvived = rows.flatMap(r => r.survived ?? [])
   if (allSurvived.length > 0) {
-    lines.push('', '## Recommendations')
+    lines.push('', '## Вижилі мутанти')
+    // JSON-блок для /n-fix-tests skill — парситься скілом для написання тестів
+    lines.push('', '```json')
+    lines.push(JSON.stringify(allSurvived, null, 2))
+    lines.push('```')
+    // Людиночитабельна таблиця
     for (const group of allSurvived) {
       lines.push('', `### ${group.file}`, '')
       lines.push('| Рядок | Оригінал | Заміна | Тип |')
