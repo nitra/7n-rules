@@ -9,7 +9,7 @@
  *
  * Валідації `lint-image`/deps/`.gitignore` тестує `check-image-compress.test.mjs`.
  */
-import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

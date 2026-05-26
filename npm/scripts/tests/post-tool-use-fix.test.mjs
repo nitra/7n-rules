@@ -9,35 +9,23 @@
  * `npx @nitra/cursor post-tool-use-fix`: парсить stdin JSON, дістає `tool_input.file_path`,
  * передає у `routeFilePathToRules` і за наявності правил spawn'ить `npx @nitra/cursor fix <rules>`.
  */
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, vi, test } from 'vitest'
+import { EventEmitter } from 'node:events'
 
 import { routeFilePathToRules, runPostToolUseFixCli } from '../post-tool-use-fix.mjs'
 
 /**
- * Будує мінімальний duck-typed "child" із addListener/removeListener, що асинхронно
- * емітить `exit`. `events.once(child, 'exit')` у src отримає `[exitCode]`.
- * Реалізуємо без `EventEmitter`/`EventTarget`, щоб не тягти Node-only клас у тести.
+ * Будує мінімальний EventEmitter-сумісний "child", що асинхронно емітить `exit`.
+ * `events.once(child, 'exit')` у src отримає `[exitCode]`. Node-у `events.once`
+ * вимагає інстанс EventEmitter — duck-typing не приймає.
  * @param {number} exitCode код, який емітнути в `exit`
- * @returns {{ addListener: (name: string, cb: (...args: unknown[]) => void) => void, removeListener: (name: string, cb: (...args: unknown[]) => void) => void }} fake child
+ * @returns {EventEmitter} fake child
  */
 function makeFakeChild(exitCode) {
-  /** @type {Record<string, Array<(...args: unknown[]) => void>>} */
-  const listeners = { exit: [], error: [] }
-  setImmediate(() => {
-    for (const cb of listeners.exit) cb(exitCode)
-  })
-  return {
-    addListener(name, cb) {
-      if (!listeners[name]) listeners[name] = []
-      listeners[name].push(cb)
-    },
-    removeListener(name, cb) {
-      const arr = listeners[name]
-      if (!arr) return
-      const i = arr.indexOf(cb)
-      if (i !== -1) arr.splice(i, 1)
-    }
-  }
+  // eslint-disable-next-line unicorn/prefer-event-target -- node:events.once() приймає лише EventEmitter, не EventTarget
+  const child = new EventEmitter()
+  setImmediate(() => child.emit('exit', exitCode))
+  return child
 }
 
 describe('routeFilePathToRules', () => {
@@ -121,7 +109,7 @@ describe('routeFilePathToRules', () => {
 
 describe('runPostToolUseFixCli', () => {
   test('коли file_path → правила, спавнить `npx @nitra/cursor fix <rules>` і повертає його код', async () => {
-    const spawnFn = mock(() => makeFakeChild(0))
+    const spawnFn = vi.fn(() => makeFakeChild(0))
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/foo.mjs' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(0)
@@ -132,7 +120,7 @@ describe('runPostToolUseFixCli', () => {
   })
 
   test('коли file_path не маршрутизується (LICENSE) — exit 0, без spawn', async () => {
-    const spawnFn = mock(() => makeFakeChild(1))
+    const spawnFn = vi.fn(() => makeFakeChild(1))
     const stdinJson = JSON.stringify({ tool_name: 'Write', tool_input: { file_path: 'LICENSE' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(0)
@@ -140,21 +128,21 @@ describe('runPostToolUseFixCli', () => {
   })
 
   test('коли stdin порожній — exit 0, без spawn', async () => {
-    const spawnFn = mock(() => makeFakeChild(0))
+    const spawnFn = vi.fn(() => makeFakeChild(0))
     const code = await runPostToolUseFixCli({ stdinJson: '', spawnFn })
     expect(code).toBe(0)
     expect(spawnFn).not.toHaveBeenCalled()
   })
 
   test('коли stdin невалідний JSON — exit 0, без spawn', async () => {
-    const spawnFn = mock(() => makeFakeChild(1))
+    const spawnFn = vi.fn(() => makeFakeChild(1))
     const code = await runPostToolUseFixCli({ stdinJson: 'not-json', spawnFn })
     expect(code).toBe(0)
     expect(spawnFn).not.toHaveBeenCalled()
   })
 
   test('коли tool_input.file_path відсутній — exit 0, без spawn', async () => {
-    const spawnFn = mock(() => makeFakeChild(1))
+    const spawnFn = vi.fn(() => makeFakeChild(1))
     const stdinJson = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'echo' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(0)
@@ -162,7 +150,7 @@ describe('runPostToolUseFixCli', () => {
   })
 
   test('.vue файл → spawn з трьома правилами в порядку маршруту', async () => {
-    const spawnFn = mock(() => makeFakeChild(0))
+    const spawnFn = vi.fn(() => makeFakeChild(0))
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/App.vue' } })
     await runPostToolUseFixCli({ stdinJson, spawnFn })
     const [, args] = spawnFn.mock.calls[0]
@@ -170,7 +158,7 @@ describe('runPostToolUseFixCli', () => {
   })
 
   test('код виходу `fix` пробрасується назовні', async () => {
-    const spawnFn = mock(() => makeFakeChild(2))
+    const spawnFn = vi.fn(() => makeFakeChild(2))
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'foo.mjs' } })
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(2)

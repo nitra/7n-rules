@@ -1,7 +1,7 @@
 /**
  * Тести фільтрації імен Dockerfile / *.Dockerfile та збору шляхів.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

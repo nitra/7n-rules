@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs'
 
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { OXLINT_CANONICAL_JSON_PATH, verifyOxlintRcAgainstCanonical } from '../tooling.mjs'
 

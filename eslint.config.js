@@ -16,5 +16,18 @@ export default [
         ...globals.node
       }
     }
+  },
+  // npm-module rule забороняє devDependencies у npm/package.json (compact published
+  // tarball), тож vitest stack живе у кореневому package.json і резолвиться через
+  // bun hoisted node_modules. `n/no-extraneous-import` цього не бачить — allowModules
+  // ставить exception лише для канонічного vitest-runner baseline (test.mdc).
+  {
+    files: ['npm/**/*.{js,mjs,cjs}'],
+    rules: {
+      'n/no-extraneous-import': [
+        'error',
+        { allowModules: ['vitest', '@vitest/coverage-v8', '@stryker-mutator/vitest-runner'] }
+      ]
+    }
   }
 ]

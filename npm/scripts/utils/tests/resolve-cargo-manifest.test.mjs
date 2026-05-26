@@ -2,7 +2,7 @@
  * Тести `resolveCargoManifest`: знаходить Cargo.toml у cwd, у workspace-flat
  * або у Tauri-патерні (`<workspace>/src-tauri/`). Повертає null без manifest.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

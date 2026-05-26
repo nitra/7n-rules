@@ -2,8 +2,8 @@
  * Тести run-dotenv-linter.mjs: авто-фікс і фінальний check через рекурсивний режим
  * `dotenv-linter` з виключенням `node_modules` і `.envrc`.
  */
-import { describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { describe, expect, test } from 'vitest'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { runDotenvLinter } from '../run-dotenv-linter.mjs'
@@ -29,7 +29,7 @@ describe('run-dotenv-linter.mjs', () => {
     await withTmpCwd(async () => {
       await writeFile('.env', 'foo=bar\n', 'utf8')
       expect(runDotenvLinter(process.cwd())).toBe(0)
-      const fixed = await Bun.file(join(process.cwd(), '.env')).text()
+      const fixed = await readFile(join(process.cwd(), '.env'), 'utf8')
       expect(fixed).toContain('FOO=bar')
     })
   })

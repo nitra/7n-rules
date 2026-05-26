@@ -1,7 +1,7 @@
 /**
  * Тести check-js-bun-db в ізольованих тимчасових каталогах.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from '../safety.mjs'

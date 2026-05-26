@@ -3,7 +3,7 @@
  * у `.n-cursor.json#rules`, side-effect-копіює canonical baseline у jsRoot
  * якщо stryker.config.mjs відсутній.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

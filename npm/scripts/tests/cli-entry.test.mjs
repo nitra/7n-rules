@@ -6,7 +6,7 @@
  * caller'а» не працює: `import.meta.url` лексично прив'язаний до файла, де записаний,
  * а helper-функція бачить власний URL, не URL виклику.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'

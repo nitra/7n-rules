@@ -1,7 +1,7 @@
 /**
  * Тести `ensureGitignoreEntries`: idempotent append-only оновлювач .gitignore.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

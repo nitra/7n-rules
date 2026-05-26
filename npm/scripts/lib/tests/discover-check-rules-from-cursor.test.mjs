@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { discoverCheckRulesFromCursorRules, mdcBasenameToCheckId } from '../discover-check-rules-from-cursor.mjs'
 

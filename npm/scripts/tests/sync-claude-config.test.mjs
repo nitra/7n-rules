@@ -6,10 +6,12 @@
  * Legacy Stop-hook (`@nitra/cursor stop-hook`) усе ще ідентифікується як managed,
  * щоб при оновленні старих інсталяцій автоматично прибиратись.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   ADR_GITIGNORE_SNIPPET_REL,
@@ -26,6 +28,8 @@ import {
   syncGitignoreAdrFragment
 } from '../sync-claude-config.mjs'
 import { withTmpCwd, writeJson } from '../utils/test-helpers.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
 
 const TEMPLATE_REL = 'pkg/.claude-template'
 
@@ -617,20 +621,17 @@ exit 0
       const pkgRoot = await setupTemplate(cwdAbs, {
         captureDecisionsSh: captureBody,
         toolingOnlyLib: await readFile(
-          join(import.meta.dir, '..', '..', '.claude-template', 'hooks', 'lib', 'tooling-only.sh'),
+          join(HERE, '..', '..', '.claude-template', 'hooks', 'lib', 'tooling-only.sh'),
           'utf8'
         )
       })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
-      const proc = Bun.spawn(['bash', join(cwdAbs, '.claude/hooks/capture-decisions.sh')], {
+      const { status } = spawnSync('bash', [join(cwdAbs, '.claude/hooks/capture-decisions.sh')], {
         cwd: cwdAbs,
-        stdin: 'pipe',
-        stdout: 'pipe',
-        stderr: 'pipe'
+        input: '',
+        encoding: 'utf8'
       })
-      proc.stdin.end()
-      const code = await proc.exited
-      expect(code).toBe(0)
+      expect(status).toBe(0)
     })
   })
 })

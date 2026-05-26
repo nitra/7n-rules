@@ -7,7 +7,7 @@
  * `npm/policy/bun/`. Тут лишилося лише FS / cross-file (`bun.lock`, `bunfig.toml`,
  * заборонені lockfile, інтеграція з `.n-cursor.json:rules`).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from '../layout.mjs'

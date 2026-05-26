@@ -1,7 +1,7 @@
 /**
  * Тести check-js-run на workspace-пакетах.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

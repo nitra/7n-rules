@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { describe, expect, mock, test } from 'bun:test'
+import { describe, expect, vi, test } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import {
   baseKustomizationNamespaceViolation,
@@ -2352,7 +2352,7 @@ describe('collectHttpRouteIngressForWorkload', () => {
   test('каталог без YAML → null', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'np-httproute-empty-'))
     try {
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toBeNull()
       expect(fail).not.toHaveBeenCalled()
@@ -2401,7 +2401,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toEqual({ ports: [8080] })
       expect(fail).not.toHaveBeenCalled()
@@ -2446,7 +2446,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toEqual({ ports: [8080, 9090] })
     } finally {
@@ -2504,7 +2504,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'db-h', fail)
       expect(result).toEqual({ ports: [8080] })
     } finally {
@@ -2543,7 +2543,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toBeNull()
     } finally {
@@ -2559,7 +2559,7 @@ spec:
         'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n  bad: : : indent\n',
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toBeNull()
       expect(fail).toHaveBeenCalled()
@@ -2603,7 +2603,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(result).toBeNull()
     } finally {
@@ -2667,7 +2667,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const ports = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
       expect(ports).toEqual({ ports: [8080] })
       const yamlContent = buildNetworkPolicyYaml('foo', 'foo', 'Deployment', ports.ports)
@@ -2705,7 +2705,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const ports = await collectHttpRouteIngressForWorkload(dir, 'lonely', fail)
       expect(ports).toBeNull()
       const yamlContent = buildNetworkPolicyYaml('lonely', 'lonely', 'Deployment', ports?.ports)
@@ -2775,7 +2775,7 @@ spec:
 `,
         'utf8'
       )
-      const fail = mock(msg => msg)
+      const fail = vi.fn(msg => msg)
       const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
       expect(changed).toBe(true)
       const written = await readFile(npAbs, 'utf8')

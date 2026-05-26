@@ -2,7 +2,7 @@
  * Тест preflight у `runLintTextCli`: коли `shellcheck`, `patch` і `dotenv-linter` відсутні
  * в PATH — exit 1 і підказки встановлення для кожного.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'

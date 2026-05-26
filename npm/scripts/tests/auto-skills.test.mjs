@@ -5,7 +5,7 @@
  * від файлів проєкту. Це навмисне: умови `adr-normalize` й `taze` дзеркалять умови
  * правил `adr` й `bun`, тож не дублюються.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { detectAutoSkills } from '../auto-skills.mjs'
 

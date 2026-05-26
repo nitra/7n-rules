@@ -1,7 +1,7 @@
 /**
  * Тести package-manifest.mjs — парсинг pyproject.toml і readPackageManifest.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import { parsePyprojectFields, readPackageManifest } from '../../../../lib/package-manifest.mjs'

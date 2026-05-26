@@ -12,7 +12,7 @@
  *
  * AVIF-генерацію та переписування `.vue`/`.html` тестує `check-image-avif.test.mjs`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from '../package_setup.mjs'

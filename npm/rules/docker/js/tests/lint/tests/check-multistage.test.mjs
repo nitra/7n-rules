@@ -1,7 +1,7 @@
 /**
  * Тести вимоги multistage build і дозволеного фінального runtime stage (alpine, nginx, scratch, debian slim, …).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { getMultistageAndRuntimeHint, parseFromStages } from '../../../lint.mjs'
 

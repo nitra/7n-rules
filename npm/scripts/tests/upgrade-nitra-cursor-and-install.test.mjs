@@ -3,7 +3,7 @@
  * до node_modules, парсинг відповіді npm (через mock fetch).
  */
 
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, describe, expect, vi, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -64,7 +64,7 @@ describe('fetchLatestNitraCursorVersionFromNpm', () => {
   })
 
   test('повертає version з тіла відповіді', async () => {
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ version: '1.2.99' })
@@ -75,7 +75,7 @@ describe('fetchLatestNitraCursorVersionFromNpm', () => {
   })
 
   test('кидає при не-ok', async () => {
-    globalThis.fetch = mock(() =>
+    globalThis.fetch = vi.fn(() =>
       Promise.resolve({
         ok: false,
         status: 500,

@@ -2,7 +2,7 @@
  * Юніт-тести для нейминга файлів у `#conn/` (js-run.mdc → «Нейминг файлів у `src/conn/`»):
  * валідація `ql-` / `pg-` / `mysql-` / `mssql-` та camelCase-перетворення basename.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { findConnFileRuleViolations, isConnFileNameValid, kebabToCamel } from '../../../../lib/conn-file-rules.mjs'
 

@@ -1,7 +1,7 @@
 /**
  * Тести перевірки `mirror.gcr.io` для образів oven/bun, alpine, nginx, node (Docker Hub).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   getFromImageToken,

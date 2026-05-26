@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { runRenameYamlExtensionsCli } from '../../bin/rename-yaml-extensions.mjs'
 import {

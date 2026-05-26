@@ -1,7 +1,7 @@
 /**
  * Тести `createCheckReporter`: накопичення коду виходу та вивід помилок.
  */
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, describe, expect, vi, test } from 'vitest'
 
 import { createCheckReporter } from '../check-reporter.mjs'
 
@@ -20,7 +20,7 @@ describe('createCheckReporter', () => {
 
   test('після fail getExitCode 1 і друкується ❌', () => {
     const lines = []
-    console.log = mock((...args) => {
+    console.log = vi.fn((...args) => {
       lines.push(args.join(' '))
     })
     const r = createCheckReporter()

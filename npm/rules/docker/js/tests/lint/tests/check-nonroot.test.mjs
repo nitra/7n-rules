@@ -1,7 +1,7 @@
 /**
  * Тести вимоги non-root у фінальному runtime stage.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { getNonRootRuntimeHint } from '../../../lint.mjs'
 

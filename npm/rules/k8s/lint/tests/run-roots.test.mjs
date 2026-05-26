@@ -2,7 +2,7 @@
  * Тести пошуку коренів каталогів `k8s` для run-k8s.
  */
 import { tmpdir } from 'node:os'
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

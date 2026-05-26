@@ -1,7 +1,7 @@
 /**
  * Модульні тести для AST-сканера правила «process.env / CheckEnv» (js-run.mdc).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from '../../../../lib/check-env-scan.mjs'
 

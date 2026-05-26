@@ -1,7 +1,7 @@
 /**
  * Тести check-hasura: парсер внутрішнього URL, фільтр `*.env`, гілки nitra/abie.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

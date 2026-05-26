@@ -1,7 +1,7 @@
 /**
  * Тести допоміжних функцій rules/nginx-default-tpl/fix.mjs (HTTPRoute, ini, шаблон).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

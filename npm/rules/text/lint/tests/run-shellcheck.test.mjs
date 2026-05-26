@@ -1,8 +1,8 @@
 /**
  * Тести run-shellrules/text/fix.mjs: авто-виправлення через diff+patch і фінальний shellcheck.
  */
-import { describe, expect, test } from 'bun:test'
-import { writeFile } from 'node:fs/promises'
+import { describe, expect, test } from 'vitest'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck.mjs'
@@ -34,7 +34,7 @@ echo $1
         'utf8'
       )
       expect(runShellcheckText(process.cwd())).toBe(0)
-      const fixed = await Bun.file(join(process.cwd(), 'fixme.sh')).text()
+      const fixed = await readFile(join(process.cwd(), 'fixme.sh'), 'utf8')
       expect(fixed).toContain('echo "$1"')
     })
   })

@@ -4,7 +4,7 @@
  * `library/nginx` тут не перевіряється — правило `docker.mdc` (frontend-розділ і «Мінімальні образи») забороняє цей образ
  * повністю (треба `nginxinc/nginx-unprivileged`); сам факт `FROM library/nginx:*` рубає `getMultistageAndRuntimeHint`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { getNginxAlpineSlimTagHint } from '../../../lint.mjs'
 

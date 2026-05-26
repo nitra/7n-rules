@@ -1,7 +1,7 @@
 /**
  * Модульні тести для сканування заборонених імпортів з `vue` (vue.mdc / check-vue), парсер — oxc-parser.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   contentForVueImportScan,

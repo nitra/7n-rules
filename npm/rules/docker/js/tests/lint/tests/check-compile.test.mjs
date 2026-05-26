@@ -1,7 +1,7 @@
 /**
  * Тести вимоги компіляції (bun build --compile) для backend Dockerfile з bun install.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { getBunCompileHint } from '../../../lint.mjs'
 

@@ -7,7 +7,7 @@
  * Інші розділи `check()` (TypeScript layout, hk, npm-publish workflow, CHANGELOG, dirty-bump)
  * покриті інтеграційними прогонами через `integration-repo-checks.test.mjs`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

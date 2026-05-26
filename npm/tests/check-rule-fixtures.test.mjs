@@ -1,7 +1,7 @@
 /**
  * Тести check-vue, check-style-lint, check-nginx у штучних мінімальних проєктах (у репозиторії cursor ці правила не повністю застосовані).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { copyFile, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'

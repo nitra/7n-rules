@@ -6,7 +6,7 @@
  * — він не викликається; для гейт-тестів `applies()` цього достатньо. Окремий інтеграційний прогін на
  * правилі `rego` зробимо у `check`-фікстурі.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

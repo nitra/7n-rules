@@ -1,7 +1,7 @@
 /**
  * Тести rules/capacitor/fix.mjs: semver-підмноги, обхід `package.json` і iOS.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import {

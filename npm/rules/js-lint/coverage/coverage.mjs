@@ -22,15 +22,18 @@ const VITEST_HINT =
 /**
  * Чи у пакеті встановлено vitest (через dependencies або devDependencies).
  * @param {{dependencies?: Record<string,string>, devDependencies?: Record<string,string>}} pkg package.json
- * @returns {boolean}
+ * @returns {boolean} true, якщо `vitest` декларовано хоча б в одному dep-section
  */
 function hasVitestDep(pkg) {
   return Boolean(pkg.devDependencies?.vitest) || Boolean(pkg.dependencies?.vitest)
 }
 
 /**
- * Чи провайдер застосовний у поточному cwd. Активується, коли у JS-root знайдено
- * `vitest` як залежність — інакше silent skip із hint у stderr (одноразово).
+ * Чи провайдер застосовний у поточному cwd. Активується, коли `vitest`
+ * декларовано у JS-root АБО у кореневому `package.json` (workspace-проєкт із
+ * hoisted node_modules — типовий патерн bun monorepo, де npm-module rule
+ * забороняє devDeps у published workspace-у, тож вони живуть у корені).
+ * Інакше silent skip із hint у stderr (одноразово).
  * @param {string} cwd корінь проєкту
  * @returns {Promise<boolean>} true, якщо проєкт сумісний з vitest-based coverage
  */
@@ -40,14 +43,19 @@ export async function detect(cwd) {
   const pkgPath = join(jsRoot, 'package.json')
   if (!existsSync(pkgPath)) return false
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-  if (!hasVitestDep(pkg)) {
-    if (!detect._hinted) {
-      console.error(VITEST_HINT)
-      detect._hinted = true
+  if (hasVitestDep(pkg)) return true
+  if (jsRoot !== cwd) {
+    const rootPkgPath = join(cwd, 'package.json')
+    if (existsSync(rootPkgPath)) {
+      const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
+      if (hasVitestDep(rootPkg)) return true
     }
-    return false
   }
-  return true
+  if (!detect._hinted) {
+    console.error(VITEST_HINT)
+    detect._hinted = true
+  }
+  return false
 }
 
 /**

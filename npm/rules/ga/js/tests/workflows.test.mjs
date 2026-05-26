@@ -3,7 +3,7 @@
  *
  * Реальний `shellcheck` ніколи не запускається — лише стаб у тимчасовому каталозі, доданому в `PATH`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 

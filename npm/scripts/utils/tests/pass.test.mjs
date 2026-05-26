@@ -1,7 +1,7 @@
 /**
  * Тести допоміжного виводу `pass`.
  */
-import { afterEach, describe, expect, mock, test } from 'bun:test'
+import { afterEach, describe, expect, vi, test } from 'vitest'
 
 import { pass } from '../pass.mjs'
 
@@ -14,7 +14,7 @@ describe('pass', () => {
 
   test('друкує префікс успіху та повідомлення', () => {
     const lines = []
-    console.log = mock((...args) => {
+    console.log = vi.fn((...args) => {
       lines.push(args.join(' '))
     })
     pass('тест ок')

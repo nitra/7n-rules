@@ -1,7 +1,7 @@
 /**
  * Тести дописування `\@nitra/cursor` у `devDependencies` workspace-root package.json.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

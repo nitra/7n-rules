@@ -1,7 +1,7 @@
 /**
  * Тести нормалізації workspaces і збору коренів пакетів монорепо.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 

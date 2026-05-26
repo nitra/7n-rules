@@ -2,7 +2,7 @@
  * Модульні тести AST-сканера паттерна `new Promise(resolve => setTimeout(resolve, ms))`
  * для js-run.mdc, секція «Паузи через setTimeout». Парсер — oxc-parser.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   findPromiseSetTimeoutInText,

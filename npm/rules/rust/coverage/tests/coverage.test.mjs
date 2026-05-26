@@ -3,7 +3,7 @@
  * у cwd або workspace-підкаталозі; collect() спавнить cargo llvm-cov +
  * cargo-mutants, парсить JSON-виводи. collect() тестується з ін'єктованим runner-ом.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

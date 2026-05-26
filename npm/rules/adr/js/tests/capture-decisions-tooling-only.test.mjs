@@ -4,7 +4,7 @@
  * `cursor-agent` хук виходить мовчки). Розрізнюємо tooling-only vs normal по логу
  * + фактом створення `docs/adr/*.md`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'

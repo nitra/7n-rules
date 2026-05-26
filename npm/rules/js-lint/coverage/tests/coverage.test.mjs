@@ -4,7 +4,7 @@
  * collect() спавнить vitest run --coverage + Stryker (vitest-runner perTest), парсить
  * lcov і mutation.json — тестується з ін'єктованим runner-ом.
  */
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -50,6 +50,18 @@ describe('js-lint coverage detect()', () => {
 
   test('повертає true коли vitest у workspace-пакеті', async () => {
     const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } }, { workspaceRoot: true })
+    expect(await detect(dir)).toBe(true)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('повертає true коли vitest у кореневому package.json, відсутній у workspace (hoisted bun monorepo)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-root-'))
+    mkdirSync(join(dir, 'app'), { recursive: true })
+    writeFileSync(
+      join(dir, 'package.json'),
+      JSON.stringify({ workspaces: ['app'], devDependencies: { vitest: '^2.0.0' } })
+    )
+    writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app' }))
     expect(await detect(dir)).toBe(true)
     rmSync(dir, { recursive: true, force: true })
   })

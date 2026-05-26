@@ -1,7 +1,7 @@
 /**
  * Тести шляхів hadolint (`posixRel`); виклик hadolint/docker не перевіряється (залежність від середовища).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
 import { HADOLINT_IMAGE, posixRel } from '../../../../lib/docker-hadolint.mjs'

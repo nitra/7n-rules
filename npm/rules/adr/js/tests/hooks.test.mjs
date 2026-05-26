@@ -5,7 +5,7 @@
  * Канонічний bundled-скрипт читається з реального пакета (`npm/.claude-template/hooks/`),
  * тому перші тести копіюють його у tmp `.claude/hooks/` для збігу байт-у-байт.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'

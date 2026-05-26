@@ -1,7 +1,7 @@
 /**
  * Мінімальний тестовий каталог для check-text (oxfmt, cspell, markdownlint-cli2 через bunx у lint-text, v8r).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { abieEnvNameFromBasename, validateAbieEnvInternalUrls } from '../env-dns.mjs'
 

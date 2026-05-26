@@ -1,7 +1,7 @@
 /**
  * Інтеграційні тести: check-* проти кореня репозиторію nitra/cursor (без правил, що тут навмисно не застосовані).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

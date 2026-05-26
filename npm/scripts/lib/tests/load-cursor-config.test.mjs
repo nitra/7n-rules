@@ -2,7 +2,7 @@
  * Тести `loadCursorIgnorePaths` — читання поля `ignore` з `.n-cursor.json`,
  * нормалізація шляхів, безпечна поведінка за відсутності файлу/поля.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { sep } from 'node:path'
 

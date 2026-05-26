@@ -1,7 +1,7 @@
 /**
  * Тести виявлення **`gql\`…\``** у тексті джерел (graphql.mdc / graphql-gql-scan.mjs).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
 

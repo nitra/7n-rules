@@ -1,7 +1,7 @@
 /**
  * Модульні тести для `gha-workflow.mjs` (YAML parse + обхід кроків GitHub Actions).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   anyRunStepIncludes,

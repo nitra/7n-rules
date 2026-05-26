@@ -8,7 +8,7 @@
  * Сценарії: skip-логіка local-only, npm-mode (sync / out-of-sync / без CHANGELOG / без files /
  * registry недосяжний), merge-base (feature-гілка, main після merge, direct-commit на main).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { execFile } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'

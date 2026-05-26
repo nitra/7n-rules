@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test'
+import { describe, expect, it } from 'vitest'
 import { worktreeFingerprint } from '../worktree-fingerprint.mjs'
 
 const HEX_FINGERPRINT_RE = /^[0-9a-f]{64}$/

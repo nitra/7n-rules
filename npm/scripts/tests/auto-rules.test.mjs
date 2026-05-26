@@ -2,9 +2,9 @@
  * Тести автодетекту правил для `.n-cursor.json` за `rules/<rule>/auto.md`.
  * Тести для скілів — у `auto-skills.test.mjs`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { ensureDir, withTmpCwd, writeJson } from '../utils/test-helpers.mjs'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 
 import { detectAutoRules, detectLegacyRuleIds, mergeConfigWithAutoDetected, migrateRuleIds } from '../auto-rules.mjs'
 
@@ -43,7 +43,7 @@ async function detectAutoRulesInCwd() {
   return detectAutoRules({
     root: process.cwd(),
     availableRules: ALL_RULES,
-    packageJsonParsed: JSON.parse(await Bun.file('package.json').text())
+    packageJsonParsed: JSON.parse(await readFile('package.json', 'utf8'))
   })
 }
 

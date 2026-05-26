@@ -1,7 +1,7 @@
 /**
  * Тести check-docker і check-k8s у дереві без відповідних файлів (ранній вихід 0) та JSON6902 у kustomization.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 
 import { check as checkDocker } from '../rules/docker/js/lint.mjs'

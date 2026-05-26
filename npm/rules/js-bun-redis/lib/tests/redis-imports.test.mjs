@@ -2,7 +2,7 @@
  * Модульні тести для сканування заборонених імпортів `ioredis` / `node-redis` / `redis` /
  * `@redis/*` (js-bun-redis.mdc), парсер — oxc-parser.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import { findRedisImportsInText, isRedisScanSourceFile, shouldSkipFileForRedisScan } from '../redis-imports.mjs'
 

@@ -1,7 +1,7 @@
 /**
  * Тести рекурсивного обходу `walkDir` (пропуск node_modules, .git тощо).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 

@@ -3,7 +3,7 @@
  * Каталог `fix/` (legacy) має бути відсутнім — convention перейшла на `js/`.
  * Doc-only правила (без `js/` і без `policy/`) допускаються — для них `fix.mjs` no-op повертає 0.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'

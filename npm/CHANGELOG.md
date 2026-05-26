@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.3] - 2026-05-26
+
+### Fixed
+
+- **`js-lint` coverage provider `detect()`**: у workspace-проєктах (типовий bun monorepo з hoisted node_modules і `npm-module` правилом, що забороняє devDeps у published workspace-у) перевіряємо `vitest` як у JS-root `package.json`, так і у кореневому. Раніше `detect()` повертав false у monorepo, де vitest коректно живе у кореневому `devDependencies` — `n-cursor coverage` мовчки виходив із «0 провайдерів».
+
+### Changed
+
+- **Dogfooding-міграція cursor → vitest**: 100 `*.test.mjs` файлів у `npm/` перенесено з `bun:test` на `vitest`; `npm/stryker.config.mjs` оновлено до canonical baseline (vitest-runner + perTest + incremental); додано `npm/vitest.config.js`; кореневий `package.json#devDependencies` отримав `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`. Node-сумісність: `Bun.file().text()` → `readFile(..., 'utf8')`, `Bun.spawn` → `spawnSync`, `import.meta.dir` → `dirname(fileURLToPath(import.meta.url))`, EventEmitter duck-typing → `new EventEmitter()` (node-у `events.once` приймає лише EventEmitter інстанси).
+- **`npm/rules/vue/vue.mdc` v2.4**: секцію «Тестування» приведено у відповідність із новим canon-ом (`test.mdc` v2.4 → Vitest+happy-dom). Замість прямого заперечення Vitest у Vue-проєктах рекомендується frontend-варіант `vitest.config.js` з `environment: 'happy-dom'`.
+
 ## [1.27.2] - 2026-05-26
 
 ### Changed

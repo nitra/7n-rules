@@ -2,10 +2,11 @@
  * Тести pi.dev-extension синку: bundled TS-template у `.pi-template/extensions/n-cursor-adr/`,
  * `syncPiExtensions` (copy), `removeOrphanPiExtension` (cleanup), інтеграція у `syncClaudeConfig`.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import {
   PI_EXTENSIONS_DIR,
@@ -17,7 +18,8 @@ import {
 } from '../sync-claude-config.mjs'
 import { withTmpCwd } from '../utils/test-helpers.mjs'
 
-const PI_TEMPLATE_PATH = join(import.meta.dir, '..', '..', '.pi-template', 'extensions', 'n-cursor-adr', 'index.ts')
+const HERE = dirname(fileURLToPath(import.meta.url))
+const PI_TEMPLATE_PATH = join(HERE, '..', '..', '.pi-template', 'extensions', 'n-cursor-adr', 'index.ts')
 
 const EXPORT_DEFAULT_FN_RE = /export default function/
 const PI_ON_AGENT_END_RE = /pi\.on\(['"]agent_end['"]/

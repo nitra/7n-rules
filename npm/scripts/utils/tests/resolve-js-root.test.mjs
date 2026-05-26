@@ -2,7 +2,7 @@
  * Тести `resolveJsRoot`: резолвить JS-root проєкту (workspaces[0] якщо є,
  * інакше cwd; null без кореневого package.json).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'

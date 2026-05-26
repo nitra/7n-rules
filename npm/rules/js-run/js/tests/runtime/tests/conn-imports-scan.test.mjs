@@ -1,7 +1,7 @@
 /**
  * Модульні тести для AST-сканера правила «Внутрішні аліаси» (js-run.mdc).
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   findConnFactoryImportsInText,

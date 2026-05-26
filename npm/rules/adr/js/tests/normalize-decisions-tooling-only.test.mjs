@@ -2,7 +2,7 @@
  * Інтеграційний тест normalize-decisions.sh: для чернеток сесій, де змінювалися
  * лише tooling-файли, виконувати `delete` без виклику LLM.
  */
-import { describe, expect, test } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { mkdir, writeFile } from 'node:fs/promises'
