@@ -18,12 +18,12 @@
 
 ## Архітектурні рішення (з brainstorming)
 
-| Питання | Рішення | Альтернативи |
-|---|---|---|
-| Enforcement | JS auto-fix (без rego deny) | rego deny, гібрид |
-| Структура порту | Одне ingress-правило з масивом `ports[]` (унікальні TCP-порти) | Кілька правил, хардкод 8080 |
-| CIDR-набір | Хардкод `35.191.0.0/16`, `130.211.0.0/22`, `10.0.0.0/8` | Конфіг через анотацію, config-file |
-| HTTPRoute → workload mapping | Strict via Service `spec.selector.matchLabels.app` | Strip `-hl` (convention-based) |
+| Питання                      | Рішення                                                        | Альтернативи                       |
+| ---------------------------- | -------------------------------------------------------------- | ---------------------------------- |
+| Enforcement                  | JS auto-fix (без rego deny)                                    | rego deny, гібрид                  |
+| Структура порту              | Одне ingress-правило з масивом `ports[]` (унікальні TCP-порти) | Кілька правил, хардкод 8080        |
+| CIDR-набір                   | Хардкод `35.191.0.0/16`, `130.211.0.0/22`, `10.0.0.0/8`        | Конфіг через анотацію, config-file |
+| HTTPRoute → workload mapping | Strict via Service `spec.selector.matchLabels.app`             | Strip `-hl` (convention-based)     |
 
 ## Архітектура
 
@@ -49,6 +49,7 @@ buildNetworkPolicyYaml(deployName, appLabel, kind, gclbPorts?)
 ### Інтеграція
 
 Виклики `buildNetworkPolicyYaml` у `ensureNetworkPolicyForWorkloadsInDir` і `regenerateLegacyNetworkPolicyDocsInFile`:
+
 1. Перед побудовою YAML викликають `collectHttpRouteIngressForWorkload(dir, appLabel, fail)`.
 2. Якщо результат `≠ null` — передають `result.ports` як `gclbPorts`.
 3. Якщо `null` — викликають без `gclbPorts` (baseline canon).
@@ -60,7 +61,7 @@ buildNetworkPolicyYaml(deployName, appLabel, kind, gclbPorts?)
 ```yaml
 ingress:
   - from:
-      - podSelector: {}                          # canon (intra-namespace)
+      - podSelector: {} # canon (intra-namespace)
   - from:
       - ipBlock: { cidr: 35.191.0.0/16 }
       - ipBlock: { cidr: 130.211.0.0/22 }
@@ -92,14 +93,14 @@ ingress:
 
 ### Error handling
 
-| Випадок | Поведінка |
-|---|---|
+| Випадок                                                           | Поведінка                                                                                                                                               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | YAML read/parse error для HTTPRoute / Service у каталозі workload | `fail(...)` з повідомленням: `${rel}: не вдалося індексувати HTTPRoute/Service для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): <reason>` |
-| Service без `spec.selector.matchLabels.app` | Тихий пропуск (не наш case) |
-| `backendRef.port` не number | Тихий пропуск (не Service backendRef) |
-| `backendRef.name` не знайдено в `servicesByName` | Тихий пропуск (cross-ns ReferenceGrant — поза скоупом) |
-| HTTPRoute без backendRefs | No-op |
-| Duplicate ports у різних HTTPRoute / правилах | Дедуп через `Set` |
+| Service без `spec.selector.matchLabels.app`                       | Тихий пропуск (не наш case)                                                                                                                             |
+| `backendRef.port` не number                                       | Тихий пропуск (не Service backendRef)                                                                                                                   |
+| `backendRef.name` не знайдено в `servicesByName`                  | Тихий пропуск (cross-ns ReferenceGrant — поза скоупом)                                                                                                  |
+| HTTPRoute без backendRefs                                         | No-op                                                                                                                                                   |
+| Duplicate ports у різних HTTPRoute / правилах                     | Дедуп через `Set`                                                                                                                                       |
 
 Контраст з `indexOneK8sYamlForHasuraCanon` (silent ignore): там пропуск безпечний, бо канон Hasura — best-effort superset; тут пропуск дав би **неповний** NetworkPolicy без попередження, тому explicit `fail`.
 

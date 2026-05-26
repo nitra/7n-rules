@@ -14,13 +14,13 @@
 
 ## File Structure
 
-| File | Role | Change |
-|---|---|---|
-| `npm/rules/k8s/js/manifests.mjs` | NP/HTTPRoute logic, generation, integration | **Modify**: нова `collectHttpRouteIngressForWorkload`, розширена `buildNetworkPolicyYaml`, оновлені `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` |
-| `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` | Існуючий тестовий файл для `buildNetworkPolicyYaml` і пов'язаного | **Modify**: додати describe-блок `collectHttpRouteIngressForWorkload` + integration-тести `buildNetworkPolicyYaml(..., gclbPorts)` + E2E fixture-тести |
-| `npm/rules/k8s/k8s.mdc` | Документація k8s правил | **Modify**: новий блок під «NetworkPolicy у base/»; оновлений приклад `base/networkpolicy.yaml` |
-| `npm/CHANGELOG.md` | Changelog npm workspace | **Modify**: новий запис `## [X.Y.Z] - 2026-05-26` |
-| `npm/package.json` | Версія npm workspace | **Modify**: bump `version` (patch або minor — узгодити з характером зміни) |
+| File                                                           | Role                                                              | Change                                                                                                                                                                         |
+| -------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm/rules/k8s/js/manifests.mjs`                               | NP/HTTPRoute logic, generation, integration                       | **Modify**: нова `collectHttpRouteIngressForWorkload`, розширена `buildNetworkPolicyYaml`, оновлені `appendNetworkPolicyDocuments` і `regenerateLegacyNetworkPolicyDocsInFile` |
+| `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` | Існуючий тестовий файл для `buildNetworkPolicyYaml` і пов'язаного | **Modify**: додати describe-блок `collectHttpRouteIngressForWorkload` + integration-тести `buildNetworkPolicyYaml(..., gclbPorts)` + E2E fixture-тести                         |
+| `npm/rules/k8s/k8s.mdc`                                        | Документація k8s правил                                           | **Modify**: новий блок під «NetworkPolicy у base/»; оновлений приклад `base/networkpolicy.yaml`                                                                                |
+| `npm/CHANGELOG.md`                                             | Changelog npm workspace                                           | **Modify**: новий запис `## [X.Y.Z] - 2026-05-26`                                                                                                                              |
+| `npm/package.json`                                             | Версія npm workspace                                              | **Modify**: bump `version` (patch або minor — узгодити з характером зміни)                                                                                                     |
 
 **Decomposition note:** `manifests.mjs` уже великий (~6700 рядків), але існуючий патерн репо — тримати всю k8s-логіку в одному файлі. Не реструктуруємо. Нова функція додається поряд з існуючими NP-генераторами (рядки ~4250-4330).
 
@@ -29,6 +29,7 @@
 ## Task 1: `collectHttpRouteIngressForWorkload` — порожній каталог → `null`
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs` (додати функцію поряд з `buildNetworkPolicyYaml`, ~рядок 4330)
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs` (додати describe-блок)
 
@@ -53,6 +54,7 @@ describe('collectHttpRouteIngressForWorkload', () => {
 ```
 
 Додати імпорти у верхній блок файлу:
+
 - `collectHttpRouteIngressForWorkload` у named imports з `manifests.mjs`
 - `mock` з `bun:test` (поряд із `describe, expect, test`)
 
@@ -117,6 +119,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 2: Single HTTPRoute → single port
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs:collectHttpRouteIngressForWorkload`
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
@@ -300,6 +303,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 3: Multiple ports + dedup + non-matching backendRef
 
 **Files:**
+
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
 - [ ] **Step 3.1: Add 4 tests (multiple distinct ports, dedup, non-match → null, multi-Service in dir)**
@@ -509,6 +513,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 4: Broken YAML → `fail` callback викликається
 
 **Files:**
+
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
 - [ ] **Step 4.1: Add failing test**
@@ -517,7 +522,11 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 test('зламаний hr.yaml → fail callback з конкретним повідомленням; функція повертає null', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'np-httproute-broken-'))
   try {
-    await writeFile(join(dir, 'hr.yaml'), 'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n  bad: : : indent\n', 'utf8')
+    await writeFile(
+      join(dir, 'hr.yaml'),
+      'apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\n  bad: : : indent\n',
+      'utf8'
+    )
     const fail = mock(() => {})
     const result = await collectHttpRouteIngressForWorkload(dir, 'foo', fail)
     expect(result).toBeNull()
@@ -541,12 +550,16 @@ cd /Users/vitaliytv/www/nitra/cursor && bun test npm/rules/k8s/js/tests/manifest
 Expected: PASS (логіка з Task 2 уже викликає `fail`).
 
 Якщо тест падає — перевірити, що:
+
 - `parseAllDocuments` дійсно кидає на цьому YAML (інакше нам потрібно перевіряти `doc.errors.length > 0` і теж викликати `fail`).
 - Якщо `parseAllDocuments` повертає docs з errors замість throw — додати в код:
+
   ```javascript
   for (const doc of docs) {
     if (doc.errors.length > 0) {
-      fail(`${abs}: YAML містить помилки для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${doc.errors[0].message}`)
+      fail(
+        `${abs}: YAML містить помилки для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${doc.errors[0].message}`
+      )
       continue
     }
     // ... existing rec handling
@@ -566,6 +579,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 5: `buildNetworkPolicyYaml` — extend with optional `gclbPorts`
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs:buildNetworkPolicyYaml` (~рядок 4312)
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
@@ -637,6 +651,7 @@ cd /Users/vitaliytv/www/nitra/cursor && bun test npm/rules/k8s/js/tests/manifest
 ```
 
 Expected:
+
 - 2 baseline-identity tests: PASS (4-й параметр поки ігнорується JS-ом).
 - 3 gclb-rule tests: FAIL (правило не додається).
 
@@ -720,6 +735,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 6: Integrate into `appendNetworkPolicyDocuments`
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs:appendNetworkPolicyDocuments` (~рядок 6298) і виклик у `ensureNetworkPoliciesForWorkloadsInDir` (~рядок 6413)
 
 - [ ] **Step 6.1: Failing E2E test — append flow**
@@ -816,11 +832,13 @@ Expected: PASS.
 - [ ] **Step 6.3: Now wire `appendNetworkPolicyDocuments` to actually call collectHttpRouteIngressForWorkload**
 
 У `manifests.mjs` модифікувати `appendNetworkPolicyDocuments` (~рядок 6298). Поточна сигнатура:
+
 ```
 async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, passFn)
 ```
 
 Нова сигнатура додає `fail`:
+
 ```
 async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn)
 ```
@@ -853,6 +871,7 @@ async function appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn) {
 ```
 
 Оновити **єдиний** callsite у `ensureNetworkPoliciesForWorkloadsInDir` (~рядок 6437):
+
 ```javascript
 await appendNetworkPolicyDocuments(npAbs, toAdd, npRel, fail, passFn)
 ```
@@ -878,6 +897,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 7: Integrate into `regenerateLegacyNetworkPolicyDocsInFile`
 
 **Files:**
+
 - Modify: `npm/rules/k8s/js/manifests.mjs:regenerateLegacyNetworkPolicyDocsInFile` (~рядок 6367) і callsite у `ensureNetworkPoliciesForWorkloadsInDir` (~рядок 6418)
 
 - [ ] **Step 7.1: Failing test — regenerate path також додає GCLB-правило**
@@ -1020,6 +1040,7 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
 ```
 
 Оновити callsite у `ensureNetworkPoliciesForWorkloadsInDir` (~рядок 6418):
+
 ```javascript
 const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
 ```
@@ -1045,6 +1066,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 8: Negative case — workload без HTTPRoute → NP без GCLB-правила (no regression)
 
 **Files:**
+
 - Test: `npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs`
 
 - [ ] **Step 8.1: Add test**
@@ -1111,16 +1133,18 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 9: Update `k8s.mdc` documentation
 
 **Files:**
+
 - Modify: `npm/rules/k8s/k8s.mdc`
 
 - [ ] **Step 9.1: Bump version у frontmatter**
 
 Знайти у `k8s.mdc` (рядки 1-5):
+
 ```yaml
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
 version: '1.41'
-globs: "**/k8s/**/*.yaml"
+globs: '**/k8s/**/*.yaml'
 alwaysApply: false
 ---
 ```
@@ -1139,6 +1163,7 @@ Bump `version` до `'1.42'`.
 Без цього правила трафік від **GKE Gateway** (Envoy data-plane з proxy-only subnet регіону, наприклад `us-central1-proxy-only` = `10.10.0.0/23`) і **Google health checks** (`35.191.0.0/16`, `130.211.0.0/22`) блокується базовим NetworkPolicy (бо canon ingress допускає тільки `podSelector: {}` — intra-namespace pod ↔ pod).
 
 CIDR-набір зафіксовано (без конфігурації):
+
 - `35.191.0.0/16` — GCP HC global
 - `130.211.0.0/22` — GCP HC global (legacy)
 - `10.0.0.0/8` — purpose-built широкий range, покриває proxy-only subnets усіх регіонів GKE
@@ -1149,7 +1174,7 @@ CIDR-набір зафіксовано (без конфігурації):
 ingress:
   - from:
       - podSelector: {}
-  - from:                                       # auto-added for HTTPRoute-paired workloads
+  - from: # auto-added for HTTPRoute-paired workloads
       - ipBlock: { cidr: 35.191.0.0/16 }
       - ipBlock: { cidr: 130.211.0.0/22 }
       - ipBlock: { cidr: 10.0.0.0/8 }
@@ -1185,7 +1210,7 @@ spec:
   ingress:
     - from:
         - podSelector: {}
-    - from:                                       # auto-added by check k8s for HTTPRoute-paired workloads
+    - from: # auto-added by check k8s for HTTPRoute-paired workloads
         - ipBlock: { cidr: 35.191.0.0/16 }
         - ipBlock: { cidr: 130.211.0.0/22 }
         - ipBlock: { cidr: 10.0.0.0/8 }
@@ -1217,6 +1242,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 10: CHANGELOG + version bump у `npm/`
 
 **Files:**
+
 - Modify: `npm/CHANGELOG.md`
 - Modify: `npm/package.json`
 
@@ -1381,6 +1407,7 @@ cat "$TMP/k8s/base/networkpolicy.yaml"
 ```
 
 Expected:
+
 - `check k8s` створює `networkpolicy.yaml`.
 - Згенерований NP містить ingress-блок з 3 ipBlock CIDR-ами і port 8080.
 
@@ -1396,6 +1423,7 @@ cd /Users/vitaliytv/www/nitra/cursor && git status
 - [ ] **Step 11.5: Final summary**
 
 Перевірити git log:
+
 ```bash
 cd /Users/vitaliytv/www/nitra/cursor && git log --oneline -15
 ```

@@ -17,5 +17,5 @@ export function addCents(a, b) {
 
 export function percentOf(cents, percent) {
   if (typeof cents !== 'number' || typeof percent !== 'number') return 0
-  return Math.round(cents * percent / 100)
+  return Math.round((cents * percent) / 100)
 }

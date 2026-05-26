@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [0.0.1] - 2026-05-26
+
+### Added
+
+- Додано `vitest.config.js` baseline для приватного demo workspace відповідно до правила `test`.
+
 ## [0.0.0] - 2026-05-09
 
 ### Added

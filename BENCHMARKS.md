@@ -6,11 +6,11 @@ Canonical Stryker baseline у `@nitra/cursor` перейшов з `command` runn
 
 ### Results
 
-| Сценарій | Час | Мутантів | Score | Speedup |
-| --- | --- | --- | --- | --- |
-| `full-bun` (command + concurrency:1 + inPlace) | 562.6s | 158 | 88.6% | 1.00× |
-| `full-vitest` (vitest + perTest, concurrency default) | 17.9s | 158 | 88.6% | **31×** |
-| `incremental-vitest-noop` (другий прогін без змін) | 2.4s | 158 | 88.6% | **234×** |
+| Сценарій                                              | Час    | Мутантів | Score | Speedup  |
+| ----------------------------------------------------- | ------ | -------- | ----- | -------- |
+| `full-bun` (command + concurrency:1 + inPlace)        | 562.6s | 158      | 88.6% | 1.00×    |
+| `full-vitest` (vitest + perTest, concurrency default) | 17.9s  | 158      | 88.6% | **31×**  |
+| `incremental-vitest-noop` (другий прогін без змін)    | 2.4s   | 158      | 88.6% | **234×** |
 
 Run-to-run jitter повного vitest-прогону: 10–18 с (порядково стабільний). Mutation score ідентичний на обох ранерах → міграція не змінює correctness, лише швидкість.
 

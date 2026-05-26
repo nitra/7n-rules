@@ -4451,7 +4451,8 @@ export async function collectHttpRouteIngressForWorkload(dir, appLabel, fail) {
 function serviceSelectorAppLabel(spec) {
   if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
   const selector = /** @type {Record<string, unknown>} */ (spec).selector
-  if (selector === null || selector === undefined || typeof selector !== 'object' || Array.isArray(selector)) return null
+  if (selector === null || selector === undefined || typeof selector !== 'object' || Array.isArray(selector))
+    return null
   const app = /** @type {Record<string, unknown>} */ (selector).app
   return typeof app === 'string' && app.trim() !== '' ? app : null
 }

@@ -9,13 +9,13 @@ Spike-бенчмарк для порівняння двох Stryker test-runner 
 
 `demo/` — standalone (не у workspaces), 5 pure utility-функцій із юніт-тестами:
 
-| Файл | Що тестується |
-| --- | --- |
-| `slugify.mjs` | Нормалізація рядків (regex, trim, truncate) |
-| `url-parse.mjs` | Query-string parse/build (decodeURIComponent, edge cases) |
-| `retry.mjs` | Async retry з exponential backoff |
-| `promise-pool.mjs` | Concurrent map зі збереженням порядку |
-| `currency.mjs` | Cents-format, add, percent (integer math, NaN handling) |
+| Файл               | Що тестується                                             |
+| ------------------ | --------------------------------------------------------- |
+| `slugify.mjs`      | Нормалізація рядків (regex, trim, truncate)               |
+| `url-parse.mjs`    | Query-string parse/build (decodeURIComponent, edge cases) |
+| `retry.mjs`        | Async retry з exponential backoff                         |
+| `promise-pool.mjs` | Concurrent map зі збереженням порядку                     |
+| `currency.mjs`     | Cents-format, add, percent (integer math, NaN handling)   |
 
 ## Як запустити
 
@@ -32,10 +32,10 @@ bun run.mjs --scenario=full-vitest
 
 ## Сценарії
 
-| Сценарій | Опис |
-| --- | --- |
-| `full-bun` | Чистий прогін з `stryker.bun.config.mjs`; `demo/reports/` видаляється перед стартом. |
-| `full-vitest` | Чистий прогін з `stryker.vitest.config.mjs`; `demo/reports/` видаляється. |
+| Сценарій                  | Опис                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `full-bun`                | Чистий прогін з `stryker.bun.config.mjs`; `demo/reports/` видаляється перед стартом.                               |
+| `full-vitest`             | Чистий прогін з `stryker.vitest.config.mjs`; `demo/reports/` видаляється.                                          |
 | `incremental-vitest-noop` | Другий прогін `stryker.vitest.config.mjs` БЕЗ очищення `reports/` — має бути ~миттєвим завдяки `incremental.json`. |
 
 ## Output

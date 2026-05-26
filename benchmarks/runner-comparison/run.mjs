@@ -20,9 +20,17 @@ const RESULTS = join(HERE, 'results')
 const REPORTS = join(DEMO, 'reports')
 
 const SCENARIOS = {
-  'full-bun':                 { config: 'stryker.bun.config.mjs',    cleanReports: true,  incrementalFile: 'incremental-bun.json' },
-  'full-vitest':              { config: 'stryker.vitest.config.mjs', cleanReports: true,  incrementalFile: 'incremental-vitest.json' },
-  'incremental-vitest-noop':  { config: 'stryker.vitest.config.mjs', cleanReports: false, incrementalFile: 'incremental-vitest.json' }
+  'full-bun': { config: 'stryker.bun.config.mjs', cleanReports: true, incrementalFile: 'incremental-bun.json' },
+  'full-vitest': {
+    config: 'stryker.vitest.config.mjs',
+    cleanReports: true,
+    incrementalFile: 'incremental-vitest.json'
+  },
+  'incremental-vitest-noop': {
+    config: 'stryker.vitest.config.mjs',
+    cleanReports: false,
+    incrementalFile: 'incremental-vitest.json'
+  }
 }
 
 const argv = process.argv.slice(2)
@@ -34,7 +42,10 @@ mkdirSync(RESULTS, { recursive: true })
 const summary = []
 for (const name of list) {
   const cfg = SCENARIOS[name]
-  if (!cfg) { console.error(`Unknown scenario: ${name}`); process.exit(2) }
+  if (!cfg) {
+    console.error(`Unknown scenario: ${name}`)
+    process.exit(2)
+  }
 
   if (cfg.cleanReports && existsSync(REPORTS)) rmSync(REPORTS, { recursive: true, force: true })
 
@@ -66,7 +77,10 @@ for (const name of list) {
     continue
   }
   const report = JSON.parse(readFileSync(mutationPath, 'utf8'))
-  let killed = 0, survived = 0, timeout = 0, noCoverage = 0
+  let killed = 0,
+    survived = 0,
+    timeout = 0,
+    noCoverage = 0
   for (const file of Object.values(report.files ?? {})) {
     for (const m of file.mutants ?? []) {
       if (m.status === 'Killed') killed++
@@ -76,13 +90,16 @@ for (const name of list) {
     }
   }
   const total = killed + survived + timeout + noCoverage
-  const score = total > 0 ? Math.round(1000 * (killed + timeout) / total) / 10 : 0
+  const score = total > 0 ? Math.round((1000 * (killed + timeout)) / total) / 10 : 0
 
   const result = {
     scenario: name,
     durationMs,
     totalMutants: total,
-    killed, survived, timeout, noCoverage,
+    killed,
+    survived,
+    timeout,
+    noCoverage,
     score,
     versions: {
       node: process.versions.node,
@@ -100,10 +117,11 @@ const vitFull = summary.find(s => s.scenario === 'full-vitest')
 const vitNoop = summary.find(s => s.scenario === 'incremental-vitest-noop')
 const baseline = bunFull?.durationMs ?? null
 
-const speedup = (s) => baseline && s?.durationMs ? `${(baseline / s.durationMs).toFixed(2)}×` : 'n/a'
-const fmt = (s) => s?.error
-  ? `| ${s.scenario} | — | ERROR (${s.error}) | — | — |`
-  : `| ${s.scenario} | ${s?.totalMutants ?? '—'} | ${((s?.durationMs ?? 0) / 1000).toFixed(1)}s | ${s?.score ?? '—'}% | ${speedup(s)} |`
+const speedup = s => (baseline && s?.durationMs ? `${(baseline / s.durationMs).toFixed(2)}×` : 'n/a')
+const fmt = s =>
+  s?.error
+    ? `| ${s.scenario} | — | ERROR (${s.error}) | — | — |`
+    : `| ${s.scenario} | ${s?.totalMutants ?? '—'} | ${((s?.durationMs ?? 0) / 1000).toFixed(1)}s | ${s?.score ?? '—'}% | ${speedup(s)} |`
 
 const md = [
   '# Vitest Runner Spike — Results',

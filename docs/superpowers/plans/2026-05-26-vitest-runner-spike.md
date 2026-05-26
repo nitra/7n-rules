@@ -9,6 +9,7 @@
 **Tech Stack:** Bun (runtime + test для baseline), Vitest (для proposed), `@stryker-mutator/core`, `@stryker-mutator/vitest-runner`, `@vitest/coverage-v8`.
 
 **Decision gate (після Task 14):**
+
 - **Strong win** (`full-vitest ≤ 0.5 × full-bun` AND `incremental-noop ≤ 0.1 × full-vitest`) → user-команда «йдемо в міграцію» → перехід до окремого плану.
 - **Marginal/no win** → СТОП, презентую числа, на цьому спайк закривається.
 
@@ -17,6 +18,7 @@
 ### Task 1: Scaffold каталог benchmarks/runner-comparison/
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/.gitkeep`
 - Create: `benchmarks/runner-comparison/demo/tests/.gitkeep`
 - Create: `benchmarks/runner-comparison/results/.gitkeep`
@@ -48,6 +50,7 @@ git commit -m "feat(benchmarks): scaffold runner-comparison spike directory"
 ### Task 2: demo/package.json + .gitignore
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/package.json`
 - Create: `benchmarks/runner-comparison/.gitignore`
 
@@ -107,6 +110,7 @@ git commit -m "feat(benchmarks): demo package.json + devDeps (stryker, vitest)"
 ### Task 3: src/slugify.mjs + tests
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/slugify.mjs`
 - Create: `benchmarks/runner-comparison/demo/tests/slugify.test.mjs`
 
@@ -136,18 +140,42 @@ import { describe, it, expect } from 'vitest'
 import { slugify } from '../src/slugify.mjs'
 
 describe('slugify', () => {
-  it('lowercases', () => { expect(slugify('Hello')).toBe('hello') })
-  it('trims', () => { expect(slugify('  hi  ')).toBe('hi') })
-  it('replaces spaces with single dash', () => { expect(slugify('a  b  c')).toBe('a-b-c') })
-  it('strips non-word chars', () => { expect(slugify('hi!@#world')).toBe('hiworld') })
-  it('collapses multiple dashes', () => { expect(slugify('a---b')).toBe('a-b') })
-  it('keeps underscores', () => { expect(slugify('a_b')).toBe('a_b') })
-  it('returns empty for non-string', () => { expect(slugify(null)).toBe('') })
-  it('returns empty for number', () => { expect(slugify(42)).toBe('') })
-  it('truncates to 64', () => { expect(slugify('x'.repeat(100)).length).toBe(64) })
-  it('preserves exact 64-char string', () => { expect(slugify('x'.repeat(64)).length).toBe(64) })
-  it('handles digits', () => { expect(slugify('hello 123')).toBe('hello-123') })
-  it('handles tab/newline as space', () => { expect(slugify('a\tb\nc')).toBe('a-b-c') })
+  it('lowercases', () => {
+    expect(slugify('Hello')).toBe('hello')
+  })
+  it('trims', () => {
+    expect(slugify('  hi  ')).toBe('hi')
+  })
+  it('replaces spaces with single dash', () => {
+    expect(slugify('a  b  c')).toBe('a-b-c')
+  })
+  it('strips non-word chars', () => {
+    expect(slugify('hi!@#world')).toBe('hiworld')
+  })
+  it('collapses multiple dashes', () => {
+    expect(slugify('a---b')).toBe('a-b')
+  })
+  it('keeps underscores', () => {
+    expect(slugify('a_b')).toBe('a_b')
+  })
+  it('returns empty for non-string', () => {
+    expect(slugify(null)).toBe('')
+  })
+  it('returns empty for number', () => {
+    expect(slugify(42)).toBe('')
+  })
+  it('truncates to 64', () => {
+    expect(slugify('x'.repeat(100)).length).toBe(64)
+  })
+  it('preserves exact 64-char string', () => {
+    expect(slugify('x'.repeat(64)).length).toBe(64)
+  })
+  it('handles digits', () => {
+    expect(slugify('hello 123')).toBe('hello-123')
+  })
+  it('handles tab/newline as space', () => {
+    expect(slugify('a\tb\nc')).toBe('a-b-c')
+  })
 })
 ```
 
@@ -179,6 +207,7 @@ git commit -m "feat(benchmarks): slugify + tests"
 ### Task 4: src/url-parse.mjs + tests
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/url-parse.mjs`
 - Create: `benchmarks/runner-comparison/demo/tests/url-parse.test.mjs`
 
@@ -223,23 +252,51 @@ import { describe, it, expect } from 'vitest'
 import { parseQuery, buildQuery } from '../src/url-parse.mjs'
 
 describe('parseQuery', () => {
-  it('empty string → {}', () => { expect(parseQuery('')).toEqual({}) })
-  it('non-string → {}', () => { expect(parseQuery(null)).toEqual({}) })
-  it('strips leading ?', () => { expect(parseQuery('?a=1')).toEqual({ a: '1' }) })
-  it('two pairs', () => { expect(parseQuery('a=1&b=2')).toEqual({ a: '1', b: '2' }) })
-  it('key without =', () => { expect(parseQuery('flag')).toEqual({ flag: '' }) })
-  it('decodes percent-encoding', () => { expect(parseQuery('q=hello%20world')).toEqual({ q: 'hello world' }) })
-  it('empty pair skipped', () => { expect(parseQuery('a=1&&b=2')).toEqual({ a: '1', b: '2' }) })
-  it('value with =', () => { expect(parseQuery('eq=a=b')).toEqual({ eq: 'a=b' }) })
+  it('empty string → {}', () => {
+    expect(parseQuery('')).toEqual({})
+  })
+  it('non-string → {}', () => {
+    expect(parseQuery(null)).toEqual({})
+  })
+  it('strips leading ?', () => {
+    expect(parseQuery('?a=1')).toEqual({ a: '1' })
+  })
+  it('two pairs', () => {
+    expect(parseQuery('a=1&b=2')).toEqual({ a: '1', b: '2' })
+  })
+  it('key without =', () => {
+    expect(parseQuery('flag')).toEqual({ flag: '' })
+  })
+  it('decodes percent-encoding', () => {
+    expect(parseQuery('q=hello%20world')).toEqual({ q: 'hello world' })
+  })
+  it('empty pair skipped', () => {
+    expect(parseQuery('a=1&&b=2')).toEqual({ a: '1', b: '2' })
+  })
+  it('value with =', () => {
+    expect(parseQuery('eq=a=b')).toEqual({ eq: 'a=b' })
+  })
 })
 
 describe('buildQuery', () => {
-  it('null → empty', () => { expect(buildQuery(null)).toBe('') })
-  it('one pair', () => { expect(buildQuery({ a: 1 })).toBe('a=1') })
-  it('skips undefined', () => { expect(buildQuery({ a: 1, b: undefined })).toBe('a=1') })
-  it('skips null', () => { expect(buildQuery({ a: 1, b: null })).toBe('a=1') })
-  it('encodes', () => { expect(buildQuery({ q: 'hello world' })).toBe('q=hello%20world') })
-  it('multiple', () => { expect(buildQuery({ a: 1, b: 2 })).toBe('a=1&b=2') })
+  it('null → empty', () => {
+    expect(buildQuery(null)).toBe('')
+  })
+  it('one pair', () => {
+    expect(buildQuery({ a: 1 })).toBe('a=1')
+  })
+  it('skips undefined', () => {
+    expect(buildQuery({ a: 1, b: undefined })).toBe('a=1')
+  })
+  it('skips null', () => {
+    expect(buildQuery({ a: 1, b: null })).toBe('a=1')
+  })
+  it('encodes', () => {
+    expect(buildQuery({ q: 'hello world' })).toBe('q=hello%20world')
+  })
+  it('multiple', () => {
+    expect(buildQuery({ a: 1, b: 2 })).toBe('a=1&b=2')
+  })
 })
 ```
 
@@ -271,6 +328,7 @@ git commit -m "feat(benchmarks): url-parse + tests"
 ### Task 5: src/retry.mjs + tests
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/retry.mjs`
 - Create: `benchmarks/runner-comparison/demo/tests/retry.test.mjs`
 
@@ -292,7 +350,7 @@ export async function retry(fn, opts = {}) {
       attempt += 1
       if (attempt >= maxAttempts) break
       const delay = baseDelay * Math.pow(factor, attempt - 1)
-      await new Promise((r) => setTimeout(r, delay))
+      await new Promise(r => setTimeout(r, delay))
     }
   }
   throw lastErr
@@ -314,39 +372,79 @@ describe('retry', () => {
   })
   it('retries until success', async () => {
     let i = 0
-    const result = await retry(async () => {
-      i += 1
-      if (i < 3) throw new Error('boom')
-      return 'ok'
-    }, { baseDelay: 1 })
+    const result = await retry(
+      async () => {
+        i += 1
+        if (i < 3) throw new Error('boom')
+        return 'ok'
+      },
+      { baseDelay: 1 }
+    )
     expect(result).toBe('ok')
     expect(i).toBe(3)
   })
   it('throws last error after maxAttempts', async () => {
     let i = 0
-    await expect(retry(async () => { i += 1; throw new Error(`e${i}`) }, { maxAttempts: 2, baseDelay: 1 })).rejects.toThrow('e2')
+    await expect(
+      retry(
+        async () => {
+          i += 1
+          throw new Error(`e${i}`)
+        },
+        { maxAttempts: 2, baseDelay: 1 }
+      )
+    ).rejects.toThrow('e2')
     expect(i).toBe(2)
   })
   it('passes attempt index to fn', async () => {
     const attempts = []
-    await retry(async (n) => { attempts.push(n); if (n < 2) throw new Error('x'); return 'ok' }, { baseDelay: 1 })
+    await retry(
+      async n => {
+        attempts.push(n)
+        if (n < 2) throw new Error('x')
+        return 'ok'
+      },
+      { baseDelay: 1 }
+    )
     expect(attempts).toEqual([0, 1, 2])
   })
   it('default maxAttempts is 3', async () => {
     let i = 0
-    await expect(retry(async () => { i += 1; throw new Error('x') }, { baseDelay: 1 })).rejects.toThrow()
+    await expect(
+      retry(
+        async () => {
+          i += 1
+          throw new Error('x')
+        },
+        { baseDelay: 1 }
+      )
+    ).rejects.toThrow()
     expect(i).toBe(3)
   })
   it('respects baseDelay', async () => {
     const start = Date.now()
     let i = 0
-    await retry(async () => { i += 1; if (i < 2) throw new Error('x'); return 'ok' }, { baseDelay: 20, factor: 1 })
+    await retry(
+      async () => {
+        i += 1
+        if (i < 2) throw new Error('x')
+        return 'ok'
+      },
+      { baseDelay: 20, factor: 1 }
+    )
     expect(Date.now() - start).toBeGreaterThanOrEqual(15)
   })
   it('exponential factor 2 → delays 10, 20', async () => {
     const start = Date.now()
     let i = 0
-    await retry(async () => { i += 1; if (i < 3) throw new Error('x'); return 'ok' }, { baseDelay: 10, factor: 2 })
+    await retry(
+      async () => {
+        i += 1
+        if (i < 3) throw new Error('x')
+        return 'ok'
+      },
+      { baseDelay: 10, factor: 2 }
+    )
     expect(Date.now() - start).toBeGreaterThanOrEqual(25)
   })
 })
@@ -380,6 +478,7 @@ git commit -m "feat(benchmarks): retry + tests"
 ### Task 6: src/promise-pool.mjs + tests
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/promise-pool.mjs`
 - Create: `benchmarks/runner-comparison/demo/tests/promise-pool.test.mjs`
 
@@ -414,20 +513,41 @@ import { describe, it, expect } from 'vitest'
 import { promisePool } from '../src/promise-pool.mjs'
 
 describe('promisePool', () => {
-  it('non-array → []', async () => { expect(await promisePool(null, async (x) => x)).toEqual([]) })
-  it('empty array → []', async () => { expect(await promisePool([], async (x) => x)).toEqual([]) })
-  it('maps items', async () => { expect(await promisePool([1, 2, 3], async (x) => x * 2)).toEqual([2, 4, 6]) })
+  it('non-array → []', async () => {
+    expect(await promisePool(null, async x => x)).toEqual([])
+  })
+  it('empty array → []', async () => {
+    expect(await promisePool([], async x => x)).toEqual([])
+  })
+  it('maps items', async () => {
+    expect(await promisePool([1, 2, 3], async x => x * 2)).toEqual([2, 4, 6])
+  })
   it('preserves order', async () => {
-    const result = await promisePool([5, 1, 3], async (x) => { await new Promise(r => setTimeout(r, x)); return x }, 3)
+    const result = await promisePool(
+      [5, 1, 3],
+      async x => {
+        await new Promise(r => setTimeout(r, x))
+        return x
+      },
+      3
+    )
     expect(result).toEqual([5, 1, 3])
   })
   it('concurrency 1 = serial', async () => {
     const order = []
-    await promisePool([1, 2, 3], async (x) => { order.push(`start-${x}`); await new Promise(r => setTimeout(r, 5)); order.push(`end-${x}`) }, 1)
+    await promisePool(
+      [1, 2, 3],
+      async x => {
+        order.push(`start-${x}`)
+        await new Promise(r => setTimeout(r, 5))
+        order.push(`end-${x}`)
+      },
+      1
+    )
     expect(order).toEqual(['start-1', 'end-1', 'start-2', 'end-2', 'start-3', 'end-3'])
   })
   it('concurrency 0 → coerced to 1', async () => {
-    expect(await promisePool([1, 2], async (x) => x, 0)).toEqual([1, 2])
+    expect(await promisePool([1, 2], async x => x, 0)).toEqual([1, 2])
   })
   it('passes index', async () => {
     expect(await promisePool(['a', 'b'], async (_, i) => i)).toEqual([0, 1])
@@ -463,6 +583,7 @@ git commit -m "feat(benchmarks): promise-pool + tests"
 ### Task 7: src/currency.mjs + tests
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/src/currency.mjs`
 - Create: `benchmarks/runner-comparison/demo/tests/currency.test.mjs`
 
@@ -489,7 +610,7 @@ export function addCents(a, b) {
 
 export function percentOf(cents, percent) {
   if (typeof cents !== 'number' || typeof percent !== 'number') return 0
-  return Math.round(cents * percent / 100)
+  return Math.round((cents * percent) / 100)
 }
 ```
 
@@ -501,29 +622,63 @@ import { describe, it, expect } from 'vitest'
 import { formatCents, addCents, percentOf } from '../src/currency.mjs'
 
 describe('formatCents', () => {
-  it('0 → "USD 0.00"', () => { expect(formatCents(0)).toBe('USD 0.00') })
-  it('100 → "USD 1.00"', () => { expect(formatCents(100)).toBe('USD 1.00') })
-  it('199 → "USD 1.99"', () => { expect(formatCents(199)).toBe('USD 1.99') })
-  it('5 → "USD 0.05"', () => { expect(formatCents(5)).toBe('USD 0.05') })
-  it('-250 → "-USD 2.50"', () => { expect(formatCents(-250)).toBe('-USD 2.50') })
-  it('custom currency', () => { expect(formatCents(100, { currency: 'EUR' })).toBe('EUR 1.00') })
-  it('non-number → ""', () => { expect(formatCents('100')).toBe('') })
-  it('NaN → ""', () => { expect(formatCents(NaN)).toBe('') })
-  it('Infinity → ""', () => { expect(formatCents(Infinity)).toBe('') })
+  it('0 → "USD 0.00"', () => {
+    expect(formatCents(0)).toBe('USD 0.00')
+  })
+  it('100 → "USD 1.00"', () => {
+    expect(formatCents(100)).toBe('USD 1.00')
+  })
+  it('199 → "USD 1.99"', () => {
+    expect(formatCents(199)).toBe('USD 1.99')
+  })
+  it('5 → "USD 0.05"', () => {
+    expect(formatCents(5)).toBe('USD 0.05')
+  })
+  it('-250 → "-USD 2.50"', () => {
+    expect(formatCents(-250)).toBe('-USD 2.50')
+  })
+  it('custom currency', () => {
+    expect(formatCents(100, { currency: 'EUR' })).toBe('EUR 1.00')
+  })
+  it('non-number → ""', () => {
+    expect(formatCents('100')).toBe('')
+  })
+  it('NaN → ""', () => {
+    expect(formatCents(NaN)).toBe('')
+  })
+  it('Infinity → ""', () => {
+    expect(formatCents(Infinity)).toBe('')
+  })
 })
 
 describe('addCents', () => {
-  it('100 + 50 = 150', () => { expect(addCents(100, 50)).toBe(150) })
-  it('rounds inputs', () => { expect(addCents(1.4, 2.6)).toBe(4) })
-  it('non-number → 0', () => { expect(addCents('a', 1)).toBe(0) })
-  it('negative + positive', () => { expect(addCents(-50, 100)).toBe(50) })
+  it('100 + 50 = 150', () => {
+    expect(addCents(100, 50)).toBe(150)
+  })
+  it('rounds inputs', () => {
+    expect(addCents(1.4, 2.6)).toBe(4)
+  })
+  it('non-number → 0', () => {
+    expect(addCents('a', 1)).toBe(0)
+  })
+  it('negative + positive', () => {
+    expect(addCents(-50, 100)).toBe(50)
+  })
 })
 
 describe('percentOf', () => {
-  it('10% of 1000 = 100', () => { expect(percentOf(1000, 10)).toBe(100) })
-  it('25% of 200 = 50', () => { expect(percentOf(200, 25)).toBe(50) })
-  it('rounds', () => { expect(percentOf(333, 10)).toBe(33) })
-  it('non-number → 0', () => { expect(percentOf('x', 10)).toBe(0) })
+  it('10% of 1000 = 100', () => {
+    expect(percentOf(1000, 10)).toBe(100)
+  })
+  it('25% of 200 = 50', () => {
+    expect(percentOf(200, 25)).toBe(50)
+  })
+  it('rounds', () => {
+    expect(percentOf(333, 10)).toBe(33)
+  })
+  it('non-number → 0', () => {
+    expect(percentOf('x', 10)).toBe(0)
+  })
 })
 ```
 
@@ -555,6 +710,7 @@ git commit -m "feat(benchmarks): currency + tests"
 ### Task 8: vitest.config.js
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/vitest.config.js`
 
 - [ ] **Step 1: Написати config**
@@ -599,6 +755,7 @@ git commit -m "feat(benchmarks): vitest config for demo"
 ### Task 9: stryker.bun.config.mjs
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/stryker.bun.config.mjs`
 
 - [ ] **Step 1: Написати config (дзеркало поточного canonical baseline)**
@@ -655,6 +812,7 @@ git commit -m "feat(benchmarks): stryker bun config (mirror current canonical ba
 ### Task 10: stryker.vitest.config.mjs
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/demo/stryker.vitest.config.mjs`
 
 - [ ] **Step 1: Написати config**
@@ -709,11 +867,12 @@ git commit -m "feat(benchmarks): stryker vitest config (perTest + concurrency de
 ### Task 11: run.mjs оркестратор
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/run.mjs`
 
 - [ ] **Step 1: Написати скрипт**
 
-```js
+````js
 #!/usr/bin/env bun
 /**
  * Spike-бенчмарк: вимірює тривалість Stryker-прогону для двох runner-конфігурацій
@@ -736,9 +895,17 @@ const RESULTS = join(HERE, 'results')
 const REPORTS = join(DEMO, 'reports')
 
 const SCENARIOS = {
-  'full-bun':                 { config: 'stryker.bun.config.mjs',    cleanReports: true,  incrementalFile: 'incremental-bun.json' },
-  'full-vitest':              { config: 'stryker.vitest.config.mjs', cleanReports: true,  incrementalFile: 'incremental-vitest.json' },
-  'incremental-vitest-noop':  { config: 'stryker.vitest.config.mjs', cleanReports: false, incrementalFile: 'incremental-vitest.json' }
+  'full-bun': { config: 'stryker.bun.config.mjs', cleanReports: true, incrementalFile: 'incremental-bun.json' },
+  'full-vitest': {
+    config: 'stryker.vitest.config.mjs',
+    cleanReports: true,
+    incrementalFile: 'incremental-vitest.json'
+  },
+  'incremental-vitest-noop': {
+    config: 'stryker.vitest.config.mjs',
+    cleanReports: false,
+    incrementalFile: 'incremental-vitest.json'
+  }
 }
 
 const argv = process.argv.slice(2)
@@ -750,7 +917,10 @@ mkdirSync(RESULTS, { recursive: true })
 const summary = []
 for (const name of list) {
   const cfg = SCENARIOS[name]
-  if (!cfg) { console.error(`Unknown scenario: ${name}`); process.exit(2) }
+  if (!cfg) {
+    console.error(`Unknown scenario: ${name}`)
+    process.exit(2)
+  }
 
   // Setup
   if (cfg.cleanReports && existsSync(REPORTS)) rmSync(REPORTS, { recursive: true, force: true })
@@ -788,7 +958,10 @@ for (const name of list) {
     continue
   }
   const report = JSON.parse(readFileSync(mutationPath, 'utf8'))
-  let killed = 0, survived = 0, timeout = 0, noCoverage = 0
+  let killed = 0,
+    survived = 0,
+    timeout = 0,
+    noCoverage = 0
   for (const file of Object.values(report.files ?? {})) {
     for (const m of file.mutants ?? []) {
       if (m.status === 'Killed') killed++
@@ -798,13 +971,16 @@ for (const name of list) {
     }
   }
   const total = killed + survived + timeout + noCoverage
-  const score = total > 0 ? Math.round(1000 * (killed + timeout) / total) / 10 : 0
+  const score = total > 0 ? Math.round((1000 * (killed + timeout)) / total) / 10 : 0
 
   const result = {
     scenario: name,
     durationMs,
     totalMutants: total,
-    killed, survived, timeout, noCoverage,
+    killed,
+    survived,
+    timeout,
+    noCoverage,
     score,
     versions: {
       node: process.versions.node,
@@ -823,10 +999,11 @@ const vitFull = summary.find(s => s.scenario === 'full-vitest')
 const vitNoop = summary.find(s => s.scenario === 'incremental-vitest-noop')
 const baseline = bunFull?.durationMs ?? null
 
-const speedup = (s) => baseline && s?.durationMs ? `${(baseline / s.durationMs).toFixed(2)}×` : 'n/a'
-const fmt = (s) => s?.error
-  ? `| ${s.scenario} | — | ERROR (${s.error}) | — | — |`
-  : `| ${s.scenario} | ${s?.totalMutants ?? '—'} | ${((s?.durationMs ?? 0) / 1000).toFixed(1)}s | ${s?.score ?? '—'}% | ${speedup(s)} |`
+const speedup = s => (baseline && s?.durationMs ? `${(baseline / s.durationMs).toFixed(2)}×` : 'n/a')
+const fmt = s =>
+  s?.error
+    ? `| ${s.scenario} | — | ERROR (${s.error}) | — | — |`
+    : `| ${s.scenario} | ${s?.totalMutants ?? '—'} | ${((s?.durationMs ?? 0) / 1000).toFixed(1)}s | ${s?.score ?? '—'}% | ${speedup(s)} |`
 
 const md = [
   '# Vitest Runner Spike — Results',
@@ -861,7 +1038,7 @@ const md = [
 ].join('\n')
 writeFileSync(join(HERE, 'SPIKE.md'), md)
 console.log(`\n→ SPIKE.md updated`)
-```
+````
 
 - [ ] **Step 2: Smoke прогін на одному сценарії**
 
@@ -891,11 +1068,12 @@ git commit -m "feat(benchmarks): run.mjs orchestrator (3 scenarios, JSON results
 ### Task 12: README.md
 
 **Files:**
+
 - Create: `benchmarks/runner-comparison/README.md`
 
 - [ ] **Step 1: Написати README**
 
-```markdown
+````markdown
 # runner-comparison
 
 Spike-бенчмарк для порівняння двох Stryker test-runner конфігурацій:
@@ -907,13 +1085,13 @@ Spike-бенчмарк для порівняння двох Stryker test-runner 
 
 `demo/` — standalone (не у workspaces), 5 pure utility-функцій із юніт-тестами:
 
-| Файл | Що тестується |
-| --- | --- |
-| `slugify.mjs` | Нормалізація рядків (regex, trim, truncate) |
-| `url-parse.mjs` | Query-string parse/build (decodeURIComponent, edge cases) |
-| `retry.mjs` | Async retry з exponential backoff |
-| `promise-pool.mjs` | Concurrent map зі збереженням порядку |
-| `currency.mjs` | Cents-format, add, percent (integer math, NaN handling) |
+| Файл               | Що тестується                                             |
+| ------------------ | --------------------------------------------------------- |
+| `slugify.mjs`      | Нормалізація рядків (regex, trim, truncate)               |
+| `url-parse.mjs`    | Query-string parse/build (decodeURIComponent, edge cases) |
+| `retry.mjs`        | Async retry з exponential backoff                         |
+| `promise-pool.mjs` | Concurrent map зі збереженням порядку                     |
+| `currency.mjs`     | Cents-format, add, percent (integer math, NaN handling)   |
 
 ## Як запустити
 
@@ -921,6 +1099,7 @@ Spike-бенчмарк для порівняння двох Stryker test-runner 
 cd benchmarks/runner-comparison/demo && bun install
 cd .. && bun run.mjs
 ```
+````
 
 Або один сценарій:
 
@@ -930,10 +1109,10 @@ bun run.mjs --scenario=full-vitest
 
 ## Сценарії
 
-| Сценарій | Опис |
-| --- | --- |
-| `full-bun` | Чистий прогін з `stryker.bun.config.mjs`; `demo/reports/` видаляється перед стартом. |
-| `full-vitest` | Чистий прогін з `stryker.vitest.config.mjs`; `demo/reports/` видаляється. |
+| Сценарій                  | Опис                                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `full-bun`                | Чистий прогін з `stryker.bun.config.mjs`; `demo/reports/` видаляється перед стартом.                               |
+| `full-vitest`             | Чистий прогін з `stryker.vitest.config.mjs`; `demo/reports/` видаляється.                                          |
 | `incremental-vitest-noop` | Другий прогін `stryker.vitest.config.mjs` БЕЗ очищення `reports/` — має бути ~миттєвим завдяки `incremental.json`. |
 
 ## Output
@@ -951,14 +1130,15 @@ bun run.mjs --scenario=full-vitest
 ## NOT scope
 
 Цей бенчмарк **не** змінює нічого у `npm/rules/test/...` чи `npm/rules/js-lint/...`. Канонічний baseline `@nitra/cursor` залишається `bun test` поки spike не підтвердить виграш.
-```
+
+````
 
 - [ ] **Step 2: Commit**
 
 ```bash
 git add benchmarks/runner-comparison/README.md
 git commit -m "docs(benchmarks): README for runner-comparison spike"
-```
+````
 
 ---
 
@@ -998,7 +1178,7 @@ git commit -m "chore(benchmarks): record initial spike results"
 
 ### Task 14: Презентація результатів + decision gate
 
-- [ ] **Step 1: Прочитати SPIKE.md та results/*.json**
+- [ ] **Step 1: Прочитати SPIKE.md та results/\*.json**
 
 ```bash
 cat benchmarks/runner-comparison/SPIKE.md
@@ -1008,6 +1188,7 @@ ls benchmarks/runner-comparison/results/
 - [ ] **Step 2: Класифікувати результат**
 
 Порівняти числа з порогом:
+
 - `full-vitest.durationMs / full-bun.durationMs ≤ 0.5` AND `incremental.durationMs / full-vitest.durationMs ≤ 0.1` → **Strong win**
 - `full-vitest.durationMs / full-bun.durationMs ∈ (0.5, 0.8]` → **Marginal**, треба `touch-1-source`
 - `> 0.8` → **No win**
@@ -1015,6 +1196,7 @@ ls benchmarks/runner-comparison/results/
 - [ ] **Step 3: Презентувати користувачу**
 
 Вивід має містити:
+
 1. Таблицю з 3 рядками (speedup ratios).
 2. Класифікацію (Strong win / Marginal / No win).
 3. Рекомендацію (мігруємо / робимо touch-1-source / зупиняємось).
@@ -1027,5 +1209,5 @@ ls benchmarks/runner-comparison/results/
 
 - ✅ Spec coverage: spike покриває верифікаційну частину спеки користувача (`зпочатку перевірити з vitest`); фази A-E повної міграції — поза скоупом цього плану (окремий план після decision gate).
 - ✅ Placeholder scan: код у кожному кроці повний; немає TBD/TODO.
-- ✅ Type consistency: усі імпорти/назви функцій узгоджені між src/* і tests/*; `stryker.bun.config.mjs` та `stryker.vitest.config.mjs` посилаються на однаковий `mutate: ['src/**/*.mjs']`; обидва `incrementalFile` різні (щоб incremental-vitest-noop не отруїлося даними з bun-прогону).
+- ✅ Type consistency: усі імпорти/назви функцій узгоджені між src/_ і tests/_; `stryker.bun.config.mjs` та `stryker.vitest.config.mjs` посилаються на однаковий `mutate: ['src/**/*.mjs']`; обидва `incrementalFile` різні (щоб incremental-vitest-noop не отруїлося даними з bun-прогону).
 - ✅ Verify-first: Task 14 явно зупиняється; повна міграція — окремим планом.

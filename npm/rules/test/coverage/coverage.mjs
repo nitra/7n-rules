@@ -100,7 +100,14 @@ export function renderMarkdown(rows) {
         lines.push(`| ${m.line} | \`${m.original}\` | \`${m.replacement}\` | ${m.mutantType} |`)
       }
       if (group.exampleTest) {
-        lines.push('', `**Приклад тесту** (\`${group.exampleTest.testFile}\`):`, '', '```js', group.exampleTest.code ?? '', '```')
+        lines.push(
+          '',
+          `**Приклад тесту** (\`${group.exampleTest.testFile}\`):`,
+          '',
+          '```js',
+          group.exampleTest.code ?? '',
+          '```'
+        )
       }
       if (group.recommendationText) {
         lines.push('', '**Що треба протестувати:**', '', group.recommendationText)

@@ -75,7 +75,13 @@ export async function check() {
   }
 
   for (const jsRoot of jsRoots) {
-    await ensureBaselineFile(reporter, cwd, STRYKER_BASELINE_PATH, join(jsRoot, 'stryker.config.mjs'), 'stryker.config.mjs')
+    await ensureBaselineFile(
+      reporter,
+      cwd,
+      STRYKER_BASELINE_PATH,
+      join(jsRoot, 'stryker.config.mjs'),
+      'stryker.config.mjs'
+    )
     await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
   }
 

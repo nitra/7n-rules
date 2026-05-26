@@ -12,7 +12,7 @@ export async function retry(fn, opts = {}) {
       attempt += 1
       if (attempt >= maxAttempts) break
       const delay = baseDelay * Math.pow(factor, attempt - 1)
-      await new Promise((r) => setTimeout(r, delay))
+      await new Promise(r => setTimeout(r, delay))
     }
   }
   throw lastErr

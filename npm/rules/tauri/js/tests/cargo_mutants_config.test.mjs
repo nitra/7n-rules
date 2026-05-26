@@ -27,32 +27,32 @@ import { check } from '../cargo_mutants_config.mjs'
 function makeProj({ layout = 'tauri', tauriManifest = '[package]\nname="t"\nversion="0.1.0"\n' } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'tauri-mutants-config-'))
   switch (layout) {
-  case 'noTauri': {
-    // Жодного маркера Tauri.
-  
-  break;
-  }
-  case 'tauri': {
-    // Реальний Tauri monorepo: workspace `app` має власний package.json (JS-frontend) + src-tauri (Rust-backend).
-    mkdirSync(join(dir, 'app', 'src-tauri'), { recursive: true })
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
-    writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app', version: '0.0.0' }))
-    writeFileSync(join(dir, 'app', 'src-tauri', 'Cargo.toml'), tauriManifest)
-  
-  break;
-  }
-  case 'multiTauri': {
-    mkdirSync(join(dir, 'app', 'src-tauri'), { recursive: true })
-    mkdirSync(join(dir, 'desktop', 'src-tauri'), { recursive: true })
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'desktop'] }))
-    writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app', version: '0.0.0' }))
-    writeFileSync(join(dir, 'desktop', 'package.json'), JSON.stringify({ name: 'desktop', version: '0.0.0' }))
-    writeFileSync(join(dir, 'app', 'src-tauri', 'Cargo.toml'), '[package]\nname="a"\nversion="0.1.0"\n')
-    writeFileSync(join(dir, 'desktop', 'src-tauri', 'Cargo.toml'), '[package]\nname="d"\nversion="0.1.0"\n')
-  
-  break;
-  }
-  // No default
+    case 'noTauri': {
+      // Жодного маркера Tauri.
+
+      break
+    }
+    case 'tauri': {
+      // Реальний Tauri monorepo: workspace `app` має власний package.json (JS-frontend) + src-tauri (Rust-backend).
+      mkdirSync(join(dir, 'app', 'src-tauri'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app'] }))
+      writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app', version: '0.0.0' }))
+      writeFileSync(join(dir, 'app', 'src-tauri', 'Cargo.toml'), tauriManifest)
+
+      break
+    }
+    case 'multiTauri': {
+      mkdirSync(join(dir, 'app', 'src-tauri'), { recursive: true })
+      mkdirSync(join(dir, 'desktop', 'src-tauri'), { recursive: true })
+      writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['app', 'desktop'] }))
+      writeFileSync(join(dir, 'app', 'package.json'), JSON.stringify({ name: 'app', version: '0.0.0' }))
+      writeFileSync(join(dir, 'desktop', 'package.json'), JSON.stringify({ name: 'desktop', version: '0.0.0' }))
+      writeFileSync(join(dir, 'app', 'src-tauri', 'Cargo.toml'), '[package]\nname="a"\nversion="0.1.0"\n')
+      writeFileSync(join(dir, 'desktop', 'src-tauri', 'Cargo.toml'), '[package]\nname="d"\nversion="0.1.0"\n')
+
+      break
+    }
+    // No default
   }
   return {
     dir,
@@ -148,7 +148,7 @@ timeout_multiplier = 5.0
     proj.cleanup()
   })
 
-  test('кілька src-tauri у різних workspaces — у кожному з\'являється Tauri-config', async () => {
+  test("кілька src-tauri у різних workspaces — у кожному з'являється Tauri-config", async () => {
     const proj = makeProj({ layout: 'multiTauri' })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)

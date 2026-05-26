@@ -16,7 +16,8 @@ import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const TEST_BLOCK_START = /^\s*(it|test)\(/
 const FILE_EXTENSION = /\.[^.]+$/
-const VITEST_HINT = 'js-lint coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
+const VITEST_HINT =
+  'js-lint coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
 
 /**
  * Чи у пакеті встановлено vitest (через dependencies або devDependencies).

@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.1] - 2026-05-26
+
+### Changed
+
+- Додано workspace-level `vitest.config.js` baseline і follow-up правки для Vitest/Stryker coverage-концернів після переходу тестового правила на Vitest runner.
+
 ## [1.27.0] - 2026-05-26
 
 ### Changed
