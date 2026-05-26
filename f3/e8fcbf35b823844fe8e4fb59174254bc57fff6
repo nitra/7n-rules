@@ -1,0 +1,60 @@
+package.json
+  s_1b1b055c883315::t_847e29f7897c26 24
+.cursor/skills/n-lint/SKILL.md
+  s_1b1b055c883315::t_39c1df40355b64 39
+.pi/extensions/n-cursor-adr/index.ts
+  s_1b1b055c883315::t_39c1df40355b64 1-42,44-56,58-82,84-104
+  s_1b1b055c883315::t_847e29f7897c26 43,57,83
+CLAUDE.md
+  s_1b1b055c883315::t_39c1df40355b64 39-40
+.n-cursor.json
+  s_1b1b055c883315::t_39c1df40355b64 20-40
+npm/knip.json
+  s_b04f45c0cd93a7::t_fe3de961409fc0 1-29
+npm/scripts/lib/timing-summary.mjs
+  s_b04f45c0cd93a7::t_fe3de961409fc0 61-64
+.cursor/skills/n-fix-tests/SKILL.md
+  s_1b1b055c883315::t_39c1df40355b64 1-109
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_b04f45c0cd93a7::t_1466b62bdd837d 147
+  s_b04f45c0cd93a7::t_74fda3a94e60a3 187
+  s_b04f45c0cd93a7::t_e22c5aaf57bee9 13
+  s_b04f45c0cd93a7::t_260b915bcbdc1e 209-210
+  s_b04f45c0cd93a7::t_f4973959d5d645 28
+  s_b04f45c0cd93a7::t_5a94f517df2919 9-10,12
+  s_b04f45c0cd93a7::t_91b01eb58a8dec 8,11
+.pi/skills/n-fix-tests/SKILL.md
+  s_1b1b055c883315::t_39c1df40355b64 1-9
+AGENTS.md
+  s_1b1b055c883315::t_39c1df40355b64 35
+.claude/commands/n-fix-tests.md
+  s_1b1b055c883315::t_39c1df40355b64 1-8
+npm/scripts/lib/tests/timing-summary.test.mjs
+  s_b04f45c0cd93a7::t_fe3de961409fc0 5-9,50-53
+.cursor/rules/n-adr.mdc
+  s_1b1b055c883315::t_39c1df40355b64 117,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "f3e8fcbf35b823844fe8e4fb59174254bc57fff6",
+  "prompts": {},
+  "sessions": {
+    "s_1b1b055c883315": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "56c96bfd-9023-492a-8f16-b4da2a36a737",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b04f45c0cd93a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b8895738-4fcd-44ff-891e-24ef7cfe8874",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
