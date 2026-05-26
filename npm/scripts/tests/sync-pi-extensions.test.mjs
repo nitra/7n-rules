@@ -19,6 +19,14 @@ import { withTmpCwd } from '../utils/test-helpers.mjs'
 
 const PI_TEMPLATE_PATH = join(import.meta.dir, '..', '..', '.pi-template', 'extensions', 'n-cursor-adr', 'index.ts')
 
+const EXPORT_DEFAULT_FN_RE = /export default function/
+const PI_ON_AGENT_END_RE = /pi\.on\(['"]agent_end['"]/
+const CAPTURE_DECISIONS_SH_RE = /capture-decisions\.sh/
+const NORMALIZE_DECISIONS_SH_RE = /normalize-decisions\.sh/
+const CLAUDE_PROJECT_DIR_RE = /CLAUDE_PROJECT_DIR/
+const CAPTURE_DECISIONS_RUNNING_RE = /CAPTURE_DECISIONS_RUNNING/
+const ADR_NORMALIZE_RUNNING_RE = /ADR_NORMALIZE_RUNNING/
+
 /**
  * Створює мінімальний bundled-пакет із `.pi-template/extensions/n-cursor-adr/index.ts`.
  * @param {string} cwdAbs корінь тимчасового проєкту
@@ -43,48 +51,64 @@ describe('.pi-template/extensions/n-cursor-adr/index.ts (bundled)', () => {
 
   test('має default export factory function', async () => {
     const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
-    expect(src).toMatch(/export default function/)
-    expect(src).toMatch(/pi\.on\(['"]agent_end['"]/)
+    expect(src).toMatch(EXPORT_DEFAULT_FN_RE)
+    expect(src).toMatch(PI_ON_AGENT_END_RE)
   })
 
   test('спавнить обидва bash-скрипти capture/normalize', async () => {
     const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
-    expect(src).toMatch(/capture-decisions\.sh/)
-    expect(src).toMatch(/normalize-decisions\.sh/)
+    expect(src).toMatch(CAPTURE_DECISIONS_SH_RE)
+    expect(src).toMatch(NORMALIZE_DECISIONS_SH_RE)
   })
 
   test('виставляє CLAUDE_PROJECT_DIR у env', async () => {
     const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
-    expect(src).toMatch(/CLAUDE_PROJECT_DIR/)
+    expect(src).toMatch(CLAUDE_PROJECT_DIR_RE)
   })
 
   test('має recursion guard через CAPTURE_DECISIONS_RUNNING / ADR_NORMALIZE_RUNNING', async () => {
     const src = await readFile(PI_TEMPLATE_PATH, 'utf8')
-    expect(src).toMatch(/CAPTURE_DECISIONS_RUNNING/)
-    expect(src).toMatch(/ADR_NORMALIZE_RUNNING/)
+    expect(src).toMatch(CAPTURE_DECISIONS_RUNNING_RE)
+    expect(src).toMatch(ADR_NORMALIZE_RUNNING_RE)
   })
 })
 
 describe('syncPiExtensions', () => {
-  test('копіює bundled extension у .pi/extensions/<name>/index.ts', async () => {
+  test('копіює bundled extension у .pi/extensions/<name>/ (усі файли теки)', async () => {
     await withTmpCwd(async cwd => {
       const pkgRoot = await setupPiTemplate(cwd)
       const result = await syncPiExtensions(cwd, pkgRoot)
       expect(result.written).toBe(true)
-      expect(result.path).toBe(`${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}/index.ts`)
+      expect(result.path).toBe(`${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}`)
+      expect(result.files).toContain('index.ts')
       const dest = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'index.ts')
       const content = await readFile(dest, 'utf8')
       expect(content).toContain('bundled pi extension stub')
     })
   })
 
-  test('повертає {written:false} якщо bundled template відсутній', async () => {
+  test('копіює tsconfig.json (і будь-які додаткові файли) поряд з index.ts', async () => {
+    await withTmpCwd(async cwd => {
+      const pkgRoot = await setupPiTemplate(cwd)
+      const srcDir = join(pkgRoot, PI_TEMPLATE_DIR_NAME, 'extensions', PI_EXTENSION_NAME)
+      await writeFile(join(srcDir, 'tsconfig.json'), '{"compilerOptions":{"types":["node"]}}', 'utf8')
+      const result = await syncPiExtensions(cwd, pkgRoot)
+      expect(result.files).toEqual(['index.ts', 'tsconfig.json'])
+      const dest = join(cwd, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME, 'tsconfig.json')
+      expect(existsSync(dest)).toBe(true)
+      const content = await readFile(dest, 'utf8')
+      expect(content).toContain('"types":["node"]')
+    })
+  })
+
+  test('повертає {written:false} якщо bundled index.ts відсутній', async () => {
     await withTmpCwd(async cwd => {
       const pkgRoot = join(cwd, 'empty-pkg')
       await mkdir(pkgRoot, { recursive: true })
       const result = await syncPiExtensions(cwd, pkgRoot)
       expect(result.written).toBe(false)
       expect(result.path).toBe('')
+      expect(result.files).toEqual([])
     })
   })
 

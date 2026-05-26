@@ -4,6 +4,19 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.24.0] - 2026-05-26
+
+### Added
+
+- **`.pi-template/extensions/n-cursor-adr/tsconfig.json`** — мінімальний TS-конфіг шаблону pi.dev extension, який синкається у `.pi/extensions/n-cursor-adr/` разом із `index.ts`. Дозволяє IDE/TS-серверу резолвити `node:*` модулі без project-wide tsconfig у проєкті-споживачі (`types: ["node"]`, `module/target: ES2022 + NodeNext`, `noEmit`, `isolatedModules`). Споживачу потрібен `@types/node` у devDeps (зазвичай уже є транзитивно).
+- **`pi` manifest у `npm/package.json`** — `{"skills":"skills","extensions":".pi-template/extensions"}`. Pi.dev під час `pi install npm:@nitra/cursor` тепер бачить explicit-шляхи до bundled-ресурсів, замість convention-auto-discovery. `extensions: ".pi-template/extensions"` критичний — pi за замовч. шукає `extensions/` у корені пакета, а у нас шлях нестандартний.
+- **`"pi-package"` keyword** у `npm/package.json` — пакет з’являється у pi-gallery для discoverability.
+
+### Changed
+
+- **`syncPiExtensions`** тепер копіює **всі файли** з теки `.pi-template/extensions/<name>/`, а не лише `index.ts`. Контракт повернення: `{ written, path, files }` — `path` тепер тека (а не файл), `files` — відсортований список базових імен. У `🤖 Claude-конфіг` логу та у `result.piExtension` caller-стороні виводиться тека.
+- **`.pi-template/extensions/n-cursor-adr/index.ts`** — порядок імпортів виправлено (всі `node:*` імпорти підняті на самий верх, перед `interface PiContext`). Усувало `import/first` ESLint-помилку; функціонально без змін.
+
 ## [1.23.0] - 2026-05-25
 
 ### Added

@@ -10,6 +10,12 @@
  * перед спавном LLM CLI.
  */
 
+import { randomUUID } from 'node:crypto'
+import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { env } from 'node:process'
+
 interface PiContext {
   cwd: string
   sessionId?: string
@@ -36,18 +42,12 @@ interface PiExec {
   ) => void
 }
 
-import { writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { randomUUID } from 'node:crypto'
-import { env } from 'node:process'
-
 const CAPTURE_HOOK = '.claude/hooks/capture-decisions.sh'
 const NORMALIZE_HOOK = '.claude/hooks/normalize-decisions.sh'
 
 /**
  * Pi extension entry point.
- * @param pi pi.dev extension API
+ * @param {PiExec} pi pi.dev extension API
  */
 export default function (pi: PiExec): void {
   pi.on('agent_end', async (_event, ctx) => {

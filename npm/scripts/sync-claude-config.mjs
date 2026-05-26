@@ -415,32 +415,41 @@ export function syncAdrNormalizeHookScript(projectRoot, templateDir) {
 }
 
 /**
- * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/index.ts`
- * у `.pi/extensions/n-cursor-adr/index.ts` проєкту-споживача. Файл fully-owned: при кожному
- * sync-у перезаписується. Якщо bundled template відсутній (наприклад, у legacy-версіях
- * пакета без `.pi-template/`) — повертаємо `{written: false}` без помилки.
+ * Копіює bundled pi.dev TS-extension `npm/.pi-template/extensions/n-cursor-adr/` (усі файли —
+ * `index.ts`, `tsconfig.json`, потенційні `package.json`/`.gitignore` тощо) у
+ * `.pi/extensions/n-cursor-adr/` проєкту-споживача. Тека fully-owned: при кожному sync-у
+ * перезаписується. Якщо bundled template відсутній (legacy-версії пакета без `.pi-template/`)
+ * або в ньому немає `index.ts` — повертаємо `{written: false}` без помилки.
  *
+ * Розширення поверх `index.ts` (tsconfig тощо) потрібні, бо `.pi/extensions/` синкається як є
+ * у проєкти-споживачі, а IDE/TS-сервер мусить резолвити `node:*` модулі без додаткових
+ * project-wide конфігів.
  * @param {string} projectRoot корінь проєкту-споживача
  * @param {string} bundledPackageRoot корінь установленого `@nitra/cursor` (із `.pi-template/`)
- * @returns {Promise<{ written: boolean, path: string }>} чи писали файл, та його відносний шлях
+ * @returns {Promise<{ written: boolean, path: string, files: string[] }>} чи писали; відносний шлях до теки розширення; список скопійованих базових імен (відсортований)
  */
 export async function syncPiExtensions(projectRoot, bundledPackageRoot) {
-  const srcPath = join(
-    bundledPackageRoot,
-    PI_TEMPLATE_DIR_NAME,
-    'extensions',
-    PI_EXTENSION_NAME,
-    'index.ts'
-  )
-  if (!existsSync(srcPath)) {
-    return { written: false, path: '' }
+  const srcDir = join(bundledPackageRoot, PI_TEMPLATE_DIR_NAME, 'extensions', PI_EXTENSION_NAME)
+  const indexPath = join(srcDir, 'index.ts')
+  if (!existsSync(indexPath)) {
+    return { written: false, path: '', files: [] }
   }
-  const content = await readFile(srcPath, 'utf8')
   const destDir = join(projectRoot, PI_EXTENSIONS_DIR, PI_EXTENSION_NAME)
   await mkdir(destDir, { recursive: true })
-  const destPath = join(destDir, 'index.ts')
-  await writeFile(destPath, content, 'utf8')
-  return { written: true, path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}/index.ts` }
+  const entries = await readdir(srcDir, { withFileTypes: true })
+  const copied = []
+  for (const entry of entries) {
+    if (!entry.isFile()) continue
+    const name = entry.name
+    const content = await readFile(join(srcDir, name), 'utf8')
+    await writeFile(join(destDir, name), content, 'utf8')
+    copied.push(name)
+  }
+  return {
+    written: true,
+    path: `${PI_EXTENSIONS_DIR}/${PI_EXTENSION_NAME}`,
+    files: copied.toSorted((a, b) => a.localeCompare(b))
+  }
 }
 
 /**

@@ -34,6 +34,8 @@
   Команда: `/mdc-check`
 - `.cursor/skills/n-adr-normalize/SKILL.md` — Ручний запуск ADR-нормалізації — обхід порогу й min-interval, прогон одного батчу чернеток через LLM, перегляд результату через git diff
   Команда: `/n-adr-normalize`
+- `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає coverage, читає ## Recommendations у COVERAGE.md, ітеративно пише тести для вижилих мутантів до конвергенції
+  Команда: `/n-coverage-fix`
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
   Команда: `/n-fix`
 - `.cursor/skills/n-fix-tests/SKILL.md` — Ітеративно дописати тести щоб підвищити mutation score — читає вижилі мутанти з COVERAGE.md і запускає агент до конвергенції
