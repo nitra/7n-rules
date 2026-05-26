@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.19.3] - 2026-05-26
+
+### Added
+
+- **`stryker.config.mjs` baseline**: `incremental: true` + `incrementalFile: 'reports/stryker/incremental.json'` — Stryker зберігає результати між запусками і відновлює після краш/kill (SIGURG). Важливо для машин з обмеженою RAM де Stryker вбивається системою після ~100 мутантів.
+
 ## [1.19.2] - 2026-05-25
 
 ### Fixed

@@ -75,6 +75,8 @@ describe('stryker_config concern', () => {
     expect(content).toContain("testRunner: 'command'")
     expect(content).toContain("commandRunner: { command: 'bun test' }")
     expect(content).toContain("jsonReporter: { fileName: 'reports/stryker/mutation.json' }")
+    expect(content).toContain('incremental: true')
+    expect(content).toContain("incrementalFile: 'reports/stryker/incremental.json'")
     proj.cleanup()
   })
 
