@@ -6,8 +6,13 @@ import { join } from 'node:path'
 import { LINT_SCRIPTS, runLintCli } from '../run-lint-cli.mjs'
 
 /**
+ * Sink для DI-каналів `log` / `logError`, коли вміст повідомлення не перевіряємо.
+ * Використовуємо вбудований `String` — він приймає будь-який аргумент і повертає рядок без друку.
+ */
+const noop = String
+
+/**
  * Створює тимчасову теку з package.json, у якому задані scripts.
- *
  * @param {Record<string, string>} scripts мапа `scripts` для тестового `package.json`
  * @returns {{ root: string, cleanup: () => void }} абсолютний шлях до теки і функція прибирання
  */
@@ -19,9 +24,8 @@ function makeProject(scripts) {
 
 /**
  * Фабрика мокованого spawnSync: повертає послідовність exit-кодів і тривалостей.
- *
  * @param {Array<{ status: number, ms: number }>} sequence послідовність відповідей spawnSync у порядку викликів
- * @returns {{ spawnSyncFn: Function, now: () => number, calls: {name: string, status: number}[] }} моки + журнал викликів
+ * @returns {{ spawnSyncFn: (cmd: string, args: string[]) => {status: number}, now: () => number, calls: {name: string, status: number}[] }} моки + журнал викликів
  */
 function makeSpawnSync(sequence) {
   let i = 0
@@ -140,7 +144,7 @@ describe('runLintCli', () => {
         { status: 0, ms: 100 },
         { status: 0, ms: 200 }
       ])
-      const code = runLintCli({ cwd: root, spawnSyncFn, now, log: () => {} })
+      const code = runLintCli({ cwd: root, spawnSyncFn, now, log: noop })
       expect(code).toBe(0)
       expect(calls.map(c => c.name)).toEqual(['lint-js', 'lint-style'])
     } finally {
@@ -180,7 +184,7 @@ describe('runLintCli', () => {
           throw new Error('не має викликатись')
         },
         now: () => 0,
-        log: () => {},
+        log: noop,
         logError: t => {
           errOutput += t
         }
@@ -202,8 +206,8 @@ describe('runLintCli', () => {
           throw new Error('не має викликатись')
         },
         now: () => 0,
-        log: () => {},
-        logError: () => {}
+        log: noop,
+        logError: noop
       })
       expect(code).toBe(1)
     } finally {

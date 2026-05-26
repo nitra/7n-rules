@@ -2,6 +2,11 @@ import { describe, expect, test } from 'bun:test'
 
 import { formatDurationMs, formatTimingSummary } from '../timing-summary.mjs'
 
+const FIX_BUN_OK_RE = /fix-bun\s+1\.2s$/
+const FIX_GA_FAIL_RE = /fix-ga\s+3\.5s\s+❌$/
+const FIX_JS_LINT_OK_RE = /fix-js-lint\s+0\.8s$/
+const TOTAL_55_RE = /total\s+5\.5s$/
+
 describe('formatDurationMs', () => {
   test('0ms → 0.0s', () => {
     expect(formatDurationMs(0)).toBe('0.0s')
@@ -42,10 +47,10 @@ describe('formatTimingSummary', () => {
     ])
     const lines = out.trim().split('\n')
     expect(lines[0]).toBe('⏱  Fix timing:')
-    expect(lines[1]).toMatch(/fix-bun\s+1\.2s$/)
-    expect(lines[2]).toMatch(/fix-ga\s+3\.5s\s+❌$/)
-    expect(lines[3]).toMatch(/fix-js-lint\s+0\.8s$/)
-    expect(lines[lines.length - 1]).toMatch(/total\s+5\.5s$/)
+    expect(lines[1]).toMatch(FIX_BUN_OK_RE)
+    expect(lines[2]).toMatch(FIX_GA_FAIL_RE)
+    expect(lines[3]).toMatch(FIX_JS_LINT_OK_RE)
+    expect(lines.at(-1)).toMatch(TOTAL_55_RE)
   })
 
   test('зберігає порядок запуску (не сортує)', () => {

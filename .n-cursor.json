@@ -17,7 +17,25 @@
     "text",
     "vue"
   ],
-  "ignore": [".claude/worktrees"],
-  "disable-rules": ["docker", "image-avif", "image-compress", "js-bun-db", "k8s", "nginx-default-tpl"],
-  "skills": ["adr-normalize", "fix", "lint", "llm-patch", "publish-telegram", "start-check", "taze"]
+  "ignore": [
+    ".claude/worktrees"
+  ],
+  "disable-rules": [
+    "docker",
+    "image-avif",
+    "image-compress",
+    "js-bun-db",
+    "k8s",
+    "nginx-default-tpl"
+  ],
+  "skills": [
+    "adr-normalize",
+    "fix",
+    "fix-tests",
+    "lint",
+    "llm-patch",
+    "publish-telegram",
+    "start-check",
+    "taze"
+  ]
 }

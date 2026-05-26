@@ -41,7 +41,6 @@ export const LINT_SCRIPTS = /** @type {const} */ ([
 /**
  * Читає `scripts` з `package.json` у заданій теці. Повертає `null`, якщо файла немає, JSON
  * некоректний або поля `scripts` нема. Не кидає — викликач сам вирішує, що робити.
- *
  * @param {string} root абсолютний шлях до теки з `package.json`
  * @returns {Record<string, string> | null} мапа scripts або null
  */
@@ -75,7 +74,6 @@ function readRootScripts(root) {
 /**
  * Виконує лінт-ланцюжок з тайменгом. Повертає exit-код, не кидає винятків (для прямого
  * присвоєння у `process.exitCode`).
- *
  * @param {RunLintCliOptions} [options] DI для тестів (мокаємо spawn / fs / clock)
  * @returns {number} 0 = успіх, ненульовий = code першого впалого скрипта, або 1 при структурних проблемах
  */
