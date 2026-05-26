@@ -1,0 +1,162 @@
+npm/.pi-template/extensions/n-cursor-adr/index.ts
+  s_57e2b67829f221::t_e23e459e4e0bfd 39,68
+npm/rules/k8s/policy/network_policy/network_policy.rego
+  s_57e2b67829f221::t_258b9426de418c 149-150
+  s_57e2b67829f221::t_c90453494fea66 81,94,147
+  s_57e2b67829f221::t_37a6d514aae750 109-124
+npm/skills/fix-tests/SKILL.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 35,40,112
+.claude/hooks/capture-decisions.sh
+  s_57e2b67829f221::t_d9048e09f32ca1 37-40
+npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 14
+npm/rules/js-lint/coverage/tests/coverage.test.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 119-121,197-199,213-224
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  s_57e2b67829f221::t_43d928730a4141 49
+  s_57e2b67829f221::t_81b42eff423bfd 21
+  s_57e2b67829f221::t_9c2e9c3abe05e5 30
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_57e2b67829f221::t_ef20c099ae99db 160
+  s_57e2b67829f221::t_74c590ff70c5db 21-22
+  s_57e2b67829f221::t_e23e459e4e0bfd 78-82,98-104,184-189,193-197
+.n-cursor.json
+  s_57e2b67829f221::t_e23e459e4e0bfd 20-21
+.claude/hooks/normalize-decisions.sh
+  s_57e2b67829f221::t_d9048e09f32ca1 42-45
+npm/scripts/utils/tests/resolve-js-root.test.mjs
+  s_57e2b67829f221::t_4b0904c9adb1d9 12,18
+  s_57e2b67829f221::t_c25f25d56e9a08 13-17
+npm/package.json
+  s_57e2b67829f221::t_e23e459e4e0bfd 63-66
+  s_57e2b67829f221::t_eb9c70047c5158 3
+npm/scripts/utils/tests/resolve-cargo-manifest.test.mjs
+  s_57e2b67829f221::t_4b0904c9adb1d9 12,20
+  s_57e2b67829f221::t_48797d001410db 13-19
+npm/scripts/tests/cli-entry.test.mjs
+  s_57e2b67829f221::t_fcb16d8c8aae39 39-42
+  s_57e2b67829f221::t_bc609ec2340b00 11
+  s_57e2b67829f221::t_a3eb29eef5a502 43,55
+.jscpd.json
+  s_57e2b67829f221::t_eda2c4cad3f4ab 12,16,19
+  s_57e2b67829f221::t_dc1b5ea04c01a4 20
+npm/rules/k8s/policy/network_policy/network_policy_test.rego
+  s_57e2b67829f221::t_674c182422e5ce 23,25
+knip.json
+  s_57e2b67829f221::t_4c9138bae02ef9 33,44-47,49-50,54
+  s_57e2b67829f221::t_18fd1cc2dfee16 2-8
+  s_57e2b67829f221::t_880fb312f7f481 18
+  s_57e2b67829f221::t_0b11ff13f62df0 53
+docs/superpowers/specs/2026-05-25-pi-extensions-adr-hooks-design.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 86-91,97,180,189,194,228,232,236
+.cspell.json
+  s_57e2b67829f221::t_edd3dfa50f9ebe 10
+docs/superpowers/plans/2026-05-24-test-rule-mutation-config.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 57,171,306,314,342,356,364,382,388,414,422,462,481,516,553,763,796,1013,1034,1092,1099,1103,1105,1113,1166,1181,1203
+npm/rules/js-lint/coverage/coverage.mjs
+  s_57e2b67829f221::t_8894339546acea 139,141
+  s_57e2b67829f221::t_32fcae47dd6431 96
+  s_57e2b67829f221::t_4b0904c9adb1d9 95,98-99
+  s_57e2b67829f221::t_e23e459e4e0bfd 100-103
+  s_57e2b67829f221::t_8c81a35254e3ae 118
+  s_57e2b67829f221::t_b14ab49753b384 16-18
+npm/rules/test/coverage/coverage.mjs
+  s_57e2b67829f221::t_4b0904c9adb1d9 98,103
+  s_57e2b67829f221::t_e23e459e4e0bfd 184
+  s_57e2b67829f221::t_57ac7fd58e2ab7 95
+docs/superpowers/plans/2026-05-24-mutation-config-management.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 15-25,32,53,79,103,139,148-149,163,228,284,318,341,357,366,374,446,497,515,528,538,602,615
+npm/scripts/lib/timing-summary.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 61
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 39,115,117,170-171
+npm/rules/adr/js/tests/capture-decisions-tooling-only.test.mjs
+  s_57e2b67829f221::t_5e95c46f480d74 43
+docs/superpowers/plans/2026-05-25-networkpolicy-snippet-v2-delta.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 19-30,39,53,64,99,113,122,139,148,182,190,294,300,322,326,355,397,409,415-417,429,450,452,471,498,512,521,534,543,555,563-567,575,605,657,663,665,688,698,705,721,805,819,825,855,1055,1067,1073,1079,1139,1151,1170,1172,1180,1203-1206,1212,1220,1228,1234,1259,1295,1349,1377,1382,1389,1396,1420,1455,1468,1475
+docs/superpowers/plans/2026-05-25-pi-extensions-adr-hooks.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 18,23,35,206,341,400,421,425,427,453,502,538-546,548,554-562,564,570-572,578-586,623,637,646,673,690,740,771,797-808,813,820
+docs/superpowers/plans/2026-05-25-adr-cspell-tooling-only.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 8,47,52,73,82,122,160,188,198-214,370,498,671,775,828,913
+.claude/hooks/lib/tooling-only.sh
+  s_57e2b67829f221::t_d9048e09f32ca1 1-61
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 34,38,48,55,66,73,79,93,109
+npm/rules/test/js/tests/stryker_config.test.mjs
+  s_57e2b67829f221::t_e6b1db2c64b97d 41-42
+  s_57e2b67829f221::t_506a21005e7f79 17-18
+npm/scripts/post-tool-use-fix.mjs
+  s_57e2b67829f221::t_ab267ef841c237 107
+CLAUDE.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 6
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_57e2b67829f221::t_de4fb8e89939c0 2246,2270
+  s_57e2b67829f221::t_77785da79932af 2218,2233
+  s_57e2b67829f221::t_2e5c0b5c89317c 73-74
+  s_57e2b67829f221::t_4b0904c9adb1d9 2226
+  s_57e2b67829f221::t_a2bb4ea528ca54 71-72
+docs/superpowers/specs/2026-05-24-test-rule-mutation-config-design.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 3,19,27-35,195,209,215,313,320,330,338,346,351
+npm/rules/test/js/cargo_mutants_config.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 45
+npm/rules/k8s/js/manifests.mjs
+  s_57e2b67829f221::t_3b1b8c6ac1daa1 4286
+  s_57e2b67829f221::t_ef7c320102e7ae 4297
+  s_57e2b67829f221::t_23b9723463b910 4315
+  s_57e2b67829f221::t_3ee5611127d423 5098-5100
+  s_57e2b67829f221::t_5b73cbb0cea656 4259
+  s_57e2b67829f221::t_e23e459e4e0bfd 4248,4280,4317-4319,6383-6390,6578-6579,6590-6595
+docs/superpowers/plans/2026-05-24-test-mutation-config-management.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 20,31,37,48,65,94,100,113,124,140,163,169,182,193,210,234,247,267,295
+npm/scripts/coverage-fix.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 42,69-86
+  s_57e2b67829f221::t_cdfe150e7aa636 53-55
+  s_57e2b67829f221::t_f3fda3d515156e 63-64
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 551-555
+.cursor/skills/n-fix-tests/SKILL.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 35,40,49,106
+npm/rules/test/js/stryker_config.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 52
+docs/superpowers/specs/2026-05-25-networkpolicy-snippet-single-source-of-truth-design.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 10-16,28-35,67,243,248-252,334,353-354,356,367,394,396-397,406-410,451-454,481,491-498
+docs/superpowers/plans/2026-05-25-networkpolicy-snippet-single-source-of-truth.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 16,29-30,32-38,45,61,70,72,115,123,143,186,214,245-247,269,271,273,275,277-288,292,301,307,383,546,686,702,707,739,761,766,772,778
+COVERAGE.md
+  s_57e2b67829f221::t_e23e459e4e0bfd 3-6
+package.json
+  s_57e2b67829f221::t_bbed1b37aa1aa5 12
+.pi/extensions/n-cursor-adr/index.ts
+  s_57e2b67829f221::t_e23e459e4e0bfd 39,68
+  s_57e2b67829f221::t_b3e6af296fdfc8 47
+npm/tests/integration-repo-checks.test.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 44-63
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_57e2b67829f221::t_d44864ba9e5389 31-32
+  s_57e2b67829f221::t_209ee11b0327e4 21
+  s_57e2b67829f221::t_e8e8faf2831ccc 17-19,24-30,33-40
+npm/scripts/lib/tests/run-lint-cli.test.mjs
+  s_57e2b67829f221::t_e23e459e4e0bfd 44-46
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  s_57e2b67829f221::t_a383bbb7a84b1c 16-17
+  s_57e2b67829f221::t_4b0904c9adb1d9 38,43
+  s_57e2b67829f221::t_6c821a83c9843a 39-42
+npm/CHANGELOG.md
+  s_57e2b67829f221::t_406eb80a7505bb 7-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.1",
+  "base_commit_sha": "af035a82fffb88696077f8e26c08e48c1156d45f",
+  "prompts": {},
+  "sessions": {
+    "s_57e2b67829f221": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecb12987-ea58-46c2-84cb-e94b7dbb7acd",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
