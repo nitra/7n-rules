@@ -1,0 +1,25 @@
+npm/.claude/hooks/normalize.sh
+  s_4fb374dc9a1568::t_923b3f594b9957 1
+npm/.cursor/rules/n-adr.mdc
+  s_4fb374dc9a1568::t_923b3f594b9957 1
+npm/CHANGELOG.md
+  ai_agent 3
+npm/pyproject.toml
+  ai_agent 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9d98904859c743e4c3d27889df96ccb36b4ce502",
+  "prompts": {},
+  "sessions": {
+    "s_4fb374dc9a1568": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54ab8d18-716b-4680-87ac-26420b5defdb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
