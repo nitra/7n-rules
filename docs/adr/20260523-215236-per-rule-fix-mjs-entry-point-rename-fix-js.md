@@ -30,3 +30,15 @@ Chosen option: "Варіант B (per-rule entry з повною IoC) + rename `
 ## More Information
 
 Нові утиліти: `npm/scripts/utils/run-standard-rule.mjs`, `npm/scripts/utils/list-rule-ids.mjs`, `npm/scripts/utils/walk-cache.mjs` (API: `getOrCreateWalkCache(): Map<string, Promise<string[]>>` / `resetWalkCache(): void`). Шаблон `fix.mjs` (11 рядків): `import { runStandardRule } from '../../scripts/utils/run-standard-rule.mjs'; export async function run(ctx) { return runStandardRule(import.meta.dirname, ctx) }`. Rename: `git mv npm/rules/<id>/fix npm/rules/<id>/js` для 27 правил (3 правила — `ci4`, `efes`, `feedback` — `fix/` не мали); залишкові посилання у `.rego`, `.mdc`, `scripts/`, `tests/` оновлено через `perl -i.bak -pe`. Smoke-тест: `npm/tests/fix-mjs-contract.test.mjs`. Spec: `docs/superpowers/specs/2026-05-23-per-rule-fix-mjs-entry-point-design.md`. PR: https://github.com/nitra-labs/cursor/pull/196. Версія: `1.13.82` → `1.13.83`.
+
+## Update 2026-05-23
+
+Реалізація завершена. Нові util-файли: `npm/scripts/utils/walk-cache.mjs`, `npm/scripts/utils/list-rule-ids.mjs`, `npm/scripts/utils/run-standard-rule.mjs`. `discoverOneRule` виокремлено з `discover-checkable-rules.mjs`. 30 `rules/<id>/fix.mjs` згенеровано однаковим template (11 рядків). CLI `check`-команда замінена на `listRuleIds + dynamic import`. Smoke-тест `npm/tests/fix-mjs-contract.test.mjs` (91 кейс). CHANGELOG: `npm` v1.13.83. 104 нових тестових кейси, 0 регресій.
+
+## Update 2026-05-23
+
+Деталі реалізації rename та dual-mode. `git mv fix/ → js/` для 89 файлів у 27 правилах (`ci4`, `efes`, `feedback` не мали `fix/`; коміт `3d12000`). `if (import.meta.main)` блок у `fix.mjs` → `runRuleCli(import.meta.dirname)`: lite-config reader `.n-cursor.json` + whitelist-check + progress summary; нові утиліти: `read-n-cursor-config-lite.mjs`, `run-rule-cli.mjs`; коміт `928abb5`. CLI `case 'fix'` — spawn-wrapper до `rules/<id>/fix.mjs`; `case 'check'` — deprecated alias з попередженням. Усі публічні посилання `npx @nitra/cursor check` у `.mdc`, `.rego`, `README.md`, `AGENTS.md`-template, `skills/` замінено на `fix`. Контракт `fix.mjs`: `export async function run(ctx?: RuleContext): Promise<number>`.
+
+## Update 2026-05-23
+
+Уточнення меж перейменування `check` → `fix`. Внутрішні `check-<rule>.mjs`-скрипти (`npm/rules/*/js/*/check.mjs`) та їх роль у `conftest.mdc` (`check-<rule>.mjs` як фінальний крок у `lint-<rule>.mjs`) — не перейменовуються; це самостійна концепція внутрішнього детермінованого кроку. Зовнішні посилання, що потребують оновлення після rename: `npm/bin/n-cursor.js` JSDoc, `.claude/settings.json` permission `"Bash(npx @nitra/cursor check)"`, `npm/scripts/claude-stop-hook.mjs`, `.claude/commands/n-check.md`.
