@@ -1,0 +1,26 @@
+npm/rules/test/js/tests/no-process-chdir.test.mjs
+  s_c51eaf01f04cf9::t_075f5231b76692 1-96
+npm/rules/test/js/vitest-config-pool-forks.mjs
+  s_c51eaf01f04cf9::t_f6794a16b0b000 1-52
+npm/rules/test/js/tests/vitest-config-pool-forks.test.mjs
+  s_c51eaf01f04cf9::t_0f833298c6d498 1-60
+npm/rules/test/js/no-process-chdir.mjs
+  s_c51eaf01f04cf9::t_edce294b3289b7 1-69,72-89
+  s_c51eaf01f04cf9::t_812fc4e03b93e0 70-71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5fcdd98bd12f9a7e259b34daaad8b3af6f0859ab",
+  "prompts": {},
+  "sessions": {
+    "s_c51eaf01f04cf9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58fe9b6-2fb0-46ef-8ad3-b10064a423ed",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
