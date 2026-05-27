@@ -1,0 +1,21 @@
+docs/adr/20260522-212907-guard-блокування-паралельних-команд.md
+  s_c51eaf01f04cf9::t_acd85490bdcb38 62-65
+docs/adr/20260523-215236-per-rule-fix-mjs-entry-point-rename-fix-js.md
+  s_c51eaf01f04cf9::t_acd85490bdcb38 33-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ee9b96b76933f81949a3d7e9d87e2fa8a410a587",
+  "prompts": {},
+  "sessions": {
+    "s_c51eaf01f04cf9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58fe9b6-2fb0-46ef-8ad3-b10064a423ed",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
