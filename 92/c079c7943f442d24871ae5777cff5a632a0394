@@ -1,0 +1,316 @@
+npm/package.json
+  s_c51eaf01f04cf9::t_ddb606c0645822 3
+npm/rules/abie/js/firebase_hosting.mjs
+  s_c51eaf01f04cf9::t_de2218ce1aeaec 15,18,21
+npm/rules/abie/js/ua_node_selector.mjs
+  s_c51eaf01f04cf9::t_a926216e4d1f55 7,21
+  s_c51eaf01f04cf9::t_cb3f96c1402cab 23,26
+npm/rules/rego/js/applies.mjs
+  s_c51eaf01f04cf9::t_2b4829186efffb 38,41-43
+npm/rules/abie/lib/tests/overlay-paths.test.mjs
+  s_c51eaf01f04cf9::t_06cca60a169888 13
+  s_c51eaf01f04cf9::t_f2e21f477673ee 38-40
+npm/rules/bun/js/tests/layout.test.mjs
+  s_c51eaf01f04cf9::t_c3e10240dc8fd1 12,15,22-26,31-34,39-43,48-53,58-62,69,74-78,86,91-95,102,107-111,118,123-127,134,139-143,150
+npm/rules/capacitor/js/tests/platforms.test.mjs
+  s_c51eaf01f04cf9::t_f72339bd6cc282 6,16,50-52,57-58,63,68-69,74,79-82,87-88,93-95,100-101,107-109,114-115,121,125-127,132-133,138-140,147-148,153-156
+npm/rules/k8s/lint/tests/run-roots.test.mjs
+  s_c51eaf01f04cf9::t_fc2dae3c91ae51 10,26,39,47,53,82,95
+  s_c51eaf01f04cf9::t_6819ec87a63e2c 27-30
+npm/rules/ga/js/tests/workflows.test.mjs
+  s_c51eaf01f04cf9::t_a8ab312c00c855 9,16,28,31-34,36-37,41,48,54,60,87,120,156,184,186,191-192,194
+npm/rules/security/js/trufflehog.mjs
+  s_c51eaf01f04cf9::t_dac66a005b7e90 21,24,28,34-35,40
+npm/scripts/tests/sync-pi-extensions.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 19,76,89,103,114,128,140,148,179,193,211
+npm/rules/security/js/tests/trufflehog.test.mjs
+  s_c51eaf01f04cf9::t_2adcd4816f53d1 2,6,19-21,25-28,32-36,40-44
+npm/rules/image-compress/js/package_setup.mjs
+  s_c51eaf01f04cf9::t_897f7113faaa75 33,36-39
+  s_c51eaf01f04cf9::t_3eab22c19795eb 57-58
+  s_c51eaf01f04cf9::t_8417607701f041 77-78,86
+  s_c51eaf01f04cf9::t_a926216e4d1f55 55,75
+  s_c51eaf01f04cf9::t_e20cda8927ccdf 98,101,105,111-112
+  s_c51eaf01f04cf9::t_bdb876900feeb0 21
+npm/rules/graphql/js/tooling.mjs
+  s_c51eaf01f04cf9::t_e049385b5fbf8f 81-85,91
+  s_c51eaf01f04cf9::t_a926216e4d1f55 8,79,104
+  s_c51eaf01f04cf9::t_3115dc9107c413 12
+  s_c51eaf01f04cf9::t_f6edcee1e8f1dc 94
+  s_c51eaf01f04cf9::t_c2cd2078873a89 124,132
+  s_c51eaf01f04cf9::t_9e10476c7ba2fc 106,110
+npm/rules/image-compress/js/tests/package_setup.test.mjs
+  s_c51eaf01f04cf9::t_43cf6ccb77d0bc 17,23-24,27,35,42,50,58,66
+  s_c51eaf01f04cf9::t_5c998ee2e5a131 20,28-29,34,36,41,43-44,49,51-52,57,59-60,65,67-68
+npm/scripts/lib/tests/run-rule.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 14,31,55,81,96
+  s_c51eaf01f04cf9::t_70fa230d380ded 17-18,24-26
+  s_c51eaf01f04cf9::t_7da0015e6e5188 32,39,56,63,82,97-98
+npm/rules/test/js/tests/location.test.mjs
+  s_c51eaf01f04cf9::t_1c64001a7b9d6b 14-16,23-25,32-33,40-41,48-49,56-57,64-66
+  s_c51eaf01f04cf9::t_cc5622c4920917 9,13,17,22,26,31,34,39,42,47,50,55,58,63,67
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  s_c51eaf01f04cf9::t_e8616d340bda44 13,48,52,55,58,66,68-69,75-79,84,91-95,100,106-109,112,116,124-127,129,132
+npm/rules/vue/js/packages.mjs
+  s_c51eaf01f04cf9::t_77150549656dec 463-465,469
+  s_c51eaf01f04cf9::t_1a456ec4caea88 479,482,486-487,495,497,499
+  s_c51eaf01f04cf9::t_6ce23f8dad08b6 200-202,209,219
+  s_c51eaf01f04cf9::t_a926216e4d1f55 23,198,273,416,442,461
+  s_c51eaf01f04cf9::t_cebf6bd839ebb4 418,422,424,427,434-435
+  s_c51eaf01f04cf9::t_5f7537488e4311 444,448
+  s_c51eaf01f04cf9::t_ded45b0e42f055 275,277,282
+npm/rules/abie/lib/tests/http-route.test.mjs
+  s_c51eaf01f04cf9::t_3f594d3bfbfb82 6
+  s_c51eaf01f04cf9::t_b64bc17eb20436 17-19
+npm/rules/security/js/sample_secret.mjs
+  s_c51eaf01f04cf9::t_43d42e78f838e0 64,67
+npm/rules/npm-module/js/package_structure.mjs
+  s_c51eaf01f04cf9::t_aeffb98006dfb2 184-187,190,194-195
+  s_c51eaf01f04cf9::t_b197a97ca8107f 121,124-126
+  s_c51eaf01f04cf9::t_313bb8039d1d8f 288-290,296
+  s_c51eaf01f04cf9::t_bb2d565dff3aa2 319-320,324,331,334
+  s_c51eaf01f04cf9::t_5522f9cbd06355 485,498
+  s_c51eaf01f04cf9::t_92466c39dbdc12 229,231,240,243,245-248,258,261,263
+  s_c51eaf01f04cf9::t_548b55fb6329e7 98
+  s_c51eaf01f04cf9::t_0856ee678e81af 356,358
+  s_c51eaf01f04cf9::t_b8252c7a8d37c4 514-516
+  s_c51eaf01f04cf9::t_e80f7d3ccf53df 518,522
+  s_c51eaf01f04cf9::t_203a9357f706f2 573,576,580-581,583,586,589,593,606,612,614-615
+  s_c51eaf01f04cf9::t_83eb8acfcb5dbd 545-546,552-554,564
+  s_c51eaf01f04cf9::t_4bcd8f0b533347 208-209
+  s_c51eaf01f04cf9::t_558cb8cbca5df5 409,414,416,425
+  s_c51eaf01f04cf9::t_a926216e4d1f55 26,65,96,119,182,206,222,227,286,317,354,407,483,512,543
+  s_c51eaf01f04cf9::t_63a61c72bc38a1 99
+  s_c51eaf01f04cf9::t_6dd4eee9736418 584
+npm/rules/changelog/lib/package-manifest.mjs
+  s_c51eaf01f04cf9::t_b36ff0def01acc 103
+  s_c51eaf01f04cf9::t_13eb4318837761 74-75,78-79
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_c51eaf01f04cf9::t_52648a042d3a3d 34-35,37,48-50,53-54,63,65-66
+  s_c51eaf01f04cf9::t_3a389b4e5cf869 18,32-33,46-47,61-62,64
+npm/rules/js-run/js/runtime.mjs
+  s_c51eaf01f04cf9::t_40320d9f57c1e9 416-417
+  s_c51eaf01f04cf9::t_a926216e4d1f55 34,82,323,398,414,425
+  s_c51eaf01f04cf9::t_a4e97ba9a8bda3 374
+  s_c51eaf01f04cf9::t_1d46a39297f1a7 325,327-328
+  s_c51eaf01f04cf9::t_e53afd1bb2b942 427,431,439,441
+  s_c51eaf01f04cf9::t_3c81c8fe3c39be 339
+  s_c51eaf01f04cf9::t_819ee5a0da2569 84,87
+  s_c51eaf01f04cf9::t_2fa7e23e2a8a1e 400-401
+npm/scripts/tests/upgrade-nitra-cursor-and-install.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 15,37,45
+npm/rules/text/js/forbidden-prettier.mjs
+  s_c51eaf01f04cf9::t_aeed3fb58e58dd 42,45,51
+  s_c51eaf01f04cf9::t_140281cf48f31c 12
+npm/scripts/lib/tests/workspaces.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 8,51,58-61,68-73,80-85
+  s_c51eaf01f04cf9::t_4a6fb2b029c082 52
+npm/rules/js-bun-db/js/tests/safety.test.mjs
+  s_c51eaf01f04cf9::t_08d5ac0d77c014 9,13-14,19-23,31-33,43,48-50,60,65-67,76,81-83,90,95-97,104,109-111,124,129-131,142,147-149,156,161-163,170,175-177,188,193-195,204,209-211,221,226-228,239,244-246,253,260-262,274,279-281,289,294-296,304,309-311,326,331-333,341,346-350,355-357,366
+  s_c51eaf01f04cf9::t_ef4086ce0aab28 5
+  s_c51eaf01f04cf9::t_abba0cdfe0d36d 34,51,68,84,98,112,132,150,164,178,196,212,229,247,263,282,297,312,319,334,358
+npm/rules/docker/js/tests/lint/tests/discover.test.mjs
+  s_c51eaf01f04cf9::t_9b22348526b43d 10,43-49
+npm/rules/js-run/js/tests/runtime/tests/check-fixture.test.mjs
+  s_c51eaf01f04cf9::t_e33e67a009b989 55,62,70,96,108,122,136,150,162,194,221,229,241,253,265,277,289
+  s_c51eaf01f04cf9::t_9367f73a36fa77 9,30,35-36,44-46,54,56,61,63-64,69,71-72,77-78,83-84,90,95,98,102,107,109-110,116,121,123-124,130,135,137-138,144,149,151-153,161,163-165,169,174-177,182,188,193,195-196,201-202,207-208,213-215,220,222-223,228,231,235,240,243,247,252,255,259,264,267,271,276,279,283,288,291,295
+  s_c51eaf01f04cf9::t_40298095d8e89b 86,112,126,140,184
+  s_c51eaf01f04cf9::t_37cb8900e721a1 25,29
+npm/rules/capacitor/js/platforms.mjs
+  s_c51eaf01f04cf9::t_40d6ad14a7ec6c 432,435,438
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 30,257,262,272,275,286,294,297,304,317,321,331,349,361,368,370,378,386,392,399,401,409,414,428,431,434-435,462,478-479,497,501-502,523,550,568,584,596,603
+npm/tests/check-empty-trees.test.mjs
+  s_c51eaf01f04cf9::t_33819050eeb0d7 5,10,45,51,57-58,78-79,85-86,103-104
+  s_c51eaf01f04cf9::t_f00a1b00889443 46,52,80,105
+npm/rules/abie/js/env_dns.mjs
+  s_c51eaf01f04cf9::t_a926216e4d1f55 8,20
+  s_c51eaf01f04cf9::t_cb3f96c1402cab 22,25
+npm/rules/adr/js/tests/capture-decisions-tooling-only.test.mjs
+  s_c51eaf01f04cf9::t_25b6e762f1f8e6 15,41,46,49,53,59,61-62,68-72,79-81,85-86,89,96-98,102-103,106,115-123
+npm/rules/hasura/js/internal_urls.mjs
+  s_c51eaf01f04cf9::t_93c041cf4db99d 231
+  s_c51eaf01f04cf9::t_1775f83cb345e4 204,207,211,217
+  s_c51eaf01f04cf9::t_5e14fd2763cb78 173,176-178,182
+  s_c51eaf01f04cf9::t_a334276533cf0c 132-133,138,140
+npm/tests/check-rule-fixtures.test.mjs
+  s_c51eaf01f04cf9::t_0cc9c748207fe2 79,86,93,102,114,129,142
+  s_c51eaf01f04cf9::t_94b9bb722cff61 22,26
+  s_c51eaf01f04cf9::t_799a024c99c3ca 80,87,96,108,120,136,149,180,207
+  s_c51eaf01f04cf9::t_33819050eeb0d7 12,27-28,31,36-37,49,53-55,72,78,85,92,95,101,104,113,116,121,128,130,132,141,143,145,156-157,164-165,167,171-172,175,187,190,196,199-200,203
+npm/rules/rust/js/applies.mjs
+  s_c51eaf01f04cf9::t_52ec2751a5d542 9,18,21-23
+npm/rules/test/js/location.mjs
+  s_c51eaf01f04cf9::t_8470e27ee30d49 41
+  s_c51eaf01f04cf9::t_31806945d23cbc 45
+  s_c51eaf01f04cf9::t_d76ea6c356d35d 38
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_c51eaf01f04cf9::t_c0667ed0e9f281 10-12,21,26,28,31,35,60-61,63,69,80-81,87,93-95,100-107,113-115,120-128,134-136,141-148,154-156,161-168,173-178,184-185,190-191,197-198,203,209-210,215-216,222-223,228-229,235-236,241,249-251,256-261,266-271,278-287,292-303,308-317,322-333,338-346,351-365,370,372-376,378,380-389,391-392,394-395,400-407,409-412,417-424,429-439,444-452,457-459,464-467,469-471,473-475,478-479,481,485,492-501,506-521,526-529,535-537,543-551,558-563,568-574,577-578,580,585,591,593-595,601
+npm/rules/nginx-default-tpl/js/template.mjs
+  s_c51eaf01f04cf9::t_e5591e345af59b 400,403,407
+npm/rules/test/js/data/vitest_config/vitest.config.baseline.js
+  s_c51eaf01f04cf9::t_8b4ff0b1c79fed 9-15
+npm/scripts/utils/test-helpers.mjs
+  s_c51eaf01f04cf9::t_05b829d7763630 2-16,20,25-26,30,41-44,47-51,55-56,59-63
+npm/rules/abie/js/applies.mjs
+  s_c51eaf01f04cf9::t_cd0d3d3e18183d 11,14-15
+npm/rules/adr/js/tests/hooks.test.mjs
+  s_c51eaf01f04cf9::t_f8b3daa32bc43c 4-5,15,62,65-71,81,89-91,96-99,104-107,117-119,123,128-131,136-139,144-147,152-155,160-163
+npm/rules/hasura/js/tests/internal_urls.test.mjs
+  s_c51eaf01f04cf9::t_3305ae469e700c 9,89-92,97-100,105-106,108,112,117-119,121,126,131,135,140-142,144,149,153,158-161,166-169,174-176,181-184
+npm/vitest.config.js
+  s_c51eaf01f04cf9::t_51bbc78c261a1b 9-15
+npm/rules/test/test.mdc
+  s_c51eaf01f04cf9::t_25834ce7f960f9 63-79
+npm/rules/security/js/tests/sample_secret.test.mjs
+  s_c51eaf01f04cf9::t_99e567201ae4fe 5,10-12,17,19-20,25-27,32-34,39-41,46-49,54-56,61-63,68-70
+npm/scripts/tests/rename-yaml-extensions.test.mjs
+  s_c51eaf01f04cf9::t_6ce93602945ca3 68
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 19,77-81,89-90,95-97,101-102
+  s_c51eaf01f04cf9::t_d31b93d5755dcd 83,98
+npm/rules/abie/lib/tests/enabled.test.mjs
+  s_c51eaf01f04cf9::t_20ffe3168d5643 6,18-19,25
+npm/rules/changelog/js/tests/consistency/tests/package-manifest.test.mjs
+  s_c51eaf01f04cf9::t_da2353dadd3fc2 6,9,25-27,35-38
+npm/rules/text/lint/tests/run-shellcheck.test.mjs
+  s_c51eaf01f04cf9::t_9f9bb93bf5f7f4 18,35-36
+  s_c51eaf01f04cf9::t_5fe123e69bb67c 10,14-17,28-29
+npm/rules/text/js/tests/forbidden-prettier.test.mjs
+  s_c51eaf01f04cf9::t_e5d8189f9f5d6d 6,10,14-15,21-22,28-29,35-36,42-43
+  s_c51eaf01f04cf9::t_94df6c87da26ee 16,23,30,37,44
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_c51eaf01f04cf9::t_32f3f86257cf1e 19,21
+  s_c51eaf01f04cf9::t_dd0034409da7a3 603,612,621,653,770-771,952,974-975
+  s_c51eaf01f04cf9::t_b400814c0620ab 787-788,797-798
+npm/rules/text/lint/tests/run-dotenv-linter.test.mjs
+  s_c51eaf01f04cf9::t_9f9bb93bf5f7f4 20,31-32,49
+  s_c51eaf01f04cf9::t_d33bc2126ab316 19
+  s_c51eaf01f04cf9::t_5fe123e69bb67c 11,29-30,42-43,45-46,48
+npm/scripts/tests/ensure-nitra-cursor-dev-dependencies.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 9,13-14,20,26,32,38,44-45,55,61,71-72,78,84-85,87,95-96
+  s_c51eaf01f04cf9::t_04829da56f92fd 86
+npm/rules/abie/js/hc_pairing.mjs
+  s_c51eaf01f04cf9::t_8021547c764c57 20,23,26
+npm/rules/docker/js/lint.mjs
+  s_c51eaf01f04cf9::t_3530be7c744584 287,290,294
+npm/rules/text/js/formatting.mjs
+  s_c51eaf01f04cf9::t_447415fa4dc81a 177,180,184-185,189,194,198
+  s_c51eaf01f04cf9::t_f31f83a607bf5c 109,117
+  s_c51eaf01f04cf9::t_d27f438febf299 72,74-75,79
+  s_c51eaf01f04cf9::t_885aaa8048de90 34
+  s_c51eaf01f04cf9::t_a926216e4d1f55 30,70,107,133
+  s_c51eaf01f04cf9::t_5cef3ccf277ca3 135-138,141-143
+npm/scripts/tests/auto-rules.test.mjs
+  s_c51eaf01f04cf9::t_909ac0c4894b49 41-42,44,46
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 6-7,48,54-55,59-68,96-97,103-104,113-114,120-121,130-132,141-142,154-155,167-168,180-183,195-197,206-209,221-224,236-237,246-249,260-263,274-277,292-295,311-312,324-325,337-338,350-353,362-363
+  s_c51eaf01f04cf9::t_0db619c594164f 70,106,123,134,147,160,173,188,199,214,229,239,251,265,317,330,343,355,365
+  s_c51eaf01f04cf9::t_b64cd4f6c7d1df 298
+npm/scripts/utils/tests/walkDir.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 8,13-17,28-35,44,53-59,69-73,83-86,97-100,109-111
+  s_c51eaf01f04cf9::t_b50d4b9149b73f 76
+  s_c51eaf01f04cf9::t_fb0f9857782556 19,37,75,88
+  s_c51eaf01f04cf9::t_156e37d75d763d 89-90
+npm/rules/js-lint/js/tooling.mjs
+  s_c51eaf01f04cf9::t_5619acc787b7e7 321-323,329
+  s_c51eaf01f04cf9::t_d48ab5db97ce9a 389-391,402
+  s_c51eaf01f04cf9::t_caf5a42ca2ddb7 243,245-251
+  s_c51eaf01f04cf9::t_a926216e4d1f55 12,174,241,305,319,359,387
+  s_c51eaf01f04cf9::t_7a6ca6f5d047ec 307-310,312
+  s_c51eaf01f04cf9::t_3ae1e4811aeafa 408,411,415-419,422
+  s_c51eaf01f04cf9::t_c372e726e5adb5 176,178,181,188
+  s_c51eaf01f04cf9::t_087229baf01cd7 361-362,368-370
+npm/rules/adr/js/hooks.mjs
+  s_c51eaf01f04cf9::t_e85d02d52f3c85 35-36
+  s_c51eaf01f04cf9::t_9443d06afb4cf8 220,223,225-226,232
+  s_c51eaf01f04cf9::t_5af7276c35bfc5 171,174,176-178,181,183,189,191
+  s_c51eaf01f04cf9::t_78643537409bd1 86,90,92-93,95-96,103,105,107
+  s_c51eaf01f04cf9::t_73c48a11904116 283,286,289,291-293
+  s_c51eaf01f04cf9::t_0b1bc2a445ed06 117,119,121-122,124
+npm/rules/text/js/tests/formatting/tests/check-fixture.test.mjs
+  s_c51eaf01f04cf9::t_e5d8189f9f5d6d 9,13-14,20-21,30,34,46,50,66,68,76,86,88,92
+npm/rules/image-avif/js/tests/avif_generation.test.mjs
+  s_c51eaf01f04cf9::t_1157dc25886ef1 385-387,390-391
+  s_c51eaf01f04cf9::t_d6f7698f66f488 19,33-34,39-41,43,47,52-53,58-60,62,66,71-72,77-79,84,88,93-94,99-101,103,107,112-113,118-120,122,126,131-132,137-139,141,145,150-151,156-158,160,164,169-170,175-182,185,194-195,200-204,206-210,215-216,221-229,241-243,248-250,255-256,261-263,267-271,276-277,282-286,288-290,292-294,296,301-302,307-312,314,318-319,321,326-327,332-336,338,342-343,345,350-351,356-361,363,367-368,370,375-376,381-384,389,400-401,406-417,422-423,428-432,434,438-439,442,447-448,453-456,461
+npm/rules/k8s/js/manifests.mjs
+  s_c51eaf01f04cf9::t_41d959af91c777 6776,6779,6783
+npm/rules/abie/js/ua_http_route.mjs
+  s_c51eaf01f04cf9::t_a926216e4d1f55 9,31
+  s_c51eaf01f04cf9::t_cb3f96c1402cab 33,36
+npm/rules/changelog/js/consistency.mjs
+  s_c51eaf01f04cf9::t_9218bf2dd30b46 427-428,430
+  s_c51eaf01f04cf9::t_3f6d014c100f95 71,74-75,80,83-84
+  s_c51eaf01f04cf9::t_1ca09d8cf1e0dc 500,502,510,513,524
+  s_c51eaf01f04cf9::t_5d44284184a31b 463,466,486,490
+  s_c51eaf01f04cf9::t_a5c2f440a44477 226,229-231,239,242,244,249
+  s_c51eaf01f04cf9::t_deab61865aade0 370,373,375-378,381,383,386
+  s_c51eaf01f04cf9::t_c745623bc91191 533,535,538,542,547,555,557
+  s_c51eaf01f04cf9::t_5623db9264ea02 160,163,169,171,173,176,184,188
+  s_c51eaf01f04cf9::t_c34e7fc8d326a7 567,574,576,598,610,613
+  s_c51eaf01f04cf9::t_de9df36e29d703 99,102-103,109,112,114
+  s_c51eaf01f04cf9::t_62793c48dc5094 261,264,266
+  s_c51eaf01f04cf9::t_660a8dd39d1e10 133,136,138,147,150-151
+npm/scripts/lib/tests/resolve-target-files.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 9,17-18,26,34,41,52-58,68-71,79-80,92,102
+npm/rules/js-bun-db/js/safety.mjs
+  s_c51eaf01f04cf9::t_2459faefbf7be5 330,333,337
+npm/rules/bun/js/layout.mjs
+  s_c51eaf01f04cf9::t_b5025bea6af755 35,38,40-41,43
+  s_c51eaf01f04cf9::t_f8d6b552d8ca29 22
+  s_c51eaf01f04cf9::t_93132c2184f473 163,166,171,178,183,189,195,197-198,203
+npm/scripts/lib/tests/discover-checkable-rules.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 9,39,46,54,62,77-79,86-88,96,98,105-107
+  s_c51eaf01f04cf9::t_4b28172caedf6f 12-13,18-20,24-25,31-34,47,55,63-64,97
+npm/scripts/lib/tests/load-cursor-config.test.mjs
+  s_c51eaf01f04cf9::t_f6cac27baedc7c 7,9,24,31-32,39-40,47-48,55-56,67-68,79,81
+npm/rules/npm-module/js/tests/package_structure.test.mjs
+  s_c51eaf01f04cf9::t_0da20fac6c0551 15,78-80,87-89,96-98,105-106,108,118-119,121
+  s_c51eaf01f04cf9::t_e34954d2884c28 112,125
+npm/rules/rust/js/tests/applies.test.mjs
+  s_c51eaf01f04cf9::t_f4c0b1a355f04e 18-19,28-30,39-40
+npm/tests/integration-repo-checks.test.mjs
+  s_c51eaf01f04cf9::t_3b07a009f13e5e 29-34,37,48-59
+npm/CHANGELOG.md
+  s_c51eaf01f04cf9::t_348be12efd699d 7-30
+npm/rules/image-avif/js/avif_generation.mjs
+  s_c51eaf01f04cf9::t_a926216e4d1f55 26,51,59,70,79,152,175,307,350,393
+  s_c51eaf01f04cf9::t_249ff1716ecb7c 352,363
+  s_c51eaf01f04cf9::t_95f740f32ee996 309-311,313,318
+  s_c51eaf01f04cf9::t_95f96105e50ca5 268
+  s_c51eaf01f04cf9::t_8fa743dcee7ea1 194
+  s_c51eaf01f04cf9::t_ca72e454321bea 395,399
+  s_c51eaf01f04cf9::t_37209ae9892bd2 419,422,426,428,433,439-440
+  s_c51eaf01f04cf9::t_f82b3f4d89326d 271-273,277,284,288
+  s_c51eaf01f04cf9::t_b90547f06a241b 177-178
+npm/rules/test/coverage/coverage.mjs
+  s_c51eaf01f04cf9::t_e05821699e42fa 192
+npm/rules/ga/js/workflows.mjs
+  s_c51eaf01f04cf9::t_c52865ce8bba4d 338
+  s_c51eaf01f04cf9::t_7a83c65936952c 285,287,292,294-295,302
+  s_c51eaf01f04cf9::t_d793d9ea56ea66 144,153
+  s_c51eaf01f04cf9::t_369cf147ba96f6 88,90,97,110,112,125
+  s_c51eaf01f04cf9::t_c42a62968ab094 165,167-168,172,178,182
+  s_c51eaf01f04cf9::t_73c08a1a10126a 218,223,227,236,244
+  s_c51eaf01f04cf9::t_54a4db9aac4898 341,345-346,349,358,360-362,365,369,374,382
+  s_c51eaf01f04cf9::t_563fd87b8fe1b1 47,50,55
+npm/rules/style-lint/js/tooling.mjs
+  s_c51eaf01f04cf9::t_a926216e4d1f55 18,31
+  s_c51eaf01f04cf9::t_89339a73be5573 33,35-37,40-42
+  s_c51eaf01f04cf9::t_fefb96e48fc224 57,60,64,66,73
+  s_c51eaf01f04cf9::t_bf7a03c666dbb7 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "92c079c7943f442d24871ae5777cff5a632a0394",
+  "prompts": {},
+  "sessions": {
+    "s_c51eaf01f04cf9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58fe9b6-2fb0-46ef-8ad3-b10064a423ed",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
