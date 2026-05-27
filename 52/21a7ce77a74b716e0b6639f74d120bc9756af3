@@ -1,0 +1,25 @@
+docs/adr/20260527-102748-js-concern-для-заборонених-prettier-файлів-замість-розширенн.md
+  s_4fb374dc9a1568::t_5f0a6c07766978 1-67
+.cursor/rules/n-text.mdc
+  s_4fb374dc9a1568::t_21509b4046d06a 420
+bun.lock
+  ai_agent 9,32-33,335,717
+package.json
+  s_4fb374dc9a1568::t_21509b4046d06a 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5221a7ce77a74b716e0b6639f74d120bc9756af3",
+  "prompts": {},
+  "sessions": {
+    "s_4fb374dc9a1568": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54ab8d18-716b-4680-87ac-26420b5defdb",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
