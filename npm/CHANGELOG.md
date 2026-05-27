@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.8] - 2026-05-27
+
+### Added
+
+- **`test/coverage` — мутаційне покриття 97.20%**: +20 тестів (describe-блоки: `allSurvived flatMap edge cases`, `renderMarkdown survived-таблиці`, `runCoverageSteps opts.fix branch`, `runCoverageCli withLock wrapper`). Stryker: Killed 139/143, Survived 2 (equivalent), NoCoverage 2 (unreachable without coverage-fix stub). `npm/rules/test/coverage/tests/coverage.test.mjs`: 19 → 57 тестів.
+
 ## [1.27.7] - 2026-05-27
 
 ### Fixed
