@@ -1,0 +1,9 @@
+npm/package.json
+  ai_agent 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "30a7f96d325a9bc8b65484ce0a98c6289dd0de0b",
+  "prompts": {}
+}
