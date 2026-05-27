@@ -19,6 +19,7 @@
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
@@ -31,13 +32,15 @@ const WHITESPACE_RE = /\s+/u
 
 /**
  * Зчитує `rules` та `disable-rules` з `.n-cursor.json`.
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<{ rules: Set<string>, disabled: Set<string> }>} активні правила і явно вимкнені
  */
-async function loadNCursorRules() {
+async function loadNCursorRules(cwd) {
   const empty = { rules: new Set(), disabled: new Set() }
-  if (!existsSync('.n-cursor.json')) return empty
+  const cfgPath = join(cwd, '.n-cursor.json')
+  if (!existsSync(cfgPath)) return empty
   try {
-    const raw = JSON.parse(await readFile('.n-cursor.json', 'utf8'))
+    const raw = JSON.parse(await readFile(cfgPath, 'utf8'))
     const list = Array.isArray(raw?.rules) ? raw.rules.map(String) : []
     const disabled = Array.isArray(raw?.['disable-rules']) ? raw['disable-rules'].map(String) : []
     return { rules: new Set(list), disabled: new Set(disabled) }
@@ -157,45 +160,47 @@ function checkCursorRuleScripts(reporter, scripts, cursorRules) {
 
 /**
  * Перевіряє відповідність проєкту правилам bun.mdc
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
   for (const f of ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', '.yarnrc.yml']) {
-    if (existsSync(f)) {
+    if (existsSync(join(cwd, f))) {
       fail(`Знайдено заборонений файл: ${f} — видали його`)
     } else {
       pass(`Немає ${f}`)
     }
   }
 
-  if (existsSync('.yarn')) {
+  if (existsSync(join(cwd, '.yarn'))) {
     fail('Знайдено директорію .yarn — видали її')
   } else {
     pass('Немає .yarn/')
   }
-  if (existsSync('bun.lock')) {
+  if (existsSync(join(cwd, 'bun.lock'))) {
     pass('bun.lock є')
   } else {
     fail('Відсутній bun.lock — запусти bun i')
   }
 
-  if (existsSync('bunfig.toml')) {
+  if (existsSync(join(cwd, 'bunfig.toml'))) {
     pass('bunfig.toml є (структуру перевіряє npx @nitra/cursor fix → bun.bunfig)')
   } else {
     fail('Відсутній bunfig.toml — створи з [install] linker = "hoisted" (bun.mdc)')
   }
 
-  const cursorRules = await loadNCursorRules()
+  const cursorRules = await loadNCursorRules(cwd)
 
-  if (!existsSync('package.json')) {
+  const pkgPath = join(cwd, 'package.json')
+  if (!existsSync(pkgPath)) {
     fail('Відсутній package.json у корені')
     return reporter.getExitCode()
   }
 
-  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   const scripts = pkg.scripts && typeof pkg.scripts === 'object' ? pkg.scripts : {}
   checkCursorRuleScripts(reporter, scripts, cursorRules)
 

@@ -189,7 +189,7 @@ export async function runCoverageSteps(opts = {}) {
   if (opts.fix) {
     const allSurvived = rows.flatMap(r => r.survived ?? [])
     // eslint-disable-next-line no-unsanitized/method -- шлях відносний до пакету, не user-input
-    const { fixSurvivedMutants } = await import(new URL('../../scripts/coverage-fix.mjs', import.meta.url).href)
+    const { fixSurvivedMutants } = await import(new URL('../../../scripts/coverage-fix.mjs', import.meta.url).href)
     await fixSurvivedMutants(allSurvived, cwd)
   }
 

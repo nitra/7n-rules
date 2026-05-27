@@ -327,13 +327,14 @@ function messageForBunSqlInListGuard(rel, v) {
 
 /**
  * Перевіряє відповідність проєкту правилу js-bun-db.mdc
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass } = reporter
 
-  const repoRoot = process.cwd()
+  const repoRoot = cwd
   const rootPkg = join(repoRoot, 'package.json')
   if (!existsSync(rootPkg)) {
     pass('js-bun-db: package.json у корені відсутній — перевірку пропущено')

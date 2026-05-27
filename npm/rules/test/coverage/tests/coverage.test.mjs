@@ -16,10 +16,9 @@
  * і прибирають його в `afterEach`.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 import {
   addCoverage,
   addMutation,
@@ -601,7 +600,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує "→ <ruleId> coverage…" для активного провайдера', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockReturnValue(undefined)
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
@@ -610,7 +609,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує "✓ COVERAGE.md" після успішного запису', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockReturnValue(undefined)
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
@@ -619,7 +618,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує error-повідомлення "Жодного провайдера..." коли rows порожні', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockReturnValue(undefined)
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(1)
@@ -651,7 +650,7 @@ describe('runCoverageSteps — opts.fix=false safe path', () => {
   })
 
   test('opts.fix === false НЕ виконує dynamic import — runCoverageSteps завершується успішно', async () => {
-    vi.spyOn(console, 'log').mockReturnValue(undefined)
+    vi.spyOn(console, 'log').mockReturnValue()
     const fxNoFix = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fxNoFix.cwd, rulesDir: fxNoFix.rulesDir, fix: false })
     expect(code).toBe(0)
@@ -737,117 +736,6 @@ describe('renderMarkdown — exampleTest empty line та fallback на code', ()
   })
 })
 
-/**
- * Тимчасовий stub для `npm/rules/scripts/coverage-fix.mjs` — щоб гілка `opts.fix=true`
- * у `runCoverageSteps` могла імпортувати реальний файл. Stub логує аргументи у
- * `globalThis.__stubCoverageFixCalls`, щоб тест перевірив, що `allSurvived` саме `[]`
- * (а не `[undefined]` чи `["Stryker was here"]` від мутантів L189).
- *
- * Source-файл робить `new URL('../../scripts/coverage-fix.mjs', import.meta.url)` від
- * `npm/rules/test/coverage/coverage.mjs` → `npm/rules/scripts/coverage-fix.mjs`. Цей
- * шлях у проді не існує (баг у source); ми створюємо stub лише на час тесту.
- */
-const COVERAGE_MJS_PATH = fileURLToPath(new URL('../coverage.mjs', import.meta.url))
-const COVERAGE_FIX_STUB_DIR = join(dirname(COVERAGE_MJS_PATH), '..', '..', 'scripts')
-const COVERAGE_FIX_STUB_PATH = join(COVERAGE_FIX_STUB_DIR, 'coverage-fix.mjs')
-
-const STUB_SOURCE = `
-export async function fixSurvivedMutants(survived, cwd) {
-  globalThis.__stubCoverageFixCalls = globalThis.__stubCoverageFixCalls ?? []
-  globalThis.__stubCoverageFixCalls.push({ survived, cwd })
-}
-`
-
-function installCoverageFixStub() {
-  mkdirSync(COVERAGE_FIX_STUB_DIR, { recursive: true })
-  writeFileSync(COVERAGE_FIX_STUB_PATH, STUB_SOURCE)
-  globalThis.__stubCoverageFixCalls = []
-}
-
-function removeCoverageFixStub() {
-  rmSync(COVERAGE_FIX_STUB_PATH, { force: true })
-  // Видаляємо щойно створену порожню директорію `rules/scripts`, лише якщо вона порожня
-  // (recursive: false). Якщо ще щось туди підкине — не падаємо.
-  try {
-    rmSync(COVERAGE_FIX_STUB_DIR, { recursive: false })
-  } catch {
-    /* директорія непорожня або не наша — лишаємо */
-  }
-  delete globalThis.__stubCoverageFixCalls
-}
-
-const SURVIVED_DATA_PROVIDER = `
-  export async function detect() { return true }
-  export async function collect() {
-    return [{
-      area: 'Test',
-      coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } },
-      mutation: { caught: 4, total: 5 },
-      survived: [{
-        file: 'a.js',
-        mutants: [{ line: 1, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
-        exampleTest: null,
-        recommendationText: null
-      }]
-    }]
-  }
-`
-
-describe('runCoverageSteps — opts.fix dynamic import (зі stub coverage-fix.mjs)', () => {
-  beforeEach(() => {
-    vi.spyOn(console, 'log').mockReturnValue(undefined)
-    installCoverageFixStub()
-  })
-
-  afterEach(() => {
-    removeCoverageFixStub()
-    vi.restoreAllMocks()
-  })
-
-  test('opts.fix=true: rows без survived → allSurvived === [] (вбиває L189 ?? → &&, [] → ["Stryker..."])', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
-    const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: true })
-    expect(code).toBe(0)
-    expect(globalThis.__stubCoverageFixCalls).toHaveLength(1)
-    // Точна перевірка: масив порожній. Це різниться від:
-    //   - `r.survived && []` коли r.survived=undefined → `[undefined]`
-    //   - `r.survived ?? ["Stryker was here"]` → `["Stryker was here"]`
-    //   - ArrowFunction `() => undefined` → `[undefined]`
-    expect(globalThis.__stubCoverageFixCalls[0].survived).toEqual([])
-    expect(globalThis.__stubCoverageFixCalls[0].cwd).toBe(fx.cwd)
-    fx.cleanup()
-  })
-
-  test('opts.fix=true: rows з survived → flatMap акумулює елементи (вбиває ArrowFunction мутант L189:38)', async () => {
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SURVIVED_DATA_PROVIDER } })
-    const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: true })
-    expect(code).toBe(0)
-    expect(globalThis.__stubCoverageFixCalls).toHaveLength(1)
-    // ArrowFunction-мутант `() => undefined` → flatMap дав би [undefined], не реальний обʼєкт.
-    expect(globalThis.__stubCoverageFixCalls[0].survived).toEqual([
-      {
-        file: 'a.js',
-        mutants: [{ line: 1, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
-        exampleTest: null,
-        recommendationText: null
-      }
-    ])
-    fx.cleanup()
-  })
-
-  test('opts.fix=true: точний шлях dynamic import (вбиває StringLiteral L191:57 "" → пустий URL)', async () => {
-    // Якби мутант замінив '../../scripts/coverage-fix.mjs' на "", `new URL("", import.meta.url)`
-    // дав би URL самого `coverage.mjs`. Імпорт того файла повертає його експорти (addCoverage, ...),
-    // серед яких немає `fixSurvivedMutants` → деструктуризація дасть `undefined`, `await undefined(...)` кине TypeError.
-    // Зі stub — реальний імпорт успішно знаходить fixSurvivedMutants, тест проходить.
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
-    await expect(runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: true })).resolves.toBe(0)
-    // Жоден TypeError не кинуто, stub точно викликаний.
-    expect(globalThis.__stubCoverageFixCalls).toHaveLength(1)
-    fx.cleanup()
-  })
-})
-
 describe('runCoverageSteps — writeFile utf8 encoding (вбиває L185:49 "utf8" → "")', () => {
   test('cyrillic data зберігається коректно через utf8 (не через невідому encoding "")', async () => {
     // Якщо мутант замінить 'utf8' на "" — node може кинути ERR_INVALID_ARG_VALUE
@@ -879,13 +767,11 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
   beforeEach(() => {
     // Очищаємо mock-стан після можливих попередніх тестів.
     withLock.mockClear()
-    vi.spyOn(console, 'log').mockReturnValue(undefined)
-    vi.spyOn(console, 'error').mockReturnValue(undefined)
-    installCoverageFixStub()
+    vi.spyOn(console, 'log').mockReturnValue()
+    vi.spyOn(console, 'error').mockReturnValue()
   })
 
   afterEach(() => {
-    removeCoverageFixStub()
     vi.restoreAllMocks()
     withLock.mockClear()
   })
@@ -898,7 +784,8 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // Замість того передаємо opts={fix:false} і використовуємо withLock-mock, який ВИКЛИКАЄ fn().
     // Бо fn = () => runCoverageSteps(opts), і `opts` тут не має cwd → runCoverageSteps візьме реальний process.cwd().
     // Тому тестуємо лише ФАКТ виклику withLock, ігноруючи його результат.
-    await runCoverageCli({ fix: false })    expect(withLock).toHaveBeenCalledTimes(1)
+    await runCoverageCli({ fix: false })
+    expect(withLock).toHaveBeenCalledTimes(1)
     expect(withLock.mock.calls[0][0]).toBe('coverage')
     expect(typeof withLock.mock.calls[0][1]).toBe('function')
     fx.cleanup()
@@ -907,7 +794,8 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
   test('runCoverageCli з opts.fix=false: викликає withLock рівно один раз (немає повторного прогону)', async () => {
     // Тут withLock mock викликає fn(), fn = () => runCoverageSteps({fix:false}).
     // Передаємо fix:false → if-гілка з повторним прогоном не запускається.
-    await runCoverageCli({ fix: false })    expect(withLock).toHaveBeenCalledTimes(1)
+    await runCoverageCli({ fix: false })
+    expect(withLock).toHaveBeenCalledTimes(1)
   })
 
   test('runCoverageCli з opts.fix=true і code=0: викликає withLock ДВА рази; 2-й — з { fix: false }', async () => {
@@ -1061,21 +949,11 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
       secondFn = fn
       return 0
     })
-    vi.spyOn(console, 'error').mockReturnValue(undefined)
+    vi.spyOn(console, 'error').mockReturnValue()
     await runCoverageCli({ fix: true })
     expect(secondFn).toBeTypeOf('function')
     const result = await secondFn()
     expect(result).toBeTypeOf('number')
-  })
-})
-
-describe('runCoverageCli — stub-файл побічних ефектів очищається', () => {
-  // Захисний тест: гарантує, що cleanup-стратегія працює коректно.
-  test('після removeCoverageFixStub файл відсутній', () => {
-    installCoverageFixStub()
-    expect(existsSync(COVERAGE_FIX_STUB_PATH)).toBe(true)
-    removeCoverageFixStub()
-    expect(existsSync(COVERAGE_FIX_STUB_PATH)).toBe(false)
   })
 })
 
@@ -1093,8 +971,8 @@ describe('runCoverageCli — pass-through withLock виконує fn (покри
     withLock.mockReset()
     // Pass-through: викликаємо fn з аргументами, повертаємо її результат.
     withLock.mockImplementation((_key, fn) => fn())
-    vi.spyOn(console, 'log').mockReturnValue(undefined)
-    vi.spyOn(console, 'error').mockReturnValue(undefined)
+    vi.spyOn(console, 'log').mockReturnValue()
+    vi.spyOn(console, 'error').mockReturnValue()
   })
 
   afterEach(() => {

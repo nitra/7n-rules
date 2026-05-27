@@ -3,7 +3,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ABIE_SHARED_CROSS_NS_BACKEND_NAMES, analyzeAbieSharedBackendRefsInPackageK8s } from '../http-route.mjs'
-import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('ABIE_SHARED_CROSS_NS_BACKEND_NAMES', () => {
   test('канонічні імена', () => {
@@ -14,9 +14,9 @@ describe('ABIE_SHARED_CROSS_NS_BACKEND_NAMES', () => {
 
 describe('analyzeAbieSharedBackendRefsInPackageK8s', () => {
   test('без namespace: dev дає помилку; з namespace — OK', async () => {
-    await withTmpCwd(async () => {
-      const root = process.cwd()
-      await ensureDir('p/k8s/base')
+    await withTmpDir(async dir => {
+      const root = dir
+      await ensureDir(join(root, 'p/k8s/base'))
       const hrPath = join(root, 'p/k8s/base/hr.yaml')
       await writeFile(
         hrPath,

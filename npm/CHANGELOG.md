@@ -4,6 +4,30 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.0] - 2026-05-27
+
+### BREAKING
+
+- **`scripts/utils/test-helpers.mjs#withTmpCwd` видалено**. Замість нього — `withTmpDir(async dir => …)`, що **НЕ** мутує `process.cwd()`, а передає абсолютний шлях `dir` у callback. Усі callers (43 тестових файли у пакеті) переписано: `await writeJson(join(dir, …), …)`, `await ensureDir(join(dir, …))`, `execFile('git', […], { cwd: dir })`, `await check(dir)`. `writeJson` і `ensureDir` тепер вимагають абсолютних шляхів (кидають помилку на relative). Споживачі пакета — мігруйте за конвенцією з `test.mdc` (секція "Заборона `process.chdir` у тестах").
+- **Production-API: 24 `check()`/`applies()` JS concerns приймають `cwd = process.cwd()` параметром** у `rules/{abie,adr,bun,capacitor,changelog,docker,ga,graphql,hasura,image-avif,image-compress,js-bun-db,js-lint,js-run,k8s,nginx-default-tpl,npm-module,rego,rust,security,style-lint,test,text,vue}/js/*.mjs`. Default зберігає CLI-сумісність (runner викликає без аргументів — default `process.cwd()` спрацює).
+
+### Fixed
+
+- **Race у `process.cwd()` між паралельними vitest workers** (root cause). У default `pool: 'threads'` усі workers ділять один процес. Паралельні `withTmpCwd` ламали один одному cwd: `git init`+`git commit` із фікстури `rules/changelog/.../check.test.mjs` (з `user.name=test`, `user.email=test@test`, `-m 'init'`) потрапляли в реальний робочий репозиторій, де відбувався vitest run, і знищували `npm/package.json` (зменшували до `{"name":"mono"}`) + `npm/CHANGELOG.md` (зрізали до плейсхолдера). Race множив rogue commits/branches (`feat/x`, `feat/docs`, `feat/sync`) щоразу при запуску `bun run coverage`/Stryker. Усунено повним переписуванням `withTmpCwd` → `withTmpDir` (без `chdir`), `cwd` параметром у production функціях і defense-in-depth `pool: 'forks'`.
+- **`rules/test/coverage/coverage.mjs:192`** — dynamic import шлях `../../scripts/coverage-fix.mjs` резолвив у неіснуючий `npm/rules/scripts/coverage-fix.mjs`. Виправлено на `../../../scripts/coverage-fix.mjs` (реальний файл — у `npm/scripts/`). Усуває ERR_MODULE_NOT_FOUND у `n-cursor coverage --fix` і прибирає потребу у stub-стратегії, що створювала race-небезпечні fs-артефакти у production tree `rules/scripts/`.
+
+### Added
+
+- **`rules/test/js/no-process-chdir.mjs`** — JS concern: сканує `**/*.test.{js,mjs}` і падає на `process.chdir(`. Token-based regex (`/process\.chdir\s*\(/u`) — не зачіпає згадки у JSDoc. 8 unit-тестів.
+- **`rules/test/js/vitest-config-pool-forks.mjs`** — JS concern: substring-перевірка `pool: 'forks'` у `vitest.config.js`. Defense-in-depth. 6 unit-тестів.
+- **`rules/test/js/data/vitest_config/vitest.config.baseline.js`** — canonical baseline тепер містить `pool: 'forks'` з обґрунтуванням race-bug у docstring.
+- **`rules/test/test.mdc` — секція "Заборона `process.chdir` у тестах"** із описом інциденту, контрактом `withTmpDir`, посиланнями на нові concern'и.
+
+### Changed
+
+- **`scripts/utils/test-helpers.mjs`** — `withTmpDir(fn)` без `chdir`; `writeJson(absPath, data)` і `ensureDir(absPath)` валідують `isAbsolute`. Docstring описує інцидент.
+- **`vitest.config.js`** — `pool: 'forks'` як defense-in-depth з повним коментарем.
+
 ## [1.27.9] - 2026-05-27
 
 ### Added

@@ -284,13 +284,14 @@ export function getNonRootRuntimeHint(fileContent) {
 
 /**
  * Перевіряє Dockerfile / Containerfile через hadolint (docker.mdc).
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є зауваження або помилка запуску
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass } = reporter
 
-  const root = process.cwd()
+  const root = cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
   const files = await findDockerfilePaths(root, ignorePaths)
 

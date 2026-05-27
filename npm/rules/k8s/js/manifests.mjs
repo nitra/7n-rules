@@ -6773,13 +6773,14 @@ function runAllK8sRego(root, yamlFiles, fail) {
 
 /**
  * Точка входу `check k8s`: повний набір перевірок маніфестів і структури `…/k8s` (див. JSDoc на початку файлу).
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} `process.exitCode`: 0 при успіху, 1 при будь-якому `fail(...)`
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const root = process.cwd()
+  const root = cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
 
   await rewriteBatchV1beta1ApiVersionInK8sYamlFiles(root, ignorePaths, fail, pass)

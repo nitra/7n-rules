@@ -20,6 +20,7 @@
  * Окремо в `.vue` SFC заборонено імпорти Node-нативних модулів — `node:*` префікс або bare-ім’я
  * вбудованого модуля Node (`fs`, `path`, `timers/promises` тощо). Vue SFC виконується у браузері,
  * де Node API недоступне; такий код треба тримати у server-side утілітах.
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -194,17 +195,18 @@ function ukFilesCountPhrase(n) {
  * @param {(msg: string) => void} passFn успіх
  * @param {(msg: string) => void} fail помилка
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail) {
-  const envRel = join(rootDir, 'src/vite-env.d.ts')
-  if (!existsSync(envRel)) {
+async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, cwd) {
+  const envAbs = join(cwd, rootDir, 'src/vite-env.d.ts')
+  if (!existsSync(envAbs)) {
     fail(
       `${prefix}немає src/vite-env.d.ts — додай файл з рядком /// <reference types="vite/client" /> ` +
         `(інакше TS/Volar не бачать типів для імпортів асетів: png, avif, css як URL).`
     )
     return
   }
-  const envContent = await readFile(envRel, 'utf8')
+  const envContent = await readFile(envAbs, 'utf8')
   if (!VITE_CLIENT_REFERENCE_RE.test(envContent)) {
     fail(
       `${prefix}src/vite-env.d.ts має містити /// <reference types="vite/client" /> ` +
@@ -214,7 +216,7 @@ async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail) 
   }
   passFn(`${prefix}src/vite-env.d.ts посилається на vite/client`)
 
-  if (!existsSync(join(rootDir, 'jsconfig.json'))) {
+  if (!existsSync(join(cwd, rootDir, 'jsconfig.json'))) {
     fail(
       `${prefix}немає jsconfig.json у корені пакета — додай файл з "include": ["src/**/*"] тощо, ` +
         `щоб IDE підхопила vite-env.d.ts і .vue.`
@@ -268,15 +270,16 @@ function viteConfigHasVueInAutoImports(content) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<{ hasVueAutoImport: boolean }>} ознака успішно сконфігурованого vue-auto-import (для checkVueImportViolations)
+ * @param {string} cwd корінь репозиторію
  */
-async function checkViteConfig(rootDir, prefix, passFn, fail) {
+async function checkViteConfig(rootDir, prefix, passFn, fail, cwd) {
   const configFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
-  const viteConfig = configFiles.find(f => existsSync(join(rootDir, f)))
+  const viteConfig = configFiles.find(f => existsSync(join(cwd, rootDir, f)))
   if (!viteConfig) {
     fail(`${prefix}немає vite.config.js|ts|mjs у каталозі пакета`)
     return { hasVueAutoImport: false }
   }
-  const content = await readFile(join(rootDir, viteConfig), 'utf8')
+  const content = await readFile(join(cwd, rootDir, viteConfig), 'utf8')
   if (ESBUILD_RE.test(content)) {
     fail(`${prefix}${viteConfig} містить 'esbuild' — заміни на 'rolldown'`)
   }
@@ -410,37 +413,39 @@ async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, ha
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
+ * @param {string} cwd корінь репозиторію
  */
-async function checkVuePackage(rootDir, ignorePaths, fail, passFn) {
+async function checkVuePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   const prefix = `[${packageLabel(rootDir)}] `
   passFn(`${prefix}package.json залежності перевіряє npx @nitra/cursor fix → vue.package_json`)
 
-  await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail)
+  await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, cwd)
 
-  const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail)
+  const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail, cwd)
   await checkVueImportViolations(
     rootDir,
-    join(process.cwd(), rootDir),
+    join(cwd, rootDir),
     ignorePaths,
     hasVueAutoImport,
     prefix,
     passFn,
     fail
   )
-  await checkVueNodeImportViolations(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
-  await checkEsbuildMentions(rootDir, join(process.cwd(), rootDir), ignorePaths, prefix, passFn, fail)
+  await checkVueNodeImportViolations(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
+  await checkEsbuildMentions(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
 }
 
 /**
  * Збирає корені пакетів, у яких у `dependencies` є `vue`.
  * @param {string[]} roots усі корені пакетів monorepo
  * @returns {Promise<string[]>} перелік пакетів з vue у dependencies
+ * @param {string} cwd корінь репозиторію
  */
-async function collectVueRoots(roots) {
+async function collectVueRoots(roots, cwd) {
   /** @type {string[]} */
   const vueRoots = []
   for (const r of roots) {
-    const p = join(r, 'package.json')
+    const p = join(cwd, r, 'package.json')
     if (!existsSync(p)) continue
     const pkg = JSON.parse(await readFile(p, 'utf8'))
     if (pkg.dependencies?.vue) vueRoots.push(r)
@@ -453,13 +458,15 @@ async function collectVueRoots(roots) {
  * @param {(msg: string) => void} pass pass callback
  * @param {(msg: string) => void} fail fail callback
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkVueVolarRecommendation(pass, fail) {
-  if (!existsSync('.vscode/extensions.json')) {
+async function checkVueVolarRecommendation(pass, fail, cwd) {
+  const extPath = join(cwd, '.vscode/extensions.json')
+  if (!existsSync(extPath)) {
     fail('.vscode/extensions.json не існує (для Vue-проєкту потрібна рекомендація Vue.volar)')
     return
   }
-  const ext = JSON.parse(await readFile('.vscode/extensions.json', 'utf8'))
+  const ext = JSON.parse(await readFile(extPath, 'utf8'))
   if (ext.recommendations?.includes('Vue.volar')) {
     pass('extensions.json містить Vue.volar')
   } else {
@@ -469,14 +476,15 @@ async function checkVueVolarRecommendation(pass, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилам vue.mdc (корінь і всі workspace-пакети з `vue` у dependencies).
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const roots = await getMonorepoPackageRootDirs()
-  const vueRoots = await collectVueRoots(roots)
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  const vueRoots = await collectVueRoots(roots, cwd)
 
   if (vueRoots.length === 0) {
     pass('Vue.volar: пропущено (у repo немає пакетів з vue у dependencies)')
@@ -484,11 +492,11 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  await checkVueVolarRecommendation(pass, fail)
+  await checkVueVolarRecommendation(pass, fail, cwd)
 
-  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  const ignorePaths = await loadCursorIgnorePaths(cwd)
   for (const r of vueRoots) {
-    await checkVuePackage(r, ignorePaths, fail, pass)
+    await checkVuePackage(r, ignorePaths, fail, pass, cwd)
   }
 
   return reporter.getExitCode()

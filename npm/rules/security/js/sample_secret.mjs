@@ -61,12 +61,12 @@ function isExampleFile(relPosix) {
 }
 
 /**
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} exit-код перевірки (0 — OK, 1 — є bare `secret`)
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const cwd = process.cwd()
 
   /** @type {Array<{ abs: string, rel: string }>} */
   const examples = []

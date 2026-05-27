@@ -18,6 +18,7 @@
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
@@ -29,11 +30,13 @@ const LEGACY_CACHE_FILENAME = '.minify-image-cache.tsv'
 
 /**
  * Зчитує всі змістовні рядки `.gitignore` (без коментарів і порожніх). Якщо файла нема — `null`.
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<string[] | null>} список trim-нутих рядків або `null`
  */
-async function readGitignoreLines() {
-  if (!existsSync('.gitignore')) return null
-  const raw = await readFile('.gitignore', 'utf8')
+async function readGitignoreLines(cwd) {
+  const gitignorePath = join(cwd, '.gitignore')
+  if (!existsSync(gitignorePath)) return null
+  const raw = await readFile(gitignorePath, 'utf8')
   return raw
     .split('\n')
     .map(l => l.trim())
@@ -49,9 +52,10 @@ async function readGitignoreLines() {
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkHashCacheNotIgnored(pass, fail) {
-  const lines = await readGitignoreLines()
+async function checkHashCacheNotIgnored(pass, fail, cwd) {
+  const lines = await readGitignoreLines(cwd)
   if (lines && lines.includes(HASH_CACHE_FILENAME)) {
     fail(
       `.gitignore: прибери рядок \`${HASH_CACHE_FILENAME}\` — це закомічений source of truth split-cache 3.2.0 (image-compress.mdc)`
@@ -68,9 +72,10 @@ async function checkHashCacheNotIgnored(pass, fail) {
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkLegacyCacheRemoved(pass, fail) {
-  if (existsSync(LEGACY_CACHE_FILENAME)) {
+async function checkLegacyCacheRemoved(pass, fail, cwd) {
+  if (existsSync(join(cwd, LEGACY_CACHE_FILENAME))) {
     fail(
       `${LEGACY_CACHE_FILENAME} застарілий (split-cache 3.2.0) — видали: ` +
         `\`git rm --cached ${LEGACY_CACHE_FILENAME} 2>/dev/null || true && rm -f ${LEGACY_CACHE_FILENAME}\` ` +
@@ -78,7 +83,7 @@ async function checkLegacyCacheRemoved(pass, fail) {
     )
     return
   }
-  const lines = await readGitignoreLines()
+  const lines = await readGitignoreLines(cwd)
   if (lines && lines.includes(LEGACY_CACHE_FILENAME)) {
     fail(`.gitignore: прибери застарілий рядок \`${LEGACY_CACHE_FILENAME}\` — split-cache 3.2.0 його не використовує`)
     return
@@ -90,20 +95,21 @@ async function checkLegacyCacheRemoved(pass, fail) {
  * Перевіряє відповідність проєкту правилу `image-compress.mdc`: `.n-minify-image.tsv` НЕ
  * в `.gitignore`, застарілий `.minify-image-cache.tsv` видалений. CI-workflow для image
  * не вимагається — лінт зображень виконується лише локально.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  if (!existsSync('package.json')) {
+  if (!existsSync(join(cwd, 'package.json'))) {
     fail('package.json не знайдено в корені — додай (image-compress.mdc)')
     return reporter.getExitCode()
   }
   pass('package.json є (структуру перевіряє npx @nitra/cursor fix → image_compress.package_json)')
 
-  await checkHashCacheNotIgnored(pass, fail)
-  await checkLegacyCacheRemoved(pass, fail)
+  await checkHashCacheNotIgnored(pass, fail, cwd)
+  await checkLegacyCacheRemoved(pass, fail, cwd)
 
   return reporter.getExitCode()
 }

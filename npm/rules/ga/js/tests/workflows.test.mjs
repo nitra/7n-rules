@@ -6,13 +6,14 @@
 import { describe, expect, test } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { check, checkShellcheckInstalled } from '../workflows.mjs'
 import {
   ensureDir,
   withBinRemovedFromPath,
   withShellcheckStubInPath,
-  withTmpCwd,
+  withTmpDir,
   writeJson
 } from '../../../../scripts/utils/test-helpers.mjs'
 
@@ -24,38 +25,39 @@ const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
  * та канонічними workflow (`clean-ga-workflows.yml`, `clean-merged-branch.yml`, `lint-ga.yml`, `git-ai.yml`).
  *
  * Канонічних workflow тут достатньо тільки щоб увесь `check-ga` дійшов до перевірки `shellcheck`.
+ * @param {string} dir абсолютний шлях тимчасового каталогу
  * @returns {Promise<void>}
  */
-async function setupCanonicalGaProject() {
-  await ensureDir('.github/workflows')
-  await ensureDir('.github/actions/setup-bun-deps')
-  await ensureDir('.vscode')
+async function setupCanonicalGaProject(dir) {
+  await ensureDir(join(dir, '.github/workflows'))
+  await ensureDir(join(dir, '.github/actions/setup-bun-deps'))
+  await ensureDir(join(dir, '.vscode'))
 
-  await writeJson('.vscode/extensions.json', { recommendations: ['github.vscode-github-actions'] })
-  await writeJson('.vscode/settings.json', {
+  await writeJson(join(dir, '.vscode/extensions.json'), { recommendations: ['github.vscode-github-actions'] })
+  await writeJson(join(dir, '.vscode/settings.json'), {
     '[github-actions-workflow]': { 'editor.defaultFormatter': 'oxc.oxc-vscode' }
   })
 
-  await writeJson('package.json', {
+  await writeJson(join(dir, 'package.json'), {
     name: 't',
     private: true,
     scripts: { 'lint-ga': 'n-cursor lint-ga' }
   })
 
   await writeFile(
-    '.github/zizmor.yml',
+    join(dir, '.github/zizmor.yml'),
     `rules:\n  unpinned-uses:\n    config:\n      policies:\n        '*': ref-pin\n`,
     'utf8'
   )
 
   await writeFile(
-    '.github/actions/setup-bun-deps/action.yml',
+    join(dir, '.github/actions/setup-bun-deps/action.yml'),
     `name: setup-bun-deps\nruns:\n  using: composite\n  steps: []\n`,
     'utf8'
   )
 
   await writeFile(
-    '.github/workflows/clean-ga-workflows.yml',
+    join(dir, '.github/workflows/clean-ga-workflows.yml'),
     `name: Clean action for removing completed workflow runs
 on:
   schedule:
@@ -82,7 +84,7 @@ jobs:
   )
 
   await writeFile(
-    '.github/workflows/clean-merged-branch.yml',
+    join(dir, '.github/workflows/clean-merged-branch.yml'),
     `name: Clean abandoned branches
 on:
   schedule:
@@ -115,7 +117,7 @@ jobs:
   )
 
   await writeFile(
-    '.github/workflows/lint-ga.yml',
+    join(dir, '.github/workflows/lint-ga.yml'),
     `name: Lint GA
 on:
   push:
@@ -151,7 +153,7 @@ jobs:
   )
 
   await writeFile(
-    '.github/workflows/git-ai.yml',
+    join(dir, '.github/workflows/git-ai.yml'),
     `name: Git AI
 on:
   pull_request:
@@ -179,17 +181,17 @@ jobs:
   // check-ga валідує `on.*.paths` через `git ls-files`; без git-репо ці перевірки падають,
   // тож ініціалізуємо порожнє локальне репо й трекаємо щойно створені файли.
 
-  execFileSync('git', ['init', '-q', '--initial-branch=main'])
+  execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
 
-  execFileSync('git', ['add', '-A'])
+  execFileSync('git', ['add', '-A'], { cwd: dir })
 }
 
 describe('check-ga: shellcheck в PATH', () => {
   test('exit 0, коли shellcheck доступний у PATH', async () => {
-    await withTmpCwd(async () => {
-      await setupCanonicalGaProject()
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
       await withShellcheckStubInPath(async () => {
-        expect(await check()).toBe(0)
+        expect(await check(dir)).toBe(0)
       })
     })
   })

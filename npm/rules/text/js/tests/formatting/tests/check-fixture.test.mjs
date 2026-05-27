@@ -6,20 +6,19 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { check } from '../../../formatting.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('check-text (мінімальний проєкт)', () => {
   test('проходить при повному мінімальному наборі', async () => {
-    await withTmpCwd(async () => {
-      await writeFile(
-        '.v8rignore',
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'),
         `.vscode/extensions.json
 .vscode/settings.json
 `,
         'utf8'
       )
-      await ensureDir('.vscode')
-      await writeJson('.vscode/extensions.json', {
+      await ensureDir(join(dir, '.vscode'))
+      await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['DavidAnson.vscode-markdownlint', 'oxc.oxc-vscode', 'timonwong.shellcheck']
       })
       const oxfmtBlock = Object.fromEntries(
@@ -28,11 +27,11 @@ describe('check-text (мінімальний проєкт)', () => {
           { 'editor.defaultFormatter': 'oxc.oxc-vscode' }
         ])
       )
-      await writeJson('.vscode/settings.json', {
+      await writeJson(join(dir, '.vscode/settings.json'), {
         'editor.formatOnSave': true,
         ...oxfmtBlock
       })
-      await writeJson('.oxfmtrc.json', {
+      await writeJson(join(dir, '.oxfmtrc.json'), {
         ignorePatterns: ['**/hasura/metadata/**', '**/schema.graphql', '**/auto-imports.d.ts'],
         arrowParens: 'avoid',
         printWidth: 120,
@@ -44,11 +43,11 @@ describe('check-text (мінімальний проєкт)', () => {
         trailingComma: 'none',
         useTabs: false
       })
-      await writeJson('.markdownlint-cli2.jsonc', {
+      await writeJson(join(dir, '.markdownlint-cli2.jsonc'), {
         gitignore: true,
         config: { default: true, MD013: false }
       })
-      await writeJson('.cspell.json', {
+      await writeJson(join(dir, '.cspell.json'), {
         version: '0.2',
         language: 'en,nitra',
         ignorePaths: [
@@ -64,9 +63,9 @@ describe('check-text (мінімальний проєкт)', () => {
         words: []
       })
       const u2019 = '\u2019'
-      await ensureDir('.cursor/rules')
+      await ensureDir(join(dir, '.cursor/rules'))
       await writeFile(
-        join('.cursor/rules', 'n-text.mdc'),
+        join(dir, '.cursor/rules', 'n-text.mdc'),
         `---
 description: test
 ---
@@ -74,7 +73,7 @@ description: test
 `,
         'utf8'
       )
-      await writeJson('package.json', {
+      await writeJson(join(dir, 'package.json'), {
         name: 'text-fixture',
         private: true,
         devDependencies: {
@@ -84,13 +83,13 @@ description: test
           'lint-text': 'n-cursor lint-text'
         }
       })
-      await ensureDir('.github/workflows')
+      await ensureDir(join(dir, '.github/workflows'))
       await writeFile(
-        join('.github/workflows', 'lint-text.yml'),
+        join(dir, '.github/workflows', 'lint-text.yml'),
         'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bun run lint-text\n',
         'utf8'
       )
-      expect(await check()).toBe(0)
+      expect(await check(dir)).toBe(0)
     })
   })
 })

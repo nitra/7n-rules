@@ -27,7 +27,7 @@ import {
   syncClaudeConfig,
   syncGitignoreAdrFragment
 } from '../sync-claude-config.mjs'
-import { withTmpCwd, writeJson } from '../utils/test-helpers.mjs'
+import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -254,12 +254,12 @@ describe('mergeCursorHooksConfig', () => {
 
 describe('syncClaudeConfig (інтеграція)', () => {
   test('створює settings.json із managed PostToolUse групою', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       expect(result.settings).toBe(true)
       expect(result.commands).toEqual([])
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
       expect(settings.hooks.PostToolUse).toHaveLength(1)
       expect(settings.hooks.PostToolUse[0].matcher).toBe('Edit|Write|MultiEdit')
       expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
@@ -269,10 +269,10 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('міграція: існуючий legacy Stop-hook видаляється; PostToolUse додається', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await mkdir(join(cwdAbs, '.claude'), { recursive: true })
-      await writeJson('.claude/settings.json', {
+      await writeJson(join(cwdAbs, '.claude/settings.json'), {
         hooks: {
           Stop: [
             {
@@ -283,7 +283,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
         }
       })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
       expect(settings.hooks.Stop).toBeUndefined()
       expect(settings.hooks.PostToolUse).toHaveLength(1)
       expect(settings.hooks.PostToolUse[0].hooks[0].command).toContain(MANAGED_HOOK_COMMAND_MARKER)
@@ -291,17 +291,17 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('зберігає користувацькі permissions і користувацькі групи у Stop при повторному синку', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await mkdir(join(cwdAbs, '.claude'), { recursive: true })
-      await writeJson('.claude/settings.json', {
+      await writeJson(join(cwdAbs, '.claude/settings.json'), {
         permissions: { allow: ['Bash(git *)'], deny: ['WebFetch(domain:evil.com)'] },
         hooks: {
           Stop: [{ matcher: '', hooks: [{ type: 'command', command: 'echo user-stop-hook' }] }]
         }
       })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
       expect(settings.permissions.allow).toEqual(['Bash(git *)', 'Bash(bun *)'])
       expect(settings.permissions.deny).toEqual(['WebFetch(domain:evil.com)'])
       // User Stop entry preserved
@@ -314,11 +314,11 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('повторний sync ідемпотентний: managed PostToolUse група не дублюється', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true })
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
       const managedCount = settings.hooks.PostToolUse.filter(g =>
         g.hooks?.some(h => h.command?.includes(MANAGED_HOOK_COMMAND_MARKER))
       ).length
@@ -328,7 +328,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('опт-аут через enabled=false', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: false })
       expect(result).toEqual({
@@ -346,7 +346,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('без правила "adr": ADR-hook не копіюється і не з\'являється у settings.json', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const result = await syncClaudeConfig({
         projectRoot: cwdAbs,
@@ -358,16 +358,16 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(existsSync(join(cwdAbs, '.claude/hooks/capture-decisions.sh'))).toBe(false)
       expect(result.cursorHooks).toBe(false)
       expect(existsSync(join(cwdAbs, '.cursor/hooks.json'))).toBe(false)
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
       // ADR не в Stop і взагалі немає події Stop
       expect(settings.hooks.Stop).toBeUndefined()
     })
   })
 
   test('з правилом "adr": дописує канонічний фрагмент у .gitignore', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
-      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await writeFile(join(cwdAbs, '.gitignore'), 'node_modules/\n', 'utf8')
       const result = await syncClaudeConfig({
         projectRoot: cwdAbs,
         bundledPackageRoot: pkgRoot,
@@ -375,7 +375,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
         rules: ['adr']
       })
       expect(result.gitignoreAdr).toBe(true)
-      const gi = await readFile('.gitignore', 'utf8')
+      const gi = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
       expect(gi).toContain('.claude/hooks/*.log')
       expect(gi).toContain('.claude/hooks/.normalize-state')
       expect(gi).toContain('# @nitra/cursor (adr)')
@@ -383,22 +383,22 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('syncGitignoreAdrFragment: повторний виклик не дублює рядки', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       const first = await syncGitignoreAdrFragment(cwdAbs, pkgRoot)
       const second = await syncGitignoreAdrFragment(cwdAbs, pkgRoot)
       expect(first.written).toBe(true)
       expect(second.written).toBe(false)
-      const gitignoreContent = await readFile('.gitignore', 'utf8')
+      const gitignoreContent = await readFile(join(cwdAbs, '.gitignore'), 'utf8')
       const lines = gitignoreContent.split('\n').filter(l => l.includes('.claude/hooks'))
       expect(lines.filter(l => l.includes('*.log')).length).toBe(1)
     })
   })
 
   test('без правила "adr": .gitignore не змінюється', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
-      await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+      await writeFile(join(cwdAbs, '.gitignore'), 'node_modules/\n', 'utf8')
       const result = await syncClaudeConfig({
         projectRoot: cwdAbs,
         bundledPackageRoot: pkgRoot,
@@ -406,12 +406,12 @@ describe('syncClaudeConfig (інтеграція)', () => {
         rules: ['text']
       })
       expect(result.gitignoreAdr).toBe(false)
-      expect(await readFile('.gitignore', 'utf8')).toBe('node_modules/\n')
+      expect(await readFile(join(cwdAbs, '.gitignore'), 'utf8')).toBe('node_modules/\n')
     })
   })
 
   test('з правилом "adr": копіюються обидва hook-скрипти і ADR-групи додаються у Stop, managed fix — у PostToolUse', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs, {
         captureDecisionsSh: '#!/usr/bin/env bash\necho adr-capture\n',
         normalizeDecisionsSh: '#!/usr/bin/env bash\necho adr-normalize\n'
@@ -425,14 +425,14 @@ describe('syncClaudeConfig (інтеграція)', () => {
       expect(result.adrHook).toBe(true)
       expect(result.adrNormalizeHook).toBe(true)
       expect(result.cursorHooks).toBe(true)
-      expect(await readFile('.claude/hooks/capture-decisions.sh', 'utf8')).toBe(
+      expect(await readFile(join(cwdAbs, '.claude/hooks/capture-decisions.sh'), 'utf8')).toBe(
         '#!/usr/bin/env bash\necho adr-capture\n'
       )
-      expect(await readFile('.claude/hooks/normalize-decisions.sh', 'utf8')).toBe(
+      expect(await readFile(join(cwdAbs, '.claude/hooks/normalize-decisions.sh'), 'utf8')).toBe(
         '#!/usr/bin/env bash\necho adr-normalize\n'
       )
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
       expect(cursorHooks.hooks.stop).toHaveLength(2)
       expect(cursorHooks.hooks.stop[0].command).toContain('.claude/hooks/capture-decisions.sh')
       expect(cursorHooks.hooks.stop[0].timeout).toBe(180)
@@ -459,7 +459,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('видалення "adr" з rules: ADR managed-група прибирається з settings, скрипт лишається на диску', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({
         projectRoot: cwdAbs,
@@ -475,8 +475,8 @@ describe('syncClaudeConfig (інтеграція)', () => {
         enabled: true,
         rules: []
       })
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
       // Stop взагалі не має managed entries — отже або відсутній, або має лише user-entries
       const hasAdr = (settings.hooks.Stop ?? []).some(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
@@ -494,12 +494,12 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('повторний sync з "adr" не дублює managed ADR-групи (capture + normalize)', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
-      const settings = JSON.parse(await readFile('.claude/settings.json', 'utf8'))
-      const cursorHooks = JSON.parse(await readFile('.cursor/hooks.json', 'utf8'))
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      const cursorHooks = JSON.parse(await readFile(join(cwdAbs, '.cursor/hooks.json'), 'utf8'))
       const captureCount = settings.hooks.Stop.filter(g =>
         g.hooks?.some(h => h.command?.includes(ADR_HOOK_COMMAND_MARKER))
       ).length
@@ -520,7 +520,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('з правилом "adr": копіює .claude/hooks/lib/*.sh без exec-біта', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const libBody = '#!/usr/bin/env bash\nis_tooling_only_change() { return 1; }\n'
       const pkgRoot = await setupTemplate(cwdAbs, { toolingOnlyLib: libBody })
       const result = await syncClaudeConfig({
@@ -547,7 +547,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('повторний sync — lib-файли перезаписуються (idempotent)', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs, { toolingOnlyLib: '#!/usr/bin/env bash\n# v1\n' })
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       // Користувач "псує" lib-файл; пакет має його повернути.
@@ -565,7 +565,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('видалення "adr" з rules: .claude/hooks/lib/ прибирається з диска', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       await syncClaudeConfig({ projectRoot: cwdAbs, bundledPackageRoot: pkgRoot, enabled: true, rules: ['adr'] })
       expect(existsSync(join(cwdAbs, '.claude/hooks/lib/tooling-only.sh'))).toBe(true)
@@ -581,7 +581,7 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('syncAdrHookLibScripts: повертає [] якщо темплейту lib/ нема', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const pkgRoot = await setupTemplate(cwdAbs)
       // Видаляємо lib-каталог із темплейту — sync має тихо повернути порожній масив.
       const { rm } = await import('node:fs/promises')
@@ -593,14 +593,14 @@ describe('syncClaudeConfig (інтеграція)', () => {
   })
 
   test('removeOrphanAdrHookLib: no-op коли теки нема', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const result = await removeOrphanAdrHookLib(cwdAbs)
       expect(result).toEqual({ removed: false, path: '' })
     })
   })
 
   test('source helper із capture-decisions.sh без помилок (bash 3.2 fixture)', async () => {
-    await withTmpCwd(async cwdAbs => {
+    await withTmpDir(async cwdAbs => {
       const captureBody = `#!/usr/bin/env bash
 set -eu
 LOG=/dev/null

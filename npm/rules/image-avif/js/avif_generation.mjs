@@ -23,6 +23,7 @@
  * підтримується сучасними браузерами) і не вмикати в публічних сайтах. Перевірка скрипта
  * `lint-image` (заборона `--avif` у ньому) залишається у `image-compress` — тут вона не
  * дублюється.
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync } from 'node:fs'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
@@ -47,6 +48,7 @@ const PKG_CONFIG_FIELD = '@nitra/minify-image'
  * платформи — `.avif` всередині — це продукт попереднього `bun run build`/Capacitor sync,
  * а не кандидати на видалення. `walkDir` уже скіпає `node_modules`, `.git`, `dist`,
  * `coverage`, `.turbo`, `.next` — додатково для cleanup ігноруємо ще ці.
+ * @param {string} cwd корінь репозиторію
  */
 const CLEANUP_EXTRA_IGNORE_DIR_NAMES = new Set(['build', 'android', 'ios', '.output', '.nuxt', '.cache'])
 
@@ -54,6 +56,7 @@ const CLEANUP_EXTRA_IGNORE_DIR_NAMES = new Set(['build', 'android', 'ios', '.out
  * Регексп для імпортів raster-зображень у `.vue` файлах.
  * Захоплює `import name from '...ext'` (як default, так і type-only форми не потрібні —
  * type-imports asset-ів не існує). Захоплюється повний шлях у групі 1.
+ * @param {string} cwd корінь репозиторію
  */
 const VUE_RASTER_IMPORT_RE = /import\s+\w[\w$]*\s+from\s+['"]([^'"\n]+\.(?:png|jpe?g|gif))['"]/giu
 
@@ -64,6 +67,7 @@ const VUE_RASTER_IMPORT_RE = /import\s+\w[\w$]*\s+from\s+['"]([^'"\n]+\.(?:png|j
  *
  * Лукбехайнд `(?<![:\-_.])` виключає реактивне `:src="..."` (там JS-вираз — змінна або виклик,
  * перевіряється через імпорт), `data-src="..."` і `obj.src=...` у `<script>`.
+ * @param {string} cwd корінь репозиторію
  */
 const VUE_RASTER_STATIC_SRC_RE = /(?<![:\-_.])\bsrc\s*=\s*['"]([^'"\s]+\.(?:png|jpe?g|gif))['"]/giu
 
@@ -72,6 +76,7 @@ const VUE_RASTER_STATIC_SRC_RE = /(?<![:\-_.])\bsrc\s*=\s*['"]([^'"\s]+\.(?:png|
  * так і `<img src="....png.avif" />`). Потрібен лише для збору множини «живих» AVIF —
  * щоб після авто-заміни знати, які `<...>.avif` файли ще на щось посилаються, а які
  * є сиротами і підлягають видаленню.
+ * @param {string} cwd корінь репозиторію
  */
 const VUE_AVIF_REF_RE = /['"]([^'"\s]+\.(?:png|jpe?g|gif)\.avif)['"]/giu
 
@@ -144,6 +149,7 @@ function resolveImageCandidates(importPath, sourceAbsPath, packageRootAbs) {
  * @property {number} rewrittenRefs скільки конкретних посилань переписано на `.avif`
  * @property {number} rewrittenFiles у скількох `.vue`/`.html` файлах хоч одне посилання змінилося
  * @property {number} failedRefs скільки конкретних посилань не вдалося переписати (`.avif` не існував)
+ * @param {string} cwd корінь репозиторію
  */
 
 /**
@@ -166,9 +172,10 @@ function resolveImageCandidates(importPath, sourceAbsPath, packageRootAbs) {
  * @param {RewriteStats} stats глобальні лічильники, що мутуються тут
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<void>} визначається по завершенню перевірки одного пакета
+ * @param {string} cwd корінь репозиторію
  */
-async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail) {
-  const absRoot = join(process.cwd(), packageRoot)
+async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail, cwd) {
+  const absRoot = join(cwd, packageRoot)
   const label = packageRoot === '.' ? 'корінь' : packageRoot
   /** @type {string[]} */
   const targetFiles = []
@@ -184,7 +191,7 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
   if (targetFiles.length === 0) return
 
   for (const absPath of targetFiles) {
-    const rel = relative(process.cwd(), absPath).split('\\').join('/')
+    const rel = relative(cwd, absPath).split('\\').join('/')
     const original = await readFile(absPath, 'utf8')
     let updated = original
 
@@ -258,26 +265,27 @@ async function checkVueAvifImportsInPackage(packageRoot, otherRootsAbs, ignorePa
  * @param {RewriteStats} stats глобальні лічильники rewrite/fail (мутуються нижче)
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<string[]>} абсолютні шляхи коренів пакетів з активним opt-out
  */
-async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) {
-  const roots = await getMonorepoPackageRootDirs()
-  const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
+async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail, cwd) {
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  const absRootsByRel = new Map(roots.map(r => [r, join(cwd, r)]))
   /** @type {string[]} */
   const optedOutAbs = []
   for (const root of roots) {
-    const pkgPath = join(root, 'package.json')
+    const pkgPath = join(cwd, root, 'package.json')
     if (!existsSync(pkgPath)) continue
     const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
     if (packageHasAvifDisabled(pkg)) {
       pass(
         `[${root === '.' ? 'корінь' : root}] avif-import enforcement вимкнено через "@nitra/minify-image.disable-avif"`
       )
-      optedOutAbs.push(absRootsByRel.get(root) ?? join(process.cwd(), root))
+      optedOutAbs.push(absRootsByRel.get(root) ?? join(cwd, root))
       continue
     }
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
-    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail)
+    await checkVueAvifImportsInPackage(root, otherRootsAbs, ignorePaths, usedAvifAbs, stats, fail, cwd)
   }
   return optedOutAbs
 }
@@ -296,17 +304,18 @@ async function checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail) 
  * все одно не сканували б, тож вони не мають провокувати запуск AVIF-етапу).
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<boolean>} `true`, якщо знайдено принаймні одне raster-посилання
+ * @param {string} cwd корінь репозиторію
  */
-async function hasAnyVueRasterReference(ignorePaths) {
-  const roots = await getMonorepoPackageRootDirs()
-  const absRootsByRel = new Map(roots.map(r => [r, join(process.cwd(), r)]))
+async function hasAnyVueRasterReference(ignorePaths, cwd) {
+  const roots = await getMonorepoPackageRootDirs(cwd)
+  const absRootsByRel = new Map(roots.map(r => [r, join(cwd, r)]))
   for (const root of roots) {
-    const pkgPath = join(root, 'package.json')
+    const pkgPath = join(cwd, root, 'package.json')
     if (existsSync(pkgPath)) {
       const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
       if (packageHasAvifDisabled(pkg)) continue
     }
-    const absRoot = absRootsByRel.get(root) ?? join(process.cwd(), root)
+    const absRoot = absRootsByRel.get(root) ?? join(cwd, root)
     const otherRootsAbs = roots.filter(r => r !== root && r !== '.').map(r => absRootsByRel.get(r) ?? '')
     /** @type {string[]} */
     const targetFiles = []
@@ -338,8 +347,9 @@ async function hasAnyVueRasterReference(ignorePaths) {
  * відсутні `.avif` фейлять окремо). У тестах та інших ізольованих середовищах npx
  * можна вимкнути через `NITRA_CURSOR_NO_AVIF_RUN=1` — тоді ця функція no-op.
  * @returns {void}
+ * @param {string} cwd корінь репозиторію
  */
-function runAvifGeneration() {
+function runAvifGeneration(cwd) {
   if (env.NITRA_CURSOR_NO_AVIF_RUN === '1') return
   const npxPath = resolveCmd('npx')
   if (!npxPath) {
@@ -350,6 +360,7 @@ function runAvifGeneration() {
   }
   const result = spawnSync(npxPath, [MINIFY_PACKAGE_NAME, '--src=.', '--write', '--avif'], {
     stdio: 'inherit',
+    cwd,
     env
   })
   if (result.error) {
@@ -379,12 +390,13 @@ function runAvifGeneration() {
  * `.avif` під ними не вважаємо сиротами і не видаляємо
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<number>} кількість видалених сиріт
+ * @param {string} cwd корінь репозиторію
  */
-async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths) {
+async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths, cwd) {
   /** @type {string[]} */
   const orphans = []
   await walkDir(
-    process.cwd(),
+    cwd,
     absPath => {
       if (!absPath.endsWith('.avif')) return
       if (usedAvifAbs.has(absPath)) return
@@ -404,27 +416,28 @@ async function cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths) {
 /**
  * Виконує AVIF-етап: запуск AVIF-генерації, авто-заміна raster-посилань у `.vue`/`.html`,
  * видалення AVIF-сиріт. Не валідує `package.json`/`lint-image` — це вже у `image-compress`.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  const ignorePaths = await loadCursorIgnorePaths(cwd)
 
-  if (!(await hasAnyVueRasterReference(ignorePaths))) {
+  if (!(await hasAnyVueRasterReference(ignorePaths, cwd))) {
     pass('image-avif: у .vue/.html немає raster-посилань для переписування — AVIF-генерація і cleanup пропущені')
     return reporter.getExitCode()
   }
 
-  runAvifGeneration()
+  runAvifGeneration(cwd)
 
   /** @type {Set<string>} */
   const usedAvifAbs = new Set()
   /** @type {RewriteStats} */
   const stats = { rewrittenRefs: 0, rewrittenFiles: 0, failedRefs: 0 }
-  const optedOutAbs = await checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail)
-  const orphansDeleted = await cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths)
+  const optedOutAbs = await checkVueAvifImports(ignorePaths, usedAvifAbs, stats, pass, fail, cwd)
+  const orphansDeleted = await cleanupOrphanAvifs(usedAvifAbs, optedOutAbs, ignorePaths, cwd)
 
   pass(
     `image-avif: rewrote ${stats.rewrittenRefs} reference${stats.rewrittenRefs === 1 ? '' : 's'} in ${stats.rewrittenFiles} file${stats.rewrittenFiles === 1 ? '' : 's'}; ` +

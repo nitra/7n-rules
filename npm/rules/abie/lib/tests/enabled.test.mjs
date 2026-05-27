@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 import { isAbieRuleEnabled } from '../enabled.mjs'
-import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
@@ -15,14 +15,14 @@ describe('isAbieRuleEnabled', () => {
   })
 
   test('true, коли abie присутній у .n-cursor.json:rules', async () => {
-    await withTmpCwd(async dir => {
-      await writeJson('.n-cursor.json', { rules: ['abie', 'bun'] })
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, '.n-cursor.json'), { rules: ['abie', 'bun'] })
       expect(await isAbieRuleEnabled(dir)).toBe(true)
     })
   })
 
   test('false, коли .n-cursor.json відсутній', async () => {
-    await withTmpCwd(async dir => {
+    await withTmpDir(async dir => {
       expect(await isAbieRuleEnabled(dir)).toBe(false)
     })
   })

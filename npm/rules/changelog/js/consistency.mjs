@@ -53,13 +53,14 @@ const REGISTRY_TIMEOUT_MS = 10_000
 const LEADING_DOTSLASH_RE = /^\.\//
 
 /**
- * Тихо запускає `git` і повертає stdout або `null` при будь-якій помилці.
+ * Тихо запускає `git` у заданому `cwd` і повертає stdout або `null` при будь-якій помилці.
  * @param {string[]} args аргументи `git`
+ * @param {string} cwd робочий каталог процесу
  * @returns {Promise<string | null>} результат
  */
-async function gitOrNull(args) {
+async function gitOrNull(args, cwd) {
   try {
-    const { stdout } = await execFileAsync('git', args)
+    const { stdout } = await execFileAsync('git', args, { cwd })
     return stdout
   } catch {
     return null
@@ -67,18 +68,20 @@ async function gitOrNull(args) {
 }
 
 /**
+ * @param {string} cwd робочий каталог
  * @returns {Promise<boolean>} результат
  */
-async function isInsideGitRepo() {
-  const out = await gitOrNull(['rev-parse', '--is-inside-work-tree'])
+async function isInsideGitRepo(cwd) {
+  const out = await gitOrNull(['rev-parse', '--is-inside-work-tree'], cwd)
   return typeof out === 'string' && out.trim() === 'true'
 }
 
 /**
+ * @param {string} cwd робочий каталог
  * @returns {Promise<string | null>} результат
  */
-async function currentBranchName() {
-  const out = await gitOrNull(['rev-parse', '--abbrev-ref', 'HEAD'])
+async function currentBranchName(cwd) {
+  const out = await gitOrNull(['rev-parse', '--abbrev-ref', 'HEAD'], cwd)
   return typeof out === 'string' ? out.trim() : null
 }
 
@@ -93,20 +96,22 @@ function baseRefLabel(ref) {
 /**
  * @param {string} ancestor предок
  * @param {string} descendant нащадок
+ * @param {string} cwd робочий каталог
  * @returns {Promise<boolean>} результат
  */
-async function isGitAncestor(ancestor, descendant) {
-  const out = await gitOrNull(['merge-base', '--is-ancestor', ancestor, descendant])
+async function isGitAncestor(ancestor, descendant, cwd) {
+  const out = await gitOrNull(['merge-base', '--is-ancestor', ancestor, descendant], cwd)
   return typeof out === 'string' && out.trim() === 'true'
 }
 
 /**
  * @param {string} branchName локальна або remote-tracking гілка
+ * @param {string} cwd робочий каталог
  * @returns {Promise<string | null>} ref для git або null
  */
-async function resolveBranchRef(branchName) {
+async function resolveBranchRef(branchName, cwd) {
   for (const ref of [branchName, `origin/${branchName}`]) {
-    const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref])
+    const out = await gitOrNull(['rev-parse', '--verify', '--quiet', ref], cwd)
     if (typeof out === 'string' && out.trim().length > 0) {
       return ref
     }
@@ -125,11 +130,12 @@ function isChangelogIgnoredPath(relPath) {
 
 /**
  * @param {string} relPath параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<boolean>} результат
  */
-async function isPathGitIgnored(relPath) {
+async function isPathGitIgnored(relPath, cwd) {
   try {
-    await execFileAsync('git', ['check-ignore', '-q', '--', relPath])
+    await execFileAsync('git', ['check-ignore', '-q', '--', relPath], { cwd })
     return true
   } catch {
     return false
@@ -138,10 +144,11 @@ async function isPathGitIgnored(relPath) {
 
 /**
  * @param {string} baseRef параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<string | null>} результат
  */
-async function resolveMergeBase(baseRef) {
-  const out = await gitOrNull(['merge-base', baseRef, 'HEAD'])
+async function resolveMergeBase(baseRef, cwd) {
+  const out = await gitOrNull(['merge-base', baseRef, 'HEAD'], cwd)
   if (typeof out !== 'string') return null
   const sha = out.trim()
   return sha.length > 0 ? sha : null
@@ -150,22 +157,23 @@ async function resolveMergeBase(baseRef) {
 /**
  * Точка порівняння git для changelog (ref або SHA для `git diff` / `git show`).
  * @param {string | null} branch поточна гілка
+ * @param {string} cwd робочий каталог
  * @returns {Promise<{ ref: string, label: string } | null>} результат
  */
-async function resolveChangelogComparisonPoint(branch) {
+async function resolveChangelogComparisonPoint(branch, cwd) {
   if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     return null
   }
 
   if (branch === 'main') {
-    const originMainRaw = await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main'])
+    const originMainRaw = await gitOrNull(['rev-parse', '--verify', '--quiet', 'origin/main'], cwd)
     const originMainSha = originMainRaw?.trim()
-    const headRaw = await gitOrNull(['rev-parse', 'HEAD'])
+    const headRaw = await gitOrNull(['rev-parse', 'HEAD'], cwd)
     const headSha = headRaw?.trim()
-    if (originMainSha && headSha && (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD')))) {
+    if (originMainSha && headSha && (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD', cwd)))) {
       return { ref: 'origin/main', label: 'main' }
     }
-    const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'])
+    const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'], cwd)
     if (typeof parent === 'string' && parent.trim().length > 0) {
       return { ref: parent.trim(), label: 'main~1' }
     }
@@ -173,11 +181,11 @@ async function resolveChangelogComparisonPoint(branch) {
   }
 
   for (const name of FEATURE_BASE_BRANCH_CANDIDATES) {
-    const baseRef = await resolveBranchRef(name)
+    const baseRef = await resolveBranchRef(name, cwd)
     if (!baseRef) {
       continue
     }
-    const mergeBase = await resolveMergeBase(baseRef)
+    const mergeBase = await resolveMergeBase(baseRef, cwd)
     if (!mergeBase) {
       continue
     }
@@ -215,11 +223,12 @@ function splitNulPaths(nulSeparated) {
 /**
  * @param {string} baseRef параметр
  * @param {string[]} pathspec параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<string[]>} результат
  */
-async function listChangedPathsAgainstBase(baseRef, pathspec) {
-  const diffOut = await gitOrNull(['diff', '--name-only', '-z', baseRef, '--', ...pathspec])
-  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspec])
+async function listChangedPathsAgainstBase(baseRef, pathspec, cwd) {
+  const diffOut = await gitOrNull(['diff', '--name-only', '-z', baseRef, '--', ...pathspec], cwd)
+  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspec], cwd)
   return [...new Set([...splitNulPaths(diffOut), ...splitNulPaths(untrackedOut)])]
 }
 
@@ -227,16 +236,17 @@ async function listChangedPathsAgainstBase(baseRef, pathspec) {
  * @param {string} baseRef параметр
  * @param {string} ws параметр
  * @param {string[]} subWorkspaces параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<boolean>} результат
  */
-async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces) {
+async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces, cwd) {
   const pathspec = pathspecForWorkspace(ws, subWorkspaces)
-  const paths = await listChangedPathsAgainstBase(baseRef, pathspec)
+  const paths = await listChangedPathsAgainstBase(baseRef, pathspec, cwd)
   for (const p of paths) {
     if (isChangelogIgnoredPath(p)) {
       continue
     }
-    if (await isPathGitIgnored(p)) {
+    if (await isPathGitIgnored(p, cwd)) {
       continue
     }
     return true
@@ -248,11 +258,12 @@ async function workspaceHasRelevantChangesAgainstBase(baseRef, ws, subWorkspaces
  * Версія з маніфесту на `baseRef`.
  * @param {string} baseRef параметр
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<string | null>} результат
  */
-async function readBaseVersion(baseRef, manifest) {
+async function readBaseVersion(baseRef, manifest, cwd) {
   const wsPath = manifest.ws === '.' ? manifest.manifestRel : `${manifest.ws}/${manifest.manifestRel}`
-  const out = await gitOrNull(['show', `${baseRef}:${wsPath}`])
+  const out = await gitOrNull(['show', `${baseRef}:${wsPath}`], cwd)
   if (out === null) return null
   if (manifest.kind === 'npm') {
     try {
@@ -356,21 +367,23 @@ function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
  * @param {string} version параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<boolean>} результат
  */
-async function verifyChangelogEntry(ws, version, pass, fail) {
+async function verifyChangelogEntry(ws, version, pass, fail, cwd) {
   const label = ws === '.' ? '<root>' : ws
-  const changelogPath = join(ws, 'CHANGELOG.md')
-  if (!existsSync(changelogPath)) {
-    fail(`${label}: відсутній ${changelogPath} (Keep a Changelog, див. n-changelog.mdc)`)
+  const changelogRel = join(ws, 'CHANGELOG.md')
+  const changelogAbs = join(cwd, changelogRel)
+  if (!existsSync(changelogAbs)) {
+    fail(`${label}: відсутній ${changelogRel} (Keep a Changelog, див. n-changelog.mdc)`)
     return false
   }
-  const text = await readFile(changelogPath, 'utf8')
+  const text = await readFile(changelogAbs, 'utf8')
   if (changelogHasVersionEntry(text, version)) {
-    pass(`${changelogPath}: знайдено запис для версії ${version}`)
+    pass(`${changelogRel}: знайдено запис для версії ${version}`)
     return true
   }
-  fail(`${changelogPath}: відсутній запис для ${version} (формат "## [${version}] - YYYY-MM-DD")`)
+  fail(`${changelogRel}: відсутній запис для ${version} (формат "## [${version}] - YYYY-MM-DD")`)
   return false
 }
 
@@ -388,19 +401,20 @@ function workspaceLabel(manifest) {
  * @param {string[]} subWorkspaces параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<void>} результат
  */
-async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail) {
+async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
-  if (!(await isInsideGitRepo())) {
+  if (!(await isInsideGitRepo(cwd))) {
     return
   }
 
-  const branch = await currentBranchName()
+  const branch = await currentBranchName(cwd)
 
   if (branch === LOCAL_ONLY_SKIP_BRANCH) {
-    if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces)) {
+    if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd)) {
       fail(
         `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
           `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
@@ -409,15 +423,18 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
     return
   }
 
-  const comparison = await resolveChangelogComparisonPoint(branch)
-  if (comparison && (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces))) {
-    const Vbase = await readBaseVersion(comparison.ref, manifest)
+  const comparison = await resolveChangelogComparisonPoint(branch, cwd)
+  if (
+    comparison &&
+    (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))
+  ) {
+    const Vbase = await readBaseVersion(comparison.ref, manifest, cwd)
     const baseLabel = comparison.label
     if (Vbase === null) {
       pass(
         `${label}: новий registry-published воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`
       )
-      await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail)
+      await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd)
       checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
     } else if (Vbase === Vcurrent) {
       fail(
@@ -429,7 +446,7 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
     }
   }
 
-  if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces))) {
+  if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
     fail(
       `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
         `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
@@ -443,9 +460,10 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
  * @param {(name: string, kind?: import('../lib/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
+ * @param {string} cwd робочий каталог
  * @returns {Promise<void>} результат
  */
-async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail) {
+async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
@@ -465,11 +483,11 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
   }
   if (Vpublished === Vcurrent) {
     pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
-    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail)
+    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
     return
   }
   pass(`${label}: ${name} — нова локальна версія (${Vpublished} → ${Vcurrent})`)
-  await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail)
+  await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd)
   checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
 }
 
@@ -479,8 +497,9 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
  * @param {string} baseLabel параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
+ * @param {string} cwd робочий каталог
  */
-async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail) {
+async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
@@ -488,10 +507,10 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
     fail(`${label}: у ${mf} відсутнє поле version (потрібне для запису в CHANGELOG)`)
     return
   }
-  const Vbase = await readBaseVersion(comparisonRef, manifest)
+  const Vbase = await readBaseVersion(comparisonRef, manifest, cwd)
   if (Vbase === null) {
     pass(`${label}: новий воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`)
-    if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail))) return
+    if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd))) return
     checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
     return
   }
@@ -502,7 +521,7 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
     return
   }
   pass(`${label}: version підвищено (${Vbase} → ${Vcurrent})`)
-  if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail))) return
+  if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd))) return
   checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
 }
 
@@ -511,20 +530,21 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
  * @param {string[]} subWorkspaces параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
+ * @param {string} cwd робочий каталог
  */
-async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
+async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd) {
   if (localOnly.length === 0) return
 
-  if (!(await isInsideGitRepo())) {
+  if (!(await isInsideGitRepo(cwd))) {
     pass('changelog: не git-репозиторій — local-only перевірку пропущено')
     return
   }
-  const branch = await currentBranchName()
+  const branch = await currentBranchName(cwd)
   if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     pass('changelog: поточна гілка = dev — local-only перевірку пропущено')
     return
   }
-  const comparison = await resolveChangelogComparisonPoint(branch)
+  const comparison = await resolveChangelogComparisonPoint(branch, cwd)
   if (!comparison) {
     pass('changelog: ref dev/main (та origin/*) не знайдено — local-only перевірку пропущено')
     return
@@ -532,9 +552,9 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
 
   let checkedAny = false
   for (const manifest of localOnly) {
-    if (!(await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces))) continue
+    if (!(await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))) continue
     checkedAny = true
-    await checkLocalOnlyChangedWorkspace(comparison.ref, manifest, comparison.label, pass, fail)
+    await checkLocalOnlyChangedWorkspace(comparison.ref, manifest, comparison.label, pass, fail, cwd)
   }
   if (!checkedAny) {
     pass(`changelog: local-only воркспейси без змін відносно ${comparison.label}`)
@@ -544,14 +564,16 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail) {
 /**
  * @param {object} [opts] опції перевірки
  * @param {(name: string, kind?: import('../lib/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
+ * @param {string} [opts.cwd] корінь репозиторію (за замовчуванням `process.cwd()`)
  * @returns {Promise<number>} exit-код перевірки
  */
 export async function check(opts = {}) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
   const getPublishedVersion = opts.getPublishedVersion ?? createDefaultGetPublishedVersion()
+  const cwd = opts.cwd ?? process.cwd()
 
-  const workspaces = await getMonorepoProjectRootDirs(process.cwd())
+  const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
   // Корінь монорепо (`.` за наявності підпакетів) — це glue/конфіг/tooling, а не логіка
   // продукту: власного CHANGELOG він не веде, помітні зміни документують підпакети.
@@ -573,7 +595,7 @@ export async function check(opts = {}) {
       )
       continue
     }
-    const manifest = await readPackageManifest(ws)
+    const manifest = await readPackageManifest(ws, cwd)
     if (!manifest) {
       continue
     }
@@ -585,10 +607,10 @@ export async function check(opts = {}) {
   }
 
   for (const manifest of published) {
-    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail)
+    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail, cwd)
   }
 
-  await runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail)
+  await runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd)
 
   return reporter.getExitCode()
 }

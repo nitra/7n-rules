@@ -6,6 +6,7 @@
  * Для спільних сервісів (`auth-run-hl`, `file-link-hl`) у base-HTTPRoute пакета — кожен `backendRef`
  * має `namespace: dev`; в overlay patch — JSON6902 на `/spec/rules/…/backendRefs/…/namespace` зі
  * `value: ua`. Кількість patch-ів = кількість таких посилань у base.
+ * @param {string} [cwd] корінь репозиторію
  */
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
@@ -27,11 +28,12 @@ import {
 
 /**
  * @returns {Promise<number>} результат
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const root = process.cwd()
+  const root = cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)

@@ -3,44 +3,45 @@
  * не може лежати в корені проєкту. Якщо файл є — concern має повернути 1.
  */
 import { describe, expect, test } from 'vitest'
+import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { check } from '../forbidden-prettier.mjs'
-import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('check text.forbidden-prettier', () => {
   test('успіх: жодного Prettier-артефакту в корені → exit 0', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('package.json', '{}\n', 'utf8')
-      expect(check()).toBe(0)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{}\n', 'utf8')
+      expect(check(dir)).toBe(0)
     })
   })
 
   test('порушення: .prettierignore у корені → exit 1', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('.prettierignore', 'dist\n', 'utf8')
-      expect(check()).toBe(1)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.prettierignore'), 'dist\n', 'utf8')
+      expect(check(dir)).toBe(1)
     })
   })
 
   test('порушення: .prettierrc у корені → exit 1', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('.prettierrc', '{}\n', 'utf8')
-      expect(check()).toBe(1)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.prettierrc'), '{}\n', 'utf8')
+      expect(check(dir)).toBe(1)
     })
   })
 
   test('порушення: prettier.config.mjs у корені → exit 1', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('prettier.config.mjs', 'export default {}\n', 'utf8')
-      expect(check()).toBe(1)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'prettier.config.mjs'), 'export default {}\n', 'utf8')
+      expect(check(dir)).toBe(1)
     })
   })
 
   test('порушення: .prettierrc.yaml у корені → exit 1', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('.prettierrc.yaml', 'semi: false\n', 'utf8')
-      expect(check()).toBe(1)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.prettierrc.yaml'), 'semi: false\n', 'utf8')
+      expect(check(dir)).toBe(1)
     })
   })
 })

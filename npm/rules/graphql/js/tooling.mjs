@@ -5,10 +5,11 @@
  * Обхід репозиторію — **`walkDir`** від **`process.cwd()`** (пропуски як у інших check). Кандидати — **`.vue`** та **`.js`/`.ts`/`.jsx`/`.tsx`** тощо; пропуск **`.d.ts`**, **auto-imports.d.ts** тощо — **`shouldSkipFileForGqlScan`**.
  *
  * Виявлення **`gql`** — **oxc-parser** після витягування `<script>` з SFC (**`graphql-gql-scan.mjs`**). Якщо збігів немає — перевірка завершується успішно без вимог до конфігів.
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
-import { relative } from 'node:path'
+import { join, relative } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import {
@@ -75,20 +76,22 @@ async function collectGqlHits(root, candidates) {
  * @param {(msg: string) => void} pass success-репортер
  * @param {(msg: string) => void} fail fail-репортер
  * @returns {void}
+ * @param {string} cwd корінь репозиторію
  */
-function checkExtensionsRecommendation(pass, fail) {
-  const path = '.vscode/extensions.json'
-  if (!existsSync(path)) {
-    fail(`${path} не існує — створи файл і додай у recommendations ${REQUIRED_GRAPHQL_VSCODE_EXTENSION} (graphql.mdc)`)
+function checkExtensionsRecommendation(pass, fail, cwd) {
+  const pathRel = '.vscode/extensions.json'
+  const pathAbs = join(cwd, pathRel)
+  if (!existsSync(pathAbs)) {
+    fail(`${pathRel} не існує — створи файл і додай у recommendations ${REQUIRED_GRAPHQL_VSCODE_EXTENSION} (graphql.mdc)`)
     return
   }
   const violations = runConftestBatch({
     policyDirRel: 'graphql/vscode_extensions',
     namespace: 'graphql.vscode_extensions',
-    files: [path]
+    files: [pathAbs]
   })
   if (violations.length === 0) {
-    pass(`${path} відповідає graphql.vscode_extensions (rego)`)
+    pass(`${pathRel} відповідає graphql.vscode_extensions (rego)`)
     return
   }
   for (const v of violations) fail(v.message)
@@ -98,12 +101,13 @@ function checkExtensionsRecommendation(pass, fail) {
  * Перевіряє graphql.mdc: умовна вимога .graphqlrc.yml і graphql.vscode-graphql
  * за наявності gql tagged templates.
  * @returns {Promise<number>} 0 — OK, 1 — порушення
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const root = process.cwd()
+  const root = cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
   const candidates = await collectScanCandidates(root, ignorePaths)
   const hits = await collectGqlHits(root, candidates)
@@ -117,7 +121,7 @@ export async function check() {
 
   pass(`Знайдено gql\`…\` у ${hits.length} файлі(ах): ${hits.slice(0, 5).join(', ')}${hits.length > 5 ? '…' : ''}`)
 
-  if (existsSync(GRAPHQL_RC_FILENAME)) {
+  if (existsSync(join(root, GRAPHQL_RC_FILENAME))) {
     pass(`${GRAPHQL_RC_FILENAME} існує`)
   } else {
     fail(
@@ -125,7 +129,7 @@ export async function check() {
     )
   }
 
-  checkExtensionsRecommendation(pass, fail)
+  checkExtensionsRecommendation(pass, fail, root)
 
   return reporter.getExitCode()
 }

@@ -397,13 +397,14 @@ function checkVscodeNginx(passFn, failFn) {
 
 /**
  * Перевіряє відповідність проєкту правилам nginx-default-tpl.mdc
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const root = process.cwd()
+  const root = cwd
   const ignorePaths = await loadCursorIgnorePaths(root)
 
   const { renamed: tplRenamed, overwritten: tplOverwritten } = await migrateDefaultTplConfFiles(root, ignorePaths)

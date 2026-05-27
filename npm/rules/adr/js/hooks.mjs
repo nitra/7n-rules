@@ -32,8 +32,8 @@ const HOOK_ARTIFACTS = /** @type {const} */ ([
   { scriptName: 'normalize-decisions.sh', logName: 'normalize-decisions.log' }
 ])
 
-const PROJECT_SETTINGS_PATH = '.claude/settings.json'
-const CURSOR_HOOKS_PATH = '.cursor/hooks.json'
+const PROJECT_SETTINGS_REL = '.claude/settings.json'
+const CURSOR_HOOKS_REL = '.cursor/hooks.json'
 const EOL_RE = /\r?\n/u
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -83,26 +83,28 @@ function gitignoreLineCoversHookLog(line, logPath) {
 /**
  * Перевіряє наявність і канонічність одного hook-скрипта.
  * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {string} cwd корінь репозиторію
  * @param {string} scriptName базове ім'я скрипта (наприклад `capture-decisions.sh`)
  * @returns {Promise<void>}
  */
-async function checkHookScript(reporter, scriptName) {
+async function checkHookScript(reporter, cwd, scriptName) {
   const { pass, fail } = reporter
-  const projectPath = projectHookPath(scriptName)
+  const projectRel = projectHookPath(scriptName)
+  const projectAbs = join(cwd, projectRel)
   const bundledPath = join(BUNDLED_HOOKS_DIR, scriptName)
-  if (!existsSync(projectPath)) {
-    fail(`${projectPath} не існує — запусти \`npx @nitra/cursor\` (правило adr копіює канонічний скрипт)`)
+  if (!existsSync(projectAbs)) {
+    fail(`${projectRel} не існує — запусти \`npx @nitra/cursor\` (правило adr копіює канонічний скрипт)`)
     return
   }
   if (!existsSync(bundledPath)) {
     fail(`канонічний скрипт у пакеті не знайдено: ${bundledPath} — перевстанови @nitra/cursor`)
     return
   }
-  const [project, bundled] = await Promise.all([readFile(projectPath, 'utf8'), readFile(bundledPath, 'utf8')])
+  const [project, bundled] = await Promise.all([readFile(projectAbs, 'utf8'), readFile(bundledPath, 'utf8')])
   if (project === bundled) {
-    pass(`${projectPath} збігається з канонічним`)
+    pass(`${projectRel} збігається з канонічним`)
   } else {
-    fail(`${projectPath} відрізняється від канонічного — запусти \`npx @nitra/cursor\` для повторного синку`)
+    fail(`${projectRel} відрізняється від канонічного — запусти \`npx @nitra/cursor\` для повторного синку`)
   }
 }
 
@@ -112,13 +114,14 @@ async function checkHookScript(reporter, scriptName) {
  * `capture-decisions.sh`; `settings.local.json` не дублює) валідують
  * `npm/policy/adr/settings_json/` і `npm/policy/adr/settings_local_json/`.
  * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {string} cwd корінь репозиторію
  */
-function checkProjectSettings(reporter) {
+function checkProjectSettings(reporter, cwd) {
   const { pass, fail } = reporter
-  if (existsSync(PROJECT_SETTINGS_PATH)) {
-    pass(`${PROJECT_SETTINGS_PATH} є (Stop-hook перевіряє npx @nitra/cursor fix → adr.settings_json)`)
+  if (existsSync(join(cwd, PROJECT_SETTINGS_REL))) {
+    pass(`${PROJECT_SETTINGS_REL} є (Stop-hook перевіряє npx @nitra/cursor fix → adr.settings_json)`)
   } else {
-    fail(`${PROJECT_SETTINGS_PATH} не існує — запусти \`npx @nitra/cursor\``)
+    fail(`${PROJECT_SETTINGS_REL} не існує — запусти \`npx @nitra/cursor\``)
   }
 }
 
@@ -165,25 +168,27 @@ function cursorConfigHasStopHook(config, marker) {
 /**
  * Перевіряє project-level Cursor hooks config для ADR stop-hooks.
  * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<void>}
  */
-async function checkCursorHooks(reporter) {
+async function checkCursorHooks(reporter, cwd) {
   const { pass, fail } = reporter
-  if (!existsSync(CURSOR_HOOKS_PATH)) {
-    fail(`${CURSOR_HOOKS_PATH} не існує — запусти \`npx @nitra/cursor\``)
+  const cursorHooksAbs = join(cwd, CURSOR_HOOKS_REL)
+  if (!existsSync(cursorHooksAbs)) {
+    fail(`${CURSOR_HOOKS_REL} не існує — запусти \`npx @nitra/cursor\``)
     return
   }
-  const config = await readJsonSafe(CURSOR_HOOKS_PATH)
+  const config = await readJsonSafe(cursorHooksAbs)
   if (config === null) {
-    fail(`${CURSOR_HOOKS_PATH} не парситься як JSON — запусти \`npx @nitra/cursor\` або виправ файл`)
+    fail(`${CURSOR_HOOKS_REL} не парситься як JSON — запусти \`npx @nitra/cursor\` або виправ файл`)
     return
   }
   for (const { scriptName } of HOOK_ARTIFACTS) {
     const marker = projectHookPath(scriptName)
     if (cursorConfigHasStopHook(config, marker)) {
-      pass(`${CURSOR_HOOKS_PATH} має stop-hook для ${marker}`)
+      pass(`${CURSOR_HOOKS_REL} має stop-hook для ${marker}`)
     } else {
-      fail(`${CURSOR_HOOKS_PATH}: відсутній stop-hook для \`${marker}\` (adr.mdc)`)
+      fail(`${CURSOR_HOOKS_REL}: відсутній stop-hook для \`${marker}\` (adr.mdc)`)
     }
   }
 }
@@ -212,17 +217,19 @@ function checkGitignoreForLog(reporter, logName, gitignoreContent) {
 /**
  * Перевіряє `.gitignore` для всіх hook-логів одним проходом.
  * @param {import('../../../scripts/lib/check-reporter.mjs').CheckReporter} reporter репортер для збору результатів
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<void>}
  */
-async function checkGitignore(reporter) {
+async function checkGitignore(reporter, cwd) {
   const { fail } = reporter
-  if (!existsSync('.gitignore')) {
+  const gitignoreAbs = join(cwd, '.gitignore')
+  if (!existsSync(gitignoreAbs)) {
     for (const { logName } of HOOK_ARTIFACTS) {
       fail(`.gitignore не існує — додай рядок \`${projectLogPath(logName)}\``)
     }
     return
   }
-  const content = await readFile('.gitignore', 'utf8')
+  const content = await readFile(gitignoreAbs, 'utf8')
   for (const { logName } of HOOK_ARTIFACTS) {
     checkGitignoreForLog(reporter, logName, content)
   }
@@ -273,16 +280,17 @@ function checkLlmCliAvailable(reporter) {
 
 /**
  * Перевіряє відповідність проєкту правилам adr.mdc.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   for (const { scriptName } of HOOK_ARTIFACTS) {
-    await checkHookScript(reporter, scriptName)
+    await checkHookScript(reporter, cwd, scriptName)
   }
-  checkProjectSettings(reporter)
-  await checkCursorHooks(reporter)
-  await checkGitignore(reporter)
+  checkProjectSettings(reporter, cwd)
+  await checkCursorHooks(reporter, cwd)
+  await checkGitignore(reporter, cwd)
   checkLlmCliAvailable(reporter)
   return reporter.getExitCode()
 }

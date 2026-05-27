@@ -35,13 +35,14 @@ function isInsideTestsDir(absPath) {
 
 /**
  * Перевіряє розміщення тестових файлів у каталозі `tests/` (test.mdc).
+ * @param {string} [cwdParam] корінь репозиторію
  * @returns {Promise<number>} 0 — всі тести у `tests/`, 1 — є порушення
  */
-export async function check() {
+export async function check(cwdParam = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const cwd = process.cwd()
+  const cwd = cwdParam
   const ignorePaths = await loadCursorIgnorePaths(cwd)
 
   /** @type {string[]} */

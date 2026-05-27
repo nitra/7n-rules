@@ -8,7 +8,7 @@ import { join } from 'node:path'
 
 import { runDotenvLinter } from '../run-dotenv-linter.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
-import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('run-dotenv-linter.mjs', () => {
   test('runDotenvLinter повертає 0 коли .env*-файлів немає', async () => {
@@ -16,8 +16,8 @@ describe('run-dotenv-linter.mjs', () => {
       expect(true).toBe(true)
       return
     }
-    await withTmpCwd(() => {
-      expect(runDotenvLinter(process.cwd())).toBe(0)
+    await withTmpDir(dir => {
+      expect(runDotenvLinter(dir)).toBe(0)
     })
   })
 
@@ -26,10 +26,10 @@ describe('run-dotenv-linter.mjs', () => {
       expect(true).toBe(true)
       return
     }
-    await withTmpCwd(async () => {
-      await writeFile('.env', 'foo=bar\n', 'utf8')
-      expect(runDotenvLinter(process.cwd())).toBe(0)
-      const fixed = await readFile(join(process.cwd(), '.env'), 'utf8')
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.env'), 'foo=bar\n', 'utf8')
+      expect(runDotenvLinter(dir)).toBe(0)
+      const fixed = await readFile(join(dir, '.env'), 'utf8')
       expect(fixed).toContain('FOO=bar')
     })
   })
@@ -39,14 +39,14 @@ describe('run-dotenv-linter.mjs', () => {
       expect(true).toBe(true)
       return
     }
-    await withTmpCwd(async () => {
-      await ensureDir('node_modules/pkg')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'node_modules/pkg'))
       // у node_modules — навмисно битий .env (lowercase key); .envrc — direnv-синтаксис.
-      await writeFile('node_modules/pkg/.env', 'bad=1\n', 'utf8')
-      await writeFile('.envrc', 'export FOO=bar\nsource_url "https://example.com"\n', 'utf8')
+      await writeFile(join(dir, 'node_modules/pkg/.env'), 'bad=1\n', 'utf8')
+      await writeFile(join(dir, '.envrc'), 'export FOO=bar\nsource_url "https://example.com"\n', 'utf8')
       // tracked-файл валідний — перевірка має пройти, попри присутність виключених шляхів.
-      await writeFile('.env', 'FOO=bar\n', 'utf8')
-      expect(runDotenvLinter(process.cwd())).toBe(0)
+      await writeFile(join(dir, '.env'), 'FOO=bar\n', 'utf8')
+      expect(runDotenvLinter(dir)).toBe(0)
     })
   })
 })

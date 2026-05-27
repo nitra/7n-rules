@@ -44,14 +44,15 @@ const REQUIRED_WORKFLOWS = ['clean-ga-workflows.yml', 'clean-merged-branch.yml',
  * Використовує `git ls-files` з pathspec-магiєю `:(glob)`, щоб не реалізовувати glob engine вручну
  * і не сканувати файлову систему рекурсивно.
  * @param {string} globPattern glob з workflow (наприклад "files/**" або "image-migration-new/**")
+ * @param {string} cwd робочий каталог для `git`
  * @returns {boolean} true, якщо є хоча б один збіг
  */
-function gitHasAnyTrackedFileMatchingGlob(globPattern) {
+function gitHasAnyTrackedFileMatchingGlob(globPattern, cwd) {
   const p = String(globPattern ?? '').trim()
   if (!p) return false
   if (p.startsWith('!')) return true
   try {
-    const out = execFileSync('git', ['ls-files', '-z', '--', `:(glob)${p}`], { encoding: 'utf8' })
+    const out = execFileSync('git', ['ls-files', '-z', '--', `:(glob)${p}`], { encoding: 'utf8', cwd })
     return out.length > 0
   } catch {
     return false
@@ -84,15 +85,16 @@ function shouldValidateWorkflowPathsGlob(p) {
  * @param {unknown} raw сирий елемент масиву paths
  * @param {(msg: string) => void} passFn pass
  * @param {(msg: string) => void} failFn fail
+ * @param {string} cwd робочий каталог для `git`
  */
-function verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn) {
+function verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn, cwd) {
   const p = String(raw ?? '').trim()
   if (!p) return
   if (!shouldValidateWorkflowPathsGlob(p)) {
     passFn(`${relPath}: on.${eventName}.paths glob пропущено для перевірки існування: ${JSON.stringify(p)}`)
     return
   }
-  if (gitHasAnyTrackedFileMatchingGlob(p)) {
+  if (gitHasAnyTrackedFileMatchingGlob(p, cwd)) {
     passFn(`${relPath}: on.${eventName}.paths glob матчитсья: ${JSON.stringify(p)}`)
   } else {
     failFn(`${relPath}: on.${eventName}.paths glob не матчитсья ні на один файл: ${JSON.stringify(p)}`)
@@ -105,8 +107,9 @@ function verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn) {
  * @param {Record<string, unknown>} root parsed YAML workflow
  * @param {(msg: string) => void} passFn pass
  * @param {(msg: string) => void} failFn fail
+ * @param {string} cwd робочий каталог для `git`
  */
-function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn) {
+function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn, cwd) {
   const on = getObjKey(root, 'on')
   if (!on || typeof on !== 'object') return
 
@@ -119,7 +122,7 @@ function verifyWorkflowEventPathsGlobsExist(relPath, root, passFn, failFn) {
   for (const [eventName, paths] of candidates) {
     if (!Array.isArray(paths)) continue
     for (const raw of paths) {
-      verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn)
+      verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn, cwd)
     }
   }
 }
@@ -138,7 +141,7 @@ function getObjKey(obj, key) {
 
 /**
  * Перевіряє apply-workflow на наявність paths trigger.
- * @param {string} wfDir директорія workflows
+ * @param {string} wfDir абсолютна директорія workflows
  * @param {string[]} files список файлів у директорії
  * @param {string} filename параметр filename
  * @param {string} expectedPath параметр expectedPath
@@ -147,7 +150,7 @@ function getObjKey(obj, key) {
  */
 async function checkApplyWorkflow(wfDir, files, filename, expectedPath, passFn, failFn) {
   if (!files.includes(filename)) return
-  const content = await readFile(`${wfDir}/${filename}`, 'utf8')
+  const content = await readFile(join(wfDir, filename), 'utf8')
   const root = parseWorkflowYaml(content)
   const ok = root ? eventPathsIncludeExact(root, 'push', expectedPath) : content.includes(expectedPath)
   if (ok) {
@@ -159,22 +162,24 @@ async function checkApplyWorkflow(wfDir, files, filename, expectedPath, passFn, 
 
 /**
  * Перевіряє відсутність MegaLinter у workflows та конфіг-файлах.
- * @param {string} wfDir директорія workflows
+ * @param {string} wfDir абсолютна директорія workflows
  * @param {string[]} ymlWorkflows параметр ymlWorkflows
+ * @param {string} wfDirRel відносний шлях директорії workflows для повідомлень
+ * @param {string} cwd корінь репозиторію
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  */
-async function checkMegalinter(wfDir, ymlWorkflows, passFn, failFn) {
+async function checkMegalinter(wfDir, ymlWorkflows, wfDirRel, cwd, passFn, failFn) {
   let found = false
   for (const f of ymlWorkflows) {
     const content = await readFile(join(wfDir, f), 'utf8')
     if (MEGALINTER_USE_PATTERNS.some(re => re.test(content))) {
       found = true
-      failFn(`MegaLinter у workflow ${wfDir}/${f} — видали інтеграцію (ga.mdc: MegaLinter)`)
+      failFn(`MegaLinter у workflow ${wfDirRel}/${f} — видали інтеграцію (ga.mdc: MegaLinter)`)
     }
   }
   for (const name of MEGALINTER_CONFIG_NAMES) {
-    if (existsSync(name)) {
+    if (existsSync(join(cwd, name))) {
       found = true
       failFn(`Файл ${name} — видали конфіг MegaLinter (ga.mdc: MegaLinter)`)
     }
@@ -210,16 +215,16 @@ export function checkShellcheckInstalled(passFn, failFn) {
 
 /**
  * Перевіряє розширення workflow-файлів і наявність обов'язкових workflow.
- * @param {string} wfDir шлях до директорії workflows
+ * @param {string} wfDirRel відносний шлях директорії workflows для повідомлень
  * @param {string[]} files список файлів у wfDir
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-function checkGaWorkflowFiles(wfDir, files, pass, fail) {
+function checkGaWorkflowFiles(wfDirRel, files, pass, fail) {
   const yamlFiles = files.filter(f => f.endsWith('.yaml'))
   if (yamlFiles.length > 0) {
     for (const f of yamlFiles) {
-      fail(`Workflow з розширенням .yaml: ${wfDir}/${f} — перейменуй на .yml`)
+      fail(`Workflow з розширенням .yaml: ${wfDirRel}/${f} — перейменуй на .yml`)
     }
   } else {
     pass('Всі workflows мають розширення .yml')
@@ -228,7 +233,7 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
   const notYmlFiles = files.filter(f => !f.endsWith('.yml'))
   if (notYmlFiles.length > 0) {
     for (const f of notYmlFiles) {
-      fail(`Workflow має бути з розширенням .yml: ${wfDir}/${f} (ga.mdc)`)
+      fail(`Workflow має бути з розширенням .yml: ${wfDirRel}/${f} (ga.mdc)`)
     }
   }
 
@@ -236,7 +241,7 @@ function checkGaWorkflowFiles(wfDir, files, pass, fail) {
     if (files.includes(f)) {
       pass(`${f} існує`)
     } else {
-      fail(`Відсутній ${wfDir}/${f}`)
+      fail(`Відсутній ${wfDirRel}/${f}`)
     }
   }
 }
@@ -277,22 +282,24 @@ const GA_PER_WORKFLOW_REGO_TARGETS = [
  * бо кожен namespace застосовний лише до свого файла), потім один батч-спавн
  * `ga.workflow_common` на всі `.github/workflows/*.yml`. Hard-fail без
  * `conftest` у PATH — узгоджено з Plan B (див. `runConftestBatch`).
- * @param {string} wfDir шлях до `.github/workflows`
+ * @param {string} wfDir абсолютний шлях до `.github/workflows`
  * @param {string[]} ymlWorkflows відносні (від `wfDir`) імена файлів `*.yml`
+ * @param {string} cwd корінь репозиторію
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {void}
  */
-async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
+async function runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail) {
   for (const target of GA_PER_WORKFLOW_REGO_TARGETS) {
-    if (!existsSync(target.workflow)) continue
+    const targetAbs = join(cwd, target.workflow)
+    if (!existsSync(targetAbs)) continue
     const concernDir = join(GA_POLICY_DIR, target.policyDirRel.split('/')[1])
     const tpl = await loadTemplate(concernDir)
     const templateData = tpl[basename(target.workflow)]
     const violations = runConftestBatch({
       policyDirRel: target.policyDirRel,
       namespace: target.namespace,
-      files: [target.workflow],
+      files: [targetAbs],
       templateData
     })
     for (const v of violations) fail(`${target.workflow}: ${v.message}`)
@@ -328,16 +335,18 @@ async function runAllGaRego(wfDir, ymlWorkflows, pass, fail) {
  * config, megalinter залишки тощо). `bun run lint-ga` додатково запускає
  * `actionlint` + `zizmor` зовнішніми тулчейнами і **викликає цю ж `check()`** —
  * тобто rego-частина живе тут, не в `lint-ga.mjs`.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const wfDir = '.github/workflows'
+  const wfDirRel = '.github/workflows'
+  const wfDir = join(cwd, wfDirRel)
 
   if (!existsSync(wfDir)) {
-    fail(`Директорія ${wfDir} не існує`)
+    fail(`Директорія ${wfDirRel} не існує`)
     return reporter.getExitCode()
   }
 
@@ -346,23 +355,23 @@ export async function check() {
 
   // Rego-крок (per-workflow + workflow_common) — на початку, як єдине джерело
   // істини для пер-документних структурних правил workflow-файлів.
-  await runAllGaRego(wfDir, ymlWorkflows, pass, fail)
+  await runAllGaRego(wfDir, ymlWorkflows, cwd, pass, fail)
 
-  const setupBunDepsAction = '.github/actions/setup-bun-deps/action.yml'
-  if (existsSync(setupBunDepsAction)) {
-    pass(`${setupBunDepsAction} існує`)
+  const setupBunDepsActionRel = '.github/actions/setup-bun-deps/action.yml'
+  if (existsSync(join(cwd, setupBunDepsActionRel))) {
+    pass(`${setupBunDepsActionRel} існує`)
   } else {
     fail(
-      `Відсутній ${setupBunDepsAction} — запустіть npx @nitra/cursor або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
+      `Відсутній ${setupBunDepsActionRel} — запустіть npx @nitra/cursor або скопіюйте з пакету (ga.mdc: composite setup-bun-deps)`
     )
   }
 
-  checkGaWorkflowFiles(wfDir, files, pass, fail)
+  checkGaWorkflowFiles(wfDirRel, files, pass, fail)
 
   await checkApplyWorkflow(wfDir, files, 'apply-k8s.yml', '**/k8s/**/*.yaml', pass, fail)
   await checkApplyWorkflow(wfDir, files, 'apply-nats-consumer.yml', '**/consumer.yaml', pass, fail)
 
-  await checkMegalinter(wfDir, ymlWorkflows, pass, fail)
+  await checkMegalinter(wfDir, ymlWorkflows, wfDirRel, cwd, pass, fail)
 
   // git-залежна перевірка `on.push.paths` glob-ів (вимагає `git ls-files`) —
   // лишається в JS, бо conftest не має доступу до файлової системи репо.
@@ -370,7 +379,7 @@ export async function check() {
     const content = await readFile(join(wfDir, f), 'utf8')
     const parsed = parseWorkflowYaml(content)
     if (parsed) {
-      verifyWorkflowEventPathsGlobsExist(`${wfDir}/${f}`, parsed, pass, fail)
+      verifyWorkflowEventPathsGlobsExist(`${wfDirRel}/${f}`, parsed, pass, fail, cwd)
     }
   }
 

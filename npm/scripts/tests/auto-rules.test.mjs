@@ -3,7 +3,8 @@
  * Тести для скілів — у `auto-skills.test.mjs`.
  */
 import { describe, expect, test } from 'vitest'
-import { ensureDir, withTmpCwd, writeJson } from '../utils/test-helpers.mjs'
+import { join } from 'node:path'
+import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 import { readFile, writeFile } from 'node:fs/promises'
 
 import { detectAutoRules, detectLegacyRuleIds, mergeConfigWithAutoDetected, migrateRuleIds } from '../auto-rules.mjs'
@@ -37,35 +38,36 @@ const ALL_RULES = [
 ]
 
 /**
- * @returns {Promise<Awaited<ReturnType<typeof detectAutoRules>>>} результат виявлення правил з поточної директорії
+ * @param {string} dir абсолютний шлях тимчасового каталогу
+ * @returns {Promise<Awaited<ReturnType<typeof detectAutoRules>>>} результат виявлення правил з директорії
  */
-async function detectAutoRulesInCwd() {
+async function detectAutoRulesInCwd(dir) {
   return detectAutoRules({
-    root: process.cwd(),
+    root: dir,
     availableRules: ALL_RULES,
-    packageJsonParsed: JSON.parse(await readFile('package.json', 'utf8'))
+    packageJsonParsed: JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
   })
 }
 
 describe('detectAutoRules', () => {
   test('додає правила за ознаками проєкту', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'sample',
         repository: 'https://github.com/abinbevefes/example.git'
       })
-      await ensureDir('.github/workflows')
-      await ensureDir('npm')
-      await ensureDir('k8s')
-      await ensureDir('src')
-      await writeFile('capacitor.config.json', '{}\n', 'utf8')
-      await writeFile('Dockerfile', 'FROM oven/bun:alpine\n', 'utf8')
-      await writeFile('default.conf', 'server {}\n', 'utf8')
-      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
-      await writeFile('src/query.js', 'const q = gql`query { ping }`\n', 'utf8')
-      await writeFile('src/App.vue', '<script setup>const a = 1</script>\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
+      await ensureDir(join(dir, 'npm'))
+      await ensureDir(join(dir, 'k8s'))
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'capacitor.config.json'), '{}\n', 'utf8')
+      await writeFile(join(dir, 'Dockerfile'), 'FROM oven/bun:alpine\n', 'utf8')
+      await writeFile(join(dir, 'default.conf'), 'server {}\n', 'utf8')
+      await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
+      await writeFile(join(dir, 'src/query.js'), 'const q = gql`query { ping }`\n', 'utf8')
+      await writeFile(join(dir, 'src/App.vue'), '<script setup>const a = 1</script>\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules).toEqual([
         'abie',
@@ -91,163 +93,162 @@ describe('detectAutoRules', () => {
   })
 
   test('додає js-bun-db при pg у dependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'pg-app',
         dependencies: {
           pg: '^8.13.0'
         }
       })
-      await ensureDir('src')
-      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
     })
   })
 
   test('додає js-bun-db при pg-format у dependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'pg-format-app',
         dependencies: {
           'pg-format': '^1.0.4'
         }
       })
-      await ensureDir('src')
-      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
     })
   })
 
   test('додає js-bun-db при імпорті sql з bun', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'sql-app' })
-      await writeFile('db.ts', 'import { sql } from "bun"\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'sql-app' })
+      await writeFile(join(dir, 'db.ts'), 'import { sql } from "bun"\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-db')).toBe(true)
     })
   })
 
   test('додає js-bun-redis при ioredis у dependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'ioredis-app',
         dependencies: { ioredis: '^5.4.0' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-redis')).toBe(true)
     })
   })
 
   test('додає js-bun-redis при node-redis у dependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'node-redis-app',
         dependencies: { 'node-redis': '^4.7.0' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-redis')).toBe(true)
     })
   })
 
   test('не додає js-bun-redis, якщо redis-залежностей немає', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'no-redis-app',
         dependencies: { lodash: '^4.17.21' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-bun-redis')).toBe(false)
     })
   })
 
   test('додає hasura, коли config.yaml містить metadata_directory: metadata', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'hasura-app' })
-      await ensureDir('hasura')
-      await writeFile(
-        'hasura/config.yaml',
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'hasura-app' })
+      await ensureDir(join(dir, 'hasura'))
+      await writeFile(join(dir, 'hasura/config.yaml'),
         'version: 3\nendpoint: http://localhost:8080\nmetadata_directory: metadata\n',
         'utf8'
       )
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('hasura')).toBe(true)
     })
   })
 
   test('не додає hasura для config.yaml без маркера', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'plain-yaml-app' })
-      await writeFile('config.yaml', 'foo: bar\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'plain-yaml-app' })
+      await writeFile(join(dir, 'config.yaml'), 'foo: bar\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('hasura')).toBe(false)
     })
   })
 
   test('додає js-run для вкладеного package.json без vite у devDependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'root' })
-      await ensureDir('services/api')
-      await writeJson('services/api/package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root' })
+      await ensureDir(join(dir, 'services/api'))
+      await writeJson(join(dir, 'services/api/package.json'), {
         name: 'api',
         devDependencies: { typescript: '^5.0.0' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-run')).toBe(true)
     })
   })
 
   test('не додає js-run, коли вкладений package.json має vite у devDependencies', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'root' })
-      await ensureDir('apps/web')
-      await writeJson('apps/web/package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root' })
+      await ensureDir(join(dir, 'apps/web'))
+      await writeJson(join(dir, 'apps/web/package.json'), {
         name: 'web',
         devDependencies: { vite: '^5.0.0' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-run')).toBe(false)
     })
   })
 
   test('не додає js-run, якщо є лише кореневий package.json', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'root' })
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root' })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('js-run')).toBe(false)
     })
   })
 
   test('AUTO_RULE_DEPENDENCIES: image-compress додається разом з bun, image-avif — разом з vue', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'app' })
-      await ensureDir('src')
-      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('vue')).toBe(true)
       expect(actual.rules.includes('image-compress')).toBe(true)
@@ -256,12 +257,12 @@ describe('detectAutoRules', () => {
   })
 
   test('AUTO_RULE_DEPENDENCIES: image-avif НЕ додається без vue, image-compress — додається', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'app' })
-      await ensureDir('src')
-      await writeFile('src/app.js', 'export const x = 1\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('vue')).toBe(false)
       expect(actual.rules.includes('image-avif')).toBe(false)
@@ -270,10 +271,10 @@ describe('detectAutoRules', () => {
   })
 
   test('AUTO_RULE_DEPENDENCIES: disable-rules vue → image-avif теж не додається', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'app' })
-      await ensureDir('src')
-      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
 
       const actual = await detectAutoRules({
         root: process.cwd(),
@@ -288,13 +289,13 @@ describe('detectAutoRules', () => {
   })
 
   test('AUTO_RULE_DEPENDENCIES: disable-rules image-compress → image-avif теж не додається', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'app' })
-      await ensureDir('src')
-      await writeFile('src/App.vue', '<script setup></script>\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
 
       const actual = await detectAutoRules({
-        root: process.cwd(),
+        root: dir,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'app' },
         disableRules: ['image-compress']
@@ -307,61 +308,61 @@ describe('detectAutoRules', () => {
   })
 
   test('додає efes за repository з github.com/efes-cloud', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'efes-app',
         repository: 'https://github.com/efes-cloud/example.git'
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('efes')).toBe(true)
     })
   })
 
   test('додає efes для repository як обʼєкт з url у git+https формі', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'efes-app',
         repository: { type: 'git', url: 'git+https://github.com/efes-cloud/example.git' }
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('efes')).toBe(true)
     })
   })
 
   test('не додає efes для стороннього repository', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'other-app',
         repository: 'https://github.com/some-other-org/example.git'
       })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('efes')).toBe(false)
     })
   })
 
   test('додає "rust" коли в дереві є Cargo.toml', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'rust-app' })
-      await ensureDir('src-tauri')
-      await writeFile('src-tauri/Cargo.toml', '[package]\nname = "x"\n', 'utf8')
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'rust-app' })
+      await ensureDir(join(dir, 'src-tauri'))
+      await writeFile(join(dir, 'src-tauri/Cargo.toml'), '[package]\nname = "x"\n', 'utf8')
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('rust')).toBe(true)
     })
   })
 
   test('НЕ додає "rust" коли Cargo.toml відсутній', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'js-only' })
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'js-only' })
 
-      const actual = await detectAutoRulesInCwd()
+      const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('rust')).toBe(false)
     })

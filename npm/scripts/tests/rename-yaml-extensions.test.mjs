@@ -16,7 +16,7 @@ import {
   renameYamlExtensions,
   replaceExtension
 } from '../rename-yaml-extensions.mjs'
-import { ensureDir, withTmpCwd } from '../utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../utils/test-helpers.mjs'
 
 describe('pathMatchesK8sYml', () => {
   test('true для …/k8s/…/f.yml', () => {
@@ -65,7 +65,7 @@ describe('parseRenameYamlArgs', () => {
 
 describe('runRenameYamlExtensionsCli', () => {
   test('повертає 0, якщо немає кандидатів', async () => {
-    await withTmpCwd(async () => {
+    await withTmpDir(async _dir => {
       const code = await runRenameYamlExtensionsCli([])
       expect(code).toBe(0)
     })
@@ -74,32 +74,32 @@ describe('runRenameYamlExtensionsCli', () => {
 
 describe('renameYamlExtensions', () => {
   test('k8s .yml → .yaml та .github .yaml → .yml', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('app/k8s/base')
-      await ensureDir('.github/workflows')
-      await writeFile(join('app/k8s/base', 'd.yml'), 'x: 1\n', 'utf8')
-      await writeFile(join('.github/workflows', 'wf.yaml'), 'on: {}\n', 'utf8')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'app/k8s/base'))
+      await ensureDir(join(dir, '.github/workflows'))
+      await writeFile(join(dir, 'app/k8s/base', 'd.yml'), 'x: 1\n', 'utf8')
+      await writeFile(join(dir, '.github/workflows', 'wf.yaml'), 'on: {}\n', 'utf8')
 
-      const { renamed, errors } = await renameYamlExtensions(process.cwd(), { dryRun: false })
+      const { renamed, errors } = await renameYamlExtensions(dir, { dryRun: false })
       expect(errors).toEqual([])
       expect(renamed).toEqual([
         { relFrom: 'app/k8s/base/d.yml', relTo: 'app/k8s/base/d.yaml' },
         { relFrom: '.github/workflows/wf.yaml', relTo: '.github/workflows/wf.yml' }
       ])
-      expect(existsSync(join('app/k8s/base', 'd.yaml'))).toBe(true)
-      expect(existsSync(join('.github/workflows', 'wf.yml'))).toBe(true)
+      expect(existsSync(join(dir, 'app/k8s/base', 'd.yaml'))).toBe(true)
+      expect(existsSync(join(dir, '.github/workflows', 'wf.yml'))).toBe(true)
     })
   })
 
   test('dry-run не змінює файли', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('app/k8s')
-      await writeFile(join('app/k8s', 'x.yml'), 'a: 1\n', 'utf8')
-      const { renamed, errors } = await renameYamlExtensions(process.cwd(), { dryRun: true })
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'app/k8s'))
+      await writeFile(join(dir, 'app/k8s', 'x.yml'), 'a: 1\n', 'utf8')
+      const { renamed, errors } = await renameYamlExtensions(dir, { dryRun: true })
       expect(errors).toEqual([])
       expect(renamed).toHaveLength(1)
-      expect(existsSync(join('app/k8s', 'x.yml'))).toBe(true)
-      expect(existsSync(join('app/k8s', 'x.yaml'))).toBe(false)
+      expect(existsSync(join(dir, 'app/k8s', 'x.yml'))).toBe(true)
+      expect(existsSync(join(dir, 'app/k8s', 'x.yaml'))).toBe(false)
     })
   })
 })

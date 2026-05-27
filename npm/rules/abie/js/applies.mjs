@@ -8,10 +8,11 @@ import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { isAbieRuleEnabled } from '../lib/enabled.mjs'
 
 /**
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<boolean>} `true` — правило застосовне; `false` — пропустити
  */
-export function applies() {
-  return isAbieRuleEnabled(process.cwd())
+export function applies(cwd = process.cwd()) {
+  return isAbieRuleEnabled(cwd)
 }
 
 /**

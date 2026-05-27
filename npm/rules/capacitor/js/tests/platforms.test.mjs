@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import {
   capacitorSegmentMinMajor,
@@ -12,7 +13,7 @@ import {
   findFirstPodfileUnderIosExcludingPods,
   nitrAObjectAllowsIosCocoaPods
 } from '../platforms.mjs'
-import { withTmpCwd, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
   test('^8.0.0 — ok', () => {
@@ -46,113 +47,113 @@ describe('isCapacitorCoreVersionAtLeast8 / semver helpers', () => {
 
 describe('check (інтеграція)', () => {
   test('0 — не Capacitor-проєкт', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', { name: 'x', private: true })
-      expect(await check()).toBe(0)
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'x', private: true })
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('0 — @capacitor/core ^8, без ios', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^8.0.0' }
       })
-      expect(await check()).toBe(0)
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('1 — @capacitor/core ^7', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^7.0.0' }
       })
-      expect(await check()).toBe(1)
+      expect(await check(dir)).toBe(1)
     })
   })
 
   test('1 — capacitor.config.json без @capacitor/core', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('capacitor.config.json', '{}\n', 'utf8')
-      await writeJson('package.json', { name: 'x', private: true })
-      expect(await check()).toBe(1)
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'capacitor.config.json'), '{}\n', 'utf8')
+      await writeJson(join(dir, 'package.json'), { name: 'x', private: true })
+      expect(await check(dir)).toBe(1)
     })
   })
 
   test('1 — ios/Podfile', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^8.0.0' }
       })
-      await ensureDir('ios')
-      await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
-      expect(await check()).toBe(1)
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(1)
     })
   })
 
   test('0 — ios/Podfile з винятком nitra у package.json', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^8.0.0' },
         nitra: { iosCocoaPodsBecausePluginsLackSpm: true }
       })
-      await ensureDir('ios')
-      await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
-      expect(await check()).toBe(0)
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('0 — ios/Podfile з винятком у capacitor.config.mjs', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^8.0.0' }
       })
       await writeFile(
-        'capacitor.config.mjs',
+        join(dir, 'capacitor.config.mjs'),
         `const c = { appId: "a", nitra: { iosCocoaPodsBecausePluginsLackSpm: true } }\nexport default c\n`,
         'utf8'
       )
-      await ensureDir('ios')
-      await writeFile('ios/Podfile', "platform :ios, '15.0'\n", 'utf8')
-      expect(await check()).toBe(0)
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('0 — ios без Podfile', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 'x',
         private: true,
         dependencies: { '@capacitor/core': '^8.0.0' }
       })
-      await ensureDir('ios/App')
-      await writeFile('ios/App/Info.plist', '<?xml version="1.0"?>\n', 'utf8')
-      expect(await check()).toBe(0)
+      await ensureDir(join(dir, 'ios/App'))
+      await writeFile(join(dir, 'ios/App/Info.plist'), '<?xml version="1.0"?>\n', 'utf8')
+      expect(await check(dir)).toBe(0)
     })
   })
 })
 
 describe('findFirstPodfileUnderIosExcludingPods', () => {
   test('null без ios/', async () => {
-    await withTmpCwd(async () => {
-      expect(await findFirstPodfileUnderIosExcludingPods(process.cwd())).toBeNull()
+    await withTmpDir(async dir => {
+      expect(await findFirstPodfileUnderIosExcludingPods(dir)).toBeNull()
     })
   })
 
   test('виявляє ios/Podfile', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('ios')
-      await writeFile('ios/Podfile', "platform :ios, '16'\n", 'utf8')
-      const p = await findFirstPodfileUnderIosExcludingPods(process.cwd())
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '16'\n", 'utf8')
+      const p = await findFirstPodfileUnderIosExcludingPods(dir)
       expect(p).toBe('ios/Podfile')
     })
   })

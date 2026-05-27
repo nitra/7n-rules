@@ -10,7 +10,7 @@ import {
   isK8sYamlInAbiePackageExcludingUaOverlay,
   isUaKustomizationPath
 } from '../overlay-paths.mjs'
-import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('overlay-paths', () => {
   test('isUaKustomizationPath', () => {
@@ -35,9 +35,9 @@ describe('overlay-paths', () => {
   })
 
   test('abieOverlayRequiresHttpRouteByVite — лише за наявності vite.config у пакеті', async () => {
-    await withTmpCwd(async () => {
-      const root = process.cwd()
-      await ensureDir('svc/k8s/ua')
+    await withTmpDir(async dir => {
+      const root = dir
+      await ensureDir(join(root, 'svc/k8s/ua'))
       const uaAbs = join(root, 'svc/k8s/ua/kustomization.yaml')
       await writeFile(uaAbs, 'kind: Kustomization\n', 'utf8')
       expect(abieOverlayRequiresHttpRouteByVite(root, uaAbs)).toBe(false)

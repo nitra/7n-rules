@@ -11,31 +11,32 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { runRule } from '../run-rule.mjs'
-import { ensureDir, withTmpCwd } from '../../utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
 
 /**
- * Записує JS-файл у `rules/<id>/js/<concern>.mjs` з довільним вмістом (flat-layout з 1.14.0).
+ * Записує JS-файл у `<dir>/rules/<id>/js/<concern>.mjs` з довільним вмістом (flat-layout з 1.14.0).
+ * @param {string} dir абсолютний шлях тимчасового каталогу
  * @param {string} ruleId id правила
  * @param {string} concern імʼя концерну (стає basename файла)
  * @param {string} body вміст файла
  * @returns {Promise<void>}
  */
-async function writeConcernJs(ruleId, concern, body) {
-  await ensureDir(join('rules', ruleId, 'js'))
-  await writeFile(join('rules', ruleId, 'js', `${concern}.mjs`), body, 'utf8')
+async function writeConcernJs(dir, ruleId, concern, body) {
+  await ensureDir(join(dir, 'rules', ruleId, 'js'))
+  await writeFile(join(dir, 'rules', ruleId, 'js', `${concern}.mjs`), body, 'utf8')
 }
 
 describe('runRule — applies gate', () => {
   test('false → правило пропущено, інші концерни не запускаються', async () => {
-    await withTmpCwd(async dir => {
-      await writeConcernJs(
+    await withTmpDir(async dir => {
+      await writeConcernJs(dir, 
         'rego',
         'applies',
         `export const applies = async () => false
          export const check = async () => { throw new Error('не має викликатись') }
         `
       )
-      await writeConcernJs(
+      await writeConcernJs(dir, 
         'rego',
         'other',
         `export const check = async () => { throw new Error('не має викликатись') }`
@@ -51,15 +52,15 @@ describe('runRule — applies gate', () => {
   })
 
   test('true → всі концерни запускаються', async () => {
-    await withTmpCwd(async dir => {
-      await writeConcernJs(
+    await withTmpDir(async dir => {
+      await writeConcernJs(dir, 
         'rego',
         'applies',
         `export const applies = async () => true
          export const check = async () => 0
         `
       )
-      await writeConcernJs(
+      await writeConcernJs(dir, 
         'rego',
         'other',
         `let called = false
@@ -77,8 +78,8 @@ describe('runRule — applies gate', () => {
   })
 
   test('відсутній applies-концерн → правило просто запускається', async () => {
-    await withTmpCwd(async dir => {
-      await writeConcernJs('text', 'cspell', `export const check = async () => 0`)
+    await withTmpDir(async dir => {
+      await writeConcernJs(dir, 'text', 'cspell', `export const check = async () => 0`)
       const rule = {
         id: 'text',
         jsConcerns: [{ name: 'cspell' }],
@@ -92,9 +93,9 @@ describe('runRule — applies gate', () => {
 
 describe('runRule — exit-код агрегується', () => {
   test('1, якщо хоча б один JS-концерн повернув ненульовий', async () => {
-    await withTmpCwd(async dir => {
-      await writeConcernJs('mix', 'a', `export const check = async () => 0`)
-      await writeConcernJs('mix', 'b', `export const check = async () => 1`)
+    await withTmpDir(async dir => {
+      await writeConcernJs(dir, 'mix', 'a', `export const check = async () => 0`)
+      await writeConcernJs(dir, 'mix', 'b', `export const check = async () => 1`)
       const rule = {
         id: 'mix',
         jsConcerns: [{ name: 'a' }, { name: 'b' }],

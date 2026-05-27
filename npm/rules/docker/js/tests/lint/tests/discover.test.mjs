@@ -7,7 +7,7 @@ import { join } from 'node:path'
 
 import { findDockerfilePaths, isDockerfileName } from '../../../lint.mjs'
 import { findLintDockerfilePaths, isLintDockerfileName } from '../../../../lint/lint.mjs'
-import { withTmpCwd } from '../../../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('isDockerfileName', () => {
   test('канонічні імена', () => {
@@ -40,13 +40,13 @@ describe('isLintDockerfileName', () => {
 
 describe('findDockerfilePaths / findLintDockerfilePaths', () => {
   test('різні набори файлів', async () => {
-    await withTmpCwd(async root => {
-      await mkdir(join('a'), { recursive: true })
-      await mkdir(join('b'), { recursive: true })
-      await writeFile(join('Dockerfile'), 'FROM scratch\n', 'utf8')
-      await writeFile(join('a', 'Dockerfile.dev'), 'FROM scratch\n', 'utf8')
-      await writeFile(join('a', 'Containerfile'), 'FROM scratch\n', 'utf8')
-      await writeFile(join('b', 'App.Dockerfile'), 'FROM scratch\n', 'utf8')
+    await withTmpDir(async root => {
+      await mkdir(join(root, 'a'), { recursive: true })
+      await mkdir(join(root, 'b'), { recursive: true })
+      await writeFile(join(root, 'Dockerfile'), 'FROM scratch\n', 'utf8')
+      await writeFile(join(root, 'a', 'Dockerfile.dev'), 'FROM scratch\n', 'utf8')
+      await writeFile(join(root, 'a', 'Containerfile'), 'FROM scratch\n', 'utf8')
+      await writeFile(join(root, 'b', 'App.Dockerfile'), 'FROM scratch\n', 'utf8')
 
       const all = await findDockerfilePaths(root)
       expect(all.length).toBe(3)

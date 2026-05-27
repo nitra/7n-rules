@@ -14,40 +14,31 @@ function makeRoot() {
 describe('rust applies', () => {
   test('true коли Cargo.toml у cwd', async () => {
     const root = makeRoot()
-    const orig = process.cwd()
-    writeFileSync(join(root, 'Cargo.toml'), '[package]\nname="x"\n')
-    process.chdir(root)
     try {
-      expect(await applies()).toBe(true)
+      writeFileSync(join(root, 'Cargo.toml'), '[package]\nname="x"\n')
+      expect(await applies(root)).toBe(true)
     } finally {
-      process.chdir(orig)
       rmSync(root, { recursive: true, force: true })
     }
   })
 
   test('true коли Cargo.toml у src-tauri/', async () => {
     const root = makeRoot()
-    const orig = process.cwd()
-    mkdirSync(join(root, 'src-tauri'))
-    writeFileSync(join(root, 'src-tauri', 'Cargo.toml'), '[package]\nname="t"\n')
-    process.chdir(root)
     try {
-      expect(await applies()).toBe(true)
+      mkdirSync(join(root, 'src-tauri'))
+      writeFileSync(join(root, 'src-tauri', 'Cargo.toml'), '[package]\nname="t"\n')
+      expect(await applies(root)).toBe(true)
     } finally {
-      process.chdir(orig)
       rmSync(root, { recursive: true, force: true })
     }
   })
 
   test('false коли немає Cargo.toml', async () => {
     const root = makeRoot()
-    const orig = process.cwd()
-    writeFileSync(join(root, 'package.json'), '{}')
-    process.chdir(root)
     try {
-      expect(await applies()).toBe(false)
+      writeFileSync(join(root, 'package.json'), '{}')
+      expect(await applies(root)).toBe(false)
     } finally {
-      process.chdir(orig)
       rmSync(root, { recursive: true, force: true })
     }
   })

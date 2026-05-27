@@ -18,24 +18,26 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const SNIPPET_PATH = join(HERE, 'templates', 'trufflehog', '.trufflehog-exclude.snippet.txt')
 
 /**
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} exit-код перевірки
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  if (!existsSync('package.json')) {
+  if (!existsSync(join(cwd, 'package.json'))) {
     fail('package.json не знайдено в корені — додай (security.mdc)')
     return reporter.getExitCode()
   }
   pass('package.json є (структуру перевіряє Rego)')
 
-  if (!existsSync('.trufflehog-exclude')) {
+  const trufflePath = join(cwd, '.trufflehog-exclude')
+  if (!existsSync(trufflePath)) {
     fail('.trufflehog-exclude не знайдено в корені — додай за каноном (security.mdc)')
     return reporter.getExitCode()
   }
 
-  const actual = await readFile('.trufflehog-exclude', 'utf8')
+  const actual = await readFile(trufflePath, 'utf8')
   const template = await readFile(SNIPPET_PATH, 'utf8')
   const errors = checkTextSubset(actual, template, {
     targetPath: '.trufflehog-exclude',

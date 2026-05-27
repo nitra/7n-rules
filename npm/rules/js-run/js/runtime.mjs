@@ -31,6 +31,7 @@
  *
  * Per-document валідація `package.json` (bunyan, `node` у `scripts`) делегована rego-пакету
  * `js_run.package_json` у `npm/rules/js-run/policy/package_json/`; JS — cross-file (AST, FS).
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
@@ -78,11 +79,12 @@ function backendPackageHasSrcDir(absPackageRoot) {
  * @param {(msg: string) => void} fail callback для повідомлень про порушення
  * @param {(msg: string) => void} passFn callback для повідомлень про успішну перевірку
  * @returns {void}
+ * @param {string} cwd корінь репозиторію
  */
-function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn) {
+function checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn, cwd) {
   if (!backendPackageHasSrcDir(absPackageRoot)) return
 
-  const jcPath = join(rootDir, 'jsconfig.json')
+  const jcPath = join(cwd, rootDir, 'jsconfig.json')
   if (!existsSync(jcPath)) {
     fail(
       `${label}є каталог src/, але немає jsconfig.json — додай канонічний файл з js-run.mdc ` +
@@ -318,11 +320,12 @@ async function checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, f
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок цього пакета
+ * @param {string} cwd корінь репозиторію
  */
-async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
+async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   const label = `[${rootDir}] `
-  const absPackageRoot = join(process.cwd(), rootDir)
-  const pkgJson = await loadPackageJson(rootDir)
+  const absPackageRoot = join(cwd, rootDir)
+  const pkgJson = await loadPackageJson(rootDir, cwd)
 
   // Frontend-пакети (vite у devDependencies) виходять за межі js-run:
   // браузерний бандл не має `node:process`, а `process.env.*` бандлер
@@ -333,7 +336,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
     return
   }
 
-  await checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn)
+  await checkBackendJsconfigWhenSrcPresent(rootDir, absPackageRoot, label, fail, passFn, cwd)
 
   const importViolations = await checkBunyanImports(absPackageRoot, ignorePaths, label, fail)
   if (importViolations === 0) {
@@ -368,7 +371,7 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn) {
     passFn(`${label}немає 'new Promise(r => setTimeout(r, ms))' — паузи через 'node:timers/promises'`)
   }
 
-  checkOtelConfigmap(rootDir, passFn)
+  checkOtelConfigmap(rootDir, passFn, cwd)
 }
 
 /**
@@ -392,9 +395,10 @@ function packageJsonHasViteDevDependency(pkgJson) {
  * лише AST-перевірка імпортів.
  * @param {string} rootDir відносний шлях workspace
  * @returns {Promise<unknown>} розпарсений package.json або null
+ * @param {string} cwd корінь репозиторію
  */
-async function loadPackageJson(rootDir) {
-  const pkgPath = join(rootDir, 'package.json')
+async function loadPackageJson(rootDir, cwd) {
+  const pkgPath = join(cwd, rootDir, 'package.json')
   if (!existsSync(pkgPath)) return null
   return JSON.parse(await readFile(pkgPath, 'utf8'))
 }
@@ -407,9 +411,10 @@ async function loadPackageJson(rootDir) {
  * @param {string} rootDir відносний шлях workspace
  * @param {(msg: string) => void} passFn успішне повідомлення
  * @returns {void}
+ * @param {string} cwd корінь репозиторію
  */
-function checkOtelConfigmap(rootDir, passFn) {
-  const configmapPath = join(rootDir, 'k8s', 'base', 'configmap.yaml')
+function checkOtelConfigmap(rootDir, passFn, cwd) {
+  const configmapPath = join(cwd, rootDir, 'k8s', 'base', 'configmap.yaml')
   if (!existsSync(configmapPath)) return
   passFn(`${rootDir}/k8s/base/configmap.yaml є (OTEL — npx @nitra/cursor fix → js_run.configmap)`)
 }
@@ -417,12 +422,13 @@ function checkOtelConfigmap(rootDir, passFn) {
 /**
  * Перевіряє відповідність проєкту правилам js-run.mdc лише для workspace-пакетів (не корінь репо).
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  const roots = await getMonorepoPackageRootDirs()
+  const roots = await getMonorepoPackageRootDirs(cwd)
   const workspaceRoots = roots.filter(r => r !== '.')
 
   if (workspaceRoots.length === 0) {
@@ -430,9 +436,9 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
+  const ignorePaths = await loadCursorIgnorePaths(cwd)
   for (const r of workspaceRoots) {
-    await checkWorkspacePackage(r, ignorePaths, fail, pass)
+    await checkWorkspacePackage(r, ignorePaths, fail, pass, cwd)
   }
 
   return reporter.getExitCode()

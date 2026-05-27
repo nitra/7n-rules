@@ -5,6 +5,7 @@
  *   - `ua.env`  → `abie-ua.internal` + `ua-*` namespace
  *
  * Файл `.env` без імені (локальний для розробника) — виключено.
+ * @param {string} [cwd] корінь репозиторію
  */
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
@@ -16,11 +17,12 @@ import { abieEnvNameFromBasename, collectAbieEnvFiles, validateAbieEnvInternalUr
 
 /**
  * @returns {Promise<number>} результат
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const root = process.cwd()
+  const root = cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const envFiles = await collectAbieEnvFiles(root, ignorePaths)

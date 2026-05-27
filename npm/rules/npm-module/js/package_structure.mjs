@@ -23,6 +23,7 @@
  * Версія та CHANGELOG: перший заголовок `## [version]` у `npm/CHANGELOG.md` має збігатися з `version` у
  * `npm/package.json` (найсвіжіший реліз зверху). Якщо в git є незакомічені зміни під `npm/`, `version` у робочому
  * файлі має відрізнятися від `HEAD` — інакше типовий пропуск bump після правок у пакеті.
+ * @param {string} cwd корінь репозиторію
  */
 import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
@@ -61,6 +62,7 @@ const TEST_DIR_NAMES = new Set(['tests', '__tests__', 'fixtures', '__fixtures__'
  * (`*_test.rego`) свідомо не входить: за конвенцією conftest юніт-тест лежить
  * поруч з полісі у тому самому `package` — і це дозволений виняток усередині
  * опублікованого `policy/`-каталогу (npm-module.mdc).
+ * @param {string} cwd корінь репозиторію
  */
 const TEST_FILE_PATTERNS = [/^.+\.(test|spec)\.[cm]?[jt]sx?$/iu]
 
@@ -91,9 +93,10 @@ const GLOBSTAR_TRAILING_RE = /\/__GLOBSTAR__$/u
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
  * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
+ * @param {string} cwd корінь репозиторію
  */
-async function npmSrcTreeHasJsFile(ignorePaths = []) {
-  const root = 'npm/src'
+async function npmSrcTreeHasJsFile(cwd, ignorePaths = []) {
+  const root = join(cwd, 'npm/src')
   if (!existsSync(root)) {
     return false
   }
@@ -113,12 +116,14 @@ async function npmSrcTreeHasJsFile(ignorePaths = []) {
 /**
  * Знаходить текстовий вміст конфігурації hk для перевірки npm-module.
  * @returns {Promise<{ path: string, text: string } | null>} знайдений файл або `null`
+ * @param {string} cwd корінь репозиторію
  */
-async function readHkConfig() {
+async function readHkConfig(cwd) {
   const candidates = ['hk.pkl', '.config/hk.pkl']
   for (const p of candidates) {
-    if (existsSync(p)) {
-      const text = await readFile(p, 'utf8')
+    const abs = join(cwd, p)
+    if (existsSync(abs)) {
+      const text = await readFile(abs, 'utf8')
       return { path: p, text }
     }
   }
@@ -174,18 +179,20 @@ function npmTypesFileFromPackageField(typesField) {
  * @param {boolean} useSrcJsLayout чи використовується layout з npm/src
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkNpmPackageJson(useSrcJsLayout, passFn, failFn) {
-  if (!existsSync('npm/package.json')) return
-  const npmPkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+async function checkNpmPackageJson(useSrcJsLayout, passFn, failFn, cwd) {
+  const npmPkgPath = join(cwd, 'npm/package.json')
+  if (!existsSync(npmPkgPath)) return
+  const npmPkg = JSON.parse(await readFile(npmPkgPath, 'utf8'))
   const typesField = npmPkg.types
 
-  const typesPath = useSrcJsLayout ? join('npm', 'types', 'index.d.ts') : npmTypesFileFromPackageField(typesField)
+  const typesRel = useSrcJsLayout ? join('npm', 'types', 'index.d.ts') : npmTypesFileFromPackageField(typesField)
   const missingTypesMsg = useSrcJsLayout
     ? `Відсутній ${join('npm', 'types', 'index.d.ts')} (згенеруй tsc з npm-module.mdc)`
     : `Файл для поля types не знайдено або шлях не під ./types/ — ${String(typesField)}`
-  if (typesPath && existsSync(typesPath)) {
-    passFn(`${typesPath} існує`)
+  if (typesRel && existsSync(join(cwd, typesRel))) {
+    passFn(`${typesRel} існує`)
   } else {
     failFn(missingTypesMsg)
   }
@@ -196,9 +203,10 @@ async function checkNpmPackageJson(useSrcJsLayout, passFn, failFn) {
  * валідує `npm/policy/npm_module/emit_types_config/`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-function checkEmitTypesConfig(passFn, failFn) {
-  if (!existsSync(EMIT_TYPES_CONFIG)) {
+function checkEmitTypesConfig(passFn, failFn, cwd) {
+  if (!existsSync(join(cwd, EMIT_TYPES_CONFIG))) {
     failFn(
       `Без .js під npm/src потрібен ${EMIT_TYPES_CONFIG} (див. npm-module.mdc: emit через tsconfig, без штучного src/index.js)`
     )
@@ -211,14 +219,16 @@ function checkEmitTypesConfig(passFn, failFn) {
  * Перевіряє npm-publish.yml workflow.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
 /**
  * Чи виконано `git` у корені робочого дерева.
  * @returns {Promise<boolean>} true, якщо процес запущено в межах git work tree
+ * @param {string} cwd корінь репозиторію
  */
-async function gitInsideWorkTree() {
+async function gitInsideWorkTree(cwd) {
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' })
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', cwd })
     return stdout.trim() === 'true'
   } catch {
     return false
@@ -227,11 +237,15 @@ async function gitInsideWorkTree() {
 
 /**
  * Список незакомічених шляхів під `npm/` відносно `HEAD`.
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<string[] | null>} шляхи або `null`, якщо `git` недоступний
  */
-async function gitDiffNameOnlyNpm() {
+async function gitDiffNameOnlyNpm(cwd) {
   try {
-    const { stdout } = await execFileAsync('git', ['diff', '--name-only', 'HEAD', '--', 'npm'], { encoding: 'utf8' })
+    const { stdout } = await execFileAsync('git', ['diff', '--name-only', 'HEAD', '--', 'npm'], {
+      encoding: 'utf8',
+      cwd
+    })
     return stdout.trim().split('\n').filter(Boolean)
   } catch {
     return null
@@ -241,11 +255,12 @@ async function gitDiffNameOnlyNpm() {
 /**
  * Поле `version` з `npm/package.json` на заданому git-ref (`HEAD:npm/package.json`).
  * @param {string} refPath на кшталт `HEAD:npm/package.json`
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<string | null>} значення поля `version` або `null`, якщо ref недоступний
  */
-async function gitShowNpmPackageVersionAt(refPath) {
+async function gitShowNpmPackageVersionAt(refPath, cwd) {
   try {
-    const { stdout } = await execFileAsync('git', ['show', refPath], { encoding: 'utf8' })
+    const { stdout } = await execFileAsync('git', ['show', refPath], { encoding: 'utf8', cwd })
     const m = stdout.match(PACKAGE_JSON_VERSION_RE)
     return m ? m[1] : null
   } catch {
@@ -268,16 +283,17 @@ function firstChangelogSectionVersion(changelogText) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при виявленому порушенні
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkChangelogTopMatchesPackageVersion(passFn, failFn) {
-  if (!existsSync('npm/CHANGELOG.md') || !existsSync('npm/package.json')) return
-  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+async function checkChangelogTopMatchesPackageVersion(passFn, failFn, cwd) {
+  if (!existsSync(join(cwd, 'npm/CHANGELOG.md')) || !existsSync(join(cwd, 'npm/package.json'))) return
+  const pkg = JSON.parse(await readFile(join(cwd, 'npm/package.json'), 'utf8'))
   const ver = typeof pkg.version === 'string' ? pkg.version : null
   if (!ver) {
     failFn('npm/package.json: відсутнє поле version')
     return
   }
-  const cl = await readFile('npm/CHANGELOG.md', 'utf8')
+  const cl = await readFile(join(cwd, 'npm/CHANGELOG.md'), 'utf8')
   const first = firstChangelogSectionVersion(cl)
   if (!first) {
     failFn('npm/CHANGELOG.md: не знайдено жодного заголовка ## [version]')
@@ -298,23 +314,24 @@ async function checkChangelogTopMatchesPackageVersion(passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при виявленому порушенні
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
-  if (!(await gitInsideWorkTree())) {
+async function checkDirtyNpmRequiresVersionBump(passFn, failFn, cwd) {
+  if (!(await gitInsideWorkTree(cwd))) {
     passFn('npm-module: git недоступний або поза work tree — перевірку незакоміченого bump пропущено')
     return
   }
-  const changed = await gitDiffNameOnlyNpm()
+  const changed = await gitDiffNameOnlyNpm(cwd)
   if (changed === null) {
     passFn('npm-module: git diff під npm/ недоступний — пропущено')
     return
   }
   if (changed.length === 0) return
 
-  const headVer = await gitShowNpmPackageVersionAt('HEAD:npm/package.json')
+  const headVer = await gitShowNpmPackageVersionAt('HEAD:npm/package.json', cwd)
   if (headVer === null) return
 
-  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+  const pkg = JSON.parse(await readFile(join(cwd, 'npm/package.json'), 'utf8'))
   const cur = typeof pkg.version === 'string' ? pkg.version : null
   if (!cur) return
 
@@ -334,10 +351,11 @@ async function checkDirtyNpmRequiresVersionBump(passFn, failFn) {
  * `npm/policy/npm_module/npm_publish_yml/`.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при виявленому порушенні
+ * @param {string} cwd корінь репозиторію
  */
-function checkPublishWorkflow(passFn, failFn) {
+function checkPublishWorkflow(passFn, failFn, cwd) {
   const publishWf = '.github/workflows/npm-publish.yml'
-  if (existsSync(publishWf)) {
+  if (existsSync(join(cwd, publishWf))) {
     passFn(`${publishWf} є (структуру перевіряє npx @nitra/cursor fix → npm_module.npm_publish_yml)`)
   } else {
     failFn(`Відсутній ${publishWf} (npm-module.mdc: npm publish)`)
@@ -386,14 +404,16 @@ export function globToRegex(glob) {
  * простір імен `files`, бо саме його сканує check.
  * @param {string[]} filesField значення поля `files`
  * @returns {Promise<string[]>} відсортовані posix-шляхи без `npm/` префікса
+ * @param {string} cwd корінь репозиторію
  */
-async function collectPublishedFiles(filesField) {
+async function collectPublishedFiles(filesField, cwd) {
   const positives = filesField.filter(p => typeof p === 'string' && !p.startsWith('!'))
   const negatives = filesField.filter(p => typeof p === 'string' && p.startsWith('!')).map(p => globToRegex(p.slice(1)))
   /** @type {Set<string>} */
   const collected = new Set()
+  const npmRoot = join(cwd, 'npm')
   for (const entry of positives) {
-    const fullPath = join('npm', entry)
+    const fullPath = join(npmRoot, entry)
     if (!existsSync(fullPath)) continue
     const s = await stat(fullPath)
     if (s.isFile()) {
@@ -402,7 +422,7 @@ async function collectPublishedFiles(filesField) {
     }
     if (!s.isDirectory()) continue
     await walkDir(fullPath, p => {
-      const rel = p.slice('npm/'.length).split(sep).join('/')
+      const rel = p.slice(npmRoot.length + 1).split(sep).join('/')
       collected.add(rel)
     })
   }
@@ -460,8 +480,9 @@ export function findTestFrameworkImport(content, virtualPath) {
  * Подальші сегменти (наприклад, `rules/<r>/js/<c>/tests/`) продовжують перевірятись.
  * @param {string} relPath posix-шлях відносно `npm/`
  * @returns {Promise<string | null>} причина порушення або `null`
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function classifyPublishedFileAsTest(relPath) {
+export async function classifyPublishedFileAsTest(relPath, cwd = process.cwd()) {
   const segments = relPath.split('/')
   const base = segments.at(-1)
   const dirs = segments.slice(0, -1)
@@ -474,7 +495,7 @@ export async function classifyPublishedFileAsTest(relPath) {
   if (testDir) return `test-style каталог "${testDir}/"`
   if (TEST_FILE_PATTERNS.some(re => re.test(base))) return `test-style ім'я файлу`
   if (JS_LIKE_EXT_RE.test(base)) {
-    const content = await readFile(join('npm', relPath), 'utf8')
+    const content = await readFile(join(cwd, 'npm', relPath), 'utf8')
     const mod = findTestFrameworkImport(content, relPath)
     if (mod) return `імпорт test-фреймворку "${mod}"`
   }
@@ -488,16 +509,17 @@ export async function classifyPublishedFileAsTest(relPath) {
  * @param {(msg: string) => void} pass callback при успіху
  * @param {(msg: string) => void} fail callback при порушенні
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-async function checkNoTestsInPublishedFiles(pass, fail) {
-  if (!existsSync('npm/package.json')) return
-  const pkg = JSON.parse(await readFile('npm/package.json', 'utf8'))
+async function checkNoTestsInPublishedFiles(pass, fail, cwd) {
+  if (!existsSync(join(cwd, 'npm/package.json'))) return
+  const pkg = JSON.parse(await readFile(join(cwd, 'npm/package.json'), 'utf8'))
   if (!Array.isArray(pkg.files)) return
-  const files = await collectPublishedFiles(pkg.files)
+  const files = await collectPublishedFiles(pkg.files, cwd)
   /** @type {{ file: string, reason: string }[]} */
   const violations = []
   for (const rel of files) {
-    const reason = await classifyPublishedFileAsTest(rel)
+    const reason = await classifyPublishedFileAsTest(rel, cwd)
     if (reason) violations.push({ file: rel, reason })
   }
   if (violations.length === 0) {
@@ -518,16 +540,18 @@ async function checkNoTestsInPublishedFiles(pass, fail) {
  * валідує `npm/policy/npm_module/root_package_json/`.
  * @param {(msg: string) => void} pass callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkNpmModuleBasicStructure(pass, fail) {
-  if (existsSync('package.json')) {
+async function checkNpmModuleBasicStructure(pass, fail, cwd) {
+  if (existsSync(join(cwd, 'package.json'))) {
     pass('package.json існує')
   } else {
     fail('package.json не існує')
   }
 
-  if (existsSync('npm')) {
-    const s = await stat('npm')
+  const npmDir = join(cwd, 'npm')
+  if (existsSync(npmDir)) {
+    const s = await stat(npmDir)
     if (s.isDirectory()) {
       pass('npm/ директорія існує')
     } else {
@@ -537,7 +561,7 @@ async function checkNpmModuleBasicStructure(pass, fail) {
     fail('npm/ директорія не існує')
   }
 
-  if (existsSync('npm/package.json')) {
+  if (existsSync(join(cwd, 'npm/package.json'))) {
     pass('npm/package.json існує')
   } else {
     fail('npm/package.json не існує — створи package.json для npm модуля')
@@ -546,26 +570,27 @@ async function checkNpmModuleBasicStructure(pass, fail) {
 
 /**
  * Перевіряє відповідність проєкту правилам npm-module.mdc
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  await checkNpmModuleBasicStructure(pass, fail)
-  await checkNoTestsInPublishedFiles(pass, fail)
+  await checkNpmModuleBasicStructure(pass, fail, cwd)
+  await checkNoTestsInPublishedFiles(pass, fail, cwd)
 
-  const ignorePaths = await loadCursorIgnorePaths(process.cwd())
-  const useSrcJsLayout = await npmSrcTreeHasJsFile(ignorePaths)
+  const ignorePaths = await loadCursorIgnorePaths(cwd)
+  const useSrcJsLayout = await npmSrcTreeHasJsFile(cwd, ignorePaths)
 
-  await checkNpmPackageJson(useSrcJsLayout, pass, fail)
+  await checkNpmPackageJson(useSrcJsLayout, pass, fail, cwd)
 
   if (!useSrcJsLayout) {
-    await checkEmitTypesConfig(pass, fail)
+    await checkEmitTypesConfig(pass, fail, cwd)
   }
 
   const layoutLabel = useSrcJsLayout ? 'layout src' : 'tsconfig emit-types'
-  const hk = await readHkConfig()
+  const hk = await readHkConfig(cwd)
   if (hk) {
     pass(`${hk.path} існує`)
     const missing = useSrcJsLayout ? missingHkSrcLayoutFragments(hk.text) : missingHkEmitTypesConfigFragments(hk.text)
@@ -578,16 +603,16 @@ export async function check() {
     fail('Очікується hk.pkl або .config/hk.pkl з pre-commit і tsc (npm-module.mdc)')
   }
 
-  if (existsSync('.github/workflows')) {
+  if (existsSync(join(cwd, '.github/workflows'))) {
     pass('.github/workflows/ існує')
   } else {
     fail('.github/workflows/ не існує')
   }
 
-  await checkPublishWorkflow(pass, fail)
+  await checkPublishWorkflow(pass, fail, cwd)
 
-  await checkChangelogTopMatchesPackageVersion(pass, fail)
-  await checkDirtyNpmRequiresVersionBump(pass, fail)
+  await checkChangelogTopMatchesPackageVersion(pass, fail, cwd)
+  await checkDirtyNpmRequiresVersionBump(pass, fail, cwd)
 
   return reporter.getExitCode()
 }

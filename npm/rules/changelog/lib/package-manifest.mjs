@@ -71,11 +71,12 @@ export function parsePyprojectFields(text) {
 }
 
 /**
- * @param {string} ws шлях воркспейсу
+ * @param {string} ws шлях воркспейсу (відносно `cwd`)
+ * @param {string} [cwd] корінь репозиторію (за замовчуванням `process.cwd()`)
  * @returns {Promise<PackageManifest | null>} маніфест пакета або null
  */
-export async function readPackageManifest(ws) {
-  const pkgPath = join(ws, 'package.json')
+export async function readPackageManifest(ws, cwd = process.cwd()) {
+  const pkgPath = join(cwd, ws, 'package.json')
   if (existsSync(pkgPath)) {
     try {
       const parsed = JSON.parse(await readFile(pkgPath, 'utf8'))
@@ -99,7 +100,7 @@ export async function readPackageManifest(ws) {
     }
   }
 
-  const pyPath = join(ws, 'pyproject.toml')
+  const pyPath = join(cwd, ws, 'pyproject.toml')
   if (!existsSync(pyPath)) {
     return null
   }

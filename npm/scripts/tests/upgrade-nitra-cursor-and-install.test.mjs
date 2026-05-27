@@ -12,7 +12,7 @@ import {
   resolveInstalledPackageRoot,
   shouldSkipNpmVersionUpgrade
 } from '../upgrade-nitra-cursor-and-install.mjs'
-import { withTmpCwd } from '../utils/test-helpers.mjs'
+import { withTmpDir } from '../utils/test-helpers.mjs'
 
 describe('shouldSkipNpmVersionUpgrade', () => {
   test('semver з діапазоном — не пропускати', () => {
@@ -34,7 +34,7 @@ describe('shouldSkipNpmVersionUpgrade', () => {
 
 describe('resolveInstalledPackageRoot', () => {
   test('fallback якщо node_modules немає', async () => {
-    await withTmpCwd(async dir => {
+    await withTmpDir(async dir => {
       const fb = join(dir, 'fallback')
       await mkdir(fb, { recursive: true })
       expect(resolveInstalledPackageRoot(dir, fb)).toBe(fb)
@@ -42,7 +42,7 @@ describe('resolveInstalledPackageRoot', () => {
   })
 
   test('node_modules/@nitra/cursor з package.json', async () => {
-    await withTmpCwd(async dir => {
+    await withTmpDir(async dir => {
       const installed = join(dir, 'node_modules', '@nitra/cursor')
       await mkdir(installed, { recursive: true })
       await writeFile(

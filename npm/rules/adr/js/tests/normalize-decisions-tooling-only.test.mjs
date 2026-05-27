@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const HOOK_SCRIPT = resolve(here, '..', '..', '..', '..', '.claude-template', 'hooks', 'normalize-decisions.sh')
@@ -45,15 +45,17 @@ function transcriptJsonl(edits) {
 
 /**
  * Run normalize-decisions.sh з обходом порогів і без LLM CLI.
+ * @param {string} dir абсолютний шлях тимчасового каталогу (CLAUDE_PROJECT_DIR + cwd)
  * @param {Record<string, string>} [extraEnv] додаткові ENV
  * @returns {{ exitCode: number, log: string, drafts: string[] }} результат прогону
  */
-function runNormalizeHook(extraEnv = {}) {
+function runNormalizeHook(dir, extraEnv = {}) {
   const result = spawnSync('bash', [HOOK_SCRIPT], {
     input: '{}',
+    cwd: dir,
     env: {
       PATH: '/usr/bin:/bin',
-      CLAUDE_PROJECT_DIR: process.cwd(),
+      CLAUDE_PROJECT_DIR: dir,
       HOME: env.HOME,
       ADR_NORMALIZE_THRESHOLD: '1',
       ADR_NORMALIZE_MIN_INTERVAL_HOURS: '0',
@@ -61,59 +63,57 @@ function runNormalizeHook(extraEnv = {}) {
     },
     encoding: 'utf8'
   })
-  const logPath = '.claude/hooks/normalize-decisions.log'
+  const logPath = join(dir, '.claude/hooks/normalize-decisions.log')
   const log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
-  const drafts = existsSync('docs/adr') ? readdirSync('docs/adr') : []
+  const adrDir = join(dir, 'docs/adr')
+  const drafts = existsSync(adrDir) ? readdirSync(adrDir) : []
   return { exitCode: result.status ?? -1, log, drafts }
 }
 
 describe('normalize-decisions.sh — structural tooling-only delete', () => {
   test('tooling-only чернетка → видалена без LLM', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
-      const draftPath = 'docs/adr/20260520-101010-foo.md'
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
+      const draftPath = join(dir, 'docs/adr/20260520-101010-foo.md')
       await writeFile(
         draftPath,
         draftMd({ session: 'sess1', captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
       )
-      const { log, drafts } = runNormalizeHook()
+      const { log, drafts } = runNormalizeHook(dir)
       expect(log).toContain('tooling-only')
       expect(drafts).not.toContain('20260520-101010-foo.md')
     })
   })
 
   test('non-tooling чернетка → лишається (LLM-крок мовчки no-op без CLI)', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, 'src/foo.ts') }]))
-      const draftPath = 'docs/adr/20260520-101010-bar.md'
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, 'src/foo.ts') }]))
+      const draftPath = join(dir, 'docs/adr/20260520-101010-bar.md')
       await writeFile(
         draftPath,
         draftMd({ session: 'sess2', captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
       )
-      const { drafts } = runNormalizeHook()
+      const { drafts } = runNormalizeHook(dir)
       expect(drafts).toContain('20260520-101010-bar.md')
     })
   })
 
   test('батч повністю tooling-only → exit 0 без LLM', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
       for (const id of ['a', 'b', 'c']) {
         await writeFile(
-          `docs/adr/20260520-10101${id.codePointAt(0) % 10}-${id}.md`,
+          join(dir, `docs/adr/20260520-10101${id.codePointAt(0) % 10}-${id}.md`),
           draftMd({ session: `sess${id}`, captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
         )
       }
-      const { log, drafts } = runNormalizeHook()
+      const { log, drafts } = runNormalizeHook(dir)
       expect(drafts.length).toBe(0)
       expect(log).not.toContain('using claude CLI')
       expect(log).not.toContain('using cursor-agent CLI')
@@ -121,16 +121,15 @@ describe('normalize-decisions.sh — structural tooling-only delete', () => {
   })
 
   test('ADR_NORMALIZE_SKIP_TOOLING_ONLY=0 вимикає скіп', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
       await writeFile(
-        'docs/adr/20260520-101010-foo.md',
+        join(dir, 'docs/adr/20260520-101010-foo.md'),
         draftMd({ session: 'sess1', captured: '2026-05-20T10:10:10+00:00', transcript: tpath })
       )
-      const { exitCode, drafts } = runNormalizeHook({ ADR_NORMALIZE_SKIP_TOOLING_ONLY: '0' })
+      const { exitCode, drafts } = runNormalizeHook(dir, { ADR_NORMALIZE_SKIP_TOOLING_ONLY: '0' })
       expect(exitCode).toBe(0)
       // Skip вимкнено, LLM CLI відсутній → чернетка лишається.
       expect(drafts).toContain('20260520-101010-foo.md')

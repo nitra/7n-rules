@@ -129,14 +129,15 @@ async function collectEnvFiles(root, ignorePaths) {
 /**
  * Перевіряє один `.env` файл на коректність `HASURA_GRAPHQL_ENDPOINT`.
  * Якщо в файлі немає змінної — вважаємо OK.
- * @param {string} relPath відносний шлях файла
+ * @param {string} relPath відносний (posix) шлях файла відносно `cwd` (для повідомлень)
+ * @param {string} cwd корінь репозиторію
  * @param {{ service: string | null, namespace: string | null }} expected очікувані сегменти з YAML
  * @param {{ pass: (msg: string) => void, fail: (msg: string) => void }} reporter репортер
  * @returns {Promise<void>}
  */
-async function checkEnvFile(relPath, expected, reporter) {
+async function checkEnvFile(relPath, cwd, expected, reporter) {
   const { pass, fail } = reporter
-  const content = await readFile(relPath, 'utf8')
+  const content = await readFile(join(cwd, relPath), 'utf8')
   const m = content.match(HASURA_ENDPOINT_LINE_RE)
   if (!m) {
     return
@@ -169,14 +170,16 @@ async function checkEnvFile(relPath, expected, reporter) {
 
 /**
  * Зчитує URL репозиторію з кореневого `package.json` (або null, якщо файла немає / не валідний).
+ * @param {string} cwd корінь репозиторію
  * @returns {Promise<string | null>} URL з поля `repository`
  */
-async function readRootRepositoryUrl() {
-  if (!existsSync('package.json')) {
+async function readRootRepositoryUrl(cwd) {
+  const pkgPath = join(cwd, 'package.json')
+  if (!existsSync(pkgPath)) {
     return null
   }
   try {
-    const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+    const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
     return getRepositoryUrl(pkg?.repository)
   } catch {
     return null
@@ -198,19 +201,20 @@ export function isNitraOrAbieRepository(url) {
 
 /**
  * Перевіряє hasura.mdc для поточного робочого каталогу.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — OK / правило не застосовується, 1 — порушення
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass } = reporter
 
-  const repositoryUrl = await readRootRepositoryUrl()
+  const repositoryUrl = await readRootRepositoryUrl(cwd)
   if (!isNitraOrAbieRepository(repositoryUrl)) {
     pass('Пропущено: репозиторій не nitra і не abie (hasura.mdc застосовується лише до них)')
     return reporter.getExitCode()
   }
 
-  const root = process.cwd()
+  const root = cwd
   const expected = {
     service: await readYamlMetadataName(join(root, HASURA_SVC_HL_FILE), 'Service'),
     namespace: await readYamlMetadataName(join(root, HASURA_NAMESPACE_FILE), 'Namespace')
@@ -224,7 +228,7 @@ export async function check() {
   }
 
   for (const rel of envFiles) {
-    await checkEnvFile(rel, expected, reporter)
+    await checkEnvFile(rel, root, expected, reporter)
   }
 
   // Якщо у файлах не було жодної згадки HASURA_GRAPHQL_ENDPOINT — повідом про це.

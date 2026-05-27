@@ -17,12 +17,13 @@ import { validateAbieHcModeline } from '../lib/hc-yaml.mjs'
 import { collectDeploymentDirs, findK8sYamlFiles } from '../lib/k8s-tree.mjs'
 
 /**
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} результат
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const root = process.cwd()
+  const root = cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)

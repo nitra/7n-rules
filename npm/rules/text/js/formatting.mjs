@@ -27,9 +27,11 @@
  *    у `devDependencies`, заборона `markdownlint-cli2` у залежностях.
  *  - `npm/policy/bun/package_json/` — у `devDependencies` лише `@nitra/*`
  *    (раніше дублювалося тут).
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { anyRunStepIncludes, parseWorkflowYaml } from '../../../scripts/lib/gha-workflow.mjs'
@@ -65,14 +67,16 @@ function verifyUkApostropheRuleParagraph(filePath, body, failFn, passFn) {
  * Перевіряє .v8rignore.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkV8rIgnore(passFn, failFn) {
+async function checkV8rIgnore(passFn, failFn, cwd) {
   const required = ['.vscode/extensions.json', '.vscode/settings.json']
-  if (!existsSync('.v8rignore')) {
+  const v8rPath = join(cwd, '.v8rignore')
+  if (!existsSync(v8rPath)) {
     failFn('.v8rignore не існує — створи згідно n-text.mdc (мінімум .vscode/extensions.json і .vscode/settings.json)')
     return
   }
-  const raw = await readFile('.v8rignore', 'utf8')
+  const raw = await readFile(v8rPath, 'utf8')
   const lines = new Set(
     raw
       .split('\n')
@@ -100,8 +104,9 @@ async function checkV8rIgnore(passFn, failFn) {
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
  * @returns {Promise<void>}
+ * @param {string} cwd корінь репозиторію
  */
-function checkTextConfigsExistence(passFn, failFn) {
+function checkTextConfigsExistence(passFn, failFn, cwd) {
   for (const [path, mdcRef] of [
     ['.oxfmtrc.json', 'text.oxfmtrc'],
     ['.cspell.json', 'text.cspell'],
@@ -109,7 +114,7 @@ function checkTextConfigsExistence(passFn, failFn) {
     ['.vscode/extensions.json', 'text.vscode_extensions'],
     ['.vscode/settings.json', 'text.vscode_settings']
   ]) {
-    if (existsSync(path)) {
+    if (existsSync(join(cwd, path))) {
       passFn(`${path} є (структуру перевіряє npx @nitra/cursor fix → ${mdcRef})`)
     } else {
       failFn(`${path} не існує — створи згідно n-text.mdc`)
@@ -125,14 +130,17 @@ function checkTextConfigsExistence(passFn, failFn) {
  * `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkPackageJsonText(passFn, failFn) {
-  if (!existsSync('package.json')) return
-  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+async function checkPackageJsonText(passFn, failFn, cwd) {
+  const pkgPath = join(cwd, 'package.json')
+  if (!existsSync(pkgPath)) return
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   checkLintTextScript(pkg.scripts?.['lint-text'], passFn, failFn)
 
-  if (existsSync('.github/workflows/lint-text.yml')) {
-    const wf = await readFile('.github/workflows/lint-text.yml', 'utf8')
+  const lintTextWf = join(cwd, '.github/workflows/lint-text.yml')
+  if (existsSync(lintTextWf)) {
+    const wf = await readFile(lintTextWf, 'utf8')
     const root = parseWorkflowYaml(wf)
     const ok = root ? anyRunStepIncludes(root, 'bun run lint-text') : wf.includes('bun run lint-text')
     if (ok) {
@@ -166,27 +174,28 @@ function checkLintTextScript(lintText, passFn, failFn) {
 
 /**
  * Перевіряє відповідність проєкту правилам text.mdc.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  await checkV8rIgnore(pass, fail)
-  await checkTextConfigsExistence(pass, fail)
+  await checkV8rIgnore(pass, fail, cwd)
+  await checkTextConfigsExistence(pass, fail, cwd)
 
   // Prettier-конфіги/ignore — окремий concern `text.forbidden-prettier` (rules/text/js/forbidden-prettier.mjs).
 
-  const textRulePaths = ['.cursor/rules/n-text.mdc', 'npm/mdc/text.mdc'].filter(p => existsSync(p))
+  const textRulePaths = ['.cursor/rules/n-text.mdc', 'npm/mdc/text.mdc'].filter(p => existsSync(join(cwd, p)))
   if (textRulePaths.length === 0) {
     pass('n-text.mdc / npm/mdc/text.mdc відсутні — перевірку абзацу про апостроф пропущено')
   } else {
     for (const p of textRulePaths) {
-      verifyUkApostropheRuleParagraph(p, await readFile(p, 'utf8'), fail, pass)
+      verifyUkApostropheRuleParagraph(p, await readFile(join(cwd, p), 'utf8'), fail, pass)
     }
   }
 
-  await checkPackageJsonText(pass, fail)
+  await checkPackageJsonText(pass, fail, cwd)
 
   return reporter.getExitCode()
 }

@@ -12,7 +12,7 @@ import { dirname, join, resolve } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const HOOK_SCRIPT = resolve(here, '..', '..', '..', '..', '.claude-template', 'hooks', 'capture-decisions.sh')
@@ -38,72 +38,72 @@ function transcriptJsonl(edits) {
 
 /**
  * Run capture-decisions.sh in tmp cwd with empty PATH-сегмент для LLM CLI.
+ * @param {string} dir абсолютний шлях тимчасової директорії (CLAUDE_PROJECT_DIR + cwd для spawn)
  * @param {string} payload JSON stdin для скрипта (`{transcript_path, session_id}`)
  * @param {Record<string, string>} [extraEnv] додаткові ENV
  * @returns {{exitCode: number, log: string, adrFiles: string[]}} результат прогону
  */
-function runCaptureHook(payload, extraEnv = {}) {
+function runCaptureHook(dir, payload, extraEnv = {}) {
   const result = spawnSync('bash', [HOOK_SCRIPT], {
     input: payload,
+    cwd: dir,
     env: {
       // Тільки системні шляхи без `claude`/`cursor-agent`.
       PATH: '/usr/bin:/bin',
-      CLAUDE_PROJECT_DIR: process.cwd(),
+      CLAUDE_PROJECT_DIR: dir,
       HOME: env.HOME,
       ...extraEnv
     },
     encoding: 'utf8'
   })
-  const logPath = '.claude/hooks/capture-decisions.log'
+  const logPath = join(dir, '.claude/hooks/capture-decisions.log')
   const log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : ''
-  const adrFiles = existsSync('docs/adr') ? readdirSync('docs/adr') : []
+  const adrDir = join(dir, 'docs/adr')
+  const adrFiles = existsSync(adrDir) ? readdirSync(adrDir) : []
   return { exitCode: result.status ?? -1, log, adrFiles }
 }
 
 describe('capture-decisions.sh — structural tooling-only skip', () => {
   test('tooling-only: лише `.cspell.json` → skip, нічого в docs/adr/', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
-      const { log, adrFiles } = runCaptureHook(JSON.stringify({ transcript_path: tpath, session_id: 'abc12345' }))
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
+      const { log, adrFiles } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'abc12345' }))
       expect(log).toContain('skipping ADR capture: tooling-only session')
       expect(adrFiles).toEqual([])
     })
   })
 
   test('tooling-only: лише docs/adr/ + CHANGELOG → skip', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
       await writeFile(
         tpath,
         transcriptJsonl([
-          { name: 'Write', file: join(cwd, 'docs/adr/20260520-101010-foo.md') },
-          { name: 'Edit', file: join(cwd, 'CHANGELOG.md') }
+          { name: 'Write', file: join(dir, 'docs/adr/20260520-101010-foo.md') },
+          { name: 'Edit', file: join(dir, 'CHANGELOG.md') }
         ])
       )
-      const { log, adrFiles } = runCaptureHook(JSON.stringify({ transcript_path: tpath, session_id: 'abc12346' }))
+      const { log, adrFiles } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'abc12346' }))
       expect(log).toContain('tooling-only session')
       expect(adrFiles).toEqual([])
     })
   })
 
   test('non-tooling: правка `src/foo.ts` → НЕ skip (хук іде до LLM-логіки)', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
       await writeFile(
         tpath,
         transcriptJsonl([
-          { name: 'Edit', file: join(cwd, 'src/foo.ts') },
-          { name: 'Edit', file: join(cwd, '.cspell.json') }
+          { name: 'Edit', file: join(dir, 'src/foo.ts') },
+          { name: 'Edit', file: join(dir, '.cspell.json') }
         ])
       )
-      const { log } = runCaptureHook(JSON.stringify({ transcript_path: tpath, session_id: 'abc12347' }))
+      const { log } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'abc12347' }))
       // Без LLM CLI хук доходить до перевірки і виходить з "no LLM CLI found".
       // НЕ повинно містити tooling-only skip.
       expect(log).not.toContain('tooling-only session')
@@ -112,14 +112,15 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
   })
 
   test('ADR_NORMALIZE_SKIP_TOOLING_ONLY=0 вимикає скіп навіть для чистого tooling', async () => {
-    await withTmpCwd(async () => {
-      await mkdir('docs/adr', { recursive: true })
-      const cwd = process.cwd()
-      const tpath = join(cwd, 'transcript.jsonl')
-      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(cwd, '.cspell.json') }]))
-      const { exitCode, log } = runCaptureHook(JSON.stringify({ transcript_path: tpath, session_id: 'abc12348' }), {
-        ADR_NORMALIZE_SKIP_TOOLING_ONLY: '0'
-      })
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, '.cspell.json') }]))
+      const { exitCode, log } = runCaptureHook(
+        dir,
+        JSON.stringify({ transcript_path: tpath, session_id: 'abc12348' }),
+        { ADR_NORMALIZE_SKIP_TOOLING_ONLY: '0' }
+      )
       expect(exitCode).toBe(0)
       expect(log).not.toContain('tooling-only session')
     })

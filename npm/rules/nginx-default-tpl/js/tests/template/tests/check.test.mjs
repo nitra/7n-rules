@@ -15,7 +15,7 @@ import {
   nginxTemplateViolations,
   parseIniVariableNames
 } from '../../../template.mjs'
-import { ensureDir, withTmpCwd } from '../../../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), '../fixtures')
 
@@ -29,12 +29,12 @@ describe('parseIniVariableNames / iniKeysMissingInTemplate', () => {
 
 describe('migrateDefaultTplConfFiles', () => {
   test('перейменовує default.tpl.conf у дереві на default.conf.template', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('nginx')
-      const oldPath = join(process.cwd(), 'nginx/default.tpl.conf')
-      const newPath = join(process.cwd(), 'nginx/default.conf.template')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const oldPath = join(dir, 'nginx/default.tpl.conf')
+      const newPath = join(dir, 'nginx/default.conf.template')
       await writeFile(oldPath, 'server_tokens off;\n', 'utf8')
-      const { renamed, overwritten } = await migrateDefaultTplConfFiles(process.cwd())
+      const { renamed, overwritten } = await migrateDefaultTplConfFiles(dir)
       expect(overwritten).toEqual([])
       expect(renamed).toEqual(['nginx/default.tpl.conf'])
       expect(existsSync(newPath)).toBe(true)
@@ -43,27 +43,27 @@ describe('migrateDefaultTplConfFiles', () => {
   })
 
   test('перезаписує default.conf.template вмістом default.tpl.conf, якщо обидва є', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('d')
-      await writeFile(join('d/default.tpl.conf'), 'from-tpl', 'utf8')
-      await writeFile(join('d/default.conf.template'), 'old-template', 'utf8')
-      const { renamed, overwritten } = await migrateDefaultTplConfFiles(process.cwd())
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'd'))
+      await writeFile(join(dir, 'd/default.tpl.conf'), 'from-tpl', 'utf8')
+      await writeFile(join(dir, 'd/default.conf.template'), 'old-template', 'utf8')
+      const { renamed, overwritten } = await migrateDefaultTplConfFiles(dir)
       expect(renamed).toEqual([])
       expect(overwritten).toEqual(['d/default.tpl.conf'])
-      expect(existsSync(join(process.cwd(), 'd/default.tpl.conf'))).toBe(false)
-      expect(await readFile(join('d/default.conf.template'), 'utf8')).toBe('from-tpl')
+      expect(existsSync(join(dir, 'd/default.tpl.conf'))).toBe(false)
+      expect(await readFile(join(dir, 'd/default.conf.template'), 'utf8')).toBe('from-tpl')
     })
   })
 })
 
 describe('findDefaultConfTemplatePaths', () => {
   test('не включає tests/fixtures', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('tests/fixtures/nginx')
-      await copyFile(join(fixDir, 'default.conf.template'), join('tests/fixtures/nginx/default.conf.template'))
-      await ensureDir('app/nginx')
-      await writeFile(join('app/nginx/default.conf.template'), 'server_tokens off;\n', 'utf8')
-      const paths = await findDefaultConfTemplatePaths(process.cwd())
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'tests/fixtures/nginx'))
+      await copyFile(join(fixDir, 'default.conf.template'), join(dir, 'tests/fixtures/nginx/default.conf.template'))
+      await ensureDir(join(dir, 'app/nginx'))
+      await writeFile(join(dir, 'app/nginx/default.conf.template'), 'server_tokens off;\n', 'utf8')
+      const paths = await findDefaultConfTemplatePaths(dir)
       expect(paths).toHaveLength(1)
       expect(paths[0].replaceAll('\\', '/')).toContain('app/nginx/default.conf.template')
     })

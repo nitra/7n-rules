@@ -26,12 +26,15 @@ const TEST_DIR =
   typeof import.meta.dirname === 'string' ? import.meta.dirname : fileURLToPath(new URL('.', import.meta.url))
 const REPO_ROOT = join(TEST_DIR, '..', '..')
 
-/** @returns {Promise<number>} exit code abie-check chain на поточному cwd */
-async function checkAbie() {
-  if (!(await appliesAbie())) return 0
+/**
+ * @param {string} cwd корінь репозиторію
+ * @returns {Promise<number>} exit code abie-check chain на заданому cwd
+ */
+async function checkAbie(cwd) {
+  if (!(await appliesAbie(cwd))) return 0
   let code = 0
   for (const fn of [checkAbieFirebase, checkAbieHc, checkAbieEnv, checkAbieUaNs, checkAbieUaHr]) {
-    if ((await fn()) !== 0) code = 1
+    if ((await fn(cwd)) !== 0) code = 1
   }
   return code
 }
@@ -42,23 +45,17 @@ describe('check-* на реальному репозиторії', () => {
   // не вистачає. Збільшуємо до 120с: у стані з великим git-diff (напр. відновлені файли після
   // bad commit) деякі checks (checkK8s, checkJsRun) можуть займати до 60-90с.
   test('узгоджені з поточним деревом cursor', async () => {
-    const prev = process.cwd()
-    process.chdir(REPO_ROOT)
-    try {
-      await withShellcheckStubInPath(async () => {
-        expect(await checkAbie()).toBe(0)
-        expect(await checkBun()).toBe(0)
-        expect(await checkGa()).toBe(0)
-        expect(await checkGraphql()).toBe(0)
-        expect(await checkJsLint()).toBe(0)
-        expect(await checkText()).toBe(0)
-        expect(await checkNpmModule()).toBe(0)
-        expect(await checkDocker()).toBe(0)
-        expect(await checkK8s()).toBe(0)
-        expect(await checkJsRun()).toBe(0)
-      })
-    } finally {
-      process.chdir(prev)
-    }
+    await withShellcheckStubInPath(async () => {
+      expect(await checkAbie(REPO_ROOT)).toBe(0)
+      expect(await checkBun(REPO_ROOT)).toBe(0)
+      expect(await checkGa(REPO_ROOT)).toBe(0)
+      expect(await checkGraphql(REPO_ROOT)).toBe(0)
+      expect(await checkJsLint(REPO_ROOT)).toBe(0)
+      expect(await checkText(REPO_ROOT)).toBe(0)
+      expect(await checkNpmModule(REPO_ROOT)).toBe(0)
+      expect(await checkDocker(REPO_ROOT)).toBe(0)
+      expect(await checkK8s(REPO_ROOT)).toBe(0)
+      expect(await checkJsRun(REPO_ROOT)).toBe(0)
+    })
   }, 120000)
 })

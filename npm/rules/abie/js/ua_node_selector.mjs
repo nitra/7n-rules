@@ -4,6 +4,7 @@
  *
  * Структурні обмеження JSON6902 (заборона `remove + add` на той самий path) перевіряє k8s.mdc /
  * `k8s.kustomization` rego — тут лише abie-специфічне.
+ * @param {string} [cwd] корінь репозиторію
  */
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
@@ -17,11 +18,12 @@ import { abieOverlayK8sTreeHasDeployment, isUaKustomizationPath } from '../lib/o
 
 /**
  * @returns {Promise<number>} результат
+ * @param {string} [cwd] корінь репозиторію
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
-  const root = process.cwd()
+  const root = cwd
 
   const ignorePaths = await loadCursorIgnorePaths(root)
   const yamls = await findK8sYamlFiles(root, ignorePaths)

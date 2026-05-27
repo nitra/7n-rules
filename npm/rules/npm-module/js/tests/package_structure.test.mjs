@@ -12,7 +12,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
-import { ensureDir, withTmpCwd } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('globToRegex', () => {
   test('globstar матчить нуль і більше сегментів', () => {
@@ -75,54 +75,54 @@ describe('findTestFrameworkImport', () => {
 
 describe('classifyPublishedFileAsTest', () => {
   test('каталог tests/ — порушення', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('npm/scripts/tests')
-      await writeFile(join('npm', 'scripts', 'tests', 'foo.mjs'), 'export const a = 1\n', 'utf8')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm/scripts/tests'))
+      await writeFile(join(dir, 'npm', 'scripts', 'tests', 'foo.mjs'), 'export const a = 1\n', 'utf8')
       const reason = await classifyPublishedFileAsTest('scripts/tests/foo.mjs')
       expect(reason).toContain('test-style каталог')
     })
   })
 
   test('basename *.test.mjs — порушення', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('npm/scripts')
-      await writeFile(join('npm', 'scripts', 'foo.test.mjs'), 'export const a = 1\n', 'utf8')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm/scripts'))
+      await writeFile(join(dir, 'npm', 'scripts', 'foo.test.mjs'), 'export const a = 1\n', 'utf8')
       const reason = await classifyPublishedFileAsTest('scripts/foo.test.mjs')
       expect(reason).toContain('test-style')
     })
   })
 
   test('basename *_test.rego — дозволено (conftest-конвенція, npm-module.mdc)', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('npm/policy/k8s/foo')
-      await writeFile(join('npm', 'policy', 'k8s', 'foo', 'foo_test.rego'), 'package foo\n', 'utf8')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm/policy/k8s/foo'))
+      await writeFile(join(dir, 'npm', 'policy', 'k8s', 'foo', 'foo_test.rego'), 'package foo\n', 'utf8')
       const reason = await classifyPublishedFileAsTest('policy/k8s/foo/foo_test.rego')
       expect(reason).toBeNull()
     })
   })
 
   test('JS-файл з імпортом bun:test — порушення', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('npm/scripts')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm/scripts'))
       await writeFile(
-        join('npm', 'scripts', 'foo.mjs'),
+        join(dir, 'npm', 'scripts', 'foo.mjs'),
         "import { test } from 'bun:test'\ntest('x', () => {})\n",
         'utf8'
       )
-      const reason = await classifyPublishedFileAsTest('scripts/foo.mjs')
+      const reason = await classifyPublishedFileAsTest('scripts/foo.mjs', dir)
       expect(reason).toContain('імпорт test-фреймворку "bun:test"')
     })
   })
 
   test('звичайний файл — без порушення', async () => {
-    await withTmpCwd(async () => {
-      await ensureDir('npm/scripts')
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm/scripts'))
       await writeFile(
-        join('npm', 'scripts', 'pure.mjs'),
+        join(dir, 'npm', 'scripts', 'pure.mjs'),
         "import { join } from 'node:path'\nexport const a = 1\n",
         'utf8'
       )
-      const reason = await classifyPublishedFileAsTest('scripts/pure.mjs')
+      const reason = await classifyPublishedFileAsTest('scripts/pure.mjs', dir)
       expect(reason).toBeNull()
     })
   })

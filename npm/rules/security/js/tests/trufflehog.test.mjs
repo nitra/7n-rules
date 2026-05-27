@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { check } from '../trufflehog.mjs'
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const CANON_EXCLUDE = [
   '(^|/)node_modules(/|$)',
@@ -14,61 +14,33 @@ const CANON_EXCLUDE = [
   '.*fixtures?/.*'
 ].join('\n')
 
-/**
- * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії
- * @param {(cwd: string) => Promise<number>} body тіло тесту
- * @returns {Promise<number>} результат виконання body
- */
-async function withTmpCwd(prep, body) {
-  const cwd = mkdtempSync(join(tmpdir(), 'trufflehog-check-'))
-  const origCwd = process.cwd()
-  try {
-    process.chdir(cwd)
-    prep(cwd)
-    return await body(cwd)
-  } finally {
-    process.chdir(origCwd)
-    rmSync(cwd, { recursive: true, force: true })
-  }
-}
-
-const NO_PREP = (/** @type {string} */ _cwd) => null
-
 describe('security/js/trufflehog/check', () => {
   test('fails when package.json missing', async () => {
-    const exit = await withTmpCwd(NO_PREP, async () => await check())
-    expect(exit).toBe(1)
+    await withTmpDir(async dir => {
+      expect(await check(dir)).toBe(1)
+    })
   })
 
   test('fails when .trufflehog-exclude missing', async () => {
-    const exit = await withTmpCwd(
-      cwd => {
-        writeFileSync(join(cwd, 'package.json'), '{}')
-      },
-      async () => await check()
-    )
-    expect(exit).toBe(1)
+    await withTmpDir(async dir => {
+      writeFileSync(join(dir, 'package.json'), '{}')
+      expect(await check(dir)).toBe(1)
+    })
   })
 
   test('fails when .trufflehog-exclude lacks canonical patterns', async () => {
-    const exit = await withTmpCwd(
-      cwd => {
-        writeFileSync(join(cwd, 'package.json'), '{}')
-        writeFileSync(join(cwd, '.trufflehog-exclude'), 'foo\n')
-      },
-      async () => await check()
-    )
-    expect(exit).toBe(1)
+    await withTmpDir(async dir => {
+      writeFileSync(join(dir, 'package.json'), '{}')
+      writeFileSync(join(dir, '.trufflehog-exclude'), 'foo\n')
+      expect(await check(dir)).toBe(1)
+    })
   })
 
   test('passes when both files present and exclude has canonical patterns', async () => {
-    const exit = await withTmpCwd(
-      cwd => {
-        writeFileSync(join(cwd, 'package.json'), '{}')
-        writeFileSync(join(cwd, '.trufflehog-exclude'), CANON_EXCLUDE + '\n')
-      },
-      async () => await check()
-    )
-    expect(exit).toBe(0)
+    await withTmpDir(async dir => {
+      writeFileSync(join(dir, 'package.json'), '{}')
+      writeFileSync(join(dir, '.trufflehog-exclude'), CANON_EXCLUDE + '\n')
+      expect(await check(dir)).toBe(0)
+    })
   })
 })

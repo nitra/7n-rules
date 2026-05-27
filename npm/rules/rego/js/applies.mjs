@@ -35,12 +35,12 @@ async function projectHasRegoFiles(root, ignorePaths) {
 
 /**
  * Rule-level applies-гейт: CLI пропускає правило, якщо в репо немає `.rego` файлів.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<boolean>} `true`, якщо правило застосовне
  */
-export async function applies() {
-  const root = process.cwd()
-  const ignorePaths = await loadCursorIgnorePaths(root)
-  return projectHasRegoFiles(root, ignorePaths)
+export async function applies(cwd = process.cwd()) {
+  const ignorePaths = await loadCursorIgnorePaths(cwd)
+  return projectHasRegoFiles(cwd, ignorePaths)
 }
 
 /**

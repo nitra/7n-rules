@@ -9,6 +9,7 @@
  *
  * Per-document вимоги (`lint-js`, `@nitra/eslint-config`, root `engines`, `.jscpd.json`,
  * `.vscode/extensions.json`, `lint-js.yml`) — у policy-пакетах `js_lint.*`.
+ * @param {string} cwd корінь репозиторію
  */
 import { existsSync } from 'node:fs'
 import { copyFile, readFile } from 'node:fs/promises'
@@ -170,20 +171,21 @@ export function verifyOxlintRcAgainstCanonical(cfg, canonical) {
  * Перевіряє ESLint flat config файл.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkEslintConfig(passFn, failFn) {
+async function checkEslintConfig(passFn, failFn, cwd) {
   let eslintPath
-  if (existsSync('eslint.config.js')) {
+  if (existsSync(join(cwd, 'eslint.config.js'))) {
     eslintPath = 'eslint.config.js'
     passFn('eslint.config.js існує')
-  } else if (existsSync('eslint.config.mjs')) {
+  } else if (existsSync(join(cwd, 'eslint.config.mjs'))) {
     eslintPath = 'eslint.config.mjs'
     passFn('eslint.config.mjs існує')
   } else {
     failFn('Відсутній eslint.config.js або eslint.config.mjs — flat config з getConfig (js-lint.mdc)')
     return
   }
-  const eslintRaw = await readFile(eslintPath, 'utf8')
+  const eslintRaw = await readFile(join(cwd, eslintPath), 'utf8')
   const checks = [
     {
       needle: 'getConfig',
@@ -236,15 +238,17 @@ function checkPackageJsonTypeModule(label, pkg, passFn, failFn) {
  * @param {unknown[]} workspaces поле workspaces з package.json
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkWorkspacePackages(workspaces, passFn, failFn) {
+async function checkWorkspacePackages(workspaces, passFn, failFn, cwd) {
   for (const ws of workspaces) {
-    const wsPkgPath = `${ws}/package.json`
-    if (existsSync(wsPkgPath)) {
-      const wsPkg = JSON.parse(await readFile(wsPkgPath, 'utf8'))
-      checkPackageJsonTypeModule(wsPkgPath, wsPkg, passFn, failFn)
-      checkEnginesNode(wsPkgPath, wsPkg, passFn, failFn)
-      checkEnginesBun(wsPkgPath, wsPkg, passFn, failFn)
+    const wsPkgRel = `${ws}/package.json`
+    const wsPkgAbs = join(cwd, wsPkgRel)
+    if (existsSync(wsPkgAbs)) {
+      const wsPkg = JSON.parse(await readFile(wsPkgAbs, 'utf8'))
+      checkPackageJsonTypeModule(wsPkgRel, wsPkg, passFn, failFn)
+      checkEnginesNode(wsPkgRel, wsPkg, passFn, failFn)
+      checkEnginesBun(wsPkgRel, wsPkg, passFn, failFn)
     }
   }
 }
@@ -298,27 +302,31 @@ function checkEnginesBun(label, pkg, passFn, failFn) {
  * — теж у Rego.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkPackageJsonJsLint(passFn, failFn) {
-  if (!existsSync('package.json')) return
-  const pkg = JSON.parse(await readFile('package.json', 'utf8'))
+async function checkPackageJsonJsLint(passFn, failFn, cwd) {
+  const pkgPath = join(cwd, 'package.json')
+  if (!existsSync(pkgPath)) return
+  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   const workspaces = Array.isArray(pkg.workspaces) ? pkg.workspaces : []
-  await checkWorkspacePackages(workspaces, passFn, failFn)
+  await checkWorkspacePackages(workspaces, passFn, failFn, cwd)
 }
 
 /**
  * Перевіряє .oxlintrc.json.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkOxlintRc(passFn, failFn) {
-  if (!existsSync('.oxlintrc.json')) {
+async function checkOxlintRc(passFn, failFn, cwd) {
+  const oxPath = join(cwd, '.oxlintrc.json')
+  if (!existsSync(oxPath)) {
     failFn('.oxlintrc.json не існує — додай конфіг oxlint (js-lint.mdc)')
     return
   }
   let oxCfg
   try {
-    oxCfg = JSON.parse(await readFile('.oxlintrc.json', 'utf8'))
+    oxCfg = JSON.parse(await readFile(oxPath, 'utf8'))
   } catch {
     failFn('.oxlintrc.json не є валідним JSON')
     return
@@ -348,16 +356,18 @@ async function checkOxlintRc(passFn, failFn) {
  * заборона `--fix` у CI) валідує `npm/policy/js_lint/lint_js_yml/`.
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkLintJsWorkflows(passFn, failFn) {
-  if (existsSync('.github/workflows/lint-js.yml')) {
+async function checkLintJsWorkflows(passFn, failFn, cwd) {
+  if (existsSync(join(cwd, '.github/workflows/lint-js.yml'))) {
     passFn('.github/workflows/lint-js.yml є (структуру перевіряє npx @nitra/cursor fix → js_lint.lint_js_yml)')
   } else {
     failFn('.github/workflows/lint-js.yml не існує — створи його (див. rules/js-lint/fix.mjs / js-lint.mdc)')
   }
 
-  if (existsSync('.github/workflows/lint.yml')) {
-    const lintYml = await readFile('.github/workflows/lint.yml', 'utf8')
+  const lintYmlPath = join(cwd, '.github/workflows/lint.yml')
+  if (existsSync(lintYmlPath)) {
+    const lintYml = await readFile(lintYmlPath, 'utf8')
     if (lintYml.includes('bunx oxlint') && lintYml.includes('bunx eslint') && lintYml.includes('jscpd')) {
       failFn('.github/workflows/lint.yml дублює кроки lint-js.yml — залиш один workflow на лінт JS (js-lint.mdc)')
     } else {
@@ -374,9 +384,11 @@ async function checkLintJsWorkflows(passFn, failFn) {
  * будь-які; це side effect — описано у js-lint.mdc).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  */
-async function checkKnipConfig(passFn, failFn) {
-  if (existsSync('knip.json')) {
+async function checkKnipConfig(passFn, failFn, cwd) {
+  const knipPath = join(cwd, 'knip.json')
+  if (existsSync(knipPath)) {
     passFn('knip.json існує')
     return
   }
@@ -387,26 +399,27 @@ async function checkKnipConfig(passFn, failFn) {
     )
     return
   }
-  await copyFile(KNIP_CANONICAL_JSON_PATH, 'knip.json')
+  await copyFile(KNIP_CANONICAL_JSON_PATH, knipPath)
   passFn('knip.json створено з канонічного npm/rules/js-lint/js/data/tooling/knip-canonical.json (js-lint.mdc)')
 }
 
 /**
  * Перевіряє відповідність проєкту правилам js-lint.mdc
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} 0 — все OK, 1 — є проблеми
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
-  await checkEslintConfig(pass, fail)
-  await checkPackageJsonJsLint(pass, fail)
-  await checkOxlintRc(pass, fail)
-  await checkLintJsWorkflows(pass, fail)
-  await checkKnipConfig(pass, fail)
+  await checkEslintConfig(pass, fail, cwd)
+  await checkPackageJsonJsLint(pass, fail, cwd)
+  await checkOxlintRc(pass, fail, cwd)
+  await checkLintJsWorkflows(pass, fail, cwd)
+  await checkKnipConfig(pass, fail, cwd)
 
   for (const dup of ['.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml']) {
-    if (existsSync(dup)) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)
+    if (existsSync(join(cwd, dup))) fail(`Знайдено застарілий конфіг ESLint: ${dup} — видали, використовуй flat config`)
   }
 
   return reporter.getExitCode()

@@ -429,12 +429,13 @@ async function isIosCocoaPodsExemptByNitraConfig(root) {
 }
 
 /**
+ * @param {string} [cwd] корінь репозиторію
  * @returns {Promise<number>} **0** — **ok**; **1** — **fail** (див. **capacitor.mdc**)
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail, getExitCode } = reporter
-  const root = process.cwd()
+  const root = cwd
 
   const acc = { byPath: new Map(), anyCapacitor: false }
   await collectCapacitorDataFromAllPackageJson(root, acc)

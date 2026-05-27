@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ensureDir, withTmpCwd, writeJson } from '../../utils/test-helpers.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 import { getMonorepoPackageRootDirs, isIgnoredWorkspaceRoot, normalizeWorkspacePatterns } from '../workspaces.mjs'
 
 describe('normalizeWorkspacePatterns', () => {
@@ -48,41 +48,41 @@ describe('isIgnoredWorkspaceRoot', () => {
 
 describe('getMonorepoPackageRootDirs', () => {
   test('без package.json — лише "."', async () => {
-    await withTmpCwd(async () => {
-      const roots = await getMonorepoPackageRootDirs(process.cwd())
+    await withTmpDir(async dir => {
+      const roots = await getMonorepoPackageRootDirs(dir)
       expect(roots).toEqual(['.'])
     })
   })
 
   test('корінь і явний workspace з package.json', async () => {
-    await withTmpCwd(async root => {
-      await writeJson('package.json', { name: 'r', workspaces: ['npm'] })
-      await ensureDir('npm')
-      await writeJson(join('npm', 'package.json'), { name: 'npm' })
+    await withTmpDir(async root => {
+      await writeJson(join(root, 'package.json'), { name: 'r', workspaces: ['npm'] })
+      await ensureDir(join(root, 'npm'))
+      await writeJson(join(root, 'npm', 'package.json'), { name: 'npm' })
       const roots = await getMonorepoPackageRootDirs(root)
       expect(roots).toEqual(['.', 'npm'])
     })
   })
 
   test('glob workspaces', async () => {
-    await withTmpCwd(async root => {
-      await writeJson('package.json', { name: 'r', workspaces: ['packages/*'] })
-      await mkdir(join('packages', 'a'), { recursive: true })
-      await mkdir(join('packages', 'b'), { recursive: true })
-      await writeJson(join('packages', 'a', 'package.json'), { name: 'a' })
-      await writeJson(join('packages', 'b', 'package.json'), { name: 'b' })
+    await withTmpDir(async root => {
+      await writeJson(join(root, 'package.json'), { name: 'r', workspaces: ['packages/*'] })
+      await mkdir(join(root, 'packages', 'a'), { recursive: true })
+      await mkdir(join(root, 'packages', 'b'), { recursive: true })
+      await writeJson(join(root, 'packages', 'a', 'package.json'), { name: 'a' })
+      await writeJson(join(root, 'packages', 'b', 'package.json'), { name: 'b' })
       const roots = await getMonorepoPackageRootDirs(root)
       expect(roots).toEqual(['.', 'packages/a', 'packages/b'])
     })
   })
 
   test('glob ** не підхоплює package.json у node_modules', async () => {
-    await withTmpCwd(async root => {
-      await writeJson('package.json', { name: 'r', workspaces: ['**'] })
-      await mkdir(join('pkg', 'app'), { recursive: true })
-      await writeJson(join('pkg', 'app', 'package.json'), { name: 'app' })
-      await mkdir(join('node_modules', 'dep', 'nested'), { recursive: true })
-      await writeJson(join('node_modules', 'dep', 'nested', 'package.json'), { name: 'dep' })
+    await withTmpDir(async root => {
+      await writeJson(join(root, 'package.json'), { name: 'r', workspaces: ['**'] })
+      await mkdir(join(root, 'pkg', 'app'), { recursive: true })
+      await writeJson(join(root, 'pkg', 'app', 'package.json'), { name: 'app' })
+      await mkdir(join(root, 'node_modules', 'dep', 'nested'), { recursive: true })
+      await writeJson(join(root, 'node_modules', 'dep', 'nested', 'package.json'), { name: 'dep' })
       const roots = await getMonorepoPackageRootDirs(root)
       expect(roots).toEqual(['.', 'pkg/app'])
     })

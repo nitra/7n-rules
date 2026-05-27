@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { check as checkNginx } from '../rules/nginx-default-tpl/js/template.mjs'
 import { check as checkStyle } from '../rules/style-lint/js/tooling.mjs'
 import { check as checkVue } from '../rules/vue/js/packages.mjs'
-import { ensureDir, withTmpCwd, writeJson } from '../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../scripts/utils/test-helpers.mjs'
 
 const nginxFixDir = join(
   fileURLToPath(new URL('.', import.meta.url)),
@@ -19,21 +19,22 @@ const nginxFixDir = join(
 
 /**
  * Готує мінімальний monorepo з workspace-пакетом `app` (Vue + Vite) для `check-vue`.
+ * @param {string} dir абсолютний шлях тимчасового каталогу
  * @param {{ forbiddenVueImport?: boolean }} [opts] якщо `forbiddenVueImport` — додає `src/bad.ts` з забороненим імпортом
  * @returns {Promise<void>}
  */
-async function setupMinimalVueAppWorkspace(opts = {}) {
-  await ensureDir('.vscode')
-  await writeJson('.vscode/extensions.json', {
+async function setupMinimalVueAppWorkspace(dir, opts = {}) {
+  await ensureDir(join(dir, '.vscode'))
+  await writeJson(join(dir, '.vscode/extensions.json'), {
     recommendations: ['Vue.volar']
   })
-  await writeJson('package.json', {
+  await writeJson(join(dir, 'package.json'), {
     name: 'mono',
     private: true,
     workspaces: ['app']
   })
-  await ensureDir('app')
-  await writeJson(join('app', 'package.json'), {
+  await ensureDir(join(dir, 'app'))
+  await writeJson(join(dir, 'app', 'package.json'), {
     name: 'app',
     dependencies: { vue: '^3.6.12' },
     devDependencies: {
@@ -45,13 +46,13 @@ async function setupMinimalVueAppWorkspace(opts = {}) {
     }
   })
   await writeFile(
-    join('app', 'vite.config.js'),
+    join(dir, 'app', 'vite.config.js'),
     `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })]\n}\n`,
     'utf8'
   )
-  await ensureDir(join('app', 'src'))
-  await writeFile(join('app', 'src', 'vite-env.d.ts'), `/// <reference types="vite/client" />\n`, 'utf8')
-  await writeJson(join('app', 'jsconfig.json'), {
+  await ensureDir(join(dir, 'app', 'src'))
+  await writeFile(join(dir, 'app', 'src', 'vite-env.d.ts'), `/// <reference types="vite/client" />\n`, 'utf8')
+  await writeJson(join(dir, 'app', 'jsconfig.json'), {
     compilerOptions: {
       target: 'ESNext',
       module: 'ESNext',
@@ -68,143 +69,142 @@ async function setupMinimalVueAppWorkspace(opts = {}) {
     include: ['src/**/*']
   })
   if (opts.forbiddenVueImport) {
-    await writeFile(join('app', 'src', 'bad.ts'), `import { ref } from 'vue'\n`, 'utf8')
+    await writeFile(join(dir, 'app', 'src', 'bad.ts'), `import { ref } from 'vue'\n`, 'utf8')
   }
 }
 
 describe('check-vue (мінімальний проєкт)', () => {
   test('проходить для мінімального Vue-пакета в workspace', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace()
-      expect(await checkVue()).toBe(0)
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      expect(await checkVue(dir)).toBe(0)
     })
   })
 
   test('помилка: явний value-імпорт з vue у джерелі пакета', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace({ forbiddenVueImport: true })
-      expect(await checkVue()).toBe(1)
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir, { forbiddenVueImport: true })
+      expect(await checkVue(dir)).toBe(1)
     })
   })
 
   test('помилка: немає src/vite-env.d.ts з reference на vite/client', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace()
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
       const { unlink } = await import('node:fs/promises')
-      await unlink(join('app', 'src', 'vite-env.d.ts'))
-      expect(await checkVue()).toBe(1)
+      await unlink(join(dir, 'app', 'src', 'vite-env.d.ts'))
+      expect(await checkVue(dir)).toBe(1)
     })
   })
 
   test('помилка: AutoImport є, але `vue` не у його imports (видалити value-імпорти небезпечно)', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace()
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
       await writeFile(
-        join('app', 'vite.config.js'),
+        join(dir, 'app', 'vite.config.js'),
         `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['pinia'] })]\n}\n`,
         'utf8'
       )
-      expect(await checkVue()).toBe(1)
+      expect(await checkVue(dir)).toBe(1)
     })
   })
 
   test('AutoImport без `vue` → value-імпорти з `vue` не оголошуються забороненими', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace({ forbiddenVueImport: true })
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir, { forbiddenVueImport: true })
       await writeFile(
-        join('app', 'vite.config.js'),
+        join(dir, 'app', 'vite.config.js'),
         `import Vue from '@vitejs/plugin-vue'\nimport VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default {\n  plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['pinia'] })]\n}\n`,
         'utf8'
       )
-      const exit = await checkVue()
-      const sourceContent = await readFile(join('app', 'src', 'bad.ts'), 'utf8')
+      const exit = await checkVue(dir)
+      const sourceContent = await readFile(join(dir, 'app', 'src', 'bad.ts'), 'utf8')
       expect(exit).toBe(1)
       expect(sourceContent.includes("from 'vue'")).toBe(true)
     })
   })
 
   test('помилка: імпорт Node-нативного модуля у .vue SFC', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace()
-      await ensureDir(join('app', 'src'))
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await ensureDir(join(dir, 'app', 'src'))
       await writeFile(
-        join('app', 'src', 'NBad.vue'),
+        join(dir, 'app', 'src', 'NBad.vue'),
         `<template><div /></template>\n<script setup lang="ts">\nimport { setTimeout as sleep } from 'node:timers/promises'\nawait sleep(1)\n</script>\n`,
         'utf8'
       )
-      expect(await checkVue()).toBe(1)
+      expect(await checkVue(dir)).toBe(1)
     })
   })
 
   test('помилка: bare-built-in (fs) у .vue SFC', async () => {
-    await withTmpCwd(async () => {
-      await setupMinimalVueAppWorkspace()
-      await ensureDir(join('app', 'src'))
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await ensureDir(join(dir, 'app', 'src'))
       await writeFile(
-        join('app', 'src', 'NBad.vue'),
+        join(dir, 'app', 'src', 'NBad.vue'),
         `<template><div /></template>\n<script setup>\nimport fs from 'fs'\nfs.readFileSync\n</script>\n`,
         'utf8'
       )
-      expect(await checkVue()).toBe(1)
+      expect(await checkVue(dir)).toBe(1)
     })
   })
 })
 
 describe('check-style-lint (мінімальний проєкт)', () => {
   test('проходить при повному мінімальному наборі файлів', async () => {
-    await withTmpCwd(async () => {
-      await writeJson('package.json', {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
         name: 's',
         private: true,
         scripts: { 'lint-style': `npx stylelint '**/*.css' --fix` },
         devDependencies: { '@nitra/stylelint-config': '^1.4.0' },
         stylelint: { extends: '@nitra/stylelint-config' }
       })
-      await writeFile('.stylelintignore', 'dist/\n', 'utf8')
-      await ensureDir('.github/workflows')
+      await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
       await writeFile(
-        join('.github/workflows', 'lint-style.yml'),
+        join(dir, '.github/workflows', 'lint-style.yml'),
         'name: S\non: push\njobs:\n  j:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npx stylelint\n',
         'utf8'
       )
-      await ensureDir('.vscode')
-      await writeJson('.vscode/extensions.json', {
+      await ensureDir(join(dir, '.vscode'))
+      await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['stylelint.vscode-stylelint']
       })
-      await writeJson('.vscode/settings.json', {
+      await writeJson(join(dir, '.vscode/settings.json'), {
         'css.validate': false,
         'less.validate': false,
         'scss.validate': false
       })
-      expect(await checkStyle()).toBe(0)
+      expect(await checkStyle(dir)).toBe(0)
     })
   })
 })
 
 describe('check-nginx-default-tpl (мінімальний проєкт)', () => {
   test('проходить з шаблоном і налаштуваннями VSCode', async () => {
-    await withTmpCwd(async () => {
+    await withTmpDir(async dir => {
       await copyFile(join(nginxFixDir, 'default.conf.template'), 'default.conf.template')
       await copyFile(join(nginxFixDir, 'values-dev.ini'), 'values-dev.ini')
-      await writeFile(
-        'Dockerfile',
+      await writeFile(join(dir, 'Dockerfile'),
         [
           'FROM nginx:alpine-slim',
           "RUN find /usr/share/nginx/html -type f -name '*.js' -exec gzip -k {} +",
           'RUN envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf',
           ''
-        ].join('\n'),
+        ].join(dir, '\n'),
         'utf8'
       )
-      await ensureDir('.vscode')
-      await writeJson('.vscode/extensions.json', {
+      await ensureDir(join(dir, '.vscode'))
+      await writeJson(join(dir, '.vscode/extensions.json'), {
         recommendations: ['ahmadalli.vscode-nginx-conf']
       })
-      await writeJson('.vscode/settings.json', {
+      await writeJson(join(dir, '.vscode/settings.json'), {
         'editor.formatOnSave': true,
         '[nginx]': { 'editor.defaultFormatter': 'ahmadalli.vscode-nginx-conf' }
       })
-      expect(await checkNginx()).toBe(0)
+      expect(await checkNginx(dir)).toBe(0)
     })
   })
 })

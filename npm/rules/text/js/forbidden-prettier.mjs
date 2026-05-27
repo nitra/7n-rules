@@ -9,6 +9,7 @@
  * (https://prettier.io/docs/configuration). Якщо Prettier додасть новий формат — додай рядок.
  */
 import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
@@ -38,15 +39,16 @@ const FORBIDDEN_PRETTIER_FILES = [
 
 /**
  * Перевіряє, що жоден Prettier-конфіг чи ignore-файл не лежить у корені проєкту.
+ * @param {string} [cwd] корінь репозиторію
  * @returns {number} 0 — все OK, 1 — знайдено заборонений файл
  */
-export function check() {
+export function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
   const { pass, fail } = reporter
 
   let anyFound = false
   for (const file of FORBIDDEN_PRETTIER_FILES) {
-    if (existsSync(file)) {
+    if (existsSync(join(cwd, file))) {
       fail(`${file} заборонено — Prettier не використовуємо, перейди на oxfmt (text.mdc)`)
       anyFound = true
     }

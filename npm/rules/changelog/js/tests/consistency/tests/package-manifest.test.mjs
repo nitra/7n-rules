@@ -3,9 +3,10 @@
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { parsePyprojectFields, readPackageManifest } from '../../../../lib/package-manifest.mjs'
-import { withTmpCwd } from '../../../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 describe('parsePyprojectFields', () => {
   test('PEP 621 [project]', () => {
@@ -21,9 +22,9 @@ describe('parsePyprojectFields', () => {
 
 describe('readPackageManifest', () => {
   test('python без package.json', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('pyproject.toml', '[project]\nversion = "1.0.0"\n', 'utf8')
-      const m = await readPackageManifest('.')
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nversion = "1.0.0"\n', 'utf8')
+      const m = await readPackageManifest('.', dir)
       expect(m?.kind).toBe('python')
       expect(m?.version).toBe('1.0.0')
       expect(m?.registryPublishable).toBe(false)
@@ -31,10 +32,10 @@ describe('readPackageManifest', () => {
   })
 
   test('npm має пріоритет над pyproject у тому ж каталозі', async () => {
-    await withTmpCwd(async () => {
-      await writeFile('package.json', '{"name":"a","version":"2.0.0","private":true}\n', 'utf8')
-      await writeFile('pyproject.toml', '[project]\nname = "py"\nversion = "9.0.0"\n', 'utf8')
-      const m = await readPackageManifest('.')
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '{"name":"a","version":"2.0.0","private":true}\n', 'utf8')
+      await writeFile(join(dir, 'pyproject.toml'), '[project]\nname = "py"\nversion = "9.0.0"\n', 'utf8')
+      const m = await readPackageManifest('.', dir)
       expect(m?.kind).toBe('npm')
       expect(m?.version).toBe('2.0.0')
     })

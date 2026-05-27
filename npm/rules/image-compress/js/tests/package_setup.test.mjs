@@ -14,56 +14,58 @@
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { check } from '../package_setup.mjs'
-import { withTmpCwd, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**
- * Створює мінімальний валідний проєкт під image-compress в поточному cwd.
+ * Створює мінімальний валідний проєкт під image-compress у вказаному каталозі.
+ * @param {string} dir абсолютний шлях тимчасового каталогу
  * @returns {Promise<void>}
  */
-async function setupValidImageProject() {
-  await writeJson('package.json', { name: 'image-fixture', private: true })
-  await writeFile('.gitignore', 'node_modules/\n', 'utf8')
+async function setupValidImageProject(dir) {
+  await writeJson(join(dir, 'package.json'), { name: 'image-fixture', private: true })
+  await writeFile(join(dir, '.gitignore'), 'node_modules/\n', 'utf8')
 }
 
 describe('check-image-compress', () => {
   test('успіх: чисте дерево без застарілих файлів', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      expect(await check()).toBe(0)
+    await withTmpDir(async dir => {
+      await setupValidImageProject(dir)
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('успіх: `.n-minify-image.tsv` існує і не в .gitignore', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.n-minify-image.tsv', 'src/hero.png\tabc123\t1024\t800\n', 'utf8')
-      expect(await check()).toBe(0)
+    await withTmpDir(async dir => {
+      await setupValidImageProject(dir)
+      await writeFile(join(dir, '.n-minify-image.tsv'), 'src/hero.png\tabc123\t1024\t800\n', 'utf8')
+      expect(await check(dir)).toBe(0)
     })
   })
 
   test('помилка: `.n-minify-image.tsv` у .gitignore (має бути в git)', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.gitignore', 'node_modules/\n.n-minify-image.tsv\n', 'utf8')
-      expect(await check()).toBe(1)
+    await withTmpDir(async dir => {
+      await setupValidImageProject(dir)
+      await writeFile(join(dir, '.gitignore'), 'node_modules/\n.n-minify-image.tsv\n', 'utf8')
+      expect(await check(dir)).toBe(1)
     })
   })
 
   test('помилка: застарілий `.minify-image-cache.tsv` лежить у корені', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.minify-image-cache.tsv', 'src/hero.png\t1700000000000\t1024\t800\n', 'utf8')
-      expect(await check()).toBe(1)
+    await withTmpDir(async dir => {
+      await setupValidImageProject(dir)
+      await writeFile(join(dir, '.minify-image-cache.tsv'), 'src/hero.png\t1700000000000\t1024\t800\n', 'utf8')
+      expect(await check(dir)).toBe(1)
     })
   })
 
   test('помилка: застарілий рядок `.minify-image-cache.tsv` лишився у .gitignore', async () => {
-    await withTmpCwd(async () => {
-      await setupValidImageProject()
-      await writeFile('.gitignore', 'node_modules/\n.minify-image-cache.tsv\n', 'utf8')
-      expect(await check()).toBe(1)
+    await withTmpDir(async dir => {
+      await setupValidImageProject(dir)
+      await writeFile(join(dir, '.gitignore'), 'node_modules/\n.minify-image-cache.tsv\n', 'utf8')
+      expect(await check(dir)).toBe(1)
     })
   })
 })
