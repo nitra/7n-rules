@@ -182,6 +182,7 @@ export async function runCoverageSteps(opts = {}) {
 
   rows.push(buildTotalsRow(rows))
   const md = renderMarkdown(rows)
+  // Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
   await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
   console.log('✓ COVERAGE.md')
 

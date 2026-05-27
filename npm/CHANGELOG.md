@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.9] - 2026-05-27
+
+### Added
+
+- **`test/coverage` — мутаційне покриття 98.58%**: додано 1 тест (`runCoverageCli з opts.fix=true: 2-й withLock-fn повертає число`) для знищення ArrowFunction-мутанта L210:33 (`() => runCoverageSteps({fix:false})` → `() => undefined`); у `coverage.mjs` L185 отримав `// Stryker disable next-line StringLiteral` (еквівалентний мутант: `writeFile(…,'')` ≡ `writeFile(…,'utf8')` у Bun/Node). Stryker: Killed 139/141 (2 ignored-equivalent), Survived 2 (equivalent ObjectLiteral/BooleanLiteral у тілі стрілки без активного cwd). Тестів: 57 → 58.
+
 ## [1.27.8] - 2026-05-27
 
 ### Added

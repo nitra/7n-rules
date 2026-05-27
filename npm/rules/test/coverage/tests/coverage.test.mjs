@@ -20,11 +20,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-
-vi.mock('../../../../scripts/utils/with-lock.mjs', () => ({
-  withLock: vi.fn(async (_key, fn) => fn())
-}))
-
 import {
   addCoverage,
   addMutation,
@@ -35,6 +30,11 @@ import {
   runCoverageSteps
 } from '../coverage.mjs'
 import { withLock } from '../../../../scripts/utils/with-lock.mjs'
+
+// vi.mock hoisted by Vitest to before any imports during transform
+vi.mock('../../../../scripts/utils/with-lock.mjs', () => ({
+  withLock: vi.fn((_key, fn) => fn())
+}))
 
 const SURVIVED_JSON_BLOCK = /```json\n([\s\S]*?)\n```/
 
@@ -504,23 +504,6 @@ const COLLECT_ONLY_PROVIDER = `
   // detect навмисно відсутній — loadProvider має повернути null
 `
 
-const SURVIVED_PROVIDER = `
-  export async function detect() { return true }
-  export async function collect() {
-    return [{
-      area: 'Test',
-      coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } },
-      mutation: { caught: 4, total: 5 },
-      survived: [{
-        file: 'src/foo.js',
-        mutants: [{ line: 1, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
-        exampleTest: null,
-        recommendationText: null
-      }]
-    }]
-  }
-`
-
 describe('runCoverageSteps — loadProvider skip умови', () => {
   test('провайдер без collect() пропускається (exit 1, якщо він єдиний)', async () => {
     const fx = makeOrchestratorFixture({
@@ -618,7 +601,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує "→ <ruleId> coverage…" для активного провайдера', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue(undefined)
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
@@ -627,7 +610,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує "✓ COVERAGE.md" після успішного запису', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue(undefined)
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     const calls = logSpy.mock.calls.map(args => String(args[0]))
@@ -636,7 +619,7 @@ describe('runCoverageSteps — console output', () => {
   })
 
   test('друкує error-повідомлення "Жодного провайдера..." коли rows порожні', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue(undefined)
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(1)
@@ -668,7 +651,7 @@ describe('runCoverageSteps — opts.fix=false safe path', () => {
   })
 
   test('opts.fix === false НЕ виконує dynamic import — runCoverageSteps завершується успішно', async () => {
-    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockReturnValue(undefined)
     const fxNoFix = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     const code = await runCoverageSteps({ cwd: fxNoFix.cwd, rulesDir: fxNoFix.rulesDir, fix: false })
     expect(code).toBe(0)
@@ -812,7 +795,7 @@ const SURVIVED_DATA_PROVIDER = `
 
 describe('runCoverageSteps — opts.fix dynamic import (зі stub coverage-fix.mjs)', () => {
   beforeEach(() => {
-    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockReturnValue(undefined)
     installCoverageFixStub()
   })
 
@@ -882,7 +865,7 @@ describe('runCoverageSteps — writeFile utf8 encoding (вбиває L185:49 "ut
     // 'О' (Cyrillic Capital Letter O, U+041E) у UTF-8 = 0xD0 0x9E
     let found = false
     for (let i = 0; i < bytes.length - 1; i++) {
-      if (bytes[i] === 0xd0 && bytes[i + 1] === 0x9e) {
+      if (bytes[i] === 0xD0 && bytes[i + 1] === 0x9E) {
         found = true
         break
       }
@@ -896,7 +879,8 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
   beforeEach(() => {
     // Очищаємо mock-стан після можливих попередніх тестів.
     withLock.mockClear()
-    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'log').mockReturnValue(undefined)
+    vi.spyOn(console, 'error').mockReturnValue(undefined)
     installCoverageFixStub()
   })
 
@@ -914,8 +898,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // Замість того передаємо opts={fix:false} і використовуємо withLock-mock, який ВИКЛИКАЄ fn().
     // Бо fn = () => runCoverageSteps(opts), і `opts` тут не має cwd → runCoverageSteps візьме реальний process.cwd().
     // Тому тестуємо лише ФАКТ виклику withLock, ігноруючи його результат.
-    await runCoverageCli({ fix: false }).catch(() => {})
-    expect(withLock).toHaveBeenCalledTimes(1)
+    await runCoverageCli({ fix: false })    expect(withLock).toHaveBeenCalledTimes(1)
     expect(withLock.mock.calls[0][0]).toBe('coverage')
     expect(typeof withLock.mock.calls[0][1]).toBe('function')
     fx.cleanup()
@@ -924,8 +907,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
   test('runCoverageCli з opts.fix=false: викликає withLock рівно один раз (немає повторного прогону)', async () => {
     // Тут withLock mock викликає fn(), fn = () => runCoverageSteps({fix:false}).
     // Передаємо fix:false → if-гілка з повторним прогоном не запускається.
-    await runCoverageCli({ fix: false }).catch(() => {})
-    expect(withLock).toHaveBeenCalledTimes(1)
+    await runCoverageCli({ fix: false })    expect(withLock).toHaveBeenCalledTimes(1)
   })
 
   test('runCoverageCli з opts.fix=true і code=0: викликає withLock ДВА рази; 2-й — з { fix: false }', async () => {
@@ -933,7 +915,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // не залежно від реального runCoverageSteps.
     withLock.mockReset()
     let secondFn = null
-    withLock.mockImplementation(async (_key, fn) => {
+    withLock.mockImplementation((_key, fn) => {
       // Перший виклик — повертаємо 0 (без виконання fn, щоб уникнути dynamic import).
       // Другий — захоплюємо fn для перевірки аргументу.
       if (withLock.mock.calls.length === 1) return 0
@@ -972,7 +954,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // тримають РІЗНІ ф-ції (а не одну й ту ж). Це непрямий, але точний інваріант.
     withLock.mockReset()
     const captured = []
-    withLock.mockImplementation(async (_key, fn) => {
+    withLock.mockImplementation((_key, fn) => {
       captured.push(fn)
       return 0
     })
@@ -991,7 +973,7 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     withLock.mockReset()
     let secondFn = null
     let callCount = 0
-    withLock.mockImplementation(async (_key, fn) => {
+    withLock.mockImplementation((_key, fn) => {
       callCount += 1
       if (callCount === 1) return 0 // 1-й виклик — без виконання fn
       secondFn = fn
@@ -1067,6 +1049,24 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     expect(withLock).toHaveBeenCalledTimes(1)
     expect(result).toBe(0)
   })
+
+  test('runCoverageCli з opts.fix=true: 2-й withLock-fn повертає число, а не undefined (вбиває ArrowFunction L210:33)', async () => {
+    // ArrowFunction-мутант `() => undefined` → `await secondFn()` = undefined → не число.
+    // Реальний `() => runCoverageSteps({fix:false})` → повертає 0 або 1 (число).
+    // Без .n-cursor.json у process.cwd() → rules=[] → exit 1 (число).
+    withLock.mockReset()
+    let secondFn = null
+    withLock.mockImplementation((_key, fn) => {
+      if (withLock.mock.calls.length === 1) return 0
+      secondFn = fn
+      return 0
+    })
+    vi.spyOn(console, 'error').mockReturnValue(undefined)
+    await runCoverageCli({ fix: true })
+    expect(secondFn).toBeTypeOf('function')
+    const result = await secondFn()
+    expect(result).toBeTypeOf('number')
+  })
 })
 
 describe('runCoverageCli — stub-файл побічних ефектів очищається', () => {
@@ -1092,9 +1092,9 @@ describe('runCoverageCli — pass-through withLock виконує fn (покри
   beforeEach(() => {
     withLock.mockReset()
     // Pass-through: викликаємо fn з аргументами, повертаємо її результат.
-    withLock.mockImplementation(async (_key, fn) => fn())
-    vi.spyOn(console, 'log').mockImplementation(() => {})
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+    withLock.mockImplementation((_key, fn) => fn())
+    vi.spyOn(console, 'log').mockReturnValue(undefined)
+    vi.spyOn(console, 'error').mockReturnValue(undefined)
   })
 
   afterEach(() => {
