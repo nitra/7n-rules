@@ -1,0 +1,24 @@
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_c51eaf01f04cf9::t_0158dfd9c6f47f 7
+  s_c51eaf01f04cf9::t_09d63d220bb1d8 422-423
+npm/package.json
+  ai_agent 2-4
+npm/CHANGELOG.md
+  ai_agent 3,7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8be4d5e49e4dbd44495e871fbb83889ef26dede1",
+  "prompts": {},
+  "sessions": {
+    "s_c51eaf01f04cf9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b58fe9b6-2fb0-46ef-8ad3-b10064a423ed",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
