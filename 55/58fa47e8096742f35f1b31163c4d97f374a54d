@@ -1,0 +1,21 @@
+npm/package.json
+  s_77efe42a5a9026::t_451179d0658dea 3
+npm/CHANGELOG.md
+  s_77efe42a5a9026::t_198e3cf4bfb350 7-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5558fa47e8096742f35f1b31163c4d97f374a54d",
+  "prompts": {},
+  "sessions": {
+    "s_77efe42a5a9026": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ece12a74-0ea1-4e57-ae5a-2ffaf5fd3657",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
