@@ -395,7 +395,8 @@ describe('renderMarkdown — точні розділювачі та порожн
       }
     ]
     const md = renderMarkdown(rows)
-    expect(md).toContain('**Приклад тесту** (`tests/auth.test.mjs`)')
+    // Порожній рядок (L104) має створювати \n\n перед "**Приклад тесту**"
+    expect(md).toContain('\n\n**Приклад тесту** (`tests/auth.test.mjs`):')
     expect(md).toContain('```js\nexpect(x).toBe(1)\n```')
   })
 
@@ -657,8 +658,11 @@ describe('runCoverageSteps — opts.fix гілка', () => {
   test('opts.fix === true виконує гілку dynamic import (відрізняється від opts.fix === false)', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     const fxFix = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
-    // У dynamic-import-шлях ми потрапимо лише коли opts.fix=true. Без fix гілка пропускається.
-    await expect(runCoverageSteps({ cwd: fxFix.cwd, rulesDir: fxFix.rulesDir, fix: true })).rejects.toThrow()
+    // dynamic import шукає '../../scripts/coverage-fix.mjs' відносно coverage.mjs → файл не існує.
+    // Помилка має містити 'coverage-fix' у шляху (не TypeError від undefined).
+    await expect(runCoverageSteps({ cwd: fxFix.cwd, rulesDir: fxFix.rulesDir, fix: true })).rejects.toThrow(
+      /coverage-fix/
+    )
     fxFix.cleanup()
   })
 

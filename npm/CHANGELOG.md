@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.7] - 2026-05-27
+
+### Fixed
+
+- **Vitest `process.chdir` race у `withTmpCwd`**: у `npm/vitest.config.js` виставлено `pool: 'forks'`. У default `pool: 'threads'` усі workers ділять один процес, тож паралельні `withTmpCwd` із `scripts/utils/test-helpers.mjs` ламали один одному `process.cwd()`. Це призводило до того, що `git init`+`git commit` з `cwd: process.cwd()` у тестах `rules/changelog/.../check.test.mjs` (з `user.name=test`, `user.email=test@test`, `-m 'init'`) потрапляли в реальний репо, де відбувався vitest run, і знищували `npm/package.json` / `npm/CHANGELOG.md`. Forks ізолюють процеси, race усунутий. JSDoc у `withTmpCwd` доповнено попередженням.
+
 ## [1.27.6] - 2026-05-27
 
 ### Added

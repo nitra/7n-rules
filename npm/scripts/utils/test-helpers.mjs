@@ -9,6 +9,14 @@ import { env, platform } from 'node:process'
 
 /**
  * Створює тимчасову директорію, тимчасово змінює `process.cwd()`, виконує `fn`, потім відкочує cwd і видаляє директорію.
+ *
+ * **Концерн: `process.chdir` — process-wide стан.** Якщо vitest запускає test files
+ * у `pool: 'threads'` (default), workers ділять один процес, і паралельні
+ * `withTmpCwd` ламають один одному cwd. Це призводить до того, що `git init`+
+ * `git commit` із `cwd: process.cwd()` (як у `rules/changelog/.../check.test.mjs`)
+ * потрапляє в реальний репо, де відбувається vitest run. У `npm/vitest.config.js`
+ * виставлено `pool: 'forks'` — кожен test file у власному процесі, race ізольований.
+ * Не змінюй pool без переписування цієї хелпер-функції на explicit-cwd параметр.
  * @param {(dir: string) => void | Promise<void>} fn викликається з абсолютним шляхом до тимчасової директорії
  * @returns {Promise<void>} завершується після виконання `fn` і прибирання тимчасової директорії
  */
