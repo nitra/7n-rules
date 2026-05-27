@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.27.6] - 2026-05-27
+
+### Added
+
+- **`test/coverage` — розширені мутаційні тести**: 18 нових тест-кейсів у `rules/test/coverage/tests/coverage.test.mjs` для покриття 19 вцілілих мутантів (StringLiteral, ConditionalExpression, ArrowFunction, BlockStatement-гілки). Загальна кількість тестів: 37.
+
 ## [1.27.5] - 2026-05-26
 
 ### Added
