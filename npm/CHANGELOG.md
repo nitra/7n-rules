@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.4] - 2026-05-28
+
+### Changed
+
+- **`rules/test/auto.md` → `завжди`**, **`scripts/auto-rules.mjs`** — правило `test` тепер додається у `.n-cursor.json#rules` беззастережно (як `adr`/`security`/`text`), без вимоги наявності `*.test.mjs`. `AUTO_RULE_ORDER` отримало `test`; `addRule('test')` викликається з безумовного блоку. Тест `auto-rules.test.mjs` оновлено: `'test'` додано в `ALL_RULES` і в очікуваний результат «додає правила за ознаками проєкту». Мотивація — узгодження з `bun.mdc`-винятком на root-only Vitest/Stryker peer/tools: щоб умова «корінь єдине місце для `vitest`/`@vitest/coverage-v8`/`@stryker-mutator/vitest-runner`» була правдою у кожному споживачі `@nitra/cursor`, а не «лише у dog food-репо».
+- **`rules/bun/bun.mdc`** (`version` 1.9 → 2.0) і дзеркало `.cursor/rules/n-bun.mdc` — переформульовано пункт про root-only Vitest/Stryker peer/tools: прибрано згадку «лише для dog food-репо `@nitra/cursor`», тепер виняток описано як **загальний** для будь-якого монорепо, що вмикає правило `test` і виконує `n-cursor coverage`. Структурна причина: published workspace-и за `npm-module.mdc` не мають `devDependencies`, а оркестратор coverage запускається з кореня. Збігається з фактичною поведінкою `policy/package_json/package_json.rego` (`allowed_root_test_deps` — глобальний whitelist, без перевірки імені репо).
+- **`rules/bun/policy/package_json/package_json.rego`** — оновлено docstring модуля і коментар на `allowed_root_dev_dependency`: тепер посилаються на always-on `test/auto.md` + `npm-module.mdc`, без «dog food-прогонів». Логіка `allowed_root_test_deps` не змінилася — лише пояснення синхронізовано з `bun.mdc`.
+
 ## [1.28.3] - 2026-05-28
 
 ### Changed

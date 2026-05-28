@@ -33,6 +33,7 @@ const ALL_RULES = [
   'rust',
   'security',
   'style-lint',
+  'test',
   'text',
   'vue'
 ]
@@ -86,6 +87,7 @@ describe('detectAutoRules', () => {
         'npm-module',
         'security',
         'style-lint',
+        'test',
         'text',
         'vue'
       ])
