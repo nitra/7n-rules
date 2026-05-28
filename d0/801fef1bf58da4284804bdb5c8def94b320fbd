@@ -1,0 +1,34 @@
+npm/package.json
+  s_5cdda0c3e54615::t_88dd46e97fba9a 3
+docs/adr/20260528-175347-документація-ci4-не-дублює-cursor-rules-лише-посилається.md
+  s_e9bf4a184b5a4c::t_e5655b9d201d52 1-27
+npm/rules/ci4/ci4.mdc
+  s_5cdda0c3e54615::t_03f727d8c249f8 4
+  s_5cdda0c3e54615::t_f665e7366f5900 322-327
+npm/CHANGELOG.md
+  s_5cdda0c3e54615::t_17663615f96506 7-12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d0801fef1bf58da4284804bdb5c8def94b320fbd",
+  "prompts": {},
+  "sessions": {
+    "s_5cdda0c3e54615": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cc0cdf60-6d01-4921-a4f8-8f2099195e3f",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e9bf4a184b5a4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2208c7de-d9d4-4720-b355-d3b5587de978",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
