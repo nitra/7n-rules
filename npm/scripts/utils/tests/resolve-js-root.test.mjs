@@ -93,4 +93,23 @@ describe('resolveAllJsRoots', () => {
     expect(await resolveAllJsRoots(dir)).toEqual([])
     rmSync(dir, { recursive: true, force: true })
   })
+
+  test('glob-патерн `cf/*` розгортається у всі підкаталоги з package.json', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-js-roots-glob-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    mkdirSync(join(dir, 'cf', 'a'), { recursive: true })
+    mkdirSync(join(dir, 'cf', 'b'), { recursive: true })
+    mkdirSync(join(dir, 'cf', 'noPkg'), { recursive: true })
+    writeFileSync(join(dir, 'cf', 'a', 'package.json'), JSON.stringify({ name: 'a' }))
+    writeFileSync(join(dir, 'cf', 'b', 'package.json'), JSON.stringify({ name: 'b' }))
+    expect(await resolveAllJsRoots(dir)).toEqual([join(dir, 'cf', 'a'), join(dir, 'cf', 'b')])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('glob без жодного збігу — fallback на [cwd]', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'resolve-js-roots-glob-empty-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    expect(await resolveAllJsRoots(dir)).toEqual([dir])
+    rmSync(dir, { recursive: true, force: true })
+  })
 })

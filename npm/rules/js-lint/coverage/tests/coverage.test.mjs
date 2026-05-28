@@ -168,6 +168,61 @@ describe('js-lint coverage collect()', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  test('агрегує lcov + survived по всіх workspaces у monorepo (glob)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-mono-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    for (const ws of ['a', 'b']) {
+      const wsDir = join(dir, 'cf', ws)
+      mkdirSync(join(wsDir, 'src'), { recursive: true })
+      writeFileSync(join(wsDir, 'package.json'), JSON.stringify({ name: ws }))
+      writeFileSync(join(wsDir, 'src', `${ws}.js`), 'export function f() {\n  if (x) return 1\n}\n')
+      const reportDir = join(wsDir, 'reports', 'stryker')
+      mkdirSync(reportDir, { recursive: true })
+      writeFileSync(
+        join(reportDir, 'mutation.json'),
+        JSON.stringify({
+          files: {
+            [`src/${ws}.js`]: {
+              mutants: [
+                { status: 'Killed' },
+                {
+                  status: 'Survived',
+                  mutatorName: 'ConditionalExpression',
+                  replacement: 'false',
+                  location: { start: { line: 2, column: 6 }, end: { line: 2, column: 7 } }
+                }
+              ]
+            }
+          }
+        })
+      )
+    }
+
+    const cwds = []
+    const runner = {
+      runJsCoverage({ cwd, lcovDir }) {
+        cwds.push(cwd)
+        writeFileSync(join(lcovDir, 'lcov.info'), ['LF:10', 'LH:5', 'FNF:4', 'FNH:2', ''].join('\n'))
+        return 0
+      },
+      runStryker() {
+        return 0
+      }
+    }
+
+    const rows = await collect(dir, { runner })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].coverage).toEqual({
+      lines: { covered: 10, total: 20 },
+      functions: { covered: 4, total: 8 }
+    })
+    expect(rows[0].mutation).toEqual({ caught: 2, total: 4 })
+    expect(rows[0].survived.map(g => g.file).sort()).toEqual([join('cf', 'a', 'src', 'a.js'), join('cf', 'b', 'src', 'b.js')])
+    expect(cwds.sort()).toEqual([join(dir, 'cf', 'a'), join(dir, 'cf', 'b')])
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   test('падає якщо Stryker не залишив mutation.json', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
     const runner = {

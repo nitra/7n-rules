@@ -10,9 +10,9 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
-import { resolveJsRoot } from '../../../scripts/utils/resolve-js-root.mjs'
+import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const TEST_BLOCK_START = /^\s*(it|test)\(/
 const FILE_EXTENSION = /\.[^.]+$/
@@ -30,21 +30,24 @@ function hasVitestDep(pkg) {
 
 /**
  * Чи провайдер застосовний у поточному cwd. Активується, коли `vitest`
- * декларовано у JS-root АБО у кореневому `package.json` (workspace-проєкт із
- * hoisted node_modules — типовий патерн bun monorepo, де npm-module rule
- * забороняє devDeps у published workspace-у, тож вони живуть у корені).
- * Інакше silent skip із hint у stderr (одноразово).
+ * декларовано хоча б в одному JS-root АБО у кореневому `package.json`
+ * (workspace-проєкт із hoisted node_modules — типовий патерн bun monorepo,
+ * де npm-module rule забороняє devDeps у published workspace-у, тож вони
+ * живуть у корені). Інакше silent skip із hint у stderr (одноразово).
  * @param {string} cwd корінь проєкту
  * @returns {Promise<boolean>} true, якщо проєкт сумісний з vitest-based coverage
  */
 export async function detect(cwd) {
-  const jsRoot = await resolveJsRoot(cwd)
-  if (jsRoot === null) return false
-  const pkgPath = join(jsRoot, 'package.json')
-  if (!existsSync(pkgPath)) return false
-  const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
-  if (hasVitestDep(pkg)) return true
-  if (jsRoot !== cwd) {
+  const jsRoots = await resolveAllJsRoots(cwd)
+  if (jsRoots.length === 0) return false
+  for (const jsRoot of jsRoots) {
+    const pkgPath = join(jsRoot, 'package.json')
+    if (!existsSync(pkgPath)) continue
+    const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
+    if (hasVitestDep(pkg)) return true
+  }
+  const rootInJsRoots = jsRoots.includes(cwd)
+  if (!rootInJsRoots) {
     const rootPkgPath = join(cwd, 'package.json')
     if (existsSync(rootPkgPath)) {
       const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
@@ -224,40 +227,91 @@ const defaultRunner = {
 }
 
 /**
- * Збирає JS-метрики покриття + мутаційного тестування.
+ * Збирає JS-метрики покриття + мутаційного тестування. У monorepo ітерує кожен
+ * JS-root з `resolveAllJsRoots()` (включно з glob-патернами на кшталт `cf/*`),
+ * запускає vitest+Stryker у кожному та сумує lcov/mutation. Шляхи файлів у
+ * `survived` рібейзяться відносно `cwd`, щоб `coverage-fix.mjs` знаходив джерела.
  * @param {string} cwd корінь проєкту
  * @param {{runner?: typeof defaultRunner}} [opts] runner-ін'єкція для тестів
  * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>} рядки для COVERAGE.md
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
-  const jsRoot = await resolveJsRoot(cwd)
-  if (jsRoot === null) throw new Error('js-lint coverage: package.json не знайдено')
+  const jsRoots = await resolveAllJsRoots(cwd)
+  if (jsRoots.length === 0) throw new Error('js-lint coverage: package.json не знайдено')
 
-  // 1. Coverage через vitest run --coverage (v8 provider пише lcov.info у lcovDir)
-  const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
-  let coverage
-  try {
-    const code = await runner.runJsCoverage({ cwd: jsRoot, lcovDir })
-    if (code !== 0) throw new Error(`JS coverage exit ${code}`)
-    coverage = parseLcov(await readFile(join(lcovDir, 'lcov.info'), 'utf8'))
-  } finally {
-    await rm(lcovDir, { recursive: true, force: true })
+  let coverage = { lines: { covered: 0, total: 0 }, functions: { covered: 0, total: 0 } }
+  let mutation = { caught: 0, total: 0 }
+  const survived = []
+
+  for (const jsRoot of jsRoots) {
+    const wsRel = relative(cwd, jsRoot)
+
+    // 1. Coverage через vitest run --coverage (v8 provider пише lcov.info у lcovDir)
+    const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
+    try {
+      const code = await runner.runJsCoverage({ cwd: jsRoot, lcovDir })
+      if (code !== 0) throw new Error(`JS coverage exit ${code}`)
+      coverage = addCoverage(coverage, parseLcov(await readFile(join(lcovDir, 'lcov.info'), 'utf8')))
+    } finally {
+      await rm(lcovDir, { recursive: true, force: true })
+    }
+
+    // 2. Mutation через Stryker
+    await runner.runStryker({ cwd: jsRoot })
+    let mutationReport
+    try {
+      mutationReport = JSON.parse(await readFile(join(jsRoot, 'reports', 'stryker', 'mutation.json'), 'utf8'))
+    } catch {
+      throw new Error(
+        'js-lint coverage: stryker не залишив mutation.json — ' +
+          'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
+          'або налаштуй його вручну'
+      )
+    }
+    const parsed = parseStrykerReport(mutationReport, jsRoot)
+    mutation = addMutation(mutation, { caught: parsed.caught, total: parsed.total })
+
+    for (const group of parsed.survived) {
+      survived.push({
+        ...group,
+        file: wsRel === '' ? group.file : join(wsRel, group.file),
+        exampleTest: group.exampleTest
+          ? {
+              ...group.exampleTest,
+              testFile: wsRel === '' ? group.exampleTest.testFile : join(wsRel, group.exampleTest.testFile)
+            }
+          : null
+      })
+    }
   }
 
-  // 2. Mutation через Stryker
-  await runner.runStryker({ cwd: jsRoot })
-  let mutationReport
-  try {
-    mutationReport = JSON.parse(await readFile(join(jsRoot, 'reports', 'stryker', 'mutation.json'), 'utf8'))
-  } catch {
-    throw new Error(
-      'js-lint coverage: stryker не залишив mutation.json — ' +
-        'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
-        'або налаштуй його вручну'
-    )
-  }
-  const { caught, total, survived } = parseStrykerReport(mutationReport, jsRoot)
+  return [{ area: 'JS', coverage, mutation, survived }]
+}
 
-  return [{ area: 'JS', coverage, mutation: { caught, total }, survived }]
+/**
+ * Сумування coverage-totals — імпортується з оркестратора при потребі; тут
+ * локальна копія, щоб уникнути циклу test/coverage → js-lint/coverage.
+ * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} a перший
+ * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} b другий
+ * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} сума
+ */
+function addCoverage(a, b) {
+  return {
+    lines: { covered: a.lines.covered + b.lines.covered, total: a.lines.total + b.lines.total },
+    functions: {
+      covered: a.functions.covered + b.functions.covered,
+      total: a.functions.total + b.functions.total
+    }
+  }
+}
+
+/**
+ * Сумування mutation-counts.
+ * @param {{caught:number,total:number}} a перший
+ * @param {{caught:number,total:number}} b другий
+ * @returns {{caught:number,total:number}} сума
+ */
+function addMutation(a, b) {
+  return { caught: a.caught + b.caught, total: a.total + b.total }
 }

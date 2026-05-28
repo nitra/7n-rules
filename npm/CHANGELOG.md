@@ -4,6 +4,13 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.5] - 2026-05-28
+
+### Fixed
+
+- **`scripts/utils/resolve-js-root.mjs`** — `resolveAllJsRoots()` тепер розгортає glob-патерни (`cf/*`, `packages/*` тощо) у списку `workspaces` через `node:fs/promises#glob`. Без цього `cf/*` як літерал не резолвився через `existsSync`, і `resolveJsRoot()` падав на fallback → `cwd`; `n-cursor coverage` із кореня запускав vitest у root-у проєкту без `vitest.config.js` (через `gt/tests/setup.mjs` не підвантажувався). `resolveJsRoot()` тепер тонкий wrapper над `resolveAllJsRoots()[0]`. Додано 2 тести: glob-розгортання `cf/*` і fallback на `[cwd]` при порожньому збігу.
+- **`rules/js-lint/coverage/coverage.mjs#collect()`** — у monorepo тепер ітерує **всі** JS-roots з `resolveAllJsRoots()`, запускає vitest + Stryker у кожному окремо та сумує `lcov` (через локальний `addCoverage`) і `mutation` (через `addMutation`). Шляхи у `survived[].file` і `survived[].exampleTest.testFile` рібейзяться відносно `cwd` (`relative(cwd, jsRoot)`/`join(wsRel, file)`), щоб `coverage-fix.mjs#buildFixPrompt` коректно читав source-файли через `join(projectRoot, file)`. `detect()` повертає `true`, якщо vitest є хоча б в одному workspace АБО в кореневому `package.json`. Додано тест агрегування у monorepo з `cf/*`-glob.
+
 ## [1.28.4] - 2026-05-28
 
 ### Changed
