@@ -361,8 +361,8 @@ async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
  * @param {(msg: string) => void} failFn callback при помилці
  * @returns {void}
  */
-function checkVscodeNginx(passFn, failFn) {
-  const extPath = '.vscode/extensions.json'
+function checkVscodeNginx(passFn, failFn, cwd) {
+  const extPath = join(cwd, '.vscode/extensions.json')
   if (existsSync(extPath)) {
     const violations = runConftestBatch({
       policyDirRel: 'nginx-default-tpl/vscode_extensions',
@@ -378,7 +378,7 @@ function checkVscodeNginx(passFn, failFn) {
     failFn('Очікується .vscode/extensions.json з ahmadalli.vscode-nginx-conf (див. nginx-default-tpl.mdc)')
   }
 
-  const setPath = '.vscode/settings.json'
+  const setPath = join(cwd, '.vscode/settings.json')
   if (!existsSync(setPath)) {
     failFn('Очікується .vscode/settings.json з форматером nginx і formatOnSave (див. nginx-default-tpl.mdc)')
     return
@@ -429,7 +429,7 @@ export async function check(cwd = process.cwd()) {
   }
 
   await checkDockerfiles(root, ignorePaths, pass, fail)
-  checkVscodeNginx(pass, fail)
+  checkVscodeNginx(pass, fail, root)
 
   return reporter.getExitCode()
 }

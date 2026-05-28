@@ -185,15 +185,16 @@ describe('check-style-lint (мінімальний проєкт)', () => {
 describe('check-nginx-default-tpl (мінімальний проєкт)', () => {
   test('проходить з шаблоном і налаштуваннями VSCode', async () => {
     await withTmpDir(async dir => {
-      await copyFile(join(nginxFixDir, 'default.conf.template'), 'default.conf.template')
-      await copyFile(join(nginxFixDir, 'values-dev.ini'), 'values-dev.ini')
-      await writeFile(join(dir, 'Dockerfile'),
+      await copyFile(join(nginxFixDir, 'default.conf.template'), join(dir, 'default.conf.template'))
+      await copyFile(join(nginxFixDir, 'values-dev.ini'), join(dir, 'values-dev.ini'))
+      await writeFile(
+        join(dir, 'Dockerfile'),
         [
           'FROM nginx:alpine-slim',
           "RUN find /usr/share/nginx/html -type f -name '*.js' -exec gzip -k {} +",
           'RUN envsubst "$VARS" < /tpl/default.conf.template > /app/default.conf',
           ''
-        ].join(dir, '\n'),
+        ].join('\n'),
         'utf8'
       )
       await ensureDir(join(dir, '.vscode'))

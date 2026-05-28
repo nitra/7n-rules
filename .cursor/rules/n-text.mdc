@@ -417,4 +417,4 @@ kebab-case
 
 ## Перевірка
 
-`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`)
+`npx @nitra/cursor fix text` (охоплює oxfmt, cspell, shellcheck у `lint-text`, markdownlint, v8r, CI для `lint-text`). Зокрема падає, якщо у корені є `.prettierignore`, `.prettierrc*`, `prettier.config.*` або у `package.json#scripts` зустрічається команда з `prettier` — Prettier повністю заборонено, форматування лише через **oxfmt**.

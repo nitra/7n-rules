@@ -19,6 +19,7 @@
 ### Added
 
 - **`rules/test/js/no-process-chdir.mjs`** — JS concern: сканує `**/*.test.{js,mjs}` і падає на `process.chdir(`. Token-based regex (`/process\.chdir\s*\(/u`) — не зачіпає згадки у JSDoc. 8 unit-тестів.
+- **`rules/test/js/no-relative-fs-path.mjs`** — AST-сканер (`oxc-parser`) для `**/*.test.{js,mjs}`: знаходить виклики FS-функцій з `node:fs`/`node:fs/promises` (`writeFile`, `copyFile`, `mkdir`, `readFile`, `existsSync`, `rename`, `symlink`, `cp`, `*Sync`-варіанти + `writeJson`/`ensureDir`), де path-аргумент — string literal без префікса `/`, `\`, `file:`, `http(s):`, `data:`, чи Windows-disk-letter. Покриває обидва path-arg позиції у `copyFile`/`rename`/`symlink`/`link`/`cp`. Виловив би інцидент 1.28.0 (`tests/check-rule-fixtures.test.mjs`): `copyFile(src, 'default.conf.template')` / `copyFile(src, 'values-dev.ini')` зливали fixture у production tree `npm/`. 17 unit-тестів; на власному репо знайдено 0 порушень серед 106 test files.
 - **`rules/test/js/vitest-config-pool-forks.mjs`** — JS concern: substring-перевірка `pool: 'forks'` у `vitest.config.js`. Defense-in-depth. 6 unit-тестів.
 - **`rules/test/js/data/vitest_config/vitest.config.baseline.js`** — canonical baseline тепер містить `pool: 'forks'` з обґрунтуванням race-bug у docstring.
 - **`rules/test/test.mdc` — секція "Заборона `process.chdir` у тестах"** із описом інциденту, контрактом `withTmpDir`, посиланнями на нові concern'и.
