@@ -37,8 +37,11 @@ const TAURI_KEY_SNIPPETS = Object.freeze({
   exclude_globs: `# Platform bridge / app shell — boundary-файли (тестуються smoke/e2e, не mutation unit).
 # Якщо у bridge-файлі з'являється pure/business logic — винеси її у platform-neutral
 # модуль (src/auth/oauth.rs, src/gmail/message.rs, ...) і тестуй mutation-testing там.
+# src/lib.rs (Tauri pub fn run) — runtime entrypoint, що запускає весь app shell:
+# один мутант там тримає весь Tauri runtime, тому ділить sandbox-фейл з src/main.rs.
 exclude_globs = [
   "src/main.rs",
+  "src/lib.rs",
   "src/**/android.rs",
   "src/**/ios.rs",
   "src/**/mobile.rs",

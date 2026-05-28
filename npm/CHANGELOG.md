@@ -4,6 +4,14 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.2] - 2026-05-28
+
+### Changed
+
+- **`rules/rust/coverage/coverage.mjs`** — `cargo mutants` запускається з `--jobs N` (дефолт `min(4, cpus/2)`, override через env `CARGO_MUTANTS_JOBS`). Прапорець `--in-place` прибраний — cargo-mutants створює власну sandbox-копію в `target/mutants.<i>/`, що **обов'язкове** для `--jobs > 1`. Ефект: ~7× прискорення Rust mutation testing на 8-ядерних машинах (виміряно на Tauri-проєкті: 8 год → ~65 хв). Edge-case `--in-place` лишається доступним користувачам напряму через `cargo mutants --in-place` (наш runner його більше не передає). Експортовано `resolveJobs(envValue)` і `buildCargoMutantsArgs({ manifestPath, outDir, jobs })` як чисті функції для unit-тестів.
+- **`rules/tauri/js/cargo_mutants_config.mjs#TAURI_KEY_SNIPPETS.exclude_globs`** — додано `src/lib.rs` як Tauri runtime entrypoint (`pub fn run`). Один мутант там тримає весь app shell, тому ділить sandbox-фейл з `src/main.rs`. Дзеркальна правка в `tauri.mdc` (canon-TOML і пояснення семантики).
+- **`rules/rust/rust.mdc`** (`version` 1.1 → 1.2), **`rules/tauri/tauri.mdc`** (`version` 1.3 → 1.4) — актуалізовано опис паралельного запуску cargo-mutants і Tauri exclude_globs.
+
 ## [1.28.0] - 2026-05-27
 
 ### BREAKING

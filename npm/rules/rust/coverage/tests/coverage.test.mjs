@@ -5,10 +5,10 @@
  */
 import { describe, expect, test } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { cpus, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { collect, detect } from '../coverage.mjs'
+import { buildCargoMutantsArgs, collect, detect, resolveJobs } from '../coverage.mjs'
 
 const CARGO_LLVM_COV_INSTALL_RE = /cargo install cargo-llvm-cov/
 const CARGO_MUTANTS_INSTALL_RE = /cargo install cargo-mutants/
@@ -125,5 +125,45 @@ describe('rust coverage collect()', () => {
     }
     await expect(collect(dir, { runner })).rejects.toThrow(CARGO_MUTANTS_INSTALL_RE)
     rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('rust coverage buildCargoMutantsArgs()', () => {
+  test('містить --jobs <N> як рядок і не містить --in-place', () => {
+    const args = buildCargoMutantsArgs({ manifestPath: '/tmp/x/Cargo.toml', outDir: '/tmp/out', jobs: 4 })
+    expect(args).not.toContain('--in-place')
+    expect(args).toContain('--jobs')
+    const i = args.indexOf('--jobs')
+    expect(args[i + 1]).toBe('4')
+    expect(typeof args[i + 1]).toBe('string')
+  })
+
+  test('передає -o outDir і --manifest-path manifestPath', () => {
+    const args = buildCargoMutantsArgs({ manifestPath: '/m/Cargo.toml', outDir: '/o', jobs: 2 })
+    const oi = args.indexOf('-o')
+    expect(args[oi + 1]).toBe('/o')
+    const mi = args.indexOf('--manifest-path')
+    expect(args[mi + 1]).toBe('/m/Cargo.toml')
+  })
+})
+
+describe('rust coverage resolveJobs()', () => {
+  test('повертає значення env CARGO_MUTANTS_JOBS, коли воно валідне (>=1)', () => {
+    expect(resolveJobs('1')).toBe(1)
+    expect(resolveJobs('8')).toBe(8)
+    expect(resolveJobs('16')).toBe(16)
+  })
+
+  test('повертає cpus-based fallback для пустого/відсутнього env', () => {
+    const expected = Math.min(4, Math.max(1, Math.floor(cpus().length / 2)))
+    expect(resolveJobs(undefined)).toBe(expected)
+    expect(resolveJobs('')).toBe(expected)
+  })
+
+  test('повертає cpus-based fallback для невалідних значень env', () => {
+    const expected = Math.min(4, Math.max(1, Math.floor(cpus().length / 2)))
+    expect(resolveJobs('abc')).toBe(expected)
+    expect(resolveJobs('0')).toBe(expected)
+    expect(resolveJobs('-3')).toBe(expected)
   })
 })

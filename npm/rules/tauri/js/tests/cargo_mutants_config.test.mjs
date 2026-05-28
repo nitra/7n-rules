@@ -94,6 +94,7 @@ describe('tauri cargo_mutants_config concern', () => {
     const parsed = parseToml(readFileSync(target, 'utf8'))
     expect(parsed.additional_cargo_test_args).toEqual(['--lib', '--tests'])
     expect(parsed.exclude_globs).toContain('src/main.rs')
+    expect(parsed.exclude_globs).toContain('src/lib.rs')
     expect(parsed.exclude_globs).toContain('src/**/android.rs')
     expect(parsed.exclude_globs).toContain('src/**/macos.rs')
     proj.cleanup()

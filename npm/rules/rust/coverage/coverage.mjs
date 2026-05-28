@@ -9,7 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { cpus, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
@@ -27,6 +27,32 @@ export function detect(cwd) {
   return Promise.resolve(hasCargoTomlInTree(cwd, IGNORED_DIR_NAMES))
 }
 
+/**
+ * Обчислює кількість паралельних воркерів cargo-mutants. Env override через
+ * CARGO_MUTANTS_JOBS (валідне ціле >= 1). Fallback — min(4, max(1, cpus/2)):
+ * на ≤2 ядрах = 1, на 4 = 2, на 8+ = 4. Стеля 4 — Rust linker bottleneck:
+ * вище практичного приросту не дає навіть на 16+ ядрах.
+ * @param {string | undefined} envValue значення `process.env.CARGO_MUTANTS_JOBS`
+ * @returns {number}
+ */
+export function resolveJobs(envValue) {
+  if (envValue !== undefined && envValue !== '') {
+    const n = Number.parseInt(envValue, 10)
+    if (Number.isFinite(n) && n >= 1) return n
+  }
+  return Math.min(4, Math.max(1, Math.floor(cpus().length / 2)))
+}
+
+/**
+ * Будує argv для `cargo mutants`. `--in-place` навмисно відсутній: cargo-mutants
+ * створює власну sandbox-копію в `target/mutants.<i>/`, що обов'язкове для `--jobs > 1`.
+ * @param {{ manifestPath: string, outDir: string, jobs: number }} opts
+ * @returns {string[]}
+ */
+export function buildCargoMutantsArgs({ manifestPath, outDir, jobs }) {
+  return ['mutants', '--jobs', String(jobs), '-o', outDir, '--manifest-path', manifestPath]
+}
+
 const defaultRunner = {
   runLlvmCov({ manifestPath }) {
     const r = spawnSync('cargo', ['llvm-cov', '--manifest-path', manifestPath, '--json', '--summary-only'], {
@@ -36,7 +62,8 @@ const defaultRunner = {
     return { exitCode: r.status ?? 1, stdout: r.stdout?.toString('utf8') ?? '' }
   },
   runCargoMutants({ manifestPath, outDir }) {
-    const r = spawnSync('cargo', ['mutants', '--in-place', '-o', outDir, '--manifest-path', manifestPath], {
+    const jobs = resolveJobs(process.env.CARGO_MUTANTS_JOBS)
+    const r = spawnSync('cargo', buildCargoMutantsArgs({ manifestPath, outDir, jobs }), {
       stdio: 'inherit',
       env: process.env
     })

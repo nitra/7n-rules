@@ -2,7 +2,7 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.3'
+version: '1.4'
 ---
 
 У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
@@ -36,6 +36,7 @@ additional_cargo_test_args = ["--lib", "--tests"]
 
 exclude_globs = [
   "src/main.rs",
+  "src/lib.rs",
   "src/**/android.rs",
   "src/**/ios.rs",
   "src/**/mobile.rs",
@@ -49,6 +50,7 @@ exclude_globs = [
 Семантика (фіксована між Tauri-проєктами):
 
 - **`src/main.rs`** — binary shell entrypoint: запускає Tauri runtime, реєструє plugins/handlers і повертає управління циклу подій. Тестується smoke/e2e (запуск бінарника), не mutation unit;
+- **`src/lib.rs`** — Tauri runtime entrypoint (`pub fn run`): піднімає весь app shell. Один мутант там тримає весь Tauri runtime, тому ділить sandbox-фейл з `src/main.rs` і тестується smoke/e2e, а не mutation unit;
 - **`*android.rs`, `*ios.rs`, `*mobile.rs`** — mobile plugin bridge / platform glue: тонка обгортка над JNI/Objective-C виклики, mapping platform errors, виклики Tauri AppHandle і native API;
 - **`*macos.rs`, `*windows.rs`, `*linux.rs`, `*desktop.rs`** — desktop platform bridge / OS integration glue: opener/window APIs, OS-specific I/O, mapping platform errors.
 
