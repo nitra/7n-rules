@@ -185,7 +185,7 @@ describe('check test.no-relative-fs-path', () => {
     })
   })
 
-  test("успіх: Windows-абсолютний 'C:\\\\foo' → exit 0", async () => {
+  test(String.raw`успіх: Windows-абсолютний 'C:\\foo' → exit 0`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
