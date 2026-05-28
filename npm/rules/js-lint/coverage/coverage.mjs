@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
+import { addCoverage, addMutation } from '../../test/coverage/coverage.mjs'
 
 const TEST_BLOCK_START = /^\s*(it|test)\(/
 const FILE_EXTENSION = /\.[^.]+$/
@@ -210,12 +211,23 @@ export function parseStrykerReport(report, jsRoot) {
 /**
  * Default runner — спавнить реальні bun-команди через `node:child_process.spawnSync`
  * (працює і в Node-runtime через shebang `n-cursor`, і в Bun). Замінюється у тестах.
+ *
+ * Прапор `--passWithNoTests` робить vitest non-failing у workspaces без тестів
+ * (типовий патерн monorepo, де тести зосереджені в одному пакеті); пустий lcov
+ * у такому випадку сигналізує "no tests" → collectOneRoot пропускає workspace.
  */
 const defaultRunner = {
   runJsCoverage({ cwd, lcovDir }) {
     const r = spawnSync(
       'bunx',
-      ['vitest', 'run', '--coverage', '--coverage.reporter=lcov', `--coverage.reportsDirectory=${lcovDir}`],
+      [
+        'vitest',
+        'run',
+        '--passWithNoTests',
+        '--coverage',
+        '--coverage.reporter=lcov',
+        `--coverage.reportsDirectory=${lcovDir}`
+      ],
       { cwd, stdio: 'inherit', env: process.env }
     )
     return r.status ?? 1
@@ -227,91 +239,108 @@ const defaultRunner = {
 }
 
 /**
- * Збирає JS-метрики покриття + мутаційного тестування. У monorepo ітерує кожен
- * JS-root з `resolveAllJsRoots()` (включно з glob-патернами на кшталт `cf/*`),
- * запускає vitest+Stryker у кожному та сумує lcov/mutation. Шляхи файлів у
- * `survived` рібейзяться відносно `cwd`, щоб `coverage-fix.mjs` знаходив джерела.
+ * Збирає метрики покриття + мутаційного тестування для **одного** JS-root.
+ * Пропускає workspace без тестів (повертає `null`): vitest у такому випадку
+ * пройшов з `--passWithNoTests`, але lcov порожній — нема сенсу запускати
+ * Stryker. Реальні помилки (vitest exit ≠ 0, mutation.json відсутній попри
+ * наявні тести) кидаються — у multi-root режимі це не маскує справжній збій.
+ * @param {string} jsRoot абсолютний шлях до workspace-кореня
+ * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
+ * @param {{runJsCoverage:Function, runStryker:Function}} runner spawn-ін'єкція
+ * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли workspace без тестів
+ */
+async function collectOneRoot(jsRoot, cwd, runner) {
+  const wsRel = relative(cwd, jsRoot)
+
+  // 1. Coverage через vitest run --passWithNoTests --coverage
+  const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
+  let coverage
+  try {
+    const code = await runner.runJsCoverage({ cwd: jsRoot, lcovDir })
+    if (code !== 0) throw new Error(`JS coverage exit ${code}`)
+    const lcovPath = join(lcovDir, 'lcov.info')
+    coverage = existsSync(lcovPath)
+      ? parseLcov(await readFile(lcovPath, 'utf8'))
+      : { lines: { covered: 0, total: 0 }, functions: { covered: 0, total: 0 } }
+  } finally {
+    await rm(lcovDir, { recursive: true, force: true })
+  }
+
+  // Порожній lcov ⇔ vitest з --passWithNoTests не знайшов тестів. Пропускаємо
+  // workspace, щоб не запускати Stryker марно і не псувати агрегат.
+  const hasTests = coverage.lines.total > 0 || coverage.functions.total > 0
+  if (!hasTests) return null
+
+  // 2. Mutation через Stryker
+  await runner.runStryker({ cwd: jsRoot })
+  const mutationPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
+  if (!existsSync(mutationPath)) {
+    throw new Error(
+      'js-lint coverage: stryker не залишив mutation.json — ' +
+        'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
+        'або налаштуй його вручну'
+    )
+  }
+  const mutationReport = JSON.parse(await readFile(mutationPath, 'utf8'))
+  const parsed = parseStrykerReport(mutationReport, jsRoot)
+
+  return {
+    coverage,
+    mutation: { caught: parsed.caught, total: parsed.total },
+    survived: parsed.survived.map(group => ({
+      ...group,
+      file: wsRel === '' ? group.file : join(wsRel, group.file),
+      exampleTest: group.exampleTest
+        ? {
+            ...group.exampleTest,
+            testFile: wsRel === '' ? group.exampleTest.testFile : join(wsRel, group.exampleTest.testFile)
+          }
+        : null
+    }))
+  }
+}
+
+/**
+ * Збирає JS-метрики покриття + мутаційного тестування. У monorepo ітерує усі
+ * JS-roots з `resolveAllJsRoots()` (включно з glob-патернами `cf/*`), запускає
+ * vitest+Stryker у кожному та сумує lcov/mutation через `addCoverage`/`addMutation`
+ * з оркестратора. Workspaces без тестів пропускаються (див. `collectOneRoot`).
+ * Якщо тестів немає у жодному workspace — повертає `[]`; оркестратор
+ * `rules/test/coverage/coverage.mjs:runCoverageSteps` обробить це як exit 1
+ * з зрозумілим повідомленням ("Жодного провайдера покриття не знайдено").
+ * Шляхи у `survived` рібейзяться відносно `cwd`, щоб `coverage-fix.mjs`
+ * знаходив джерела через `join(projectRoot, file)`.
  * @param {string} cwd корінь проєкту
  * @param {{runner?: typeof defaultRunner}} [opts] runner-ін'єкція для тестів
- * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>} рядки для COVERAGE.md
+ * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>>} рядок `JS` або `[]` коли тестів нема ніде
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
   const jsRoots = await resolveAllJsRoots(cwd)
   if (jsRoots.length === 0) throw new Error('js-lint coverage: package.json не знайдено')
 
+  const results = []
+  for (const jsRoot of jsRoots) {
+    const r = await collectOneRoot(jsRoot, cwd, runner)
+    if (r !== null) results.push(r)
+  }
+
+  if (results.length === 0) {
+    console.error(
+      'js-lint coverage: жоден workspace не має тестів ' +
+        '(`*.test.{js,mjs}` у `tests/` або поряд із джерелом) — ' +
+        'додай тести або вилучи `js-lint` з .n-cursor.json#rules'
+    )
+    return []
+  }
+
   let coverage = { lines: { covered: 0, total: 0 }, functions: { covered: 0, total: 0 } }
   let mutation = { caught: 0, total: 0 }
   const survived = []
-
-  for (const jsRoot of jsRoots) {
-    const wsRel = relative(cwd, jsRoot)
-
-    // 1. Coverage через vitest run --coverage (v8 provider пише lcov.info у lcovDir)
-    const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
-    try {
-      const code = await runner.runJsCoverage({ cwd: jsRoot, lcovDir })
-      if (code !== 0) throw new Error(`JS coverage exit ${code}`)
-      coverage = addCoverage(coverage, parseLcov(await readFile(join(lcovDir, 'lcov.info'), 'utf8')))
-    } finally {
-      await rm(lcovDir, { recursive: true, force: true })
-    }
-
-    // 2. Mutation через Stryker
-    await runner.runStryker({ cwd: jsRoot })
-    let mutationReport
-    try {
-      mutationReport = JSON.parse(await readFile(join(jsRoot, 'reports', 'stryker', 'mutation.json'), 'utf8'))
-    } catch {
-      throw new Error(
-        'js-lint coverage: stryker не залишив mutation.json — ' +
-          'запусти `npx @nitra/cursor fix test` для встановлення canonical stryker.config.mjs, ' +
-          'або налаштуй його вручну'
-      )
-    }
-    const parsed = parseStrykerReport(mutationReport, jsRoot)
-    mutation = addMutation(mutation, { caught: parsed.caught, total: parsed.total })
-
-    for (const group of parsed.survived) {
-      survived.push({
-        ...group,
-        file: wsRel === '' ? group.file : join(wsRel, group.file),
-        exampleTest: group.exampleTest
-          ? {
-              ...group.exampleTest,
-              testFile: wsRel === '' ? group.exampleTest.testFile : join(wsRel, group.exampleTest.testFile)
-            }
-          : null
-      })
-    }
+  for (const r of results) {
+    coverage = addCoverage(coverage, r.coverage)
+    mutation = addMutation(mutation, r.mutation)
+    survived.push(...r.survived)
   }
-
   return [{ area: 'JS', coverage, mutation, survived }]
-}
-
-/**
- * Сумування coverage-totals — імпортується з оркестратора при потребі; тут
- * локальна копія, щоб уникнути циклу test/coverage → js-lint/coverage.
- * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} a перший
- * @param {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} b другий
- * @returns {{lines:{covered:number,total:number}, functions:{covered:number,total:number}}} сума
- */
-function addCoverage(a, b) {
-  return {
-    lines: { covered: a.lines.covered + b.lines.covered, total: a.lines.total + b.lines.total },
-    functions: {
-      covered: a.functions.covered + b.functions.covered,
-      total: a.functions.total + b.functions.total
-    }
-  }
-}
-
-/**
- * Сумування mutation-counts.
- * @param {{caught:number,total:number}} a перший
- * @param {{caught:number,total:number}} b другий
- * @returns {{caught:number,total:number}} сума
- */
-function addMutation(a, b) {
-  return { caught: a.caught + b.caught, total: a.total + b.total }
 }

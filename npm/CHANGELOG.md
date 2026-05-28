@@ -4,6 +4,17 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.7] - 2026-05-28
+
+### Fixed
+
+- **`rules/js-lint/coverage/coverage.mjs`** — `n-cursor coverage` із кореня тепер працює у monorepo з частковим покриттям тестами (наприклад, `ai`: тести лише у `gt/`, інші `cf/*`/`run/*` без тестів). До цього перший workspace без тестів обривав ланцюг із `JS coverage exit 1`. Зміни: `defaultRunner.runJsCoverage` отримує `--passWithNoTests` (vitest 4.x — exit 0 у workspace без тестів); `collect()` розпиляно на `collectOneRoot(jsRoot, cwd, runner)` (per-workspace) і публічний агрегатор. `collectOneRoot` повертає `null` для workspace із порожнім lcov — Stryker у такому випадку не запускається. Реальні помилки (vitest exit ≠ 0, mutation.json відсутній при наявних тестах, compile errors) — throw, не маскуються. Якщо тестів немає у жодному workspace — `collect()` повертає `[]`, оркестратор `rules/test/coverage/coverage.mjs:runCoverageSteps` обробляє це як exit 1 із explainer-ом. Helpers `addCoverage`/`addMutation` беруться з `rules/test/coverage/coverage.mjs` (DRY, замість локальних копій). Додано 4 тести: monorepo з порожніми workspaces (skip), all-empty (`[]`), single-package без тестів, vitest exit ≠ 0 у monorepo (throw). ADR — `docs/adr/2026-05-28-coverage-multi-workspace-iteration.md`.
+- **`rules/test/test.mdc`** (`version` 2.4 → 2.5) і дзеркало `.cursor/rules/n-test.mdc` — секція "Multi-workspace iteration" з описом ітерації `resolveAllJsRoots()` і поведінки skip workspaces без тестів.
+
+### Changed
+
+- `abie` rule: `abie.package_json_docs` → `abie.package_json_shared`; пакет, що його перевіряє правило, перейменовано з `@nitra/abie-docs` на `@nitra/abie-shared` (паралель до `efes.package_json_shared` / `@nitra/efes-shared`). Реалізація: `npm/rules/abie/policy/package_json_shared/` (перейменовано з `package_json_docs/`). Bump `abie.mdc` `1.21` → `1.22`. Зачеплено: `.cursor/rules/conftest.mdc`.
+
 ## [1.28.5] - 2026-05-28
 
 ### Fixed

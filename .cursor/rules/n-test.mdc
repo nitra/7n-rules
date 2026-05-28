@@ -1,6 +1,6 @@
 ---
 description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.js (якщо js-lint enabled) і .cargo/mutants.toml (якщо rust enabled).
-version: '2.4'
+version: '2.5'
 globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,vitest.config.js,.cargo/mutants.toml},**/*.test.mjs"
 alwaysApply: false
 ---
@@ -99,6 +99,10 @@ Canonical `vitest.config.js` (для довідки — `pool: 'forks'` + `inclu
   }
 }
 ```
+
+### Multi-workspace iteration
+
+У monorepo `n-cursor coverage` ітерує усі workspaces з власним `package.json` (через `resolveAllJsRoots()`, з розгортанням glob-патернів `cf/*`/`packages/*`) і агрегує метрики lcov + Stryker у єдиний `JS`-рядок `COVERAGE.md`. Workspace без тестів пропускається без помилки (vitest викликається з `--passWithNoTests`, порожній lcov → skip-сигнал, Stryker не запускається). `n-cursor coverage` падає лише коли тестів немає в **жодному** workspace проєкту або коли vitest повертає non-zero exit (реальний test failure / compile error — це не маскується).
 
 ## Налаштування mutation-testing
 

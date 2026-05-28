@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@nitra/cspell-dict": "^2.0.0",
-    "@nitra/cursor": "^1.28.0",
+    "@nitra/cursor": "^1.28.6",
     "@nitra/eslint-config": "^3.9.4",
     "@nitra/stylelint-config": "^1.4.0",
     "@stryker-mutator/vitest-runner": "^9.6.1",
