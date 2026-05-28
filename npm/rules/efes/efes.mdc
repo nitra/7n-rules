@@ -1,17 +1,17 @@
 ---
 description: Правила для проєктів Efes (репозиторії під github.com/efes-cloud)
 alwaysApply: true
-version: '1.1'
+version: '1.2'
 ---
 
 Правило **efes** для споживачів **@nitra/cursor** у репозиторіях під **`github.com/efes-cloud/*`**.
 
-## `@nitra/efes-docs` у `devDependencies`
+## `@nitra/efes-shared` у `devDependencies`
 
-У кореневому **`package.json`** efes-проєкту в **`devDependencies`** має бути **`@nitra/efes-docs`** — пакет з канонічними контрактами/схемами efes-сервісів (зокрема використовується у `graphql.mdc` як `node_modules/@nitra/efes-docs/schema/maya.graphql`). Версію правило не фіксує — лише presence. Додати:
+У кореневому **`package.json`** efes-проєкту в **`devDependencies`** має бути **`@nitra/efes-shared`** — пакет зі спільними efes-ресурсами (схеми, скіли, типи; зокрема використовується у `graphql.mdc` як `node_modules/@nitra/efes-shared/schema/maya.graphql`). Версію правило не фіксує — лише presence. Додати:
 
 ```bash
-bun add -d @nitra/efes-docs
+bun add -d @nitra/efes-shared
 ```
 
 ## Швидкий gate через conftest (Rego)
@@ -20,4 +20,4 @@ bun add -d @nitra/efes-docs
 
 Пакети (директорія в **`npm/rules/efes/policy/`** → namespace → що перевіряє):
 
-- **`package_json_docs/`** → `efes.package_json_docs` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-docs` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.
+- **`package_json_shared/`** → `efes.package_json_shared` — у кореневому `package.json` `devDependencies` має містити `@nitra/efes-shared` (presence-only, версію не фіксуємо). **Цільові файли:** `package.json`.

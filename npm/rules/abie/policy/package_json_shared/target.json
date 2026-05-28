@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "files": { "single": "package.json", "required": true },
+  "missingMessage": "package.json не існує — створи його, додай devDependencies['@nitra/abie-shared'] (abie.mdc)"
+}

@@ -51,6 +51,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'rust',
   'security',
   'style-lint',
+  'test',
   'text',
   'vue'
 ])
@@ -674,6 +675,7 @@ export async function detectAutoRules({
   }
   addRule('adr')
   addRule('security')
+  addRule('test')
   addRule('text')
   if (facts.hasVueSource) {
     addRule('vue')

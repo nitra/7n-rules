@@ -4,11 +4,46 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.8] - 2026-05-28
+
+### Added
+
+- **`rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs`** — новий локальний Stryker `Ignore`-плагін `vue-macros`. `shouldIgnore(path)` повертає non-empty message для `CallExpression`, де `callee` — `Identifier` з ім'ям у наборі Vue `<script setup>`-макросів: `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`. Експортує `strykerPlugins: [{kind: 'Ignore', name: 'vue-macros', value: {shouldIgnore}}]` — це формат, який очікує stryker-core plugin-loader (`module.strykerPlugins`); без імпорту `@stryker-mutator/api`.
+- **`rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs`** — vue-варіант baseline `stryker.config.mjs`: дефолтні поля + `plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` і `ignorers: ['vue-macros']` (поряд із vitest-runner тепер треба явно вказати runner, бо ручний `plugins` затирає Stryker default).
+- **`rules/test/js/stryker_config.mjs`** — концерн `stryker_config` тепер детектить `.vue` файли під `<jsRoot>/src/**` (skip `node_modules`/`dist`/`reports`) і у JS-roots із SFC ставить vue-варіант baseline + копіює `stryker-vue-macros-ignorer.mjs` поряд із конфігом. Backward-compat: jsRoot без `.vue` отримує дефолтний baseline без `plugins`/`ignorers`. Обидва файли копіюються через `ensureBaselineFile` — idempotent, ручні модифікації не перетираються. Tests: `+5` сценаріїв у `rules/test/js/tests/stryker_config.test.mjs` (vue-detection happy path, no-vue → дефолт, mixed monorepo, `.vue` лише у node_modules — НЕ vue, idempotency для vue-файлів) + новий `rules/test/js/tests/stryker-vue-macros-ignorer.test.mjs` (всі 6 макросів, non-macro callee, non-CallExpression, MemberExpression callee, anonymous callee).
+- **`rules/test/test.mdc`** (`version` 2.5 → 2.6) і дзеркало `.cursor/rules/n-test.mdc` — нова підсекція "Vue SFC (`<script setup>` macros)" у "Налаштування mutation-testing" з описом коли тригериться vue-варіант, які макроси скіпаються, чому без плагіна `@vue/compiler-sfc` падає на coverage-тернарнику Stryker. Мотивація — інакше boilerplate `// Stryker disable next-line` потрібен у кожному SFC.
+
+## [1.28.7] - 2026-05-28
+
+### Fixed
+
+- **`rules/js-lint/coverage/coverage.mjs`** — `n-cursor coverage` із кореня тепер працює у monorepo з частковим покриттям тестами (наприклад, `ai`: тести лише у `gt/`, інші `cf/*`/`run/*` без тестів). До цього перший workspace без тестів обривав ланцюг із `JS coverage exit 1`. Зміни: `defaultRunner.runJsCoverage` отримує `--passWithNoTests` (vitest 4.x — exit 0 у workspace без тестів); `collect()` розпиляно на `collectOneRoot(jsRoot, cwd, runner)` (per-workspace) і публічний агрегатор. `collectOneRoot` повертає `null` для workspace із порожнім lcov — Stryker у такому випадку не запускається. Реальні помилки (vitest exit ≠ 0, mutation.json відсутній при наявних тестах, compile errors) — throw, не маскуються. Якщо тестів немає у жодному workspace — `collect()` повертає `[]`, оркестратор `rules/test/coverage/coverage.mjs:runCoverageSteps` обробляє це як exit 1 із explainer-ом. Helpers `addCoverage`/`addMutation` беруться з `rules/test/coverage/coverage.mjs` (DRY, замість локальних копій). Додано 4 тести: monorepo з порожніми workspaces (skip), all-empty (`[]`), single-package без тестів, vitest exit ≠ 0 у monorepo (throw). ADR — `docs/adr/2026-05-28-coverage-multi-workspace-iteration.md`.
+- **`rules/test/test.mdc`** (`version` 2.4 → 2.5) і дзеркало `.cursor/rules/n-test.mdc` — секція "Multi-workspace iteration" з описом ітерації `resolveAllJsRoots()` і поведінки skip workspaces без тестів.
+
+### Changed
+
+- `abie` rule: `abie.package_json_docs` → `abie.package_json_shared`; пакет, що його перевіряє правило, перейменовано з `@nitra/abie-docs` на `@nitra/abie-shared` (паралель до `efes.package_json_shared` / `@nitra/efes-shared`). Реалізація: `npm/rules/abie/policy/package_json_shared/` (перейменовано з `package_json_docs/`). Bump `abie.mdc` `1.21` → `1.22`. Зачеплено: `.cursor/rules/conftest.mdc`.
+
+## [1.28.5] - 2026-05-28
+
+### Fixed
+
+- **`scripts/utils/resolve-js-root.mjs`** — `resolveAllJsRoots()` тепер розгортає glob-патерни (`cf/*`, `packages/*` тощо) у списку `workspaces` через `node:fs/promises#glob`. Без цього `cf/*` як літерал не резолвився через `existsSync`, і `resolveJsRoot()` падав на fallback → `cwd`; `n-cursor coverage` із кореня запускав vitest у root-у проєкту без `vitest.config.js` (через `gt/tests/setup.mjs` не підвантажувався). `resolveJsRoot()` тепер тонкий wrapper над `resolveAllJsRoots()[0]`. Додано 2 тести: glob-розгортання `cf/*` і fallback на `[cwd]` при порожньому збігу.
+- **`rules/js-lint/coverage/coverage.mjs#collect()`** — у monorepo тепер ітерує **всі** JS-roots з `resolveAllJsRoots()`, запускає vitest + Stryker у кожному окремо та сумує `lcov` (через локальний `addCoverage`) і `mutation` (через `addMutation`). Шляхи у `survived[].file` і `survived[].exampleTest.testFile` рібейзяться відносно `cwd` (`relative(cwd, jsRoot)`/`join(wsRel, file)`), щоб `coverage-fix.mjs#buildFixPrompt` коректно читав source-файли через `join(projectRoot, file)`. `detect()` повертає `true`, якщо vitest є хоча б в одному workspace АБО в кореневому `package.json`. Додано тест агрегування у monorepo з `cf/*`-glob.
+
+## [1.28.4] - 2026-05-28
+
+### Changed
+
+- **`rules/test/auto.md` → `завжди`**, **`scripts/auto-rules.mjs`** — правило `test` тепер додається у `.n-cursor.json#rules` беззастережно (як `adr`/`security`/`text`), без вимоги наявності `*.test.mjs`. `AUTO_RULE_ORDER` отримало `test`; `addRule('test')` викликається з безумовного блоку. Тест `auto-rules.test.mjs` оновлено: `'test'` додано в `ALL_RULES` і в очікуваний результат «додає правила за ознаками проєкту». Мотивація — узгодження з `bun.mdc`-винятком на root-only Vitest/Stryker peer/tools: щоб умова «корінь єдине місце для `vitest`/`@vitest/coverage-v8`/`@stryker-mutator/vitest-runner`» була правдою у кожному споживачі `@nitra/cursor`, а не «лише у dog food-репо».
+- **`rules/bun/bun.mdc`** (`version` 1.9 → 2.0) і дзеркало `.cursor/rules/n-bun.mdc` — переформульовано пункт про root-only Vitest/Stryker peer/tools: прибрано згадку «лише для dog food-репо `@nitra/cursor`», тепер виняток описано як **загальний** для будь-якого монорепо, що вмикає правило `test` і виконує `n-cursor coverage`. Структурна причина: published workspace-и за `npm-module.mdc` не мають `devDependencies`, а оркестратор coverage запускається з кореня. Збігається з фактичною поведінкою `policy/package_json/package_json.rego` (`allowed_root_test_deps` — глобальний whitelist, без перевірки імені репо).
+- **`rules/bun/policy/package_json/package_json.rego`** — оновлено docstring модуля і коментар на `allowed_root_dev_dependency`: тепер посилаються на always-on `test/auto.md` + `npm-module.mdc`, без «dog food-прогонів». Логіка `allowed_root_test_deps` не змінилася — лише пояснення синхронізовано з `bun.mdc`.
+
 ## [1.28.3] - 2026-05-28
 
 ### Changed
 
-- **`rules/ci4/ci4.mdc`** (`version` 2.0 → 2.1) — додано секцію **«Зв'язок із `.cursor/rules`»**: архітектурна документація у `docs/` не дублює зміст `.cursor/rules/*.mdc` (операційні правила лінту, тестів, CHANGELOG, версіонування), а посилається на потрібне правило через його ім'я у бектиках (наприклад, `див. **`changelog`**`). Дублікати розходяться з оригіналом і ламають automatic-перевірки `npx @nitra/cursor fix`/`check`; правки робляться в одному місці — у самому `.mdc`.
+- **`rules/efes/`** — слідом за перейменуванням `@nitra/efes-docs` → `@nitra/efes-shared` (репо `efes-cloud/docs` → `efes-cloud/shared`): rego-полісі `npm/rules/efes/policy/package_json_docs/` перейменовано на `package_json_shared/`, namespace `efes.package_json_docs` → `efes.package_json_shared`, перевірка тепер шукає `@nitra/efes-shared` у `devDependencies`. Оновлено `efes.mdc` (version `1.1` → `1.2`) та шлях до GraphQL-схеми у `graphql.mdc` (`node_modules/@nitra/efes-shared/schema/maya.graphql`). Споживачі efes-проєктів мають перейти на `@nitra/efes-shared`.
 
 ## [1.28.2] - 2026-05-28
 

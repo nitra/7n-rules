@@ -156,7 +156,7 @@ describe('rust coverage resolveJobs()', () => {
 
   test('повертає cpus-based fallback для пустого/відсутнього env', () => {
     const expected = Math.min(4, Math.max(1, Math.floor(cpus().length / 2)))
-    expect(resolveJobs(undefined)).toBe(expected)
+    expect(resolveJobs()).toBe(expected)
     expect(resolveJobs('')).toBe(expected)
   })
 

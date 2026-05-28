@@ -15,7 +15,7 @@ alwaysApply: false
 Підстав свої шляхи до схеми та до файлів з операціями; приклад орієнтиру:
 
 ```yaml title=".graphqlrc.yml"
-schema: node_modules/@nitra/efes-docs/schema/maya.graphql
+schema: node_modules/@nitra/efes-shared/schema/maya.graphql
 documents:
   - '**/*.{vue,js,ts,tsx}'
 ```

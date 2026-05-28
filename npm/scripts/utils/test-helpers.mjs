@@ -32,7 +32,11 @@ export async function withTmpDir(fn) {
   try {
     await fn(dir)
   } finally {
-    await rm(dir, { recursive: true, force: true })
+    // maxRetries: git hooks (наприклад, ADR capture-decisions, що пише у .git/ai/rewrite_log)
+    // можуть створювати файли всередині dir паралельно з recursive-walk у rm,
+    // що породжує ENOTEMPTY на rmdir. Повтори з retryDelay=100ms ловлять цей race
+    // без впливу на штатний випадок (де rm завершується з першої спроби).
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   }
 }
 

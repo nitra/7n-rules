@@ -78,7 +78,7 @@ export async function check() {
 
 **Реальні приклади (порядок упровадження):**
 
-- **abie** (пілот) — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_docs`) і запускається CLI `@nitra/cursor fix abie` через `policy/<pkg>/target.json`. JS-частини в `rules/abie/js/<concern>.mjs` лишають лише cross-file / FS-логіку: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
+- **abie** (пілот) — пер-документна валідація винесена в Rego (`abie.base_deployment_preem`, `abie.clean_merged_ignore_branches`, `abie.health_check_policy`, `abie.http_route_base`, `abie.package_json_shared`) і запускається CLI `@nitra/cursor fix abie` через `policy/<pkg>/target.json`. JS-частини в `rules/abie/js/<concern>.mjs` лишають лише cross-file / FS-логіку: env→cluster DNS (`env_dns/`), HCP↔Deployment pairing і modeline `hc.yaml` (`hc_pairing/`), ua-overlay JSON6902 patches на HTTPRoute + cross-namespace `backendRefs` (`ua_http_route/`), nodeSelector у Deployment (`ua_node_selector/`), Firebase Hosting артефакти (`firebase_hosting/`).
 - **ga** — `rules/ga/js/workflows.mjs::check()` починає з `runAllGaRego` (4 per-workflow + 1 batch для `ga.workflow_common`), далі — JS cross-file. `rules/ga/lint/lint.mjs` — `actionlint` + `zizmor` + `await checkGa()`. Раніше `lint-ga` сам спавнив conftest, а `fix ga` цього не робив — тепер централізовано.
 
 ### Workflow для нової перевірки

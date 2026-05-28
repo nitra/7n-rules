@@ -4,6 +4,12 @@
  * (всі workspaces з package.json, або cwd у single-package) і копіює canonical
  * baseline `stryker.config.mjs` + `vitest.config.js` у кожен root, де файлу немає.
  *
+ * Для JS-roots із `.vue` файлами (Vue 3 + `<script setup>`) копіюється vue-варіант
+ * baseline, який реєструє локальний Ignore-плагін `vue-macros` — інакше Stryker
+ * огортає виклики `defineProps`/`defineEmits`/... у coverage-тернарник і
+ * `@vue/compiler-sfc` падає при компіляції SFC. Плагін копіюється у той самий
+ * jsRoot як `stryker-vue-macros-ignorer.mjs`.
+ *
  * Self-gating: концерн silently skips коли `js-lint` не enabled — це навмисно,
  * щоб не шуміти у single-language проєктах без JS coverage tooling.
  *
@@ -11,7 +17,7 @@
  * лишаються на Stryker defaults (`src/**\/*.{js,mjs,ts,jsx,tsx,cjs}`).
  */
 import { existsSync } from 'node:fs'
-import { copyFile } from 'node:fs/promises'
+import { copyFile, glob } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -22,6 +28,9 @@ import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const STRYKER_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.baseline.mjs')
+const STRYKER_VUE_BASELINE_PATH = join(HERE, 'data', 'stryker_config', 'stryker.config.vue.baseline.mjs')
+const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vue-macros-ignorer.mjs')
+const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
 const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
 // Stryker-output патерн для .gitignore: увесь каталог reports/stryker/ — це
@@ -29,6 +38,23 @@ const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.
 // якщо користувач додасть інші reporter-и). Покриваємо одним патерном замість
 // перелічування під-патернів. Подвійний-зірочка-префікс — для monorepo workspaces.
 const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/']
+
+// .vue detection: scope — `<jsRoot>/src/**/*.vue` (як і Stryker mutate defaults для src/);
+// skip build-артефактів і чужих node_modules, щоб не вмикати vue-варіант через transitive deps.
+const VUE_GLOB_PATTERN = 'src/**/*.vue'
+const VUE_GLOB_IGNORE = ['**/node_modules/**', '**/dist/**', '**/reports/**']
+
+/**
+ * Чи містить jsRoot хоч один `.vue` файл під `src/` (skipping node_modules/dist/reports).
+ * @param {string} jsRoot абсолютний шлях до workspace-каталогу
+ * @returns {Promise<boolean>} true якщо знайдено хоча б один `.vue`
+ */
+async function hasVueFiles(jsRoot) {
+  for await (const _rel of glob(VUE_GLOB_PATTERN, { cwd: jsRoot, exclude: VUE_GLOB_IGNORE })) {
+    return true
+  }
+  return false
+}
 
 /**
  * Копіює baseline у target, якщо target ще не існує. Idempotent.
@@ -67,7 +93,12 @@ export async function check() {
     return reporter.getExitCode()
   }
 
-  for (const baselinePath of [STRYKER_BASELINE_PATH, VITEST_BASELINE_PATH]) {
+  for (const baselinePath of [
+    STRYKER_BASELINE_PATH,
+    STRYKER_VUE_BASELINE_PATH,
+    STRYKER_VUE_PLUGIN_PATH,
+    VITEST_BASELINE_PATH
+  ]) {
     if (!existsSync(baselinePath)) {
       reporter.fail(`canonical baseline не знайдено (${baselinePath}) — перевстанови @nitra/cursor`)
       return reporter.getExitCode()
@@ -75,13 +106,24 @@ export async function check() {
   }
 
   for (const jsRoot of jsRoots) {
+    const isVueRoot = await hasVueFiles(jsRoot)
+    const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
     await ensureBaselineFile(
       reporter,
       cwd,
-      STRYKER_BASELINE_PATH,
+      strykerBaseline,
       join(jsRoot, 'stryker.config.mjs'),
       'stryker.config.mjs'
     )
+    if (isVueRoot) {
+      await ensureBaselineFile(
+        reporter,
+        cwd,
+        STRYKER_VUE_PLUGIN_PATH,
+        join(jsRoot, STRYKER_VUE_PLUGIN_FILENAME),
+        STRYKER_VUE_PLUGIN_FILENAME
+      )
+    }
     await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
   }
 

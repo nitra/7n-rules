@@ -168,11 +168,67 @@ describe('js-lint coverage collect()', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('падає якщо Stryker не залишив mutation.json', async () => {
+  test('агрегує lcov + survived по всіх workspaces у monorepo (glob)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-mono-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    for (const ws of ['a', 'b']) {
+      const wsDir = join(dir, 'cf', ws)
+      mkdirSync(join(wsDir, 'src'), { recursive: true })
+      writeFileSync(join(wsDir, 'package.json'), JSON.stringify({ name: ws }))
+      writeFileSync(join(wsDir, 'src', `${ws}.js`), 'export function f() {\n  if (x) return 1\n}\n')
+      const reportDir = join(wsDir, 'reports', 'stryker')
+      mkdirSync(reportDir, { recursive: true })
+      writeFileSync(
+        join(reportDir, 'mutation.json'),
+        JSON.stringify({
+          files: {
+            [`src/${ws}.js`]: {
+              mutants: [
+                { status: 'Killed' },
+                {
+                  status: 'Survived',
+                  mutatorName: 'ConditionalExpression',
+                  replacement: 'false',
+                  location: { start: { line: 2, column: 6 }, end: { line: 2, column: 7 } }
+                }
+              ]
+            }
+          }
+        })
+      )
+    }
+
+    const cwds = []
+    const runner = {
+      runJsCoverage({ cwd, lcovDir }) {
+        cwds.push(cwd)
+        writeFileSync(join(lcovDir, 'lcov.info'), ['LF:10', 'LH:5', 'FNF:4', 'FNH:2', ''].join('\n'))
+        return 0
+      },
+      runStryker() {
+        return 0
+      }
+    }
+
+    const rows = await collect(dir, { runner })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].coverage).toEqual({
+      lines: { covered: 10, total: 20 },
+      functions: { covered: 4, total: 8 }
+    })
+    expect(rows[0].mutation).toEqual({ caught: 2, total: 4 })
+    expect(rows[0].survived.map(g => g.file).sort()).toEqual([join('cf', 'a', 'src', 'a.js'), join('cf', 'b', 'src', 'b.js')])
+    expect(cwds.sort()).toEqual([join(dir, 'cf', 'a'), join(dir, 'cf', 'b')])
+
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('падає якщо Stryker не залишив mutation.json (при наявних тестах)', async () => {
     const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
     const runner = {
       runJsCoverage({ lcovDir }) {
-        writeFileSync(join(lcovDir, 'lcov.info'), 'LF:0\nLH:0\nFNF:0\nFNH:0\n')
+        // Non-zero LF/FNF — workspace має тести, тож відсутність mutation.json є помилкою конфігурації
+        writeFileSync(join(lcovDir, 'lcov.info'), 'LF:10\nLH:5\nFNF:4\nFNH:2\n')
         return 0
       },
       runStryker() {
@@ -180,6 +236,115 @@ describe('js-lint coverage collect()', () => {
       }
     }
     await expect(collect(dir, { runner })).rejects.toThrow(MUTATION_JSON_RE)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('single-package без тестів — повертає [] (не throw)', async () => {
+    const dir = makeFixture({ scripts: { 'test:coverage': 'bun test --coverage' } })
+    const runner = {
+      runJsCoverage({ lcovDir }) {
+        // --passWithNoTests: vitest exit 0, але lcov порожній
+        writeFileSync(join(lcovDir, 'lcov.info'), '')
+        return 0
+      },
+      runStryker() {
+        return 0
+      }
+    }
+    expect(await collect(dir, { runner })).toEqual([])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('monorepo: workspaces без тестів тихо пропускаються; агрегує тільки workspace з тестами', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-mixed-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*', 'gt'] }))
+
+    // 2 workspaces без тестів (cf/a, cf/b)
+    for (const ws of ['cf/a', 'cf/b']) {
+      mkdirSync(join(dir, ws, 'src'), { recursive: true })
+      writeFileSync(join(dir, ws, 'package.json'), JSON.stringify({ name: ws.replace('/', '-') }))
+    }
+
+    // 1 workspace з тестами (gt)
+    const gtDir = join(dir, 'gt')
+    mkdirSync(join(gtDir, 'src'), { recursive: true })
+    writeFileSync(join(gtDir, 'package.json'), JSON.stringify({ name: 'gt' }))
+    writeFileSync(join(gtDir, 'src', 'a.js'), 'export function f() { return 1 }\n')
+    const reportDir = join(gtDir, 'reports', 'stryker')
+    mkdirSync(reportDir, { recursive: true })
+    writeFileSync(
+      join(reportDir, 'mutation.json'),
+      JSON.stringify({ files: { 'src/a.js': { mutants: [{ status: 'Killed' }, { status: 'Killed' }] } } })
+    )
+
+    const cwds = []
+    const strykerCalls = []
+    const runner = {
+      runJsCoverage({ cwd, lcovDir }) {
+        cwds.push(cwd)
+        const isGt = cwd.endsWith('/gt')
+        // Пусті cf/* — порожній lcov; gt — з даними
+        writeFileSync(join(lcovDir, 'lcov.info'), isGt ? 'LF:20\nLH:15\nFNF:5\nFNH:4\n' : '')
+        return 0
+      },
+      runStryker({ cwd }) {
+        strykerCalls.push(cwd)
+        return 0
+      }
+    }
+
+    const rows = await collect(dir, { runner })
+    expect(rows).toEqual([
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 15, total: 20 }, functions: { covered: 4, total: 5 } },
+        mutation: { caught: 2, total: 2 },
+        survived: []
+      }
+    ])
+    // vitest викликано у трьох workspaces (cf/a, cf/b, gt), Stryker — лише в gt
+    expect(cwds).toHaveLength(3)
+    expect(strykerCalls).toEqual([join(dir, 'gt')])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('monorepo: усі workspaces без тестів — повертає []', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-allempty-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    for (const ws of ['a', 'b']) {
+      mkdirSync(join(dir, 'cf', ws), { recursive: true })
+      writeFileSync(join(dir, 'cf', ws, 'package.json'), JSON.stringify({ name: ws }))
+    }
+    const strykerCalls = []
+    const runner = {
+      runJsCoverage({ lcovDir }) {
+        writeFileSync(join(lcovDir, 'lcov.info'), '')
+        return 0
+      },
+      runStryker({ cwd }) {
+        strykerCalls.push(cwd)
+        return 0
+      }
+    }
+    expect(await collect(dir, { runner })).toEqual([])
+    expect(strykerCalls).toEqual([])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('monorepo: vitest exit ≠ 0 в одному workspace — throw (реальні помилки не маскуються)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-coverage-fail-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    mkdirSync(join(dir, 'cf', 'a'), { recursive: true })
+    writeFileSync(join(dir, 'cf', 'a', 'package.json'), JSON.stringify({ name: 'a' }))
+    const runner = {
+      runJsCoverage() {
+        return 2
+      },
+      runStryker() {
+        return 0
+      }
+    }
+    await expect(collect(dir, { runner })).rejects.toThrow(/JS coverage.*exit 2/)
     rmSync(dir, { recursive: true, force: true })
   })
 })

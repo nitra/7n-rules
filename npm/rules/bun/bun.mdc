@@ -2,7 +2,7 @@
 description: Bun як єдиний package manager у монорепо
 globs: "**/package.json,**/bunfig.toml,**/bun.lock,**/bun.lockb"
 alwaysApply: false
-version: '1.9'
+version: '2.0'
 ---
 
 Проект використовує тільки Bun для керування залежностями та запуску скриптів.
@@ -42,7 +42,7 @@ Lockfile у репозиторії: `bun.lock`.
 - Якщо залежність потрібна лише одному пакету, додавати її в директорії цього пакета.
 - У CI та локально запускати скрипти через `bun run`.
 
-В кореневому в package.json не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`. Виняток для цього dog food-репозиторію `@nitra/cursor`: root-only Vitest/Stryker peer/tools (`vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`), бо published workspace `npm/` не має devDependencies за `npm-module.mdc`. Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn.
+В кореневому `package.json` не повинно бути `dependencies`, а в `devDependencies` — тільки модулі `@nitra/*`. **Виняток (root-only)** — Vitest/Stryker peer/tools для `n-cursor coverage`: `vitest`, `@vitest/coverage-v8`, `@stryker-mutator/vitest-runner`. Тримати їх **у корені** доводиться у будь-якому монорепо-споживачі, бо правило `test` enabled завжди (`test/auto.md` = `завжди`), а класти ці пакети у workspace-и не можна: published пакети (`npm-module.mdc`) не мають мати `devDependencies`, а інші workspace-и однаково запускають coverage оркестратор з кореня. Якщо в package.json є поля `packageManager`, то прибрати їх, також прибрати всі директорії та файли для yarn.
 
 - Заборонені top-level поля у root `package.json` (з причинами): [package.json.deny.json](./policy/package_json/template/package.json.deny.json)
 

@@ -1,33 +1,48 @@
 /**
  * Резолвить корінь JS-коду в проєкті: для workspace-projects — перший workspace
- * (наприклад `app/` у mail app), для single-package — корінь cwd. Спільна утиліта
- * для coverage-провайдера js-lint і test-концерну stryker_config (DRY).
+ * (з підтримкою glob-патернів типу `cf/*`), для single-package — корінь cwd.
+ * Спільна утиліта для coverage-провайдера js-lint і test-концерну stryker_config (DRY).
  */
 import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
+import { glob, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+
+const WORKSPACE_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**']
+
+/**
+ * Розгортає один workspace-патерн у список абсолютних шляхів каталогів з package.json.
+ * Літеральні патерни перевіряються через existsSync; glob-патерни — через node:fs/promises#glob.
+ * @param {string} cwd корінь проєкту
+ * @param {string} pattern workspace-патерн з package.json (наприклад, `app` або `cf/*`)
+ * @returns {Promise<string[]>} абсолютні шляхи до workspace-каталогів
+ */
+async function expandWorkspacePattern(cwd, pattern) {
+  if (!pattern.includes('*')) {
+    const wsPath = join(cwd, pattern)
+    return existsSync(join(wsPath, 'package.json')) ? [wsPath] : []
+  }
+  const results = []
+  for await (const rel of glob(`${pattern}/package.json`, { cwd, exclude: WORKSPACE_GLOB_IGNORE })) {
+    const wsRel = rel.replace(/[/\\]package\.json$/, '')
+    results.push(join(cwd, wsRel))
+  }
+  return results.sort()
+}
 
 /**
  * @param {string} cwd корінь проєкту (де `.n-cursor.json` і кореневий package.json)
  * @returns {Promise<string|null>} абсолютний шлях до JS-root або null без кореневого package.json
  */
 export async function resolveJsRoot(cwd) {
-  const rootPkgPath = join(cwd, 'package.json')
-  if (!existsSync(rootPkgPath)) return null
-  const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
-  const workspaces = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []
-  if (workspaces.length > 0) {
-    const wsPath = join(cwd, workspaces[0])
-    if (existsSync(join(wsPath, 'package.json'))) return wsPath
-  }
-  return cwd
+  const roots = await resolveAllJsRoots(cwd)
+  if (roots.length === 0) return null
+  return roots[0]
 }
 
 /**
  * Plural-варіант: повертає всі JS-roots проєкту. Для workspace-projects — кожен
- * workspace з власним `package.json`; для single-package — `[cwd]`. Порожній
- * масив без кореневого package.json. Використовується test-концерном
- * `stryker_config` для per-workspace baseline-копіювання.
+ * workspace з власним `package.json` (з розгортанням glob-патернів); для
+ * single-package — `[cwd]`. Порожній масив без кореневого package.json.
  * @param {string} cwd корінь проєкту
  * @returns {Promise<string[]>} абсолютні шляхи до всіх JS-roots
  */
@@ -35,12 +50,11 @@ export async function resolveAllJsRoots(cwd) {
   const rootPkgPath = join(cwd, 'package.json')
   if (!existsSync(rootPkgPath)) return []
   const rootPkg = JSON.parse(await readFile(rootPkgPath, 'utf8'))
-  const workspaces = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []
-  if (workspaces.length === 0) return [cwd]
+  const patterns = Array.isArray(rootPkg.workspaces) ? rootPkg.workspaces : []
+  if (patterns.length === 0) return [cwd]
   const roots = []
-  for (const ws of workspaces) {
-    const wsPath = join(cwd, ws)
-    if (existsSync(join(wsPath, 'package.json'))) roots.push(wsPath)
+  for (const pattern of patterns) {
+    roots.push(...(await expandWorkspacePattern(cwd, pattern)))
   }
   return roots.length > 0 ? roots : [cwd]
 }

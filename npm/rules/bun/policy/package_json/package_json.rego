@@ -5,7 +5,9 @@
 # (top-level fields заборонені у root).
 #
 # Логіка, що ЛИШАЄТЬСЯ у rego (inverse-patterns, не виносяться у template):
-#  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для dog food (inverse-pattern)
+#  - `devDependencies` лише `@nitra/*` + root-only тестові peer/tools для `n-cursor coverage`
+#    (правило `test` enabled завжди — див. `test/auto.md`; published workspace-и не мають
+#     `devDependencies` за `npm-module.mdc`)
 #  - Агрегований `lint` скрипт (cross-script aggregation logic)
 #
 # Перевірки, які ЗАЛИШИЛИСЬ у JS (потребують FS / cross-file):
@@ -71,8 +73,9 @@ allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vi
 allowed_root_dev_dependency(name) if {
 	startswith(name, "@nitra/")
 } else if {
-	# Ці пакети потрібні на рівні root для dog food-прогонів Vitest/Stryker у монорепо,
-	# але npm-module забороняє класти devDependencies у published workspace `npm/`.
+	# Vitest/Stryker peer/tools для `n-cursor coverage` живуть у корені будь-якого
+	# монорепо-споживача: правило `test` enabled завжди, а published workspace-и
+	# не мають `devDependencies` (`npm-module.mdc`).
 	name in allowed_root_test_deps
 }
 
