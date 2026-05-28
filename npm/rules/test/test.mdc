@@ -1,6 +1,6 @@
 ---
 description: JS-тести (*.test.mjs) живуть у tests/. Правило `test` керує stryker.config.mjs + vitest.config.js (якщо js-lint enabled) і .cargo/mutants.toml (якщо rust enabled).
-version: '2.5'
+version: '2.6'
 globs: "**/{.n-cursor.json,package.json,Cargo.toml,stryker.config.mjs,vitest.config.js,.cargo/mutants.toml},**/*.test.mjs"
 alwaysApply: false
 ---
@@ -100,6 +100,14 @@ Canonical `vitest.config.js` (для довідки — `pool: 'forks'` + `inclu
 Якщо у `.n-cursor.json#rules` присутнє правило `js-lint` — правило `test` створює canonical baseline `stryker.config.mjs` + `vitest.config.js` у **кожному** JS-root проєкту: у кожному workspace з власним `package.json` (або в корені для single-package). У monorepo з `workspaces: ['app', 'scripts']` отримаєте `app/stryker.config.mjs` + `app/vitest.config.js` і `scripts/stryker.config.mjs` + `scripts/vitest.config.js`.
 
 Канон Stryker config (Vitest runner + perTest): [stryker.config.baseline.mjs](./js/data/stryker_config/stryker.config.baseline.mjs)
+
+### Vue SFC (`<script setup>` macros)
+
+Якщо у JS-root знайдено бодай один `.vue` під `src/` (skip `node_modules`/`dist`/`reports`) — концерн ставить **vue-варіант** baseline ([`stryker.config.vue.baseline.mjs`](./js/data/stryker_config/stryker.config.vue.baseline.mjs)) замість звичайного і додатково копіює локальний Stryker `Ignore`-плагін [`stryker-vue-macros-ignorer.mjs`](./js/data/stryker_config/stryker-vue-macros-ignorer.mjs) поряд із конфігом.
+
+Плагін реєструється як `plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` + `ignorers: ['vue-macros']` і виключає з мутацій виклики `<script setup>`-макросів: **`defineProps`**, **`defineEmits`**, **`defineModel`**, **`defineSlots`**, **`defineExpose`**, **`defineOptions`**. Без плагіна Stryker огортає аргументи макроса у coverage-тернарник (`stryMutAct_9fa48(...) ? {} : (stryCov_9fa48(...), {...})`), а `@vue/compiler-sfc` падає з `defineProps() in <script setup> cannot reference locally declared variables` — макроси мають бути статично-аналізованими на етапі compile-sfc. Альтернатива з boilerplate `// Stryker disable next-line` у кожному SFC не масштабується.
+
+JS-root без `.vue` отримує дефолтний baseline без `plugins`/`ignorers` (backward-compatible). Обидва файли копіюються idempotent — наявний `stryker.config.mjs` / `stryker-vue-macros-ignorer.mjs` не перетирається.
 
 ### Vitest baseline та `package.json#scripts`
 

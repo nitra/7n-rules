@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.8] - 2026-05-28
+
+### Added
+
+- **`rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs`** — новий локальний Stryker `Ignore`-плагін `vue-macros`. `shouldIgnore(path)` повертає non-empty message для `CallExpression`, де `callee` — `Identifier` з ім'ям у наборі Vue `<script setup>`-макросів: `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`. Експортує `strykerPlugins: [{kind: 'Ignore', name: 'vue-macros', value: {shouldIgnore}}]` — це формат, який очікує stryker-core plugin-loader (`module.strykerPlugins`); без імпорту `@stryker-mutator/api`.
+- **`rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs`** — vue-варіант baseline `stryker.config.mjs`: дефолтні поля + `plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` і `ignorers: ['vue-macros']` (поряд із vitest-runner тепер треба явно вказати runner, бо ручний `plugins` затирає Stryker default).
+- **`rules/test/js/stryker_config.mjs`** — концерн `stryker_config` тепер детектить `.vue` файли під `<jsRoot>/src/**` (skip `node_modules`/`dist`/`reports`) і у JS-roots із SFC ставить vue-варіант baseline + копіює `stryker-vue-macros-ignorer.mjs` поряд із конфігом. Backward-compat: jsRoot без `.vue` отримує дефолтний baseline без `plugins`/`ignorers`. Обидва файли копіюються через `ensureBaselineFile` — idempotent, ручні модифікації не перетираються. Tests: `+5` сценаріїв у `rules/test/js/tests/stryker_config.test.mjs` (vue-detection happy path, no-vue → дефолт, mixed monorepo, `.vue` лише у node_modules — НЕ vue, idempotency для vue-файлів) + новий `rules/test/js/tests/stryker-vue-macros-ignorer.test.mjs` (всі 6 макросів, non-macro callee, non-CallExpression, MemberExpression callee, anonymous callee).
+- **`rules/test/test.mdc`** (`version` 2.5 → 2.6) і дзеркало `.cursor/rules/n-test.mdc` — нова підсекція "Vue SFC (`<script setup>` macros)" у "Налаштування mutation-testing" з описом коли тригериться vue-варіант, які макроси скіпаються, чому без плагіна `@vue/compiler-sfc` падає на coverage-тернарнику Stryker. Мотивація — інакше boilerplate `// Stryker disable next-line` потрібен у кожному SFC.
+
 ## [1.28.7] - 2026-05-28
 
 ### Fixed
