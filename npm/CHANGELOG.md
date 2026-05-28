@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.28.3] - 2026-05-28
+
+### Changed
+
+- **`rules/efes/`** — слідом за перейменуванням `@nitra/efes-docs` → `@nitra/efes-shared` (репо `efes-cloud/docs` → `efes-cloud/shared`): rego-полісі `npm/rules/efes/policy/package_json_docs/` перейменовано на `package_json_shared/`, namespace `efes.package_json_docs` → `efes.package_json_shared`, перевірка тепер шукає `@nitra/efes-shared` у `devDependencies`. Оновлено `efes.mdc` (version `1.1` → `1.2`) та шлях до GraphQL-схеми у `graphql.mdc` (`node_modules/@nitra/efes-shared/schema/maya.graphql`). Споживачі efes-проєктів мають перейти на `@nitra/efes-shared`.
+
 ## [1.28.2] - 2026-05-28
 
 ### Changed
