@@ -1,0 +1,19 @@
+npm/scripts/utils/test-helpers.mjs
+  s_e9bf4a184b5a4c::t_a1bd5cc11b9d12 35-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "acc1b21adc8639d3c9192a6c48e555d735bcb844",
+  "prompts": {},
+  "sessions": {
+    "s_e9bf4a184b5a4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2208c7de-d9d4-4720-b355-d3b5587de978",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
