@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.29.1] - 2026-05-28
+
+### Fixed
+
+- **`rules/test/js/data/vitest_config/vitest.config.baseline.js`** canon — додано `exclude: ['**/node_modules/**', '**/dist/**', '**/reports/stryker/**']`. Без exclude vitest пiдхоплює sandbox-копії тестів зі `reports/stryker/.tmp/sandbox-…/`, що залишилися від інкрементальних або аборнутих Stryker-прогонів; ці тести запускаються поза реальним repo root і фейляться (типово — `integration-repo-checks.test.mjs`, яке очікує bun.lock, bunfig.toml, кореневий `package.json`). Дзеркальна правка у `npm/vitest.config.js` для самого cursor-репо.
+
 ## [1.29.0] - 2026-05-28
 
 ### Changed
