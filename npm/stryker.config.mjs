@@ -16,9 +16,23 @@ export default {
   // Дає ~262× прискорення на noop-прогонах (див. benchmarks/runner-comparison/SPIKE.md).
   incremental: true,
   incrementalFile: 'reports/stryker/incremental.json',
-  // Mutate тільки скрипти та coverage-провайдери, що мають юніт-тести.
-  // Виключаємо rule-fix/check .mjs (сотні файлів, покриті інтеграційними тестами).
-  // Тимчасово: тільки orchestrator для швидкої перевірки pipeline.
-  // Для продакшн: ['scripts/*.mjs', 'scripts/utils/*.mjs', 'rules/*/coverage/coverage.mjs']
-  mutate: ['rules/test/coverage/coverage.mjs']
+  // Покриваємо весь production-код: scripts/ (lib/utils/CLI helpers), rules/<r>/{js,lib,coverage}/
+  // + кореневі rule-`fix.mjs`. Test-файли Stryker і так виключає за іменем (`*.test.*`),
+  // але `tests/` і `__fixtures__/` міняємо явно для прозорості. `data/`, `template(s)/` —
+  // baseline-шаблони/JSON-канон, що копіюються консьюмерам як-є; логіки для мутації немає,
+  // тому виключаємо щоб не інфляти survived-рейтинг (виняток — `rules/test/js/data/stryker_config/
+  // stryker-vue-macros-ignorer.mjs`, у якого є власні юніт-тести). `bin/` — CLI-entry,
+  // покрита integration-тестами через subprocess.
+  mutate: [
+    'scripts/**/*.mjs',
+    'rules/**/*.mjs',
+    'bin/**/*.{js,mjs}',
+    '!**/tests/**',
+    '!**/__fixtures__/**',
+    '!**/fixtures/**',
+    '!**/data/**',
+    '!**/template/**',
+    '!**/templates/**',
+    'rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs'
+  ]
 }

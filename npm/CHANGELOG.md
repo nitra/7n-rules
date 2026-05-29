@@ -4,11 +4,38 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.30.0] - 2026-05-29
+## [1.29.5] - 2026-05-29
+
+### Added
+
+- **`rules/js-bun-db/js-bun-db.mdc`** (`version` 1.11 → 1.12) і дзеркало `.cursor/rules/n-js-bun-db.mdc` — нова секція **`## sql.array(arr, type) для передачі масивів`**: обов'язкове використання `pgWrite.array(arr, type)` / `pgRead.array(arr, type)` замість прямої підстановки JS-масиву `${arr}` або cast-синтаксису `${arr}::type[]` у Bun SQL template literal. Другий аргумент типу обов'язковий — без нього Bun не може вивести pg-тип. Секція містить таблицю заборонених/дозволених патернів, таблицю відповідності JS↔PostgreSQL типів і повний приклад UNNEST + MERGE. Рядок `| Масив значень у \`unnest(...)\` | \`sql.array(arr, type)\` — обов'язково з типом |` додано до таблиці рішень.
+- **`rules/bun/bun.mdc`** (`version` 2.0 → 2.1) і дзеркало `.cursor/rules/n-bun.mdc` — `@playwright/test` додано до **root-only** винятків у `devDependencies` кореневого `package.json` (поряд із Vitest/Stryker peer/tools для `n-cursor coverage`).
+- **`rules/bun/policy/package_json/package_json.rego`** — `"@playwright/test"` додано до набору `allowed_root_test_deps`; дозволяє споживачам тримати пакет у root `devDependencies` без порушення bun-policy.
+- **`rules/bun/policy/package_json/package_json_test.rego`** — новий тест `test_allow_playwright_test`: перевіряє, що `@playwright/test` у root `devDependencies` не генерує deny.
+
+## [1.29.4] - 2026-05-29
+
+### Fixed
+
+- **`.claude-template/hooks/capture-decisions.sh`**, **`.claude-template/hooks/normalize-decisions.sh`** — директива sourcing-у helper-а змінена з `# shellcheck source=npm/.claude-template/hooks/lib/tooling-only.sh` на `# shellcheck source=lib/tooling-only.sh disable=SC1091`. Без `-x` shellcheck не «заходить» у sourced-файл і видає **SC1091** (info), а `runFinalShellcheck` у `rules/text/lint/run-shellcheck.mjs` валить `lint-text` на будь-якому ненульовому exit (info включно). Відносний `source=lib/tooling-only.sh` узгоджений із фікстурою `scripts/tests/sync-claude-config.test.mjs`; `disable=SC1091` глушить info у фінальному прогоні без `-x`. Проєктні копії в `.claude/hooks/` синкаються звідси.
+
+## [1.29.3] - 2026-05-29
 
 ### Changed
 
-- **`rules/ci4/ci4.mdc`** (`version` 2.1 → 3.0) — viewer-story повністю переписано під **Zed + marksman LSP без site-generator-а**. MkDocs Material і pymdownx-розширення (`!!! note`, `??? engineer`, `=== "tab"`, кастомні audience-CSS) прибрані як рекомендація: їх не рендерить вбудований MD-preview Zed, що ламає принцип «відкрив файл = бачу фінальний вигляд». Collapsible-блоки для змішаної аудиторії — через нативний HTML5 `<details>` / `<summary>`, що рендериться скрізь (Zed preview, GitHub, будь-який майбутній збирач) без розширень парсера. Введено **portable-only subset**: CommonMark + GFM + Mermaid у fenced code + KaTeX + `<details>`; заборонені VitePress containers (`::: tip`), MDX/Astro-компоненти, Hugo shortcodes, AsciiDoc-вкраплення, RST-директиви. Конвенція маркера у `<summary>`: перше слово — аудиторія з фіксованого словника (`Engineer:`/`Ops:`/`Security:`/`Manager:`) → детермінований regex для валідатора. Валідатор отримав чотири нові перевірки: жоден `Engineer:`/`Ops:`/`Security:` блок у manager-only проекціях; кожен `<details>` має оточуючі порожні рядки (інакше `<summary>` рендериться як plain HTML); у `docs/` немає заборонених framework-specific конструкцій; inter-doc посилання працюють для marksman LSP (відносні шляхи або wiki-links). Промпт-скелет LLM-проекцій оновлено — генератор видає `<details>`, не `???`, і дотримується списку заборонених синтаксисів. Subset **forward-compatible**: будь-який збирач (MkDocs, VitePress, Antora) підключається пізніше без переписування контенту. Дзеркало `.cursor/rules/n-ci4.mdc` синхронізується наступним прогоном `npx @nitra/cursor`.
+- **`rules/test/js/stryker_config.mjs`** — концерн `stryker_config` додає у кореневий `.gitignore` ще й `**/coverage/` (весь ефемерний output vitest v8 coverage: `lcov.info` + HTML `lcov-report/`) поряд із `**/reports/stryker/`. Coverage регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`; gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні. Секцію .gitignore перейменовано на `# Test artifacts: Stryker + coverage`. Документація — `test.mdc`.
+- **`rules/test/js/stryker_config.mjs`**, **`rules/test/js/cargo_mutants_config.mjs`**, **`rules/tauri/js/cargo_mutants_config.mjs`** — `check()` → `check(cwd = process.cwd())` за test.mdc canon (production functions приймають перший параметр `cwd`). До цього усі три концерни читали лише `process.cwd()`, через що тести змушені були викликати `process.chdir(dir)` (з обходом regex-сканера `no-process-chdir` через `import { chdir } from 'node:process'`). Stryker крутить vitest у threads-pool (`@stryker-mutator/vitest-runner` форсує `pool: 'threads'`, перетираючи `pool: 'forks'` у `vitest.config.js`), де `process.chdir` не підтримується → dry-run обривався з `process.chdir() is not supported in workers`. Тести у `tests/stryker_config.test.mjs`, `tests/cargo_mutants_config.test.mjs` (обидва правила) переписано на `runCheckIn(dir) → check(dir)` без chdir.
+
+### Fixed
+
+- **`tests/integration-repo-checks.test.mjs`** — `test.skipIf(env.STRYKER_MUTATOR_WORKER)` для test `узгоджені з поточним деревом cursor` (env-import із `node:process` за `js-run.mdc`). Stryker копіює репо у `reports/stryker/.tmp/sandbox-XXX/` і запускає тести звідти; `REPO_ROOT = join(import.meta.dirname, '..', '..')` резолвиться у sandbox-копію, де `checkNpmModule` валідує CHANGELOG vs HEAD-version без живого `.git/` і повертає 1 → Stryker dry-run обривається (`ConfigError: There were failed tests in the initial test run.`). Для mutation-analysis інтеграція проти живого дерева не дає додаткової сигналу понад per-rule unit-тести.
+- **`rules/js-lint/coverage/coverage.mjs:236`** `runStryker` — `bunx` → `npx` для запуску `@stryker-mutator/core`. Bunx **завжди** інсталює пакет у `T/bunx-<uid>-<pkg>@latest/node_modules/` і запускає Stryker звідти, навіть коли локальний install уже існує у hoisted node_modules. Stryker plugin-discovery (`@stryker-mutator/*`) globится відносно core-install-каталогу (`core/dist/src/di/plugin-loader.js:79` → `../../../../../@stryker-mutator/*`) — у bunx-temp бачить лише `core/api/instrumenter/util` (всі чотири у `IGNORED_PACKAGES`), а локально встановлений `@stryker-mutator/vitest-runner` залишається невидимим. Worker-процеси падають з `Cannot find TestRunner plugin "vitest". In fact, no TestRunner plugins were loaded.`. До зняття `mutate`-обмеження (1.29.2) баг маскувався: при єдиному файлі у scope Stryker incremental-кеш мав усі 141 мутант → fresh-workers не стартували → плагін не потрібен. Після розширення `mutate` 25052 мутантів вимагали свіжих workers — баг проявився. `npx` шукає у локальному `node_modules/.bin/` (walking up), запускає Stryker з cursor-репо install, де поряд лежить vitest-runner.
+
+## [1.29.2] - 2026-05-29
+
+### Changed
+
+- **`npm/stryker.config.mjs`** — знято тимчасове обмеження `mutate: ['rules/test/coverage/coverage.mjs']` (yet single orchestrator-file). Тепер Stryker мутує весь production-код cursor-репо: `scripts/**/*.mjs` (lib/utils/CLI helpers), `rules/**/*.mjs` (`<r>/{js,lib,coverage,fix.mjs}`), `bin/**/*.{js,mjs}`. Виключаємо `**/tests/**`, `**/__fixtures__/**`, `**/fixtures/**`, `**/data/**`, `**/template/**`, `**/templates/**` — це або тести/фікстури (Stryker і так пропускає за іменем, але дублюємо явно для прозорості), або baseline-шаблони/JSON-канон, що копіюються консьюмерам як-є й не мають логіки для мутації (інфляція survived-рейтингу без сенсу). Explicit include для `rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs` — єдиний `data/`-файл із власними юніт-тестами (`tests/stryker-vue-macros-ignorer.test.mjs`). Мотивація — `lib/`-модулі правил (`abie/lib/env-dns.mjs`, `abie/lib/http-route.mjs` тощо) мають юніт-тести у `<rule>/lib/tests/`, але до зняття обмеження не потрапляли у mutation-score — JS-row у `COVERAGE.md` показував лише orchestrator.
 
 ## [1.29.1] - 2026-05-28
 
@@ -21,7 +48,6 @@
 ### Changed
 
 - **`rules/ci4/ci4.mdc`** (`version` 2.0 → 2.1) — додано секцію **«Зв'язок із `.cursor/rules`»**: архітектурна документація у `docs/` не дублює зміст `.cursor/rules/*.mdc` (операційні правила лінту, тестів, CHANGELOG, версіонування), а посилається на потрібне правило через його ім'я у бектиках (наприклад, `див. **`changelog`**`). Дублікати розходяться з оригіналом і ламають automatic-перевірки `npx @nitra/cursor fix`/`check`; правки робляться в одному місці — у самому `.mdc`.
-
 
 ## [1.28.8] - 2026-05-28
 

@@ -15,3 +15,6 @@ dist/
 
 # Stryker mutation testing (test.mdc)
 **/reports/stryker/
+
+# Test artifacts: Stryker + coverage (test.mdc)
+**/coverage/

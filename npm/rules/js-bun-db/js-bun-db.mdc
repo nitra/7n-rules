@@ -2,7 +2,7 @@
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 globs: "**/package.json,**/src/conn/**"
 alwaysApply: false
-version: '1.11'
+version: '1.12'
 ---
 
 ## Підтримувані версії баз даних
@@ -276,6 +276,7 @@ const rows = await sql.unsafe(query, values)
 | Динамічний `WHERE` (полів багато) | whitelist + ручні `$N` + `sql.unsafe(text, vals)`    |
 | Сирий migration / DDL             | `sql.unsafe(text)` з `// allow-unsafe: <причина>`    |
 | User input як value               | **тільки** Bun parameters / `$N` bind                |
+| Масив значень у `unnest(...)`     | `sql.array(arr, type)` — обов'язково з типом         |
 
 Головне правило:
 
@@ -382,6 +383,73 @@ await sql.begin(async tx => {
   await tx`INSERT INTO users ${sql(user)}`
   await tx`UPDATE accounts SET balance = balance - ${100} WHERE user_id = ${user.id}`
 })
+```
+
+## `sql.array(arr, type)` для передачі масивів
+
+Коли JS-масив передається як параметр у Bun SQL template literal всередині `unnest(...)` або іншого контексту, де PostgreSQL очікує типізований масив (`int4[]`, `uuid[]` тощо), — обов'язково використовувати `sql.array(arr, type)` (або `pgWrite.array` / `pgRead.array` — вони є екземплярами `SQL`). Другий аргумент (тип елементів) — обов'язковий.
+
+### Заборонені патерни
+
+```javascript
+// ❌ пряма підстановка масиву — Bun серіалізує як рядок, не як pg-масив
+${ids}
+
+// ❌ cast-синтаксис без .array() — працює в деяких версіях, але не гарантований
+${ids}::int8[]
+
+// ❌ відсутній тип — Bun не може вивести тип pg, можливий mismatch
+sql.array(ids)
+```
+
+### Дозволені патерни
+
+```javascript
+// ✅ pgWrite.array з явним типом
+${pgWrite.array(ids, 'int8')}
+${pgWrite.array(uuids, 'uuid')}
+${pgWrite.array(flags, 'bool')}
+${pgWrite.array(amounts, 'numeric')}
+${pgWrite.array(names, 'text')}
+${pgWrite.array(dates, 'date')}
+${pgWrite.array(timestamps, 'timestamptz')}
+
+// ✅ pgRead.array — те саме правило
+${pgRead.array(ids, 'int4')}
+```
+
+### Таблиця типів
+
+| JS-тип        | PostgreSQL тип | Аргумент        |
+| ------------- | -------------- | --------------- |
+| number (int)  | int4           | `'int4'`        |
+| bigint / id   | int8           | `'int8'`        |
+| UUID string   | uuid           | `'uuid'`        |
+| boolean       | bool           | `'bool'`        |
+| decimal/float | numeric        | `'numeric'`     |
+| string        | text           | `'text'`        |
+| date string   | date           | `'date'`        |
+| ISO datetime  | timestamptz    | `'timestamptz'` |
+
+### Повний приклад (UNNEST + MERGE)
+
+```javascript
+await pgWrite`
+  MERGE INTO "order".product p
+  USING (
+    SELECT * FROM unnest(
+      ${pgWrite.array(rows.map(r => r.order_id), 'uuid')},
+      ${pgWrite.array(rows.map(r => r.product_id), 'int4')},
+      ${pgWrite.array(rows.map(r => r.qty), 'numeric')},
+      ${pgWrite.array(rows.map(r => r.is_refund), 'bool')}
+    ) AS s(order_id, product_id, qty, is_refund)
+  ) AS s ON p.order_id = s.order_id AND p.product_id = s.product_id
+  WHEN MATCHED THEN
+    UPDATE SET qty = s.qty
+  WHEN NOT MATCHED THEN
+    INSERT (order_id, product_id, qty, is_refund)
+    VALUES (s.order_id, s.product_id, s.qty, s.is_refund)
+`
 ```
 
 ## Коментар під час виправлення SQL injection

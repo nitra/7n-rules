@@ -68,7 +68,7 @@ deny contains msg if {
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
-allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner"}
+allowed_root_test_deps := {"vitest", "@vitest/coverage-v8", "@stryker-mutator/vitest-runner", "@playwright/test"}
 
 allowed_root_dev_dependency(name) if {
 	startswith(name, "@nitra/")

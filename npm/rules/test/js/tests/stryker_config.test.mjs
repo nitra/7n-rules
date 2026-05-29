@@ -7,7 +7,6 @@ import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { chdir, cwd as getCwd } from 'node:process'
 
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
 import { check } from '../stryker_config.mjs'
@@ -37,19 +36,14 @@ function makeProj({ rules = [], disableRules = [], workspaceRoot = false } = {})
 }
 
 /**
- * Викликає check() з chdir у заданий каталог, щоб концерн читав .n-cursor.json
- * саме звідти (бо check читає process.cwd()).
+ * Викликає `check(dir)` без `process.chdir` (test.mdc: усі production functions
+ * приймають перший параметр `cwd = process.cwd()`; це і дозволяє Stryker-у крутити
+ * тести у threads-pool, де chdir не підтримується).
  * @param {string} dir каталог проєкту
  * @returns {Promise<number>} exit code
  */
 async function runCheckIn(dir) {
-  const prev = getCwd()
-  chdir(dir)
-  try {
-    return await check()
-  } finally {
-    chdir(prev)
-  }
+  return check(dir)
 }
 
 describe('stryker_config concern', () => {
@@ -156,19 +150,20 @@ describe('stryker_config concern', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
-  test('js-lint enabled — додає Stryker-патерни у .gitignore (створює якщо немає)', async () => {
+  test('js-lint enabled — додає тест-патерни у .gitignore (створює якщо немає)', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     const gitignore = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
     expect(gitignore).toContain('**/reports/stryker/')
-    expect(gitignore).toContain('# Stryker mutation testing')
+    expect(gitignore).toContain('**/coverage/')
+    expect(gitignore).toContain('# Test artifacts: Stryker + coverage')
     proj.cleanup()
   })
 
-  test('js-lint enabled + .gitignore вже має Stryker-патерн — не дублює', async () => {
+  test('js-lint enabled + .gitignore вже має тест-патерни — не дублює', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
-    writeFileSync(join(proj.dir, '.gitignore'), 'node_modules/\n**/reports/stryker/\n')
+    writeFileSync(join(proj.dir, '.gitignore'), 'node_modules/\n**/reports/stryker/\n**/coverage/\n')
     const before = readFileSync(join(proj.dir, '.gitignore'), 'utf8')
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)

@@ -50,6 +50,15 @@ test_allow_root_test_peer_deps if {
 	count(package_json.deny) == 0 with input as pkg with data.template as template_data
 }
 
+test_allow_playwright_test if {
+	pkg := json.patch(valid_pkg, [{
+		"op": "replace",
+		"path": "/devDependencies",
+		"value": {"@nitra/eslint-config": "^3.9.2", "@playwright/test": "^1.60.0"},
+	}])
+	count(package_json.deny) == 0 with input as pkg with data.template as template_data
+}
+
 # ── deny: devDependencies лише @nitra/* або root-only test peers ─
 
 test_deny_non_nitra_devdep if {

@@ -23,11 +23,11 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const BASELINE_PATH = join(HERE, 'data', 'cargo_mutants_config', 'mutants.toml.baseline')
 
 /**
+ * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
-  const cwd = process.cwd()
   const config = await readNCursorConfigLite(cwd)
 
   // Self-gate: rust має бути enabled
