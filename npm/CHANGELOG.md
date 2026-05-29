@@ -3,6 +3,11 @@
 Усі помітні зміни цього модуля документуються тут.
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
+# [1.30.0] - 2026-05-29
+
+### Changed
+
+- **`rules/ci4/ci4.mdc`** (`version` 2.1 → 3.0) — viewer-story повністю переписано під **Zed + marksman LSP без site-generator-а**. MkDocs Material і pymdownx-розширення (`!!! note`, `??? engineer`, `=== "tab"`, кастомні audience-CSS) прибрані як рекомендація: їх не рендерить вбудований MD-preview Zed, що ламає принцип «відкрив файл = бачу фінальний вигляд». Collapsible-блоки для змішаної аудиторії — через нативний HTML5 `<details>` / `<summary>`, що рендериться скрізь (Zed preview, GitHub, будь-який майбутній збирач) без розширень парсера. Введено **portable-only subset**: CommonMark + GFM + Mermaid у fenced code + KaTeX + `<details>`; заборонені VitePress containers (`::: tip`), MDX/Astro-компоненти, Hugo shortcodes, AsciiDoc-вкраплення, RST-директиви. Конвенція маркера у `<summary>`: перше слово — аудиторія з фіксованого словника (`Engineer:`/`Ops:`/`Security:`/`Manager:`) → детермінований regex для валідатора. Валідатор отримав чотири нові перевірки: жоден `Engineer:`/`Ops:`/`Security:` блок у manager-only проекціях; кожен `<details>` має оточуючі порожні рядки (інакше `<summary>` рендериться як plain HTML); у `docs/` немає заборонених framework-specific конструкцій; inter-doc посилання працюють для marksman LSP (відносні шляхи або wiki-links). Промпт-скелет LLM-проекцій оновлено — генератор видає `<details>`, не `???`, і дотримується списку заборонених синтаксисів. Subset **forward-compatible**: будь-який збирач (MkDocs, VitePress, Antora) підключається пізніше без переписування контенту. Дзеркало `.cursor/rules/n-ci4.mdc` синхронізується наступним прогоном `npx @nitra/cursor`.
 
 ## [1.29.5] - 2026-05-29
 
