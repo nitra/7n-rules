@@ -5,6 +5,92 @@ globs: "**/*.{css,scss,vue}"
 alwaysApply: false
 ---
 
+## Quasar як стильова основа
+
+У Vue-проектах використовуй **Quasar** як базову стильову систему:
+
+- **Класи компонентів:** `q-pa-*`, `q-ma-*`, `q-mt-*`, `q-mb-*`, `row`, `col`, `col-*`, `items-center`, `justify-between`, `text-*`, `bg-*`, `shadow-*` тощо — стандартні утиліти Quasar.
+- **Кольори:** використовуй Quasar CSS-змінні через класи (`text-primary`, `bg-accent`, `text-negative` тощо) або через SCSS-змінні (`$primary`, `$accent`) у `.scss`-файлах.
+- **Не пиши власні утиліти**, якщо є відповідний Quasar-клас.
+
+## Кольори: quasar-variables.scss і app.scss
+
+Основні кольори визначай виключно через стандартні Quasar-змінні: `$primary`, `$secondary`, `$accent`, `$positive`, `$negative`, `$warning`.
+
+Якщо потрібен додатковий колір — визнач його в `quasar-variables.scss`, і **обов'язково** додай до `app.scss` відповідні `.text-*` / `.bg-*` класи:
+
+```scss
+/* quasar-variables.scss */
+$white-a1: color.adjust(white, $alpha: -0.85);
+```
+
+```scss
+/* app.scss */
+.text-white-a1 {
+  color: $white-a1 !important;
+}
+
+.bg-white-a1 {
+  background-color: $white-a1 !important;
+}
+```
+
+## Gap між flex/grid-елементами — .n-gap-*
+
+Для відступів між плаваючими елементами (flex, grid) використовуй класи `.n-gap-*` замість `q-gutter-*`. Якщо класів немає в `app.scss` — додай:
+
+```scss
+// GAP
+.n-gap-xs {
+  gap: 4px;
+}
+
+.n-gap-sm {
+  gap: 8px;
+}
+
+.n-gap-md {
+  gap: 16px;
+}
+
+.n-gap-lg {
+  gap: 24px;
+}
+```
+
+## Фікси компонентів Quasar
+
+При використанні компонента `q-scroll-area` або `q-tooltip` додай до `app.scss` відповідні фікси. Аналогічно — фікс масштабування на iOS.
+
+```scss
+// FIX стилі для прокручуваної області по висоті екрана
+.q-scrollarea {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 0;
+  max-height: 100%;
+
+  .scroll {
+    flex: 10000 1 0%;
+  }
+}
+
+// FIX tooltip
+.q-tooltip {
+  font-size: 1em;
+}
+
+// FIX не зумувати на iOS
+@media (width <= 600px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+```
+
 ## Генерація та редагування стилів (Cursor і інші агенти)
 
 - **Джерело правил:** перед тим як писати або суттєво змінювати **`.css`**, **`.scss`** або стилі в **`.vue`**, переглянь у корені проєкту (і в релевантних пакетах монорепо, якщо є) поле **`stylelint`** у **`package.json`** (зокрема `extends`), наявні **`.stylelintrc.*`**, **`stylelint.config.*`** та **`.stylelintignore`**. Не покладайся на «типові» правила stylelint з пам’яті — дотримуйся **проєктного** **`@nitra/stylelint-config`** і будь-яких локальних доповнень у репозиторії.
@@ -163,4 +249,93 @@ jobs:
 
 ```text title=".stylelintignore"
 dist/
+```
+
+## Адмінські таблиці — n-admin-table
+
+Для таблиць, що мають займати всю висоту сторінки (або блоку), додавай клас `n-admin-table` і атрибути `hide-no-data`, `dense`, `flat`. Таблиця автоматично розтягнеться на весь доступний простір. У блоках меншої висоти — задай їм явний `height`.
+
+```vue
+<!-- ТАБЛИЦЯ -->
+<q-table class="n-admin-table" hide-no-data flat dense />
+```
+
+Якщо клас `.n-admin-table` не визначено в `app.scss` — додай:
+
+```scss
+// ADMIN TABLE
+.n-admin-table {
+  height: calc(100vh - 106px);
+
+  thead {
+    position: sticky;
+    z-index: 3;
+    top: 0;
+
+    tr th {
+      background-color: $grey-3;
+      height: 36px !important;
+    }
+  }
+
+  // tbody td {
+  //   font-size: 14px;
+  // }
+
+  tbody tr:last-child td {
+    border-bottom: 1px solid rgb(0 0 0 / 12%) !important;
+  }
+
+  th:first-child,
+  td:first-child,
+  th:last-child,
+  td:last-child {
+    width: 1px;
+    white-space: nowrap;
+  }
+
+  .q-table__bottom {
+    background-color: $grey-3;
+  }
+
+  .q-table__progress th {
+    height: 1px !important;
+  }
+
+  .text-wrap {
+    max-width: 250px;
+    white-space: normal;
+  }
+
+  // sticky columns
+  td.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background-color: white;
+    box-shadow: 2px 0 5px #0002;
+  }
+
+  td.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 2;
+    background-color: white;
+    box-shadow: -2px 0 5px #0002;
+  }
+
+  th.sticky-left {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    box-shadow: 2px 0 5px #0002;
+  }
+
+  th.sticky-right {
+    position: sticky;
+    right: 0;
+    z-index: 3;
+    box-shadow: -2px 0 5px #0002;
+  }
+}
 ```

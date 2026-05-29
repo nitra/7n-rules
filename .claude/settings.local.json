@@ -1,5 +1,10 @@
 {
   "permissions": {
-    "allow": ["Bash", "Skill(update-config)", "Skill(update-config:*)"]
+    "allow": [
+      "Bash",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "WebFetch(domain:microsoft.github.io)"
+    ]
   }
 }

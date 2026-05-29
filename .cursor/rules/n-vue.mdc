@@ -12,18 +12,30 @@ alwaysApply: false
 ```javascript
 const vue3CompositionApiBestPractices = [
   'Використовуй функцію setup() для логіки компонента',
-  'Реалізуй computed properties через $computed()',
-  'Використовуй watch і watchEffect для side effects',
+  'Реалізуй computed змінні через $computed()',
+  'Реалізуй ref змінні через $ref',
+  'Використовуй watch і watchEffect для побічних ефектів',
   'Підключай lifecycle hooks: onMounted, onUpdated тощо',
-  'не використовуй provide/inject для dependency injection'
+  'Для глибоко вкладених залежностей використовуй composables, props/emits або store'
+  'не використовуй provide/inject для залежностей'
 ]
 ```
+
+## Quasar як UI-основа
+
+У Vue-проектах використовуй **Quasar** як базовий UI-фреймворк:
+
+- **Компоненти:** `q-btn`, `q-input`, `q-select`, `q-table`, `q-dialog`, `q-card`, `q-layout`, `q-page`, `q-drawer` тощо — основа UI.
+- **Плагіни:** `Notify`, `Dialog`, `Loading` та інші Quasar-плагіни.
+- **Кольори:** використовуй Quasar CSS-змінні (`primary`, `secondary`, `accent`, `positive`, `negative`, `warning`, `info`, `dark`) і утиліти (`text-primary`, `bg-accent` тощо).
+- **Утиліти:** flex-layout (`row`, `col`, `items-center`), spacing (`q-pa-md`, `q-mt-sm`), shadow (`shadow-2`) — зі стандартної бібліотеки Quasar.
+- **Кастомні компоненти** `@nitra/components` — **надбудова** над Quasar, а не заміна; їх слід надавати перевагу лише там, де вони є (див. розділ `@nitra/components` нижче).
 
 ## Структура папок
 
 ```javascript
 const folderStructure = `
-src/
+  src/
   components/
   composables/
   views/
@@ -76,7 +88,7 @@ const additionalInstructions = `
 
 ### Патерни та антипатерни
 
-- **provide/inject** — для глибоко вкладених залежностей; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
+- Для глибоко вкладених залежностей використовуй **composables**, **props/emits** або **store**; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
 - **HTTP:** окремі модулі **services** або **composables** для API; **async/await**.
 - **Події:** батько–дитина через **emits**; для не пов’язаних гілок — **store**.
 - Не мутуй **props** напряму — оновлення через подію вгору або v-model.
@@ -342,6 +354,292 @@ import path from 'node:path'
 
 Правило стосується саме `.vue` файлів. Допоміжні `.ts`/`.js` модулі, які споживаються лише server-side
 (наприклад, окремий пакет утіліт), можуть імпортувати Node-built-ins без обмежень.
+
+## @nitra/components — надавай перевагу перед Quasar-компонентами
+
+При створенні нової функціональності використовуй компоненти `@nitra/components`, якщо логіка компонента дозволяє отримати потрібний функціонал. Заміни:
+
+| Завдання | `@nitra/components` | Замість Quasar |
+| --- | --- | --- |
+| Діалоги | `NDialog` | `q-dialog` |
+| Multi-вибір | `NSelectMulti` | `q-select` (multiple) |
+| Текстовий редактор | `NEditor` | `q-editor` |
+| Вибір дати | `NDate` | — |
+| Вибір місяця/року | `NDateMonthYear` | — |
+| Діапазон дат | `NDateRange` | — |
+| Дата і час | `NDateTime` | — |
+| Drag&drop список | `NDraggableList` | — |
+| Редаговане значення | `NEditableString` | — |
+| Повідомлення | `NCallout` | — |
+| Хедер проекту | `NHeader` | — |
+| Перемикання мов | `NLang` | — (якщо `NHeader` не використовується) |
+| Меню проекту | `NMenu` | — |
+| Зображення (масив / одиночне) | `NImages` | — |
+| Завантаження файлів | `NUploader` | — |
+| Вибір колонок `q-table` | `NTableColumns` | — |
+
+## NHeader — телепорт-слоти на сторінках
+
+У проектах з `NHeader` використовуй `<teleport>` для вбудовування контенту сторінки в шапку:
+
+| Слот | Призначення |
+| --- | --- |
+| `#header-subtitle` | Заголовок сторінки (якщо потрібно перевизначити subtitle) |
+| `#header-center` | Важливі повідомлення та елементи управління |
+| `#header-filters` | Фільтри, кнопки та інші елементи управління сторінки |
+
+Оскільки `NHeader` за замовчуванням темний, додавай до полів і селектів у телепортах: `dark`, `standout="bg-white text-primary"`, `:options-dark="false"`.
+
+Завжди обгортай `<teleport>` в `v-if="mounted"` (де `mounted` — `$ref(false)`, що встановлюється в `onMounted`), щоб уникнути помилки відсутності target-елемента при SSR / першому рендері.
+
+```vue
+<template>
+  <q-page>
+    <!-- ФІЛЬТРИ В ШАПЦІ -->
+    <teleport v-if="mounted" to="#header-filters">
+      <div class="col row items-center n-gap-sm q-pa-sm">
+        <q-input
+          v-model="pageStore.filterName"
+          :label="t`Поиск по названию`"
+          debounce="200"
+          standout="bg-white text-primary"
+          clearable
+          dense
+          dark
+          class="col"
+          style="min-width: 120px">
+          <template #prepend>
+            <q-icon name="search" />
+          </template>
+        </q-input>
+
+        <n-select-multi
+          v-model="pageStore.filterRequestTypes"
+          :options="requestTypeOptions"
+          :label="t`Тип запроса`"
+          dark
+          standout="bg-white text-primary"
+          :options-dark="false"
+          style="min-width: 180px; max-width: 400px"
+          dense
+          emit-value
+          map-options
+          clearable
+          searchable
+          :stack-label="false" />
+
+        <q-btn
+          @click="addItem"
+          icon="add"
+          :label="t`Добавить`"
+          color="primary"
+          no-caps
+          padding="8px 12px"
+          unelevated />
+      </div>
+    </teleport>
+
+    <!-- ОСНОВНИЙ КОНТЕНТ -->
+    ...
+  </q-page>
+</template>
+<script setup>
+const mounted = $ref(false)
+onMounted(() => { mounted = true })
+</script>
+```
+
+## @nitra/tfm — переклади
+
+Використовуй `@nitra/tfm` для всіх текстів. Переклади для всіх мов проекту оголошуй наприкінці `<script setup>` у функції `getTr()`. Змінна `lang` із `@nitra/tfm` — для визначення або зміни поточної мови застосунку.
+
+```vue
+<template>
+  {{ lang }}
+  {{ t`Анкеты` }}
+  {{ subtitle }}
+</template>
+<script setup>
+import { lang, tf as tfm } from '@nitra/tfm'
+const t = tfm.bind({ tr: getTr() })
+const subtitle = $computed(() => t`Анкеты`)
+
+/**
+ * LOCALIZATION
+ * @returns {object} translations
+ */
+function getTr() {
+  return {
+    Анкеты: { en: 'Surveys', ro: 'Sondaje', tr: 'Anketler' }
+  }
+}
+</script>
+```
+
+## Layout з NHeader
+
+Для нових layout-ів використовуй `NHeader` з вбудованими `NLang` і `NMenu`.
+
+```vue
+<template>
+  <q-layout view="hHh Lpr lFf">
+    <n-header
+      v-model="leftSideOpened"
+      :logo="baseUrl + 'logo.png'"
+      :logo-url="homeUrl"
+      title="My App"
+      :subtitle="subtitle"
+      :username="userName"
+      toolbar-dark>
+      <template #top-toolbar>
+        <div class="platform-ios-only q-py-lg" />
+      </template>
+      <div>default slot content</div>
+    </n-header>
+
+    <!-- ЛЕВАЯ КОЛОНКА -->
+    <q-drawer v-model="leftSideOpened" :breakpoint="700" :width="300" overlay class="col column shadow-5 bg-grey-1">
+      <div class="platform-ios-only q-py-lg" />
+      <div v-if="!$q.screen.gt.xs" class="q-pa-sm row items-center">
+        <q-icon name="account_circle" color="primary" size="32px" class="q-mr-sm" />
+        <div class="text-subtitle1">{{ user.name }}</div>
+      </div>
+      <n-menu v-model="activeMenu" :menu="menu" />
+      <q-space />
+      <n-menu :menu="homeMenu" />
+      <div class="platform-ios-only q-py-md" />
+    </q-drawer>
+
+    <q-page-container>
+      <router-view />
+    </q-page-container>
+  </q-layout>
+</template>
+<script setup>
+import { lang, tf as tfm } from '@nitra/tfm'
+const t = tfm.bind({ tr: getTr() })
+
+const baseUrl = import.meta.env.BASE_URL
+const homeUrl = String.raw`https:\\` + import.meta.env.VITE_DOMAIN
+
+// Ліва колонка
+const leftSideOpened = $ref(false)
+const activeMenu = $ref(null)
+
+// Заголовок у шапці з поточного пункту меню
+const subtitle = computed(() => (activeMenu ? getTr()[activeMenu.labelKey]?.[lang.value] || activeMenu?.labelKey : ''))
+
+// Меню
+const menu = computed(() =>
+  [
+    {
+      icon: 'sym_o_store',
+      label: t`Клиенты`,
+      labelKey: t`Клиенты`,
+      routeName: 'customer'
+    },
+    {
+      icon: 'sym_o_route',
+      label: t`Маршруты и визиты`,
+      items: [
+        {
+          icon: 'sym_o_route',
+          label: t`Маршруты`,
+          labelKey: t`Маршруты`,
+          routeName: 'route'
+        },
+        {
+          icon: 'sym_o_event_upcoming',
+          label: t`Переносы маршрутов`,
+          labelKey: t`Переносы маршрутов`,
+          routeName: 'route_postpone'
+        }
+      ]
+    }
+  ].filter(item => {
+    if (item.items?.length) {
+      item.items = item.items.filter(i => can[i.permissionRoute || i.routeName])
+      return item.items.length > 0
+    }
+    return can[item.routeName]
+  })
+)
+
+/**
+ * LOCALIZATION
+ * @returns {object} translations
+ */
+function getTr() {
+  return {
+    Клиенты: { en: 'Customers', ro: 'Clienți', tr: 'Müşteriler' }
+  }
+}
+</script>
+```
+
+## Pinia store для стану сторінки
+
+Зберігай у Pinia store:
+
+- вибрані значення фільтрів
+- вибрані для відображення колонки (`NTableColumns`)
+- кількість записів на сторінці (pagination)
+
+Називай store за назвою сторінки або компонента — `customerPageStore`, `routePageStore` тощо. На сторінці звертайся до нього через змінну `pageStore`.
+
+```javascript
+// store/customerPage.js
+export const useCustomerPageStore = defineStore('customerPage', {
+  state: () => ({
+    filterName: '',
+    filterStatus: [],
+    columns: [],
+    rowsPerPage: 20
+  })
+})
+```
+
+```vue
+<script setup>
+const pageStore = useCustomerPageStore()
+</script>
+```
+
+## Коментарі в `<template>`
+
+Додавай коментарі в `<template>` відповідно до логічного призначення блоку. Коментарі допомагають швидко орієнтуватися в розмітці.
+
+```vue
+<template>
+  <q-page>
+    <!-- ФІЛЬТРИ В ШАПЦІ -->
+    <teleport v-if="mounted" to="#header-filters">...</teleport>
+
+    <!-- ТАБЛИЦЯ -->
+    <q-table ... />
+
+    <!-- ДІАЛОГ РЕДАГУВАННЯ -->
+    <n-dialog v-model="editDialog">...</n-dialog>
+  </q-page>
+</template>
+```
+
+## Статичні файли — BASE_URL
+
+Для підключення статичних файлів не використовуй відносні шляхи. Завжди будуй URL через `import.meta.env.BASE_URL`:
+
+```vue
+<!-- Погано -->
+<img src="/logo.png" />
+<img src="./assets/logo.png" />
+
+<!-- Добре -->
+<img :src="baseUrl + 'logo.png'" />
+```
+
+```javascript
+const baseUrl = import.meta.env.BASE_URL
+```
 
 ## Перевірка
 
