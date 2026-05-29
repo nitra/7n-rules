@@ -36,7 +36,7 @@ log() { printf '%s %s\n' "$(date -Iseconds)" "$*" >> "$LOG"; }
 
 # Підвантажуємо спільний helper (sourcing — не sub-shell, функції видимі поточному скрипту).
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-# shellcheck source=npm/.claude-template/hooks/lib/tooling-only.sh
+# shellcheck source=lib/tooling-only.sh disable=SC1091
 . "$SCRIPT_DIR/lib/tooling-only.sh"
 
 log "fired: $SESSION_ID"

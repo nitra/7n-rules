@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.29.4] - 2026-05-29
+
+### Fixed
+
+- **`.claude-template/hooks/capture-decisions.sh`**, **`.claude-template/hooks/normalize-decisions.sh`** — директива sourcing-у helper-а змінена з `# shellcheck source=npm/.claude-template/hooks/lib/tooling-only.sh` на `# shellcheck source=lib/tooling-only.sh disable=SC1091`. Без `-x` shellcheck не «заходить» у sourced-файл і видає **SC1091** (info), а `runFinalShellcheck` у `rules/text/lint/run-shellcheck.mjs` валить `lint-text` на будь-якому ненульовому exit (info включно). Відносний `source=lib/tooling-only.sh` узгоджений із фікстурою `scripts/tests/sync-claude-config.test.mjs`; `disable=SC1091` глушить info у фінальному прогоні без `-x`. Проєктні копії в `.claude/hooks/` синкаються звідси.
+
 ## [1.29.3] - 2026-05-29
 
 ### Changed
