@@ -1,0 +1,19 @@
+npm/CHANGELOG.md
+  s_c0f31ed22999bc::t_000ab948a01691 7-22,26-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4830c8c1a7394c4c772d054e293a240d8ad72b69",
+  "prompts": {},
+  "sessions": {
+    "s_c0f31ed22999bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "81d1c1e1-6258-4aeb-9e51-392ce92fa4f3",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
