@@ -13,7 +13,6 @@ import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { chdir, cwd as getCwd } from 'node:process'
 
 import { parse as parseToml } from 'smol-toml'
 
@@ -63,18 +62,14 @@ function makeProj({ layout = 'tauri', tauriManifest = '[package]\nname="t"\nvers
 }
 
 /**
- * Викликає check() з chdir у заданий каталог.
+ * Викликає `check(dir)` без `process.chdir` (test.mdc canon: production functions
+ * приймають перший параметр `cwd = process.cwd()`; Stryker крутить тести у threads-pool,
+ * де chdir не підтримується).
  * @param {string} dir каталог проєкту
  * @returns {Promise<number>} exit code
  */
 async function runCheckIn(dir) {
-  const prev = getCwd()
-  chdir(dir)
-  try {
-    return await check()
-  } finally {
-    chdir(prev)
-  }
+  return check(dir)
 }
 
 describe('tauri cargo_mutants_config concern', () => {

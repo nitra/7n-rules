@@ -3,6 +3,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
+import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { applies as appliesAbie } from '../rules/abie/js/applies.mjs'
@@ -44,7 +45,14 @@ describe('check-* на реальному репозиторії', () => {
   // через conftest/opa/regal) на macOS вкладаються у ~5-7с — дефолтний 5000ms-timeout bun-test'у
   // не вистачає. Збільшуємо до 120с: у стані з великим git-diff (напр. відновлені файли після
   // bad commit) деякі checks (checkK8s, checkJsRun) можуть займати до 60-90с.
-  test('узгоджені з поточним деревом cursor', async () => {
+  //
+  // Skip під Stryker (`STRYKER_MUTATOR_WORKER`): Stryker копіює репо у `reports/stryker/.tmp/
+  // sandbox-XXX/` і запускає тести звідти. `REPO_ROOT` computed з `import.meta.dirname` резолвиться
+  // у sandbox-копію, а перевірки на кшталт `checkNpmModule` валідують CHANGELOG vs HEAD-version
+  // або вимагають реального `.git/` — у sandbox вони не виконуються коректно і обривають Stryker
+  // dry-run. Для unit-pure mutation analysis інтеграційний тест проти живого дерева не несе
+  // додаткової інформації понад те, що дають per-rule unit-тести.
+  test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним деревом cursor', async () => {
     await withShellcheckStubInPath(async () => {
       expect(await checkAbie(REPO_ROOT)).toBe(0)
       expect(await checkBun(REPO_ROOT)).toBe(0)

@@ -7,7 +7,6 @@ import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { chdir, cwd as getCwd } from 'node:process'
 
 import { check } from '../cargo_mutants_config.mjs'
 
@@ -36,19 +35,14 @@ function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
 }
 
 /**
- * Викликає check() з chdir у заданий каталог, щоб концерн читав .n-cursor.json
- * саме звідти (бо check читає process.cwd()).
+ * Викликає `check(dir)` без `process.chdir` (test.mdc canon: production functions
+ * приймають перший параметр `cwd = process.cwd()`; Stryker крутить тести у threads-pool,
+ * де chdir не підтримується).
  * @param {string} dir каталог проєкту
  * @returns {Promise<number>} exit code
  */
 async function runCheckIn(dir) {
-  const prev = getCwd()
-  chdir(dir)
-  try {
-    return await check()
-  } finally {
-    chdir(prev)
-  }
+  return check(dir)
 }
 
 describe('cargo_mutants_config concern', () => {

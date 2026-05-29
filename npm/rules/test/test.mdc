@@ -153,4 +153,9 @@ Customization (mutate patterns, exclude rules, timeout) — відповідал
 
 Якщо інше правило спеціалізує mutation-behavior — воно зобов'язане **доповнювати** існуючий `.cargo/mutants.toml` без дублювання (додавати лише відсутні ключі) і **не перетирати** ручні налаштування. Послідовний запуск `npx @nitra/cursor fix test` після `fix tauri` не має скидати tauri-tuning, і навпаки — повторний `fix tauri` не дублює секції.
 
-Додатково: коли `js-lint` enabled, концерн `stryker_config` без дублювання додає у кореневий `.gitignore` патерн `**/reports/stryker/` — увесь каталог Stryker-output-у (backup'и `tempDirName`, `mutation.json`, HTML/dashboard-репорти якщо додасте інші reporter-и). Це запобігає випадковому коміту build-артефактів.
+Додатково: коли `js-lint` enabled, концерн `stryker_config` без дублювання додає у кореневий `.gitignore` тест-патерни:
+
+- `**/reports/stryker/` — увесь каталог Stryker-output-у (backup'и `tempDirName`, `mutation.json`, HTML/dashboard-репорти якщо додасте інші reporter-и).
+- `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`). Ефемерний: регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`. Gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні.
+
+Це запобігає випадковому коміту build-артефактів.

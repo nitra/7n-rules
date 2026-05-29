@@ -4,6 +4,18 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.29.3] - 2026-05-29
+
+### Changed
+
+- **`rules/test/js/stryker_config.mjs`** — концерн `stryker_config` додає у кореневий `.gitignore` ще й `**/coverage/` (весь ефемерний output vitest v8 coverage: `lcov.info` + HTML `lcov-report/`) поряд із `**/reports/stryker/`. Coverage регенерується кожним прогоном, фінальні метрики живуть у `COVERAGE.md`; gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні. Секцію .gitignore перейменовано на `# Test artifacts: Stryker + coverage`. Документація — `test.mdc`.
+- **`rules/test/js/stryker_config.mjs`**, **`rules/test/js/cargo_mutants_config.mjs`**, **`rules/tauri/js/cargo_mutants_config.mjs`** — `check()` → `check(cwd = process.cwd())` за test.mdc canon (production functions приймають перший параметр `cwd`). До цього усі три концерни читали лише `process.cwd()`, через що тести змушені були викликати `process.chdir(dir)` (з обходом regex-сканера `no-process-chdir` через `import { chdir } from 'node:process'`). Stryker крутить vitest у threads-pool (`@stryker-mutator/vitest-runner` форсує `pool: 'threads'`, перетираючи `pool: 'forks'` у `vitest.config.js`), де `process.chdir` не підтримується → dry-run обривався з `process.chdir() is not supported in workers`. Тести у `tests/stryker_config.test.mjs`, `tests/cargo_mutants_config.test.mjs` (обидва правила) переписано на `runCheckIn(dir) → check(dir)` без chdir.
+
+### Fixed
+
+- **`tests/integration-repo-checks.test.mjs`** — `test.skipIf(env.STRYKER_MUTATOR_WORKER)` для test `узгоджені з поточним деревом cursor` (env-import із `node:process` за `js-run.mdc`). Stryker копіює репо у `reports/stryker/.tmp/sandbox-XXX/` і запускає тести звідти; `REPO_ROOT = join(import.meta.dirname, '..', '..')` резолвиться у sandbox-копію, де `checkNpmModule` валідує CHANGELOG vs HEAD-version без живого `.git/` і повертає 1 → Stryker dry-run обривається (`ConfigError: There were failed tests in the initial test run.`). Для mutation-analysis інтеграція проти живого дерева не дає додаткової сигналу понад per-rule unit-тести.
+- **`rules/js-lint/coverage/coverage.mjs:236`** `runStryker` — `bunx` → `npx` для запуску `@stryker-mutator/core`. Bunx **завжди** інсталює пакет у `T/bunx-<uid>-<pkg>@latest/node_modules/` і запускає Stryker звідти, навіть коли локальний install уже існує у hoisted node_modules. Stryker plugin-discovery (`@stryker-mutator/*`) globится відносно core-install-каталогу (`core/dist/src/di/plugin-loader.js:79` → `../../../../../@stryker-mutator/*`) — у bunx-temp бачить лише `core/api/instrumenter/util` (всі чотири у `IGNORED_PACKAGES`), а локально встановлений `@stryker-mutator/vitest-runner` залишається невидимим. Worker-процеси падають з `Cannot find TestRunner plugin "vitest". In fact, no TestRunner plugins were loaded.`. До зняття `mutate`-обмеження (1.29.2) баг маскувався: при єдиному файлі у scope Stryker incremental-кеш мав усі 141 мутант → fresh-workers не стартували → плагін не потрібен. Після розширення `mutate` 25052 мутантів вимагали свіжих workers — баг проявився. `npx` шукає у локальному `node_modules/.bin/` (walking up), запускає Stryker з cursor-репо install, де поряд лежить vitest-runner.
+
 ## [1.29.2] - 2026-05-29
 
 ### Changed

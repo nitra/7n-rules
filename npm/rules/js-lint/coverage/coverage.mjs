@@ -233,7 +233,14 @@ const defaultRunner = {
     return r.status ?? 1
   },
   runStryker({ cwd }) {
-    const r = spawnSync('bunx', ['@stryker-mutator/core', 'run'], { cwd, stdio: 'inherit', env: process.env })
+    // `npx`, не `bunx`: bunx завжди ставить пакет у `T/bunx-<uid>-<pkg>@latest` і запускає
+    // Stryker звідти. Плагін-discovery у Stryker (`@stryker-mutator/*`) globится відносно
+    // CORE-install-каталогу (`core/dist/src/di/plugin-loader.js` → `../../../../../@stryker-mutator/*`),
+    // тож у bunx-temp бачить лише `core/api/instrumenter/util` (усі в IGNORED_PACKAGES) — а локально
+    // встановлений `@stryker-mutator/vitest-runner` залишається невидимим, і workers падають з
+    // `Cannot find TestRunner plugin "vitest"`. `npx` ходить угору по `node_modules/.bin/` і
+    // запускає Stryker з локального hoisted-install, де поряд лежить vitest-runner.
+    const r = spawnSync('npx', ['@stryker-mutator/core', 'run'], { cwd, stdio: 'inherit', env: process.env })
     return r.status ?? 1
   }
 }

@@ -33,11 +33,14 @@ const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vu
 const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
 const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
-// Stryker-output патерн для .gitignore: увесь каталог reports/stryker/ — це
-// build-артефакти (`tempDirName` backup'и, mutation.json, HTML/dashboard-репорти
-// якщо користувач додасть інші reporter-и). Покриваємо одним патерном замість
-// перелічування під-патернів. Подвійний-зірочка-префікс — для monorepo workspaces.
-const STRYKER_GITIGNORE_ENTRIES = ['**/reports/stryker/']
+// Тест-артефакти для .gitignore (подвійний-зірочка-префікс — для monorepo workspaces):
+// - `**/reports/stryker/` — увесь каталог Stryker-output-у (`tempDirName` backup'и,
+//   mutation.json, HTML/dashboard-репорти якщо користувач додасть інші reporter-и).
+// - `**/coverage/` — весь output vitest v8 coverage (`lcov.info` + HTML `lcov-report/`).
+//   Ефемерний: регенерується кожним прогоном; фінальні метрики живуть у `COVERAGE.md`.
+//   Gitignore не заважає `n-cursor coverage` читати `lcov.info` у тому ж прогоні.
+// Покриваємо каталогами замість перелічування під-патернів.
+const TEST_GITIGNORE_ENTRIES = ['**/reports/stryker/', '**/coverage/']
 
 // .vue detection: scope — `<jsRoot>/src/**/*.vue` (як і Stryker mutate defaults для src/);
 // skip build-артефактів і чужих node_modules, щоб не вмикати vue-варіант через transitive deps.
@@ -75,11 +78,11 @@ async function ensureBaselineFile(reporter, cwd, baselinePath, target, label) {
 }
 
 /**
+ * @param {string} [cwd] корінь проєкту (default: `process.cwd()` — CLI-сумісність)
  * @returns {Promise<number>} 0 — OK або silently skipped, 1 — порушення
  */
-export async function check() {
+export async function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
-  const cwd = process.cwd()
   const config = await readNCursorConfigLite(cwd)
 
   // Self-gate: js-lint має бути enabled
@@ -127,11 +130,12 @@ export async function check() {
     await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
   }
 
-  // Гарантуємо що Stryker temp/output ніколи не потрапляють у commit. Patterns
-  // покривають усі workspaces через `**/`-префікс (єдиний root .gitignore).
-  const { added } = await ensureGitignoreEntries(cwd, STRYKER_GITIGNORE_ENTRIES, 'Stryker mutation testing (test.mdc)')
+  // Гарантуємо що тест-артефакти (Stryker output, lcov HTML-звіт) ніколи не
+  // потрапляють у commit. Patterns покривають усі workspaces через `**/`-префікс
+  // (єдиний root .gitignore).
+  const { added } = await ensureGitignoreEntries(cwd, TEST_GITIGNORE_ENTRIES, 'Test artifacts: Stryker + coverage (test.mdc)')
   if (added.length > 0) {
-    reporter.pass(`.gitignore: додано Stryker-патерни (${added.join(', ')}) (test.mdc)`)
+    reporter.pass(`.gitignore: додано тест-патерни (${added.join(', ')}) (test.mdc)`)
   }
   return reporter.getExitCode()
 }
