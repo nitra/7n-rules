@@ -36,6 +36,12 @@ vi.mock('../../../../scripts/utils/with-lock.mjs', () => ({
 }))
 
 const SURVIVED_JSON_BLOCK = /```json\n([\s\S]*?)\n```/
+const JS_CODE_BLOCK_RE = /```js\n/
+const EXAMPLE_TEST_SEPARATOR_RE =
+  /\| BooleanLiteral \|\n\n\*\*Приклад тесту\*\* \(`tests\/auth\.test\.mjs`\):\n\n```js\n/
+const FIX_TOKEN_RE = /fix/
+const FALSE_TOKEN_RE = /false/
+const FIX_TRUE_RE = /fix\s*:\s*true/
 
 describe('addCoverage', () => {
   test('покомпонентне додавання lines та functions', () => {
@@ -438,7 +444,7 @@ describe('renderMarkdown — точні розділювачі та порожн
     const md = renderMarkdown(rows)
     expect(md).not.toContain('Приклад тесту')
     // ```js блок з'являється лише якщо exampleTest != null; для null не повинен
-    expect(md).not.toMatch(/```js\n/)
+    expect(md).not.toMatch(JS_CODE_BLOCK_RE)
   })
 
   test('recommendationText рендериться як секція "Що треба протестувати"', () => {
@@ -684,7 +690,7 @@ describe('renderMarkdown — exampleTest empty line та fallback на code', ()
     const md = renderMarkdown(rows)
     // Послідовність: останній рядок per-mutant таблиці → \n + '' → \n + '**Приклад тесту**...' → \n + '' → \n + '```js'
     // Тобто між '| BooleanLiteral |' і '**Приклад тесту**' рівно \n\n (одна empty line, L106).
-    expect(md).toMatch(/\| BooleanLiteral \|\n\n\*\*Приклад тесту\*\* \(`tests\/auth\.test\.mjs`\):\n\n```js\n/)
+    expect(md).toMatch(EXAMPLE_TEST_SEPARATOR_RE)
     // Якби L106 мутувало у "Stryker was here!" — рядок би з'явився як ціла лінія між таблицею і "**Приклад тесту**".
     expect(md).not.toContain('Stryker was here')
   })
@@ -803,10 +809,8 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // не залежно від реального runCoverageSteps.
     withLock.mockReset()
     let secondFn = null
+    withLock.mockReturnValueOnce(0)
     withLock.mockImplementation((_key, fn) => {
-      // Перший виклик — повертаємо 0 (без виконання fn, щоб уникнути dynamic import).
-      // Другий — захоплюємо fn для перевірки аргументу.
-      if (withLock.mock.calls.length === 1) return 0
       secondFn = fn
       return 0
     })
@@ -860,12 +864,9 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // це функція, виклик не повертає undefined (бо runCoverageSteps повертає Promise<number>).
     withLock.mockReset()
     let secondFn = null
-    let callCount = 0
+    withLock.mockReturnValueOnce(0)
     withLock.mockImplementation((_key, fn) => {
-      callCount += 1
-      if (callCount === 1) return 0 // 1-й виклик — без виконання fn
       secondFn = fn
-      // 2-й виклик — НЕ викликаємо fn, повертаємо exit code 0 одразу
       return 0
     })
 
@@ -944,8 +945,8 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     // Без .n-cursor.json у process.cwd() → rules=[] → exit 1 (число).
     withLock.mockReset()
     let secondFn = null
+    withLock.mockReturnValueOnce(0)
     withLock.mockImplementation((_key, fn) => {
-      if (withLock.mock.calls.length === 1) return 0
       secondFn = fn
       return 0
     })
@@ -954,6 +955,80 @@ describe('runCoverageCli — покриття обгортки з withLock', () 
     expect(secondFn).toBeTypeOf('function')
     const result = await secondFn()
     expect(result).toBeTypeOf('number')
+  })
+})
+
+describe('runCoverageSteps — opts.fix gate (L189: вмикає/вимикає fixSurvivedMutants)', () => {
+  // Покриває ConditionalExpression-мутації `if (opts.fix)` на L189:
+  //   - `pts.fix)` → `true`  : if-гілка завжди true → fixSurvivedMutants викликається навіть при fix=false
+  //   - `pts.fix)` → `false` : if-гілка ніколи true → fixSurvivedMutants НЕ викликається навіть при fix=true
+  //
+  // ONE_ROW_PROVIDER не повертає поле `survived` → allSurvived = []. fixSurvivedMutants з порожнім
+  // масивом одразу друкає `'✓ Всі мутанти вбиті — доповнення тестів не потрібне'` і повертається.
+  // Цей лог — observable marker, який і відрізняє канон від мутантів.
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('opts.fix=false → fixSurvivedMutants НЕ викликається (вбиває L189 → true)', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: false })
+    expect(code).toBe(0)
+    const messages = logSpy.mock.calls.map(args => String(args[0]))
+    expect(messages.some(s => s.includes('Всі мутанти вбиті'))).toBe(false)
+    fx.cleanup()
+  })
+
+  test('opts.fix=true → fixSurvivedMutants викликається (вбиває L189 → false)', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const code = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, fix: true })
+    expect(code).toBe(0)
+    const messages = logSpy.mock.calls.map(args => String(args[0]))
+    expect(messages.some(s => s.includes('Всі мутанти вбиті'))).toBe(true)
+    fx.cleanup()
+  })
+})
+
+describe('runCoverageCli — 2-й withLock-fn явно передає { fix: false } у runCoverageSteps (L211)', () => {
+  // Покриває L211 мутації:
+  //   - ObjectLiteral  `{ fix: false }` → `{}`   : 2-й виклик скидає поле, але опт.fix все одно falsy.
+  //   - BooleanLiteral `false`          → `true` : 2-й виклик ставить fix:true → нескінченна рекурсія --fix.
+  //
+  // Поведінкове розрізнення `{}` vs `{ fix: false }` неможливе (обидва дають falsy fix).
+  // Тому перевіряємо джерело захопленої стрілки через `Function.prototype.toString()`:
+  // ключові ідентифікатори `fix` і `false` мають бути присутні; `fix: true` — заборонено.
+
+  beforeEach(() => {
+    withLock.mockReset()
+    vi.spyOn(console, 'log').mockReturnValue()
+    vi.spyOn(console, 'error').mockReturnValue()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    withLock.mockClear()
+  })
+
+  test('source 2-ї стрілки містить fix:false (вбиває ObjectLiteral і BooleanLiteral на L211)', async () => {
+    let secondFn = null
+    withLock.mockReturnValueOnce(0)
+    withLock.mockImplementation((_key, fn) => {
+      secondFn = fn
+      return 0
+    })
+
+    await runCoverageCli({ fix: true })
+    expect(secondFn).toBeTypeOf('function')
+
+    const src = secondFn.toString()
+    // ObjectLiteral мутант `{}` → src не міститиме токену `fix`.
+    expect(src).toMatch(FIX_TOKEN_RE)
+    // BooleanLiteral мутант `true` → src міститиме `fix: true` замість `fix: false`.
+    expect(src).toMatch(FALSE_TOKEN_RE)
+    expect(src).not.toMatch(FIX_TRUE_RE)
   })
 })
 

@@ -279,7 +279,7 @@ describe('detectAutoRules', () => {
       await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
 
       const actual = await detectAutoRules({
-        root: process.cwd(),
+        root: dir,
         availableRules: ALL_RULES,
         packageJsonParsed: { name: 'app' },
         disableRules: ['vue']

@@ -3,7 +3,18 @@
 Усі помітні зміни цього модуля документуються тут.
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
-# [1.30.0] - 2026-05-29
+
+## [1.30.1] - 2026-05-29
+
+### Added
+
+- **`rules/test/coverage/tests/coverage.test.mjs`** — три нові тести `/n-coverage-fix`-ітерації, що вбивають усі чотири вцілілі мутанти на `rules/test/coverage/coverage.mjs`. (1) `opts.fix=false → fixSurvivedMutants НЕ викликається` і (2) `opts.fix=true → fixSurvivedMutants викликається` фіксують умовну гілку `if (opts.fix)` (L189) через лог `'✓ Всі мутанти вбиті — доповнення тестів не потрібне'`, який друкує `fixSurvivedMutants` для порожнього `survived[]`. (3) `source 2-ї стрілки містить fix:false` перевіряє джерело захопленої callback-стрілки 2-го `withLock` через `Function.prototype.toString()`: токени `fix` і `false` мають бути присутні, а `fix: true` — заборонений; це поведінково невловимо (`{}` і `{ fix: false }` дають однаковий falsy `opts.fix`), тому інваріант на рівні джерела.
+
+### Fixed
+
+- **`CHANGELOG.md`** — заголовок секції `[1.30.0]` піднято з `#` на `##` (Keep a Changelog vN.M.M вимагає H2 для версій). Чек `npm-module.mdc` зчитував h1 як «без версії», знаходив `[1.29.5]` першою і скаржився на розбіжність із `package.json#version "1.30.0"`.
+
+## [1.30.0] - 2026-05-29
 
 ### Changed
 
