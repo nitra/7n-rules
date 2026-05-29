@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.29.5] - 2026-05-29
+
+### Added
+
+- **`rules/js-bun-db/js-bun-db.mdc`** (`version` 1.11 → 1.12) і дзеркало `.cursor/rules/n-js-bun-db.mdc` — нова секція **`## sql.array(arr, type) для передачі масивів`**: обов'язкове використання `pgWrite.array(arr, type)` / `pgRead.array(arr, type)` замість прямої підстановки JS-масиву `${arr}` або cast-синтаксису `${arr}::type[]` у Bun SQL template literal. Другий аргумент типу обов'язковий — без нього Bun не може вивести pg-тип. Секція містить таблицю заборонених/дозволених патернів, таблицю відповідності JS↔PostgreSQL типів і повний приклад UNNEST + MERGE. Рядок `| Масив значень у \`unnest(...)\` | \`sql.array(arr, type)\` — обов'язково з типом |` додано до таблиці рішень.
+- **`rules/bun/bun.mdc`** (`version` 2.0 → 2.1) і дзеркало `.cursor/rules/n-bun.mdc` — `@playwright/test` додано до **root-only** винятків у `devDependencies` кореневого `package.json` (поряд із Vitest/Stryker peer/tools для `n-cursor coverage`).
+- **`rules/bun/policy/package_json/package_json.rego`** — `"@playwright/test"` додано до набору `allowed_root_test_deps`; дозволяє споживачам тримати пакет у root `devDependencies` без порушення bun-policy.
+- **`rules/bun/policy/package_json/package_json_test.rego`** — новий тест `test_allow_playwright_test`: перевіряє, що `@playwright/test` у root `devDependencies` не генерує deny.
+
 ## [1.29.4] - 2026-05-29
 
 ### Fixed
@@ -39,7 +48,6 @@
 ### Changed
 
 - **`rules/ci4/ci4.mdc`** (`version` 2.0 → 2.1) — додано секцію **«Зв'язок із `.cursor/rules`»**: архітектурна документація у `docs/` не дублює зміст `.cursor/rules/*.mdc` (операційні правила лінту, тестів, CHANGELOG, версіонування), а посилається на потрібне правило через його ім'я у бектиках (наприклад, `див. **`changelog`**`). Дублікати розходяться з оригіналом і ламають automatic-перевірки `npx @nitra/cursor fix`/`check`; правки робляться в одному місці — у самому `.mdc`.
-
 
 ## [1.28.8] - 2026-05-28
 
