@@ -4,6 +4,12 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.29.2] - 2026-05-29
+
+### Changed
+
+- **`npm/stryker.config.mjs`** — знято тимчасове обмеження `mutate: ['rules/test/coverage/coverage.mjs']` (yet single orchestrator-file). Тепер Stryker мутує весь production-код cursor-репо: `scripts/**/*.mjs` (lib/utils/CLI helpers), `rules/**/*.mjs` (`<r>/{js,lib,coverage,fix.mjs}`), `bin/**/*.{js,mjs}`. Виключаємо `**/tests/**`, `**/__fixtures__/**`, `**/fixtures/**`, `**/data/**`, `**/template/**`, `**/templates/**` — це або тести/фікстури (Stryker і так пропускає за іменем, але дублюємо явно для прозорості), або baseline-шаблони/JSON-канон, що копіюються консьюмерам як-є й не мають логіки для мутації (інфляція survived-рейтингу без сенсу). Explicit include для `rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs` — єдиний `data/`-файл із власними юніт-тестами (`tests/stryker-vue-macros-ignorer.test.mjs`). Мотивація — `lib/`-модулі правил (`abie/lib/env-dns.mjs`, `abie/lib/http-route.mjs` тощо) мають юніт-тести у `<rule>/lib/tests/`, але до зняття обмеження не потрапляли у mutation-score — JS-row у `COVERAGE.md` показував лише orchestrator.
+
 ## [1.29.1] - 2026-05-28
 
 ### Fixed
