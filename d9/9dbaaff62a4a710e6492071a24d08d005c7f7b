@@ -1,0 +1,19 @@
+npm/rules/nginx-default-tpl/js/template.mjs
+  ai_agent 362
+npm/rules/test/js/tests/stryker_config.test.mjs
+  ai_agent 45
+npm/rules/test/js/tests/cargo_mutants_config.test.mjs
+  ai_agent 44
+package.json
+  ai_agent 33-38
+npm/rules/test/js/no-relative-fs-path.mjs
+  ai_agent 148,190-191,205
+npm/rules/tauri/js/tests/cargo_mutants_config.test.mjs
+  ai_agent 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d99dbaaff62a4a710e6492071a24d08d005c7f7b",
+  "prompts": {}
+}
