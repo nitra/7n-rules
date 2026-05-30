@@ -153,9 +153,13 @@ describe('runReleaseCli', () => {
     const origLog = console.log
     console.log = (...args) => logs.push(args.join(' '))
     try {
-      const code = await runReleaseCli([])
-      expect(code).toBe(0)
-      expect(logs.join('\n')).toContain('немає змін')
+      await withTmpDir(async dir => {
+        await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+        await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+        const code = await runReleaseCli([], { cwd: dir, date: '2026-01-01', runGit: () => Promise.resolve('') })
+        expect(code).toBe(0)
+        expect(logs.join('\n')).toContain('немає змін')
+      })
     } finally {
       console.log = origLog
     }

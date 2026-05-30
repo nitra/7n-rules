@@ -117,11 +117,12 @@ export async function release(opts = {}) {
 
 /**
  * @param {string[]} _args аргументи CLI (наразі без опцій)
+ * @param {import('./release.mjs').ReleaseOpts} [opts] опції для тестів (cwd, date, runGit)
  * @returns {Promise<number>} exit-код
  */
-export async function runReleaseCli(_args) {
+export async function runReleaseCli(_args, opts = {}) {
   try {
-    const released = await release()
+    const released = await release(opts)
     if (released.length === 0) {
       console.log('release: немає змін для релізу')
     } else {
