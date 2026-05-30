@@ -1,0 +1,21 @@
+npm/package.json
+  s_07c380d32ee07c::t_3cd0483a89477a 3
+npm/.changes/1780116534790-9f47f9.md
+  s_07c380d32ee07c::t_52bfd053a94444 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "5c77b23dce22aa7dfc68ab2aa37b965be86ef1b1",
+  "prompts": {},
+  "sessions": {
+    "s_07c380d32ee07c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3047db-5332-4649-a713-3f1cde68927a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
