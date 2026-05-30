@@ -1212,9 +1212,29 @@ describe('renderMarkdown — allowed gaps exact strings (L132, L133, L136, L138)
     expect(md).toContain('| Line | Mutant | Verdict | Confidence | Reason |')
   })
 
-  test('містить separator рядок таблиці (вбиває L136:94 StringLiteral→"")', () => {
+  test('separator рядок одразу після заголовка таблиці (вбиває L136:94 StringLiteral→"")', () => {
     const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
-    expect(md).toContain('| --- | --- | --- | --- | --- |')
+    expect(md).toContain('| Line | Mutant | Verdict | Confidence | Reason |\n| --- | --- | --- | --- | --- |')
+  })
+
+  test('порожній рядок перед ## Allowed gaps (вбиває L131:16 ""→"Stryker was here!")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('\n\n## Allowed gaps\n')
+  })
+
+  test('порожній рядок після ## Allowed gaps перед > LLM (вбиває L131:39 ""→"Stryker was here!")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('## Allowed gaps\n\n>')
+  })
+
+  test('порожній рядок перед ### file (вбиває L136:18 ""→"Stryker was here!")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('\n\n### src/a.js')
+  })
+
+  test('порожній рядок між ### file і таблицею (вбиває L136:37 ""→"Stryker was here!")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('### src/a.js\n\n| Line | Mutant | Verdict | Confidence | Reason |')
   })
 
   test('санітизує pipe у reason (вбиває L138:64 StringLiteral→"")', () => {

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.4] - 2026-05-30
+
+### Changed
+
+- fix: відновити for-loop із body.length у computeLineOffsets (String.prototype.entries не існує)
+
 ## [1.35.3] - 2026-05-30
 
 ### Fixed
