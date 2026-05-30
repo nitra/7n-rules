@@ -1,0 +1,81 @@
+npm/rules/ci4/ci4.mdc
+  s_e6614b24c36294::t_234f7fb5baf713 2,4,211-221
+docs/adr/20260530-065805-зміна-viewer-архітектурної-документації-zed-marksman-lsp-зам.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-114
+.cursor/rules/n-ci4.mdc
+  s_e6614b24c36294::t_234f7fb5baf713 2,4,211-227
+docs/adr/20260530-064732-заміна-mkdocs-material-на-zed-marksman-lsp-як-основний-viewe.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-89
+npm/rules/ci4/js/tests/marksman_config.test.mjs
+  s_e6614b24c36294::t_234f7fb5baf713 1-53
+docs/adr/20260530-064509-ручна-верифікація-мутантів-замість-очікування-stryker.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-51
+docs/adr/20260530-064947-ручна-верифікація-мутантів-при-зависанні-stryker.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-51
+docs/adr/20260529-214402-виправлення-блокувальних-тестів-як-передумова-запуску-covera.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-74
+docs/adr/20260529-223334-ручна-перевірка-мутантів-замість-очікування-stryker.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-87
+COVERAGE.md
+  s_e6614b24c36294::t_234f7fb5baf713 5-6
+docs/adr/20260530-063933-вибір-zed-marksman-lsp-як-viewer-editor-замість-mkdocs-mater.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-71
+npm/rules/ci4/policy/vscode_extensions/vscode_extensions.rego
+  s_e6614b24c36294::t_234f7fb5baf713 1-12
+npm/rules/ci4/js/marksman_config.mjs
+  s_e6614b24c36294::t_234f7fb5baf713 1-52
+docs/adr/20260529-211759-вибір-власного-генератора-n-cursor-release-замість-changeset.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-92
+.vscode/extensions.json
+  s_e6614b24c36294::t_234f7fb5baf713 11-12
+.marksman.toml
+  s_e6614b24c36294::t_234f7fb5baf713 1-27
+docs/adr/20260529-214625-дописування-тестів-для-вцілілих-мутантів-opts-fix-у-coverage.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-66
+package.json
+  s_e6614b24c36294::t_234f7fb5baf713 26
+docs/adr/20260529-215427-виправлення-ізоляції-тесту-auto-rules-test-mjs-root-dir-замі.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-66
+npm/rules/ci4/policy/vscode_extensions/target.json
+  s_e6614b24c36294::t_234f7fb5baf713 1-4
+docs/adr/20260530-070549-вибір-zed-marksman-lsp-як-єдиного-viewer-editor-для-docs-сте.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-38
+docs/adr/20260529-221723-виправлення-ізоляції-тесту-auto-rules-test-mjs-root-dir-замі.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-74
+docs/adr/20260529-221726-власна-реалізація-n-cursor-release-замість-changesets-cli-аб.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-133
+npm/rules/ci4/js/data/marksman_config/marksman.baseline.toml
+  s_e6614b24c36294::t_234f7fb5baf713 1-27
+docs/adr/20260530-065510-вимкнення-git-trace2-у-тестах-через-gittrace2event-0-в-vites.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-54
+npm/rules/ci4/policy/vscode_extensions/vscode_extensions_test.rego
+  s_e6614b24c36294::t_234f7fb5baf713 1-33
+docs/adr/20260530-071234-архітектура-n-cursor-release-власний-скрипт-замість-changese.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-174
+docs/adr/20260530-070203-вибір-стеку-перегляду-документації-zed-marksman-lsp-замість.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-60
+npm/rules/ci4/policy/vscode_extensions/template/extensions.json.snippet.json
+  s_e6614b24c36294::t_234f7fb5baf713 1-3
+npm/scripts/tests/auto-rules.test.mjs
+  s_e6614b24c36294::t_234f7fb5baf713 282
+docs/adr/20260529-220315-стратегія-вирішення-конфліктів-changelog-version-у-паралельн.md
+  s_e6614b24c36294::t_234f7fb5baf713 1-136
+npm/vitest.config.js
+  s_e6614b24c36294::t_234f7fb5baf713 13-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8b76c637c4a90f4e9fc7b0d84655a0b859209a8d",
+  "prompts": {},
+  "sessions": {
+    "s_e6614b24c36294": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b851872-974e-4842-96a2-14ae3cf1a806",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
