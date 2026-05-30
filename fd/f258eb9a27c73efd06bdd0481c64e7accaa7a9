@@ -1,0 +1,72 @@
+npm/scripts/coverage-classify/tests/apply.test.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 44,102
+npm/rules/js-lint/js/tests/utils_imports.test.mjs
+  s_ecf98a742b5a5d::t_e22a38105d6bff 11
+npm/rules/capacitor/js/tests/platforms.test.mjs
+  s_ecf98a742b5a5d::t_1f7105f91bd61d 188-190
+npm/rules/rego/lint/tests/lint.test.mjs
+  s_ecf98a742b5a5d::t_ef9bd33dca1c0b 48
+npm/rules/abie/lib/tests/hc-yaml.test.mjs
+  s_ecf98a742b5a5d::t_b4452d03e0622b 62
+npm/rules/abie/lib/tests/k8s-tree.test.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 45
+npm/scripts/coverage-classify/index.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 117-118,120
+npm/rules/test/js/tests/no-process-chdir.test.mjs
+  s_ecf98a742b5a5d::t_402df4fc4da3dc 13,15
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 127
+npm/scripts/lib/tests/run-rule-cli.test.mjs
+  s_ecf98a742b5a5d::t_b189d6da5bbf95 40-42,64-66
+  s_ecf98a742b5a5d::t_4d092880728fff 61-63
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_ecf98a742b5a5d::t_a81b9bb5707655 196-203
+  s_ecf98a742b5a5d::t_d273956ced7b04 169
+npm/rules/text/lint/tests/run-dotenv-linter.test.mjs
+  s_ecf98a742b5a5d::t_629720bb972eba 8
+  s_ecf98a742b5a5d::t_28ded464f011cf 23
+npm/scripts/coverage-classify/tests/prompt.test.mjs
+  s_ecf98a742b5a5d::t_a8bc6cf0fc0df3 73
+npm/rules/text/lint/tests/lint.test.mjs
+  s_ecf98a742b5a5d::t_f1e94581cd0cdb 89-91
+npm/rules/adr/js/tests/hooks.test.mjs
+  s_ecf98a742b5a5d::t_e8b6ade1d1e07b 11
+npm/rules/js-bun-db/lib/tests/bun-sql-scan.test.mjs
+  s_ecf98a742b5a5d::t_8c6a565a3cf9b8 318
+npm/rules/release/js/tests/release.test.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 177
+npm/scripts/lib/tests/run-conftest-batch.test.mjs
+  s_ecf98a742b5a5d::t_c47e94129971af 81
+  s_ecf98a742b5a5d::t_f02e981f8680f3 2
+npm/rules/text/lint/tests/run-shellcheck.test.mjs
+  s_ecf98a742b5a5d::t_ad1873c6779435 6
+npm/scripts/coverage-classify/verdict-schema.mjs
+  s_ecf98a742b5a5d::t_02398b22f56c33 30
+npm/scripts/coverage-classify/tests/cache.test.mjs
+  s_ecf98a742b5a5d::t_a3679033af846f 82,90
+  s_ecf98a742b5a5d::t_4741d0bc8f2047 9
+  s_ecf98a742b5a5d::t_58e4934b01cc9f 121
+npm/scripts/tests/upgrade-nitra-cursor-and-install.test.mjs
+  s_ecf98a742b5a5d::t_e8d681aefd9999 7
+npm/rules/ga/lint/tests/lint.test.mjs
+  s_ecf98a742b5a5d::t_67cebdb88cebdc 106-108
+  s_ecf98a742b5a5d::t_58749a3bccc867 139-144
+npm/scripts/tests/skills-cli.test.mjs
+  s_ecf98a742b5a5d::t_f130e0a9d4e8df 166-168,208-210,235-237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fdf258eb9a27c73efd06bdd0481c64e7accaa7a9",
+  "prompts": {},
+  "sessions": {
+    "s_ecf98a742b5a5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb59ca48-48b3-4da0-9725-6c168a4c0d1a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
