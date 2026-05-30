@@ -65,9 +65,28 @@ describe('parseRenameYamlArgs', () => {
 
 describe('runRenameYamlExtensionsCli', () => {
   test('повертає 0, якщо немає кандидатів', async () => {
-    await withTmpDir(async _dir => {
-      const code = await runRenameYamlExtensionsCli([])
+    await withTmpDir(async dir => {
+      const code = await runRenameYamlExtensionsCli([`--root=${dir}`])
       expect(code).toBe(0)
+    })
+  })
+
+  test('повертає 0 і виводить рядки після перейменування', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'app/k8s'))
+      await writeFile(join(dir, 'app/k8s/dep.yml'), 'x: 1\n', 'utf8')
+      const code = await runRenameYamlExtensionsCli([`--root=${dir}`])
+      expect(code).toBe(0)
+    })
+  })
+
+  test('повертає 1 при конфлікті (target існує)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'app/k8s'))
+      await writeFile(join(dir, 'app/k8s/dep.yml'), 'x: 1\n', 'utf8')
+      await writeFile(join(dir, 'app/k8s/dep.yaml'), 'x: 2\n', 'utf8')
+      const code = await runRenameYamlExtensionsCli([`--root=${dir}`])
+      expect(code).toBe(1)
     })
   })
 })

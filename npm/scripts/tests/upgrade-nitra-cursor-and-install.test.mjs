@@ -4,7 +4,8 @@
  */
 
 import { afterEach, beforeEach, describe, expect, vi, test } from 'vitest'
-import { mkdir, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { runLintRegoSteps as runLintRego } from '../lint.mjs'
+import { withBinRemovedFromPath } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**
  * @param {(cwd: string) => void} prep підготовка фікстур у тимчасовій директорії
@@ -40,6 +41,23 @@ describe('runLintRego', () => {
       cwd => runLintRego(cwd)
     )
     expect(exit).not.toBe(0)
+  })
+
+  test('повертає 1 коли opa відсутній у PATH (printOpaInstallHints)', async () => {
+    let exit
+    await withBinRemovedFromPath('opa', async () => {
+      exit = withTmpRepo(
+        cwd => {
+          mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
+          writeFileSync(
+            join(cwd, 'npm/rules/sample/policy/concern/concern.rego'),
+            'package sample.concern\n\nimport rego.v1\n'
+          )
+        },
+        cwd => runLintRego(cwd)
+      )
+    })
+    expect(exit).toBe(1)
   })
 
   test('passes on a well-formed rego under npm/rules/*/policy/', () => {
