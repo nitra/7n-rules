@@ -1,0 +1,20 @@
+npm/rules/test/js/no-relative-fs-path.mjs
+  s_877f898b3ffbc9::t_12c76d85ce7dd9 190-192
+  s_877f898b3ffbc9::t_bf46aa7c99179d 193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f2c40e58a6a115606563716b9d58b86023503819",
+  "prompts": {},
+  "sessions": {
+    "s_877f898b3ffbc9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a07d71a-6203-46f3-a96e-5198da56f7fa",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
