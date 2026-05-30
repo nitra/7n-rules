@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { writeChange } from '../../change.mjs'
+import { runChangeCli, writeChange } from '../../change.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('writeChange', () => {
@@ -22,6 +22,43 @@ describe('writeChange', () => {
     await withTmpDir(async dir => {
       await expect(writeChange({ bump: 'huge', section: 'Added', message: 'x', ws: '.', cwd: dir })).rejects.toThrow()
       await expect(writeChange({ bump: 'patch', section: 'Added', message: '', ws: '.', cwd: dir })).rejects.toThrow()
+    })
+  })
+})
+
+describe('runChangeCli', () => {
+  test('без обовʼязкових прапорців → exit 1', async () => {
+    expect(await runChangeCli([])).toBe(1)
+    expect(await runChangeCli(['--bump', 'patch'])).toBe(1)
+    expect(await runChangeCli(['--bump', 'patch', '--section', 'Fixed'])).toBe(1)
+  })
+
+  test('усі прапорці передані → exit 0, файл створено', async () => {
+    await withTmpDir(async dir => {
+      // Мокуємо process.cwd() бо writeChange використовує його через cwd-параметр
+      // Передаємо через process.env трюк: безпечніше передати --ws через абс. dir
+      // Але runChangeCli викликає writeChange({ cwd: process.cwd() }) — тому спробуємо через vi.spyOn
+      const { vi } = await import('vitest')
+      const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+      try {
+        const code = await runChangeCli(['--bump', 'patch', '--section', 'Fixed', '--message', 'Виправлено помилку'])
+        expect(code).toBe(0)
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
+
+  test('невалідний bump → exit 1 (помилка від writeChange)', async () => {
+    await withTmpDir(async dir => {
+      const { vi } = await import('vitest')
+      const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+      try {
+        const code = await runChangeCli(['--bump', 'invalid', '--section', 'Added', '--message', 'test'])
+        expect(code).toBe(1)
+      } finally {
+        spy.mockRestore()
+      }
     })
   })
 })

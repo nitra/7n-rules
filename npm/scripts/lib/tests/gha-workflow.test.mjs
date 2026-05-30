@@ -5,11 +5,17 @@ import { describe, expect, test } from 'vitest'
 
 import {
   anyRunStepIncludes,
+  anyRunStepIncludesStylelint,
   eventPathsIncludeExact,
   findForbiddenUsesOrRunPatterns,
   findRunStepsWithShellLineContinuationBackslash,
   flattenWorkflowSteps,
+  getStepRun,
+  getStepUses,
+  hasAnyStepUsesContaining,
   hasCheckoutBeforeLocalSetupBunDeps,
+  hasIdTokenWritePermission,
+  hasNpmPublishStepWithPackage,
   parseWorkflowYaml,
   pushHasMainBranch,
   pushPathsIncludeNpmGlob,
@@ -132,5 +138,119 @@ describe('gha-workflow', () => {
     expect(
       findRunStepsWithShellLineContinuationBackslash(/** @type {Record<string, unknown>} */ (goodRoot)).length
     ).toBe(0)
+  })
+
+  test('getStepUses — рядок або порожній рядок', () => {
+    expect(getStepUses({ uses: 'actions/checkout@v6' })).toBe('actions/checkout@v6')
+    expect(getStepUses({ run: 'echo hi' })).toBe('')
+    expect(getStepUses({})).toBe('')
+  })
+
+  test('getStepRun — рядок, масив або порожній рядок', () => {
+    expect(getStepRun({ run: 'echo ok' })).toBe('echo ok')
+    expect(getStepRun({ uses: 'actions/checkout@v6' })).toBe('')
+  })
+
+  test('hasAnyStepUsesContaining — true якщо є хоч один збіг', () => {
+    const y = `jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasAnyStepUsesContaining(/** @type {Record<string, unknown>} */ (root), ['oven-sh'])).toBe(true)
+    expect(hasAnyStepUsesContaining(/** @type {Record<string, unknown>} */ (root), ['missing'])).toBe(false)
+  })
+
+  test('hasNpmPublishStepWithPackage — true з package: npm/package.json', () => {
+    const y = `jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: JS-DevTools/npm-publish@v3
+        with:
+          package: npm/package.json
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasNpmPublishStepWithPackage(/** @type {Record<string, unknown>} */ (root))).toBe(true)
+  })
+
+  test('hasNpmPublishStepWithPackage — false без npm-publish кроку', () => {
+    const y = `jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasNpmPublishStepWithPackage(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('hasIdTokenWritePermission — true якщо є permissions.id-token: write', () => {
+    const y = `jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - run: echo ok
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasIdTokenWritePermission(/** @type {Record<string, unknown>} */ (root))).toBe(true)
+  })
+
+  test('hasIdTokenWritePermission — false без permissions', () => {
+    const y = `jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasIdTokenWritePermission(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('anyRunStepIncludesStylelint — true якщо є npx stylelint', () => {
+    const y = `jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - run: npx stylelint **/*.css
+`
+    const root = parseWorkflowYaml(y)
+    expect(anyRunStepIncludesStylelint(/** @type {Record<string, unknown>} */ (root))).toBe(true)
+    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'npx stylelint')).toBe(true)
+  })
+
+  test('verifyLintJsWorkflowStructure — null → failure про parse', () => {
+    const result = verifyLintJsWorkflowStructure(null)
+    expect(result.ok).toBe(false)
+    expect(result.failures.some(f => f.includes('YAML'))).toBe(true)
+  })
+
+  test('verifyLintJsWorkflowStructure — порожній workflow → усі failure', () => {
+    const root = parseWorkflowYaml('jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: []\n')
+    const result = verifyLintJsWorkflowStructure(/** @type {Record<string, unknown>} */ (root))
+    expect(result.ok).toBe(false)
+    expect(result.failures.length).toBeGreaterThan(0)
+  })
+
+  test('flattenWorkflowSteps — порожній workflow → []', () => {
+    const root = parseWorkflowYaml('name: empty\n')
+    expect(flattenWorkflowSteps(/** @type {Record<string, unknown>} */ (root))).toEqual([])
+  })
+
+  test('hasCheckoutBeforeLocalSetupBunDeps — false без checkout перед setup', () => {
+    const y = `jobs:
+  t:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/setup-bun-deps
+      - uses: actions/checkout@v6
+`
+    const root = parseWorkflowYaml(y)
+    expect(hasCheckoutBeforeLocalSetupBunDeps(/** @type {Record<string, unknown>} */ (root), ['./.github/actions/setup-bun-deps'])).toBe(false)
   })
 })

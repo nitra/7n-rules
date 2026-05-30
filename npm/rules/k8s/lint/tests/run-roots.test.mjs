@@ -6,8 +6,30 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { buildKubescapeExceptionsArgs, findK8sRoots, findKustomizationDirs, k8sRootFromFile } from '../lint.mjs'
+import { buildKubescapeExceptionsArgs, findK8sRoots, findKustomizationDirs, k8sRootFromFile, pathHasK8sSegment } from '../lint.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+describe('pathHasK8sSegment', () => {
+  test('true — шлях містить сегмент k8s', () => {
+    expect(pathHasK8sSegment('/app/k8s/deploy.yaml')).toBe(true)
+  })
+
+  test('true — з relativize: файл відносно root має сегмент k8s', () => {
+    expect(pathHasK8sSegment('/project/k8s/base/pod.yaml', '/project')).toBe(true)
+  })
+
+  test('false — шлях не містить k8s', () => {
+    expect(pathHasK8sSegment('/app/src/main.js')).toBe(false)
+  })
+
+  test('false — порожній відносний шлях після relativize', () => {
+    expect(pathHasK8sSegment('/app/k8s', '/app/k8s')).toBe(false)
+  })
+
+  test('true — два k8s-сегменти у шляху', () => {
+    expect(pathHasK8sSegment('/k8s/project/k8s/file.yaml', '/k8s/project')).toBe(true)
+  })
+})
 
 describe('k8sRootFromFile', () => {
   test('повертає каталог k8s зі шляху до yaml', () => {
