@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-05-30-llm-coverage-classifier-design.md
+  s_815349d22b9721::t_cba407d649e96a 1,3,5,9,11-12,14,18-24,26-29,35-45,47,49-61,66-81,84-85,87,89,91-97,100-109,111,113,115-118,120-121,123-124,127,129-133,138-156,158-160,162,164,166-172,176,178-179,181-183,185,187-191,195,197-205,207,211-218,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c1d0980171d7072ccf4ea14a81d914032118b076",
+  "prompts": {},
+  "sessions": {
+    "s_815349d22b9721": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3629764-420f-4903-8560-786a04a1b140",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
