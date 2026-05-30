@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest'
 
-import { synthesizeChangeFromCommits } from '../../lib/fallback.mjs'
+import { defaultRunGit, synthesizeChangeFromCommits } from '../../lib/fallback.mjs'
 
 /**
  * Стаб git: мапить ключ-команду на stdout (або кидає → null-гілка).
@@ -21,13 +21,11 @@ describe('synthesizeChangeFromCommits', () => {
     expect(r).toEqual({ bump: 'patch', section: 'Changed', description: 'feat: A; fix: B' })
   })
 
-  test('без тегу пакета — лог від кореня історії', async () => {
+  test('без тегу пакета (bootstrap) → null, щоб не подвоїти bump', async () => {
     const runGit = gitStub({
-      'describe --tags --abbrev=0 --match p@* HEAD': null,
-      'log --no-merges --format=%s HEAD -- pkg/': 'init\n'
+      'describe --tags --abbrev=0 --match p@* HEAD': null
     })
-    const r = await synthesizeChangeFromCommits('p', 'pkg', { runGit })
-    expect(r?.description).toBe('init')
+    expect(await synthesizeChangeFromCommits('p', 'pkg', { runGit })).toBeNull()
   })
 
   test('нуль комітів → null', async () => {
@@ -36,5 +34,20 @@ describe('synthesizeChangeFromCommits', () => {
       'log --no-merges --format=%s p@1.0.0..HEAD -- pkg/': '\n'
     })
     expect(await synthesizeChangeFromCommits('p', 'pkg', { runGit })).toBeNull()
+  })
+})
+
+describe('defaultRunGit', () => {
+  test('повертає stdout для успішної git-команди', async () => {
+    const runGit = defaultRunGit(process.cwd())
+    const result = await runGit(['--version'])
+    expect(typeof result).toBe('string')
+    expect(result).toContain('git version')
+  })
+
+  test('повертає null при помилці (неіснуючий cwd)', async () => {
+    const runGit = defaultRunGit('/nonexistent-path-abc123')
+    const result = await runGit(['log', '--oneline', '-1'])
+    expect(result).toBeNull()
   })
 })

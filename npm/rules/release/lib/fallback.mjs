@@ -34,9 +34,11 @@ export async function synthesizeChangeFromCommits(name, ws, opts = {}) {
   const runGit = opts.runGit ?? defaultRunGit(process.cwd())
   const lastTagRaw = await runGit(['describe', '--tags', '--abbrev=0', '--match', `${name}@*`, 'HEAD'])
   const lastTag = lastTagRaw?.trim()
-  const range = lastTag ? `${lastTag}..HEAD` : 'HEAD'
+  // Bootstrap: якщо жодного попереднього тегу немає — перший реліз зроблено вручну;
+  // fallback-синтез не запускаємо, щоб не подвоїти bump.
+  if (!lastTag) return null
   const pathspec = ws === '.' ? [] : ['--', `${ws}/`]
-  const logRaw = await runGit(['log', '--no-merges', '--format=%s', range, ...pathspec])
+  const logRaw = await runGit(['log', '--no-merges', '--format=%s', `${lastTag}..HEAD`, ...pathspec])
   const subjects = (logRaw ?? '')
     .split('\n')
     .map(s => s.trim())
