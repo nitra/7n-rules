@@ -4,7 +4,8 @@
       "Bash",
       "Skill(update-config)",
       "Skill(update-config:*)",
-      "WebFetch(domain:microsoft.github.io)"
+      "WebFetch(domain:microsoft.github.io)",
+      "Skill(n-coverage-fix)"
     ]
   }
 }

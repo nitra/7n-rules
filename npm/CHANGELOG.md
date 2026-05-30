@@ -4,6 +4,30 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.32.0] - 2026-05-30
+
+### Added
+
+- **`rules/ci4/js/marksman_config.mjs`** + **`rules/ci4/js/data/marksman_config/marksman.baseline.toml`** — новий JS-концерн `marksman_config` за зразком `test.stryker_config`: при `npx @nitra/cursor fix ci4` копіює canonical `.marksman.toml` baseline у корінь cwd, якщо файлу ще немає. Idempotent через паттерн `ensureBaselineFile` (existsSync → pass+skip vs copyFile → pass+create) — ручні правки користувача між прогонами зберігаються, повторний прогон не перетирає. Baseline містить три ключові опції: `[core] markdown.glfm = true` (GLFM-фічі portable subset — alerts/таблиці/todo), `[completion] wiki.style = "file-stem"` (ADR slug == ім'я файла; стабільний ідентифікатор у AUTOGEN `sources`/manifest/валідаторі — заголовок міняється, посилання не ламається), `[code_action] toc.enable = true` (Insert/Update TOC code action для довгих arc42-сторінок). Дефолти marksman (`title-slug-ref` + вимкнений GLFM) ламали б частину задокументованої навігації. Розміщення в `cwd` (корені репо) робить весь монорепо одним marksman-workspace — README.md і docs/ перехресно навігуються. Тести: `+4` сценарії у `rules/ci4/js/tests/marksman_config.test.mjs` через `withTmpDir` (порожній cwd → файл створюється; idempotency — кастомний контент не перетирається; валідні TOML-секції `[core]`/`[completion]`/`[code_action]`; exit 0 у обох сценаріях). 4/4 PASS через `bunx vitest run rules/ci4/js/tests/marksman_config.test.mjs`.
+
+### Changed
+
+- **`rules/ci4/ci4.mdc`** (`version` 3.1 → 3.2) — у секцію «Viewer/editor: Zed + marksman LSP» додано параграф про авто-створення `.marksman.toml` правилом ci4 з посиланням на canonical baseline і поясненням кожної з трьох ключових опцій (glfm/wiki.style/toc.enable). У frontmatter `description` додано пункт про `.marksman.toml`. Дзеркало `.cursor/rules/n-ci4.mdc` синхронізується наступним прогоном `npx @nitra/cursor`.
+
+## [1.31.0] - 2026-05-30
+
+### Added
+
+- **`rules/ci4/policy/vscode_extensions/`** — нова policy за зразком text/style-lint/rego/ga/js-lint/graphql/nginx-default-tpl/rust/tauri: `vscode_extensions.rego` (deny якщо рекомендація з template-snippet відсутня в `.vscode/extensions.json`) + `vscode_extensions_test.rego` (5 сценаріїв: canonical, missing marksman, empty recommendations, extra recommendations пропускаються, drift-test що канон керується через `data.template`) + `template/extensions.json.snippet.json` (`{"recommendations": ["arr.marksman"]}`) + `target.json` (single `.vscode/extensions.json`). Призначення — контрибʼютори, що працюють у VSCode/Cursor замість Zed, отримують той самий шар marksman-навігації (cmd+click по `[link](file.md)`/`[[wiki-link]]`, find-references, refactor-перейменування заголовків) через офіційне розширення marksman LSP. Дзеркальна правка у репо: `.vscode/extensions.json` отримав `arr.marksman` у `recommendations`. Тести: 5/5 PASS через `opa test npm/rules/ci4/policy/vscode_extensions/`.
+
+### Changed
+
+- **`rules/ci4/ci4.mdc`** (`version` 3.0 → 3.1) — у секцію «Viewer/editor: Zed + marksman LSP» додано підсекцію **«VSCode-альтернатива»** з канонічним JSON-блоком `.vscode/extensions.json` (`recommendations: ["arr.marksman"]`) і посиланням на snippet-файл policy (за стилем `text.mdc`); також згадка про marksman-сумісні редактори (Neovim, Helix, Emacs). У frontmatter `description` додано пункт про VSCode-розширення. Дзеркало `.cursor/rules/n-ci4.mdc` синхронізується наступним прогоном `npx @nitra/cursor`.
+
+### Fixed
+
+- **`vitest.config.js`** — git-залежні тести (`rules/changelog/check.test.mjs`, `rules/ga/workflows.test.mjs`) масово таймаутили локально (`23 failed | 13 passed`, 187s; усі фейли — `Test timed out in 5000ms`, не assertion), хоча в CI зелені. Першопричина: глобальний `~/.gitconfig` тестової машини має `trace2.eventtarget=af_unix:stream:~/.git-ai/.../trace2.sock` (tooling `git-ai`), який успадковується tmp-репо в тестах → кожна git-команда під'єднується до Unix-сокета даемона; коли даемон деградований, запис у сокет блокується (~1s/команда не на CPU), а під `pool: 'forks'` десятки паралельних git-операцій × латентність > 5000ms `testTimeout`. Фікс: `env: { GIT_TRACE2_EVENT: '0' }` прибирає trace2-залежність із гарячого шляху тестового git (root-cause), плюс `testTimeout: 20000` як defence-in-depth проти будь-якої залишкової локальної I/O-латентності. Після фіксу `bun run vitest run rules/changelog/` → `36 passed` за ~7s (відтворювано); повний suite — `1248 passed | 2 skipped`. CI не зачеплено (там немає trace2-таргета).
+
 ## [1.30.1] - 2026-05-29
 
 ### Added

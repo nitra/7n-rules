@@ -1,0 +1,27 @@
+# Workspace-маркер marksman LSP. У корені репо робить весь монорепо одним
+# marksman-workspace — README.md і docs/ перехресно навігуються через
+# [text](file.md) і [[wiki-link]]. Файли .mdc не індексуються — marksman
+# дивиться лише на розширення нижче.
+#
+# Створюється правилом ci4 (npx @nitra/cursor fix ci4) із canonical baseline.
+# Ручні правки не перетираються: повторні прогони ідемпотентні (no-op).
+
+[core]
+markdown.file_extensions = ["md", "markdown"]
+
+# GitHub-Flavored Markdown (таблиці, todo, alerts, math) — наш portable subset.
+markdown.glfm = true
+
+[completion]
+# Стиль резолву [[wiki-link]]:
+#   "file-stem"      → [[oidc-pkce-flow]] резолвиться у docs/adr/oidc-pkce-flow.md
+#   "title-slug-ref" → резолв за slugified H1 заголовком
+# Беремо file-stem: ADR-slug == ім'я файла, стабільний ідентифікатор у
+# AUTOGEN sources, manifest, валідаторі. Заголовок може мінятися — посилання
+# не ламається.
+wiki.style = "file-stem"
+
+[code_action]
+# Code action "Insert/Update TOC" — корисно для довгих arc42-сторінок
+# (architecture.md з 12 розділами).
+toc.enable = true
