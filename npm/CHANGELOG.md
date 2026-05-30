@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.5] - 2026-05-30
+
+### Changed
+
+- fix: computeLineOffsets — for..of по рядку із pos+=1 замість body.entries()
+
 ## [1.35.4] - 2026-05-30
 
 ### Changed

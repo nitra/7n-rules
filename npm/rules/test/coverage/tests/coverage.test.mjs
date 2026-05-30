@@ -1372,6 +1372,33 @@ describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
     expect(md).toContain('**Разом**')
     fx.cleanup()
   })
+
+  test('provider з Разом + 2 реальні → buildTotalsRow отримує лише реальні рядки (вбиває L244)', async () => {
+    // Provider повертає 3 рядки: JS + Rego + **Разом** (вже обчислений).
+    // Оркестратор має додати ЩЕ ОДИН Разом тільки якщо >1 не-Разом рядків.
+    // Але фільтр L243 виключає **Разом** → 2 рядки (JS+Rego) > 1 → додає НОВИЙ Разом.
+    // L244 filter (buildTotalsRow) теж виключає **Разом** → не дублює.
+    // Без фільтра L244 (мутант) → buildTotalsRow(JS+Rego+Разом) → потрійні лічильники.
+    const THREE_ROW_PROVIDER = `
+      export async function detect() { return true }
+      export async function collect() {
+        return [
+          { area: 'JS', coverage: { lines: { covered: 5, total: 10 }, functions: { covered: 2, total: 4 } }, mutation: { caught: 3, total: 4 } },
+          { area: 'Rego', coverage: { lines: { covered: 3, total: 6 }, functions: { covered: 1, total: 2 } }, mutation: { caught: 2, total: 3 } },
+          { area: '**Разом**', coverage: { lines: { covered: 8, total: 16 }, functions: { covered: 3, total: 6 } }, mutation: { caught: 5, total: 7 } }
+        ]
+      }
+    `
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': THREE_ROW_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(0)
+    const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
+    // Правильні підсумки (JS+Rego): caught=5, total=7, score=71.43%
+    expect(md).toContain('5/7')
+    // Не потрійні (JS+Rego+Разом): caught=10, total=14 — такого немає
+    expect(md).not.toContain('10/14')
+    fx.cleanup()
+  })
 })
 
 describe('runCoverageCli — 2-й run передає fix:false (L272)', () => {
