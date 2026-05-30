@@ -7,6 +7,20 @@ import { parse as parseToml } from 'smol-toml'
 import { release } from '../../release.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+/**
+ * Stub runGit для fallback-тесту: describe → тег, log → коміти, решта → ''.
+ * @param {string[]} args аргументи git-команди
+ * @returns {Promise<string>} результат
+ */
+const RE_COMMIT = /commit/u
+
+const runGitFallbackStub = args => {
+  const key = args.join(' ')
+  if (key.startsWith('describe')) return Promise.resolve('p@1.0.0\n')
+  if (key.startsWith('log')) return Promise.resolve('feat: щось\n')
+  return Promise.resolve('')
+}
+
 describe('release', () => {
   test('бампить version, дописує CHANGELOG, видаляє change-файли, планує тег', async () => {
     await withTmpDir(async dir => {
@@ -71,11 +85,11 @@ describe('release', () => {
       const runGit = args => { calls.push(args.join(' ')); return Promise.resolve('') }
       const released = await release({ cwd: dir, date: '2026-05-29', runGit })
 
-      expect(released.map(r => r.name).sort()).toEqual(['a', 'b'])
+      expect(released.map(r => r.name).toSorted()).toEqual(['a', 'b'])
       expect(JSON.parse(await readFile(join(dir, 'a', 'package.json'), 'utf8')).version).toBe('1.1.0')
       expect(JSON.parse(await readFile(join(dir, 'b', 'package.json'), 'utf8')).version).toBe('2.1.0')
       expect(calls.filter(c => c.startsWith('commit')).length).toBe(1)
-      expect(calls.filter(c => c.startsWith('tag ')).sort()).toEqual(['tag a@1.1.0', 'tag b@2.1.0'])
+      expect(calls.filter(c => c.startsWith('tag ')).toSorted()).toEqual(['tag a@1.1.0', 'tag b@2.1.0'])
     })
   })
 
@@ -83,14 +97,7 @@ describe('release', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
       await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
-      // stub: describe повертає тег, log повертає коміти
-      const runGit = args => {
-        const key = args.join(' ')
-        if (key.startsWith('describe')) return Promise.resolve('p@1.0.0\n')
-        if (key.startsWith('log')) return Promise.resolve('feat: щось\n')
-        return Promise.resolve('')
-      }
-      const released = await release({ cwd: dir, date: '2026-05-29', runGit })
+      const released = await release({ cwd: dir, date: '2026-05-29', runGit: runGitFallbackStub })
       expect(released).toEqual([{ ws: '.', name: 'p', newVersion: '1.0.1' }])
       const cl = await readFile(join(dir, 'CHANGELOG.md'), 'utf8')
       expect(cl).toContain('feat: щось')
@@ -108,7 +115,7 @@ describe('release', () => {
         calls.push(args.join(' '))
         return Promise.resolve(args[0] === 'commit' ? null : '')
       }
-      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/commit/)
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(RE_COMMIT)
       expect(calls.some(c => c.startsWith('tag '))).toBe(false)
       expect(calls.some(c => c.startsWith('push'))).toBe(false)
     })

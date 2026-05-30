@@ -3,9 +3,13 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { changeFileName, readChangeFiles } from '../../lib/change-file.mjs'
-import { parseChangeFile, serializeChangeFile, VALID_BUMPS, VALID_SECTIONS } from '../../lib/change-file.mjs'
+import { changeFileName, readChangeFiles, parseChangeFile, serializeChangeFile, VALID_BUMPS, VALID_SECTIONS } from '../../lib/change-file.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+const RE_ОПИС = /опис/u
+const RE_BUMP = /bump/u
+const RE_SECTION = /section/u
+const RE_FRONTMATTER = /frontmatter/u
 
 describe('parseChangeFile', () => {
   test('парсить валідний frontmatter + опис', () => {
@@ -16,13 +20,13 @@ describe('parseChangeFile', () => {
   test('обрізає зайві пробіли в описі та кидає на порожньому описі', () => {
     const text = '---\nbump: patch\nsection: Fixed\n---\n\n  Виправив Y  \n\n'
     expect(parseChangeFile(text).description).toBe('Виправив Y')
-    expect(() => parseChangeFile('---\nbump: patch\nsection: Fixed\n---\n   \n')).toThrow(/опис/)
+    expect(() => parseChangeFile('---\nbump: patch\nsection: Fixed\n---\n   \n')).toThrow(RE_ОПИС)
   })
 
   test('кидає на невалідному bump/section та без frontmatter', () => {
-    expect(() => parseChangeFile('---\nbump: huge\nsection: Added\n---\nx')).toThrow(/bump/)
-    expect(() => parseChangeFile('---\nbump: patch\nsection: Nope\n---\nx')).toThrow(/section/)
-    expect(() => parseChangeFile('просто текст')).toThrow(/frontmatter/)
+    expect(() => parseChangeFile('---\nbump: huge\nsection: Added\n---\nx')).toThrow(RE_BUMP)
+    expect(() => parseChangeFile('---\nbump: patch\nsection: Nope\n---\nx')).toThrow(RE_SECTION)
+    expect(() => parseChangeFile('просто текст')).toThrow(RE_FRONTMATTER)
   })
 
   test('VALID_* — очікувані множини', () => {
@@ -54,7 +58,7 @@ describe('readChangeFiles', () => {
       await writeFile(join(changesDir, 'README.txt'), 'ignore me')
 
       const result = await readChangeFiles('pkg', dir)
-      expect(result.map(r => r.entry.description).sort()).toEqual(['A', 'B'])
+      expect(result.map(r => r.entry.description).toSorted()).toEqual(['A', 'B'])
       expect(result.every(r => r.file.endsWith('.md'))).toBe(true)
     })
   })

@@ -403,7 +403,8 @@ function workspaceLabel(manifest) {
  * @returns {Promise<boolean>} результат
  */
 async function hasPendingChangeFiles(ws, cwd) {
-  return (await readChangeFiles(ws, cwd)).length > 0
+  const files = await readChangeFiles(ws, cwd)
+  return files.length > 0
 }
 
 /**

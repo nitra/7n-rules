@@ -88,7 +88,8 @@ export function newChangeFileName() {
 export async function readChangeFiles(ws, cwd = process.cwd()) {
   const dir = join(cwd, ws, CHANGES_DIR)
   if (!existsSync(dir)) return []
-  const names = (await readdir(dir)).filter(n => n.endsWith('.md')).sort()
+  const entries = await readdir(dir)
+  const names = entries.filter(n => n.endsWith('.md')).toSorted()
   const result = []
   for (const file of names) {
     const text = await readFile(join(dir, file), 'utf8')

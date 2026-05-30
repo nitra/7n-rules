@@ -41,7 +41,8 @@ export function renderChangelogSection(version, date, entries) {
   for (const section of VALID_SECTIONS) {
     const bullets = entries.filter(e => e.section === section)
     if (bullets.length === 0) continue
-    out += `\n### ${section}\n\n${bullets.map(b => `- ${b.description}`).join('\n')}\n`
+    const bulletLines = bullets.map(b => '- ' + b.description).join('\n')
+    out += `\n### ${section}\n\n${bulletLines}\n`
   }
   return out
 }

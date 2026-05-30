@@ -1,7 +1,8 @@
 import { describe, expect, test } from 'vitest'
 
-import { bumpVersion, maxBump, renderChangelogSection, prependChangelogSection } from '../../lib/aggregate.mjs'
-import { aggregateWorkspace } from '../../lib/aggregate.mjs'
+import { bumpVersion, maxBump, renderChangelogSection, prependChangelogSection, aggregateWorkspace } from '../../lib/aggregate.mjs'
+
+const RE_SEMVER = /semver/u
 
 describe('bumpVersion', () => {
   test('major/minor/patch обнуляють молодші розряди', () => {
@@ -10,7 +11,7 @@ describe('bumpVersion', () => {
     expect(bumpVersion('1.2.3', 'major')).toBe('2.0.0')
   })
   test('кидає на невалідній версії', () => {
-    expect(() => bumpVersion('1.2', 'patch')).toThrow(/semver/)
+    expect(() => bumpVersion('1.2', 'patch')).toThrow(RE_SEMVER)
   })
 })
 
