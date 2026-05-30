@@ -1,0 +1,22 @@
+npm/rules/changelog/js/consistency.mjs
+  s_c75314eb3a9067::t_fdd14c746050bf 362-374
+  s_c75314eb3a9067::t_2dc91e6340437b 388,395,400-401,412,418-420,424
+  s_c75314eb3a9067::t_2aca67b344b15b 484,486-487,491
+  s_c75314eb3a9067::t_74eeb7501f3c7b 455-460,463-464
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c3fc7f057b12cb33e66a85e1fcaa2ca086fb3d10",
+  "prompts": {},
+  "sessions": {
+    "s_c75314eb3a9067": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05c3d8d1-330e-4532-9b71-fbc087139714",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
