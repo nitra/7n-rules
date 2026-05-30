@@ -1,7 +1,19 @@
+npm/package.json
+  s_9ba8fc311d4f79::t_c35dde5e60be32 57-58
 ---
 {
   "schema_version": "authorship/3.0.0",
-  "git_ai_version": "1.4.8",
+  "git_ai_version": "1.5.2",
   "base_commit_sha": "e15e6d4d863de5a8062d34635236b525e2356663",
-  "prompts": {}
+  "prompts": {},
+  "sessions": {
+    "s_9ba8fc311d4f79": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "328bb743-a5ae-4252-b4bc-4cb8830cb252",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
 }
