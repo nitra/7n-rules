@@ -204,8 +204,7 @@ describe('runPostToolUseFixCli', () => {
     const savedDesc = Object.getOwnPropertyDescriptor(process, 'stdin')
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true, writable: true })
     setImmediate(() => {
-      fakeStdin.push(JSON.stringify({ tool_input: { file_path: 'LICENSE' } }))
-      fakeStdin.push(null)
+      fakeStdin.push(JSON.stringify({ tool_input: { file_path: 'LICENSE' } }), null)
     })
     try {
       const spawnFn = vi.fn()
