@@ -1,0 +1,33 @@
+npm/rules/release/js/tests/fallback.test.mjs
+  s_5112251e1ba532::t_663519090ce9ce 24,26,28
+  s_1012fb5f7d9bea::t_91fc4c26e599e2 3
+  s_1012fb5f7d9bea::t_31360d04436658 39-53
+npm/rules/release/lib/fallback.mjs
+  s_5112251e1ba532::t_d42da04efd1cae 37-39,41
+.github/workflows/npm-publish.yml
+  s_5112251e1ba532::t_4efe433015d047 27-28,31,34-38,40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8b74ea101ef02cf3b881f506f35fa235eb392b25",
+  "prompts": {},
+  "sessions": {
+    "s_1012fb5f7d9bea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3c973c-d4a6-4a39-9b3e-1e7be4291e26",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_5112251e1ba532": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c1937d0-57f9-41c0-bf1f-851d01231b95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
