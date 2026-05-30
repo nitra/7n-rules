@@ -41,7 +41,7 @@ describe('isAllowedGap', () => {
   })
 
   test('threshold = 1.1 → завжди false (rollout mode)', () => {
-    const v = { verdict: 'equivalent', confidence: 1.0, reason: REASON }
+    const v = { verdict: 'equivalent', confidence: 1, reason: REASON }
     expect(isAllowedGap(v, 1.1)).toBe(false)
   })
 })
@@ -99,7 +99,7 @@ describe('applyVerdicts', () => {
   test('threshold = 1.1 (rollout) → нічого не фільтрується незалежно від verdict', () => {
     const rows = [row([mkSurvived('foo.mjs')])]
     const verdicts = [
-      { key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1.0, reason: REASON } }
+      { key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1, reason: REASON } }
     ]
     const result = applyVerdicts(rows, verdicts, 1.1)
     expect(result.allowedGaps).toEqual([])

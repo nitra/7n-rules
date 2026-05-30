@@ -163,7 +163,9 @@ describe('runSkillsCli', () => {
     const code = runSkillsCli([], {
       packageRoot: root,
       projectDir: root,
-      log: () => {},
+      log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
       logError: line => errors.push(line)
     })
 
@@ -203,7 +205,9 @@ describe('runSkillsCli', () => {
       code = runSkillsCli(['claude', 'fix'], {
         packageRoot: root,
         projectDir: root,
-        log: () => {},
+        log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
         logError: line => errors.push(line)
       })
     } finally {
@@ -228,7 +232,9 @@ describe('runSkillsCli', () => {
       code = runSkillsCli(['cursor', 'fix'], {
         packageRoot: root,
         projectDir: root,
-        log: () => {},
+        log: () => {
+        /* noop: stdout не перевіряється в цьому тесті */
+      },
         logError: line => errors.push(line)
       })
     } finally {

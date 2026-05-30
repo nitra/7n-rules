@@ -3,9 +3,8 @@
  */
 import { describe, expect, test } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { dirname } from 'node:path'
 
 import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'

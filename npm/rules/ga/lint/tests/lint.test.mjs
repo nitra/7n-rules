@@ -103,7 +103,9 @@ describe('runLintGaCli', () => {
     const origLog = console.log
     const origErr = console.error
     console.log = (...args) => logs.push(args.join(' '))
-    console.error = () => {}
+    console.error = () => {
+      /* noop: stderr не перевіряється в цьому тесті */
+    }
     let code
     try {
       code = await runLintGaCli()
@@ -134,8 +136,12 @@ describe('runLintGaCli', () => {
     env.PATH = `${binDir}:/usr/bin:/bin`
     const origLog = console.log
     const origErr = console.error
-    console.log = () => {}
-    console.error = () => {}
+    console.log = () => {
+      /* noop: stdout не перевіряється в цьому тесті */
+    }
+    console.error = () => {
+      /* noop: stderr не перевіряється в цьому тесті */
+    }
     let code
     try {
       code = await runLintGaCli()

@@ -114,10 +114,10 @@ async function classifyOne(client, group, mutant, cwd, retryDelayMs) {
       })
       const text = response?.content?.[0]?.text ?? ''
       return parseVerdict(text)
-    } catch (err) {
-      lastError = err
+    } catch (error) {
+      lastError = error
       if (attempt < MAX_RETRIES && retryDelayMs > 0) {
-        await setTimeout(retryDelayMs * Math.pow(2, attempt))
+        await setTimeout(retryDelayMs * 2 ** attempt)
       }
     }
   }

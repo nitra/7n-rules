@@ -124,7 +124,7 @@ describe('httpRouteMatchesNginxDefaultTpl', () => {
 
   test('false для null → line 185', () => {
     expect(httpRouteMatchesNginxDefaultTpl(null)).toBe(false)
-    expect(httpRouteMatchesNginxDefaultTpl(undefined)).toBe(false)
+    expect(httpRouteMatchesNginxDefaultTpl()).toBe(false)
     expect(httpRouteMatchesNginxDefaultTpl([])).toBe(false)
     expect(httpRouteMatchesNginxDefaultTpl('string')).toBe(false)
   })

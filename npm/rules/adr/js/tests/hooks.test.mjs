@@ -8,7 +8,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { chmod, readFile, rm, writeFile } from 'node:fs/promises'
-import { delimiter, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 

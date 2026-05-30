@@ -8,7 +8,7 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { check } from '../utils_imports.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'

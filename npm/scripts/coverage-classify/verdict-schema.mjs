@@ -27,7 +27,7 @@ export const VerdictSchema = z.object({
 export function parseVerdict(rawText) {
   const jsonStart = rawText.indexOf('{')
   const jsonEnd = rawText.lastIndexOf('}')
-  if (jsonStart < 0 || jsonEnd < 0) {
+  if (jsonStart === -1 || jsonEnd === -1) {
     throw new Error('No JSON object found in LLM response')
   }
   const json = JSON.parse(rawText.slice(jsonStart, jsonEnd + 1))

@@ -5,8 +5,7 @@
 import { afterEach, describe, expect, test, vi } from 'vitest'
 import { chmod, readFile, writeFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { delimiter } from 'node:path'
-import { join } from 'node:path'
+import { delimiter, join } from 'node:path'
 import { env, platform } from 'node:process'
 
 import { runDotenvLinter } from '../run-dotenv-linter.mjs'
@@ -21,7 +20,7 @@ vi.mock('node:child_process', async () => {
 /**
  * Додає до PATH тимчасову директорію з підробленим `dotenv-linter`.
  * fix → exit 0; check → stdout + exit 1.
- * @param {(dir: string) => Promise<void>} fn
+ * @param {(dir: string) => Promise<void>} fn тестовий код, що приймає шлях до stub-PATH
  */
 async function withFakeDotenvLinter(fn) {
   await withTmpDir(async binDir => {

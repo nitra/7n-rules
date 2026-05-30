@@ -70,7 +70,7 @@ describe('buildUserPrompt', () => {
   })
 
   test('відсутній source файл → context-placeholder', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const mutant = { file: 'no/such.mjs', line: 1, col: 1, mutantType: 'X', original: 'a', replacement: 'b' }
       const prompt = buildUserPrompt(mutant, dir)
       expect(prompt).toContain('source file unavailable')

@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { buildConftestArgs, runConftestBatch } from '../run-conftest-batch.mjs'
@@ -79,7 +78,7 @@ describe('runConftestBatch', () => {
   })
 
   test('кидає коли rego-каталог не знайдено (line 100)', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const fakeFile = join(dir, 'a.json')
       writeFileSync(fakeFile, '{}')
       expect(() =>

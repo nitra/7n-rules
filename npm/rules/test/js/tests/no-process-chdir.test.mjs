@@ -10,9 +10,9 @@ import { join } from 'node:path'
 import { check } from '../no-process-chdir.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
-// Зібрано через `+`, щоб у source не зустрічався точний паттерн виклику
+// Зібрано через `join`, щоб у source не зустрічався точний паттерн виклику
 // `process.chdir` з відкривною дужкою — інакше сам сканер прапорив би цей файл.
-const CHDIR = 'process.chd' + 'ir'
+const CHDIR = ['process.chd', 'ir'].join('')
 
 describe('check test.no-process-chdir', () => {
   test('успіх: тест без забороненого виклику → exit 0', async () => {

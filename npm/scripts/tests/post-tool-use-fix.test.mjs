@@ -166,6 +166,7 @@ describe('runPostToolUseFixCli', () => {
 
   test('повертає 1 коли once(child, exit) відхиляється (error від child)', async () => {
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/foo.mjs' } })
+    // eslint-disable-next-line unicorn/prefer-event-target -- мокаємо ChildProcess, який сам є EventEmitter (Node API), а не EventTarget
     const errorChild = new EventEmitter()
     setImmediate(() => errorChild.emit('error', new Error('spawn failed')))
     const spawnFn = vi.fn(() => errorChild)
@@ -192,7 +193,14 @@ describe('runPostToolUseFixCli', () => {
 
   test('readStdin читає з не-TTY stdin (lines 71-81)', async () => {
     const { Readable } = await import('node:stream')
-    const fakeStdin = Object.assign(new Readable({ read() {} }), { isTTY: undefined })
+    const fakeStdin = Object.assign(
+      new Readable({
+        read() {
+          /* noop: пуш робимо у setImmediate */
+        }
+      }),
+      { isTTY: undefined }
+    )
     const savedDesc = Object.getOwnPropertyDescriptor(process, 'stdin')
     Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true, writable: true })
     setImmediate(() => {

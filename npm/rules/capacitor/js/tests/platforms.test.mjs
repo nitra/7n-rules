@@ -185,7 +185,9 @@ describe('walkIosForPodfileSkipPods: build/ і DerivedData/ пропускают
 
   test('неіснуюча директорія → false (line 289)', async () => {
     await withTmpDir(async dir => {
-      const found = await walkIosForPodfileSkipPods(dir, join(dir, 'nonexistent'), () => {})
+      const found = await walkIosForPodfileSkipPods(dir, join(dir, 'nonexistent'), () => {
+        /* noop: не очікуємо викликів — директорії нема */
+      })
       expect(found).toBe(false)
     })
   })

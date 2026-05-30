@@ -37,7 +37,9 @@ describe('runRuleCli', () => {
     await withTmpDir(async dir => {
       const logs = []
       vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
-      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'error').mockImplementation(() => {
+        /* noop: придушуємо вивід помилок у тесті */
+      })
       try {
         const code = await runRuleCli(dir)
         expect(code).toBe(0)
@@ -56,8 +58,12 @@ describe('runRuleCli', () => {
       const { writeFile } = await import('node:fs/promises')
       await writeFile(join(dir, 'js', 'fail.mjs'), `export async function check() { return 1 }\n`, 'utf8')
 
-      vi.spyOn(console, 'log').mockImplementation(() => {})
-      vi.spyOn(console, 'error').mockImplementation(() => {})
+      vi.spyOn(console, 'log').mockImplementation(() => {
+        /* noop: придушуємо вивід у тесті */
+      })
+      vi.spyOn(console, 'error').mockImplementation(() => {
+        /* noop: придушуємо вивід помилок у тесті */
+      })
       try {
         const code = await runRuleCli(dir)
         expect(code).toBe(1)

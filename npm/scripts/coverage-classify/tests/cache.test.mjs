@@ -6,7 +6,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
-import { writeFile, readFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 
 import { deriveBlobHash, deriveCacheKey, readCache, writeCache } from '../cache.mjs'
@@ -79,7 +79,7 @@ describe('deriveCacheKey', () => {
 
 describe('readCache / writeCache', () => {
   test('пустий cache при відсутньому файлі', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const cachePath = join(dir, 'cache.json')
       const c = readCache(cachePath)
       expect(c).toEqual({ version: 1, model: null, entries: {} })
@@ -87,7 +87,7 @@ describe('readCache / writeCache', () => {
   })
 
   test('round-trip: write → read той самий вміст', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const cachePath = join(dir, 'cache.json')
       const entry = {
         verdict: 'glue',
@@ -118,7 +118,7 @@ describe('readCache / writeCache', () => {
   })
 
   test('writeCache створює батьківські директорії', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const cachePath = join(dir, 'nested/deep/cache.json')
       writeCache(cachePath, { version: 1, model: 'x', entries: {} })
       expect(existsSync(cachePath)).toBe(true)

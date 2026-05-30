@@ -174,7 +174,7 @@ describe('runReleaseCli', () => {
         await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
         await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
         // runReleaseCli() uses process.cwd(), so we test release() directly via error path
-        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(e => e)
+        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(error => error)
         // Simulate what runReleaseCli does with the error
         console.error(`❌ ${err instanceof Error ? err.message : String(err)}`)
         const code = err instanceof Error ? 1 : 0

@@ -86,7 +86,9 @@ describe('runLintTextCli', () => {
     const origLog = console.log
     const origErr = console.error
     console.log = (...args) => logs.push(args.join(' '))
-    console.error = () => {}
+    console.error = () => {
+      /* noop: stderr не перевіряється в цьому тесті */
+    }
     let code
     try {
       code = await runLintTextCli()

@@ -59,7 +59,7 @@ describe('validateAbieHcModeline', () => {
     expect(validateAbieHcModeline(raw, REL_PATH)).toBeNull()
   })
 
-  test('повністю порожній файл → empty-error (lines=[""], перший trim===\"\")', () => {
+  test('повністю порожній файл → empty-error (lines=[""], перший trim==="")', () => {
     expect(validateAbieHcModeline('', REL_PATH)).toContain('перший рядок порожній')
   })
 

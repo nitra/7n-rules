@@ -315,7 +315,7 @@ const safe = { query(text, params) { return sql\`SELECT 1\` } }
 })
 
 describe('findUnsafeBunSqlInListMissingEmptyGuardInText', () => {
-  test('знаходить IN (${ids}) без guard перед запитом', () => {
+  test(`знаходить IN (\${ids}) без guard перед запитом`, () => {
     const code = `
 import { sql } from 'bun'
 const ids = [1, 2, 3]

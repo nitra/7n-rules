@@ -45,7 +45,7 @@ describe('runLintRego', () => {
 
   test('повертає 1 коли opa відсутній у PATH (printOpaInstallHints)', async () => {
     let exit
-    await withBinRemovedFromPath('opa', async () => {
+    await withBinRemovedFromPath('opa', () => {
       exit = withTmpRepo(
         cwd => {
           mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
