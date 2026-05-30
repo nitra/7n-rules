@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { buildConftestArgs } from '../run-conftest-batch.mjs'
+import { buildConftestArgs, runConftestBatch } from '../run-conftest-batch.mjs'
+import { withBinRemovedFromPath, withTmpDir } from '../../utils/test-helpers.mjs'
 
 describe('buildConftestArgs', () => {
   test('emits base args without --data when tmpDataFile null', () => {
@@ -58,5 +62,29 @@ describe('buildConftestArgs', () => {
       '--no-color',
       '--combine'
     ])
+  })
+})
+
+describe('runConftestBatch', () => {
+  test('кидає коли conftest відсутній у PATH (lines 39, 91)', async () => {
+    await withBinRemovedFromPath('conftest', async () => {
+      await withTmpDir(async dir => {
+        const fakeFile = join(dir, 'a.json')
+        writeFileSync(fakeFile, '{}')
+        await expect(() =>
+          runConftestBatch({ files: [fakeFile], policyDirRel: 'abie/base_deployment_preem', namespace: 'abie.base_deployment_preem' })
+        ).toThrow('conftest не знайдено')
+      })
+    })
+  })
+
+  test('кидає коли rego-каталог не знайдено (line 100)', async () => {
+    await withTmpDir(async dir => {
+      const fakeFile = join(dir, 'a.json')
+      writeFileSync(fakeFile, '{}')
+      expect(() =>
+        runConftestBatch({ files: [fakeFile], policyDirRel: 'nonexistent-rule/nonexistent-policy', namespace: 'x.y' })
+      ).toThrow('rego-каталог не знайдено')
+    })
   })
 })

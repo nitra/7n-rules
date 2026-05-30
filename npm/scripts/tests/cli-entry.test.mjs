@@ -34,6 +34,10 @@ describe('isRunAsCli', () => {
     expect(r.stdout.trim()).toBe('TRUE')
   })
 
+  test('metaUrl з не-file: протоколом → false (catch block)', () => {
+    expect(isRunAsCli('http://example.com/file.mjs')).toBe(false)
+  })
+
   test('symlink-нормалізація: macOS /tmp ↔ /private/tmp — true', () => {
     // На macOS /tmp resolve'иться у /private/tmp; realpathSync на обох сторонах знімає різницю.
     // Свідомо створюємо унікальний підкаталог під symlinked-кореневою /tmp (mkdtempSync ставить 0o700) —

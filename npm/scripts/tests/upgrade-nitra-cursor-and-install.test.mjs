@@ -259,4 +259,81 @@ describe('upgradeNitraCursorToLatestAndBunInstall — early-returns без fetch
       expect(updated.devDependencies['@nitra/cursor']).toBe('^5.0.0')
     })
   })
+
+  test('package.json є директорією (readFile кидає EISDIR) → fallback (line 157)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'package.json'), { recursive: true })
+      const fb = join(dir, 'fb')
+      await mkdir(fb, { recursive: true })
+      const result = await upgradeNitraCursorToLatestAndBunInstall(dir, fb)
+      expect(result).toBe(fb)
+    })
+  })
+})
+
+describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', () => {
+  const originalFetch = globalThis.fetch
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockReturnValue()
+    globalThis.fetch = vi.fn(() =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) })
+    )
+  })
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
+
+  test('немає devDependencies у pkg → створює і додає @nitra/cursor (line 183)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), JSON.stringify({}), 'utf8')
+      const fb = join(dir, 'fb')
+      await mkdir(fb, { recursive: true })
+      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(updated.devDependencies['@nitra/cursor']).toBe('^5.0.0')
+    })
+  })
+
+  test('версія вже актуальна (found.value === desired) — не перезаписує package.json (lines 193-194)', async () => {
+    await withTmpDir(async dir => {
+      const original = JSON.stringify({ devDependencies: { '@nitra/cursor': '^5.0.0' } })
+      await writeFile(join(dir, 'package.json'), original, 'utf8')
+      const fb = join(dir, 'fb')
+      await mkdir(fb, { recursive: true })
+      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      const content = await readFile(join(dir, 'package.json'), 'utf8')
+      expect(JSON.parse(content).devDependencies['@nitra/cursor']).toBe('^5.0.0')
+    })
+  })
+
+  test('оновлює версію в devDependencies коли found.value !== desired (lines 196-197, 201-202)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({ devDependencies: { '@nitra/cursor': '^4.0.0' } }),
+        'utf8'
+      )
+      const fb = join(dir, 'fb')
+      await mkdir(fb, { recursive: true })
+      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(updated.devDependencies['@nitra/cursor']).toBe('^5.0.0')
+    })
+  })
+
+  test('оновлює версію в dependencies коли пакет знайдено в deps (line 199)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(
+        join(dir, 'package.json'),
+        JSON.stringify({ dependencies: { '@nitra/cursor': '^4.0.0' } }),
+        'utf8'
+      )
+      const fb = join(dir, 'fb')
+      await mkdir(fb, { recursive: true })
+      await upgradeNitraCursorToLatestAndBunInstall(dir, fb).catch(() => null)
+      const updated = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      expect(updated.dependencies['@nitra/cursor']).toBe('^5.0.0')
+    })
+  })
 })

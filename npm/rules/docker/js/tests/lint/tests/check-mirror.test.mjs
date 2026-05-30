@@ -21,6 +21,31 @@ describe('getFromImageToken', () => {
   test('inline-коментар', () => {
     expect(getFromImageToken('FROM nginx:1  # comm')).toBe('nginx:1')
   })
+
+  test('образ у лапках → повертає без лапок (stripFromImageQuotes)', () => {
+    expect(getFromImageToken('FROM "alpine:latest"')).toBe('alpine:latest')
+    expect(getFromImageToken("FROM 'node:20'")).toBe('node:20')
+  })
+
+  test('--platform linux/amd64 як окремий токен → витягує образ', () => {
+    expect(getFromImageToken('FROM --platform linux/amd64 alpine:3.19 AS build')).toBe('alpine:3.19')
+  })
+
+  test('невідомий --flag=value перед образом → пропускає, повертає образ', () => {
+    expect(getFromImageToken('FROM --foo=bar alpine:latest')).toBe('alpine:latest')
+  })
+
+  test('невідомий --flag без = перед образом → пропускає, повертає образ', () => {
+    expect(getFromImageToken('FROM --foo alpine:latest')).toBe('alpine:latest')
+  })
+
+  test('FROM без образу (лише AS) → null', () => {
+    expect(getFromImageToken('FROM AS build')).toBeNull()
+  })
+
+  test('FROM -- → break, повертає null', () => {
+    expect(getFromImageToken('FROM --')).toBeNull()
+  })
 })
 
 describe('normalizeHubRepoPath', () => {
@@ -50,6 +75,10 @@ describe('isDockerHubStyleImageRef', () => {
 
   test('mirror.gcr.io вже — не “хаб”', () => {
     expect(isDockerHubStyleImageRef('mirror.gcr.io/library/node:20')).toBe(false)
+  })
+
+  test('localhost:5000/myimage — приватний реєстр з портом → false', () => {
+    expect(isDockerHubStyleImageRef('localhost:5000/myimage')).toBe(false)
   })
 })
 

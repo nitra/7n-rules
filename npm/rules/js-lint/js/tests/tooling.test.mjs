@@ -66,4 +66,43 @@ describe('verifyOxlintRcAgainstCanonical', () => {
     expect(v.ok).toBe(false)
     expect(v.failures.some(f => f.includes('ignorePatterns'))).toBe(true)
   })
+
+  test('cfg null → помилка про object', () => {
+    const v = verifyOxlintRcAgainstCanonical(null, canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures[0]).toContain('object')
+  })
+
+  test('cfg масив → помилка про object', () => {
+    const v = verifyOxlintRcAgainstCanonical([], canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures[0]).toContain('object')
+  })
+
+  test('canonical null → внутрішня помилка', () => {
+    const v = verifyOxlintRcAgainstCanonical(canonicalOxlint, null)
+    expect(v.ok).toBe(false)
+    expect(v.failures[0]).toContain('внутрішня помилка')
+  })
+
+  test('ignorePatterns у канон не масив → compareOxlintIgnorePatterns без fail', () => {
+    const syntheticCanon = { ...canonicalOxlint, ignorePatterns: null }
+    const v = verifyOxlintRcAgainstCanonical(canonicalOxlint, syntheticCanon)
+    // ignorePatterns: null у канон — compareOxlintIgnorePatterns повертає без fail
+    expect(v.ok).toBe(true)
+  })
+
+  test('cfg.env з зайвим ключем — різна кількість ключів → не ok', () => {
+    const bad = { ...canonicalOxlint, env: { ...canonicalOxlint.env, node: true } }
+    const v = verifyOxlintRcAgainstCanonical(bad, canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures.some(f => f.includes('env'))).toBe(true)
+  })
+
+  test('cfg.env.builtin: false замість true — deepEqual fails для вкладеного ключа', () => {
+    const bad = { ...canonicalOxlint, env: { builtin: false } }
+    const v = verifyOxlintRcAgainstCanonical(bad, canonicalOxlint)
+    expect(v.ok).toBe(false)
+    expect(v.failures.some(f => f.includes('env'))).toBe(true)
+  })
 })

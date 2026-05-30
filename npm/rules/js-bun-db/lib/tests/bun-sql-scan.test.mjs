@@ -407,3 +407,88 @@ await pool.query(\`SELECT * FROM users\`)
     expect(findPgListenNotifyUsageInText(code)).toHaveLength(0)
   })
 })
+
+describe('findUnsafeBunSqlInListMissingEmptyGuardInText — guard paths', () => {
+  test('IN (${ids}) всередині функції з guard !ids.length → не знаходить (guard є)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (!ids.length) throw new Error('empty list')
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
+
+  test('IN (${ids}) всередині функції з guard ids.length === 0 → не знаходить', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (ids.length === 0) throw new Error('empty list')
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
+
+  test('IN (${ids}) всередині функції без guard → missing_guard', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('missing_guard')
+  })
+
+  test('IN (${ids}) з нерелевантним if (x > 0) → missing_guard (не guard)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids, x) {
+  if (x > 0) console.log('ok')
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('missing_guard')
+  })
+
+  test('IN (${sql(ids)}) без guard — CallExpression з Identifier arg → missing_guard', () => {
+    const code = `
+import { sql } from 'bun'
+const ids = [1, 2, 3]
+const r = sql\`SELECT * FROM users WHERE id IN (\${sql(ids)})\`
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('IN (${sql(ids.filter(Boolean))}) → sql_helper_not_var (не Identifier)', () => {
+    const code = `
+import { sql } from 'bun'
+const ids = [1, 2, 3]
+const r = sql\`SELECT * FROM users WHERE id IN (\${sql(ids.filter(Boolean))})\`
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('sql_helper_not_var')
+  })
+})
+
+describe('findPgFormatLikeQueryWrapperInText — string literal key', () => {
+  test('строковий ключ "query" → також знаходиться', () => {
+    const code = `
+import { sql } from 'bun'
+const pgShim = { 'query': function(text, params) { return sql.unsafe(text, params) } }
+`
+    const hits = findPgFormatLikeQueryWrapperInText(code)
+    expect(hits.length).toBe(1)
+  })
+})

@@ -172,4 +172,21 @@ describe('runPostToolUseFixCli', () => {
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(1)
   })
+
+  test('readStdin повертає "" коли process.stdin.isTTY (lines 68-69) → exit 0', async () => {
+    const desc = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY')
+    Object.defineProperty(process.stdin, 'isTTY', { value: true, configurable: true, writable: true })
+    try {
+      const spawnFn = vi.fn()
+      const code = await runPostToolUseFixCli({ spawnFn })
+      expect(code).toBe(0)
+      expect(spawnFn).not.toHaveBeenCalled()
+    } finally {
+      if (desc) {
+        Object.defineProperty(process.stdin, 'isTTY', desc)
+      } else {
+        delete process.stdin.isTTY
+      }
+    }
+  })
 })

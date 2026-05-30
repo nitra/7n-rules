@@ -7,8 +7,9 @@
  * тому перші тести копіюють його у tmp `.claude/hooks/` для збігу байт-у-байт.
  */
 import { describe, expect, test } from 'vitest'
-import { readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { chmod, readFile, rm, writeFile } from 'node:fs/promises'
+import { delimiter, dirname, join } from 'node:path'
+import { env, platform } from 'node:process'
 import { fileURLToPath } from 'node:url'
 
 import { check } from '../hooks.mjs'
@@ -161,6 +162,150 @@ describe('check-adr (інтеграція)', () => {
       await setupValidProject(dir)
       await writeJson(join(dir, '.claude/settings.local.json'), { permissions: { allow: ['Bash'] } })
       expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('1 — capture-decisions.sh не існує (lines 96-97)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await rm(join(dir, '.claude/hooks/capture-decisions.sh'))
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .claude/settings.json не існує (line 124)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await rm(join(dir, '.claude/settings.json'))
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .cursor/hooks.json не існує (lines 178-179)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await rm(join(dir, '.cursor/hooks.json'))
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .cursor/hooks.json є невалідним JSON (lines 183-184)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeFile(join(dir, '.cursor/hooks.json'), '{ invalid json }', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — .gitignore не існує (lines 227-228, 230)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await rm(join(dir, '.gitignore'))
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — hooks.json є масивом [] → cursorConfigHasStopHook повертає false (line 149)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeFile(join(dir, '.cursor/hooks.json'), '[]', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — hooks.json.hooks є масивом → line 153 (return false)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeJson(join(dir, '.cursor/hooks.json'), { hooks: [] })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — hooks.json.hooks.stop не масив → line 157 (return false)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeJson(join(dir, '.cursor/hooks.json'), { hooks: { stop: null } })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — hooks.json.hooks.stop містить null-елемент → line 161 (return false в some)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      await writeJson(join(dir, '.cursor/hooks.json'), { hooks: { stop: [null] } })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+})
+
+describe('checkLlmCliAvailable — PATH scenarios', () => {
+  /**
+   * Запускає check() із маніпульованим PATH (тільки один бінарник у tmpDir).
+   * @param {'claude'|'cursor-agent'|'both'|'none'} present який бінарник присутній у stub-PATH
+   */
+  async function withSingleBinPath(present, fn) {
+    await withTmpDir(async binDir => {
+      const isWin = platform === 'win32'
+      const mkStub = async name => {
+        const stub = join(binDir, isWin ? `${name}.exe` : name)
+        await writeFile(stub, isWin ? '@echo off\n' : '#!/bin/sh\n', 'utf8')
+        if (!isWin) await chmod(stub, 0o755)
+      }
+      if (present === 'claude' || present === 'both') await mkStub('claude')
+      if (present === 'cursor-agent' || present === 'both') await mkStub('cursor-agent')
+      const prevPath = env.PATH
+      env.PATH = binDir
+      try {
+        await fn(binDir)
+      } finally {
+        if (prevPath === undefined) delete env.PATH
+        else env.PATH = prevPath
+      }
+    })
+  }
+
+  test('isBinaryInPath повертає false коли PATH порожній (line 247)', async () => {
+    await withTmpDir(async dir => {
+      await setupValidProject(dir)
+      const prevPath = env.PATH
+      env.PATH = ''
+      try {
+        const code = await check(dir)
+        expect(code).toBe(0)
+      } finally {
+        if (prevPath === undefined) delete env.PATH
+        else env.PATH = prevPath
+      }
+    })
+  })
+
+  test('hasClaude && !hasCursor → повідомлення про відсутній cursor-agent (lines 270-271)', async () => {
+    await withSingleBinPath('claude', async () => {
+      await withTmpDir(async dir => {
+        await setupValidProject(dir)
+        const code = await check(dir)
+        expect(code).toBe(0)
+      })
+    })
+  })
+
+  test('!hasClaude && hasCursor → повідомлення про відсутній claude (lines 272-273)', async () => {
+    await withSingleBinPath('cursor-agent', async () => {
+      await withTmpDir(async dir => {
+        await setupValidProject(dir)
+        const code = await check(dir)
+        expect(code).toBe(0)
+      })
+    })
+  })
+
+  test('обидва відсутні → info-повідомлення без fail (line 275)', async () => {
+    await withSingleBinPath('none', async () => {
+      await withTmpDir(async dir => {
+        await setupValidProject(dir)
+        const code = await check(dir)
+        expect(code).toBe(0)
+      })
     })
   })
 })

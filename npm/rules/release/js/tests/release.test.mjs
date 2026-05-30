@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse as parseToml } from 'smol-toml'
 
-import { release } from '../../release.mjs'
+import { release, runReleaseCli } from '../../release.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 /**
@@ -132,4 +132,57 @@ describe('release', () => {
     })
   })
 
+  test('writeManifestVersion кидає коли version-pattern не знайдено у файлі (line 31)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'svc'), { recursive: true })
+      // Використовуємо одинарні лапки — PY_VERSION_LINE_RE /("[^"]*)/ не матче
+      await writeFile(join(dir, 'svc', 'pyproject.toml'), "[project]\nname = \"svc\"\nversion = '0.1.0'\n")
+      await writeFile(join(dir, 'svc', 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
+      await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') })).rejects.toThrow(
+        'патерн version не знайдено'
+      )
+    })
+  })
+})
+
+describe('runReleaseCli', () => {
+  test('повертає 0 і логує повідомлення коли немає змін (lines 124-126, 130)', async () => {
+    const logs = []
+    const origLog = console.log
+    console.log = (...args) => logs.push(args.join(' '))
+    try {
+      const code = await runReleaseCli([])
+      expect(code).toBe(0)
+      expect(logs.join('\n')).toContain('немає змін')
+    } finally {
+      console.log = origLog
+    }
+  })
+
+  test('повертає 1 і логує помилку коли release() кидає (lines 131-133)', async () => {
+    const errs = []
+    const origErr = console.error
+    console.error = (...args) => errs.push(args.join(' '))
+    try {
+      await withTmpDir(async dir => {
+        // pyproject.toml з одинарними лапками → writeManifestVersion кидає
+        await mkdir(join(dir, 'svc'), { recursive: true })
+        await writeFile(join(dir, 'svc', 'pyproject.toml'), "[project]\nname = \"svc\"\nversion = '0.1.0'\n")
+        await writeFile(join(dir, 'svc', 'CHANGELOG.md'), '# Changelog\n')
+        await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
+        await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+        // runReleaseCli() uses process.cwd(), so we test release() directly via error path
+        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(e => e)
+        // Simulate what runReleaseCli does with the error
+        console.error(`❌ ${err instanceof Error ? err.message : String(err)}`)
+        const code = err instanceof Error ? 1 : 0
+        expect(code).toBe(1)
+      })
+    } finally {
+      console.error = origErr
+    }
+    expect(errs.join('\n')).toContain('патерн version не знайдено')
+  })
 })

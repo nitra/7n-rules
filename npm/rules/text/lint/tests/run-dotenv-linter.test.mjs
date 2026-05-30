@@ -3,12 +3,42 @@
  * `dotenv-linter` з виключенням `node_modules` і `.envrc`.
  */
 import { describe, expect, test } from 'vitest'
-import { readFile, writeFile } from 'node:fs/promises'
+import { chmod, readFile, writeFile } from 'node:fs/promises'
+import { delimiter } from 'node:path'
 import { join } from 'node:path'
+import { env, platform } from 'node:process'
 
 import { runDotenvLinter } from '../run-dotenv-linter.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
-import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withBinRemovedFromPath, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+/**
+ * Додає до PATH тимчасову директорію з підробленим `dotenv-linter`.
+ * fix → exit 0; check → stdout + exit 1.
+ * @param {(dir: string) => Promise<void>} fn
+ */
+async function withFakeDotenvLinter(fn) {
+  await withTmpDir(async binDir => {
+    const isWin = platform === 'win32'
+    const stub = join(binDir, isWin ? 'dotenv-linter.exe' : 'dotenv-linter')
+    const script = isWin
+      ? `@echo off\nif "%1"=="fix" exit 0\necho warning: duplicate key\nexit 1\n`
+      : `#!/bin/sh\nif [ "$1" = "fix" ]; then exit 0; fi\nprintf 'warning: duplicate key\\n'\nexit 1\n`
+    await writeFile(stub, script, 'utf8')
+    if (!isWin) await chmod(stub, 0o755)
+    const prevPath = env.PATH
+    env.PATH = `${binDir}${delimiter}${prevPath ?? ''}`
+    try {
+      await fn(binDir)
+    } finally {
+      if (prevPath === undefined) {
+        delete env.PATH
+      } else {
+        env.PATH = prevPath
+      }
+    }
+  })
+}
 
 describe('run-dotenv-linter.mjs', () => {
   test('runDotenvLinter повертає 0 коли .env*-файлів немає', async () => {
@@ -48,5 +78,42 @@ describe('run-dotenv-linter.mjs', () => {
       await writeFile(join(dir, '.env'), 'FOO=bar\n', 'utf8')
       expect(runDotenvLinter(dir)).toBe(0)
     })
+  })
+
+  test('runDotenvLinter повертає 1 і друкує підказки встановлення, якщо dotenv-linter відсутній у PATH (lines 61-62)', async () => {
+    const errLines = []
+    const origErr = process.stderr.write.bind(process.stderr)
+    process.stderr.write = chunk => { errLines.push(chunk); return true }
+    try {
+      await withBinRemovedFromPath('dotenv-linter', async () => {
+        await withTmpDir(dir => {
+          const code = runDotenvLinter(dir)
+          expect(code).toBe(1)
+        })
+      })
+    } finally {
+      process.stderr.write = origErr
+    }
+    const blob = errLines.join('')
+    expect(blob).toContain('dotenv-linter')
+    expect(blob).toContain('brew install')
+  })
+
+  test('runDotenvLinter повертає 1 і виводить stdout коли check знаходить порушення (lines 88-90)', async () => {
+    const stdoutLines = []
+    const origOut = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => { stdoutLines.push(chunk); return true }
+    try {
+      await withFakeDotenvLinter(async () => {
+        await withTmpDir(async dir => {
+          await writeFile(join(dir, '.env'), 'FOO=bar\n', 'utf8')
+          const code = runDotenvLinter(dir)
+          expect(code).toBe(1)
+        })
+      })
+    } finally {
+      process.stdout.write = origOut
+    }
+    expect(stdoutLines.join('')).toContain('duplicate')
   })
 })

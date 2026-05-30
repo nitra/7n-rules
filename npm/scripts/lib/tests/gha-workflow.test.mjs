@@ -253,4 +253,89 @@ describe('gha-workflow', () => {
     const root = parseWorkflowYaml(y)
     expect(hasCheckoutBeforeLocalSetupBunDeps(/** @type {Record<string, unknown>} */ (root), ['./.github/actions/setup-bun-deps'])).toBe(false)
   })
+
+  test('parseWorkflowYaml — невалідний YAML → null', () => {
+    expect(parseWorkflowYaml(': invalid: yaml: {')).toBeNull()
+  })
+
+  test('getStepRun — run як масив → join', () => {
+    expect(getStepRun({ run: ['echo a', 'echo b'] })).toBe('echo a\necho b')
+  })
+
+  test('eventPathsIncludeExact — без on → false', () => {
+    expect(eventPathsIncludeExact({}, 'push', 'npm/**')).toBe(false)
+  })
+
+  test('eventPathsIncludeExact — on без потрібного event → false', () => {
+    const root = parseWorkflowYaml('on:\n  schedule:\n    - cron: "0 0 * * *"\n')
+    expect(eventPathsIncludeExact(/** @type {Record<string, unknown>} */ (root), 'push', 'npm/**')).toBe(false)
+  })
+
+  test('pushPathsIncludeNpmGlob — без on → false', () => {
+    expect(pushPathsIncludeNpmGlob({})).toBe(false)
+  })
+
+  test('pushPathsIncludeNpmGlob — on без push → false', () => {
+    const root = parseWorkflowYaml('on:\n  schedule:\n    - cron: "0 0 * * *"\n')
+    expect(pushPathsIncludeNpmGlob(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('pushPathsIncludeNpmGlob — push без paths → false', () => {
+    const root = parseWorkflowYaml('on:\n  push:\n    branches: [main]\n')
+    expect(pushPathsIncludeNpmGlob(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('pushHasMainBranch — без on → false', () => {
+    expect(pushHasMainBranch({})).toBe(false)
+  })
+
+  test('pushHasMainBranch — on без push → false', () => {
+    const root = parseWorkflowYaml('on:\n  schedule:\n    - cron: "0 0 * * *"\n')
+    expect(pushHasMainBranch(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('pushHasMainBranch — push без branches → false', () => {
+    const root = parseWorkflowYaml('on:\n  push:\n    paths: ["npm/**"]\n')
+    expect(pushHasMainBranch(/** @type {Record<string, unknown>} */ (root))).toBe(false)
+  })
+
+  test('hasIdTokenWritePermission — без jobs → false', () => {
+    expect(hasIdTokenWritePermission({})).toBe(false)
+  })
+
+  test('anyRunStepIncludes — needle не знайдено → false', () => {
+    const root = parseWorkflowYaml('jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n')
+    expect(anyRunStepIncludes(/** @type {Record<string, unknown>} */ (root), 'missing-needle')).toBe(false)
+  })
+
+  test('flattenWorkflowSteps — job зі steps: null → не падає, [] кроків', () => {
+    const root = parseWorkflowYaml('jobs:\n  t:\n    runs-on: ubuntu-latest\n    steps: ~\n')
+    const steps = flattenWorkflowSteps(/** @type {Record<string, unknown>} */ (root))
+    expect(steps).toHaveLength(0)
+  })
+
+  test('verifyLintJsWorkflowStructure — oxlint --fix і eslint --fix → failure', () => {
+    const y = `name: Lint JS
+on:
+  push:
+    branches: [dev, main]
+jobs:
+  eslint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-bun-deps
+      - run: |
+          bunx oxlint --fix
+          bunx eslint --fix .
+          bunx jscpd .
+`
+    const root = parseWorkflowYaml(y)
+    const result = verifyLintJsWorkflowStructure(/** @type {Record<string, unknown>} */ (root))
+    expect(result.ok).toBe(false)
+    expect(result.failures.some(f => f.includes('oxlint'))).toBe(true)
+    expect(result.failures.some(f => f.includes('eslint --fix'))).toBe(true)
+  })
 })

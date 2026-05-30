@@ -105,4 +105,34 @@ describe('utils_imports.check', () => {
       expect(await check()).toBe(0)
     })
   })
+
+  test('utils/ з підкаталогом helpers/ → рекурсивно збирає файли', async () => {
+    await withTmpDir(async dir => {
+      const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+      restoreCwd = () => spy.mockRestore()
+      await mkdir(join(dir, 'utils', 'helpers'), { recursive: true })
+      await writeFile(
+        join(dir, 'utils', 'helpers', 'helper.mjs'),
+        "import { join } from 'node:path'\nexport const h = join\n",
+        'utf8'
+      )
+      expect(await check()).toBe(0)
+    })
+  })
+
+  test('utils/ у .n-cursor.json ignore → ігнорується (isIgnored returns true)', async () => {
+    await withTmpDir(async dir => {
+      const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
+      restoreCwd = () => spy.mockRestore()
+      await mkdir(join(dir, 'utils'), { recursive: true })
+      await writeFile(
+        join(dir, 'utils', 'bad.mjs'),
+        "import { x } from '../lib.mjs'\nexport const y = x\n",
+        'utf8'
+      )
+      // ignoring the utils directory → check() повинен пройти без порушень
+      await writeFile(join(dir, '.n-cursor.json'), JSON.stringify({ ignore: ['utils'] }), 'utf8')
+      expect(await check()).toBe(0)
+    })
+  })
 })

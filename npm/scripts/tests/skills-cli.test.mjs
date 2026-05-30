@@ -4,6 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { env } from 'node:process'
 import { describe, expect, test } from 'vitest'
 
 import { buildSkillPrompt, listSkillIds, normalizeSkillId, resolveBundledPackageRoot, runSkillsCli } from '../skills-cli.mjs'
@@ -186,5 +187,55 @@ describe('runSkillsCli', () => {
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toMatch(USAGE_HINT_RE)
+  })
+
+  test('claude runner без CLI у PATH → кидає (lines 39-40, 133-135, 202-204)', () => {
+    const root = join(tmpdir(), `skills-cli-claude-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    const errors = []
+    const prevPath = env.PATH
+    env.PATH = join(tmpdir(), 'empty-path-isolated')
+    let code
+    try {
+      code = runSkillsCli(['claude', 'fix'], {
+        packageRoot: root,
+        projectDir: root,
+        log: () => {},
+        logError: line => errors.push(line)
+      })
+    } finally {
+      env.PATH = prevPath
+    }
+
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('claude')
+  })
+
+  test('cursor runner без CLI у PATH → кидає (lines 39-40, 147-148)', () => {
+    const root = join(tmpdir(), `skills-cli-cursor-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+
+    const errors = []
+    const prevPath = env.PATH
+    env.PATH = join(tmpdir(), 'empty-path-isolated')
+    let code
+    try {
+      code = runSkillsCli(['cursor', 'fix'], {
+        packageRoot: root,
+        projectDir: root,
+        log: () => {},
+        logError: line => errors.push(line)
+      })
+    } finally {
+      env.PATH = prevPath
+    }
+
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toContain('cursor-agent')
   })
 })
