@@ -1,6 +1,11 @@
+import { mkdir, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import { describe, expect, test } from 'vitest'
 
+import { changeFileName, readChangeFiles } from '../../lib/change-file.mjs'
 import { parseChangeFile, serializeChangeFile, VALID_BUMPS, VALID_SECTIONS } from '../../lib/change-file.mjs'
+import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('parseChangeFile', () => {
   test('парсить валідний frontmatter + опис', () => {
@@ -30,5 +35,33 @@ describe('serializeChangeFile', () => {
   test('round-trip із parseChangeFile', () => {
     const entry = { bump: 'major', section: 'Removed', description: 'Прибрав Z' }
     expect(parseChangeFile(serializeChangeFile(entry))).toEqual(entry)
+  })
+})
+
+describe('changeFileName', () => {
+  test('формат <timestamp>-<rand>.md, детермінований за входами', () => {
+    expect(changeFileName(1748505600000, 'a1b2c3')).toBe('1748505600000-a1b2c3.md')
+  })
+})
+
+describe('readChangeFiles', () => {
+  test('зчитує всі .md з <ws>/.changes, ігнорує не-.md, повертає {file, entry}', async () => {
+    await withTmpDir(async dir => {
+      const changesDir = join(dir, 'pkg', '.changes')
+      await mkdir(changesDir, { recursive: true })
+      await writeFile(join(changesDir, '1-aaa.md'), '---\nbump: patch\nsection: Fixed\n---\nA\n')
+      await writeFile(join(changesDir, '2-bbb.md'), '---\nbump: minor\nsection: Added\n---\nB\n')
+      await writeFile(join(changesDir, 'README.txt'), 'ignore me')
+
+      const result = await readChangeFiles('pkg', dir)
+      expect(result.map(r => r.entry.description).sort()).toEqual(['A', 'B'])
+      expect(result.every(r => r.file.endsWith('.md'))).toBe(true)
+    })
+  })
+
+  test('відсутній .changes → порожній масив', async () => {
+    await withTmpDir(async dir => {
+      expect(await readChangeFiles('pkg', dir)).toEqual([])
+    })
   })
 })

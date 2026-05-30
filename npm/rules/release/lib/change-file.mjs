@@ -4,6 +4,11 @@
  * ключі, без зовнішніх залежностей.
  */
 
+import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
 /** Дозволені semver-бампи, від найбільшого до найменшого (порядок використовується для max). */
 export const VALID_BUMPS = Object.freeze(['major', 'minor', 'patch'])
 
@@ -52,4 +57,42 @@ export function parseChangeFile(text) {
  */
 export function serializeChangeFile(entry) {
   return `---\nbump: ${entry.bump}\nsection: ${entry.section}\n---\n${entry.description}\n`
+}
+
+/** Підкаталог зі change-файлами всередині workspace. */
+export const CHANGES_DIR = '.changes'
+
+/**
+ * @param {number} timestamp `Date.now()`
+ * @param {string} suffix короткий випадковий суфікс (hex)
+ * @returns {string} `<timestamp>-<suffix>.md`
+ */
+export function changeFileName(timestamp, suffix) {
+  return `${timestamp}-${suffix}.md`
+}
+
+/**
+ * Унікальне ім'я для нового change-файлу: timestamp (порядок) + rand (анти-колізія
+ * для паралельних агентів у різних worktree, що пишуть у ту саму мілісекунду).
+ * @returns {string} результат
+ */
+export function newChangeFileName() {
+  return changeFileName(Date.now(), randomBytes(3).toString('hex'))
+}
+
+/**
+ * @param {string} ws шлях workspace (відносно `cwd`)
+ * @param {string} [cwd] корінь репозиторію
+ * @returns {Promise<Array<{ file: string, entry: { bump: string, section: string, description: string } }>>} розпарсені change-файли
+ */
+export async function readChangeFiles(ws, cwd = process.cwd()) {
+  const dir = join(cwd, ws, CHANGES_DIR)
+  if (!existsSync(dir)) return []
+  const names = (await readdir(dir)).filter(n => n.endsWith('.md')).sort()
+  const result = []
+  for (const file of names) {
+    const text = await readFile(join(dir, file), 'utf8')
+    result.push({ file, entry: parseChangeFile(text) })
+  }
+  return result
 }
