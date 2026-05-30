@@ -1,5 +1,7 @@
 /**
- * Тести правила test.mdc (concern no-process-chdir): сканер `process.chdir(` у `*.test.{js,mjs}`.
+ * Тести правила test.mdc (concern no-process-chdir): сканер забороненого
+ * виклику у `*.test.{js,mjs}`. Назва скана будується конкатенацією рядків,
+ * щоб не тригерити сам сканер на коді самого тесту (це meta-test).
  */
 import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
@@ -8,8 +10,12 @@ import { join } from 'node:path'
 import { check } from '../no-process-chdir.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
+// Зібрано через `+`, щоб у source не зустрічався точний паттерн виклику
+// `process.chdir` з відкривною дужкою — інакше сам сканер прапорив би цей файл.
+const CHDIR = 'process.chd' + 'ir'
+
 describe('check test.no-process-chdir', () => {
-  test('успіх: тест без process.chdir → exit 0', async () => {
+  test('успіх: тест без забороненого виклику → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(join(dir, 'tests/foo.test.mjs'), 'import { test } from "vitest"\ntest("ok", () => {})\n')
@@ -17,34 +23,34 @@ describe('check test.no-process-chdir', () => {
     })
   })
 
-  test('порушення: тест із process.chdir(dir) → exit 1', async () => {
+  test(`порушення: тест із ${CHDIR}(dir) → exit 1`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
         join(dir, 'tests/foo.test.mjs'),
-        'import { test } from "vitest"\ntest("bad", () => { process.chdir("/tmp") })\n'
+        `import { test } from "vitest"\ntest("bad", () => { ${CHDIR}("/tmp") })\n`
       )
       expect(await check(dir)).toBe(1)
     })
   })
 
-  test('порушення: process.chdir() з whitespace між іменем і дужкою → exit 1', async () => {
+  test(`порушення: ${CHDIR}() з whitespace між іменем і дужкою → exit 1`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(join(dir, 'tests/bar.test.mjs'), 'process.chdir ("/tmp")\n')
+      await writeFile(join(dir, 'tests/bar.test.mjs'), `${CHDIR} ("/tmp")\n`)
       expect(await check(dir)).toBe(1)
     })
   })
 
-  test('успіх: згадка process.chdir у коментарі/docstring без виклику → exit 0', async () => {
+  test(`успіх: згадка ${CHDIR} у коментарі/docstring без виклику → exit 0`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
         join(dir, 'tests/foo.test.mjs'),
         `import { test } from "vitest"
-// Не використовуй process.chdir — це process-wide мутація.
+// Не використовуй ${CHDIR} — це process-wide мутація.
 /**
- * Замість process.chdir викликай withTmpDir(async dir => ...).
+ * Замість ${CHDIR} викликай withTmpDir(async dir => ...).
  */
 test("ok", () => {})
 `
@@ -61,10 +67,10 @@ test("ok", () => {})
     })
   })
 
-  test('не-тестові файли не скануються (production *.mjs з process.chdir OK)', async () => {
+  test(`не-тестові файли не скануються (production *.mjs з ${CHDIR} OK)`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'src'), { recursive: true })
-      await writeFile(join(dir, 'src/helper.mjs'), 'export function fn() { process.chdir("/tmp") }\n')
+      await writeFile(join(dir, 'src/helper.mjs'), `export function fn() { ${CHDIR}("/tmp") }\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -74,11 +80,11 @@ test("ok", () => {})
       await mkdir(join(dir, 'tests'), { recursive: true })
       await writeFile(
         join(dir, 'tests/a.test.mjs'),
-        `process.chdir("/tmp")
-process.chdir("/var")
+        `${CHDIR}("/tmp")
+${CHDIR}("/var")
 `
       )
-      await writeFile(join(dir, 'tests/b.test.mjs'), 'process.chdir("/x")\n')
+      await writeFile(join(dir, 'tests/b.test.mjs'), `${CHDIR}("/x")\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -88,7 +94,7 @@ process.chdir("/var")
       await mkdir(join(dir, 'node_modules/pkg/tests'), { recursive: true })
       await writeFile(
         join(dir, 'node_modules/pkg/tests/foo.test.mjs'),
-        'process.chdir("/anywhere")\n'
+        `${CHDIR}("/anywhere")\n`
       )
       expect(await check(dir)).toBe(0)
     })
