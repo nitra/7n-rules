@@ -2,7 +2,7 @@
 
 | Область | Рядки | Функції | Вбито мутацій | Score |
 | --- | --- | --- | --- | --- |
-| JS | 77.67% (6765/8710) | 84.47% (1110/1314) | 132/141 | 93.62% |
+| JS | 88.21% (8024/9096) | 90.60% (1244/1373) | 132/141 | 93.62% |
 
 ## Вцілілі мутанти
 
@@ -15,28 +15,28 @@
         "line": 189,
         "col": 7,
         "mutantType": "ConditionalExpression",
-        "original": "pts.fix)",
+        "original": "",
         "replacement": "true"
       },
       {
         "line": 189,
         "col": 7,
         "mutantType": "ConditionalExpression",
-        "original": "pts.fix)",
+        "original": "",
         "replacement": "false"
       },
       {
         "line": 211,
         "col": 56,
         "mutantType": "ObjectLiteral",
-        "original": " fix: false })",
+        "original": "",
         "replacement": "{}"
       },
       {
         "line": 211,
         "col": 63,
         "mutantType": "BooleanLiteral",
-        "original": "alse ",
+        "original": "",
         "replacement": "true"
       }
     ],
@@ -53,10 +53,10 @@
 
 | Рядок | Оригінал | Заміна | Тип |
 | --- | --- | --- | --- |
-| 189 | `pts.fix)` | `true` | ConditionalExpression |
-| 189 | `pts.fix)` | `false` | ConditionalExpression |
-| 211 | ` fix: false })` | `{}` | ObjectLiteral |
-| 211 | `alse ` | `true` | BooleanLiteral |
+| 189 | `` | `true` | ConditionalExpression |
+| 189 | `` | `false` | ConditionalExpression |
+| 211 | `` | `{}` | ObjectLiteral |
+| 211 | `` | `true` | BooleanLiteral |
 
 **Приклад тесту** (`npm/rules/test/coverage/tests/coverage.test.mjs`):
 
