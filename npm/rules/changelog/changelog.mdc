@@ -1,6 +1,6 @@
 ---
 description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння (npm і Python)
-version: '2.6'
+version: '3.0'
 alwaysApply: true
 ---
 
@@ -8,9 +8,11 @@ alwaysApply: true
 
 > **Якщо в цій сесії ти змінив(ла) файли в пакетному workspace** (код, rego, правила, скіли, скрипти, конфіги, тести — **не** лише `docs/` / `doc/`) — **не завершуй задачу**, поки не виконаєш **усі три** кроки нижче в **тому ж** наборі змін. Це не «опційно після синку» — це частина PR.
 
-1. **`version`** у `<ws>/package.json` (або `[project].version` у `pyproject.toml`) → **patch +1** відносно `git show HEAD:<ws>/package.json`, якщо ще не піднято.
-2. **`CHANGELOG.md`** того workspace → **нова** секція `## [версія] - YYYY-MM-DD` **зверху** (не bullet-и в стару версію).
-3. **`npx @nitra/cursor fix changelog`** (у репо `@nitra/cursor`: `bun ./npm/bin/n-cursor.js check changelog`) → exit **`0`**.
+1. **Поклади change-файл** `<ws>/.changes/<timestamp>-<rand>.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @nitra/cursor change --bump <…> --section <…> --message "<…>" [--ws <шлях>]`.
+2. **Не** редагуй `version` і `CHANGELOG.md` вручну — їх формує `n-cursor release` у CI на `main` (агрегує change-файли, ставить git-тег `<name>@<version>`).
+3. **`npx @nitra/cursor fix changelog`** → exit **`0`** (м'яка перевірка: достатньо наявності change-файлу **або** вже піднятого `version`).
+
+**Legacy / hotfix:** ручний bump `version` + новий запис у `CHANGELOG.md` усе ще приймається перевіркою як альтернатива change-файлу.
 
 **Тригер шляхів (приклади):** `npm/**`, `packages/foo/**`, будь-який каталог з власним `package.json` / `pyproject.toml`, куди потрапили правки.
 
