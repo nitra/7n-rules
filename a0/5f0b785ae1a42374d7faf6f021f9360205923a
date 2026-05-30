@@ -1,0 +1,63 @@
+npm/scripts/lib/tests/template.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 125-136,206-208
+npm/scripts/tests/auto-rules.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 7,9,548-583
+npm/scripts/coverage-classify/index.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 13-14,42,120
+npm/rules/abie/js/tests/ua_http_route.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 8-9,95-115
+npm/rules/js-bun-db/lib/tests/bun-sql-scan.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 544-571
+npm/scripts/tests/sync-claude-config.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 27-28,30,605-670
+npm/rules/graphql/js/tests/tooling.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 19-32
+npm/.changes/1780145920581-cd94f1.md
+  s_07c380d32ee07c::t_def9110fabc038 1-5
+npm/scripts/tests/rename-yaml-extensions.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 124-136
+npm/rules/bun/js/tests/layout.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 15,153-186
+npm/rules/js-bun-db/js/tests/safety.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 369-452
+npm/rules/capacitor/js/tests/platforms.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 212-219,279-285,303-311,359-370
+npm/rules/vue/js/tests/packages/tests/vue-forbidden-imports.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 49-60,147-149
+npm/rules/ga/lint/tests/lint.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 8,11,88-148
+npm/rules/npm-module/js/tests/package_structure.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 14-20,161-273
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 708-734
+npm/rules/text/lint/tests/run-v8r.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 1-107
+npm/rules/changelog/js/tests/consistency/tests/package-manifest.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 21-30,53-73
+npm/scripts/tests/test-helpers.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 1-16
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 11,132-165
+npm/rules/text/lint/tests/lint.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 6,9,70-102
+npm/rules/text/lint/tests/run-shellcheck-errors.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 1-164
+npm/scripts/coverage-classify/tests/index.test.mjs
+  s_07c380d32ee07c::t_d75b771b9b58ae 11,58,64,101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a05f0b785ae1a42374d7faf6f021f9360205923a",
+  "prompts": {},
+  "sessions": {
+    "s_07c380d32ee07c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3047db-5332-4649-a713-3f1cde68927a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
