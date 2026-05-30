@@ -1501,6 +1501,18 @@ try {
 
       break
     }
+    case 'change': {
+      const { runChangeCli } = await import('../rules/release/change.mjs')
+      process.exitCode = await runChangeCli(args)
+
+      break
+    }
+    case 'release': {
+      const { runReleaseCli } = await import('../rules/release/release.mjs')
+      process.exitCode = await runReleaseCli(args)
+
+      break
+    }
     case 'skill': {
       process.exitCode = runSkillsCli(args)
 
@@ -1515,7 +1527,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, skill`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill`
       )
       process.exitCode = 1
     }
