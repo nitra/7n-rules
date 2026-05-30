@@ -41,7 +41,7 @@ function makeProj({ rules = [], disableRules = [], layout = 'flat' } = {}) {
  * @param {string} dir каталог проєкту
  * @returns {Promise<number>} exit code
  */
-async function runCheckIn(dir) {
+function runCheckIn(dir) {
   return check(dir)
 }
 

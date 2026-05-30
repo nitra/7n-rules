@@ -4,6 +4,16 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.33.0] - 2026-05-30
+
+### Added
+
+- `n-cursor change` / `n-cursor release` — change-файли `<ws>/.changes/*.md` замість ручного bump/CHANGELOG; реліз агрегує їх у CI, ставить git-тег `<name>@<version>`. Підтримка npm і Python workspace.
+
+### Changed
+
+- `n-changelog.mdc` v3.0: feature-флоу кладе change-файл; `fix changelog` приймає change-файл або ручний bump.
+
 ## [1.32.0] - 2026-05-30
 
 ### Added

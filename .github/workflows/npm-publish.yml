@@ -12,21 +12,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  release-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # commit-back + tag
       id-token: write # КРИТИЧНО для OIDC!
 
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          persist-credentials: true
+          fetch-depth: 0
 
       - uses: actions/setup-node@v6
         with:
           node-version: '24' # includes npm@11.6.0
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Release (bump + CHANGELOG + tag)
+        run: npx @nitra/cursor release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5

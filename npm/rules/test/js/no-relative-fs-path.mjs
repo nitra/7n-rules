@@ -145,7 +145,7 @@ function extractFsFunctionName(callee) {
 /**
  * Чи файл — JS-тест (`*.test.mjs` / `*.test.js`).
  * @param {string} absPath абсолютний шлях
- * @returns {boolean}
+ * @returns {boolean} true якщо файл є тестом
  */
 function isTestFile(absPath) {
   const name = basename(absPath)
@@ -187,8 +187,8 @@ function findOffendersInBody(body) {
  */
 function computeLineOffsets(body) {
   const offsets = [0]
-  for (let i = 0; i < body.length; i += 1) {
-    if (body[i] === '\n') offsets.push(i + 1)
+  for (const [i, element] of body.entries()) {
+    if (element === '\n') offsets.push(i + 1)
   }
   return offsets
 }
@@ -202,7 +202,7 @@ function offsetToLineFromCache(offsets, offset) {
   let lo = 0
   let hi = offsets.length - 1
   while (lo < hi) {
-    const mid = (lo + hi + 1) >>> 1
+    const mid = Math.floor((lo + hi + 1) / 2)
     if (offsets[mid] <= offset) lo = mid
     else hi = mid - 1
   }

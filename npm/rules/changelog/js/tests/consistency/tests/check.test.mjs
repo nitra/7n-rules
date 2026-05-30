@@ -13,7 +13,7 @@
  */
 import { describe, expect, test } from 'vitest'
 import { execFile } from 'node:child_process'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
 
@@ -603,3 +603,20 @@ describe('check-changelog (змішаний режим: npm-published + local-on
     })
   })
 })
+
+test('наявність change-файлу задовольняє вимогу замість bump (local-only feature-гілка)', async () => {
+  await withTmpDir(async dir => {
+    await git(['init', '-b', 'main'], dir)
+    await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', private: true })
+    await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+    await git(['add', '-A'], dir)
+    await git(['commit', '-m', 'init'], dir)
+    await git(['checkout', '-b', 'feat'], dir)
+    await writeFile(join(dir, 'src.mjs'), 'export const x = 1\n')
+    await mkdir(join(dir, '.changes'), { recursive: true })
+    await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Added\n---\nx\n')
+
+    const code = await checkChangelog({ cwd: dir })
+    expect(code).toBe(0)
+  }, 30000)
+}, 30000)

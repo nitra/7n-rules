@@ -1,0 +1,9 @@
+name: n-cursor release
+description: Aggregate .changes/* into version bump + CHANGELOG, tag <name>@<version>, commit back
+
+runs:
+  using: composite
+  steps:
+    - name: Release (bump + CHANGELOG + tag)
+      shell: bash
+      run: npx @nitra/cursor release

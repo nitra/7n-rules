@@ -30,6 +30,12 @@
     "@vitest/coverage-v8": "^4.1.7",
     "vitest": "^4.1.7"
   },
+  "knip": {
+    "ignore": [
+      "demo/stryker-vue-macros-ignorer.mjs",
+      "npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs"
+    ]
+  },
   "stylelint": {
     "extends": "@nitra/stylelint-config"
   },
