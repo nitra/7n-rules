@@ -29,6 +29,7 @@ import {
   parsePyprojectFields,
   readPackageManifest
 } from '../lib/package-manifest.mjs'
+import { readChangeFiles } from '../../release/lib/change-file.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -396,6 +397,16 @@ function workspaceLabel(manifest) {
 }
 
 /**
+ * Чи має workspace незрелізні change-файли (намір зафіксовано — bump зробить CI).
+ * @param {string} ws workspace
+ * @param {string} cwd корінь
+ * @returns {Promise<boolean>} результат
+ */
+async function hasPendingChangeFiles(ws, cwd) {
+  return (await readChangeFiles(ws, cwd)).length > 0
+}
+
+/**
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} Vcurrent параметр
  * @param {string[]} subWorkspaces параметр
@@ -407,6 +418,10 @@ function workspaceLabel(manifest) {
 async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
+  if (await hasPendingChangeFiles(manifest.ws, cwd)) {
+    pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
+    return
+  }
   if (!(await isInsideGitRepo(cwd))) {
     return
   }
@@ -502,6 +517,10 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
 async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
+  if (await hasPendingChangeFiles(manifest.ws, cwd)) {
+    pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
+    return
+  }
   const Vcurrent = manifest.version
   if (!Vcurrent) {
     fail(`${label}: у ${mf} відсутнє поле version (потрібне для запису в CHANGELOG)`)
