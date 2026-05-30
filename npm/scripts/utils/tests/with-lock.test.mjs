@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import { join } from 'node:path'
+import { hostname } from 'node:os'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { shouldDedup, withLock } from '../with-lock.mjs'
 
@@ -87,5 +88,51 @@ describe('withLock integration', () => {
       /* runFn навмисно кидає — перевіряємо звільнення локу */
     }
     expect(fs.existsSync(lockDir)).toBe(false)
+  })
+
+  it('видаляє застарілий лок з нежиттєздатним PID і продовжує', async () => {
+    const cacheDir = join(tmpDir, 'd')
+    const lockDir = join(cacheDir, 'lock')
+    fs.mkdirSync(lockDir, { recursive: true })
+    // PID 999999999 гарантовано не існує
+    fs.writeFileSync(
+      join(lockDir, 'owner.json'),
+      JSON.stringify({ pid: 999_999_999, host: hostname(), startedAt: Date.now(), fingerprint: null })
+    )
+    let ran = false
+    const code = await withLock('test', () => { ran = true; return 0 }, { cacheDir, getFingerprint: () => null })
+    expect(ran).toBe(true)
+    expect(code).toBe(0)
+  })
+
+  it('видаляє лок з пошкодженим owner.json і продовжує', async () => {
+    const cacheDir = join(tmpDir, 'e')
+    const lockDir = join(cacheDir, 'lock')
+    fs.mkdirSync(lockDir, { recursive: true })
+    fs.writeFileSync(join(lockDir, 'owner.json'), 'NOT JSON{{{')
+    let ran = false
+    const code = await withLock('test', () => { ran = true; return 0 }, { cacheDir, getFingerprint: () => null })
+    expect(ran).toBe(true)
+    expect(code).toBe(0)
+  })
+
+  it('виконує runFn коли timeout вичерпано', async () => {
+    const cacheDir = join(tmpDir, 'f')
+    const lockDir = join(cacheDir, 'lock')
+    fs.mkdirSync(lockDir, { recursive: true })
+    // lock існує, але нас одразу відправлять у timeout-гілку
+    fs.writeFileSync(
+      join(lockDir, 'owner.json'),
+      JSON.stringify({ pid: process.pid, host: 'other-host', startedAt: Date.now(), fingerprint: null })
+    )
+    let ran = false
+    const code = await withLock('test', () => { ran = true; return 42 }, {
+      cacheDir,
+      waitTimeout: 1,
+      pollInterval: 10,
+      getFingerprint: () => null
+    })
+    expect(ran).toBe(true)
+    expect(code).toBe(42)
   })
 })

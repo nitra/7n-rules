@@ -9,9 +9,12 @@ import {
   capacitorSegmentMinMajor,
   capacitorVersionRangeMinMajor,
   check,
+  collectCapacitorDataFromAllPackageJson,
   isCapacitorCoreVersionAtLeast8,
   findFirstPodfileUnderIosExcludingPods,
-  nitrAObjectAllowsIosCocoaPods
+  nitrAObjectAllowsIosCocoaPods,
+  recordCapacitorFromOnePackageJson,
+  walkIosForPodfileSkipPods
 } from '../platforms.mjs'
 import { withTmpDir, writeJson, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 
@@ -155,6 +158,143 @@ describe('findFirstPodfileUnderIosExcludingPods', () => {
       await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '16'\n", 'utf8')
       const p = await findFirstPodfileUnderIosExcludingPods(dir)
       expect(p).toBe('ios/Podfile')
+    })
+  })
+
+  test('Podfile у Pods/ — пропускається', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'ios/Pods'))
+      await writeFile(join(dir, 'ios/Pods/Podfile'), "pod 'AFNetworking'\n", 'utf8')
+      expect(await findFirstPodfileUnderIosExcludingPods(dir)).toBeNull()
+    })
+  })
+})
+
+describe('walkIosForPodfileSkipPods: build/ і DerivedData/ пропускаються', () => {
+  test('Podfile у build/ — пропускається', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'ios/build'))
+      await writeFile(join(dir, 'ios/build/Podfile'), 'pod\n', 'utf8')
+      let found = null
+      await walkIosForPodfileSkipPods(dir, join(dir, 'ios'), rel => {
+        found = rel
+      })
+      expect(found).toBeNull()
+    })
+  })
+})
+
+describe('capacitorSegmentMinMajor: крайні випадки', () => {
+  test('non-string → null', () => {
+    expect(capacitorSegmentMinMajor(/** @type {string} */ (null))).toBeNull()
+  })
+
+  test('порожній рядок → null', () => {
+    expect(capacitorSegmentMinMajor('')).toBeNull()
+  })
+
+  test('x → null', () => {
+    expect(capacitorSegmentMinMajor('x')).toBeNull()
+  })
+
+  test('latest → null', () => {
+    expect(capacitorSegmentMinMajor('latest')).toBeNull()
+  })
+
+  test('<8.0.0 → 0 (тільки верхня межа)', () => {
+    expect(capacitorSegmentMinMajor('<8.0.0')).toBe(0)
+  })
+
+  test('<=7.0.0 → 0', () => {
+    expect(capacitorSegmentMinMajor('<=7.0.0')).toBe(0)
+  })
+
+  test('>7.0.0 (ексклюзивний, не >=) → 7', () => {
+    expect(capacitorSegmentMinMajor('>7.0.0')).toBe(7)
+  })
+
+  test('7.0.0 - 9.0.0 (hyphen range) → 7', () => {
+    expect(capacitorSegmentMinMajor('7.0.0 - 9.0.0')).toBe(7)
+  })
+
+  test('~8.0.0 → 8', () => {
+    expect(capacitorSegmentMinMajor('~8.0.0')).toBe(8)
+  })
+
+  test('=8.0.0 → 8', () => {
+    expect(capacitorSegmentMinMajor('=8.0.0')).toBe(8)
+  })
+
+  test('8.0.0 plain version → 8', () => {
+    expect(capacitorSegmentMinMajor('8.0.0')).toBe(8)
+  })
+})
+
+describe('recordCapacitorFromOnePackageJson: помилки читання', () => {
+  test('файл не знайдено → тихо повертається', async () => {
+    const out = { byPath: new Map(), anyCapacitor: false }
+    await recordCapacitorFromOnePackageJson('/nonexistent/package.json', '/', out)
+    expect(out.anyCapacitor).toBe(false)
+    expect(out.byPath.size).toBe(0)
+  })
+
+  test('невалідний JSON → тихо повертається', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), 'not json at all', 'utf8')
+      const out = { byPath: new Map(), anyCapacitor: false }
+      await recordCapacitorFromOnePackageJson(join(dir, 'package.json'), dir, out)
+      expect(out.anyCapacitor).toBe(false)
+    })
+  })
+})
+
+describe('collectCapacitorDataFromAllPackageJson: out без byPath', () => {
+  test('out без byPath → ініціалізується як new Map()', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      const out = /** @type {{ byPath: Map<string,string>, anyCapacitor: boolean }} */ ({
+        anyCapacitor: false
+      })
+      await collectCapacitorDataFromAllPackageJson(dir, out)
+      expect(out.byPath).toBeInstanceOf(Map)
+      expect(out.anyCapacitor).toBe(true)
+    })
+  })
+})
+
+describe('check: nitra-виняток через capacitor.config.json та capacitor.config.ts', () => {
+  test('0 — ios/Podfile з винятком у capacitor.config.json (iosCocoaPodsAllowed)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeJson(join(dir, 'capacitor.config.json'), { nitra: { iosCocoaPodsAllowed: true } })
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('0 — ios/Podfile з винятком у capacitor.config.ts (iosCocoaPodsAllowed)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeFile(
+        join(dir, 'capacitor.config.ts'),
+        `export default { appId: "a", nitra: { iosCocoaPodsAllowed: true } }\n`,
+        'utf8'
+      )
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(0)
     })
   })
 })

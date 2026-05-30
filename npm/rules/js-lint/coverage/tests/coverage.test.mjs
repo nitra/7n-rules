@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { collect, detect, parseStrykerReport } from '../coverage.mjs'
+import { collect, detect, extractFirstTestBlock, findExampleTest, parseStrykerReport } from '../coverage.mjs'
 
 const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
 const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
@@ -345,6 +345,113 @@ describe('js-lint coverage collect()', () => {
       }
     }
     await expect(collect(dir, { runner })).rejects.toThrow(/JS coverage.*exit 2/)
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('extractFirstTestBlock', () => {
+  test('повертає перший тест-блок зі вкладеними {}', () => {
+    const code = `import { test } from 'vitest'\ntest('foo', () => {\n  expect({ a: 1 }).toEqual({ a: 1 })\n})\ntest('bar', () => {})\n`
+    const result = extractFirstTestBlock(code)
+    expect(result).toContain("test('foo'")
+    expect(result).not.toContain("test('bar'")
+  })
+
+  test('повертає null коли немає тест-блоків', () => {
+    expect(extractFirstTestBlock('export const x = 1\n')).toBeNull()
+  })
+})
+
+describe('findExampleTest', () => {
+  test('повертає null коли тест-файл не знайдено', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'findExampleTest-'))
+    const result = findExampleTest(dir, 'src/foo.mjs')
+    rmSync(dir, { recursive: true, force: true })
+    expect(result).toBeNull()
+  })
+
+  test('знаходить тест поряд з source (<base>.test.mjs)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'findExampleTest-'))
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'foo.test.mjs'), `test('x', () => {\n  expect(1).toBe(1)\n})\n`)
+    const result = findExampleTest(dir, 'src/foo.mjs')
+    rmSync(dir, { recursive: true, force: true })
+    expect(result).not.toBeNull()
+    expect(result?.testFile).toBe('src/foo.test.mjs')
+    expect(result?.code).toContain("test('x'")
+  })
+
+  test('знаходить тест у <dir>/tests/<name>.test.mjs', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'findExampleTest-'))
+    mkdirSync(join(dir, 'src', 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'tests', 'bar.test.mjs'), `test('y', () => {\n  expect(2).toBe(2)\n})\n`)
+    const result = findExampleTest(dir, 'src/bar.mjs')
+    rmSync(dir, { recursive: true, force: true })
+    expect(result).not.toBeNull()
+    expect(result?.testFile).toBe('src/tests/bar.test.mjs')
+  })
+
+  test('для файлу без "/" у шляху — перебирає лише базові кандидати', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'findExampleTest-'))
+    writeFileSync(join(dir, 'foo.test.js'), `test('z', () => {})\n`)
+    const result = findExampleTest(dir, 'foo.mjs')
+    rmSync(dir, { recursive: true, force: true })
+    expect(result).not.toBeNull()
+    expect(result?.testFile).toBe('foo.test.js')
+  })
+})
+
+describe('parseStrykerReport — multiline original', () => {
+  test('extractOriginal для мутанта що охоплює кілька рядків', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-multi-'))
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'multi.js'), 'export function f(x,\ny) {\n  return x + y\n}\n')
+    const report = {
+      files: {
+        'src/multi.js': {
+          mutants: [
+            {
+              status: 'Survived',
+              mutatorName: 'StringLiteral',
+              replacement: '""',
+              location: { start: { line: 1, column: 17 }, end: { line: 2, column: 2 } }
+            }
+          ]
+        }
+      }
+    }
+    const result = parseStrykerReport(report, dir)
+    rmSync(dir, { recursive: true, force: true })
+    expect(result.survived[0].mutants[0].original).toContain('\n')
+  })
+
+  test('readFileSync помилка (файл не існує) → original порожній рядок', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-missing-'))
+    const report = {
+      files: {
+        'src/missing.js': {
+          mutants: [
+            {
+              status: 'Survived',
+              mutatorName: 'BooleanLiteral',
+              replacement: 'true',
+              location: { start: { line: 1, column: 0 }, end: { line: 1, column: 4 } }
+            }
+          ]
+        }
+      }
+    }
+    const result = parseStrykerReport(report, dir)
+    rmSync(dir, { recursive: true, force: true })
+    expect(result.survived[0].mutants[0].original).toBe('')
+  })
+})
+
+describe('collect — крайні випадки', () => {
+  test('кидає якщо package.json не знайдено у cwd', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'no-pkg-'))
+    const runner = { runJsCoverage: () => 0, runStryker: () => 0 }
+    await expect(collect(dir, { runner })).rejects.toThrow('package.json не знайдено')
     rmSync(dir, { recursive: true, force: true })
   })
 })

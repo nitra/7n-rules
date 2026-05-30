@@ -62,7 +62,7 @@ describe('check-text (мінімальний проєкт)', () => {
         import: ['@nitra/cspell-dict/cspell-ext.json'],
         words: []
       })
-      const u2019 = '\u2019'
+      const u2019 = '’'
       await ensureDir(join(dir, '.cursor/rules'))
       await writeFile(
         join(dir, '.cursor/rules', 'n-text.mdc'),
@@ -90,6 +90,68 @@ description: test
         'utf8'
       )
       expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('exit 1 — .v8rignore відсутній', async () => {
+    await withTmpDir(async dir => {
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — .v8rignore без обов\'язкових шляхів', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '# empty\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — .v8rignore з одним шляхом з двох', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — config файли відсутні (.oxfmtrc.json)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n.vscode/settings.json\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — n-text.mdc без заголовку апострофу', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n.vscode/settings.json\n', 'utf8')
+      await ensureDir(join(dir, '.cursor/rules'))
+      await writeFile(join(dir, '.cursor/rules/n-text.mdc'), '# text\nno apostrophe paragraph here\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — n-text.mdc з заголовком але без U+0027/U+2019', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n.vscode/settings.json\n', 'utf8')
+      await ensureDir(join(dir, '.cursor/rules'))
+      await writeFile(
+        join(dir, '.cursor/rules/n-text.mdc'),
+        '**Український апостроф:** без кодових позначок\n',
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 1 — n-text.mdc з заголовком і кодами але без символу ’', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n.vscode/settings.json\n', 'utf8')
+      await ensureDir(join(dir, '.cursor/rules'))
+      await writeFile(
+        join(dir, '.cursor/rules/n-text.mdc'),
+        '**Український апостроф:** U+0027 та U+2019 — без самого символу\n',
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
     })
   })
 })

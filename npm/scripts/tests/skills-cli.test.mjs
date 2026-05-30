@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { describe, expect, test } from 'vitest'
 
-import { buildSkillPrompt, listSkillIds, normalizeSkillId, runSkillsCli } from '../skills-cli.mjs'
+import { buildSkillPrompt, listSkillIds, normalizeSkillId, resolveBundledPackageRoot, runSkillsCli } from '../skills-cli.mjs'
 
 const UNKNOWN_SKILL_RE = /Unknown skill.*lint/
 const SKILL_NAME_REQUIRED_RE = /Skill name is required/
@@ -20,9 +20,30 @@ describe('normalizeSkillId', () => {
   test('lint без змін', () => {
     expect(normalizeSkillId('lint')).toBe('lint')
   })
+
+  test('порожній рядок → порожній рядок', () => {
+    expect(normalizeSkillId('')).toBe('')
+  })
+
+  test('null/undefined → порожній рядок', () => {
+    expect(normalizeSkillId(/** @type {string} */ (null))).toBe('')
+    expect(normalizeSkillId(/** @type {string} */ (undefined))).toBe('')
+  })
+})
+
+describe('resolveBundledPackageRoot', () => {
+  test('повертає абсолютний шлях до кореня пакета (npm/)', () => {
+    const root = resolveBundledPackageRoot()
+    expect(root).toBeTruthy()
+    expect(typeof root).toBe('string')
+  })
 })
 
 describe('listSkillIds / buildSkillPrompt', () => {
+  test('директорія не існує → порожній масив', () => {
+    expect(listSkillIds('/nonexistent/skills/dir')).toEqual([])
+  })
+
   test('лише каталоги з SKILL.md', () => {
     const root = join(tmpdir(), `skills-cli-test-${Date.now()}`)
     const skillsRoot = join(root, 'skills')
@@ -47,6 +68,19 @@ describe('listSkillIds / buildSkillPrompt', () => {
     writeFileSync(join(skillsRoot, 'lint', 'SKILL.md'), '# Lint\n')
 
     expect(() => buildSkillPrompt(skillsRoot, 'missing', 'x', root)).toThrow(UNKNOWN_SKILL_RE)
+  })
+
+  test('buildSkillPrompt включає tsconfig.json і .n-cursor.json якщо існують', () => {
+    const root = join(tmpdir(), `skills-cli-ctx-${Date.now()}`)
+    const skillsRoot = join(root, 'skills')
+    mkdirSync(join(skillsRoot, 'fix'), { recursive: true })
+    writeFileSync(join(skillsRoot, 'fix', 'SKILL.md'), '# Fix\n')
+    writeFileSync(join(root, 'tsconfig.json'), '{"compilerOptions":{}}\n')
+    writeFileSync(join(root, '.n-cursor.json'), '{"rules":{}}\n')
+
+    const prompt = buildSkillPrompt(skillsRoot, 'fix', '', root)
+    expect(prompt).toContain('tsconfig.json')
+    expect(prompt).toContain('.n-cursor.json')
   })
 })
 
@@ -118,6 +152,22 @@ describe('runSkillsCli', () => {
 
     expect(code).toBe(1)
     expect(errors.join('\n')).toMatch(SKILL_NAME_REQUIRED_RE)
+  })
+
+  test('порожній argv → usage + exit 1', () => {
+    const root = join(tmpdir(), `skills-cli-empty-${Date.now()}`)
+    mkdirSync(join(root, 'skills'), { recursive: true })
+
+    const errors = []
+    const code = runSkillsCli([], {
+      packageRoot: root,
+      projectDir: root,
+      log: () => {},
+      logError: line => errors.push(line)
+    })
+
+    expect(code).toBe(1)
+    expect(errors.join('\n')).toMatch(USAGE_HINT_RE)
   })
 
   test('невідома підкоманда — usage', () => {

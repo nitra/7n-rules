@@ -2,10 +2,13 @@
  * Тести дописування `\@nitra/cursor` у `devDependencies` workspace-root package.json.
  */
 import { describe, expect, test } from 'vitest'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { ensureNitraCursorInRootDevDependencies } from '../ensure-nitra-cursor-dev-dependencies.mjs'
+import {
+  ensureNitraCursorInRootDevDependencies,
+  readBundledPackageVersion
+} from '../ensure-nitra-cursor-dev-dependencies.mjs'
 import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 
 describe('ensureNitraCursorInRootDevDependencies', () => {
@@ -97,5 +100,29 @@ describe('ensureNitraCursorInRootDevDependencies', () => {
       expect(rootPkg.devDependencies).toBeUndefined()
       expect(leafPkg.devDependencies).toBeUndefined()
     })
+  })
+
+  test('не дописує коли package.json з недійсним JSON', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), 'invalid json{{{', 'utf8')
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, { bundledVersion: '1.2.3', silent: true })
+      expect(ok).toBe(false)
+    })
+  })
+
+  test('дописує і виводить у консоль коли silent не задано', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'x', workspaces: ['npm'] })
+      const ok = await ensureNitraCursorInRootDevDependencies(dir, { bundledVersion: '1.2.3' })
+      expect(ok).toBe(true)
+    })
+  })
+})
+
+describe('readBundledPackageVersion', () => {
+  test('повертає рядок з реального package.json', async () => {
+    const ver = await readBundledPackageVersion()
+    expect(typeof ver).toBe('string')
+    expect(ver).toMatch(/^\d+\.\d+\.\d+/u)
   })
 })

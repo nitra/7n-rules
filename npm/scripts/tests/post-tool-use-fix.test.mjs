@@ -163,4 +163,13 @@ describe('runPostToolUseFixCli', () => {
     const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
     expect(code).toBe(2)
   })
+
+  test('повертає 1 коли once(child, exit) відхиляється (error від child)', async () => {
+    const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/foo.mjs' } })
+    const errorChild = new EventEmitter()
+    setImmediate(() => errorChild.emit('error', new Error('spawn failed')))
+    const spawnFn = vi.fn(() => errorChild)
+    const code = await runPostToolUseFixCli({ stdinJson, spawnFn })
+    expect(code).toBe(1)
+  })
 })

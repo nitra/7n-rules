@@ -8,8 +8,12 @@ import {
   findBunSqlPerRequestConnectionInText,
   findBunSqlUnsafeUseWithoutAllowMarkerInText,
   findBunSqlUnsafeWithInterpolatedTemplateInText,
+  findPgFormatLikeQueryWrapperInText,
+  findPgFormatShimDefinitionInText,
   findPgLibImportInText,
+  findPgListenNotifyUsageInText,
   findUnsafeBunSqlDynamicSqlListInText,
+  findUnsafeBunSqlInListMissingEmptyGuardInText,
   isBunSqlScanSourceFile,
   textHasBunSqlImport,
   textHasPgLibImport
@@ -218,5 +222,188 @@ import { sql } from 'bun'
 const r = sql\`SELECT * FROM users WHERE id = \${userId}\`
 `
     expect(findUnsafeBunSqlDynamicSqlListInText(code)).toHaveLength(0)
+  })
+})
+
+describe('findPgFormatShimDefinitionInText', () => {
+  test('[] — без bun sql import', () => {
+    const code = `function quoteIdent(val) { return '"' + val + '"' }\n`
+    expect(findPgFormatShimDefinitionInText(code)).toHaveLength(0)
+  })
+
+  test('знаходить quoteLiteral — quote_helper', () => {
+    const code = `
+import { sql } from 'bun'
+function quoteLiteral(val) { return "'" + val + "'" }
+`
+    const hits = findPgFormatShimDefinitionInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('quote_helper')
+    expect(hits[0].name).toBe('quoteLiteral')
+  })
+
+  test('знаходить pgFormat з %L у тілі — format_function', () => {
+    const code = `
+import { sql } from 'bun'
+function pgFormat(val) { const tpl = '%L'; return tpl + val }
+`
+    const hits = findPgFormatShimDefinitionInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('format_function')
+    expect(hits[0].name).toBe('pgFormat')
+  })
+
+  test('format без %L/%I/%s у тілі — не знаходиться', () => {
+    const code = `
+import { sql } from 'bun'
+function format(date) { return date.toISOString() }
+`
+    expect(findPgFormatShimDefinitionInText(code)).toHaveLength(0)
+  })
+
+  test('синтаксична помилка → []', () => {
+    expect(findPgFormatShimDefinitionInText('import { from broken\n', 'bad.mjs')).toHaveLength(0)
+  })
+
+  test('знаходить format_function: %L у template literal у тілі', () => {
+    const code = `
+import { sql } from 'bun'
+function pgFormat(val) { const tpl = \`%L\`; return tpl + val }
+`
+    const hits = findPgFormatShimDefinitionInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('format_function')
+  })
+
+  test('знаходить format_function: %I у regex literal у тілі', () => {
+    const code = `
+import { sql } from 'bun'
+function sqlFormat(val) { const re = /%I/u; return re.test(val) ? val : '?' }
+`
+    const hits = findPgFormatShimDefinitionInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('format_function')
+  })
+})
+
+describe('findPgFormatLikeQueryWrapperInText', () => {
+  test('[] — без bun sql import', () => {
+    const code = `const shim = { query(text) { return pool.query(text) } }\n`
+    expect(findPgFormatLikeQueryWrapperInText(code)).toHaveLength(0)
+  })
+
+  test('знаходить { query(text, params) { return sql.unsafe(text) } }', () => {
+    const code = `
+import { sql } from 'bun'
+const pgShim = { query(text, params) { return sql.unsafe(text, params) } }
+`
+    const hits = findPgFormatLikeQueryWrapperInText(code)
+    expect(hits.length).toBe(1)
+  })
+
+  test('не знаходить wrapper без unsafe', () => {
+    const code = `
+import { sql } from 'bun'
+const safe = { query(text, params) { return sql\`SELECT 1\` } }
+`
+    expect(findPgFormatLikeQueryWrapperInText(code)).toHaveLength(0)
+  })
+
+  test('синтаксична помилка → []', () => {
+    expect(findPgFormatLikeQueryWrapperInText('import { from broken\n', 'bad.mjs')).toHaveLength(0)
+  })
+})
+
+describe('findUnsafeBunSqlInListMissingEmptyGuardInText', () => {
+  test('знаходить IN (${ids}) без guard перед запитом', () => {
+    const code = `
+import { sql } from 'bun'
+const ids = [1, 2, 3]
+const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('missing_guard')
+  })
+
+  test('звичайний запит без IN контексту → []', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`SELECT \${1 + 1}\`
+`
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
+
+  test('синтаксична помилка → []', () => {
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText('import { from broken\n')).toHaveLength(0)
+  })
+})
+
+describe('findPgListenNotifyUsageInText', () => {
+  test('знаходить LISTEN у .query()', () => {
+    const code = `
+const pool = {}
+await pool.query('LISTEN my_channel')
+`
+    const hits = findPgListenNotifyUsageInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('listen_sql')
+  })
+
+  test('знаходить UNLISTEN у .query()', () => {
+    const code = `
+const client = {}
+await client.query('UNLISTEN *')
+`
+    const hits = findPgListenNotifyUsageInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('unlisten_sql')
+  })
+
+  test('знаходить .on("notification", ...) listener', () => {
+    const code = `
+const client = {}
+client.on('notification', (msg) => console.log(msg))
+`
+    const hits = findPgListenNotifyUsageInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('notification_listener')
+  })
+
+  test('знаходить NOTIFY у tagged template', () => {
+    const code = `
+import { sql } from 'bun'
+const r = sql\`NOTIFY my_channel\`
+`
+    const hits = findPgListenNotifyUsageInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('notify_sql')
+  })
+
+  test('звичайний SELECT — не знаходить', () => {
+    const code = `await pool.query('SELECT * FROM users')\n`
+    expect(findPgListenNotifyUsageInText(code)).toHaveLength(0)
+  })
+
+  test('синтаксична помилка → []', () => {
+    expect(findPgListenNotifyUsageInText('import { from broken\n')).toHaveLength(0)
+  })
+
+  test('знаходить LISTEN у template literal у .query()', () => {
+    const code = `
+const pool = {}
+await pool.query(\`LISTEN my_channel\`)
+`
+    const hits = findPgListenNotifyUsageInText(code)
+    expect(hits.length).toBe(1)
+    expect(hits[0].kind).toBe('listen_sql')
+  })
+
+  test('не знаходить template literal з SELECT', () => {
+    const code = `
+const pool = {}
+await pool.query(\`SELECT * FROM users\`)
+`
+    expect(findPgListenNotifyUsageInText(code)).toHaveLength(0)
   })
 })

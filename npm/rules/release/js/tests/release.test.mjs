@@ -131,4 +131,5 @@ describe('release', () => {
       expect(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).version).toBe('2.0.0')
     })
   })
+
 })

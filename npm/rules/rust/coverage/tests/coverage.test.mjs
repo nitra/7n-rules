@@ -108,6 +108,12 @@ describe('rust coverage collect()', () => {
     rmSync(dir, { recursive: true, force: true })
   })
 
+  test('падає коли Cargo.toml не знайдено', async () => {
+    const dir = makeFixture({ withCargo: false })
+    await expect(collect(dir, { runner: {} })).rejects.toThrow(/Cargo\.toml не знайдено/u)
+    rmSync(dir, { recursive: true, force: true })
+  })
+
   test('падає якщо cargo-mutants не залишив outcomes.json', async () => {
     const dir = makeFixture()
     const runner = {

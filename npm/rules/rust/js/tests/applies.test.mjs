@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { applies } from '../applies.mjs'
+import { applies, check } from '../applies.mjs'
 
 /** @returns {string} абсолютний шлях тимчасового кореня */
 function makeRoot() {
@@ -41,5 +41,11 @@ describe('rust applies', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
+  })
+})
+
+describe('rust check', () => {
+  test('check() завжди повертає 0 (лише context-pass)', () => {
+    expect(check()).toBe(0)
   })
 })

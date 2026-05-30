@@ -1,9 +1,14 @@
 /**
  * Тести виявлення **`gql\`…\``** у тексті джерел (graphql.mdc / graphql-gql-scan.mjs).
+ * І інтеграційні тести для check() з tooling.mjs.
  */
 import { describe, expect, test } from 'vitest'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
 
 import { sourceFileHasGqlTaggedTemplate } from '../../lib/graphql-gql-scan.mjs'
+import { check } from '../tooling.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('sourceFileHasGqlTaggedTemplate', () => {
   test('true для gql у .ts', () => {
@@ -28,5 +33,45 @@ describe('sourceFileHasGqlTaggedTemplate', () => {
 
   test('false без шаблонів', () => {
     expect(sourceFileHasGqlTaggedTemplate('const x = 1\n', 'a.js')).toBe(false)
+  })
+})
+
+describe('check (tooling.mjs)', () => {
+  test('exit 0 — немає gql шаблонів у джерелах', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'index.js'), 'const x = 1\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('exit 1 — gql знайдено, .graphqlrc.yml відсутній', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('exit 0 — gql знайдено, .graphqlrc.yml є, extensions.json з graphql.vscode-graphql', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      await writeFile(join(dir, '.graphqlrc.yml'), 'schema: schema.graphql\n', 'utf8')
+      await ensureDir(join(dir, '.vscode'))
+      await writeJson(join(dir, '.vscode/extensions.json'), {
+        recommendations: ['graphql.vscode-graphql']
+      })
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('exit 1 — gql знайдено, .graphqlrc.yml є, extensions.json без graphql.vscode-graphql', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      await writeFile(join(dir, '.graphqlrc.yml'), 'schema: schema.graphql\n', 'utf8')
+      await ensureDir(join(dir, '.vscode'))
+      await writeJson(join(dir, '.vscode/extensions.json'), {
+        recommendations: ['eslint.vscode-eslint']
+      })
+      expect(await check(dir)).toBe(1)
+    })
   })
 })

@@ -208,4 +208,88 @@ describe('check-nginx-default-tpl (мінімальний проєкт)', () => 
       expect(await checkNginx(dir)).toBe(0)
     })
   })
+
+  test('0 — немає default.conf.template → перевірку пропущено', async () => {
+    await withTmpDir(async dir => {
+      expect(await checkNginx(dir)).toBe(0)
+    })
+  })
+
+  test('1 — є шаблон, немає *.ini і Dockerfile', async () => {
+    await withTmpDir(async dir => {
+      await copyFile(join(nginxFixDir, 'default.conf.template'), join(dir, 'default.conf.template'))
+      expect(await checkNginx(dir)).toBe(1)
+    })
+  })
+
+  test('1 — шаблон + ini + Dockerfile без gzip і envsubst', async () => {
+    await withTmpDir(async dir => {
+      await copyFile(join(nginxFixDir, 'default.conf.template'), join(dir, 'default.conf.template'))
+      await copyFile(join(nginxFixDir, 'values-dev.ini'), join(dir, 'values-dev.ini'))
+      await writeFile(join(dir, 'Dockerfile'), 'FROM nginx:alpine\n', 'utf8')
+      expect(await checkNginx(dir)).toBe(1)
+    })
+  })
+})
+
+describe('check-vue: додаткові сценарії', () => {
+  test('0 — без vue-пакетів (жодного vue у dependencies)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'mono', private: true })
+      expect(await checkVue(dir)).toBe(0)
+    })
+  })
+
+  test('1 — немає vite.config у пакеті', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      const { unlink } = await import('node:fs/promises')
+      await unlink(join(dir, 'app', 'vite.config.js'))
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — process.env.npm_lifecycle_event у vite.config', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(
+        join(dir, 'app', 'vite.config.js'),
+        [
+          `import Vue from '@vitejs/plugin-vue'`,
+          `import VueMacros from 'vue-macros/vite'`,
+          `import AutoImport from 'unplugin-auto-import/vite'`,
+          `const isServe = process.env.npm_lifecycle_event === 'dev'`,
+          `export default { plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })] }`,
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — vite-env.d.ts без /// <reference types="vite/client" />', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(join(dir, 'app', 'src', 'vite-env.d.ts'), 'declare module "*.vue" {}\n', 'utf8')
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — немає jsconfig.json у пакеті', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      const { unlink } = await import('node:fs/promises')
+      await unlink(join(dir, 'app', 'jsconfig.json'))
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — extensions.json без Vue.volar', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeJson(join(dir, '.vscode/extensions.json'), { recommendations: [] })
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
 })

@@ -266,13 +266,13 @@ function makeOrchestratorFixture({ rules = [], providers = {} } = {}) {
 }
 
 describe('runCoverageSteps', () => {
-  test('агрегує дані одного провайдера і додає рядок Разом', async () => {
+  test('один провайдер — без рядка Разом (дублював би єдиний рядок)', async () => {
     const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
     expect(md).toContain('| Test |')
-    expect(md).toContain('| **Разом** |')
+    expect(md).not.toContain('| **Разом** |')
     fx.cleanup()
   })
 
@@ -645,7 +645,6 @@ describe('runCoverageSteps — utf8 кодування', () => {
     expect(md).toContain('Рядки')
     expect(md).toContain('Функції')
     expect(md).toContain('Вбито мутацій')
-    expect(md).toContain('**Разом**')
     fx.cleanup()
   })
 })

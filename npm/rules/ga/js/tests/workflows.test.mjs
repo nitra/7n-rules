@@ -186,6 +186,100 @@ jobs:
   execFileSync('git', ['add', '-A'], { cwd: dir })
 }
 
+describe('check-ga: відсутній .github/workflows', () => {
+  test('exit 1 — директорія .github/workflows не існує', async () => {
+    await withTmpDir(async dir => {
+      expect(await check(dir)).toBe(1)
+    })
+  })
+})
+
+describe('check-ga: .yaml розширення', () => {
+  test('exit 1 — є файл з .yaml розширенням (немає .yml)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, '.github/workflows'))
+      await writeFile(join(dir, '.github/workflows', 'test.yaml'), 'name: test\n', 'utf8')
+      await withShellcheckStubInPath(async () => {
+        expect(await check(dir)).toBe(1)
+      })
+    })
+  })
+})
+
+describe('check-ga: MegaLinter', () => {
+  test('exit 1 — є .mega-linter.yml конфіг у корені репо', async () => {
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
+      await writeFile(join(dir, '.mega-linter.yml'), 'MEGALINTER_CONFIG:\n', 'utf8')
+      await withShellcheckStubInPath(async () => {
+        expect(await check(dir)).toBe(1)
+      })
+    })
+  })
+
+  test('exit 1 — workflow містить oxsecurity/megalinter-action', async () => {
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
+      await writeFile(
+        join(dir, '.github/workflows/megalint.yml'),
+        [
+          'name: MegaLint',
+          'on:',
+          '  push:',
+          '    branches: [main]',
+          'concurrency:',
+          '  group: ${{ github.ref }}',
+          '  cancel-in-progress: true',
+          'jobs:',
+          '  lint:',
+          '    runs-on: ubuntu-latest',
+          '    steps:',
+          '      - uses: oxsecurity/megalinter-action@v8',
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      await withShellcheckStubInPath(async () => {
+        expect(await check(dir)).toBe(1)
+      })
+    })
+  })
+})
+
+describe('check-ga: apply-k8s.yml', () => {
+  test('exit 1 — apply-k8s.yml без paths trigger', async () => {
+    await withTmpDir(async dir => {
+      await setupCanonicalGaProject(dir)
+      await writeFile(
+        join(dir, '.github/workflows/apply-k8s.yml'),
+        [
+          'name: Apply K8S',
+          'on:',
+          '  push:',
+          '    branches: [main]',
+          'concurrency:',
+          '  group: ${{ github.ref }}-${{ github.workflow }}',
+          '  cancel-in-progress: true',
+          'jobs:',
+          '  apply:',
+          '    runs-on: ubuntu-latest',
+          '    permissions:',
+          '      contents: read',
+          '    steps:',
+          '      - uses: actions/checkout@v6',
+          '        with:',
+          '          persist-credentials: false',
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      await withShellcheckStubInPath(async () => {
+        expect(await check(dir)).toBe(1)
+      })
+    })
+  })
+})
+
 describe('check-ga: shellcheck в PATH', () => {
   test('exit 0, коли shellcheck доступний у PATH', async () => {
     await withTmpDir(async dir => {

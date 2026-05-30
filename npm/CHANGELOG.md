@@ -4,6 +4,15 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
+## [1.34.0] - 2026-05-30
+
+### Added
+
+- Тести для `bun-sql-scan.mjs`: `findPgFormatShimDefinitionInText`, `findPgFormatLikeQueryWrapperInText`, `findUnsafeBunSqlInListMissingEmptyGuardInText`, `findPgListenNotifyUsageInText`
+- Тести для `capacitor/platforms.mjs`: semver edge-cases, `recordCapacitorFromOnePackageJson`, `collectCapacitorDataFromAllPackageJson`, nitra-exceptions via config files
+- Тести для `ga/workflows.mjs`: no .github/workflows dir, .yaml extension, MegaLinter detection, apply-k8s paths trigger
+- Тести для `nginx-default-tpl/template.mjs` і `vue/packages.mjs` через check-rule-fixtures.test.mjs
+
 ## [1.33.0] - 2026-05-30
 
 ### Added

@@ -180,7 +180,9 @@ export async function runCoverageSteps(opts = {}) {
     return 1
   }
 
-  rows.push(buildTotalsRow(rows))
+  // Підсумок «Разом» має сенс лише коли провайдерів ≥2; для єдиного рядка він
+  // дублює його значення, тож не додаємо.
+  if (rows.length > 1) rows.push(buildTotalsRow(rows))
   const md = renderMarkdown(rows)
   // Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
   await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
