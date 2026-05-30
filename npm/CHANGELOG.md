@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.2] - 2026-05-30
+
+### Fixed
+
+- test: meta-тести no-process-chdir і test-helpers перенесено на конкатенацію/Identifier-аргументи, щоб не тригерити власні сканери (false positives)
+
 ## [1.35.1] - 2026-05-30
 
 ### Added
