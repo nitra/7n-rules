@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.3] - 2026-05-30
+
+### Fixed
+
+- test: ізолювати listShellScriptPaths git-test через withTmpDir + git init (під Stryker sandbox-копія репо не git-дерево, через що тест блокував dry-run і не давав оновити mutation.json)
+
 ## [1.35.2] - 2026-05-30
 
 ### Fixed
