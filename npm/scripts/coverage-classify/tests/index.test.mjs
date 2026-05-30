@@ -33,6 +33,11 @@ const SAMPLE = `export function foo() {
 }
 `
 
+/**
+ * Будує survived-фікстуру з одним EqualityOperator-мутантом для вказаного файлу.
+ * @param {string} file шлях до source-файлу мутанта
+ * @returns {object[]} список survived-записів для applyVerdicts
+ */
 function survivedFixture(file) {
   return [
     {
@@ -46,6 +51,11 @@ function survivedFixture(file) {
   ]
 }
 
+/**
+ * Будує Anthropic-style response з text-content, що містить JSON verdict.
+ * @param {object} verdictJson об'єкт verdict, серіалізований у text
+ * @returns {object} mock Anthropic response
+ */
 function mockResponse(verdictJson) {
   return {
     content: [{ type: 'text', text: JSON.stringify(verdictJson) }]

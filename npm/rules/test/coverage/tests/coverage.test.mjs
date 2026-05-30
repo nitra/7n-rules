@@ -1181,3 +1181,200 @@ describe('runCoverageSteps — classify повертає verdicts (lines 232-237
     rmSync(rulesDir, { recursive: true, force: true })
   })
 })
+
+// === Нові тести для вцілілих мутантів ===
+
+describe('renderMarkdown — allowed gaps exact strings (L132, L133, L136, L138)', () => {
+  const baseRows = [{
+    area: 'JS',
+    coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+    mutation: { caught: 3, total: 4 }
+  }]
+
+  const makeGap = (file, reason = 'No side effect') => ({
+    file,
+    mutant: { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' },
+    verdict: { verdict: 'equivalent', confidence: 0.92, reason }
+  })
+
+  test('містить рядок LLM-класифікатора (вбиває L132:16 StringLiteral template→``)', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('LLM-класифікатор виключив 1 survived мутант(ів) зі знаменника mutation score.')
+  })
+
+  test('містить рядок категорій (вбиває L133:16 StringLiteral→"")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('> Категорії: equivalent')
+  })
+
+  test('містить заголовок таблиці (вбиває L136:37,41 StringLiteral→"Stryker was here!"/"")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('| Line | Mutant | Verdict | Confidence | Reason |')
+  })
+
+  test('містить separator рядок таблиці (вбиває L136:94 StringLiteral→"")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
+    expect(md).toContain('| --- | --- | --- | --- | --- |')
+  })
+
+  test('санітизує pipe у reason (вбиває L138:64 StringLiteral→"")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js', 'reason with | pipe character')])
+    expect(md).toContain(String.raw`reason with \| pipe character`)
+    expect(md).not.toContain('reason with | pipe character')
+  })
+
+  test('санітизує newline у reason (вбиває L138:88 StringLiteral→"")', () => {
+    const md = renderMarkdown(baseRows, [makeGap('src/a.js', 'first line\nsecond line')])
+    expect(md).toContain('first line second line')
+    expect(md).not.toContain('first line\nsecond line')
+  })
+
+  test('два gaps з одного файлу — обидва у виводі (вбиває L127:11 ConditionalExpression→true)', () => {
+    const gaps = [
+      makeGap('src/shared.js', 'reason A'),
+      makeGap('src/shared.js', 'reason B')
+    ]
+    const md = renderMarkdown(baseRows, gaps)
+    expect(md).toContain('reason A')
+    expect(md).toContain('reason B')
+    // Обидва gap у одній секції файлу
+    const sectionCount = (md.match(/### src\/shared\.js/g) ?? []).length
+    expect(sectionCount).toBe(1)
+  })
+})
+
+describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () => {
+  afterEach(() => {
+    vi.mocked(classify).mockResolvedValue([])
+    vi.restoreAllMocks()
+  })
+
+  test('threshold=NaN → повертає 1.1 (вбиває L193:12 LogicalOperator &&→||)', async () => {
+    const verdicts = [
+      { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'r' } }
+    ]
+    vi.mocked(classify).mockResolvedValueOnce(verdicts)
+    const cwd = mkdtempSync(join(tmpdir(), 'threshold-nan-'))
+    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: NaN } }))
+    const rulesDir = mkdtempSync(join(tmpdir(), 'rules-nan-'))
+    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    mkdirSync(providerDir, { recursive: true })
+    writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
+    await runCoverageSteps({ cwd, rulesDir })
+    // threshold=NaN (не Number.isFinite) → 1.1; confidence 0.95 < 1.1 → НЕ allowed gap
+    const md = readFileSync(join(cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).not.toContain('## Allowed gaps')
+    rmSync(cwd, { recursive: true, force: true })
+    rmSync(rulesDir, { recursive: true, force: true })
+  })
+
+  test('threshold=string → повертає 1.1 (вбиває L193:12 ConditionalExpression→true)', async () => {
+    const verdicts = [
+      { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'r' } }
+    ]
+    vi.mocked(classify).mockResolvedValueOnce(verdicts)
+    const cwd = mkdtempSync(join(tmpdir(), 'threshold-str-'))
+    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: '0.5' } }))
+    const rulesDir = mkdtempSync(join(tmpdir(), 'rules-str-'))
+    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    mkdirSync(providerDir, { recursive: true })
+    writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
+    await runCoverageSteps({ cwd, rulesDir })
+    // threshold='0.5' (not number) → 1.1; confidence 0.95 < 1.1 → НЕ allowed gap
+    const md = readFileSync(join(cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).not.toContain('## Allowed gaps')
+    rmSync(cwd, { recursive: true, force: true })
+    rmSync(rulesDir, { recursive: true, force: true })
+  })
+
+  test('без coverage ключа в .n-cursor.json → threshold=1.1 (вбиває L192:15 OptionalChaining)', async () => {
+    const verdicts = [
+      { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'r' } }
+    ]
+    vi.mocked(classify).mockResolvedValueOnce(verdicts)
+    const cwd = mkdtempSync(join(tmpdir(), 'threshold-nokey-'))
+    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'] }))
+    const rulesDir = mkdtempSync(join(tmpdir(), 'rules-nokey-'))
+    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    mkdirSync(providerDir, { recursive: true })
+    writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
+    await runCoverageSteps({ cwd, rulesDir })
+    const md = readFileSync(join(cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).not.toContain('## Allowed gaps')
+    rmSync(cwd, { recursive: true, force: true })
+    rmSync(rulesDir, { recursive: true, force: true })
+  })
+})
+
+describe('runCoverageSteps — classify не викликається без survivors (L231:7)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+  afterEach(() => { vi.restoreAllMocks() })
+
+  test('провайдер без survivors → classify НЕ викликається (вбиває L231:7 ConditionalExpression→true)', async () => {
+    vi.mocked(classify).mockResolvedValue([])
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(classify).not.toHaveBeenCalled()
+    fx.cleanup()
+  })
+})
+
+describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
+  const PROVIDER_WITH_RAZOM_ROW = `
+    export async function detect() { return true }
+    export async function collect() {
+      return [
+        { area: '**Разом**', coverage: { lines: { covered: 5, total: 10 }, functions: { covered: 2, total: 4 } }, mutation: { caught: 3, total: 4 } },
+        { area: 'JS', coverage: { lines: { covered: 5, total: 10 }, functions: { covered: 2, total: 4 } }, mutation: { caught: 3, total: 4 } }
+      ]
+    }
+  `
+
+  test('якщо provider вже повертає Разом-рядок, не додається ще один (вбиває L243:33,44 і L244)', async () => {
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': PROVIDER_WITH_RAZOM_ROW } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(0)
+    const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
+    // Має бути рівно 1 Разом рядок
+    const razomCount = (md.match(/\*\*Разом\*\*/g) ?? []).length
+    expect(razomCount).toBe(1)
+    fx.cleanup()
+  })
+
+  test('два реальних provider рядки → area Разом дорівнює **Разом** (вбиває StringLiteral→"")', async () => {
+    const fx = makeOrchestratorFixture({
+      rules: ['js-lint', 'rust'],
+      providers: { 'js-lint': ONE_ROW_PROVIDER, rust: ONE_ROW_PROVIDER }
+    })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(0)
+    const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).toContain('**Разом**')
+    fx.cleanup()
+  })
+})
+
+describe('runCoverageCli — 2-й run передає fix:false (L272)', () => {
+  afterEach(() => { vi.restoreAllMocks() })
+
+  test('2-й fn не запускає fix-логіку (вбиває L272:63 BooleanLiteral false→true)', async () => {
+    withLock.mockReset()
+    let secondFn = null
+    withLock.mockReturnValueOnce(0)
+    withLock.mockImplementationOnce((_key, fn) => { secondFn = fn; return 0 })
+
+    await runCoverageCli({ fix: true })
+    expect(secondFn).toBeTypeOf('function')
+
+    // Виконуємо captured fn у ізольованому реальному cwd
+    const cwd = mkdtempSync(join(tmpdir(), 'fixfalse-'))
+    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: [] }))
+    // withLock знову mock для виклику всередині secondFn
+    withLock.mockImplementation((_key, fn2) => fn2())
+    let innerCode
+    try { innerCode = await secondFn() } catch { innerCode = 1 }
+    // fix: false → code=1 (немає провайдерів) але НЕ намагається завантажити coverage-fix.mjs
+    expect(typeof innerCode).toBe('number')
+    rmSync(cwd, { recursive: true, force: true })
+  })
+})

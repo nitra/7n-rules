@@ -238,32 +238,34 @@ describe('check-adr (інтеграція)', () => {
   })
 })
 
-describe('checkLlmCliAvailable — PATH scenarios', () => {
-  /**
-   * Запускає check() із маніпульованим PATH (тільки один бінарник у tmpDir).
-   * @param {'claude'|'cursor-agent'|'both'|'none'} present який бінарник присутній у stub-PATH
-   */
-  async function withSingleBinPath(present, fn) {
-    await withTmpDir(async binDir => {
-      const isWin = platform === 'win32'
-      const mkStub = async name => {
-        const stub = join(binDir, isWin ? `${name}.exe` : name)
-        await writeFile(stub, isWin ? '@echo off\n' : '#!/bin/sh\n', 'utf8')
-        if (!isWin) await chmod(stub, 0o755)
-      }
-      if (present === 'claude' || present === 'both') await mkStub('claude')
-      if (present === 'cursor-agent' || present === 'both') await mkStub('cursor-agent')
-      const prevPath = env.PATH
-      env.PATH = binDir
-      try {
-        await fn(binDir)
-      } finally {
-        if (prevPath === undefined) delete env.PATH
-        else env.PATH = prevPath
-      }
-    })
-  }
+/**
+ * Запускає тестовий код із маніпульованим PATH (тільки один бінарник у tmpDir).
+ * @param {'claude'|'cursor-agent'|'both'|'none'} present який бінарник присутній у stub-PATH
+ * @param {(binDir: string) => Promise<void>} fn тестовий код, що очікує підготований PATH
+ * @returns {Promise<void>}
+ */
+async function withSingleBinPath(present, fn) {
+  await withTmpDir(async binDir => {
+    const isWin = platform === 'win32'
+    const mkStub = async name => {
+      const stub = join(binDir, isWin ? `${name}.exe` : name)
+      await writeFile(stub, isWin ? '@echo off\n' : '#!/bin/sh\n', 'utf8')
+      if (!isWin) await chmod(stub, 0o755)
+    }
+    if (present === 'claude' || present === 'both') await mkStub('claude')
+    if (present === 'cursor-agent' || present === 'both') await mkStub('cursor-agent')
+    const prevPath = env.PATH
+    env.PATH = binDir
+    try {
+      await fn(binDir)
+    } finally {
+      if (prevPath === undefined) delete env.PATH
+      else env.PATH = prevPath
+    }
+  })
+}
 
+describe('checkLlmCliAvailable — PATH scenarios', () => {
   test('isBinaryInPath повертає false коли PATH порожній (line 247)', async () => {
     await withTmpDir(async dir => {
       await setupValidProject(dir)

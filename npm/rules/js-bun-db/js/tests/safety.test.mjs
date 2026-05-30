@@ -431,7 +431,7 @@ export async function findMany(ids: number[]) {
       await ensureDir(join(dir, 'src'))
       await writeFile(
         join(dir, 'src/db.js'),
-        "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${ids})`\n}\n",
+        `import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql\`SELECT * FROM users WHERE id IN (\${ids})\`\n}\n`,
         'utf8'
       )
       expect(await check(dir)).toBe(1)
@@ -444,7 +444,7 @@ export async function findMany(ids: number[]) {
       await ensureDir(join(dir, 'src'))
       await writeFile(
         join(dir, 'src/db.js'),
-        "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${sql(ids.filter(Boolean))})`\n}\n",
+        `import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql\`SELECT * FROM users WHERE id IN (\${sql(ids.filter(Boolean))})\`\n}\n`,
         'utf8'
       )
       expect(await check(dir)).toBe(1)

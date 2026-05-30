@@ -106,9 +106,7 @@ describe('buildUserPrompt', () => {
       await writeFile(join(dir, 'pkg/foo.mjs'), SAMPLE_SOURCE, 'utf8')
       const lines = []
       for (let i = 0; i < 2001; i++) lines.push(`// line ${i}`)
-      lines.push("describe('outer', () => {")
-      lines.push("  test('inner', () => {})")
-      lines.push('})')
+      lines.push("describe('outer', () => {", "  test('inner', () => {})", '})')
       await writeFile(join(dir, 'pkg/tests/foo.test.mjs'), lines.join('\n'), 'utf8')
       const mutant = { file: 'pkg/foo.mjs', line: 1, col: 1, mutantType: 'X', original: 'a', replacement: 'b' }
       const prompt = buildUserPrompt(mutant, dir)

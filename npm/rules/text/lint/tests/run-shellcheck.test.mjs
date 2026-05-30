@@ -3,14 +3,12 @@
  */
 import { describe, expect, test } from 'vitest'
 import { readFile, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+import { execFileSync } from 'node:child_process'
 
 import { listShellScriptPaths, runShellcheckText } from '../run-shellcheck.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { ensureDir, withBinRemovedFromPath, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
-
-const NPM_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', '..')
 
 describe('run-shellrules/text/fix.mjs', () => {
   test('listShellScriptPaths у тимчасовому каталозі без git повертає вкладені .sh', async () => {
@@ -23,11 +21,21 @@ describe('run-shellrules/text/fix.mjs', () => {
     })
   })
 
-  test('listShellScriptPaths всередині git-репо використовує git ls-files (lines 76, 84-85)', () => {
-    const paths = listShellScriptPaths(NPM_ROOT)
-    expect(Array.isArray(paths)).toBe(true)
-    expect(paths.some(p => p.endsWith('.sh'))).toBe(true)
-    expect(paths).toEqual([...new Set(paths)].toSorted())
+  // Ізольоване tmp-репо замість реального NPM_ROOT: робочий cwd під Stryker — це
+  // sandbox-копія без `.git/`, тож звертання до реального дерева через `import.meta.url`
+  // ламало dry-run (див. integration-repo-checks.test.mjs про той самий патерн).
+  test('listShellScriptPaths всередині git-репо використовує git ls-files (lines 76, 84-85)', async () => {
+    await withTmpDir(async dir => {
+      execFileSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
+      await ensureDir(join(dir, 'sub'))
+      await writeFile(join(dir, 'root.sh'), '#!/bin/sh\ntrue\n', 'utf8')
+      await writeFile(join(dir, 'sub', 'nested.sh'), '#!/bin/bash\necho ok\n', 'utf8')
+      await writeFile(join(dir, 'readme.txt'), 'hello\n', 'utf8')
+      execFileSync('git', ['add', '-A'], { cwd: dir })
+      const paths = listShellScriptPaths(dir)
+      expect(paths).toEqual(['root.sh', 'sub/nested.sh'])
+      expect(paths).toEqual([...new Set(paths)].toSorted())
+    })
   })
 
   test('runShellcheckText виправляє тривіальне SC2086 і завершується з 0', async () => {

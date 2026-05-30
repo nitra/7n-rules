@@ -409,7 +409,7 @@ await pool.query(\`SELECT * FROM users\`)
 })
 
 describe('findUnsafeBunSqlInListMissingEmptyGuardInText — guard paths', () => {
-  test('IN (${ids}) всередині функції з guard !ids.length → не знаходить (guard є)', () => {
+  test(`IN (\${ids}) всередині функції з guard !ids.length → не знаходить (guard є)`, () => {
     const code = `
 import { sql } from 'bun'
 async function query(ids) {
@@ -421,7 +421,7 @@ async function query(ids) {
     expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
   })
 
-  test('IN (${ids}) всередині функції з guard ids.length === 0 → не знаходить', () => {
+  test(`IN (\${ids}) всередині функції з guard ids.length === 0 → не знаходить`, () => {
     const code = `
 import { sql } from 'bun'
 async function query(ids) {
@@ -433,7 +433,7 @@ async function query(ids) {
     expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
   })
 
-  test('IN (${ids}) всередині функції без guard → missing_guard', () => {
+  test(`IN (\${ids}) всередині функції без guard → missing_guard`, () => {
     const code = `
 import { sql } from 'bun'
 async function query(ids) {
@@ -446,7 +446,7 @@ async function query(ids) {
     expect(hits[0].reason).toBe('missing_guard')
   })
 
-  test('IN (${ids}) з нерелевантним if (x > 0) → missing_guard (не guard)', () => {
+  test(`IN (\${ids}) з нерелевантним if (x > 0) → missing_guard (не guard)`, () => {
     const code = `
 import { sql } from 'bun'
 async function query(ids, x) {
@@ -460,7 +460,7 @@ async function query(ids, x) {
     expect(hits[0].reason).toBe('missing_guard')
   })
 
-  test('IN (${sql(ids)}) без guard — CallExpression з Identifier arg → missing_guard', () => {
+  test(`IN (\${sql(ids)}) без guard — CallExpression з Identifier arg → missing_guard`, () => {
     const code = `
 import { sql } from 'bun'
 const ids = [1, 2, 3]
@@ -470,7 +470,7 @@ const r = sql\`SELECT * FROM users WHERE id IN (\${sql(ids)})\`
     expect(hits.length).toBeGreaterThanOrEqual(1)
   })
 
-  test('IN (${sql(ids.filter(Boolean))}) → sql_helper_not_var (не Identifier)', () => {
+  test(`IN (\${sql(ids.filter(Boolean))}) → sql_helper_not_var (не Identifier)`, () => {
     const code = `
 import { sql } from 'bun'
 const ids = [1, 2, 3]

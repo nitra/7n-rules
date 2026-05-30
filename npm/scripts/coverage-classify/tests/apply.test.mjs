@@ -9,6 +9,11 @@ import { applyVerdicts, isAllowedGap } from '../apply.mjs'
 
 const REASON = 'Branch is covered by integration test runStandardRule'
 
+/**
+ * Будує row-fixture для applyVerdicts (фіксовані coverage/mutation, кастомний survived).
+ * @param {object[]} survived список survived-записів від класифікатора
+ * @returns {object} row-об'єкт з area JS, coverage і mutation-сумами
+ */
 function row(survived) {
   return {
     area: 'JS',
@@ -46,17 +51,17 @@ describe('isAllowedGap', () => {
   })
 })
 
-describe('applyVerdicts', () => {
-  const mkSurvived = file => ({
-    file,
-    mutants: [
-      { line: 1, col: 1, mutantType: 'X', original: 'a', replacement: 'b' },
-      { line: 2, col: 2, mutantType: 'Y', original: 'c', replacement: 'd' }
-    ],
-    exampleTest: null,
-    recommendationText: null
-  })
+const mkSurvived = file => ({
+  file,
+  mutants: [
+    { line: 1, col: 1, mutantType: 'X', original: 'a', replacement: 'b' },
+    { line: 2, col: 2, mutantType: 'Y', original: 'c', replacement: 'd' }
+  ],
+  exampleTest: null,
+  recommendationText: null
+})
 
+describe('applyVerdicts', () => {
   test('всі verdicts worth-testing → нічого не фільтрується', () => {
     const rows = [row([mkSurvived('foo.mjs')])]
     const verdicts = [

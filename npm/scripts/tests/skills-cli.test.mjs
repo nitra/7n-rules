@@ -28,7 +28,7 @@ describe('normalizeSkillId', () => {
 
   test('null/undefined → порожній рядок', () => {
     expect(normalizeSkillId(/** @type {string} */ (null))).toBe('')
-    expect(normalizeSkillId(/** @type {string} */ (undefined))).toBe('')
+    expect(normalizeSkillId(/** @type {string} */ )).toBe('')
   })
 })
 

@@ -187,8 +187,8 @@ function findOffendersInBody(body) {
  */
 function computeLineOffsets(body) {
   const offsets = [0]
-  for (let i = 0; i < body.length; i++) {
-    if (body[i] === '\n') offsets.push(i + 1)
+  for (const [i, element] of body.entries()) {
+    if (element === '\n') offsets.push(i + 1)
   }
   return offsets
 }

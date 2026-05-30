@@ -128,14 +128,12 @@ export function renderMarkdown(rows, allowedGaps = []) {
       gapsByFile.get(gap.file).push(gap)
     }
 
-    lines.push('', '## Allowed gaps', '')
-    lines.push(`> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`)
-    lines.push('> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).')
+    lines.push('', '## Allowed gaps', '', `> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`, '> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).')
 
     for (const [file, gaps] of gapsByFile) {
       lines.push('', `### ${file}`, '', '| Line | Mutant | Verdict | Confidence | Reason |', '| --- | --- | --- | --- | --- |')
       for (const { mutant, verdict } of gaps) {
-        const sanitizedReason = verdict.reason.replaceAll('|', '\\|').replaceAll('\n', ' ')
+        const sanitizedReason = verdict.reason.replaceAll('|', String.raw`\|`).replaceAll('\n', ' ')
         lines.push(
           `| ${mutant.line} | \`${mutant.original}\` → \`${mutant.replacement}\` | ${verdict.verdict} | ${verdict.confidence.toFixed(2)} | ${sanitizedReason} |`
         )

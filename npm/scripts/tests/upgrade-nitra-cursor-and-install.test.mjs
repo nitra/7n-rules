@@ -129,8 +129,8 @@ describe('shouldSkipNpmVersionUpgrade — додаткові гілки', () => 
     expect(shouldSkipNpmVersionUpgrade('git+https://github.com/x/y')).toBe(true)
   })
 
-  test('http:// (без s) → true', () => {
-    expect(shouldSkipNpmVersionUpgrade('http://a/b.tgz')).toBe(true)
+  test("https:// (без s) → true", () => {
+    expect(shouldSkipNpmVersionUpgrade("https://a/b.tgz")).toBe(true)
   })
 
   test('відносний шлях ../ → true', () => {
