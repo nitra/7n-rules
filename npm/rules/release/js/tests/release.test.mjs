@@ -56,4 +56,72 @@ describe('release', () => {
       expect(doc.project.version).toBe('0.1.1')
     })
   })
+
+  test('кілька workspace: обидва бампляться, два теги, один commit', async () => {
+    await withTmpDir(async dir => {
+      // монорепо-корінь з підпакетами → корінь пропускається
+      await writeJson(join(dir, 'package.json'), { name: 'root', version: '0.0.0', private: true, workspaces: ['a', 'b'] })
+      for (const [ws, ver] of [['a', '1.0.0'], ['b', '2.0.0']]) {
+        await mkdir(join(dir, ws, '.changes'), { recursive: true })
+        await writeJson(join(dir, ws, 'package.json'), { name: ws, version: ver, files: ['CHANGELOG.md'] })
+        await writeFile(join(dir, ws, 'CHANGELOG.md'), '# Changelog\n')
+        await writeFile(join(dir, ws, '.changes', '1.md'), '---\nbump: minor\nsection: Added\n---\nfeat ' + ws + '\n')
+      }
+      const calls = []
+      const runGit = args => { calls.push(args.join(' ')); return Promise.resolve('') }
+      const released = await release({ cwd: dir, date: '2026-05-29', runGit })
+
+      expect(released.map(r => r.name).sort()).toEqual(['a', 'b'])
+      expect(JSON.parse(await readFile(join(dir, 'a', 'package.json'), 'utf8')).version).toBe('1.1.0')
+      expect(JSON.parse(await readFile(join(dir, 'b', 'package.json'), 'utf8')).version).toBe('2.1.0')
+      expect(calls.filter(c => c.startsWith('commit')).length).toBe(1)
+      expect(calls.filter(c => c.startsWith('tag ')).sort()).toEqual(['tag a@1.1.0', 'tag b@2.1.0'])
+    })
+  })
+
+  test('fallback через release(): немає change-файлів, але є коміти → синтез + тег, без помилки rm', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      // stub: describe повертає тег, log повертає коміти
+      const runGit = args => {
+        const key = args.join(' ')
+        if (key.startsWith('describe')) return Promise.resolve('p@1.0.0\n')
+        if (key.startsWith('log')) return Promise.resolve('feat: щось\n')
+        return Promise.resolve('')
+      }
+      const released = await release({ cwd: dir, date: '2026-05-29', runGit })
+      expect(released).toEqual([{ ws: '.', name: 'p', newVersion: '1.0.1' }])
+      const cl = await readFile(join(dir, 'CHANGELOG.md'), 'utf8')
+      expect(cl).toContain('feat: щось')
+    })
+  })
+
+  test('commit-фейл скасовує теги/push', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      const calls = []
+      const runGit = args => {
+        calls.push(args.join(' '))
+        return Promise.resolve(args[0] === 'commit' ? null : '')
+      }
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/commit/)
+      expect(calls.some(c => c.startsWith('tag '))).toBe(false)
+      expect(calls.some(c => c.startsWith('push'))).toBe(false)
+    })
+  })
+
+  test('major bump через release()', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.2.3', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: major\nsection: Changed\n---\nbreaking\n')
+      await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') })
+      expect(JSON.parse(await readFile(join(dir, 'package.json'), 'utf8')).version).toBe('2.0.0')
+    })
+  })
 })

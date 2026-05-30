@@ -26,7 +26,11 @@ async function writeManifestVersion(cwd, manifest, newVersion) {
   const path = join(cwd, manifest.ws === '.' ? manifest.manifestRel : `${manifest.ws}/${manifest.manifestRel}`)
   const text = await readFile(path, 'utf8')
   const re = manifest.kind === 'npm' ? SEMVER_LINE_RE : PY_VERSION_LINE_RE
-  await writeFile(path, text.replace(re, `$1${newVersion}$2`))
+  const replaced = text.replace(re, `$1${newVersion}$2`)
+  if (replaced === text) {
+    throw new Error(`release: не вдалося оновити version у ${manifest.ws}/${manifest.manifestRel} — патерн version не знайдено`)
+  }
+  await writeFile(path, replaced)
 }
 
 /**
@@ -99,7 +103,10 @@ export async function release(opts = {}) {
   if (released.length > 0) {
     const subject = tags.length > 0 ? tags.join(', ') : released.map(r => `${r.ws}@${r.newVersion}`).join(', ')
     await runGit(['add', '-A'])
-    await runGit(['commit', '-m', `release: ${subject}`])
+    const committed = await runGit(['commit', '-m', `release: ${subject}`])
+    if (committed === null) {
+      throw new Error('release: git commit не вдався — теги та push скасовано')
+    }
     for (const tag of tags) {
       await runGit(['tag', tag])
     }
