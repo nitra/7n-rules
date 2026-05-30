@@ -3,10 +3,10 @@
  * в PATH — exit 1 і підказки встановлення для кожного.
  */
 import { describe, expect, test } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { env } from 'node:process'
+import { env, platform } from 'node:process'
 
 import { runLintTextCli } from '../lint.mjs'
 
@@ -66,5 +66,39 @@ describe('runLintTextCli', () => {
     expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
     expect(errBlob).toMatch(PATCH_WORD_RE)
     expect(errBlob).toMatch(BREW_INSTALL_DOTENV_RE)
+  })
+
+  test('preflight OK — логує successMsg і доходить до cspell (lines 119-120, 137-138)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+
+    // Стабові бінарники для shellcheck, patch, dotenv-linter (exit 0)
+    const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-preflight-stubs-'))
+    for (const name of ['shellcheck', 'patch', 'dotenv-linter']) {
+      const stub = join(binDir, name)
+      await writeFile(stub, '#!/bin/sh\nexit 0\n', 'utf8')
+      await chmod(stub, 0o755)
+    }
+
+    const prevPath = env.PATH
+    // binDir перший, потім базові Unix-шляхи (щоб `which` знаходилося); npx/bunx відсутні
+    env.PATH = `${binDir}:/usr/bin:/bin`
+    const logs = []
+    const origLog = console.log
+    const origErr = console.error
+    console.log = (...args) => logs.push(args.join(' '))
+    console.error = () => {}
+    let code
+    try {
+      code = await runLintTextCli()
+    } finally {
+      console.log = origLog
+      console.error = origErr
+      env.PATH = prevPath
+    }
+    // Preflight пройшов (всі бінарники знайдено), cspell → 127 (npx відсутній)
+    expect(code).toBe(127)
+    // successMsg від кожного preflight-бінарника
+    expect(logs.some(l => l.includes('shellcheck'))).toBe(true)
+    expect(logs.some(l => l.includes('dotenv-linter'))).toBe(true)
   })
 })

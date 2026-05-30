@@ -2,8 +2,9 @@
  * Тести run-dotenv-linter.mjs: авто-фікс і фінальний check через рекурсивний режим
  * `dotenv-linter` з виключенням `node_modules` і `.envrc`.
  */
-import { describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 import { chmod, readFile, writeFile } from 'node:fs/promises'
+import { spawnSync } from 'node:child_process'
 import { delimiter } from 'node:path'
 import { join } from 'node:path'
 import { env, platform } from 'node:process'
@@ -11,6 +12,11 @@ import { env, platform } from 'node:process'
 import { runDotenvLinter } from '../run-dotenv-linter.mjs'
 import { resolveCmd } from '../../../../scripts/utils/resolve-cmd.mjs'
 import { ensureDir, withBinRemovedFromPath, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+
+vi.mock('node:child_process', async () => {
+  const actual = await vi.importActual('node:child_process')
+  return { ...actual, spawnSync: vi.fn(actual.spawnSync) }
+})
 
 /**
  * Додає до PATH тимчасову директорію з підробленим `dotenv-linter`.
@@ -115,5 +121,74 @@ describe('run-dotenv-linter.mjs', () => {
       process.stdout.write = origOut
     }
     expect(stdoutLines.join('')).toContain('duplicate')
+  })
+})
+
+describe('runDotenvLinter — spawnSync error paths', () => {
+  afterEach(() => vi.clearAllMocks())
+
+  test('default cwd = process.cwd() (line 57)', async () => {
+    const errChunks = []
+    const origErr = process.stderr.write.bind(process.stderr)
+    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    try {
+      await withBinRemovedFromPath('dotenv-linter', () => {
+        expect(runDotenvLinter()).toBe(1)
+      })
+    } finally {
+      process.stderr.write = origErr
+    }
+    expect(errChunks.join('')).toContain('dotenv-linter')
+  })
+
+  test('fixRun.error → друкує у stderr і повертає 1 (lines 73-74)', async () => {
+    const actual = await vi.importActual('node:child_process')
+    vi.mocked(spawnSync)
+      .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
+      .mockImplementationOnce(() => ({
+        error: new Error('mock ENOENT fix'),
+        status: null, stdout: '', stderr: '', pid: 0, signal: null
+      }))
+
+    const errChunks = []
+    const origErr = process.stderr.write.bind(process.stderr)
+    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    try {
+      await withFakeDotenvLinter(async () => {
+        await withTmpDir(dir => {
+          expect(runDotenvLinter(dir)).toBe(1)
+        })
+      })
+    } finally {
+      process.stderr.write = origErr
+    }
+    expect(errChunks.join('')).toContain('mock ENOENT fix')
+  })
+
+  test('checkRun.error → друкує у stderr і повертає 1 (lines 84-85)', async () => {
+    const actual = await vi.importActual('node:child_process')
+    vi.mocked(spawnSync)
+      .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
+      .mockImplementationOnce(() => ({
+        error: null, status: 0, stdout: '', stderr: '', pid: 0, signal: null
+      })) // fix — успішно
+      .mockImplementationOnce(() => ({
+        error: new Error('mock ENOENT check'),
+        status: null, stdout: '', stderr: '', pid: 0, signal: null
+      })) // check — помилка spawn
+
+    const errChunks = []
+    const origErr = process.stderr.write.bind(process.stderr)
+    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    try {
+      await withFakeDotenvLinter(async () => {
+        await withTmpDir(dir => {
+          expect(runDotenvLinter(dir)).toBe(1)
+        })
+      })
+    } finally {
+      process.stderr.write = origErr
+    }
+    expect(errChunks.join('')).toContain('mock ENOENT check')
   })
 })

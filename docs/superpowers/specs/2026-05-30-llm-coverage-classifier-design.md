@@ -1,204 +1,220 @@
-# LLM Coverage Classifier — Design
+# LLM Coverage Classifier — Design Spec
 
-**Дата:** 2026-05-30  
+**Дата:** 2026-05-30
 **Статус:** Approved
+**Область:** `@nitra/cursor` (npm workspace)
 
 ---
 
-## Проблема
+## Контекст
 
-Поточний `n-cursor coverage` рахує «сирий» mutation score і відсотки покриття рядків. Ці метрики не розрізняють:
+`n-cursor coverage` запускає Stryker + vitest і публікує `COVERAGE.md` з raw mutation score.
+Поточний raw score штовхає до «покрити 100%», хоча значна частина survived мутантів — еквівалентні, spawn-обгортки чи CLI glue, де unit-тест не додає сигналу.
 
-- мутанти, де справді потрібен тест (`killable`),
-- мутанти, що семантично еквівалентні оригіналу (`equivalent`),
-- файли, що є CLI-обгортками та покриваються інтеграційно (`glue`).
-
-Результат — тиск до 100%-покриття змушує писати безцінні тести й ускладнює читання COVERAGE.md.
+Мета: ввести LLM-класифікатор, який відрізняє **Killable** мутанти/файли від **Allowed gaps**, і рахувати `Killable score` замість raw.
 
 ---
 
-## Рішення
+## Scope
 
-Після Stryker + vitest автоматично класифікуємо кожен survived мутант і кожен uncovered файл через Claude Sonnet 4.6 (prompt-cached). COVERAGE.md отримує окремий **Killable score** — єдина метрика, яку дійсно варто захищати.
+**In scope:**
+- Survived мутанти (з `mutation.json`).
+- Uncovered-файли з `lines% < 50%` (з coverage-summary).
+- Оновлення `COVERAGE.md` з `Killable Score` та секцією «Allowed gaps».
+- File-hash-keyed cache (`coverage-classify.cache.json`) щоб не re-classify незмінений код.
+
+**Out of scope:**
+- Автоматичне пропускання мутантів у Stryker config.
+- CI-гейт на Killable score (окрема feature).
+- Python workspace (тільки JS).
 
 ---
 
 ## Архітектура
 
-### Нові файли
+```
+npm/scripts/coverage-classify/
+  ├─ index.mjs          # entrypoint: classify(survived, uncoveredFiles, cwd) → verdicts[]
+  ├─ prompt.mjs         # buildClassifyPrompt(category, item, context) → string  [pure]
+  ├─ cache.mjs          # readCache / writeCache  (file-hash-keyed JSON)
+  ├─ verdict-schema.mjs # Zod-схема VerdictSchema
+  └─ apply.mjs          # filterKillable(rows, verdicts) → {killable, allowedGaps}
 
-| Файл | Призначення |
-|---|---|
-| `npm/scripts/lib/classify-coverage.mjs` | Orchestrator: читає джерела, кешує, батчить LLM, повертає `ClassifiedItem[]` |
-| `npm/scripts/lib/classify-coverage-prompt.mjs` | System-prompt (cached) + per-item user-повідомлення |
+npm/rules/test/coverage/coverage.mjs
+  └─ після Stryker → виклик classify() → передача в renderMarkdown()
+```
 
-### Змінені файли
+### Data flow
 
-| Файл | Зміна |
-|---|---|
-| `npm/rules/test/coverage/coverage.mjs` | Додає крок `classify` після Stryker + vitest |
-| `npm/rules/test/js/coverage/coverage.mjs` (js-lint provider) | Повертає `survivalData` для classify |
-| Файл що генерує `COVERAGE.md` | Нові секції: Killable score, Killable Mutants, Allowed Gaps |
+```
+n-cursor coverage
+  │
+  ├─ vitest --coverage    → coverage-summary.json
+  ├─ stryker run          → mutation.json
+  │
+  ├─ COVERAGE classify()
+  │   ├─ для кожного survived mutant / uncovered file:
+  │   │   ├─ cache lookup (key = git-blob-hash + item-id) → hit: reuse
+  │   │   └─ cache miss  → Claude API call → zod validate → write cache
+  │   └─ aggregate: Killable = всі, крім {confidence ≥ 0.7 ∧ verdict ∈ [equivalent, defensive, glue, wrapper]}
+  │
+  └─ renderMarkdown(rows, verdicts) → COVERAGE.md
+```
 
-### Кеш
+---
 
-`reports/classify/cache.json` — масив `ClassifiedItem`:
+## Verdict Schema (Zod)
 
-```ts
-interface ClassifiedItem {
-  id: string              // sha256(filePath + original + mutant)
-  filePath: string
-  line?: number
-  original?: string       // undefined для uncovered-files
-  mutant?: string         // undefined для uncovered-files
-  type: 'mutant' | 'uncovered-file'
-  verdict: 'killable' | 'equivalent' | 'defensive' | 'glue' | 'integration-only'
-  confidence: number      // 0.0–1.0
-  reason: string          // 1-2 речення від LLM
-  classifiedAt: string    // ISO timestamp
+```js
+const VerdictSchema = z.object({
+  verdict: z.enum([
+    'worth-testing',  // є реальна логіка — пиши тест
+    'equivalent',     // мутант поведінково еквівалентний
+    'defensive',      // гілка для impossible state
+    'glue',           // CLI entry / runStandardRule wrapper
+    'wrapper'         // spawn / fetch wrapper — integration охопить
+  ]),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().min(20).max(500),
+  suggestedTest: z.string().max(300).optional(), // тільки для worth-testing
+  category: z.enum(['mutant', 'uncovered-file'])
+})
+```
+
+**Skip rule:** `verdict ∈ [equivalent, defensive, glue, wrapper] AND confidence ≥ 0.7`.
+Усе інше — Killable (включно з `confidence < 0.7`).
+
+---
+
+## Claude API (Sonnet 4.6 + prompt caching)
+
+```js
+const r = await client.messages.create({
+  model: 'claude-sonnet-4-6',
+  max_tokens: 1024,
+  system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+  messages: [{ role: 'user', content: userPromptText }]
+})
+```
+
+### System prompt (cached, спільний для всього прогону)
+
+Містить:
+- Опис кожної категорії з прикладами (рядковий текст).
+- Strict JSON output schema (mirror VerdictSchema).
+- Правила:
+  - `equivalent`: ОБОВ'ЯЗКОВО вказати конкретну поведінкову причину.
+  - `defensive`: обґрунтувати чому стан impossible.
+  - `glue/wrapper`: назвати, який integration test це покриває.
+  - Заборона `confidence > 0.9` без reference до конкретного рядка коду.
+
+### User prompt (per-item)
+
+**mutant:**
+```
+File: rules/abie/lib/hc-yaml.mjs  Line: 45  Col: 5
+Type: BooleanLiteralMutation
+Original: if (line.trim() === '')
+Mutant:   if (false)
+
+Context (lines 40-55):
+<code>
+
+Existing tests: rules/abie/lib/tests/hc-yaml.test.mjs (10 tests)
+Last modified: 2 hours ago
+```
+
+**uncovered-file:**
+```
+File: rules/docker/lib/docker-hadolint.mjs  Lines%: 12%  Fn%: 12%
+<source або signature + JSDoc (якщо > 200 LOC)>
+
+Existing tests: none
+Last modified: 3 weeks ago
+```
+
+---
+
+## Cache
+
+### Файл: `npm/reports/coverage-classify.cache.json`
+
+```json
+{
+  "version": 1,
+  "model": "claude-sonnet-4-6",
+  "entries": {
+    "<git-blob-hash>:<mutant-line>:<col>:<replacement>": {
+      "verdict": "equivalent",
+      "confidence": 0.87,
+      "reason": "...",
+      "category": "mutant",
+      "classifiedAt": "2026-05-30T12:00:00Z"
+    }
+  }
 }
 ```
 
----
-
-## Flow
-
-```
-bun run coverage
-  └─ runCoverageSteps()
-       ├─ Stryker           →  reports/stryker/mutation.json (survived[])
-       ├─ vitest --coverage →  reports/coverage-summary.json (uncoveredFiles[])
-       ├─ classifyWithLLM(survived[], uncoveredFiles[])
-       │      ├─ load cache.json  →  filter already-classified items
-       │      ├─ build batched request (all new items in one Claude call)
-       │      │     system: cached prompt (800 tokens, cache_control: ephemeral)
-       │      │     user:   per-item blocks (file + line + context ±5 + existing tests)
-       │      ├─ parse JSON responses → classify low-confidence (<0.7) → killable
-       │      └─ merge + save cache.json
-       └─ writeCoverageReport(rows, classified)
-            ├─ Killable score = killed ÷ (killed + killable-survived)
-            ├─ Table: ## Killable Survived Mutants  (verdict = killable)
-            └─ Table: ## Allowed Gaps               (verdict ≠ killable + reason)
-```
+- `.gitignore` entry: `npm/reports/coverage-classify.cache.json`.
+- Version mismatch (schema зміна) → full rebuild.
+- Git-blob-hash як ключ: якщо файл змінився → hash змінюється → re-classify автоматично.
 
 ---
 
-## LLM Prompt Design
+## Error Handling
 
-### System prompt (кешований, постійний)
-
-```
-You are a mutation testing analyst. Classify each item as exactly one verdict:
-
-  killable         — real behavior difference; a unit test is the right tool
-  equivalent       — mutant produces identical observable behavior
-  defensive        — test would be fragile/trivial (internal null-guard on always-valid input)
-  glue             — CLI entrypoint / spawn-wrapper, covered by integration/subprocess test
-  integration-only — real logic, but subprocess or integration test fits better than unit
-
-Return ONLY valid JSON per item:
-{ "verdict": "...", "confidence": 0.0-1.0, "reason": "<1-2 sentences>" }
-
-Rules:
-- confidence < 0.7 → still classify, but caller treats as killable regardless
-- "equivalent" requires you to state what identical behavior looks like
-- do NOT invent tests; only classify
-```
-
-### Per-item user message
-
-```
-File: rules/abie/js/hc_pairing.mjs:42
-Type: mutant
-Original:  if (opts.fix)
-Mutant:    if (true)
-Context:
-  40:  const allSurvived = rows.flatMap(r => r.survived ?? [])
-  41:  // eslint-disable-next-line ...
-  42:  if (opts.fix) {
-  43:    const { fixSurvivedMutants } = await import(...)
-  44:    await fixSurvivedMutants(allSurvived, cwd)
-  45:  }
-Existing tests that import this file: [rules/test/coverage/tests/coverage.test.mjs]
-```
-
-Для uncovered-files:
-```
-File: scripts/lib/run-rule-cli.mjs
-Type: uncovered-file
-Lines%: 8.3%  LOC: 12
-Purpose (first JSDoc line): "CLI argv-glue, викликається через spawn..."
-Existing tests that import this file: none
-```
-
----
-
-## COVERAGE.md — новий формат
-
-```markdown
-## Coverage
-
-| Область | Рядки | Функції | Killable score | Мутантів всього |
-| --- | --- | --- | --- | --- |
-| JS | 78.8% | 86.1% | **97/98 (99%)** | 143 |
-| **Разом** | 78.8% | 86.1% | **97/98 (99%)** | 143 |
-
-> Killable score = killed ÷ (killed + killable-survived).
-> 12 мутантів класифіковано як equivalent/glue/integration-only — не враховуються.
-
-## Killable Survived Mutants
-
-| File | Line | Original → Mutant | Reason |
-|---|---|---|---|
-| rules/abie/lib/k8s-tree.mjs | 48 | `!cache` → `false` | cache bypass undetected |
-
-## Allowed Gaps
-
-| File | Line | Verdict | Reason |
-|---|---|---|---|
-| rules/abie/fix.mjs | — | glue | 3-line spawn-wrapper; integration test covers this |
-| scripts/lib/run-rule-cli.mjs | 12 | glue | CLI argv-glue; covered by subprocess integration |
-```
-
----
-
-## Кешування та cost
-
-**Ключ кешу:** `sha256(filePath + original + mutant)` (для uncovered-file: `sha256("uncovered:" + filePath)`).
-
-**Логіка:**
-- Якщо ключ є в `cache.json` → verdict береться з кешу, LLM не викликається.
-- Якщо джерельний файл змінився → `original`/`mutant` тексти зміняться → ключ не збігається → перекласифіковуємо автоматично.
-
-**Threshold для uncovered-files:** `lines% < 25%` AND `LOC ≥ 10` (уникаємо шуму від 1-рядкових re-export файлів).
-
-**Cost estimate (Sonnet 4.6):**
-- System prompt ≈ 800 tokens, кешується (5-хв TTL Anthropic).
-- Per item ≈ 150 tokens in + 80 tokens out.
-- 50 нових items × (150 in + 80 out) ≈ **$0.015** за прогін.
-- Повторний прогін без нових мутантів → 0 LLM-calls (cache hit).
-
----
-
-## Testing
-
-| Що тестувати | Підхід |
+| Ситуація | Поведінка |
 |---|---|
-| `buildSystemPrompt()` | Snapshot — рядок містить усі 5 вердиктів |
-| `buildItemMessage(mutant)` | Snapshot — правильний контекст ±5 рядків |
-| `buildItemMessage(uncoveredFile)` | Snapshot — містить `Type: uncovered-file` |
-| `mergeClassified(cache, new)` | Unit — правильний merge, dedup за id |
-| `computeKillableScore(rows, classified)` | Unit — правильний знаменник (killed + killable-survived) |
-| `lowConfidence → killable override` | Unit — confidence 0.6 → verdict = killable |
-| `classify-coverage.mjs` end-to-end | Vi.mock антропік клієнта — повний pipeline без реального LLM |
-
-Реальний LLM у тестах не викликається. Інтеграційний тест `n-cursor coverage` (subprocess) перевіряє форматування COVERAGE.md.
+| `ANTHROPIC_API_KEY` не задано | Skip classify, COVERAGE.md без Killable секцій. Log: `⚠ classify: ANTHROPIC_API_KEY не встановлено — skip` |
+| API error (5xx / rate limit) | Retry ×2 (backoff 1s, 4s). Після 3 невдач → verdict `{worth-testing, confidence:0, reason: 'API error'}` |
+| Invalid JSON у відповіді | `extractJson` (grab first `{…}`) + zod parse. При fail → treat as API error |
+| `confidence < 0.7` | Залишається у Killable, позначається `⚠ low-confidence` |
+| Файл видалено між coverage та classify | Skip з логом |
 
 ---
 
-## Обмеження
+## COVERAGE.md output
 
-- LLM **не додає** items у skip-list автоматично — тільки класифікує.
-- При `confidence < 0.7` item завжди `killable` (conservative fallback).
-- `cache.json` комітиться в репо (разом з `mutation.json`) — повторні CI runs безкоштовні.
-- Якщо ANTHROPIC_API_KEY відсутній → classify step пропускається, COVERAGE.md пишеться без Killable score (з попередженням).
+```md
+## Score
+
+| Область | Рядки | Функції | Вбито мутацій | Raw Score | Killable Score | Allowed gaps |
+|---|---|---|---|---|---|---|
+| JS | 78.8% | 86.1% | 132/141 | 93.62% | **97.1%** | 8 |
+
+## Allowed gaps (LLM-classified, confidence ≥ 0.7)
+
+| File | Line | Verdict | Conf | Reason |
+|---|---|---|---|---|
+| `rules/*/fix.mjs` | — | glue | 0.92 | runStandardRule wrapper; integration covered by integration-repo-checks.test.mjs |
+| `coverage.mjs` | 188 | equivalent | 0.87 | Mutation→false unreachable: єдиний caller `runCoverageSteps({fix:false})` |
+```
+
+---
+
+## Integration у `n-cursor coverage`
+
+У `coverage.mjs`:
+```js
+// після runStryker(opts) → result
+if (process.env.ANTHROPIC_API_KEY) {
+  const { classify } = await import('../../../scripts/coverage-classify/index.mjs')
+  result.verdicts = await classify(result.survivedMutants, result.uncoveredFiles, cwd)
+}
+result.killableScore = computeKillableScore(result, result.verdicts)
+```
+
+Classify виконується **автоматично** в кожному `n-cursor coverage` прогоні, якщо є API key.
+
+---
+
+## Testing strategy (нові тести classify-модуля)
+
+| Файл | Що покриває |
+|---|---|
+| `coverage-classify/tests/prompt.test.mjs` | `buildClassifyPrompt`: обрізання до ±10 рядків, injection існуючих тестів, формат uncovered-file |
+| `coverage-classify/tests/cache.test.mjs` | read/write/hit/miss, version mismatch → rebuild, git-hash change → re-classify |
+| `coverage-classify/tests/verdict-schema.test.mjs` | zod parse: happy path, reason < 20 chars → error, confidence out of range |
+| `coverage-classify/tests/apply.test.mjs` | `filterKillable`: `confidence < 0.7` → not skipped; `equivalent 0.85` → allowed-gap |
+
+API call — тільки integration test (за `ANTHROPIC_API_KEY`), не mocked unit.

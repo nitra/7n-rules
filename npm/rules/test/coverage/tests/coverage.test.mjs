@@ -28,11 +28,15 @@ import {
   runCoverageCli,
   runCoverageSteps
 } from '../coverage.mjs'
+import { classify } from '../../../../scripts/coverage-classify/index.mjs'
 import { withLock } from '../../../../scripts/utils/with-lock.mjs'
 
 // vi.mock hoisted by Vitest to before any imports during transform
 vi.mock('../../../../scripts/utils/with-lock.mjs', () => ({
   withLock: vi.fn((_key, fn) => fn())
+}))
+vi.mock('../../../../scripts/coverage-classify/index.mjs', () => ({
+  classify: vi.fn().mockResolvedValue([])
 }))
 
 const SURVIVED_JSON_BLOCK = /```json\n([\s\S]*?)\n```/
@@ -1069,5 +1073,111 @@ describe('runCoverageCli — pass-through withLock виконує fn (покри
     const result = await runCoverageCli({ fix: true })
     expect(result).toBe(1)
     expect(withLock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('renderMarkdown — allowed gaps section', () => {
+  test('коли allowedGaps непустий — додається секція "## Allowed gaps"', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 3, total: 4 } // total зменшений на 1 allowed-gap
+      }
+    ]
+    const allowedGaps = [
+      {
+        file: 'src/auth.js',
+        mutant: { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' },
+        verdict: { verdict: 'equivalent', confidence: 0.92, reason: 'Both branches return falsy from same upstream' }
+      }
+    ]
+    const md = renderMarkdown(rows, allowedGaps)
+    expect(md).toContain('## Allowed gaps')
+    expect(md).toContain('### src/auth.js')
+    expect(md).toContain('equivalent')
+    expect(md).toContain('0.92')
+    expect(md).toContain('Both branches return falsy')
+  })
+
+  test('коли allowedGaps пустий — секція не додається', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 5, total: 5 }
+      }
+    ]
+    expect(renderMarkdown(rows, [])).not.toContain('## Allowed gaps')
+  })
+
+  test('коли allowedGaps undefined (legacy callers) — секція не додається', () => {
+    const rows = [
+      {
+        area: 'JS',
+        coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+        mutation: { caught: 5, total: 5 }
+      }
+    ]
+    expect(renderMarkdown(rows)).not.toContain('## Allowed gaps')
+  })
+})
+
+const SURVIVED_PROVIDER_WITH_SURVIVED = `
+  export async function detect() { return true }
+  export async function collect() {
+    return [{
+      area: 'JS',
+      coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 3, total: 5 } },
+      mutation: { caught: 4, total: 5 },
+      survived: [{
+        file: 'src/foo.js',
+        mutants: [{ line: 1, col: 0, original: 'true', replacement: 'false', mutantType: 'BooleanLiteral' }],
+        exampleTest: null,
+        recommendationText: null
+      }]
+    }]
+  }
+`
+
+describe('runCoverageSteps — classify повертає verdicts (lines 232-237, readClassifyThreshold 189-193)', () => {
+  afterEach(() => {
+    vi.mocked(classify).mockResolvedValue([])
+    vi.restoreAllMocks()
+  })
+
+  test('classify з verdicts → applyVerdicts виконується (lines 232-237)', async () => {
+    const verdicts = [
+      { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'test reason' } }
+    ]
+    vi.mocked(classify).mockResolvedValueOnce(verdicts)
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SURVIVED_PROVIDER_WITH_SURVIVED } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(0)
+    const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).toContain('# Coverage')
+    fx.cleanup()
+  })
+
+  test('readClassifyThreshold читає поріг з .n-cursor.json (lines 189-193)', async () => {
+    const verdicts = [
+      { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'test reason' } }
+    ]
+    vi.mocked(classify).mockResolvedValueOnce(verdicts)
+    const cwd = mkdtempSync(join(tmpdir(), 'orchestrator-threshold-'))
+    writeFileSync(
+      join(cwd, '.n-cursor.json'),
+      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: 0.7 } })
+    )
+    const rulesDir = mkdtempSync(join(tmpdir(), 'orchestrator-rules-threshold-'))
+    const providerDir = join(rulesDir, 'js-lint', 'coverage')
+    mkdirSync(providerDir, { recursive: true })
+    writeFileSync(join(providerDir, 'coverage.mjs'), SURVIVED_PROVIDER_WITH_SURVIVED)
+    const exitCode = await runCoverageSteps({ cwd, rulesDir })
+    expect(exitCode).toBe(0)
+    const md = readFileSync(join(cwd, 'COVERAGE.md'), 'utf8')
+    expect(md).toContain('## Allowed gaps')
+    rmSync(cwd, { recursive: true, force: true })
+    rmSync(rulesDir, { recursive: true, force: true })
   })
 })

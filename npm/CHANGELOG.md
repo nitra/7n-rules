@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.0] - 2026-05-30
+
+### Added
+
+- LLM-класифікатор survived мутантів у n-cursor coverage: для кожного survived Claude Sonnet 4.6 виносить verdict (worth-testing/equivalent/defensive/glue/wrapper) з reasoning + confidence. Allowed gaps виключаються з знаменника mutation score. Cache по git-blob-hash. Graceful skip без API key. Threshold у .n-cursor.json#coverage.classifyConfidenceThreshold (default 1.1 — rollout mode).
+
 ## [1.34.1] - 2026-05-30
 
 ### Added

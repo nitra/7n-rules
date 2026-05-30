@@ -16,6 +16,20 @@ describe('sourceFileHasGqlTaggedTemplate', () => {
     expect(sourceFileHasGqlTaggedTemplate(src, 'api/foo.ts')).toBe(true)
   })
 
+  test('langFromPath tsx → знаходить gql у .tsx (line 52)', () => {
+    const src = "const q = gql`query { x }`\n"
+    expect(sourceFileHasGqlTaggedTemplate(src, 'api/foo.tsx')).toBe(true)
+  })
+
+  test('langFromPath jsx → знаходить gql у .jsx (line 58)', () => {
+    const src = "const q = gql`query { x }`\n"
+    expect(sourceFileHasGqlTaggedTemplate(src, 'api/foo.jsx')).toBe(true)
+  })
+
+  test('синтаксична помилка → false (lines 117/121)', () => {
+    expect(sourceFileHasGqlTaggedTemplate('import { from broken\n', 'x.ts')).toBe(false)
+  })
+
   test('true для gql лише в <script> .vue', () => {
     const sfc = `<template><div /></template>\n<script setup>\nimport gql from 'graphql-tag'\nconst q = gql\`{ __typename }\`\n</script>\n`
     expect(sourceFileHasGqlTaggedTemplate(sfc, 'views/App.vue')).toBe(true)

@@ -1,25 +1,24 @@
 /**
- * Перевіряє, що в кожному workspace із релізно-релевантними змінами підвищена `version`
- * у маніфесті (`package.json` або `pyproject.toml`) і в `<ws>/CHANGELOG.md` є запис
- * `## [version] - YYYY-MM-DD` (формат Keep a Changelog).
+ * Перевіряє, що кожен workspace із релізно-релевантними змінами зафіксував їх через
+ * change-файл `<ws>/.changes/*.md` — єдиний дозволений артефакт зміни. Bump `version`
+ * і генерацію `CHANGELOG.md` робить виключно `n-cursor release` у CI на `main`.
+ *
+ * Інваріант (на будь-якій гілці): `version` не має відхилятися від бази. Будь-який drift
+ * `version` (vs опублікована в реєстрі або vs git-база) — ручний bump поза CI — завалює
+ * перевірку, навіть якщо присутній change-файл. Pass лише коли є change-файл, а version
+ * не зрушено; зміни без change-файлу — fail.
  *
  * Дві моделі бази — на рівні воркспейсу (див. n-changelog.mdc):
  *
  * 1) **registry-published** (npm: `name` + `files`, не `private`; Python: `project.name` +
- *    статична `project.version` у `pyproject.toml`): база = опублікована версія в npm / PyPI.
- *    Якщо локальна версія відрізняється — потрібен CHANGELOG; для npm також `"CHANGELOG.md"`
- *    у `files`. Якщо версії збігаються, але в git є релевантні зміни без bump — fail.
- *
- * 2) **local-only** (приватні npm, без `files`, Python без імені/версії для реєстру):
+ *    статична `project.version`): база = опублікована версія в npm / PyPI.
+ * 2) **local-only** (приватні npm без `files`, Python без імені/версії для реєстру):
  *    feature-гілка — `merge-base` з `dev`, інакше з `main`; на `main` — diff від
- *    `origin/main` (попередній опублікований main) або `HEAD~1` без remote.
+ *    `origin/main` (або `HEAD~1` без remote).
  *
  * Усі `git` і зовнішні виклики — через `execFile` / `fetch`, без shell-інтерполяції.
  */
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
@@ -278,16 +277,6 @@ async function readBaseVersion(baseRef, manifest, cwd) {
 }
 
 /**
- * @param {string} text параметр
- * @param {string} version параметр
- * @returns {boolean} результат
- */
-function changelogHasVersionEntry(text, version) {
-  const needle = `## [${version}]`
-  return text.startsWith(needle) || text.includes(`\n${needle}`)
-}
-
-/**
  * @param {string} name параметр
  * @returns {Promise<string | null>} результат
  */
@@ -364,36 +353,25 @@ function checkNpmFilesArrayContainsChangelog(manifest, pass, fail) {
 }
 
 /**
- * @param {string} ws параметр
- * @param {string} version параметр
- * @param {(msg: string) => void} pass параметр
- * @param {(msg: string) => void} fail параметр
- * @param {string} cwd робочий каталог
- * @returns {Promise<boolean>} результат
- */
-async function verifyChangelogEntry(ws, version, pass, fail, cwd) {
-  const label = ws === '.' ? '<root>' : ws
-  const changelogRel = join(ws, 'CHANGELOG.md')
-  const changelogAbs = join(cwd, changelogRel)
-  if (!existsSync(changelogAbs)) {
-    fail(`${label}: відсутній ${changelogRel} (Keep a Changelog, див. n-changelog.mdc)`)
-    return false
-  }
-  const text = await readFile(changelogAbs, 'utf8')
-  if (changelogHasVersionEntry(text, version)) {
-    pass(`${changelogRel}: знайдено запис для версії ${version}`)
-    return true
-  }
-  fail(`${changelogRel}: відсутній запис для ${version} (формат "## [${version}] - YYYY-MM-DD")`)
-  return false
-}
-
-/**
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
  * @returns {string} результат
  */
 function workspaceLabel(manifest) {
   return manifest.ws === '.' ? '<root>' : manifest.ws
+}
+
+/**
+ * Повідомлення «поклади change-файл» для workspace з релевантними змінами без change-файлу.
+ * @param {string} label мітка воркспейсу
+ * @param {string} mf шлях до маніфесту
+ * @returns {string} текст fail
+ */
+function missingChangeFileMessage(label, mf) {
+  return (
+    `${label}: є релевантні зміни, але немає change-файлу (version у ${mf} не чіпай вручну). ` +
+    `Поклади change-файл: npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<…>"; ` +
+    `bump зробить CI на main (n-changelog.mdc)`
+  )
 }
 
 /**
@@ -409,18 +387,20 @@ async function hasPendingChangeFiles(ws, cwd) {
 
 /**
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
- * @param {string} Vcurrent параметр
+ * @param {string} _Vcurrent параметр (для сумісності сигнатури; bump робить CI)
  * @param {string[]} subWorkspaces параметр
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @param {string} cwd робочий каталог
  * @returns {Promise<void>} результат
  */
-async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd) {
+async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, subWorkspaces, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   if (await hasPendingChangeFiles(manifest.ws, cwd)) {
     pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
+    // Реліз наближається → CHANGELOG має публікуватися разом із пакетом.
+    checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
     return
   }
   if (!(await isInsideGitRepo(cwd))) {
@@ -431,42 +411,19 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subW
 
   if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd)) {
-      fail(
-        `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
-          `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
-      )
+      fail(missingChangeFileMessage(label, mf))
     }
     return
   }
 
   const comparison = await resolveChangelogComparisonPoint(branch, cwd)
-  if (
-    comparison &&
-    (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))
-  ) {
-    const Vbase = await readBaseVersion(comparison.ref, manifest, cwd)
-    const baseLabel = comparison.label
-    if (Vbase === null) {
-      pass(
-        `${label}: новий registry-published воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`
-      )
-      await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd)
-      checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
-    } else if (Vbase === Vcurrent) {
-      fail(
-        `${label}: у цій гілці є зміни в registry-published пакеті, але version у ${mf} ` +
-          `не підвищено (на ${baseLabel} — ${Vbase}). Bump + запис у CHANGELOG.md обов'язкові (n-changelog.mdc)`
-      )
-    } else {
-      pass(`${label}: version змінено (${Vbase} → ${Vcurrent}) — очікується запис CHANGELOG після bump`)
-    }
+  if (comparison && (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))) {
+    fail(missingChangeFileMessage(label, mf))
+    return
   }
 
   if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
-    fail(
-      `${label}: у registry-published пакеті є незакомічені зміни при version ${Vcurrent}, що вже в реєстрі. ` +
-        `Підвищ version у ${mf} і додай запис у CHANGELOG.md (n-changelog.mdc)`
-    )
+    fail(missingChangeFileMessage(label, mf))
   }
 }
 
@@ -497,14 +454,18 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
     pass(`${label}: ${name} — опублікована версія недоступна (мережа/реєстр), перевірку пропущено`)
     return
   }
-  if (Vpublished === Vcurrent) {
-    pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
-    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
+  // Drift від опублікованої версії має пріоритет над change-файлом: ручний bump
+  // заборонено навіть із change-файлом (симетрично з local-only-шляхом).
+  if (Vpublished !== Vcurrent) {
+    fail(
+      `${label}: version у ${mf} (${Vcurrent}) розходиться з опублікованою (${Vpublished}) — ` +
+        `ручний bump заборонено. Відкоти version і поклади change-файл ` +
+        `(npx @nitra/cursor change …); bump зробить CI на main (n-changelog.mdc)`
+    )
     return
   }
-  pass(`${label}: ${name} — нова локальна версія (${Vpublished} → ${Vcurrent})`)
-  await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd)
-  checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
+  pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
+  await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
 }
 
 /**
@@ -518,31 +479,22 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
 async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
+  const Vcurrent = manifest.version
+  // Drift version від бази має пріоритет над change-файлом: ручний bump заборонено
+  // навіть якщо change-файл присутній (симетрично з published-шляхом).
+  const Vbase = await readBaseVersion(comparisonRef, manifest, cwd)
+  if (Vbase !== null && Vcurrent !== null && Vbase !== Vcurrent) {
+    fail(
+      `${label}: version у ${mf} змінено поза CI (${Vbase} → ${Vcurrent}) — ручний bump заборонено (на ${baseLabel} — ${Vbase}). ` +
+        `Відкоти version і поклади change-файл (npx @nitra/cursor change …); bump зробить CI (n-changelog.mdc)`
+    )
+    return
+  }
   if (await hasPendingChangeFiles(manifest.ws, cwd)) {
     pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
     return
   }
-  const Vcurrent = manifest.version
-  if (!Vcurrent) {
-    fail(`${label}: у ${mf} відсутнє поле version (потрібне для запису в CHANGELOG)`)
-    return
-  }
-  const Vbase = await readBaseVersion(comparisonRef, manifest, cwd)
-  if (Vbase === null) {
-    pass(`${label}: новий воркспейс (на ${baseLabel} відсутній ${mf}) — перевіряємо CHANGELOG для ${Vcurrent}`)
-    if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd))) return
-    checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
-    return
-  }
-  if (Vbase === Vcurrent) {
-    fail(
-      `${label}: у цій гілці є зміни, але version у ${mf} не підвищено (на ${baseLabel} — ${Vbase}). Bump + запис у CHANGELOG.md обов'язкові на PR`
-    )
-    return
-  }
-  pass(`${label}: version підвищено (${Vbase} → ${Vcurrent})`)
-  if (!(await verifyChangelogEntry(manifest.ws, Vcurrent, pass, fail, cwd))) return
-  checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
+  fail(missingChangeFileMessage(label, mf))
 }
 
 /**

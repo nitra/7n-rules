@@ -46,6 +46,18 @@ describe('vue-forbidden-imports (oxc)', () => {
     expect(findForbiddenVueImportsInText(src, 'x.ts').length).toBe(0)
   })
 
+  test('langFromPath tsx → знаходить порушення у .tsx (line 31)', () => {
+    expect(findForbiddenVueImportsInText(`import { ref } from 'vue'`, 'x.tsx').length).toBe(1)
+  })
+
+  test('langFromPath jsx → знаходить порушення у .jsx (line 37)', () => {
+    expect(findForbiddenVueImportsInText(`import { ref } from 'vue'`, 'x.jsx').length).toBe(1)
+  })
+
+  test('синтаксична помилка → [] (line 138)', () => {
+    expect(findForbiddenVueImportsInText('import { from broken\n', 'x.ts').length).toBe(0)
+  })
+
   test('extractVueScriptBlocks — лише script', () => {
     const sfc = `<template><div /></template>
 <script setup lang="ts">
@@ -131,5 +143,9 @@ const a = 1
 </script>
 `
     expect(findForbiddenNodeImportsInVueFile(sfc, 'x.vue').length).toBe(0)
+  })
+
+  test('findForbiddenNodeImportsInText — синтаксична помилка → [] (line 235)', () => {
+    expect(findForbiddenNodeImportsInText('import { from broken\n', 'x.ts').length).toBe(0)
   })
 })

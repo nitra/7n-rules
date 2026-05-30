@@ -12,7 +12,7 @@ import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { check } from '../layout.mjs'
-import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 // Перевірка дозволених кореневих devDependencies (лише `@nitra/*`) — у rego
 // (`npm/policy/bun/package_json/package_json_test.rego`).
@@ -148,6 +148,42 @@ describe('check-bun', () => {
         }
       })
       expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: директорія .yarn існує (line 179)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
+      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
+      await ensureDir(join(dir, '.yarn'))
+      await writeJson(join(dir, 'package.json'), { name: 't', private: true })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: відсутній bun.lock (line 186)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeJson(join(dir, 'package.json'), { name: 't', private: true })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: відсутній package.json — ранній вихід (lines 199-200)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
+      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('.n-cursor.json з невалідним JSON — повертає empty (line 48)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'bun.lock'), '', 'utf8')
+      await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
+      await writeFile(join(dir, '.n-cursor.json'), 'NOT VALID JSON', 'utf8')
+      await writeJson(join(dir, 'package.json'), { name: 't', private: true })
+      expect(await check(dir)).toBe(0)
     })
   })
 })

@@ -189,4 +189,23 @@ describe('runPostToolUseFixCli', () => {
       }
     }
   })
+
+  test('readStdin читає з не-TTY stdin (lines 71-81)', async () => {
+    const { Readable } = await import('node:stream')
+    const fakeStdin = Object.assign(new Readable({ read() {} }), { isTTY: undefined })
+    const savedDesc = Object.getOwnPropertyDescriptor(process, 'stdin')
+    Object.defineProperty(process, 'stdin', { value: fakeStdin, configurable: true, writable: true })
+    setImmediate(() => {
+      fakeStdin.push(JSON.stringify({ tool_input: { file_path: 'LICENSE' } }))
+      fakeStdin.push(null)
+    })
+    try {
+      const spawnFn = vi.fn()
+      const code = await runPostToolUseFixCli({ spawnFn })
+      expect(code).toBe(0)
+      expect(spawnFn).not.toHaveBeenCalled()
+    } finally {
+      if (savedDesc) Object.defineProperty(process, 'stdin', savedDesc)
+    }
+  })
 })

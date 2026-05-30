@@ -425,6 +425,30 @@ describe('parseStrykerReport — multiline original', () => {
     expect(result.survived[0].mutants[0].original).toContain('\n')
   })
 
+  test('extractOriginal для мутанта що охоплює 3 рядки (middle-line path, line 98)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-3line-'))
+    mkdirSync(join(dir, 'src'), { recursive: true })
+    writeFileSync(join(dir, 'src', 'three.js'), 'line1\nline2\nline3\n')
+    const report = {
+      files: {
+        'src/three.js': {
+          mutants: [
+            {
+              status: 'Survived',
+              mutatorName: 'StringLiteral',
+              replacement: '""',
+              location: { start: { line: 1, column: 0 }, end: { line: 3, column: 5 } }
+            }
+          ]
+        }
+      }
+    }
+    const result = parseStrykerReport(report, dir)
+    rmSync(dir, { recursive: true, force: true })
+    const original = result.survived[0].mutants[0].original
+    expect(original).toContain('line2')
+  })
+
   test('readFileSync помилка (файл не існує) → original порожній рядок', () => {
     const dir = mkdtempSync(join(tmpdir(), 'parse-stryker-missing-'))
     const report = {

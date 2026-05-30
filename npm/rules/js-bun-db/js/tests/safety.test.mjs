@@ -366,4 +366,88 @@ export async function findMany(ids: number[]) {
       expect(await check(dir)).toBe(1)
     })
   })
+
+  test('пропускає: кореневий package.json є, але немає JS/TS-файлів (lines 357-358)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await writeFile(join(dir, 'README.md'), '# hello\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('продовжує без краш на невалідний JSON у вкладеному package.json (line 268)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'sub'))
+      await writeFile(join(dir, 'sub/package.json'), 'NOT_VALID_JSON', 'utf8')
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('помилка: функція format з pg-format placeholder — format_function kind (lines 212-214)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(
+        join(dir, 'src/db.js'),
+        "import { sql } from 'bun'\nfunction format(tmpl, ...vals) {\n  return tmpl.replace('%L', vals[0])\n}\n",
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: quoteLiteral — pg-format quote-хелпер, quote_helper kind (line 220)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(
+        join(dir, 'src/db.js'),
+        "import { sql } from 'bun'\nfunction quoteLiteral(val) { return \"'\" + String(val) + \"'\" }\n",
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: query(text, params)-обгортка над .unsafe — queryWrapper (lines 228-229)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(
+        join(dir, 'src/db.js'),
+        "import { sql } from 'bun'\nconst db = { query(text, params) { return sql.unsafe(text, params) } }\n",
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: IN-список без перевірки на пустоту — missing_guard reason (line 311)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(
+        join(dir, 'src/db.js'),
+        "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${ids})`\n}\n",
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('помилка: sql(не-ідентифікатор) у IN-списку — sql_helper_not_var reason (line 317)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 't' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(
+        join(dir, 'src/db.js'),
+        "import { sql } from 'bun'\nexport async function findMany(ids) {\n  return sql`SELECT * FROM users WHERE id IN (${sql(ids.filter(Boolean))})`\n}\n",
+        'utf8'
+      )
+      expect(await check(dir)).toBe(1)
+    })
+  })
 })

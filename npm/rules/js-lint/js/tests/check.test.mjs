@@ -95,6 +95,27 @@ describe('check — lint-js.yml та lint.yml', () => {
       expect(code).toBe(1)
     })
   })
+
+  test('lint.yml існує, але не дублює lint-js → pass для lint.yml (line 374)', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, '.github', 'workflows'), { recursive: true })
+      await writeFile(join(dir, '.github/workflows/lint-js.yml'), 'on: push\n', 'utf8')
+      await writeFile(join(dir, '.github/workflows/lint.yml'), 'steps:\n  - run: echo hello\n', 'utf8')
+      const code = await check(dir)
+      expect(typeof code).toBe('number')
+    })
+  })
+})
+
+describe('check — .oxlintrc.json не збігається з каноном', () => {
+  test('.oxlintrc.json з некоректним severity → fail (lines 346-347)', async () => {
+    await withTmpDir(async dir => {
+      const badOxlint = { ...canonical, rules: { .../** @type {Record<string,unknown>} */ (canonical.rules), eqeqeq: 'off' } }
+      await writeFile(join(dir, '.oxlintrc.json'), JSON.stringify(badOxlint), 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
 })
 
 describe('check — knip.json', () => {

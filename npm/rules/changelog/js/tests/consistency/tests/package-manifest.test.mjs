@@ -18,6 +18,16 @@ describe('parsePyprojectFields', () => {
     const fields = parsePyprojectFields(`[tool.poetry]\nname = "poetry-pkg"\nversion = "0.9.0"\n`)
     expect(fields).toEqual({ name: 'poetry-pkg', version: '0.9.0' })
   })
+
+  test('invalid TOML → { name: null, version: null } (line 69)', () => {
+    const fields = parsePyprojectFields('NOT VALID = = = TOML')
+    expect(fields).toEqual({ name: null, version: null })
+  })
+
+  test('TOML без [project] і без [tool.poetry] → { name: null, version: null } (line 58)', () => {
+    const fields = parsePyprojectFields('[other]\nfoo = "bar"\n')
+    expect(fields).toEqual({ name: null, version: null })
+  })
 })
 
 describe('readPackageManifest', () => {
@@ -38,6 +48,29 @@ describe('readPackageManifest', () => {
       const m = await readPackageManifest('.', dir)
       expect(m?.kind).toBe('npm')
       expect(m?.version).toBe('2.0.0')
+    })
+  })
+
+  test('package.json є масивом → null (line 84)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), '[]', 'utf8')
+      const m = await readPackageManifest('.', dir)
+      expect(m).toBeNull()
+    })
+  })
+
+  test('package.json з невалідним JSON → null (line 99)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'package.json'), 'NOT JSON', 'utf8')
+      const m = await readPackageManifest('.', dir)
+      expect(m).toBeNull()
+    })
+  })
+
+  test('немає ні package.json ні pyproject.toml → null (line 105)', async () => {
+    await withTmpDir(async dir => {
+      const m = await readPackageManifest('.', dir)
+      expect(m).toBeNull()
     })
   })
 })

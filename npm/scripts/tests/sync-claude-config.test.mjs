@@ -24,7 +24,10 @@ import {
   mergeSettings,
   removeOrphanAdrHookLib,
   syncAdrHookLibScripts,
+  syncAdrHookScript,
+  syncClaudeCommands,
   syncClaudeConfig,
+  syncClaudeSettings,
   syncGitignoreAdrFragment
 } from '../sync-claude-config.mjs'
 import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
@@ -596,6 +599,75 @@ describe('syncClaudeConfig (інтеграція)', () => {
     await withTmpDir(async cwdAbs => {
       const result = await removeOrphanAdrHookLib(cwdAbs)
       expect(result).toEqual({ removed: false, path: '' })
+    })
+  })
+
+  test('mergeHooks — група з порожнім hooks[] не вважається managed → зберігається (line 164)', () => {
+    const existing = {
+      PostToolUse: [{ matcher: 'Bash', hooks: [] }]
+    }
+    const merged = mergeHooks(existing, {})
+    expect(merged.PostToolUse).toHaveLength(1)
+    expect(merged.PostToolUse[0].hooks).toEqual([])
+  })
+
+  test('syncClaudeSettings — template file відсутній → { written: false } (line 365)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncClaudeSettings(cwdAbs, join(cwdAbs, 'nonexistent'))
+      expect(result).toEqual({ written: false, path: '' })
+    })
+  })
+
+  test('syncClaudeSettings — невалідний JSON у settings.json → перезаписує шаблоном (line 328)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      await mkdir(join(cwdAbs, '.claude'), { recursive: true })
+      await writeFile(join(cwdAbs, '.claude/settings.json'), 'NOT VALID JSON', 'utf8')
+      const result = await syncClaudeSettings(cwdAbs, join(pkgRoot, '.claude-template'))
+      expect(result.written).toBe(true)
+      const settings = JSON.parse(await readFile(join(cwdAbs, '.claude/settings.json'), 'utf8'))
+      expect(settings.hooks).toBeDefined()
+    })
+  })
+
+  test('syncAdrHookScript — hook file відсутній → { written: false } (line 387)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncAdrHookScript(cwdAbs, join(cwdAbs, 'nonexistent'))
+      expect(result).toEqual({ written: false, path: '' })
+    })
+  })
+
+  test('syncClaudeCommands — commands dir відсутній → [] (line 582)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncClaudeCommands(cwdAbs, join(cwdAbs, 'nonexistent'))
+      expect(result).toEqual([])
+    })
+  })
+
+  test('syncClaudeCommands — копіює .md, пропускає не-.md файли (lines 588-593)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const pkgRoot = await setupTemplate(cwdAbs)
+      const commandsDir = join(cwdAbs, TEMPLATE_REL, 'commands')
+      await writeFile(join(commandsDir, 'n-fix.md'), '# n-fix\n', 'utf8')
+      await writeFile(join(commandsDir, 'ignore.txt'), 'not a command\n', 'utf8')
+      const result = await syncClaudeCommands(cwdAbs, join(pkgRoot, '.claude-template'))
+      expect(result).toEqual(['.claude/commands/n-fix.md'])
+      expect(existsSync(join(cwdAbs, '.claude/commands/n-fix.md'))).toBe(true)
+      expect(existsSync(join(cwdAbs, '.claude/commands/ignore.txt'))).toBe(false)
+    })
+  })
+
+  test('syncClaudeConfig — templateDir відсутній → всі false (line 622)', async () => {
+    await withTmpDir(async cwdAbs => {
+      const result = await syncClaudeConfig({
+        projectRoot: cwdAbs,
+        bundledPackageRoot: cwdAbs,
+        enabled: true
+      })
+      expect(result.settings).toBe(false)
+      expect(result.commands).toEqual([])
+      expect(result.adrHook).toBe(false)
+      expect(result.gitignoreAdr).toBe(false)
     })
   })
 

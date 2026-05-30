@@ -13,10 +13,12 @@
  * specs/2026-05-24-coverage-rule-design.md).
  */
 import { existsSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { applyVerdicts } from '../../../scripts/coverage-classify/apply.mjs'
+import { classify } from '../../../scripts/coverage-classify/index.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
@@ -72,11 +74,14 @@ export function formatScore({ caught, total }) {
  * Рендерить таблицю покриття + мутаційного тестування як Markdown.
  * Якщо будь-який рядок містить непустий `survived`, додає секцію
  * `## Вцілілі мутанти` з JSON-блоком для `/n-fix-tests`.
+ * Якщо `allowedGaps` непустий, додає секцію `## Allowed gaps` з таблицею
+ * verdict/confidence/reason для кожного LLM-класифікованого мутанта.
  * Без timestamp, щоб git diff рухався лише при зміні метрик.
  * @param {Array<{area:string, coverage:{lines:{covered:number,total:number},functions:{covered:number,total:number}}, mutation:{caught:number,total:number}, survived?: Array<{file:string,line:number,col:number,mutantType:string,original:string,replacement:string}>}>} rows рядки провайдерів
+ * @param {Array<{file:string, mutant:{line:number,col:number,mutantType:string,original:string,replacement:string}, verdict:{verdict:string,confidence:number,reason:string}}>} [allowedGaps] мутанти виключені класифікатором
  * @returns {string} Markdown з заголовком `# Coverage`
  */
-export function renderMarkdown(rows) {
+export function renderMarkdown(rows, allowedGaps = []) {
   const lines = [
     '# Coverage',
     '',
@@ -111,6 +116,29 @@ export function renderMarkdown(rows) {
       }
       if (group.recommendationText) {
         lines.push('', '**Що треба протестувати:**', '', group.recommendationText)
+      }
+    }
+  }
+
+  if (allowedGaps.length > 0) {
+    // Group allowed gaps by file
+    const gapsByFile = new Map()
+    for (const gap of allowedGaps) {
+      if (!gapsByFile.has(gap.file)) gapsByFile.set(gap.file, [])
+      gapsByFile.get(gap.file).push(gap)
+    }
+
+    lines.push('', '## Allowed gaps', '')
+    lines.push(`> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`)
+    lines.push('> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).')
+
+    for (const [file, gaps] of gapsByFile) {
+      lines.push('', `### ${file}`, '', '| Line | Mutant | Verdict | Confidence | Reason |', '| --- | --- | --- | --- | --- |')
+      for (const { mutant, verdict } of gaps) {
+        const sanitizedReason = verdict.reason.replaceAll('|', '\\|').replaceAll('\n', ' ')
+        lines.push(
+          `| ${mutant.line} | \`${mutant.original}\` → \`${mutant.replacement}\` | ${verdict.verdict} | ${verdict.confidence.toFixed(2)} | ${sanitizedReason} |`
+        )
       }
     }
   }
@@ -153,6 +181,22 @@ function buildTotalsRow(rows) {
 }
 
 /**
+ * Читає `.n-cursor.json#coverage.classifyConfidenceThreshold` (default 1.1 — rollout mode).
+ * @param {string} cwd корінь проєкту
+ * @returns {Promise<number>} threshold у [0, 1.1]
+ */
+async function readClassifyThreshold(cwd) {
+  try {
+    const raw = await readFile(join(cwd, '.n-cursor.json'), 'utf8')
+    const parsed = JSON.parse(raw)
+    const t = parsed?.coverage?.classifyConfidenceThreshold
+    return typeof t === 'number' && Number.isFinite(t) ? t : 1.1
+  } catch {
+    return 1.1
+  }
+}
+
+/**
  * Виконує coverage-pipeline: discovery провайдерів за `.n-cursor.json#rules`,
  * detect+collect для кожного, агрегація, запис COVERAGE.md.
  * При `opts.fix === true` після запису COVERAGE.md запускає агента (coverage-fix.mjs)
@@ -180,16 +224,31 @@ export async function runCoverageSteps(opts = {}) {
     return 1
   }
 
+  // LLM-класифікація survived мутантів (graceful skip без API key)
+  const allSurvived = rows.flatMap(r => r.survived ?? [])
+  let augmentedRows = rows
+  let allowedGaps = []
+  if (allSurvived.length > 0) {
+    const verdicts = await classify(allSurvived, cwd)
+    if (verdicts.length > 0) {
+      const threshold = await readClassifyThreshold(cwd)
+      const applied = applyVerdicts(rows, verdicts, threshold)
+      augmentedRows = applied.rows
+      allowedGaps = applied.allowedGaps
+    }
+  }
+
   // Підсумок «Разом» має сенс лише коли провайдерів ≥2; для єдиного рядка він
   // дублює його значення, тож не додаємо.
-  if (rows.length > 1) rows.push(buildTotalsRow(rows))
-  const md = renderMarkdown(rows)
+  if (augmentedRows.filter(r => r.area !== '**Разом**').length > 1) {
+    augmentedRows.push(buildTotalsRow(augmentedRows.filter(r => r.area !== '**Разом**')))
+  }
+  const md = renderMarkdown(augmentedRows, allowedGaps)
   // Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
   await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
   console.log('✓ COVERAGE.md')
 
   if (opts.fix) {
-    const allSurvived = rows.flatMap(r => r.survived ?? [])
     // eslint-disable-next-line no-unsanitized/method -- шлях відносний до пакету, не user-input
     const { fixSurvivedMutants } = await import(new URL('../../../scripts/coverage-fix.mjs', import.meta.url).href)
     await fixSurvivedMutants(allSurvived, cwd)

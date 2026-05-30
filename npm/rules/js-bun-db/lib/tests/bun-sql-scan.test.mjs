@@ -491,4 +491,81 @@ const pgShim = { 'query': function(text, params) { return sql.unsafe(text, param
     const hits = findPgFormatLikeQueryWrapperInText(code)
     expect(hits.length).toBe(1)
   })
+
+  test('template literal key → propertyKeyName повертає null → не знаходить (line 310)', () => {
+    const code = `
+import { sql } from 'bun'
+const key = 'query'
+const pgShim = { [\`query\`]: function(text, params) { return sql.unsafe(text, params) } }
+`
+    const hits = findPgFormatLikeQueryWrapperInText(code)
+    expect(hits).toHaveLength(0)
+  })
+})
+
+describe('findUnsafeBunSqlInListMissingEmptyGuardInText — reversed condition and non-throw guard', () => {
+  test('guard 0 === ids.length → не знаходить (line 160)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (0 === ids.length) throw new Error('empty list')
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
+
+  test('guard if (!ids.length) return [] — не throw → missing_guard (line 177)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (!ids.length) return []
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('missing_guard')
+  })
+})
+
+describe('findPgListenNotifyUsageInText — Identifier argument', () => {
+  test('pool.query(someVar) — аргумент не рядковий літерал → не знаходить (line 904)', () => {
+    const code = `
+const pool = {}
+const sqlStr = 'SELECT 1'
+await pool.query(sqlStr)
+`
+    expect(findPgListenNotifyUsageInText(code)).toHaveLength(0)
+  })
+})
+
+describe('findUnsafeBunSqlInListMissingEmptyGuardInText — edge cases (line 163, 175)', () => {
+  test('if (ids.length < 5) throw — не справжній empty-guard → missing_guard (line 163)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (ids.length < 5) throw new Error('too few')
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    const hits = findUnsafeBunSqlInListMissingEmptyGuardInText(code)
+    expect(hits.length).toBeGreaterThanOrEqual(1)
+    expect(hits[0].reason).toBe('missing_guard')
+  })
+
+  test('if (!ids.length) { throw new Error() } — BlockStatement consequent → guard (line 175)', () => {
+    const code = `
+import { sql } from 'bun'
+async function query(ids) {
+  if (!ids.length) { throw new Error('empty list') }
+  const r = sql\`SELECT * FROM users WHERE id IN (\${ids})\`
+  return r
+}
+`
+    expect(findUnsafeBunSqlInListMissingEmptyGuardInText(code)).toHaveLength(0)
+  })
 })

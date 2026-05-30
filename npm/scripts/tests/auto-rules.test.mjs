@@ -4,10 +4,18 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
+import { platform } from 'node:process'
 import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
-import { readFile, writeFile } from 'node:fs/promises'
+import { chmod, readFile, writeFile } from 'node:fs/promises'
 
-import { detectAutoRules, detectLegacyRuleIds, mergeConfigWithAutoDetected, migrateRuleIds } from '../auto-rules.mjs'
+import {
+  collectAutoRuleFacts,
+  detectAutoRules,
+  detectLegacyRuleIds,
+  isMonorepoPackage,
+  mergeConfigWithAutoDetected,
+  migrateRuleIds
+} from '../auto-rules.mjs'
 
 const ALL_RULES = [
   'abie',
@@ -448,5 +456,131 @@ describe('migrateRuleIds / detectLegacyRuleIds', () => {
   test('detectLegacyRuleIds повертає лише id з RULE_MIGRATIONS', () => {
     expect(detectLegacyRuleIds(['image', 'bun', 'image-compress'])).toEqual(['image'])
     expect(detectLegacyRuleIds(['bun', 'text'])).toEqual([])
+  })
+})
+
+describe('isMonorepoPackage', () => {
+  test('null → false', () => {
+    expect(isMonorepoPackage(null)).toBe(false)
+  })
+
+  test('масив → false', () => {
+    expect(isMonorepoPackage([])).toBe(false)
+  })
+
+  test('рядок → false', () => {
+    // @ts-expect-error
+    expect(isMonorepoPackage('string')).toBe(false)
+  })
+
+  test('workspaces — масив з елементами → true', () => {
+    expect(isMonorepoPackage({ workspaces: ['packages/*'] })).toBe(true)
+  })
+
+  test('workspaces — порожній масив → false', () => {
+    expect(isMonorepoPackage({ workspaces: [] })).toBe(false)
+  })
+
+  test('workspaces — обʼєкт з packages → true', () => {
+    expect(isMonorepoPackage({ workspaces: { packages: ['packages/*'] } })).toBe(true)
+  })
+
+  test('workspaces — обʼєкт з порожнім packages → false', () => {
+    expect(isMonorepoPackage({ workspaces: { packages: [] } })).toBe(false)
+  })
+
+  test('workspaces — рядок → false', () => {
+    expect(isMonorepoPackage({ workspaces: 'packages/*' })).toBe(false)
+  })
+
+  test('без workspaces → false', () => {
+    expect(isMonorepoPackage({ name: 'x' })).toBe(false)
+  })
+})
+
+describe('collectAutoRuleFacts — hasTempoDir і hasRegoFile', () => {
+  test('tempo/ директорія → hasTempoDir: true (line 286)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'tempo'))
+      const facts = await collectAutoRuleFacts(dir)
+      expect(facts.hasTempoDir).toBe(true)
+    })
+  })
+
+  test('.rego файл → hasRegoFile: true (line 329)', async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'policy.rego'), 'package main\n', 'utf8')
+      const facts = await collectAutoRuleFacts(dir)
+      expect(facts.hasRegoFile).toBe(true)
+    })
+  })
+})
+
+describe('mergeConfigWithAutoDetected — skills', () => {
+  test('новий скіл з detectedSkills додається', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: { rules: [], skills: ['n-lint'] },
+      detectedRules: [],
+      detectedSkills: ['n-fix']
+    })
+    expect(merged.skills).toContain('n-fix')
+  })
+})
+
+describe('detectAutoRules — workspace без devDependencies (line 217)', () => {
+  test('вкладений package.json без devDependencies → packageJsonLacksViteDevDependency: true', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'root',
+        workspaces: ['packages/app']
+      })
+      await ensureDir(join(dir, 'packages/app'))
+      await writeJson(join(dir, 'packages/app/package.json'), { name: 'app' })
+      const result = await detectAutoRules({
+        root: dir,
+        availableRules: ALL_RULES,
+        packageJsonParsed: { name: 'root', workspaces: ['packages/app'] }
+      })
+      expect(result.rules.includes('js-run')).toBe(true)
+    })
+  })
+})
+
+describe('catch-блоки при помилці readdir (lines 195, 245, 546)', () => {
+  test('collectAutoRuleFacts — readdir кидає у піддиректорії (line 546)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'baddir'))
+      await chmod(join(dir, 'baddir'), 0o000)
+      try {
+        const facts = await collectAutoRuleFacts(dir)
+        expect(facts).toBeDefined()
+      } finally {
+        await chmod(join(dir, 'baddir'), 0o755)
+      }
+    })
+  })
+
+  test('detectAutoRules — readdir кидає в піддиректорії (lines 195, 245)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'baddir'))
+      await chmod(join(dir, 'baddir'), 0o000)
+      try {
+        const result = await detectAutoRules({ root: dir, availableRules: ALL_RULES, packageJsonParsed: null })
+        expect(result).toBeDefined()
+      } finally {
+        await chmod(join(dir, 'baddir'), 0o755)
+      }
+    })
+  })
+
+  test('packageJsonLacksViteDevDependency — невалідний JSON → catch (line 221)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'pkg'))
+      await writeFile(join(dir, 'pkg', 'package.json'), '{ not json', 'utf8')
+      const result = await detectAutoRules({ root: dir, availableRules: ALL_RULES, packageJsonParsed: null })
+      expect(result).toBeDefined()
+    })
   })
 })

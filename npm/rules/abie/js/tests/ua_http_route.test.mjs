@@ -5,7 +5,8 @@
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
-import { writeFile } from 'node:fs/promises'
+import { chmod, writeFile } from 'node:fs/promises'
+import { platform } from 'node:process'
 
 import { check } from '../ua_http_route.mjs'
 import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
@@ -89,6 +90,29 @@ describe('abie ua_http_route concern', () => {
         'utf8'
       )
       expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('check() — default cwd (line 33)', async () => {
+    // npm/ має немає ua/kustomization.yaml → швидко повертає 0
+    expect(await check()).toBe(0)
+  })
+
+  test('readFile fails → catch (lines 77-79)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+    await withTmpDir(async dir => {
+      const pkg = join(dir, 'pkg')
+      const ua = join(pkg, 'k8s/ua')
+      await ensureDir(ua)
+      await writeFile(join(pkg, 'vite.config.js'), 'export default {}\n', 'utf8')
+      const kusto = join(ua, 'kustomization.yaml')
+      await writeFile(kusto, KUSTOMIZATION_WITH_VALID_PATCH, 'utf8')
+      await chmod(kusto, 0o000)
+      try {
+        expect(await check(dir)).toBe(1)
+      } finally {
+        await chmod(kusto, 0o644)
+      }
     })
   })
 })

@@ -182,11 +182,39 @@ describe('walkIosForPodfileSkipPods: build/ і DerivedData/ пропускают
       expect(found).toBeNull()
     })
   })
+
+  test('неіснуюча директорія → false (line 289)', async () => {
+    await withTmpDir(async dir => {
+      const found = await walkIosForPodfileSkipPods(dir, join(dir, 'nonexistent'), () => {})
+      expect(found).toBe(false)
+    })
+  })
+
+  test('Podfile у піддиректорії → рекурсивно знаходить, повертає true (line 302)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'ios/App'))
+      await writeFile(join(dir, 'ios/App/Podfile'), "platform :ios, '16'\n", 'utf8')
+      let foundRel = null
+      const result = await walkIosForPodfileSkipPods(dir, join(dir, 'ios'), rel => {
+        foundRel = rel
+      })
+      expect(result).toBe(true)
+      expect(foundRel).toBe('ios/App/Podfile')
+    })
+  })
 })
 
 describe('capacitorSegmentMinMajor: крайні випадки', () => {
   test('non-string → null', () => {
     expect(capacitorSegmentMinMajor(/** @type {string} */ (null))).toBeNull()
+  })
+
+  test('>   (тільки пробіли після >) → null через firstVersionMajorFromNpmValue (line 111)', () => {
+    expect(capacitorSegmentMinMajor('>   ')).toBeNull()
+  })
+
+  test('>xyz (нецифровий текст після >) → null (line 115)', () => {
+    expect(capacitorSegmentMinMajor('>xyz')).toBeNull()
   })
 
   test('порожній рядок → null', () => {
@@ -248,6 +276,13 @@ describe('recordCapacitorFromOnePackageJson: помилки читання', () 
   })
 })
 
+describe('capacitorVersionRangeMinMajor: non-string', () => {
+  test('non-string → null (line 127)', () => {
+    expect(capacitorVersionRangeMinMajor(/** @type {string} */ (null))).toBeNull()
+    expect(capacitorVersionRangeMinMajor(/** @type {string} */ (undefined))).toBeNull()
+  })
+})
+
 describe('collectCapacitorDataFromAllPackageJson: out без byPath', () => {
   test('out без byPath → ініціалізується як new Map()', async () => {
     await withTmpDir(async dir => {
@@ -262,6 +297,15 @@ describe('collectCapacitorDataFromAllPackageJson: out без byPath', () => {
       expect(out.byPath).toBeInstanceOf(Map)
       expect(out.anyCapacitor).toBe(true)
     })
+  })
+})
+
+describe('collectCapacitorDataFromAllPackageJson: неіснуюча директорія', () => {
+  test('readdir fail у walk → тихо повертається (line 240)', async () => {
+    const out = { byPath: new Map(), anyCapacitor: false }
+    await collectCapacitorDataFromAllPackageJson('/nonexistent-dir-xyz-123456', out)
+    expect(out.anyCapacitor).toBe(false)
+    expect(out.byPath.size).toBe(0)
   })
 })
 
@@ -295,6 +339,52 @@ describe('check: nitra-виняток через capacitor.config.json та capa
       await ensureDir(join(dir, 'ios'))
       await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
       expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('1 — capacitor.config.ts без nitra → extractNitraObjectBodySource null (line 356)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeFile(join(dir, 'capacitor.config.ts'), 'export default { appId: "a" }\n', 'utf8')
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — capacitor.config.ts з незакритою дужкою у nitra → extractNitraObjectBodySource null (line 371)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeFile(
+        join(dir, 'capacitor.config.ts'),
+        'export default { appId: "a", nitra: { iosCocoaPodsAllowed: true\n',
+        'utf8'
+      )
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('1 — capacitor.config.json з невалідним JSON → catch → fail (line 395)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'x',
+        private: true,
+        dependencies: { '@capacitor/core': '^8.0.0' }
+      })
+      await writeFile(join(dir, 'capacitor.config.json'), '{ broken json', 'utf8')
+      await ensureDir(join(dir, 'ios'))
+      await writeFile(join(dir, 'ios/Podfile'), "platform :ios, '15.0'\n", 'utf8')
+      expect(await check(dir)).toBe(1)
     })
   })
 })

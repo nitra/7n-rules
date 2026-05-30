@@ -121,4 +121,17 @@ describe('renameYamlExtensions', () => {
       expect(existsSync(join(dir, 'app/k8s', 'x.yaml'))).toBe(false)
     })
   })
+
+  test('два k8s-файли одного виду → localeCompare у sort (line 113)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'app/k8s'))
+      await writeFile(join(dir, 'app/k8s/b.yml'), 'x: 1\n', 'utf8')
+      await writeFile(join(dir, 'app/k8s/a.yml'), 'x: 2\n', 'utf8')
+      const { renamed, errors } = await renameYamlExtensions(dir, { dryRun: true })
+      expect(errors).toEqual([])
+      expect(renamed).toHaveLength(2)
+      expect(renamed[0].relFrom.replaceAll('\\', '/')).toContain('a.yml')
+      expect(renamed[1].relFrom.replaceAll('\\', '/')).toContain('b.yml')
+    })
+  })
 })

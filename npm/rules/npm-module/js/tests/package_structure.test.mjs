@@ -11,8 +11,13 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
-import { ensureDir, withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
+import {
+  check,
+  classifyPublishedFileAsTest,
+  findTestFrameworkImport,
+  globToRegex
+} from '../package_structure.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('globToRegex', () => {
   test('globstar матчить нуль і більше сегментів', () => {
@@ -150,6 +155,122 @@ describe('classifyPublishedFileAsTest', () => {
       )
       const reason = await classifyPublishedFileAsTest('rules/test/tests/bar.mjs', dir)
       expect(reason).toContain('test-style каталог')
+    })
+  })
+})
+
+describe('findTestFrameworkImport — синтаксичні помилки (line 448/450)', () => {
+  test('зламаний синтаксис → null', () => {
+    expect(findTestFrameworkImport('import { from broken\n', 'foo.ts')).toBeNull()
+  })
+})
+
+describe('check — інтеграційні сценарії', () => {
+  test('пуста директорія → 1, fail: package.json не існує, npm/ не існує (lines 549, 561, 567)', async () => {
+    await withTmpDir(async dir => {
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('є package.json + npm/ + npm/package.json, немає hk → fail hk (lines 130, 603)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('npm/src з .js → useSrcJsLayout=true; hk.pkl без src-фрагментів → fail (lines 103–113, 139, 149, 600)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm/src'))
+      await writeFile(join(dir, 'npm/src/index.js'), 'export const x = 1\n', 'utf8')
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(join(dir, 'hk.pkl'), 'nothing useful here\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('немає npm/tsconfig.emit-types.json (no src/js) → fail emit-types config (lines 197, 210, 213)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('немає .github/workflows/ → fail (line 609)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(join(dir, 'hk.pkl'), '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n', 'utf8')
+      await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('CHANGELOG version не збігається → fail (lines 293, 294, 302–307)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(join(dir, 'npm/CHANGELOG.md'), '## [2.0.0]\n\nFoo.\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('CHANGELOG без секцій ## [x] → fail (line 307)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
+      await writeFile(join(dir, 'npm/CHANGELOG.md'), '# Changelog\n\nNothing yet.\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('npm/package.json без поля version → fail (line 299)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm'))
+      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg' })
+      await writeFile(join(dir, 'npm/CHANGELOG.md'), '## [1.0.0]\n\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('files вказує на test-файл → violations (lines 529, 530)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await ensureDir(join(dir, 'npm/lib'))
+      await writeJson(join(dir, 'npm/package.json'), {
+        name: 'pkg',
+        version: '1.0.0',
+        files: ['lib']
+      })
+      await writeFile(join(dir, 'npm/lib/foo.test.mjs'), 'export const x = 1\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('npm є файлом, а не директорією → fail (line 558)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
+      await writeFile(join(dir, 'npm'), 'not a dir\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
     })
   })
 })

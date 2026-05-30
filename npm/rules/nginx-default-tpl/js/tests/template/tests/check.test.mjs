@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  check,
   findDefaultConfTemplatePaths,
   httpRouteMatchesNginxDefaultTpl,
   iniKeysMissingInTemplate,
@@ -119,5 +120,48 @@ describe('httpRouteMatchesNginxDefaultTpl', () => {
         spec: { rules: [{ matches: [{ path: { type: 'Exact', value: '/' } }], filters: [] }] }
       })
     ).toBe(false)
+  })
+
+  test('false для null → line 185', () => {
+    expect(httpRouteMatchesNginxDefaultTpl(null)).toBe(false)
+    expect(httpRouteMatchesNginxDefaultTpl(undefined)).toBe(false)
+    expect(httpRouteMatchesNginxDefaultTpl([])).toBe(false)
+    expect(httpRouteMatchesNginxDefaultTpl('string')).toBe(false)
+  })
+})
+
+describe('check()', () => {
+  test('template з порушенням (proxy_pass) → fail, line 296', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const base = await readFile(join(fixDir, 'default.conf.template'), 'utf8')
+      await writeFile(join(dir, 'nginx/default.conf.template'), `${base}\n    proxy_pass http://backend;\n`, 'utf8')
+      await writeFile(join(dir, 'nginx/values-dev.ini'), 'ENV=dev\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('default.tpl.conf мігрується → pass на line 413', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const base = await readFile(join(fixDir, 'default.conf.template'), 'utf8')
+      await writeFile(join(dir, 'nginx/default.tpl.conf'), base, 'utf8')
+      await writeFile(join(dir, 'nginx/values-dev.ini'), 'ENV=dev\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
+  })
+
+  test('default.tpl.conf + default.conf.template → перезапис, line 416', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const base = await readFile(join(fixDir, 'default.conf.template'), 'utf8')
+      await writeFile(join(dir, 'nginx/default.tpl.conf'), base, 'utf8')
+      await writeFile(join(dir, 'nginx/default.conf.template'), 'old content', 'utf8')
+      await writeFile(join(dir, 'nginx/values-dev.ini'), 'ENV=dev\n', 'utf8')
+      const code = await check(dir)
+      expect(code).toBe(1)
+    })
   })
 })

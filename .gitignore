@@ -18,3 +18,6 @@ dist/
 
 # Test artifacts: Stryker + coverage (test.mdc)
 **/coverage/
+
+# LLM classification cache for survived mutations (coverage-classify)
+npm/reports/coverage-classify.cache.json

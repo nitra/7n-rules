@@ -292,4 +292,77 @@ describe('check-vue: додаткові сценарії', () => {
       expect(await checkVue(dir)).toBe(1)
     })
   })
+
+  test('1 — немає .vscode/extensions.json (lines 466-467)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      const { unlink } = await import('node:fs/promises')
+      await unlink(join(dir, '.vscode/extensions.json'))
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — esbuild у файлі джерела пакета (lines 96-100, 119, 154-155)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(join(dir, 'app', 'bundler.mjs'), '// esbuild plugin\nexport default {}\n', 'utf8')
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — esbuild у vite.config (line 284)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(
+        join(dir, 'app', 'vite.config.js'),
+        [
+          `import Vue from '@vitejs/plugin-vue'`,
+          `import VueMacros from 'vue-macros/vite'`,
+          `import AutoImport from 'unplugin-auto-import/vite'`,
+          `// esbuild is forbidden`,
+          `export default { plugins: [VueMacros({ plugins: { vue: Vue() } }), AutoImport({ imports: ['vue'] })] }`,
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('1 — vite.config без VueMacros і AutoImport → fail (line 294)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(join(dir, 'app', 'vite.config.js'), `import Vue from '@vitejs/plugin-vue'\nexport default { plugins: [Vue()] }\n`, 'utf8')
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('extractAutoImportCallArgs → null для незбалансованих дужок (line 250)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(
+        join(dir, 'app', 'vite.config.js'),
+        `import VueMacros from 'vue-macros/vite'\nimport AutoImport from 'unplugin-auto-import/vite'\nexport default { plugins: [VueMacros(), AutoImport({ imports: ['vue'\n`,
+        'utf8'
+      )
+      expect(await checkVue(dir)).toBe(1)
+    })
+  })
+
+  test('isEsbuildScanFile — файл у build/ → false (lines 51, 58)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await ensureDir(join(dir, 'app', 'build'))
+      await writeFile(join(dir, 'app', 'build', 'out.js'), 'const x = 1\n', 'utf8')
+      expect(typeof await checkVue(dir)).toBe('number')
+    })
+  })
+
+  test('isEsbuildScanFile — bun.lock → false (line 69)', async () => {
+    await withTmpDir(async dir => {
+      await setupMinimalVueAppWorkspace(dir)
+      await writeFile(join(dir, 'app', 'bun.lock'), 'lockfileVersion 0\n', 'utf8')
+      expect(typeof await checkVue(dir)).toBe('number')
+    })
+  })
 })

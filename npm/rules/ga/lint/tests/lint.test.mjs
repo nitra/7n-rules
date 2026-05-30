@@ -5,10 +5,10 @@
  * Реальний `actionlint`/`zizmor` не запускаються — ми обриваємо потік ще на preflight, не доходячи до них.
  */
 import { describe, expect, test } from 'vitest'
-import { mkdtemp } from 'node:fs/promises'
+import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { env } from 'node:process'
+import { env, platform } from 'node:process'
 
 import { runLintGaCli } from '../lint.mjs'
 
@@ -84,5 +84,67 @@ describe('runLintGaCli', () => {
     expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
     expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
     expect(errBlob).toMatch(BREW_INSTALL_CONFTEST_RE)
+  })
+
+  test('preflight OK — логує successMsg і доходить до actionlint (lines 129-130, 161-162)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+
+    const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-stubs-'))
+    for (const name of ['shellcheck', 'uv', 'conftest']) {
+      const stub = join(binDir, name)
+      await writeFile(stub, '#!/bin/sh\nexit 0\n', 'utf8')
+      await chmod(stub, 0o755)
+    }
+
+    const prevPath = env.PATH
+    // bunx відсутній у PATH → actionlint поверне 127
+    env.PATH = `${binDir}:/usr/bin:/bin`
+    const logs = []
+    const origLog = console.log
+    const origErr = console.error
+    console.log = (...args) => logs.push(args.join(' '))
+    console.error = () => {}
+    let code
+    try {
+      code = await runLintGaCli()
+    } finally {
+      console.log = origLog
+      console.error = origErr
+      env.PATH = prevPath
+    }
+    // Preflight пройшов; actionlint (через bunx) → 127 (bunx відсутній)
+    expect(code).toBe(127)
+    expect(logs.some(l => l.includes('shellcheck'))).toBe(true)
+    expect(logs.some(l => l.includes('uv'))).toBe(true)
+    expect(logs.some(l => l.includes('conftest'))).toBe(true)
+  })
+
+  test('actionlint OK → досягає zizmor (lines 164-165)', async () => {
+    if (platform === 'win32') { expect(true).toBe(true); return }
+
+    const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-stubs-'))
+    for (const name of ['shellcheck', 'uv', 'conftest', 'bunx']) {
+      const stub = join(binDir, name)
+      await writeFile(stub, '#!/bin/sh\nexit 0\n', 'utf8')
+      await chmod(stub, 0o755)
+    }
+
+    const prevPath = env.PATH
+    // uvx відсутній → zizmor поверне 127
+    env.PATH = `${binDir}:/usr/bin:/bin`
+    const origLog = console.log
+    const origErr = console.error
+    console.log = () => {}
+    console.error = () => {}
+    let code
+    try {
+      code = await runLintGaCli()
+    } finally {
+      console.log = origLog
+      console.error = origErr
+      env.PATH = prevPath
+    }
+    // actionlint OK (bunx stub exit 0); zizmor (uvx) → 127 (uvx відсутній)
+    expect(code).toBe(127)
   })
 })

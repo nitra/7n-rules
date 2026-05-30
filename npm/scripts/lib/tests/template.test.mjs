@@ -122,6 +122,18 @@ describe('checkSnippet', () => {
     expect(checkSnippet({}, null, opts)).toEqual([])
     expect(checkSnippet({}, undefined, opts)).toEqual([])
   })
+
+  test('snippet is array but actual is not → violation + early return (lines 131-132)', () => {
+    const result = checkSnippet('not-an-array', ['a', 'b'], opts)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toContain('має бути масивом')
+  })
+
+  test('snippet is object but actual is not → violation + early return (lines 144-145)', () => {
+    const result = checkSnippet('not-an-object', { key: 'val' }, opts)
+    expect(result).toHaveLength(1)
+    expect(result[0]).toContain("має бути об'єктом")
+  })
 })
 
 describe('checkDeny', () => {
@@ -190,6 +202,10 @@ describe('checkContains', () => {
 
   test('returns empty for null contains', () => {
     expect(checkContains({}, null, opts)).toEqual([])
+  })
+
+  test('contains is a primitive number → return [] (line 217)', () => {
+    expect(checkContains('anything', 42, opts)).toEqual([])
   })
 })
 

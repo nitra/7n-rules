@@ -1,14 +1,15 @@
 /**
- * Тести rules/changelog/fix.mjs.
+ * Тести rules/changelog/js/consistency.mjs.
+ *
+ * Модель: change-файл `<ws>/.changes/*.md` — єдиний дозволений спосіб зафіксувати зміну;
+ * bump version робить лише CI. Будь-який drift `version` (vs опублікована або vs git-база)
+ * — ручний bump поза CI — завалює перевірку на будь-якій гілці, навіть із change-файлом.
  *
  * Дві моделі бази:
- * - npm-published: порівняння локальної version з опублікованою (через стаб getPublishedVersion).
- * - local-only (private/без files): PR-scoped перевірка проти `dev` через `git merge-base`.
+ * - npm/PyPI-published: порівняння локальної version з опублікованою (стаб getPublishedVersion).
+ * - local-only (private/без files): PR-scoped перевірка проти `dev`/`main` через `git merge-base`.
  *
- * Сценарії: skip-логіка local-only, npm-mode (sync / out-of-sync / без CHANGELOG / без files /
- * registry недосяжний), merge-base (feature-гілка, main після merge, direct-commit на main).
- *
- * Контракт: `withTmpDir(fn)` створює tmp-каталог; усі шляхи будуються через `join(dir, …)`,
+ * Контракт: `withTmpDir(fn)` створює tmp-каталог; усі шляхи через `join(dir, …)`,
  * `git` отримує `cwd: dir`, `checkChangelog` — `{ cwd: dir }`. Без `process.chdir`.
  */
 import { describe, expect, test } from 'vitest'
@@ -150,7 +151,7 @@ describe('check-changelog (npm-published mode)', () => {
     })
   })
 
-  test('version = опублікованій, feature-гілка: bump + CHANGELOG → pass', async () => {
+  test('version = опублікованій, feature-гілка: change-файл → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writeJson(join(dir, 'package.json'), {
@@ -165,67 +166,49 @@ describe('check-changelog (npm-published mode)', () => {
       await git(['commit', '-q', '-m', 'init'], dir)
       await git(['checkout', '-q', '-b', 'feat/x'], dir)
       await writeFile(join(dir, 'lib/x.js'), 'changed\n', 'utf8')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Changed\n---\nx\n', 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
+      expect(code).toBe(0)
+    })
+  })
+
+  test('локальна version != опублікованій (ручний bump) → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '1.0.1',
+        files: ['types', 'CHANGELOG.md']
+      })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.1'), 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
+      expect(code).toBe(1)
+    })
+  })
+
+  test('version = опублікованій, є change-файл, але files без "CHANGELOG.md" → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '1.0.0',
+        files: ['types']
+      })
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Added\n---\nFix\n', 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
+      expect(code).toBe(1)
+    })
+  })
+
+  test('npm-published: change-файл + версія != реєстру → fail (drift має пріоритет)', async () => {
+    await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {
         name: '@x/lib',
         version: '1.0.1',
         files: ['lib', 'CHANGELOG.md']
       })
-      await writeFile(
-        join(dir, 'CHANGELOG.md'),
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
-      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
-      expect(code).toBe(0)
-    })
-  })
-
-  test('локальна version != опублікованій + CHANGELOG + files=["CHANGELOG.md"] → pass', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), {
-        name: '@x/lib',
-        version: '1.0.1',
-        files: ['types', 'CHANGELOG.md']
-      })
-      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.1'), 'utf8')
-      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
-      expect(code).toBe(0)
-    })
-  })
-
-  test('локальна version != опублікованій без CHANGELOG → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), {
-        name: '@x/lib',
-        version: '1.0.1',
-        files: ['types', 'CHANGELOG.md']
-      })
-      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
-      expect(code).toBe(1)
-    })
-  })
-
-  test('локальна version != опублікованій, CHANGELOG є, але без запису для нової версії → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), {
-        name: '@x/lib',
-        version: '1.0.1',
-        files: ['types', 'CHANGELOG.md']
-      })
-      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
-      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
-      expect(code).toBe(1)
-    })
-  })
-
-  test('локальна version != опублікованій, files без "CHANGELOG.md" → fail', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), {
-        name: '@x/lib',
-        version: '1.0.1',
-        files: ['types']
-      })
-      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.1'), 'utf8')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Changed\n---\nx\n', 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' }) })
       expect(code).toBe(1)
     })
@@ -347,7 +330,7 @@ describe('check-changelog (local-only merge-base логіка)', () => {
     })
   })
 
-  test('feature-гілка: bump + запис → pass', async () => {
+  test('feature-гілка: ручний bump version → fail (заборонено)', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
@@ -362,7 +345,23 @@ describe('check-changelog (local-only merge-base логіка)', () => {
         `${changelogWithVersion('1.1.0')}\n${changelogWithVersion('1.0.0')}`,
         'utf8'
       )
-      expect(await checkChangelog({ cwd: dir })).toBe(0)
+      expect(await checkChangelog({ cwd: dir })).toBe(1)
+    })
+  })
+
+  test('local-only: change-файл + ручний bump version → fail (drift має пріоритет)', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.1.0', private: true })
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: minor\nsection: Changed\n---\nx\n', 'utf8')
+      expect(await checkChangelog({ cwd: dir })).toBe(1)
     })
   })
 
@@ -440,7 +439,7 @@ describe('check-changelog (local-only merge-base логіка)', () => {
     })
   })
 
-  test('feature-гілка: новий воркспейс з CHANGELOG для початкової version → pass без bump', async () => {
+  test('feature-гілка: новий воркспейс із change-файлом → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['demo'] })
@@ -454,9 +453,25 @@ describe('check-changelog (local-only merge-base логіка)', () => {
         version: '0.0.0',
         private: true
       })
-      await writeFile(join(dir, 'demo', 'CHANGELOG.md'), changelogWithVersion('0.0.0'), 'utf8')
       await writeFile(join(dir, 'demo', 'app.js'), 'x\n', 'utf8')
+      await mkdir(join(dir, 'demo', '.changes'), { recursive: true })
+      await writeFile(join(dir, 'demo', '.changes', '1-a.md'), '---\nbump: minor\nsection: Added\n---\nновий пакет\n', 'utf8')
       expect(await checkChangelog({ cwd: dir })).toBe(0)
+    })
+  })
+
+  test('feature-гілка: новий воркспейс без change-файлу → fail', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['demo'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/demo'], dir)
+      await ensureDir(join(dir, 'demo'))
+      await writeJson(join(dir, 'demo', 'package.json'), { name: 'demo', version: '0.0.0', private: true })
+      await writeFile(join(dir, 'demo', 'app.js'), 'x\n', 'utf8')
+      expect(await checkChangelog({ cwd: dir })).toBe(1)
     })
   })
 
@@ -476,13 +491,26 @@ describe('check-changelog (local-only merge-base логіка)', () => {
 
       // змінюємо лише `a`
       await writeFile(join(dir, 'a', 'x.js'), 'x\n', 'utf8')
-      await writeJson(join(dir, 'a', 'package.json'), { name: 'a', version: '1.0.1', private: true })
-      await writeFile(
-        join(dir, 'a', 'CHANGELOG.md'),
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
+      await mkdir(join(dir, 'a', '.changes'), { recursive: true })
+      await writeFile(join(dir, 'a', '.changes', '1-a.md'), '---\nbump: patch\nsection: Changed\n---\nx\n', 'utf8')
       expect(await checkChangelog({ cwd: dir })).toBe(0)
+    })
+  })
+
+  test('main: ручний bump version поза CI → fail', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'main'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['update-ref', 'refs/remotes/origin/main', 'HEAD'], dir)
+      // ручний bump на main без change-файлу
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.1.0', private: true })
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'manual bump'], dir)
+      expect(await checkChangelog({ cwd: dir })).toBe(1)
     })
   })
 })
@@ -502,7 +530,7 @@ describe('check-changelog (Python pyproject.toml)', () => {
     })
   })
 
-  test('local-only: bump + CHANGELOG → pass', async () => {
+  test('local-only (python): change-файл → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writePyproject({ version: '1.0.0' }, dir)
@@ -512,22 +540,18 @@ describe('check-changelog (Python pyproject.toml)', () => {
       await git(['commit', '-q', '-m', 'init'], dir)
       await git(['checkout', '-q', '-b', 'feat/x'], dir)
       await writeFile(join(dir, 'app.py'), 'print(1)\n', 'utf8')
-      await writePyproject({ version: '1.0.1' }, dir)
-      await writeFile(
-        join(dir, 'CHANGELOG.md'),
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Changed\n---\nx\n', 'utf8')
       expect(await checkChangelog({ cwd: dir })).toBe(0)
     })
   })
 
-  test('PyPI-published: version != реєстру + CHANGELOG → pass', async () => {
+  test('PyPI-published: version != реєстру (ручний bump) → fail', async () => {
     await withTmpDir(async dir => {
       await writePyproject({ name: 'my-lib', version: '2.0.1' }, dir)
       await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('2.0.1'), 'utf8')
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ 'my-lib': '2.0.0' }) })
-      expect(code).toBe(0)
+      expect(code).toBe(1)
     })
   })
 
@@ -554,7 +578,7 @@ describe('check-changelog (Python pyproject.toml)', () => {
 })
 
 describe('check-changelog (змішаний режим: npm-published + local-only в монорепо)', () => {
-  test('npm-published в sync, app з bump+entry → pass', async () => {
+  test('npm-published в sync, app з change-файлом → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
       await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['npm', 'app'] })
@@ -573,14 +597,10 @@ describe('check-changelog (змішаний режим: npm-published + local-on
       await git(['commit', '-q', '-m', 'init'], dir)
       await git(['checkout', '-q', '-b', 'feat/x'], dir)
 
-      // local-only зміна в app з bump
+      // local-only зміна в app з change-файлом
       await writeFile(join(dir, 'app', 'bar.js'), 'y\n', 'utf8')
-      await writeJson(join(dir, 'app', 'package.json'), { name: 'app', version: '1.0.1', private: true })
-      await writeFile(
-        join(dir, 'app', 'CHANGELOG.md'),
-        `${changelogWithVersion('1.0.1')}\n${changelogWithVersion('1.0.0')}`,
-        'utf8'
-      )
+      await mkdir(join(dir, 'app', '.changes'), { recursive: true })
+      await writeFile(join(dir, 'app', '.changes', '1-a.md'), '---\nbump: patch\nsection: Changed\n---\nx\n', 'utf8')
 
       const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '2.0.0' }) })
       expect(code).toBe(0)
@@ -684,4 +704,31 @@ describe('check-changelog (npm-published: відсутня version або uncomm
       expect(code).toBe(1)
     })
   })
+})
+
+describe('check-changelog (edge cases — coverage)', () => {
+  test('воркспейс із невалідним package.json → пропускається (line 572)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'mono', workspaces: ['sub'] })
+      await ensureDir(join(dir, 'sub'))
+      await writeFile(join(dir, 'sub/package.json'), '"not-an-object"', 'utf8')
+      const code = await checkChangelog({ cwd: dir })
+      expect(code).toBe(0)
+    })
+  })
+
+  test('feature-гілка без гілок dev/main → resolveChangelogComparisonPoint null → pass (line 194)', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'other-base'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+      const code = await checkChangelog({ cwd: dir })
+      expect(code).toBe(0)
+    })
+  })
+
 })
