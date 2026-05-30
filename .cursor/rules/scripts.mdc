@@ -132,7 +132,7 @@ npm/rules/{rule}/
 - Кілька паралельних агентів / субагентів / shell'ів у тому самому проєкті, які запускають той самий тяжкий процес (eslint/oxlint/jscpd, kubeconform, opa+regal, hadolint, per-rule fix.mjs), **не** перевантажують CPU/диск на macOS — другий і далі чекають у черзі.
 - При збігу stан-у git-дерева й TTL — другий прогон **дедуплікується** (`♻️ <key>: …`) і повертає `0` без виконання.
 
-**Алгоритм всередині `withLock`** — атомарний `mkdirSync`-lock у `node_modules/.cache/n-cursor/<key>/`, перевірка живості PID на `process.kill(pid, 0)` (той самий host) + межовий вік 30 хв проти зависань; невдалі прогони (`exitCode !== 0`) НЕ дедупляться; fingerprint = sha256(`git rev-parse HEAD` + `git diff HEAD` + untracked-файли); поза git-репо дедуп вимикається, лок лишається.
+**Алгоритм всередині `withLock`** — атомарний `mkdirSync`-lock, перевірка живості PID на `process.kill(pid, 0)` (той самий host) + межовий вік 30 хв проти зависань; невдалі прогони (`exitCode !== 0`) НЕ дедупляться; fingerprint = sha256(`git rev-parse HEAD` + `git diff HEAD` + untracked-файли); поза git-репо дедуп вимикається, лок лишається.
 
 ### Де живе лок
 
@@ -142,6 +142,8 @@ npm/rules/{rule}/
 | `fix` (per-rule програмна перевірка) | `npm/scripts/utils/run-standard-rule.mjs` | `fix-<ruleId>` |
 
 Обидві спільні точки входу обгортають один `withLock` і **виводять ключ зі шляху**: `runStandardLint` бере `basename(dirname(lintDir))`, `runStandardRule` — `basename(ruleDir)`. Якщо потім додаси нову поведінку «на старті важкої команди» (телеметрія, env-toggle вимкнення локу, common preflight-логування) — редагуєш одне з цих двох місць, не 30+ файлів. **Не дублюй** `withLock` у самих `lint.mjs` / `fix.mjs`.
+
+**Стан локу — спільний для всіх git-worktree.** Директорію стану (`lock/owner.json`, `result.json`) обчислює [`resolveLockCacheDir`](../../npm/scripts/utils/lock-cache-dir.mjs): кладе її під `<git-common-dir>/n-cursor/<key>` (тобто всередині `.git` головного репо — один на головний checkout і всі linked-worktree). Завдяки цьому важка команда (eslint/oxlint/jscpd, conftest, hadolint, per-rule fix), запущена паралельно в **різних worktree**, серіалізується через спільний лок, а не перевантажує CPU/диск кількома прогонами. Поза git-репо — fallback на per-checkout `node_modules/.cache/n-cursor/<key>` (як було). Дедуп лишається безпечним: fingerprint включає `git diff HEAD` + untracked, тож worktree на різних гілках не дедуплять прогони одне одного.
 
 ### Канонічний патерн для нової `lint-*`-підкоманди
 

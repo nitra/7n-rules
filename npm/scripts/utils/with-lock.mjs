@@ -6,6 +6,7 @@ import * as fs from 'node:fs'
 import { join } from 'node:path'
 import * as os from 'node:os'
 import { setTimeout as sleep } from 'node:timers/promises'
+import { resolveLockCacheDir } from './lock-cache-dir.mjs'
 import { worktreeFingerprint } from './worktree-fingerprint.mjs'
 
 const DEFAULTS = {
@@ -62,7 +63,7 @@ export function shouldDedup(result, fingerprint, ttl) {
 export async function withLock(key, runFn, opts = {}) {
   const { ttl, staleThreshold, waitTimeout, pollInterval } = { ...DEFAULTS, ...opts }
   const getFingerprint = opts.getFingerprint ?? worktreeFingerprint
-  const cacheDir = opts.cacheDir ?? join(process.cwd(), 'node_modules/.cache/n-cursor', key)
+  const cacheDir = opts.cacheDir ?? resolveLockCacheDir(key)
   const lockDir = join(cacheDir, 'lock')
   const ownerFile = join(lockDir, 'owner.json')
   const resultFile = join(cacheDir, 'result.json')
