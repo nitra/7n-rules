@@ -1,0 +1,49 @@
+npm/scripts/utils/tests/lock-cache-dir.test.mjs
+  s_7196fedc140418::t_5bfd1028ab4ff0 1-46
+package.json
+  s_8c9d87b6f2e32b::t_63e118853e3b8d 26
+npm/scripts/utils/with-lock.mjs
+  s_7196fedc140418::t_c50332e3045feb 9,66
+.cursor/rules/scripts.mdc
+  s_7196fedc140418::t_c50332e3045feb 135,146
+  s_7196fedc140418::t_304f0312586cb5 147
+docs/adr/20260530-210121-крос-worktree-серіалізація-withlock-через-git-common-dir.md
+  ai_agent 1-39
+npm/.changes/1780163801646-85565f.md
+  s_8c9d87b6f2e32b::t_3d2f010fd0c8fc 1-5
+docs/adr/20260530-205805-ізоляція-git-залежних-тестів-через-withtmpdir-git-init.md
+  ai_agent 1-67
+npm/.changes/1780162853358-7a418d.md
+  s_7196fedc140418::t_f23c42781a723f 1-5
+.cursor/rules/n-test.mdc
+  s_8c9d87b6f2e32b::t_63e118853e3b8d 3,84-127
+npm/scripts/utils/lock-cache-dir.mjs
+  s_7196fedc140418::t_47e927d9195ba3 1-37
+npm/rules/test/test.mdc
+  s_8c9d87b6f2e32b::t_41644b6f9bdc39 3
+  s_8c9d87b6f2e32b::t_c05b7a529d8c66 84-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6f81a15ca7eeefa603fb7e6bf768ae84c79be918",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8c9d87b6f2e32b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b2ddf67-dce0-4298-88ca-c524605c3c76",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
