@@ -1,0 +1,21 @@
+npm/rules/release/lib/change-file.mjs
+  s_e6614b24c36294::t_5060671e5c46de 1-55
+npm/rules/release/js/tests/change-file.test.mjs
+  s_e6614b24c36294::t_2a2edfe7483b6f 1-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "958b007125508905c690243c2ac78ca56889eaa0",
+  "prompts": {},
+  "sessions": {
+    "s_e6614b24c36294": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b851872-974e-4842-96a2-14ae3cf1a806",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
