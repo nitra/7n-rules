@@ -1,0 +1,19 @@
+npm/scripts/lib/tests/read-n-cursor-config-lite.test.mjs
+  s_1012fb5f7d9bea::t_a3e6197929c58d 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "243f47d8eda50c88185fc0f824251e2309e6e142",
+  "prompts": {},
+  "sessions": {
+    "s_1012fb5f7d9bea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3c973c-d4a6-4a39-9b3e-1e7be4291e26",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
