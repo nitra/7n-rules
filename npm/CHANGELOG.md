@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.35.1] - 2026-05-30
+
+### Added
+
+- Нові тести для підвищення coverage: run-dotenv-linter (spawnSync error paths), lint.mjs preflight-OK paths, ua_http_route.mjs (default cwd + readFile chmod-fail), auto-rules.mjs (readdir/JSON catch-блоки), run-shellcheck-errors, run-v8r, sync-claude-config, test-helpers absolute-path guard, rename-yaml-extensions sort, graphql langFromPath, capacitor segmentMinMajor, coverage-classify cache/retry/fallback, npm-module package_structure, changelog consistency, bun-sql-scan BinaryExpression. Lines coverage: ~83.59% → 88.32%.
+
 ## [1.35.0] - 2026-05-30
 
 ### Added
