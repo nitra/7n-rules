@@ -4,12 +4,6 @@
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).
 
-## [1.33.1] - 2026-05-30
-
-### Added
-
-- Нові тест-файли (9 файлів, 93+ тести): `rules/abie/js/tests/` (firebase_hosting, env_dns, hc_pairing, ua_node_selector, ua_http_route), `rules/abie/lib/tests/hc-yaml.test.mjs`, `rules/abie/lib/tests/k8s-tree.test.mjs`, `rules/docker/lib/tests/docker-hadolint.test.mjs`, `rules/docker/lint/tests/lint.test.mjs`, `scripts/tests/coverage-fix.test.mjs`; розширено `scripts/tests/upgrade-nitra-cursor-and-install.test.mjs`. Lines coverage: 77.62% → 78.80%, Functions: 84.47% → 86.13%.
-
 ## [1.33.0] - 2026-05-30
 
 ### Added
