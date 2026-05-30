@@ -359,6 +359,7 @@ async function checkDockerfiles(root, ignorePaths, passFn, failFn) {
  * `default.conf.template` (умовне правило — без шаблона цей крок не запускається).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} failFn callback при помилці
+ * @param {string} cwd корінь репозиторію
  * @returns {void}
  */
 function checkVscodeNginx(passFn, failFn, cwd) {
