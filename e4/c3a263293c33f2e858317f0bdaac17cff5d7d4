@@ -1,0 +1,19 @@
+COVERAGE.md
+  s_8c9d87b6f2e32b::t_5019d4db547c7c 5,18,25,32,39,56-59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e4c3a263293c33f2e858317f0bdaac17cff5d7d4",
+  "prompts": {},
+  "sessions": {
+    "s_8c9d87b6f2e32b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b2ddf67-dce0-4298-88ca-c524605c3c76",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
