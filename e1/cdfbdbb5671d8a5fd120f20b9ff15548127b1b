@@ -1,0 +1,22 @@
+npm/scripts/tests/test-helpers.test.mjs
+  s_ecf98a742b5a5d::t_87cd51070c9ee5 3-6,12-14,17,21
+npm/rules/test/js/tests/no-process-chdir.test.mjs
+  s_ecf98a742b5a5d::t_65f1e5d85a300d 2-4,15-16,18,26,31,37,40,45,51,53,70,73,83-84,87,97
+  s_ecf98a742b5a5d::t_b846330be43dd1 13-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e1cdfbdbb5671d8a5fd120f20b9ff15548127b1b",
+  "prompts": {},
+  "sessions": {
+    "s_ecf98a742b5a5d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb59ca48-48b3-4da0-9725-6c168a4c0d1a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
