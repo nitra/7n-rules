@@ -1,0 +1,19 @@
+npm/.changes/1780200000000-cibump.md
+  s_c75314eb3a9067::t_8ec15bb2c13d95 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "56978c7bdd6cfc76368591dc62a6e294b1d13aef",
+  "prompts": {},
+  "sessions": {
+    "s_c75314eb3a9067": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "05c3d8d1-330e-4532-9b71-fbc087139714",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
