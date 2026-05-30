@@ -1,0 +1,52 @@
+npm/scripts/tests/upgrade-nitra-cursor-and-install.test.mjs
+  s_07c380d32ee07c::t_eb155763d60f35 6-7,13-14
+  s_07c380d32ee07c::t_3624f20fe8e29f 89-260
+npm/rules/abie/js/tests/ua_node_selector.test.mjs
+  s_07c380d32ee07c::t_f70920ff87b763 1-96
+npm/scripts/tests/coverage-fix.test.mjs
+  ai_agent 1-248
+npm/rules/docker/lib/tests/docker-hadolint.test.mjs
+  s_07c380d32ee07c::t_ec0bebbde20fbd 1-130
+npm/CHANGELOG.md
+  s_1012fb5f7d9bea::t_2af9b25de59997 7-12
+npm/rules/abie/js/tests/hc_pairing.test.mjs
+  s_07c380d32ee07c::t_4f5532c61c75e8 1-95
+npm/rules/docker/lint/tests/lint.test.mjs
+  s_07c380d32ee07c::t_7f48e53971a569 1-109
+npm/rules/abie/js/tests/ua_http_route.test.mjs
+  s_07c380d32ee07c::t_b60b132ae4398a 1-94
+npm/rules/abie/lib/tests/k8s-tree.test.mjs
+  ai_agent 1-181
+npm/package.json
+  s_1012fb5f7d9bea::t_dadedbe97afb4b 3
+npm/rules/abie/js/tests/firebase_hosting.test.mjs
+  s_07c380d32ee07c::t_a232355cc647b4 1-84
+npm/rules/abie/js/tests/env_dns.test.mjs
+  s_07c380d32ee07c::t_3afd4a65191a5d 1-77
+npm/rules/abie/lib/tests/hc-yaml.test.mjs
+  s_07c380d32ee07c::t_8a36d94d23d696 1-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d1066aa79a6b9c2ca272086981d3019534a5753f",
+  "prompts": {},
+  "sessions": {
+    "s_07c380d32ee07c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bb3047db-5332-4649-a713-3f1cde68927a",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_1012fb5f7d9bea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3c973c-d4a6-4a39-9b3e-1e7be4291e26",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
