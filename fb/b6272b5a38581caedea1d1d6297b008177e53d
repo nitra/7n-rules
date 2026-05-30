@@ -1,0 +1,38 @@
+.changes/1780116966051-2d8594.md
+  s_1012fb5f7d9bea::t_b0f8a0f49420ca 1-5
+npm/scripts/lib/tests/gha-workflow.test.mjs
+  s_1012fb5f7d9bea::t_ab58e7530fb4e2 142-255
+npm/rules/k8s/lint/tests/run-roots.test.mjs
+  s_1012fb5f7d9bea::t_3d96c5fdf979e5 12-33
+  s_1012fb5f7d9bea::t_25ff8eac133fe6 9
+npm/rules/npm-module/js/tests/pure-helpers.test.mjs
+  s_1012fb5f7d9bea::t_e66c6b45c23bdc 1-94
+npm/rules/js-lint/js/tests/check.test.mjs
+  s_1012fb5f7d9bea::t_4de79f204aae73 1-193
+npm/rules/js-lint/js/tests/utils_imports.test.mjs
+  s_1012fb5f7d9bea::t_63fb00f9929898 1-108
+npm/rules/abie/lib/tests/yaml.test.mjs
+  ai_agent 1-122
+npm/rules/release/js/tests/change.test.mjs
+  s_1012fb5f7d9bea::t_33c3b8c302f599 28-64
+  s_1012fb5f7d9bea::t_0dba81059465d6 5
+npm/rules/js-bun-db/lib/tests/bun-sql-scan.test.mjs
+  s_1012fb5f7d9bea::t_e76b62292b1c8d 1-211,213-222
+  s_1012fb5f7d9bea::t_08cd5aecf62495 212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "fbb6272b5a38581caedea1d1d6297b008177e53d",
+  "prompts": {},
+  "sessions": {
+    "s_1012fb5f7d9bea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ea3c973c-d4a6-4a39-9b3e-1e7be4291e26",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
