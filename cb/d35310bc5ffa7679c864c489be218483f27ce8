@@ -1,0 +1,23 @@
+.cursor/rules/n-changelog.mdc
+  s_e6614b24c36294::t_f0c61c38e1ea84 3
+  s_e6614b24c36294::t_5239ed296619b2 11-15
+npm/rules/changelog/changelog.mdc
+  s_e6614b24c36294::t_25c1c3035e5a25 3
+  s_e6614b24c36294::t_2dec58237d9537 11-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cbd35310bc5ffa7679c864c489be218483f27ce8",
+  "prompts": {},
+  "sessions": {
+    "s_e6614b24c36294": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b851872-974e-4842-96a2-14ae3cf1a806",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
