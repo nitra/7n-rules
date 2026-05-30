@@ -1,0 +1,33 @@
+npm/rules/release/js/tests/change-file.test.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 6,9-13,23,27-29,61
+npm/rules/release/js/tests/release.test.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 10-23,88,92,100,118
+npm/CHANGELOG.md
+  s_e6614b24c36294::t_aef9e025ecd461 6-16
+npm/rules/changelog/js/consistency.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 406-407
+npm/rules/release/js/tests/aggregate.test.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 3-5,14
+npm/rules/release/lib/change-file.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 91-92
+npm/package.json
+  s_e6614b24c36294::t_aef9e025ecd461 3
+npm/rules/release/lib/aggregate.mjs
+  s_e6614b24c36294::t_aef9e025ecd461 44-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "59fdcff3eea516f3d7517a72f2820fa713d1ddc4",
+  "prompts": {},
+  "sessions": {
+    "s_e6614b24c36294": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9b851872-974e-4842-96a2-14ae3cf1a806",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
