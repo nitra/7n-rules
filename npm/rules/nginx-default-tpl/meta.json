@@ -1,0 +1,1 @@
+{ "auto": { "glob": ["**/default.conf.template", "**/default.conf", "**/nginx.conf"] } }
