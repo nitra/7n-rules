@@ -1,0 +1,24 @@
+npm/scripts/auto-rules.mjs
+  s_7196fedc140418::t_9146e39be5f200 639
+  s_7196fedc140418::t_e9fd69298d87f6 2,4-10,14
+  s_7196fedc140418::t_e72f8d85aac80d 57
+  s_7196fedc140418::t_ee4212e6d0f9d6 677-678
+  s_7196fedc140418::t_467f19b593a10f 504-505
+  s_7196fedc140418::t_5509bf1eb10f78 632-633
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "8a738e88bd7e72ee88de494a66a9a7fd11765979",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
