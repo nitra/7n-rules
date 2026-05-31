@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.41.0] - 2026-05-31
+
+### Changed
+
+- js-lint: канон oxlint оновлено — додано 13 правил @e18e/eslint-plugin і ignorePatterns (npm/types/**, demo/node/rules-demo.js)
+- js-lint: мінімальна версія @nitra/eslint-config піднята до 3.10.0 (Rego package_json + js-lint.mdc v1.27)
+
 ## [1.40.1] - 2026-05-31
 
 ### Changed
