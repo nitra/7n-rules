@@ -35,6 +35,8 @@ npm/rules/{rule}/
 
 Автоактивація правила — поле `auto` у `npm/rules/<id>/meta.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/js/rule_meta.mjs`.
 
+Lint розділено на дві фази через поле `lint` у `npm/rules/<id>/meta.json`: `quick` (крок у `n-cursor lint` — по змінених файлах working-tree, і в `lint-ci`) та `ci` (лише `n-cursor lint-ci` — по всьому репо, для крос-файлових jscpd/knip/trufflehog та actionlint/conftest). Виконавець кроку — `npm/rules/<id>/js/lint.mjs` з `export function lint(files, cwd)`: `files` — масив змінених (quick) або `undefined` (ci, весь проєкт). Оркестратор — `npm/scripts/lint-cli.mjs` (`runLint`); кроки строго послідовні (заборона паралельного eslint). Валідація — концерн `npm-module/js/rule_meta.mjs`.
+
 **Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
 
 **Імпорти** (з `js/<concern>.mjs`):

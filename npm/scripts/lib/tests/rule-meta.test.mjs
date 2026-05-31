@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { parseRuleAutoSpec, readRuleMetaRaw } from '../rule-meta.mjs'
+import { parseRuleAutoSpec, parseRuleLintPhase, readRuleMetaRaw } from '../rule-meta.mjs'
 import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('parseRuleAutoSpec', () => {
@@ -39,6 +39,18 @@ describe('parseRuleAutoSpec', () => {
     expect(parseRuleAutoSpec({ glob: 42 })).toBeNull()
     expect(parseRuleAutoSpec({ predicate: 42 })).toBeNull()
     expect(parseRuleAutoSpec({})).toBeNull()
+  })
+})
+
+describe('parseRuleLintPhase', () => {
+  test('"quick" / "ci" → значення', () => {
+    expect(parseRuleLintPhase('quick')).toBe('quick')
+    expect(parseRuleLintPhase('ci')).toBe('ci')
+  })
+  test('відсутнє / невалідне → null', () => {
+    expect(parseRuleLintPhase(undefined)).toBeNull()
+    expect(parseRuleLintPhase('all')).toBeNull()
+    expect(parseRuleLintPhase(42)).toBeNull()
   })
 })
 

@@ -105,7 +105,7 @@ import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
-import { runLintCli } from '../scripts/lib/run-lint-cli.mjs'
+import { runLint } from '../scripts/lint-cli.mjs'
 import { formatTimingSummary } from '../scripts/lib/timing-summary.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
@@ -1464,9 +1464,12 @@ try {
       break
     }
     case 'lint': {
-      // Оркестратор lint-ланцюжка з вимірюванням часу на кожен крок (fail-fast).
-      // Замінює раніше використовуваний агрегатор `bun run lint-ga && bun run lint-js && …` у root package.json.
-      process.exitCode = runLintCli()
+      process.exitCode = await runLint({ ci: false })
+
+      break
+    }
+    case 'lint-ci': {
+      process.exitCode = await runLint({ ci: true })
 
       break
     }
@@ -1540,7 +1543,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci`
       )
       process.exitCode = 1
     }

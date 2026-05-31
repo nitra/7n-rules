@@ -55,4 +55,27 @@ describe('rule_meta check', () => {
       expect(await check(dir)).toBe(0)
     })
   })
+
+  test('lint:"quick" без js/lint.mjs → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'rules', 'x'))
+      await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'quick' })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+  test('lint:"quick" з js/lint.mjs → 0', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'rules', 'x', 'js'))
+      await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'quick' })
+      await writeFile(join(dir, 'npm', 'rules', 'x', 'js', 'lint.mjs'), 'export function lint(){return 0}\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+  test('lint нерозпізнане → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'rules', 'x'))
+      await writeJson(join(dir, 'npm', 'rules', 'x', 'meta.json'), { lint: 'all' })
+      expect(await check(dir)).toBe(1)
+    })
+  })
 })

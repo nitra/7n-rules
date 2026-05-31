@@ -12,7 +12,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import { parseRuleAutoSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
+import { parseRuleAutoSpec, parseRuleLintPhase, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
 
 /**
@@ -51,6 +51,15 @@ export function check(cwd = process.cwd()) {
         ruleOk = false
       } else if ('predicate' in spec && !Object.hasOwn(RULE_PREDICATES, spec.predicate)) {
         reporter.fail(`rules/${id}: невідомий predicate "${spec.predicate}" (немає в RULE_PREDICATES)`)
+        ruleOk = false
+      }
+    }
+    if (raw.lint !== undefined) {
+      if (parseRuleLintPhase(raw.lint) === null) {
+        reporter.fail(`rules/${id}: meta.json.lint нерозпізнане (очікується "quick"|"ci")`)
+        ruleOk = false
+      } else if (!existsSync(join(ruleDir, 'js', 'lint.mjs'))) {
+        reporter.fail(`rules/${id}: lint:"${raw.lint}" але немає js/lint.mjs`)
         ruleOk = false
       }
     }

@@ -6,6 +6,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "lint": { "type": "string", "enum": ["quick", "ci"], "description": "Фаза lint-кроку: quick (по змінених, у lint і lint-ci) або ci (лише lint-ci)." },
     "auto": {
       "description": "Умова автоактивації правила: \"завжди\", масив id правил-залежностей, glob, або іменований предикат.",
       "oneOf": [

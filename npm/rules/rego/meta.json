@@ -1,1 +1,1 @@
-{ "auto": { "glob": "**/*.rego" } }
+{ "auto": { "glob": "**/*.rego" }, "lint": "ci" }

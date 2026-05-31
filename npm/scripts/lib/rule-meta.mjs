@@ -48,6 +48,18 @@ export function parseRuleAutoSpec(value) {
   return null
 }
 
+/** Допустимі фази lint. */
+const LINT_PHASES = new Set(['quick', 'ci'])
+
+/**
+ * Нормалізує значення `meta.json.lint` у фазу lint.
+ * @param {unknown} value значення поля `lint`
+ * @returns {'quick' | 'ci' | null} фаза або `null` (відсутнє/невалідне = не lint-крок)
+ */
+export function parseRuleLintPhase(value) {
+  return typeof value === 'string' && LINT_PHASES.has(value) ? /** @type {'quick'|'ci'} */ (value) : null
+}
+
 /**
  * Читає й парсить `meta.json` одного правила.
  * @param {string} ruleDir абсолютний шлях до каталогу правила
