@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.39.0] - 2026-05-31
+
+### Changed
+
+- worktree skill: додати auto завжди до meta.json
+- rules: автодетект перенесено з хардкоду auto-rules.mjs + auto.md на data-driven meta.json (glob/predicate/deps); увімкнено автодетект tauri
+
 ## [1.38.0] - 2026-05-31
 
 ### Added
