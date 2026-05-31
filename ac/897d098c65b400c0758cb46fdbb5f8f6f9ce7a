@@ -1,0 +1,9 @@
+npm/.changes/1780261187647-b85982.md
+  ai_agent 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ac897d098c65b400c0758cb46fdbb5f8f6f9ce7a",
+  "prompts": {}
+}
