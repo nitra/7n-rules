@@ -103,6 +103,7 @@ import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
+import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 import { runLintCli } from '../scripts/lib/run-lint-cli.mjs'
 import { formatTimingSummary } from '../scripts/lib/timing-summary.mjs'
@@ -1525,6 +1526,11 @@ try {
 
       break
     }
+    case 'worktree': {
+      process.exitCode = await runWorktreeCli(args)
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1534,7 +1540,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree`
       )
       process.exitCode = 1
     }

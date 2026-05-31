@@ -4,6 +4,10 @@ description: >-
   Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
 ---
 
+<!-- n-cursor:worktree:start -->
+> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+<!-- n-cursor:worktree:end -->
+
 # n-coverage-fix — підвищення mutation score
 
 ## Мета

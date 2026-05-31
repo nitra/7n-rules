@@ -4,6 +4,10 @@ description: >-
   Виправити проєкт відповідно до всіх правил в .cursor/rules/
 ---
 
+<!-- n-cursor:worktree:start -->
+> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+<!-- n-cursor:worktree:end -->
+
 # n-fix — автоматичне виправлення проєкту
 
 ## Scope

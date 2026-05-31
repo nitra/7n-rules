@@ -25,6 +25,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-test.mdc
 - .cursor/rules/n-text.mdc
 - .cursor/rules/n-vue.mdc
+- .cursor/rules/n-worktree.mdc
 - .cursor/rules/scripts.mdc
 
 ## Skills

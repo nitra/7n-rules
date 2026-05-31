@@ -3,11 +3,9 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
-
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
-@.cursor/rules/n-worktrees.mdc
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-adr.mdc
 @.cursor/rules/n-bun.mdc
@@ -24,6 +22,7 @@
 @.cursor/rules/n-test.mdc
 @.cursor/rules/n-text.mdc
 @.cursor/rules/n-vue.mdc
+@.cursor/rules/n-worktree.mdc
 @.cursor/rules/scripts.mdc
 
 ## Лінт і ESLint (без паралельних запусків)

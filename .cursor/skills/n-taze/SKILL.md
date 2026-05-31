@@ -5,6 +5,10 @@ description: >-
   рефакторингом несумісного коду
 ---
 
+<!-- n-cursor:worktree:start -->
+> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+<!-- n-cursor:worktree:end -->
+
 # n-taze — Оновлення версій проекту
 
 ## Мета

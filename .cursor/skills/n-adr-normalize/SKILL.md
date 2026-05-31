@@ -5,6 +5,10 @@ description: >-
   батчу чернеток через LLM, перегляд результату через git diff
 ---
 
+<!-- n-cursor:worktree:start -->
+> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+<!-- n-cursor:worktree:end -->
+
 # n-adr-normalize — ручна нормалізація ADR-чернеток
 
 Скіл запускає `.claude/hooks/normalize-decisions.sh` поза звичайним Stop-hook-тригером. Корисно, коли:

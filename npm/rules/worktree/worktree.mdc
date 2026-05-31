@@ -1,0 +1,34 @@
+---
+description: Конвенція git-worktree у цьому репо — створення, інвентаризація та прибирання через n-cursor worktree CLI.
+globs:
+alwaysApply: true
+---
+
+# Worktree-конвенція
+
+Усі git-worktree створюй і прибирай через CLI `n-cursor worktree` — він кладе їх у
+`.worktrees/` (gitignored) і веде інвентарний файл-опис поруч.
+
+## Розташування
+
+```
+.worktrees/
+  feat-skill-meta/        ← git worktree checkout
+  feat-skill-meta.md      ← інвентарний опис поруч (gitignored через .worktrees/)
+```
+
+Слеш у гілці перетворюється на дефіс: `feat/skill-meta` → `.worktrees/feat-skill-meta/`.
+Git-гілка лишається з оригінальним імʼям (`feat/skill-meta`).
+
+## Команди
+
+- **Створити** (опис обовʼязковий): `npx @nitra/cursor worktree add <branch> "<навіщо>"`
+- **Інвентаризація**: `npx @nitra/cursor worktree list`
+- **Прибрати**: `npx @nitra/cursor worktree remove <branch> [--force]`
+- **Прибрати осиротілі**: `npx @nitra/cursor worktree prune`
+
+## Заборони
+
+- Не клади worktree в `.claude/worktrees/` — це приватна директорія харнесу Claude Code.
+- Не клади worktree в батьківський каталог `../cursor-<name>` — ускладнює інвентаризацію.
+- Не створюй worktree вручну (`git worktree add`) повз CLI — інакше не буде інвентарного опису.

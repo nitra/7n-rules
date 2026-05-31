@@ -4,6 +4,10 @@ description: >-
   Ітеративно дописати тести щоб підвищити mutation score — читає вцілілі мутанти з COVERAGE.md і запускає агент до конвергенції
 ---
 
+<!-- n-cursor:worktree:start -->
+> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+<!-- n-cursor:worktree:end -->
+
 # n-fix-tests — підвищення mutation score
 
 ## Мета

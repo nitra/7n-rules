@@ -68,6 +68,12 @@
 npx @nitra/cursor
 npx @nitra/cursor fix
 npx @nitra/cursor fix bun ga
+
+# Керування git-worktree (.worktrees/ + інвентарний файл-опис)
+npx @nitra/cursor worktree add <branch> "<опис>"
+npx @nitra/cursor worktree list
+npx @nitra/cursor worktree remove <branch> [--force]
+npx @nitra/cursor worktree prune
 ```
 
 Команда `check` запускає programmatic перевірки з каталогу `scripts/` пакету. Якщо в корені репозиторію вже є `.n-cursor.json`, перед перевірками виконується зчитування конфігу — зокрема додається або виправляється поле `$schema`, якщо воно відсутнє або не збігається з очікуваним URL.
