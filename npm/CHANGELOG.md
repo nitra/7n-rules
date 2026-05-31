@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.40.1] - 2026-05-31
+
+### Changed
+
+- js-lint: oxlint-canonical.json тепер source-of-truth — прибрано генерацію (rebuild-oxlint-canonical.mjs, oxlint-canonical-skeleton.json, oxlint-rules.tsv)
+
 ## [1.40.0] - 2026-05-31
 
 ### Added
