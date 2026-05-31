@@ -1,0 +1,66 @@
+---
+description: Конвенція git-worktree у цьому репо: де зберігати, як документувати, як прибирати.
+globs:
+alwaysApply: true
+---
+
+# Worktree-конвенція
+
+## Розташування
+
+Усі git-worktree зберігаються у `.worktrees/` у корені репозиторію:
+
+```
+.worktrees/
+  feat-skill-meta.md      ← файл-опис (поруч, НЕ всередині checkout)
+  feat-skill-meta/        ← git worktree checkout
+  feat-other.md
+  feat-other/
+```
+
+Директорія `.worktrees/` додана у `.gitignore` — вміст ніколи не потрапляє в git-історію.
+
+## Файл-опис (обовʼязковий)
+
+При створенні кожного worktree — одразу ж створи файл `.worktrees/<branch>.md` поруч із ним:
+
+```markdown
+# <branch-name>
+
+**Задача:** <один рядок — навіщо цей worktree>
+**Скіл / план:** <id скіла або посилання на план>
+**Дата:** YYYY-MM-DD
+**База (коміт):** <git rev-parse --short HEAD>
+
+<1–2 речення людською мовою: що тут робиться і коли можна прибирати>
+
+Прибрати: `git worktree remove .worktrees/<branch> && rm .worktrees/<branch>.md`
+```
+
+Файл залишається **поруч**, не всередині checkout — тому він автоматично gitignored через `.worktrees/`.
+
+## Команди
+
+**Створити:**
+```bash
+git worktree add .worktrees/<branch> -b <branch>
+# потім вручну створи .worktrees/<branch>.md
+```
+
+**Інвентаризація (всі активні):**
+```bash
+git worktree list
+cat .worktrees/*.md 2>/dev/null
+```
+
+**Прибрати:**
+```bash
+git worktree remove .worktrees/<branch>
+rm .worktrees/<branch>.md
+```
+
+## Заборони
+
+- Не клади worktree в `.claude/worktrees/` вручну — це приватна директорія харнесу Claude Code.
+- Не клади worktree в батьківський каталог `../cursor-<name>` — це ускладнює інвентаризацію.
+- Не забувай створювати файл-опис — без нього `cat .worktrees/*.md` не дасть повної картини.

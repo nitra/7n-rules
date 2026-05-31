@@ -88,6 +88,8 @@ import {
   RULE_MIGRATIONS
 } from '../scripts/auto-rules.mjs'
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
+import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
+import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
 import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
 import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
@@ -762,10 +764,15 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
       process.stdout.write(`  ⬇  ${id} → ${SKILLS_DIR}/${destDirName} ... `)
       try {
         await mkdir(destDir, { recursive: true })
+        const meta = readSkillMetaRaw(srcDir)
+        const worktree = meta?.worktree === true
         const files = await readdir(srcDir)
         for (const file of files) {
-          if (file === 'auto.md') continue
-          const content = await readFile(join(srcDir, file), 'utf8')
+          if (file === 'meta.json') continue
+          let content = await readFile(join(srcDir, file), 'utf8')
+          if (file === 'SKILL.md') {
+            content = injectWorktreeNotice(content, worktree)
+          }
           await writeFile(join(destDir, file), content, 'utf8')
         }
         console.log(`✅`)

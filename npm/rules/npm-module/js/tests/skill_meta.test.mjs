@@ -1,0 +1,56 @@
+import { describe, expect, test } from 'vitest'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import { check } from '../skill_meta.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+describe('skill_meta check', () => {
+  test('усі скіли з валідним meta.json → 0', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await ensureDir(join(dir, 'npm', 'skills', 'lint'))
+      await writeJson(join(dir, 'npm', 'skills', 'lint', 'meta.json'), { auto: 'завжди', worktree: false })
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('відсутній meta.json → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('залишковий auto.md → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeFile(join(dir, 'npm', 'skills', 'fix', 'auto.md'), 'завжди\n', 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('worktree не boolean → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: 'yes' })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('auto присутнє, але нерозпізнане → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'always', worktree: true })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('немає npm/skills взагалі → 0 (нема чого валідувати)', async () => {
+    await withTmpDir(async dir => {
+      expect(await check(dir)).toBe(0)
+    })
+  })
+})

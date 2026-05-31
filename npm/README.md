@@ -114,7 +114,7 @@ npm/
 ```
 npm/rules/<id>/
 ├── <id>.mdc              # текст правила (після синку — .cursor/rules/n-<id>.mdc)
-├── auto.md               # умова автоактивації скілу (опційно)
+├── meta.json             # метадані скілу: auto (автоактивація) + worktree
 ├── js/                  # JS для `npx @nitra/cursor fix`
 │   └── <concern>/
 │       ├── check.mjs     # діагностика — повертає список violations

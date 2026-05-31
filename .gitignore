@@ -7,6 +7,7 @@ dist/
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
 .claude/worktrees/
+.worktrees/
 **/.stryker-tmp/
 
 # Stryker mutation testing (test.mdc)

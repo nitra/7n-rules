@@ -7,6 +7,7 @@
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
+@.cursor/rules/n-worktrees.mdc
 @.cursor/rules/dev-dep.mdc
 @.cursor/rules/n-adr.mdc
 @.cursor/rules/n-bun.mdc

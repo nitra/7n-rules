@@ -48,7 +48,7 @@ npm/rules/{rule}/
 
 **Інваріанта:** видалив `npm/rules/{rule}/` → правило зникло без слідів (нема мертвих посилань у `bin/auto-rules.md`, `npm/scripts/`, `.cursor/rules/`).
 
-Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor), `auto.md` (опційно).
+Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor) і `meta.json` (метадані скіла). `meta.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). У проєкт `meta.json` **не** копіюється; під час синку при `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно). Валідація — концерн `npm-module/js/skill_meta.mjs`.
 
 **Крос-правильна інфраструктура** (CLI, оркестратори, спільні утиліти) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом.
 

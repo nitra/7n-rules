@@ -880,6 +880,109 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
+## Task 9: Конвенція `.worktrees/` та інвентарний файл-опис поруч із worktree
+
+**Мета:** закріпити, де зберігаються worktree (`<project-root>/.worktrees/<branch>/`), де лежить їх опис (`<project-root>/.worktrees/<branch>.md` — **поруч**, не всередині checkout), і як агент дізнається про це з D2-блоку в `SKILL.md`. Ніяких `.git/info/exclude`-хаків — весь `.worktrees/` просто gitignored.
+
+**Files:**
+
+- Modify: `npm/scripts/lib/worktree-notice.mjs` (оновити `NOTICE_BODY` — нова конвенція `.worktrees/<branch>.md`)
+- Modify: `npm/scripts/lib/tests/worktree-notice.test.mjs` (оновити перевірку тексту блоку)
+- Create: `.cursor/rules/n-worktrees.mdc` (правило-конвенція worktree)
+- Modify: `.gitignore` (додати `.worktrees/`)
+- Modify: `CLAUDE.md` (додати `@.cursor/rules/n-worktrees.mdc`)
+- Modify: `.cursor/rules/scripts.mdc` (оновити секцію — `<branch>.md` поруч, а не `.n-worktree.md` всередині)
+
+> **Примітка для виконавця:** `.gitignore`, `CLAUDE.md` і `n-worktrees.mdc` вже додані до `main` попередньою задачею підготовки worktree. Тут потрібно лише перевірити їх наявність і оновити `worktree-notice.mjs` + `scripts.mdc`.
+
+- [ ] **Step 1: Перевірити, що `.worktrees/` у `.gitignore` і `n-worktrees.mdc` існує**
+
+```bash
+grep '\.worktrees/' .gitignore
+ls .cursor/rules/n-worktrees.mdc
+```
+
+Expected: рядок `.worktrees/` у `.gitignore`; файл `n-worktrees.mdc` існує.
+
+- [ ] **Step 2: Оновити тест під новий текст блоку**
+
+У `npm/scripts/lib/tests/worktree-notice.test.mjs` у кейсі `'worktree=true → вставляє блок після frontmatter, перед H1'` замінити або додати `expect`:
+
+```js
+    expect(out).toContain('.worktrees/')
+    expect(out).toContain('<branch>.md')
+```
+
+І в кейсі `'зміна тексту всередині маркерів не ламає ре-синк'` замінити `expect(resynced).toContain('один інстанс за раз')` на:
+
+```js
+    expect(resynced).toContain('.worktrees/')
+```
+
+- [ ] **Step 3: Запустити — переконатися, що падає**
+
+Run: `cd npm && npx vitest run scripts/lib/tests/worktree-notice.test.mjs`
+Expected: FAIL — `NOTICE_BODY` ще не містить `.worktrees/`.
+
+- [ ] **Step 4: Замінити `NOTICE_BODY` у `worktree-notice.mjs`**
+
+```js
+const NOTICE_BODY = [
+  '> **Worktree:** виконуй цей скіл в окремому git-worktree; **не** запускай паралельно — один інстанс за раз.',
+  '>',
+  '> Як створити:',
+  '> ```bash',
+  '> git worktree add .worktrees/<branch> -b <branch>',
+  '> ```',
+  '> Одразу після створення поклади файл-опис `.worktrees/<branch>.md` **поруч** із worktree',
+  '> (не всередині checkout). Формат: заголовок, задача, дата, база-коміт, 1–2 речення навіщо,',
+  '> рядок «Прибрати: `git worktree remove .worktrees/<branch> && rm .worktrees/<branch>.md`».',
+  '> Директорія `.worktrees/` у `.gitignore` — файл-опис не потрапляє в git-історію.',
+  '> Інвентаризація: `cat .worktrees/*.md`'
+].join('\n')
+```
+
+> `join('\n')` зберігає одну стрічку — `buildBlock()` і `BLOCK_RE` не змінюються, ідемпотентність збережена.
+
+- [ ] **Step 5: Запустити — переконатися, що проходить**
+
+Run: `cd npm && npx vitest run scripts/lib/tests/worktree-notice.test.mjs`
+Expected: PASS.
+
+- [ ] **Step 6: Оновити секцію про worktree у `scripts.mdc`**
+
+У секції про скіли (та сама, що оновлюється в Task 8 Step 1) замінити/додати речення про worktree-опис:
+
+```
+Скіл із `worktree:true` під час виконання створює git-worktree у `.worktrees/<branch>/` і відразу кладе поруч файл-опис `.worktrees/<branch>.md` — заголовок, задача, дата, база-коміт, навіщо, як прибрати. Файл поруч (не всередині checkout), тому автоматично gitignored через `.worktrees/` у `.gitignore`. Інвентаризація: `cat .worktrees/*.md`.
+```
+
+- [ ] **Step 7: Перевірити повний синк-приклад**
+
+```bash
+cd /tmp && rm -rf nctest9 && mkdir nctest9 && cd nctest9 && git init -q
+printf '{"$schema":"https://unpkg.com/@nitra/cursor/schemas/n-cursor.json","rules":["bun"],"skills":["fix"]}' > .n-cursor.json
+node /Users/vitaliytv/www/nitra/cursor/npm/bin/n-cursor.js >/tmp/nc9.log 2>&1 || true
+grep -c '\.worktrees/' .cursor/skills/n-fix/SKILL.md
+cd /Users/vitaliytv/www/nitra/cursor
+```
+
+Expected: `grep -c` → `1` (нова інструкція потрапила в синкнутий `SKILL.md` для `fix`).
+
+- [ ] **Step 8: Коміт**
+
+```bash
+git add npm/scripts/lib/worktree-notice.mjs npm/scripts/lib/tests/worktree-notice.test.mjs \
+        .cursor/rules/scripts.mdc .cursor/rules/n-worktrees.mdc .gitignore CLAUDE.md
+git commit -m "feat(worktree-notice): конвенція .worktrees/<branch>.md поруч із worktree
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+> Change-файл: якщо Task 8 ще не закрив його — один change-файл на всю фічу. Якщо вже закрив — онови через `npx @nitra/cursor change --bump minor --section Changed --message "..."`.
+
+---
+
 ## Self-Review (виконано автором плану)
 
 **Spec coverage:**
@@ -894,6 +997,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - JSON-схема + check → Task 6 + Task 7. ✅
 - міграція 9 скілів з точними значеннями → Task 3 (звірено з реальними auto.md). ✅
 - docs (scripts.mdc, README) + change-файл → Task 8. ✅
+- конвенція `.worktrees/` + `<branch>.md` поруч (gitignored, не `.git/info/exclude`) → Task 9. ✅
 - Out of scope (rules, lint split, рантайм) — не торкаємось. ✅
 
 **Placeholder scan:** немає TBD/«handle edge cases» без коду; усі кроки з кодом мають повний код.

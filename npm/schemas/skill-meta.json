@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.json",
+  "title": "n-cursor skill meta",
+  "description": "Метадані скіла @nitra/cursor: умова автоактивації (auto) і чи виконувати в окремому git-worktree (worktree). Файл npm/skills/<id>/meta.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["worktree"],
+  "properties": {
+    "auto": {
+      "description": "Умова автоактивації: \"завжди\" або непорожній масив id правил, від яких залежить скіл.",
+      "oneOf": [
+        { "const": "завжди" },
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+      ]
+    },
+    "worktree": {
+      "type": "boolean",
+      "description": "true — виконувати скіл в окремому git-worktree, один інстанс за раз (без паралельного запуску); false — у worktree не виконується."
+    }
+  }
+}

@@ -25,6 +25,11 @@
       "description": "TypeScript config для pi extension templates, які Schema Store не матчить через вкладений/прихований шлях",
       "url": "https://json.schemastore.org/tsconfig.json",
       "fileMatch": [".pi/extensions/*/tsconfig.json", "npm/.pi-template/extensions/*/tsconfig.json"]
+    },
+    {
+      "name": "n-cursor skill meta",
+      "fileMatch": ["npm/skills/*/meta.json"],
+      "url": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.json"
     }
   ]
 }
