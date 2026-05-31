@@ -1,0 +1,22 @@
+npm/scripts/auto-rules.mjs
+  s_7196fedc140418::t_7c940e6dc5a6e4 262-264,266,284-287
+  s_7196fedc140418::t_e137a6bc66deb8 18,32
+  s_7196fedc140418::t_104f12b331e529 20-21,23,31,33-45,48-50,52-66,71,73-78,80-84,179-180,187,194-196,207-210,217,226,245-248,261,267-283,288-296,322-351,359,361,373,377-379,383
+  s_7196fedc140418::t_fb30fa52c275ec 265
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "d1f576002a2ecab09e40f258941d5145014bc737",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": null
+    }
+  }
+}
