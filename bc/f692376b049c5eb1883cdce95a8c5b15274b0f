@@ -1,0 +1,33 @@
+docs/adr/20260531-211600-auto-md-міграція-на-meta-json.md
+  s_c48b54c1ec8b89::t_f2d49167a62125 1,4,7-8,12,15-16,20-27
+docs/adr/20260531-211500-withlock-крос-worktree-серіалізація.md
+  s_c48b54c1ec8b89::t_c3898353941650 1,4,7,11,14-15,19-24
+docs/superpowers/specs/2026-05-31-meta-json-skill-worktree-design.md
+  s_69f7eba4e20530::t_659a06e87bfa3f 1-23,25-97,109-171
+  s_69f7eba4e20530::t_f03b778cbfa701 24
+  s_69f7eba4e20530::t_d0ba26ed26e6ce 98-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "bcf692376b049c5eb1883cdce95a8c5b15274b0f",
+  "prompts": {},
+  "sessions": {
+    "s_69f7eba4e20530": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0af317d1-9ebb-44f3-b2bc-6d46a5984e38",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c48b54c1ec8b89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c97697c9-8629-4242-8568-3b269a59addc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
