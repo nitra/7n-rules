@@ -17,7 +17,7 @@
 
 ```json
 {
-  "auto": "завжди",
+  "auto": "always",
   "worktree": false
 }
 ```
@@ -32,24 +32,24 @@
 ```
 
 **Поля:**
-- `auto` — `"завжди"` (рядок) або масив рядків `["rule1", "rule2"]` (мінімум 1 елемент); відповідає колишньому `auto.md`
-- `worktree` — boolean; `true` = скіл виконується в git-worktree, один інстанс за раз
+- `auto` — `"always"` (рядок) або масив рядків-ідентифікаторів правил `["rule1", "rule2"]` (мінімум 1 елемент); відповідає колишньому `auto.md`. `false` або відсутність поля — скіл ніколи не авто-активується.
+- `worktree` — boolean; `true` = скіл виконується в git-worktree, один інстанс за раз.
 
 `meta.json` **не копіюється** в проєкт (як `auto.md` зараз).
 
-**Значення по скілах:**
+**Значення по скілах (узгоджені):**
 
-| Скіл | `auto` | `worktree` |
-|---|---|---|
-| `fix` | `"завжди"` | `true` |
-| `lint` | `"завжди"` | `true` |
-| `llm-patch` | `"завжди"` | `false` |
-| `publish-telegram` | `"завжди"` | `false` |
-| `adr-normalize` | `["adr"]` | `true` |
-| `taze` | `["bun"]` | `true` |
-| `start-check` | `["bun"]` | `false` |
-| `coverage-fix` | `["js-lint"]` | `true` |
-| `fix-tests` | `["js-lint"]` | `true` |
+| Скіл | `auto` | `worktree` | Обґрунтування worktree |
+|------|--------|:---:|------|
+| `fix` | `"always"` | `true` | Мутує структуру репо; ізоляція на гілку |
+| `lint` | `"always"` | `false` | Реактивний: перевіряє незакомічені зміни поточного checkout |
+| `llm-patch` | `"always"` | `false` | Read-only; worktree — зайвий overhead |
+| `publish-telegram` | `"always"` | `false` | Read-only |
+| `adr-normalize` | `["adr"]` | `true` | Мутує `docs/adr/`; зручний diff |
+| `taze` | `["bun"]` | `true` | Мутує deps+код; worktree дає чисте дерево |
+| `start-check` | `"always"` | `false` | Конфлікт портів при worktree |
+| `coverage-fix` | `"always"` | `true` | Пише тести; ізоляція |
+| `fix-tests` | `"always"` | `true` | Пише тести; ізоляція |
 
 ### 2. Ін'єкція worktree-блоку в `SKILL.md` під час sync (D2)
 
@@ -99,8 +99,9 @@ const auto = meta.auto
   "properties": {
     "auto": {
       "oneOf": [
-        { "const": "завжди" },
-        { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        { "const": "always" },
+        { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        { "const": false }
       ]
     },
     "worktree": { "type": "boolean" }
@@ -108,7 +109,7 @@ const auto = meta.auto
 }
 ```
 
-**Поведінка check-правила (npm-module або окремий `check-skill-meta.mjs`):**
+**Поведінка check-правила** (розширення наявного `npm/rules/npm-module/js/package_structure.mjs`):**
 
 | Стан | Результат |
 |---|---|
@@ -121,7 +122,7 @@ const auto = meta.auto
 ## Тестування
 
 - `auto-skills.test.mjs` — оновити/додати кейси для `meta.json`-парсера і fallback на `auto.md`
-- Новий `check-skill-meta.test.mjs` або тести в `integration-repo-checks.test.mjs` — валідація схеми й варнінги
+- `npm/rules/npm-module/js/tests/package_structure.test.mjs` — новий кейс: `meta.json` валідний/невалідний, `auto.md` → warn
 - Unit-тест `injectWorktreeBlock` (ін'єкція/видалення блоку в `SKILL.md`)
 
 ## ADR
