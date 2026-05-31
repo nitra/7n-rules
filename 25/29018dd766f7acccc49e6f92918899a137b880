@@ -1,0 +1,19 @@
+docs/ci4/README.md
+  s_d5a5fa204cd7bf::t_dcec495ae1fdcf 69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "2529018dd766f7acccc49e6f92918899a137b880",
+  "prompts": {},
+  "sessions": {
+    "s_d5a5fa204cd7bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23e553b6-6bb0-45e4-bb88-629bade3d8f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
