@@ -32,3 +32,11 @@ Detection-scope `<jsRoot>/src/**/*.vue` повторює Stryker mutate-defaults
 ## Зачіпає
 
 `npm/rules/test/js/stryker_config.mjs`, `npm/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs`, `npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs`, `npm/rules/test/js/tests/stryker_config.test.mjs`, `npm/rules/test/js/tests/stryker-vue-macros-ignorer.test.mjs`, `npm/rules/test/test.mdc`, `.cursor/rules/n-test.mdc`, `npm/package.json`, `npm/CHANGELOG.md`.
+
+## Update 2026-05-29
+
+### Реалізація без `@stryker-mutator/api`
+
+`plugin-loader.js:97` читає `module.strykerPlugins` через duck-typing — `declareValuePlugin` не потрібен. Підтвердження: `angular-ignorer.js` у `@stryker-mutator/instrumenter` використовує аналогічний plain-object підхід.
+
+`@stryker-mutator/api` до whitelist `bun.mdc` не додано.

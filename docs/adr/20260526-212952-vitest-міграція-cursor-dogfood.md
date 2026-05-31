@@ -38,3 +38,24 @@ Chosen option: "(A) Повна міграція cursor на vitest", because 328
 - `npm/rules/vue/vue.mdc` — version 1.9 → 2.0, секція «Тестування» (суперечливий рядок `vue.mdc:107` прибрано)
 - Команда верифікації: `bunx eslint --no-warn-ignored npm/`
 - Коміт-тригер: 328b89c `feat(npm/1.27.0): migrate canonical Stryker baseline to vitest-runner + perTest`
+
+## Update 2026-05-28
+
+### Деталі міграції 100 тест-файлів cursor/npm
+
+- `npm/package.json`: `scripts.test` → `vitest run`; devDeps: `vitest ^4.1.7`, `@vitest/coverage-v8 ^4.1.7`, `@stryker-mutator/vitest-runner ^9.6.1`.
+- 100 тест-файлів: `import … from 'bun:test'` → `import … from 'vitest'`; 5 файлів: `mock(fn)` → `vi.fn(fn)`.
+- Bun API: `Bun.file().text()` → `readFile()`, `Bun.spawn` → `spawnSync`, `import.meta.dir` → `dirname(fileURLToPath(import.meta.url))`.
+- `npm/stryker.config.mjs`: `testRunner: 'command'` → `testRunner: 'vitest'`, `coverageAnalysis: 'perTest'`, `incremental: true`.
+
+### Виключення Stryker sandbox з vitest config
+
+`npm/vitest.config.js` і canonical baseline отримали `exclude: ['**/reports/stryker/**', '**/node_modules/**', '**/.git/**']` — sandbox-копії більше не підбираються vitest. Bump `1.29.0 → 1.29.1`.
+
+### js-lint coverage: workspace-fallback до кореневого package.json
+
+`detect()` у `coverage.mjs` перевіряє `package.json` у `path.resolve(cwd, '..')` якщо `vitest` відсутній у workspace-`package.json`. Причина: `npm-module.mdc` забороняє devDeps у опублікованому workspace.
+
+### vue.mdc: vitest замість bun test
+
+Секція «Тестування» переписана: `vitest + happy-dom`; `version: '1.9'` → `version: '2.0'`. Усунуто суперечність із `test.mdc` v2.4.

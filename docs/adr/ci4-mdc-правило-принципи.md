@@ -35,3 +35,17 @@
 ## Update 2026-05-11
 
 До `npm/mdc/ci4.mdc` та `.cursor/rules/n-ci4.mdc` після секції «Markdown як джерело істини» додано шість нових секцій з AI-native принципами документації: **Специфікація як джерело істини (Spec-as-Source)**, **Тест на повне відтворення (Rebuild Test)**, **Ефективність токенів і чистий Markdown**, **Контекстна незалежність розділів**, **Docs-as-Code** та **Трасування як документація недетермінованої поведінки**. Обидва файли синхронізовано. Принципи пояснюють *чому* C4-у-Markdown є джерелом істини і дозволяють LLM-агенту застосовувати правило коректно навіть у нетипових ситуаціях.
+
+## Update 2026-05-29
+
+### Заміна MkDocs Material на Zed + marksman LSP
+
+`n-ci4.mdc` оновлено: MkDocs Material із pymdownx (`??? engineer`, `=== "tab"`) замінено на Zed built-in MD-preview + `marksman` LSP.
+
+Допустимий portable subset: CommonMark + GFM + Mermaid (fenced) + KaTeX + `<details>/<summary>`.
+
+Заборонені: pymdownx (`!!! note`, `??? engineer`, `=== "tab"`), VitePress `::: tip`, MDX, Hugo shortcodes, AsciiDoc admonitions.
+
+`<summary>`-конвенція: перше слово — аудиторія з фіксованого словника `Engineer:` / `Ops:` / `Security:` / `Manager:`.
+
+Валідатор: 4 нові перевірки (тип collapsible-блоку, порожні рядки, заборонені синтаксиси, marksman-посилання). `@nitra/cursor` `1.29.1 → 1.30.0`.
