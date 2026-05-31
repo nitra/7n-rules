@@ -1,0 +1,23 @@
+docs/specs/2026-05-31-n-cursor-lifecycle-composition-design.md
+  s_d5a5fa204cd7bf::t_d195adfb02fe7e 351
+  s_d5a5fa204cd7bf::t_8a08cd2394cab9 18,20-21
+  s_d5a5fa204cd7bf::t_dccb3a839c4941 167-176
+  s_d5a5fa204cd7bf::t_0f8b6e699ecd87 97
+  s_d5a5fa204cd7bf::t_eb43d78ad6c01d 177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ecb0459fb1b040fdc01c8f257e779adcb2eb5d08",
+  "prompts": {},
+  "sessions": {
+    "s_d5a5fa204cd7bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23e553b6-6bb0-45e4-bb88-629bade3d8f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
