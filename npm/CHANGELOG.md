@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.38.0] - 2026-05-31
+
+### Added
+
+- worktree: кросплатформний CLI n-cursor worktree (add/remove/list/prune) — виконавець конвенції .worktrees/ з інвентарним файлом-описом; тонкий skill worktree; pure-doc правило worktree
+
 ## [1.37.0] - 2026-05-31
 
 ### Changed
