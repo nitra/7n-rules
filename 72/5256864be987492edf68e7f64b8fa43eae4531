@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-05-31-rule-meta-json-design.md
+  s_7196fedc140418::t_e149d20257a51b 1-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "725256864be987492edf68e7f64b8fa43eae4531",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
