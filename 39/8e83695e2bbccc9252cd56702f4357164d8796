@@ -1,0 +1,20 @@
+docs/superpowers/specs/2026-05-31-worktree-cli-design.md
+  s_7196fedc140418::t_f92a25aa9f9dbc 104,106-116
+  s_7196fedc140418::t_0dbee77729483c 80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "398e83695e2bbccc9252cd56702f4357164d8796",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
