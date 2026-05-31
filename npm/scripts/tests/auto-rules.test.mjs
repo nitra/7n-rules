@@ -41,6 +41,7 @@ const ALL_RULES = [
   'rust',
   'security',
   'style-lint',
+  'tauri',
   'test',
   'text',
   'vue'
@@ -376,6 +377,18 @@ describe('detectAutoRules', () => {
       const actual = await detectAutoRulesInCwd(dir)
 
       expect(actual.rules.includes('rust')).toBe(false)
+    })
+  })
+
+  test('tauri детектиться за @tauri-apps/api у dependencies', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app', dependencies: { '@tauri-apps/api': '^2' } })
+      const { rules } = await detectAutoRules({
+        root: dir,
+        availableRules: ALL_RULES,
+        packageJsonParsed: { name: 'app', dependencies: { '@tauri-apps/api': '^2' } }
+      })
+      expect(rules).toContain('tauri')
     })
   })
 })

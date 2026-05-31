@@ -11,7 +11,7 @@ version: '1.11'
 ```
 npm/rules/{rule}/
 ├── {rule}.mdc                              ← текст правила (frontmatter + body)
-├── auto.md                                 ← умова автоактивації (опційно)
+├── meta.json                              ← метадані правила: auto (умова автоактивації)
 ├── fix.mjs                                 ← entry-point правила (wrapper навколо runStandardRule)
 ├── js/                                     ← JS-частина (опційно)
 │   ├── <concern>.mjs                       ← FS / cross-file / autofix перевірка концерну
@@ -32,6 +32,8 @@ npm/rules/{rule}/
 ```
 
 Іменування директорії правила — **kebab-case** (як id в `.n-cursor.json:rules`). Імена концернів — **snake_case**, помічники — **kebab-case** з префіксом rule/concern (`docker-mirror.mjs`, `vue-forbidden-imports.mjs`).
+
+Автоактивація правила — поле `auto` у `npm/rules/<id>/meta.json`: `"завжди"` | масив id правил-залежностей | `{glob}` (наявність файлів) | `{predicate, arg}` (незводимий предикат із реєстру `npm/scripts/lib/rule-predicates.mjs`). Інтерпретатор — `npm/scripts/auto-rules.mjs`; валідація — концерн `npm-module/js/rule_meta.mjs`.
 
 **Discovery** (`listJsConcerns` у `npm/scripts/utils/discover-checkable-rules.mjs`): сканує `js/`, повертає файли `*.mjs` без `.test.mjs`. Підкаталоги (`tests/`, `templates/`, `data/`) скіпаються через `!entry.isFile()`. Каталог `utils/` discovery не бачить — він peer до `js/`.
 
