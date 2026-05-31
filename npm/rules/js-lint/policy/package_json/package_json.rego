@@ -2,11 +2,13 @@
 #
 # Канон надходить через --data: { "template": { "snippet": ... } }
 # Структура --data сформована з template/package.json.snippet.json
-# (canonical `type` + `scripts.lint-js`).
+# (canonical `type` + `scripts.lint-js` + `devDependencies.@nitra/eslint-config` як мін-поріг).
 #
-# Логіка, що ЛИШАЄТЬСЯ у rego (inverse, не виноситься у template):
-#  - `engines.node` >= 24, `engines.bun` >= 1.3 (semver range parsing);
-#  - `@nitra/eslint-config` >= 3.9.2 (semver range parsing).
+# Мінімальна версія `@nitra/eslint-config` — ЄДИНЕ джерело в snippet
+# (`devDependencies.@nitra/eslint-config`); rego лише парсить поріг і робить semver-порівняння.
+#
+# Логіка, що ЛИШАЄТЬСЯ у rego (inverse, без template-значення):
+#  - `engines.node` >= 24, `engines.bun` >= 1.3 (semver range parsing).
 package js_lint.package_json
 
 import rego.v1
@@ -44,7 +46,7 @@ deny contains msg if {
 	msg := "package.json: engines.bun має бути >= 1.3 (js-lint.mdc)"
 }
 
-# ── deny: @nitra/eslint-config >= 3.9.2 (inverse) ───────────────────────
+# ── deny: @nitra/eslint-config >= snippet-поріг ─────────────────────────
 
 deny contains msg if {
 	dev := object.get(input, "devDependencies", {})
@@ -56,10 +58,16 @@ deny contains msg if {
 	range := object.get(object.get(input, "devDependencies", {}), "@nitra/eslint-config", "")
 	range != ""
 	not eslint_config_meets_min(range)
-	msg := sprintf("package.json: @nitra/eslint-config має бути >= 3.9.2 (зараз %q) (js-lint.mdc)", [range])
+	msg := sprintf("package.json: @nitra/eslint-config має бути >= %s (зараз %q) (js-lint.mdc)", [eslint_min_display, range])
 }
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
+# Канонічний мін-поріг `@nitra/eslint-config` із snippet (напр. "^3.10.0").
+eslint_min_range := object.get(object.get(data.template.snippet, "devDependencies", {}), "@nitra/eslint-config", "")
+
+# Поріг для повідомлення без діапазонних префіксів (напр. "3.10.0").
+eslint_min_display := trim_left(eslint_min_range, "^~>=v ")
 
 normalize_script(s) := regex.replace(trim_space(s), `\s+`, " ")
 
@@ -84,24 +92,25 @@ engines_bun_meets(spec) if {
 eslint_config_meets_min(range) if startswith(trim_space(range), "workspace:")
 
 eslint_config_meets_min(range) if {
-	parts := split_to_numbers(range)
-	count(parts) >= 3
-	parts[0] > 3
+	actual := split_to_numbers(range)
+	count(actual) >= 3
+	min_parts := split_to_numbers(eslint_min_range)
+	count(min_parts) >= 3
+	semver_gte(actual, min_parts)
 }
 
-eslint_config_meets_min(range) if {
-	parts := split_to_numbers(range)
-	count(parts) >= 3
-	parts[0] == 3
-	parts[1] > 9
+# actual >= min_parts за major.minor.patch (лексикографічно).
+semver_gte(a, b) if a[0] > b[0]
+
+semver_gte(a, b) if {
+	a[0] == b[0]
+	a[1] > b[1]
 }
 
-eslint_config_meets_min(range) if {
-	parts := split_to_numbers(range)
-	count(parts) >= 3
-	parts[0] == 3
-	parts[1] == 9
-	parts[2] >= 2
+semver_gte(a, b) if {
+	a[0] == b[0]
+	a[1] == b[1]
+	a[2] >= b[2]
 }
 
 first_major(spec) := major if {

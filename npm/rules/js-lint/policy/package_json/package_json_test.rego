@@ -8,13 +8,14 @@ canonical_lint_js := "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . &
 template_data := {"snippet": {
 	"type": "module",
 	"scripts": {"lint-js": canonical_lint_js},
+	"devDependencies": {"@nitra/eslint-config": "^3.10.0"},
 }}
 
 valid_pkg := {
 	"type": "module",
 	"scripts": {"lint-js": canonical_lint_js},
 	"engines": {"node": ">=24", "bun": ">=1.3"},
-	"devDependencies": {"@nitra/eslint-config": "^3.9.2"},
+	"devDependencies": {"@nitra/eslint-config": "^3.10.0"},
 }
 
 test_allow_canonical if {
@@ -42,8 +43,16 @@ test_deny_node_too_old if {
 }
 
 test_deny_eslint_config_too_old if {
-	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/devDependencies/@nitra~1eslint-config", "value": "^3.5.0"}])
+	bad := json.patch(valid_pkg, [{"op": "replace", "path": "/devDependencies/@nitra~1eslint-config", "value": "^3.9.9"}])
 	count(package_json.deny) > 0 with input as bad with data.template as template_data
+}
+
+# Поріг керується snippet: підняли канон у template → раніше валідна версія стає застарілою,
+# а повідомлення містить новий поріг.
+test_eslint_floor_driven_by_snippet if {
+	bumped := json.patch(template_data, [{"op": "replace", "path": "/snippet/devDependencies/@nitra~1eslint-config", "value": "^4.0.0"}])
+	some msg in package_json.deny with input as valid_pkg with data.template as bumped
+	contains(msg, "4.0.0")
 }
 
 # Drift test.

@@ -38,6 +38,7 @@
     "llm-patch",
     "publish-telegram",
     "start-check",
-    "taze"
+    "taze",
+    "worktree"
   ]
 }

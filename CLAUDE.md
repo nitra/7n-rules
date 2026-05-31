@@ -51,3 +51,5 @@
   Команда: `/n-start-check`
 - `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
   Команда: `/n-taze`
+- `.cursor/skills/n-worktree/SKILL.md` — Створення та керування git-worktree через n-cursor worktree CLI: ізольований workspace у .worktrees/<branch>/ з інвентарним файлом-описом
+  Команда: `/n-worktree`

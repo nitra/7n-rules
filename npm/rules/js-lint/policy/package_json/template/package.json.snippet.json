@@ -2,5 +2,8 @@
   "type": "module",
   "scripts": {
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints"
+  },
+  "devDependencies": {
+    "@nitra/eslint-config": "^3.10.0"
   }
 }

@@ -40,6 +40,7 @@ The primary development rules are stored in the Cursor rules directory:
 - `.cursor/skills/n-publish-telegram/SKILL.md` — Підготовка матеріалу з поточного контексту для публікації в Telegram-каналі команди
 - `.cursor/skills/n-start-check/SKILL.md` — Smoke-перевірка bun-монорепо: зайти в кожен воркспейс зі `start`-скриптом, прогнати `start` і зафіксувати, чи проєкт взагалі запускається без негайного краху
 - `.cursor/skills/n-taze/SKILL.md` — Оновлення версій модулів проекту з аналізом major-змін і автоматичним рефакторингом несумісного коду
+- `.cursor/skills/n-worktree/SKILL.md` — Створення та керування git-worktree через n-cursor worktree CLI: ізольований workspace у .worktrees/<branch>/ з інвентарним файлом-описом
 
 ## Commands
 

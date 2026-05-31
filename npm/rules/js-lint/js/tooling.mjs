@@ -213,7 +213,7 @@ async function checkEslintConfig(passFn, failFn, cwd) {
 }
 
 // Перевірки `prettier` / `@nitra/prettier-config` у залежностях (text.mdc) і
-// `@nitra/eslint-config ≥ 3.9.2` тепер у Rego: відповідно
+// `@nitra/eslint-config ≥ 3.10.0` тепер у Rego: відповідно
 // `npm/policy/text/package_json/` і `npm/policy/js_lint/package_json/`. Тут
 // лишилася лише workspace-ітерація для `type: "module"` і engines, бо js_lint
 // Rego запускається лише на кореневому `package.json`.
