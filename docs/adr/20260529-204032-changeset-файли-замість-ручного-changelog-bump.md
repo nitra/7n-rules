@@ -1,0 +1,40 @@
+# Changeset-файли замість ручного bump версії: власний генератор у `n-cursor`
+
+**Status:** Accepted
+**Date:** 2026-05-29
+
+## Context and Problem Statement
+
+У bun-монорепо `@nitra/cursor` кожен PR зобов'язаний вручну підняти `version` у `package.json` і дописати секцію в `CHANGELOG.md`. Якщо два розробники (або субагенти у різних worktree) виконують цей крок одночасно від однієї бази `main` — гарантований git-конфлікт у цих двох файлах, оскільки обидва редагують ті самі рядки.
+
+## Considered Options
+
+- Власний мінімальний флоу «всередині n-cursor» — нові subcommands `n-cursor change` / `n-cursor release`, файли `<workspace>/.changes/*.md`
+- `@changesets/cli` з коробки
+- Conventional Commits + `release-please`
+
+## Decision Outcome
+
+Chosen option: "Власний мінімальний флоу «всередині n-cursor»", because він не тягне нових npm-залежностей, узгоджується з поточним стилем CLI (`n-cursor fix`, `n-cursor check`), і при переході до споживачів пакету — команда вже «всередині інструменту». `@changesets/cli` вимагає конфігурації і дублює наявний publish-крок; `release-please` вимагає зміни workflow команди (Conventional Commits) і найбільшого setup.
+
+### Consequences
+
+- Good, because конфлікт у `package.json` і `CHANGELOG.md` зникає by design — два розробники пишуть різні файли у `<workspace>/.changes/`.
+- Good, because нові команди `n-cursor change` та `n-cursor release` природньо вписуються в наявний CLI (`n-cursor fix`, `n-cursor check`).
+- Bad, because `parseChangelog.mjs` потребує розширення для режиму запису (зараз лише читає); перехідний період вимагає одночасної міграції всієї команди.
+
+## More Information
+
+**Формат change-файлу** (`<workspace>/.changes/<timestamp>-<branch-slug>.md`): рядок 1 — `patch` | `minor` | `major` | `none`; рядки 2+ — рядки опису (кожен непорожній рядок — окремий пункт у CHANGELOG). Правило злиття рівнів: `major` > `minor` > `patch` — береться максимум при кількох файлах. Ім'я файлу `<timestamp>-<branch-slug>.md` гарантує унікальність між worktree-агентами.
+
+**CI-патерн (Патерн A — у наявному `npm-publish.yml`)**: мінімальна зміна — `permissions.contents: write` і два нових кроки перед publish: `npx @nitra/cursor release` та `git add npm/package.json npm/CHANGELOG.md .changes/ && git commit -m "chore: release [skip ci]" && git push`. `GITHUB_TOKEN`-коміти не тригерять workflow повторно. Коли `.changes/<ws>/` порожній — `git diff --cached --quiet` = true → коміт і publish не відбуваються.
+
+Специфікація: `docs/superpowers/specs/2026-05-29-changesets-migration.md`. Нові файли: `npm/scripts/release.mjs`, `.changes/npm/`, `.changes/rego/`. Зміни: `npm/rules/changelog/js/consistency.mjs`, `.cursor/rules/n-changelog.mdc`, `.github/workflows/npm-publish.yml`.
+
+## Update 2026-05-29
+
+Під час дизайн-сесії розглядалися три рівні рішень перед вибором changeset-підходу:
+
+- **Рівень 1 — `merge=union` у `.gitattributes`**: git автоматично склеює нові секції CHANGELOG, але не вирішує конфлікт `version` у `package.json`. Відхилено як недостатній.
+- **Рівень 2 — заборонити bump у feature-гілках**: усуває конфлікт `package.json`, але `CHANGELOG.md` лишається спільним файлом і вузьким місцем. Відхилено як частковий.
+- **Рівень 3 — changeset-файли (обраний)**: два розробники пишуть різні файли у `<workspace>/.changes/` → конфліктів немає by design.
