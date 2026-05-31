@@ -1,14 +1,17 @@
 /**
- * Автовизначення правил для `.n-cursor.json` за умовами з `npm/rules/<rule>/auto.md`.
+ * Автовизначення правил для `.n-cursor.json` за meta-даними з `npm/rules/<id>/meta.json`.
  *
- * Модуль аналізує дерево проєкту (наявність файлів/директорій, `gql\`...\`` у source,
- * залежності `mssql` / `pg` / `pg-format` / `mysql2` / `ioredis` / `node-redis` у `package.json`,
- * імпорт `sql`/`SQL` з `bun`, кореневий `package.json`, `config.yaml` з рядком
- * `metadata_directory: metadata` для hasura) та повертає ідентифікатори правил, які потрібно автододати.
+ * Основна роль: `discoverRuleAutoActivation` читає `npm/rules/<id>/meta.json`, виводить
+ * `AUTO_RULE_ORDER` (алфавітно) і `AUTO_RULE_DEPENDENCIES` з meta, а потім для кожного правила
+ * обчислює spec активації через `specMatches`: `always` — безумовно; `glob` — перевірка
+ * файлів через `globToRegex`; `predicate` — незводимий предикат із реєстру `RULE_PREDICATES`
+ * (у `lib/rule-predicates.mjs`). Транзитивне розгортання залежностей — `resolveRuleDependencies`.
+ *
+ * `collectAutoRuleFacts` зберігається для content-фактів (GQL, bun-sql, hasura) і власних тестів.
  *
  * Враховує винятки `disable-rules`: елементи зі списку не додаються автоматично.
  *
- * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/auto.md`).
+ * Автодетект скілів — у `./auto-skills.mjs` (умови — у `npm/skills/<skill>/meta.json`).
  * `mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
  * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
@@ -51,6 +54,7 @@ export const AUTO_RULE_ORDER = Object.freeze([
   'rust',
   'security',
   'style-lint',
+  'tauri',
   'test',
   'text',
   'vue'
@@ -497,6 +501,8 @@ export function isMonorepoPackage(packageJson) {
 
 /**
  * Обходить дерево проєкту, збираючи факти для автоувімкнення правил.
+ * Факти зберігаються для споживачів `collectAutoRuleFacts` (зовнішній код, тести); активація
+ * правил у `detectAutoRules` спирається на meta-glob/predicate, а не на ці факти напряму.
  * @param {string} root абсолютний шлях кореня репозиторію
  * @returns {Promise<{
  *   hasCapacitorConfig: boolean,
@@ -623,12 +629,14 @@ export async function detectAutoRules({
     'pg-format',
     'mysql2',
     'ioredis',
-    'node-redis'
+    'node-redis',
+    '@tauri-apps/api'
   ])
   const hasMssqlDependency = depHits.has('mssql')
   const hasJsBunDbSignal =
     depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
   const hasJsBunRedisSignal = depHits.has('ioredis') || depHits.has('node-redis')
+  const hasTauriDependency = depHits.has('@tauri-apps/api')
   const hasNestedNodePackage = await hasNestedPackageJsonWithoutViteDevDependency(root)
 
   /** @type {string[]} */
@@ -666,7 +674,8 @@ export async function detectAutoRules({
     { enabled: composerJsonExists, id: 'php' },
     { enabled: facts.hasRegoFile, id: 'rego' },
     { enabled: facts.hasCargoToml, id: 'rust' },
-    { enabled: facts.hasVueOrCssSource, id: 'style-lint' }
+    { enabled: facts.hasVueOrCssSource, id: 'style-lint' },
+    { enabled: hasTauriDependency, id: 'tauri' }
   ]
   for (const item of autoRuleChecks) {
     if (item.enabled) {
