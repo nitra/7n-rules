@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.37.0] - 2026-05-31
+
+### Changed
+
+- skills: meta.json замість auto.md (+ worktree-прапорець з вшиванням у SKILL.md і забороною паралелі)
+
 ## [1.36.0] - 2026-05-31
 
 ### Added
