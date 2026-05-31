@@ -15,10 +15,12 @@
  * `mergeConfigWithAutoDetected` нижче приймає вже виявлені rules і skills і вливає
  * їх у конфіг із поправкою на legacy-id (`migrateRuleIds`).
  */
-import { existsSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
-import { basename, join, relative } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
+import { globToRegex } from '../rules/npm-module/js/package_structure.mjs'
 import { textHasBunSqlImport } from '../rules/js-bun-db/lib/bun-sql-scan.mjs'
 import {
   isGqlScanSourceFile,
@@ -26,100 +28,64 @@ import {
   sourceFileHasGqlTaggedTemplate
 } from '../rules/graphql/lib/graphql-gql-scan.mjs'
 import { contentForVueImportScan } from '../rules/vue/lib/vue-forbidden-imports.mjs'
+import { parseRuleAutoSpec, readRuleMetaRaw } from './lib/rule-meta.mjs'
+import { migrateRuleIds, normalizeIdList } from './lib/rule-meta-helpers.mjs'
+import { RULE_PREDICATES } from './lib/rule-predicates.mjs'
 
-/** Порядок автододавання правил відповідно до `rules/<rule>/auto.md`. */
-export const AUTO_RULE_ORDER = Object.freeze([
-  'abie',
-  'adr',
-  'bun',
-  'capacitor',
-  'changelog',
-  'docker',
-  'efes',
-  'ga',
-  'graphql',
-  'hasura',
-  'image-avif',
-  'image-compress',
-  'js-lint',
-  'js-mssql',
-  'js-bun-db',
-  'js-bun-redis',
-  'js-run',
-  'k8s',
-  'nginx-default-tpl',
-  'npm-module',
-  'php',
-  'rego',
-  'rust',
-  'security',
-  'style-lint',
-  'tauri',
-  'test',
-  'text',
-  'vue'
-])
+export {
+  detectLegacyRuleIds,
+  getRepositoryUrl,
+  isMonorepoPackage,
+  migrateRuleIds,
+  normalizeIdList,
+  RULE_MIGRATIONS
+} from './lib/rule-meta-helpers.mjs'
+
+const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
- * Карта міграції застарілих rule-id у `.n-cursor.json` на актуальні.
- * Застосовується автоматично при читанні конфігу (як для `rules`, так і для `disable-rules`).
- * Приклад: `image` → `image-compress` + `image-avif` (правило розщеплене у 1.8.197).
+ * Скан `npm/rules/<id>/meta.json` → мапа id → RuleAutoSpec (лише правила з розпізнаним auto).
+ * @param {string} [rulesDir] override для тестів
+ * @returns {Record<string, import('./lib/rule-meta.mjs').RuleAutoSpec>} мапа автоактивації
  */
-export const RULE_MIGRATIONS = Object.freeze(
-  /** @type {Record<string, readonly string[]>} */ ({
-    image: Object.freeze(['image-compress', 'image-avif'])
-  })
-)
-
-/**
- * Розгортає застарілі rule-id у списку згідно з `RULE_MIGRATIONS`. Зберігає порядок,
- * дедуплікує. Чистий хелпер: не мутує вхід, не логує.
- * @param {string[]} ids нормалізований список id (як з `normalizeIdList`)
- * @returns {string[]} список з legacy-id, заміненими на нові; решта без змін
- */
-export function migrateRuleIds(ids) {
-  /** @type {string[]} */
-  const out = []
-  for (const id of ids) {
-    const replacement = Object.hasOwn(RULE_MIGRATIONS, id) ? RULE_MIGRATIONS[id] : [id]
-    for (const newId of replacement) {
-      if (!out.includes(newId)) out.push(newId)
-    }
+export function discoverRuleAutoActivation(rulesDir = RULES_DIR) {
+  /** @type {Record<string, import('./lib/rule-meta.mjs').RuleAutoSpec>} */
+  const out = {}
+  let entries
+  try {
+    entries = readdirSync(rulesDir, { withFileTypes: true })
+  } catch {
+    return out
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+    const raw = readRuleMetaRaw(join(rulesDir, entry.name))
+    if (!raw) continue
+    const spec = parseRuleAutoSpec(raw.auto)
+    if (spec) out[entry.name] = spec
   }
   return out
 }
 
-/**
- * Повертає лише ті legacy rule-id зі списку, для яких є запис у `RULE_MIGRATIONS`.
- * Використовується для людинозрозумілого логування міграції при синхронізації CLI.
- * @param {string[]} ids нормалізований список id
- * @returns {string[]} legacy id, які потребуватимуть заміни у `migrateRuleIds`
- */
-export function detectLegacyRuleIds(ids) {
-  return ids.filter(id => Object.hasOwn(RULE_MIGRATIONS, id))
-}
+const RULE_AUTO_ACTIVATION = discoverRuleAutoActivation()
 
-/**
- * Граф залежностей між правилами (`rules/<rule>/auto.md` синтаксис `rule - [other]`).
- * Ключ варто автододати, коли всі правила-залежності вже додані до конфігу — щоб
- * не дублювати вихідну умову, достатньо описати її у залежності.
- */
-export const AUTO_RULE_DEPENDENCIES = Object.freeze(
-  /** @type {Record<string, readonly string[]>} */ ({
-    changelog: Object.freeze(['bun']),
-    'image-avif': Object.freeze(['vue', 'image-compress']),
-    'image-compress': Object.freeze(['bun'])
-  })
+/** Стабільний алфавітний порядок (замість хардкод-масиву). */
+export const AUTO_RULE_ORDER = Object.freeze(
+  Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b))
 )
 
-const ABIE_REPOSITORY_URL_MARKER = 'https://github.com/abinbevefes/'
-const EFES_REPOSITORY_URL_MARKER = 'https://github.com/efes-cloud/'
+/** Граф залежностей із meta (Type C) — замість хардкод-константи. */
+export const AUTO_RULE_DEPENDENCIES = Object.freeze(
+  Object.fromEntries(
+    Object.entries(RULE_AUTO_ACTIVATION)
+      .filter(([, s]) => 'rules' in s)
+      .map(([id, s]) => [id, Object.freeze(/** @type {{rules:string[]}} */ (s).rules)])
+  )
+)
+
 const HASURA_CONFIG_MARKER = 'metadata_directory: metadata'
-const JS_LIKE_RE = /\.(?:mjs|cjs|js|jsx|ts|tsx)$/iu
 const REGO_RE = /\.rego$/iu
-const STYLE_RE = /\.(?:css|vue)$/iu
-const VUE_RE = /\.vue$/iu
-const NGINX_DEFAULT_FILES = new Set(['default.conf.template', 'default.conf', 'nginx.conf'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
 const DEFAULT_DISABLED_LIST = Object.freeze([])
 
@@ -131,207 +97,6 @@ const DEFAULT_DISABLED_LIST = Object.freeze([])
  */
 function sourceContentHasBunSqlImport(content, relativePath) {
   return textHasBunSqlImport(contentForVueImportScan(content, relativePath))
-}
-
-/**
- * Зчитує `package.json` і додає в `found` усі ключі з `wanted`, що присутні в `dependencies`.
- * @param {string} absPath абсолютний шлях до package.json
- * @param {Set<string>} wanted множина ключів-цілей
- * @param {Set<string>} found буфер знайдених ключів
- * @returns {Promise<void>}
- */
-async function collectFoundDependencyKeysFromPackageJson(absPath, wanted, found) {
-  try {
-    const parsed = JSON.parse(await readFile(absPath, 'utf8'))
-    const deps = parsed?.dependencies
-    if (!deps || typeof deps !== 'object' || Array.isArray(deps)) return
-    for (const key of wanted) {
-      if (Object.hasOwn(deps, key)) {
-        found.add(key)
-      }
-    }
-  } catch {
-    /* ігноруємо пошкоджені/недоступні package.json */
-  }
-}
-
-/**
- * Збирає, які з переданих ключів присутні в `dependencies` хоча б одного `package.json`.
- * @param {string} root абсолютний шлях до кореня репозиторію
- * @param {string[]} dependencyKeys імена залежностей (наприклад `mssql`, `pg`)
- * @returns {Promise<Set<string>>} множина знайдених ключів
- */
-async function collectDependencyKeysPresentInPackageJsonTree(root, dependencyKeys) {
-  const wanted = new Set(dependencyKeys)
-  /** @type {Set<string>} */
-  const found = new Set()
-
-  /**
-   * Обробка одного запису з readdir: рекурсія в підкаталог або зчитування package.json.
-   * @param {import('node:fs').Dirent} entry елемент readdir
-   * @param {string} dir абсолютний шлях каталогу-власника entry
-   * @returns {Promise<void>}
-   */
-  async function processEntry(entry, dir) {
-    const absPath = join(dir, entry.name)
-    if (entry.isDirectory()) {
-      if (!IGNORED_DIR_NAMES.has(entry.name)) {
-        await walk(absPath)
-      }
-      return
-    }
-    if (entry.isFile() && entry.name === 'package.json') {
-      await collectFoundDependencyKeysFromPackageJson(absPath, wanted, found)
-    }
-  }
-
-  /**
-   * Рекурсивний обхід каталогу з пропуском службових директорій.
-   * @param {string} dir абсолютний шлях каталогу
-   * @returns {Promise<void>}
-   */
-  async function walk(dir) {
-    if (found.size === wanted.size) return
-    let entries
-    try {
-      entries = await readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (found.size === wanted.size) return
-      await processEntry(entry, dir)
-    }
-  }
-
-  await walk(root)
-  return found
-}
-
-/**
- * Перевіряє один package.json: повертає true, якщо в `devDependencies` немає `vite`.
- * @param {string} absPath абсолютний шлях до package.json
- * @returns {Promise<boolean>} true, якщо vite відсутній у devDependencies
- */
-async function packageJsonLacksViteDevDependency(absPath) {
-  try {
-    const parsed = JSON.parse(await readFile(absPath, 'utf8'))
-    const devDeps = parsed?.devDependencies
-    if (!devDeps || typeof devDeps !== 'object' || Array.isArray(devDeps)) {
-      return true
-    }
-    return !Object.hasOwn(devDeps, 'vite')
-  } catch {
-    return false
-  }
-}
-
-/**
- * Перевіряє, чи існує хоча б один вкладений `package.json` (не кореневий),
- * у якому в `devDependencies` відсутня залежність `vite`.
- * @param {string} root абсолютний шлях до кореня репозиторію
- * @returns {Promise<boolean>} true, якщо знайдено вкладений package.json без `vite` у devDependencies
- */
-async function hasNestedPackageJsonWithoutViteDevDependency(root) {
-  let result = false
-
-  /**
-   * Рекурсивний обхід каталогу з пропуском службових директорій.
-   * @param {string} dir абсолютний шлях каталогу
-   * @returns {Promise<void>} завершується після обходу всього піддерева або встановлення `result`
-   */
-  async function walk(dir) {
-    if (result) return
-    let entries
-    try {
-      entries = await readdir(dir, { withFileTypes: true })
-    } catch {
-      return
-    }
-    for (const entry of entries) {
-      if (result) return
-      const absPath = join(dir, entry.name)
-      if (entry.isDirectory()) {
-        if (!IGNORED_DIR_NAMES.has(entry.name)) {
-          await walk(absPath)
-        }
-        continue
-      }
-      if (
-        entry.isFile() &&
-        entry.name === 'package.json' &&
-        absPath !== join(root, 'package.json') &&
-        (await packageJsonLacksViteDevDependency(absPath))
-      ) {
-        result = true
-        return
-      }
-    }
-  }
-
-  await walk(root)
-  return result
-}
-
-/**
- * Фіксує ознаки, що залежать лише від імені підкаталогу.
- * @param {string} dirName імʼя каталогу
- * @param {{
- *   hasK8sDir: boolean,
- *   hasTempoDir: boolean
- * }} facts агреговані факти
- * @returns {void}
- */
-function updateDirFacts(dirName, facts) {
-  if (dirName === 'k8s') {
-    facts.hasK8sDir = true
-  }
-  if (dirName === 'tempo') {
-    facts.hasTempoDir = true
-  }
-}
-
-/**
- * Фіксує ознаки, що визначаються за шляхом/іменем файлу.
- * @param {string} fileName базове імʼя файлу
- * @param {string} relPath шлях відносно кореня
- * @param {{
- *   hasCapacitorConfig: boolean,
- *   hasCargoToml: boolean,
- *   hasDockerfile: boolean,
- *   hasJsLikeSource: boolean,
- *   hasNginxDefaultTplFile: boolean,
- *   hasRegoFile: boolean,
- *   hasVueOrCssSource: boolean,
- *   hasVueSource: boolean
- * }} facts агреговані факти
- * @returns {void}
- */
-function updateFileFacts(fileName, relPath, facts) {
-  if (fileName === 'capacitor.config.json') {
-    facts.hasCapacitorConfig = true
-  }
-  if (fileName === 'Cargo.toml') {
-    facts.hasCargoToml = true
-  }
-  if (fileName === 'Dockerfile' || fileName.startsWith('Dockerfile.')) {
-    facts.hasDockerfile = true
-  }
-  if (NGINX_DEFAULT_FILES.has(fileName)) {
-    facts.hasNginxDefaultTplFile = true
-  }
-  if (JS_LIKE_RE.test(relPath)) {
-    facts.hasJsLikeSource = true
-  }
-  if (VUE_RE.test(relPath)) {
-    facts.hasVueSource = true
-  }
-  if (STYLE_RE.test(relPath)) {
-    facts.hasVueOrCssSource = true
-  }
-  if (REGO_RE.test(relPath)) {
-    facts.hasRegoFile = true
-  }
 }
 
 /**
@@ -411,28 +176,24 @@ async function updateHasuraFactFromFile(absPath, fileName, facts) {
 }
 
 /**
- * Обробляє файл під час обходу дерева.
+ * Обробляє файл під час обходу дерева — оновлює content-факти, потрібні предикатам,
+ * та `hasRegoFile` (тримається для прямих читачів `collectAutoRuleFacts`).
  * @param {string} absPath абсолютний шлях до файлу
  * @param {string} root абсолютний шлях кореня
  * @param {{
  *   hasBunSqlImport: boolean,
- *   hasCapacitorConfig: boolean,
- *   hasCargoToml: boolean,
- *   hasDockerfile: boolean,
  *   hasGqlTaggedTemplates: boolean,
  *   hasHasuraConfig: boolean,
- *   hasJsLikeSource: boolean,
- *   hasNginxDefaultTplFile: boolean,
- *   hasRegoFile: boolean,
- *   hasVueOrCssSource: boolean,
- *   hasVueSource: boolean
+ *   hasRegoFile: boolean
  * }} facts агреговані факти
  * @returns {Promise<void>}
  */
 async function processFileEntry(absPath, root, facts) {
   const rel = relative(root, absPath).split('\\').join('/')
   const fileName = basename(absPath)
-  updateFileFacts(fileName, rel, facts)
+  if (REGO_RE.test(rel)) {
+    facts.hasRegoFile = true
+  }
   if (shouldScanFileForGql(rel, facts)) {
     await updateGqlFactFromFile(absPath, rel, facts)
   }
@@ -443,100 +204,26 @@ async function processFileEntry(absPath, root, facts) {
 }
 
 /**
- * Нормалізує список ідентифікаторів (trim + lowercase + унікальність збереженням порядку).
- * @param {unknown} value вихідне значення з `.n-cursor.json`
- * @returns {string[]} масив id у нормалізованому вигляді
- */
-export function normalizeIdList(value) {
-  if (!Array.isArray(value)) {
-    return []
-  }
-  const out = []
-  for (const item of value) {
-    const normalized = String(item).trim().toLowerCase()
-    if (normalized && !out.includes(normalized)) {
-      out.push(normalized)
-    }
-  }
-  return out
-}
-
-/**
- * Повертає URL репозиторію з package.json (`repository` може бути рядком або обʼєктом).
- * @param {unknown} repository значення `packageJson.repository`
- * @returns {string | null} URL або null
- */
-export function getRepositoryUrl(repository) {
-  if (typeof repository === 'string') {
-    return repository
-  }
-  if (repository && typeof repository === 'object' && !Array.isArray(repository)) {
-    const url = /** @type {Record<string, unknown>} */ (repository).url
-    if (typeof url === 'string') {
-      return url
-    }
-  }
-  return null
-}
-
-/**
- * Чи package.json виглядає як монорепо (поле `workspaces`).
- * @param {unknown} packageJson кореневий package.json як JS-обʼєкт
- * @returns {boolean} true, якщо оголошено workspaces
- */
-export function isMonorepoPackage(packageJson) {
-  if (packageJson === null || typeof packageJson !== 'object' || Array.isArray(packageJson)) {
-    return false
-  }
-  const workspaces = /** @type {Record<string, unknown>} */ (packageJson).workspaces
-  if (Array.isArray(workspaces)) {
-    return workspaces.length > 0
-  }
-  if (workspaces && typeof workspaces === 'object' && !Array.isArray(workspaces)) {
-    const packages = /** @type {Record<string, unknown>} */ (workspaces).packages
-    return Array.isArray(packages) && packages.length > 0
-  }
-  return false
-}
-
-/**
- * Обходить дерево проєкту, збираючи факти для автоувімкнення правил.
- * Факти зберігаються для споживачів `collectAutoRuleFacts` (зовнішній код, тести); активація
- * правил у `detectAutoRules` спирається на meta-glob/predicate, а не на ці факти напряму.
+ * Обходить дерево проєкту, збираючи content-факти для предикатів автоувімкнення.
+ *
+ * `hasRegoFile` і `hasTempoDir` лишаються для зворотної сумісності з прямими читачами
+ * фактів (тести, зовнішній код); саме автоувімкнення тепер data-driven через meta.json.
  * @param {string} root абсолютний шлях кореня репозиторію
  * @returns {Promise<{
- *   hasCapacitorConfig: boolean,
- *   hasCargoToml: boolean,
- *   hasDockerfile: boolean,
- *   hasGaWorkflowsDir: boolean,
  *   hasBunSqlImport: boolean,
  *   hasGqlTaggedTemplates: boolean,
  *   hasHasuraConfig: boolean,
- *   hasJsLikeSource: boolean,
- *   hasK8sDir: boolean,
- *   hasNginxDefaultTplFile: boolean,
  *   hasRegoFile: boolean,
- *   hasTempoDir: boolean,
- *   hasVueSource: boolean,
- *   hasVueOrCssSource: boolean
+ *   hasTempoDir: boolean
  * }>} агреговані факти
  */
 export async function collectAutoRuleFacts(root) {
   const facts = {
     hasBunSqlImport: false,
-    hasCapacitorConfig: false,
-    hasCargoToml: false,
-    hasDockerfile: false,
-    hasGaWorkflowsDir: existsSync(join(root, '.github', 'workflows')),
     hasGqlTaggedTemplates: false,
     hasHasuraConfig: false,
-    hasJsLikeSource: false,
-    hasK8sDir: false,
-    hasNginxDefaultTplFile: false,
     hasRegoFile: false,
-    hasTempoDir: false,
-    hasVueSource: false,
-    hasVueOrCssSource: false
+    hasTempoDir: false
   }
 
   /**
@@ -555,9 +242,10 @@ export async function collectAutoRuleFacts(root) {
     for (const entry of entries) {
       const absPath = join(dir, entry.name)
       if (entry.isDirectory()) {
-        const isIgnoredDir = IGNORED_DIR_NAMES.has(entry.name)
-        if (!isIgnoredDir) {
-          updateDirFacts(entry.name, facts)
+        if (!IGNORED_DIR_NAMES.has(entry.name)) {
+          if (entry.name === 'tempo') {
+            facts.hasTempoDir = true
+          }
           await walk(absPath)
         }
       } else if (entry.isFile()) {
@@ -568,6 +256,46 @@ export async function collectAutoRuleFacts(root) {
 
   await walk(root)
   return facts
+}
+
+/**
+ * Збирає relative-posix шляхи дерева (і файли, і каталоги) для glob-матчингу Type A.
+ *
+ * Каталоги теж потрапляють у вихід, бо частина glob-специфікацій вказує на самі директорії
+ * (наприклад `npm`, `k8s`, `.github/workflows`), які можуть бути порожніми — без цього
+ * правила npm-module/k8s/ga не активувалися б на дереві без файлів усередині.
+ * @param {string} root корінь репо
+ * @returns {Promise<string[]>} шляхи відносно root у posix-форматі
+ */
+async function collectRepoPaths(root) {
+  /** @type {string[]} */
+  const out = []
+  /**
+   * Рекурсивний обхід каталогу з пропуском службових директорій.
+   * @param {string} dir каталог
+   * @returns {Promise<void>}
+   */
+  async function walk(dir) {
+    let entries
+    try {
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      return
+    }
+    for (const entry of entries) {
+      const abs = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (!IGNORED_DIR_NAMES.has(entry.name)) {
+          out.push(relative(root, abs).split('\\').join('/'))
+          await walk(abs)
+        }
+      } else if (entry.isFile()) {
+        out.push(relative(root, abs).split('\\').join('/'))
+      }
+    }
+  }
+  await walk(root)
+  return out
 }
 
 /**
@@ -595,7 +323,36 @@ function resolveRuleDependencies(detectedRules, addRule) {
 }
 
 /**
- * Визначає авто-правила згідно з `rules/<rule>/auto.md`.
+ * Чи активується правило за його spec.
+ *
+ * Диспетчинг предикатів за іменем (сигнатури неоднорідні — див. `rule-predicates.mjs`):
+ *  - `repoUrlMarker` читає кореневий `package.json` + маркер-arg;
+ *  - `gqlTaggedTemplate`, `hasuraConfigMarker` читають content-`facts`;
+ *  - `jsBunDbSignal` бере `(root, facts)`;
+ *  - решта (`depInAnyPackageJson`, `nestedPackageWithoutVite`) — `(root, arg)`.
+ * @param {import('./lib/rule-meta.mjs').RuleAutoSpec} spec нормалізований auto
+ * @param {{root:string, facts:object, paths:string[], packageJsonParsed:unknown}} ctx контекст
+ * @returns {Promise<boolean>} true, якщо правило активне
+ */
+async function specMatches(spec, ctx) {
+  if ('always' in spec) return true
+  if ('glob' in spec) {
+    const res = spec.glob.map(g => globToRegex(g))
+    return ctx.paths.some(p => res.some(re => re.test(p)))
+  }
+  if ('predicate' in spec) {
+    const fn = RULE_PREDICATES[spec.predicate]
+    if (!fn) return false
+    if (spec.predicate === 'repoUrlMarker') return fn(ctx.packageJsonParsed, spec.arg)
+    if (spec.predicate === 'gqlTaggedTemplate' || spec.predicate === 'hasuraConfigMarker') return fn(ctx.facts)
+    if (spec.predicate === 'jsBunDbSignal') return fn(ctx.root, ctx.facts)
+    return fn(ctx.root, spec.arg)
+  }
+  return false
+}
+
+/**
+ * Визначає авто-правила згідно з `rules/<rule>/meta.json`.
  * @param {object} params параметри аналізу
  * @param {string} params.root абсолютний шлях до кореня репозиторію
  * @param {string[]} params.availableRules перелік доступних правил з пакету
@@ -603,95 +360,31 @@ function resolveRuleDependencies(detectedRules, addRule) {
  * @param {string[]} [params.disableRules] список `disable-rules` з конфігу
  * @returns {Promise<{ rules: string[] }>} список id у стабільному порядку (за `AUTO_RULE_ORDER`)
  */
-export async function detectAutoRules({
-  root,
-  availableRules,
-  packageJsonParsed,
-  disableRules = DEFAULT_DISABLED_LIST
-}) {
+export async function detectAutoRules({ root, availableRules, packageJsonParsed, disableRules = DEFAULT_DISABLED_LIST }) {
   const facts = await collectAutoRuleFacts(root)
+  const paths = await collectRepoPaths(root)
   const normalizedRules = new Set(availableRules.map(r => r.trim().toLowerCase()))
   const disableRulesSet = new Set(disableRules)
 
-  const packageJsonExists = existsSync(join(root, 'package.json'))
-  const npmDirExists = existsSync(join(root, 'npm'))
-  const composerJsonExists = existsSync(join(root, 'composer.json'))
-  const repositoryUrl = getRepositoryUrl(
-    packageJsonParsed && typeof packageJsonParsed === 'object' && !Array.isArray(packageJsonParsed)
-      ? /** @type {Record<string, unknown>} */ (packageJsonParsed).repository
-      : null
-  )
-  const isAbie = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(ABIE_REPOSITORY_URL_MARKER)
-  const isEfes = typeof repositoryUrl === 'string' && repositoryUrl.toLowerCase().includes(EFES_REPOSITORY_URL_MARKER)
-  const depHits = await collectDependencyKeysPresentInPackageJsonTree(root, [
-    'mssql',
-    'pg',
-    'pg-format',
-    'mysql2',
-    'ioredis',
-    'node-redis',
-    '@tauri-apps/api'
-  ])
-  const hasMssqlDependency = depHits.has('mssql')
-  const hasJsBunDbSignal =
-    depHits.has('pg') || depHits.has('pg-format') || depHits.has('mysql2') || facts.hasBunSqlImport
-  const hasJsBunRedisSignal = depHits.has('ioredis') || depHits.has('node-redis')
-  const hasTauriDependency = depHits.has('@tauri-apps/api')
-  const hasNestedNodePackage = await hasNestedPackageJsonWithoutViteDevDependency(root)
-
   /** @type {string[]} */
   const detectedRules = []
-
   /**
    * Додає правило до результату, якщо воно доступне і не в disable-списку.
    * @param {string} ruleId id правила
    * @returns {void}
    */
   function addRule(ruleId) {
-    if (!normalizedRules.has(ruleId) || disableRulesSet.has(ruleId) || detectedRules.includes(ruleId)) {
-      return
-    }
+    if (!normalizedRules.has(ruleId) || disableRulesSet.has(ruleId) || detectedRules.includes(ruleId)) return
     detectedRules.push(ruleId)
   }
 
-  const autoRuleChecks = [
-    { enabled: isAbie, id: 'abie' },
-    { enabled: packageJsonExists, id: 'bun' },
-    { enabled: facts.hasCapacitorConfig, id: 'capacitor' },
-    { enabled: facts.hasDockerfile, id: 'docker' },
-    { enabled: isEfes, id: 'efes' },
-    { enabled: facts.hasGaWorkflowsDir, id: 'ga' },
-    { enabled: facts.hasGqlTaggedTemplates, id: 'graphql' },
-    { enabled: facts.hasHasuraConfig, id: 'hasura' },
-    { enabled: facts.hasJsLikeSource, id: 'js-lint' },
-    { enabled: hasMssqlDependency, id: 'js-mssql' },
-    { enabled: hasJsBunDbSignal, id: 'js-bun-db' },
-    { enabled: hasJsBunRedisSignal, id: 'js-bun-redis' },
-    { enabled: hasNestedNodePackage, id: 'js-run' },
-    { enabled: facts.hasK8sDir, id: 'k8s' },
-    { enabled: facts.hasNginxDefaultTplFile, id: 'nginx-default-tpl' },
-    { enabled: npmDirExists, id: 'npm-module' },
-    { enabled: composerJsonExists, id: 'php' },
-    { enabled: facts.hasRegoFile, id: 'rego' },
-    { enabled: facts.hasCargoToml, id: 'rust' },
-    { enabled: facts.hasVueOrCssSource, id: 'style-lint' },
-    { enabled: hasTauriDependency, id: 'tauri' }
-  ]
-  for (const item of autoRuleChecks) {
-    if (item.enabled) {
-      addRule(item.id)
-    }
-  }
-  addRule('adr')
-  addRule('security')
-  addRule('test')
-  addRule('text')
-  if (facts.hasVueSource) {
-    addRule('vue')
+  for (const [ruleId, spec] of Object.entries(RULE_AUTO_ACTIVATION)) {
+    if ('rules' in spec) continue
+    if (await specMatches(spec, { root, facts, paths, packageJsonParsed })) addRule(ruleId)
   }
   resolveRuleDependencies(detectedRules, addRule)
 
-  const rules = AUTO_RULE_ORDER.filter(ruleId => detectedRules.includes(ruleId))
+  const rules = AUTO_RULE_ORDER.filter(r => detectedRules.includes(r))
   return { rules }
 }
 
