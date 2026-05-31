@@ -1,0 +1,21 @@
+npm/scripts/lib/tests/skill-meta.test.mjs
+  s_5a491339356459::t_ac1a5ac4a2ea12 1-60
+npm/scripts/lib/skill-meta.mjs
+  s_5a491339356459::t_9035cca95732c6 1-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "44bba48eece0a7a6ab8656defe836a5331e540a4",
+  "prompts": {},
+  "sessions": {
+    "s_5a491339356459": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8c90147c-594e-4526-a0e7-9c0274c899d7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
