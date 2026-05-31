@@ -1,0 +1,21 @@
+npm/scripts/lib/tests/changed-files.test.mjs
+  s_7196fedc140418::t_ecf5f4c4d8f3f4 1-36
+npm/scripts/lib/changed-files.mjs
+  s_7196fedc140418::t_5f5e0c6f0d12f9 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9edd63e6ea12746941554e386bf8080fd41c6244",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
