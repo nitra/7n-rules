@@ -1,0 +1,22 @@
+docs/superpowers/specs/2026-05-31-skill-meta-json-worktree-design.md
+  s_d6673a4411e6c0::t_5f10a6bb4a8f33 20,35-36,40,42-52
+  s_d6673a4411e6c0::t_408da41e4634eb 102-104
+  s_d6673a4411e6c0::t_3e74f572ea60f9 125
+  s_d6673a4411e6c0::t_157f7a505dfab1 112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "44ec5014326e480f3bff95a452e85ac2ab62b91d",
+  "prompts": {},
+  "sessions": {
+    "s_d6673a4411e6c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b08fbb71-43fc-4132-ba81-ba4ba3d1b2cc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
