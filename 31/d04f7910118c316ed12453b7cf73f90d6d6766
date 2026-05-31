@@ -1,0 +1,83 @@
+npm/rules/ga/meta.json
+  s_7196fedc140418::t_e3286d379585c7 1
+npm/rules/js-lint/meta.json
+  s_7196fedc140418::t_7f4d88bd4f123f 1
+npm/rules/graphql/meta.json
+  s_7196fedc140418::t_d656f79d865580 1
+npm/rules/js-bun-redis/meta.json
+  s_7196fedc140418::t_03b5198ef56240 1
+npm/rules/js-bun-db/meta.json
+  s_7196fedc140418::t_88bd37704fff92 1
+npm/rules/ci4/meta.json
+  s_7196fedc140418::t_c4b2961069fe18 1
+npm/rules/worktree/meta.json
+  s_7196fedc140418::t_29577a4366bc07 1
+npm/rules/php/meta.json
+  s_7196fedc140418::t_75a3da66e3d332 1
+npm/rules/vue/meta.json
+  s_7196fedc140418::t_a0a77503c9d9f0 1
+npm/rules/changelog/meta.json
+  s_7196fedc140418::t_714b0d9e8005b8 1
+npm/rules/abie/meta.json
+  s_7196fedc140418::t_4146fa280e41e4 1
+npm/rules/efes/meta.json
+  s_7196fedc140418::t_b134c71f234900 1
+npm/rules/capacitor/meta.json
+  s_7196fedc140418::t_a995209e23fe6e 1
+npm/rules/release/meta.json
+  s_7196fedc140418::t_77ce149c1cd81d 1
+npm/rules/style-lint/meta.json
+  s_7196fedc140418::t_977d34ba7a38e9 1
+npm/rules/npm-module/meta.json
+  s_7196fedc140418::t_5a3d37f30b524d 1
+npm/rules/feedback/meta.json
+  s_7196fedc140418::t_1277e9508a6f5b 1
+npm/rules/image-compress/meta.json
+  s_7196fedc140418::t_bece925de38102 1
+npm/rules/text/meta.json
+  s_7196fedc140418::t_7cdd2d3b04d3ed 1
+npm/rules/k8s/meta.json
+  s_7196fedc140418::t_a4c546334cb9d3 1
+npm/rules/security/meta.json
+  s_7196fedc140418::t_c17d59782ca189 1
+npm/rules/nginx-default-tpl/meta.json
+  s_7196fedc140418::t_ee2edb37d09a4b 1
+npm/rules/rust/meta.json
+  s_7196fedc140418::t_96cd91ddd41913 1
+npm/rules/js-mssql/meta.json
+  s_7196fedc140418::t_ecb26547e6aeea 1
+npm/rules/adr/meta.json
+  s_7196fedc140418::t_4e3a5ae64862e0 1
+npm/rules/image-avif/meta.json
+  s_7196fedc140418::t_45d55ffec7108f 1
+npm/rules/rego/meta.json
+  s_7196fedc140418::t_b65090508136a3 1
+npm/rules/bun/meta.json
+  s_7196fedc140418::t_53a1bb79f3cad7 1
+npm/rules/docker/meta.json
+  s_7196fedc140418::t_b04035ba283f2c 1
+npm/rules/hasura/meta.json
+  s_7196fedc140418::t_d54db336d46606 1
+npm/rules/js-run/meta.json
+  s_7196fedc140418::t_313a1df620c324 1
+npm/rules/tauri/meta.json
+  s_7196fedc140418::t_da57e0a9ca90ef 1
+npm/rules/test/meta.json
+  s_7196fedc140418::t_2159a33a114b08 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "31d04f7910118c316ed12453b7cf73f90d6d6766",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
