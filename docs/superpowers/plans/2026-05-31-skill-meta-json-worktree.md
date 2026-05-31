@@ -1,400 +1,463 @@
-# Skill meta.json + worktree-прапорець Implementation Plan
+# Skill `meta.json` + `worktree` Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Замінити `auto.md` у `npm/skills/<id>/` на `meta.json` з полями `auto` та `worktree`; під час `syncSkills` вшивати worktree-блок у копію `SKILL.md`; валідувати `meta.json` через новий check-concern `skill_meta.mjs`.
+**Goal:** Замінити `npm/skills/<id>/auto.md` на структурований `meta.json` (поля `auto` + `worktree`), вшивати worktree-інструкцію в синкнутий `SKILL.md`, і валідувати все через `check`.
 
-**Architecture:** Новий утиліт `read-skill-meta.mjs` читає `meta.json` з fallback на `auto.md`; утиліт `inject-worktree-block.mjs` — чиста функція ін'єкції/видалення markdown-блоку. `auto-skills.mjs` перемикається на `readSkillMeta`. `syncSkills` у `n-cursor.js` пропускає `meta.json` (замість `auto.md`) і ін'єктує блок у `SKILL.md`. Новий JS-concern `skill_meta.mjs` у правилі `npm-module` перевіряє наявність і валідність `meta.json` у кожному `npm/skills/<id>/`.
+**Architecture:** Спільний хелпер `skill-meta.mjs` парсить `meta.json`; `auto-skills.mjs` читає через нього умову автоактивації; `n-cursor.js syncSkills` пропускає `meta.json` при копіюванні і через `worktree-notice.mjs` вшиває markdown-блок у `SKILL.md`; новий JS-концерн `npm-module/js/skill_meta.mjs` валідує наявність/форму `meta.json` і відсутність `auto.md`.
 
-**Tech Stack:** Node.js ESM, vitest, `node:fs/promises`, `node:path`, `withTmpDir`/`writeJson` з `test-helpers.mjs`.
+**Tech Stack:** Node ESM (`.mjs`), vitest, oxc-parser (вже є), JSON Schema (draft-07). Rego-first не застосовний (per-file FS-перевірка → JS-концерн).
+
+**Канон проєкту (обовʼязково):**
+
+- Кожен новий `.mjs` починається з багаторядкового верхнього JSDoc українською (що робить файл) — `scripts.mdc`.
+- Тести співрозташовані з джерелом: `scripts/lib/<f>.mjs` ↔ `scripts/lib/tests/<f>.test.mjs`.
+- Команда тестів: `cd npm && npx vitest run <шлях>`.
+- **Коміти часті** — після кожної задачі (це тримає `checkDirtyNpmRequiresVersionBump` зеленим: після коміту `git diff HEAD` порожній).
+- **Версію/CHANGELOG руками НЕ чіпати** — лише change-файл наприкінці (n-changelog); bump робить CI.
+- Літерал автоактивації — **`завжди`** (українською), збігається з `ALWAYS_LITERAL` у `auto-skills.mjs`.
+
+**Поточний стан (зафіксовано перед стартом):**
+
+- `npm/scripts/auto-skills.mjs` — `parseSkillAutoSpec(text)` парсить markdown-рядок `auto.md`; `discoverSkillAutoActivation(skillsDir=SKILLS_DIR)` сканує `<id>/auto.md`; module-load кеш `SKILL_AUTO_ACTIVATION`; експортує `detectAutoSkills`, `AUTO_SKILL_ORDER`, `AUTO_SKILL_RULE_DEPENDENCIES`.
+- `npm/bin/n-cursor.js:767` — `if (file === 'auto.md') continue` у `syncSkills` (рядки ~744-786).
+- 9 скілів мають `auto.md`: `завжди` (fix, lint, llm-patch, publish-telegram, start-check), `[adr]` (adr-normalize), `[bun]` (taze), `[js-lint]` (coverage-fix, fix-tests).
+- JS-концерн правила викликається як `mod.check()` без аргументів (`run-rule.mjs:120`) → `check(cwd=process.cwd())`.
+- `createCheckReporter()` → `{ pass, fail, getExitCode }`.
+- test-helpers (`npm/scripts/utils/test-helpers.mjs`): `withTmpDir(fn)`, `writeJson(path,data)`, `ensureDir(path)`.
+- npm-module правило застосовується лише коли в репо є каталог `npm/` (auto-rule `npmDirExists`) — тож концерн валідації скілів коректно гейтиться там.
 
 ---
 
-## File Map
-
-| Дія | Файл |
-|---|---|
-| **Create** | `npm/scripts/utils/read-skill-meta.mjs` |
-| **Create** | `npm/scripts/utils/tests/read-skill-meta.test.mjs` |
-| **Create** | `npm/scripts/utils/inject-worktree-block.mjs` |
-| **Create** | `npm/scripts/utils/tests/inject-worktree-block.test.mjs` |
-| **Create** | `npm/schemas/skill-meta.schema.json` |
-| **Create** | `npm/skills/*/meta.json` (9 файлів) |
-| **Delete** | `npm/skills/*/auto.md` (9 файлів) |
-| **Modify** | `npm/scripts/auto-skills.mjs` |
-| **Modify** | `npm/scripts/tests/auto-skills.test.mjs` |
-| **Modify** | `npm/bin/n-cursor.js` |
-| **Create** | `npm/rules/npm-module/js/skill_meta.mjs` |
-| **Create** | `npm/rules/npm-module/js/tests/skill_meta.test.mjs` |
-| **Modify** | `npm/tests/integration-repo-checks.test.mjs` |
-
----
-
-## Task 1: `read-skill-meta.mjs` — читач meta.json з fallback на auto.md
+## Task 1: Хелпер `skill-meta.mjs` (парсинг `meta.json`)
 
 **Files:**
-- Create: `npm/scripts/utils/read-skill-meta.mjs`
-- Create: `npm/scripts/utils/tests/read-skill-meta.test.mjs`
 
-- [ ] **Крок 1.1: Написати тести (red)**
+- Create: `npm/scripts/lib/skill-meta.mjs`
+- Test: `npm/scripts/lib/tests/skill-meta.test.mjs`
+
+- [ ] **Step 1: Написати падаючі тести**
+
+Файл `npm/scripts/lib/tests/skill-meta.test.mjs`:
 
 ```js
-// npm/scripts/utils/tests/read-skill-meta.test.mjs
-import { describe, expect, it } from 'vitest'
-import { writeFile, mkdir } from 'node:fs/promises'
+import { describe, expect, test } from 'vitest'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { readSkillMeta } from '../read-skill-meta.mjs'
-import { withTmpDir } from '../../test-helpers.mjs'
 
-describe('readSkillMeta', () => {
-  it('читає meta.json і повертає spec + worktree', async () => {
+import { SKILL_ALWAYS, parseSkillAutoSpec, readSkillMetaRaw } from '../skill-meta.mjs'
+import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
+
+describe('parseSkillAutoSpec', () => {
+  test('"завжди" → { always: true }', () => {
+    expect(parseSkillAutoSpec(SKILL_ALWAYS)).toEqual({ always: true })
+  })
+
+  test('масив правил → { rules }', () => {
+    expect(parseSkillAutoSpec(['adr'])).toEqual({ rules: ['adr'] })
+    expect(parseSkillAutoSpec(['vue', 'image-compress'])).toEqual({ rules: ['vue', 'image-compress'] })
+  })
+
+  test('trim і відсів порожніх у масиві', () => {
+    expect(parseSkillAutoSpec([' bun ', ''])).toEqual({ rules: ['bun'] })
+  })
+
+  test('порожній масив → null', () => {
+    expect(parseSkillAutoSpec([])).toBeNull()
+  })
+
+  test('undefined / невідоме значення → null', () => {
+    expect(parseSkillAutoSpec(undefined)).toBeNull()
+    expect(parseSkillAutoSpec('always')).toBeNull()
+    expect(parseSkillAutoSpec(42)).toBeNull()
+  })
+})
+
+describe('readSkillMetaRaw', () => {
+  test('валідний meta.json → обʼєкт', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), JSON.stringify({ auto: 'завжди', worktree: true }))
-      const result = readSkillMeta(dir)
-      expect(result).toEqual({ spec: { always: true }, worktree: true })
+      await writeJson(join(dir, 'meta.json'), { auto: 'завжди', worktree: true })
+      expect(readSkillMetaRaw(dir)).toEqual({ auto: 'завжди', worktree: true })
     })
   })
 
-  it('масив у auto → spec.rules', async () => {
+  test('відсутній meta.json → null', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), JSON.stringify({ auto: ['bun', 'adr'], worktree: false }))
-      const result = readSkillMeta(dir)
-      expect(result).toEqual({ spec: { rules: ['bun', 'adr'] }, worktree: false })
+      expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })
 
-  it('відсутній meta.json і auto.md → spec null, worktree false', async () => {
+  test('невалідний JSON → null (не кидає)', async () => {
     await withTmpDir(async dir => {
-      const result = readSkillMeta(dir)
-      expect(result).toEqual({ spec: null, worktree: false })
+      await writeFile(join(dir, 'meta.json'), 'NOT JSON{{{', 'utf8')
+      expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })
 
-  it('лише auto.md (deprecated) → spec розпізнається, worktree false', async () => {
+  test('масив на верхньому рівні → null', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'auto.md'), '[bun]\n')
-      const stderrLines = []
-      const result = readSkillMeta(dir, { onWarn: msg => stderrLines.push(msg) })
-      expect(result).toEqual({ spec: { rules: ['bun'] }, worktree: false })
-      expect(stderrLines.length).toBeGreaterThan(0)
-    })
-  })
-
-  it('обидва є → meta.json має пріоритет, варнінг', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), JSON.stringify({ auto: 'завжди', worktree: false }))
-      await writeFile(join(dir, 'auto.md'), '[bun]\n')
-      const warns = []
-      const result = readSkillMeta(dir, { onWarn: msg => warns.push(msg) })
-      expect(result.spec).toEqual({ always: true })
-      expect(warns.some(w => w.includes('auto.md'))).toBe(true)
-    })
-  })
-
-  it('порожній масив auto → spec null (нерозпізнаний)', async () => {
-    await withTmpDir(async dir => {
-      await writeFile(join(dir, 'meta.json'), JSON.stringify({ auto: [], worktree: false }))
-      const result = readSkillMeta(dir)
-      expect(result.spec).toBeNull()
+      await writeFile(join(dir, 'meta.json'), '[1,2]', 'utf8')
+      expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })
 })
 ```
 
-- [ ] **Крок 1.2: Запустити тести, переконатися що падають**
+- [ ] **Step 2: Запустити — переконатися, що падає**
 
-```bash
-cd npm && npx vitest run scripts/utils/tests/read-skill-meta.test.mjs
-```
-Очікується: FAIL (модуль не існує).
+Run: `cd npm && npx vitest run scripts/lib/tests/skill-meta.test.mjs`
+Expected: FAIL — `Cannot find module '../skill-meta.mjs'`.
 
-- [ ] **Крок 1.3: Написати `read-skill-meta.mjs`**
+- [ ] **Step 3: Реалізувати `skill-meta.mjs`**
+
+Файл `npm/scripts/lib/skill-meta.mjs`:
 
 ```js
-// npm/scripts/utils/read-skill-meta.mjs
+/**
+ * Спільний парсер метаданих скіла з `npm/skills/<id>/meta.json`.
+ *
+ * `meta.json` — єдине джерело правди для скіла замість колишнього `auto.md`:
+ *  - `auto` — умова автоактивації (`"завжди"` | масив id правил), опційне;
+ *  - `worktree` — boolean: чи виконувати скіл в окремому git-worktree (один інстанс).
+ *
+ * Цим хелпером користуються `auto-skills.mjs` (автоактивація), `n-cursor.js`
+ * (sync + вшивання worktree-блоку) і check-концерн `npm-module/js/skill_meta.mjs`,
+ * щоб не дублювати парсинг і форму валідації.
+ */
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const ALWAYS_LITERAL = 'завжди'
-const BRACKET_LIST_RE = /^\[([^\]]+)\]$/u
+/** Літерал безумовної автоактивації (українською, як у `auto-skills.mjs`). */
+export const SKILL_ALWAYS = 'завжди'
 
 /**
- * @typedef {{ always: true } | { rules: readonly string[] }} SkillAutoSpec
- * @typedef {{ spec: SkillAutoSpec | null, worktree: boolean }} SkillMeta
+ * @typedef {{ always: true } | { rules: string[] }} SkillAutoSpec
  */
 
 /**
- * Парсить legacy-рядок з `auto.md` у `SkillAutoSpec`.
- * @param {string} text
- * @returns {SkillAutoSpec | null}
+ * Перетворює значення поля `auto` з `meta.json` у `SkillAutoSpec`.
+ * @param {unknown} value значення `meta.json.auto`
+ * @returns {SkillAutoSpec | null} `null` — формат не розпізнано (= opt-in)
  */
-function parseLegacyAutoMd(text) {
-  const trimmed = text.trim()
-  if (trimmed === ALWAYS_LITERAL) return { always: true }
-  const m = trimmed.match(BRACKET_LIST_RE)
-  if (m) {
-    const rules = m[1].split(',').map(s => s.trim()).filter(s => s.length > 0)
+export function parseSkillAutoSpec(value) {
+  if (value === SKILL_ALWAYS) {
+    return { always: true }
+  }
+  if (Array.isArray(value)) {
+    const rules = value.map(s => String(s).trim()).filter(s => s.length > 0)
     if (rules.length === 0) return null
-    return { rules: Object.freeze(rules) }
+    return { rules }
   }
   return null
 }
 
 /**
- * Перетворює поле `auto` з meta.json у `SkillAutoSpec`.
- * @param {unknown} auto
- * @returns {SkillAutoSpec | null}
- */
-function parseAutoField(auto) {
-  if (auto === ALWAYS_LITERAL) return { always: true }
-  if (Array.isArray(auto) && auto.length > 0 && auto.every(s => typeof s === 'string')) {
-    return { rules: Object.freeze(auto) }
-  }
-  return null
-}
-
-/**
- * Читає налаштування скіла: спочатку `meta.json`, потім fallback на `auto.md`.
+ * Читає й парсить `meta.json` одного скіла.
  * @param {string} skillDir абсолютний шлях до каталогу скіла
- * @param {{ onWarn?: (msg: string) => void }} [opts] ін'єкція для тестів
- * @returns {SkillMeta}
+ * @returns {Record<string, unknown> | null} розпарсений обʼєкт або `null` (немає файлу / невалідний JSON / не-обʼєкт)
  */
-export function readSkillMeta(skillDir, opts = {}) {
-  const warn = opts.onWarn ?? (msg => process.stderr.write(`${msg}\n`))
-
+export function readSkillMetaRaw(skillDir) {
   const metaPath = join(skillDir, 'meta.json')
-  const autoMdPath = join(skillDir, 'auto.md')
-
-  if (existsSync(metaPath)) {
-    if (existsSync(autoMdPath)) {
-      warn(`WARN: ${skillDir}: meta.json і auto.md присутні — видали auto.md (meta.json має пріоритет)`)
-    }
-    const raw = JSON.parse(readFileSync(metaPath, 'utf8'))
-    return { spec: parseAutoField(raw.auto), worktree: raw.worktree === true }
+  if (!existsSync(metaPath)) return null
+  try {
+    const parsed = JSON.parse(readFileSync(metaPath, 'utf8'))
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return /** @type {Record<string, unknown>} */ (parsed)
+  } catch {
+    return null
   }
-
-  if (existsSync(autoMdPath)) {
-    warn(`WARN: ${autoMdPath}: auto.md застарілий — мігруй на meta.json (schemas/skill-meta.schema.json)`)
-    const spec = parseLegacyAutoMd(readFileSync(autoMdPath, 'utf8'))
-    return { spec, worktree: false }
-  }
-
-  return { spec: null, worktree: false }
 }
 ```
 
-- [ ] **Крок 1.4: Запустити тести, переконатися що проходять**
+- [ ] **Step 4: Запустити — переконатися, що проходить**
+
+Run: `cd npm && npx vitest run scripts/lib/tests/skill-meta.test.mjs`
+Expected: PASS (всі кейси).
+
+- [ ] **Step 5: Коміт**
 
 ```bash
-cd npm && npx vitest run scripts/utils/tests/read-skill-meta.test.mjs
-```
-Очікується: 6 passed.
+git add npm/scripts/lib/skill-meta.mjs npm/scripts/lib/tests/skill-meta.test.mjs
+git commit -m "feat(skill-meta): хелпер парсингу skills/<id>/meta.json
 
-- [ ] **Крок 1.5: Commit**
-
-```bash
-git add npm/scripts/utils/read-skill-meta.mjs npm/scripts/utils/tests/read-skill-meta.test.mjs
-git commit -m "feat(skill-meta): read-skill-meta.mjs — парсер meta.json з fallback на auto.md"
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 2: `inject-worktree-block.mjs` — ін'єкція worktree-блоку в SKILL.md
+## Task 2: Хелпер `worktree-notice.mjs` (D2-блок у `SKILL.md`)
 
 **Files:**
-- Create: `npm/scripts/utils/inject-worktree-block.mjs`
-- Create: `npm/scripts/utils/tests/inject-worktree-block.test.mjs`
 
-- [ ] **Крок 2.1: Написати тести (red)**
+- Create: `npm/scripts/lib/worktree-notice.mjs`
+- Test: `npm/scripts/lib/tests/worktree-notice.test.mjs`
+
+- [ ] **Step 1: Написати падаючі тести**
+
+Файл `npm/scripts/lib/tests/worktree-notice.test.mjs`:
 
 ```js
-// npm/scripts/utils/tests/inject-worktree-block.test.mjs
-import { describe, expect, it } from 'vitest'
-import { injectWorktreeBlock, WORKTREE_START, WORKTREE_END } from '../inject-worktree-block.mjs'
+import { describe, expect, test } from 'vitest'
 
-const SKILL_WITH_FRONTMATTER = `---
+import { WORKTREE_END, WORKTREE_START, injectWorktreeNotice } from '../worktree-notice.mjs'
+
+const SKILL = `---
 name: fix
-description: >-
-  Виправити проєкт
+description: щось
 ---
 
-# n-fix — автоматичне виправлення
+# n-fix
 
-Тіло.
+тіло
 `
 
-const SKILL_NO_FRONTMATTER = `# n-fix — автоматичне виправлення
-
-Тіло.
-`
-
-describe('injectWorktreeBlock', () => {
-  it('вставляє блок між frontmatter і заголовком (worktree: true)', () => {
-    const result = injectWorktreeBlock(SKILL_WITH_FRONTMATTER, true)
-    const startIdx = result.indexOf(WORKTREE_START)
-    const endIdx = result.indexOf(WORKTREE_END)
-    const headIdx = result.indexOf('\n# ')
-    expect(startIdx).toBeGreaterThan(0)
-    expect(endIdx).toBeGreaterThan(startIdx)
-    expect(headIdx).toBeGreaterThan(endIdx)
+describe('injectWorktreeNotice', () => {
+  test('worktree=true → вставляє блок після frontmatter, перед H1', () => {
+    const out = injectWorktreeNotice(SKILL, true)
+    expect(out).toContain(WORKTREE_START)
+    expect(out).toContain(WORKTREE_END)
+    expect(out.indexOf(WORKTREE_START)).toBeLessThan(out.indexOf('# n-fix'))
+    expect(out.startsWith('---\nname: fix')).toBe(true)
   })
 
-  it('вставляє блок перед заголовком коли немає frontmatter (worktree: true)', () => {
-    const result = injectWorktreeBlock(SKILL_NO_FRONTMATTER, true)
-    expect(result.includes(WORKTREE_START)).toBe(true)
-    expect(result.indexOf(WORKTREE_START)).toBeLessThan(result.indexOf('\n# '))
+  test('ідемпотентність: повторний виклик не дублює блок', () => {
+    const once = injectWorktreeNotice(SKILL, true)
+    const twice = injectWorktreeNotice(once, true)
+    expect(twice).toBe(once)
+    expect(twice.split(WORKTREE_START)).toHaveLength(2)
   })
 
-  it('worktree: false — не вставляє блок', () => {
-    const result = injectWorktreeBlock(SKILL_WITH_FRONTMATTER, false)
-    expect(result.includes(WORKTREE_START)).toBe(false)
-    expect(result).toBe(SKILL_WITH_FRONTMATTER)
+  test('worktree=false → блоку немає, контент незмінний', () => {
+    const out = injectWorktreeNotice(SKILL, false)
+    expect(out).not.toContain(WORKTREE_START)
+    expect(out).toBe(SKILL)
   })
 
-  it('worktree: false — видаляє існуючий блок', () => {
-    const withBlock = injectWorktreeBlock(SKILL_WITH_FRONTMATTER, true)
-    const cleaned = injectWorktreeBlock(withBlock, false)
-    expect(cleaned.includes(WORKTREE_START)).toBe(false)
-    expect(cleaned.includes('# n-fix')).toBe(true)
+  test('worktree=false прибирає наявний блок', () => {
+    const withBlock = injectWorktreeNotice(SKILL, true)
+    const stripped = injectWorktreeNotice(withBlock, false)
+    expect(stripped).not.toContain(WORKTREE_START)
+    expect(stripped).toContain('# n-fix')
+    expect(stripped).toContain('name: fix')
   })
 
-  it('ідемпотентність — повторний виклик з true не дублює блок', () => {
-    const once = injectWorktreeBlock(SKILL_WITH_FRONTMATTER, true)
-    const twice = injectWorktreeBlock(once, true)
-    const count = (twice.match(new RegExp(WORKTREE_START.replace(/</g, '\\<').replace(/>/g, '\\>'), 'g')) ?? []).length
-    expect(count).toBe(1)
-  })
-
-  it('блок містить очікуваний текст інструкції', () => {
-    const result = injectWorktreeBlock(SKILL_WITH_FRONTMATTER, true)
-    expect(result).toMatch(/git worktree/)
-    expect(result).toMatch(/не запускати більше одного/i)
+  test('зміна тексту всередині маркерів не ламає ре-синк', () => {
+    const withBlock = injectWorktreeNotice(SKILL, true)
+    const tampered = withBlock.replace(
+      /<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->/u,
+      `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`
+    )
+    const resynced = injectWorktreeNotice(tampered, true)
+    expect(resynced.split(WORKTREE_START)).toHaveLength(2)
+    expect(resynced).toContain('один інстанс за раз')
   })
 })
 ```
 
-- [ ] **Крок 2.2: Запустити тести, переконатися що падають**
+- [ ] **Step 2: Запустити — переконатися, що падає**
 
-```bash
-cd npm && npx vitest run scripts/utils/tests/inject-worktree-block.test.mjs
-```
-Очікується: FAIL.
+Run: `cd npm && npx vitest run scripts/lib/tests/worktree-notice.test.mjs`
+Expected: FAIL — `Cannot find module '../worktree-notice.mjs'`.
 
-- [ ] **Крок 2.3: Написати `inject-worktree-block.mjs`**
+- [ ] **Step 3: Реалізувати `worktree-notice.mjs`**
+
+Файл `npm/scripts/lib/worktree-notice.mjs`:
 
 ```js
-// npm/scripts/utils/inject-worktree-block.mjs
+/**
+ * Вшивання worktree-інструкції у синкнутий `SKILL.md` (рішення D2 зі spec).
+ *
+ * Коли `meta.json.worktree === true`, скіл має виконуватись в окремому git-worktree
+ * і не паралелитись. Підказка адресована агенту, який читає `SKILL.md`, тож
+ * вставляється в текст між стабільними маркерами — ре-синк ідемпотентний:
+ * наявний блок замінюється, при `worktree:false` — видаляється.
+ */
 
+/** Маркер початку worktree-блоку (стабільний, не залежить від тексту всередині). */
 export const WORKTREE_START = '<!-- n-cursor:worktree:start -->'
+/** Маркер кінця worktree-блоку. */
 export const WORKTREE_END = '<!-- n-cursor:worktree:end -->'
 
-const WORKTREE_BLOCK = `${WORKTREE_START}
-> **Worktree:** цей скіл виконується в окремому \`git worktree\`.
-> Не запускати більше одного інстансу одночасно.
-${WORKTREE_END}`
+const NOTICE_BODY =
+  '> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); ' +
+  '**не** запускай паралельно — один інстанс за раз.'
+
+/** Наявний блок разом із сусідніми порожніми рядками (для чистого видалення). */
+const BLOCK_RE = /\n*<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->\n*/u
+
+/** Закриття YAML-frontmatter на початку файла. */
+const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---\n)/u
 
 /**
- * Знаходить кінець YAML frontmatter (`---\n...\n---`) у вмісті SKILL.md.
- * @param {string} content
- * @returns {number} індекс символу одразу після другого `---\n`, або -1
+ * Канонічний блок worktree-інструкції.
+ * @returns {string} текст блоку від START до END
  */
-function findFrontmatterEnd(content) {
-  if (!content.startsWith('---')) return -1
-  const secondDash = content.indexOf('\n---', 3)
-  if (secondDash === -1) return -1
-  const afterDash = secondDash + '\n---'.length
-  // пропустити '\n' після закриваючого ---
-  return content[afterDash] === '\n' ? afterDash + 1 : afterDash
+function buildBlock() {
+  return `${WORKTREE_START}\n${NOTICE_BODY}\n${WORKTREE_END}`
 }
 
 /**
- * Вставляє або видаляє worktree-блок у вмісті `SKILL.md`.
- * Якщо `worktree: true` — вставляє між frontmatter і першим `#`. Ідемпотентно.
- * Якщо `worktree: false` — видаляє блок (якщо є).
- * @param {string} content вміст SKILL.md
- * @param {boolean} worktree
- * @returns {string} оновлений вміст
+ * Вставляє / оновлює / видаляє worktree-блок у вмісті `SKILL.md`.
+ * @param {string} content вміст `SKILL.md`
+ * @param {boolean} enabled чи має бути блок (значення `meta.json.worktree`)
+ * @returns {string} оновлений вміст (ідемпотентно)
  */
-export function injectWorktreeBlock(content, worktree) {
-  // Видалити наявний блок
-  const startIdx = content.indexOf(WORKTREE_START)
-  if (startIdx !== -1) {
-    const endIdx = content.indexOf(WORKTREE_END, startIdx)
-    if (endIdx !== -1) {
-      const before = content.slice(0, startIdx).trimEnd()
-      const after = content.slice(endIdx + WORKTREE_END.length).trimStart()
-      content = `${before}\n\n${after}`
-    }
+export function injectWorktreeNotice(content, enabled) {
+  const hadBlock = content.includes(WORKTREE_START)
+  const withoutBlock = content.replace(BLOCK_RE, '\n\n')
+
+  if (!enabled) {
+    return hadBlock ? withoutBlock : content
   }
 
-  if (!worktree) return content
-
-  const fmEnd = findFrontmatterEnd(content)
-  if (fmEnd !== -1) {
-    return `${content.slice(0, fmEnd).trimEnd()}\n\n${WORKTREE_BLOCK}\n\n${content.slice(fmEnd).trimStart()}`
+  const block = buildBlock()
+  const fm = withoutBlock.match(FRONTMATTER_RE)
+  if (fm) {
+    const head = fm[1]
+    const rest = withoutBlock.slice(head.length).replace(/^\n+/u, '')
+    return `${head}\n${block}\n\n${rest}`
   }
-
-  // Немає frontmatter — вставити перед першим заголовком
-  const headMatch = content.match(/^#\s/m)
-  if (headMatch?.index !== undefined) {
-    return `${content.slice(0, headMatch.index).trimEnd()}\n\n${WORKTREE_BLOCK}\n\n${content.slice(headMatch.index)}`
-  }
-
-  return `${WORKTREE_BLOCK}\n\n${content}`
+  return `${block}\n\n${withoutBlock.replace(/^\n+/u, '')}`
 }
 ```
 
-- [ ] **Крок 2.4: Запустити тести, переконатися що проходять**
+- [ ] **Step 4: Запустити — переконатися, що проходить**
+
+Run: `cd npm && npx vitest run scripts/lib/tests/worktree-notice.test.mjs`
+Expected: PASS (всі 5 кейсів).
+
+- [ ] **Step 5: Коміт**
 
 ```bash
-cd npm && npx vitest run scripts/utils/tests/inject-worktree-block.test.mjs
-```
-Очікується: 6 passed.
+git add npm/scripts/lib/worktree-notice.mjs npm/scripts/lib/tests/worktree-notice.test.mjs
+git commit -m "feat(worktree-notice): ідемпотентний D2-блок для SKILL.md
 
-- [ ] **Крок 2.5: Commit**
-
-```bash
-git add npm/scripts/utils/inject-worktree-block.mjs npm/scripts/utils/tests/inject-worktree-block.test.mjs
-git commit -m "feat(skill-meta): inject-worktree-block.mjs — ін'єкція worktree-блоку в SKILL.md"
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 3: Оновити `auto-skills.mjs` і його тести
+## Task 3: Створити 9 `meta.json`, видалити 9 `auto.md`
+
+**Files (create):** `npm/skills/<id>/meta.json` × 9.
+**Files (delete):** `npm/skills/<id>/auto.md` × 9.
+
+- [ ] **Step 1: Створити всі `meta.json`** (точний вміст, один рядок + перенос)
+
+`npm/skills/adr-normalize/meta.json`: `{ "auto": ["adr"], "worktree": true }`
+`npm/skills/coverage-fix/meta.json`: `{ "auto": ["js-lint"], "worktree": true }`
+`npm/skills/fix/meta.json`: `{ "auto": "завжди", "worktree": true }`
+`npm/skills/fix-tests/meta.json`: `{ "auto": ["js-lint"], "worktree": true }`
+`npm/skills/taze/meta.json`: `{ "auto": ["bun"], "worktree": true }`
+`npm/skills/lint/meta.json`: `{ "auto": "завжди", "worktree": false }`
+`npm/skills/llm-patch/meta.json`: `{ "auto": "завжди", "worktree": false }`
+`npm/skills/publish-telegram/meta.json`: `{ "auto": "завжди", "worktree": false }`
+`npm/skills/start-check/meta.json`: `{ "auto": "завжди", "worktree": false }`
+
+- [ ] **Step 2: Видалити всі `auto.md`**
+
+```bash
+git rm npm/skills/adr-normalize/auto.md npm/skills/coverage-fix/auto.md \
+       npm/skills/fix/auto.md npm/skills/fix-tests/auto.md npm/skills/taze/auto.md \
+       npm/skills/lint/auto.md npm/skills/llm-patch/auto.md \
+       npm/skills/publish-telegram/auto.md npm/skills/start-check/auto.md
+```
+
+- [ ] **Step 3: Перевірити стан**
+
+Run: `ls npm/skills/*/meta.json | wc -l` → Expected: `9`
+Run: `ls npm/skills/*/auto.md 2>&1` → Expected: «No such file or directory».
+Run: `for f in npm/skills/*/meta.json; do node -e "JSON.parse(require('fs').readFileSync('$f'))" || echo "BAD: $f"; done` → Expected: жодного `BAD`.
+
+- [ ] **Step 4: Коміт**
+
+```bash
+git add npm/skills/*/meta.json
+git commit -m "feat(skills): meta.json замість auto.md (9 скілів) + worktree-прапорець
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Task 4: Перевести `auto-skills.mjs` на `meta.json`
 
 **Files:**
+
 - Modify: `npm/scripts/auto-skills.mjs`
 - Modify: `npm/scripts/tests/auto-skills.test.mjs`
 
-- [ ] **Крок 3.1: Замінити `auto-skills.mjs`**
+- [ ] **Step 1: Додати тести `discoverSkillAutoActivation` під `meta.json`**
+
+Додати наприкінці `npm/scripts/tests/auto-skills.test.mjs` (імпорти — до наявних зверху):
 
 ```js
-// npm/scripts/auto-skills.mjs
-/**
- * Автовизначення skills для `.n-cursor.json` за умовами з `npm/skills/<skill>/meta.json`.
- *
- * `meta.json` — джерело правди (а не hardcoded мапа). Підтримуються три варіанти:
- *  - `{ "auto": "завжди" }` — скіл активується незалежно від правил
- *  - `{ "auto": ["rule1", ...] }` — скіл активується, якщо всі правила виявлені
- *  - файл відсутній або `auto` не розпізнано — скіл opt-in лише через `.n-cursor.json:skills`
- *
- * Fallback: якщо `meta.json` відсутній але є `auto.md` — читається з попередженням у stderr.
- */
+import { join } from 'node:path'
+
+import { discoverSkillAutoActivation } from '../auto-skills.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
+
+describe('discoverSkillAutoActivation (meta.json)', () => {
+  test('читає auto: завжди / масив / пропуск', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'fix'))
+      await writeJson(join(dir, 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await ensureDir(join(dir, 'taze'))
+      await writeJson(join(dir, 'taze', 'meta.json'), { auto: ['bun'], worktree: true })
+      await ensureDir(join(dir, 'opt-in'))
+      await writeJson(join(dir, 'opt-in', 'meta.json'), { worktree: false })
+
+      const map = discoverSkillAutoActivation(dir)
+      expect(map.fix).toEqual({ always: true })
+      expect(map.taze).toEqual({ rules: ['bun'] })
+      expect(map['opt-in']).toBeUndefined()
+    })
+  })
+
+  test('скіл без meta.json не потрапляє в автоактивацію', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'bare'))
+      expect(discoverSkillAutoActivation(dir).bare).toBeUndefined()
+    })
+  })
+})
+```
+
+> Якщо `describe`/`test`/`expect` уже імпортовані у файлі — не дублювати імпорт, лише додати `discoverSkillAutoActivation` та `ensureDir, withTmpDir, writeJson`.
+
+- [ ] **Step 2: Запустити — переконатися, що падає**
+
+Run: `cd npm && npx vitest run scripts/tests/auto-skills.test.mjs`
+Expected: FAIL — новий блок (старий код читає `auto.md`).
+
+- [ ] **Step 3: Переписати парсинг у `auto-skills.mjs`**
+
+1. Замінити імпорт `node:fs` на лише потрібне і додати імпорт хелпера. Було:
+
+```js
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+```
+
+стало:
+
+```js
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readSkillMeta } from './utils/read-skill-meta.mjs'
 
-const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
-const SKILLS_DIR = join(PACKAGE_ROOT, 'skills')
+import { parseSkillAutoSpec, readSkillMetaRaw } from './lib/skill-meta.mjs'
+```
 
+2. Видалити локальні `const ALWAYS_LITERAL = 'завжди'`, `const BRACKET_LIST_RE = …` і всю функцію `parseSkillAutoSpec` (тепер у `skill-meta.mjs`). `@typedef SkillAutoSpec` лишити (його використовують експортовані view).
+
+3. Замінити `discoverSkillAutoActivation` на:
+
+```js
 /**
- * @typedef {{ always: true } | { rules: readonly string[] }} SkillAutoSpec
- */
-
-/**
- * Сканує `npm/skills/<id>/meta.json`. Скіли без `meta.json`/`auto.md` або з нерозпізнаним
- * вмістом не потрапляють у результат — їх можна вмикати лише вручну в конфізі.
+ * Сканує `npm/skills/<id>/meta.json`. Скіли без `meta.json` або без розпізнаного
+ * `auto` не потрапляють у результат — їх вмикають лише вручну в конфізі.
  * @param {string} [skillsDir] override для тестів
  * @returns {Record<string, SkillAutoSpec>} мапа `skillId → spec`
  */
@@ -404,682 +467,443 @@ export function discoverSkillAutoActivation(skillsDir = SKILLS_DIR) {
   const out = {}
   for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-    const { spec } = readSkillMeta(join(skillsDir, entry.name))
+    const raw = readSkillMetaRaw(join(skillsDir, entry.name))
+    if (!raw) continue
+    const spec = parseSkillAutoSpec(raw.auto)
     if (spec) out[entry.name] = spec
   }
   return out
 }
-
-/** Cache на час процесу: один скан `npm/skills/` дає всю автоактивацію. */
-const SKILL_AUTO_ACTIVATION = discoverSkillAutoActivation()
-
-/**
- * Стабільний алфавітний порядок скілів з автоактивацією.
- */
-export const AUTO_SKILL_ORDER = Object.freeze(Object.keys(SKILL_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b)))
-
-/**
- * Похідна view на `SKILL_AUTO_ACTIVATION`: лише скіли з rule-залежностями.
- */
-export const AUTO_SKILL_RULE_DEPENDENCIES = Object.freeze(
-  Object.fromEntries(
-    Object.entries(SKILL_AUTO_ACTIVATION)
-      .filter(([, spec]) => 'rules' in spec)
-      .map(([id, spec]) => [id, /** @type {{ rules: readonly string[] }} */ (spec).rules])
-  )
-)
-
-const DEFAULT_DISABLED_LIST = Object.freeze([])
-
-/**
- * Визначає авто-skills згідно з вмістом `skills/<skill>/meta.json`.
- * @param {object} params параметри
- * @param {string[]} params.availableSkills перелік доступних skills із пакету (id без префікса n-)
- * @param {string[]} params.detectedRules id правил, виявлених auto-rules
- * @param {string[]} [params.disableSkills] список `disable-skills` з конфігу
- * @returns {{ skills: string[] }} список id у стабільному алфавітному порядку
- */
-export function detectAutoSkills({ availableSkills, detectedRules, disableSkills = DEFAULT_DISABLED_LIST }) {
-  const normalizedSkills = new Set(availableSkills.map(s => s.trim().toLowerCase()))
-  const disableSkillsSet = new Set(disableSkills)
-  const detectedRulesSet = new Set(detectedRules)
-
-  /** @type {Set<string>} */
-  const detected = new Set()
-
-  for (const [skillId, spec] of Object.entries(SKILL_AUTO_ACTIVATION)) {
-    if (!normalizedSkills.has(skillId) || disableSkillsSet.has(skillId)) continue
-    if ('always' in spec || spec.rules.every(d => detectedRulesSet.has(d))) {
-      detected.add(skillId)
-    }
-  }
-
-  return { skills: AUTO_SKILL_ORDER.filter(id => detected.has(id)) }
-}
 ```
 
-- [ ] **Крок 3.2: Запустити існуючі тести, переконатися що проходять**
+4. Оновити верхній JSDoc модуля: згадки `auto.md` → `meta.json`.
 
-```bash
-cd npm && npx vitest run scripts/tests/auto-skills.test.mjs
-```
-Очікується: 7 passed (тести залежать від реального `npm/skills/` — ще до видалення `auto.md`, тому вони читають `auto.md` через fallback. Після Task 5 вони читатимуть `meta.json`).
+- [ ] **Step 4: Запустити — переконатися, що проходить**
 
-- [ ] **Крок 3.3: Додати тести для нових скілів (`coverage-fix`, `fix-tests`, `start-check`)**
+Run: `cd npm && npx vitest run scripts/tests/auto-skills.test.mjs`
+Expected: PASS (старі кейси `detectAutoSkills` + нові).
 
-Відкрий `npm/scripts/tests/auto-skills.test.mjs` і додай в кінці перед закриваючою дужкою `describe`:
+- [ ] **Step 5: Регресія на реальному пакеті**
 
-```js
-  // --- Нові скіли з meta.json ---
-  const EXTENDED_SKILLS = [
-    'adr-normalize', 'coverage-fix', 'fix', 'fix-tests', 'lint',
-    'llm-patch', 'publish-telegram', 'start-check', 'taze'
-  ]
+Run: `cd npm && node -e "import('./scripts/auto-skills.mjs').then(m=>console.log(JSON.stringify(m.detectAutoSkills({availableSkills:['fix','lint','llm-patch','publish-telegram','taze','adr-normalize','coverage-fix','fix-tests','start-check'],detectedRules:['adr','bun','js-lint']}).skills)))"`
+Expected: містить `adr-normalize, coverage-fix, fix, fix-tests, lint, llm-patch, publish-telegram, taze`; **НЕ** містить `start-check` (opt-in).
 
-  test('coverage-fix і fix-tests додаються при js-lint', () => {
-    const actual = detectAutoSkills({
-      availableSkills: EXTENDED_SKILLS,
-      detectedRules: ['js-lint']
-    })
-    expect(actual.skills.includes('coverage-fix')).toBe(true)
-    expect(actual.skills.includes('fix-tests')).toBe(true)
-  })
-
-  test('start-check додається при bun', () => {
-    const actual = detectAutoSkills({
-      availableSkills: EXTENDED_SKILLS,
-      detectedRules: ['bun']
-    })
-    expect(actual.skills.includes('start-check')).toBe(true)
-  })
-
-  test('coverage-fix і fix-tests НЕ додаються без js-lint', () => {
-    const actual = detectAutoSkills({
-      availableSkills: EXTENDED_SKILLS,
-      detectedRules: ['bun']
-    })
-    expect(actual.skills.includes('coverage-fix')).toBe(false)
-    expect(actual.skills.includes('fix-tests')).toBe(false)
-  })
-```
-
-- [ ] **Крок 3.4: Запустити оновлені тести — вони мають пройти (після Task 5 завдяки meta.json)**
-
-Ці тести проходитимуть після Task 5. Зараз вони залежать від існуючих `auto.md` файлів через fallback.
-
-```bash
-cd npm && npx vitest run scripts/tests/auto-skills.test.mjs
-```
-Очікується: ≥7 passed.
-
-- [ ] **Крок 3.5: Commit**
+- [ ] **Step 6: Коміт**
 
 ```bash
 git add npm/scripts/auto-skills.mjs npm/scripts/tests/auto-skills.test.mjs
-git commit -m "feat(skill-meta): auto-skills.mjs — перемикання на readSkillMeta (meta.json)"
+git commit -m "refactor(auto-skills): читати meta.json замість auto.md
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 4: Створити `meta.json` для 9 скілів і видалити `auto.md`
+## Task 5: `syncSkills` — пропускати `meta.json`, вшивати worktree-блок
 
 **Files:**
-- Create: `npm/skills/adr-normalize/meta.json`
-- Create: `npm/skills/coverage-fix/meta.json`
-- Create: `npm/skills/fix/meta.json`
-- Create: `npm/skills/fix-tests/meta.json`
-- Create: `npm/skills/lint/meta.json`
-- Create: `npm/skills/llm-patch/meta.json`
-- Create: `npm/skills/publish-telegram/meta.json`
-- Create: `npm/skills/start-check/meta.json`
-- Create: `npm/skills/taze/meta.json`
-- Delete: `npm/skills/*/auto.md` (9 файлів)
 
-- [ ] **Крок 4.1: Створити всі `meta.json` файли**
+- Modify: `npm/bin/n-cursor.js` (функція `syncSkills`, рядки ~744-786; імпорти ~зверху)
 
-```bash
-cat > npm/skills/adr-normalize/meta.json << 'EOF'
-{
-  "auto": ["adr"],
-  "worktree": true
-}
-EOF
+- [ ] **Step 1: Додати імпорти у `n-cursor.js`**
 
-cat > npm/skills/coverage-fix/meta.json << 'EOF'
-{
-  "auto": ["js-lint"],
-  "worktree": true
-}
-EOF
+Поряд з іншими `import { … } from '../scripts/...'`:
 
-cat > npm/skills/fix/meta.json << 'EOF'
-{
-  "auto": "завжди",
-  "worktree": true
-}
-EOF
-
-cat > npm/skills/fix-tests/meta.json << 'EOF'
-{
-  "auto": ["js-lint"],
-  "worktree": true
-}
-EOF
-
-cat > npm/skills/lint/meta.json << 'EOF'
-{
-  "auto": "завжди",
-  "worktree": true
-}
-EOF
-
-cat > npm/skills/llm-patch/meta.json << 'EOF'
-{
-  "auto": "завжди",
-  "worktree": false
-}
-EOF
-
-cat > npm/skills/publish-telegram/meta.json << 'EOF'
-{
-  "auto": "завжди",
-  "worktree": false
-}
-EOF
-
-cat > npm/skills/start-check/meta.json << 'EOF'
-{
-  "auto": ["bun"],
-  "worktree": false
-}
-EOF
-
-cat > npm/skills/taze/meta.json << 'EOF'
-{
-  "auto": ["bun"],
-  "worktree": true
-}
-EOF
+```js
+import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
+import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 ```
 
-- [ ] **Крок 4.2: Видалити всі `auto.md` файли**
+- [ ] **Step 2: Змінити цикл копіювання**
 
-```bash
-rm npm/skills/adr-normalize/auto.md \
-   npm/skills/coverage-fix/auto.md \
-   npm/skills/fix/auto.md \
-   npm/skills/fix-tests/auto.md \
-   npm/skills/lint/auto.md \
-   npm/skills/llm-patch/auto.md \
-   npm/skills/publish-telegram/auto.md \
-   npm/skills/start-check/auto.md \
-   npm/skills/taze/auto.md
+Замінити (рядки ~764-770):
+
+```js
+        await mkdir(destDir, { recursive: true })
+        const files = await readdir(srcDir)
+        for (const file of files) {
+          if (file === 'auto.md') continue
+          const content = await readFile(join(srcDir, file), 'utf8')
+          await writeFile(join(destDir, file), content, 'utf8')
+        }
 ```
 
-- [ ] **Крок 4.3: Перевірити що auto-skills тести ще проходять (тепер читають meta.json)**
+на:
 
-```bash
-cd npm && npx vitest run scripts/tests/auto-skills.test.mjs
+```js
+        await mkdir(destDir, { recursive: true })
+        const meta = readSkillMetaRaw(srcDir)
+        const worktree = meta?.worktree === true
+        const files = await readdir(srcDir)
+        for (const file of files) {
+          if (file === 'meta.json') continue
+          let content = await readFile(join(srcDir, file), 'utf8')
+          if (file === 'SKILL.md') {
+            content = injectWorktreeNotice(content, worktree)
+          }
+          await writeFile(join(destDir, file), content, 'utf8')
+        }
 ```
-Очікується: ≥7 passed без жодних WARN у stderr.
 
-- [ ] **Крок 4.4: Commit**
+> `auto.md` більше не пропускаємо явно — джерела вже без нього (Task 3); якщо колись зʼявиться, він просто скопіюється, що нешкідливо. Лишати мертву умову `=== 'auto.md'` не варто (knip/oxlint).
+
+- [ ] **Step 3: Перевірити синк руками на тимчасовому проєкті**
 
 ```bash
-git add npm/skills/
-git commit -m "feat(skill-meta): мігрувати auto.md → meta.json для 9 скілів"
+cd /tmp && rm -rf nctest && mkdir nctest && cd nctest && git init -q
+printf '{"$schema":"https://unpkg.com/@nitra/cursor/schemas/n-cursor.json","rules":["bun"],"skills":["fix","lint"]}' > .n-cursor.json
+node /Users/vitaliytv/www/nitra/cursor/npm/bin/n-cursor.js >/tmp/nc.log 2>&1 || true
+echo "fix(true) має блок:"  && grep -c 'n-cursor:worktree:start' .cursor/skills/n-fix/SKILL.md
+echo "lint(false) без блоку:" && grep -c 'n-cursor:worktree:start' .cursor/skills/n-lint/SKILL.md
+echo "meta.json НЕ скопійовано:" && ls .cursor/skills/n-fix/meta.json 2>&1
+cd /Users/vitaliytv/www/nitra/cursor
+```
+
+Expected: `fix` → `1`; `lint` → `0`; `meta.json` → «No such file or directory».
+
+- [ ] **Step 4: Коміт**
+
+```bash
+git add npm/bin/n-cursor.js
+git commit -m "feat(sync): пропускати meta.json, вшивати worktree-блок у SKILL.md
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 5: Створити `skill-meta.schema.json`
+## Task 6: JSON-схема `skill-meta.json` + реєстрація у v8r-каталозі
 
 **Files:**
-- Create: `npm/schemas/skill-meta.schema.json`
 
-- [ ] **Крок 5.1: Створити схему**
+- Create: `npm/schemas/skill-meta.json`
+- Modify: `npm/schemas/v8r-catalog.json` (зіставлення `skills/*/meta.json` → схема)
 
-```bash
-cat > npm/schemas/skill-meta.schema.json << 'EOF'
+- [ ] **Step 1: Створити схему**
+
+Файл `npm/schemas/skill-meta.json`:
+
+```json
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.schema.json",
-  "title": "skill meta.json",
-  "description": "Налаштування авто-активації та worktree-режиму для npm/skills/<id>/meta.json",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/skill-meta.json",
+  "title": "n-cursor skill meta",
+  "description": "Метадані скіла @nitra/cursor: умова автоактивації (auto) і чи виконувати в окремому git-worktree (worktree). Файл npm/skills/<id>/meta.json.",
   "type": "object",
-  "required": ["auto", "worktree"],
   "additionalProperties": false,
+  "required": ["worktree"],
   "properties": {
     "auto": {
-      "description": "Умова авто-активації скіла: 'завжди' або масив id правил (усі мають бути виявлені)",
+      "description": "Умова автоактивації: \"завжди\" або непорожній масив id правил, від яких залежить скіл.",
       "oneOf": [
         { "const": "завжди" },
-        {
-          "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "minItems": 1
-        }
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
       ]
     },
     "worktree": {
       "type": "boolean",
-      "description": "Якщо true — скіл виконується в ізольованому git worktree; не запускати паралельно"
+      "description": "true — виконувати скіл в окремому git-worktree, один інстанс за раз (без паралельного запуску); false — у worktree не виконується."
     }
   }
 }
-EOF
 ```
 
-- [ ] **Крок 5.2: Переконатися що схема валідна JSON**
+- [ ] **Step 2: Зареєструвати у v8r-каталозі**
 
-```bash
-node -e "JSON.parse(require('fs').readFileSync('npm/schemas/skill-meta.schema.json', 'utf8')); console.log('OK')"
-```
-Очікується: `OK`.
+Прочитати `npm/schemas/v8r-catalog.json`, знайти масив записів `{ "name", "fileMatch", "url"|"location" }` (формат SchemaStore-подібний — звірити з наявними записами) і додати запис за тим самим форматом, що вже використовується у файлі:
 
-- [ ] **Крок 5.3: Commit**
-
-```bash
-git add npm/schemas/skill-meta.schema.json
-git commit -m "feat(skill-meta): skill-meta.schema.json — JSON Schema для meta.json"
-```
-
----
-
-## Task 6: Оновити `syncSkills` у `n-cursor.js`
-
-**Files:**
-- Modify: `npm/bin/n-cursor.js`
-
-- [ ] **Крок 6.1: Додати import `injectWorktreeBlock` на рядок 105 (після `runLintCli`)**
-
-У файлі `npm/bin/n-cursor.js` знайди блок імпортів (після `import { runLintCli }`) і додай:
-
-```js
-import { injectWorktreeBlock } from '../scripts/utils/inject-worktree-block.mjs'
-```
-
-- [ ] **Крок 6.2: Оновити `syncSkills` — рядок 767**
-
-Знайди в `syncSkills`:
-```js
-          if (file === 'auto.md') continue
-          const content = await readFile(join(srcDir, file), 'utf8')
-          await writeFile(join(destDir, file), content, 'utf8')
-```
-
-Заміни на:
-```js
-          if (file === 'meta.json') continue
-          let content = await readFile(join(srcDir, file), 'utf8')
-          if (file === 'SKILL.md') {
-            const metaPath = join(srcDir, 'meta.json')
-            let worktree = false
-            if (existsSync(metaPath)) {
-              const meta = JSON.parse(await readFile(metaPath, 'utf8'))
-              worktree = meta.worktree === true
-            }
-            content = injectWorktreeBlock(content, worktree)
-          }
-          await writeFile(join(destDir, file), content, 'utf8')
-```
-
-- [ ] **Крок 6.3: Оновити коментар у JSDoc (рядок ~61-63)**
-
-Знайди в коментарі JSDoc файлу:
-```
- * Файл `auto.md` у скілі — джерело правди для auto-skills у CLI (`scripts/auto-skills.mjs`)
- * і у проєкт не копіюється; раніше синхронізовані `auto.md` у `.cursor/skills/n-<id>/` CLI
- * не чіпає — їх потрібно прибрати вручну.
-```
-
-Заміни на:
-```
- * Файл `meta.json` у скілі — джерело правди для auto-skills у CLI (`scripts/auto-skills.mjs`)
- * і у проєкт не копіюється. Якщо `worktree: true` — у скопійований `SKILL.md` вставляється
- * markdown-блок між маркерами `<!-- n-cursor:worktree:start/end -->`.
-```
-
-- [ ] **Крок 6.4: Перевірити що `n-cursor.js` синтаксично правильний**
-
-```bash
-node --input-type=module < npm/bin/n-cursor.js 2>&1 | head -5
-```
-Якщо немає виводу — OK (команда завершиться нормально з exit 1 бо немає аргументів, але синтаксична помилка покаже SyntaxError).
-
-Альтернатива:
-```bash
-node -e "import('./npm/bin/n-cursor.js').catch(e => { if(e.code==='ERR_MODULE_NOT_FOUND'||e.message?.includes('argv')) {}; else console.error(e.message) })"
-```
-
-- [ ] **Крок 6.5: Запустити skills-cli тест**
-
-```bash
-cd npm && npx vitest run scripts/tests/skills-cli.test.mjs
-```
-Очікується: passed.
-
-- [ ] **Крок 6.6: Commit**
-
-```bash
-git add npm/bin/n-cursor.js
-git commit -m "feat(skill-meta): syncSkills — пропускає meta.json, вшиває worktree-блок у SKILL.md"
-```
-
----
-
-## Task 7: Новий check-concern `skill_meta.mjs` + тести
-
-**Files:**
-- Create: `npm/rules/npm-module/js/skill_meta.mjs`
-- Create: `npm/rules/npm-module/js/tests/skill_meta.test.mjs`
-
-- [ ] **Крок 7.1: Написати тести (red)**
-
-```js
-// npm/rules/npm-module/js/tests/skill_meta.test.mjs
-import { describe, expect, test } from 'vitest'
-import { mkdir, writeFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { check } from '../skill_meta.mjs'
-import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
-
-async function mkSkillDir(base, id) {
-  const dir = join(base, 'npm', 'skills', id)
-  await mkdir(dir, { recursive: true })
-  return dir
+```json
+{
+  "name": "n-cursor skill meta",
+  "fileMatch": ["npm/skills/*/meta.json"],
+  "location": "./schemas/skill-meta.json"
 }
+```
 
-describe('check (skill_meta)', () => {
-  test('немає npm/skills/ → pass (exit 0)', async () => {
+> Ключі (`location` vs `url`) і відносний шлях — **точно як у сусідніх записах** цього файла; не вгадувати, взяти з існуючого зразка.
+
+- [ ] **Step 3: Перевірити, що схема валідна JSON і ловить помилку**
+
+Run: `cd npm && node -e "const A=require('ajv'); const a=new (A.default||A)({allErrors:true}); const v=a.compile(require('./schemas/skill-meta.json')); console.log('ok valid:', v({auto:'завжди',worktree:true})); console.log('bad worktree string:', v({auto:'завжди',worktree:'yes'})); console.log('bad always en:', v({auto:'always',worktree:true})); console.log('missing worktree:', v({auto:'завжди'}))"`
+Expected: `ok valid: true`, `bad worktree string: false`, `bad always en: false`, `missing worktree: false`.
+
+- [ ] **Step 4: Коміт**
+
+```bash
+git add npm/schemas/skill-meta.json npm/schemas/v8r-catalog.json
+git commit -m "feat(schemas): skill-meta.json + реєстрація у v8r-каталозі
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
+```
+
+---
+
+## Task 7: Check-концерн `skill_meta.mjs` (валідація скілів пакета)
+
+**Files:**
+
+- Create: `npm/rules/npm-module/js/skill_meta.mjs`
+- Test: `npm/rules/npm-module/js/tests/skill_meta.test.mjs`
+
+Концерн живе під правилом `npm-module` (воно вже гейтиться наявністю `npm/`, а `npm/skills/` є лише в репо пакета). Сканує `<cwd>/npm/skills/<id>/`: вимагає валідний `meta.json`, забороняє залишковий `auto.md`.
+
+- [ ] **Step 1: Написати падаючі тести**
+
+Файл `npm/rules/npm-module/js/tests/skill_meta.test.mjs`:
+
+```js
+import { describe, expect, test } from 'vitest'
+import { writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+
+import { check } from '../skill_meta.mjs'
+import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
+
+describe('skill_meta check', () => {
+  test('усі скіли з валідним meta.json → 0', async () => {
     await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await ensureDir(join(dir, 'npm', 'skills', 'lint'))
+      await writeJson(join(dir, 'npm', 'skills', 'lint', 'meta.json'), { auto: 'завжди', worktree: false })
       expect(await check(dir)).toBe(0)
     })
   })
 
-  test('валідний meta.json → exit 0', async () => {
+  test('відсутній meta.json → 1', async () => {
     await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'fix')
-      await writeJson(join(skillDir, 'meta.json'), { auto: 'завжди', worktree: true })
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('невалідний meta.json (відсутній worktree) → exit 1', async () => {
-    await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'fix')
-      await writeJson(join(skillDir, 'meta.json'), { auto: 'завжди' })
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
       expect(await check(dir)).toBe(1)
     })
   })
 
-  test('невалідний meta.json (порожній масив auto) → exit 1', async () => {
+  test('залишковий auto.md → 1', async () => {
     await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'fix')
-      await writeJson(join(skillDir, 'meta.json'), { auto: [], worktree: false })
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: true })
+      await writeFile(join(dir, 'npm', 'skills', 'fix', 'auto.md'), 'завжди\n', 'utf8')
       expect(await check(dir)).toBe(1)
     })
   })
 
-  test('тільки auto.md (deprecated) → exit 0 з stderr WARN', async () => {
+  test('worktree не boolean → 1', async () => {
     await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'lint')
-      await writeFile(join(skillDir, 'auto.md'), 'завжди\n')
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('обидва meta.json і auto.md → exit 0 з stderr WARN', async () => {
-    await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'lint')
-      await writeJson(join(skillDir, 'meta.json'), { auto: 'завжди', worktree: false })
-      await writeFile(join(skillDir, 'auto.md'), 'завжди\n')
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('масив у auto з 1+ елементами → exit 0', async () => {
-    await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'taze')
-      await writeJson(join(skillDir, 'meta.json'), { auto: ['bun'], worktree: true })
-      expect(await check(dir)).toBe(0)
-    })
-  })
-
-  test('невідоме поле у meta.json → exit 1', async () => {
-    await withTmpDir(async dir => {
-      const skillDir = await mkSkillDir(dir, 'fix')
-      await writeJson(join(skillDir, 'meta.json'), { auto: 'завжди', worktree: true, extra: 'forbidden' })
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'завжди', worktree: 'yes' })
       expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('auto присутнє, але нерозпізнане → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), { auto: 'always', worktree: true })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('немає npm/skills взагалі → 0 (нема чого валідувати)', async () => {
+    await withTmpDir(async dir => {
+      expect(await check(dir)).toBe(0)
     })
   })
 })
 ```
 
-- [ ] **Крок 7.2: Запустити тести, переконатися що падають**
+- [ ] **Step 2: Запустити — переконатися, що падає**
 
-```bash
-cd npm && npx vitest run rules/npm-module/js/tests/skill_meta.test.mjs
-```
-Очікується: FAIL (файл skill_meta.mjs не існує).
+Run: `cd npm && npx vitest run rules/npm-module/js/tests/skill_meta.test.mjs`
+Expected: FAIL — `Cannot find module '../skill_meta.mjs'`.
 
-- [ ] **Крок 7.3: Написати `skill_meta.mjs`**
+- [ ] **Step 3: Реалізувати концерн**
+
+Файл `npm/rules/npm-module/js/skill_meta.mjs`:
 
 ```js
-// npm/rules/npm-module/js/skill_meta.mjs
 /**
- * Перевіряє наявність і валідність `meta.json` у кожному `npm/skills/<id>/`.
+ * Перевірка метаданих скілів пакета `@nitra/cursor` (концерн правила npm-module).
  *
- * Правило: кожен скіл у `npm/skills/` повинен мати `meta.json`, що відповідає
- * `schemas/skill-meta.schema.json`. Якщо є тільки `auto.md` — це deprecation warning
- * (не fail): зворотна сумісність для зовнішніх скілів, що ще не мігрували.
+ * Кожен `npm/skills/<id>/` має містити валідний `meta.json`:
+ *  - `worktree` присутнє і boolean;
+ *  - `auto` (якщо присутнє) — розпізнане (`"завжди"` або непорожній масив рядків);
+ *  - залишковий `auto.md` заборонено (міграція на meta.json завершена).
+ *
+ * Концерн застосовний лише в репо самого пакета (де є `npm/skills/`); у споживача
+ * каталогу `npm/skills/` нема, тож перевірка мовчки проходить.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
+
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
+import { parseSkillAutoSpec, readSkillMetaRaw } from '../../../scripts/lib/skill-meta.mjs'
 
 /**
- * Валідує об'єкт meta.json вручну (мінімальна схема без зовнішніх залежностей).
- * @param {unknown} meta
- * @returns {string[]} список повідомлень про помилки (порожній = валідно)
- */
-function validateSkillMeta(meta) {
-  const errors = []
-  if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) {
-    return ['meta.json має бути об\'єктом']
-  }
-  const allowedKeys = new Set(['auto', 'worktree'])
-  for (const key of Object.keys(meta)) {
-    if (!allowedKeys.has(key)) errors.push(`невідоме поле "${key}"`)
-  }
-  if (!('auto' in meta)) {
-    errors.push('відсутнє обов\'язкове поле "auto"')
-  } else {
-    const a = meta['auto']
-    const validArray = Array.isArray(a) && a.length > 0 && a.every(s => typeof s === 'string' && s.length > 0)
-    if (a !== 'завжди' && !validArray) {
-      errors.push(`поле "auto": очікується "завжди" або непорожній масив рядків, отримано: ${JSON.stringify(a)}`)
-    }
-  }
-  if (!('worktree' in meta)) {
-    errors.push('відсутнє обов\'язкове поле "worktree"')
-  } else if (typeof meta['worktree'] !== 'boolean') {
-    errors.push(`поле "worktree": очікується boolean, отримано: ${typeof meta['worktree']}`)
-  }
-  return errors
-}
-
-/**
+ * Валідує всі `npm/skills/<id>/meta.json`.
  * @param {string} [cwd] корінь репозиторію
- * @returns {Promise<number>} 0 — OK, 1 — є помилки
+ * @returns {Promise<number>} 0 — OK, 1 — порушення
  */
-export async function check(cwd = process.cwd()) {
-  const skillsDir = join(cwd, 'npm', 'skills')
-  if (!existsSync(skillsDir)) return 0
-
+export function check(cwd = process.cwd()) {
   const reporter = createCheckReporter()
-  const { pass, fail } = reporter
+  const skillsDir = join(cwd, 'npm', 'skills')
+  if (!existsSync(skillsDir)) {
+    reporter.pass('npm/skills/ відсутній — немає скілів для валідації')
+    return Promise.resolve(reporter.getExitCode())
+  }
 
   for (const entry of readdirSync(skillsDir, { withFileTypes: true })) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue
     const id = entry.name
     const skillDir = join(skillsDir, id)
-    const metaPath = join(skillDir, 'meta.json')
-    const autoMdPath = join(skillDir, 'auto.md')
 
-    const hasMeta = existsSync(metaPath)
-    const hasAutoMd = existsSync(autoMdPath)
+    if (existsSync(join(skillDir, 'auto.md'))) {
+      reporter.fail(`skills/${id}: залишковий auto.md — видали (метадані тепер у meta.json)`)
+    }
 
-    if (!hasMeta && !hasAutoMd) {
-      pass(`skills/${id}: немає auto-файлу — opt-in лише через конфіг`)
+    const raw = readSkillMetaRaw(skillDir)
+    if (!raw) {
+      reporter.fail(`skills/${id}: відсутній або невалідний meta.json (очікується {"auto"?, "worktree": bool})`)
       continue
     }
-
-    if (!hasMeta && hasAutoMd) {
-      process.stderr.write(`WARN: skills/${id}: auto.md застарілий — мігруй на meta.json\n`)
-      pass(`skills/${id}: auto.md (deprecated, ok для зворотної сумісності)`)
-      continue
+    if (typeof raw.worktree !== 'boolean') {
+      reporter.fail(`skills/${id}: meta.json.worktree має бути boolean`)
     }
-
-    if (hasAutoMd) {
-      process.stderr.write(`WARN: skills/${id}: обидва meta.json і auto.md — видали auto.md\n`)
+    if (raw.auto !== undefined && parseSkillAutoSpec(raw.auto) === null) {
+      reporter.fail(`skills/${id}: meta.json.auto нерозпізнане — очікується "завжди" або непорожній масив правил`)
     }
-
-    let meta
-    try {
-      meta = JSON.parse(readFileSync(metaPath, 'utf8'))
-    } catch (e) {
-      fail(`skills/${id}/meta.json: невалідний JSON — ${e.message}`)
-      continue
-    }
-
-    const errors = validateSkillMeta(meta)
-    if (errors.length > 0) {
-      for (const err of errors) {
-        fail(`skills/${id}/meta.json: ${err}`)
-      }
-    } else {
-      pass(`skills/${id}/meta.json: валідний (auto=${JSON.stringify(meta.auto)}, worktree=${meta.worktree})`)
+    if (reporter.getExitCode() === 0) {
+      reporter.pass(`skills/${id}: meta.json валідний`)
     }
   }
 
-  return reporter.getExitCode()
+  return Promise.resolve(reporter.getExitCode())
 }
 ```
 
-- [ ] **Крок 7.4: Запустити тести, переконатися що проходять**
+- [ ] **Step 4: Запустити — переконатися, що проходить**
 
-```bash
-cd npm && npx vitest run rules/npm-module/js/tests/skill_meta.test.mjs
-```
-Очікується: 8 passed.
+Run: `cd npm && npx vitest run rules/npm-module/js/tests/skill_meta.test.mjs`
+Expected: PASS (всі 6 кейсів).
 
-- [ ] **Крок 7.5: Commit**
+- [ ] **Step 5: Прогнати правило на реальному репо**
+
+Run: `npx @nitra/cursor fix npm-module 2>&1 | grep -i skill`
+Expected: рядки `skills/<id>: meta.json валідний` для всіх 9; без `❌`.
+
+> Якщо правило падає на `checkDirtyNpmRequiresVersionBump` (незакомічені зміни без bump) — це очікувано до коміту; після коміту цього кроку `git diff HEAD` порожній і перевірка зелена.
+
+- [ ] **Step 6: Коміт**
 
 ```bash
 git add npm/rules/npm-module/js/skill_meta.mjs npm/rules/npm-module/js/tests/skill_meta.test.mjs
-git commit -m "feat(skill-meta): skill_meta.mjs — check-concern для npm-module (валідація meta.json)"
+git commit -m "feat(npm-module): концерн валідації skills/<id>/meta.json
+
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 8: Оновити integration-repo-checks і перевірити все
+## Task 8: Документація, change-файл, фінальна верифікація
 
 **Files:**
-- Modify: `npm/tests/integration-repo-checks.test.mjs`
 
-- [ ] **Крок 8.1: Додати import і виклик `checkSkillMeta`**
+- Modify: `.cursor/rules/scripts.mdc` (рядки ~14, ~51)
+- Modify: `npm/README.md` (рядок ~117)
+- Create: `npm/.changes/<timestamp>-<rand>.md` (через CLI)
 
-У `npm/tests/integration-repo-checks.test.mjs` знайди:
-```js
-import { check as checkNpmModule } from '../rules/npm-module/js/package_structure.mjs'
+- [ ] **Step 1: Оновити `scripts.mdc`**
+
+Рядок ~14 (дерево структури правила) лишити як є (це про rules). Рядок ~51 — про структуру скілів — замінити:
+
+було:
+
+```
+Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor), `auto.md` (опційно).
 ```
 
-Додай після нього:
-```js
-import { check as checkSkillMeta } from '../rules/npm-module/js/skill_meta.mjs'
+стало:
+
+```
+Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor) і `meta.json` (метадані скіла). `meta.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). У проєкт `meta.json` **не** копіюється; під час синку при `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно). Валідація — концерн `npm-module/js/skill_meta.mjs`.
 ```
 
-У тілі тесту після `expect(await checkNpmModule(REPO_ROOT)).toBe(0)` додай:
-```js
-      expect(await checkSkillMeta(REPO_ROOT)).toBe(0)
+- [ ] **Step 2: Оновити `npm/README.md`**
+
+Знайти рядок ~117 з `├── auto.md ...` у дереві структури скілу і замінити на `meta.json`:
+
+було:
+
+```
+├── auto.md               # умова автоактивації скілу (опційно)
 ```
 
-- [ ] **Крок 8.2: Запустити integration test**
+стало:
+
+```
+├── meta.json             # метадані скілу: auto (автоактивація) + worktree
+```
+
+> Якщо в README є й інші згадки `auto.md` у контексті скілів — оновити аналогічно. Згадки `rules/*/auto.md` НЕ чіпати (rules — у Spec B).
+
+- [ ] **Step 3: Створити change-файл**
 
 ```bash
-cd npm && npx vitest run tests/integration-repo-checks.test.mjs
+cd npm && npx @nitra/cursor change --bump minor --section Changed \
+  --message "skills: meta.json замість auto.md (+ worktree-прапорець з вшиванням у SKILL.md і забороною паралелі)" \
+  && cd ..
 ```
-Очікується: 1 passed (тест проходить, бо всі `meta.json` валідні і `auto.md` видалені).
 
-- [ ] **Крок 8.3: Запустити повний тест-сюїт**
+Expected: `✅ .changes/<…>.md`.
+
+- [ ] **Step 4: Повний прогін тестів пакета**
+
+Run: `cd npm && npx vitest run 2>&1 | tail -12`
+Expected: усі нові тести зелені; падати можуть лише наперед відомі flaky (`post-tool-use-fix › readStdin` timeout, `integration-repo-checks › checkNpmModule` — лише якщо є незакомічені зміни під `npm/`). Усе інше — PASS.
+
+- [ ] **Step 5: Програмна перевірка структури**
+
+Run: `npx @nitra/cursor fix npm-module 2>&1 | tail -8`
+Expected: `npm-module` без `❌` (після того, як попередні кроки закомічені — дерево чисте).
+
+- [ ] **Step 6: Перевірка changelog-узгодженості**
+
+Run: `npx @nitra/cursor fix changelog 2>&1 | tail -5`
+Expected: exit 0.
+
+- [ ] **Step 7: Коміт**
 
 ```bash
-cd npm && npx vitest run 2>&1 | tail -10
-```
-Очікується: усі тести крім pre-існуючих падінь (readStdin у `post-tool-use-fix.test.mjs` — flaky stdin-тест, не пов'язаний з нашими змінами).
+git add .cursor/rules/scripts.mdc npm/README.md npm/.changes/
+git commit -m "docs: scripts.mdc + README на meta.json; change-файл (Spec A)
 
-- [ ] **Крок 8.4: Commit**
-
-```bash
-git add npm/tests/integration-repo-checks.test.mjs
-git commit -m "test: integration-repo-checks — додати checkSkillMeta"
+Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 9: Changeset і фінальна верифікація
-
-- [ ] **Крок 9.1: Створити changeset**
-
-```bash
-cd npm && npx @nitra/cursor change --bump minor --section Added \
-  --message "skill meta.json: замінити auto.md на meta.json у npm/skills/<id>/ — поля auto + worktree; syncSkills вшиває worktree-блок у SKILL.md; новий check-concern skill_meta.mjs у правилі npm-module"
-```
-
-- [ ] **Крок 9.2: Перевірити changelog check**
-
-```bash
-cd npm && npx @nitra/cursor fix changelog 2>&1 | tail -5
-```
-Очікується: exit 0.
-
-- [ ] **Крок 9.3: Фінальний запуск цільових тестів**
-
-```bash
-cd npm && npx vitest run \
-  scripts/utils/tests/read-skill-meta.test.mjs \
-  scripts/utils/tests/inject-worktree-block.test.mjs \
-  scripts/tests/auto-skills.test.mjs \
-  rules/npm-module/js/tests/skill_meta.test.mjs \
-  tests/integration-repo-checks.test.mjs \
-  2>&1 | tail -8
-```
-Очікується: усі passed, 0 failed.
-
-- [ ] **Крок 9.4: Commit changeset**
-
-```bash
-git add npm/.changes/
-git commit -m "chore: changeset для skill meta.json + worktree"
-```
-
----
-
-## Self-Review
-
-Перевірив план проти spec:
+## Self-Review (виконано автором плану)
 
 **Spec coverage:**
-- ✅ `meta.json` замість `auto.md` (Tasks 1, 4)
-- ✅ `syncSkills` пропускає `meta.json` і вшиває worktree-блок (Task 6)
-- ✅ `auto-skills.mjs` → `readSkillMeta` (Task 3)
-- ✅ JSON Schema (Task 5)
-- ✅ Валідація `check`-concern + backward-compat warnings (Task 7)
-- ✅ Integration test (Task 8)
 
-**Placeholder scan:** без TBD/TODO.
+- meta.json формат (auto/worktree) → Task 1 (парсер) + Task 3 (файли) + Task 6 (схема). ✅
+- `worktree:true` ⇒ заборона паралелі → текст блоку D2 (Task 2) + `withLock` уже в `main`. ✅
+- A2 (вшивання в SKILL.md) → Task 2 + Task 5. ✅
+- D2 ідемпотентні маркери → Task 2. ✅
+- auto-skills читає meta.json → Task 4. ✅
+- syncSkills пропускає meta.json + вшиває блок → Task 5. ✅
+- видалення auto.md → Task 3; заборона залишку → Task 7. ✅
+- JSON-схема + check → Task 6 + Task 7. ✅
+- міграція 9 скілів з точними значеннями → Task 3 (звірено з реальними auto.md). ✅
+- docs (scripts.mdc, README) + change-файл → Task 8. ✅
+- Out of scope (rules, lint split, рантайм) — не торкаємось. ✅
 
-**Type consistency:** `SkillAutoSpec` — однакова назва типу в `read-skill-meta.mjs` і `auto-skills.mjs`. Функція `injectWorktreeBlock` — одна назва в утиліті й у `n-cursor.js`.
+**Placeholder scan:** немає TBD/«handle edge cases» без коду; усі кроки з кодом мають повний код.
 
-**Scope:** фокус — тільки skill meta.json і worktree-інтеграція в syncSkills.
+**Type consistency:** `parseSkillAutoSpec`, `readSkillMetaRaw`, `SKILL_ALWAYS`, `injectWorktreeNotice`, `WORKTREE_START/END`, `check(cwd)` — імена однакові в усіх задачах і тестах.
+
+**Відомий ризик:** один пункт потребує звірки з фактом під час виконання — формат записів `v8r-catalog.json` (Task 6 Step 2): взяти ключі (`location`/`url`, `fileMatch`) точно як у сусідніх записах, не вгадувати.
+
+---
+
+## Execution Handoff
+
+Plan complete and saved to `docs/superpowers/plans/2026-05-31-skill-meta-json-worktree.md`.
