@@ -1,29 +1,29 @@
-# Spec: Розділення lint на quick і CI-фази через meta.json
+# Spec: Розділення lint на quick і all через meta.json
 
 **Дата:** 2026-05-31  
-**Статус:** Approved
+**Статус:** Draft
 
 ---
 
 ## Проблема
 
-Поточний `bun run lint` запускає шість lint-кроків (oxlint, eslint, jscpd, knip, stylelint, trufflehog та ін.) щоразу — і під час розробки, і в CI. Повний прогін займає значний час; розробнику достатньо швидких перевірок лише по поточних змінах логіки, а важкі крос-файлові аналізатори (jscpd, knip) мають сенс лише в CI.
+Поточний `bun run lint` запускає шість lint-кроків (oxlint, eslint, jscpd, knip, stylelint, trufflehog та ін.) щоразу — і під час розробки, і в CI. Повний прогін займає значний час; розробнику достатньо швидких перевірок лише по змінених файлах, а важкі крос-файлові аналізатори (jscpd, knip) мають сенс лише для повного прогону.
 
 ---
 
 ## Цілі
 
-- `bun run lint` — швидкий прогін (quick-набір), придатний для виклику в pre-commit і під час розробки.
-- `bun run lint-ci` — повний прогін (quick + ci-only набір), для CI-пайплайну.
-- Набір кроків у кожній фазі визначається **декларативно** через поле `lint` у `meta.json` правила — так само, як автодетект визначається полем `auto`.
-- Жодного хардкоду списків інструментів у скриптах `package.json` напряму; скрипт делегує CLI-команді пакета.
+- `bun run lint-quick` — швидкий прогін лише по змінених файлах (`git diff --name-only HEAD`), придатний для виклику під час розробки.
+- `bun run lint-all` — повний прогін (quick + ci-only набір) по всьому репо, для CI-пайплайну або повної локальної перевірки.
+- Набір кроків у кожній фазі визначається **декларативно** через поля `lint`, `lintCmd`, `lintScoped`, `lintAlways`, `lintCiCmd` у `meta.json` правила — так само, як автодетект визначається полем `auto`.
+- Скрипт `lint` і окремі `lint-ga`, `lint-js`, `lint-rego`, `lint-style`, `lint-text` — **лишаються незмінними** (backward-compat з існуючими споживачами).
 
 ---
 
 ## Не в цьому spec
 
-- Фільтрація по змінених файлах (git diff scope) — можлива майбутня фіча, але не зараз.
-- Зміни в CI-конфігурації (`.github/workflows/`) — окремий крок після цього spec.
+- Міграція package.json споживачів (видалення старих `lint-ga`, `lint-js` і т.д.) — окрема задача після готовності CLI.
+- Зміни в CI-конфігурації (`.github/workflows/`) — окремий крок.
 
 ---
 
@@ -34,134 +34,156 @@
 **Причина:** конкурентний eslint перевантажує диск і CPU, призводить до некоректних результатів і нестабільного виконання. Це зафіксовано в `CLAUDE.md` проєкту.
 
 **Вимоги:**
-- Обидва виконавці (`n-cursor lint` і `n-cursor lint-ci`) запускають кроки **строго послідовно** (`sequential: true` в реалізації; жодних `Promise.all`, паралельних процесів чи workers для lint-кроків).
-- Порядок кроків фіксований і передбачуваний (не concurrent).
-- При написанні implementation plan: команди `/n-lint` і `/lint-ci` **не розбиваються на паралельні субагенти** — це єдина послідовна задача.
+- Обидва виконавці (`n-cursor lint-quick` і `n-cursor lint-all`) запускають кроки **строго послідовно**.
+- При написанні implementation plan: `lint-quick`/`lint-all` **не розбиваються на паралельні субагенти**.
 
 ---
 
-## Атрибут `lint` у `meta.json`
+## Нові поля у `meta.json` правила
 
-Поле `lint` додається до `meta.json` правила (поряд з наявним `auto`):
-
-```json
-{ "auto": "завжди", "lint": "quick" }
-```
-
-| Значення | Де виконується | Коли використовувати |
-|---|---|---|
-| `"quick"` | і в `lint`, і в `lint-ci` | швидкий крок, доречний завжди |
-| `"ci"` | лише в `lint-ci` | важкий/крос-файловий аналіз |
-| відсутнє | ніде | правило не є lint-кроком |
-
-Семантика: **quick ⊆ ci**. Повний прогін (`lint-ci`) виконує all quick + all ci кроків.
-
-### JSON-схема
-
-У `rule-meta.json` (або окремій `lint-phase.json`) поле `lint` — enum `"quick" | "ci"`, optional.
-
----
-
-## Розщеплення `js-lint` (D3)
-
-`js-lint` — єдиний composite-крок, що містить інструменти обох фаз:
-
-| Інструмент | Фаза | Поточний рядок |
-|---|---|---|
-| oxlint | quick | `bunx oxlint --fix` |
-| eslint | quick | `bunx eslint --fix .` |
-| jscpd | ci | `bunx jscpd .` |
-| knip | ci | `bunx knip --no-exit-code` |
-
-**Рішення:** правило `js-lint` описує quick-крок. CI-інструменти виносяться в окреме правило (або окремий lint-step-концерн) `js-lint-ci` з `"lint": "ci"`. Обидва живуть у директорії `npm/rules/js-lint/` — quick-крок у поточному правилі, ci-крок у новому під-записі або окремому `meta.json` запису.
-
-> Конкретний механізм реєстрації ci-кроку (окремий `meta.json` у `npm/rules/js-lint-ci/` або поле-масив у `js-lint/meta.json`) — уточнити на початку реалізації Task 2. Обидва варіанти сумісні з цим spec.
-
----
-
-## Класифікація lint-кроків (аналіз виконано перед плануванням)
-
-| Крок / правило | Інструмент(и) | Фаза | Обґрунтування |
-|---|---|---|---|
-| `lint-rego` | `opa check`, `regal`, `conftest verify` | **quick** | Per-path, фіксований `npm/rules/`, швидкий однопрохідний аналіз |
-| `lint-style` | `stylelint` | **quick** | Per-file, stateless між файлами |
-| `oxlint` (з js-lint) | `bunx oxlint --fix` | **quick** | Rust-based per-file, дуже швидкий |
-| `eslint` (з js-lint) | `bunx eslint --fix .` | **quick** | Per-file, немає крос-файлових правил у конфізі |
-| `lint-text` цілком | `cspell`, `shellcheck`, `dotenv-linter`, `markdownlint-cli2`, `v8r` | **quick** | Усі підкроки per-file/stateless; v8r може бути повільний через fetch схем, але per-file |
-| `oxfmt` | `oxfmt .` | **quick** | Fast formatter, per-file |
-| `lint-ga` | `actionlint`, `zizmor --collect=workflows`, `conftest check-ga` | **ci** | Крос-файловий: сканує весь `.github/workflows/`, аналіз залежностей між workflow |
-| `lint-security` | `trufflehog filesystem .` | **ci** | Сканує все дерево; потребує контексту по всьому репо для ентропійного аналізу |
-| `jscpd` (з js-lint) | `bunx jscpd .` | **ci** | Детектор дублікатів — потребує індексу всіх файлів одночасно |
-| `knip` (з js-lint) | `bunx knip --no-config-hints` | **ci** | Граф залежностей по всіх пакетах; per-file аналіз неможливий |
-
-**Підсумок:** `lint-js` — єдиний композитний крок що змішує фази. `lint-text` та `lint-rego` — повністю quick. `lint-ga` і `lint-security` — повністю ci.
-
-### Флаги у quick-фазі
-
-| Інструмент | quick-флаги (додаткові) |
-|---|---|
-| `eslint` | `--quiet` (тільки errors, без warnings) |
-| решта quick | без додаткових флагів |
-
----
-
-## Конвенція скриптів: F1
-
-| Скрипт | Фаза | Замінює |
-|---|---|---|
-| `lint` | quick (новий) | поточний `lint-js` (швидка частина) |
-| `lint-ci` | full (новий) | поточний `lint` (усі перевірки) |
-| `lint-js` | — | **видалити** як публічний скрипт |
-
-`lint-js` стає внутрішнім кроком CLI і більше не присутній у `package.json` проєктів. Усі посилання на `bun run lint-js` замінюються на `bun run lint` (quick) або `bun run lint-ci` (full) залежно від контексту.
-
-> **Backward-compat:** `lint-js` є лише в dev-проєкті пакета (`npm/package.json`). Зовнішні споживачі не кличуть `lint-js` напряму — вони використовують `lint` з кореневого `package.json`. Тому ламаючих змін для зовнішніх репо немає.
-
----
-
-## CLI-виконавець
-
-Нова команда `n-cursor lint` і `n-cursor lint-ci` у пакеті `@nitra/cursor`:
-
-1. Читає `meta.json` усіх правил у `npm/rules/*/meta.json` (ті, що мають поле `lint`).
-2. Для `lint`: відбирає кроки з `lint === "quick"`, виконує їх із quick-флагами.
-3. Для `lint-ci`: відбирає всі кроки (`quick` + `ci`), виконує з повними флагами.
-4. **Кроки виконуються строго послідовно** (sequential) — жодної паралелізації.
-5. Порядок виконання: визначається полем `lintOrder` у `meta.json` або лексикографічним ім'ям правила (деталь реалізації).
-
-### Скрипти в `package.json` проєктів
+До наявного поля `auto` додаються lint-поля (всі необовʼязкові):
 
 ```json
 {
-  "lint":    "n-cursor lint",
-  "lint-ci": "n-cursor lint-ci"
+  "lint":       "quick",            // "quick" або "ci" (quick ⊆ all)
+  "lintCmd":    "n-cursor lint-ga", // команда для виконання
+  "lintScoped": false,              // true → команда приймає список файлів як positional args
+  "lintAlways": false,              // true → запускати навіть якщо нема змінених файлів
+  "lintCiCmd":  "bunx jscpd . && bunx knip --no-config-hints"  // лише для js-lint: ci-only команда
 }
 ```
 
-Або через `bunx`/`npx` залежно від поточного канону проєкту.
+### Семантика полів
+
+| Поле | Тип | Значення за замовчуванням | Опис |
+|---|---|---|---|
+| `lint` | `"quick" \| "ci"` | відсутнє | Фаза. Відсутнє = правило не є lint-кроком |
+| `lintCmd` | `string` | — | Команда для quick (і повного) прогону |
+| `lintScoped` | `boolean` | `false` | Передавати список змінених файлів як positional аргументи |
+| `lintAlways` | `boolean` | `false` | Не пропускати крок навіть якщо нема змінених файлів |
+| `lintCiCmd` | `string` | — | Додаткова ci-only команда (виконується лише в `lint-all`) |
+
+### Семантика оркестратора при `lintScoped`
+
+| `lintScoped` | Режим quick (`lint-quick`) | Режим all (`lint-all`) |
+|---|---|---|
+| `true` | git diff → передає файли: `{lintCmd} file1 file2...`; якщо нема → пропустити (крім `lintAlways: true`) | запускає `lintCmd` без файлів (весь репо) |
+| `false` | запускає `lintCmd` без аргументів | запускає `lintCmd` без аргументів |
 
 ---
 
-## Правило `n-js-lint` — оновлення
+## Класифікація lint-кроків
 
-- Описує **обидва** скрипти (`lint`, `lint-ci`) як обовʼязкові в `package.json`; `lint-js` — видалити з канону.
-- Check-концерн `js_lint.mjs` валідує наявність `lint` і `lint-ci`, **забороняє** `lint-js` у `scripts`.
-- Документація правила пояснює: семантику quick⊆ci, заборону паралельного запуску, sequential-природу обох команд.
+| Правило | `lint` | `lintScoped` | `lintAlways` | `lintCiCmd` |
+|---|---|---|---|---|
+| `ga` | `quick` | `false` | `false` | — |
+| `js-lint` | `quick` | `true` | `false` | `bunx jscpd . && bunx knip --no-config-hints` |
+| `oxfmt` (нове) | `quick` | `true` | `false` | — |
+| `rego` | `quick` | `true` | `false` | — |
+| `style-lint` | `quick` | `true` | `false` | — |
+| `text` | `quick` | `false` | `false` | — |
+| `security` | **відсутнє** | — | — | — |
+
+**Примітки:**
+- `security` (trufflehog) — **поза оркестратором**: власний CI job, власний скрипт `lint-security`. Ні в `lint-quick`, ні в `lint-all`.
+- `lint-all` є **швидшим** за поточний `lint` (не включає trufflehog, який зараз у ланцюгу). `lint-all` = всі orchestrated правила; `security` — окремо.
+- `js-lint` — єдиний composite-крок, що містить quick (oxlint+eslint) і ci (jscpd+knip) інструменти. Ci-частина виражена через `lintCiCmd`.
+- `lintCmd` для `js-lint` — нова CLI-підкоманда `n-cursor lint-js [files...]`, що внутрішньо запускає `bunx oxlint --fix` і `bunx eslint --fix` з переданим списком файлів. (Compound-команда потребує wrapper-а, бо positional args не можна вставити в `&&`-рядок.)
 
 ---
 
-## Схема rule-meta.json — розширення
+## Нові правила та файли
 
-Поточна схема `rule-meta.json` вже має `auto`. Додаємо:
+### Правило `lint` (`npm/rules/lint/`)
+
+Нове «конвенційне» правило (аналог `worktree` для worktree-конвенції):
+
+- `npm/rules/lint/lint.mdc` — документує всю lint-конвенцію: що означають `lint-quick`/`lint-all`, які поля вимагаються в `meta.json` для lint-кроків, заборона паралельного запуску.
+- `npm/rules/lint/meta.json` — `{ "auto": "завжди" }` (само правило не є lint-кроком; `check-lint.mjs` валідує інших).
+- `npm/rules/lint/check-lint.mjs` — валідує lint-поля у **всіх** правилах репо: якщо є `lint`, то `lintCmd` обовʼязковий; невалідні значення відхиляти; перевіряти узгодженість з `rule-meta.json` схемою.
+
+### Правило `oxfmt` (`npm/rules/oxfmt/`)
+
+Нове правило для форматера (поточний `oxfmt .` у lint-ланцюгу):
+
+- `npm/rules/oxfmt/oxfmt.mdc` — документує конвенцію: використовуємо `oxfmt` для форматування JS/TS/Vue.
+- `npm/rules/oxfmt/meta.json` — `{ "lint": "quick", "lintCmd": "oxfmt", "lintScoped": true }`.
+
+---
+
+## CLI-оркестратор: `n-cursor lint-quick` / `n-cursor lint-all`
+
+**Алгоритм `n-cursor lint-quick`:**
+
+1. Зчитати `rules/*/meta.json`, зібрати правила з `lint: "quick"` → відсортувати за ID (алфавітно).
+2. `git diff --name-only HEAD` → список змінених файлів.
+3. Для кожного кроку послідовно:
+   - `lintScoped: true` → передати список файлів як args; якщо нема файлів і `lintAlways: false` → пропустити.
+   - `lintScoped: false` → запустити `lintCmd` без аргументів.
+   - Якщо вихідний код ≠ 0 → зупинити (fail-fast).
+4. `lintCiCmd` **не** виконується в quick-режимі.
+
+**Алгоритм `n-cursor lint-all`:**
+
+1. Зібрати всі правила з `lint` (і `quick`, і `ci`) → той самий алфавітний порядок.
+2. Для кожного кроку:
+   - Запустити `lintCmd` без фільтрації (весь репо).
+   - Якщо є `lintCiCmd` → запустити і його.
+   - Fail-fast при помилці.
+
+**Технічні деталі:**
+
+- Виконання — `execa`/`spawnSync` (не `shell: true`), безпечно щодо shell injection.
+- Строго послідовно — жодного `Promise.all` чи worker-threads для lint-кроків.
+- Реєструється у командному реєстрі пакета поряд з існуючими підкомандами.
+
+---
+
+## Зміни в `package.json` проєктів
+
+Тільки **додаємо** нові скрипти, нічого не видаляємо і не змінюємо:
+
+```json
+{
+  "lint":          "<поточний ланцюг — незмінний>",
+  "lint-quick":    "n-cursor lint-quick",
+  "lint-all":      "n-cursor lint-all",
+  "lint-ga":       "<незмінний>",
+  "lint-js":       "<незмінний>",
+  "lint-rego":     "<незмінний>",
+  "lint-security": "<незмінний>",
+  "lint-style":    "<незмінний>",
+  "lint-text":     "<незмінний>"
+}
+```
+
+---
+
+## Оновлення правила `n-js-lint`
+
+- `n-js-lint.mdc` — посилається на `lint.mdc` для загальної lint-конвенції; сам документує JS-специфіку (вибір oxlint/eslint, конфіги, `lintCiCmd` для jscpd+knip).
+- `check-js-lint.mjs` — оновлення: перевіряти наявність `lint-quick` і `lint-all` у `scripts` (як нові обовʼязкові); поточні `lint-js` і `lint` — лишаються валідними.
+
+---
+
+## Схема `rule-meta.json` — розширення
+
+Додаємо нові поля до існуючої схеми:
 
 ```json
 {
   "properties": {
-    "lint": {
-      "type": "string",
-      "enum": ["quick", "ci"],
-      "description": "Фаза lint-прогону: quick (швидкий, у lint і lint-ci) або ci (важкий, лише у lint-ci)"
-    }
+    "lint":       { "type": "string", "enum": ["quick", "ci"] },
+    "lintCmd":    { "type": "string" },
+    "lintScoped": { "type": "boolean", "default": false },
+    "lintAlways": { "type": "boolean", "default": false },
+    "lintCiCmd":  { "type": "string" }
+  },
+  "dependentRequired": {
+    "lintCmd":    ["lint"],
+    "lintScoped": ["lint"],
+    "lintAlways": ["lint"],
+    "lintCiCmd":  ["lint"]
   }
 }
 ```
@@ -170,18 +192,24 @@
 
 ## Тестування
 
-- **Юніт-тести** `lint-phase-parser.test.mjs`: `quick`/`ci`/absent парсяться коректно; quick⊆ci виконується у зібраному наборі.
-- **Інтеграційний тест**: `n-cursor lint --dry-run` і `n-cursor lint-ci --dry-run` виводять очікувані списки кроків.
-- **Регресія**: `bun run lint-ci` == поточний `bun run lint` за набором перевірок (нічого не втрачено).
+- **Юніт-тести оркестратора** `lint-orchestrator.test.mjs`:
+  - Парсинг meta.json → правильний набір quick vs all кроків.
+  - `lintScoped: true` → команда отримує список файлів; пустий список → пропуск.
+  - `lintAlways: true` → крок виконується навіть без файлів.
+  - `lintCiCmd` → виконується лише в `lint-all`.
+- **Юніт-тести lint-js wrapper** `lint-js.test.mjs`: oxlint + eslint отримують правильний file-list.
+- **Інтеграційний тест**: `n-cursor lint-quick` і `n-cursor lint-all` з відомими зміненими файлами → перевірити які кроки запустились.
 
 ---
 
 ## Поетапна реалізація (орієнтир для writing-plans)
 
-1. **Схема** — додати `lint` enum до `rule-meta.json` + оновити v8r.
-2. **meta.json правил** — проставити `lint: "quick" | "ci"` для кожного правила; розщепити js-lint-ci.
-3. **CLI** — `n-cursor lint` і `n-cursor lint-ci` (читає meta.json, збирає набір, виконує).
-4. **Скрипти проєкту** — замінити `lint` у `package.json`, додати `lint-ci`.
-5. **Правило `n-js-lint`** — оновити опис і check-концерн.
-6. **Тести** + регресія.
-7. **Docs** + change-файл.
+1. **Схема** — розширити `rule-meta.json` новими полями.
+2. **lint.mdc + check-lint.mjs** — нове конвенційне правило.
+3. **meta.json правил** — додати lint-поля до `ga`, `js-lint`, `rego`, `style-lint`, `text`.
+4. **oxfmt правило** — `npm/rules/oxfmt/` (mdc + meta.json).
+5. **lint-js wrapper** — `n-cursor lint-js [files...]` CLI-підкоманда.
+6. **Оркестратор** — `n-cursor lint-quick` і `n-cursor lint-all`.
+7. **package.json** — додати `lint-quick` і `lint-all` скрипти.
+8. **n-js-lint оновлення** — `n-js-lint.mdc` і `check-js-lint.mjs`.
+9. **Тести** + регресія + change-файл.
