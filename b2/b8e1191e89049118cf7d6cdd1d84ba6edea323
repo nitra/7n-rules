@@ -1,0 +1,21 @@
+npm/rules/worktree/worktree.mdc
+  s_7196fedc140418::t_89a3ce47285c77 30-43
+npm/.changes/1780218783124-a30f10.md
+  s_7196fedc140418::t_7b7491ae005eec 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b2b8e1191e89049118cf7d6cdd1d84ba6edea323",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
