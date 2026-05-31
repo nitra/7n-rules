@@ -71,7 +71,11 @@ describe('runConftestBatch', () => {
         const fakeFile = join(dir, 'a.json')
         writeFileSync(fakeFile, '{}')
         await expect(() =>
-          runConftestBatch({ files: [fakeFile], policyDirRel: 'abie/base_deployment_preem', namespace: 'abie.base_deployment_preem' })
+          runConftestBatch({
+            files: [fakeFile],
+            policyDirRel: 'abie/base_deployment_preem',
+            namespace: 'abie.base_deployment_preem'
+          })
         ).toThrow('conftest не знайдено')
       })
     })

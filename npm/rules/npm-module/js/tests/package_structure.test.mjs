@@ -11,12 +11,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import {
-  check,
-  classifyPublishedFileAsTest,
-  findTestFrameworkImport,
-  globToRegex
-} from '../package_structure.mjs'
+import { check, classifyPublishedFileAsTest, findTestFrameworkImport, globToRegex } from '../package_structure.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('globToRegex', () => {
@@ -135,11 +130,7 @@ describe('classifyPublishedFileAsTest', () => {
   test('rules/test/foo.mjs — carve-out: "test" на idx=1 у rules/ не є test-каталогом → null', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm/rules/test'))
-      await writeFile(
-        join(dir, 'npm', 'rules', 'test', 'foo.mjs'),
-        "export const x = 1\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'npm', 'rules', 'test', 'foo.mjs'), 'export const x = 1\n', 'utf8')
       const reason = await classifyPublishedFileAsTest('rules/test/foo.mjs', dir)
       expect(reason).toBeNull()
     })
@@ -148,11 +139,7 @@ describe('classifyPublishedFileAsTest', () => {
   test('rules/test/tests/bar.mjs — внутрішній tests/ (idx=2) усе одно є порушенням', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'npm/rules/test/tests'))
-      await writeFile(
-        join(dir, 'npm', 'rules', 'test', 'tests', 'bar.mjs'),
-        "export const x = 1\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'npm', 'rules', 'test', 'tests', 'bar.mjs'), 'export const x = 1\n', 'utf8')
       const reason = await classifyPublishedFileAsTest('rules/test/tests/bar.mjs', dir)
       expect(reason).toContain('test-style каталог')
     })

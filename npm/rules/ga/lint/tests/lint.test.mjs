@@ -87,7 +87,10 @@ describe('runLintGaCli', () => {
   })
 
   test('preflight OK — логує successMsg і доходить до actionlint (lines 129-130, 161-162)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
 
     const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-stubs-'))
     for (const name of ['shellcheck', 'uv', 'conftest']) {
@@ -122,7 +125,10 @@ describe('runLintGaCli', () => {
   })
 
   test('actionlint OK → досягає zizmor (lines 164-165)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
 
     const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-stubs-'))
     for (const name of ['shellcheck', 'uv', 'conftest', 'bunx']) {

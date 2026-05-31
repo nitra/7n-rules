@@ -251,7 +251,11 @@ describe('gha-workflow', () => {
       - uses: actions/checkout@v6
 `
     const root = parseWorkflowYaml(y)
-    expect(hasCheckoutBeforeLocalSetupBunDeps(/** @type {Record<string, unknown>} */ (root), ['./.github/actions/setup-bun-deps'])).toBe(false)
+    expect(
+      hasCheckoutBeforeLocalSetupBunDeps(/** @type {Record<string, unknown>} */ (root), [
+        './.github/actions/setup-bun-deps'
+      ])
+    ).toBe(false)
   })
 
   test('parseWorkflowYaml — невалідний YAML → null', () => {

@@ -139,7 +139,10 @@ describe('check-bun', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'bun.lock'), '', 'utf8')
       await writeFile(join(dir, 'bunfig.toml'), '[install]\nlinker = "hoisted"\n', 'utf8')
-      await writeJson(join(dir, '.n-cursor.json'), { rules: ['bun'], 'disable-rules': ['image-avif', 'image-compress'] })
+      await writeJson(join(dir, '.n-cursor.json'), {
+        rules: ['bun'],
+        'disable-rules': ['image-avif', 'image-compress']
+      })
       await writeJson(join(dir, 'package.json'), {
         name: 't',
         scripts: {

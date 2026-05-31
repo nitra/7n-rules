@@ -11,7 +11,8 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/util
 describe('check-text (мінімальний проєкт)', () => {
   test('проходить при повному мінімальному наборі', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, '.v8rignore'),
+      await writeFile(
+        join(dir, '.v8rignore'),
         `.vscode/extensions.json
 .vscode/settings.json
 `,
@@ -99,7 +100,7 @@ description: test
     })
   })
 
-  test('exit 1 — .v8rignore без обов\'язкових шляхів', async () => {
+  test("exit 1 — .v8rignore без обов'язкових шляхів", async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, '.v8rignore'), '# empty\n', 'utf8')
       expect(await check(dir)).toBe(1)
@@ -133,11 +134,7 @@ description: test
     await withTmpDir(async dir => {
       await writeFile(join(dir, '.v8rignore'), '.vscode/extensions.json\n.vscode/settings.json\n', 'utf8')
       await ensureDir(join(dir, '.cursor/rules'))
-      await writeFile(
-        join(dir, '.cursor/rules/n-text.mdc'),
-        '**Український апостроф:** без кодових позначок\n',
-        'utf8'
-      )
+      await writeFile(join(dir, '.cursor/rules/n-text.mdc'), '**Український апостроф:** без кодових позначок\n', 'utf8')
       expect(await check(dir)).toBe(1)
     })
   })

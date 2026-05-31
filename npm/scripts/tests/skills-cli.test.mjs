@@ -7,7 +7,13 @@ import { tmpdir } from 'node:os'
 import { env } from 'node:process'
 import { describe, expect, test } from 'vitest'
 
-import { buildSkillPrompt, listSkillIds, normalizeSkillId, resolveBundledPackageRoot, runSkillsCli } from '../skills-cli.mjs'
+import {
+  buildSkillPrompt,
+  listSkillIds,
+  normalizeSkillId,
+  resolveBundledPackageRoot,
+  runSkillsCli
+} from '../skills-cli.mjs'
 
 const UNKNOWN_SKILL_RE = /Unknown skill.*lint/
 const SKILL_NAME_REQUIRED_RE = /Skill name is required/
@@ -28,7 +34,7 @@ describe('normalizeSkillId', () => {
 
   test('null/undefined → порожній рядок', () => {
     expect(normalizeSkillId(/** @type {string} */ (null))).toBe('')
-    expect(normalizeSkillId(/** @type {string} */ )).toBe('')
+    expect(normalizeSkillId(/** @type {string} */)).toBe('')
   })
 })
 
@@ -206,8 +212,8 @@ describe('runSkillsCli', () => {
         packageRoot: root,
         projectDir: root,
         log: () => {
-        /* noop: stdout не перевіряється в цьому тесті */
-      },
+          /* noop: stdout не перевіряється в цьому тесті */
+        },
         logError: line => errors.push(line)
       })
     } finally {
@@ -233,8 +239,8 @@ describe('runSkillsCli', () => {
         packageRoot: root,
         projectDir: root,
         log: () => {
-        /* noop: stdout не перевіряється в цьому тесті */
-      },
+          /* noop: stdout не перевіряється в цьому тесті */
+        },
         logError: line => errors.push(line)
       })
     } finally {

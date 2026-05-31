@@ -60,6 +60,7 @@
 ### 4. Супутній аудит agent-facing текстів
 
 Зняти будь-які заклики бампити `version` вручну в:
+
 - `AGENTS.md`, `cursor/CLAUDE.md` (кореневі) — якщо згадують ручний bump;
 - скіли (`.cursor/skills/*/SKILL.md`), що проходять changelog-флоу;
 - memory `feedback_changelog.md` (зараз «version bump перед фінішем») — переформулювати на «change-файл перед фінішем».

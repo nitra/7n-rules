@@ -28,7 +28,9 @@ async function writeManifestVersion(cwd, manifest, newVersion) {
   const re = manifest.kind === 'npm' ? SEMVER_LINE_RE : PY_VERSION_LINE_RE
   const replaced = text.replace(re, `$1${newVersion}$2`)
   if (replaced === text) {
-    throw new Error(`release: не вдалося оновити version у ${manifest.ws}/${manifest.manifestRel} — патерн version не знайдено`)
+    throw new Error(
+      `release: не вдалося оновити version у ${manifest.ws}/${manifest.manifestRel} — патерн version не знайдено`
+    )
   }
   await writeFile(path, replaced)
 }

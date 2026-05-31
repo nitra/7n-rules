@@ -35,7 +35,7 @@ describe('isRunAsCli', () => {
   })
 
   test('metaUrl з не-file: протоколом → false (catch block)', () => {
-    expect(isRunAsCli("https://example.com/file.mjs")).toBe(false)
+    expect(isRunAsCli('https://example.com/file.mjs')).toBe(false)
   })
 
   test('symlink-нормалізація: macOS /tmp ↔ /private/tmp — true', () => {

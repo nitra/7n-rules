@@ -88,7 +88,10 @@ describe('run-dotenv-linter.mjs', () => {
   test('runDotenvLinter повертає 1 і друкує підказки встановлення, якщо dotenv-linter відсутній у PATH (lines 61-62)', async () => {
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errLines.push(chunk); return true }
+    process.stderr.write = chunk => {
+      errLines.push(chunk)
+      return true
+    }
     try {
       await withBinRemovedFromPath('dotenv-linter', async () => {
         await withTmpDir(dir => {
@@ -107,7 +110,10 @@ describe('run-dotenv-linter.mjs', () => {
   test('runDotenvLinter повертає 1 і виводить stdout коли check знаходить порушення (lines 88-90)', async () => {
     const stdoutLines = []
     const origOut = process.stdout.write.bind(process.stdout)
-    process.stdout.write = chunk => { stdoutLines.push(chunk); return true }
+    process.stdout.write = chunk => {
+      stdoutLines.push(chunk)
+      return true
+    }
     try {
       await withFakeDotenvLinter(async () => {
         await withTmpDir(async dir => {
@@ -129,7 +135,10 @@ describe('runDotenvLinter — spawnSync error paths', () => {
   test('default cwd = process.cwd() (line 57)', async () => {
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     try {
       await withBinRemovedFromPath('dotenv-linter', () => {
         expect(runDotenvLinter()).toBe(1)
@@ -146,12 +155,19 @@ describe('runDotenvLinter — spawnSync error paths', () => {
       .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
       .mockImplementationOnce(() => ({
         error: new Error('mock ENOENT fix'),
-        status: null, stdout: '', stderr: '', pid: 0, signal: null
+        status: null,
+        stdout: '',
+        stderr: '',
+        pid: 0,
+        signal: null
       }))
 
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     try {
       await withFakeDotenvLinter(async () => {
         await withTmpDir(dir => {
@@ -169,16 +185,28 @@ describe('runDotenvLinter — spawnSync error paths', () => {
     vi.mocked(spawnSync)
       .mockImplementationOnce(actual.spawnSync) // which — проходить до реального
       .mockImplementationOnce(() => ({
-        error: null, status: 0, stdout: '', stderr: '', pid: 0, signal: null
+        error: null,
+        status: 0,
+        stdout: '',
+        stderr: '',
+        pid: 0,
+        signal: null
       })) // fix — успішно
       .mockImplementationOnce(() => ({
         error: new Error('mock ENOENT check'),
-        status: null, stdout: '', stderr: '', pid: 0, signal: null
+        status: null,
+        stdout: '',
+        stderr: '',
+        pid: 0,
+        signal: null
       })) // check — помилка spawn
 
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     try {
       await withFakeDotenvLinter(async () => {
         await withTmpDir(dir => {

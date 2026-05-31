@@ -69,7 +69,10 @@ describe('runLintTextCli', () => {
   })
 
   test('preflight OK — логує successMsg і доходить до cspell (lines 119-120, 137-138)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
 
     // Стабові бінарники для shellcheck, patch, dotenv-linter (exit 0)
     const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-preflight-stubs-'))

@@ -42,9 +42,7 @@ function survivedFixture(file) {
   return [
     {
       file,
-      mutants: [
-        { line: 2, col: 7, mutantType: 'EqualityOperator', original: '===', replacement: '!==' }
-      ],
+      mutants: [{ line: 2, col: 7, mutantType: 'EqualityOperator', original: '===', replacement: '!==' }],
       exampleTest: null,
       recommendationText: null
     }
@@ -78,9 +76,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'worth-testing', confidence: 0.85, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'worth-testing', confidence: 0.85, reason: REASON }))
       const result = await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(result).toHaveLength(1)
       expect(result[0].key).toBe('foo.mjs:2:7:!==')
@@ -92,9 +88,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(mockCreate).toHaveBeenCalledTimes(1)
 
@@ -151,9 +145,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'glue', confidence: 0.8, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'glue', confidence: 0.8, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       const { readFileSync } = await import('node:fs')
       const cached = JSON.parse(readFileSync(cachePath, 'utf8'))
@@ -179,9 +171,7 @@ describe('classify', () => {
         }),
         'utf8'
       )
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(mockCreate).toHaveBeenCalledTimes(1) // не cache hit бо model змінилася
     })
@@ -192,9 +182,7 @@ describe('classify', () => {
       await writeFile(join(dir, 'a.mjs'), SAMPLE, 'utf8')
       await writeFile(join(dir, 'b.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValue(
-        mockResponse({ verdict: 'worth-testing', confidence: 0.8, reason: REASON })
-      )
+      mockCreate.mockResolvedValue(mockResponse({ verdict: 'worth-testing', confidence: 0.8, reason: REASON }))
       const survived = [...survivedFixture('a.mjs'), ...survivedFixture('b.mjs')]
       const result = await classify(survived, dir, { cachePath })
       expect(result).toHaveLength(2)

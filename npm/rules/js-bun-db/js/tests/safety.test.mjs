@@ -31,7 +31,8 @@ describe('check-js-bun-db', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { SQL, sql } from 'bun'
 export const db = new SQL(process.env.DATABASE_URL)
 export async function getUser(id: number) {
@@ -48,7 +49,8 @@ export async function getUser(id: number) {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { SQL } from 'bun'
 export function getUser(id: number) {
   const db = new SQL(process.env.DATABASE_URL)
@@ -65,7 +67,8 @@ export function getUser(id: number) {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export async function find(id: number) {
   return sql.unsafe(\`SELECT * FROM users WHERE id = \${id}\`)
@@ -81,7 +84,8 @@ export async function find(id: number) {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export const ping = () => sql.unsafe('SELECT 1')
 `,
@@ -95,7 +99,8 @@ export const ping = () => sql.unsafe('SELECT 1')
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не tagged template
 `,
@@ -109,7 +114,8 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe: ping — не 
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 import format from '@scaleleap/pg-format'
 const TABLE = 'users_2026'
@@ -129,7 +135,8 @@ export async function migrate() {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 const TABLE = 'users_2026'
 export async function migrate() {
@@ -147,7 +154,8 @@ export async function migrate() {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // allow-unsafe: статичний DDL
 `,
@@ -161,7 +169,8 @@ export const init = () => sql.unsafe(\`CREATE TABLE users (id int)\`) // allow-u
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
 `,
@@ -175,7 +184,8 @@ export const ping = () => sql.unsafe('SELECT 1') // allow-unsafe:
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 declare const pool: { connect(): Promise<void> }
 export async function getOne() {
@@ -193,7 +203,8 @@ export async function getOne() {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/shutdown.ts'),
+      await writeFile(
+        join(dir, 'src/shutdown.ts'),
         `import { sql } from 'bun'
 declare const client: { end(): Promise<void> }
 export const close = () => client.end()
@@ -209,7 +220,8 @@ export const ping = () => sql\`SELECT 1\`
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/shutdown.ts'),
+      await writeFile(
+        join(dir, 'src/shutdown.ts'),
         `import { sql } from 'bun'
 export async function shutdown() {
   // allow-pg-leftover: graceful shutdown — закриваємо пул перед exit
@@ -226,7 +238,8 @@ export async function shutdown() {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/ws.ts'),
+      await writeFile(
+        join(dir, 'src/ws.ts'),
         `import { sql } from 'bun'
 declare const ws: { connect(url: string): void }
 export async function boot(url: string) {
@@ -244,7 +257,8 @@ export async function boot(url: string) {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/stream.ts'),
+      await writeFile(
+        join(dir, 'src/stream.ts'),
         `declare const stream: { end(): void }
 export const stop = () => stream.end()
 `,
@@ -260,7 +274,8 @@ export const stop = () => stream.end()
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', dependencies: { pg: '^8.0.0' } })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/pg-listen.ts'),
+      await writeFile(
+        join(dir, 'src/pg-listen.ts'),
         `import { Client } from 'pg'
 const client = new Client()
 export async function start() {
@@ -279,7 +294,8 @@ export async function start() {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', dependencies: { pg: '^8.0.0' } })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/notify-bus.ts'),
+      await writeFile(
+        join(dir, 'src/notify-bus.ts'),
         `import { Client } from 'pg'
 const client = new Client()
 export const subscribe = () => client.on('notification', msg => console.log(msg))
@@ -294,7 +310,8 @@ export const subscribe = () => client.on('notification', msg => console.log(msg)
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', dependencies: { pg: '^8.0.0' } })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/app.ts'),
+      await writeFile(
+        join(dir, 'src/app.ts'),
         `import { Client } from 'pg'
 const client = new Client()
 export const findUser = (id: number) => client.query('SELECT * FROM users WHERE id = $1', [id])
@@ -309,14 +326,16 @@ export const findUser = (id: number) => client.query('SELECT * FROM users WHERE 
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', dependencies: { pg: '^8.0.0' } })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/pg-listen.ts'),
+      await writeFile(
+        join(dir, 'src/pg-listen.ts'),
         `import { Client } from 'pg'
 const listener = new Client()
 export const start = () => listener.query('LISTEN orders_channel')
 `,
         'utf8'
       )
-      await writeFile(join(dir, 'src/users.ts'),
+      await writeFile(
+        join(dir, 'src/users.ts'),
         `import { Client } from 'pg'
 const db = new Client()
 export const getUser = (id: number) => db.query('SELECT * FROM users WHERE id = $1', [id])
@@ -331,7 +350,8 @@ export const getUser = (id: number) => db.query('SELECT * FROM users WHERE id = 
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't', dependencies: { pg: '^8.0.0' } })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/notify.ts'),
+      await writeFile(
+        join(dir, 'src/notify.ts'),
         `import { Client } from 'pg'
 const client = new Client()
 export const notify = (msg: string) => client.query(\`NOTIFY orders_channel, '\${msg}'\`)
@@ -355,7 +375,8 @@ export const notify = (msg: string) => client.query(\`NOTIFY orders_channel, '\$
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 't' })
       await ensureDir(join(dir, 'src'))
-      await writeFile(join(dir, 'src/db.ts'),
+      await writeFile(
+        join(dir, 'src/db.ts'),
         `import { sql } from 'bun'
 export async function findMany(ids: number[]) {
   return sql\`SELECT * FROM users WHERE id IN (\${ids.join(',')})\`
@@ -405,7 +426,7 @@ export async function findMany(ids: number[]) {
       await ensureDir(join(dir, 'src'))
       await writeFile(
         join(dir, 'src/db.js'),
-        "import { sql } from 'bun'\nfunction quoteLiteral(val) { return \"'\" + String(val) + \"'\" }\n",
+        'import { sql } from \'bun\'\nfunction quoteLiteral(val) { return "\'" + String(val) + "\'" }\n',
         'utf8'
       )
       expect(await check(dir)).toBe(1)

@@ -88,23 +88,17 @@ describe('fetchLatestNitraCursorVersionFromNpm', () => {
   })
 
   test('кидає коли у відповіді немає version', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({}) })
-    )
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({}) }))
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
   test('кидає коли version — порожній рядок', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '   ' }) })
-    )
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '   ' }) }))
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
   test('кидає коли version — не string', async () => {
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ version: 123 }) })
-    )
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: 123 }) }))
     await expect(fetchLatestNitraCursorVersionFromNpm()).rejects.toThrow('немає поля version')
   })
 
@@ -129,8 +123,8 @@ describe('shouldSkipNpmVersionUpgrade — додаткові гілки', () => 
     expect(shouldSkipNpmVersionUpgrade('git+https://github.com/x/y')).toBe(true)
   })
 
-  test("https:// (без s) → true", () => {
-    expect(shouldSkipNpmVersionUpgrade("https://a/b.tgz")).toBe(true)
+  test('https:// (без s) → true', () => {
+    expect(shouldSkipNpmVersionUpgrade('https://a/b.tgz')).toBe(true)
   })
 
   test('відносний шлях ../ → true', () => {
@@ -274,9 +268,7 @@ describe('upgradeNitraCursorToLatestAndBunInstall — version upgrade paths', ()
   const originalFetch = globalThis.fetch
   beforeEach(() => {
     vi.spyOn(console, 'log').mockReturnValue()
-    globalThis.fetch = vi.fn(() =>
-      Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) })
-    )
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ version: '5.0.0' }) }))
   })
   afterEach(() => {
     globalThis.fetch = originalFetch

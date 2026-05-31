@@ -111,13 +111,7 @@ export async function check(cwd = process.cwd()) {
   for (const jsRoot of jsRoots) {
     const isVueRoot = await hasVueFiles(jsRoot)
     const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
-    await ensureBaselineFile(
-      reporter,
-      cwd,
-      strykerBaseline,
-      join(jsRoot, 'stryker.config.mjs'),
-      'stryker.config.mjs'
-    )
+    await ensureBaselineFile(reporter, cwd, strykerBaseline, join(jsRoot, 'stryker.config.mjs'), 'stryker.config.mjs')
     if (isVueRoot) {
       await ensureBaselineFile(
         reporter,
@@ -133,7 +127,11 @@ export async function check(cwd = process.cwd()) {
   // Гарантуємо що тест-артефакти (Stryker output, lcov HTML-звіт) ніколи не
   // потрапляють у commit. Patterns покривають усі workspaces через `**/`-префікс
   // (єдиний root .gitignore).
-  const { added } = await ensureGitignoreEntries(cwd, TEST_GITIGNORE_ENTRIES, 'Test artifacts: Stryker + coverage (test.mdc)')
+  const { added } = await ensureGitignoreEntries(
+    cwd,
+    TEST_GITIGNORE_ENTRIES,
+    'Test artifacts: Stryker + coverage (test.mdc)'
+  )
   if (added.length > 0) {
     reporter.pass(`.gitignore: додано тест-патерни (${added.join(', ')}) (test.mdc)`)
   }

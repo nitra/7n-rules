@@ -45,7 +45,9 @@ export function parseChangeFile(text) {
     throw new Error(`change-файл: bump має бути одним із ${VALID_BUMPS.join('|')} (отримано «${fm.bump ?? ''}»)`)
   }
   if (!VALID_SECTIONS.includes(fm.section)) {
-    throw new Error(`change-файл: section має бути одним із ${VALID_SECTIONS.join('|')} (отримано «${fm.section ?? ''}»)`)
+    throw new Error(
+      `change-файл: section має бути одним із ${VALID_SECTIONS.join('|')} (отримано «${fm.section ?? ''}»)`
+    )
   }
   if (!description) throw new Error('change-файл: порожній опис')
   return { bump: fm.bump, section: fm.section, description }

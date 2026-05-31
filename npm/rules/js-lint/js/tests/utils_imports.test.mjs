@@ -53,11 +53,7 @@ describe('utils_imports.check', () => {
       const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
       restoreCwd = () => spy.mockRestore()
       await mkdir(join(dir, 'utils'), { recursive: true })
-      await writeFile(
-        join(dir, 'utils', 'fmt.mjs'),
-        "import { parse } from 'yaml'\nexport const p = parse\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'utils', 'fmt.mjs'), "import { parse } from 'yaml'\nexport const p = parse\n", 'utf8')
       expect(await check()).toBe(0)
     })
   })
@@ -82,11 +78,7 @@ describe('utils_imports.check', () => {
       restoreCwd = () => spy.mockRestore()
       await mkdir(join(dir, 'utils', 'tests'), { recursive: true })
       // Тест легально імпортує через ../ — це звичайний паттерн тестів
-      await writeFile(
-        join(dir, 'utils', 'tests', 'helper.test.mjs'),
-        "import { h } from '../helper.mjs'\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'utils', 'tests', 'helper.test.mjs'), "import { h } from '../helper.mjs'\n", 'utf8')
       // Немає нетестових файлів → pass (перевірку пропущено)
       expect(await check()).toBe(0)
     })
@@ -97,11 +89,7 @@ describe('utils_imports.check', () => {
       const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
       restoreCwd = () => spy.mockRestore()
       await mkdir(join(dir, 'utils', '__fixtures__'), { recursive: true })
-      await writeFile(
-        join(dir, 'utils', '__fixtures__', 'data.mjs'),
-        "import { x } from '../../other.mjs'\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'utils', '__fixtures__', 'data.mjs'), "import { x } from '../../other.mjs'\n", 'utf8')
       expect(await check()).toBe(0)
     })
   })
@@ -125,11 +113,7 @@ describe('utils_imports.check', () => {
       const spy = vi.spyOn(process, 'cwd').mockReturnValue(dir)
       restoreCwd = () => spy.mockRestore()
       await mkdir(join(dir, 'utils'), { recursive: true })
-      await writeFile(
-        join(dir, 'utils', 'bad.mjs'),
-        "import { x } from '../lib.mjs'\nexport const y = x\n",
-        'utf8'
-      )
+      await writeFile(join(dir, 'utils', 'bad.mjs'), "import { x } from '../lib.mjs'\nexport const y = x\n", 'utf8')
       // ignoring the utils directory → check() повинен пройти без порушень
       await writeFile(join(dir, '.n-cursor.json'), JSON.stringify({ ignore: ['utils'] }), 'utf8')
       expect(await check()).toBe(0)

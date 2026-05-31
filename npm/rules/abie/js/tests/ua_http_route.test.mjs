@@ -99,7 +99,10 @@ describe('abie ua_http_route concern', () => {
   })
 
   test('readFile fails → catch (lines 77-79)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
     await withTmpDir(async dir => {
       const pkg = join(dir, 'pkg')
       const ua = join(pkg, 'k8s/ua')

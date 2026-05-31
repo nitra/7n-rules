@@ -12,30 +12,31 @@
 
 ## Файли, які змінюються
 
-| Операція | Шлях |
-|---|---|
-| Create | `.changeset/config.json` |
-| Create | `.gitattributes` |
-| Create | `npm/rules/changeset/changeset.mdc` |
-| Create | `npm/rules/changeset/auto.md` |
-| Create | `npm/rules/changeset/fix.mjs` |
-| Create | `npm/rules/changeset/utils/package-manifest.mjs` ← з `changelog/lib/` |
-| Create | `npm/rules/changeset/js/consistency.mjs` |
-| Create | `npm/rules/changeset/js/tests/consistency/tests/check.test.mjs` |
-| Modify | `.github/workflows/npm-publish.yml` |
-| Modify | `.n-cursor.json` (changelog → changeset у rules) |
-| Modify | `.cursor/rules/scripts.mdc` (STOP-блок: check changelog → check changeset) |
-| Modify | `npm/rules/npm-module/npm-module.mdc` (рядок 66: прибрати `/ check changelog`) |
-| Modify | `npm/rules/changelog/js/consistency.mjs` (оновити import path якщо package-manifest буде перенесено; робиться перед видаленням) |
-| Delete | `npm/rules/changelog/` (усе дерево, Task 11) |
-| Auto | `.cursor/rules/n-changelog.mdc` → видаляється синком |
-| Auto | `.cursor/rules/n-changeset.mdc` → створюється синком |
+| Операція | Шлях                                                                                                                            |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Create   | `.changeset/config.json`                                                                                                        |
+| Create   | `.gitattributes`                                                                                                                |
+| Create   | `npm/rules/changeset/changeset.mdc`                                                                                             |
+| Create   | `npm/rules/changeset/auto.md`                                                                                                   |
+| Create   | `npm/rules/changeset/fix.mjs`                                                                                                   |
+| Create   | `npm/rules/changeset/utils/package-manifest.mjs` ← з `changelog/lib/`                                                           |
+| Create   | `npm/rules/changeset/js/consistency.mjs`                                                                                        |
+| Create   | `npm/rules/changeset/js/tests/consistency/tests/check.test.mjs`                                                                 |
+| Modify   | `.github/workflows/npm-publish.yml`                                                                                             |
+| Modify   | `.n-cursor.json` (changelog → changeset у rules)                                                                                |
+| Modify   | `.cursor/rules/scripts.mdc` (STOP-блок: check changelog → check changeset)                                                      |
+| Modify   | `npm/rules/npm-module/npm-module.mdc` (рядок 66: прибрати `/ check changelog`)                                                  |
+| Modify   | `npm/rules/changelog/js/consistency.mjs` (оновити import path якщо package-manifest буде перенесено; робиться перед видаленням) |
+| Delete   | `npm/rules/changelog/` (усе дерево, Task 11)                                                                                    |
+| Auto     | `.cursor/rules/n-changelog.mdc` → видаляється синком                                                                            |
+| Auto     | `.cursor/rules/n-changeset.mdc` → створюється синком                                                                            |
 
 ---
 
 ## Task 1: Встановити `@changesets/cli` та ініціалізувати
 
 **Files:**
+
 - Modify: `package.json` (root)
 - Create: `.changeset/config.json`
 
@@ -93,6 +94,7 @@ git commit -m "chore: init @changesets/cli"
 ## Task 2: Додати `.gitattributes` (Рівень 1 — anti-conflict для CHANGELOG)
 
 **Files:**
+
 - Create: `.gitattributes`
 
 - [ ] **Step 1: Створити `.gitattributes`**
@@ -115,6 +117,7 @@ git commit -m "chore: add .gitattributes with CHANGELOG union merge"
 ## Task 3: Написати failing tests для `check changeset` (TDD крок 1)
 
 **Files:**
+
 - Create: `npm/rules/changeset/js/tests/consistency/tests/check.test.mjs`
 
 Перед реалізацією напиши тести, переконайся, що вони FAIL (правило ще не існує).
@@ -164,7 +167,7 @@ async function writePublishedPkg(dir, ws, { name = '@test/pkg', version = '1.0.0
   await writeJson(join(wsDir, 'package.json'), {
     name,
     version,
-    files: ['dist'],
+    files: ['dist']
   })
 }
 
@@ -175,7 +178,7 @@ async function writePrivatePkg(dir, ws, { version = '1.0.0' } = {}) {
   await writeJson(join(wsDir, 'package.json'), {
     name: 'private-pkg',
     version,
-    private: true,
+    private: true
   })
 }
 
@@ -186,11 +189,7 @@ async function writeChangeset(dir, slug, packages) {
   const frontmatter = Object.entries(packages)
     .map(([pkg, bump]) => `"${pkg}": ${bump}`)
     .join('\n')
-  await writeFile(
-    join(changesetDir, `${slug}.md`),
-    `---\n${frontmatter}\n---\n\nОпис змін.\n`,
-    'utf8'
-  )
+  await writeFile(join(changesetDir, `${slug}.md`), `---\n${frontmatter}\n---\n\nОпис змін.\n`, 'utf8')
 }
 
 /** Ініціалізує git repo з initial commit та переключає на гілку `branch`. */
@@ -326,6 +325,7 @@ cd npm && bun test rules/changeset/js/tests/ 2>&1 | tail -20
 ## Task 4: Перенести `utils/package-manifest.mjs`
 
 **Files:**
+
 - Create: `npm/rules/changeset/utils/package-manifest.mjs`
 
 - [ ] **Step 1: Створити директорію**
@@ -352,6 +352,7 @@ mkdir -p npm/rules/changeset/utils
 ## Task 5: Реалізувати `js/consistency.mjs` (TDD крок 2)
 
 **Files:**
+
 - Create: `npm/rules/changeset/js/consistency.mjs`
 
 - [ ] **Step 1: Створити директорію**
@@ -386,10 +387,7 @@ import { promisify } from 'node:util'
 import { parse as parseYaml } from 'yaml'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import {
-  getMonorepoProjectRootDirs,
-  readPackageManifest,
-} from '../utils/package-manifest.mjs'
+import { getMonorepoProjectRootDirs, readPackageManifest } from '../utils/package-manifest.mjs'
 
 const execFileAsync = promisify(execFile)
 
@@ -449,11 +447,7 @@ async function resolveComparisonPoint(branch, cwd) {
     const originMainSha = originMainRaw?.trim()
     const headRaw = await gitOrNull(['rev-parse', 'HEAD'], cwd)
     const headSha = headRaw?.trim()
-    if (
-      originMainSha &&
-      headSha &&
-      (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD', cwd)))
-    ) {
+    if (originMainSha && headSha && (originMainSha === headSha || (await isGitAncestor('origin/main', 'HEAD', cwd)))) {
       return { ref: 'origin/main', label: 'main' }
     }
     const parent = await gitOrNull(['rev-parse', '--verify', '--quiet', 'HEAD~1'], cwd)
@@ -499,10 +493,7 @@ function pathspecForWorkspace(ws, subWorkspaces) {
 
 async function listChangedPaths(baseRef, pathspec, cwd) {
   const diffOut = await gitOrNull(['diff', '--name-only', '-z', baseRef, '--', ...pathspec], cwd)
-  const untrackedOut = await gitOrNull(
-    ['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspec],
-    cwd
-  )
+  const untrackedOut = await gitOrNull(['ls-files', '--others', '--exclude-standard', '-z', '--', ...pathspec], cwd)
   return [...new Set([...splitNulPaths(diffOut), ...splitNulPaths(untrackedOut)])]
 }
 
@@ -642,13 +633,14 @@ git commit -m "feat(changeset): implement check rule with TDD"
 ## Task 6: Створити metadata-файли правила
 
 **Files:**
+
 - Create: `npm/rules/changeset/changeset.mdc`
 - Create: `npm/rules/changeset/auto.md`
 - Create: `npm/rules/changeset/fix.mjs`
 
 - [ ] **Step 1: Створити `changeset.mdc`**
 
-```markdown
+````markdown
 ---
 description: Changeset-файли для published workspace'ів — замість ручного bump+CHANGELOG у PR
 version: '1.0'
@@ -662,10 +654,13 @@ alwaysApply: true
 1. **`.changeset/<slug>.md`** — виконай `bunx changeset add`, вибери відповідний workspace і bump-тип (`patch` / `minor` / `major`). Якщо CI-середовище без інтерактивного вводу — створи файл вручну:
    ```md
    ---
-   "@nitra/cursor": patch
+   '@nitra/cursor': patch
    ---
+
    Короткий опис зміни.
    ```
+````
+
 2. **`bun ./npm/bin/n-cursor.js check changeset`** (або `npx @nitra/cursor fix changeset`) → exit **`0`**.
 
 **Тригер шляхів:** будь-який каталог із `package.json` (не `private: true`, має `files`), куди потрапили правки: `npm/**` тощо.
@@ -685,18 +680,22 @@ alwaysApply: true
 - `major` — breaking changes
 
 **Реліз:** CI (`npm-publish.yml`) на `push main` автоматично:
+
 1. Виявляє `.changeset/*.md` → запускає `changeset version` (генерує `CHANGELOG.md`, піднімає `version`)
 2. Комітить і пушить результат
 3. Публікує пакет на npm
 
 Ручний bump `version` і ручне редагування `CHANGELOG.md` у PR **більше не потрібні**.
+
 ```
 
 - [ ] **Step 2: Створити `auto.md`**
 
 ```
+
 [bun]
-```
+
+````
 
 - [ ] **Step 3: Створити `fix.mjs`**
 
@@ -718,7 +717,7 @@ if (isRunAsCli(import.meta.url)) {
   // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
   process.exit(await runRuleCli(import.meta.dirname))
 }
-```
+````
 
 - [ ] **Step 4: Commit**
 
@@ -732,6 +731,7 @@ git commit -m "feat(changeset): add rule metadata (mdc, fix.mjs, auto.md)"
 ## Task 7: Оновити CI `npm-publish.yml`
 
 **Files:**
+
 - Modify: `.github/workflows/npm-publish.yml`
 
 - [ ] **Step 1: Прочитати поточний файл**
@@ -759,13 +759,13 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # потрібен для git push після changeset version
-      id-token: write  # КРИТИЧНО для OIDC npm publish
+      contents: write # потрібен для git push після changeset version
+      id-token: write # КРИТИЧНО для OIDC npm publish
 
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: true  # потрібен для git push
+          persist-credentials: true # потрібен для git push
 
       - uses: actions/setup-node@v6
         with:
@@ -814,6 +814,7 @@ git commit -m "ci: use changesets/version before npm publish"
 ## Task 8: Оновити `.n-cursor.json` та синхронізувати правила
 
 **Files:**
+
 - Modify: `.n-cursor.json`
 - Auto-create: `.cursor/rules/n-changeset.mdc`
 - Auto-delete: `.cursor/rules/n-changelog.mdc`
@@ -860,6 +861,7 @@ git commit -m "feat(changeset): register changeset rule, remove changelog rule"
 ## Task 9: Оновити cross-references
 
 **Files:**
+
 - Modify: `.cursor/rules/scripts.mdc`
 - Modify: `npm/rules/npm-module/npm-module.mdc`
 
@@ -903,6 +905,7 @@ git commit -m "docs: update check changelog refs to check changeset"
 ## Task 10: Видалити артефакти старого підходу
 
 **Files:**
+
 - Delete: `npm/rules/changelog/` (ціле дерево)
 
 > ⚠️ Виконувати лише після того, як Task 5 (check changeset тести green) і Task 8 (sync) завершені.
@@ -1006,6 +1009,7 @@ git commit -m "chore: add changeset for changesets migration"
 **Pre-commit hook `hk`:** у `n-changelog.mdc` є посилання на `hk`, який запускає `check changelog` при змінах у `npm/**`. Знайди конфігурацію цього хука (`.husky/pre-commit`, `lefthook.yml`, `.hk.yml` або `.claude/settings.json` → hooks) і заміни `check changelog` на `check changeset`. Якщо конфіг не знайдено — зафіксуй у CHANGELOG як known gap.
 
 **Перший реальний PR після міграції:** щоб перевірити end-to-end потік:
+
 1. Зроби зміну у `npm/`
 2. `bunx changeset add` → вибери `@nitra/cursor` → `patch`
 3. Переконайся, що `check changeset` exit 0

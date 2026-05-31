@@ -177,7 +177,11 @@ describe('check-image-avif', () => {
       await writeJson(join(dir, 'app/package.json'), { name: 'app' })
       await writeFile(join(dir, 'app/src', 'a.png'), 'fake-png', 'utf8')
       await writeFile(join(dir, 'app/src', 'a.png.avif'), 'fake-avif', 'utf8')
-      await writeFile(join(dir, 'app/src', 'App.vue'), `<template>\n  <img src="./a.png" alt="a" />\n</template>\n`, 'utf8')
+      await writeFile(
+        join(dir, 'app/src', 'App.vue'),
+        `<template>\n  <img src="./a.png" alt="a" />\n</template>\n`,
+        'utf8'
+      )
       expect(await check(dir)).toBe(0)
       const updated = await readFile(join(dir, 'app/src', 'App.vue'), 'utf8')
       expect(updated).toContain(`src="./a.png.avif"`)
@@ -453,7 +457,11 @@ describe('check-image-avif', () => {
       await writeFile(join(dir, '.gitignore'), 'node_modules/\n', 'utf8')
       await ensureDir(join(dir, 'app/src'))
       await writeJson(join(dir, 'app/package.json'), { name: 'app' })
-      await writeFile(join(dir, 'app/src', 'App.vue'), `<script setup>\nimport hero from './hero.png'\n</script>\n`, 'utf8')
+      await writeFile(
+        join(dir, 'app/src', 'App.vue'),
+        `<script setup>\nimport hero from './hero.png'\n</script>\n`,
+        'utf8'
+      )
       const logs = []
       const origLog = console.log
       console.log = msg => logs.push(String(msg))

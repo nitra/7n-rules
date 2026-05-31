@@ -4,7 +4,12 @@
  */
 import { describe, expect, test } from 'vitest'
 
-import { findConnFileRuleViolations, isConnFileNameValid, isConnFileRulesSourceFile, kebabToCamel } from '../../../../lib/conn-file-rules.mjs'
+import {
+  findConnFileRuleViolations,
+  isConnFileNameValid,
+  isConnFileRulesSourceFile,
+  kebabToCamel
+} from '../../../../lib/conn-file-rules.mjs'
 
 describe('isConnFileNameValid: префікс mssql-', () => {
   test('mssql-read / mssql-write приймаються', () => {
@@ -124,7 +129,7 @@ describe('findConnFileRuleViolations: ql- і pg- та різні форми expo
     expect(findConnFileRuleViolations(code, 'src/conn/pg-read.js')).toEqual([])
   })
 
-  test('невалідне ім\'я файлу + export default → обидва порушення', () => {
+  test("невалідне ім'я файлу + export default → обидва порушення", () => {
     const code = `export default {}\n`
     const v = findConnFileRuleViolations(code, 'src/conn/bad-name.js')
     expect(v.some(x => x.kind === 'name')).toBe(true)

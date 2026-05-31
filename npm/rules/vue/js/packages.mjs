@@ -422,15 +422,7 @@ async function checkVuePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, cwd)
 
   const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail, cwd)
-  await checkVueImportViolations(
-    rootDir,
-    join(cwd, rootDir),
-    ignorePaths,
-    hasVueAutoImport,
-    prefix,
-    passFn,
-    fail
-  )
+  await checkVueImportViolations(rootDir, join(cwd, rootDir), ignorePaths, hasVueAutoImport, prefix, passFn, fail)
   await checkVueNodeImportViolations(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
   await checkEsbuildMentions(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
 }

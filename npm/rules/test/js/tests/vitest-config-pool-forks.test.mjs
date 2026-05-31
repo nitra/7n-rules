@@ -30,10 +30,7 @@ export default defineConfig({ test: { pool: 'forks' } })
 
   test("порушення: pool: 'threads' → exit 1", async () => {
     await withTmpDir(async dir => {
-      await writeFile(
-        join(dir, 'vitest.config.js'),
-        "export default { test: { pool: 'threads' } }\n"
-      )
+      await writeFile(join(dir, 'vitest.config.js'), "export default { test: { pool: 'threads' } }\n")
       expect(await check(dir)).toBe(1)
     })
   })

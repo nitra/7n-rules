@@ -92,10 +92,7 @@ ${CHDIR}("/var")
   test('обхід пропускає node_modules', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/pkg/tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'node_modules/pkg/tests/foo.test.mjs'),
-        `${CHDIR}("/anywhere")\n`
-      )
+      await writeFile(join(dir, 'node_modules/pkg/tests/foo.test.mjs'), `${CHDIR}("/anywhere")\n`)
       expect(await check(dir)).toBe(0)
     })
   })

@@ -100,7 +100,14 @@ describe('withLock integration', () => {
       JSON.stringify({ pid: 999_999_999, host: hostname(), startedAt: Date.now(), fingerprint: null })
     )
     let ran = false
-    const code = await withLock('test', () => { ran = true; return 0 }, { cacheDir, getFingerprint: () => null })
+    const code = await withLock(
+      'test',
+      () => {
+        ran = true
+        return 0
+      },
+      { cacheDir, getFingerprint: () => null }
+    )
     expect(ran).toBe(true)
     expect(code).toBe(0)
   })
@@ -111,7 +118,14 @@ describe('withLock integration', () => {
     fs.mkdirSync(lockDir, { recursive: true })
     fs.writeFileSync(join(lockDir, 'owner.json'), 'NOT JSON{{{')
     let ran = false
-    const code = await withLock('test', () => { ran = true; return 0 }, { cacheDir, getFingerprint: () => null })
+    const code = await withLock(
+      'test',
+      () => {
+        ran = true
+        return 0
+      },
+      { cacheDir, getFingerprint: () => null }
+    )
     expect(ran).toBe(true)
     expect(code).toBe(0)
   })
@@ -126,12 +140,19 @@ describe('withLock integration', () => {
       JSON.stringify({ pid: process.pid, host: 'other-host', startedAt: Date.now(), fingerprint: null })
     )
     let ran = false
-    const code = await withLock('test', () => { ran = true; return 42 }, {
-      cacheDir,
-      waitTimeout: 1,
-      pollInterval: 10,
-      getFingerprint: () => null
-    })
+    const code = await withLock(
+      'test',
+      () => {
+        ran = true
+        return 42
+      },
+      {
+        cacheDir,
+        waitTimeout: 1,
+        pollInterval: 10,
+        getFingerprint: () => null
+      }
+    )
     expect(ran).toBe(true)
     expect(code).toBe(42)
   })

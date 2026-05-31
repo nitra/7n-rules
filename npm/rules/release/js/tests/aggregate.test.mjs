@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'vitest'
 
-import { bumpVersion, maxBump, renderChangelogSection, prependChangelogSection, aggregateWorkspace } from '../../lib/aggregate.mjs'
+import {
+  bumpVersion,
+  maxBump,
+  renderChangelogSection,
+  prependChangelogSection,
+  aggregateWorkspace
+} from '../../lib/aggregate.mjs'
 
 const RE_SEMVER = /semver/u
 
@@ -30,9 +36,7 @@ describe('renderChangelogSection', () => {
       { section: 'Added', description: 'Додав A' },
       { section: 'Added', description: 'Додав A2' }
     ])
-    expect(block).toBe(
-      '## [1.3.0] - 2026-05-29\n\n### Added\n\n- Додав A\n- Додав A2\n\n### Fixed\n\n- Виправив B\n'
-    )
+    expect(block).toBe('## [1.3.0] - 2026-05-29\n\n### Added\n\n- Додав A\n- Додав A2\n\n### Fixed\n\n- Виправив B\n')
   })
 })
 

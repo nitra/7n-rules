@@ -6,10 +6,7 @@
  */
 import { describe, expect, test } from 'vitest'
 
-import {
-  shouldIgnore,
-  strykerPlugins
-} from '../data/stryker_config/stryker-vue-macros-ignorer.mjs'
+import { shouldIgnore, strykerPlugins } from '../data/stryker_config/stryker-vue-macros-ignorer.mjs'
 
 /**
  * Створює мінімальний NodePath-стаб з babel-подібним API, який потрібен ignorer-у.
@@ -36,19 +33,15 @@ describe('stryker-vue-macros-ignorer plugin', () => {
     expect(typeof strykerPlugins[0].value.shouldIgnore).toBe('function')
   })
 
-  test.each([
-    'defineProps',
-    'defineEmits',
-    'defineModel',
-    'defineSlots',
-    'defineExpose',
-    'defineOptions'
-  ])('повертає non-empty message для CallExpression macro %s()', macro => {
-    const path = makePath({ type: 'CallExpression', calleeName: macro })
-    const msg = shouldIgnore(path)
-    expect(typeof msg).toBe('string')
-    expect(msg.length).toBeGreaterThan(0)
-  })
+  test.each(['defineProps', 'defineEmits', 'defineModel', 'defineSlots', 'defineExpose', 'defineOptions'])(
+    'повертає non-empty message для CallExpression macro %s()',
+    macro => {
+      const path = makePath({ type: 'CallExpression', calleeName: macro })
+      const msg = shouldIgnore(path)
+      expect(typeof msg).toBe('string')
+      expect(msg.length).toBeGreaterThan(0)
+    }
+  )
 
   test('повертає undefined для CallExpression з НЕ-macro callee', () => {
     const path = makePath({ type: 'CallExpression', calleeName: 'console' })

@@ -29,14 +29,16 @@ async function writeConcernJs(dir, ruleId, concern, body) {
 describe('runRule — applies gate', () => {
   test('false → правило пропущено, інші концерни не запускаються', async () => {
     await withTmpDir(async dir => {
-      await writeConcernJs(dir, 
+      await writeConcernJs(
+        dir,
         'rego',
         'applies',
         `export const applies = async () => false
          export const check = async () => { throw new Error('не має викликатись') }
         `
       )
-      await writeConcernJs(dir, 
+      await writeConcernJs(
+        dir,
         'rego',
         'other',
         `export const check = async () => { throw new Error('не має викликатись') }`
@@ -53,14 +55,16 @@ describe('runRule — applies gate', () => {
 
   test('true → всі концерни запускаються', async () => {
     await withTmpDir(async dir => {
-      await writeConcernJs(dir, 
+      await writeConcernJs(
+        dir,
         'rego',
         'applies',
         `export const applies = async () => true
          export const check = async () => 0
         `
       )
-      await writeConcernJs(dir, 
+      await writeConcernJs(
+        dir,
         'rego',
         'other',
         `let called = false
@@ -177,11 +181,7 @@ describe('runRule — MDC template refs', () => {
       const ruleDir = join(rulesDir, 'myrule2')
       await ensureDir(join(ruleDir, 'fix', 'concern', 'template'))
       await writeFile(join(ruleDir, 'fix', 'concern', 'template', 'example.js'), 'x\n', 'utf8')
-      await writeFile(
-        join(ruleDir, 'myrule2.mdc'),
-        '# Rule\n\n[ref](./fix/concern/template/example.js)\n',
-        'utf8'
-      )
+      await writeFile(join(ruleDir, 'myrule2.mdc'), '# Rule\n\n[ref](./fix/concern/template/example.js)\n', 'utf8')
       const rule = { id: 'myrule2', jsConcerns: [], policyConcerns: [] }
       const code = await runRule(rule, rulesDir, new Map())
       expect(code).toBe(0)

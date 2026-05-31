@@ -82,7 +82,9 @@ function checkExtensionsRecommendation(pass, fail, cwd) {
   const pathRel = '.vscode/extensions.json'
   const pathAbs = join(cwd, pathRel)
   if (!existsSync(pathAbs)) {
-    fail(`${pathRel} не існує — створи файл і додай у recommendations ${REQUIRED_GRAPHQL_VSCODE_EXTENSION} (graphql.mdc)`)
+    fail(
+      `${pathRel} не існує — створи файл і додай у recommendations ${REQUIRED_GRAPHQL_VSCODE_EXTENSION} (graphql.mdc)`
+    )
     return
   }
   const violations = runConftestBatch({

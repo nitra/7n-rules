@@ -42,7 +42,10 @@ describe('findK8sYamlFiles', () => {
       await writeFile(join(k8s, 'a.yaml'), SVC_YAML, 'utf8')
       await writeFile(join(k8s, 'b.yml'), SVC_YAML, 'utf8')
       const result = await findK8sYamlFiles(dir)
-      expect(result.map(p => p.replace(dir + '/', '').replaceAll('\\', '/'))).toEqual(['pkg/k8s/a.yaml', 'pkg/k8s/b.yml'])
+      expect(result.map(p => p.replace(dir + '/', '').replaceAll('\\', '/'))).toEqual([
+        'pkg/k8s/a.yaml',
+        'pkg/k8s/b.yml'
+      ])
     })
   })
 

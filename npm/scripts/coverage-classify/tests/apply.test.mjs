@@ -103,9 +103,7 @@ describe('applyVerdicts', () => {
 
   test('threshold = 1.1 (rollout) → нічого не фільтрується незалежно від verdict', () => {
     const rows = [row([mkSurvived('foo.mjs')])]
-    const verdicts = [
-      { key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1, reason: REASON } }
-    ]
+    const verdicts = [{ key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1, reason: REASON } }]
     const result = applyVerdicts(rows, verdicts, 1.1)
     expect(result.allowedGaps).toEqual([])
     expect(result.rows[0].survived[0].mutants).toHaveLength(2)

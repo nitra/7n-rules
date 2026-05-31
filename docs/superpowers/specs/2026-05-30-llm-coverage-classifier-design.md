@@ -18,12 +18,14 @@
 ## Scope
 
 **In scope:**
+
 - Survived мутанти (з `mutation.json`).
 - Uncovered-файли з `lines% < 50%` (з coverage-summary).
 - Оновлення `COVERAGE.md` з `Killable Score` та секцією «Allowed gaps».
 - File-hash-keyed cache (`coverage-classify.cache.json`) щоб не re-classify незмінений код.
 
 **Out of scope:**
+
 - Автоматичне пропускання мутантів у Stryker config.
 - CI-гейт на Killable score (окрема feature).
 - Python workspace (тільки JS).
@@ -68,11 +70,11 @@ n-cursor coverage
 ```js
 const VerdictSchema = z.object({
   verdict: z.enum([
-    'worth-testing',  // є реальна логіка — пиши тест
-    'equivalent',     // мутант поведінково еквівалентний
-    'defensive',      // гілка для impossible state
-    'glue',           // CLI entry / runStandardRule wrapper
-    'wrapper'         // spawn / fetch wrapper — integration охопить
+    'worth-testing', // є реальна логіка — пиши тест
+    'equivalent', // мутант поведінково еквівалентний
+    'defensive', // гілка для impossible state
+    'glue', // CLI entry / runStandardRule wrapper
+    'wrapper' // spawn / fetch wrapper — integration охопить
   ]),
   confidence: z.number().min(0).max(1),
   reason: z.string().min(20).max(500),
@@ -100,6 +102,7 @@ const r = await client.messages.create({
 ### System prompt (cached, спільний для всього прогону)
 
 Містить:
+
 - Опис кожної категорії з прикладами (рядковий текст).
 - Strict JSON output schema (mirror VerdictSchema).
 - Правила:
@@ -111,6 +114,7 @@ const r = await client.messages.create({
 ### User prompt (per-item)
 
 **mutant:**
+
 ```
 File: rules/abie/lib/hc-yaml.mjs  Line: 45  Col: 5
 Type: BooleanLiteralMutation
@@ -125,6 +129,7 @@ Last modified: 2 hours ago
 ```
 
 **uncovered-file:**
+
 ```
 File: rules/docker/lib/docker-hadolint.mjs  Lines%: 12%  Fn%: 12%
 <source або signature + JSDoc (якщо > 200 LOC)>
@@ -163,13 +168,13 @@ Last modified: 3 weeks ago
 
 ## Error Handling
 
-| Ситуація | Поведінка |
-|---|---|
-| `ANTHROPIC_API_KEY` не задано | Skip classify, COVERAGE.md без Killable секцій. Log: `⚠ classify: ANTHROPIC_API_KEY не встановлено — skip` |
-| API error (5xx / rate limit) | Retry ×2 (backoff 1s, 4s). Після 3 невдач → verdict `{worth-testing, confidence:0, reason: 'API error'}` |
-| Invalid JSON у відповіді | `extractJson` (grab first `{…}`) + zod parse. При fail → treat as API error |
-| `confidence < 0.7` | Залишається у Killable, позначається `⚠ low-confidence` |
-| Файл видалено між coverage та classify | Skip з логом |
+| Ситуація                               | Поведінка                                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `ANTHROPIC_API_KEY` не задано          | Skip classify, COVERAGE.md без Killable секцій. Log: `⚠ classify: ANTHROPIC_API_KEY не встановлено — skip` |
+| API error (5xx / rate limit)           | Retry ×2 (backoff 1s, 4s). Після 3 невдач → verdict `{worth-testing, confidence:0, reason: 'API error'}`   |
+| Invalid JSON у відповіді               | `extractJson` (grab first `{…}`) + zod parse. При fail → treat as API error                                |
+| `confidence < 0.7`                     | Залишається у Killable, позначається `⚠ low-confidence`                                                    |
+| Файл видалено між coverage та classify | Skip з логом                                                                                               |
 
 ---
 
@@ -179,15 +184,15 @@ Last modified: 3 weeks ago
 ## Score
 
 | Область | Рядки | Функції | Вбито мутацій | Raw Score | Killable Score | Allowed gaps |
-|---|---|---|---|---|---|---|
-| JS | 78.8% | 86.1% | 132/141 | 93.62% | **97.1%** | 8 |
+| ------- | ----- | ------- | ------------- | --------- | -------------- | ------------ |
+| JS      | 78.8% | 86.1%   | 132/141       | 93.62%    | **97.1%**      | 8            |
 
 ## Allowed gaps (LLM-classified, confidence ≥ 0.7)
 
-| File | Line | Verdict | Conf | Reason |
-|---|---|---|---|---|
-| `rules/*/fix.mjs` | — | glue | 0.92 | runStandardRule wrapper; integration covered by integration-repo-checks.test.mjs |
-| `coverage.mjs` | 188 | equivalent | 0.87 | Mutation→false unreachable: єдиний caller `runCoverageSteps({fix:false})` |
+| File              | Line | Verdict    | Conf | Reason                                                                           |
+| ----------------- | ---- | ---------- | ---- | -------------------------------------------------------------------------------- |
+| `rules/*/fix.mjs` | —    | glue       | 0.92 | runStandardRule wrapper; integration covered by integration-repo-checks.test.mjs |
+| `coverage.mjs`    | 188  | equivalent | 0.87 | Mutation→false unreachable: єдиний caller `runCoverageSteps({fix:false})`        |
 ```
 
 ---
@@ -195,6 +200,7 @@ Last modified: 3 weeks ago
 ## Integration у `n-cursor coverage`
 
 У `coverage.mjs`:
+
 ```js
 // після runStryker(opts) → result
 if (process.env.ANTHROPIC_API_KEY) {
@@ -210,11 +216,11 @@ Classify виконується **автоматично** в кожному `n-
 
 ## Testing strategy (нові тести classify-модуля)
 
-| Файл | Що покриває |
-|---|---|
-| `coverage-classify/tests/prompt.test.mjs` | `buildClassifyPrompt`: обрізання до ±10 рядків, injection існуючих тестів, формат uncovered-file |
-| `coverage-classify/tests/cache.test.mjs` | read/write/hit/miss, version mismatch → rebuild, git-hash change → re-classify |
-| `coverage-classify/tests/verdict-schema.test.mjs` | zod parse: happy path, reason < 20 chars → error, confidence out of range |
-| `coverage-classify/tests/apply.test.mjs` | `filterKillable`: `confidence < 0.7` → not skipped; `equivalent 0.85` → allowed-gap |
+| Файл                                              | Що покриває                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `coverage-classify/tests/prompt.test.mjs`         | `buildClassifyPrompt`: обрізання до ±10 рядків, injection існуючих тестів, формат uncovered-file |
+| `coverage-classify/tests/cache.test.mjs`          | read/write/hit/miss, version mismatch → rebuild, git-hash change → re-classify                   |
+| `coverage-classify/tests/verdict-schema.test.mjs` | zod parse: happy path, reason < 20 chars → error, confidence out of range                        |
+| `coverage-classify/tests/apply.test.mjs`          | `filterKillable`: `confidence < 0.7` → not skipped; `equivalent 0.85` → allowed-gap              |
 
 API call — тільки integration test (за `ANTHROPIC_API_KEY`), не mocked unit.

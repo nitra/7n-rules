@@ -36,9 +36,7 @@ describe('validateAbieHcModeline', () => {
 
   test('перший рядок не modeline → помилка про modeline', () => {
     const raw = 'apiVersion: networking.gke.io/v1\nkind: HealthCheckPolicy\n'
-    expect(validateAbieHcModeline(raw, REL_PATH)).toBe(
-      `${REL_PATH}: перший рядок має бути modeline $schema (abie.mdc)`
-    )
+    expect(validateAbieHcModeline(raw, REL_PATH)).toBe(`${REL_PATH}: перший рядок має бути modeline $schema (abie.mdc)`)
   })
 
   test('modeline з неправильним $schema URL → помилка з правильним URL', () => {

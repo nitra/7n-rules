@@ -190,7 +190,8 @@ describe('detectAutoRules', () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'hasura-app' })
       await ensureDir(join(dir, 'hasura'))
-      await writeFile(join(dir, 'hasura/config.yaml'),
+      await writeFile(
+        join(dir, 'hasura/config.yaml'),
         'version: 3\nendpoint: http://localhost:8080\nmetadata_directory: metadata\n',
         'utf8'
       )
@@ -548,7 +549,10 @@ describe('detectAutoRules — workspace без devDependencies (line 217)', () =
 
 describe('catch-блоки при помилці readdir (lines 195, 245, 546)', () => {
   test('collectAutoRuleFacts — readdir кидає у піддиректорії (line 546)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'baddir'))
       await chmod(join(dir, 'baddir'), 0o000)
@@ -562,7 +566,10 @@ describe('catch-блоки при помилці readdir (lines 195, 245, 546)',
   })
 
   test('detectAutoRules — readdir кидає в піддиректорії (lines 195, 245)', async () => {
-    if (platform === 'win32') { expect(true).toBe(true); return }
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'baddir'))
       await chmod(join(dir, 'baddir'), 0o000)

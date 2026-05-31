@@ -442,7 +442,12 @@ describe('check-changelog (local-only merge-base логіка)', () => {
   test('feature-гілка: новий воркспейс із change-файлом → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
-      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['demo'] })
+      await writeJson(join(dir, 'package.json'), {
+        name: 'mono',
+        version: '1.0.0',
+        private: true,
+        workspaces: ['demo']
+      })
       await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await git(['add', '-A'], dir)
       await git(['commit', '-q', '-m', 'init'], dir)
@@ -455,7 +460,11 @@ describe('check-changelog (local-only merge-base логіка)', () => {
       })
       await writeFile(join(dir, 'demo', 'app.js'), 'x\n', 'utf8')
       await mkdir(join(dir, 'demo', '.changes'), { recursive: true })
-      await writeFile(join(dir, 'demo', '.changes', '1-a.md'), '---\nbump: minor\nsection: Added\n---\nновий пакет\n', 'utf8')
+      await writeFile(
+        join(dir, 'demo', '.changes', '1-a.md'),
+        '---\nbump: minor\nsection: Added\n---\nновий пакет\n',
+        'utf8'
+      )
       expect(await checkChangelog({ cwd: dir })).toBe(0)
     })
   })
@@ -463,7 +472,12 @@ describe('check-changelog (local-only merge-base логіка)', () => {
   test('feature-гілка: новий воркспейс без change-файлу → fail', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
-      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['demo'] })
+      await writeJson(join(dir, 'package.json'), {
+        name: 'mono',
+        version: '1.0.0',
+        private: true,
+        workspaces: ['demo']
+      })
       await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await git(['add', '-A'], dir)
       await git(['commit', '-q', '-m', 'init'], dir)
@@ -478,7 +492,12 @@ describe('check-changelog (local-only merge-base логіка)', () => {
   test('зміна тільки в одному з воркспейсів — інший не вимагає bump', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
-      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['a', 'b'] })
+      await writeJson(join(dir, 'package.json'), {
+        name: 'mono',
+        version: '1.0.0',
+        private: true,
+        workspaces: ['a', 'b']
+      })
       await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       for (const ws of ['a', 'b']) {
         await ensureDir(join(dir, ws))
@@ -581,7 +600,12 @@ describe('check-changelog (змішаний режим: npm-published + local-on
   test('npm-published в sync, app з change-файлом → pass', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
-      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true, workspaces: ['npm', 'app'] })
+      await writeJson(join(dir, 'package.json'), {
+        name: 'mono',
+        version: '1.0.0',
+        private: true,
+        workspaces: ['npm', 'app']
+      })
       await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
       await ensureDir(join(dir, 'npm'))
       await writeJson(join(dir, 'npm', 'package.json'), {
@@ -730,5 +754,4 @@ describe('check-changelog (edge cases — coverage)', () => {
       expect(code).toBe(0)
     })
   })
-
 })

@@ -6,7 +6,13 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { buildKubescapeExceptionsArgs, findK8sRoots, findKustomizationDirs, k8sRootFromFile, pathHasK8sSegment } from '../lint.mjs'
+import {
+  buildKubescapeExceptionsArgs,
+  findK8sRoots,
+  findKustomizationDirs,
+  k8sRootFromFile,
+  pathHasK8sSegment
+} from '../lint.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 describe('pathHasK8sSegment', () => {

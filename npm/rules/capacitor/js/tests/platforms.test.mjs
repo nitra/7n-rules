@@ -281,7 +281,7 @@ describe('recordCapacitorFromOnePackageJson: помилки читання', () 
 describe('capacitorVersionRangeMinMajor: non-string', () => {
   test('non-string → null (line 127)', () => {
     expect(capacitorVersionRangeMinMajor(/** @type {string} */ (null))).toBeNull()
-    expect(capacitorVersionRangeMinMajor(/** @type {string} */ )).toBeNull()
+    expect(capacitorVersionRangeMinMajor(/** @type {string} */)).toBeNull()
   })
 })
 

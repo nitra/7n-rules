@@ -59,23 +59,25 @@ digraph coverage_classify_flow {
 ```js
 const VerdictSchema = z.object({
   verdict: z.enum([
-    'worth-testing',  // pure logic, real branches — write a test
-    'equivalent',     // mutant is behaviorally equivalent — cannot be killed
-    'defensive',      // branch for impossible state — cannot be reached
-    'glue',           // CLI entry/runStandardRule wrapper — integration covers
-    'wrapper'         // thin spawn/fetch wrapper — integration covers
+    'worth-testing', // pure logic, real branches — write a test
+    'equivalent', // mutant is behaviorally equivalent — cannot be killed
+    'defensive', // branch for impossible state — cannot be reached
+    'glue', // CLI entry/runStandardRule wrapper — integration covers
+    'wrapper' // thin spawn/fetch wrapper — integration covers
   ]),
   confidence: z.number().min(0).max(1),
-  reason: z.string().min(20).max(500),   // ≥20 chars змушує пояснити
-  suggestedTest: z.string().max(300).optional()  // лише для worth-testing
+  reason: z.string().min(20).max(500), // ≥20 chars змушує пояснити
+  suggestedTest: z.string().max(300).optional() // лише для worth-testing
 })
 // v2 додасть поле `category: 'mutant' | 'uncovered-file'`. У v1 — нема, бо лише mutants.
 ```
 
 **Skip rule для Allowed gaps**:
+
 ```
 verdict in [equivalent, defensive, glue, wrapper] AND confidence >= 0.7 → allowed-gap
 ```
+
 Решта (включно з `confidence < 0.7`) → `Killable`. Conservative: при низькій впевненості мутант не пропадає з знаменника.
 
 ## Prompt design (with prompt caching)
@@ -83,6 +85,7 @@ verdict in [equivalent, defensive, glue, wrapper] AND confidence >= 0.7 → allo
 ### System prompt (cached, 1h TTL)
 
 Один на прогон. Містить:
+
 - Опис кожної категорії з 1-2 прикладами.
 - Чітку інструкцію виводу: only JSON, відповідає `VerdictSchema`.
 - Constraints:
@@ -150,25 +153,28 @@ const verdict = VerdictSchema.parse(JSON.parse(extractJsonBlock(response.content
 Якщо `git hash-object` недоступний (немає git або файл не існує) — fallback на `sha1(readFile(path))` через node:crypto.
 
 **`.gitignore`**:
+
 ```
 npm/reports/coverage-classify.cache.json
 ```
 
 ## Error handling
 
-| Помилка | Поведінка |
-|---|---|
-| Немає `ANTHROPIC_API_KEY` | `console.warn` → `'⚠ coverage classify: ANTHROPIC_API_KEY not set, classification skipped'`; COVERAGE.md показує Raw score з рядком `Classify: skipped (no API key)` |
-| Network timeout / 5xx | Retry 2× з exp backoff (1s, 4s); після — warn-and-skip per item |
-| Rate limit (429) | Retry після `Retry-After` header; після 3 спроб — warn-and-skip per item |
-| Invalid JSON у LLM-відповіді | Один retry з explicit instruction «return ONLY valid JSON»; після — conservative fallback verdict `worth-testing` (mutant НЕ йде в allowed-gaps) |
-| Zod schema validation fail | Те саме: один retry, потім conservative fallback |
-| `@anthropic-ai/sdk` не встановлений | Dynamic import miss → warn-and-skip усього кроку (як у `coverage-fix.mjs`) |
+| Помилка                             | Поведінка                                                                                                                                                            |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Немає `ANTHROPIC_API_KEY`           | `console.warn` → `'⚠ coverage classify: ANTHROPIC_API_KEY not set, classification skipped'`; COVERAGE.md показує Raw score з рядком `Classify: skipped (no API key)` |
+| Network timeout / 5xx               | Retry 2× з exp backoff (1s, 4s); після — warn-and-skip per item                                                                                                      |
+| Rate limit (429)                    | Retry після `Retry-After` header; після 3 спроб — warn-and-skip per item                                                                                             |
+| Invalid JSON у LLM-відповіді        | Один retry з explicit instruction «return ONLY valid JSON»; після — conservative fallback verdict `worth-testing` (mutant НЕ йде в allowed-gaps)                     |
+| Zod schema validation fail          | Те саме: один retry, потім conservative fallback                                                                                                                     |
+| `@anthropic-ai/sdk` не встановлений | Dynamic import miss → warn-and-skip усього кроку (як у `coverage-fix.mjs`)                                                                                           |
 
 **Fallback verdict** при будь-якій нерозв'язній помилці per-item:
+
 ```js
 { verdict: 'worth-testing', confidence: 0, reason: 'LLM-classification unavailable, conservative fallback', category: 'mutant' }
 ```
+
 Mutant залишається в Killable знаменнику — score не «штучно завищується» через помилку.
 
 ## COVERAGE.md rendering
@@ -178,10 +184,10 @@ Mutant залишається в Killable знаменнику — score не «
 ```md
 # Coverage
 
-| Область | Рядки | Функції | Killable | Score |
-| --- | --- | --- | --- | --- |
-| JS | 78.80% (...) | 86.13% (...) | 132/137 | **96.35%** |
-| **Разом** | 78.80% (...) | 86.13% (...) | 132/137 | **96.35%** |
+| Область   | Рядки        | Функції      | Killable | Score      |
+| --------- | ------------ | ------------ | -------- | ---------- |
+| JS        | 78.80% (...) | 86.13% (...) | 132/137  | **96.35%** |
+| **Разом** | 78.80% (...) | 86.13% (...) | 132/137  | **96.35%** |
 
 > Raw mutation: 132/141 (93.62%). 4 з 141 — Allowed gaps (LLM-classified).
 > Classify model: claude-sonnet-4-6. Updated: 2026-05-30T12:00:00Z.
@@ -190,11 +196,11 @@ Mutant залишається в Killable знаменнику — score не «
 
 ### npm/rules/test/coverage/coverage.mjs
 
-| Line | Mutant | Verdict | Confidence | Reason |
-| --- | --- | --- | ---: | --- |
-| 189 | `pts.fix)` → `true` | equivalent | 0.85 | ... |
-| 211 | ` fix: false })` → `{}` | equivalent | 0.92 | обидва значення дають falsy `opts.fix` ... |
-| ... | | | | |
+| Line | Mutant                  | Verdict    | Confidence | Reason                                     |
+| ---- | ----------------------- | ---------- | ---------: | ------------------------------------------ |
+| 189  | `pts.fix)` → `true`     | equivalent |       0.85 | ...                                        |
+| 211  | ` fix: false })` → `{}` | equivalent |       0.92 | обидва значення дають falsy `opts.fix` ... |
+| ...  |                         |            |            |                                            |
 
 ## Killable mutants (5)
 
@@ -230,6 +236,7 @@ Mutant залишається в Killable знаменнику — score не «
 ### Integration tests (mocked SDK)
 
 `index.test.mjs`:
+
 - mock `@anthropic-ai/sdk` через `vi.mock` з factory, що повертає preset відповіді;
 - сценарій 1: 3 mutants → класифікація → applyVerdicts → перевіряємо augmented rows;
 - сценарій 2: cache miss → call SDK → cache write → 2nd call → cache hit (SDK NOT called);

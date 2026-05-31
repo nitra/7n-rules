@@ -15,10 +15,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: тест з join(dir, …) → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile(join(dir, 'foo.json'), 'x', 'utf8')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile(join(dir, 'foo.json'), 'x', 'utf8')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -26,10 +23,7 @@ describe('check test.no-relative-fs-path', () => {
   test("порушення: writeFile('foo.json', …) → exit 1", async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile('foo.json', 'x', 'utf8')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile('foo.json', 'x', 'utf8')\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -37,10 +31,7 @@ describe('check test.no-relative-fs-path', () => {
   test("порушення: copyFile(src, 'foo.json') — 2-й аргумент relative → exit 1", async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await copyFile('/abs/src', 'foo.json')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await copyFile('/abs/src', 'foo.json')\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -48,10 +39,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: copyFile(absSrc, join(dir, dst)) → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await copyFile('/abs/src', join(dir, 'dst'))\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await copyFile('/abs/src', join(dir, 'dst'))\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -59,10 +47,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: writeFile(absPath, …) з POSIX-абсолютним рядком → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile('/tmp/x.json', 'x', 'utf8')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile('/tmp/x.json', 'x', 'utf8')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -92,10 +77,7 @@ describe('check test.no-relative-fs-path', () => {
   test('порушення: existsSync("foo.json") → exit 1', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `import { existsSync } from 'node:fs'\nexistsSync('foo.json')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `import { existsSync } from 'node:fs'\nexistsSync('foo.json')\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -103,10 +85,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: rename(join(dir, src), join(dir, dst)) → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await rename(join(dir, 'a'), join(dir, 'b'))\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await rename(join(dir, 'a'), join(dir, 'b'))\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -114,10 +93,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: змінна-шлях (не string literal) — припускаємо absolute → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}const p = computeSomething()\nawait writeFile(p, 'x')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}const p = computeSomething()\nawait writeFile(p, 'x')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -125,10 +101,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: template literal з expression — НЕ statics, припускаємо OK → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile(\`\${dir}/foo\`, 'x')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile(\`\${dir}/foo\`, 'x')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -136,10 +109,7 @@ describe('check test.no-relative-fs-path', () => {
   test('порушення: template literal без expression і relative — exit 1', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile(\`foo.json\`, 'x')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile(\`foo.json\`, 'x')\n`)
       expect(await check(dir)).toBe(1)
     })
   })
@@ -166,10 +136,7 @@ describe('check test.no-relative-fs-path', () => {
   test('обхід пропускає node_modules', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'node_modules/pkg/tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'node_modules/pkg/tests/foo.test.mjs'),
-        `${HEAD}await writeFile('any.json', 'x')\n`
-      )
+      await writeFile(join(dir, 'node_modules/pkg/tests/foo.test.mjs'), `${HEAD}await writeFile('any.json', 'x')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -177,10 +144,7 @@ describe('check test.no-relative-fs-path', () => {
   test('успіх: file:// URL → exit 0', async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile('file:///abs/x', 'y')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile('file:///abs/x', 'y')\n`)
       expect(await check(dir)).toBe(0)
     })
   })
@@ -188,10 +152,7 @@ describe('check test.no-relative-fs-path', () => {
   test(String.raw`успіх: Windows-абсолютний 'C:\\foo' → exit 0`, async () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'tests'), { recursive: true })
-      await writeFile(
-        join(dir, 'tests/foo.test.mjs'),
-        `${HEAD}await writeFile('C:\\\\foo\\\\bar', 'y')\n`
-      )
+      await writeFile(join(dir, 'tests/foo.test.mjs'), `${HEAD}await writeFile('C:\\\\foo\\\\bar', 'y')\n`)
       expect(await check(dir)).toBe(0)
     })
   })

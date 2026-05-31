@@ -90,11 +90,7 @@ describe('readAndParseYamlDocs', () => {
   test('видаляє modeline перед парсингом', async () => {
     await withTmpDir(async dir => {
       const abs = join(dir, 'with-modeline.yaml')
-      await writeFile(
-        abs,
-        '# yaml-language-server: $schema=https://example.com/s.json\nkind: Service\n',
-        'utf8'
-      )
+      await writeFile(abs, '# yaml-language-server: $schema=https://example.com/s.json\nkind: Service\n', 'utf8')
       const failFn = vi.fn()
       const docs = await readAndParseYamlDocs(abs, 'with-modeline.yaml', failFn)
       expect(docs).not.toBeNull()

@@ -52,18 +52,22 @@ describe('check-* на реальному репозиторії', () => {
   // або вимагають реального `.git/` — у sandbox вони не виконуються коректно і обривають Stryker
   // dry-run. Для unit-pure mutation analysis інтеграційний тест проти живого дерева не несе
   // додаткової інформації понад те, що дають per-rule unit-тести.
-  test.skipIf(env.STRYKER_MUTATOR_WORKER)('узгоджені з поточним деревом cursor', async () => {
-    await withShellcheckStubInPath(async () => {
-      expect(await checkAbie(REPO_ROOT)).toBe(0)
-      expect(await checkBun(REPO_ROOT)).toBe(0)
-      expect(await checkGa(REPO_ROOT)).toBe(0)
-      expect(await checkGraphql(REPO_ROOT)).toBe(0)
-      expect(await checkJsLint(REPO_ROOT)).toBe(0)
-      expect(await checkText(REPO_ROOT)).toBe(0)
-      expect(await checkNpmModule(REPO_ROOT)).toBe(0)
-      expect(await checkDocker(REPO_ROOT)).toBe(0)
-      expect(await checkK8s(REPO_ROOT)).toBe(0)
-      expect(await checkJsRun(REPO_ROOT)).toBe(0)
-    })
-  }, 120000)
+  test.skipIf(env.STRYKER_MUTATOR_WORKER)(
+    'узгоджені з поточним деревом cursor',
+    async () => {
+      await withShellcheckStubInPath(async () => {
+        expect(await checkAbie(REPO_ROOT)).toBe(0)
+        expect(await checkBun(REPO_ROOT)).toBe(0)
+        expect(await checkGa(REPO_ROOT)).toBe(0)
+        expect(await checkGraphql(REPO_ROOT)).toBe(0)
+        expect(await checkJsLint(REPO_ROOT)).toBe(0)
+        expect(await checkText(REPO_ROOT)).toBe(0)
+        expect(await checkNpmModule(REPO_ROOT)).toBe(0)
+        expect(await checkDocker(REPO_ROOT)).toBe(0)
+        expect(await checkK8s(REPO_ROOT)).toBe(0)
+        expect(await checkJsRun(REPO_ROOT)).toBe(0)
+      })
+    },
+    120000
+  )
 })

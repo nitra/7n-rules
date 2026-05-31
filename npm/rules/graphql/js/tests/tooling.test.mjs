@@ -17,12 +17,12 @@ describe('sourceFileHasGqlTaggedTemplate', () => {
   })
 
   test('langFromPath tsx → знаходить gql у .tsx (line 52)', () => {
-    const src = "const q = gql`query { x }`\n"
+    const src = 'const q = gql`query { x }`\n'
     expect(sourceFileHasGqlTaggedTemplate(src, 'api/foo.tsx')).toBe(true)
   })
 
   test('langFromPath jsx → знаходить gql у .jsx (line 58)', () => {
-    const src = "const q = gql`query { x }`\n"
+    const src = 'const q = gql`query { x }`\n'
     expect(sourceFileHasGqlTaggedTemplate(src, 'api/foo.jsx')).toBe(true)
   })
 
@@ -60,14 +60,14 @@ describe('check (tooling.mjs)', () => {
 
   test('exit 1 — gql знайдено, .graphqlrc.yml відсутній', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      await writeFile(join(dir, 'api.js'), 'const q = gql`query { me { id } }`\n', 'utf8')
       expect(await check(dir)).toBe(1)
     })
   })
 
   test('exit 0 — gql знайдено, .graphqlrc.yml є, extensions.json з graphql.vscode-graphql', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      await writeFile(join(dir, 'api.js'), 'const q = gql`query { me { id } }`\n', 'utf8')
       await writeFile(join(dir, '.graphqlrc.yml'), 'schema: schema.graphql\n', 'utf8')
       await ensureDir(join(dir, '.vscode'))
       await writeJson(join(dir, '.vscode/extensions.json'), {
@@ -79,7 +79,7 @@ describe('check (tooling.mjs)', () => {
 
   test('exit 1 — gql знайдено, .graphqlrc.yml є, extensions.json без graphql.vscode-graphql', async () => {
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'api.js'), "const q = gql`query { me { id } }`\n", 'utf8')
+      await writeFile(join(dir, 'api.js'), 'const q = gql`query { me { id } }`\n', 'utf8')
       await writeFile(join(dir, '.graphqlrc.yml'), 'schema: schema.graphql\n', 'utf8')
       await ensureDir(join(dir, '.vscode'))
       await writeJson(join(dir, '.vscode/extensions.json'), {

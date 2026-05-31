@@ -32,11 +32,7 @@ describe('abie env_dns concern', () => {
   test('коректний ua.env з валідним URL → 0', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'pkg'))
-      await writeFile(
-        join(dir, 'pkg/ua.env'),
-        'API_URL=http://file-link-hl.ua-pkg.svc.abie-ua.internal\n',
-        'utf8'
-      )
+      await writeFile(join(dir, 'pkg/ua.env'), 'API_URL=http://file-link-hl.ua-pkg.svc.abie-ua.internal\n', 'utf8')
       expect(await check(dir)).toBe(0)
     })
   })

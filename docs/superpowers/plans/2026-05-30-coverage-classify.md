@@ -13,6 +13,7 @@
 ## File Structure
 
 **Створюємо:**
+
 - `npm/scripts/coverage-classify/verdict-schema.mjs` — zod-схема + `parseVerdict(rawText)`
 - `npm/scripts/coverage-classify/cache.mjs` — `deriveBlobHash`, `deriveCacheKey`, `readCache`, `writeCache`
 - `npm/scripts/coverage-classify/prompt.mjs` — `SYSTEM_PROMPT` const + `buildUserPrompt(mutant, cwd)`
@@ -25,6 +26,7 @@
 - `npm/scripts/coverage-classify/tests/index.test.mjs`
 
 **Модифікуємо:**
+
 - `npm/package.json` — додати `@anthropic-ai/sdk` і `zod` у `dependencies`
 - `.gitignore` (root) — додати `npm/reports/coverage-classify.cache.json`
 - `npm/rules/test/coverage/coverage.mjs` — додати classify-крок між `rows.push(buildTotalsRow(...))` і `renderMarkdown(...)`; розширити `renderMarkdown` сигнатуру для `allowedGaps`
@@ -35,6 +37,7 @@
 ## Task 1: Setup — dependencies та .gitignore
 
 **Files:**
+
 - Modify: `/Users/vitaliytv/www/nitra/cursor/npm/package.json`
 - Modify: `/Users/vitaliytv/www/nitra/cursor/.gitignore`
 
@@ -57,6 +60,7 @@ grep -E '"@anthropic-ai/sdk"|"zod"' /Users/vitaliytv/www/nitra/cursor/npm/packag
 - [ ] **Step 3: Додати cache file у root `.gitignore`**
 
 Додати рядок у кінець `/Users/vitaliytv/www/nitra/cursor/.gitignore`:
+
 ```
 npm/reports/coverage-classify.cache.json
 ```
@@ -77,6 +81,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 2: `verdict-schema.mjs` — zod-схема Verdict
 
 **Files:**
+
 - Create: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/verdict-schema.mjs`
 - Test: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/tests/verdict-schema.test.mjs`
 
@@ -128,9 +133,7 @@ describe('VerdictSchema', () => {
   })
 
   test('reject: reason > 500 символів', () => {
-    expect(() =>
-      VerdictSchema.parse({ verdict: 'glue', confidence: 0.5, reason: 'x'.repeat(501) })
-    ).toThrow()
+    expect(() => VerdictSchema.parse({ verdict: 'glue', confidence: 0.5, reason: 'x'.repeat(501) })).toThrow()
   })
 
   test('reject: suggestedTest > 300 символів', () => {
@@ -156,7 +159,7 @@ describe('parseVerdict', () => {
     expect(parseVerdict(raw).verdict).toBe('glue')
   })
 
-  test('throw коли немає JSON-об\'єкта у тексті', () => {
+  test("throw коли немає JSON-об'єкта у тексті", () => {
     expect(() => parseVerdict('No JSON here')).toThrow(/No JSON/u)
   })
 
@@ -246,6 +249,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 3: `cache.mjs` — file-hash-keyed cache
 
 **Files:**
+
 - Create: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/cache.mjs`
 - Test: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/tests/cache.test.mjs`
 
@@ -508,6 +512,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 4: `prompt.mjs` — system/user prompts
 
 **Files:**
+
 - Create: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/prompt.mjs`
 - Test: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/tests/prompt.test.mjs`
 
@@ -817,6 +822,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 5: `apply.mjs` — фільтрація rows за verdicts
 
 **Files:**
+
 - Create: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/apply.mjs`
 - Test: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/tests/apply.test.mjs`
 
@@ -925,9 +931,7 @@ describe('applyVerdicts', () => {
 
   test('threshold = 1.1 (rollout) → нічого не фільтрується незалежно від verdict', () => {
     const rows = [row([mkSurvived('foo.mjs')])]
-    const verdicts = [
-      { key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1.0, reason: REASON } }
-    ]
+    const verdicts = [{ key: 'foo.mjs:1:1:b', verdict: { verdict: 'equivalent', confidence: 1.0, reason: REASON } }]
     const result = applyVerdicts(rows, verdicts, 1.1)
     expect(result.allowedGaps).toEqual([])
     expect(result.rows[0].survived[0].mutants).toHaveLength(2)
@@ -1071,6 +1075,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 6: `index.mjs` — orchestration + SDK integration
 
 **Files:**
+
 - Create: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/index.mjs`
 - Test: `/Users/vitaliytv/www/nitra/cursor/npm/scripts/coverage-classify/tests/index.test.mjs`
 
@@ -1117,9 +1122,7 @@ function survivedFixture(file) {
   return [
     {
       file,
-      mutants: [
-        { line: 2, col: 7, mutantType: 'EqualityOperator', original: '===', replacement: '!==' }
-      ],
+      mutants: [{ line: 2, col: 7, mutantType: 'EqualityOperator', original: '===', replacement: '!==' }],
       exampleTest: null,
       recommendationText: null
     }
@@ -1148,9 +1151,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'worth-testing', confidence: 0.85, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'worth-testing', confidence: 0.85, reason: REASON }))
       const result = await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(result).toHaveLength(1)
       expect(result[0].key).toBe('foo.mjs:2:7:!==')
@@ -1162,9 +1163,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(mockCreate).toHaveBeenCalledTimes(1)
 
@@ -1221,9 +1220,7 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'glue', confidence: 0.8, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'glue', confidence: 0.8, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       const { readFileSync } = await import('node:fs')
       const cached = JSON.parse(readFileSync(cachePath, 'utf8'))
@@ -1249,9 +1246,7 @@ describe('classify', () => {
         }),
         'utf8'
       )
-      mockCreate.mockResolvedValueOnce(
-        mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON })
-      )
+      mockCreate.mockResolvedValueOnce(mockResponse({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
       await classify(survivedFixture('foo.mjs'), dir, { cachePath })
       expect(mockCreate).toHaveBeenCalledTimes(1) // не cache hit бо model змінилася
     })
@@ -1262,9 +1257,7 @@ describe('classify', () => {
       await writeFile(join(dir, 'a.mjs'), SAMPLE, 'utf8')
       await writeFile(join(dir, 'b.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCreate.mockResolvedValue(
-        mockResponse({ verdict: 'worth-testing', confidence: 0.8, reason: REASON })
-      )
+      mockCreate.mockResolvedValue(mockResponse({ verdict: 'worth-testing', confidence: 0.8, reason: REASON }))
       const survived = [...survivedFixture('a.mjs'), ...survivedFixture('b.mjs')]
       const result = await classify(survived, dir, { cachePath })
       expect(result).toHaveLength(2)
@@ -1446,6 +1439,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Task 7: Інтеграція у `coverage.mjs` + рендер allowed-gaps
 
 **Files:**
+
 - Modify: `/Users/vitaliytv/www/nitra/cursor/npm/rules/test/coverage/coverage.mjs`
 - Modify: `/Users/vitaliytv/www/nitra/cursor/npm/rules/test/coverage/tests/coverage.test.mjs`
 
@@ -1514,7 +1508,7 @@ cd /Users/vitaliytv/www/nitra/cursor/npm && bunx vitest run rules/test/coverage/
 
 Знайти у файлі `/Users/vitaliytv/www/nitra/cursor/npm/rules/test/coverage/coverage.mjs` сигнатуру `export function renderMarkdown(rows) {` і замінити функцію цілком на:
 
-```js
+````js
 export function renderMarkdown(rows, allowedGaps = []) {
   const lines = [
     '# Coverage',
@@ -1564,10 +1558,18 @@ export function renderMarkdown(rows, allowedGaps = []) {
 
     lines.push('', '## Allowed gaps', '')
     lines.push(`> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`)
-    lines.push('> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).')
+    lines.push(
+      '> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).'
+    )
 
     for (const [file, gaps] of gapsByFile) {
-      lines.push('', `### ${file}`, '', '| Line | Mutant | Verdict | Confidence | Reason |', '| --- | --- | --- | --- | --- |')
+      lines.push(
+        '',
+        `### ${file}`,
+        '',
+        '| Line | Mutant | Verdict | Confidence | Reason |',
+        '| --- | --- | --- | --- | --- |'
+      )
       for (const { mutant, verdict } of gaps) {
         const sanitizedReason = verdict.reason.replaceAll('|', '\\|').replaceAll('\n', ' ')
         lines.push(
@@ -1579,7 +1581,7 @@ export function renderMarkdown(rows, allowedGaps = []) {
 
   return `${lines.join('\n')}\n`
 }
-```
+````
 
 - [ ] **Step 4: Запустити — переконатися, що нові тести проходять**
 
@@ -1613,33 +1615,33 @@ import { applyVerdicts } from '../../../scripts/coverage-classify/apply.mjs'
 Замість існуючого блоку (поточний від `rows.push(buildTotalsRow(rows))` до `await writeFile(...)`):
 
 ```js
-  rows.push(buildTotalsRow(rows))
-  const md = renderMarkdown(rows)
-  // Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
-  await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
+rows.push(buildTotalsRow(rows))
+const md = renderMarkdown(rows)
+// Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
+await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
 ```
 
 Замінити на:
 
 ```js
-  // LLM-класифікація survived мутантів (graceful skip без API key)
-  const allSurvived = rows.flatMap(r => r.survived ?? [])
-  let augmentedRows = rows
-  let allowedGaps = []
-  if (allSurvived.length > 0) {
-    const verdicts = await classify(allSurvived, cwd)
-    if (verdicts.length > 0) {
-      const threshold = await readClassifyThreshold(cwd)
-      const applied = applyVerdicts(rows, verdicts, threshold)
-      augmentedRows = applied.rows
-      allowedGaps = applied.allowedGaps
-    }
+// LLM-класифікація survived мутантів (graceful skip без API key)
+const allSurvived = rows.flatMap(r => r.survived ?? [])
+let augmentedRows = rows
+let allowedGaps = []
+if (allSurvived.length > 0) {
+  const verdicts = await classify(allSurvived, cwd)
+  if (verdicts.length > 0) {
+    const threshold = await readClassifyThreshold(cwd)
+    const applied = applyVerdicts(rows, verdicts, threshold)
+    augmentedRows = applied.rows
+    allowedGaps = applied.allowedGaps
   }
+}
 
-  augmentedRows.push(buildTotalsRow(augmentedRows.filter(r => r.area !== '**Разом**')))
-  const md = renderMarkdown(augmentedRows, allowedGaps)
-  // Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
-  await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
+augmentedRows.push(buildTotalsRow(augmentedRows.filter(r => r.area !== '**Разом**')))
+const md = renderMarkdown(augmentedRows, allowedGaps)
+// Stryker disable next-line StringLiteral: equivalent – writeFile(path, str, '') behaves identically to 'utf8' in Node/Bun
+await writeFile(join(cwd, 'COVERAGE.md'), md, 'utf8')
 ```
 
 Додати приватну допоміжну функцію перед `export async function runCoverageSteps`:
@@ -1749,6 +1751,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 ## Self-Review
 
 **Spec coverage:**
+
 - ✓ Architecture (5 модулів + інтеграція в coverage.mjs) — Task 1-7.
 - ✓ Cache key за git-blob-hash + base64url(replacement) — Task 3.
 - ✓ Skip rule `verdict ∈ skip-set AND confidence ≥ threshold` — Task 5.
@@ -1761,12 +1764,14 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
 **Placeholder scan:** немає TBD/TODO/«similar to».
 
 **Type consistency:**
+
 - `verdict.verdict: string`, `verdict.confidence: number`, `verdict.reason: string`, optional `verdict.suggestedTest: string` — узгоджено між verdict-schema, cache, apply, index.
 - `applyVerdicts(rows, verdicts, threshold)` — той самий контракт у тестах і integration.
 - `classify(survived, cwd, opts)` — сигнатура збігається в усіх викликах.
 - `mutation.total` декрементується в apply.mjs, передається в `formatScore(row.mutation)` — узгоджено.
 
 **Test coverage:**
+
 - verdict-schema: 13 тестів (валідація + парсинг).
 - cache: 12 тестів (hash, key, read, write, інвалідація).
 - prompt: 10 тестів (system constants, user assembly, edge cases).

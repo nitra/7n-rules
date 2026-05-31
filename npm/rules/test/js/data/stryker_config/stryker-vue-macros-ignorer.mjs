@@ -24,7 +24,8 @@ const VUE_SETUP_MACROS = new Set([
   'defineOptions'
 ])
 
-const IGNORE_MESSAGE = 'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'
+const IGNORE_MESSAGE =
+  'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'
 
 /**
  * @param {{isCallExpression: () => boolean, node: {callee: {type: string, name?: string}}}} path babel NodePath, переданий Stryker-instrumenter

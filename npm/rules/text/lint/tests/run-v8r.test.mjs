@@ -25,7 +25,10 @@ describe('runV8rWithGlobs — error paths', () => {
     vi.mocked(existsSync).mockReturnValueOnce(false)
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     let code
     try {
       code = runV8rWithGlobs(['**/*.json'])
@@ -42,11 +45,18 @@ describe('runV8rWithGlobs — error paths', () => {
       .mockImplementationOnce(actual.spawnSync) // which bun → реальний
       .mockReturnValueOnce({
         error: new Error('mock spawn ENOENT'),
-        status: null, stdout: '', stderr: '', pid: 0, signal: null
+        status: null,
+        stdout: '',
+        stderr: '',
+        pid: 0,
+        signal: null
       })
     const errChunks = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     let code
     try {
       code = runV8rWithGlobs(['**/*.json'])
@@ -62,17 +72,25 @@ describe('runV8rWithGlobs — error paths', () => {
     vi.mocked(spawnSync)
       .mockImplementationOnce(actual.spawnSync) // which bun → реальний
       .mockReturnValueOnce({
-        error: null, status: 1,
+        error: null,
+        status: 1,
         stdout: 'validation error output\n',
         stderr: 'v8r stderr msg\n',
-        pid: 0, signal: null
+        pid: 0,
+        signal: null
       })
     const outChunks = []
     const errChunks = []
     const origOut = process.stdout.write.bind(process.stdout)
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stdout.write = chunk => { outChunks.push(String(chunk)); return true }
-    process.stderr.write = chunk => { errChunks.push(String(chunk)); return true }
+    process.stdout.write = chunk => {
+      outChunks.push(String(chunk))
+      return true
+    }
+    process.stderr.write = chunk => {
+      errChunks.push(String(chunk))
+      return true
+    }
     let code
     try {
       code = runV8rWithGlobs(['**/*.json'])
@@ -90,11 +108,19 @@ describe('runV8rWithGlobs — error paths', () => {
     vi.mocked(spawnSync)
       .mockImplementationOnce(actual.spawnSync) // which bun → реальний
       .mockReturnValueOnce({
-        error: null, status: 1, stdout: '', stderr: '', pid: 0, signal: null
+        error: null,
+        status: 1,
+        stdout: '',
+        stderr: '',
+        pid: 0,
+        signal: null
       })
     const outChunks = []
     const origOut = process.stdout.write.bind(process.stdout)
-    process.stdout.write = chunk => { outChunks.push(String(chunk)); return true }
+    process.stdout.write = chunk => {
+      outChunks.push(String(chunk))
+      return true
+    }
     let code
     try {
       code = runV8rWithGlobs(['**/*.json'])

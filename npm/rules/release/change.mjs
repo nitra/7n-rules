@@ -43,7 +43,9 @@ export async function runChangeCli(args) {
   const message = get('--message')
   const ws = get('--ws') ?? '.'
   if (!bump || !section || !message) {
-    console.error('❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]')
+    console.error(
+      '❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]'
+    )
     return 1
   }
   try {

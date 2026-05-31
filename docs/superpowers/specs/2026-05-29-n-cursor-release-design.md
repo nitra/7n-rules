@@ -32,11 +32,11 @@
 
 ### Нові підкоманди `n-cursor`
 
-| Команда | Де працює | Призначення |
-|---|---|---|
-| `n-cursor change` | локально / агент | Інтерактивно або з прапорців пише **один** `<ws>/.changes/<unique>.md`. Замінює ручне редагування CHANGELOG. |
-| `n-cursor release` | **CI на `main`** | Агрегує `<ws>/.changes/*.md` по кожному workspace → bump `version` + нова секція CHANGELOG → `git commit` + `tag` → видаляє оброблені change-файли. **Не публікує сам.** |
-| `n-cursor check changelog` | PR-гейт (вже існує) | Семантика → м'яка: warn, якщо для зміненого workspace нема ні change-файлу, ні піднятого `version`. |
+| Команда                    | Де працює           | Призначення                                                                                                                                                              |
+| -------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `n-cursor change`          | локально / агент    | Інтерактивно або з прапорців пише **один** `<ws>/.changes/<unique>.md`. Замінює ручне редагування CHANGELOG.                                                             |
+| `n-cursor release`         | **CI на `main`**    | Агрегує `<ws>/.changes/*.md` по кожному workspace → bump `version` + нова секція CHANGELOG → `git commit` + `tag` → видаляє оброблені change-файли. **Не публікує сам.** |
+| `n-cursor check changelog` | PR-гейт (вже існує) | Семантика → м'яка: warn, якщо для зміненого workspace нема ні change-файлу, ні піднятого `version`.                                                                      |
 
 Новий rule-каталог `npm/rules/release/` поряд із наявним `npm/rules/changelog/`.
 
@@ -77,9 +77,10 @@ services/api/.changes/qz88.md   → Python-пакет (pyproject.toml)
 
 ```md title="<ws>/.changes/<unique>.md"
 ---
-bump: minor            # patch | minor | major — впливає на version
-section: Added         # Added | Changed | Fixed | Removed — заголовок ### у CHANGELOG
+bump: minor # patch | minor | major — впливає на version
+section: Added # Added | Changed | Fixed | Removed — заголовок ### у CHANGELOG
 ---
+
 Додав підтримку X у конекторі Y
 ```
 
@@ -115,18 +116,18 @@ on:
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: false        # для release не вбивати на льоту (було true)
+  cancel-in-progress: false # для release не вбивати на льоту (було true)
 
 jobs:
   release-publish:
     permissions:
-      contents: write              # було read — для commit-back + tag
-      id-token: write              # лишається для OIDC publish
+      contents: write # було read — для commit-back + tag
+      id-token: write # лишається для OIDC publish
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: true # було false — щоб GITHUB_TOKEN запушив bump
-          fetch-depth: 0            # release читає commit-range для fallback
+          fetch-depth: 0 # release читає commit-range для fallback
       - uses: actions/setup-node@v6
         with: { node-version: '24', registry-url: 'https://registry.npmjs.org' }
       - name: Release (bump + CHANGELOG + tag)
@@ -166,14 +167,14 @@ Semantics change → major-версія правила.
 
 ## Компоненти й межі
 
-| Компонент | Що робить | Залежить від |
-|---|---|---|
-| `npm/rules/release/lib/change-file.mjs` | парс/запис/валідація `.changes/*.md` (frontmatter `bump`/`section`) | — |
-| `npm/rules/release/lib/aggregate.mjs` | по workspace: зчитати change-файли → обчислити `version` + секцію CHANGELOG | `change-file.mjs`, `changelog/lib/package-manifest.mjs` |
-| `npm/rules/release/lib/fallback.mjs` | синтез generic-запису з commit-range, коли change-файлів нема | git |
-| `n-cursor change` (bin) | інтерактив/прапорці → `change-file.mjs` запис | `change-file.mjs`, детекція workspace |
-| `n-cursor release` (bin) | оркестрація: aggregate → write → commit → tag → cleanup | `aggregate.mjs`, `fallback.mjs`, git |
-| `check changelog` (існує) | м'яка перевірка наявності change-файлу/bump | `change-file.mjs` |
+| Компонент                               | Що робить                                                                   | Залежить від                                            |
+| --------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------- |
+| `npm/rules/release/lib/change-file.mjs` | парс/запис/валідація `.changes/*.md` (frontmatter `bump`/`section`)         | —                                                       |
+| `npm/rules/release/lib/aggregate.mjs`   | по workspace: зчитати change-файли → обчислити `version` + секцію CHANGELOG | `change-file.mjs`, `changelog/lib/package-manifest.mjs` |
+| `npm/rules/release/lib/fallback.mjs`    | синтез generic-запису з commit-range, коли change-файлів нема               | git                                                     |
+| `n-cursor change` (bin)                 | інтерактив/прапорці → `change-file.mjs` запис                               | `change-file.mjs`, детекція workspace                   |
+| `n-cursor release` (bin)                | оркестрація: aggregate → write → commit → tag → cleanup                     | `aggregate.mjs`, `fallback.mjs`, git                    |
+| `check changelog` (існує)               | м'яка перевірка наявності change-файлу/bump                                 | `change-file.mjs`                                       |
 
 ## Тестування
 

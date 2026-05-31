@@ -15,6 +15,7 @@
 ## File Structure
 
 **Створюються:**
+
 - `npm/rules/release/lib/change-file.mjs` — парс/серіалізація/валідація одного `.changes/*.md`; генерація імені; зчитування всіх change-файлів workspace.
 - `npm/rules/release/lib/aggregate.mjs` — semver-bump, `max(bump)`, рендер секції CHANGELOG, агрегація одного workspace.
 - `npm/rules/release/lib/fallback.mjs` — синтез change-запису з git commit-range, коли change-файлів нема.
@@ -29,6 +30,7 @@
 - `npm/github-actions/release/action.yml` — composite action template для scope B.
 
 **Модифікуються:**
+
 - `npm/bin/n-cursor.js:1427` — додати `case 'change'` і `case 'release'` у switch (патерн динамічного імпорту, як `coverage`).
 - `npm/rules/changelog/js/consistency.mjs` — додати «change-файл задовольняє вимогу» у feature/main-перевірки (м'яка семантика).
 - `.cursor/rules/n-changelog.mdc` **та** `npm/rules/changelog/changelog.mdc` — оновити STOP-блок (v2.6 → v3.0).
@@ -42,6 +44,7 @@
 ## Task 1: `change-file.mjs` — парс і серіалізація
 
 **Files:**
+
 - Create: `npm/rules/release/lib/change-file.mjs`
 - Test: `npm/rules/release/js/tests/change-file.test.mjs`
 
@@ -136,7 +139,9 @@ export function parseChangeFile(text) {
     throw new Error(`change-файл: bump має бути одним із ${VALID_BUMPS.join('|')} (отримано «${fm.bump ?? ''}»)`)
   }
   if (!VALID_SECTIONS.includes(fm.section)) {
-    throw new Error(`change-файл: section має бути одним із ${VALID_SECTIONS.join('|')} (отримано «${fm.section ?? ''}»)`)
+    throw new Error(
+      `change-файл: section має бути одним із ${VALID_SECTIONS.join('|')} (отримано «${fm.section ?? ''}»)`
+    )
   }
   if (!description) throw new Error('change-файл: порожній опис')
   return { bump: fm.bump, section: fm.section, description }
@@ -168,6 +173,7 @@ git commit -m "feat(release): parse/serialize change files"
 ## Task 2: `change-file.mjs` — ім'я файлу та зчитування workspace
 
 **Files:**
+
 - Modify: `npm/rules/release/lib/change-file.mjs`
 - Test: `npm/rules/release/js/tests/change-file.test.mjs`
 
@@ -278,6 +284,7 @@ git commit -m "feat(release): change file name + workspace reader"
 ## Task 3: `aggregate.mjs` — bump + рендер секції + агрегація workspace
 
 **Files:**
+
 - Create: `npm/rules/release/lib/aggregate.mjs`
 - Test: `npm/rules/release/js/tests/aggregate.test.mjs`
 
@@ -315,9 +322,7 @@ describe('renderChangelogSection', () => {
       { section: 'Added', description: 'Додав A' },
       { section: 'Added', description: 'Додав A2' }
     ])
-    expect(block).toBe(
-      '## [1.3.0] - 2026-05-29\n\n### Added\n\n- Додав A\n- Додав A2\n\n### Fixed\n\n- Виправив B\n'
-    )
+    expect(block).toBe('## [1.3.0] - 2026-05-29\n\n### Added\n\n- Додав A\n- Додав A2\n\n### Fixed\n\n- Виправив B\n')
   })
 })
 
@@ -478,6 +483,7 @@ git commit -m "feat(release): version bump + changelog section aggregation"
 ## Task 4: `n-cursor change` — запис change-файлу
 
 **Files:**
+
 - Create: `npm/rules/release/change.mjs`
 - Modify: `npm/bin/n-cursor.js:1503` (після `case 'coverage'`)
 - Test: `npm/rules/release/js/tests/change.test.mjs`
@@ -572,7 +578,9 @@ export async function runChangeCli(args) {
   const message = get('--message')
   const ws = get('--ws') ?? '.'
   if (!bump || !section || !message) {
-    console.error('❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]')
+    console.error(
+      '❌ Використання: n-cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<опис>" [--ws <шлях>]'
+    )
     return 1
   }
   try {
@@ -629,6 +637,7 @@ git commit -m "feat(release): n-cursor change command"
 ## Task 5: `fallback.mjs` — синтез change-запису з git-комітів
 
 **Files:**
+
 - Create: `npm/rules/release/lib/fallback.mjs`
 - Test: `npm/rules/release/js/tests/fallback.test.mjs`
 
@@ -756,6 +765,7 @@ git commit -m "feat(release): synthesize changelog entry from commits (fallback)
 ## Task 6: `release.mjs` — оркестрація release у CI
 
 **Files:**
+
 - Create: `npm/rules/release/release.mjs`
 - Test: `npm/rules/release/js/tests/release.test.mjs`
 
@@ -920,7 +930,11 @@ export async function release(opts = {}) {
 
   if (released.length > 0) {
     await runGit(['add', '-A'])
-    await runGit(['commit', '-m', `release: ${tags.join(', ') || released.map(r => `${r.ws}@${r.newVersion}`).join(', ')}`])
+    await runGit([
+      'commit',
+      '-m',
+      `release: ${tags.join(', ') || released.map(r => `${r.ws}@${r.newVersion}`).join(', ')}`
+    ])
     for (const tag of tags) {
       await runGit(['tag', tag])
     }
@@ -994,6 +1008,7 @@ git commit -m "feat(release): n-cursor release orchestration (bump + changelog +
 ## Task 7: М'яка семантика `consistency.mjs` — change-файл задовольняє вимогу
 
 **Files:**
+
 - Modify: `npm/rules/changelog/js/consistency.mjs`
 - Test: `npm/rules/changelog/js/tests/consistency/tests/check.test.mjs`
 
@@ -1052,19 +1067,19 @@ async function hasPendingChangeFiles(ws, cwd) {
 In `checkLocalOnlyChangedWorkspace` (~line 502), at the very start after computing `label`/`mf`, short-circuit:
 
 ```js
-  if (await hasPendingChangeFiles(manifest.ws, cwd)) {
-    pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
-    return
-  }
+if (await hasPendingChangeFiles(manifest.ws, cwd)) {
+  pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
+  return
+}
 ```
 
 In `checkPublishedWorkspacePendingGitChanges` (~line 407), at the start after `mf`, add the same guard returning early before the git comparison:
 
 ```js
-  if (await hasPendingChangeFiles(manifest.ws, cwd)) {
-    pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
-    return
-  }
+if (await hasPendingChangeFiles(manifest.ws, cwd)) {
+  pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
+  return
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1084,6 +1099,7 @@ git commit -m "feat(changelog): accept .changes/ files in lieu of manual bump"
 ## Task 8: Оновити правило `n-changelog.mdc` (v2.6 → v3.0)
 
 **Files:**
+
 - Modify: `npm/rules/changelog/changelog.mdc` (джерело в пакеті)
 - Modify: `.cursor/rules/n-changelog.mdc` (синхронізована копія в цьому репо)
 
@@ -1124,6 +1140,7 @@ git commit -m "docs(changelog): v3.0 — change files replace manual bump in fea
 ## Task 9: CI — `release` + `publish` в одному job'і та template для scope B
 
 **Files:**
+
 - Modify: `.github/workflows/npm-publish.yml`
 - Create: `npm/github-actions/release/action.yml` (composite template для споживачів)
 
@@ -1204,6 +1221,7 @@ git commit -m "ci(release): run n-cursor release before publish; ship composite 
 ## Task 10: Self-release bump + повна верифікація
 
 **Files:**
+
 - Modify: `npm/CHANGELOG.md`, `npm/package.json`
 
 За власним правилом `n-changelog.mdc` (registry-published пакет `@nitra/cursor`) реліз цієї фічі потребує bump. Оскільки сам `release` ще не крутиться в CI на момент мерджу цього PR, робимо bump вручну (legacy-шлях, який ми ж лишили дозволеним).
@@ -1258,6 +1276,7 @@ git commit -m "release: @nitra/cursor@1.31.0"
 ## Self-Review
 
 **Spec coverage:**
+
 - Scope B (фіча для споживачів) → Task 9 (composite template) + Task 8 (правило синкається). ✔
 - Свій скрипт, не changesets/Beachball → Tasks 1–6 власні модулі. ✔
 - npm + Python → `aggregateWorkspace`/`writeManifestVersion` обробляють обидва; Task 6 Step 5 — Python-тест. ✔

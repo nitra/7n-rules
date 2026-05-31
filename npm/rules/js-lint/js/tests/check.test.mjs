@@ -110,7 +110,10 @@ describe('check — lint-js.yml та lint.yml', () => {
 describe('check — .oxlintrc.json не збігається з каноном', () => {
   test('.oxlintrc.json з некоректним severity → fail (lines 346-347)', async () => {
     await withTmpDir(async dir => {
-      const badOxlint = { ...canonical, rules: { .../** @type {Record<string,unknown>} */ (canonical.rules), eqeqeq: 'off' } }
+      const badOxlint = {
+        ...canonical,
+        rules: { .../** @type {Record<string,unknown>} */ (canonical.rules), eqeqeq: 'off' }
+      }
       await writeFile(join(dir, '.oxlintrc.json'), JSON.stringify(badOxlint), 'utf8')
       const code = await check(dir)
       expect(code).toBe(1)
@@ -146,11 +149,7 @@ describe('check — workspace package.json (type, engines)', () => {
       const pkg = { workspaces: ['packages/app'], type: 'commonjs' }
       await writeFile(join(dir, 'package.json'), JSON.stringify(pkg), 'utf8')
       await mkdir(join(dir, 'packages', 'app'), { recursive: true })
-      await writeFile(
-        join(dir, 'packages/app/package.json'),
-        JSON.stringify({ name: 'app', type: 'commonjs' }),
-        'utf8'
-      )
+      await writeFile(join(dir, 'packages/app/package.json'), JSON.stringify({ name: 'app', type: 'commonjs' }), 'utf8')
       const code = await check(dir)
       expect(code).toBe(1)
     })
@@ -208,7 +207,7 @@ describe('check — workspace package.json (type, engines)', () => {
         'utf8'
       )
       // Інші перевірки все одно можуть провалити — але workspace pkg checks мають пройти
-      expect(typeof await check(dir)).toBe('number')
+      expect(typeof (await check(dir))).toBe('number')
     })
   })
 })

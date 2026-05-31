@@ -53,10 +53,7 @@ describe('fixSurvivedMutants — early return', () => {
   })
 
   test('survived з порожніми mutants[] → той самий early-return', async () => {
-    await fixSurvivedMutants(
-      [{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }],
-      '/repo'
-    )
+    await fixSurvivedMutants([{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }], '/repo')
     expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
     expect(capturedQuery).toBeNull()
   })

@@ -41,9 +41,7 @@ describe('VerdictSchema', () => {
   })
 
   test('reject: reason > 500 символів', () => {
-    expect(() =>
-      VerdictSchema.parse({ verdict: 'glue', confidence: 0.5, reason: 'x'.repeat(501) })
-    ).toThrow()
+    expect(() => VerdictSchema.parse({ verdict: 'glue', confidence: 0.5, reason: 'x'.repeat(501) })).toThrow()
   })
 
   test('reject: suggestedTest > 300 символів', () => {
@@ -69,7 +67,7 @@ describe('parseVerdict', () => {
     expect(parseVerdict(raw).verdict).toBe('glue')
   })
 
-  test('throw коли немає JSON-об\'єкта у тексті', () => {
+  test("throw коли немає JSON-об'єкта у тексті", () => {
     expect(() => parseVerdict('No JSON here')).toThrow(/No JSON/u)
   })
 

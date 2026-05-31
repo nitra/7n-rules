@@ -74,15 +74,26 @@ describe('release', () => {
   test('кілька workspace: обидва бампляться, два теги, один commit', async () => {
     await withTmpDir(async dir => {
       // монорепо-корінь з підпакетами → корінь пропускається
-      await writeJson(join(dir, 'package.json'), { name: 'root', version: '0.0.0', private: true, workspaces: ['a', 'b'] })
-      for (const [ws, ver] of [['a', '1.0.0'], ['b', '2.0.0']]) {
+      await writeJson(join(dir, 'package.json'), {
+        name: 'root',
+        version: '0.0.0',
+        private: true,
+        workspaces: ['a', 'b']
+      })
+      for (const [ws, ver] of [
+        ['a', '1.0.0'],
+        ['b', '2.0.0']
+      ]) {
         await mkdir(join(dir, ws, '.changes'), { recursive: true })
         await writeJson(join(dir, ws, 'package.json'), { name: ws, version: ver, files: ['CHANGELOG.md'] })
         await writeFile(join(dir, ws, 'CHANGELOG.md'), '# Changelog\n')
         await writeFile(join(dir, ws, '.changes', '1.md'), '---\nbump: minor\nsection: Added\n---\nfeat ' + ws + '\n')
       }
       const calls = []
-      const runGit = args => { calls.push(args.join(' ')); return Promise.resolve('') }
+      const runGit = args => {
+        calls.push(args.join(' '))
+        return Promise.resolve('')
+      }
       const released = await release({ cwd: dir, date: '2026-05-29', runGit })
 
       expect(released.map(r => r.name).toSorted()).toEqual(['a', 'b'])
@@ -136,7 +147,7 @@ describe('release', () => {
     await withTmpDir(async dir => {
       await mkdir(join(dir, 'svc'), { recursive: true })
       // Використовуємо одинарні лапки — PY_VERSION_LINE_RE /("[^"]*)/ не матче
-      await writeFile(join(dir, 'svc', 'pyproject.toml'), "[project]\nname = \"svc\"\nversion = '0.1.0'\n")
+      await writeFile(join(dir, 'svc', 'pyproject.toml'), '[project]\nname = "svc"\nversion = \'0.1.0\'\n')
       await writeFile(join(dir, 'svc', 'CHANGELOG.md'), '# Changelog\n')
       await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
       await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
@@ -173,12 +184,14 @@ describe('runReleaseCli', () => {
       await withTmpDir(async dir => {
         // pyproject.toml з одинарними лапками → writeManifestVersion кидає
         await mkdir(join(dir, 'svc'), { recursive: true })
-        await writeFile(join(dir, 'svc', 'pyproject.toml'), "[project]\nname = \"svc\"\nversion = '0.1.0'\n")
+        await writeFile(join(dir, 'svc', 'pyproject.toml'), '[project]\nname = "svc"\nversion = \'0.1.0\'\n')
         await writeFile(join(dir, 'svc', 'CHANGELOG.md'), '# Changelog\n')
         await mkdir(join(dir, 'svc', '.changes'), { recursive: true })
         await writeFile(join(dir, 'svc', '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
         // runReleaseCli() uses process.cwd(), so we test release() directly via error path
-        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(error => error)
+        const err = await release({ cwd: dir, date: '2026-05-29', runGit: () => Promise.resolve('') }).catch(
+          error => error
+        )
         // Simulate what runReleaseCli does with the error
         console.error(`❌ ${err instanceof Error ? err.message : String(err)}`)
         const code = err instanceof Error ? 1 : 0

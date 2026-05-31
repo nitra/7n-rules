@@ -3,7 +3,14 @@ import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
 
-import { changeFileName, readChangeFiles, parseChangeFile, serializeChangeFile, VALID_BUMPS, VALID_SECTIONS } from '../../lib/change-file.mjs'
+import {
+  changeFileName,
+  readChangeFiles,
+  parseChangeFile,
+  serializeChangeFile,
+  VALID_BUMPS,
+  VALID_SECTIONS
+} from '../../lib/change-file.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
 const RE_ОПИС = /опис/u

@@ -422,7 +422,10 @@ async function collectPublishedFiles(filesField, cwd) {
     }
     if (!s.isDirectory()) continue
     await walkDir(fullPath, p => {
-      const rel = p.slice(npmRoot.length + 1).split(sep).join('/')
+      const rel = p
+        .slice(npmRoot.length + 1)
+        .split(sep)
+        .join('/')
       collected.add(rel)
     })
   }

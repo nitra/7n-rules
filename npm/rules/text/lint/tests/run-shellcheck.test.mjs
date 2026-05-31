@@ -44,7 +44,8 @@ describe('run-shellrules/text/fix.mjs', () => {
       return
     }
     await withTmpDir(async dir => {
-      await writeFile(join(dir, 'fixme.sh'),
+      await writeFile(
+        join(dir, 'fixme.sh'),
         `#!/bin/bash
 echo $1
 `,
@@ -59,7 +60,10 @@ echo $1
   test('runShellcheckText повертає 1 і друкує підказки, якщо shellcheck відсутній у PATH (lines 36, 105-106)', async () => {
     const errLines = []
     const origErr = process.stderr.write.bind(process.stderr)
-    process.stderr.write = chunk => { errLines.push(chunk); return true }
+    process.stderr.write = chunk => {
+      errLines.push(chunk)
+      return true
+    }
     try {
       await withBinRemovedFromPath('shellcheck', async () => {
         await withTmpDir(async dir => {
@@ -82,7 +86,10 @@ echo $1
     }
     const outLines = []
     const origOut = process.stdout.write.bind(process.stdout)
-    process.stdout.write = chunk => { outLines.push(chunk); return true }
+    process.stdout.write = chunk => {
+      outLines.push(chunk)
+      return true
+    }
     try {
       await withTmpDir(async dir => {
         // SC2034: unused variable — не авто-виправляється shellcheck
