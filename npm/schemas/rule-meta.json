@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://unpkg.com/@nitra/cursor/schemas/rule-meta.json",
+  "title": "n-cursor rule meta",
+  "description": "Метадані правила @nitra/cursor: умова автоактивації (auto). Файл npm/rules/<id>/meta.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "auto": {
+      "description": "Умова автоактивації правила: \"завжди\", масив id правил-залежностей, glob, або іменований предикат.",
+      "oneOf": [
+        { "const": "завжди" },
+        { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+        {
+          "type": "object",
+          "required": ["glob"],
+          "additionalProperties": false,
+          "properties": {
+            "glob": {
+              "oneOf": [
+                { "type": "string", "minLength": 1 },
+                { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["predicate"],
+          "additionalProperties": false,
+          "properties": {
+            "predicate": { "type": "string", "minLength": 1 },
+            "arg": {}
+          }
+        }
+      ]
+    }
+  }
+}
