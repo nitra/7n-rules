@@ -1,0 +1,79 @@
+npm/rules/rego/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/scripts/lib/tests/rule-meta.test.mjs
+  s_7196fedc140418::t_880667187af6c5 5,45-53
+npm/rules/text/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/rules/js-lint/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/rules/js-lint/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-52
+.cursor/rules/scripts.mdc
+  s_7196fedc140418::t_880667187af6c5 38-39
+npm/rules/style-lint/js/tests/lint.test.mjs
+  s_7196fedc140418::t_880667187af6c5 1-8
+npm/scripts/lint-cli.mjs
+  s_7196fedc140418::t_880667187af6c5 1-83
+npm/bin/n-cursor.js
+  s_7196fedc140418::t_880667187af6c5 108,1467-1472,1546
+npm/rules/security/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-18
+npm/rules/security/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/rules/npm-module/js/rule_meta.mjs
+  s_7196fedc140418::t_880667187af6c5 15,57-62
+npm/rules/text/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-12
+npm/rules/rego/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-12
+npm/rules/style-lint/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-34
+npm/rules/ga/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-12
+npm/rules/js-lint-ci/js/lint.mjs
+  s_7196fedc140418::t_880667187af6c5 1-20
+npm/rules/npm-module/js/tests/rule_meta.test.mjs
+  s_7196fedc140418::t_880667187af6c5 58-80
+npm/.changes/lint-quick-ci-split.md
+  s_7196fedc140418::t_880667187af6c5 1-5
+npm/rules/style-lint/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/rules/js-lint-ci/fix.mjs
+  s_7196fedc140418::t_880667187af6c5 1-19
+npm/rules/js-lint-ci/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/tests/fix-mjs-contract.test.mjs
+  s_7196fedc140418::t_880667187af6c5 21-22
+npm/scripts/lib/rule-meta.mjs
+  s_7196fedc140418::t_880667187af6c5 51-62
+npm/rules/ga/meta.json
+  s_7196fedc140418::t_880667187af6c5 1
+npm/rules/js-lint-ci/js-lint-ci.mdc
+  s_7196fedc140418::t_880667187af6c5 1-12
+npm/scripts/lib/changed-files.mjs
+  s_7196fedc140418::t_880667187af6c5 1-30
+npm/schemas/rule-meta.json
+  s_7196fedc140418::t_880667187af6c5 9
+npm/rules/js-lint/js/tests/lint.test.mjs
+  s_7196fedc140418::t_880667187af6c5 1-12
+npm/scripts/lib/tests/changed-files.test.mjs
+  s_7196fedc140418::t_880667187af6c5 1-36
+npm/scripts/tests/lint-cli.test.mjs
+  s_7196fedc140418::t_880667187af6c5 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ebe76dbfdd5fcc2b523a1be61a633006b70f7cd1",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
