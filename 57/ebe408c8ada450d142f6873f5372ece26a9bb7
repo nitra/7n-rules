@@ -1,0 +1,21 @@
+npm/rules/npm-module/js/tests/rule_meta.test.mjs
+  s_7196fedc140418::t_da81a87625ac62 1-58
+npm/rules/npm-module/js/rule_meta.mjs
+  s_7196fedc140418::t_471cebe6c887c7 1-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "57ebe408c8ada450d142f6873f5372ece26a9bb7",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
