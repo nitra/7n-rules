@@ -38,7 +38,6 @@
         "scripts/lib/run-rule-cli.mjs",
         "scripts/lib/run-rule.mjs",
         "scripts/lib/run-standard-rule.mjs",
-        "rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
         "rules/**/*.test.mjs",
         "scripts/**/*.test.mjs",
         "tests/**/*.test.mjs",

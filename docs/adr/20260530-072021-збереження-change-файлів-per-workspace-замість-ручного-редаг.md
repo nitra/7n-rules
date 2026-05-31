@@ -120,3 +120,25 @@ Chosen option: "Один job `release-publish`", because commit-back через 
 - `.github/workflows/npm-publish.yml` — permissions `contents: write`, `persist-credentials: true`, `fetch-depth: 0`
 - Composite-action template: `npm/github-actions/release/action.yml` (scope B — для споживачів через sync)
 - Команда: `npx @nitra/cursor release`
+
+## Update 2026-05-29
+
+### Агент викликає `n-cursor change`, а не пише change-файл напряму
+
+Chosen option: "Агент викликає `n-cursor change --flags`", because CLI виконує валідацію полів у точці запису — агент отримує явну помилку при невалідному `type` або `category`; при зміні внутрішнього формату `.changes/*.md` достатньо оновити тільки `n-cursor`, а не кожну інструкцію в правилах; правило `n-changelog.mdc` посилається на команду, а не на формат файлу.
+
+Реалізація: `npm/rules/release/change.mjs`, прапорці `--workspace`, `--type`, `--category`, `--message`.
+Spec: `docs/superpowers/specs/2026-05-29-changesets-migration.md`.
+
+## Update 2026-05-29
+
+### Реліз виключно в CI на `main` (Pattern A) з GitHub App token
+
+Chosen option: "CI на `main`", because максимальна автоматизація без локальних кроків; наявний `concurrency` у `npm-publish.yml` серіалізує release-джоби.
+
+`cancel-in-progress: false` для release-job — реліз не можна переривати посередині.
+CI-fallback: якщо `.changes/` порожній для зміненого workspace, `release` синтезує generic `patch`-запис із `git log origin/main..HEAD -- <ws-dir>`.
+
+Зміни `.github/workflows/npm-publish.yml`: `permissions.contents: write` (було `read`), `fetch-depth: 0`, крок `npx @nitra/cursor release` перед `JS-DevTools/npm-publish`.
+
+Commit-back через GitHub App token (`tibdex/github-app-token@v2`, secrets `APP_ID` + `APP_PRIVATE_KEY`) — не ретригерить workflow, тому bump і publish знаходяться в одному job без зациклення. Git identity: `nitra-bot[bot]`.

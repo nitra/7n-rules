@@ -5,16 +5,11 @@ npm/schemas/n-cursor.json
 npm/schemas/target.json
 .claude/settings.local.json
 npm/.claude-template/settings.template.json
-npm/scripts/utils/knip-canonical.json
-npm/scripts/utils/oxlint-canonical-skeleton.json
-npm/scripts/utils/oxlint-canonical.json
 npm/rules/js-lint/js/data/tooling/knip-canonical.json
-npm/rules/js-lint/js/data/tooling/oxlint-canonical-skeleton.json
 npm/rules/js-lint/js/data/tooling/oxlint-canonical.json
 npm/rules/k8s/js/templates/kubescape_exceptions/.kubescape-exceptions.json.snippet.json
 npm/tsconfig.emit-types.json
 .regal/config.yaml
-npm/scripts/utils/__fixtures__/**
 npm/scripts/lib/tests/__fixtures__/**
 npm/rules/*/policy/*/template/**
 npm/rules/*/fix/*/template/**
