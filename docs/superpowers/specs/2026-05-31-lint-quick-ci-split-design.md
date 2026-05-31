@@ -79,18 +79,29 @@
 
 ---
 
-## Флаги інструментів у quick-фазі
+## Класифікація lint-кроків (аналіз виконано перед плануванням)
 
-| Інструмент | quick-флаги | ci-флаги |
-|---|---|---|
-| eslint | `--quiet` (тільки errors, без warnings) | без `--quiet` |
-| oxlint | без змін (вже швидкий) | без змін |
-| stylelint | без змін | без змін |
-| trufflehog / security | `"lint": "ci"` → лише ci | — |
-| jscpd | `"lint": "ci"` → лише ci | без змін |
-| knip | `"lint": "ci"` → лише ci | без змін |
+| Крок / правило | Інструмент(и) | Фаза | Обґрунтування |
+|---|---|---|---|
+| `lint-rego` | `opa check`, `regal`, `conftest verify` | **quick** | Per-path, фіксований `npm/rules/`, швидкий однопрохідний аналіз |
+| `lint-style` | `stylelint` | **quick** | Per-file, stateless між файлами |
+| `oxlint` (з js-lint) | `bunx oxlint --fix` | **quick** | Rust-based per-file, дуже швидкий |
+| `eslint` (з js-lint) | `bunx eslint --fix .` | **quick** | Per-file, немає крос-файлових правил у конфізі |
+| `lint-text` цілком | `cspell`, `shellcheck`, `dotenv-linter`, `markdownlint-cli2`, `v8r` | **quick** | Усі підкроки per-file/stateless; v8r може бути повільний через fetch схем, але per-file |
+| `oxfmt` | `oxfmt .` | **quick** | Fast formatter, per-file |
+| `lint-ga` | `actionlint`, `zizmor --collect=workflows`, `conftest check-ga` | **ci** | Крос-файловий: сканує весь `.github/workflows/`, аналіз залежностей між workflow |
+| `lint-security` | `trufflehog filesystem .` | **ci** | Сканує все дерево; потребує контексту по всьому репо для ентропійного аналізу |
+| `jscpd` (з js-lint) | `bunx jscpd .` | **ci** | Детектор дублікатів — потребує індексу всіх файлів одночасно |
+| `knip` (з js-lint) | `bunx knip --no-config-hints` | **ci** | Граф залежностей по всіх пакетах; per-file аналіз неможливий |
 
-> Точні флаги для решти інструментів (`lint-ga`, `lint-rego`, `lint-text`) — аналізуються під час реалізації. Якщо крок природно швидкий — `"quick"`, якщо важкий — `"ci"`.
+**Підсумок:** `lint-js` — єдиний композитний крок що змішує фази. `lint-text` та `lint-rego` — повністю quick. `lint-ga` і `lint-security` — повністю ci.
+
+### Флаги у quick-фазі
+
+| Інструмент | quick-флаги (додаткові) |
+|---|---|
+| `eslint` | `--quiet` (тільки errors, без warnings) |
+| решта quick | без додаткових флагів |
 
 ---
 
