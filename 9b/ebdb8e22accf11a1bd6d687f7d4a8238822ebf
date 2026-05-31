@@ -1,0 +1,21 @@
+npm/skills/worktree/SKILL.md
+  s_7196fedc140418::t_c736ad667420dc 1-38
+npm/skills/worktree/meta.json
+  s_7196fedc140418::t_870189c81e5645 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "9bebdb8e22accf11a1bd6d687f7d4a8238822ebf",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
