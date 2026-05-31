@@ -1,0 +1,29 @@
+npm/schemas/v8r-catalog.json
+  s_4934e03da6d240::t_206ad93ea8ce66 31,37
+npm/package.json
+  s_69c7a0985ac3ce::t_c9cc4ae1b187bf 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0eb51bde9549454c7b5db467abd564c560bc2b44",
+  "prompts": {},
+  "sessions": {
+    "s_4934e03da6d240": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f19c33bc-d7ee-4bde-997f-609f91a7d894",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_69c7a0985ac3ce": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "275a5def-df48-4689-9eff-c0145869076b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
