@@ -1,0 +1,20 @@
+npm/bin/n-cursor.js
+  s_7196fedc140418::t_204f87e2ca2fa9 108
+  s_7196fedc140418::t_2a7490a53c45da 1543
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "18d200c64b1b2fa57685ac44643e14ca5cb3863f",
+  "prompts": {},
+  "sessions": {
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
