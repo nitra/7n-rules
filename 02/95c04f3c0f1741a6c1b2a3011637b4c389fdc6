@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-05-31-auto-md-to-meta-json.md
+  s_c48b54c1ec8b89::t_0e9cf3ca9c5317 1-851
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "0295c04f3c0f1741a6c1b2a3011637b4c389fdc6",
+  "prompts": {},
+  "sessions": {
+    "s_c48b54c1ec8b89": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c97697c9-8629-4242-8568-3b269a59addc",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
