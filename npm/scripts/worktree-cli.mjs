@@ -15,6 +15,7 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
+import { cleanupFlowSiblings } from './dispatcher/lib/state-store.mjs'
 import { buildDescription, findOrphanDescFiles, worktreePaths } from './lib/worktree.mjs'
 
 const USAGE = [
@@ -136,6 +137,7 @@ function cmdRemove(rest, ctx) {
     return 1
   }
   if (existsSync(paths.descFile)) rmSync(paths.descFile, { force: true })
+  cleanupFlowSiblings(paths.checkout) // flow-sibling-и (.flow.json/.events.jsonl/lock) — інакше осиротіють (§1.4)
   ctx.log(`✅ прибрано: ${paths.checkout} (гілку ${branch} лишено)`)
   return 0
 }
@@ -185,16 +187,21 @@ export function runWorktreeCli(argv, options = {}) {
   }
   const [sub, ...rest] = argv
   switch (sub) {
-    case 'add':
+    case 'add': {
       return Promise.resolve(cmdAdd(rest, ctx))
-    case 'remove':
+    }
+    case 'remove': {
       return Promise.resolve(cmdRemove(rest, ctx))
-    case 'list':
+    }
+    case 'list': {
       return Promise.resolve(cmdList(ctx))
-    case 'prune':
+    }
+    case 'prune': {
       return Promise.resolve(cmdPrune(ctx))
-    default:
+    }
+    default: {
       ctx.logError(USAGE)
       return Promise.resolve(1)
+    }
   }
 }

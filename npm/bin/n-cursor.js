@@ -1534,6 +1534,22 @@ try {
 
       break
     }
+    case 'flow': {
+      // n-cursor flow — Dual-Mode Dispatcher (spec §8): Пасивний Турнікет
+      // (init/verify/release) + Активний Раннер (run) навколо .flow.json.
+      const { runFlowCli } = await import('../scripts/dispatcher/index.mjs')
+      process.exitCode = await runFlowCli(args)
+
+      break
+    }
+    case 'trace': {
+      // n-cursor trace — наскрізна простежуваність (spec §5.4/§7): граф
+      // ADR↔spec↔plan↔change за front-matter + флаг розривів. exit 1 на розрив.
+      const { runTraceCli } = await import('../scripts/dispatcher/trace.mjs')
+      process.exitCode = runTraceCli(args)
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1543,7 +1559,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace`
       )
       process.exitCode = 1
     }

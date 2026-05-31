@@ -66,4 +66,4 @@
 
 ## Дизайн-спека
 
-Спека, з якої побудована ця модель: [`docs/superpowers/specs/2026-05-10-ci4-model-design.md`](../superpowers/specs/2026-05-10-ci4-model-design.md).
+Спека, з якої побудована ця модель: [`docs/specs/2026-05-10-ci4-model-design.md`](../specs/2026-05-10-ci4-model-design.md).

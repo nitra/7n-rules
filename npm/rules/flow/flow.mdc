@@ -1,0 +1,51 @@
+---
+description: Контракт Пасивного Турнікета n-cursor flow — IDE-агент сам пише код, але ізолює/перевіряє/релізить через flow init/verify/release.
+globs:
+alwaysApply: true
+---
+
+# n-cursor flow — Пасивний Турнікет (контракт виконавця)
+
+`n-cursor flow` — це Dual-Mode Dispatcher. В інтерактивному середовищі (Cursor
+Composer, Claude Code) працює **Пасивний Турнікет**: ти, агент, **сам пишеш
+код**, а `n-cursor` лише ізолює роботу, **судить** її якість і релізить. Жодного
+прихованого спавну субагентів — керуєш ти.
+
+## Контракт (виконуй у цьому порядку)
+
+1. **Старт** — на початку задачі:
+
+   ```
+   npx @nitra/cursor flow init <branch> "<опис>"
+   ```
+
+   Створює ізольований worktree (`.worktrees/<branch>/`) і стан задачі. Якщо ти
+   вже в worktree — новий не вкладається.
+
+2. **Пиши код** сам, кроками. TDD: спершу падаючі тести, тоді реалізація.
+
+3. **Перевіряй** після кожного логічного кроку:
+
+   ```
+   npx @nitra/cursor flow verify
+   ```
+
+   Проганяє Quality Gates (lint + coverage). Повертає `0` (pass) або `1` із
+   виводом проваленого gate.
+
+4. **На провал** — виправ код за виводом і виклич `flow verify` знову. Максимум
+   **3 спроби**; якщо не вдається — зупинись і поклич людину.
+
+5. **Фініш** — лише після зеленого `verify`:
+
+   ```
+   npx @nitra/cursor flow release --bump <patch|minor|major> --section <Added|Changed|Fixed> --message "<що зроблено>"
+   ```
+
+   Генерує `.changes/` і пише completion snapshot. Гілка готова до merge.
+
+## Чого не роби
+
+- Не обходь `verify` — це єдиний критерій «готово».
+- Не редагуй `version` чи `CHANGELOG.md` вручну (це робить CI з `.changes/`).
+- Не коміть стан `.worktrees/<branch>.flow.json` у гілку — він поза git.

@@ -396,5 +396,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": ["**/schema.graphql", "**/auto-imports.d.ts"]
+  "ignorePatterns": ["npm/types/**", "demo/node/rules-demo.js", "**/schema.graphql", "**/auto-imports.d.ts"]
 }

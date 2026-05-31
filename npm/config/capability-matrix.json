@@ -1,0 +1,8 @@
+{
+  "models": {
+    "claude-3-5-sonnet": { "orchestration": "polyfill", "capabilities": ["tool_use", "code_gen"] },
+    "claude-sonnet-4-6": { "orchestration": "polyfill", "capabilities": ["tool_use", "code_gen"] },
+    "claude-4-8-opus": { "orchestration": "native", "capabilities": ["tool_use", "code_gen", "native_workflows", "ultracode"] }
+  },
+  "default": { "orchestration": "polyfill" }
+}

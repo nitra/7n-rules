@@ -13,7 +13,8 @@ const DEFAULTS = {
   ttl: 600_000,
   staleThreshold: 1_800_000,
   waitTimeout: 1_200_000,
-  pollInterval: 1500
+  pollInterval: 1500,
+  onWaitTimeout: 'run-unlocked'
 }
 
 /**
@@ -57,11 +58,11 @@ export function shouldDedup(result, fingerprint, ttl) {
  * Серіалізує важку команду через атомарний lock і dedup за fingerprint.
  * @param {string} key ключ локу (наприклад `lint-ga`, `fix-bun`)
  * @param {() => number | Promise<number>} runFn основна робота; повертає exit code
- * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, cacheDir?:string, getFingerprint?:() => string | null}} [opts] TTL, шлях кешу та override fingerprint
+ * @param {{ttl?:number, staleThreshold?:number, waitTimeout?:number, pollInterval?:number, onWaitTimeout?:'run-unlocked'|'fail', cacheDir?:string, getFingerprint?:() => string | null}} [opts] TTL, шлях кешу, поведінка на таймаут (default `run-unlocked`; `fail` = fail-closed) та override fingerprint
  * @returns {Promise<number>} exit code виконаної або дедуплікованої команди
  */
 export async function withLock(key, runFn, opts = {}) {
-  const { ttl, staleThreshold, waitTimeout, pollInterval } = { ...DEFAULTS, ...opts }
+  const { ttl, staleThreshold, waitTimeout, pollInterval, onWaitTimeout } = { ...DEFAULTS, ...opts }
   const getFingerprint = opts.getFingerprint ?? worktreeFingerprint
   const cacheDir = opts.cacheDir ?? resolveLockCacheDir(key)
   const lockDir = join(cacheDir, 'lock')
@@ -76,6 +77,9 @@ export async function withLock(key, runFn, opts = {}) {
 
   while (true) {
     if (Date.now() - loopStart >= waitTimeout) {
+      if (onWaitTimeout === 'fail') {
+        throw new Error(`${key}: не вдалося взяти лок за ${waitTimeout / 60_000} хв — fail-closed`)
+      }
       console.error(`⚠️ ${key}: чекав ${waitTimeout / 60_000} хв — запускаю без локу`)
       return await runFn()
     }
