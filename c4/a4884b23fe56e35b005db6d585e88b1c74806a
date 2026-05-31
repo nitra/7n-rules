@@ -1,0 +1,38 @@
+npm/bin/n-cursor.js
+  s_d5a5fa204cd7bf::t_9dda78be9b00fb 1534-1541
+  s_d5a5fa204cd7bf::t_36529f673a83c2 1551
+npm/config/capability-matrix.json
+  s_d5a5fa204cd7bf::t_110655e28781bf 1-8
+npm/.changes/1780252692821-f64659.md
+  s_d5a5fa204cd7bf::t_a752f3279bf31c 1-5
+npm/scripts/dispatcher/index.mjs
+  s_d5a5fa204cd7bf::t_15332e7d010165 1-40,45-62
+  s_d5a5fa204cd7bf::t_6f0b67a3f9caa9 41-44
+npm/scripts/dispatcher/tests/index.test.mjs
+  s_d5a5fa204cd7bf::t_e3996ada8c2315 1-34,36-37
+  s_d5a5fa204cd7bf::t_acb77106d2b767 35
+npm/scripts/dispatcher/lib/tests/capability.test.mjs
+  s_d5a5fa204cd7bf::t_8c9450dc840680 1-91
+npm/scripts/dispatcher/lib/state-store.mjs
+  s_d5a5fa204cd7bf::t_776ddd4787923a 1-138
+npm/scripts/dispatcher/lib/tests/state-store.test.mjs
+  s_d5a5fa204cd7bf::t_7db19391398d37 1-102
+npm/scripts/dispatcher/lib/capability.mjs
+  s_d5a5fa204cd7bf::t_6e122a1a5c6371 1-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c4a4884b23fe56e35b005db6d585e88b1c74806a",
+  "prompts": {},
+  "sessions": {
+    "s_d5a5fa204cd7bf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "23e553b6-6bb0-45e4-bb88-629bade3d8f7",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
