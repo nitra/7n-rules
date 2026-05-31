@@ -1,0 +1,49 @@
+npm/rules/js-lint/js-lint.mdc
+  s_5a4c3dac8e9f27::t_3d3b1ceeff2fe3 5
+  s_5a4c3dac8e9f27::t_7dd3b2bfcdeddd 19
+  s_5a4c3dac8e9f27::t_1099895086d964 24
+npm/rules/js-lint/js/tooling.mjs
+  s_5a4c3dac8e9f27::t_3b0622768db0fe 216
+npm/rules/js-lint/policy/package_json/package_json_test.rego
+  s_5a4c3dac8e9f27::t_7ae74e898e7d7e 11
+  s_5a4c3dac8e9f27::t_c9bc1798cd09e0 46
+  s_5a4c3dac8e9f27::t_ee4f3f28a461ee 18
+  s_5a4c3dac8e9f27::t_925b787d6e3b5c 50-57
+npm/.changes/1780248036441-7b08a9.md
+  s_5a4c3dac8e9f27::t_5da29d22d407a4 1-5
+npm/.changes/1780248426182-7741d0.md
+  s_5a4c3dac8e9f27::t_f38398529c3022 1-5
+npm/rules/js-lint/policy/package_json/template/package.json.snippet.json
+  s_5a4c3dac8e9f27::t_151e3a41c81501 5-7
+npm/rules/js-lint/policy/package_json/package_json.rego
+  s_5a4c3dac8e9f27::t_d60ef4ac68851b 49,61
+  s_5a4c3dac8e9f27::t_c75e56cbb58fbd 97-99,102
+  s_5a4c3dac8e9f27::t_32739a0c75b0df 66-71
+  s_5a4c3dac8e9f27::t_587c6f196b1ccd 5,7-11
+  s_5a4c3dac8e9f27::t_00bff4fe1ad821 95-96,103-107,110-113
+.cursor/rules/n-js-lint.mdc
+  s_5a4c3dac8e9f27::t_934adab057efb2 8
+  s_5a4c3dac8e9f27::t_3d3b1ceeff2fe3 5
+  s_5a4c3dac8e9f27::t_b80642ff690277 24,31-33
+  s_5a4c3dac8e9f27::t_db9a31a876f2c0 19
+npm/rules/js-lint/js/data/tooling/oxlint-canonical.json
+  s_5a4c3dac8e9f27::t_8e1a4b87116ad6 8-20
+package.json
+  s_5a4c3dac8e9f27::t_bc330918a6e004 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "f1a4976a097eab3f917ea57ed93de42bcd8def6e",
+  "prompts": {},
+  "sessions": {
+    "s_5a4c3dac8e9f27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27bcf8ad-3d79-4564-975c-e30f0be45f1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
