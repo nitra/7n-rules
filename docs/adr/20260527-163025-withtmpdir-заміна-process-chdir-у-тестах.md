@@ -59,3 +59,27 @@ Stryker mutation score `rules/test/coverage` під час ітерацій `/n-
 ## Update 2026-05-27
 
 Видалення stub-стратегії для `coverage-fix.mjs`: тести використовували `installCoverageFixStub()`, що записував фейковий `npm/rules/scripts/coverage-fix.mjs` у production tree — `fix-mjs-contract.test.mjs` виявляв stub як фальшиве правило і падав при паралельному прогоні. Виправлено: шлях у `coverage.mjs:192` `../../scripts/coverage-fix.mjs` → `../../../scripts/coverage-fix.mjs` (реальний файл завжди знаходився у `npm/scripts/coverage-fix.mjs`); stub та пов'язані describe-блоки видалено. Наслідок: 5 `NoCoverage` мутантів у `L189–L192` більше не покриваються unit-тестами.
+
+## Update 2026-05-27
+
+Деталізований звіт із рефакторингу `withTmpCwd` → `withTmpDir` та запровадження трьох policy-concerns.
+
+**Змінені файли (ключові):**
+- `npm/scripts/utils/test-helpers.mjs` — `withTmpCwd` видалено, додано `withTmpDir(fn)` + валідація `isAbsolute` у `writeJson`/`ensureDir`
+- `npm/rules/test/coverage/coverage.mjs:192` — виправлено pre-existing bug: dynamic import `../../scripts/coverage-fix.mjs` → `../../../scripts/coverage-fix.mjs`
+- `npm/rules/nginx-default-tpl/js/template.mjs` — `checkVscodeNginx(passFn, failFn, cwd)` тепер приймає `cwd`; внутрішні `existsSync`/`runConftestBatch` використовують `join(cwd, ...)`
+- `npm/tests/check-rule-fixtures.test.mjs:188-189` — `copyFile(..., 'relative')` → `copyFile(..., join(dir, 'relative'))`
+- 43 тестових файли — `withTmpCwd(async () => ...)` → `withTmpDir(async dir => ...)` з явними `join(dir, ...)` і `cwd: dir`
+- 24 production JS-concerns — сигнатури `check(cwd = process.cwd())`/`fix(cwd = process.cwd())`
+
+**Нові policy-concerns (правило `test`):**
+- `npm/rules/test/js/no-process-chdir.mjs` + `tests/no-process-chdir.test.mjs` (8 тестів) — regex-scan `process.chdir(` у `*.test.{js,mjs}`
+- `npm/rules/test/js/vitest-config-pool-forks.mjs` + `tests/vitest-config-pool-forks.test.mjs` (6 тестів) — substring-перевірка `pool: 'forks'` у `vitest.config.js`
+- `npm/rules/test/js/no-relative-fs-path.mjs` + `tests/no-relative-fs-path.test.mjs` (17 тестів) — AST-scan (oxc-parser) FS-функцій із string literal relative-path аргументами
+- `npm/rules/test/js/data/vitest_config/vitest.config.baseline.js` — оновлено `pool: 'forks'`
+
+**Верифікація:** `bun run test` — 1200 passed / 2 skipped; `bunx @stryker-mutator/core run` — 93.62% mutation score, без rogue commits/branches; HEAD стабільний (branches 5 → 5).
+
+**Наслідки:** mutation score знизився 98.58% → 93.62% — NoCoverage у `coverage.mjs:189–192` (відсутні end-to-end SDK-тести після видалення stub-стратегії); 5 pre-existing `e18e/prefer-static-regex` errors у `coverage.test.mjs` залишаються непоправленими.
+
+**Версія:** `@nitra/cursor` 1.27.9 → **1.28.0** (BREAKING: `withTmpCwd` видалено з публічного API `test-helpers.mjs`).

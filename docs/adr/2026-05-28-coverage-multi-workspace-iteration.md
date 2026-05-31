@@ -35,3 +35,25 @@ Chosen option: **A. Per-workspace iteration**, because (1) infra для per-work
 ## More Information
 
 Виправлено у `@nitra/cursor@1.28.6`. Контракт `runJsCoverage`/`runStryker` runner-ін'єкції збережено — існуючі тести `rules/js-lint/coverage/tests/coverage.test.mjs` адаптовано локально (no-tests тест тепер пише non-zero lcov, щоб тригернути перевірку `mutation.json`).
+
+## Update 2026-05-28
+
+Деталізований звіт про glob-розширення `resolveAllJsRoots()` та per-workspace iteration у `n-cursor coverage`.
+
+**Glob-розширення `resolveAllJsRoots()`:**
+- `npm/scripts/utils/resolve-js-root.mjs` — замість literal `existsSync(join(cwd, pattern))` використовується `node:fs/promises#glob` з `WORKSPACE_GLOB_IGNORE`; усуває fallback на `cwd` для патернів типу `"cf/*"`
+- `npm/scripts/utils/tests/resolve-js-root.test.mjs` — додані тести `glob cf/*` і fallback
+- `node:fs/promises#glob` доступний у Node 22+ і Bun 1.3+; зовнішні залежності не потрібні
+
+**Per-workspace iteration у `js-lint` coverage-провайдері:**
+- `npm/rules/js-lint/coverage/coverage.mjs` — приватний `collectOneRoot()` (повертає `null` для workspace без тестів) + публічний `collect()` (агрегує); `detect()` перевіряє всі JS-roots
+- Helpers `addCoverage`, `addMutation` з `rules/test/coverage/coverage.mjs` — reuse, не дублювання
+- `--passWithNoTests` (vitest 4.1.7) — workspace без тестів тихо скіпується, lcov пишеться з нулями; якщо жоден не має тестів — `collect()` повертає `[]` → exit 1 (коректна поведінка)
+- Backward-compat: для single-package проєкту `resolveAllJsRoots` вироджується до `[cwd]`
+- Виключено варіант native Vitest workspaces: потребував би генерування `vitest.workspace.js` у `stryker_config`-концерні та ламав би наявні per-root конфіги
+
+**Документація:** `npm/rules/test/test.mdc` v2.5 — секція «Покриття + мутаційне тестування» доповнена абзацом про multi-root iteration.
+
+**Тести:** `coverage.test.mjs` — кейси: monorepo з порожніми workspaces, all-empty → `[]`, single-package backward-compat; 135 тестів (24 + 111), усі green.
+
+**Версія:** `@nitra/cursor@1.28.5` → `1.28.6`.
