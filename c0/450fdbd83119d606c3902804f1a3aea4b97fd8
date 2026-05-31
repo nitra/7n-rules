@@ -1,0 +1,35 @@
+docs/adr/20260531-171129-розділення-lint-на-lint-quick-і-lint-ci-full-через-meta-json.md
+  s_7196fedc140418::t_870fc777670815 1-51
+docs/specs/2026-05-31-n-cursor-flow-traceability-design.md
+  s_7196fedc140418::t_d511a0de7a76b7 1-455
+.cursor/rules/n-js-lint.mdc
+  s_5a4c3dac8e9f27::t_9d0e87a6d70719 43
+npm/.changes/1780241234497-9b8327.md
+  s_5a4c3dac8e9f27::t_4ca288d5190627 1-5
+npm/rules/js-lint/js-lint.mdc
+  s_5a4c3dac8e9f27::t_6bc16a12904649 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "c0450fdbd83119d606c3902804f1a3aea4b97fd8",
+  "prompts": {},
+  "sessions": {
+    "s_5a4c3dac8e9f27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27bcf8ad-3d79-4564-975c-e30f0be45f1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_7196fedc140418": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "09dcb1bc-929b-4d88-90b0-c0611bed3d2f",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
