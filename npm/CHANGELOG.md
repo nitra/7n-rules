@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.36.0] - 2026-05-31
+
+### Added
+
+- test rule v2.7: канони Console mocking (vi.spyOn), Sandbox-aware тестів (withTmpDir+git init як default, skipIf STRYKER_MUTATOR_WORKER як виняток для smoke-аудиту) і явний {cwd:dir} у child_process
+
+### Changed
+
+- withLock: стан локу спільний для всіх git-worktree через resolveLockCacheDir (git-common-dir) — серіалізація важких команд між worktree, не лише в одному checkout
+
 ## [1.35.5] - 2026-05-30
 
 ### Changed
