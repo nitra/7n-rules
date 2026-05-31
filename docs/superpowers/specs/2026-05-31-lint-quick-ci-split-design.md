@@ -76,7 +76,7 @@
 
 | Правило | `lint` | `lintScoped` | `lintAlways` | `lintCiCmd` |
 |---|---|---|---|---|
-| `ga` | `quick` | `false` | `false` | — |
+| `ga` | `ci` | `false` | `false` | — |
 | `js-lint` | `quick` | `true` | `false` | `bunx jscpd . && bunx knip --no-config-hints` |
 | `oxfmt` (нове) | `quick` | `true` | `false` | — |
 | `rego` | `quick` | `true` | `false` | — |
@@ -86,6 +86,7 @@
 
 **Примітки:**
 - `security` (trufflehog) — **поза оркестратором**: власний CI job, власний скрипт `lint-security`. Ні в `lint-quick`, ні в `lint-all`.
+- `ga` — **тільки `ci`**: workflows у `.github/` є самодостатнім контекстом, reusable workflows посилаються одне на одне — скопування по змінених файлах некоректне. Немає сенсу запускати при звичайній розробці.
 - `lint-all` є **швидшим** за поточний `lint` (не включає trufflehog, який зараз у ланцюгу). `lint-all` = всі orchestrated правила; `security` — окремо.
 - `js-lint` — єдиний composite-крок, що містить quick (oxlint+eslint) і ci (jscpd+knip) інструменти. Ci-частина виражена через `lintCiCmd`.
 - `lintCmd` для `js-lint` — нова CLI-підкоманда `n-cursor lint-js [files...]`, що внутрішньо запускає `bunx oxlint --fix` і `bunx eslint --fix` з переданим списком файлів. (Compound-команда потребує wrapper-а, бо positional args не можна вставити в `&&`-рядок.)
