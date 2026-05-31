@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-05-31-lint-split-quick-ci-design.md
+  s_1d66c372591025::t_74c9cab6347a1e 1-190
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "3ae44287a244cc3cea692a61f036b872801b6b88",
+  "prompts": {},
+  "sessions": {
+    "s_1d66c372591025": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a0808546-e6db-4409-bea9-f2815bd3b30f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
