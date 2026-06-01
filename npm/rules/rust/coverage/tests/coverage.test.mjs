@@ -274,6 +274,32 @@ describe('rust coverage buildCargoMutantsArgs()', () => {
     expect(di).toBeGreaterThan(-1)
     expect(args[di + 1]).toBe('/o/in-diff.patch')
   })
+
+  test('без baseline не додає --baseline', () => {
+    const args = buildCargoMutantsArgs({ manifestPath: '/m/Cargo.toml', outDir: '/o', jobs: 2 })
+    expect(args).not.toContain('--baseline')
+  })
+
+  test("з baseline 'skip' додає --baseline skip", () => {
+    const args = buildCargoMutantsArgs({ manifestPath: '/m/Cargo.toml', outDir: '/o', jobs: 2, baseline: 'skip' })
+    const bi = args.indexOf('--baseline')
+    expect(bi).toBeGreaterThan(-1)
+    expect(args[bi + 1]).toBe('skip')
+  })
+})
+
+describe('rust coverage resolveBaseline()', () => {
+  test("повертає 'skip' для skip (case-insensitive, з пробілами)", () => {
+    expect(resolveBaseline('skip')).toBe('skip')
+    expect(resolveBaseline('SKIP')).toBe('skip')
+    expect(resolveBaseline('  Skip \n')).toBe('skip')
+  })
+
+  test('повертає null для відсутнього/іншого значення', () => {
+    expect(resolveBaseline(undefined)).toBe(null)
+    expect(resolveBaseline('')).toBe(null)
+    expect(resolveBaseline('run')).toBe(null)
+  })
 })
 
 describe('rust coverage resolveBaseRef()', () => {
