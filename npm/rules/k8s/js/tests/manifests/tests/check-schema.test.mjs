@@ -11,7 +11,6 @@ import {
   baseKustomizationNamespaceViolation,
   classifyBackendConfigManifestPresence,
   deploymentAppLabel,
-  deploymentHasuraGraphqlEngineImageViolation,
   deploymentResourcesViolation,
   deploymentTopologySpreadConstraintsViolation,
   buildNetworkPolicyYaml,
@@ -24,7 +23,6 @@ import {
   WORKLOAD_KINDS_WITH_NETWORK_POLICY,
   expectedSchemaUrl,
   hasuraConfigMapRemoteSchemaPermissionsViolation,
-  HASURA_GRAPHQL_ENGINE_IMAGE,
   HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
   hpaManifestViolations,
   isDevLikeK8sEnvSegment,
@@ -437,112 +435,11 @@ describe('deploymentResourcesViolation', () => {
   })
 })
 
-describe('deploymentHasuraGraphqlEngineImageViolation', () => {
-  test('null для не-Deployment', () => {
-    expect(deploymentHasuraGraphqlEngineImageViolation({ kind: 'Service' })).toBeNull()
-  })
-
-  test('null без hasura/graphql-engine', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [{ name: 'app', image: 'nginx:1', resources: {} }]
-          }
-        }
-      }
-    }
-    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
-  })
-
-  test('ok для канонічного образу', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [
-              {
-                name: 'hasura',
-                image: HASURA_GRAPHQL_ENGINE_IMAGE,
-                resources: {}
-              }
-            ]
-          }
-        }
-      }
-    }
-    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
-  })
-
-  test('ok для docker.io/…', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [
-              {
-                name: 'hasura',
-                image: `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`,
-                resources: {}
-              }
-            ]
-          }
-        }
-      }
-    }
-    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toBeNull()
-  })
-
-  test('помилка для іншого тегу образу', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            containers: [
-              {
-                name: 'hasura',
-                image: 'hasura/graphql-engine:v2.40.0',
-                resources: {}
-              }
-            ]
-          }
-        }
-      }
-    }
-    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain(HASURA_GRAPHQL_ENGINE_IMAGE)
-  })
-
-  test('перевірка initContainers', () => {
-    const manifest = {
-      kind: 'Deployment',
-      spec: {
-        template: {
-          spec: {
-            initContainers: [
-              {
-                name: 'h',
-                image: 'hasura/graphql-engine:wrong',
-                resources: {}
-              }
-            ],
-            containers: [
-              {
-                name: 'app',
-                image: 'nginx:1',
-                resources: {}
-              }
-            ]
-          }
-        }
-      }
-    }
-    expect(deploymentHasuraGraphqlEngineImageViolation(manifest)).toContain('initContainers')
-  })
-})
+// `deploymentHasuraGraphqlEngineImageViolation` — JS-предикат і набір
+// `HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES` видалено (Plan B): пер-документна перевірка
+// канонічного образу `hasura/graphql-engine` делегована rego-пакету `k8s.manifest`.
+// Покриття — у `npm/rules/k8s/policy/manifest/manifest_test.rego`
+// (`test_allow_deployment_hasura_canonical_image*` / `test_deny_deployment_hasura_*`).
 
 // `isForbiddenAutoscalingV1Manifest` — JS-предикат видалено разом з orchestrator
 // `failIfAutoscalingV1InDocument` (Plan B). Тестове покриття `apiVersion: autoscaling/v1`

@@ -44,13 +44,14 @@ forbidden_service_annotations := {
 	"cloud.google.com/backend-config",
 }
 
-# Дозволені посилання на образ `hasura/graphql-engine` (узгоджено з
-# `HASURA_GRAPHQL_ENGINE_IMAGE` у `rules/k8s/fix.mjs`). Зараз — один канонічний тег
-# у двох варіантах префіксу (із `docker.io/` і без). Digest (`@sha256:…`)
+# Дозволені посилання на образ `hasura/graphql-engine`. Це **єдине** джерело
+# істини для канонічного тега (JS-копія `HASURA_GRAPHQL_ENGINE_IMAGE` видалена —
+# пер-документна перевірка делегована цьому rego-пакету). Зараз — один канонічний
+# тег у двох варіантах префіксу (із `docker.io/` і без). Digest (`@sha256:…`)
 # відрізається перед звіркою.
 allowed_hasura_images := {
-	"hasura/graphql-engine:v2.48.15.ubi.amd64",
-	"docker.io/hasura/graphql-engine:v2.48.15.ubi.amd64",
+	"hasura/graphql-engine:v2.49.0.ubuntu.amd64",
+	"docker.io/hasura/graphql-engine:v2.49.0.ubuntu.amd64",
 }
 
 # Канонічне значення `topologyKey` для `topologySpreadConstraints` (k8s.mdc).
@@ -161,7 +162,7 @@ deny contains msg if {
 
 # ── deny: Deployment — образ hasura/graphql-engine з білого списку ────────
 #
-# Spec вимагає рівно тег із константи `HASURA_GRAPHQL_ENGINE_IMAGE`
+# Spec вимагає рівно тег зі списку `allowed_hasura_images` (вище)
 # (з опційним префіксом `docker.io/`). Digest `@sha256:…` у поточних правилах
 # відрізається перед порівнянням (k8s.mdc допускає, але не вимагає його).
 

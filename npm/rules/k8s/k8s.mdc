@@ -152,7 +152,7 @@ patches:
 
 Поле **`imagePullPolicy`** скрипт **не** перевіряє (залишається політиці Kubernetes за тегом образу).
 
-Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег із константи **`HASURA_GRAPHQL_ENGINE_IMAGE`** у **`rules/k8s/fix.mjs`** (допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
+Образ **`hasura/graphql-engine`**: дозволений лише канонічний тег зі списку **`allowed_hasura_images`** у rego-пакеті **`k8s.manifest`** (`policy/manifest/manifest.rego` — єдине джерело істини; допускається префікс **`docker.io/`**); решта — помилка **check k8s**.
 
 ### HTTPRoute для Deployment з `hasura/graphql-engine`
 

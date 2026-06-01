@@ -19,7 +19,8 @@
  * = **`"512Mi"`**. Поле **`imagePullPolicy`**
  * не перевіряється — діють типові правила Kubernetes (`:latest` або коли тег не вказано → **Always**,
  * інші теги → **IfNotPresent**). Якщо серед **`containers`** / **`initContainers`** є образ
- * **`hasura/graphql-engine`**, дозволено лише пін **`HASURA_GRAPHQL_ENGINE_IMAGE`** (див. k8s.mdc).
+ * **`hasura/graphql-engine`**, дозволено лише канонічний тег зі списку `allowed_hasura_images`
+ * у rego-пакеті `k8s.manifest` (`policy/manifest/manifest.rego`) — пер-документна перевірка делегована rego.
  *
  * **Namespace і Kustomize:** YAML у **`…/k8s/base/`** (окрім імені **`kustomization.yaml`**)
  * завжди має **непорожній** **`metadata.namespace`** у відповідних документах (узгоджено з dev у репозиторії),
@@ -150,20 +151,6 @@ import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 const YAML_LS_MODELINE_RE = /^# yaml-language-server: \$schema=.*\n/
 
 const YANNH_PIN = 'v1.33.9-standalone-strict'
-
-/**
- * Дозволений образ **hasura/graphql-engine** у Deployment (узгоджено з k8s.mdc).
- * Еквівалент **`docker.io/…`** також приймається.
- */
-export const HASURA_GRAPHQL_ENGINE_IMAGE = 'hasura/graphql-engine:v2.48.15.ubi.amd64'
-
-/**
-  Набір прийнятних рядків `image` без digest (`@sha256:…`).
- */
-const HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES = new Set([
-  HASURA_GRAPHQL_ENGINE_IMAGE,
-  `docker.io/${HASURA_GRAPHQL_ENGINE_IMAGE}`
-])
 
 /**
  * Чи відносний POSIX-шлях від кореня репо вказує на YAML під **`…/k8s/…/base/…`** (після сегмента **`k8s`** у шляху
@@ -2404,75 +2391,6 @@ function stripImageDigest(image) {
 function isHasuraGraphqlEngineImageRef(image) {
   const s = stripImageDigest(image)
   return HASURA_GRAPHQL_ENGINE_RE.test(s)
-}
-
-/**
- * Перевірка образу Hasura для одного контейнера у списку **containers** / **initContainers**.
- * @param {string} list ім’я поля для повідомлення (`containers` / `initContainers`)
- * @param {unknown} c елемент масиву
- * @param {number} i індекс
- * @returns {string | null} текст порушення або null
- */
-function hasuraGraphqlEngineViolationForOneContainer(list, c, i) {
-  const label =
-    typeof c === 'object' && c !== null && !Array.isArray(c) && typeof c.name === 'string' && c.name !== ''
-      ? c.name
-      : `#${i + 1}`
-  if (c === null || c === undefined || typeof c !== 'object' || Array.isArray(c)) {
-    return null
-  }
-  const cont = /** @type {Record<string, unknown>} */ (c)
-  const image = cont.image
-  if (typeof image !== 'string' || image.trim() === '' || !isHasuraGraphqlEngineImageRef(image)) {
-    return null
-  }
-  const normalized = stripImageDigest(image)
-  if (!HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES.has(normalized)) {
-    return `${list} "${label}": образ hasura/graphql-engine має бути ${HASURA_GRAPHQL_ENGINE_IMAGE} (зараз: ${image}) (див. k8s.mdc)`
-  }
-  return null
-}
-
-/**
- * Перевіряє масив **containers** / **initContainers** на зафіксований образ Hasura.
- * @param {string} list **containers** або **initContainers** (для тексту помилки)
- * @param {unknown} containers значення поля з маніфесту
- * @returns {string | null} текст порушення або null
- */
-function hasuraGraphqlEngineViolationInContainerList(list, containers) {
-  if (!Array.isArray(containers)) return null
-  for (const [i, c] of containers.entries()) {
-    const v = hasuraGraphqlEngineViolationForOneContainer(list, c, i)
-    if (v !== null) {
-      return v
-    }
-  }
-  return null
-}
-
-/**
- * Чи порушує **Deployment** вимогу щодо зафіксованого образу **hasura/graphql-engine** (k8s.mdc).
- * @param {unknown} manifest корінь YAML-документа
- * @returns {string | null} текст порушення або null, якщо не Deployment / образу немає / ок
- */
-export function deploymentHasuraGraphqlEngineImageViolation(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
-    return null
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  if (rec.kind !== 'Deployment') return null
-  const spec = rec.spec
-  if (spec === null || spec === undefined || typeof spec !== 'object' || Array.isArray(spec)) return null
-  const template = /** @type {Record<string, unknown>} */ (spec).template
-  if (template === null || template === undefined || typeof template !== 'object' || Array.isArray(template))
-    return null
-  const podSpecRaw = /** @type {Record<string, unknown>} */ (template).spec
-  if (podSpecRaw === null || podSpecRaw === undefined || typeof podSpecRaw !== 'object' || Array.isArray(podSpecRaw))
-    return null
-  const podSpec = /** @type {Record<string, unknown>} */ (podSpecRaw)
-
-  const main = hasuraGraphqlEngineViolationInContainerList('containers', podSpec.containers)
-  if (main !== null) return main
-  return hasuraGraphqlEngineViolationInContainerList('initContainers', podSpec.initContainers)
 }
 
 /**
