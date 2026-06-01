@@ -1,0 +1,12 @@
+# Канонічний цільовий вигляд після міграції з Poetry на uv (PEP 621).
+# Метадані — у [project] (а не [tool.poetry]); dev-залежності додавай через
+# `uv add --dev <pkg>` (uv тримає їх у [dependency-groups].dev або [tool.uv]).
+[project]
+name = "your-package"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

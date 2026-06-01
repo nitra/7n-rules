@@ -1,0 +1,2 @@
+[tool]
+poetry = "Poetry заборонено: мігруй на uv + PEP 621 [project] (python.mdc)"
