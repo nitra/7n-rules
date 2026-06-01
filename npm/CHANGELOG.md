@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.2.1] - 2026-06-01
+
+### Fixed
+
+- worktree-only skills: прибрано shell expansion з preflight, щоб агент створював worktree literal-командами без confirmation prompt
+
 ## [3.2.0] - 2026-06-01
 
 ### Added
