@@ -1,5 +1,24 @@
 # Changelog
 
+## [3.0.0] - 2026-06-01
+
+### Added
+
+- n-cursor flow (v2.0-a Ф0-Ф1.1): каркас dispatcher + CLI `case 'flow'` (init/verify/release/run/resume/cancel/repair — поки stub-и), Capability Router з явною декларацією моделі (native/polyfill, default→polyfill лише за наявного runner-а), crash-safe state-store (.flow.json sibling, atomic temp+fsync+rename, fail-closed на corruption). 29 unit-тестів (withTmpDir).
+- n-cursor flow v2.0-a Ф1.2-Ф1.4: WAL-журнал .events.jsonl (append-only, торований останній рядок толерується), per-branch lock через reuse withLock із fail-closed override (додано опцію onWaitTimeout у спільний with-lock, back-compat), cleanupFlowSiblings (.flow.json/.events.jsonl/lock). recordTransition (WAL: подія до зміни статусу). +22 тести.
+- n-cursor flow v2.0-a Ф2 (verify): reviewer.mjs — Level-1 «Суддя» проганяє lint+coverage gates через ін'єктований runner (fail-fast, fingerprint на повному pass через reuse worktree-fingerprint); flow verify — Пасивний Турнікет: запускає gates у поточному worktree, записує результати+fingerprint у наявний стан (recordTransition), exit 0/1. +11 тестів.
+- n-cursor flow v2.0-a Ф2·2: flow init (n-cursor worktree add + detect-existing-isolation через git rev-parse, init .flow.json з base_commit; reuse worktreePaths/sanitizeBranch) + flow release (n-cursor change + completion snapshot у стан і task record) + snapshot.mjs (buildCompletionSnapshot/upsertSummaryBlock/writeSummaryToTaskRecord). reviewer тепер захоплює вивід проваленого gate. Пасивний Турнікет (init/verify/release) завершено. +18 тестів.
+- n-cursor flow Ф2·4: bundled-правило flow (матеріалізується як .cursor/rules/n-flow.mdc) — контракт Пасивного Турнікета для IDE-агентів (Cursor/Claude Code): init -> сам пишеш код (TDD) -> verify (3 спроби на фейл) -> release. alwaysApply; pure-doc + стандартний fix.mjs (runStandardRule). Авто-дискавериться, активується при sync. Завершує Фасад A повністю.
+- n-cursor flow v2.0-a Ф3 (двигун-блоки): SubagentRunner (§15.1) — selectBackend (sdk>claude>cursor за ANTHROPIC_API_KEY/PATH, fail коли нічого нема), cliRunner (claude/cursor-agent -p, CLI-auth), sdkRunner (claude-agent-sdk, dynamic import); planner — parsePlan (валідація+нормалізація, fail-closed на невалідному) + generatePlan. Усе з мок-ін'єкцією (нуль реальних API/SDK у тестах). +24 тести.
+- n-cursor flow v2.0-a Ф4·a: executor.mjs — серце Активного Раннера. Виконує план покроково: мікропромпт зі стану (не історія) -> спавн субагента -> verify -> commit ЛИШЕ після зеленого (commit-інваріант §4.1.7) -> repair (per-step retry) -> на вичерпанні HITL (blocked-on-human + structured question). microprompt/patchStep — pure. Усе з ін'єкцією runner/verify/commit (нуль реальних LLM/git у тестах). +6 тестів.
+- n-cursor flow v2.0-a Ф4·b: Активний Раннер end-to-end. flow run (ensureWorktree -> planner -> executor; exit 0 done / 1 fail / 2 blocked-on-human), flow resume (safe-resume git reset + HITL-відповіді як hint + свіжі спроби), flow cancel (cleanup sibling-ів), flow repair (--discard-step-work / діагностика). ensureWorktree витягнуто як спільне для init/run. Усі 7 підкоманд реальні. +12 тестів (103 у dispatcher). v2.0-a (Фасади A+B) функціонально завершено.
+- n-cursor flow v2.0-a: (1) budget guard для flow run --autonomous (withBudget обгортає runner, BudgetExceeded при перевищенні maxApiCalls з .n-cursor.json flow.autonomous; на abort -> status failed, exit 1). (2) Ф1.4 борг закрито: worktree remove тепер reuse-кличе cleanupFlowSiblings (flow-sibling-и не осиротіють). Заодно виправлено передіснуючі switch-case-braces у worktree-cli. +4 тести.
+- n-cursor flow v2.0-b: команда n-cursor trace — наскрізна простежуваність (§5.4/§7). Читає front-matter артефактів у docs/{tasks,specs,plans,adr}, будує ланцюг за лінками adr/spec/plan/change/task, флагує розриви (лінк на неіснуючий файл) з exit 1; --json для machine-readable. parseFrontMatter/analyze/render — pure, FS ін'єктовний. Підтверджено на власних spec<->plan. +10 тестів.
+
+### Changed
+
+- n-cursor flow v2.0.0 (major): Dual-Mode Dispatcher — Пасивний Турнікет (flow init/verify/release) + Активний Раннер (flow run/resume/cancel/repair) + n-cursor trace + docs/{specs,plans} міграція
+
 ## [2.0.0] - 2026-05-31
 
 ### Added
