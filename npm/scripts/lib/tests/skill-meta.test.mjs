@@ -24,7 +24,7 @@ describe('parseSkillAutoSpec', () => {
   })
 
   test('undefined / невідоме значення → null', () => {
-    expect(parseSkillAutoSpec(undefined)).toBeNull()
+    expect(parseSkillAutoSpec()).toBeNull()
     expect(parseSkillAutoSpec('always')).toBeNull()
     expect(parseSkillAutoSpec(42)).toBeNull()
   })

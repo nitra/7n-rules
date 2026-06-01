@@ -27,7 +27,7 @@ export function sanitizeBranch(branch) {
   const sanitized = branch
     .trim()
     .replace(UNSAFE_PATH_CHARS_RE, '-')
-    .replace(/^-+|-+$/gu, '')
+    .replaceAll(/^-+|-+$/gu, '')
   if (sanitized === '') {
     throw new Error(`worktree: імʼя гілки "${branch}" не містить допустимих символів`)
   }

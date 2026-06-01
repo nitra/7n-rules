@@ -34,7 +34,7 @@ describe('parseRuleAutoSpec', () => {
     })
   })
   test('невалідне → null', () => {
-    expect(parseRuleAutoSpec(undefined)).toBeNull()
+    expect(parseRuleAutoSpec()).toBeNull()
     expect(parseRuleAutoSpec('always')).toBeNull()
     expect(parseRuleAutoSpec({ glob: 42 })).toBeNull()
     expect(parseRuleAutoSpec({ predicate: 42 })).toBeNull()
@@ -48,7 +48,7 @@ describe('parseRuleLintPhase', () => {
     expect(parseRuleLintPhase('ci')).toBe('ci')
   })
   test('відсутнє / невалідне → null', () => {
-    expect(parseRuleLintPhase(undefined)).toBeNull()
+    expect(parseRuleLintPhase()).toBeNull()
     expect(parseRuleLintPhase('all')).toBeNull()
     expect(parseRuleLintPhase(42)).toBeNull()
   })

@@ -75,8 +75,7 @@ const CYRILLIC_TRANSLIT = new Map(
  * @returns {string} транслітерований текст
  */
 function transliterate(value) {
-  return [...value.toLowerCase()]
-    .map((char) => CYRILLIC_TRANSLIT.get(char) ?? char)
+  return Array.from(value.toLowerCase(), (char) => CYRILLIC_TRANSLIT.get(char) ?? char)
     .join("");
 }
 
@@ -92,9 +91,9 @@ function deriveSuffix(content) {
     .trim()
     .replace(/^n-/u, "")
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/gu, "")
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
+    .replaceAll(/[\u0300-\u036F]/gu, "")
+    .replaceAll(/[^a-z0-9]+/gu, "-")
+    .replaceAll(/^-+|-+$/gu, "");
 
   return (
     (slug || FALLBACK_SUFFIX).slice(0, 10).replace(/-+$/u, "") ||

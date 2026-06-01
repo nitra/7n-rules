@@ -14,7 +14,7 @@ describe('sanitizeBranch', () => {
     expect(sanitizeBranch('hotfix')).toBe('hotfix')
   })
   test('небезпечні для шляху символи → дефіс', () => {
-    expect(sanitizeBranch('feat\\x')).toBe('feat-x')
+    expect(sanitizeBranch(String.raw`feat\x`)).toBe('feat-x')
     expect(sanitizeBranch('a b')).toBe('a-b')
   })
   test('порожній/невалідний → кидає', () => {
