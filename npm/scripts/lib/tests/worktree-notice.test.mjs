@@ -1,6 +1,10 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test } from "vitest";
 
-import { WORKTREE_END, WORKTREE_START, injectWorktreeNotice } from '../worktree-notice.mjs'
+import {
+  WORKTREE_END,
+  WORKTREE_START,
+  injectWorktreeNotice,
+} from "../worktree-notice.mjs";
 
 const SKILL = `---
 name: fix
@@ -10,69 +14,79 @@ description: щось
 # n-fix
 
 тіло
-`
+`;
 
-describe('injectWorktreeNotice', () => {
-  test('worktree=true → вставляє блок після frontmatter, перед H1', () => {
-    const out = injectWorktreeNotice(SKILL, true)
-    expect(out).toContain(WORKTREE_START)
-    expect(out).toContain(WORKTREE_END)
-    expect(out.indexOf(WORKTREE_START)).toBeLessThan(out.indexOf('# n-fix'))
-    expect(out.startsWith('---\nname: fix')).toBe(true)
-  })
+describe("injectWorktreeNotice", () => {
+  test("worktree=true → вставляє блок після frontmatter, перед H1", () => {
+    const out = injectWorktreeNotice(SKILL, true);
+    expect(out).toContain(WORKTREE_START);
+    expect(out).toContain(WORKTREE_END);
+    expect(out.indexOf(WORKTREE_START)).toBeLessThan(out.indexOf("# n-fix"));
+    expect(out.startsWith("---\nname: fix")).toBe(true);
+  });
 
-  test('worktree=true → жорсткий preflight сам створює worktree від поточної гілки', () => {
-    const out = injectWorktreeNotice(SKILL, true)
-    expect(out).toContain('[!IMPORTANT]')
-    expect(out).toContain('git rev-parse --show-toplevel')
-    expect(out).toContain('B=$(git branch --show-current)')
-    expect(out).toContain('W="${B}-fix"')
-    expect(out).toContain('npx @nitra/cursor worktree add "$W" "n-fix: worktree-only skill"')
-    expect(out).not.toContain('worktree add <branch>')
-    expect(out).not.toContain('<навіщо>')
-  })
+  test("worktree=true → preflight без shell expansion і з literal worktree-командами", () => {
+    const out = injectWorktreeNotice(SKILL, true);
+    expect(out).toContain("[!IMPORTANT]");
+    expect(out).toContain("git rev-parse --show-toplevel");
+    expect(out).toContain("git branch --show-current");
+    expect(out).toContain(
+      'npx @nitra/cursor worktree add "feature/x-fix" "n-fix: worktree-only skill"',
+    );
+    expect(out).toContain('cd ".worktrees/feature-x-fix"');
+    expect(out).not.toContain("worktree add <branch>");
+    expect(out).not.toContain("<навіщо>");
+    expect(out).not.toContain("B=$(");
+    expect(out).not.toContain('W="${');
+  });
 
-  test('ідемпотентність: повторний виклик не дублює блок', () => {
-    const once = injectWorktreeNotice(SKILL, true)
-    const twice = injectWorktreeNotice(once, true)
-    expect(twice).toBe(once)
-    expect(twice.split(WORKTREE_START)).toHaveLength(2)
-  })
+  test("ідемпотентність: повторний виклик не дублює блок", () => {
+    const once = injectWorktreeNotice(SKILL, true);
+    const twice = injectWorktreeNotice(once, true);
+    expect(twice).toBe(once);
+    expect(twice.split(WORKTREE_START)).toHaveLength(2);
+  });
 
-  test('worktree=false → блоку немає, контент незмінний', () => {
-    const out = injectWorktreeNotice(SKILL, false)
-    expect(out).not.toContain(WORKTREE_START)
-    expect(out).toBe(SKILL)
-  })
+  test("worktree=false → блоку немає, контент незмінний", () => {
+    const out = injectWorktreeNotice(SKILL, false);
+    expect(out).not.toContain(WORKTREE_START);
+    expect(out).toBe(SKILL);
+  });
 
-  test('worktree=false прибирає наявний блок', () => {
-    const withBlock = injectWorktreeNotice(SKILL, true)
-    const stripped = injectWorktreeNotice(withBlock, false)
-    expect(stripped).not.toContain(WORKTREE_START)
-    expect(stripped).toContain('# n-fix')
-    expect(stripped).toContain('name: fix')
-  })
+  test("worktree=false прибирає наявний блок", () => {
+    const withBlock = injectWorktreeNotice(SKILL, true);
+    const stripped = injectWorktreeNotice(withBlock, false);
+    expect(stripped).not.toContain(WORKTREE_START);
+    expect(stripped).toContain("# n-fix");
+    expect(stripped).toContain("name: fix");
+  });
 
-  test('зміна тексту всередині маркерів не ламає ре-синк', () => {
-    const withBlock = injectWorktreeNotice(SKILL, true)
+  test("зміна тексту всередині маркерів не ламає ре-синк", () => {
+    const withBlock = injectWorktreeNotice(SKILL, true);
     const tampered = withBlock.replace(
       /<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->/u,
-      `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`
-    )
-    const resynced = injectWorktreeNotice(tampered, true)
-    expect(resynced.split(WORKTREE_START)).toHaveLength(2)
-    expect(resynced).toContain('один інстанс за раз')
-    expect(resynced).toContain('W="${B}-fix"')
-  })
+      `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`,
+    );
+    const resynced = injectWorktreeNotice(tampered, true);
+    expect(resynced.split(WORKTREE_START)).toHaveLength(2);
+    expect(resynced).toContain("один інстанс за раз");
+    expect(resynced).toContain("feature/x-fix");
+  });
 
-  test('suffix береться з назви скіла і обрізається до 10 символів', () => {
-    const out = injectWorktreeNotice(SKILL.replace('name: fix', 'name: n-coverage-fix'), true)
-    expect(out).toContain('W="${B}-coverage-f"')
-    expect(out).toContain('n-coverage-f: worktree-only skill')
-  })
+  test("suffix береться з назви скіла і обрізається до 10 символів", () => {
+    const out = injectWorktreeNotice(
+      SKILL.replace("name: fix", "name: n-coverage-fix"),
+      true,
+    );
+    expect(out).toContain("feature/x-coverage-f");
+    expect(out).toContain("n-coverage-f: worktree-only skill");
+  });
 
-  test('suffix транслітерує кирилицю', () => {
-    const out = injectWorktreeNotice(SKILL.replace('name: fix', 'name: Фікс тестів'), true)
-    expect(out).toContain('W="${B}-fiks-testi"')
-  })
-})
+  test("suffix транслітерує кирилицю", () => {
+    const out = injectWorktreeNotice(
+      SKILL.replace("name: fix", "name: Фікс тестів"),
+      true,
+    );
+    expect(out).toContain("feature/x-fiks-testi");
+  });
+});

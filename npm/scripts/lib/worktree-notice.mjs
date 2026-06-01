@@ -114,14 +114,18 @@ function buildNoticeBody(suffix) {
 **Крок 0 — preflight (обовʼязковий, перед будь-якими іншими діями).** Якщо перевірка падає — **STOP**: не питай користувача про назву гілки, а сам створи worktree від поточної гілки за конвенцією \`<current-branch>-${suffix}\`. Суфікс \`${suffix}\` — коротка (до 10 символів) транслітерація задачі. Не виконуй **жоден** наступний крок скіла, поки preflight не завершився успіхом.
 
 \`\`\`bash
-if ! git rev-parse --show-toplevel | grep -q '/\\.worktrees/'; then
-  B=$(git branch --show-current)
-  W="\${B}-${suffix}"
-  P="\${W//\\//-}"
-  npx @nitra/cursor worktree add "$W" "n-${suffix}: worktree-only skill"
-  cd ".worktrees/\${P}"
-fi
-\`\`\``;
+git rev-parse --show-toplevel
+git branch --show-current
+\`\`\`
+
+Якщо перша команда показала, що ти **не** в \`.worktrees/\`, візьми вивід другої команди як \`<current-branch>\` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка \`feature/x\`:
+
+\`\`\`bash
+npx @nitra/cursor worktree add "feature/x-${suffix}" "n-${suffix}: worktree-only skill"
+cd ".worktrees/feature-x-${suffix}"
+\`\`\`
+
+Тобто branch-argument лишає slash як у git-гілці, а шлях для \`cd\` бере sanitized форму: slash → \`-\`.`;
 }
 
 /**
