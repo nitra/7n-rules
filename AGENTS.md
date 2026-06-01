@@ -21,6 +21,7 @@ The primary development rules are stored in the Cursor rules directory:
 - .cursor/rules/n-js-lint.mdc
 - .cursor/rules/n-js-run.mdc
 - .cursor/rules/n-npm-module.mdc
+- .cursor/rules/n-python.mdc
 - .cursor/rules/n-rego.mdc
 - .cursor/rules/n-security.mdc
 - .cursor/rules/n-style-lint.mdc

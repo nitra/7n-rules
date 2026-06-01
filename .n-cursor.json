@@ -12,6 +12,7 @@
     "js-lint-ci",
     "js-run",
     "npm-module",
+    "python",
     "rego",
     "security",
     "style-lint",
