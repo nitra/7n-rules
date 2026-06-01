@@ -12,7 +12,8 @@ import { cwd as processCwd } from 'node:process'
 import { realRun } from './commands.mjs'
 import { flowEventsPath } from './events.mjs'
 import { reviewersFor } from './level.mjs'
-import { flowStatePath, readState, recordTransition } from './state-store.mjs'
+import { readState, recordTransition } from './state-store.mjs'
+import { resolveActiveFlowState } from './flow-resolve.mjs'
 import { createRunner } from './subagent-runner.mjs'
 
 /** Ліміт diff у промпті (символів) — щоб не роздувати контекст рецензента. */
@@ -108,12 +109,19 @@ function severityIcon(severity) {
  * @returns {Promise<number>} exit code (0 завжди — інформативна; 1 лише якщо нема стану/runner)
  */
 export async function review(_rest, deps = {}) {
-  const cwd = deps.cwd ?? processCwd()
+  const cwd0 = deps.cwd ?? processCwd()
   const log = deps.log ?? console.error
   const run = deps.run ?? realRun
   const now = deps.now ?? Date.now
 
-  const statePath = flowStatePath(cwd)
+  const resolved = resolveActiveFlowState({ cwd: cwd0, branch: deps.branch }, deps)
+  if (!resolved.statePath) {
+    log(`review: ${resolved.error}`)
+    return 1
+  }
+  if (resolved.autoResolved) log(`flow: авторезолвлено активний flow «${resolved.label}» (cwd поза worktree)`)
+  const cwd = resolved.worktreeDir ?? cwd0
+  const statePath = resolved.statePath
   const state = readState(statePath)
   if (!state) {
     log('review: стану нема — спершу `flow init`')

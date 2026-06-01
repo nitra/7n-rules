@@ -36,18 +36,51 @@ const USAGE = [
 export const DEFAULT_HANDLERS = { init, spec, plan, verify, review, gate, release, run, resume, cancel, repair }
 
 /**
+ * Витягує опційний `--branch <гілка>` з аргументів (для cwd-незалежного резолву
+ * стану — беклог #1). Повертає очищені аргументи й значення гілки.
+ * @param {string[]} args аргументи після підкоманди
+ * @returns {{ rest: string[], branch: string | undefined }} очищені аргументи + гілка
+ */
+export function extractBranchFlag(args) {
+  const rest = []
+  let branch
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--branch') {
+      const val = args[i + 1]
+      // Поглинаємо наступний аргумент як значення лише якщо це справді значення,
+      // а не інший прапорець / кінець аргументів (інакше `--branch` був би no-op,
+      // що тихо ковтав би сусідній прапорець).
+      if (val !== undefined && !val.startsWith('-')) {
+        branch = val
+        i++
+      }
+      continue
+    }
+    const inline = args[i].startsWith('--branch=') ? args[i].slice('--branch='.length) : null
+    if (inline !== null) {
+      if (inline !== '') branch = inline
+      continue
+    }
+    rest.push(args[i])
+  }
+  return { rest, branch }
+}
+
+/**
  * Точка входу `case 'flow'` у `bin/n-cursor.js`. Парсить підкоманду й
  * маршрутизує до handler-а. Невідома/відсутня підкоманда → usage + код 1.
+ * Опційний `--branch <гілка>` прокидається в `deps.branch` (резолв стану поза worktree).
  * @param {string[]} args аргументи після `flow`
- * @param {{ handlers?: Record<string, (rest: string[], deps: object) => Promise<number>> }} [deps] ін'єкція handler-ів (для тестів)
+ * @param {{ handlers?: Record<string, (rest: string[], deps: object) => Promise<number>>, branch?: string }} [deps] ін'єкція handler-ів (для тестів)
  * @returns {Promise<number>} exit code
  */
 export async function runFlowCli(args, deps = {}) {
-  const [sub, ...rest] = args
+  const [sub, ...raw] = args
   const handlers = deps.handlers ?? DEFAULT_HANDLERS
   if (!sub || ! Object.hasOwn(handlers, sub)) {
     console.error(USAGE)
     return 1
   }
-  return await handlers[sub](rest, deps)
+  const { rest, branch } = extractBranchFlag(raw)
+  return await handlers[sub](rest, { ...deps, branch: deps.branch ?? branch })
 }
