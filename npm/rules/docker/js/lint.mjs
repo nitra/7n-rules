@@ -31,6 +31,7 @@ import { readFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 
 import { getMirrorGcrHint, getFromImageToken } from '../lib/docker-mirror.mjs'
+import { getNginxUnprivilegedUserHint } from '../lib/docker-nginx-user.mjs'
 import { lintDockerfileWithHadolint, posixRel } from '../lib/docker-hadolint.mjs'
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
@@ -335,6 +336,9 @@ async function checkDockerfile(reporter, root, abs) {
 
   const nginxSlimHint = getNginxAlpineSlimTagHint(content)
   if (nginxSlimHint) fail(`${rel} (nginx tag): ${nginxSlimHint}`)
+
+  const nginxUserHint = getNginxUnprivilegedUserHint(content)
+  if (nginxUserHint) fail(`${rel} (nginx non-root): ${nginxUserHint}`)
 
   const { ok, stdout, stderr, via } = lintDockerfileWithHadolint(root, abs)
   const tail = (stdout + stderr).trim()
