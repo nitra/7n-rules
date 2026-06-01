@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.9.0] - 2026-06-01
+
+### Changed
+
+- k8s: канонічний образ hasura/graphql-engine → v2.49.0.ubuntu.amd64 (ubuntu-база містить pg_dump 18, на відміну від ubi-варіанту)
+
+### Removed
+
+- k8s: видалено мертву JS-перевірку образа hasura (deploymentHasuraGraphqlEngineImageViolation + набір HASURA_GRAPHQL_ENGINE_ALLOWED_IMAGES) — пер-документна перевірка делегована rego-пакету k8s.manifest, тег тепер має єдине джерело істини (allowed_hasura_images)
+
 ## [3.8.0] - 2026-06-01
 
 ### Added
