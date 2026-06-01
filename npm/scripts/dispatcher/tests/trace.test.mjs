@@ -30,6 +30,14 @@ describe('analyze', () => {
       { field: 'plan', target: 'docs/plans/a.md', ok: true }
     ])
   })
+  test('лінк flow аналізується як ланка ланцюга', () => {
+    const a = analyze([{ file: 'docs/plans/p.md', fm: { kind: 'nitra-plan', flow: '../../.worktrees/x.flow.json' } }], () => false)
+    expect(a[0].links.find(l => l.field === 'flow')).toEqual({
+      field: 'flow',
+      target: '../../.worktrees/x.flow.json',
+      ok: false
+    })
+  })
 })
 
 describe('render', () => {

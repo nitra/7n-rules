@@ -126,6 +126,13 @@ export async function verify(_rest, deps = {}) {
   const log = deps.log ?? console.error
   const fingerprint = deps.fingerprint ?? (() => worktreeFingerprint())
 
+  const statePath = flowStatePath(cwd)
+  const state = readState(statePath)
+  // М'які ворота: відсутній план — лише попередження, exit-код визначають gate-и.
+  if (state && !(state.plan?.length)) {
+    log('⚠️ verify: плану не зафіксовано (`flow plan`) — рекомендовано спершу сформувати план')
+  }
+
   const verdict = runReview({ run, cwd, fingerprint })
 
   for (const g of verdict.gates) {
@@ -134,8 +141,7 @@ export async function verify(_rest, deps = {}) {
   if (!verdict.pass && verdict.failedOutput) log(verdict.failedOutput)
   log(verdict.pass ? '✅ verify: усі gate-и пройдено' : '❌ verify: провалено')
 
-  const statePath = flowStatePath(cwd)
-  if (readState(statePath)) {
+  if (state) {
     recordTransition(
       { statePath, eventsPath: flowEventsPath(cwd) },
       { type: 'verify', pass: verdict.pass },

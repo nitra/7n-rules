@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
 /** Поля-лінки у front-matter, що утворюють ланцюг. */
-const LINK_FIELDS = ['adr', 'spec', 'plan', 'change', 'task']
+const LINK_FIELDS = ['adr', 'spec', 'plan', 'flow', 'change', 'task']
 
 /** Каталоги з traceable-артефактами. */
 const DIRS = ['docs/tasks', 'docs/specs', 'docs/plans', 'docs/adr']

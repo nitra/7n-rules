@@ -1,5 +1,5 @@
 ---
-description: Контракт Пасивного Турнікета n-cursor flow — IDE-агент сам пише код, але ізолює/перевіряє/релізить через flow init/verify/release.
+description: Контракт Пасивного Турнікета n-cursor flow — IDE-агент сам пише код, але ізолює/планує/перевіряє/релізить через flow init/spec/plan/verify/release.
 globs:
 alwaysApply: true
 ---
@@ -22,9 +22,38 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    Створює ізольований worktree (`.worktrees/<branch>/`) і стан задачі. Якщо ти
    вже в worktree — новий не вкладається.
 
-2. **Пиши код** сам, кроками. TDD: спершу падаючі тести, тоді реалізація.
+2. **Spec (дизайн)** — рекомендовано, не блокує. Brainstorm нашими термінами
+   (НЕ викликаючи superpowers):
 
-3. **Перевіряй** після кожного логічного кроку:
+   - **human↔agent (дефолт):** питання по одному (перевага multiple-choice) →
+     2-3 підходи з рекомендацією → дизайн секціями з апрувом людини;
+   - **agent↔agent:** `npx @nitra/cursor flow spec --panel` — панель персон
+     (architect/skeptic/tester) → суддя-синтез; презентуй синтез людині.
+
+   Збережи дизайн → `docs/specs/<date>-<slug>.md` (`kind: nitra-spec`,
+   `plan: null`), тоді зафіксуй:
+
+   ```
+   npx @nitra/cursor flow spec
+   ```
+
+3. **План** — декомпозиція дизайну в кроки:
+
+   - збережи `docs/plans/<date>-<slug>.md` (`kind: nitra-plan`, `spec:` → лінк на
+     spec, `flow:` → шлях `.flow.json`; секція `## Кроки` — нумерований список
+     `N. <task> — acceptance: <критерій>`);
+   - зафіксуй (`--panel` — для agent↔agent синтезу кроків):
+
+   ```
+   npx @nitra/cursor flow plan
+   ```
+
+   Команда дзеркалить кроки у `.flow.json` (`status: planned`) і запускає `trace`
+   для перевірки ланцюга spec↔plan↔flow. `verify` без плану лише попередить.
+
+4. **Пиши код** сам, кроками. TDD: спершу падаючі тести, тоді реалізація.
+
+5. **Перевіряй** після кожного логічного кроку:
 
    ```
    npx @nitra/cursor flow verify
@@ -33,10 +62,10 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    Проганяє Quality Gates (lint + coverage). Повертає `0` (pass) або `1` із
    виводом проваленого gate.
 
-4. **На провал** — виправ код за виводом і виклич `flow verify` знову. Максимум
+6. **На провал** — виправ код за виводом і виклич `flow verify` знову. Максимум
    **3 спроби**; якщо не вдається — зупинись і поклич людину.
 
-5. **Фініш** — лише після зеленого `verify`:
+7. **Фініш** — лише після зеленого `verify`:
 
    ```
    npx @nitra/cursor flow release --bump <patch|minor|major> --section <Added|Changed|Fixed> --message "<що зроблено>"
@@ -49,3 +78,5 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
 - Не обходь `verify` — це єдиний критерій «готово».
 - Не редагуй `version` чи `CHANGELOG.md` вручну (це робить CI з `.changes/`).
 - Не коміть стан `.worktrees/<branch>.flow.json` у гілку — він поза git.
+- Не лінкуй spec↔plan неконсистентно — тримай `spec.plan`/`plan.spec`/`plan.flow`
+  у front-matter; `flow spec`/`flow plan` перевіряють їх через `trace`.

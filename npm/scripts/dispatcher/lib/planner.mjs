@@ -4,6 +4,9 @@
  * Нормалізує кроки до `{ step, task, status: 'pending', retry_count: 0 }`.
  */
 
+/** Заборонені плейсхолдер-значення `task` (план із ними — не план, fail-closed). */
+const PLACEHOLDER = /^(tbd|todo|fixme|\.\.\.|placeholder)$/i
+
 /**
  * Системно-користувацький промпт планувальника.
  * @param {string} task опис фічі
@@ -44,6 +47,10 @@ export function parsePlan(text) {
     const task = typeof s === 'string' ? s : s?.task
     if (!task || typeof task !== 'string') {
       throw new Error(`planner: крок ${i} без текстового поля task — fail-closed`)
+    }
+    const trimmed = task.trim()
+    if (!trimmed || PLACEHOLDER.test(trimmed)) {
+      throw new Error(`planner: крок ${i} — placeholder/порожній task (${task}) — fail-closed`)
     }
     const step = { step: i, task, status: 'pending', retry_count: 0 }
     if (s?.acceptance) step.acceptance = String(s.acceptance)

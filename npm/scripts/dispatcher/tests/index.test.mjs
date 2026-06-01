@@ -27,6 +27,15 @@ describe('runFlowCli', () => {
     expect(init).toHaveBeenCalledWith(['опис', '--model', 'x'], expect.any(Object))
   })
 
+  test('маршрутизує spec/plan з прапорцем --panel', async () => {
+    const spec = vi.fn(async () => 0)
+    const plan = vi.fn(async () => 0)
+    await runFlowCli(['spec', '--panel'], { handlers: { spec } })
+    await runFlowCli(['plan', '--panel'], { handlers: { plan } })
+    expect(spec).toHaveBeenCalledWith(['--panel'], expect.any(Object))
+    expect(plan).toHaveBeenCalledWith(['--panel'], expect.any(Object))
+  })
+
   test('усі підкоманди зареєстровані як handler-и', () => {
     expect(Object.keys(DEFAULT_HANDLERS).toSorted()).toEqual([...SUBCOMMANDS].toSorted())
   })

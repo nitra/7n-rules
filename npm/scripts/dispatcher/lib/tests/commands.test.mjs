@@ -112,6 +112,27 @@ describe('verify', () => {
     })
   })
 
+  test('без плану: попередження, код за gate-ами (0)', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-np')
+      writeState(flowStatePath(wt), { branch: 'feat/np', status: 'in_progress' }) // без plan
+      const msgs = []
+      const code = await verify([], { run: () => ({ status: 0 }), cwd: wt, log: m => msgs.push(m), fingerprint: () => 'FP' })
+      expect(code).toBe(0)
+      expect(msgs.join('\n')).toMatch(/план/i)
+    })
+  })
+
+  test('із планом: без попередження про план', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-wp')
+      writeState(flowStatePath(wt), { branch: 'feat/wp', status: 'planned', plan: [{ step: 0, task: 'A' }] })
+      const msgs = []
+      await verify([], { run: () => ({ status: 0 }), cwd: wt, log: m => msgs.push(m), fingerprint: () => 'FP' })
+      expect(msgs.join('\n')).not.toMatch(/плану не зафіксовано/i)
+    })
+  })
+
   test('без стану — лише gate-и (стан не пишеться)', async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'no-state')

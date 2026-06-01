@@ -36,6 +36,10 @@ describe('parsePlan', () => {
   test('крок без task → throw', () => {
     expect(() => parsePlan('[{"acceptance":"x"}]')).toThrow(/fail-closed/)
   })
+  test('відхиляє placeholder-кроки (TBD/порожній) — fail-closed', () => {
+    expect(() => parsePlan('[{"task":"TBD"}]')).toThrow(/placeholder|TBD/i)
+    expect(() => parsePlan('[{"task":"  "}]')).toThrow(/fail-closed/)
+  })
 })
 
 describe('generatePlan', () => {
