@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.1.0] - 2026-06-01
+
+### Added
+
+- docker: для фінального nginx-unprivileged stage — окрема non-root-перевірка (lib/docker-nginx-user.mjs): жодного USER root/switch-back USER 101|nginx, COPY/ADD лише з --chown=nginx:nginx; gzip під дефолтним uid=101
+
+### Changed
+
+- worktree-only skills: банер у SKILL.md став жорстким fail-fast preflight (Крок 0, STOP/ABORT) замість поради; CLAUDE.md отримав секцію-правило про worktree:true скіли
+- vue: увесь стек auto-import (заборона value-імпортів з vue, вимога 'vue' у AutoImport.imports та наявності VueMacros/AutoImport у vite.config) не застосовується до бібліотек компонентів — пакетів із vue у peerDependencies (їхні джерела не проходять через unplugin-auto-import споживача); інші перевірки (esbuild, npm_lifecycle_event) лишаються; додано isVueComponentLibraryPkg
+
 ## [3.0.0] - 2026-06-01
 
 ### Added
