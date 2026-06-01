@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.8.0] - 2026-06-01
+
+### Added
+
+- flow: контракт — advanced elicitation (меню технік поглиблення вимог у фазі spec: Expand/Contract, Critique&Refine, Identify Risks, Tree-of-Thoughts, Stakeholder Roundtable, Self-Consistency; Elicitation History у спеці)
+
 ## [3.7.0] - 2026-06-01
 
 ### Added
