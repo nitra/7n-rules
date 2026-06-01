@@ -12,7 +12,7 @@ import { cwd as processCwd } from 'node:process'
 import { worktreePaths } from '../../lib/worktree.mjs'
 import { worktreeFingerprint } from '../../utils/worktree-fingerprint.mjs'
 import { flowEventsPath } from './events.mjs'
-import { detectLevel } from './level.mjs'
+import { detectLevel, detectRisk } from './level.mjs'
 import { runReview } from './reviewer.mjs'
 import { buildCompletionSnapshot, writeSummaryToTaskRecord } from './snapshot.mjs'
 import { flowStatePath, readState, recordTransition, writeState } from './state-store.mjs'
@@ -103,15 +103,17 @@ export async function init(rest, deps = {}) {
   const log = deps.log ?? console.error
   const statePath = flowStatePath(ew.worktreeDir)
   const level = detectLevel(ew.desc)
+  const risk = detectRisk(ew.desc)
   writeState(statePath, {
     branch: ew.branch,
     status: 'in_progress',
     started_at: new Date(now()).toISOString(),
     metadata: { base_commit: ew.baseCommit },
     level,
+    risk,
     plan: []
   })
-  log(`init: ${ew.branch} (level ${level}) → ${statePath}`)
+  log(`init: ${ew.branch} (level ${level}, risk ${risk}) → ${statePath}`)
   return 0
 }
 

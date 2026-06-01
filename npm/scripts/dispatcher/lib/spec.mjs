@@ -7,7 +7,7 @@
  * Brainstorm: human↔agent — у діалозі IDE-агента (контракт); agent↔agent —
  * `--panel` (панель персон → суддя, синтез презентується людині).
  */
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { cwd as processCwd } from 'node:process'
 
 import { resolveArtifact, verifyTrace } from './artifact.mjs'
@@ -15,6 +15,26 @@ import { flowEventsPath } from './events.mjs'
 import { runPanel } from './plan-panel.mjs'
 import { createRunner } from './subagent-runner.mjs'
 import { flowStatePath, readState, recordTransition } from './state-store.mjs'
+import { parseFrontMatter } from '../trace.mjs'
+
+/** Допустимі значення ризику у spec-frontmatter. */
+const RISKS = new Set(['low', 'med', 'high'])
+
+/**
+ * Зчитує `risk` зі spec-frontmatter, якщо валідний (інакше — поточний у стані).
+ * Так risk-нотатка у spec керує глибиною подальшого `flow review`.
+ * @param {string} doc шлях spec-doc
+ * @param {string | undefined} current поточний risk у стані
+ * @returns {string | undefined} ризик
+ */
+function riskFromSpec(doc, current) {
+  try {
+    const fm = parseFrontMatter(readFileSync(doc, 'utf8'))
+    return fm && RISKS.has(fm.risk) ? fm.risk : current
+  } catch {
+    return current
+  }
+}
 
 /**
  * @param {string[]} rest аргументи (`--panel`, опц. `<spec.md>`)
@@ -57,12 +77,13 @@ export async function spec(rest, deps = {}) {
     log('⚠️ spec: trace виявив розрив ланцюга — перевір лінки front-matter (adr/spec/plan)')
   }
 
+  const risk = riskFromSpec(doc, state.risk)
   recordTransition(
     { statePath, eventsPath: flowEventsPath(cwd) },
     { type: 'spec' },
-    s => ({ ...s, spec_doc: doc, status: 'spec' }),
+    s => ({ ...s, spec_doc: doc, risk, status: 'spec' }),
     deps.now ?? Date.now
   )
-  log(`spec: зафіксовано ${doc} → status: spec`)
+  log(`spec: зафіксовано ${doc} → status: spec (risk ${risk ?? '—'})`)
   return 0
 }

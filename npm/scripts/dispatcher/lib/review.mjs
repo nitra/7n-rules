@@ -11,7 +11,7 @@ import { cwd as processCwd } from 'node:process'
 
 import { realRun } from './commands.mjs'
 import { flowEventsPath } from './events.mjs'
-import { reviewersForLevel } from './level.mjs'
+import { reviewersFor } from './level.mjs'
 import { flowStatePath, readState, recordTransition } from './state-store.mjs'
 import { createRunner } from './subagent-runner.mjs'
 
@@ -32,18 +32,27 @@ export function diffFromBase(base, run, cwd) {
 }
 
 /**
- * Промпт adversarial-рецензента (читає ЛИШЕ diff).
+ * Промпт adversarial-рецензента (читає ЛИШЕ diff). Для high-risk додає
+ * безпекову лінзу.
  * @param {string} diff текст diff
+ * @param {string} [risk] low|med|high — фокус перевірки
  * @returns {string} промпт
  */
-export function reviewerPrompt(diff) {
+export function reviewerPrompt(diff, risk) {
+  const lens =
+    risk === 'high'
+      ? 'ОСОБЛИВА УВАГА БЕЗПЕЦІ: auth/доступи, секрети/токени, ін\'єкції, валідація входу, незворотні операції.'
+      : ''
   return [
     'Ти — прискіпливий adversarial-рецензент. Знайди баги, ризики й smells ЛИШЕ в цьому diff.',
+    lens,
     'Поверни ЛИШЕ JSON-масив: [{ "severity": "high|med|low", "file": "...", "issue": "...", "suggestion": "..." }].',
     'Якщо проблем нема — поверни [].',
     '',
     diff.slice(0, DIFF_LIMIT)
-  ].join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 /**
@@ -128,8 +137,8 @@ export async function review(_rest, deps = {}) {
     }
   }
 
-  const reviewers = reviewersForLevel(state.level ?? 1)
-  const prompt = reviewerPrompt(diff)
+  const reviewers = reviewersFor(state.level ?? 1, state.risk)
+  const prompt = reviewerPrompt(diff, state.risk)
   const results = await Promise.all(Array.from({ length: reviewers }, () => runner.runStep(prompt, { cwd })))
   const findings = dedupeFindings(results.flatMap(r => (r.ok ? parseFindings(r.output) : [])))
 

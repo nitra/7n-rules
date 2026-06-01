@@ -42,6 +42,7 @@ describe('init', () => {
       expect(s.status).toBe('in_progress')
       expect(s.metadata.base_commit).toBe('C123')
       expect(s.level).toBe(2) // «рефактор» → L2
+      expect(s.risk).toBe('low') // нема ризик-ключових слів
     })
   })
 

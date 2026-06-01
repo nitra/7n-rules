@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { withTmpDir } from '../../../utils/test-helpers.mjs'
-import { diffFromBase, parseFindings, dedupeFindings, review } from '../review.mjs'
+import { diffFromBase, parseFindings, dedupeFindings, review, reviewerPrompt } from '../review.mjs'
 import { flowStatePath, readState, writeState } from '../state-store.mjs'
 
 const noop = () => {}
@@ -40,6 +40,15 @@ describe('parseFindings', () => {
   test('сміття → [] (fail-soft)', () => {
     expect(parseFindings('нема json')).toEqual([])
     expect(parseFindings('[бите')).toEqual([])
+  })
+})
+
+describe('reviewerPrompt', () => {
+  test('high-risk додає безпекову лінзу', () => {
+    expect(reviewerPrompt('diff', 'high')).toMatch(/БЕЗПЕЦ/)
+  })
+  test('low-risk — без лінзи', () => {
+    expect(reviewerPrompt('diff', 'low')).not.toMatch(/БЕЗПЕЦ/)
   })
 })
 
@@ -79,6 +88,16 @@ describe('review', () => {
       expect(s.review.reviewers).toBe(3) // level 3 → 3 рецензенти
       expect(s.review.findings).toHaveLength(1) // дедуп ідентичних
       expect(s.review.findings[0].severity).toBe('high')
+    })
+  })
+
+  test('low level + high risk → 3 рецензенти (ризик переважує розмір)', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-r')
+      writeState(flowStatePath(wt), { branch: 'feat/r', status: 'in_progress', level: 0, risk: 'high', metadata: { base_commit: 'B' } })
+      const runner = { runStep: async () => ({ ok: true, output: '[]' }) }
+      await review([], { cwd: wt, log: noop, run: () => ({ stdout: 'diff' }), runner, now: FIXED })
+      expect(readState(flowStatePath(wt)).review.reviewers).toBe(3)
     })
   })
 })

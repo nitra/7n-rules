@@ -3,7 +3,7 @@
  */
 import { describe, expect, test } from 'vitest'
 
-import { detectLevel, reviewersForLevel } from '../level.mjs'
+import { detectLevel, detectRisk, reviewersFor, reviewersForLevel, reviewersForRisk } from '../level.mjs'
 
 describe('detectLevel', () => {
   test('L0 — тривіальне (fix/typo/bump)', () => {
@@ -35,5 +35,34 @@ describe('reviewersForLevel', () => {
     expect(reviewersForLevel(1)).toBe(1)
     expect(reviewersForLevel(2)).toBe(2)
     expect(reviewersForLevel(3)).toBe(3)
+  })
+})
+
+describe('detectRisk', () => {
+  test('high — безпека/гроші/доступи', () => {
+    expect(detectRisk('fix auth token validation')).toBe('high')
+    expect(detectRisk('зміна security-політики')).toBe('high')
+  })
+  test('med — дані/незворотність', () => {
+    expect(detectRisk('db migration for orders')).toBe('med')
+    expect(detectRisk('видалення застарілих записів')).toBe('med')
+  })
+  test('low — дефолт', () => {
+    expect(detectRisk('додати кнопку')).toBe('low')
+    expect(detectRisk()).toBe('low')
+  })
+})
+
+describe('reviewersForRisk / reviewersFor', () => {
+  test('reviewersForRisk', () => {
+    expect(reviewersForRisk('high')).toBe(3)
+    expect(reviewersForRisk('med')).toBe(2)
+    expect(reviewersForRisk('low')).toBe(1)
+  })
+  test('reviewersFor — max(level, risk), кап 3', () => {
+    expect(reviewersFor(0, 'high')).toBe(3) // тривіальне, але ризиковане
+    expect(reviewersFor(2, 'low')).toBe(2) // розмір переважує
+    expect(reviewersFor(0, 'low')).toBe(1)
+    expect(reviewersFor(3, 'high')).toBe(3) // кап
   })
 })

@@ -47,6 +47,17 @@ describe('spec', () => {
     })
   })
 
+  test('risk зі spec-frontmatter override-ить стан', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-r')
+      mkdirSync(join(wt, 'docs', 'specs'), { recursive: true })
+      writeState(flowStatePath(wt), { branch: 'feat/r', status: 'in_progress', risk: 'low' })
+      writeFileSync(join(wt, 'docs', 'specs', '2026-06-01-feat-r.md'), '---\nkind: nitra-spec\nrisk: high\n---\n# Дизайн\n')
+      await spec([], { cwd: wt, log: noop, trace: okTrace })
+      expect(readState(flowStatePath(wt)).risk).toBe('high')
+    })
+  })
+
   test('розрив trace → попередження, але код 0', async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-z')
