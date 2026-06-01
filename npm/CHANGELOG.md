@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.10.0] - 2026-06-01
+
+### Added
+
+- rust coverage: incremental mutation через CARGO_MUTANTS_BASE_REF → cargo-mutants --in-diff (мутуємо лише змінене у <ref>...HEAD)
+- rust coverage: CARGO_MUTANTS_BASELINE=skip → cargo-mutants --baseline skip (пропуск немутованого baseline коли тести вже зелені); rust.mdc — гайд по CI-кешу target/ для coverage-job
+
+### Removed
+
+- internal: видалено мертвий JS-код — 19 експортованих функцій/констант, що викликались лише з тестів (k8s manifests: 5 предикатів, мігрованих у rego; gha-workflow: 9 предикатів, мігрованих у rego ga.workflow_common + 1 каскадний; abie/text/dispatcher: kustomizationHasAbieNginxRunHttpRoutePatch, getV8rCatalogPath, SUBCOMMANDS, resolveFlow) разом з їхніми тестами й осиротілими хелперами
+
 ## [3.9.0] - 2026-06-01
 
 ### Changed
