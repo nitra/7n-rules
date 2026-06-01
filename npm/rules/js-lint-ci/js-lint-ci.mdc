@@ -1,7 +1,7 @@
 ---
 description: Крос-файловий ci-етап js-lint — jscpd (детектор клонів) і knip (невикористані експорти). Лише у lint-ci, по всьому репо.
-globs:
-alwaysApply: true
+globs: "**/{.oxlintrc.json,eslint.config.js,.jscpd.json,knip.json,package.json},**/*.{js,mjs,cjs,jsx,ts,tsx}"
+alwaysApply: false
 ---
 
 # js-lint-ci — крос-файловий ci-етап
