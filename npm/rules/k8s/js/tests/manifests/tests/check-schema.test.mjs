@@ -2254,6 +2254,13 @@ describe('NetworkPolicy helpers', () => {
     ).toBeNull()
   })
 
+  test('workloadAppLabel: malformed workload без spec → null, не throw', () => {
+    expect(workloadAppLabel({ kind: 'CronJob' })).toBeNull()
+    expect(workloadAppLabel({ kind: 'Job' })).toBeNull()
+    expect(workloadAppLabel({ kind: 'Deployment' })).toBeNull()
+    expect(workloadAppLabel({})).toBeNull()
+  })
+
   test('loadSnippetSpec("deployment"): парситься, link-local 169.254.0.0/16 присутній', () => {
     const spec = loadSnippetSpec('deployment')
     expect(Array.isArray(spec.egress)).toBe(true)

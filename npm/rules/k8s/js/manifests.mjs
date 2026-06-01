@@ -4044,13 +4044,13 @@ function appLabelFromPodTemplate(spec) {
 export function workloadAppLabel(manifest) {
   const kind = manifest.kind
   if (typeof kind !== 'string') return null
+  const spec = getNestedObject(manifest, 'spec')
+  if (spec === null) return null
   if (kind === 'CronJob') {
-    const jobTemplate = getNestedObject(getNestedObject(manifest, 'spec'), 'jobTemplate')
+    const jobTemplate = getNestedObject(spec, 'jobTemplate')
     const jobSpec = jobTemplate === null ? null : getNestedObject(jobTemplate, 'spec')
     return jobSpec === null ? null : appLabelFromPodTemplate(jobSpec)
   }
-  const spec = getNestedObject(manifest, 'spec')
-  if (spec === null) return null
   if (kind === 'Job') return appLabelFromPodTemplate(spec)
   return appLabelFromSpecSelector(spec)
 }
