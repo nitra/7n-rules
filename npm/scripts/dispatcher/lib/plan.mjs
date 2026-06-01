@@ -35,7 +35,7 @@ export async function plan(rest, deps = {}) {
     log('plan: дизайн ще не зафіксовано — рекомендовано спершу `flow spec` (не блокує)')
   }
 
-  const doc = rest.find(a => a.endsWith('.md')) ?? resolveArtifact(cwd, 'plans')
+  const doc = rest.find(a => a.endsWith('.md')) ?? resolveArtifact(cwd, 'plans', state.branch)
   let steps
   if (rest.includes('--panel')) {
     let runner = deps.runner

@@ -2,7 +2,7 @@
  * Тести спільних утиліт артефактів (`lib/artifact.mjs`). FS — на тимчасовому
  * каталозі; `verifyTrace` runner ін'єктується (без реального trace).
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, test } from 'vitest'
@@ -10,14 +10,46 @@ import { describe, expect, test } from 'vitest'
 import { withTmpDir } from '../../../utils/test-helpers.mjs'
 import { extractSteps, resolveArtifact, verifyTrace } from '../artifact.mjs'
 
+/**
+ * Створює .md із явним mtime (детермінованість тестів незалежно від ФС).
+ * @param {string} path абсолютний шлях
+ * @param {number} mtimeSec mtime у секундах
+ * @returns {void}
+ */
+function mdWithMtime(path, mtimeSec) {
+  writeFileSync(path, 'x')
+  utimesSync(path, mtimeSec, mtimeSec)
+}
+
 describe('resolveArtifact', () => {
-  test('найсвіжіший .md у docs/<kind>', async () => {
+  test('найсвіжіший за mtime (а не лексикографічно)', async () => {
     await withTmpDir(async dir => {
       const d = join(dir, 'docs', 'specs')
       mkdirSync(d, { recursive: true })
-      writeFileSync(join(d, '2026-01-01-a.md'), 'x')
-      writeFileSync(join(d, '2026-02-01-b.md'), 'y')
-      expect(resolveArtifact(dir, 'specs')).toBe(join(d, '2026-02-01-b.md'))
+      // "a" лексикографічно перший, але новіший за mtime → має виграти
+      mdWithMtime(join(d, '2026-01-01-z.md'), 1000)
+      mdWithMtime(join(d, '2026-01-01-a.md'), 2000)
+      expect(resolveArtifact(dir, 'specs')).toBe(join(d, '2026-01-01-a.md'))
+    })
+  })
+
+  test('пріоритет slug гілки над mtime', async () => {
+    await withTmpDir(async dir => {
+      const d = join(dir, 'docs', 'specs')
+      mkdirSync(d, { recursive: true })
+      mdWithMtime(join(d, '2026-06-01-flow-gate-verdict.md'), 1000) // старіший, але збіг slug
+      mdWithMtime(join(d, '2026-06-01-flow-review-level.md'), 9000) // новіший, без збігу
+      expect(resolveArtifact(dir, 'specs', 'claude/flow-gate')).toBe(join(d, '2026-06-01-flow-gate-verdict.md'))
+    })
+  })
+
+  test('нема збігу slug → fallback на найсвіжіший mtime', async () => {
+    await withTmpDir(async dir => {
+      const d = join(dir, 'docs', 'plans')
+      mkdirSync(d, { recursive: true })
+      mdWithMtime(join(d, 'old.md'), 1000)
+      mdWithMtime(join(d, 'new.md'), 2000)
+      expect(resolveArtifact(dir, 'plans', 'claude/unrelated')).toBe(join(d, 'new.md'))
     })
   })
 

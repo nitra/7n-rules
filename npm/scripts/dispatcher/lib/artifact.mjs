@@ -6,24 +6,36 @@
  * Лінки front-matter (`spec.plan`/`plan.spec`/`plan.flow`) пише сам агент за
  * контрактом `flow.mdc` — тут лише ВЕРИФІКАЦІЯ (мутатора `trace link` нема).
  */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { runTraceCli } from '../trace.mjs'
 
 /**
- * Найсвіжіший `docs/<kind>/*.md` (лексикографічно — дата у префіксі назви).
+ * Резолвить артефакт у `docs/<kind>/`. Пріоритет: файли, чия назва містить
+ * хвіст гілки (slug, напр. `flow-gate` з `claude/flow-gate`); серед них (або
+ * серед усіх, якщо збігу нема) — **найсвіжіший за mtime**. Лексикографічний
+ * вибір був хибним при кількох артефактах на одну дату (виявлено dogfood'ом).
  * @param {string} cwd корінь worktree
  * @param {'specs' | 'plans'} kind підкаталог `docs`
+ * @param {string} [branch] гілка задачі — для пріоритету за slug
  * @returns {string | null} абсолютний шлях або null, якщо каталог/файли відсутні
  */
-export function resolveArtifact(cwd, kind) {
+export function resolveArtifact(cwd, kind, branch) {
   const dir = join(cwd, 'docs', kind)
   if (!existsSync(dir)) return null
-  const md = readdirSync(dir)
-    .filter(f => f.endsWith('.md'))
-    .toSorted()
-  return md.length > 0 ? join(dir, md.at(-1)) : null
+  const md = readdirSync(dir).filter(f => f.endsWith('.md'))
+  if (md.length === 0) return null
+
+  const slug = branch ? branch.split('/').pop() : null
+  const matched = slug ? md.filter(f => f.includes(slug)) : []
+  const pool = matched.length > 0 ? matched : md
+
+  const best = pool
+    .map(f => ({ f, mtime: statSync(join(dir, f)).mtimeMs }))
+    .toSorted((a, b) => a.mtime - b.mtime || (a.f < b.f ? -1 : 1))
+    .at(-1)
+  return join(dir, best.f)
 }
 
 /** Маркер критерію приймання в рядку кроку (порівняння — case-insensitive). */

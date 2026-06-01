@@ -48,7 +48,7 @@ export async function spec(rest, deps = {}) {
     }
   }
 
-  const doc = rest.find(a => a.endsWith('.md')) ?? resolveArtifact(cwd, 'specs')
+  const doc = rest.find(a => a.endsWith('.md')) ?? resolveArtifact(cwd, 'specs', state.branch)
   if (!doc || !existsSync(doc)) {
     log('spec: нема docs/specs/<date>-<slug>.md — спершу пройди brainstorm (див. flow.mdc)')
     return 1
