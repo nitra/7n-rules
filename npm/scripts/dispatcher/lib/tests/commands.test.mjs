@@ -175,6 +175,17 @@ describe('release', () => {
     })
   })
 
+  test('gate FAIL → попередження, але реліз не блокується', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress', gate: { verdict: 'FAIL', score: 20 } })
+      const msgs = []
+      const code = await release(['--bump', 'patch'], { run: makeRun(), cwd: wt, log: m => msgs.push(m), now: FIXED })
+      expect(code).toBe(0)
+      expect(msgs.join('\n')).toMatch(/gate = FAIL/i)
+    })
+  })
+
   test('change падає → 1', async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-x')

@@ -42,6 +42,12 @@ describe('runFlowCli', () => {
     expect(review).toHaveBeenCalledWith([], expect.any(Object))
   })
 
+  test('маршрутизує gate', async () => {
+    const gate = vi.fn(async () => 0)
+    await runFlowCli(['gate'], { handlers: { gate } })
+    expect(gate).toHaveBeenCalledWith([], expect.any(Object))
+  })
+
   test('усі підкоманди зареєстровані як handler-и', () => {
     expect(Object.keys(DEFAULT_HANDLERS).toSorted()).toEqual([...SUBCOMMANDS].toSorted())
   })

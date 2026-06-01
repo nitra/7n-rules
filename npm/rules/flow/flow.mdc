@@ -79,7 +79,17 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
 7. **На провал** — виправ код за виводом і виклич `flow verify` знову. Максимум
    **3 спроби**; якщо не вдається — зупинись і поклич людину.
 
-8. **Фініш** — лише після зеленого `verify`:
+8. **Gate (вердикт готовності)** — перед фінішем:
+
+   ```
+   npx @nitra/cursor flow gate
+   ```
+
+   Синтезує verify-гейти і review-findings у `PASS / CONCERNS / FAIL` + score +
+   причини (пише у `.flow.json`). `FAIL` (провалений gate або high-severity
+   finding) → код 1; `release` на FAIL лише попередить (рішення за тобою).
+
+9. **Фініш** — після зеленого `verify` і бажано `gate` ≠ FAIL:
 
    ```
    npx @nitra/cursor flow release --bump <patch|minor|major> --section <Added|Changed|Fixed> --message "<що зроблено>"

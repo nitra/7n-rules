@@ -179,6 +179,10 @@ export async function release(rest, deps = {}) {
     log('release: стану нема — спершу `flow init`')
     return 1
   }
+  // М'які ворота: FAIL-гейт — лише попередження, рішення за людиною.
+  if (state.gate?.verdict === 'FAIL') {
+    log(`⚠️ release: gate = FAIL (score ${state.gate.score}) — релізиш свідомо? (див. flow gate)`)
+  }
 
   const ch = run('npx', ['@nitra/cursor', 'change', ...rest], { cwd })
   if ((ch.status ?? 1) !== 0) {
