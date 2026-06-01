@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.2] - 2026-06-01
+
+### Changed
+
+- demo: sync з оновленим інструментарієм
+
 Усі помітні зміни пакета `demo` документуються тут.
 
 Формат — [Keep a Changelog](https://keepachangelog.com/uk/1.1.0/), нумерація — [SemVer](https://semver.org/lang/uk/).

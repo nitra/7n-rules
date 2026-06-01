@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.2.2] - 2026-06-01
+
+### Changed
+
+- js-lint: додано e18e/\* deny-правила та канонічні ignorePatterns у .oxlintrc.json
+
+### Fixed
+
+- k8s NetworkPolicy: мітку `app` для Job беремо з `spec.template.metadata.labels.app`, для CronJob — з `spec.jobTemplate.spec.template.metadata.labels.app` (ручний `spec.selector` у Job/CronJob невалідний без `manualSelector: true`)
+
 ## [3.2.1] - 2026-06-01
 
 ### Fixed
