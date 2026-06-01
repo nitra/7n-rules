@@ -17,23 +17,29 @@ function runner(statuses) {
 
 describe('runReview', () => {
   test('усі gate-и зелені → pass + fingerprint', () => {
-    const v = runReview({ run: runner({ lint: 0, coverage: 0 }), cwd: '/x', fingerprint: () => 'FP' })
+    const v = runReview({ run: runner({ lint: 0 }), cwd: '/x', fingerprint: () => 'FP' })
     expect(v.pass).toBe(true)
-    expect(v.gates.map(g => g.name)).toEqual(['lint', 'coverage'])
+    expect(v.gates.map(g => g.name)).toEqual(['lint'])
     expect(v.fingerprint).toBe('FP')
   })
 
-  test('lint падає → fail-fast, coverage не запускається, fingerprint null', () => {
+  test('lint падає → fail, fingerprint null', () => {
     const v = runReview({ run: runner({ lint: 1 }), cwd: '/x', fingerprint: () => 'FP' })
     expect(v.pass).toBe(false)
     expect(v.gates).toEqual([{ name: 'lint', ok: false }])
     expect(v.fingerprint).toBe(null)
   })
 
-  test('coverage падає → pass false', () => {
-    const v = runReview({ run: runner({ lint: 0, coverage: 1 }), cwd: '/x', fingerprint: () => 'FP' })
+  test('fail-fast — другий gate падає, третій не запускається', () => {
+    const gates = [
+      { name: 'a', cmd: ['echo', 'a'] },
+      { name: 'b', cmd: ['echo', 'b'] },
+      { name: 'c', cmd: ['echo', 'c'] }
+    ]
+    const v = runReview({ run: runner({ a: 0, b: 1, c: 0 }), cwd: '/x', gates, fingerprint: () => 'FP' })
     expect(v.pass).toBe(false)
-    expect(v.gates.at(-1)).toEqual({ name: 'coverage', ok: false })
+    expect(v.gates).toEqual([{ name: 'a', ok: true }, { name: 'b', ok: false }])
+    expect(v.fingerprint).toBe(null)
   })
 
   test('кастомні gate-и', () => {
@@ -43,7 +49,7 @@ describe('runReview', () => {
     expect(v.gates).toEqual([{ name: 'custom', ok: true }])
   })
 
-  test('DEFAULT_GATES — lint + coverage', () => {
-    expect(DEFAULT_GATES.map(g => g.name)).toEqual(['lint', 'coverage'])
+  test('DEFAULT_GATES — лише lint (coverage поза turnstile)', () => {
+    expect(DEFAULT_GATES.map(g => g.name)).toEqual(['lint'])
   })
 })

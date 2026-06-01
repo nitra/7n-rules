@@ -62,8 +62,9 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    npx @nitra/cursor flow verify
    ```
 
-   Проганяє Quality Gates (lint + coverage). Повертає `0` (pass) або `1` із
-   виводом проваленого gate.
+   Проганяє Quality Gate (lint). Повертає `0` (pass) або `1` із виводом
+   проваленого gate. Coverage (тести + Stryker-мутації) **поза** turnstile —
+   запускай окремо `npx @nitra/cursor coverage` або в CI.
 
 6. **Review (adversarial)** — рекомендовано перед release:
 
