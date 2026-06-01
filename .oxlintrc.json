@@ -5,6 +5,19 @@
   "categories": {},
   "rules": {
     "e18e/prefer-includes": "error",
+    "e18e/prefer-array-fill": "deny",
+    "e18e/prefer-array-to-reversed": "deny",
+    "e18e/prefer-array-to-sorted": "deny",
+    "e18e/prefer-array-to-spliced": "deny",
+    "e18e/prefer-nullish-coalescing": "deny",
+    "e18e/prefer-spread-syntax": "deny",
+    "e18e/prefer-url-canparse": "deny",
+    "e18e/ban-dependencies": "deny",
+    "e18e/prefer-array-from-map": "deny",
+    "e18e/prefer-timer-args": "deny",
+    "e18e/prefer-static-regex": "deny",
+    "e18e/prefer-date-now": "deny",
+    "e18e/prefer-regex-test": "deny",
     "array-callback-return": "deny",
     "no-new-wrappers": "deny",
     "import/no-named-as-default": "deny",
@@ -383,5 +396,5 @@
     "builtin": true
   },
   "globals": {},
-  "ignorePatterns": ["**/schema.graphql", "**/auto-imports.d.ts"]
+  "ignorePatterns": ["**/schema.graphql", "**/auto-imports.d.ts", "npm/types/**", "demo/node/rules-demo.js"]
 }

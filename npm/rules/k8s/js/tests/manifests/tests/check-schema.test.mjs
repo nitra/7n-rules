@@ -2214,6 +2214,18 @@ describe('NetworkPolicy helpers', () => {
         spec: { selector: { matchLabels: { app: 'cache' } } }
       })
     ).toBe('cache')
+    // CronJob: джерело — pod-template labels (ручний selector невалідний без manualSelector)
+    expect(
+      workloadAppLabel({
+        kind: 'CronJob',
+        spec: {
+          jobTemplate: {
+            spec: { template: { metadata: { labels: { app: 'cron' } } } }
+          }
+        }
+      })
+    ).toBe('cron')
+    // CronJob із selector (без template labels) — більше не валідне джерело
     expect(
       workloadAppLabel({
         kind: 'CronJob',
@@ -2223,7 +2235,23 @@ describe('NetworkPolicy helpers', () => {
           }
         }
       })
-    ).toBe('cron')
+    ).toBeNull()
+  })
+
+  test('workloadAppLabel для Job — pod-template labels, не selector', () => {
+    // Job: ручний selector невалідний без manualSelector — джерело pod-template labels
+    expect(
+      workloadAppLabel({
+        kind: 'Job',
+        spec: { template: { metadata: { labels: { app: 'batch' } } } }
+      })
+    ).toBe('batch')
+    expect(
+      workloadAppLabel({
+        kind: 'Job',
+        spec: { selector: { matchLabels: { app: 'batch' } } }
+      })
+    ).toBeNull()
   })
 
   test('loadSnippetSpec("deployment"): парситься, link-local 169.254.0.0/16 присутній', () => {

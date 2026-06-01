@@ -4010,9 +4010,34 @@ function appLabelFromSpecSelector(spec) {
 }
 
 /**
+ * Витягує мітку `app` з `spec.template.metadata.labels.app` (pod-template labels).
+ *
+ * Джерело для Job і CronJob: у Job/CronJob **не можна** задавати ручний `spec.selector`
+ * без `manualSelector: true` — apiserver сам генерує селектор з `controller-uid`, тож
+ * `spec.selector.matchLabels.app` там невалідне джерело. Pod-template labels — валідне
+ * й завжди присутнє поле.
+ * @param {Record<string, unknown>} spec об'єкт `spec` (Job — `spec`, CronJob — `jobTemplate.spec`)
+ * @returns {string | null} непорожнє значення `app` або null
+ */
+function appLabelFromPodTemplate(spec) {
+  const template = getNestedObject(spec, 'template')
+  if (template === null) return null
+  const metadata = getNestedObject(template, 'metadata')
+  if (metadata === null) return null
+  const labels = getNestedObject(metadata, 'labels')
+  if (labels === null) return null
+  const app = labels.app
+  return typeof app === 'string' && app.trim() !== '' ? app : null
+}
+
+/**
  * Витягує мітку `app` для workload, для якого потрібен NetworkPolicy.
- * Deployment / StatefulSet / DaemonSet / Job — `spec.selector.matchLabels.app`;
- * CronJob — `spec.jobTemplate.spec.selector.matchLabels.app`.
+ * Deployment / StatefulSet / DaemonSet — `spec.selector.matchLabels.app`;
+ * Job — `spec.template.metadata.labels.app`;
+ * CronJob — `spec.jobTemplate.spec.template.metadata.labels.app`.
+ *
+ * Job і CronJob читаються з pod-template labels, бо ручний `spec.selector` у них невалідний
+ * без `manualSelector: true` (селектор генерує контролер). Див. `appLabelFromPodTemplate`.
  * @param {Record<string, unknown>} manifest AST workload
  * @returns {string | null} непорожнє значення `app` або null
  */
@@ -4022,10 +4047,11 @@ export function workloadAppLabel(manifest) {
   if (kind === 'CronJob') {
     const jobTemplate = getNestedObject(getNestedObject(manifest, 'spec'), 'jobTemplate')
     const jobSpec = jobTemplate === null ? null : getNestedObject(jobTemplate, 'spec')
-    return jobSpec === null ? null : appLabelFromSpecSelector(jobSpec)
+    return jobSpec === null ? null : appLabelFromPodTemplate(jobSpec)
   }
   const spec = getNestedObject(manifest, 'spec')
   if (spec === null) return null
+  if (kind === 'Job') return appLabelFromPodTemplate(spec)
   return appLabelFromSpecSelector(spec)
 }
 
@@ -5631,7 +5657,7 @@ async function validateNetworkPoliciesForK8sWorkloads(root, yamlFilesAbs, fail, 
       }
       if (appLabel === null) {
         fail(
-          `${deployRel}: ${workloadKind} '${workloadName}' без мітки app у selector (spec.selector.matchLabels.app або jobTemplate для CronJob) (k8s.mdc)`
+          `${deployRel}: ${workloadKind} '${workloadName}' без мітки app (spec.selector.matchLabels.app; Job — spec.template.metadata.labels.app; CronJob — spec.jobTemplate.spec.template.metadata.labels.app) (k8s.mdc)`
         )
         continue
       }
