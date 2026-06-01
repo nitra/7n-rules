@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
 import { cleanupFlowSiblings } from './dispatcher/lib/state-store.mjs'
-import { buildDescription, findOrphanDescFiles, worktreePaths } from './lib/worktree.mjs'
+import { buildDescription, findOrphanDescFiles, firstFreeBranch, worktreePaths } from './lib/worktree.mjs'
 
 const USAGE = [
   'Usage:',
@@ -89,20 +89,34 @@ function cmdAdd(rest, ctx) {
     ctx.logError('worktree add: опис обовʼязковий — `worktree add <branch> "<опис>"`')
     return 1
   }
+  // Зайнята, якщо вже є git-гілка з такою назвою або checkout-каталог `.worktrees/<sanit>`.
+  const isTaken = name => {
+    if (git(['show-ref', '--verify', '--quiet', `refs/heads/${name}`], ctx.cwd).status === 0) return true
+    try {
+      return existsSync(worktreePaths(ctx.cwd, name).checkout)
+    } catch {
+      return false // невалідна для шляху назва — впаде нижче на worktreePaths(chosen) з людинозрозумілим текстом
+    }
+  }
+  let chosen
   let paths
   try {
-    paths = worktreePaths(ctx.cwd, branch)
+    chosen = firstFreeBranch(branch, isTaken)
+    paths = worktreePaths(ctx.cwd, chosen)
   } catch (error) {
     ctx.logError(error.message)
     return 1
   }
-  const added = git(['worktree', 'add', paths.checkout, '-b', branch], ctx.cwd)
+  if (chosen !== branch) {
+    ctx.log(`ℹ️  гілка/worktree "${branch}" уже існує — обрано вільну назву "${chosen}"`)
+  }
+  const added = git(['worktree', 'add', paths.checkout, '-b', chosen], ctx.cwd)
   if (added.status !== 0) {
     ctx.logError(`worktree add не вдався: ${added.stderr.trim()}`)
     return 1
   }
   const baseCommit = git(['rev-parse', '--short', 'HEAD'], ctx.cwd).stdout.trim()
-  const md = buildDescription({ branch, task, baseCommit, date: today(ctx.now) })
+  const md = buildDescription({ branch: chosen, task, baseCommit, date: today(ctx.now) })
   writeFileSync(paths.descFile, md, 'utf8')
   ctx.log(`✅ worktree: ${paths.checkout}`)
   ctx.log(`   опис:    ${paths.descFile}`)

@@ -24,11 +24,37 @@ export function sanitizeBranch(branch) {
   if (typeof branch !== 'string' || branch.trim() === '') {
     throw new Error('worktree: імʼя гілки обовʼязкове')
   }
-  const sanitized = branch.trim().replace(UNSAFE_PATH_CHARS_RE, '-').replace(/^-+|-+$/gu, '')
+  const sanitized = branch
+    .trim()
+    .replace(UNSAFE_PATH_CHARS_RE, '-')
+    .replace(/^-+|-+$/gu, '')
   if (sanitized === '') {
     throw new Error(`worktree: імʼя гілки "${branch}" не містить допустимих символів`)
   }
   return sanitized
+}
+
+/**
+ * Перша вільна назва гілки за конвенцією `base`, `base2`, `base3`, … —
+ * суфікс просто число без розділювача (як `main-fix` → `main-fix2`).
+ * Дає змогу `worktree add` спершу перевірити зайнятість і обрати назву,
+ * що спрацює, замість падіння на `fatal: a branch named '…' already exists`.
+ * @param {string} branch бажане імʼя гілки
+ * @param {(candidate: string) => boolean} isTaken чи зайнята назва (гілка/worktree вже існують)
+ * @param {number} [limit] стеля кількості спроб (захист від нескінченного циклу)
+ * @returns {string} перша вільна назва (= `branch`, якщо вона вільна)
+ */
+export function firstFreeBranch(branch, isTaken, limit = 1000) {
+  if (typeof branch !== 'string' || branch.trim() === '') {
+    throw new Error('worktree: імʼя гілки обовʼязкове')
+  }
+  const base = branch.trim()
+  if (!isTaken(base)) return base
+  for (let n = 2; n <= limit; n++) {
+    const candidate = `${base}${n}`
+    if (!isTaken(candidate)) return candidate
+  }
+  throw new Error(`worktree: не знайдено вільної назви для "${base}" за ${limit} спроб`)
 }
 
 /**

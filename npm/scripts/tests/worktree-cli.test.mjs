@@ -36,6 +36,21 @@ describe('runWorktreeCli add', () => {
     })
   })
 
+  test('зайнята назва → створює сусідній checkout з числовим суфіксом', async () => {
+    await withTmpDir(async dir => {
+      initRepo(dir)
+      await runWorktreeCli(['add', 'feat', 'перший'], { cwd: dir, ...silent })
+      const code = await runWorktreeCli(['add', 'feat', 'другий'], { cwd: dir, ...silent })
+      expect(code).toBe(0)
+      expect(existsSync(join(dir, '.worktrees', 'feat'))).toBe(true)
+      expect(existsSync(join(dir, '.worktrees', 'feat2'))).toBe(true)
+      const branches = spawnSync('git', ['branch'], { cwd: dir, encoding: 'utf8' }).stdout
+      expect(branches).toContain('feat2')
+      const md = readFileSync(join(dir, '.worktrees', 'feat2.md'), 'utf8')
+      expect(md).toContain('# feat2')
+    })
+  })
+
   test('без опису → exit 1, нічого не створює', async () => {
     await withTmpDir(async dir => {
       initRepo(dir)

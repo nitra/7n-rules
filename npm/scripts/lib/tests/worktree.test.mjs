@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
-import { buildDescription, findOrphanDescFiles, sanitizeBranch, worktreePaths } from '../worktree.mjs'
+import { buildDescription, findOrphanDescFiles, firstFreeBranch, sanitizeBranch, worktreePaths } from '../worktree.mjs'
 
 describe('sanitizeBranch', () => {
   test('слеш → дефіс', () => {
@@ -20,6 +20,29 @@ describe('sanitizeBranch', () => {
   test('порожній/невалідний → кидає', () => {
     expect(() => sanitizeBranch('')).toThrow()
     expect(() => sanitizeBranch('/')).toThrow()
+  })
+})
+
+describe('firstFreeBranch', () => {
+  test('вільна назва — повертає без змін', () => {
+    expect(firstFreeBranch('main-fix', () => false)).toBe('main-fix')
+  })
+  test('зайнята база → перший вільний числовий суфікс', () => {
+    const taken = new Set(['main-fix', 'main-fix2'])
+    expect(firstFreeBranch('main-fix', n => taken.has(n))).toBe('main-fix3')
+  })
+  test('лише база зайнята → base2', () => {
+    expect(firstFreeBranch('main-fix', n => n === 'main-fix')).toBe('main-fix2')
+  })
+  test('обрізає пробіли по краях', () => {
+    expect(firstFreeBranch('  hot  ', () => false)).toBe('hot')
+  })
+  test('порожнє імʼя → кидає', () => {
+    expect(() => firstFreeBranch('', () => false)).toThrow()
+    expect(() => firstFreeBranch('   ', () => false)).toThrow()
+  })
+  test('усе зайнято в межах ліміту → кидає', () => {
+    expect(() => firstFreeBranch('x', () => true, 3)).toThrow()
   })
 })
 
