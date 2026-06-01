@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.7.0] - 2026-06-01
+
+### Added
+
+- flow: risk-aware глибина review — detectRisk у init + risk зі spec-frontmatter керують кількістю рецензентів (max за рівнем і ризиком) і безпековим фокусом промпта
+
 ## [3.6.1] - 2026-06-01
 
 ### Fixed
