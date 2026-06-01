@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.3.0] - 2026-06-01
+
+### Added
+
+- flow: фази spec і plan (brainstorm human↔agent + agent↔agent --panel), trace простежує лінк plan→flow, verify м'яко попереджає про відсутній план
+
 ## [3.2.3] - 2026-06-01
 
 ### Fixed
