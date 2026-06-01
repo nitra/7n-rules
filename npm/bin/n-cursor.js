@@ -100,6 +100,7 @@ import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
 import { runLintRego } from '../rules/rego/lint/lint.mjs'
 import { runLintTextCli } from '../rules/text/lint/lint.mjs'
 import { syncClaudeConfig } from '../scripts/sync-claude-config.mjs'
+import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mjs'
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
@@ -715,8 +716,7 @@ async function syncClaudeMd(ignore) {
     lines.push(`@${RULES_DIR}/${mdcFile}`)
   }
 
-  lines.push(...buildClaudeLintParallelismSectionLines())
-  lines.push(...buildClaudeWorktreeEnforcementSectionLines())
+  lines.push(...buildClaudeLintParallelismSectionLines(), ...buildClaudeWorktreeEnforcementSectionLines())
 
   const skillsSectionLines = await buildClaudeSkillsSectionLines()
   lines.push(...skillsSectionLines)
@@ -1435,6 +1435,11 @@ async function runSync() {
     if (parts.length > 0) {
       console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
     }
+  })
+
+  await runSyncStep('❌ Не вдалося оновити .gitignore (worktree): ', async () => {
+    const { written } = await syncGitignoreWorktree(cwd())
+    if (written) console.log('🌳 .gitignore (worktree): додано .worktrees/')
   })
 
   console.log(`\n✨ Готово: ${successCount} завантажено, ${failCount} з помилками\n`)
