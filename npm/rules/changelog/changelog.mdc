@@ -1,6 +1,6 @@
 ---
 description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння (npm і Python)
-version: '3.1'
+version: '3.2'
 alwaysApply: true
 ---
 
@@ -97,3 +97,9 @@ alwaysApply: true
 ```
 
 Секції — підмножина `### Added`, `### Changed`, `### Fixed`, `### Removed` (одна або кілька).
+
+## Post-release інваріант (гарантує CI)
+
+Перша (верхня) секція `## [version]` у `CHANGELOG.md` дорівнює полю `version` у маніфесті — але це **post-release** твердження, яке забезпечує `n-cursor release` у CI, агрегуючи change-файли (bump `version` + генерація секції + git-тег `<name>@<version>`). **Локально цю рівність руками не підтримують**: у feature-флоу `version`/`CHANGELOG.md` не чіпають, тож верхня секція може відставати від майбутньої версії — це нормально. Drift `version` поза CI (vs реєстр / vs git-база) ловить `check changelog` як заборонений ручний bump.
+
+Інструкції щодо bump `version` і редагування `CHANGELOG.md` живуть **лише** в цьому правилі — джерелі істини. Інші правила (зокрема `n-npm-module.mdc`) їй підпорядковані й власних інструкцій bump/CHANGELOG не дублюють.
