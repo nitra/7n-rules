@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.2.0] - 2026-06-01
+
+### Added
+
+- docker: правило «нативний .node-аддон не компілювати» — sharp/@img/*/argon2 у deps + `bun build --compile` прапорцюється (компілятор не вшиває динамічний require → краш у рантаймі); канон — node_modules + `bun <entry>` на mirror.gcr.io/oven/bun:alpine (легітимний bun-рантайм як фінальний stage). lib/docker-native-addon.mjs + інтеграція в js/lint.mjs
+
+### Changed
+
+- CLI sync: блоки Skills/Commands/Pi skills (разом із рядками ⬇) друкуються лише за наявності помилок — за чистого прогону вивід коротший
+- js-lint-ci правило стало Auto Attached (glob як у js-lint) замість alwaysApply — не висить у кожному контексті, тригериться на JS/конфіги лінтерів
+- правила js-lint: knip/dependency-аналіз перенесено з js-lint у js-lint-ci (його декларована зона); додано заборону @nitra/as-integrations-fastify з міграцією на @as-integrations/fastify ^3.1.0 (specifier-only, код незмінний)
+
+### Fixed
+
+- worktree-only skills: preflight сам створює worktree від поточної гілки з коротким суфіксом без запиту назви
+
 ## [3.1.0] - 2026-06-01
 
 ### Added
