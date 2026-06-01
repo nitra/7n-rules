@@ -33,7 +33,7 @@
 
 ## Worktree-only skills (`meta.json` → `worktree: true`)
 
-Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<branch>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і спершу `npx @nitra/cursor worktree add <branch> "<навіщо>"` → `cd .worktrees/<branch>`. Чисте робоче дерево — **не** привід пропустити preflight.
+Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<current-branch>-<suffix>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і не питай користувача про назву гілки; створи worktree від поточної гілки готовим snippet з `SKILL.md` за конвенцією `<current-branch>-<suffix>`. Чисте робоче дерево — **не** привід пропустити preflight.
 
 ## Skills
 

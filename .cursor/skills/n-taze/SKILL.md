@@ -6,15 +6,22 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-> [!IMPORTANT]
-> **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<branch>/`) і **не** паралелиться — один інстанс за раз.
 
-**Крок 0 — preflight (обовʼязковий, перед будь-якими іншими діями).** Якщо перевірка падає — **STOP**: створи worktree і лише тоді продовжуй. Не виконуй **жоден** наступний крок скіла, поки preflight не завершився успіхом.
+> [!IMPORTANT]
+> **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-taze/`) і **не** паралелиться — один інстанс за раз.
+
+**Крок 0 — preflight (обовʼязковий, перед будь-якими іншими діями).** Якщо перевірка падає — **STOP**: не питай користувача про назву гілки, а сам створи worktree від поточної гілки за конвенцією `<current-branch>-taze`. Суфікс `taze` — коротка (до 10 символів) транслітерація задачі. Не виконуй **жоден** наступний крок скіла, поки preflight не завершився успіхом.
 
 ```bash
-git rev-parse --show-toplevel | grep -q '/\.worktrees/' \
-  || { echo "ABORT: не у worktree. Спершу: npx @nitra/cursor worktree add <branch> \"<навіщо>\" && cd .worktrees/<branch>"; exit 1; }
+if ! git rev-parse --show-toplevel | grep -q '/\.worktrees/'; then
+  B=$(git branch --show-current)
+  W="${B}-taze"
+  P="${W//\//-}"
+  npx @nitra/cursor worktree add "$W" "n-taze: worktree-only skill"
+  cd ".worktrees/${P}"
+fi
 ```
+
 <!-- n-cursor:worktree:end -->
 
 # n-taze — Оновлення версій проекту
