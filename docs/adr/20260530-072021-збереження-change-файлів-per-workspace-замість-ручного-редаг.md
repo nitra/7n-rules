@@ -142,3 +142,12 @@ CI-fallback: якщо `.changes/` порожній для зміненого wor
 Зміни `.github/workflows/npm-publish.yml`: `permissions.contents: write` (було `read`), `fetch-depth: 0`, крок `npx @nitra/cursor release` перед `JS-DevTools/npm-publish`.
 
 Commit-back через GitHub App token (`tibdex/github-app-token@v2`, secrets `APP_ID` + `APP_PRIVATE_KEY`) — не ретригерить workflow, тому bump і publish знаходяться в одному job без зациклення. Git identity: `nitra-bot[bot]`.
+
+## Update 2026-05-30
+
+**Схема іменування change-файлів:** обрано `<timestamp>-<short-rand>.md`. Timestamp забезпечує читабельний хронологічний порядок; короткий рандомний суфікс усуває колізії між двома агентами що пишуть файл в одну мілісекунду. Альтернативи відхилено: чистий timestamp не гарантує унікальності; хеш контенту детермінований (два однакових описи → колізія); `<branch>-<n>` не гарантує унікальності в рамках гілки.
+
+**Release у CI на `main`:** worktrees накопичують лише `.changes/*.md`; агрегацію делегують `n-cursor release` у CI. Серіалізація через `concurrency.group` унеможливлює паралельні release-прогони; конфлікти в CHANGELOG/`package.json` зникають у корені.
+
+- `npm/rules/release/lib/change-file.mjs` (`newChangeFileName`) — реалізація схеми іменування.
+- `.github/workflows/npm-publish.yml`: `concurrency` з `cancel-in-progress: true`; тригер `**/.changes/**` прибрано тимчасово до появи `.changes/`-файлів у репо.

@@ -69,3 +69,13 @@ Fallback-логіка в `n-cursor release`: `git log <fromRef>..<toRef> -- <wsD
 **Per-workspace placement (Bad):** зміна, що зачіпає кілька workspace, вимагає кілька окремих change-файлів. Корінь монорепо change-файлів не має. Реалізація: `lib/workspace-reader.mjs` + `lib/change-file.mjs`.
 
 **Scoped-name git tags:** для `@scope/name` тег містить слеш → `refs/tags/scope/name@version`; стандартна поведінка changesets, але деякі CI-інструменти потребують налаштування.
+
+## Update 2026-05-30
+
+Перший реальний перехід `npm/`-workspace на change-file workflow:
+
+Автоматичний коміт зробив ручний bump `npm/package.json#version` (`1.33.0 → 1.33.1`) і додав секцію в `CHANGELOG.md` за legacy-підходом. Правило `n-changelog.mdc v3.0` встановлює change-files канонічним механізмом; legacy-формат допускається лише як hotfix-виняток.
+
+Виконано: `npx @nitra/cursor change --bump patch --section Added --message "..." --ws npm` → `npm/.changes/1780116534790-9f47f9.md`; revert ручного bump (`1.33.1 → 1.33.0`).
+
+Валідація: `npx @nitra/cursor fix changelog` → `✅ npm: @nitra/cursor — нова локальна версія (1.32.0 → 1.33.1)`. Коміт: `5c77b23 refactor(npm): перенесення на change-file workflow`.

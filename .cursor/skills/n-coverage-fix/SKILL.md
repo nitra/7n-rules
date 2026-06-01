@@ -5,7 +5,15 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-> **Worktree:** виконуй цей скіл в окремому git-worktree (`git worktree add`); **не** запускай паралельно — один інстанс за раз.
+> [!IMPORTANT]
+> **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<branch>/`) і **не** паралелиться — один інстанс за раз.
+
+**Крок 0 — preflight (обовʼязковий, перед будь-якими іншими діями).** Якщо перевірка падає — **STOP**: створи worktree і лише тоді продовжуй. Не виконуй **жоден** наступний крок скіла, поки preflight не завершився успіхом.
+
+```bash
+git rev-parse --show-toplevel | grep -q '/\.worktrees/' \
+  || { echo "ABORT: не у worktree. Спершу: npx @nitra/cursor worktree add <branch> \"<навіщо>\" && cd .worktrees/<branch>"; exit 1; }
+```
 <!-- n-cursor:worktree:end -->
 
 # n-coverage-fix — підвищення mutation score

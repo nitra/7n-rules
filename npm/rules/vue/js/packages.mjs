@@ -227,6 +227,20 @@ async function checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, 
 }
 
 /**
+ * Чи є пакет бібліотекою компонентів Vue — `vue` оголошено в `peerDependencies`.
+ *
+ * Такі пакети споживаються Vite-проєктами як залежність; їхні власні джерела **не** проходять
+ * через `unplugin-auto-import` споживача (auto-import резолвиться лише в коді самого додатка, не в
+ * `node_modules`). Тому в бібліотеці компонентів явні `import { … } from 'vue'` обовʼязкові, і правило
+ * авто-імпорту (заборона value-імпортів з `'vue'`) до неї **не** застосовується.
+ * @param {{ peerDependencies?: Record<string, string> }} pkg розпарсений package.json
+ * @returns {boolean} true, якщо `vue` присутній у `peerDependencies`
+ */
+export function isVueComponentLibraryPkg(pkg) {
+  return Boolean(pkg?.peerDependencies?.vue)
+}
+
+/**
  * Витягує текст аргументів першого виклику `AutoImport(` з vite.config зі збалансованими дужками.
  * Повертає `null`, якщо виклик не знайдено або дужки не збалансовані (тоді перевірка `'vue'`
  * у списку `imports` пропускається — інші чек-сигнали все одно спрацюють).
@@ -266,13 +280,14 @@ function viteConfigHasVueInAutoImports(content) {
 /**
  * Перевіряє vite.config на наявність VueMacros і AutoImport.
  * @param {string} rootDir параметр rootDir
+ * @param {boolean} isComponentLibrary чи це бібліотека компонентів (vue у peerDependencies) — тоді auto-import не застосовується
  * @param {string} prefix параметр prefix
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  * @returns {Promise<{ hasVueAutoImport: boolean }>} ознака успішно сконфігурованого vue-auto-import (для checkVueImportViolations)
  * @param {string} cwd корінь репозиторію
  */
-async function checkViteConfig(rootDir, prefix, passFn, fail, cwd) {
+async function checkViteConfig(rootDir, isComponentLibrary, prefix, passFn, fail, cwd) {
   const configFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']
   const viteConfig = configFiles.find(f => existsSync(join(cwd, rootDir, f)))
   if (!viteConfig) {
@@ -283,27 +298,36 @@ async function checkViteConfig(rootDir, prefix, passFn, fail, cwd) {
   if (ESBUILD_RE.test(content)) {
     fail(`${prefix}${viteConfig} містить 'esbuild' — заміни на 'rolldown'`)
   }
-  const checks = [
-    { token: 'VueMacros', ok: `${viteConfig} використовує VueMacros`, err: `${viteConfig} не містить VueMacros` },
-    { token: 'AutoImport', ok: `${viteConfig} використовує AutoImport`, err: `${viteConfig} не містить AutoImport` }
-  ]
-  for (const { token, ok, err } of checks) {
-    if (content.includes(token)) {
-      passFn(`${prefix}${ok}`)
-    } else {
-      fail(`${prefix}${err}`)
-    }
-  }
-
+  // VueMacros + AutoImport (і 'vue' у його imports) — інструментарій auto-import Vite-додатка;
+  // бібліотека компонентів (vue у peerDependencies) споживається готовою і не потребує цього стеку.
+  // npm_lifecycle_event (Bun-compat) перевіряємо нижче незалежно — це не auto-import.
   const hasVueAutoImport = viteConfigHasVueInAutoImports(content)
-  if (content.includes('AutoImport(')) {
-    if (hasVueAutoImport) {
-      passFn(`${prefix}${viteConfig}: AutoImport({ imports: [..., 'vue', ...] }) — value-імпорти з 'vue' покриті`)
-    } else {
-      fail(
-        `${prefix}${viteConfig}: AutoImport не містить 'vue' у imports — додай 'vue' (інакше прибирати ` +
-          `value-імпорти на кшталт \`import { ref } from 'vue'\` небезпечно: ref/createApp тощо нікому буде надати)`
-      )
+  if (isComponentLibrary) {
+    passFn(
+      `${prefix}${viteConfig}: бібліотека компонентів (vue у peerDependencies) — VueMacros/AutoImport не вимагаються`
+    )
+  } else {
+    const checks = [
+      { token: 'VueMacros', ok: `${viteConfig} використовує VueMacros`, err: `${viteConfig} не містить VueMacros` },
+      { token: 'AutoImport', ok: `${viteConfig} використовує AutoImport`, err: `${viteConfig} не містить AutoImport` }
+    ]
+    for (const { token, ok, err } of checks) {
+      if (content.includes(token)) {
+        passFn(`${prefix}${ok}`)
+      } else {
+        fail(`${prefix}${err}`)
+      }
+    }
+
+    if (content.includes('AutoImport(')) {
+      if (hasVueAutoImport) {
+        passFn(`${prefix}${viteConfig}: AutoImport({ imports: [..., 'vue', ...] }) — value-імпорти з 'vue' покриті`)
+      } else {
+        fail(
+          `${prefix}${viteConfig}: AutoImport не містить 'vue' у imports — додай 'vue' (інакше прибирати ` +
+            `value-імпорти на кшталт \`import { ref } from 'vue'\` небезпечно: ref/createApp тощо нікому буде надати)`
+        )
+      }
     }
   }
 
@@ -367,12 +391,29 @@ async function checkVueNodeImportViolations(rootDir, absPackageRoot, ignorePaths
  * @param {string} rootDir відносний шлях до пакета
  * @param {string} absPackageRoot абсолютний шлях до кореня пакета
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @param {boolean} isComponentLibrary чи це бібліотека компонентів (vue у peerDependencies) — її джерела не проходять auto-import
  * @param {boolean} hasVueAutoImport чи `AutoImport({ imports: [..., 'vue', ...] })` сконфігуровано
  * @param {string} prefix префікс повідомлення `[<pkg>] `
  * @param {(msg: string) => void} passFn callback при успішній перевірці
  * @param {(msg: string) => void} fail callback при помилці
  */
-async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, hasVueAutoImport, prefix, passFn, fail) {
+async function checkVueImportViolations(
+  rootDir,
+  absPackageRoot,
+  ignorePaths,
+  isComponentLibrary,
+  hasVueAutoImport,
+  prefix,
+  passFn,
+  fail
+) {
+  if (isComponentLibrary) {
+    passFn(
+      `${prefix}бібліотека компонентів (vue у peerDependencies) — явні value-імпорти з 'vue' дозволені ` +
+        `(джерела не проходять через unplugin-auto-import споживача)`
+    )
+    return
+  }
   if (!hasVueAutoImport) {
     passFn(`${prefix}value-імпорти з 'vue' не заборонені — спершу додай 'vue' до AutoImport.imports у vite.config`)
     return
@@ -409,38 +450,54 @@ async function checkVueImportViolations(rootDir, absPackageRoot, ignorePaths, ha
 /**
  * Перевіряє залежності та vite.config одного Vue-пакета.
  * @param {string} rootDir відносний шлях до пакета
+ * @param {boolean} isComponentLibrary чи це бібліотека компонентів (vue у peerDependencies) — auto-import не застосовується
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
  * @param {(msg: string) => void} fail функція зворотного виклику для реєстрації помилки перевірки
  * @param {(msg: string) => void} passFn успішне повідомлення (як у check-reporter)
  * @returns {Promise<void>} завершується після перевірок залежностей, `vite.config` і сканування джерел на імпорти з `vue`
  * @param {string} cwd корінь репозиторію
  */
-async function checkVuePackage(rootDir, ignorePaths, fail, passFn, cwd) {
+async function checkVuePackage(rootDir, isComponentLibrary, ignorePaths, fail, passFn, cwd) {
   const prefix = `[${packageLabel(rootDir)}] `
   passFn(`${prefix}package.json залежності перевіряє npx @nitra/cursor fix → vue.package_json`)
 
   await checkViteClientEnvAndEditorConfig(rootDir, prefix, passFn, fail, cwd)
 
-  const { hasVueAutoImport } = await checkViteConfig(rootDir, prefix, passFn, fail, cwd)
-  await checkVueImportViolations(rootDir, join(cwd, rootDir), ignorePaths, hasVueAutoImport, prefix, passFn, fail)
+  const { hasVueAutoImport } = await checkViteConfig(rootDir, isComponentLibrary, prefix, passFn, fail, cwd)
+  await checkVueImportViolations(
+    rootDir,
+    join(cwd, rootDir),
+    ignorePaths,
+    isComponentLibrary,
+    hasVueAutoImport,
+    prefix,
+    passFn,
+    fail
+  )
   await checkVueNodeImportViolations(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
   await checkEsbuildMentions(rootDir, join(cwd, rootDir), ignorePaths, prefix, passFn, fail)
 }
 
 /**
- * Збирає корені пакетів, у яких у `dependencies` є `vue`.
+ * Збирає корені пакетів, у яких у `dependencies` є `vue`, із ознакою «бібліотека компонентів».
+ *
+ * Пакети, де `vue` лише в `peerDependencies` (без `dependencies`), — це бібліотеки компонентів, які
+ * споживаються Vite-додатками; вони не є самостійними Vite-проєктами, тож app-перевірки (vite-env,
+ * VueMacros тощо) до них не застосовуються — їх не збираємо. Якщо ж пакет має `vue` і в
+ * `dependencies` (повноцінний проєкт), і в `peerDependencies` — позначаємо `isComponentLibrary`,
+ * щоб вимкнути саме правило auto-import (його джерела не проходять через unplugin-auto-import споживача).
  * @param {string[]} roots усі корені пакетів monorepo
- * @returns {Promise<string[]>} перелік пакетів з vue у dependencies
+ * @returns {Promise<Array<{ rootDir: string, isComponentLibrary: boolean }>>} пакети з vue у dependencies
  * @param {string} cwd корінь репозиторію
  */
 async function collectVueRoots(roots, cwd) {
-  /** @type {string[]} */
+  /** @type {Array<{ rootDir: string, isComponentLibrary: boolean }>} */
   const vueRoots = []
   for (const r of roots) {
     const p = join(cwd, r, 'package.json')
     if (!existsSync(p)) continue
     const pkg = JSON.parse(await readFile(p, 'utf8'))
-    if (pkg.dependencies?.vue) vueRoots.push(r)
+    if (pkg.dependencies?.vue) vueRoots.push({ rootDir: r, isComponentLibrary: isVueComponentLibraryPkg(pkg) })
   }
   return vueRoots
 }
@@ -487,8 +544,8 @@ export async function check(cwd = process.cwd()) {
   await checkVueVolarRecommendation(pass, fail, cwd)
 
   const ignorePaths = await loadCursorIgnorePaths(cwd)
-  for (const r of vueRoots) {
-    await checkVuePackage(r, ignorePaths, fail, pass, cwd)
+  for (const { rootDir, isComponentLibrary } of vueRoots) {
+    await checkVuePackage(rootDir, isComponentLibrary, ignorePaths, fail, pass, cwd)
   }
 
   return reporter.getExitCode()

@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '2.0'
+version: '2.1'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -289,6 +289,8 @@ export default defineConfig({
 Потрібно використовувати Vite версії 8 та вище для frontend проекту на Vue.
 
 Потрібно використовувати unplugin-auto-import для автоматичного імпортування компонентів, composables, utils та інших функцій і прибирати з файлів усередині Vite проектів відповідні ручні імпорти, зокрема рядки виду `import { … } from 'vue'` — API Vue (`ref`, `computed`, `watch` тощо) мають підставлятися через auto-import, а не дублюватися явним імпортом з модуля `vue`.
+
+**Виняток — бібліотеки компонентів (`vue` у `peerDependencies`).** Увесь стек auto-import застосовується лише коли `vue` підключено як звичайну `dependencies`. Якщо ж пакет оголошує `vue` у `peerDependencies` — це проєкт-бібліотека компонентів: його джерела споживаються Vite-додатками і **не** проходять через `unplugin-auto-import` споживача (auto-import резолвиться лише в коді самого додатка, не в `node_modules`). Тому до таких пакетів **не** застосовуються: заборона явних `import { ref, computed, … } from 'vue'` (вони обовʼязкові), вимога `'vue'` у `AutoImport.imports`, а також вимоги наявності `VueMacros` / `AutoImport` у `vite.config`. Решта перевірок (заборона `esbuild`, `process.env.npm_lifecycle_event` тощо) лишаються. Тригер винятку — `isVueComponentLibraryPkg` у `npm/rules/vue/js/packages.mjs`.
 
 Потрібно використовувати vite-plugin-vue-layouts-next для автоматичного імпортування layout компонентів.
 

@@ -12,6 +12,7 @@
 @.cursor/rules/n-changelog.mdc
 @.cursor/rules/n-ci4.mdc
 @.cursor/rules/n-feedback.mdc
+@.cursor/rules/n-flow.mdc
 @.cursor/rules/n-ga.mdc
 @.cursor/rules/n-js-lint-ci.mdc
 @.cursor/rules/n-js-lint.mdc
@@ -29,6 +30,10 @@
 ## Лінт і ESLint (без паралельних запусків)
 
 Щоб не запускати **кілька** одночасних **`eslint`** (і не перевантажувати диск/CPU), **заборонено** стартувати `bun run lint` / `lint-js` / `eslint` **паралельно** в різних Bash-задачах, **фонових** shells чи **субагентах** (Task тощо). Має бути **один** послідовний прогон на сесію; команда **`/n-lint`** — **не** ділити на паралельні підзадачі. Деталі: `.cursor/skills/n-lint/SKILL.md`.
+
+## Worktree-only skills (`meta.json` → `worktree: true`)
+
+Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<branch>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і спершу `npx @nitra/cursor worktree add <branch> "<навіщо>"` → `cd .worktrees/<branch>`. Чисте робоче дерево — **не** привід пропустити preflight.
 
 ## Skills
 
