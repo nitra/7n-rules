@@ -21,6 +21,13 @@ describe('injectWorktreeNotice', () => {
     expect(out.startsWith('---\nname: fix')).toBe(true)
   })
 
+  test('worktree=true → жорсткий fail-fast gate (preflight + ABORT), не порада', () => {
+    const out = injectWorktreeNotice(SKILL, true)
+    expect(out).toContain('[!IMPORTANT]')
+    expect(out).toContain('git rev-parse --show-toplevel')
+    expect(out).toContain('ABORT')
+  })
+
   test('ідемпотентність: повторний виклик не дублює блок', () => {
     const once = injectWorktreeNotice(SKILL, true)
     const twice = injectWorktreeNotice(once, true)

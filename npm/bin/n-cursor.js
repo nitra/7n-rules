@@ -642,6 +642,21 @@ function buildClaudeLintParallelismSectionLines() {
 }
 
 /**
+ * Рендерить секцію для CLAUDE.md: скіли з `meta.json.worktree === true` запускаються
+ * лише в окремому git-worktree (дублює fail-fast банер `SKILL.md` як завжди-читане правило).
+ * @returns {string[]} рядки для вставки (з порожнім рядком на початку)
+ */
+function buildClaudeWorktreeEnforcementSectionLines() {
+  return [
+    '',
+    '## Worktree-only skills (`meta.json` → `worktree: true`)',
+    '',
+    'Скіл із **`worktree: true`** у `meta.json` запускається **виключно** в окремому git-worktree (`.worktrees/<branch>/`) — **не** в основному дереві й **не** паралельно. Перший крок такого скіла (блок `n-cursor:worktree:start` у його `SKILL.md`) — **preflight**: якщо `git rev-parse --show-toplevel` не вказує під `.worktrees/`, **STOP** і спершу `npx @nitra/cursor worktree add <branch> "<навіщо>"` → `cd .worktrees/<branch>`. Чисте робоче дерево — **не** привід пропустити preflight.',
+    ''
+  ]
+}
+
+/**
  * Рендерить секцію Skills для CLAUDE.md з урахуванням наявних slash-команд.
  * @returns {Promise<string[]>} готові рядки секції (або порожній масив)
  */
@@ -701,6 +716,7 @@ async function syncClaudeMd(ignore) {
   }
 
   lines.push(...buildClaudeLintParallelismSectionLines())
+  lines.push(...buildClaudeWorktreeEnforcementSectionLines())
 
   const skillsSectionLines = await buildClaudeSkillsSectionLines()
   lines.push(...skillsSectionLines)

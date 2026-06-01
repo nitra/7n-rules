@@ -51,3 +51,21 @@ Fallback-логіка в `n-cursor release`: `git log <fromRef>..<toRef> -- <wsD
 Файл fallback: `npm/lib/fallback-generator.mjs`.
 
 Ручний bump лишається дозволеним (legacy/hotfix): `check` приймає підняту версію як достатню умову.
+
+## Update 2026-05-29
+
+**CI composite action `release-publish`:** `npm/github-actions/release-publish/action.yml` розповсюджується через sync. Споживач підключає `uses: ./npm/github-actions/release-publish` і отримує bump + CHANGELOG + tag + publish. `npm-publish.yml` потребує `permissions.contents: write`, `fetch-depth: 0`, `cancel-in-progress: false`, тригер `**/.changes/**`. Реліз комітить bump у `main` через `GITHUB_TOKEN` — не ретригерить workflow.
+
+**CI-only реліз:** `n-cursor release` лише в CI на `main`; серіалізація через `concurrency`. Bad: bump і publish в одному job — окремими workflow не розбити без PAT/Deploy Key.
+
+**Гібридне авторство:** агент/людина пише change-файл явно (`n-cursor change`); CI має fallback-синтез з комітів (`npm/rules/release/lib/fallback.mjs`). `check changelog` — м'яке попередження, не блокер.
+
+**Формат імені:** `<13-digit-timestamp>-<6-char-rand>.md`. Neutral: тести мають мокати час або порівнювати за вмістом, а не іменем.
+
+Файли: `lib/change-file.mjs`, `lib/aggregate.mjs`, `lib/fallback.mjs`, `release/change.mjs`, `release/release.mjs`. Spec: `docs/superpowers/specs/2026-05-29-n-cursor-release-design.md`.
+
+## Update 2026-05-29
+
+**Per-workspace placement (Bad):** зміна, що зачіпає кілька workspace, вимагає кілька окремих change-файлів. Корінь монорепо change-файлів не має. Реалізація: `lib/workspace-reader.mjs` + `lib/change-file.mjs`.
+
+**Scoped-name git tags:** для `@scope/name` тег містить слеш → `refs/tags/scope/name@version`; стандартна поведінка changesets, але деякі CI-інструменти потребують налаштування.
