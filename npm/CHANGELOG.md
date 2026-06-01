@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.2.3] - 2026-06-01
+
+### Fixed
+
+- k8s `workloadAppLabel`: CronJob/workload без `spec` (чи `spec: null`) повертає `null` замість TypeError — `check k8s` більше не падає на неповному маніфесті
+
 ## [3.2.2] - 2026-06-01
 
 ### Changed
