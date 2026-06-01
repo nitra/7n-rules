@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.4.1] - 2026-06-01
+
+### Fixed
+
+- worktree add: перевіряє зайнятість назви й автоматично обирає вільну (base, base2, base3, …) замість падіння на 'a branch named … already exists'
+
 ## [3.4.0] - 2026-06-01
 
 ### Added
