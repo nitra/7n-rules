@@ -82,9 +82,9 @@ const GLOBSTAR_TRAILING_RE = /\/__GLOBSTAR__$/u
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
+ * @param {string} cwd корінь репозиторію
  * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
- * @param {string} cwd корінь репозиторію
  */
 async function npmSrcTreeHasJsFile(cwd, ignorePaths = []) {
   const root = join(cwd, 'npm/src')
