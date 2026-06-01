@@ -2,7 +2,7 @@
 description: Перевірка Rust коду
 globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
 alwaysApply: false
-version: '1.3'
+version: '1.4'
 ---
 
 **rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. У скрипті **`lint-rust`** локально йдуть три кроки в одному рядку: `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`. У CI — без `--fix`: `cargo fmt --all -- --check` і `cargo clippy ... -- -D warnings` (див. `lint-rust.yml`).
@@ -37,4 +37,14 @@ cargo-mutants **не** має persistent-кешу вердиктів між пр
 - **не задано** (дефолт, типово для `main`) — повний прогін усіх мутантів;
 - задано (напр. `origin/main`, типово для feature-гілки в CI) — мутуються лише рядки, змінені у `<baseRef>...HEAD`. Провайдер бере `git diff --relative <baseRef>...HEAD` з каталогу crate (шляхи в diff збігаються з тим, що мутує cargo-mutants навіть у monorepo з `src-tauri/`), пише його у sandbox і передає cargo-mutants `--in-diff`.
 
-Краєві випадки: порожній diff (немає змін під crate) → mutation `0/0` без запуску cargo-mutants; невідомий ref / не git-репо → попередження у stderr і fallback до повного прогону. Для реального виграшу в CI кешуй `target/` (`Swatinem/rust-cache@v2`) — холодна компіляція з'їдає економію від scoping.
+Краєві випадки: порожній diff (немає змін під crate) → mutation `0/0` без запуску cargo-mutants; невідомий ref / не git-репо → попередження у stderr і fallback до повного прогону.
+
+### Пропуск baseline через `CARGO_MUTANTS_BASELINE=skip`
+
+cargo-mutants спершу ганяє немутований baseline (повний build+test), щоб переконатися, що suite зелений. Це **фіксована** вартість, незалежна від кількості мутантів — а отже більша частка дрібного `--in-diff`-прогону. **`CARGO_MUTANTS_BASELINE=skip`** прибирає цей крок (cargo-mutants `--baseline skip`), економлячи один повний `cargo test`.
+
+Безпечно **лише** коли тести вже зелені у попередньому CI-степі (типовий порядок: `cargo test` → потім `n-cursor coverage` зі `skip`). Без цієї гарантії всі вердикти стають сміттєвими, тому дефолт — baseline-прогін. Найкорисніше в парі з `--in-diff`.
+
+### CI-кеш `target/` — множник, без якого scoping невидимий
+
+`--in-diff` ріже **кількість** мутантів, кеш `target/` — **вартість кожної** компіляції; вони множаться. Без кешу холодний CI щоразу перебудовує всі залежності, і baseline-build (для Tauri — хвилини) затьмарює економію від меншої кількості мутантів. У workflow, що викликає `n-cursor coverage` для Rust, став `Swatinem/rust-cache@v2` (кеш `~/.cargo` + `target/`) після `dtolnay/rust-toolchain@stable` — так само, як у `lint-rust.yml`. Sandbox-копії `target/mutants.<i>/` самі не кешуються, але деривуються з кешованих залежностей.
