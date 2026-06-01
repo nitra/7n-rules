@@ -35,12 +35,13 @@ function makeRun(over = {}) {
 describe('init', () => {
   test('новий worktree: створює стан із branch/base_commit', async () => {
     await withTmpDir(async dir => {
-      const code = await init(['feat/x', 'опис', 'кешу'], { run: makeRun({ head: 'C123' }), cwd: dir, log: noop, now: FIXED })
+      const code = await init(['feat/x', 'рефактор', 'кешу'], { run: makeRun({ head: 'C123' }), cwd: dir, log: noop, now: FIXED })
       expect(code).toBe(0)
       const s = readState(flowStatePath(join(dir, '.worktrees', 'feat-x')))
       expect(s.branch).toBe('feat/x')
       expect(s.status).toBe('in_progress')
       expect(s.metadata.base_commit).toBe('C123')
+      expect(s.level).toBe(2) // «рефактор» → L2
     })
   })
 

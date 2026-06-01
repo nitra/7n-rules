@@ -10,14 +10,16 @@
 import { cancel, repair, resume, run } from './lib/active.mjs'
 import { init, release, verify } from './lib/commands.mjs'
 import { plan } from './lib/plan.mjs'
+import { review } from './lib/review.mjs'
 import { spec } from './lib/spec.mjs'
 
 const USAGE = [
   'Usage:',
-  '  npx @nitra/cursor flow init "<опис>"      # Фасад A: worktree + .flow.json',
+  '  npx @nitra/cursor flow init "<опис>"      # Фасад A: worktree + .flow.json (+ level)',
   '  npx @nitra/cursor flow spec [--panel]     # Фасад A: фаза дизайну → docs/specs/<…>',
   '  npx @nitra/cursor flow plan [--panel]     # Фасад A: фаза плану → docs/plans/<…> + state',
   '  npx @nitra/cursor flow verify             # Фасад A: Quality Gates (pass/fail)',
+  '  npx @nitra/cursor flow review             # Фасад A: adversarial diff-review (за level)',
   '  npx @nitra/cursor flow release            # Фасад A: .changes + completion snapshot',
   '  npx @nitra/cursor flow run "<опис>"       # Фасад B: повний 5-фазний цикл',
   '  npx @nitra/cursor flow resume             # продовжити з чекпойнта',
@@ -26,13 +28,13 @@ const USAGE = [
 ].join('\n')
 
 /** Підкоманди flow. */
-export const SUBCOMMANDS = ['init', 'spec', 'plan', 'verify', 'release', 'run', 'resume', 'cancel', 'repair']
+export const SUBCOMMANDS = ['init', 'spec', 'plan', 'verify', 'review', 'release', 'run', 'resume', 'cancel', 'repair']
 
 /**
  * Усі handler-и реальні (Ф1 Spec/Plan + Ф2 Турнікет + Ф4 Активний Раннер).
  * @type {Record<string, (rest: string[], deps: object) => Promise<number>>}
  */
-export const DEFAULT_HANDLERS = { init, spec, plan, verify, release, run, resume, cancel, repair }
+export const DEFAULT_HANDLERS = { init, spec, plan, verify, review, release, run, resume, cancel, repair }
 
 /**
  * Точка входу `case 'flow'` у `bin/n-cursor.js`. Парсить підкоманду й

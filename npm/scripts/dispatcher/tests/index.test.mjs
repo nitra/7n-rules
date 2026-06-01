@@ -36,6 +36,12 @@ describe('runFlowCli', () => {
     expect(plan).toHaveBeenCalledWith(['--panel'], expect.any(Object))
   })
 
+  test('маршрутизує review', async () => {
+    const review = vi.fn(async () => 0)
+    await runFlowCli(['review'], { handlers: { review } })
+    expect(review).toHaveBeenCalledWith([], expect.any(Object))
+  })
+
   test('усі підкоманди зареєстровані як handler-и', () => {
     expect(Object.keys(DEFAULT_HANDLERS).toSorted()).toEqual([...SUBCOMMANDS].toSorted())
   })
