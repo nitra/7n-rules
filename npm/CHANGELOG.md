@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.6.0] - 2026-06-01
+
+### Added
+
+- flow: команда gate — структурований вердикт релізної готовності (PASS/CONCERNS/FAIL + score + причини, синтез verify-гейтів і review-findings); release м'яко попереджає на FAIL
+
 ## [3.5.0] - 2026-06-01
 
 ### Added
