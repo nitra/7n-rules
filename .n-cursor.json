@@ -8,6 +8,7 @@
     "feedback",
     "ga",
     "js-lint",
+    "js-lint-ci",
     "js-run",
     "npm-module",
     "rego",

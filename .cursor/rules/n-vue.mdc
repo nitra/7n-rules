@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '2.1'
+version: '2.0'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -88,25 +88,6 @@ const additionalInstructions = `
 
 ### Патерни та антипатерни
 
-#### Функції в шаблоні
-
-Виклики функцій у шаблоні дозволені **лише** в обробниках подій (`@click`, `@change` тощо). У всіх інших місцях — `v-if`, `v-show`, атрибутах (`:prop`), інтерполяціях (`{{ }}`) — замінюй функції на `computed`-властивості: функція виконується при **кожному** рендері, тоді як `computed` кешується і перераховується лише при зміні залежностей.
-
-```vue
-<!-- ❌ функція в умові, атрибуті та інтерполяції -->
-<q-item v-if="getItems(order).length" :label="getLabel(item)">
-  {{ formatName(user) }}
-</q-item>
-
-<!-- ✅ реактивні змінні / computed / props -->
-<q-item v-if="itemsMap[order.id].length" :label="item.label">
-  {{ user.displayName }}
-</q-item>
-<!-- обробник події — виклик функції дозволений -->
-<q-btn @click="doSomething(item)" />
-```
-
-- **provide/inject** — для глибоко вкладених залежностей; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
 - Для глибоко вкладених залежностей використовуй **composables**, **props/emits** або **store**; **renderless**-компоненти / **slots** — коли логіку відділяєш від розмітки.
 - **HTTP:** окремі модулі **services** або **composables** для API; **async/await**.
 - **Події:** батько–дитина через **emits**; для не пов’язаних гілок — **store**.
