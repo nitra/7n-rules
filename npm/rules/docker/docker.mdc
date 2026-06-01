@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.10'
+version: '1.11'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -25,7 +25,7 @@ alwaysApply: false
 
 ## компіляція
 
-Якщо проект має bun install крок, та не є фронтенд проектом (тобто не має bun build крок), то потрібно щоб була компіляція коду, і далі у фінальному образі був тільки бінарник і Цей образ не містив компілятора, npm, Bun — тільки runtime libs. Наприклад:
+Якщо проект має bun install крок, та не є фронтенд проектом (тобто не має bun build крок), **і не має нативного `.node`-аддона з динамічним завантаженням** (див. наступну секцію), то потрібно щоб була компіляція коду, і далі у фінальному образі був тільки бінарник і Цей образ не містив компілятора, npm, Bun — тільки runtime libs. Наприклад:
 
 ```dockerfile
 FROM mirror.gcr.io/oven/bun:alpine AS build-env
@@ -55,6 +55,50 @@ COPY --from=build-env /app/app ./app
 
 CMD ["./app"]
 ```
+
+### виняток: нативний `.node`-аддон (sharp / @img/* / argon2)
+
+Якщо в `package.json#dependencies` є нативний `.node`-аддон, який вантажиться через **динамічний `require`** — передусім **`sharp`**; той самий клас — **`@img/*`**, **`argon2`** — його **не можна** пакувати через `bun build --compile`.
+
+`bun build --compile` не трейсить `require(\`@img/sharp-${platform}/sharp.node\`)` і не вшиває нативний біндинг → компільований бінарник падає в рантаймі: `Could not load the "sharp" module using the linuxmusl-arm64 runtime`. Доведено реальними docker-збірками (bun 1.3.14, sharp 0.34.5); відтворюється і на darwin-arm64 (тобто не musl/glibc-залежне). `apk add vips` **НЕ лікує** — він дає системний libvips, а бракує саме `sharp.node`.
+
+Канон — ship `node_modules` і запускати через `bun <entry>` на базі `mirror.gcr.io/oven/bun:alpine` (це легітимний виняток до правила «лише alpine/scratch у фінальному stage» — тут потрібен саме bun-рантайм). База `oven/bun` уже має non-root користувача `bun` (uid/gid 1000). Entry бери з наявного `--outfile`-таргета / `package.json#main` / `scripts.start`; якщо не визначити — лиши TODO-маркер, не вгадуй.
+
+Перевіряє **`npm/rules/docker/lib/docker-native-addon.mjs`** (підключено в **`npm/rules/docker/js/lint.mjs`**, точка входу обходу — **`npm/rules/docker/fix.mjs`**). Список нативних аддонів — розширювана константа `NATIVE_ADDON_PACKAGES` / `NATIVE_ADDON_SCOPES` у чек-модулі.
+
+#### Антипатерн (це правило ловить)
+
+```dockerfile
+RUN bun build --compile --outfile app ./src/index.js     # ← з sharp у deps
+FROM mirror.gcr.io/library/alpine:latest
+RUN apk add --no-cache ... vips                           # системний vips не рятує
+COPY --from=build-env --chown=app:app /app/app ./app
+USER app
+CMD ["./app"]
+```
+
+#### Канон (привести до цього)
+
+```dockerfile
+FROM mirror.gcr.io/oven/bun:alpine AS build-env
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json .
+RUN bun install --production
+COPY ./src ./src
+
+FROM mirror.gcr.io/oven/bun:alpine
+RUN apk add --no-cache tzdata
+WORKDIR /app
+# база oven/bun має non-root користувача bun (uid/gid 1000)
+COPY --from=build-env --chown=bun:bun /app/node_modules ./node_modules
+COPY --from=build-env --chown=bun:bun /app/src ./src
+COPY --from=build-env --chown=bun:bun /app/package.json ./package.json
+USER bun
+CMD ["bun", "src/index.js"]
+```
+
+Для проєктів **без** нативних аддонів standalone-бінарник на alpine лишається каноном (секція «компіляція» вище).
 
 ## не превілейований образ
 

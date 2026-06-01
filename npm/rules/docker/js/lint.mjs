@@ -15,6 +15,11 @@
  * то очікується компіляція в один бінарник через `bun build --compile` у build stage, а у
  * фінальному stage не повинно залишатися build tooling (Bun/Node).
  *
+ * Виняток — проєкти з нативним `.node`-аддоном (sharp/@img/argon2), який вантажиться через
+ * динамічний `require`: їх НЕ можна компілювати (`bun build --compile` не вшиває нативний
+ * біндинг → краш у рантаймі). Для них канон — node_modules + `bun <entry>` на базі
+ * `mirror.gcr.io/oven/bun:alpine` (див. `../lib/docker-native-addon.mjs`).
+ *
  * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
  * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
  *
@@ -28,9 +33,10 @@
  * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
  */
 import { readFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 
 import { getMirrorGcrHint, getFromImageToken } from '../lib/docker-mirror.mjs'
+import { getNativeAddonDeps, getNativeAddonNoCompileHint } from '../lib/docker-native-addon.mjs'
 import { getNginxUnprivilegedUserHint } from '../lib/docker-nginx-user.mjs'
 import { lintDockerfileWithHadolint, posixRel } from '../lib/docker-hadolint.mjs'
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
@@ -109,13 +115,22 @@ const RUNTIME_IMAGES = /** @type {const} */ ([
 /** @type {RegExp} */
 const DEBIAN_VIA_MIRROR_RE = /^mirror\.gcr\.io\/library\/debian:(.+)$/i
 
+/** Bun-рантайм як фінальний stage — легітимний лише за наявності нативного .node-аддона (див. docker.mdc). */
+const BUN_RUNTIME_IMAGE = 'mirror.gcr.io/oven/bun'
+
 /**
  * Чи ref фінального `FROM` відповідає дозволеним у docker.mdc (multistage / runtime).
  * @param {string} lastLower ref без digest, lower case
+ * @param {boolean} [hasNativeAddon] чи проєкт залежить від нативного .node-аддона (sharp/@img/argon2)
  * @returns {boolean} true, якщо образ дозволений як фінальний runtime
  */
-function isAllowedFinalRuntimeImage(lastLower) {
+function isAllowedFinalRuntimeImage(lastLower, hasNativeAddon = false) {
   if (lastLower === 'scratch' || lastLower.startsWith('scratch:')) {
+    return true
+  }
+  // Для нативних аддонів канон — ship node_modules + `bun <entry>`, тож фінальний stage на
+  // mirror.gcr.io/oven/bun:* легітимний (compile неможливий, див. docker-native-addon.mjs).
+  if (hasNativeAddon && (lastLower === BUN_RUNTIME_IMAGE || lastLower.startsWith(`${BUN_RUNTIME_IMAGE}:`))) {
     return true
   }
   const deb = lastLower.match(DEBIAN_VIA_MIRROR_RE)
@@ -150,11 +165,13 @@ export function splitDockerfileStages(fileContent) {
 /**
  * Перевіряє базові вимоги до структури Dockerfile:
  * - multistage: мінімум 2 FROM
- * - фінальний FROM: дозволені образи в docker.mdc (alpine, scratch, debian slim, php, python, nginx, openresty, …)
+ * - фінальний FROM: дозволені образи в docker.mdc (alpine, scratch, debian slim, php, python, nginx, openresty, …);
+ *   для проєктів із нативним .node-аддоном додатково дозволено mirror.gcr.io/oven/bun:* (bun-рантайм)
  * @param {string} fileContent вміст Dockerfile/Containerfile
+ * @param {{ hasNativeAddon?: boolean }} [opts] опції: hasNativeAddon — є нативний .node-аддон (sharp/@img/argon2)
  * @returns {string | null} повідомлення помилки або null
  */
-export function getMultistageAndRuntimeHint(fileContent) {
+export function getMultistageAndRuntimeHint(fileContent, { hasNativeAddon = false } = {}) {
   const stages = parseFromStages(fileContent)
   if (stages.length === 0) return null
 
@@ -166,7 +183,7 @@ export function getMultistageAndRuntimeHint(fileContent) {
   const lastImage = (last?.image || '').split('@')[0] || ''
   const lastLower = lastImage.toLowerCase()
 
-  if (!isAllowedFinalRuntimeImage(lastLower)) {
+  if (!isAllowedFinalRuntimeImage(lastLower, hasNativeAddon)) {
     return `фінальний FROM має бути дозволеним runtime-образом (див. docker.mdc: multistage), зараз: ${last?.image} (рядок ${last?.line})`
   }
 
@@ -311,6 +328,32 @@ export async function check(cwd = process.cwd()) {
 }
 
 /**
+ * Читає `dependencies` найближчого `package.json` (від каталогу Dockerfile вгору до кореня репо).
+ * Build-контекст Dockerfile — зазвичай його ж каталог, тож беремо найбільш специфічний package.json.
+ * @param {string} abs абсолютний шлях до Dockerfile/Containerfile
+ * @param {string} root корінь репозиторію
+ * @returns {Promise<Record<string, unknown>>} dependencies або порожній об'єкт
+ */
+async function readNearestDependencies(abs, root) {
+  let dir = dirname(abs)
+  for (;;) {
+    try {
+      const pkg = JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+      const deps = pkg?.dependencies
+      if (deps && typeof deps === 'object' && !Array.isArray(deps)) return deps
+      return {}
+    } catch {
+      /* немає package.json у цьому каталозі — піднімаємось вище */
+    }
+    if (dir === root) break
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return {}
+}
+
+/**
  * Перевіряє один Dockerfile/Containerfile: mirror.gcr.io, multistage/runtime, compile/non-root/nginx tag і hadolint.
  * @param {ReturnType<typeof createCheckReporter>} reporter репортер перевірок
  * @param {string} root корінь репозиторію
@@ -322,14 +365,24 @@ async function checkDockerfile(reporter, root, abs) {
   const rel = posixRel(root, abs) || basename(abs)
   const content = await readFile(abs, 'utf8')
 
+  const nativeAddons = getNativeAddonDeps(await readNearestDependencies(abs, root))
+  const hasNativeAddon = nativeAddons.length > 0
+
   const hint = getMirrorGcrHint(content)
   if (hint) fail(`${rel} (mirror.gcr.io): ${hint}`)
 
-  const multistageHint = getMultistageAndRuntimeHint(content)
+  const multistageHint = getMultistageAndRuntimeHint(content, { hasNativeAddon })
   if (multistageHint) fail(`${rel} (multistage): ${multistageHint}`)
 
-  const compileHint = getBunCompileHint(content)
-  if (compileHint) fail(`${rel} (compile): ${compileHint}`)
+  // Нативні .node-аддони (sharp/@img/argon2) керують окремо: compile заборонено (бінарник падає
+  // в рантаймі), канон — node_modules + `bun <entry>`. Генеричне compile-правило для них не діє.
+  if (hasNativeAddon) {
+    const nativeAddonHint = getNativeAddonNoCompileHint(content, nativeAddons)
+    if (nativeAddonHint) fail(`${rel} (native-addon): ${nativeAddonHint}`)
+  } else {
+    const compileHint = getBunCompileHint(content)
+    if (compileHint) fail(`${rel} (compile): ${compileHint}`)
+  }
 
   const nonRootHint = getNonRootRuntimeHint(content)
   if (nonRootHint) fail(`${rel} (non-root): ${nonRootHint}`)
