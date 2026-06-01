@@ -17,7 +17,6 @@ import {
   collectHttpRouteIngressForWorkload,
   loadSnippetSpec,
   snippetNameForKind,
-  readNetworkPolicySnippet,
   ensureResourceInKustomizationYaml,
   workloadAppLabel,
   WORKLOAD_KINDS_WITH_NETWORK_POLICY,
@@ -28,7 +27,6 @@ import {
   isDevLikeK8sEnvSegment,
   k8sEnvSegmentFromRelPath,
   kustomizationPatchPathsByTargetKind,
-  kustomizationResourcesSortedAlphabeticallyViolation,
   kustomizationPatchesSortedViolation,
   kustomizationInlinePatchOpsSortedViolation,
   kustomizePatchModifiedPaths,
@@ -45,11 +43,9 @@ import {
   pathHasK8sSegment,
   replaceBatchV1beta1ApiVersionInYamlText,
   SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS,
-  serviceForbiddenGcpAnnotationsViolation,
   collectGatewayApiRouteBackendRefsWithRedundantNamespace,
   collectGatewayApiRouteBackendServiceNames,
   collectJson6902OperationsFromPatchText,
-  json6902PathsWithRemoveAndAddOnSamePath,
   kustomizePatchTargetMatchesDescriptor,
   kustomizeResourceCatalogMatchesPatchTarget,
   kustomizeResourceDescriptorFromManifest,
@@ -59,7 +55,6 @@ import {
   kustomizeResourceTreeHpaPdbDeploymentFlags,
   validateComponentsForBaseDeployment,
   prodOverlayHpaPdbOverrideNeeds,
-  prodOverlayNeedsHpaPdbOverrides,
   shouldValidateKustomizePatchTarget,
   splitK8sApiVersion,
   serviceSvcHlYamlHeadlessViolation,
@@ -497,57 +492,8 @@ describe('hasuraConfigMapRemoteSchemaPermissionsViolation', () => {
   })
 })
 
-describe('serviceForbiddenGcpAnnotationsViolation', () => {
-  test('null для не-Service', () => {
-    expect(serviceForbiddenGcpAnnotationsViolation({ kind: 'Deployment' })).toBeNull()
-  })
-
-  test('null без metadata.annotations', () => {
-    expect(
-      serviceForbiddenGcpAnnotationsViolation({
-        apiVersion: 'v1',
-        kind: 'Service',
-        metadata: { name: 'x' }
-      })
-    ).toBeNull()
-  })
-
-  test('null з дозволеними анотаціями', () => {
-    expect(
-      serviceForbiddenGcpAnnotationsViolation({
-        apiVersion: 'v1',
-        kind: 'Service',
-        metadata: { name: 'x', annotations: { 'prometheus.io/scrape': 'true' } }
-      })
-    ).toBeNull()
-  })
-
-  test('помилка для cloud.google.com/neg', () => {
-    const v = serviceForbiddenGcpAnnotationsViolation({
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: { name: 'x', annotations: { 'cloud.google.com/neg': '{"ingress":true}' } }
-    })
-    expect(v).toContain('cloud.google.com/neg')
-  })
-
-  test('помилка для обох ключів', () => {
-    const v = serviceForbiddenGcpAnnotationsViolation({
-      apiVersion: 'v1',
-      kind: 'Service',
-      metadata: {
-        name: 'x',
-        annotations: {
-          'cloud.google.com/neg': 'x',
-          'cloud.google.com/backend-config': '{"default":"x"}'
-        }
-      }
-    })
-    expect(v).toContain('cloud.google.com/neg')
-    expect(v).toContain('cloud.google.com/backend-config')
-  })
-
-  test('SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS містить обидва ключі', () => {
+describe('SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS', () => {
+  test('містить обидва ключі', () => {
     expect([...SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS].toSorted()).toEqual(
       ['cloud.google.com/backend-config', 'cloud.google.com/neg'].toSorted()
     )
@@ -831,67 +777,6 @@ describe('splitK8sApiVersion / kustomize patch target', () => {
   })
 })
 
-describe('kustomizationResourcesSortedAlphabeticallyViolation', () => {
-  const k = {
-    apiVersion: 'kustomize.config.k8s.io/v1beta1',
-    kind: 'Kustomization',
-    resources: []
-  }
-
-  test('null, якщо kind не Kustomization', () => {
-    expect(
-      kustomizationResourcesSortedAlphabeticallyViolation({
-        ...k,
-        kind: 'ConfigMap',
-        resources: ['b.yaml', 'a.yaml']
-      })
-    ).toBeNull()
-  })
-
-  test('null, якщо apiVersion не kustomize.config.k8s.io/…', () => {
-    expect(
-      kustomizationResourcesSortedAlphabeticallyViolation({
-        ...k,
-        apiVersion: 'v1',
-        resources: ['b.yaml', 'a.yaml']
-      })
-    ).toBeNull()
-  })
-
-  test('null для відсортованого resources', () => {
-    expect(
-      kustomizationResourcesSortedAlphabeticallyViolation({
-        ...k,
-        resources: ['atlas-to-base.yaml', 'b2b-to-base.yaml', 'contract-to-base.yaml', 'ft-to-base.yaml']
-      })
-    ).toBeNull()
-  })
-
-  test('помилка, якщо resources не за алфавітом', () => {
-    const msg = kustomizationResourcesSortedAlphabeticallyViolation({
-      ...k,
-      resources: ['b2b-to-base.yaml', 'contract-to-base.yaml', 'ft-to-base.yaml', 'atlas-to-base.yaml']
-    })
-    expect(msg).toContain('atlas-to-base')
-    expect(msg).toContain('очікувано')
-  })
-
-  test('null, якщо resources відсутнє або < 2 непорожніх рядків', () => {
-    expect(
-      kustomizationResourcesSortedAlphabeticallyViolation({
-        apiVersion: 'kustomize.config.k8s.io/v1beta1',
-        kind: 'Kustomization'
-      })
-    ).toBeNull()
-    expect(
-      kustomizationResourcesSortedAlphabeticallyViolation({
-        ...k,
-        resources: ['a.yaml']
-      })
-    ).toBeNull()
-  })
-})
-
 describe('kustomizationPatchesSortedViolation', () => {
   const k = {
     apiVersion: 'kustomize.config.k8s.io/v1beta1',
@@ -1143,29 +1028,6 @@ describe('JSON6902 remove+add на той самий path (k8s.mdc)', () => {
 
   test('strategic merge / не масив — порожньо', () => {
     expect(collectJson6902OperationsFromPatchText('kind: Deployment\nmetadata:\n  name: x')).toEqual([])
-  })
-
-  test('json6902PathsWithRemoveAndAddOnSamePath — знаходить path', () => {
-    const ops = [
-      { op: 'remove', path: '/spec/x' },
-      { op: 'add', path: '/spec/x' }
-    ]
-    expect(json6902PathsWithRemoveAndAddOnSamePath(ops)).toEqual(['/spec/x'])
-  })
-
-  test('json6902PathsWithRemoveAndAddOnSamePath — лише replace', () => {
-    const ops = [{ op: 'replace', path: '/spec/x' }]
-    expect(json6902PathsWithRemoveAndAddOnSamePath(ops)).toEqual([])
-  })
-
-  test('remove і add на різних path — ок', () => {
-    const y = `- op: remove
-  path: /a
-- op: add
-  path: /b
-  value: 1
-`
-    expect(json6902PathsWithRemoveAndAddOnSamePath(collectJson6902OperationsFromPatchText(y))).toEqual([])
   })
 })
 
@@ -1630,51 +1492,7 @@ resources:
   })
 })
 
-describe('prodOverlayNeedsHpaPdbOverrides', () => {
-  test('false для prod overlay, якщо base не містить Deployment+HPA/PDB', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-0-'))
-    const baseDir = join(root, 'k8s', 'base')
-    const prodDir = join(root, 'k8s', 'prod')
-    await mkdir(baseDir, { recursive: true })
-    await mkdir(prodDir, { recursive: true })
-
-    const cron = `# yaml-language-server: $schema=x
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: ap
-  namespace: dev
-spec:
-  schedule: "* * * * *"
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          restartPolicy: Never
-          containers:
-            - name: ap
-              image: x:y
-`
-    const baseK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - cron.yaml
-`
-    const prodK = `apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: dev
-resources:
-  - ../base
-`
-
-    await writeFile(join(baseDir, 'cron.yaml'), cron, 'utf8')
-    await writeFile(join(baseDir, 'kustomization.yaml'), baseK, 'utf8')
-    await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
-
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), join(prodDir, 'kustomization.yaml'))).toBe(false)
-  })
-
+describe('prodOverlayHpaPdbOverrideNeeds', () => {
   test('true для prod overlay, що підключає sibling components/ з HPA і PDB', async () => {
     const root = await mkdtemp(join(tmpdir(), 'k8s-prod-ovr-1-'))
     const componentsDir = join(root, 'k8s', 'components')
@@ -1775,7 +1593,6 @@ components:
     await writeFile(join(prodDir, 'kustomization.yaml'), prodK, 'utf8')
 
     const prodKust = join(prodDir, 'kustomization.yaml')
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
     const needs = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
     expect(needs.needsHpaReplicaPatches).toBe(true)
     expect(needs.needsPdbMinAvailablePatch).toBe(true)
@@ -1851,7 +1668,6 @@ components:
     const n = await prodOverlayHpaPdbOverrideNeeds(resolve(root), prodKust)
     expect(n.needsHpaReplicaPatches).toBe(false)
     expect(n.needsPdbMinAvailablePatch).toBe(true)
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), prodKust)).toBe(true)
   })
 
   test('prodOverlayHpaPdbOverrideNeeds: kind: Component (components/kustomization.yaml) → не overlay, без потреби патчів', async () => {
@@ -1904,7 +1720,6 @@ resources:
     const n = await prodOverlayHpaPdbOverrideNeeds(resolve(root), componentsKust)
     expect(n.needsHpaReplicaPatches).toBe(false)
     expect(n.needsPdbMinAvailablePatch).toBe(false)
-    expect(await prodOverlayNeedsHpaPdbOverrides(resolve(root), componentsKust)).toBe(false)
   })
 })
 
@@ -2769,7 +2584,7 @@ spec:
       const changed = await regenerateLegacyNetworkPolicyDocsInFile(npAbs)
       expect(changed).toBe(true)
       const out = await readFile(npAbs, 'utf8')
-      const snippet = readNetworkPolicySnippet()
+      const snippet = loadSnippetSpec('deployment')
       for (const rule of snippet.egress) {
         for (const p of rule.ports ?? []) {
           expect(out).toContain(`port: ${p.port}`)

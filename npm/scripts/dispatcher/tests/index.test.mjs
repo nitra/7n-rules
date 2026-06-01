@@ -4,7 +4,7 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { DEFAULT_HANDLERS, SUBCOMMANDS, runFlowCli } from '../index.mjs'
+import { runFlowCli } from '../index.mjs'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -46,9 +46,5 @@ describe('runFlowCli', () => {
     const gate = vi.fn(async () => 0)
     await runFlowCli(['gate'], { handlers: { gate } })
     expect(gate).toHaveBeenCalledWith([], expect.any(Object))
-  })
-
-  test('усі підкоманди зареєстровані як handler-и', () => {
-    expect(Object.keys(DEFAULT_HANDLERS).toSorted()).toEqual([...SUBCOMMANDS].toSorted())
   })
 })

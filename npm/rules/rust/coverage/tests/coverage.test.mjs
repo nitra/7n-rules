@@ -4,11 +4,11 @@
  * cargo-mutants, парсить JSON-виводи. collect() тестується з ін'єктованим runner-ом.
  */
 import { describe, expect, test } from 'vitest'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { cpus, tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { buildCargoMutantsArgs, collect, detect, resolveJobs } from '../coverage.mjs'
+import { buildCargoMutantsArgs, collect, detect, resolveBaseRef, resolveBaseline, resolveJobs } from '../coverage.mjs'
 
 const CARGO_LLVM_COV_INSTALL_RE = /cargo install cargo-llvm-cov/
 const CARGO_MUTANTS_INSTALL_RE = /cargo install cargo-mutants/
@@ -134,6 +134,112 @@ describe('rust coverage collect()', () => {
   })
 })
 
+/** Записує outcomes.json у sandbox, що його залишає cargo-mutants. */
+function writeOutcomes(outDir) {
+  const dotOut = join(outDir, 'mutants.out')
+  mkdirSync(dotOut, { recursive: true })
+  writeFileSync(join(dotOut, 'outcomes.json'), JSON.stringify({ caught: 1, missed: 0 }))
+}
+
+/** Runner з llvm-cov-заглушкою (0/0 покриття) для incremental-тестів. */
+const LLVM_OK_RUNNER = {
+  runLlvmCov() {
+    return {
+      exitCode: 0,
+      stdout: JSON.stringify({
+        data: [{ totals: { lines: { covered: 0, count: 0 }, functions: { covered: 0, count: 0 } } }]
+      })
+    }
+  }
+}
+
+describe('rust coverage collect() incremental --in-diff', () => {
+  test('baseRef + непорожній diff → передає diffPath і пише diff у файл', async () => {
+    const dir = makeFixture()
+    const prev = process.env.CARGO_MUTANTS_BASE_REF
+    process.env.CARGO_MUTANTS_BASE_REF = 'origin/main'
+    const DIFF = 'diff --git a/src/lib.rs b/src/lib.rs\n@@\n-1\n+2\n'
+    let seenDiffPath
+    let writtenDiff
+    const runner = {
+      ...LLVM_OK_RUNNER,
+      runGitDiff({ baseRef }) {
+        expect(baseRef).toBe('origin/main')
+        return { exitCode: 0, stdout: DIFF }
+      },
+      runCargoMutants({ outDir, diffPath }) {
+        seenDiffPath = diffPath
+        writtenDiff = readFileSync(diffPath, 'utf8')
+        writeOutcomes(outDir)
+        return 0
+      }
+    }
+    try {
+      const rows = await collect(dir, { runner })
+      expect(rows[0].mutation).toEqual({ caught: 1, total: 1 })
+      expect(seenDiffPath).toMatch(/in-diff\.patch$/u)
+      expect(writtenDiff).toBe(DIFF)
+    } finally {
+      if (prev === undefined) delete process.env.CARGO_MUTANTS_BASE_REF
+      else process.env.CARGO_MUTANTS_BASE_REF = prev
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('baseRef + порожній diff → cargo-mutants не викликається, mutation 0/0', async () => {
+    const dir = makeFixture()
+    const prev = process.env.CARGO_MUTANTS_BASE_REF
+    process.env.CARGO_MUTANTS_BASE_REF = 'origin/main'
+    let mutantsCalled = false
+    const runner = {
+      ...LLVM_OK_RUNNER,
+      runGitDiff() {
+        return { exitCode: 0, stdout: '   \n' }
+      },
+      runCargoMutants() {
+        mutantsCalled = true
+        return 0
+      }
+    }
+    try {
+      const rows = await collect(dir, { runner })
+      expect(rows[0].mutation).toEqual({ caught: 0, total: 0 })
+      expect(mutantsCalled).toBe(false)
+    } finally {
+      if (prev === undefined) delete process.env.CARGO_MUTANTS_BASE_REF
+      else process.env.CARGO_MUTANTS_BASE_REF = prev
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  test('baseRef + git diff падає → fallback до повного прогону (diffPath undefined)', async () => {
+    const dir = makeFixture()
+    const prev = process.env.CARGO_MUTANTS_BASE_REF
+    process.env.CARGO_MUTANTS_BASE_REF = 'origin/main'
+    let seenDiffPath = 'sentinel'
+    const runner = {
+      ...LLVM_OK_RUNNER,
+      runGitDiff() {
+        return { exitCode: 1, stdout: '' }
+      },
+      runCargoMutants({ outDir, diffPath }) {
+        seenDiffPath = diffPath
+        writeOutcomes(outDir)
+        return 0
+      }
+    }
+    try {
+      const rows = await collect(dir, { runner })
+      expect(rows[0].mutation).toEqual({ caught: 1, total: 1 })
+      expect(seenDiffPath).toBeUndefined()
+    } finally {
+      if (prev === undefined) delete process.env.CARGO_MUTANTS_BASE_REF
+      else process.env.CARGO_MUTANTS_BASE_REF = prev
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('rust coverage buildCargoMutantsArgs()', () => {
   test('містить --jobs <N> як рядок і не містить --in-place', () => {
     const args = buildCargoMutantsArgs({ manifestPath: '/tmp/x/Cargo.toml', outDir: '/tmp/out', jobs: 4 })
@@ -150,6 +256,36 @@ describe('rust coverage buildCargoMutantsArgs()', () => {
     expect(args[oi + 1]).toBe('/o')
     const mi = args.indexOf('--manifest-path')
     expect(args[mi + 1]).toBe('/m/Cargo.toml')
+  })
+
+  test('без diffPath не додає --in-diff', () => {
+    const args = buildCargoMutantsArgs({ manifestPath: '/m/Cargo.toml', outDir: '/o', jobs: 2 })
+    expect(args).not.toContain('--in-diff')
+  })
+
+  test('з diffPath додає --in-diff <шлях>', () => {
+    const args = buildCargoMutantsArgs({
+      manifestPath: '/m/Cargo.toml',
+      outDir: '/o',
+      jobs: 2,
+      diffPath: '/o/in-diff.patch'
+    })
+    const di = args.indexOf('--in-diff')
+    expect(di).toBeGreaterThan(-1)
+    expect(args[di + 1]).toBe('/o/in-diff.patch')
+  })
+})
+
+describe('rust coverage resolveBaseRef()', () => {
+  test('повертає null для відсутнього/порожнього env', () => {
+    expect(resolveBaseRef(undefined)).toBe(null)
+    expect(resolveBaseRef('')).toBe(null)
+    expect(resolveBaseRef('   ')).toBe(null)
+  })
+
+  test('повертає trimmed ref для непорожнього значення', () => {
+    expect(resolveBaseRef('origin/main')).toBe('origin/main')
+    expect(resolveBaseRef('  main \n')).toBe('main')
   })
 })
 

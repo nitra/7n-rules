@@ -8,7 +8,6 @@
  */
 import { parse } from 'yaml'
 
-const CHECKOUT_USES_MARKER = 'actions/checkout@'
 const CHECKOUT_V6_USES = 'actions/checkout@v6'
 const LOCAL_SETUP_BUN_DEPS_MARKER = './.github/actions/setup-bun-deps'
 const BUNX_OXLINT_FIX_RE = /bunx\s+oxlint[^\n]*--fix/u
@@ -69,97 +68,6 @@ export function getStepRun(step) {
   return ''
 }
 
-/** У тексті `run:` зіставляє `\\` одразу перед переносом рядка (типове shell-продовження в bash). */
-const RUN_SHELL_LINE_CONTINUATION_BACKSLASH_RE = /\\\r?\n/
-
-/**
- * Чи містить значення `run:` shell-продовження рядка через зворотний сліш перед переносом (`… \\` + NL).
- * У workflow такі конструкції замінюють на folded block `>-` без зворотних слішів (ga.mdc).
- * @param {string} runText текст з `getStepRun`
- * @returns {boolean} `true`, якщо знайдено `\\` перед новим рядком
- */
-export function runTextHasShellLineContinuationBackslash(runText) {
-  return typeof runText === 'string' && runText.length > 0 && RUN_SHELL_LINE_CONTINUATION_BACKSLASH_RE.test(runText)
-}
-
-/**
- * Повертає кроки, у яких `run:` містить заборонене shell-продовження через `\\`.
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {{ jobId: string, stepIndex: number }[]} список кроків із порушенням
- */
-export function findRunStepsWithShellLineContinuationBackslash(root) {
-  /** @type {{ jobId: string, stepIndex: number }[]} */
-  const out = []
-  for (const { jobId, stepIndex, step } of flattenWorkflowSteps(root)) {
-    const run = getStepRun(step)
-    if (runTextHasShellLineContinuationBackslash(run)) {
-      out.push({ jobId, stepIndex })
-    }
-  }
-  return out
-}
-
-/**
- * Чи є крок, у якого `uses` містить будь-який з підрядків.
- * @param {Record<string, unknown>} root корінь workflow
- * @param {string[]} substrings підрядки для пошуку в `uses`
- * @returns {boolean} `true`, якщо знайдено хоча б один збіг
- */
-export function hasAnyStepUsesContaining(root, substrings) {
-  for (const { step } of flattenWorkflowSteps(root)) {
-    const uses = getStepUses(step)
-    if (substrings.some(s => uses.includes(s))) {
-      return true
-    }
-  }
-  return false
-}
-
-/**
- * Чи перед першим кроком з локальним `setup-bun-deps` у кожному job є `actions/checkout@`.
- * Якщо `setup-bun-deps` у файлі немає — `true`.
- * @param {Record<string, unknown>} root корінь workflow
- * @param {string[]} setupPathSubstrings підрядки `uses`, що означають локальний composite (наприклад `./.github/actions/setup-bun-deps`)
- * @returns {boolean} `false`, якщо є setup без попереднього checkout
- */
-export function hasCheckoutBeforeLocalSetupBunDeps(root, setupPathSubstrings) {
-  for (const [, job] of workflowJobsEntries(root)) {
-    let hasCheckoutStep = false
-    for (const step of workflowJobSteps(job)) {
-      const uses = getStepUses(step)
-      if (uses.includes(CHECKOUT_USES_MARKER)) {
-        hasCheckoutStep = true
-      }
-      if (setupPathSubstrings.some(s => uses.includes(s)) && !hasCheckoutStep) {
-        return false
-      }
-    }
-  }
-  return true
-}
-
-/**
- * Шукає заборонені підрядки лише в `uses` та `run` кроків (не в коментарях YAML поза кроками).
- * @param {Record<string, unknown>} root корінь workflow
- * @param {{ pattern: string, msg: string }[]} forbidden список заборонених фрагментів і повідомлень
- * @returns {{ jobId: string, stepIndex: number, pattern: string, msg: string }[]} знайдені збіги
- */
-export function findForbiddenUsesOrRunPatterns(root, forbidden) {
-  /** @type {{ jobId: string, stepIndex: number, pattern: string, msg: string }[]} */
-  const hits = []
-  for (const { jobId, stepIndex, step } of flattenWorkflowSteps(root)) {
-    const uses = getStepUses(step)
-    const run = getStepRun(step)
-    const blob = `${uses}\n${run}`
-    for (const { pattern, msg } of forbidden) {
-      if (blob.includes(pattern)) {
-        hits.push({ jobId, stepIndex, pattern, msg })
-      }
-    }
-  }
-  return hits
-}
-
 /**
  * Чи є в `on.push.paths` (або `on.pull_request.paths`) елемент з точним значенням.
  * @param {Record<string, unknown>} root корінь workflow
@@ -181,87 +89,6 @@ export function eventPathsIncludeExact(root, event, exact) {
     return false
   }
   return paths.includes(exact)
-}
-
-/**
- * Чи містить `on.push.paths` підрядок `npm/**` (npm-module).
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {boolean} `true`, якщо серед `paths` є рядок з `npm/**`
- */
-export function pushPathsIncludeNpmGlob(root) {
-  const on = root?.on
-  if (!on || typeof on !== 'object') {
-    return false
-  }
-  const push = /** @type {Record<string, unknown>} */ (on).push
-  if (!push || typeof push !== 'object') {
-    return false
-  }
-  const paths = push.paths
-  if (!Array.isArray(paths)) {
-    return false
-  }
-  return paths.some(p => typeof p === 'string' && p.includes('npm/**'))
-}
-
-/**
- * Перевіряє наявність `branches` з `main` у `on.push`.
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {boolean} `true`, якщо `main` є в `on.push.branches`
- */
-export function pushHasMainBranch(root) {
-  const on = root?.on
-  if (!on || typeof on !== 'object') {
-    return false
-  }
-  const push = /** @type {Record<string, unknown>} */ (on).push
-  if (!push || typeof push !== 'object') {
-    return false
-  }
-  const branches = push.branches
-  if (!Array.isArray(branches)) {
-    return false
-  }
-  return branches.includes('main')
-}
-
-/**
- * Чи є крок з `uses: JS-DevTools/npm-publish` та `with.package` для npm-пакета.
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {boolean} `true`, якщо знайдено крок publish з `package: npm/package.json`
- */
-export function hasNpmPublishStepWithPackage(root) {
-  for (const { step } of flattenWorkflowSteps(root)) {
-    const uses = getStepUses(step)
-    if (uses.includes('JS-DevTools/npm-publish')) {
-      const w = step.with
-      if (w && typeof w === 'object' && /** @type {Record<string, unknown>} */ (w).package === 'npm/package.json') {
-        return true
-      }
-    }
-  }
-  return false
-}
-
-/**
- * Чи є у job `permissions.id-token: write`.
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {boolean} `true`, якщо OIDC-дозвіл для npm publish налаштований
- */
-export function hasIdTokenWritePermission(root) {
-  const jobs = root?.jobs
-  if (!jobs || typeof jobs !== 'object') {
-    return false
-  }
-  for (const job of Object.values(jobs)) {
-    if (job && typeof job === 'object') {
-      const perm = /** @type {Record<string, unknown>} */ (job).permissions
-      if (perm && typeof perm === 'object' && /** @type {Record<string, unknown>} */ (perm)['id-token'] === 'write') {
-        return true
-      }
-    }
-  }
-  return false
 }
 
 /**
@@ -320,15 +147,6 @@ export function anyRunStepIncludes(root, needle) {
     }
   }
   return false
-}
-
-/**
- * Чи викликається stylelint у workflow через `npx stylelint` у кроці `run` (вимога для CI).
- * @param {Record<string, unknown>} root корінь workflow
- * @returns {boolean} `true`, якщо умова виконана
- */
-export function anyRunStepIncludesStylelint(root) {
-  return anyRunStepIncludes(root, 'npx stylelint')
 }
 
 /**

@@ -3,7 +3,6 @@ import { describe, expect, test } from 'vitest'
 import {
   getCombinedNginxRunPatchTextFromKustomization,
   kustomizationHasAbieDeploymentNodeSelectorPatch,
-  kustomizationHasAbieNginxRunHttpRoutePatch,
   validateAbieNginxRunHttpRoutePatches
 } from '../kustomization-patches.mjs'
 
@@ -113,11 +112,5 @@ patches:
 `
     const c = getCombinedNginxRunPatchTextFromKustomization(raw)
     expect(validateAbieNginxRunHttpRoutePatches(c, 'ua', undefined, 1)).toBeNull()
-  })
-})
-
-describe('kustomizationHasAbieNginxRunHttpRoutePatch', () => {
-  test('ua', () => {
-    expect(kustomizationHasAbieNginxRunHttpRoutePatch(UA_KUSTOMIZATION_HTTPROUTE, 'ua')).toBe(true)
   })
 })

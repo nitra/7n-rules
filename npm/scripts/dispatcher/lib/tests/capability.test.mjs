@@ -9,8 +9,7 @@ import {
   declaredModel,
   orchestrationFor,
   parseModelFlag,
-  polyfillStartable,
-  resolveFlow
+  polyfillStartable
 } from '../capability.mjs'
 
 const MATRIX = {
@@ -67,25 +66,5 @@ describe('polyfillStartable', () => {
   test('true лише за наявного runner-а', () => {
     expect(polyfillStartable({ hasRunner: true })).toBe(true)
     expect(polyfillStartable({ hasRunner: false })).toBe(false)
-  })
-})
-
-describe('resolveFlow', () => {
-  test('native-модель → native (runner не потрібен)', () => {
-    const r = resolveFlow({ args: ['--model', 'claude-4-8-opus'], matrix: MATRIX, hasRunner: false })
-    expect(r).toEqual({ model: 'claude-4-8-opus', mode: 'native' })
-  })
-  test('polyfill із runner-ом → polyfill', () => {
-    const r = resolveFlow({ args: ['--model', 'claude-sonnet-4-6'], matrix: MATRIX, hasRunner: true })
-    expect(r).toEqual({ model: 'claude-sonnet-4-6', mode: 'polyfill' })
-  })
-  test('polyfill БЕЗ runner-а → throw (не «будь-яка модель»)', () => {
-    expect(() => resolveFlow({ args: [], matrix: MATRIX, hasRunner: false })).toThrow(/SubagentRunner/)
-  })
-  test('env і config як джерела моделі', () => {
-    expect(resolveFlow({ env: { N_CURSOR_FLOW_MODEL: 'claude-4-8-opus' }, matrix: MATRIX, hasRunner: false }).mode).toBe('native')
-    expect(
-      resolveFlow({ config: { flow: { model: 'claude-4-8-opus' } }, matrix: MATRIX, hasRunner: false }).mode
-    ).toBe('native')
   })
 })

@@ -57,25 +57,3 @@ export function orchestrationFor(model, matrix) {
 export function polyfillStartable({ hasRunner }) {
   return hasRunner === true
 }
-
-/**
- * Повний резолв: оголошена модель + режим. Кидає, якщо polyfill без runner-а.
- * @param {{ args?: string[], env?: Record<string, string | undefined>, config?: { flow?: { model?: string } }, matrix: object, hasRunner: boolean }} input джерела
- * @returns {{ model: string | null, mode: 'native' | 'polyfill' }} оголошена модель і режим
- */
-export function resolveFlow({ args = [], env = {}, config = {}, matrix, hasRunner }) {
-  const model = declaredModel({
-    cliModel: parseModelFlag(args),
-    envModel: env.N_CURSOR_FLOW_MODEL ?? null,
-    configModel: (config && config.flow && config.flow.model) ?? null
-  })
-  const mode = orchestrationFor(model, matrix)
-  if (mode === 'polyfill' && !polyfillStartable({ hasRunner })) {
-    throw new Error(
-      'n-cursor flow: режим polyfill потребує доступного SubagentRunner ' +
-        '(`claude` або `cursor-agent` у PATH), але жодного не знайдено. ' +
-        'Оголосіть модель із native_workflows (--model) або встановіть CLI-runner.'
-    )
-  }
-  return { model, mode }
-}

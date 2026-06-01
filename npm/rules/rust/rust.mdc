@@ -2,7 +2,7 @@
 description: Перевірка Rust коду
 globs: "**/{Cargo.toml,Cargo.lock,rustfmt.toml,clippy.toml,.vscode/extensions.json,package.json},**/*.rs"
 alwaysApply: false
-version: '1.2'
+version: '1.3'
 ---
 
 **rustfmt** ([rust-lang/rustfmt](https://github.com/rust-lang/rustfmt)) — форматер; **clippy** ([rust-lang/rust-clippy](https://github.com/rust-lang/rust-clippy)) — лінтер. У скрипті **`lint-rust`** локально йдуть три кроки в одному рядку: `cargo fmt --all` → `cargo clippy --fix --allow-staged --allow-dirty --all-targets --all-features` → фінальний `cargo clippy --all-targets --all-features -- -D warnings`. У CI — без `--fix`: `cargo fmt --all -- --check` і `cargo clippy ... -- -D warnings` (див. `lint-rust.yml`).
@@ -29,3 +29,12 @@ Tauri-проєкт завжди має `src-tauri/Cargo.toml`, тому прав
 ## Покриття + мутаційне тестування Rust
 
 Покриття + мутаційне тестування Rust постачаються через `n-cursor coverage` (правило `test.mdc`). Реалізація провайдера — у `npm/rules/rust/coverage/coverage.mjs`: `cargo llvm-cov --json --summary-only` + `cargo mutants --jobs N` (паралельні воркери, дефолт `min(4, cpus/2)`; override через env `CARGO_MUTANTS_JOBS`). Прапорець `--in-place` прибраний — cargo-mutants створює власну sandbox-копію в `target/mutants.<i>/`, що сумісне з `--jobs > 1`. Бінарники: `cargo install cargo-llvm-cov && cargo install cargo-mutants`.
+
+### Incremental mutation через `--in-diff`
+
+cargo-mutants **не** має persistent-кешу вердиктів між прогонами (на відміну від Stryker `incremental.json`). Штатний аналог «не передивляйся незмінений код» — scoping за git-diff. Вмикається env-змінною **`CARGO_MUTANTS_BASE_REF`**:
+
+- **не задано** (дефолт, типово для `main`) — повний прогін усіх мутантів;
+- задано (напр. `origin/main`, типово для feature-гілки в CI) — мутуються лише рядки, змінені у `<baseRef>...HEAD`. Провайдер бере `git diff --relative <baseRef>...HEAD` з каталогу crate (шляхи в diff збігаються з тим, що мутує cargo-mutants навіть у monorepo з `src-tauri/`), пише його у sandbox і передає cargo-mutants `--in-diff`.
+
+Краєві випадки: порожній diff (немає змін під crate) → mutation `0/0` без запуску cargo-mutants; невідомий ref / не git-репо → попередження у stderr і fallback до повного прогону. Для реального виграшу в CI кешуй `target/` (`Swatinem/rust-cache@v2`) — холодна компіляція з'їдає економію від scoping.

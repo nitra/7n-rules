@@ -29,9 +29,6 @@ const USAGE = [
   '  npx @nitra/cursor flow repair [--discard-step-work]   # відновлення пошкодженого стану'
 ].join('\n')
 
-/** Підкоманди flow. */
-export const SUBCOMMANDS = ['init', 'spec', 'plan', 'verify', 'review', 'gate', 'release', 'run', 'resume', 'cancel', 'repair']
-
 /**
  * Усі handler-и реальні (Ф1 Spec/Plan + Ф2 Турнікет + Ф4 Активний Раннер).
  * @type {Record<string, (rest: string[], deps: object) => Promise<number>>}

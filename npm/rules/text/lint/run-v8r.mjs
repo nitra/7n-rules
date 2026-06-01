@@ -28,14 +28,6 @@ export const DEFAULT_V8R_GLOBS = ['**/*.json', '**/*.json5', '**/*.yml', '**/*.y
 export const V8R_CATALOG_PATH = join(dirname(fileURLToPath(import.meta.url)), '../../../schemas/v8r-catalog.json')
 
 /**
- * Повертає шлях до каталогу схем v8r для пакета (для тестів і діагностики).
- * @returns {string} абсолютний шлях до v8r-catalog.json
- */
-export function getV8rCatalogPath() {
-  return V8R_CATALOG_PATH
-}
-
-/**
  * Запускає послідовні виклики v8r по glob-ам; не змінює process.exitCode (лише повертає код).
  * @param {string[]} [globs] патерни; за замовчуванням DEFAULT_V8R_GLOBS
  * @returns {number} 0 — OK, 1 — помилка spawn, 2 — немає каталогу схем, інше — код v8r

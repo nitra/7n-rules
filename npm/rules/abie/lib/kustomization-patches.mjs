@@ -211,14 +211,3 @@ export function validateAbieNginxRunHttpRoutePatches(
   }
   return null
 }
-
-/**
- * Чи kustomization містить валідні patch для HTTPRoute (ua).
- * @param {string} raw повний текст kustomization.yaml
- * @param {'ua'} mode опис.
- * @returns {boolean} результат
- */
-export function kustomizationHasAbieNginxRunHttpRoutePatch(raw, mode) {
-  const combined = getCombinedNginxRunPatchTextFromKustomization(raw)
-  return validateAbieNginxRunHttpRoutePatches(combined, mode, raw) === null
-}

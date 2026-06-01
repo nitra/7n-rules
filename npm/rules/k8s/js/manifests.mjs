@@ -431,56 +431,6 @@ function pushStringPaths(arr, acc) {
 /** Префікс `apiVersion` для маніфесту Kustomize **Kustomization**. */
 const KUSTOMIZE_CONFIG_API_PREFIX = 'kustomize.config.k8s.io/'
 
-/**
- * Чи послідовність непорожніх рядків відсортована за `localeCompare` (en, ascending).
- * @param {string[]} paths рядки для перевірки
- * @returns {boolean} `true` якщо послідовність відсортована
- */
-function stringPathsAreSortedEn(paths) {
-  for (let i = 1; i < paths.length; i++) {
-    if (paths[i - 1].localeCompare(paths[i], 'en', { sensitivity: 'base' }) > 0) {
-      return false
-    }
-  }
-  return true
-}
-
-/**
- * Порушення сорту **`resources`**: лише для **`kustomize.config.k8s.io/…`**, **`kind: Kustomization`**.
- * Порожні рядки в списку ігноруються (як у `pushStringPaths`).
- * @param {unknown} obj корінь першого YAML-документа
- * @returns {string | null} причина або `null`, якщо обмеження не застосовується
- */
-export function kustomizationResourcesSortedAlphabeticallyViolation(obj) {
-  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null
-  const rec = /** @type {Record<string, unknown>} */ (obj)
-  if (rec.kind !== 'Kustomization') return null
-  const av = rec.apiVersion
-  if (typeof av !== 'string' || !av.startsWith(KUSTOMIZE_CONFIG_API_PREFIX)) return null
-  const res = rec.resources
-  if (res === undefined) return null
-  if (!Array.isArray(res)) {
-    return 'Kustomization.resources має бути масивом (k8s.mdc)'
-  }
-  /**
-  @type {string[]}
-   */
-  const paths = []
-  for (const [i, item] of res.entries()) {
-    if (typeof item !== 'string') {
-      return `Kustomization.resources[${i}] — очікується рядок-шлях (k8s.mdc)`
-    }
-    const t = item.trim()
-    if (t !== '') paths.push(t)
-  }
-  if (paths.length < 2) return null
-  if (!stringPathsAreSortedEn(paths)) {
-    const want = paths.toSorted((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))
-    return `Kustomization.resources має бути за алфавітом (en). Зараз: ${paths.join(', ')}; очікувано: ${want.join(', ')} (k8s.mdc)`
-  }
-  return null
-}
-
 // Plan B: per-document `resources[]` sort у Kustomization — у rego-пакеті
 // `k8s.kustomization`, викликається з `runAllK8sRego` на початку `check()`.
 // JS-orchestrator validateKustomizationResourcesSortedAlphabetically видалено.
@@ -2159,36 +2109,6 @@ export function collectJson6902OperationsFromPatchText(patchText) {
   return []
 }
 
-/**
- * Шляхи JSON Patch, де в одному наборі операцій є і **remove**, і **add** (k8s.mdc: краще **replace**).
- * @param {Array<{ op: string, path: string }>} ops нормалізовані **op**
- * @returns {string[]} унікальні **path** з порушенням (відсортовано)
- */
-export function json6902PathsWithRemoveAndAddOnSamePath(ops) {
-  /**
-  @type {Map<string, Set<string>>}
-   */
-  const byPath = new Map()
-  for (const { op, path } of ops) {
-    if (path) {
-      if (!byPath.has(path)) {
-        byPath.set(path, new Set())
-      }
-      byPath.get(path).add(op)
-    }
-  }
-  /**
-  @type {string[]}
-   */
-  const out = []
-  for (const [path, set] of byPath) {
-    if (set.has('remove') && set.has('add')) {
-      out.push(path)
-    }
-  }
-  return out.toSorted((a, b) => a.localeCompare(b))
-}
-
 // Plan B: вся audit-ланка JSON6902 (failIfJson6902RemoveAddConflictOnSamePath,
 // auditJson6902PatchExternalFile, auditOneKustomizationJson6902Patch,
 // auditKustomizationPatchesJson6902) видалена. Per-document inline JSON6902
@@ -2673,34 +2593,9 @@ export function collectDeploymentConfigMapRefs(deployment) {
   return names
 }
 
-/**
- * Чи **Service** містить заборонені анотації GKE у **`metadata.annotations`** (k8s.mdc).
- * @param {unknown} manifest корінь YAML-документа
- * @returns {string | null} текст порушення або null, якщо не Service / анотацій немає / ок
- */
-export function serviceForbiddenGcpAnnotationsViolation(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
-    return null
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  if (rec.kind !== 'Service') return null
-  const meta = rec.metadata
-  if (meta === null || meta === undefined || typeof meta !== 'object' || Array.isArray(meta)) return null
-  const m = /** @type {Record<string, unknown>} */ (meta)
-  const ann = m.annotations
-  if (ann === null || ann === undefined || typeof ann !== 'object' || Array.isArray(ann)) return null
-  const a = /** @type {Record<string, unknown>} */ (ann)
-  /**
-  @type {string[]}
-   */
-  const found = []
-  for (const key of SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS) {
-    if (Object.hasOwn(a, key)) {
-      found.push(key)
-    }
-  }
-  if (found.length === 0) return null
-  return `metadata.annotations: прибери заборонені ключі GKE: ${found.join(', ')} (див. k8s.mdc)`
-}
+// Plan B: заборонені GKE-анотації на Service — у rego-пакеті k8s.* (per-document).
+// JS-функцію serviceForbiddenGcpAnnotationsViolation видалено; константа
+// SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS лишається експортованою (власний тест).
 
 /** Суфікс **`metadata.name`** headless-сервісу поруч із **`svc.yaml`** (див. k8s.mdc). */
 const SVC_HL_NAME_SUFFIX = '-hl'
@@ -4236,15 +4131,6 @@ export function snippetNameForKind(kind) {
 }
 
 /**
- * Читає deployment.snippet.yaml і повертає розпарсений spec.
- * @deprecated Використовуй loadSnippetSpec('deployment')
- * @returns {{ podSelector: Record<string, unknown>, policyTypes: string[], ingress: unknown[], egress: unknown[] }} розпарсений spec deployment snippet
- */
-export function readNetworkPolicySnippet() {
-  return /** @type {any} */ (loadSnippetSpec('deployment'))
-}
-
-/**
  * No-op fail-callback (повертає аргумент). Використовується як дефолт у `regenerateLegacyNetworkPolicyDocsInFile`,
  * коли caller не передає власний `fail` — щоб `collectHttpRouteIngressForWorkload` не падав.
  * @param {string} msg повідомлення помилки
@@ -5045,17 +4931,6 @@ export async function prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs) {
     needsHpaReplicaPatches: flags.hasHpa,
     needsPdbMinAvailablePatch: flags.hasPdb
   }
-}
-
-/**
- * Чи прод-оверлей потребує **будь-яких** overrides HPA/PDB у **patches[]** (зведений прапорець).
- * @param {string} rootNorm нормалізований корінь репозиторію
- * @param {string} kustAbs абсолютний шлях до kustomization.yaml
- * @returns {Promise<boolean>} true, якщо потрібен хоча б один тип оверрайду
- */
-export async function prodOverlayNeedsHpaPdbOverrides(rootNorm, kustAbs) {
-  const n = await prodOverlayHpaPdbOverrideNeeds(rootNorm, kustAbs)
-  return n.needsHpaReplicaPatches || n.needsPdbMinAvailablePatch
 }
 
 /**
