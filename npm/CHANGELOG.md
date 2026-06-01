@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.5.0] - 2026-06-01
+
+### Added
+
+- python: нове правило (uv-only, без Poetry) — автоактивація за pyproject.toml, заборона [tool.poetry]/poetry.lock, PEP 621 [project], lint-python (uv lock --check + uv sync --frozen + опц. ruff auto-fix: check --fix & format, mypy), CI workflow з astral-sh/setup-uv
+
 ## [3.4.1] - 2026-06-01
 
 ### Fixed
