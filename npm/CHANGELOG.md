@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.4.0] - 2026-06-01
+
+### Added
+
+- flow: команда review (adversarial diff-review за рівнем) + scale-adaptive level в init (L0–L3, керує глибиною review)
+
 ## [3.3.0] - 2026-06-01
 
 ### Added
