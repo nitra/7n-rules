@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.12.0] - 2026-06-02
+
+### Added
+
+- flow: cwd-незалежний резолвинг активного стану — spec/plan/verify/review/gate/release знаходять .flow.json поточної гілки навіть із головного дерева (швидкий шлях без git, toplevel-резолв, авторезолв єдиного активного flow), + опційний --branch <гілка>. Гейти виконуються у теці worktree.
+- flow release: інференс зміненого воркспейсу з diff від base_commit — авто-додає --ws у change, якщо не задано явно (один змінений subworkspace → його .changes/; кілька → fail з підказкою явного --ws; лише корінь → дефолт). Усуває потрапляння change-файлу в корінь монорепо при змінах під підпакетом.
+
+### Fixed
+
+- Усунуто суперечність n-changelog.mdc ↔ n-npm-module.mdc: прибрано перевірки version/CHANGELOG у package_structure.mjs, що штовхали до ручного bump (єдиний артефакт змін — change-файл; узгодженість валідує changelog/consistency.mjs); npm-module.mdc делегує bump/CHANGELOG у changelog.mdc, який отримав post-release-інваріант.
+- trace: резолв лінків front-matter відносно теки артефакту (+ root-relative fallback) — file-relative spec/plan лінки (`../specs/…`) більше не дають хибний «розрив ланцюга»; поле `flow` (runtime `.flow.json`) показується, але не рахується розривом. Розрив визначають лише chain-поля (adr/spec/plan/change/task).
+
 ## [3.11.0] - 2026-06-02
 
 ### Changed
