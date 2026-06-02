@@ -1527,9 +1527,10 @@ try {
     }
     case 'coverage': {
       // n-cursor coverage — оркестратор покриття + мутаційного тестування з discovery
-      // провайдерів через .n-cursor.json#rules (test.mdc).
+      // провайдерів через .n-cursor.json#rules (test.mdc). --changed звужує scope до
+      // змінених від base файлів (flow-турнікет: лише vitest/Stryker по diff).
       const { runCoverageCli } = await import('../rules/test/coverage/coverage.mjs')
-      process.exitCode = await runCoverageCli({ fix: args.includes('--fix') })
+      process.exitCode = await runCoverageCli({ fix: args.includes('--fix'), changed: args.includes('--changed') })
 
       break
     }

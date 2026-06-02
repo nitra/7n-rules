@@ -28,3 +28,31 @@ export function collectChangedFiles(cwd = process.cwd()) {
   const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
   return [...new Set([...modified, ...untracked])]
 }
+
+/**
+ * Список змінених + untracked файлів **відносно базового комміту**.
+ *
+ * `git diff <base>` (без `..`/`...`, без `HEAD`) порівнює base-комміт із поточним
+ * **робочим деревом** — тобто однаково ловить і закомічене від base, і staged, і
+ * незакомічені модифікації. Це гарантує однакову поведінку незалежно від того, чи
+ * зміни вже закомічені у worktree (потрібно для flow-турнікета, де executor комітить
+ * кожен крок). Без `base` — fallback на `collectChangedFiles` (робоче дерево vs HEAD).
+ * @param {string|null} [base] базовий комміт (`metadata.base_commit` зі стану flow)
+ * @param {string} [cwd] корінь репо
+ * @returns {string[]} унікальні шляхи (без видалених)
+ */
+export function collectChangedFilesSince(base, cwd = process.cwd()) {
+  if (!base) return collectChangedFiles(cwd)
+  // Fail-closed: недосяжний base (rebase/force-update/shallow prune) інакше дав би `git diff`
+  // exit 128 → порожній список → gate мовчки пройшов би без перевірки. Краще явна помилка.
+  const verify = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${base}^{commit}`], { cwd, encoding: 'utf8' })
+  if (verify.status !== 0 || verify.error) {
+    throw new Error(
+      `collectChangedFilesSince: base-комміт «${base}» недосяжний у ${cwd} ` +
+        '(rebase/force-update?) — coverage --changed не може визначити scope'
+    )
+  }
+  const changed = gitLines(['diff', base, '--name-only', '--diff-filter=ACMR'], cwd)
+  const untracked = gitLines(['ls-files', '--others', '--exclude-standard'], cwd)
+  return [...new Set([...changed, ...untracked])]
+}

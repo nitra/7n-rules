@@ -78,9 +78,12 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    npx @nitra/cursor flow verify
    ```
 
-   Проганяє Quality Gate (lint). Повертає `0` (pass) або `1` із виводом
-   проваленого gate. Coverage (тести + Stryker-мутації) **поза** turnstile —
-   запускай окремо `npx @nitra/cursor coverage` або в CI.
+   Проганяє Quality Gates (lint + coverage). Повертає `0` (pass) або `1` із
+   виводом проваленого gate. **Обидва гейти перевіряють лише змінені файли**
+   (diff від `base_commit`): `lint` — quick-режим, `coverage --changed` — vitest
+   `--changed` + Stryker `--mutate` по diff. Працює однаково, незалежно від того,
+   чи зміни вже закомічені у worktree. Повний coverage (увесь проєкт) — окремо:
+   `bun run coverage` або `/n-coverage-fix`.
 
 6. **Review (adversarial)** — рекомендовано перед release:
 

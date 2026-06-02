@@ -9,9 +9,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { collect, detect, extractFirstTestBlock, findExampleTest, parseStrykerReport } from '../coverage.mjs'
+import { collect, detect, extractFirstTestBlock, findExampleTest, parseStrykerReport, scopeToRoot } from '../coverage.mjs'
 
 const JS_COVERAGE_EXIT_RE = /JS coverage.*exit 1/
+const JS_COVERAGE_EXIT2_RE = /JS coverage.*exit 2/
 const MUTATION_JSON_RE = /запусти `npx @nitra\/cursor fix test`/
 
 /**
@@ -344,7 +345,7 @@ describe('js-lint coverage collect()', () => {
         return 0
       }
     }
-    await expect(collect(dir, { runner })).rejects.toThrow(/JS coverage.*exit 2/)
+    await expect(collect(dir, { runner })).rejects.toThrow(JS_COVERAGE_EXIT2_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 })
@@ -562,6 +563,141 @@ describe('parseStrykerReport', () => {
     }
     const result = parseStrykerReport(report, dir)
     expect(result.survived).toEqual([])
+    rmSync(dir, { recursive: true, force: true })
+  })
+})
+
+describe('scopeToRoot', () => {
+  test('фільтрує не-JS і рібейзить JS відносно root (single-package: root===cwd)', () => {
+    const cwd = '/repo'
+    expect(scopeToRoot(['src/a.js', 'README.md', 'docs/x.png'], cwd, cwd)).toEqual(['src/a.js'])
+  })
+
+  test('лишає лише файли під workspace-root, рібейзить', () => {
+    const cwd = '/repo'
+    const root = '/repo/cf/app'
+    const files = ['cf/app/src/a.js', 'cf/app/b.mjs', 'cf/other/c.js', 'top.ts']
+    expect(scopeToRoot(files, cwd, root)).toEqual(['src/a.js', 'b.mjs'])
+  })
+
+  test('розпізнає .ts/.tsx/.cjs/.mjs/.jsx', () => {
+    const cwd = '/repo'
+    const files = ['a.ts', 'b.tsx', 'c.cjs', 'd.mjs', 'e.jsx', 'f.json', 'g.css']
+    expect(scopeToRoot(files, cwd, cwd)).toEqual(['a.ts', 'b.tsx', 'c.cjs', 'd.mjs', 'e.jsx'])
+  })
+})
+
+describe('js-lint coverage collect() — --changed scope', () => {
+  test('передає base у vitest і --mutate (non-test src) у Stryker; пропускає roots без змін', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'js-lint-cov-changed-'))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ workspaces: ['cf/*'] }))
+    for (const ws of ['a', 'b']) {
+      const wsDir = join(dir, 'cf', ws)
+      mkdirSync(join(wsDir, 'src'), { recursive: true })
+      writeFileSync(join(wsDir, 'package.json'), JSON.stringify({ name: ws }))
+    }
+    // mutation.json лише для cf/a (єдиний зі зміненим src)
+    const reportDir = join(dir, 'cf', 'a', 'reports', 'stryker')
+    mkdirSync(reportDir, { recursive: true })
+    writeFileSync(
+      join(reportDir, 'mutation.json'),
+      JSON.stringify({ files: { 'src/a.js': { mutants: [{ status: 'Killed' }, { status: 'Survived' }] } } })
+    )
+
+    const jsCalls = []
+    const strykerCalls = []
+    const runner = {
+      runJsCoverage({ cwd, lcovDir, base }) {
+        jsCalls.push({ cwd, base })
+        writeFileSync(join(lcovDir, 'lcov.info'), 'LF:10\nLH:8\nFNF:2\nFNH:2\n')
+        return 0
+      },
+      runStryker({ cwd, mutate }) {
+        strykerCalls.push({ cwd, mutate })
+        return 0
+      }
+    }
+
+    // Змінено лише src у cf/a; cf/b без змін → пропускається повністю.
+    const rows = await collect(dir, {
+      runner,
+      base: 'BASE_SHA',
+      changedFiles: ['cf/a/src/a.js', 'cf/a/src/a.test.js']
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].mutation).toEqual({ caught: 1, total: 2 })
+    // vitest викликано лише для cf/a, з base
+    expect(jsCalls).toEqual([{ cwd: join(dir, 'cf', 'a'), base: 'BASE_SHA' }])
+    // Stryker мутує лише production-src (test-файл відкинуто)
+    expect(strykerCalls).toEqual([{ cwd: join(dir, 'cf', 'a'), mutate: ['src/a.js'] }])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('змінено лише тест-файли → Stryker не запускається, mutation 0/0', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    const strykerCalls = []
+    const runner = {
+      runJsCoverage({ lcovDir }) {
+        writeFileSync(join(lcovDir, 'lcov.info'), 'LF:10\nLH:8\nFNF:2\nFNH:2\n')
+        return 0
+      },
+      runStryker() {
+        strykerCalls.push(1)
+        return 0
+      }
+    }
+    const rows = await collect(dir, { runner, base: 'B', changedFiles: ['tests/a.test.mjs'] })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].mutation).toEqual({ caught: 0, total: 0 })
+    expect(rows[0].survived).toEqual([])
+    expect(strykerCalls).toEqual([]) // нема production-src → Stryker не викликано
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('немає змінених JS ніде → [] (без error)', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    const calls = []
+    const runner = {
+      runJsCoverage() {
+        calls.push('js')
+        return 0
+      },
+      runStryker() {
+        calls.push('stryker')
+        return 0
+      }
+    }
+    const rows = await collect(dir, { runner, base: 'B', changedFiles: ['README.md', 'docs/x.png'] })
+    expect(rows).toEqual([])
+    expect(calls).toEqual([]) // жодного root зі зміненим JS → нічого не запускалось
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('порожній lcov, але змінений src → Stryker все одно запускається (не пропускаємо root)', async () => {
+    const dir = makeFixture({ devDependencies: { vitest: '^2.0.0' } })
+    const reportDir = join(dir, 'reports', 'stryker')
+    mkdirSync(reportDir, { recursive: true })
+    writeFileSync(
+      join(reportDir, 'mutation.json'),
+      JSON.stringify({ files: { 'src/a.js': { mutants: [{ status: 'NoCoverage' }, { status: 'NoCoverage' }] } } })
+    )
+    const strykerCalls = []
+    const runner = {
+      runJsCoverage({ lcovDir }) {
+        writeFileSync(join(lcovDir, 'lcov.info'), '') // порожній lcov (нема covering-тестів)
+        return 0
+      },
+      runStryker({ mutate }) {
+        strykerCalls.push(mutate)
+        return 0
+      }
+    }
+    const rows = await collect(dir, { runner, base: 'B', changedFiles: ['src/a.js'] })
+    expect(rows).toHaveLength(1)
+    // змінений src без тестів → NoCoverage-мутанти у total (gate впаде, як і має)
+    expect(rows[0].mutation).toEqual({ caught: 0, total: 2 })
+    expect(strykerCalls).toEqual([['src/a.js']])
     rmSync(dir, { recursive: true, force: true })
   })
 })

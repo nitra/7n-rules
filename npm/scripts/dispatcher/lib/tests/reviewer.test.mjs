@@ -7,19 +7,24 @@ import { describe, expect, test } from 'vitest'
 import { DEFAULT_GATES, runReview } from '../reviewer.mjs'
 
 /**
- * Фейковий runner: статус за іменем gate (останній arg команди).
+ * Фейковий runner: статус за іменем gate (subcommand-токен у args, напр. `lint`
+ * чи `coverage`). Не покладається на позицію — `coverage`-gate має хвостовий
+ * `--changed`, тож матчимо за наявністю ключа в args.
  * @param {Record<string, number>} statuses мапа gate→status
  * @returns {(cmd: string, args: string[]) => { status: number }} runner
  */
 function runner(statuses) {
-  return (cmd, args) => ({ status: statuses[args.at(-1)] ?? 0 })
+  return (cmd, args) => {
+    const key = Object.keys(statuses).find(k => args.includes(k))
+    return { status: key ? statuses[key] : 0 }
+  }
 }
 
 describe('runReview', () => {
   test('усі gate-и зелені → pass + fingerprint', () => {
-    const v = runReview({ run: runner({ lint: 0 }), cwd: '/x', fingerprint: () => 'FP' })
+    const v = runReview({ run: runner({ lint: 0, coverage: 0 }), cwd: '/x', fingerprint: () => 'FP' })
     expect(v.pass).toBe(true)
-    expect(v.gates.map(g => g.name)).toEqual(['lint'])
+    expect(v.gates.map(g => g.name)).toEqual(['lint', 'coverage'])
     expect(v.fingerprint).toBe('FP')
   })
 
@@ -49,7 +54,17 @@ describe('runReview', () => {
     expect(v.gates).toEqual([{ name: 'custom', ok: true }])
   })
 
-  test('DEFAULT_GATES — лише lint (coverage поза turnstile)', () => {
-    expect(DEFAULT_GATES.map(g => g.name)).toEqual(['lint'])
+  test('DEFAULT_GATES — lint + coverage (обидва scoped до змінених)', () => {
+    expect(DEFAULT_GATES.map(g => g.name)).toEqual(['lint', 'coverage'])
+  })
+
+  test('coverage-gate scoped до змінених (--changed)', () => {
+    const coverage = DEFAULT_GATES.find(g => g.name === 'coverage')
+    expect(coverage.cmd).toEqual(['npx', '@nitra/cursor', 'coverage', '--changed'])
+  })
+
+  test('lint-gate без --changed (quick-режим scoping усередині lint)', () => {
+    const lint = DEFAULT_GATES.find(g => g.name === 'lint')
+    expect(lint.cmd).toEqual(['npx', '@nitra/cursor', 'lint'])
   })
 })

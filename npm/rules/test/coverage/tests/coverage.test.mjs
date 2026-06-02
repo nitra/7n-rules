@@ -16,7 +16,7 @@
  * і прибирають його в `afterEach`.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -1184,18 +1184,24 @@ describe('runCoverageSteps — classify повертає verdicts (lines 232-237
 
 // === Нові тести для вцілілих мутантів ===
 
+/**
+ * Allowed-gap fixture для renderMarkdown-тестів. Module-scope (не захоплює нічого з describe).
+ * @param {string} file шлях файлу
+ * @param {string} [reason] reason для verdict
+ * @returns {{file:string, mutant:object, verdict:object}} gap
+ */
+const makeGap = (file, reason = 'No side effect') => ({
+  file,
+  mutant: { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' },
+  verdict: { verdict: 'equivalent', confidence: 0.92, reason }
+})
+
 describe('renderMarkdown — allowed gaps exact strings (L132, L133, L136, L138)', () => {
   const baseRows = [{
     area: 'JS',
     coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
     mutation: { caught: 3, total: 4 }
   }]
-
-  const makeGap = (file, reason = 'No side effect') => ({
-    file,
-    mutant: { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' },
-    verdict: { verdict: 'equivalent', confidence: 0.92, reason }
-  })
 
   test('містить рядок LLM-класифікатора (вбиває L132:16 StringLiteral template→``)', () => {
     const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
@@ -1423,5 +1429,63 @@ describe('runCoverageCli — 2-й run передає fix:false (L272)', () => {
     // fix: false → code=1 (немає провайдерів) але НЕ намагається завантажити coverage-fix.mjs
     expect(typeof innerCode).toBe('number')
     rmSync(cwd, { recursive: true, force: true })
+  })
+})
+
+const EMPTY_PROVIDER = `
+  export async function detect() { return true }
+  export async function collect() { return [] }
+`
+
+describe('runCoverageSteps — --changed scope', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  test('порожній scope (провайдер вернув []) → pass (exit 0), COVERAGE.md не пишеться', async () => {
+    vi.spyOn(console, 'log').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': EMPTY_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(fx.cwd, 'COVERAGE.md'))).toBe(false)
+    fx.cleanup()
+  })
+
+  test('порожній scope (detect false) → pass (exit 0), без error «жодного провайдера»', async () => {
+    vi.spyOn(console, 'log').mockReturnValue()
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SKIP_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
+    expect(exitCode).toBe(0)
+    const errors = errSpy.mock.calls.map(args => String(args[0]))
+    expect(errors.some(s => s.includes('Жодного провайдера'))).toBe(false)
+    fx.cleanup()
+  })
+
+  test('full-режим (без changed): порожні rows → exit 1 (регресія збережена)', async () => {
+    vi.spyOn(console, 'error').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': EMPTY_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(1)
+    fx.cleanup()
+  })
+
+  test('changed + провайдер з даними → exit 0, але COVERAGE.md НЕ перезаписується (gate = exit-код)', async () => {
+    vi.spyOn(console, 'log').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir, changed: true })
+    expect(exitCode).toBe(0)
+    // Changed-режим не клобберить повний COVERAGE.md частковим звітом.
+    expect(existsSync(join(fx.cwd, 'COVERAGE.md'))).toBe(false)
+    fx.cleanup()
+  })
+
+  test('full-режим (без changed) з даними → COVERAGE.md пишеться (регресія)', async () => {
+    vi.spyOn(console, 'log').mockReturnValue()
+    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': ONE_ROW_PROVIDER } })
+    const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
+    expect(exitCode).toBe(0)
+    expect(existsSync(join(fx.cwd, 'COVERAGE.md'))).toBe(true)
+    fx.cleanup()
   })
 })

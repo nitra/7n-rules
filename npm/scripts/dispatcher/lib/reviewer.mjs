@@ -11,12 +11,16 @@
 import { worktreeFingerprint } from '../../utils/worktree-fingerprint.mjs'
 
 /**
- * Канонічний gate verify — лише `lint`. Coverage (vitest-покриття + Stryker-
- * мутації) навмисно ПОЗА turnstile: повний прогін надто довгий і ламкий у
- * worktree, тож тести/мутації запускаються окремо (`npx \@nitra/cursor coverage`)
- * або в CI, а не на кожному `flow verify`.
+ * Канонічні gate-и verify (lint + coverage; coverage включає тести+мутації).
+ * Обидва — scoped до змінених файлів: `lint` через quick-режим (`changed-files.mjs`),
+ * `coverage --changed` через vitest `--changed`/Stryker `--mutate` по diff від base.
+ * Турнікет (`flow verify`/per-step) перевіряє лише змінене; повний coverage —
+ * окремо (`bun run coverage`, `/n-coverage-fix`).
  */
-export const DEFAULT_GATES = [{ name: 'lint', cmd: ['npx', '@nitra/cursor', 'lint'] }]
+export const DEFAULT_GATES = [
+  { name: 'lint', cmd: ['npx', '@nitra/cursor', 'lint'] },
+  { name: 'coverage', cmd: ['npx', '@nitra/cursor', 'coverage', '--changed'] }
+]
 
 /**
  * Проганяє gate-и й повертає verdict.

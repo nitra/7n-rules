@@ -16,6 +16,8 @@ import { hasCargoTomlInTree } from '../lib/has-cargo-toml.mjs'
 import { resolveCargoManifest } from '../../../scripts/utils/resolve-cargo-manifest.mjs'
 
 const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo', 'target'])
+/** Rust-релевантні зміни: `.rs`-джерела або маніфести Cargo. */
+const RUST_CHANGE = /(\.rs$)|((^|\/)Cargo\.(toml|lock)$)/
 
 /**
  * Чи провайдер застосовний у поточному cwd.
@@ -33,7 +35,7 @@ export function detect(cwd) {
  * на ≤2 ядрах = 1, на 4 = 2, на 8+ = 4. Стеля 4 — Rust linker bottleneck:
  * вище практичного приросту не дає навіть на 16+ ядрах.
  * @param {string | undefined} envValue значення `process.env.CARGO_MUTANTS_JOBS`
- * @returns {number}
+ * @returns {number} кількість паралельних воркерів (>= 1)
  */
 export function resolveJobs(envValue) {
   if (envValue !== undefined && envValue !== '') {
@@ -119,12 +121,21 @@ const defaultRunner = {
 
 /**
  * Збирає Rust-метрики покриття + мутаційного тестування.
+ *
+ * Changed-режим (`opts.changedFiles` задано): якщо серед змінених немає Rust-релевантних
+ * файлів (`.rs` / `Cargo.toml` / `Cargo.lock`) — повертає `[]` (skip), щоб JS-only крок
+ * турнікета не ганяв повний `cargo mutants`. Якщо Rust змінено — наразі прогін повний по
+ * crate (per-file scoping cargo-mutants — окремий крок).
  * @param {string} cwd корінь проєкту
- * @param {{runner?: typeof defaultRunner}} [opts] ін'єкція runner-а для тестів
+ * @param {{runner?: typeof defaultRunner, changedFiles?: string[]}} [opts] ін'єкція runner-а + changed-scope
  * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}}>>} рядки для COVERAGE.md
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
+  // Changed-режим без Rust-релевантних змін → не запускаємо повний crate-прогін.
+  if (Array.isArray(opts.changedFiles) && !opts.changedFiles.some(f => RUST_CHANGE.test(f))) {
+    return []
+  }
   const manifestPath = await resolveCargoManifest(cwd)
   if (manifestPath === null) {
     throw new Error('rust coverage: Cargo.toml не знайдено (cwd + workspaces)')

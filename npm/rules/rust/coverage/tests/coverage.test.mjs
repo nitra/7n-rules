@@ -12,6 +12,7 @@ import { buildCargoMutantsArgs, collect, detect, resolveBaseRef, resolveBaseline
 
 const CARGO_LLVM_COV_INSTALL_RE = /cargo install cargo-llvm-cov/
 const CARGO_MUTANTS_INSTALL_RE = /cargo install cargo-mutants/
+const CARGO_TOML_MISSING_RE = /Cargo\.toml не знайдено/u
 
 /**
  * Тимчасова fixture-директорія з опційним Cargo.toml.
@@ -110,7 +111,7 @@ describe('rust coverage collect()', () => {
 
   test('падає коли Cargo.toml не знайдено', async () => {
     const dir = makeFixture({ withCargo: false })
-    await expect(collect(dir, { runner: {} })).rejects.toThrow(/Cargo\.toml не знайдено/u)
+    await expect(collect(dir, { runner: {} })).rejects.toThrow(CARGO_TOML_MISSING_RE)
     rmSync(dir, { recursive: true, force: true })
   })
 
@@ -333,5 +334,48 @@ describe('rust coverage resolveJobs()', () => {
     expect(resolveJobs('abc')).toBe(expected)
     expect(resolveJobs('0')).toBe(expected)
     expect(resolveJobs('-3')).toBe(expected)
+  })
+})
+
+describe('rust coverage collect() — --changed skip', () => {
+  test('changedFiles без Rust-релевантних → [] (runner не викликається)', async () => {
+    const dir = makeFixture({ withCargo: true })
+    const runner = {
+      runLlvmCov() {
+        throw new Error('не має викликатись для JS-only змін')
+      },
+      runCargoMutants() {
+        throw new Error('не має викликатись для JS-only змін')
+      }
+    }
+    expect(await collect(dir, { runner, changedFiles: ['app.js', 'README.md'] })).toEqual([])
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  test('changedFiles з .rs → повний прогін (runner викликається)', async () => {
+    const dir = makeFixture({ withCargo: true })
+    const calls = []
+    const runner = {
+      runLlvmCov() {
+        calls.push('llvm')
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            data: [{ totals: { lines: { covered: 1, count: 2 }, functions: { covered: 1, count: 1 } } }]
+          })
+        }
+      },
+      runCargoMutants({ outDir }) {
+        calls.push('mutants')
+        const dotOut = join(outDir, 'mutants.out')
+        mkdirSync(dotOut, { recursive: true })
+        writeFileSync(join(dotOut, 'outcomes.json'), JSON.stringify({ caught: 1, missed: 0 }))
+        return 0
+      }
+    }
+    const rows = await collect(dir, { runner, changedFiles: ['src/lib.rs'] })
+    expect(rows).toHaveLength(1)
+    expect(calls).toEqual(['llvm', 'mutants'])
+    rmSync(dir, { recursive: true, force: true })
   })
 })

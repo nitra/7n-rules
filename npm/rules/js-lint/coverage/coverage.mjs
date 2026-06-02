@@ -10,13 +10,36 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, relative } from 'node:path'
+import { isAbsolute, join, relative } from 'node:path'
 
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 import { addCoverage, addMutation } from '../../test/coverage/coverage.mjs'
 
 const TEST_BLOCK_START = /^\s*(it|test)\(/
 const FILE_EXTENSION = /\.[^.]+$/
+/** JS/TS-розширення — файли, які мутує Stryker і покриває vitest. */
+const JS_FILE = /\.(c|m)?[jt]sx?$/
+/** Тест-файли (`*.test.*` / `*.spec.*`) — НЕ production-код, не йдуть у Stryker `--mutate`. */
+const TEST_FILE = /\.(test|spec)\.[^.]+$/
+
+/**
+ * Звужує список змінених файлів (relative до cwd) до тих, що лежать під `jsRoot`,
+ * мають JS/TS-розширення, і рібейзить їх відносно `jsRoot`.
+ * @param {string[]} changedFiles relative-до-cwd шляхи змінених файлів
+ * @param {string} cwd корінь проєкту
+ * @param {string} jsRoot абсолютний шлях workspace-кореня
+ * @returns {string[]} JS-файли під jsRoot, шляхи relative до jsRoot
+ */
+export function scopeToRoot(changedFiles, cwd, jsRoot) {
+  const out = []
+  for (const f of changedFiles) {
+    if (!JS_FILE.test(f)) continue
+    const rel = relative(jsRoot, join(cwd, f))
+    if (rel.startsWith('..') || isAbsolute(rel)) continue
+    out.push(rel)
+  }
+  return out
+}
 const VITEST_HINT =
   'js-lint coverage: vitest відсутній у package.json — додай `vitest`, `@vitest/coverage-v8` та `@stryker-mutator/vitest-runner` у devDependencies (див. test.mdc)'
 
@@ -217,7 +240,11 @@ export function parseStrykerReport(report, jsRoot) {
  * у такому випадку сигналізує "no tests" → collectOneRoot пропускає workspace.
  */
 const defaultRunner = {
-  runJsCoverage({ cwd, lcovDir }) {
+  runJsCoverage({ cwd, lcovDir, base }) {
+    // base !== undefined ⇔ --changed-режим: vitest сам рахує зачеплені змінами тести
+    // через граф імпортів. `--changed <base>` порівнює base↔робоче дерево (committed і
+    // uncommitted разом); `--changed` без аргументу — uncommitted vs HEAD.
+    const changedArgs = base === undefined ? [] : base === null ? ['--changed'] : ['--changed', base]
     const r = spawnSync(
       'bunx',
       [
@@ -226,13 +253,14 @@ const defaultRunner = {
         '--passWithNoTests',
         '--coverage',
         '--coverage.reporter=lcov',
-        `--coverage.reportsDirectory=${lcovDir}`
+        `--coverage.reportsDirectory=${lcovDir}`,
+        ...changedArgs
       ],
       { cwd, stdio: 'inherit', env: process.env }
     )
     return r.status ?? 1
   },
-  runStryker({ cwd }) {
+  runStryker({ cwd, mutate }) {
     // `npx`, не `bunx`: bunx завжди ставить пакет у `T/bunx-<uid>-<pkg>@latest` і запускає
     // Stryker звідти. Плагін-discovery у Stryker (`@stryker-mutator/*`) globится відносно
     // CORE-install-каталогу (`core/dist/src/di/plugin-loader.js` → `../../../../../@stryker-mutator/*`),
@@ -240,30 +268,48 @@ const defaultRunner = {
     // встановлений `@stryker-mutator/vitest-runner` залишається невидимим, і workers падають з
     // `Cannot find TestRunner plugin "vitest"`. `npx` ходить угору по `node_modules/.bin/` і
     // запускає Stryker з локального hoisted-install, де поряд лежить vitest-runner.
-    const r = spawnSync('npx', ['@stryker-mutator/core', 'run'], { cwd, stdio: 'inherit', env: process.env })
+    // mutate (непорожній) ⇔ --changed-режим: мутуємо лише змінені production-файли цього root.
+    const mutateArgs = mutate && mutate.length > 0 ? ['--mutate', mutate.join(',')] : []
+    const r = spawnSync('npx', ['@stryker-mutator/core', 'run', ...mutateArgs], {
+      cwd,
+      stdio: 'inherit',
+      env: process.env
+    })
     return r.status ?? 1
   }
 }
 
 /**
  * Збирає метрики покриття + мутаційного тестування для **одного** JS-root.
- * Пропускає workspace без тестів (повертає `null`): vitest у такому випадку
- * пройшов з `--passWithNoTests`, але lcov порожній — нема сенсу запускати
- * Stryker. Реальні помилки (vitest exit ≠ 0, mutation.json відсутній попри
- * наявні тести) кидаються — у multi-root режимі це не маскує справжній збій.
+ *
+ * Full-режим (`scope === null`): vitest на всьому suite + Stryker на всіх файлах
+ * config-глоба. Пропускає workspace без тестів (повертає `null`): vitest пройшов з
+ * `--passWithNoTests`, але lcov порожній — нема сенсу запускати Stryker.
+ *
+ * Changed-режим (`scope = { files, base }`): vitest `--changed <base>` (лише
+ * зачеплені тести) + Stryker `--mutate` лише по змінених production-файлах. Тут
+ * **не** пропускаємо на порожньому lcov — змінений src без тестів має дати
+ * NoCoverage-мутанти (gate впаде, як і має). Якщо змінено лише тест-файли (нема
+ * production-src) — Stryker не запускаємо (мутувати нічого), повертаємо лише coverage.
+ *
+ * Реальні помилки (vitest exit ≠ 0, відсутній mutation.json попри запуск Stryker)
+ * кидаються — у multi-root режимі це не маскує справжній збій.
  * @param {string} jsRoot абсолютний шлях до workspace-кореня
  * @param {string} cwd корінь проєкту (для рібейзингу `survived[].file`)
  * @param {{runJsCoverage:Function, runStryker:Function}} runner spawn-ін'єкція
- * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли workspace без тестів
+ * @param {{files:string[], base:string|null}|null} [scope] changed-scope (null = full-режим)
+ * @returns {Promise<{coverage:object, mutation:{caught:number,total:number}, survived:Array<object>} | null>} результати або null коли full-режим і workspace без тестів
  */
-async function collectOneRoot(jsRoot, cwd, runner) {
+async function collectOneRoot(jsRoot, cwd, runner, scope = null) {
   const wsRel = relative(cwd, jsRoot)
+  // У changed-режимі production-файли для мутації = змінені JS цього root без тест-файлів.
+  const mutateSrc = scope ? scope.files.filter(f => !TEST_FILE.test(f)) : null
 
-  // 1. Coverage через vitest run --passWithNoTests --coverage
+  // 1. Coverage через vitest run --passWithNoTests --coverage (+ --changed у changed-режимі)
   const lcovDir = await mkdtemp(join(tmpdir(), 'js-lint-cov-'))
   let coverage
   try {
-    const code = await runner.runJsCoverage({ cwd: jsRoot, lcovDir })
+    const code = await runner.runJsCoverage(scope ? { cwd: jsRoot, lcovDir, base: scope.base } : { cwd: jsRoot, lcovDir })
     if (code !== 0) throw new Error(`JS coverage exit ${code}`)
     const lcovPath = join(lcovDir, 'lcov.info')
     coverage = existsSync(lcovPath)
@@ -273,13 +319,20 @@ async function collectOneRoot(jsRoot, cwd, runner) {
     await rm(lcovDir, { recursive: true, force: true })
   }
 
-  // Порожній lcov ⇔ vitest з --passWithNoTests не знайшов тестів. Пропускаємо
-  // workspace, щоб не запускати Stryker марно і не псувати агрегат.
-  const hasTests = coverage.lines.total > 0 || coverage.functions.total > 0
-  if (!hasTests) return null
+  // Full-режим: порожній lcov ⇔ vitest не знайшов тестів → пропускаємо workspace,
+  // щоб не ганяти Stryker марно. У changed-режимі НЕ пропускаємо (див. JSDoc).
+  if (!scope) {
+    const hasTests = coverage.lines.total > 0 || coverage.functions.total > 0
+    if (!hasTests) return null
+  }
 
-  // 2. Mutation через Stryker
-  await runner.runStryker({ cwd: jsRoot })
+  // Changed-режим без production-src (змінено лише тест-файли) → мутувати нічого.
+  if (scope && mutateSrc.length === 0) {
+    return { coverage, mutation: { caught: 0, total: 0 }, survived: [] }
+  }
+
+  // 2. Mutation через Stryker (у changed-режимі — лише по mutateSrc)
+  await runner.runStryker(scope ? { cwd: jsRoot, mutate: mutateSrc } : { cwd: jsRoot })
   const mutationPath = join(jsRoot, 'reports', 'stryker', 'mutation.json')
   if (!existsSync(mutationPath)) {
     throw new Error(
@@ -317,22 +370,36 @@ async function collectOneRoot(jsRoot, cwd, runner) {
  * з зрозумілим повідомленням ("Жодного провайдера покриття не знайдено").
  * Шляхи у `survived` рібейзяться відносно `cwd`, щоб `coverage-fix.mjs`
  * знаходив джерела через `join(projectRoot, file)`.
+ *
+ * Changed-режим (`opts.changedFiles` задано): кожен root отримує лише свої змінені
+ * JS-файли (`scopeToRoot`); roots без змінених JS пропускаються повністю (ні vitest,
+ * ні Stryker). Якщо змін нема ніде — повертає `[]` без error-логу (оркестратор
+ * трактує порожній changed-scope як pass).
  * @param {string} cwd корінь проєкту
- * @param {{runner?: typeof defaultRunner}} [opts] runner-ін'єкція для тестів
- * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>>} рядок `JS` або `[]` коли тестів нема ніде
+ * @param {{runner?: typeof defaultRunner, changedFiles?: string[], base?: string|null}} [opts] runner-ін'єкція + changed-scope
+ * @returns {Promise<Array<{area:string, coverage:object, mutation:{caught:number,total:number}, survived:Array<object>}>>} рядок `JS` або `[]` коли тестів/змін нема ніде
  */
 export async function collect(cwd, opts = {}) {
   const runner = opts.runner ?? defaultRunner
+  const changed = Array.isArray(opts.changedFiles)
   const jsRoots = await resolveAllJsRoots(cwd)
   if (jsRoots.length === 0) throw new Error('js-lint coverage: package.json не знайдено')
 
   const results = []
   for (const jsRoot of jsRoots) {
-    const r = await collectOneRoot(jsRoot, cwd, runner)
+    let scope = null
+    if (changed) {
+      const files = scopeToRoot(opts.changedFiles, cwd, jsRoot)
+      if (files.length === 0) continue // root без змінених JS — пропускаємо
+      scope = { files, base: opts.base ?? null }
+    }
+    const r = await collectOneRoot(jsRoot, cwd, runner, scope)
     if (r !== null) results.push(r)
   }
 
   if (results.length === 0) {
+    // Changed-режим: нема змінених JS у жодному root → тихо порожньо (це pass, не помилка).
+    if (changed) return []
     console.error(
       'js-lint coverage: жоден workspace не має тестів ' +
         '(`*.test.{js,mjs}` у `tests/` або поряд із джерелом) — ' +

@@ -19,6 +19,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { applyVerdicts } from '../../../scripts/coverage-classify/apply.mjs'
 import { classify } from '../../../scripts/coverage-classify/index.mjs'
+import { flowStatePath, readState } from '../../../scripts/dispatcher/lib/state-store.mjs'
+import { collectChangedFilesSince } from '../../../scripts/lib/changed-files.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
@@ -195,17 +197,45 @@ async function readClassifyThreshold(cwd) {
 }
 
 /**
+ * Резолвить scope змінених файлів для `--changed`-режиму.
+ *
+ * Base — `metadata.base_commit` зі стану flow (sibling-файл `.flow.json` поруч із
+ * worktree-checkout). `git diff <base>` проти робочого дерева ловить committed і
+ * uncommitted однаково — тож scope не залежить від того, чи executor уже закомітив
+ * крок. Поза flow (нема/пошкоджений стан) — fallback на робоче дерево vs HEAD.
+ * @param {string} cwd корінь проєкту (= worktree-checkout у межах flow)
+ * @returns {{base: string|null, files: string[]}} base-ref і relative-posix список змінених файлів
+ */
+function resolveChangedScope(cwd) {
+  let base = null
+  try {
+    const state = readState(flowStatePath(cwd))
+    base = state?.metadata?.base_commit ?? null
+  } catch {
+    // пошкоджений/несумісний стан — попереджаємо й падаємо на HEAD (working-tree scope).
+    console.error('coverage --changed: стан flow нечитабельний — scope визначається від HEAD робочого дерева')
+    base = null
+  }
+  return { base, files: collectChangedFilesSince(base, cwd) }
+}
+
+/**
  * Виконує coverage-pipeline: discovery провайдерів за `.n-cursor.json#rules`,
  * detect+collect для кожного, агрегація, запис COVERAGE.md.
  * При `opts.fix === true` після запису COVERAGE.md запускає агента (coverage-fix.mjs)
  * для написання тестів по вцілілих мутантах.
- * @param {{cwd?:string, rulesDir?:string, fix?:boolean}} [opts] ін'єкція cwd/rulesDir для тестів; fix — --fix режим
- * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних)
+ * При `opts.changed === true` провайдери звужують scope до змінених від base файлів
+ * (для flow-турнікета). Порожній scope (нема релевантних змін) — це pass (exit 0)
+ * без перезапису наявного COVERAGE.md, а НЕ помилка «жодного провайдера».
+ * @param {{cwd?:string, rulesDir?:string, fix?:boolean, changed?:boolean}} [opts] ін'єкція cwd/rulesDir для тестів; fix — --fix режим; changed — scope лише змінених
+ * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних у full-режимі)
  */
 export async function runCoverageSteps(opts = {}) {
   const cwd = opts.cwd ?? process.cwd()
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const config = await readNCursorConfigLite(cwd)
+  const scope = opts.changed ? resolveChangedScope(cwd) : null
+  const collectOpts = scope ? { changedFiles: scope.files, base: scope.base } : {}
   const rows = []
 
   for (const ruleId of config.rules) {
@@ -214,12 +244,25 @@ export async function runCoverageSteps(opts = {}) {
     if (!provider) continue
     if (!(await provider.detect(cwd))) continue
     console.log(`→ ${ruleId} coverage…`)
-    rows.push(...(await provider.collect(cwd)))
+    rows.push(...(await provider.collect(cwd, collectOpts)))
   }
 
   if (rows.length === 0) {
+    // --changed: порожній scope = «нема релевантних змін» → pass, не чіпаємо COVERAGE.md.
+    if (opts.changed) {
+      console.log('✓ coverage --changed: немає змінених файлів у scope провайдерів — пропускаю')
+      return 0
+    }
     console.error('✗ Жодного провайдера покриття не знайдено для активних правил у .n-cursor.json#rules')
     return 1
+  }
+
+  // --changed (турнікет): рішення гейту визначає лише exit-код — vitest/Stryker кинули б помилку
+  // під час collect, якби тести/прогін упали. Тут НЕ перезаписуємо повний COVERAGE.md частковим
+  // scoped-звітом і не ганяємо LLM-класифікацію (зайвий кошт у per-step циклі).
+  if (opts.changed) {
+    console.log('✓ coverage --changed: змінені файли перевірено')
+    return 0
   }
 
   // LLM-класифікація survived мутантів (graceful skip без API key)
@@ -256,18 +299,19 @@ export async function runCoverageSteps(opts = {}) {
 }
 
 /**
- * CLI entrypoint для `n-cursor coverage [--fix]`.
+ * CLI entrypoint для `n-cursor coverage [--fix] [--changed]`.
  * Із `--fix`: збирає метрики → запускає агента → повторно збирає метрики.
  * Без `--fix`: лише збирає метрики.
+ * Із `--changed`: звужує scope до змінених від base файлів (flow-турнікет).
  * Лок охоплює кожен coverage-прогін окремо.
- * @param {{fix?:boolean}} [opts] прапор --fix
+ * @param {{fix?:boolean, changed?:boolean}} [opts] прапори --fix / --changed
  * @returns {Promise<number>} exit code
  */
 export async function runCoverageCli(opts = {}) {
   const code = await withLock('coverage', () => runCoverageSteps(opts))
   if (code === 0 && opts.fix) {
     console.log('\n♻️  Повторний coverage після агента…\n')
-    return withLock('coverage', () => runCoverageSteps({ fix: false }))
+    return withLock('coverage', () => runCoverageSteps({ fix: false, changed: opts.changed }))
   }
   return code
 }
