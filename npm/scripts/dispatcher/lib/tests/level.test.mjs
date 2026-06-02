@@ -27,6 +27,16 @@ describe('detectLevel', () => {
   test('пріоритет L3 > L0 (migration важливіше за fix у описі)', () => {
     expect(detectLevel('fix during platform migration')).toBe(3)
   })
+  test('ASCII L0-дієслово як ціле слово: prefix/fixture/suffix не дають хибний L0', () => {
+    expect(detectLevel('add prefix validation')).toBe(1)
+    expect(detectLevel('update fixture setup')).toBe(1)
+    expect(detectLevel('suffix tweak')).toBe(1)
+  })
+  test('standalone fix/rename/hotfix лишаються L0 (без регресу)', () => {
+    expect(detectLevel('fix prefix bug')).toBe(0)
+    expect(detectLevel('rename module')).toBe(0)
+    expect(detectLevel('hotfix login')).toBe(0)
+  })
 })
 
 describe('reviewersForLevel', () => {
