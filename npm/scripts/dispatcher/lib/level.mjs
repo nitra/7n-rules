@@ -16,6 +16,16 @@ const L0_WORD_KEYS = ['fix', 'typo', 'bump', 'rename', 'hotfix']
 const L0_SUBSTR_KEYS = ['опечат', 'перейменув']
 /** L2 — багатофайлова фіча/рефактор. */
 const L2_KEYS = ['feature', 'epic', 'refactor', 'рефактор', 'фіча']
+/**
+ * Сигнали складності (cross-cutting rules/checks/correctness): разом із L0-дієсловом
+ * задача НЕ тривіальна. Перекривають L0 (мінімум L2) — щоб rules/checks-роботу не
+ * класифікувати як trivial і не пропускати spec (беклог #2). Підрядком (case-insensitive).
+ */
+const COMPLEXITY_KEYS = [
+  'mdc', 'policy', 'політик', 'rego', 'checker', 'чекер', 'правило', 'правила', 'rules',
+  'суперечн', 'інваріант', 'invariant', 'порушен', 'violation',
+  'кілька файл', 'декілька', 'meta-'
+]
 
 /**
  * Чи символ — ASCII-літера/цифра (межа слова). `undefined` (край рядка) — не alnum.
@@ -44,7 +54,9 @@ function hasWord(text, word) {
 
 /**
  * Рівень складності задачі за описом: 0 (тривіальне) … 3 (архітектурне).
- * Пріоритет: L3 > L0 > L2 > дефолт L1.
+ * Пріоритет: L3 > L0 (якщо без сигналів складності) > L2/складність > дефолт L1.
+ * Лише сигнал складності перекриває L0-дієслово (`fix mdc checker` → L2, не L0);
+ * L2-ключі порядок L0 не змінюють (`rename feature` лишається L0, як і раніше).
  * @param {string} desc опис задачі
  * @returns {0 | 1 | 2 | 3} рівень
  */
@@ -53,8 +65,8 @@ export function detectLevel(desc) {
   const has = keys => keys.some(k => d.includes(k))
   const isL0 = L0_WORD_KEYS.some(k => hasWord(d, k)) || L0_SUBSTR_KEYS.some(k => d.includes(k))
   if (has(L3_KEYS)) return 3
-  if (isL0) return 0
-  if (has(L2_KEYS)) return 2
+  if (isL0 && !has(COMPLEXITY_KEYS)) return 0
+  if (has(L2_KEYS) || has(COMPLEXITY_KEYS)) return 2
   return 1
 }
 

@@ -37,6 +37,23 @@ describe('detectLevel', () => {
     expect(detectLevel('rename module')).toBe(0)
     expect(detectLevel('hotfix login')).toBe(0)
   })
+  test('COMPLEXITY-guard: fix-дієслово + сигнал складності → L2 (не L0)', () => {
+    expect(detectLevel('fix mdc checker')).toBe(2)
+    expect(detectLevel('fix суперечність у rules')).toBe(2)
+    expect(detectLevel('fix rego policy')).toBe(2)
+    expect(detectLevel('hotfix violation у invariant')).toBe(2)
+  })
+  test('чистий fix без сигналів складності лишається L0', () => {
+    expect(detectLevel('fix typo')).toBe(0)
+    expect(detectLevel('bump deps')).toBe(0)
+  })
+  test('L2-ключ НЕ перекриває L0 (лише складність перекриває)', () => {
+    expect(detectLevel('rename feature foo')).toBe(0)
+  })
+  test('без false-positive: merge conflict / правильно — не складність', () => {
+    expect(detectLevel('fix merge conflict')).toBe(0)
+    expect(detectLevel('fix правильно описати модуль')).toBe(0)
+  })
 })
 
 describe('reviewersForLevel', () => {
