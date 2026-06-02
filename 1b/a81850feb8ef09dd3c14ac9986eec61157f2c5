@@ -1,0 +1,19 @@
+.cursor/skills/n-lint/SKILL.md
+  s_829ef051c19843::t_3d5db295632245 7-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "1ba81850feb8ef09dd3c14ac9986eec61157f2c5",
+  "prompts": {},
+  "sessions": {
+    "s_829ef051c19843": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aa9d67c6-9d30-4352-84d4-ba0ff29eafee",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
