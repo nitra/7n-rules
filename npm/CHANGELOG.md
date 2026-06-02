@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.13.0] - 2026-06-02
+
+### Changed
+
+- k8s hasura_configmap: розширено перелік обов'язкових env у ConfigMap Hasura-Deployment — додатково до HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS="true" тепер вимагаються HASURA_GRAPHQL_ENABLE_RELAY="false", HASURA_GRAPHQL_ENABLE_TELEMETRY="false", HASURA_GRAPHQL_ENABLED_LOG_TYPES="startup,http-log" (точний рядок) і HASURA_GRAPHQL_DISABLE_EVENTING (ключ обов'язковий, значення довільне, за замовчуванням "true")
+
 ## [3.12.0] - 2026-06-02
 
 ### Added
