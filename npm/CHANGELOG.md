@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.2] - 2026-06-02
+
+### Fixed
+
+- Додано pull-requests: read до clean-merged-branch.yml, щоб cleanup action міг перевіряти PR-и комітів без 403.
+- detectLevel: ASCII L0-дієслова (fix/typo/bump/rename/hotfix) матчаться цілим словом, а не підрядком — опис на кшталт 'add prefix validation' більше не дає хибний L0 (раніше 'fix' ловився в 'prefix'/'fixture'/'suffix'). Кириличні L0-ключі лишаються підрядком (стемінг).
+
 ## [3.14.1] - 2026-06-02
 
 ### Changed
