@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.14.0] - 2026-06-02
+
+### Changed
+
+- k8s hasura_configmap: base/dev ConfigMap Hasura-Deployment має містити HASURA_GRAPHQL_ENABLED_APIS="metadata,graphql,pgdump" (точний рядок). Кожен не-base overlay (k8s/<env>/, env≠base/dev), що успадковує Hasura-base, має у kustomization.yaml перевизначати цей ключ до "metadata,graphql" (без pgdump) патчем JSON6902/Strategic Merge на ConfigMap — нова cross-file перевірка validateHasuraOverlayEnabledApisOverride
+
 ## [3.13.0] - 2026-06-02
 
 ### Changed
