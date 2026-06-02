@@ -1,0 +1,24 @@
+npm/bin/n-cursor.js
+  s_5a4c3dac8e9f27::t_3a17f35e31d682 719
+  s_5a4c3dac8e9f27::t_ec54c617f521c0 645-658
+npm/scripts/lib/worktree-notice.mjs
+  s_5a4c3dac8e9f27::t_0e7656cd366e5c 15-23
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_5a4c3dac8e9f27::t_494d3a2dde46b4 24-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ba65915348f690492cd3dd0e990899998a43f4aa",
+  "prompts": {},
+  "sessions": {
+    "s_5a4c3dac8e9f27": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "27bcf8ad-3d79-4564-975c-e30f0be45f1d",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
