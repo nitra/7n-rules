@@ -4,8 +4,9 @@
  *  - `findTestFrameworkImport` бачить test-фреймворки і у `import`, і у `require()`, і у динамічному `import()`.
  *  - `classifyPublishedFileAsTest` повертає причину для test-style каталогів/імен/імпортів і `null` для «чистих» файлів.
  *
- * Інші розділи `check()` (TypeScript layout, hk, npm-publish workflow, CHANGELOG, dirty-bump)
+ * Інші розділи `check()` (TypeScript layout, hk, npm-publish workflow)
  * покриті інтеграційними прогонами через `integration-repo-checks.test.mjs`.
+ * Узгодженість `version`/`CHANGELOG.md` тут не перевіряється — це зона `changelog/js/consistency.mjs`.
  */
 import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
@@ -199,39 +200,6 @@ describe('check — інтеграційні сценарії', () => {
       await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
       await writeFile(join(dir, 'hk.pkl'), '["pre-commit"]\nbunx -p typescript tsc\ntsconfig.emit-types.json\n', 'utf8')
       await writeFile(join(dir, 'npm/tsconfig.emit-types.json'), '{"compilerOptions":{}}\n', 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(1)
-    })
-  })
-
-  test('CHANGELOG version не збігається → fail (lines 293, 294, 302–307)', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
-      await ensureDir(join(dir, 'npm'))
-      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
-      await writeFile(join(dir, 'npm/CHANGELOG.md'), '## [2.0.0]\n\nFoo.\n', 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(1)
-    })
-  })
-
-  test('CHANGELOG без секцій ## [x] → fail (line 307)', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
-      await ensureDir(join(dir, 'npm'))
-      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg', version: '1.0.0' })
-      await writeFile(join(dir, 'npm/CHANGELOG.md'), '# Changelog\n\nNothing yet.\n', 'utf8')
-      const code = await check(dir)
-      expect(code).toBe(1)
-    })
-  })
-
-  test('npm/package.json без поля version → fail (line 299)', async () => {
-    await withTmpDir(async dir => {
-      await writeJson(join(dir, 'package.json'), { name: 'root', workspaces: ['npm'] })
-      await ensureDir(join(dir, 'npm'))
-      await writeJson(join(dir, 'npm/package.json'), { name: 'pkg' })
-      await writeFile(join(dir, 'npm/CHANGELOG.md'), '## [1.0.0]\n\n', 'utf8')
       const code = await check(dir)
       expect(code).toBe(1)
     })

@@ -20,16 +20,15 @@
  *    test-фреймворків (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, `jest`, `ava`, …).
  *    Виняток: `*_test.rego` дозволені поруч з полісі — це конвенція conftest.
  *
- * Версія та CHANGELOG: перший заголовок `## [version]` у `npm/CHANGELOG.md` має збігатися з `version` у
- * `npm/package.json` (найсвіжіший реліз зверху). Якщо в git є незакомічені зміни під `npm/`, `version` у робочому
- * файлі має відрізнятися від `HEAD` — інакше типовий пропуск bump після правок у пакеті.
+ * Версія та CHANGELOG тут НЕ перевіряються: єдиний артефакт зміни — change-файл, а узгодженість
+ * `version`/`CHANGELOG.md` (включно з drift від ручного bump) валідує `changelog/js/consistency.mjs`
+ * за моделлю `n-changelog.mdc`. Інваріант «верхня секція CHANGELOG == package.json.version» істинний
+ * лише post-release і його гарантує `n-cursor release` у CI — локально його не підтримують руками.
  * @param {string} cwd корінь репозиторію
  */
-import { execFile } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { promisify } from 'node:util'
 
 import { parseSync } from 'oxc-parser'
 
@@ -42,14 +41,6 @@ import {
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
-
-const execFileAsync = promisify(execFile)
-
-/** Перший заголовок релізу у Keep a Changelog (`## [1.2.3]`). */
-const CHANGELOG_FIRST_VERSION_RE = /^## \[([^\]]+)\]/m
-
-/** Поле `version` у текстовому зрізі `package.json` (для `git show HEAD:npm/package.json`). */
-const PACKAGE_JSON_VERSION_RE = /"version":\s*"([^"]+)"/u
 
 /** Файл проєкту TypeScript для emit без каталогу `src` (див. npm-module.mdc) */
 const EMIT_TYPES_CONFIG = 'npm/tsconfig.emit-types.json'
@@ -91,9 +82,9 @@ const GLOBSTAR_TRAILING_RE = /\/__GLOBSTAR__$/u
 
 /**
  * Чи є під `npm/src` хоча б один `.js` (рекурсивно).
+ * @param {string} cwd корінь репозиторію
  * @param {string[]} [ignorePaths] абсолютні шляхи каталогів, повністю виключених з обходу
  * @returns {Promise<boolean>} `true`, якщо знайдено хоча б один `.js`
- * @param {string} cwd корінь репозиторію
  */
 async function npmSrcTreeHasJsFile(cwd, ignorePaths = []) {
   const root = join(cwd, 'npm/src')
@@ -213,136 +204,6 @@ function checkEmitTypesConfig(passFn, failFn, cwd) {
     return
   }
   passFn(`${EMIT_TYPES_CONFIG} є (структуру перевіряє npx @nitra/cursor fix → npm_module.emit_types_config)`)
-}
-
-/**
- * Перевіряє npm-publish.yml workflow.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при помилці
- * @param {string} cwd корінь репозиторію
- */
-/**
- * Чи виконано `git` у корені робочого дерева.
- * @returns {Promise<boolean>} true, якщо процес запущено в межах git work tree
- * @param {string} cwd корінь репозиторію
- */
-async function gitInsideWorkTree(cwd) {
-  try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--is-inside-work-tree'], { encoding: 'utf8', cwd })
-    return stdout.trim() === 'true'
-  } catch {
-    return false
-  }
-}
-
-/**
- * Список незакомічених шляхів під `npm/` відносно `HEAD`.
- * @param {string} cwd корінь репозиторію
- * @returns {Promise<string[] | null>} шляхи або `null`, якщо `git` недоступний
- */
-async function gitDiffNameOnlyNpm(cwd) {
-  try {
-    const { stdout } = await execFileAsync('git', ['diff', '--name-only', 'HEAD', '--', 'npm'], {
-      encoding: 'utf8',
-      cwd
-    })
-    return stdout.trim().split('\n').filter(Boolean)
-  } catch {
-    return null
-  }
-}
-
-/**
- * Поле `version` з `npm/package.json` на заданому git-ref (`HEAD:npm/package.json`).
- * @param {string} refPath на кшталт `HEAD:npm/package.json`
- * @param {string} cwd корінь репозиторію
- * @returns {Promise<string | null>} значення поля `version` або `null`, якщо ref недоступний
- */
-async function gitShowNpmPackageVersionAt(refPath, cwd) {
-  try {
-    const { stdout } = await execFileAsync('git', ['show', refPath], { encoding: 'utf8', cwd })
-    const m = stdout.match(PACKAGE_JSON_VERSION_RE)
-    return m ? m[1] : null
-  } catch {
-    return null
-  }
-}
-
-/**
- * Версія з першого заголовка `## […]` у тексті CHANGELOG.
- * @param {string} changelogText вміст файлу CHANGELOG.md
- * @returns {string | null} версія з першої секції або `null`, якщо заголовка немає
- */
-function firstChangelogSectionVersion(changelogText) {
-  const m = changelogText.match(CHANGELOG_FIRST_VERSION_RE)
-  return m ? m[1] : null
-}
-
-/**
- * Перший реліз у CHANGELOG має збігатися з `version` у `npm/package.json`.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при виявленому порушенні
- * @returns {Promise<void>}
- * @param {string} cwd корінь репозиторію
- */
-async function checkChangelogTopMatchesPackageVersion(passFn, failFn, cwd) {
-  if (!existsSync(join(cwd, 'npm/CHANGELOG.md')) || !existsSync(join(cwd, 'npm/package.json'))) return
-  const pkg = JSON.parse(await readFile(join(cwd, 'npm/package.json'), 'utf8'))
-  const ver = typeof pkg.version === 'string' ? pkg.version : null
-  if (!ver) {
-    failFn('npm/package.json: відсутнє поле version')
-    return
-  }
-  const cl = await readFile(join(cwd, 'npm/CHANGELOG.md'), 'utf8')
-  const first = firstChangelogSectionVersion(cl)
-  if (!first) {
-    failFn('npm/CHANGELOG.md: не знайдено жодного заголовка ## [version]')
-    return
-  }
-  if (first !== ver) {
-    failFn(
-      `npm/CHANGELOG.md: перша секція [${first}] не збігається з npm/package.json version "${ver}" ` +
-        '(зверху має бути найсвіжіший реліз і той самий номер — npm-module.mdc).'
-    )
-    return
-  }
-  passFn(`npm/CHANGELOG.md: перша секція [${first}] збігається з npm/package.json`)
-}
-
-/**
- * Незакомічені зміни під `npm/` вимагають підвищення `version` відносно `HEAD`.
- * @param {(msg: string) => void} passFn callback при успішній перевірці
- * @param {(msg: string) => void} failFn callback при виявленому порушенні
- * @returns {Promise<void>}
- * @param {string} cwd корінь репозиторію
- */
-async function checkDirtyNpmRequiresVersionBump(passFn, failFn, cwd) {
-  if (!(await gitInsideWorkTree(cwd))) {
-    passFn('npm-module: git недоступний або поза work tree — перевірку незакоміченого bump пропущено')
-    return
-  }
-  const changed = await gitDiffNameOnlyNpm(cwd)
-  if (changed === null) {
-    passFn('npm-module: git diff під npm/ недоступний — пропущено')
-    return
-  }
-  if (changed.length === 0) return
-
-  const headVer = await gitShowNpmPackageVersionAt('HEAD:npm/package.json', cwd)
-  if (headVer === null) return
-
-  const pkg = JSON.parse(await readFile(join(cwd, 'npm/package.json'), 'utf8'))
-  const cur = typeof pkg.version === 'string' ? pkg.version : null
-  if (!cur) return
-
-  if (cur === headVer) {
-    failFn(
-      `Незакомічені зміни під npm/ (${changed.join(', ')}), але "version" у npm/package.json лишився ${cur} ` +
-        '(як у HEAD). Підвищ version (+1) і додай секцію ## [нова версія] зверху CHANGELOG (npm-module.mdc).'
-    )
-    return
-  }
-  passFn(`npm/: незакомічені зміни під npm/ узгоджені з підвищенням version (${headVer} → ${cur})`)
 }
 
 /**
@@ -613,9 +474,6 @@ export async function check(cwd = process.cwd()) {
   }
 
   await checkPublishWorkflow(pass, fail, cwd)
-
-  await checkChangelogTopMatchesPackageVersion(pass, fail, cwd)
-  await checkDirtyNpmRequiresVersionBump(pass, fail, cwd)
 
   return reporter.getExitCode()
 }

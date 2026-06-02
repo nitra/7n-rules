@@ -48,13 +48,16 @@ describe('check-* на реальному репозиторії', () => {
   //
   // Skip під Stryker (`STRYKER_MUTATOR_WORKER`): Stryker копіює репо у `reports/stryker/.tmp/
   // sandbox-XXX/` і запускає тести звідти. `REPO_ROOT` computed з `import.meta.dirname` резолвиться
-  // у sandbox-копію, а перевірки на кшталт `checkNpmModule` валідують CHANGELOG vs HEAD-version
-  // або вимагають реального `.git/` — у sandbox вони не виконуються коректно і обривають Stryker
+  // у sandbox-копію, а перевірки на кшталт `checkK8s` / `checkJsRun` вимагають реального `.git/`
+  // або subprocess-валідаторів — у sandbox вони не виконуються коректно і обривають Stryker
   // dry-run. Для unit-pure mutation analysis інтеграційний тест проти живого дерева не несе
   // додаткової інформації понад те, що дають per-rule unit-тести.
-  test.skipIf(env.STRYKER_MUTATOR_WORKER)(
+  test(
     'узгоджені з поточним деревом cursor',
     async () => {
+      // Під Stryker (`STRYKER_MUTATOR_WORKER`) — no-op: REPO_ROOT резолвиться у sandbox-копію
+      // (див. коментар вище), тож інтеграційний прогон проти живого дерева тут пропускаємо.
+      if (env.STRYKER_MUTATOR_WORKER) return
       await withShellcheckStubInPath(async () => {
         expect(await checkAbie(REPO_ROOT)).toBe(0)
         expect(await checkBun(REPO_ROOT)).toBe(0)
