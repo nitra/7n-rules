@@ -1572,6 +1572,14 @@ try {
 
       break
     }
+    case 'graph': {
+      // n-cursor graph — read-only позиція DAG вузлів (node-dag-state spec):
+      // status сканує docs/graphs/<g>/nodes/ і деривує статус кожного вузла.
+      const { runGraphCli } = await import('../scripts/dispatcher/graph.mjs')
+      process.exitCode = runGraphCli(args)
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1581,7 +1589,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace, graph`
       )
       process.exitCode = 1
     }
