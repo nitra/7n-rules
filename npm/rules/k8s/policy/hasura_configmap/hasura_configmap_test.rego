@@ -14,6 +14,8 @@ telemetry_key := "HASURA_GRAPHQL_ENABLE_TELEMETRY"
 
 log_types_key := "HASURA_GRAPHQL_ENABLED_LOG_TYPES"
 
+apis_key := "HASURA_GRAPHQL_ENABLED_APIS"
+
 eventing_key := "HASURA_GRAPHQL_DISABLE_EVENTING"
 
 base_cm := {
@@ -28,6 +30,7 @@ valid_data := {
 	relay_key: "false",
 	telemetry_key: "false",
 	log_types_key: "startup,http-log",
+	apis_key: "metadata,graphql,pgdump",
 	eventing_key: "true",
 }
 
@@ -37,9 +40,9 @@ test_deny_missing_data if {
 	count(hasura_configmap.deny) > 0 with input as base_cm
 }
 
-# Усі ключі відсутні → принаймні п'ять порушень.
+# Усі ключі відсутні → принаймні шість порушень.
 test_deny_missing_data_lists_all_keys if {
-	count(hasura_configmap.deny) >= 5 with input as base_cm
+	count(hasura_configmap.deny) >= 6 with input as base_cm
 }
 
 test_allow_all_required_keys if {
@@ -112,6 +115,25 @@ test_deny_log_types_reordered if {
 
 test_allow_log_types_exact if {
 	count(hasura_configmap.deny) == 0 with input as with_data(object.union(valid_data, {log_types_key: "startup,http-log"}))
+}
+
+# --- ENABLED_APIS (base/dev): точний рядок "metadata,graphql,pgdump" ---
+
+test_deny_apis_missing if {
+	count(hasura_configmap.deny) > 0 with input as with_data(object.remove(valid_data, {apis_key}))
+}
+
+# Значення overlay (без pgdump) на base-ConfigMap — порушення (pgdump обов'язковий для base/dev).
+test_deny_apis_overlay_value_on_base if {
+	count(hasura_configmap.deny) > 0 with input as with_data(object.union(valid_data, {apis_key: "metadata,graphql"}))
+}
+
+test_deny_apis_reordered if {
+	count(hasura_configmap.deny) > 0 with input as with_data(object.union(valid_data, {apis_key: "graphql,metadata,pgdump"}))
+}
+
+test_allow_apis_exact if {
+	count(hasura_configmap.deny) == 0 with input as with_data(object.union(valid_data, {apis_key: "metadata,graphql,pgdump"}))
 }
 
 # --- DISABLE_EVENTING: ключ обов'язковий, значення довільне ---

@@ -28,6 +28,9 @@ import {
   kustomizationPatchesSortedViolation,
   kustomizationInlinePatchOpsSortedViolation,
   kustomizePatchModifiedPaths,
+  enabledApisValueFromPatchText,
+  hasuraEnabledApisOverrideValue,
+  kustomizationTreeHasHasuraDeployment,
   pdbManifestViolations,
   regenerateLegacyNetworkPolicyDocsInFile,
   healthCheckPolicyTargetRefHeadlessServiceViolation,
@@ -2561,5 +2564,133 @@ spec:
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
+  })
+})
+
+describe('enabledApisValueFromPatchText', () => {
+  test('JSON6902 replace на /data/HASURA_GRAPHQL_ENABLED_APIS', () => {
+    const text = '- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n'
+    expect(enabledApisValueFromPatchText(text)).toBe('metadata,graphql')
+  })
+
+  test('JSON6902 add теж приймається', () => {
+    const text = '- op: add\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n'
+    expect(enabledApisValueFromPatchText(text)).toBe('metadata,graphql')
+  })
+
+  test('Strategic Merge data.HASURA_GRAPHQL_ENABLED_APIS', () => {
+    const text = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
+    expect(enabledApisValueFromPatchText(text)).toBe('metadata,graphql')
+  })
+
+  test('patch не чіпає ключ → null', () => {
+    const text = '- op: replace\n  path: /spec/minReplicas\n  value: 2\n'
+    expect(enabledApisValueFromPatchText(text)).toBeNull()
+  })
+
+  test('порожній / нечитабельний patch → null', () => {
+    expect(enabledApisValueFromPatchText('')).toBeNull()
+    expect(enabledApisValueFromPatchText('   ')).toBeNull()
+  })
+})
+
+describe('kustomizationTreeHasHasuraDeployment', () => {
+  const hasuraDep = `# yaml-language-server: $schema=x
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-h
+  namespace: dev
+spec:
+  selector:
+    matchLabels:
+      app: db-h
+  template:
+    metadata:
+      labels:
+        app: db-h
+    spec:
+      containers:
+        - name: h
+          image: hasura/graphql-engine:v2.49.0
+`
+  const plainDep = hasuraDep.replace('hasura/graphql-engine:v2.49.0', 'nginx:1.27')
+  const baseKust = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dev
+resources:
+  - deployment.yaml
+`
+  const overlayKust = `apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: prod
+resources:
+  - ../base
+`
+
+  /**
+   * Будує тимчасове дерево `k8s/base` (Deployment+kustomization) + `k8s/prod` (overlay на ../base).
+   * @param {string} depYaml вміст base `deployment.yaml`
+   * @returns {Promise<{ root: string, prodKust: string }>} корінь і шлях overlay-kustomization
+   */
+  async function buildTree(depYaml) {
+    const root = await mkdtemp(join(tmpdir(), 'k8s-hasura-tree-'))
+    const base = join(root, 'k8s', 'base')
+    const prod = join(root, 'k8s', 'prod')
+    await mkdir(base, { recursive: true })
+    await mkdir(prod, { recursive: true })
+    await writeFile(join(base, 'deployment.yaml'), depYaml, 'utf8')
+    await writeFile(join(base, 'kustomization.yaml'), baseKust, 'utf8')
+    await writeFile(join(prod, 'kustomization.yaml'), overlayKust, 'utf8')
+    return { root, prodKust: join(prod, 'kustomization.yaml') }
+  }
+
+  test('overlay, що успадковує Hasura-base → true', async () => {
+    const { root, prodKust } = await buildTree(hasuraDep)
+    try {
+      expect(await kustomizationTreeHasHasuraDeployment(prodKust, resolve(root))).toBe(true)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test('overlay з не-Hasura base → false', async () => {
+    const { root, prodKust } = await buildTree(plainDep)
+    try {
+      expect(await kustomizationTreeHasHasuraDeployment(prodKust, resolve(root))).toBe(false)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('hasuraEnabledApisOverrideValue', () => {
+  const kustWithPatch = patch => ({ patches: [{ target: { kind: 'ConfigMap' }, patch }] })
+
+  test('повертає значення ConfigMap-патча', () => {
+    const k = kustWithPatch('- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n')
+    expect(hasuraEnabledApisOverrideValue(k)).toBe('metadata,graphql')
+  })
+
+  test('Strategic Merge з kind у тілі (без target)', () => {
+    const k = {
+      patches: [
+        {
+          patch: 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
+        }
+      ]
+    }
+    expect(hasuraEnabledApisOverrideValue(k)).toBe('metadata,graphql')
+  })
+
+  test('патч на іншу ціль (Deployment) ігнорується → null', () => {
+    const k = {
+      patches: [{ target: { kind: 'Deployment' }, patch: '- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n' }]
+    }
+    expect(hasuraEnabledApisOverrideValue(k)).toBeNull()
+  })
+
+  test('без patches → null', () => {
+    expect(hasuraEnabledApisOverrideValue({})).toBeNull()
   })
 })

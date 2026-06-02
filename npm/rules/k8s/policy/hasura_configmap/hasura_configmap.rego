@@ -6,6 +6,9 @@
 #   "HASURA_GRAPHQL_ENABLE_RELAY"                      → "false"
 #   "HASURA_GRAPHQL_ENABLE_TELEMETRY"                  → "false"
 #   "HASURA_GRAPHQL_ENABLED_LOG_TYPES"                 → "startup,http-log" (точний рядок)
+#   "HASURA_GRAPHQL_ENABLED_APIS"                       → "metadata,graphql,pgdump" (точний рядок;
+#       це значення для base/dev. Не-base overlay-и мають зводити його до "metadata,graphql"
+#       патчем у kustomization.yaml — перевіряє JS `validateHasuraOverlayEnabledApisOverride`)
 #   "HASURA_GRAPHQL_DISABLE_EVENTING"                  → null (ключ обов'язковий,
 #       значення довільне; за замовчуванням рекомендовано "true")
 #
@@ -39,6 +42,7 @@ required_env := {
 	"HASURA_GRAPHQL_ENABLE_RELAY": "false",
 	"HASURA_GRAPHQL_ENABLE_TELEMETRY": "false",
 	"HASURA_GRAPHQL_ENABLED_LOG_TYPES": "startup,http-log",
+	"HASURA_GRAPHQL_ENABLED_APIS": "metadata,graphql,pgdump",
 	"HASURA_GRAPHQL_DISABLE_EVENTING": null,
 }
 

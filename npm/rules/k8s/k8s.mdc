@@ -303,6 +303,7 @@ spec:
 - **`HASURA_GRAPHQL_ENABLE_RELAY`** зі значенням **`"false"`**;
 - **`HASURA_GRAPHQL_ENABLE_TELEMETRY`** зі значенням **`"false"`**;
 - **`HASURA_GRAPHQL_ENABLED_LOG_TYPES`** зі значенням **`"startup,http-log"`** (точний рядок);
+- **`HASURA_GRAPHQL_ENABLED_APIS`** зі значенням **`"metadata,graphql,pgdump"`** (точний рядок) — **значення для base/dev**;
 - **`HASURA_GRAPHQL_DISABLE_EVENTING`** — ключ обов'язковий, значення довільне (за замовчуванням **`"true"`**).
 
 Точні умови перевірки — rego-пакет **`k8s.hasura_configmap`** (cross-file прив'язка ConfigMap↔Deployment — у `rules/k8s/js/manifests.mjs`).
@@ -313,7 +314,23 @@ data:
   HASURA_GRAPHQL_ENABLE_RELAY: 'false'
   HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false'
   HASURA_GRAPHQL_ENABLED_LOG_TYPES: 'startup,http-log'
+  HASURA_GRAPHQL_ENABLED_APIS: 'metadata,graphql,pgdump'
   HASURA_GRAPHQL_DISABLE_EVENTING: 'true'
+```
+
+### `HASURA_GRAPHQL_ENABLED_APIS` поза base/dev
+
+`pgdump` дозволено **лише** для **base**/**dev**. Кожен **не-base** overlay (`k8s/<env>/`, де `<env>` ≠ `base`/`dev`), що успадковує Hasura-base, **зобов'язаний** у своєму **`kustomization.yaml`** перевизначити `HASURA_GRAPHQL_ENABLED_APIS` до **`"metadata,graphql"`** (без `pgdump`) — патчем JSON6902 або Strategic Merge на ціль **ConfigMap**. Перевірка — cross-file у `rules/k8s/js/manifests.mjs` (`validateHasuraOverlayEnabledApisOverride`); `kind: Component` пропускається.
+
+```yaml title="k8s/prod/kustomization.yaml"
+patches:
+  - target:
+      kind: ConfigMap
+      name: db-h
+    patch: |
+      - op: replace
+        path: /data/HASURA_GRAPHQL_ENABLED_APIS
+        value: metadata,graphql
 ```
 
 ## Kustomize: структура каталогів (`base` / overlays)

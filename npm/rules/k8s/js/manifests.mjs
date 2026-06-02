@@ -2358,6 +2358,7 @@ export const HASURA_REQUIRED_ENV_KEYS = [
   'HASURA_GRAPHQL_ENABLE_RELAY',
   'HASURA_GRAPHQL_ENABLE_TELEMETRY',
   'HASURA_GRAPHQL_ENABLED_LOG_TYPES',
+  'HASURA_GRAPHQL_ENABLED_APIS',
   'HASURA_GRAPHQL_DISABLE_EVENTING'
 ]
 
@@ -4929,6 +4930,130 @@ async function validateProdKustomizationOverrides(root, yamlFilesAbs, fail, pass
   }
 }
 
+/** Очікуване `HASURA_GRAPHQL_ENABLED_APIS` у non-base/dev overlay (без `pgdump` — він лише для base/dev). */
+const HASURA_OVERLAY_ENABLED_APIS = 'metadata,graphql'
+
+/** JSON-Pointer ключа `HASURA_GRAPHQL_ENABLED_APIS` у `data` ConfigMap (для JSON6902-патчів). */
+const HASURA_ENABLED_APIS_DATA_POINTER = '/data/HASURA_GRAPHQL_ENABLED_APIS'
+
+/**
+ * Чи дерево kustomization (`resources` / `bases` / `components` / `crds`, рекурсивно) містить
+ * **Hasura-Deployment** у шарі base (образ `hasura/graphql-engine`). Маркер того, що overlay успадковує
+ * Hasura-ConfigMap з pgdump-значенням `ENABLED_APIS` і має його перевизначити.
+ * @param {string} kustAbs kustomization.yaml
+ * @param {string} rootNorm нормалізований корінь репо
+ * @returns {Promise<boolean>} true, якщо в успадкованому base є Hasura-Deployment
+ */
+export async function kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm) {
+  const visited = new Set()
+  const paths = await collectYamlAbsPathsFromKustomizationTree(kustAbs, rootNorm, visited)
+  const rootResolved = resolve(rootNorm)
+  for (const abs of paths) {
+    const rel = (relative(rootResolved, abs) || '').replaceAll('\\', '/')
+    if (!isK8sYamlUnderBaseDirectory(rel)) continue
+    const roots = await readK8sYamlDocumentRootsForInventory(abs)
+    if (roots.some(o => isHasuraDeploymentManifest(o))) return true
+  }
+  return false
+}
+
+/**
+ * Значення, яке inline-`patch` присвоює `data.HASURA_GRAPHQL_ENABLED_APIS`. Підтримка двох форматів:
+ * **JSON6902** (`op` add/replace на `/data/HASURA_GRAPHQL_ENABLED_APIS`) і **Strategic Merge**
+ * (`data.HASURA_GRAPHQL_ENABLED_APIS`). Зовнішні patch-файли (`patches[].path`) не охоплені — Plan B trade-off.
+ * @param {string} patchText вміст поля `patch`
+ * @returns {string | null} присвоєне значення (рядок) або null, якщо patch не чіпає цей ключ
+ */
+export function enabledApisValueFromPatchText(patchText) {
+  const t = typeof patchText === 'string' ? patchText.trim() : ''
+  if (t === '') return null
+  let parsed
+  try {
+    for (const d of parseAllDocuments(t)) {
+      if (d.errors.length === 0) {
+        parsed = d.toJSON()
+        break
+      }
+    }
+  } catch {
+    return null
+  }
+  if (Array.isArray(parsed)) {
+    for (const item of parsed) {
+      if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
+      const rec = /** @type {Record<string, unknown>} */ (item)
+      const op = typeof rec.op === 'string' ? rec.op.trim().toLowerCase() : ''
+      const path = typeof rec.path === 'string' ? normalizeJsonPatchPath(rec.path) : ''
+      if ((op === 'add' || op === 'replace') && path === HASURA_ENABLED_APIS_DATA_POINTER) {
+        return typeof rec.value === 'string' ? rec.value : JSON.stringify(rec.value)
+      }
+    }
+    return null
+  }
+  if (parsed === null || typeof parsed !== 'object') return null
+  const data = /** @type {Record<string, unknown>} */ (parsed).data
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
+  const d = /** @type {Record<string, unknown>} */ (data)
+  if (!Object.hasOwn(d, 'HASURA_GRAPHQL_ENABLED_APIS')) return null
+  const v = d.HASURA_GRAPHQL_ENABLED_APIS
+  return typeof v === 'string' ? v : JSON.stringify(v)
+}
+
+/**
+ * Значення, яке `patches[]` kustomization присвоюють `data.HASURA_GRAPHQL_ENABLED_APIS` на цілі **ConfigMap**.
+ * Повертає значення першого patch-а, що чіпає цей ключ, або null, якщо такого немає.
+ * @param {Record<string, unknown>} kust об'єкт kustomization.yaml
+ * @returns {string | null} присвоєне значення або null
+ */
+export function hasuraEnabledApisOverrideValue(kust) {
+  const patches = kust.patches
+  if (!Array.isArray(patches)) return null
+  for (const p of patches) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) continue
+    const pr = /** @type {Record<string, unknown>} */ (p)
+    if (typeof pr.patch !== 'string') continue
+    if (resolvePatchTargetKind(pr) !== 'ConfigMap') continue
+    const v = enabledApisValueFromPatchText(pr.patch)
+    if (v !== null) return v
+  }
+  return null
+}
+
+/**
+ * Для кожного **non-base/dev** overlay `kustomization.yaml`, що успадковує Hasura-base (Deployment з
+ * `hasura/graphql-engine`), вимагає у `patches[]` перевизначення **`data.HASURA_GRAPHQL_ENABLED_APIS`**
+ * до **`"metadata,graphql"`** (pgdump лишається строго для base/dev) (k8s.mdc). `kind: Component`
+ * пропускається (env-неутральне джерело, не overlay).
+ * @param {string} root корінь репозиторію
+ * @param {string[]} yamlFilesAbs yaml під k8s
+ * @param {(msg: string) => void} fail callback при помилці
+ * @param {(msg: string) => void} passFn callback при успіху
+ */
+async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail, passFn) {
+  const rootNorm = resolve(root)
+  const kustFiles = yamlFilesAbs.filter(abs => basename(abs) === 'kustomization.yaml')
+  for (const kustAbs of kustFiles) {
+    const rel = (relative(rootNorm, kustAbs) || kustAbs).replaceAll('\\', '/')
+    const segment = k8sEnvSegmentFromRelPath(rel)
+    if (segment === null || segment === 'base' || segment === 'dev') continue
+    const kust = await readFirstYamlObject(kustAbs)
+    if (kust === null || kust.kind === 'Component') continue
+    if (!(await kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm))) continue
+    const value = hasuraEnabledApisOverrideValue(kust)
+    if (value === HASURA_OVERLAY_ENABLED_APIS) {
+      passFn(`${rel}: overlay '${segment}' перевизначає HASURA_GRAPHQL_ENABLED_APIS="${HASURA_OVERLAY_ENABLED_APIS}" (k8s.mdc)`)
+    } else if (value === null) {
+      fail(
+        `${rel}: overlay '${segment}' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_APIS до "${HASURA_OVERLAY_ENABLED_APIS}" (pgdump лише для base/dev) (k8s.mdc)`
+      )
+    } else {
+      fail(
+        `${rel}: overlay '${segment}' patch data.HASURA_GRAPHQL_ENABLED_APIS має бути "${HASURA_OVERLAY_ENABLED_APIS}" (зараз: ${JSON.stringify(value)}) (k8s.mdc)`
+      )
+    }
+  }
+}
+
 /**
  * Шукає HPA за `scaleTargetRef.name` серед документів.
  * @param {Record<string, unknown>[]} hpaDocs масив HPA-документів
@@ -6625,6 +6750,8 @@ export async function check(cwd = process.cwd()) {
   await validateNetworkPoliciesForK8sWorkloads(root, yamlFiles, fail, pass)
 
   await validateProdKustomizationOverrides(root, yamlFiles, fail, pass)
+
+  await validateHasuraOverlayEnabledApisOverride(root, yamlFiles, fail, pass)
 
   return reporter.getExitCode()
 }
