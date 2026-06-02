@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.17.0] - 2026-06-02
+
+### Added
+
+- skill changes (auto: завжди, worktree: true) — покласти change-файл у кожен зачеплений workspace через n-cursor change перед фінішем
+
 ## [3.16.0] - 2026-06-02
 
 ### Added
