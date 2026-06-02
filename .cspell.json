@@ -13,6 +13,7 @@
     "docs/adr/**",
     "**/adr/**",
     "docs/superpowers/**",
+    "**/*.html",
     "**/dist/**"
   ],
   "import": ["@nitra/cspell-dict/cspell-ext.json"],
