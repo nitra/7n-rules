@@ -6,7 +6,7 @@ plan: null
 risk: high
 ---
 
-# Push-оркестратор DAG блоків — дизайн
+# Push-оркестратор DAG вузлів — дизайн
 
 Дата: 2026-06-01
 Власник: @vitaliytv
@@ -14,8 +14,8 @@ risk: high
 
 ## Мета
 
-Автоматично роздавати блоки графа (контракт
-`docs/specs/2026-06-01-block-dag-state.md`): координатор сам бере `ready`-вузли,
+Автоматично роздавати вузли графа (контракт
+`docs/specs/2026-06-01-node-dag-state.md`): координатор сам бере `ready`-вузли,
 **спавнить виконавця** (LLM у власному worktree) або кладе у людську чергу,
 збирає `fact`, перераховує граф і повторює — доки граф не вичерпано. Стан —
 винятково у файлах; оркестратор **stateless** (щотіку перечитує граф).
@@ -31,7 +31,7 @@ risk: high
    low/med-risk → авто-LLM; **high-risk → людська черга** (не авто).
 3. **Атомарність усіх файлів графу** (див. нижче) — нема торн-рідів і подвійних
    взять навіть при паралельних виконавцях і кількох машинах.
-4. **Ізоляція** — кожен блок у власному worktree/гілці; фан-ін зливає.
+4. **Ізоляція** — кожен вузол у власному worktree/гілці; фан-ін зливає.
 
 ## Атомарність файлів графу
 
@@ -58,29 +58,34 @@ write-once; beat — atomic-replace; арбітр взяття — push.
 
 ```text
 tick(graph):
-  nodes  = scan(blocks/*.plan.md)              # id, dependsOn, owner, level, risk
-  status = derive(nodes, claim?, fact?, beat?)  # чиста функція (з block-dag-state spec)
+  nodes  = scan(nodes/*.plan.md)              # id, dependsOn, owner, level, risk
+  status = derive(nodes, claim?, fact?, beat?)  # чиста функція (з node-dag-state spec)
   reap_stale(status.in_progress)                # beat старший за TTL → claim вільний
-  ready  = status.ready
-  for n in ready (до WIP-ліміту):
-     if route(n) == human: enqueue_human(n); continue     # high-risk → черга людей
-     if claim(n) == 'busy': continue                       # хтось встиг (push-арбітр)
-     dispatch_llm(n)                                        # flow run у worktree n.branch
+  for n in status.awaiting_human:                           # вузол спитав людину
+     route_question(n.ask)                                  # на «правильну» людину за needs (НЕ їсть --max-llm)
+  for n in status.ready (до --max-llm):
+     if route(n) == human: enqueue_human(n); continue       # high-risk → черга людей
+     if claim(n) == 'busy': continue                        # хтось встиг (push-арбітр)
+     dispatch_llm(n)                                         # flow run у worktree n.branch
+  on ans(n) appears: re-dispatch(n)                          # рішення є → LLM продовжує (flow resume, hint)
   on fact(n) appears: (наступний tick підхопить — нічого не тримаємо)
-  terminate if: усі done | (нема ready та є blocked-on-failed) → report
+  terminate if: усі done | (нема ready/awaiting та є blocked-on-failed) → report
 ```
 
 - **route(n)**: `risk==='high'` → human; інакше llm (level/risk керують лише
-  глибиною review всередині блоку).
+  глибиною review всередині вузла).
+- **route_question(ask)**: матч `ask.needs` × `docs/people/*` expertise →
+  «правильна» людина (skill-based; повний матчер — окремий інкремент). Вузол
+  `awaiting-human` **не** займає слот `--max-llm` (агент паузнутий).
 - **claim(n)**: атомарний `wx`; локально EEXIST → skip; далі commit+push, на
   rejection → fetch+skip (хтось перший).
 
 ## Dispatch виконавця
 
-- **LLM:** для блоку — окремий `flow` у його worktree: `flow run <n.branch>`
+- **LLM:** для вузла — окремий `flow` у його worktree: `flow run <n.branch>`
   (5-фазний цикл: plan→TDD→verify→review→gate) через `subagent-runner`
   (+`withBudget`).
-- **Human:** блок потрапляє у `ready`-чергу (`graph status`/нотифікація);
+- **Human:** вузол потрапляє у `ready`-чергу (`graph status`/нотифікація);
   людина бере вручну (claim) і робить свій flow.
 
 **`fact.md` пише сам `flow`** (рішення): `flow init <branch> --block <id> --graph <g>`
@@ -100,14 +105,14 @@ tick(graph):
 
 ## Фан-ін (злиття паралельних гілок)
 
-- **Integration-блок**: звичайний вузол із `dependsOn` на паралельний набір;
-  його робота — merge гілок виконаних блоків + `verify`/`gate` на результаті.
+- **Integration-вузол**: звичайний вузол із `dependsOn` на паралельний набір;
+  його робота — merge гілок виконаних вузлів + `verify`/`gate` на результаті.
 - Merge-конфлікт → `fact: failed` з причиною → ескалація людині (не авто-форс).
 
 ## Провал і ретраї
 
 - `fact.status==='failed'` → залежні лишаються `blocked`; вузол не `done`.
-- Ретраї на рівні блоку — наявні executor'ні (≤3) → далі HITL.
+- Ретраї на рівні вузла — наявні executor'ні (≤3) → далі HITL.
 - Якщо `ready` порожній, а є `blocked` через `failed` → граф **stalled**:
   оркестратор репортить і зупиняється (рішення за людиною).
 
@@ -125,13 +130,15 @@ tick(graph):
 | `n-cursor graph status` | скан → таблиця позиції DAG (read-only) |
 | `n-cursor graph tick [--max-llm N]` | один прохід: claim+dispatch ready (ідемпотентний) |
 | `n-cursor graph run [--max-llm N] [--max-human M]` | цикл tick'ів до завершення/stall |
+| `n-cursor graph ask <qid>` | показати bundle питання (повний контекст для людини) |
+| `n-cursor graph answer <qid>` | записати рішення (`ans-<qid>.md`, `wx`) → вузол продовжує |
 | `n-cursor graph repair` | зняти осиротілі claim (за claim-age TTL) |
 
 Усе ідемпотентне й stateless → безпечно з CI/cron/руки.
 
 ## Перевикористання n-cursor
 
-`subagent-runner` (спавн), `flow run`/`resume` (цикл на блок), `withBudget`
+`subagent-runner` (спавн), `flow run`/`resume` (цикл на вузол), `withBudget`
 (ліміт API), worktree-ізоляція, `trace` (граф-в'ю), `state-store` (atomic
 rename для `beat`). Оркестратор — тонкий tick поверх цього.
 
@@ -145,7 +152,7 @@ rename для `beat`). Оркестратор — тонкий tick поверх
 
 **In:** stateless `tick`/`run`/`status`/`repair`; push-dispatch LLM + human-черга
 за route; атомарні файли графу (write-once + beat-rename); фан-ін через
-integration-блок; stalled-репорт.
+integration-вузол; stalled-репорт.
 
 **Out (окремо):** GUI-дашборд; авто-генерація графа з однієї спеки (декомпозиція);
 крос-репо графи; пріоритезація/критичний шлях (поки FIFO серед ready).
@@ -154,9 +161,9 @@ integration-блок; stalled-репорт.
 
 - **fact пише `flow`** (не оркестратор): `flow init --block <id> --graph <g>` →
   `flow release` проєктує у `<id>.fact.md`. Оркестратор read-only. Працює і без
-  оркестратора (людський pull-блок теж дає факт).
+  оркестратора (людський pull-вузол теж дає факт).
 - **WIP per-owner-type**: `--max-llm N` (авто-спавн LLM), `--max-human M` (∞ за
-  замовч.). Окремі ресурси — людські блоки не блокують LLM-dispatch.
+  замовч.). Окремі ресурси — людські вузли не вузлають LLM-dispatch.
 - **beat — transient (локальний, не комітиться)**. Крос-машинна stale-детекція —
   за віком `claim.started_at` (закомічений) + TTL; зняття — `graph repair` або
   авто-reap. Без шуму heartbeat-комітів.
