@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.14.1] - 2026-06-02
+
+### Changed
+
+- flow review: рецензент верифікує cross-file твердження читанням (Read) — промпт дозволяє/зобов'язує дочитувати referenced-файли/spec точково, репортувати лише те, що вносить diff (не преіснуючі баги сусідів), і не видавати нефальсифіковних findings «з diff не видно». Зменшує хибні findings.
+
+### Fixed
+
+- coverage-gate: запускати Stryker із локально встановленого @stryker-mutator/core (резолв через package.json у node_modules пакета, bin запускається напряму через node-shebang), а не через npx/bunx — ті тягнуть core у власний кеш без vitest-runner, тож plugin-discovery падав 'Cannot find TestRunner plugin vitest' і flow verify coverage-gate червонів. Працює й з worktree без власного node_modules.
+
 ## [3.14.0] - 2026-06-02
 
 ### Changed
