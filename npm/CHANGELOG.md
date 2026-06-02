@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.16.0] - 2026-06-02
+
+### Added
+
+- graph: команда status — read-only скан DAG вузлів (docs/graphs/<g>/nodes/) і derive позиції (done/failed/awaiting-human/in_progress/ready/blocked); фундамент node-dag-state
+
 ## [3.15.0] - 2026-06-02
 
 ### Added
