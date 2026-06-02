@@ -21,8 +21,6 @@ import {
   workloadAppLabel,
   WORKLOAD_KINDS_WITH_NETWORK_POLICY,
   expectedSchemaUrl,
-  hasuraConfigMapRemoteSchemaPermissionsViolation,
-  HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY,
   hpaManifestViolations,
   isDevLikeK8sEnvSegment,
   k8sEnvSegmentFromRelPath,
@@ -440,57 +438,9 @@ describe('deploymentResourcesViolation', () => {
 // `failIfAutoscalingV1InDocument` (Plan B). Тестове покриття `apiVersion: autoscaling/v1`
 // заборони — у `npm/policy/k8s/manifest/manifest_test.rego::test_deny_autoscaling_v1`.
 
-describe('hasuraConfigMapRemoteSchemaPermissionsViolation', () => {
-  test('null для не-ConfigMap', () => {
-    expect(hasuraConfigMapRemoteSchemaPermissionsViolation({ kind: 'Deployment' })).toBeNull()
-  })
-
-  test('null коли ключ є зі значенням "true"', () => {
-    expect(
-      hasuraConfigMapRemoteSchemaPermissionsViolation({
-        kind: 'ConfigMap',
-        metadata: { name: 'x' },
-        data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: 'true' }
-      })
-    ).toBeNull()
-  })
-
-  test('null для булевого true', () => {
-    expect(
-      hasuraConfigMapRemoteSchemaPermissionsViolation({
-        kind: 'ConfigMap',
-        metadata: { name: 'x' },
-        data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: true }
-      })
-    ).toBeNull()
-  })
-
-  test('помилка, якщо data відсутній', () => {
-    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
-      kind: 'ConfigMap',
-      metadata: { name: 'x' }
-    })
-    expect(msg).toContain(HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)
-  })
-
-  test('помилка, якщо ключ відсутній у data', () => {
-    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
-      kind: 'ConfigMap',
-      metadata: { name: 'x' },
-      data: { OTHER: 'true' }
-    })
-    expect(msg).toContain(HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)
-  })
-
-  test('помилка, якщо значення не true', () => {
-    const msg = hasuraConfigMapRemoteSchemaPermissionsViolation({
-      kind: 'ConfigMap',
-      metadata: { name: 'x' },
-      data: { [HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]: 'false' }
-    })
-    expect(msg).toContain('"true"')
-  })
-})
+// Пер-документна валідація обов'язкових Hasura-ConfigMap env (REMOTE_SCHEMA_PERMISSIONS,
+// ENABLE_RELAY, DISABLE_EVENTING) — у rego-пакеті `k8s.hasura_configmap` (Plan B); тести —
+// `npm/rules/k8s/policy/hasura_configmap/hasura_configmap_test.rego`.
 
 describe('SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS', () => {
   test('містить обидва ключі', () => {

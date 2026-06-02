@@ -297,11 +297,23 @@ spec:
 
 ## ConfigMap для Hasura-Deployment
 
-Якщо в `k8s/base/` поруч із **`configmap.yaml`** є **Deployment** з образом **`hasura/graphql-engine`**, у `data` ConfigMap **обов'язково** має бути ключ **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`**. Точні умови перевірки — **`rules/k8s/fix.mjs`**.
+Якщо в `k8s/base/` поруч із **`configmap.yaml`** є **Deployment** з образом **`hasura/graphql-engine`**, у `data` ConfigMap **обов'язково** мають бути env-ключі:
+
+- **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`**;
+- **`HASURA_GRAPHQL_ENABLE_RELAY`** зі значенням **`"false"`**;
+- **`HASURA_GRAPHQL_ENABLE_TELEMETRY`** зі значенням **`"false"`**;
+- **`HASURA_GRAPHQL_ENABLED_LOG_TYPES`** зі значенням **`"startup,http-log"`** (точний рядок);
+- **`HASURA_GRAPHQL_DISABLE_EVENTING`** — ключ обов'язковий, значення довільне (за замовчуванням **`"true"`**).
+
+Точні умови перевірки — rego-пакет **`k8s.hasura_configmap`** (cross-file прив'язка ConfigMap↔Deployment — у `rules/k8s/js/manifests.mjs`).
 
 ```yaml
 data:
   HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: 'true'
+  HASURA_GRAPHQL_ENABLE_RELAY: 'false'
+  HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false'
+  HASURA_GRAPHQL_ENABLED_LOG_TYPES: 'startup,http-log'
+  HASURA_GRAPHQL_DISABLE_EVENTING: 'true'
 ```
 
 ## Kustomize: структура каталогів (`base` / overlays)

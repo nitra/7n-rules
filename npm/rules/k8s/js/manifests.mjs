@@ -2349,47 +2349,17 @@ export function isHasuraDeploymentManifest(manifest) {
 }
 
 /**
- * Обов'язковий ключ у **`data`** ConfigMap для Hasura-Deployment (узгоджено з k8s.mdc).
+ * Обов'язкові env-ключі у **`data`** ConfigMap для Hasura-Deployment (узгоджено з
+ * rego-пакетом `k8s.hasura_configmap` та k8s.mdc). Лише для людиночитного pass-повідомлення —
+ * авторитетна пер-документна валідація (наявність ключів і значення) живе в rego.
  */
-export const HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY = 'HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS'
-
-/**
- * Чи значення поля `data.<key>` у ConfigMap читається як логічне **true**.
- * ConfigMap у Kubernetes тримає значення як рядки, але в YAML часто пишуть без лапок —
- * тому приймаємо і булевий **true**, і рядок **"true"** (без регістрової залежності).
- * @param {unknown} v значення з `data[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY]`
- * @returns {boolean} true, якщо значення — `true` або рядок `'true'`
- */
-function isConfigMapValueTrue(v) {
-  if (v === true) return true
-  if (typeof v === 'string' && v.trim().toLowerCase() === 'true') return true
-  return false
-}
-
-/**
- * Чи порушує ConfigMap вимогу щодо **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS: "true"`** (k8s.mdc).
- * Перевірка застосовна, коли в тому ж каталозі є Hasura-Deployment (див. `isHasuraDeploymentManifest`).
- * @param {unknown} manifest корінь YAML-документа ConfigMap
- * @returns {string | null} текст порушення або null, якщо не ConfigMap / ключ є і значення `true`
- */
-export function hasuraConfigMapRemoteSchemaPermissionsViolation(manifest) {
-  if (manifest === null || manifest === undefined || typeof manifest !== 'object' || Array.isArray(manifest))
-    return null
-  const rec = /** @type {Record<string, unknown>} */ (manifest)
-  if (rec.kind !== 'ConfigMap') return null
-  const data = rec.data
-  if (data === null || data === undefined || typeof data !== 'object' || Array.isArray(data)) {
-    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
-  }
-  const d = /** @type {Record<string, unknown>} */ (data)
-  if (!Object.hasOwn(d, HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY)) {
-    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
-  }
-  if (!isConfigMapValueTrue(d[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY])) {
-    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: значення має бути "true" (зараз: ${JSON.stringify(d[HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY])}) (див. k8s.mdc)`
-  }
-  return null
-}
+export const HASURA_REQUIRED_ENV_KEYS = [
+  'HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS',
+  'HASURA_GRAPHQL_ENABLE_RELAY',
+  'HASURA_GRAPHQL_ENABLE_TELEMETRY',
+  'HASURA_GRAPHQL_ENABLED_LOG_TYPES',
+  'HASURA_GRAPHQL_DISABLE_EVENTING'
+]
 
 const K8S_YAML_EXT_RE = /\.ya?ml$/iu
 
@@ -3676,7 +3646,10 @@ async function validateConfigMapNameMatchesDeployment(root, yamlFilesAbs, fail, 
 
 /**
  * Для кожного `k8s/base/configmap.yaml`, у каталозі якого поруч є Hasura-Deployment,
- * вимагає у `data` ключ **`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS`** зі значенням **`"true"`** (k8s.mdc).
+ * вимагає у `data` обов'язкові env-ключі (`HASURA_REQUIRED_ENV_KEYS`) з очікуваними
+ * значеннями (`HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS="true"`,
+ * `HASURA_GRAPHQL_ENABLE_RELAY="false"`, `HASURA_GRAPHQL_ENABLE_TELEMETRY="false"`,
+ * `HASURA_GRAPHQL_ENABLED_LOG_TYPES="startup,http-log"`, `HASURA_GRAPHQL_DISABLE_EVENTING` — будь-яке) (k8s.mdc).
  * @param {string} root корінь репозиторію
  * @param {string[]} yamlFilesAbs yaml під k8s
  * @param {(msg: string) => void} fail callback при помилці
@@ -3688,8 +3661,8 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
     return CONFIGMAP_BASE_PATH_RE.test(`/${rel}`) || rel === 'k8s/base/configmap.yaml'
   })
   // JS gating: відберемо ConfigMap-файли, у каталозі яких поруч є Hasura-Deployment.
-  // Per-document валідація `data.HASURA_GRAPHQL_ENABLE_REMOTE_SCHEMA_PERMISSIONS == "true"`
-  // — у rego-пакеті `k8s.hasura_configmap`.
+  // Per-document валідація обов'язкових `data.HASURA_GRAPHQL_*` env — у rego-пакеті
+  // `k8s.hasura_configmap`.
   const paired = []
   for (const cmAbs of cmFiles) {
     const deployment = await findDeploymentDocInDir(dirname(cmAbs))
@@ -3708,7 +3681,7 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
     fail(`${rel}: ${v.message}`)
   }
   if (violations.length === 0) {
-    passFn(`Hasura-ConfigMap (${paired.length}) відповідає ${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}="true" (rego)`)
+    passFn(`Hasura-ConfigMap (${paired.length}) містить обов'язкові env [${HASURA_REQUIRED_ENV_KEYS.join(', ')}] (rego)`)
   }
 }
 
