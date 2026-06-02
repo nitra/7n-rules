@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.15.0] - 2026-06-02
+
+### Added
+
+- parity-гард дзеркала правил: тест перевіряє, що .cursor/rules/n-<id>.mdc == канонічний npm/rules/<id>/<id>.mdc з inlined-шаблонами (хелпер mirror-parity.mjs), ловлячи дрейф рано. Разово регенеровано наявний дрейф (changelog/flow/ga/npm-module/test).
+
 ## [3.14.2] - 2026-06-02
 
 ### Fixed
