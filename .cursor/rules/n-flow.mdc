@@ -21,9 +21,11 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
 
    Створює ізольований worktree (`.worktrees/<branch>/`) і стан задачі. Якщо ти
    вже в worktree — новий не вкладається. `init` визначає **рівень** задачі
-   (L0 тривіальне … L3 архітектурне) за описом: для L0 (fix/typo/bump) фази
-   Spec/План можна пропустити; для L≥1 вони рекомендовані. Рівень також керує
-   глибиною `review`.
+   (L0 тривіальне … L3 архітектурне) і **ризик** (low/med/high — за описом:
+   security/auth/secret → high) за описом: для L0 (fix/typo/bump) фази Spec/План
+   можна пропустити; для L≥1 вони рекомендовані. Рівень **і ризик** разом керують
+   глибиною та фокусом `review`. Ризик можна уточнити полем `risk:` у frontmatter
+   spec — `flow spec` його підхопить.
 
 2. **Spec (дизайн)** — рекомендовано, не блокує. Brainstorm нашими термінами
    (НЕ викликаючи superpowers):
@@ -32,6 +34,20 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
      2-3 підходи з рекомендацією → дизайн секціями з апрувом людини;
    - **agent↔agent:** `npx @nitra/cursor flow spec --panel` — панель персон
      (architect/skeptic/tester) → суддя-синтез; презентуй синтез людині.
+
+   **Поглиблення (advanced elicitation, за потреби).** Якщо чернетка дизайну
+   «сира» чи є непевність — запропонуй людині одну з технік (по одній за раз),
+   застосуй обрану, повтори до «досить»:
+
+   - **Expand / Contract** — розгорнути деталь, що бракує, або згорнути зайве до суті;
+   - **Critique & Refine** — самокритика чернетки (слабкі місця, припущення), тоді доопрацювання;
+   - **Identify Risks** — явно перелічити ризики/граничні випадки (наповнює поле `risk:` у frontmatter);
+   - **Tree-of-Thoughts** — кілька гілок рішення паралельно, обрати найкращу з обґрунтуванням;
+   - **Stakeholder Roundtable** — пройтись поглядами ролей (user / ops / security / maintainer);
+   - **Self-Consistency** — 2-3 незалежні версії відповіді, звірити на суперечності.
+
+   Що застосовано — фіксуй коротко в секції `## Elicitation History` спеки
+   (traceability рішень).
 
    Збережи дизайн → `docs/specs/<date>-<slug>.md` (`kind: nitra-spec`,
    `plan: null`), тоді зафіксуй:
@@ -62,9 +78,12 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    npx @nitra/cursor flow verify
    ```
 
-   Проганяє Quality Gate (lint). Повертає `0` (pass) або `1` із виводом
-   проваленого gate. Coverage (тести + Stryker-мутації) **поза** turnstile —
-   запускай окремо `npx @nitra/cursor coverage` або в CI.
+   Проганяє Quality Gates (lint + coverage). Повертає `0` (pass) або `1` із
+   виводом проваленого gate. **Обидва гейти перевіряють лише змінені файли**
+   (diff від `base_commit`): `lint` — quick-режим, `coverage --changed` — vitest
+   `--changed` + Stryker `--mutate` по diff. Працює однаково, незалежно від того,
+   чи зміни вже закомічені у worktree. Повний coverage (увесь проєкт) — окремо:
+   `bun run coverage` або `/n-coverage-fix`.
 
 6. **Review (adversarial)** — рекомендовано перед release:
 
@@ -73,14 +92,25 @@ Composer, Claude Code) працює **Пасивний Турнікет**: ти,
    ```
 
    Незалежний субагент читає ЛИШЕ `git diff` від `base_commit` і шукає логічні
-   баги/ризики, яких не ловлять механічні гейти. Кількість рецензентів — за
-   рівнем (L0→1 … L3→3). Findings пишуться у `.flow.json` (не блокує); high-
-   severity варто виправити перед фінішем.
+   баги/ризики, яких не ловлять механічні гейти. Кількість рецензентів —
+   `max(рівень, ризик)` (L0→1 … L3→3; high-risk → 3, з безпековим фокусом
+   промпта). Findings пишуться у `.flow.json` (не блокує); high-severity варто
+   виправити перед фінішем.
 
 7. **На провал** — виправ код за виводом і виклич `flow verify` знову. Максимум
    **3 спроби**; якщо не вдається — зупинись і поклич людину.
 
-8. **Фініш** — лише після зеленого `verify`:
+8. **Gate (вердикт готовності)** — перед фінішем:
+
+   ```
+   npx @nitra/cursor flow gate
+   ```
+
+   Синтезує verify-гейти і review-findings у `PASS / CONCERNS / FAIL` + score +
+   причини (пише у `.flow.json`). `FAIL` (провалений gate або high-severity
+   finding) → код 1; `release` на FAIL лише попередить (рішення за тобою).
+
+9. **Фініш** — після зеленого `verify` і бажано `gate` ≠ FAIL:
 
    ```
    npx @nitra/cursor flow release --bump <patch|minor|major> --section <Added|Changed|Fixed> --message "<що зроблено>"
