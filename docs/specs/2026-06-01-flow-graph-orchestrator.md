@@ -79,14 +79,22 @@ tick(graph):
 
 - **LLM:** для блоку — окремий `flow` у його worktree: `flow run <n.branch>`
   (5-фазний цикл: plan→TDD→verify→review→gate) через `subagent-runner`
-  (+`withBudget`). По завершенню `flow` пише completion → оркестратор проєктує у
-  `<id>.fact.md` (`wx`).
+  (+`withBudget`).
 - **Human:** блок потрапляє у `ready`-чергу (`graph status`/нотифікація);
-  людина бере вручну (claim) і робить свій flow. Оркестратор лише чекає `fact`.
+  людина бере вручну (claim) і робить свій flow.
+
+**`fact.md` пише сам `flow`** (рішення): `flow init <branch> --block <id> --graph <g>`
+позначає flow як вузол графа; `flow release` проєктує completion-snapshot у
+`<id>.fact.md` (`wx`). Так факт з'являється і для LLM (push), і для людини (pull),
+**незалежно від оркестратора** — оркестратор лишається **read-only** (лише чекає
+появу `fact`). Жодної проєкції на боці оркестратора.
 
 ## Concurrency / WIP
 
-- **WIP-ліміт** (напр. `--max 4`) — не більше N паралельних dispatch.
+- **WIP per-owner-type** (рішення): окремі ліміти — `--max-llm N` обмежує
+  активні авто-спавни LLM (реальний ресурс: API/CPU/рев'ю); `--max-human M`
+  (опц., дефолт ∞) — людська черга, бо люди самопаляться. Людські `in_progress`
+  **не** з'їдають бюджет LLM-dispatch.
 - Подвійне взяття неможливе: claim — атомарний лок (`wx` локально + push глобально).
 - Кожен LLM-виконавець — свій worktree → нема конфліктів за файли.
 
@@ -105,18 +113,19 @@ tick(graph):
 
 ## Stale-виконавці
 
-`*.beat` не оновлювався довше за TTL (напр. 30 хв) → claim вважається мертвим;
-репер видаляє `claim`+`beat` (commit+push) → вузол знову `ready`. Або ручний
-`graph repair`.
+Локально оркестратор може звірятись із `*.beat` (transient). **Крос-машинно** —
+за `claim.started_at` (закомічений): claim старший за TTL (напр. 30 хв) без
+`fact` → мертвий; reap видаляє `claim` (commit+push) → вузол знову `ready`. Або
+ручний `graph repair`. `beat` **не комітиться** (без heartbeat-шуму).
 
 ## CLI-поверхня
 
 | Команда | Дія |
 | --- | --- |
 | `n-cursor graph status` | скан → таблиця позиції DAG (read-only) |
-| `n-cursor graph tick [--max N]` | один прохід: claim+dispatch ready (ідемпотентний) |
-| `n-cursor graph run [--max N]` | цикл tick'ів до завершення/stall |
-| `n-cursor graph repair` | зняти осиротілі claim (stale) |
+| `n-cursor graph tick [--max-llm N]` | один прохід: claim+dispatch ready (ідемпотентний) |
+| `n-cursor graph run [--max-llm N] [--max-human M]` | цикл tick'ів до завершення/stall |
+| `n-cursor graph repair` | зняти осиротілі claim (за claim-age TTL) |
 
 Усе ідемпотентне й stateless → безпечно з CI/cron/руки.
 
@@ -141,10 +150,13 @@ integration-блок; stalled-репорт.
 **Out (окремо):** GUI-дашборд; авто-генерація графа з однієї спеки (декомпозиція);
 крос-репо графи; пріоритезація/критичний шлях (поки FIFO серед ready).
 
-## Відкриті питання
+## Рішення (узгоджено)
 
-- Хто пише `fact` за LLM-блок: сам `flow release` (як артефакт-вузол) чи
-  оркестратор-проєкція? — схиляюсь до `flow` пише, оркестратор лише читає.
-- WIP-ліміт глобальний чи per-owner-type (окремо люди / LLM)?
-- Чи комітити `beat` (видимість мертвих локів крос-машинно) — компроміс
-  «видимість vs шум комітів»; дефолт — transient (локально).
+- **fact пише `flow`** (не оркестратор): `flow init --block <id> --graph <g>` →
+  `flow release` проєктує у `<id>.fact.md`. Оркестратор read-only. Працює і без
+  оркестратора (людський pull-блок теж дає факт).
+- **WIP per-owner-type**: `--max-llm N` (авто-спавн LLM), `--max-human M` (∞ за
+  замовч.). Окремі ресурси — людські блоки не блокують LLM-dispatch.
+- **beat — transient (локальний, не комітиться)**. Крос-машинна stale-детекція —
+  за віком `claim.started_at` (закомічений) + TTL; зняття — `graph repair` або
+  авто-reap. Без шуму heartbeat-комітів.
