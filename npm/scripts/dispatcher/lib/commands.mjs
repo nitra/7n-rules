@@ -16,6 +16,7 @@ import { detectLevel, detectRisk } from './level.mjs'
 import { runReview } from './reviewer.mjs'
 import { buildCompletionSnapshot, writeSummaryToTaskRecord } from './snapshot.mjs'
 import { flowStatePath, readState, recordTransition, writeState } from './state-store.mjs'
+import { resolveActiveFlowState } from './flow-resolve.mjs'
 
 /**
  * Реальний sync-runner із захопленням виводу.
@@ -127,12 +128,34 @@ export async function init(rest, deps = {}) {
  */
 export async function verify(_rest, deps = {}) {
   const run = deps.run ?? realRun
-  const cwd = deps.cwd ?? processCwd()
+  const cwd0 = deps.cwd ?? processCwd()
   const log = deps.log ?? console.error
-  const fingerprint = deps.fingerprint ?? (() => worktreeFingerprint())
 
-  const statePath = flowStatePath(cwd)
-  const state = readState(statePath)
+  // cwd-незалежний резолв активного flow. verify толерантний: без активного flow
+  // гейти все одно прогоняються (standalone) у поточному cwd, лише без запису стану.
+  const resolved = resolveActiveFlowState({ cwd: cwd0, branch: deps.branch }, deps)
+  if (resolved.statePath && resolved.autoResolved) {
+    log(`flow: авторезолвлено активний flow «${resolved.label}» (cwd поза worktree)`)
+  }
+  // Явний `--branch`, що не резолвиться, — це помилка наміру: не деградуємо тихо
+  // на поточний cwd (інакше `flow verify --branch typo` міг би «зеленіти» в CI).
+  if (deps.branch && !resolved.statePath) {
+    log(`❌ verify: ${resolved.error}`)
+    return 1
+  }
+  const cwd = resolved.worktreeDir ?? cwd0
+  const fingerprint =
+    deps.fingerprint ?? (() => worktreeFingerprint((cmd, args, opts) => spawnSync(cmd, args, { ...opts, cwd })))
+
+  const statePath = resolved.statePath
+  const state = statePath ? readState(statePath) : null
+  if (!state) {
+    // statePath null → resolved.error пояснює (нема/кілька активних); statePath є,
+    // але стан не читається → пошкоджений .flow.json. В обох випадках verify
+    // толерантний: гейти прогоняються standalone у `cwd`, без запису стану.
+    if (resolved.error) log(`⚠️ verify: ${resolved.error}`)
+    log(`⚠️ verify: активного flow не визначено — гейти прогнано у ${cwd} без запису стану`)
+  }
   // М'які ворота: відсутній план — лише попередження, exit-код визначають gate-и.
   if (state && !(state.plan?.length)) {
     log('⚠️ verify: плану не зафіксовано (`flow plan`) — рекомендовано спершу сформувати план')
@@ -175,7 +198,14 @@ export async function release(rest, deps = {}) {
   const log = deps.log ?? console.error
   const now = deps.now ?? Date.now
 
-  const statePath = flowStatePath(cwd)
+  const resolved = resolveActiveFlowState({ cwd, branch: deps.branch }, deps)
+  if (!resolved.statePath) {
+    log(`release: ${resolved.error}`)
+    return 1
+  }
+  if (resolved.autoResolved) log(`flow: авторезолвлено активний flow «${resolved.label}» (cwd поза worktree)`)
+  const effectiveCwd = resolved.worktreeDir ?? cwd
+  const statePath = resolved.statePath
   const state = readState(statePath)
   if (!state) {
     log('release: стану нема — спершу `flow init`')
@@ -186,7 +216,7 @@ export async function release(rest, deps = {}) {
     log(`⚠️ release: gate = FAIL (score ${state.gate.score}) — релізиш свідомо? (див. flow gate)`)
   }
 
-  const ch = run('npx', ['@nitra/cursor', 'change', ...rest], { cwd })
+  const ch = run('npx', ['@nitra/cursor', 'change', ...rest], { cwd: effectiveCwd })
   if ((ch.status ?? 1) !== 0) {
     const detail = ch.stderr ? `: ${ch.stderr.trim()}` : ''
     log(`release: change не вдався${detail}`)
@@ -195,13 +225,13 @@ export async function release(rest, deps = {}) {
 
   const snapshot = buildCompletionSnapshot({ ...state, status: 'done' }, now)
   recordTransition(
-    { statePath, eventsPath: flowEventsPath(cwd) },
+    { statePath, eventsPath: flowEventsPath(effectiveCwd) },
     { type: 'release' },
     state_ => ({ ...state_, status: 'done', completion: snapshot }),
     now
   )
   if (state.task) {
-    writeSummaryToTaskRecord(isAbsolute(state.task) ? state.task : join(cwd, state.task), snapshot)
+    writeSummaryToTaskRecord(isAbsolute(state.task) ? state.task : join(effectiveCwd, state.task), snapshot)
   }
   log('release: done')
   return 0

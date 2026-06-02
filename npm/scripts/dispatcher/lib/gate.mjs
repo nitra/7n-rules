@@ -10,7 +10,8 @@
 import { cwd as processCwd } from 'node:process'
 
 import { flowEventsPath } from './events.mjs'
-import { flowStatePath, readState, recordTransition } from './state-store.mjs'
+import { readState, recordTransition } from './state-store.mjs'
+import { resolveActiveFlowState } from './flow-resolve.mjs'
 
 /** Штрафи score за кожен тип проблеми. */
 const PENALTY = { failedGate: 40, high: 25, med: 8, noVerify: 15 }
@@ -58,11 +59,18 @@ export function computeGate(state) {
  * @returns {Promise<number>} exit code (FAIL → 1; PASS/CONCERNS → 0)
  */
 export async function gate(_rest, deps = {}) {
-  const cwd = deps.cwd ?? processCwd()
+  const cwd0 = deps.cwd ?? processCwd()
   const log = deps.log ?? console.error
   const now = deps.now ?? Date.now
 
-  const statePath = flowStatePath(cwd)
+  const resolved = resolveActiveFlowState({ cwd: cwd0, branch: deps.branch }, deps)
+  if (!resolved.statePath) {
+    log(`gate: ${resolved.error}`)
+    return 1
+  }
+  if (resolved.autoResolved) log(`flow: авторезолвлено активний flow «${resolved.label}» (cwd поза worktree)`)
+  const cwd = resolved.worktreeDir ?? cwd0
+  const statePath = resolved.statePath
   const state = readState(statePath)
   if (!state) {
     log('gate: стану нема — спершу `flow init`')

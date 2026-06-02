@@ -4,9 +4,30 @@
  */
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { runFlowCli } from '../index.mjs'
+import { extractBranchFlag, runFlowCli } from '../index.mjs'
 
 afterEach(() => vi.restoreAllMocks())
+
+describe('extractBranchFlag', () => {
+  test('--branch <val> вилучається з rest, повертається як branch', () => {
+    expect(extractBranchFlag(['--branch', 'feat/x'])).toEqual({ rest: [], branch: 'feat/x' })
+  })
+  test('--branch=<val> inline-форма', () => {
+    expect(extractBranchFlag(['--branch=feat/x', '--panel'])).toEqual({ rest: ['--panel'], branch: 'feat/x' })
+  })
+  test('без --branch → branch undefined, rest без змін', () => {
+    expect(extractBranchFlag(['--panel', 'doc.md'])).toEqual({ rest: ['--panel', 'doc.md'], branch: undefined })
+  })
+  test('--branch без значення (останній) → branch undefined, нічого не поглинає', () => {
+    expect(extractBranchFlag(['--branch'])).toEqual({ rest: [], branch: undefined })
+  })
+  test('--branch перед іншим прапорцем → не ковтає прапорець', () => {
+    expect(extractBranchFlag(['--branch', '--panel'])).toEqual({ rest: ['--panel'], branch: undefined })
+  })
+  test('--branch= з порожнім значенням → branch undefined', () => {
+    expect(extractBranchFlag(['--branch='])).toEqual({ rest: [], branch: undefined })
+  })
+})
 
 describe('runFlowCli', () => {
   test('невідома підкоманда → usage + код 1', async () => {
@@ -46,5 +67,11 @@ describe('runFlowCli', () => {
     const gate = vi.fn(async () => 0)
     await runFlowCli(['gate'], { handlers: { gate } })
     expect(gate).toHaveBeenCalledWith([], expect.any(Object))
+  })
+
+  test('--branch вилучається з rest і прокидається у deps.branch', async () => {
+    const verify = vi.fn(async () => 0)
+    await runFlowCli(['verify', '--branch', 'feat/x'], { handlers: { verify } })
+    expect(verify).toHaveBeenCalledWith([], expect.objectContaining({ branch: 'feat/x' }))
   })
 })

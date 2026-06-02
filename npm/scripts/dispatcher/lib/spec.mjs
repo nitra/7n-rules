@@ -14,7 +14,8 @@ import { resolveArtifact, verifyTrace } from './artifact.mjs'
 import { flowEventsPath } from './events.mjs'
 import { runPanel } from './plan-panel.mjs'
 import { createRunner } from './subagent-runner.mjs'
-import { flowStatePath, readState, recordTransition } from './state-store.mjs'
+import { readState, recordTransition } from './state-store.mjs'
+import { resolveActiveFlowState } from './flow-resolve.mjs'
 import { parseFrontMatter } from '../trace.mjs'
 
 /** Допустимі значення ризику у spec-frontmatter. */
@@ -42,9 +43,16 @@ function riskFromSpec(doc, current) {
  * @returns {Promise<number>} exit code (0 ok, 1 нема стану/доку)
  */
 export async function spec(rest, deps = {}) {
-  const cwd = deps.cwd ?? processCwd()
+  const cwd0 = deps.cwd ?? processCwd()
   const log = deps.log ?? console.error
-  const statePath = flowStatePath(cwd)
+  const resolved = resolveActiveFlowState({ cwd: cwd0, branch: deps.branch }, deps)
+  if (!resolved.statePath) {
+    log(`spec: ${resolved.error}`)
+    return 1
+  }
+  if (resolved.autoResolved) log(`flow: авторезолвлено активний flow «${resolved.label}» (cwd поза worktree)`)
+  const cwd = resolved.worktreeDir ?? cwd0
+  const statePath = resolved.statePath
   const state = readState(statePath)
   if (!state) {
     log('spec: стану нема — спершу `flow init`')
