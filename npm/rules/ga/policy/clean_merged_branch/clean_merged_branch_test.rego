@@ -14,7 +14,10 @@ template_data := {"snippet": {
 	},
 	"jobs": {"cleanup_old_branches": {
 		"runs-on": "ubuntu-latest",
-		"permissions": {"contents": "write"},
+		"permissions": {
+			"contents": "write",
+			"pull-requests": "read",
+		},
 		"steps": [
 			{
 				"id": "delete_stuff",
@@ -43,7 +46,10 @@ canonical_input := {
 		"workflow_dispatch": {},
 	},
 	"jobs": {"cleanup_old_branches": {
-		"permissions": {"contents": "write"},
+		"permissions": {
+			"contents": "write",
+			"pull-requests": "read",
+		},
 		"steps": [
 			{
 				"id": "delete_stuff",
@@ -88,6 +94,15 @@ test_deny_wrong_age if {
 	)
 	some msg in clean_merged_branch.deny with input as bad with data.template as template_data
 	contains(msg, "last_commit_age_days")
+}
+
+test_deny_missing_pull_requests_permission if {
+	bad := json.patch(
+		canonical_input,
+		[{"op": "remove", "path": "/jobs/cleanup_old_branches/permissions/pull-requests"}],
+	)
+	some msg in clean_merged_branch.deny with input as bad with data.template as template_data
+	contains(msg, "permissions.pull-requests")
 }
 
 test_deny_ignore_branches_missing_dev if {

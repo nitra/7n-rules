@@ -54,6 +54,12 @@ deny contains msg if {
 }
 
 deny contains msg if {
+	some permission, expected in expected_perms
+	object.get(input.jobs.cleanup_old_branches.permissions, permission, null) != expected
+	msg := sprintf("clean-merged-branch.yml: permissions.%s має бути %s (ga.mdc)", [permission, expected])
+}
+
+deny contains msg if {
 	count(steps) < 2
 	msg := "clean-merged-branch.yml: steps має містити 2 кроки як у template (ga.mdc)"
 }
