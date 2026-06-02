@@ -10,7 +10,9 @@ import { isAbsolute, join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
 import { worktreePaths } from '../../lib/worktree.mjs'
+import { collectChangedFilesSince } from '../../lib/changed-files.mjs'
 import { worktreeFingerprint } from '../../utils/worktree-fingerprint.mjs'
+import { getMonorepoProjectRootDirs } from '../../../rules/changelog/lib/package-manifest.mjs'
 import { flowEventsPath } from './events.mjs'
 import { detectLevel, detectRisk } from './level.mjs'
 import { runReview } from './reviewer.mjs'
@@ -186,6 +188,56 @@ export async function verify(_rest, deps = {}) {
 }
 
 /**
+ * Які з subworkspace-тек мають змінені файли — для авто-`--ws` у `release`.
+ * Кожен файл відноситься до НАЙГЛИБШОГО воркспейсу-збігу, тож вкладені воркспейси
+ * (`apps` + `apps/web`) не дають хибного «кілька воркспейсів» для `apps/web/x`.
+ * @param {string[]} subWorkspaces теки воркспейсів без кореня (`.`)
+ * @param {string[]} changedFiles змінені шляхи відносно кореня репо (posix)
+ * @returns {string[]} підмножина `subWorkspaces`, під якими є зміни (у вхідному порядку)
+ */
+export function matchChangedWorkspaces(subWorkspaces, changedFiles) {
+  const byDepthDesc = subWorkspaces.toSorted((a, b) => b.length - a.length)
+  const hit = new Set()
+  for (const f of changedFiles) {
+    const ws = byDepthDesc.find(w => f === w || f.startsWith(`${w}/`))
+    if (ws) hit.add(ws)
+  }
+  return subWorkspaces.filter(w => hit.has(w))
+}
+
+/**
+ * Додає `--ws <шлях>` до аргументів `change`, інферячи воркспейс зі змін від
+ * `base_commit`, якщо `--ws` не задано явно. Один змінений subworkspace → авто-`--ws`;
+ * кілька → `{ error: true }` (fail-hard, exit 1 у release); нуль / без subworkspace →
+ * лишаємо як є (change дефолтиться на `.`). Помилку самого інференсу (недосяжний base,
+ * збій `listWorkspaces`) трактуємо fail-soft — не блокуємо, лишаємо дефолт.
+ * @param {{ rest: string[], baseCommit: string | null, cwd: string, listWorkspaces: (cwd: string) => Promise<string[]>, changedFilesSince: (base: string | null, cwd: string) => string[], log: (m: string) => void }} input ін'єкції
+ * @returns {Promise<{ args: string[], error?: boolean }>} аргументи для `change` або `{ error: true }`
+ */
+async function resolveChangeWsArgs({ rest, baseCommit, cwd, listWorkspaces, changedFilesSince, log }) {
+  // Поважаємо явно заданий воркспейс в обох формах (`--ws x` і `--ws=x`).
+  if (rest.includes('--ws') || rest.some(a => a.startsWith('--ws='))) return { args: rest }
+  try {
+    const workspaces = await listWorkspaces(cwd)
+    const subWs = workspaces.filter(w => w !== '.')
+    if (subWs.length === 0) return { args: rest }
+    const hits = matchChangedWorkspaces(subWs, changedFilesSince(baseCommit, cwd))
+    if (hits.length > 1) {
+      log(`release: зміни у кількох воркспейсах (${hits.join(', ')}) — вкажи --ws явно`)
+      return { args: rest, error: true }
+    }
+    if (hits.length === 1) {
+      log(`release: change → воркспейс «${hits[0]}» (інферено з diff від base)`)
+      return { args: [...rest, '--ws', hits[0]] }
+    }
+    return { args: rest }
+  } catch (error) {
+    log(`⚠️ release: інференс воркспейсу пропущено (${error instanceof Error ? error.message : String(error)})`)
+    return { args: rest }
+  }
+}
+
+/**
  * `flow release [--bump … --section … --message …]` — генерує `.changes` і пише
  * completion snapshot (§3 Ф5, §7). Потребує наявного стану (`init`).
  * @param {string[]} rest аргументи, що прокидаються у `n-cursor change`
@@ -216,7 +268,17 @@ export async function release(rest, deps = {}) {
     log(`⚠️ release: gate = FAIL (score ${state.gate.score}) — релізиш свідомо? (див. flow gate)`)
   }
 
-  const ch = run('npx', ['@nitra/cursor', 'change', ...rest], { cwd: effectiveCwd })
+  const wsResolved = await resolveChangeWsArgs({
+    rest,
+    baseCommit: state.metadata?.base_commit ?? null,
+    cwd: effectiveCwd,
+    listWorkspaces: deps.listWorkspaces ?? getMonorepoProjectRootDirs,
+    changedFilesSince: deps.changedFilesSince ?? collectChangedFilesSince,
+    log
+  })
+  if (wsResolved.error) return 1
+
+  const ch = run('npx', ['@nitra/cursor', 'change', ...wsResolved.args], { cwd: effectiveCwd })
   if ((ch.status ?? 1) !== 0) {
     const detail = ch.stderr ? `: ${ch.stderr.trim()}` : ''
     log(`release: change не вдався${detail}`)
