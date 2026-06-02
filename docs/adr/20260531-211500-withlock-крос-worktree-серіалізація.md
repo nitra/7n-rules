@@ -22,3 +22,16 @@ Chosen option: "Перенести `cacheDir` локу під `git-common-dir`",
 * Оновлено `.cursor/rules/scripts.mdc`: додана секція «Стан локу — спільний для всіх git-worktree».
 * Change-файл: `npm/.changes/1780162853358-7a418d.md` (`bump: minor`, `section: Changed`).
 * Відповідний ADR про базовий `withLock` guard: `docs/adr/20260522-212907-guard-блокування-паралельних-команд.md`.
+
+## Update 2026-05-30
+
+Деталі реалізації з transcript:
+
+- Новий хелпер `npm/scripts/utils/lock-cache-dir.mjs` — функція `resolveLockCacheDir(key)`, використовує `git rev-parse --git-common-dir`; inject-able через параметр `spawn` для тестів; fallback на `node_modules/.cache/n-cursor/<key>` поза git-репо.
+- Тести: `npm/scripts/utils/tests/lock-cache-dir.test.mjs` — 5 тестів: відносний/абсолютний git-common-dir, крос-worktree однаковість шляху, fallback-и.
+- `npm/scripts/utils/with-lock.mjs` — рядок `cacheDir = opts.cacheDir ?? resolveLockCacheDir(key)` (замість inline `process.cwd()/node_modules/.cache`); `opts.cacheDir` зберігає пріоритет — тести і явні виклики не зачіпаються.
+- `.cursor/rules/scripts.mdc` — нова секція «Стан локу — спільний для всіх git-worktree».
+- `npm/.changes/1780162853358-7a418d.md` — change-файл `bump: minor`, `section: Changed`.
+- Результати після зміни: `scripts/utils/` — 56/56 ✓; `fix changelog` → exit 0 ✓.
+- Fingerprint лишився per-tree (sha256 від `HEAD + git diff + untracked`): worktree на різних гілках не дедуплять прогони одне одного помилково.
+- Fallback на `node_modules/.cache/n-cursor/<key>` активується автоматично поза git-репо (наприклад, у CI-пісочниці без `.git/`).
