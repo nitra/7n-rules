@@ -7,11 +7,19 @@
  * FS-доступ (`readdir`/`readFile`/`exists`) ін'єктується — тестується без диска.
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
-/** Поля-лінки у front-matter, що утворюють ланцюг. */
+/** Поля-лінки у front-matter (порядок відображення). */
 const LINK_FIELDS = ['adr', 'spec', 'plan', 'flow', 'change', 'task']
+
+/**
+ * Інформаційні лінк-поля: показуються, але їх відсутність НЕ є розривом ланцюга.
+ * `flow` вказує на runtime-стан `.worktrees/<branch>.flow.json` — gitignored, поза
+ * `docs/`, існує лише під час задачі; у чистому checkout/CI його нема ніколи, тож
+ * рахувати його розривом — хибний сигнал. Решта полів — ланки ланцюга (breaking).
+ */
+const INFO_LINK_FIELDS = new Set(['flow'])
 
 /** Каталоги з traceable-артефактами. */
 const DIRS = ['docs/tasks', 'docs/specs', 'docs/plans', 'docs/adr']
@@ -52,18 +60,38 @@ function isSimpleKey(key) {
 
 /**
  * Будує аналіз: для кожного артефакту — його лінки зі статусом ok/розрив.
+ * `breaking` — чи відсутність цього лінка рве ланцюг (chain-поля) чи лише
+ * інформаційна (`flow` → runtime-стан).
  * @param {{ file: string, fm: Record<string, string | null> }[]} artifacts артефакти з front-matter
- * @param {(target: string) => boolean} exists чи існує цільовий файл лінка
- * @returns {{ file: string, kind: string | null, id: string | null, status: string | null, links: { field: string, target: string, ok: boolean }[] }[]} аналіз
+ * @param {(target: string, artifactFile: string) => boolean} resolve чи резолвиться лінк (відносно артефакту/кореня)
+ * @returns {{ file: string, kind: string | null, id: string | null, status: string | null, links: { field: string, target: string, ok: boolean, breaking: boolean }[] }[]} аналіз
  */
-export function analyze(artifacts, exists) {
+export function analyze(artifacts, resolve) {
   return artifacts.map(({ file, fm }) => ({
     file,
     kind: fm.kind ?? null,
     id: fm.id ?? null,
     status: fm.status ?? null,
-    links: LINK_FIELDS.filter(f => fm[f]).map(f => ({ field: f, target: fm[f], ok: exists(fm[f]) }))
+    links: LINK_FIELDS.filter(f => fm[f]).map(f => ({
+      field: f,
+      target: fm[f],
+      ok: resolve(fm[f], file),
+      breaking: !INFO_LINK_FIELDS.has(f)
+    }))
   }))
+}
+
+/**
+ * Чи резолвиться лінк: спершу відносно теки артефакту (конвенція доків `../specs/…`),
+ * далі fallback на root-relative (`docs/specs/…`). Обидві форми вважаються валідними.
+ * @param {string} root корінь репо
+ * @param {string} artifactFile rel-шлях артефакту (напр. `docs/plans/x.md`)
+ * @param {string} target значення лінка
+ * @param {(absPath: string) => boolean} exists перевірка існування
+ * @returns {boolean} чи знайдено цільовий файл
+ */
+function resolveLink(root, artifactFile, target, exists) {
+  return exists(join(root, dirname(artifactFile), target)) || exists(join(root, target))
 }
 
 /**
@@ -77,12 +105,22 @@ export function render(analysis) {
   for (const a of analysis) {
     lines.push(`${a.kind ?? '?'} · ${a.id ?? a.file} [${a.status ?? '—'}]`)
     for (const l of a.links) {
-      const mark = l.ok ? '→' : '✗'
-      const note = l.ok ? '' : ' (РОЗРИВ — файл відсутній)'
-      lines.push(`   ${mark} ${l.field}: ${l.target}${note}`)
+      lines.push(`   ${renderLink(l)}`)
     }
   }
   return lines.join('\n')
+}
+
+/**
+ * Рядок одного лінка: `→` ok; `✗ … (РОЗРИВ)` — нерезолвлене chain-поле;
+ * `~ … (не рве ланцюг)` — нерезолвлене інформаційне поле (`flow`, runtime-стан).
+ * @param {{ field: string, target: string, ok: boolean, breaking: boolean }} l лінк
+ * @returns {string} рядок
+ */
+function renderLink(l) {
+  if (l.ok) return `→ ${l.field}: ${l.target}`
+  if (l.breaking) return `✗ ${l.field}: ${l.target} (РОЗРИВ — файл відсутній)`
+  return `~ ${l.field}: ${l.target} (runtime-стан — не рве ланцюг)`
 }
 
 /**
@@ -108,7 +146,8 @@ export function runTraceCli(args, deps = {}) {
     }
   }
 
-  const analysis = analyze(artifacts, target => exists(join(root, target)))
+  const analysis = analyze(artifacts, (target, file) => resolveLink(root, file, target, exists))
   log(args.includes('--json') ? JSON.stringify(analysis, null, 2) : render(analysis))
-  return analysis.some(a => a.links.some(l => !l.ok)) ? 1 : 0
+  // Розрив ланцюга — лише нерезолвлене chain-поле; нерезолвлений `flow` (runtime-стан) не рахуємо.
+  return analysis.some(a => a.links.some(l => l.breaking && !l.ok)) ? 1 : 0
 }
