@@ -9,8 +9,9 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { isAbsolute, join, relative } from 'node:path'
+import { dirname, isAbsolute, join, relative } from 'node:path'
 
 import { resolveAllJsRoots } from '../../../scripts/utils/resolve-js-root.mjs'
 import { addCoverage, addMutation } from '../../test/coverage/coverage.mjs'
@@ -239,6 +240,32 @@ export function parseStrykerReport(report, jsRoot) {
  * (типовий патерн monorepo, де тести зосереджені в одному пакеті); пустий lcov
  * у такому випадку сигналізує "no tests" → collectOneRoot пропускає workspace.
  */
+/**
+ * Шлях до локально встановленого Stryker core-bin (поряд із плагінами на кшталт
+ * `@stryker-mutator/vitest-runner`). Запуск саме його через `node` — не `npx`/`bunx` —
+ * дає Stryker побачити локальні плагіни при plugin-discovery.
+ * @returns {string | null} абсолютний шлях `bin/stryker.js` або `null`, якщо не встановлено
+ */
+/** Мемо: `undefined` — ще не обчислено; `string`/`null` — результат. */
+let strykerBinCache
+
+function resolveLocalStrykerBin() {
+  if (strykerBinCache !== undefined) return strykerBinCache
+  try {
+    // `exports` у core НЕ відкриває `./bin/stryker.js`, тож резолвимо package.json
+    // (доступний) і беремо шлях bin звідти. Ключ bin зазвичай `stryker`; як запас —
+    // перше значення map'и.
+    const require = createRequire(import.meta.url)
+    const pkgJsonPath = require.resolve('@stryker-mutator/core/package.json')
+    const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8'))
+    const binRel = typeof pkg.bin === 'string' ? pkg.bin : (pkg.bin?.stryker ?? Object.values(pkg.bin ?? {})[0])
+    strykerBinCache = binRel ? join(dirname(pkgJsonPath), binRel) : null
+  } catch {
+    strykerBinCache = null
+  }
+  return strykerBinCache
+}
+
 const defaultRunner = {
   runJsCoverage({ cwd, lcovDir, base }) {
     // base !== undefined ⇔ --changed-режим: vitest сам рахує зачеплені змінами тести
@@ -261,20 +288,21 @@ const defaultRunner = {
     return r.status ?? 1
   },
   runStryker({ cwd, mutate }) {
-    // `npx`, не `bunx`: bunx завжди ставить пакет у `T/bunx-<uid>-<pkg>@latest` і запускає
-    // Stryker звідти. Плагін-discovery у Stryker (`@stryker-mutator/*`) globится відносно
-    // CORE-install-каталогу (`core/dist/src/di/plugin-loader.js` → `../../../../../@stryker-mutator/*`),
-    // тож у bunx-temp бачить лише `core/api/instrumenter/util` (усі в IGNORED_PACKAGES) — а локально
-    // встановлений `@stryker-mutator/vitest-runner` залишається невидимим, і workers падають з
-    // `Cannot find TestRunner plugin "vitest"`. `npx` ходить угору по `node_modules/.bin/` і
-    // запускає Stryker з локального hoisted-install, де поряд лежить vitest-runner.
+    // Plugin-discovery Stryker (`@stryker-mutator/*`) globиться відносно CORE-install-каталогу
+    // (`core/dist/src/di/plugin-loader.js` → `../../../../../@stryker-mutator/*`). Тож core
+    // МАЄ вантажитись із проєктного `node_modules`, де поряд лежить `@stryker-mutator/vitest-runner`.
+    // `npx`/`bunx` тягнуть core у власний кеш (`_npx/<hash>`, `bunx-temp`) БЕЗ плагінів → воркери
+    // падають `Cannot find TestRunner plugin "vitest"`. Тому резолвимо локальний core-bin через
+    // `import.meta.url` (модуль у `npm/` → кореневий `node_modules` пакета; працює й з worktree без
+    // власного node_modules) і запускаємо його через `node`. Fallback на `npx`, якщо не встановлено.
     // mutate (непорожній) ⇔ --changed-режим: мутуємо лише змінені production-файли цього root.
     const mutateArgs = mutate && mutate.length > 0 ? ['--mutate', mutate.join(',')] : []
-    const r = spawnSync('npx', ['@stryker-mutator/core', 'run', ...mutateArgs], {
-      cwd,
-      stdio: 'inherit',
-      env: process.env
-    })
+    const strykerBin = resolveLocalStrykerBin()
+    // Запускаємо bin НАПРЯМУ (його shebang `#!/usr/bin/env node` → завжди node, навіть якщо
+    // coverage.mjs стартував під bun, де `process.execPath` вказував би на bun). Fallback на npx.
+    const r = strykerBin
+      ? spawnSync(strykerBin, ['run', ...mutateArgs], { cwd, stdio: 'inherit', env: process.env })
+      : spawnSync('npx', ['@stryker-mutator/core', 'run', ...mutateArgs], { cwd, stdio: 'inherit', env: process.env })
     return r.status ?? 1
   }
 }
