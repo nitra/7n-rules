@@ -10,8 +10,15 @@ import { withTmpDir } from '../../../utils/test-helpers.mjs'
 import { diffFromBase, parseFindings, dedupeFindings, review, reviewerPrompt } from '../review.mjs'
 import { flowStatePath, readState, writeState } from '../state-store.mjs'
 
-const noop = () => {}
+const noop = () => null
 const FIXED = () => 1_700_000_000_000
+
+/** Статичні регекси промпта (prefer-static-regex: не перекомпільовувати в кожному тесті). */
+const SECURITY_LENS_RE = /БЕЗПЕЦ/
+const READ_TOOL_RE = /інструмент Read/
+const VERIFY_VERB_RE = /ПЕРЕВІРИТИ/
+const DIFF_SCOPE_RE = /вносить.*ламає|преіснуючі баги/
+const NO_DIFF_VISIBILITY_RE = /не видно|не показано/
 
 /**
  * Фейковий git-runner: `committed` для діапазонного diff (`base...HEAD`),
@@ -45,10 +52,21 @@ describe('parseFindings', () => {
 
 describe('reviewerPrompt', () => {
   test('high-risk додає безпекову лінзу', () => {
-    expect(reviewerPrompt('diff', 'high')).toMatch(/БЕЗПЕЦ/)
+    expect(reviewerPrompt('diff', 'high')).toMatch(SECURITY_LENS_RE)
   })
   test('low-risk — без лінзи', () => {
-    expect(reviewerPrompt('diff', 'low')).not.toMatch(/БЕЗПЕЦ/)
+    expect(reviewerPrompt('diff', 'low')).not.toMatch(SECURITY_LENS_RE)
+  })
+  test('інструктує дочитувати referenced-файли через Read для верифікації', () => {
+    const p = reviewerPrompt('diff', 'low')
+    expect(p).toMatch(READ_TOOL_RE)
+    expect(p).toMatch(VERIFY_VERB_RE)
+  })
+  test('обмежує scope до того, що вносить diff (не преіснуючі баги сусідів)', () => {
+    expect(reviewerPrompt('diff', 'low')).toMatch(DIFF_SCOPE_RE)
+  })
+  test('забороняє нефальсифіковні findings «з diff не видно»', () => {
+    expect(reviewerPrompt('diff', 'low')).toMatch(NO_DIFF_VISIBILITY_RE)
   })
 })
 
@@ -81,7 +99,7 @@ describe('review', () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-x')
       writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress', level: 3, metadata: { base_commit: 'B' } })
-      const runner = { runStep: async () => ({ ok: true, output: '[{"severity":"high","file":"a.mjs","issue":"bug"}]' }) }
+      const runner = { runStep: () => ({ ok: true, output: '[{"severity":"high","file":"a.mjs","issue":"bug"}]' }) }
       const code = await review([], { cwd: wt, log: noop, run: () => ({ stdout: 'diff' }), runner, now: FIXED })
       expect(code).toBe(0)
       const s = readState(flowStatePath(wt))
@@ -95,7 +113,7 @@ describe('review', () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-r')
       writeState(flowStatePath(wt), { branch: 'feat/r', status: 'in_progress', level: 0, risk: 'high', metadata: { base_commit: 'B' } })
-      const runner = { runStep: async () => ({ ok: true, output: '[]' }) }
+      const runner = { runStep: () => ({ ok: true, output: '[]' }) }
       await review([], { cwd: wt, log: noop, run: () => ({ stdout: 'diff' }), runner, now: FIXED })
       expect(readState(flowStatePath(wt)).review.reviewers).toBe(3)
     })
