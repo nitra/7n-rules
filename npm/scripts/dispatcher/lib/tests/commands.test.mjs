@@ -8,7 +8,7 @@ import { join } from 'node:path'
 import { describe, expect, test } from 'vitest'
 
 import { withTmpDir } from '../../../utils/test-helpers.mjs'
-import { init, release, verify } from '../commands.mjs'
+import { init, matchChangedWorkspaces, release, verify } from '../commands.mjs'
 import { flowStatePath, readState, writeState } from '../state-store.mjs'
 
 const noop = () => {}
@@ -28,6 +28,18 @@ function makeRun(over = {}) {
     if (k.includes('rev-parse HEAD')) return { status: 0, stdout: over.head ?? 'COMMIT', stderr: '' }
     if (k.includes('worktree add')) return { status: over.worktreeAddStatus ?? 0, stdout: '', stderr: 'boom' }
     if (k.includes('change')) return { status: over.changeStatus ?? 0, stdout: '', stderr: 'boom' }
+    return { status: 0, stdout: '', stderr: '' }
+  }
+}
+
+/**
+ * Runner, що перехоплює аргументи виклику `change` у `sink.args`.
+ * @param {{ args?: string[] }} sink приймач аргументів
+ * @returns {(cmd: string, args: string[]) => { status: number, stdout: string, stderr: string }} runner
+ */
+function capturingRun(sink) {
+  return (cmd, args) => {
+    if (args.includes('change')) sink.args = args
     return { status: 0, stdout: '', stderr: '' }
   }
 }
@@ -193,6 +205,147 @@ describe('release', () => {
       writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
       const code = await release([], { run: makeRun({ changeStatus: 1 }), cwd: wt, log: noop, now: FIXED })
       expect(code).toBe(1)
+    })
+  })
+})
+
+describe('matchChangedWorkspaces', () => {
+  test('файл під <ws>/ → ws у результаті; інші — ні', () => {
+    expect(matchChangedWorkspaces(['npm', 'demo'], ['npm/a.mjs', 'docs/x.md'])).toEqual(['npm'])
+  })
+  test('кілька воркспейсів зі змінами', () => {
+    expect(matchChangedWorkspaces(['npm', 'demo'], ['npm/a', 'demo/b'])).toEqual(['npm', 'demo'])
+  })
+  test('точний збіг імені теки (без слешу)', () => {
+    expect(matchChangedWorkspaces(['npm'], ['npm'])).toEqual(['npm'])
+  })
+  test('лише коренева зміна → порожньо', () => {
+    expect(matchChangedWorkspaces(['npm'], ['README.md'])).toEqual([])
+  })
+  test('вкладені воркспейси → файл відноситься до найглибшого (без хибного multi)', () => {
+    expect(matchChangedWorkspaces(['apps', 'apps/web'], ['apps/web/x.ts'])).toEqual(['apps/web'])
+  })
+})
+
+describe('release — авто --ws (інференс воркспейсу)', () => {
+  test('один змінений subworkspace → change отримує --ws <ws>', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      const code = await release(['--bump', 'patch'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: noop,
+        now: FIXED,
+        listWorkspaces: () => ['.', 'npm', 'demo'],
+        changedFilesSince: () => ['npm/rules/x.mjs']
+      })
+      expect(code).toBe(0)
+      expect(sink.args).toEqual(['@nitra/cursor', 'change', '--bump', 'patch', '--ws', 'npm'])
+    })
+  })
+
+  test('кілька змінених воркспейсів → exit 1, без виклику change', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      const msgs = []
+      const code = await release(['--bump', 'patch'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: m => msgs.push(m),
+        now: FIXED,
+        listWorkspaces: () => ['.', 'npm', 'demo'],
+        changedFilesSince: () => ['npm/a', 'demo/b']
+      })
+      expect(code).toBe(1)
+      expect(sink.args).toBeUndefined()
+      expect(msgs.join('\n')).toMatch(/кількох воркспейсах/i)
+    })
+  })
+
+  test('зміни лише в корені → change без --ws', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      await release(['--bump', 'patch'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: noop,
+        now: FIXED,
+        listWorkspaces: () => ['.', 'npm'],
+        changedFilesSince: () => ['README.md']
+      })
+      expect(sink.args).toEqual(['@nitra/cursor', 'change', '--bump', 'patch'])
+    })
+  })
+
+  test('явний --ws → інференс не чіпає аргументи', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      let listCalled = false
+      await release(['--bump', 'patch', '--ws', 'demo'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: noop,
+        now: FIXED,
+        listWorkspaces: () => {
+          listCalled = true
+          return ['.', 'npm', 'demo']
+        },
+        changedFilesSince: () => ['npm/a']
+      })
+      expect(sink.args).toEqual(['@nitra/cursor', 'change', '--bump', 'patch', '--ws', 'demo'])
+      expect(listCalled).toBe(false)
+    })
+  })
+
+  test('явний --ws=demo (inline-форма) → інференс не чіпає аргументи', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      let listCalled = false
+      await release(['--bump', 'patch', '--ws=demo'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: noop,
+        now: FIXED,
+        listWorkspaces: () => {
+          listCalled = true
+          return ['.', 'npm', 'demo']
+        },
+        changedFilesSince: () => ['npm/a']
+      })
+      expect(sink.args).toEqual(['@nitra/cursor', 'change', '--bump', 'patch', '--ws=demo'])
+      expect(listCalled).toBe(false)
+    })
+  })
+
+  test('changedFilesSince кидає → fail-soft: change без --ws, exit 0', async () => {
+    await withTmpDir(async dir => {
+      const wt = join(dir, '.worktrees', 'feat-x')
+      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress' })
+      const sink = {}
+      const msgs = []
+      const code = await release(['--bump', 'patch'], {
+        run: capturingRun(sink),
+        cwd: wt,
+        log: m => msgs.push(m),
+        now: FIXED,
+        listWorkspaces: () => ['.', 'npm'],
+        changedFilesSince: () => {
+          throw new Error('base недосяжний')
+        }
+      })
+      expect(code).toBe(0)
+      expect(sink.args).toEqual(['@nitra/cursor', 'change', '--bump', 'patch'])
+      expect(msgs.join('\n')).toMatch(/інференс воркспейсу пропущено/i)
     })
   })
 })
