@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.11.0] - 2026-06-02
+
+### Changed
+
+- coverage: scoped режим --changed — flow-турнікет (DEFAULT_GATES) перевіряє лише змінені від base_commit файли (vitest --changed + Stryker --mutate), однаково для закомічених і незакомічених змін; повний coverage лишається для bun run coverage / n-coverage-fix
+
 ## [3.10.0] - 2026-06-01
 
 ### Added
