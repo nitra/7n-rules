@@ -96,9 +96,9 @@ deny contains msg if {
 }
 
 # YAML 1.1 quirk: `dry_run: no` парситься як boolean false у Go-yaml (conftest).
-# Template (від `yaml` npm) теж нормалізовано до false у фікстурі.
+# Template (від `yaml` npm) читає `no` як рядок, тому нормалізуємо обидві форми.
 deny contains msg if {
-	step0.with.dry_run != expected_step0.with.dry_run # noqa: rules-style-no-equality-with-false
+	normalize_dry_run(step0.with.dry_run) != normalize_dry_run(expected_step0.with.dry_run) # noqa: rules-style-no-equality-with-false
 	msg := "clean-merged-branch.yml: with.dry_run має бути no (ga.mdc)"
 }
 
@@ -138,4 +138,13 @@ echo_deleted_branches if {
 	# Звіряємо substring "echo "Deleted branches: …${DELETED_BRANCHES}…"" — формується з template run.
 	contains(step1.run, "Deleted branches:")
 	contains(step1.run, "${DELETED_BRANCHES}")
+}
+
+normalize_dry_run(false) := false
+
+normalize_dry_run(value) := false if lower(sprintf("%v", [value])) == "no"
+
+normalize_dry_run(value) := value if {
+	value != false # noqa: equals-pattern-matching
+	lower(sprintf("%v", [value])) != "no"
 }
