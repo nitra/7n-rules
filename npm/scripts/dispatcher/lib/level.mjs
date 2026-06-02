@@ -10,10 +10,37 @@
 
 /** L3 — велике/архітектурне. */
 const L3_KEYS = ['platform', 'migration', 'rewrite', 'architecture', 'enterprise', 'редизайн', 'міграц', 'переписат']
-/** L0 — тривіальне. */
-const L0_KEYS = ['fix', 'typo', 'bump', 'rename', 'hotfix', 'опечат', 'перейменув']
+/** L0 — тривіальне. ASCII-дієслова: матч цілим словом (щоб `fix` не ловило `prefix`/`fixture`). */
+const L0_WORD_KEYS = ['fix', 'typo', 'bump', 'rename', 'hotfix']
+/** L0 — кириличні ключі: підрядком (стемінг: `перейменув` ловить `перейменування`). */
+const L0_SUBSTR_KEYS = ['опечат', 'перейменув']
 /** L2 — багатофайлова фіча/рефактор. */
 const L2_KEYS = ['feature', 'epic', 'refactor', 'рефактор', 'фіча']
+
+/**
+ * Чи символ — ASCII-літера/цифра (межа слова). `undefined` (край рядка) — не alnum.
+ * @param {string | undefined} ch символ
+ * @returns {boolean} результат
+ */
+function isAsciiAlnum(ch) {
+  return ch !== undefined && ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9'))
+}
+
+/**
+ * Чи містить `text` слово `word` із межами, що не є ASCII-alnum (без regex —
+ * конвенція файлу). Для ASCII L0-дієслів: `fix` у `prefix`/`fixture` не рахується.
+ * @param {string} text текст (lowercase)
+ * @param {string} word шукане ASCII-слово (lowercase)
+ * @returns {boolean} результат
+ */
+function hasWord(text, word) {
+  let i = text.indexOf(word)
+  while (i !== -1) {
+    if (!isAsciiAlnum(text[i - 1]) && !isAsciiAlnum(text[i + word.length])) return true
+    i = text.indexOf(word, i + 1)
+  }
+  return false
+}
 
 /**
  * Рівень складності задачі за описом: 0 (тривіальне) … 3 (архітектурне).
@@ -24,8 +51,9 @@ const L2_KEYS = ['feature', 'epic', 'refactor', 'рефактор', 'фіча']
 export function detectLevel(desc) {
   const d = String(desc ?? '').toLowerCase()
   const has = keys => keys.some(k => d.includes(k))
+  const isL0 = L0_WORD_KEYS.some(k => hasWord(d, k)) || L0_SUBSTR_KEYS.some(k => d.includes(k))
   if (has(L3_KEYS)) return 3
-  if (has(L0_KEYS)) return 0
+  if (isL0) return 0
   if (has(L2_KEYS)) return 2
   return 1
 }
