@@ -49,11 +49,6 @@ deny contains msg if {
 }
 
 deny contains msg if {
-	input.jobs.cleanup_old_branches.permissions.contents != expected_perms.contents
-	msg := sprintf("clean-merged-branch.yml: permissions.contents має бути %s (ga.mdc)", [expected_perms.contents])
-}
-
-deny contains msg if {
 	some permission, expected in expected_perms
 	object.get(input.jobs.cleanup_old_branches.permissions, permission, null) != expected
 	msg := sprintf("clean-merged-branch.yml: permissions.%s має бути %s (ga.mdc)", [permission, expected])
