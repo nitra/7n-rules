@@ -19,7 +19,9 @@ server {
 
     # disable all log
     access_log off;
-    error_log off;
+    # `error_log off;` — НЕ валідний nginx: "off" трактується як ім'я файлу (/etc/nginx/off)
+    # і падає під readOnlyRootFilesystem. /dev/null — writable device.
+    error_log /dev/null crit;
 
     # This would be the directory where your Vite app's static files are stored at
     root /usr/share/nginx/html;

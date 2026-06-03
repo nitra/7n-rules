@@ -8,7 +8,7 @@ server {
     server_name _;
 
     access_log off;
-    error_log off;
+    error_log /dev/null crit;
 
     root /usr/share/nginx/html;
 

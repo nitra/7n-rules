@@ -13,6 +13,7 @@ import {
   httpRouteMatchesNginxDefaultTpl,
   iniKeysMissingInTemplate,
   migrateDefaultTplConfFiles,
+  migrateErrorLogOffDirective,
   nginxTemplateViolations,
   parseIniVariableNames
 } from '../../../template.mjs'
@@ -53,6 +54,30 @@ describe('migrateDefaultTplConfFiles', () => {
       expect(overwritten).toEqual(['d/default.tpl.conf'])
       expect(existsSync(join(dir, 'd/default.tpl.conf'))).toBe(false)
       expect(await readFile(join(dir, 'd/default.conf.template'), 'utf8')).toBe('from-tpl')
+    })
+  })
+})
+
+describe('migrateErrorLogOffDirective', () => {
+  test('замінює error_log off; на error_log /dev/null crit; у шаблоні', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const tpl = join(dir, 'nginx/default.conf.template')
+      await writeFile(tpl, 'server {\n    access_log off;\n    error_log   off ;\n}\n', 'utf8')
+      const fixed = await migrateErrorLogOffDirective(dir)
+      expect(fixed).toEqual(['nginx/default.conf.template'])
+      const body = await readFile(tpl, 'utf8')
+      expect(body).toContain('error_log /dev/null crit;')
+      expect(body).not.toMatch(/error_log\s+off/u)
+    })
+  })
+
+  test('не чіпає шаблон без невалідної директиви', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'nginx'))
+      const tpl = join(dir, 'nginx/default.conf.template')
+      await writeFile(tpl, 'error_log /dev/null crit;\n', 'utf8')
+      expect(await migrateErrorLogOffDirective(dir)).toEqual([])
     })
   })
 })

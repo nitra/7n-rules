@@ -12,6 +12,9 @@
  * У дереві від **cwd** усі **default.tpl.conf** стають **default.conf.template**: перейменування, або
  * якщо **default.conf.template** уже є — він перезаписується вмістом **default.tpl.conf**, після чого
  * **default.tpl.conf** видаляється. Якщо після міграції шаблону немає — перевірка пропускається (0).
+ *
+ * Невалідна директива **`error_log off;`** (nginx трактує "off" як ім'я файлу `/etc/nginx/off` і падає під
+ * readOnlyRootFilesystem) автоматично замінюється на **`error_log /dev/null crit;`** у кожному шаблоні.
  */
 import { existsSync } from 'node:fs'
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
@@ -32,6 +35,11 @@ const PROXY_LIKE_RE =
 const FIND_CMD_RE = /\bfind\b/u
 const GZIP_CMD_RE = /\bgzip\b/u
 const GZIP_EXTENSION_RE = /\*\.(?:js|css)/u
+
+// `error_log off;` — НЕ валідний nginx: "off" трактується як ім'я файлу (/etc/nginx/off)
+// і падає під readOnlyRootFilesystem. /dev/null — writable device, тому канон — `error_log /dev/null crit;`.
+const ERROR_LOG_OFF_RE = /error_log\s+off\s*;/gu
+const ERROR_LOG_CANONICAL = 'error_log /dev/null crit;'
 
 /**
  * Збирає абсолютні шляхи до **default.conf.template** у репозиторії; будь-який сегмент
@@ -99,6 +107,28 @@ export async function migrateDefaultTplConfFiles(root, ignorePaths = []) {
 }
 
 /**
+ * Замінює невалідну директиву `error_log off;` на `error_log /dev/null crit;` у всіх
+ * **default.conf.template** від `root`. `error_log off;` — НЕ валідний nginx: "off" трактується
+ * як ім'я файлу (`/etc/nginx/off`) і падає під readOnlyRootFilesystem; `/dev/null` — writable device.
+ * @param {string} root корінь обходу (зазвичай cwd репозиторію)
+ * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
+ * @returns {Promise<string[]>} відносні шляхи виправлених шаблонів (для звіту)
+ */
+export async function migrateErrorLogOffDirective(root, ignorePaths = []) {
+  const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
+  /** @type {string[]} */
+  const fixed = []
+  for (const abs of templates) {
+    const body = await readFile(abs, 'utf8')
+    const next = body.replace(ERROR_LOG_OFF_RE, ERROR_LOG_CANONICAL)
+    if (next === body) continue
+    await writeFile(abs, next, 'utf8')
+    fixed.push(relative(root, abs).replaceAll('\\', '/') || abs)
+  }
+  return fixed
+}
+
+/**
  * Імена змінних з ini (рядки KEY=value, без коментарів і порожніх).
  * @param {string} iniText вміст *.ini
  * @returns {string[]} імена змінних у порядку появи
@@ -131,7 +161,10 @@ export function nginxTemplateViolations(content) {
     { msg: 'відсутнє listen 8080', ok: c => c.includes('listen 8080') },
     { msg: 'відсутнє server_name _', ok: c => c.includes('server_name _') },
     { msg: 'відсутнє access_log off', ok: c => c.includes('access_log off') },
-    { msg: 'відсутнє error_log off', ok: c => c.includes('error_log off') },
+    {
+      msg: 'відсутнє error_log /dev/null crit (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem)',
+      ok: c => c.includes('error_log /dev/null crit')
+    },
     { msg: 'відсутнє root /usr/share/nginx/html', ok: c => c.includes('root /usr/share/nginx/html') },
     {
       msg: 'location /healthz має повертати healthy (див. nginx-default-tpl.mdc)',
@@ -414,6 +447,11 @@ export async function check(cwd = process.cwd()) {
   }
   for (const rel of tplOverwritten) {
     pass(`Перезаписано default.conf.template змістом default.tpl.conf: ${rel}`)
+  }
+
+  const errorLogFixed = await migrateErrorLogOffDirective(root, ignorePaths)
+  for (const rel of errorLogFixed) {
+    pass(`Замінено невалідне error_log off; → error_log /dev/null crit; у ${rel}`)
   }
 
   const templates = await findDefaultConfTemplatePaths(root, ignorePaths)
