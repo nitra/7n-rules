@@ -29,7 +29,7 @@
  * `USER` у Dockerfile — перевірка non-root для нього пропускається.
  *
  * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
- * тощо. Спочатку hadolint з PATH, інакше docker run з образом hadolint/hadolint.
+ * тощо. hadolint — нативний бінарник через `ensureTool` (PATH/кеш/авто-install; без docker run).
  * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
  */
 import { readFile } from 'node:fs/promises'

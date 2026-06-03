@@ -74,5 +74,11 @@
   "less.validate": false,
   "files.associations": {
     "*.mdc": "markdown"
+  },
+  "search.exclude": {
+    "**/.worktrees/**": true
+  },
+  "files.exclude": {
+    "**/.worktrees/**": true
   }
 }

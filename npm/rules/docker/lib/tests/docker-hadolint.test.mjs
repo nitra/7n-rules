@@ -1,41 +1,25 @@
 /**
  * Тести docker-hadolint:
  *   - `posixRel` — чиста функція (relative + sep→'/');
- *   - `HADOLINT_IMAGE` — канонічна константа з docker.mdc;
- *   - `lintDockerfileWithHadolint` — fallback PATH → Docker, та exit-code → ok-mapping.
+ *   - `lintDockerfileWithHadolint` — нативний hadolint через `ensureTool`, exit-code → ok-mapping,
+ *     і `ok: false` з підказкою, коли `ensureTool` кидає (тула нема / авто-install відключено).
  *
- * `spawnSync`, `ensureTool` і `resolveCmd` мокаються через `vi.mock` (factory). Без зовнішніх процесів.
- * hadolint резолвиться через `ensureTool` (повертає шлях / кидає, якщо тула нема), docker — через `resolveCmd`.
+ * `spawnSync` і `ensureTool` мокаються через `vi.mock` (factory). Без зовнішніх процесів і без `docker run`.
  */
 import { describe, expect, test, vi, beforeEach, afterEach } from 'vitest'
 import { sep, join } from 'node:path'
 
 const spawnSyncMock = vi.fn()
-const resolveCmdMock = vi.fn()
 const ensureToolMock = vi.fn()
 
 vi.mock('node:child_process', () => ({
   spawnSync: spawnSyncMock
 }))
-vi.mock('../../../../scripts/utils/resolve-cmd.mjs', () => ({
-  resolveCmd: resolveCmdMock
-}))
 vi.mock('../../../../scripts/lib/ensure-tool.mjs', () => ({
   ensureTool: ensureToolMock
 }))
 
-const { HADOLINT_IMAGE, posixRel, lintDockerfileWithHadolint } = await import('../docker-hadolint.mjs')
-
-/** За замовчуванням hadolint «відсутній» (ensureTool кидає) — кейси з hadolint явно переозначують. */
-const HADOLINT_ABSENT = () => {
-  throw new Error('hadolint недоступний (тест)')
-}
-
-describe('HADOLINT_IMAGE', () => {
-  test('канонічна версія v2.12.0 з docker.mdc', () => {
-    expect(HADOLINT_IMAGE).toBe('hadolint/hadolint:v2.12.0')
-  })
-})
+const { posixRel, lintDockerfileWithHadolint } = await import('../docker-hadolint.mjs')
 
 describe('posixRel', () => {
   test('повертає posix-шлях навіть на Windows-style sep', () => {
@@ -59,16 +43,14 @@ describe('posixRel', () => {
 describe('lintDockerfileWithHadolint', () => {
   beforeEach(() => {
     spawnSyncMock.mockReset()
-    resolveCmdMock.mockReset()
     ensureToolMock.mockReset()
-    ensureToolMock.mockImplementation(HADOLINT_ABSENT)
   })
 
   afterEach(() => {
     vi.clearAllMocks()
   })
 
-  test('PATH: hadolint знайдено + exit 0 → ok=true, via=hadolint', () => {
+  test('hadolint знайдено + exit 0 → ok=true, via=hadolint', () => {
     ensureToolMock.mockReturnValue('/usr/local/bin/hadolint')
     spawnSyncMock.mockReturnValue({ status: 0, stdout: '', stderr: '' })
     const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
@@ -80,14 +62,14 @@ describe('lintDockerfileWithHadolint', () => {
     )
   })
 
-  test('PATH: hadolint знайдено + exit !=0 → ok=false, stdout/stderr пропагуються', () => {
+  test('hadolint знайдено + exit !=0 → ok=false, stdout/stderr пропагуються', () => {
     ensureToolMock.mockReturnValue('/usr/bin/hadolint')
     spawnSyncMock.mockReturnValue({ status: 1, stdout: 'DL3000', stderr: 'warning' })
     const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(result).toEqual({ ok: false, stdout: 'DL3000', stderr: 'warning', via: 'hadolint' })
   })
 
-  test('PATH: stdout/stderr undefined → fallback на ""', () => {
+  test('stdout/stderr undefined → fallback на ""', () => {
     ensureToolMock.mockReturnValue('/usr/bin/hadolint')
     spawnSyncMock.mockReturnValue({ status: 0, stdout: undefined, stderr: undefined })
     const r = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
@@ -95,42 +77,16 @@ describe('lintDockerfileWithHadolint', () => {
     expect(r.stderr).toBe('')
   })
 
-  test('hadolint відсутній + docker знайдено + exit 0 → ok=true, via=docker', () => {
-    resolveCmdMock.mockImplementation(name => (name === 'docker' ? '/usr/bin/docker' : null))
-    spawnSyncMock.mockReturnValue({ status: 0, stdout: 'OK', stderr: '' })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
-    expect(result).toEqual({ ok: true, stdout: 'OK', stderr: '', via: 'docker' })
-    expect(spawnSyncMock).toHaveBeenCalledWith(
-      '/usr/bin/docker',
-      ['run', '--rm', '-v', '/repo:/workdir', '-w', '/workdir', HADOLINT_IMAGE, 'Dockerfile'],
-      expect.objectContaining({ cwd: '/repo', encoding: 'utf8' })
-    )
-  })
-
-  test('hadolint відсутній + docker відсутній → ok=false з повідомленням про встановлення', () => {
-    resolveCmdMock.mockReturnValue(null)
+  test('ensureTool кидає (hadolint недоступний) → ok=false з підказкою, без spawn', () => {
+    ensureToolMock.mockImplementation(() => {
+      throw new Error('hadolint недоступний (тест)')
+    })
     const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
     expect(result.ok).toBe(false)
-    expect(result.via).toBe('docker')
-    expect(result.stderr).toContain('Не знайдено hadolint у PATH')
-    expect(result.stderr).toContain('docker.mdc')
+    expect(result.via).toBe('hadolint')
+    expect(result.stderr).toContain('hadolint')
+    expect(result.stderr).toContain('hadolint недоступний (тест)')
     expect(spawnSyncMock).not.toHaveBeenCalled()
-  })
-
-  test('docker run кинув error → ok=false з error.message у stderr', () => {
-    resolveCmdMock.mockImplementation(name => (name === 'docker' ? '/usr/bin/docker' : null))
-    spawnSyncMock.mockReturnValue({ error: new Error('ENOENT'), status: null })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
-    expect(result.ok).toBe(false)
-    expect(result.stderr).toContain('ENOENT')
-    expect(result.via).toBe('docker')
-  })
-
-  test('docker exit !=0 → ok=false, stdout/stderr пропагуються', () => {
-    resolveCmdMock.mockImplementation(name => (name === 'docker' ? '/usr/bin/docker' : null))
-    spawnSyncMock.mockReturnValue({ status: 2, stdout: 'lint failed', stderr: 'DL3000' })
-    const result = lintDockerfileWithHadolint('/repo', '/repo/Dockerfile')
-    expect(result).toEqual({ ok: false, stdout: 'lint failed', stderr: 'DL3000', via: 'docker' })
   })
 
   test('відносний шлях передається з прямими слешами навіть з вкладеною директорією', () => {

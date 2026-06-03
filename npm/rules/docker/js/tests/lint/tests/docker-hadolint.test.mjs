@@ -1,12 +1,10 @@
 /**
- * Тести шляхів hadolint (`posixRel`); виклик hadolint/docker не перевіряється (залежність від середовища).
+ * Тести шляхів hadolint (`posixRel`); виклик hadolint не перевіряється (залежність від середовища).
  */
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
-import { HADOLINT_IMAGE, posixRel } from '../../../../lib/docker-hadolint.mjs'
-
-const HADOLINT_IMAGE_RE = /^hadolint\/hadolint:v[\d.]+$/
+import { posixRel } from '../../../../lib/docker-hadolint.mjs'
 
 describe('docker-hadolint', () => {
   test('posixRel дає слеші як у POSIX', () => {
@@ -15,9 +13,5 @@ describe('docker-hadolint', () => {
     const rel = posixRel(root, abs)
     expect(rel).not.toContain('\\')
     expect(rel).toBe('docker/Dockerfile')
-  })
-
-  test('константа образу hadolint зафіксована', () => {
-    expect(HADOLINT_IMAGE).toMatch(HADOLINT_IMAGE_RE)
   })
 })

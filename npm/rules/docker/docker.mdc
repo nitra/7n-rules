@@ -181,7 +181,7 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 **Область lint-docker (вужча, ніж `check docker`):** лише файли з іменем **`Dockerfile`** та **`*.Dockerfile`** (суфікс **`.dockerfile`** без урахування регістру, наприклад **`api.Dockerfile`**). Файли **`Dockerfile.prod`**, **`Containerfile`** тощо **не** входять у **`lint-docker`**; їх ловить **`check docker`** (`rules/docker/fix.mjs`).
 
-Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`**: **`PATH`**, інакше **`docker run`** — спільна логіка **`npm/rules/docker/js/lint/docker-hadolint.mjs`**.
+Обхід: **`walkDir`** з тими самими пропусками каталогів, що й **`rules/docker/fix.mjs`**. Виклик **`hadolint`** як **нативного бінарника** через **`ensureTool`** (PATH → кеш → авто-install brew/scoop/GitHub Release; **без** `docker run`) — спільна логіка **`npm/rules/docker/lib/docker-hadolint.mjs`**.
 
 - Канон `package.json#scripts.lint-docker`: [package.json.snippet.json](./policy/package_json/template/package.json.snippet.json)
 
@@ -191,14 +191,14 @@ CLI **`hadolint`** приймає лише **явні шляхи** (`[DOCKERFILE
 
 - Канон: [lint-docker.yml.snippet.yml](./policy/lint_docker_yml/template/lint-docker.yml.snippet.yml)
 
-Узгоджуй версію hadolint **v2.12.0** з **`HADOLINT_IMAGE`** у **`npm/rules/docker/js/lint/docker-hadolint.mjs`**.
+Локально hadolint авто-встановлюється через **`ensureTool`** (latest, без піну версії). У CI встанови його кроком із workflow-сніпета (curl-download бінарника — без `docker run`).
 
 Кореневий скрипт **`lint`** (див. **`n-bun.mdc`**) **обов'язково** містить **`bun run lint-docker`**, коли в проєкті підключено правило **`docker`**.
 
 ## Запуск
 
 1. **`bun run lint-docker`** — **`run-docker.mjs`**: **`Dockerfile`** та **`*.Dockerfile`** (див. **`lint-docker`**); у CI встанови hadolint (приклад у workflow).
-2. **`npx @nitra/cursor fix docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (**`PATH`** або **`docker run`** з **`hadolint/hadolint:v2.12.0`**).
+2. **`npx @nitra/cursor fix docker`** — **`rules/docker/fix.mjs`**, виклик hadolint як у **`docker-hadolint.mjs`** (нативний бінарник через **`ensureTool`**; **без** `docker run`).
 3. Кореневий **`.hadolint.yaml`**: вимкнення правил, trusted registries — [документація](https://github.com/hadolint/hadolint#configure). Щоб не додавати **`# hadolint ignore=DL3007`** у кожному **`FROM`** з **`:latest`**, у корені репозиторію задати глобально:
 
 ```yaml title=".hadolint.yaml"

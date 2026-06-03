@@ -20,6 +20,84 @@ alwaysApply: true
 Слеш у гілці перетворюється на дефіс: `feat/skill-meta` → `.worktrees/feat-skill-meta/`.
 Git-гілка лишається з оригінальним імʼям (`feat/skill-meta`).
 
+## Налаштування редакторів
+
+Worktree-каталоги — це вкладені копії всього дерева. Якщо редактор індексує їх,
+пошук дає дублі, а file-watcher вантажить диск. Тому редактор має **виключити**
+`.worktrees/` (а для Zed ще й приватний `.claude/worktrees/`) з пошуку та сканування.
+
+Канон перевіряється **лише** якщо файл налаштувань уже є — проєктам без VS Code / Zed
+нічого не нав'язується.
+
+### VS Code
+
+У `.vscode/settings.json` обовʼязково виключи `**/.worktrees/**` з пошуку і з дерева
+файлів. `node_modules` додавати не треба — VS Code виключає його з пошуку дефолтно.
+
+```json title=".vscode/settings.json"
+{
+  "search.exclude": {
+    "**/.worktrees/**": true
+  },
+  "files.exclude": {
+    "**/.worktrees/**": true
+  }
+}
+```
+
+Канон (subset — інші ключі дозволені): `settings.json`:
+
+```json
+{
+  "search.exclude": {
+    "**/.worktrees/**": true
+  },
+  "files.exclude": {
+    "**/.worktrees/**": true
+  }
+}
+```
+
+### Zed
+
+Zed **замінює** масив `file_scan_exclusions` цілком (не зливає з дефолтами), тому в
+`.zed/settings.json` перелічуй і дефолти Zed, і `**/.worktrees`, і `**/.claude/worktrees`.
+Перевірка вимагає **всі** записи канону (бо інакше дефолти губляться).
+
+```json title=".zed/settings.json"
+{
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/node_modules",
+    "**/.worktrees",
+    "**/.claude/worktrees"
+  ]
+}
+```
+
+Канон (усі елементи обовʼязкові, зайві дозволені): `settings.json`:
+
+```json
+{
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/node_modules",
+    "**/.worktrees",
+    "**/.claude/worktrees"
+  ]
+}
+```
+
+`.zed/settings.json` без стабільної схеми в Schema Store — додай його до `.v8rignore` (як `.vscode/*`, див. **text.mdc**).
+
 ## Команди
 
 - **Створити** (опис обовʼязковий): `npx @nitra/cursor worktree add <branch> "<навіщо>"`

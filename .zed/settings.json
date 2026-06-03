@@ -1,0 +1,12 @@
+{
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.svn",
+    "**/.hg",
+    "**/.DS_Store",
+    "**/Thumbs.db",
+    "**/node_modules",
+    "**/.worktrees",
+    "**/.claude/worktrees"
+  ]
+}

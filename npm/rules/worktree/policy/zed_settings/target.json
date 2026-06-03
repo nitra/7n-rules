@@ -1,0 +1,5 @@
+{
+  "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "check": "template",
+  "files": { "single": ".zed/settings.json" }
+}
