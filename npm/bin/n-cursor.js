@@ -96,6 +96,7 @@ import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
 import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
 import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
+import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { runLintDocker } from '../rules/docker/lint/lint.mjs'
 import { runLintGaCli } from '../rules/ga/lint/lint.mjs'
 import { runLintK8s } from '../rules/k8s/lint/lint.mjs'
@@ -1462,6 +1463,12 @@ async function runSync() {
 const [command, ...args] = process.argv.slice(2)
 
 try {
+  // Дефолтний sync (без підкоманди) скаффолдить .cursor/.claude/CLAUDE.md/.n-cursor.json
+  // і робить bun install у cwd(). Guard до перших мутацій: заборона запуску з піддиректорії
+  // git-репо (типово прямий `bun npm/bin/n-cursor.js` не з кореня). Підкоманди не зачіпає.
+  if (command === undefined || command === '') {
+    assertCwdIsProjectRoot()
+  }
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
     case 'fix': {
