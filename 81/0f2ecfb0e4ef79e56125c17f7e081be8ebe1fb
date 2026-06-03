@@ -1,0 +1,41 @@
+npm/skills/docgen/SKILL.md
+  s_0efdce5d70898a::t_7bca5313d78da4 1-203
+.pi/skills/n-docgen/SKILL.md
+  s_0efdce5d70898a::t_0797e49c0c3597 1-9
+.cursor/rules/scripts.mdc
+  s_0efdce5d70898a::t_eae662e315b6bb 2,4
+  s_0efdce5d70898a::t_1240e72ffbec54 55,57-72
+npm/.changes/1780426253394-e1d4d8.md
+  s_0efdce5d70898a::t_69be1b5ed19904 1-5
+npm/skills/docgen/js/docgen-scan.mjs
+  s_0efdce5d70898a::t_f3ffd6f1e84945 12
+  s_0efdce5d70898a::t_7d4240fdaa5fbc 230
+npm/skills/docgen/js/tests/docgen-scan.test.mjs
+  s_0efdce5d70898a::t_47b1a28363bdeb 5
+docs/adr/20260602-211016-детермінований-сканер-без-llm.md
+  s_0efdce5d70898a::t_e3aceba9e2a904 26-136
+npm/bin/n-cursor.js
+  s_0efdce5d70898a::t_baf4b2bc6eb114 27-28
+  s_0efdce5d70898a::t_017215e6ad7cb8 788-795,798
+  s_0efdce5d70898a::t_a4e22404f2c6d5 1592
+  s_0efdce5d70898a::t_36d9f8860ce31e 1613
+  s_0efdce5d70898a::t_22c2aa4973a047 1588-1591,1593-1603
+.cursor/skills/n-docgen/SKILL.md
+  s_0efdce5d70898a::t_daf151d2e4c784 1-203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "810f2ecfb0e4ef79e56125c17f7e081be8ebe1fb",
+  "prompts": {},
+  "sessions": {
+    "s_0efdce5d70898a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f210f394-3b4a-4cae-a1e4-6ac768a3a7d5",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
