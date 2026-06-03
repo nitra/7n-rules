@@ -223,6 +223,44 @@ export const runLintFooCli = (cwd = process.cwd()) =>              // для CLI
 - Тест викликає `runLint<Foo>Cli` (з локом) у циклі з різними тимчасовими станами — після першого успіху всі наступні дедупляться. Переключай на `runLint<Foo>Steps` або змішуй унікальний `cwd`/idx у custom `getFingerprint`.
 - `bun run lint` лагає на macOS під час кількох паралельних агентів — переконайся, що ВСІ скрипти-кроки `lint` (`lint-rego`, `lint-js`, `lint-text`, `lint-ga`, `lint-style`, `lint-security`) проходять через `withLock` (або зовнішні тулзи, які серіалізувати не можна — і це осмислений виняток).
 
+## Зовнішні CLI-інструменти: резолв і авто-встановлення
+
+**Принцип:** будь-який **зовнішній бінарник**, який спавнить скрипт пакета (`conftest`, `hk`, `hadolint`, `kubeconform`, `actionlint`, `trufflehog`, `regal`, `oxlint` тощо), резолвиться через **єдиний seam** `ensureTool(name)` (`npm/scripts/utils/ensure-tool.mjs`), а **не** через ad-hoc `resolveCmd` + власну install-підказку в кожному місці. Один seam — одна політика резолву, встановлення, підказок і кешу; новий тул = один запис у реєстрі, без дублювання логіки. Це ревізія попереднього **Plan B** («hint + hard-fail, не став сам», як зараз у [`run-conftest-batch.mjs`](../../npm/scripts/lib/run-conftest-batch.mjs)) → тепер **«спробуй поставити, не вийшло — hint + hard-fail»**.
+
+**Порядок резолву** (`ensureTool` повертає абсолютний шлях до бінарника або кидає):
+
+1. **PATH** — `resolveCmd(name)`; є → беремо системний (поважаємо інсталяцію користувача / версію в CI-образі).
+2. **Керований кеш** — `~/.cache/@nitra/cursor/bin/<tool>` (Win: `%LOCALAPPDATA%`); є → беремо.
+3. **Авто-install** за per-platform matrix (нижче). Серіалізується через [`withLock`](../../npm/scripts/utils/with-lock.mjs) — паралельні агенти не качають той самий бінарник двічі.
+4. **Невдача** (offline / нема пакетного менеджера / opt-out) → друк per-OS install-hint і **hard-fail** (виняток), щоб виклична `check-*`/`lint-*`/`fix` впала явно. Hard-fail — **скрізь однаково** (і conftest, і hk), не warn-and-continue.
+
+**Per-platform matrix** — єдина для **всіх** тулів, не лише hk/conftest. Ставимо **latest**, версію **не пінуємо й не перевіряємо** (свідоме рішення заради простоти):
+
+| OS | Метод | Нотатки |
+| --- | --- | --- |
+| **macOS** | `brew install <formula>` | brew вважаємо наявним на всіх маках |
+| **Windows** | `scoop install <app>` (Main bucket) → fallback GitHub-release binary | **winget виключено** — у ньому нема ні `hk`, ні `conftest` (лише `jdx.mise`, `open-policy-agent.opa`); Scoop Main має обидва. Scoop сам не передвстановлений — якщо нема, падаємо на release-binary |
+| **Linux** | GitHub-release binary (download + `chmod +x` у керований кеш) | пакетні менеджери різняться (apt/dnf, sudo) — не покладаємось |
+
+Download-движок (GitHub-release binary під поточний OS+arch) спільний — потрібен для Linux і як Windows-fallback; mac/Windows лише пробують пакетний менеджер **першим**.
+
+**Реєстр тулів** — один маніфест (`npm/scripts/utils/tool-registry.mjs`): на тул запис на кшталт `{ brewFormula, scoopApp, githubRepo, assetPattern, hint }`. `ensureTool` читає звідси — додавання нового тула не торкається движка.
+
+**CI та git-hooks:**
+
+- Бінарники в CI ставити **треба** (щоб lint/rego реально працювали) — крок 3 в CI активний.
+- `hk` особливо: у потоці **`n-fix`** робимо `ensureTool('hk')` (бінарник) **+ `hk install`** (вписати pre-commit git-hook). **`hk install` пропускаємо в CI** (хуки на commit там марні) — гард через `process.env.CI`.
+
+**Opt-out:** `N_CURSOR_NO_AUTO_INSTALL=1` → крок 3 пропускається, одразу крок 4 (hint + hard-fail).
+
+### Red flags
+
+- Спавн зовнішнього бінарника напряму (`spawnSync(name, …)` / `resolveCmd` з власною install-підказкою) — заведи його в `ensureTool` + реєстр, не дублюй install-логіку.
+- `winget` у install-коді — виключений (нема потрібних пакетів); Windows = Scoop → GitHub-release fallback.
+- Пінування / перевірка версії зовнішнього тула — свідомо **не робимо** (latest); не додавай version-gate без окремого рішення.
+- `hk install` без гарду `process.env.CI` — у CI він зайвий.
+- warn-and-continue при відсутньому тулі — ні; **hard-fail** після підказки.
+
 ## Аналіз JavaScript / TypeScript: Oxc AST
 
 За замовчуванням для **перевірки змісту JS/TS** у `npm/rules/<id>/js/` (check/run/lint) і утилітах `npm/scripts/utils/` намагайся використовувати саме **Oxc AST-парсер** — пакет **`oxc-parser`** (`parseSync` тощо), обхід **`module` / `program` / вузлів AST**, а не «сліпі» regex по всьому файлу.

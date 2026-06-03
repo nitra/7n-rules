@@ -5,7 +5,10 @@
       "Skill(update-config)",
       "Skill(update-config:*)",
       "WebFetch(domain:microsoft.github.io)",
-      "Skill(n-coverage-fix)"
+      "Skill(n-coverage-fix)",
+      "WebSearch",
+      "WebFetch(domain:scoop.sh)",
+      "WebFetch(domain:scoopsearch.com)"
     ]
   }
 }

@@ -1,6 +1,7 @@
 /**
- * CLI-обгортка над канонічним `lint-text` (text.mdc): preflight на `shellcheck`, `patch`
- * (для авто-фіксу shellcheck) і `dotenv-linter`; далі послідовно
+ * CLI-обгортка над канонічним `lint-text` (text.mdc): авто-встановлює `shellcheck` і `dotenv-linter`
+ * через `ensureTool` (brew/scoop/GitHub Release per-platform), перевіряє наявність `patch`
+ * (для авто-фіксу shellcheck); далі послідовно
  *   1) `cspell .` — перевірка правопису з `@nitra/cspell-dict`;
  *   2) `runShellcheckText()` — авто-фікс і фінальна перевірка `*.sh` через `shellcheck`;
  *   3) `runDotenvLinter()` — авто-фікс і фінальна перевірка `.env*` через `dotenv-linter`;
@@ -9,7 +10,7 @@
  *
  * Без preflight локальний прогін може пройти cspell/markdownlint, а CI на ubuntu-latest
  * (де shellcheck передвстановлений, але dotenv-linter — ні) падає на кроці dotenv-linter
- * з неінформативним повідомленням. Preflight збирає всі відсутні бінарники до першого кроку.
+ * з неінформативним повідомленням. ensureTool збирає всі відсутні бінарники до першого кроку.
  *
  * Перший ненульовий код з ланцюжка повертається як код виходу; наступні кроки не запускаються.
  * Експортовано як `runLintTextCli` — використовується з `bin/n-cursor.js` як підкоманда `lint-text`.
@@ -22,6 +23,7 @@ import { platform } from 'node:process'
 import { runLintStep } from '../../../scripts/lib/run-lint-step.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
+import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
 import { runDotenvLinter } from './run-dotenv-linter.mjs'
 import { runShellcheckText } from './run-shellcheck.mjs'
 import { runV8rWithGlobs } from './run-v8r.mjs'
@@ -37,22 +39,6 @@ import { runV8rWithGlobs } from './run-v8r.mjs'
  */
 
 /** @type {PreflightDep} */
-const SHELLCHECK_PREFLIGHT = {
-  bin: 'shellcheck',
-  winBins: ['shellcheck.exe'],
-  explanation: [
-    'Без нього `runShellcheckText()` пропускає перевірку tracked `*.sh` — локально lint-text',
-    'може бути зеленим, а CI (shellcheck + patch) падає на тих самих скриптах.'
-  ].join('\n   '),
-  install: [
-    'macOS:         brew install shellcheck',
-    'Debian/Ubuntu: sudo apt-get install -y shellcheck',
-    'Arch:          sudo pacman -S shellcheck'
-  ],
-  successMsg: '✅ shellcheck знайдено в PATH — lint-text перевірить *.sh'
-}
-
-/** @type {PreflightDep} */
 const PATCH_PREFLIGHT = {
   bin: 'patch',
   explanation: ['Без `patch` не застосуються авто-виправлення shellcheck (`shellcheck -f diff` + `patch -p1`).'].join(
@@ -60,22 +46,6 @@ const PATCH_PREFLIGHT = {
   ),
   install: ['macOS:         зазвичай уже є в системі', 'Debian/Ubuntu: sudo apt-get install -y patch'],
   successMsg: '✅ patch знайдено в PATH — shellcheck auto-fix працюватиме'
-}
-
-/** @type {PreflightDep} */
-const DOTENV_LINTER_PREFLIGHT = {
-  bin: 'dotenv-linter',
-  winBins: ['dotenv-linter.exe'],
-  explanation: [
-    'Без нього не виконається крок `.env*` у lint-text — локально cspell/markdownlint',
-    'пройдуть, а CI без Install dotenv-linter впаде неінформативно.'
-  ].join('\n   '),
-  install: [
-    'macOS:     brew install dotenv-linter',
-    'Linux:     curl -sSfL https://git.io/JLbXn | sh -s -- -b /usr/local/bin',
-    'cargo:     cargo install dotenv-linter'
-  ],
-  successMsg: '✅ dotenv-linter знайдено в PATH — lint-text перевірить .env*'
 }
 
 /**
@@ -128,11 +98,12 @@ function preflight(dep) {
  * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
  */
 function runLintTextSteps() {
-  let preflightOk = true
-  for (const dep of [SHELLCHECK_PREFLIGHT, PATCH_PREFLIGHT, DOTENV_LINTER_PREFLIGHT]) {
-    if (!preflight(dep)) preflightOk = false
-  }
-  if (!preflightOk) return 1
+  // Auto-install: throws on failure → propagates as exit 1 from runStandardLint
+  ensureTool('shellcheck')
+  ensureTool('dotenv-linter')
+
+  // patch is hint-only (system tool)
+  if (!preflight(PATCH_PREFLIGHT)) return 1
 
   const cspellCode = runLintStep('cspell', 'npx', ['cspell', '.'])
   if (cspellCode !== 0) return cspellCode

@@ -26,7 +26,7 @@ const LEADING_BANG_RE = /^!/
  * @param {string} path шлях до файлу
  * @returns {Promise<unknown>} розпарсений вміст
  */
-async function parseByExt(path) {
+export async function parseByExt(path) {
   const raw = await readFile(path, 'utf8')
   const ext = extname(path).toLowerCase()
   if (ext === '.json' || ext === '.jsonc') return JSON.parse(stripJsonComments(raw))
@@ -112,6 +112,27 @@ function quote(v) {
   return typeof v === 'string' ? JSON.stringify(v) : String(v)
 }
 
+/** Ключі, за якими ідентифікуємо елемент масиву обʼєктів у повідомленні (напр. workflow-крок). */
+const ELEMENT_ID_KEYS = ['uses', 'name', 'id', 'run']
+
+/**
+ * Людинозрозумілий опис елемента масиву для повідомлення про відсутність.
+ * Для скаляра — `quote`; для обʼєкта — перший наявний ідентифікуючий ключ
+ * (`uses`/`name`/`id`/`run`), інакше компактний JSON.
+ * @param {unknown} needle елемент сніпета, якого бракує в actual
+ * @returns {string} опис для тексту порушення
+ */
+function describeElement(needle) {
+  if (needle !== null && typeof needle === 'object' && !Array.isArray(needle)) {
+    const obj = /** @type {Record<string, unknown>} */ (needle)
+    for (const k of ELEMENT_ID_KEYS) {
+      if (typeof obj[k] === 'string') return `елемент з ${k}: ${quote(obj[k])}`
+    }
+    return `елемент ${JSON.stringify(needle)}`
+  }
+  return quote(needle)
+}
+
 /**
  * Deep subset-of check. Every leaf in `snippet` must equal same path in `actual`.
  * Arrays in snippet: every element must be present in actual array.
@@ -131,10 +152,15 @@ export function checkSnippet(actual, snippet, opts, path = []) {
       violations.push(`${targetPath}: ${formatPath(path)} має бути масивом (${source})`)
       return violations
     }
+    // Subset-of, order-insensitive: кожен елемент сніпета має структурно міститись
+    // хоча б в одному елементі actual. Для обʼєктів — рекурсивний subset
+    // (`checkSnippet` без порушень), тож порядок ключів, зайві поля й зайві елементи
+    // не ламають збіг. Критично для впорядкованих масивів як `steps`, де елементи
+    // сортувати не можна (порядок кроків семантичний) — матч лишається за наявністю.
     for (const needle of snippet) {
-      const found = actual.some(a => JSON.stringify(a) === JSON.stringify(needle))
+      const found = actual.some(a => checkSnippet(a, needle, opts, [...path, '[]']).length === 0)
       if (!found) {
-        violations.push(`${targetPath}: ${formatPath(path)} має містити ${quote(needle)} (${source})`)
+        violations.push(`${targetPath}: ${formatPath(path)} має містити ${describeElement(needle)} (${source})`)
       }
     }
     return violations

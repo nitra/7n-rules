@@ -118,6 +118,36 @@ describe('checkSnippet', () => {
     ])
   })
 
+  test('array of objects: structural-subset match (extra attrs + extra keys allowed)', () => {
+    const snippet = { steps: [{ uses: 'actions/checkout@v6', with: { 'fetch-depth': 0 } }] }
+    const actual = {
+      steps: [{ name: 'Checkout', with: { 'persist-credentials': true, 'fetch-depth': 0 }, uses: 'actions/checkout@v6' }]
+    }
+    expect(checkSnippet(actual, snippet, opts)).toEqual([])
+  })
+
+  test('array of objects: order-insensitive (snippet element found anywhere in actual)', () => {
+    const snippet = { steps: [{ uses: 'JS-DevTools/npm-publish@v4.1.5' }] }
+    const actual = { steps: [{ uses: 'actions/checkout@v6' }, { uses: 'JS-DevTools/npm-publish@v4.1.5' }] }
+    expect(checkSnippet(actual, snippet, opts)).toEqual([])
+  })
+
+  test('array of objects: missing element reported by identifying key', () => {
+    const snippet = { steps: [{ uses: 'JS-DevTools/npm-publish@v4.1.5', with: { package: 'npm/package.json' } }] }
+    const actual = { steps: [{ uses: 'actions/checkout@v6' }] }
+    expect(checkSnippet(actual, snippet, opts)).toEqual([
+      'package.json: steps має містити елемент з uses: "JS-DevTools/npm-publish@v4.1.5" (security.mdc)'
+    ])
+  })
+
+  test('array of objects: element present but missing a required nested field → reported', () => {
+    const snippet = { steps: [{ uses: 'actions/checkout@v6', with: { 'fetch-depth': 0 } }] }
+    const actual = { steps: [{ uses: 'actions/checkout@v6', with: { 'persist-credentials': true } }] }
+    expect(checkSnippet(actual, snippet, opts)).toEqual([
+      'package.json: steps має містити елемент з uses: "actions/checkout@v6" (security.mdc)'
+    ])
+  })
+
   test('returns empty for null snippet (no template provided)', () => {
     expect(checkSnippet({}, null, opts)).toEqual([])
     expect(checkSnippet({}, undefined, opts)).toEqual([])

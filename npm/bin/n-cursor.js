@@ -110,6 +110,7 @@ import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 import { runLint } from '../scripts/lint-cli.mjs'
 import { formatTimingSummary } from '../scripts/lib/timing-summary.mjs'
+import { ensureHkInstall, ensureTool } from '../scripts/lib/ensure-tool.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 const CONFIG_FILE = '.n-cursor.json'
@@ -1184,6 +1185,10 @@ function logRemovedManagedItems(title, basePath, names) {
  * @returns {Promise<void>}
  */
 async function runFixCommand(requestedRules) {
+  const hkBin = ensureTool('hk')
+  ensureHkInstall(hkBin)
+  ensureTool('conftest')
+
   const available = await listRuleIds(BUNDLED_RULES_DIR)
   if (available.length === 0) {
     console.error('❌ Не знайдено жодного правила у пакеті')

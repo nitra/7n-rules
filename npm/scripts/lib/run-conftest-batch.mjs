@@ -4,15 +4,13 @@
  * пер-документні правила винесені у `npm/policy/<rule>/<name>/` як rego-полісі
  * (Rego-authoritative). JS у `check-*.mjs` робить cross-file частину (walking
  * дерева, парність, kustomize-резолюція), а пер-документне валідаційне ядро
- * делегується сюди — один спавн `conftest` на (`namespace`, `policyDir`),
+ * делегується сюді — один спавн `conftest` на (`namespace`, `policyDir`),
  * незалежно від кількості файлів. Це закриває дублювання JS↔rego і прибирає
  * ризик дрифту (типу `spec.config` vs `spec.default.config` у
  * `health_check_policy.rego`, що ми ловили cross-check тестами).
  *
- * Hard-fail на відсутність `conftest` у PATH — узгоджено з рішенням Plan B:
- * якщо правило делегує свою логіку до Rego, а інструмент відсутній, тиха
- * відмова приховує реальні порушення. Друкуємо install-hint (як `lint-rego.mjs`
- * робить для opa/regal).
+ * Hard-fail на відсутність `conftest` — через `ensureTool`, що спочатку
+ * намагається авто-встановити, і лише після невдачі кидає виняток.
  */
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -20,7 +18,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { resolveCmd } from '../utils/resolve-cmd.mjs'
+import { ensureTool } from './ensure-tool.mjs'
 
 /**
   Каталог пакета `@nitra/cursor`, від якого ресолвимо вшиті директорії правил.
@@ -29,23 +27,6 @@ const PACKAGE_ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
 /** Шлях до кореня правил. У npm-tarball публікується через `files: ["rules"]`. Кожне правило: `rules/<id>/policy/<name>/`. */
 const RULES_ROOT = join(PACKAGE_ROOT, 'rules')
-
-/**
- * Друкує install-hint для conftest і кидає виняток, щоб викликана `check-*`
- * команда ясно завершилась з кодом 1.
- * @returns {never} завжди кидає; для точки виклику — non-returning
- */
-function failConftestMissing() {
-  throw new Error(
-    [
-      '❌ conftest не знайдено в PATH.',
-      '   Без нього не запускається пер-документна валідація через rego-полісі (npm/policy/).',
-      '   Встанови:',
-      '     macOS:     brew install conftest',
-      '     Universal: https://www.conftest.dev/install/'
-    ].join('\n')
-  )
-}
 
 /**
  * @typedef {object} ConftestViolation
@@ -80,16 +61,13 @@ export function buildConftestArgs(p) {
 /**
  * Виконує `conftest test` для всіх файлів одним спавном і повертає масив
  * порушень. Якщо `files` порожній — повертає `[]` без спавна. Якщо `conftest`
- * не у PATH — кидає виняток (hard fail, див. модульний docstring).
+ * не у PATH і авто-встановлення не вдалось — кидає виняток (hard fail).
  * @param {ConftestBatchOptions} opts параметри запуску
  * @returns {ConftestViolation[]} масив порушень (порожній — все ок)
  */
 export function runConftestBatch(opts) {
   if (opts.files.length === 0) return []
-  const conftestBin = resolveCmd('conftest')
-  if (!conftestBin) {
-    failConftestMissing()
-  }
+  const conftestBin = ensureTool('conftest')
   // policyDirRel — формат `<rule>/<name>` (наприклад `abie/base_deployment_preem`).
   // Реальний шлях у новій структурі: `rules/<rule>/policy/<name>`.
   const slash = opts.policyDirRel.indexOf('/')

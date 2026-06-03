@@ -13,13 +13,20 @@
  * Це дає той самий 0/1 контракт, що й попередня модель «один check.mjs на правило».
  */
 import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 
 import { findMissingMdcRefs } from './check-mdc-template-refs.mjs'
 import { createCheckReporter } from './check-reporter.mjs'
 import { resolveTargetFiles } from './resolve-target-files.mjs'
 import { runConftestBatch } from './run-conftest-batch.mjs'
-import { resolveConcernTemplateData } from './template.mjs'
+import {
+  checkContains,
+  checkDeny,
+  checkSnippet,
+  checkTextSubset,
+  parseByExt,
+  resolveConcernTemplateData
+} from './template.mjs'
 
 const APPLIES_CONCERN_NAME = 'applies'
 
@@ -53,6 +60,46 @@ async function evaluateAppliesGate(bundledRulesDir, rule) {
 }
 
 /**
+ * Snippet-driven перевірка концерну (`target.json:"check":"template"`): канон зі
+ * `template/<target>.snippet|deny|contains.<ext>` звіряється з actual-файлом
+ * generic deep-subset-ом, без `.rego`. Семантика — subset-of: усі канонічні
+ * поля/елементи обовʼязкові, зайві дозволені; масиви матчаться за наявністю
+ * (order-insensitive). Сніпет — єдине джерело істини: його зміна одразу змінює enforce.
+ * @param {string} concernAbsDir абсолютний `rules/<id>/policy/<concern>/`
+ * @param {object} target розпарсений `target.json`
+ * @param {string[]} files актуальні файли-таргети (resolveTargetFiles)
+ * @param {string} ruleId id правила (для `source` у повідомленнях)
+ * @param {string} concernName імʼя концерну (для summary)
+ * @returns {Promise<number>} 0 — OK, 1 — є порушення
+ */
+export async function runTemplateSubsetConcern(concernAbsDir, target, files, ruleId, concernName) {
+  const reporter = createCheckReporter()
+  const data = await resolveConcernTemplateData(concernAbsDir, target)
+  if (!data) {
+    reporter.pass(`${concernName}: немає template-сніпета — пропущено`)
+    return reporter.getExitCode()
+  }
+  for (const file of files) {
+    const rel = relative(process.cwd(), file) || file
+    const actual = await parseByExt(file)
+    const opts = { targetPath: rel, source: `${ruleId}.mdc` }
+    const violations = [
+      ...(typeof data.snippet === 'string'
+        ? checkTextSubset(actual, data.snippet, opts)
+        : checkSnippet(actual, data.snippet, opts)),
+      ...checkDeny(actual, data.deny, opts),
+      ...checkContains(actual, data.contains, opts)
+    ]
+    if (violations.length === 0) {
+      reporter.pass(`${concernName}: ${rel} відповідає канону (template subset)`)
+    } else {
+      for (const v of violations) reporter.fail(v)
+    }
+  }
+  return reporter.getExitCode()
+}
+
+/**
  * Запускає одну policy-полісі через `runConftestBatch`. Створює локальний репортер,
  * читає `target.json`, визначає файли, фіксує fail/pass — і повертає exit-код.
  * @param {string} bundledRulesDir абсолютний `rules/`
@@ -63,8 +110,9 @@ async function evaluateAppliesGate(bundledRulesDir, rule) {
  */
 async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache) {
   const reporter = createCheckReporter()
-  const targetPath = join(bundledRulesDir, ruleId, 'policy', concernName, 'target.json')
-  /** @type {{ files: { single?: string, walkGlob?: string|string[], required?: boolean }, missingMessage?: string }} */
+  const concernAbsDir = join(bundledRulesDir, ruleId, 'policy', concernName)
+  const targetPath = join(concernAbsDir, 'target.json')
+  /** @type {{ check?: 'template', files: { single?: string, walkGlob?: string|string[], required?: boolean }, missingMessage?: string }} */
   const target = JSON.parse(await readFile(targetPath, 'utf8'))
   const files = await resolveTargetFiles(target.files, process.cwd(), walkCache)
   if (files.length === 0) {
@@ -76,10 +124,18 @@ async function runPolicyConcern(bundledRulesDir, ruleId, concernName, walkCache)
     }
     return reporter.getExitCode()
   }
+
+  // `"check": "template"` — концерн без власного `.rego`: канон зі `template/`
+  // звіряється напряму через generic deep-subset (`checkSnippet`/`checkDeny`/
+  // `checkContains`/`checkTextSubset`). Редагування сніпета автоматично змінює
+  // enforce — без правок rego й без міграторів.
+  if (target.check === 'template') {
+    return runTemplateSubsetConcern(concernAbsDir, target, files, ruleId, concernName)
+  }
+
   // Rego не дозволяє '-' в імені пакета, тому kebab-id у `.n-cursor.json:rules`
   // мапиться на snake у namespace. Файлова структура `rules/<id>/policy/` лишається kebab.
   const regoNamespace = `${ruleId.replaceAll('-', '_')}.${concernName}`
-  const concernAbsDir = join(bundledRulesDir, ruleId, 'policy', concernName)
   const templateData = await resolveConcernTemplateData(concernAbsDir, target)
   const violations = runConftestBatch({
     policyDirRel: `${ruleId}/${concernName}`,

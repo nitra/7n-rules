@@ -12,6 +12,11 @@
       "format": "uri",
       "description": "Опційне посилання на JSON Schema для IDE-валідації; очікувано https://unpkg.com/@nitra/cursor/schemas/target.json"
     },
+    "check": {
+      "type": "string",
+      "enum": ["template"],
+      "description": "Режим перевірки концерну. 'template' → без власного <name>.rego: канон зі template/<target>.snippet|deny|contains.<ext> звіряється generic deep-subset-ом (checkSnippet/checkDeny/checkContains/checkTextSubset). Сніпет — єдине джерело істини: його зміна одразу змінює enforce, без правок rego й міграторів. Без поля → класичний rego-режим (пара з <name>.rego)."
+    },
     "files": {
       "oneOf": [
         {

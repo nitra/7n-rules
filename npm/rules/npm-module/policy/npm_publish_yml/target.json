@@ -1,4 +1,5 @@
 {
   "$schema": "https://unpkg.com/@nitra/cursor/schemas/target.json",
+  "check": "template",
   "files": { "single": ".github/workflows/npm-publish.yml" }
 }

@@ -65,23 +65,34 @@ describe('buildConftestArgs', () => {
 })
 
 describe('runConftestBatch', () => {
-  test('кидає коли conftest відсутній у PATH (lines 39, 91)', async () => {
-    await withBinRemovedFromPath('conftest', async () => {
-      await withTmpDir(async dir => {
-        const fakeFile = join(dir, 'a.json')
-        writeFileSync(fakeFile, '{}')
-        await expect(() =>
-          runConftestBatch({
-            files: [fakeFile],
-            policyDirRel: 'abie/base_deployment_preem',
-            namespace: 'abie.base_deployment_preem'
-          })
-        ).toThrow('conftest не знайдено')
+  test('кидає коли conftest відсутній у PATH і авто-install відключено', async () => {
+    // N_CURSOR_NO_AUTO_INSTALL вимикає авто-встановлення, щоб тест не тягнув brew/scoop/curl
+    const prevNoInstall = process.env['N_CURSOR_NO_AUTO_INSTALL']
+    process.env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
+    try {
+      await withBinRemovedFromPath('conftest', async () => {
+        await withTmpDir(async dir => {
+          const fakeFile = join(dir, 'a.json')
+          writeFileSync(fakeFile, '{}')
+          await expect(() =>
+            runConftestBatch({
+              files: [fakeFile],
+              policyDirRel: 'abie/base_deployment_preem',
+              namespace: 'abie.base_deployment_preem'
+            })
+          ).toThrow('conftest')
+        })
       })
-    })
+    } finally {
+      if (prevNoInstall === undefined) {
+        delete process.env['N_CURSOR_NO_AUTO_INSTALL']
+      } else {
+        process.env['N_CURSOR_NO_AUTO_INSTALL'] = prevNoInstall
+      }
+    }
   })
 
-  test('кидає коли rego-каталог не знайдено (line 100)', async () => {
+  test('кидає коли rego-каталог не знайдено', async () => {
     await withTmpDir(dir => {
       const fakeFile = join(dir, 'a.json')
       writeFileSync(fakeFile, '{}')

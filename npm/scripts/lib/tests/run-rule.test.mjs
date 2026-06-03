@@ -10,7 +10,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { runRule } from '../run-rule.mjs'
+import { runRule, runTemplateSubsetConcern } from '../run-rule.mjs'
 import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
 
 /**
@@ -156,6 +156,94 @@ describe('runRule — policy concerns', () => {
       )
       const rule = { id: 'mypol2', jsConcerns: [], policyConcerns: [{ name: 'check' }] }
       const code = await runRule(rule, rulesDir, new Map())
+      expect(code).toBe(0)
+    })
+  })
+})
+
+describe('runTemplateSubsetConcern — snippet-driven (check:"template")', () => {
+  /**
+   * Будує концерн із `template/<basename>.snippet.yml` і повертає шляхи.
+   * @param {string} dir tmp-каталог
+   * @param {string} basename імʼя target-файла (напр. `wf.yml`)
+   * @param {string} snippetYaml вміст канонічного сніпета
+   * @returns {Promise<{ concernAbsDir: string, target: object }>}
+   */
+  async function buildConcern(dir, basename, snippetYaml) {
+    const concernAbsDir = join(dir, 'policy', 'c')
+    await ensureDir(join(concernAbsDir, 'template'))
+    await writeFile(join(concernAbsDir, 'template', `${basename}.snippet.yml`), snippetYaml, 'utf8')
+    return { concernAbsDir, target: { check: 'template', files: { single: basename } } }
+  }
+
+  const SNIPPET = `name: npm-publish
+jobs:
+  release-publish:
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: JS-DevTools/npm-publish@v4.1.5
+        with:
+          package: npm/package.json
+`
+
+  test('actual ⊇ snippet (зайві кроки/поля, інший порядок) → code 0', async () => {
+    await withTmpDir(async dir => {
+      const { concernAbsDir, target } = await buildConcern(dir, 'wf.yml', SNIPPET)
+      const actualPath = join(dir, 'wf.yml')
+      await writeFile(
+        actualPath,
+        `name: npm-publish
+jobs:
+  release-publish:
+    permissions: { id-token: write, contents: write }
+    steps:
+      - name: Extra lint
+        run: echo hi
+      - uses: JS-DevTools/npm-publish@v4.1.5
+        with: { package: npm/package.json }
+      - name: Checkout
+        uses: actions/checkout@v6
+        with: { persist-credentials: true, fetch-depth: 0 }
+`,
+        'utf8'
+      )
+      const code = await runTemplateSubsetConcern(concernAbsDir, target, [actualPath], 'npm-module', 'c')
+      expect(code).toBe(0)
+    })
+  })
+
+  test('legacy-форма (job publish, без release-publish) → code 1', async () => {
+    await withTmpDir(async dir => {
+      const { concernAbsDir, target } = await buildConcern(dir, 'wf.yml', SNIPPET)
+      const actualPath = join(dir, 'wf.yml')
+      await writeFile(
+        actualPath,
+        `name: npm-publish
+jobs:
+  publish:
+    permissions: { contents: read, id-token: write }
+    steps:
+      - uses: JS-DevTools/npm-publish@v4.1.5
+        with: { package: npm/package.json }
+`,
+        'utf8'
+      )
+      const code = await runTemplateSubsetConcern(concernAbsDir, target, [actualPath], 'npm-module', 'c')
+      expect(code).toBe(1)
+    })
+  })
+
+  test('немає сніпета для таргета → пропуск, code 0', async () => {
+    await withTmpDir(async dir => {
+      const concernAbsDir = join(dir, 'policy', 'empty')
+      await ensureDir(concernAbsDir)
+      const target = { check: 'template', files: { single: 'wf.yml' } }
+      const code = await runTemplateSubsetConcern(concernAbsDir, target, [join(dir, 'wf.yml')], 'r', 'empty')
       expect(code).toBe(0)
     })
   })
