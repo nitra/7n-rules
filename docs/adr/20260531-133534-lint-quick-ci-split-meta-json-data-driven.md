@@ -35,3 +35,13 @@ Chosen option: "F1 + E1 + D3 + G3 + H1 + I1", because кожен варіант 
 - Новий оркестратор: `npm/scripts/lint-cli.mjs`, cases у `npm/bin/n-cursor.js`
 - Схема: `rule-meta.json` з опціональним полем `lint: "quick"|"ci"`; валідація через `rule_meta.mjs`
 - Кореневий `package.json` репо мігрує через sync, не вручну
+
+## Update 2026-05-31
+
+### Дві окремі JSON-схеми для `rules` і `skills` (E2)
+
+`npm/rules/<id>/meta.json` і `npm/skills/<id>/meta.json` — та сама назва файлу, але дві незалежні схеми: `rules`-схема знає лише `auto`; `skills`-схема знає `auto` + `worktree`. Поле `worktree` відсутнє в `rules`-схемі — правила є програмними перевірками, не генеративними скілами; помилка «worktree у правилі» вловлюється валідатором автоматично. Check-перевірка розрізняє схеми за розташуванням файлу: `skills/*/meta.json` vs `rules/*/meta.json`.
+
+### Характеристика важкого та легкого наборів
+
+Важкий набір (CI + worktree): `jscpd`, `knip`, `cspell`, `lint-security`, `lint-ga`, `lint-k8s`, `lint-docker`, `lint-rego`, `lint-text`. Легкий (агент причісує свої правки): `oxfmt` + `eslint`/`oxlint` лише на `git diff`. Принцип: «легкий = що я зачепив; важкий = весь репо + безпека + інфра». `n-lint/meta.json` тимчасово `worktree: false` — `lint` реактивний (лінтить незакомічені зміни поточного checkout, які worktree відрізає) — до реалізації split.
