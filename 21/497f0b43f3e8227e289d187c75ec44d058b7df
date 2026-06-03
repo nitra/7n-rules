@@ -1,0 +1,26 @@
+npm/scripts/lib/assert-project-root.mjs
+  s_7ddb369744f48d::t_62845013042a1a 1-74
+npm/.changes/1780502307466-1f274e.md
+  s_7ddb369744f48d::t_16965593201d2d 1-5
+npm/bin/n-cursor.js
+  s_7ddb369744f48d::t_896304c1720bf3 99
+  s_7ddb369744f48d::t_9f91e410178358 1466-1471
+npm/scripts/lib/tests/assert-project-root.test.mjs
+  s_7ddb369744f48d::t_cc7bdb323d61ba 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "21497f0b43f3e8227e289d187c75ec44d058b7df",
+  "prompts": {},
+  "sessions": {
+    "s_7ddb369744f48d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2384f9e3-23ee-4352-81e6-6eed553c34d8",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
