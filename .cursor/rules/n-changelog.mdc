@@ -8,7 +8,7 @@ alwaysApply: true
 
 > **Якщо в цій сесії ти змінив(ла) файли в пакетному workspace** (код, rego, правила, скіли, скрипти, конфіги, тести — **не** лише `docs/` / `doc/`) — **не завершуй задачу**, поки не виконаєш **усі три** кроки нижче в **тому ж** наборі змін. Це не «опційно після синку» — це частина PR.
 
-1. **Поклади change-файл** `<ws>/.changes/<timestamp>-<rand>.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @nitra/cursor change --bump <…> --section <…> --message "<…>" [--ws <шлях>]`.
+1. **Поклади change-файл** `<ws>/.changes/YYMMDD-HHMM.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @nitra/cursor change --bump <…> --section <…> --message "<…>" [--ws <шлях>]`. Якщо файл за ту саму хвилину вже існує, CLI атомарно створює `YYMMDD-HHMM-2.md`, потім `-3` тощо.
 2. **Ніколи** не редагуй `version` і `CHANGELOG.md` вручну — навіть для hotfix. Єдиний артефакт зміни — change-файл; `version`/CHANGELOG формує `n-cursor release` у CI на `main` (агрегує change-файли, ставить git-тег `<name>@<version>`). Будь-яка зміна `version` поза CI (drift від бази чи опублікованої) завалює `check changelog` — навіть якщо поряд є change-файл.
 3. **`npx @nitra/cursor fix changelog`** → exit **`0`** (достатньо наявності change-файлу; `version` лишається незмінним).
 

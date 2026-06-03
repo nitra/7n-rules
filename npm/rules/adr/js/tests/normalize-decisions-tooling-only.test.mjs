@@ -5,7 +5,7 @@
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -57,6 +57,8 @@ function runNormalizeHook(dir, extraEnv = {}) {
       PATH: '/usr/bin:/bin',
       CLAUDE_PROJECT_DIR: dir,
       HOME: env.HOME,
+      LANG: env.LANG ?? 'C.UTF-8',
+      LC_ALL: env.LC_ALL ?? 'C.UTF-8',
       ADR_NORMALIZE_THRESHOLD: '1',
       ADR_NORMALIZE_MIN_INTERVAL_HOURS: '0',
       ...extraEnv
@@ -133,6 +135,36 @@ describe('normalize-decisions.sh — structural tooling-only delete', () => {
       expect(exitCode).toBe(0)
       // Skip вимкнено, LLM CLI відсутній → чернетка лишається.
       expect(drafts).toContain('20260520-101010-foo.md')
+    })
+  })
+
+  test('rewrite зберігає YYMMDD-HHMM-префікс короткої чернетки', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      await mkdir(join(dir, 'bin'), { recursive: true })
+      const fakeClaude = join(dir, 'bin', 'claude')
+      await writeFile(
+        fakeClaude,
+        [
+          '#!/usr/bin/env bash',
+          'cat >/dev/null',
+          "printf '%s\\n' '{\"operations\":[{\"op\":\"rewrite\",\"file\":\"260520-1010-foo.md\",\"slug\":\"bar\",\"content\":\"# Bar\\\\n\\\\n**Status:** Accepted\\\\n**Date:** 2026-05-20\\\\n\"}]}'",
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      await chmod(fakeClaude, 0o755)
+
+      const draftPath = join(dir, 'docs/adr/260520-1010-foo.md')
+      await writeFile(
+        draftPath,
+        draftMd({ session: 'sess1', captured: '2026-05-20T10:10:10+00:00', transcript: join(dir, 'missing.jsonl') })
+      )
+
+      const { drafts } = runNormalizeHook(dir, { PATH: `${join(dir, 'bin')}:/usr/bin:/bin` })
+      expect(drafts).toContain('260520-1010-bar.md')
+      expect(drafts).not.toContain('bar.md')
+      expect(drafts).not.toContain('260520-1010-foo.md')
     })
   })
 })

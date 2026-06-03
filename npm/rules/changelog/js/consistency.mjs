@@ -3,10 +3,12 @@
  * change-файл `<ws>/.changes/*.md` — єдиний дозволений артефакт зміни. Bump `version`
  * і генерацію `CHANGELOG.md` робить виключно `n-cursor release` у CI на `main`.
  *
- * Інваріант (на будь-якій гілці): `version` не має відхилятися від бази. Будь-який drift
- * `version` (vs опублікована в реєстрі або vs git-база) — ручний bump поза CI — завалює
- * перевірку, навіть якщо присутній change-файл. Pass лише коли є change-файл, а version
- * не зрушено; зміни без change-файлу — fail.
+ * Інваріант (на будь-якій гілці): `version` у дереві не має **випереджати** базу. Лише
+ * drift **уперед** (`version` > опублікованої в реєстрі / > git-бази) — ручний bump поза
+ * CI — завалює перевірку, навіть із change-файлом. Version **позаду** бази (локаль відстала
+ * від уже опублікованого CI-релізу, ще не зроблено `git pull`) — НЕ порушення: це не ручний
+ * bump, а git і так не дасть запушити non-fast-forward. Pass лише коли є change-файл, а
+ * version не випереджає базу; зміни без change-файлу — fail.
  *
  * Дві моделі бази — на рівні воркспейсу (див. n-changelog.mdc):
  *
@@ -318,6 +320,48 @@ function resolvePublishedVersion(manifest, getPublishedVersion) {
   return getPublishedVersion(manifest.name, manifest.kind)
 }
 
+/** Числове ядро semver (`x.y.z`); хвіст (prerelease/build) ігнорується. */
+const SEMVER_CORE_RE = /^(\d+)\.(\d+)\.(\d+)/
+
+/**
+ * Парсить числове ядро semver-рядка.
+ * @param {unknown} v версія
+ * @returns {{ major: number, minor: number, patch: number } | null} ядро або null
+ */
+function parseSemverCore(v) {
+  const m = typeof v === 'string' ? v.match(SEMVER_CORE_RE) : null
+  if (!m) return null
+  return { major: Number(m[1]), minor: Number(m[2]), patch: Number(m[3]) }
+}
+
+/**
+ * Порівнює semver-ядра двох версій.
+ * @param {unknown} a перша версія
+ * @param {unknown} b друга версія
+ * @returns {-1 | 0 | 1 | null} a<b → -1, a==b → 0, a>b → 1; null — нерозпізнано
+ */
+function compareSemverCore(a, b) {
+  const pa = parseSemverCore(a)
+  const pb = parseSemverCore(b)
+  if (!pa || !pb) return null
+  if (pa.major !== pb.major) return pa.major > pb.major ? 1 : -1
+  if (pa.minor !== pb.minor) return pa.minor > pb.minor ? 1 : -1
+  if (pa.patch !== pb.patch) return pa.patch > pb.patch ? 1 : -1
+  return 0
+}
+
+/**
+ * Чи `current` випереджає `base` (ручний bump поза CI). Якщо semver нерозпізнаний
+ * (null) — fail-closed на будь-яку нерівність (консервативно, як до directional-фікса).
+ * @param {unknown} current версія в дереві
+ * @param {unknown} base база (опублікована / git-база)
+ * @returns {boolean} true — current попереду base (або нерозпізнано й не рівні)
+ */
+function versionIsAhead(current, base) {
+  const cmp = compareSemverCore(current, base)
+  return cmp === null ? current !== base : cmp > 0
+}
+
 /**
  * @param {string} name пакет
  * @param {import('../lib/package-manifest.mjs').PackageKind} [kind] тип пакета
@@ -454,14 +498,26 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
     pass(`${label}: ${name} — опублікована версія недоступна (мережа/реєстр), перевірку пропущено`)
     return
   }
-  // Drift від опублікованої версії має пріоритет над change-файлом: ручний bump
-  // заборонено навіть із change-файлом (симетрично з local-only-шляхом).
-  if (Vpublished !== Vcurrent) {
+  // Лише drift УПЕРЕД (version > опублікованої) — ручний bump поза CI; має пріоритет
+  // над change-файлом (симетрично з local-only-шляхом). Версія ПОЗАДУ реєстру — локаль
+  // відстала від уже опублікованого релізу, не порушення (нижче).
+  if (versionIsAhead(Vcurrent, Vpublished)) {
     fail(
-      `${label}: version у ${mf} (${Vcurrent}) розходиться з опублікованою (${Vpublished}) — ` +
-        `ручний bump заборонено. Відкоти version і поклади change-файл ` +
+      `${label}: version у ${mf} (${Vcurrent}) випереджає опубліковану (${Vpublished}) — ` +
+        `ручний bump поза CI заборонено. Відкоти version і поклади change-файл ` +
         `(npx @nitra/cursor change …); bump зробить CI на main (n-changelog.mdc)`
     )
+    return
+  }
+  if (compareSemverCore(Vcurrent, Vpublished) < 0) {
+    // Локаль ПОЗАДУ реєстру: CI вже опублікував новішу версію й закомітив bump назад,
+    // а ти ще не зробив `git pull`. Це не ручний bump (git не дасть запушити
+    // non-fast-forward), тож коміт не блокуємо — лише вимагаємо change-файл на наявні зміни.
+    pass(
+      `${label}: version у ${mf} (${Vcurrent}) позаду опублікованої (${Vpublished}) — ` +
+        `локаль відстала від реєстру (зроби git pull); це не ручний bump`
+    )
+    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
     return
   }
   pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
@@ -480,10 +536,11 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
-  // Drift version від бази має пріоритет над change-файлом: ручний bump заборонено
-  // навіть якщо change-файл присутній (симетрично з published-шляхом).
+  // Лише drift УПЕРЕД (version > бази) має пріоритет над change-файлом: ручний bump
+  // заборонено навіть із change-файлом (симетрично з published-шляхом). Version позаду
+  // бази (гілка відстала від base-ref) — не порушення, не блокуємо.
   const Vbase = await readBaseVersion(comparisonRef, manifest, cwd)
-  if (Vbase !== null && Vcurrent !== null && Vbase !== Vcurrent) {
+  if (Vbase !== null && Vcurrent !== null && versionIsAhead(Vcurrent, Vbase)) {
     fail(
       `${label}: version у ${mf} змінено поза CI (${Vbase} → ${Vcurrent}) — ручний bump заборонено (на ${baseLabel} — ${Vbase}). ` +
         `Відкоти version і поклади change-файл (npx @nitra/cursor change …); bump зробить CI (n-changelog.mdc)`

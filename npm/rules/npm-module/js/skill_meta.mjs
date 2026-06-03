@@ -4,6 +4,8 @@
  * Кожен `npm/skills/<id>/` має містити валідний `meta.json`:
  *  - `worktree` присутнє і boolean;
  *  - `auto` (якщо присутнє) — розпізнане (`"завжди"` або непорожній масив рядків);
+ *  - `requireRoot` (якщо присутнє) — boolean; не може бути `false` при `worktree:true`
+ *    (worktree вже вимагає кореня — суперечність вводить в оману);
  *  - залишковий `auto.md` заборонено (міграція на meta.json завершена).
  *
  * Концерн застосовний лише в репо самого пакета (де є `npm/skills/`); у споживача
@@ -50,6 +52,16 @@ export function check(cwd = process.cwd()) {
     }
     if (raw.auto !== undefined && parseSkillAutoSpec(raw.auto) === null) {
       reporter.fail(`skills/${id}: meta.json.auto нерозпізнане — очікується "завжди" або непорожній масив правил`)
+      skillOk = false
+    }
+    if (raw.requireRoot !== undefined && typeof raw.requireRoot !== 'boolean') {
+      reporter.fail(`skills/${id}: meta.json.requireRoot має бути boolean`)
+      skillOk = false
+    }
+    if (raw.worktree === true && raw.requireRoot === false) {
+      reporter.fail(
+        `skills/${id}: requireRoot:false суперечить worktree:true (worktree вже вимагає кореня — прибери поле)`
+      )
       skillOk = false
     }
     if (skillOk) {

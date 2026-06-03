@@ -407,11 +407,15 @@ while IFS= read -r op_json; do
           continue
           ;;
       esac
-      # Keep the draft's `YYYYMMDD-HHMMSS-` prefix on the clean file: the name
+      # Keep the draft's timestamp prefix on the clean file: the name
       # stays anchored to capture time, only the slug part changes between draft
-      # and clean, and docs/adr/ keeps sorting chronologically. Drafts without a
-      # timestamp prefix fall back to a bare `<slug>.md`.
+      # and clean, and docs/adr/ keeps sorting chronologically. New drafts use
+      # `YYMMDD-HHMM-`; older `YYYYMMDD-HHMMSS-` drafts are still supported.
+      # Drafts without a timestamp prefix fall back to a bare `<slug>.md`.
       case "$FILE" in
+        [0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]-*)
+          DEST_SLUG="$(printf '%s' "$FILE" | cut -c1-11)-$SLUG"
+          ;;
         [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]-*)
           DEST_SLUG="$(printf '%s' "$FILE" | cut -c1-15)-$SLUG"
           ;;
@@ -444,7 +448,7 @@ while IFS= read -r op_json; do
           ;;
       esac
       # Resolve the target clean file. The LLM gives a bare `<slug>.md`, but the
-      # real file usually carries a `YYYYMMDD-HHMMSS-` prefix. Try, in order:
+      # real file usually carries a timestamp prefix. Try, in order:
       #   1. exact name in docs/adr/,
       #   2. a rewrite of this batch that produced that slug (SLUG_MAP),
       #   3. a unique existing clean file whose name ends with `-<slug>.md`.

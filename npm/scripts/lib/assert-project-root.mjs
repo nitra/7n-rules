@@ -50,15 +50,22 @@ function safeRealpath(dir) {
 
 /**
  * Кидає помилку, якщо `dir` — піддиректорія git-репозиторію (тобто не його
- * корінь). Поза git-репо (немає toplevel) — пропускає без помилки.
+ * корінь). Поза git-репо (немає toplevel) — пропускає без помилки. У git-worktree
+ * (`.worktrees/<branch>/`) toplevel = корінь самого worktree, тож запуск із нього
+ * проходить — гард ловить лише старт із піддиректорії робочого дерева.
  *
- * Викликати лише перед дефолтним sync (до перших мутацій файлів), не для
+ * Викликати перед мутаційними діями (default sync, `fix`, `lint`, `coverage`,
+ * `change`, `release`), які скаффолдять / переписують файли в CWD. Не для
  * підкоманд із власним `--root` чи read-only-логікою.
  * @param {string} [dir] каталог, що перевіряємо (типово `cwd()`)
+ * @param {string} [action] людинозрозумілий опис дії для тексту помилки
  * @throws {Error} коли `dir` всередині git-репо, але не його корінь
  * @returns {void}
  */
-export function assertCwdIsProjectRoot(dir = cwd()) {
+export function assertCwdIsProjectRoot(
+  dir = cwd(),
+  action = 'Команда @nitra/cursor мутує проєкт у поточному каталозі'
+) {
   const top = gitToplevel(dir)
   if (top === null) return
   const here = safeRealpath(dir)
@@ -67,8 +74,7 @@ export function assertCwdIsProjectRoot(dir = cwd()) {
     `❌ @nitra/cursor запущено не в корені проєкту.\n` +
       `   Поточний каталог: ${here}\n` +
       `   Корінь git-репо:  ${top}\n` +
-      `   Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-cursor.json\n` +
-      `   і робить bun install у поточному каталозі — із піддиректорії це розкидало б\n` +
-      `   конфіг не туди. Перейдіть у корінь репозиторію: cd ${top}`
+      `   ${action} — із піддиректорії це зачепило б не той каталог.\n` +
+      `   Перейдіть у корінь репозиторію: cd ${top}`
   )
 }

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest'
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { SKILL_ALWAYS, parseSkillAutoSpec, readSkillMetaRaw } from '../skill-meta.mjs'
+import { SKILL_ALWAYS, parseSkillAutoSpec, readSkillMetaRaw, skillRequiresRoot } from '../skill-meta.mjs'
 import { withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('parseSkillAutoSpec', () => {
@@ -56,5 +56,25 @@ describe('readSkillMetaRaw', () => {
       await writeFile(join(dir, 'meta.json'), '[1,2]', 'utf8')
       expect(readSkillMetaRaw(dir)).toBeNull()
     })
+  })
+})
+
+describe('skillRequiresRoot', () => {
+  test('worktree:true → true (корінь неявно через worktree)', () => {
+    expect(skillRequiresRoot({ worktree: true })).toBe(true)
+  })
+
+  test('requireRoot:true без worktree → true', () => {
+    expect(skillRequiresRoot({ worktree: false, requireRoot: true })).toBe(true)
+  })
+
+  test('worktree:false без requireRoot → false', () => {
+    expect(skillRequiresRoot({ worktree: false })).toBe(false)
+    expect(skillRequiresRoot({ worktree: false, requireRoot: false })).toBe(false)
+  })
+
+  test('null / порожнє → false', () => {
+    expect(skillRequiresRoot(null)).toBe(false)
+    expect(skillRequiresRoot({})).toBe(false)
   })
 })

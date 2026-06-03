@@ -1,1 +1,1 @@
-{ "auto": "завжди", "worktree": false }
+{ "auto": "завжди", "worktree": false, "requireRoot": false }

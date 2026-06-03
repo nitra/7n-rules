@@ -26,6 +26,8 @@
  *  - «Паузи через setTimeout»: `new Promise(resolve => setTimeout(resolve, ms))` (з/без `await`)
  *    треба замінити на `await setTimeout(ms)` з `node:timers/promises`
  *    (див. `utils/promise-settimeout-scan.mjs`);
+ *  - «Temporal у Bun runtime»: identifier `Temporal` заборонений, бо поточний Bun runtime
+ *    не має глобального Temporal API (див. `utils/temporal-scan.mjs`);
  *  - «jsconfig.json»: у backend-пакеті з каталогом `src/` у корені має бути `jsconfig.json`,
  *    вміст якого збігається з каноном js-run.mdc (NodeNext і include на дерево `src`).
  *
@@ -50,6 +52,7 @@ import {
 } from '../lib/conn-imports-scan.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from '../lib/promise-settimeout-scan.mjs'
+import { findTemporalUsageInText, isTemporalScanSourceFile } from '../lib/temporal-scan.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
 import { getMonorepoPackageRootDirs } from '../../../scripts/lib/workspaces.mjs'
 
@@ -314,6 +317,30 @@ async function checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, f
 }
 
 /**
+ * Сканує джерела пакета на `Temporal`, який у Bun runtime ще недоступний.
+ * @param {string} absPackageRoot абсолютний корінь пакета
+ * @param {string[]} sourcePaths абсолютні шляхи до файлів
+ * @param {string} label префікс повідомлення `[<pkg>] `
+ * @param {(msg: string) => void} fail callback при помилці
+ * @returns {Promise<number>} кількість порушень
+ */
+async function checkTemporalUsage(absPackageRoot, sourcePaths, label, fail) {
+  let violations = 0
+  for (const absPath of sourcePaths) {
+    const rel = relPosix(absPackageRoot, absPath)
+    if (!isTemporalScanSourceFile(rel)) continue
+    const content = await readFile(absPath, 'utf8')
+    for (const v of findTemporalUsageInText(content, rel)) {
+      violations++
+      fail(
+        `${label}${rel}:${v.line} — Temporal API заборонений у Bun runtime; використовуй Date або інʼєктований timestamp`
+      )
+    }
+  }
+  return violations
+}
+
+/**
  * Перевіряє відповідність правилам js-run.mdc для одного workspace-пакета.
  * @param {string} rootDir відносний шлях workspace (не `'.'`)
  * @param {string[]} ignorePaths абсолютні шляхи каталогів, повністю виключених з обходу
@@ -369,6 +396,11 @@ async function checkWorkspacePackage(rootDir, ignorePaths, fail, passFn, cwd) {
   const pauseViolations = await checkPromiseSetTimeoutPause(absPackageRoot, sourcePaths, label, fail)
   if (pauseViolations === 0) {
     passFn(`${label}немає 'new Promise(r => setTimeout(r, ms))' — паузи через 'node:timers/promises'`)
+  }
+
+  const temporalViolations = await checkTemporalUsage(absPackageRoot, sourcePaths, label, fail)
+  if (temporalViolations === 0) {
+    passFn(`${label}немає Temporal API у Bun runtime-коді`)
   }
 
   checkOtelConfigmap(rootDir, passFn, cwd)

@@ -299,4 +299,12 @@ describe('check-js-run (мінімальний проєкт)', () => {
       expect(await check(dir)).toBe(0)
     })
   })
+
+  test('1, якщо backend workspace використовує Temporal API', async () => {
+    await withTmpDir(async dir => {
+      await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
+      await writeFile(join(dir, 'pkg', 'index.js'), `export const now = Temporal.Now.instant()\n`, 'utf8')
+      expect(await check(dir)).toBe(1)
+    })
+  })
 })

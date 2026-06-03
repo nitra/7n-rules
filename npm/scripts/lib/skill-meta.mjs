@@ -3,10 +3,14 @@
  *
  * `meta.json` — єдине джерело правди для скіла замість колишнього `auto.md`:
  *  - `auto` — умова автоактивації (`"завжди"` | масив id правил), опційне;
- *  - `worktree` — boolean: чи виконувати скіл в окремому git-worktree (один інстанс).
+ *  - `worktree` — boolean: чи виконувати скіл в окремому git-worktree (один інстанс);
+ *  - `requireRoot` — boolean, опційне: чи скіл вимагає запуску з кореня репо.
+ *    Worktree-скіли (`worktree:true`) вимагають кореня неявно (корінь worktree =
+ *    його toplevel), тож для них поле зайве. Явний `requireRoot:true` — для
+ *    in-place скілів, що мутують CWD без worktree-ізоляції (напр. `n-start-check`).
  *
  * Цим хелпером користуються `auto-skills.mjs` (автоактивація), `n-cursor.js`
- * (sync + вшивання worktree-блоку) і check-концерн `npm-module/js/skill_meta.mjs`,
+ * (sync + вшивання worktree/root-блоку) і check-концерн `npm-module/js/skill_meta.mjs`,
  * щоб не дублювати парсинг і форму валідації.
  */
 import { existsSync, readFileSync } from 'node:fs'
@@ -34,6 +38,16 @@ export function parseSkillAutoSpec(value) {
     return { rules }
   }
   return null
+}
+
+/**
+ * Чи вимагає скіл запуску з кореня репо («активовано root-захист»). Єдина похідна
+ * ознака: `worktree:true` (корінь гарантує worktree) АБО явний `requireRoot:true`.
+ * @param {Record<string, unknown> | null} meta розпарсений `meta.json` (або null)
+ * @returns {boolean} true — скіл мутує проєкт і має стартувати з кореня
+ */
+export function skillRequiresRoot(meta) {
+  return meta?.worktree === true || meta?.requireRoot === true
 }
 
 /**

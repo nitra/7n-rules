@@ -5,16 +5,54 @@ import { join } from 'node:path'
 import { runChangeCli, writeChange } from '../../change.mjs'
 import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
+const LOCAL_TIMESTAMP = new Date(2026, 5, 3, 21, 15, 59).getTime()
+
 describe('writeChange', () => {
   test('пише <ws>/.changes/<name>.md з валідним вмістом і повертає шлях', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['x'] })
-      const rel = await writeChange({ bump: 'minor', section: 'Added', message: 'Нова фіча', ws: '.', cwd: dir })
-      expect(rel.startsWith('.changes/')).toBe(true)
+      const rel = await writeChange({
+        bump: 'minor',
+        section: 'Added',
+        message: 'Нова фіча',
+        ws: '.',
+        cwd: dir,
+        timestamp: LOCAL_TIMESTAMP
+      })
+      expect(rel).toBe('.changes/260603-2115.md')
       const names = await readdir(join(dir, '.changes'))
-      expect(names).toHaveLength(1)
+      expect(names).toEqual(['260603-2115.md'])
       const text = await readFile(join(dir, '.changes', names[0]), 'utf8')
       expect(text).toBe('---\nbump: minor\nsection: Added\n---\nНова фіча\n')
+    })
+  })
+
+  test('локальна колізія імені додає числовий suffix без перезапису першого файлу', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['x'] })
+      const first = await writeChange({
+        bump: 'patch',
+        section: 'Fixed',
+        message: 'Перша зміна',
+        ws: '.',
+        cwd: dir,
+        timestamp: LOCAL_TIMESTAMP
+      })
+      const second = await writeChange({
+        bump: 'minor',
+        section: 'Added',
+        message: 'Друга зміна',
+        ws: '.',
+        cwd: dir,
+        timestamp: LOCAL_TIMESTAMP
+      })
+
+      expect(first).toBe('.changes/260603-2115.md')
+      expect(second).toBe('.changes/260603-2115-2.md')
+      const names = await readdir(join(dir, '.changes'))
+      expect(names.toSorted()).toEqual(['260603-2115-2.md', '260603-2115.md'])
+      await expect(readFile(join(dir, '.changes', '260603-2115.md'), 'utf8')).resolves.toContain('Перша зміна')
+      await expect(readFile(join(dir, '.changes', '260603-2115-2.md'), 'utf8')).resolves.toContain('Друга зміна')
     })
   })
 

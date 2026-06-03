@@ -199,7 +199,7 @@ if ! printf '%s' "$RESPONSE_TRIMMED" | grep -q '^## '; then
   exit 0
 fi
 
-TS=$(date +%Y%m%d-%H%M%S)
+TS=$(date +%y%m%d-%H%M)
 
 # Slug із першого `## [ADR|Runbook|Knowledge] <heading>`-рядка відповіді.
 # Логіка локальна (без додаткового LLM-виклику): використовуємо вже згенерований heading.

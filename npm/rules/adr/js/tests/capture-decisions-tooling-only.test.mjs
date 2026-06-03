@@ -7,7 +7,7 @@
 import { describe, expect, test } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { env } from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -52,6 +52,8 @@ function runCaptureHook(dir, payload, extraEnv = {}) {
       PATH: '/usr/bin:/bin',
       CLAUDE_PROJECT_DIR: dir,
       HOME: env.HOME,
+      LANG: env.LANG ?? 'C.UTF-8',
+      LC_ALL: env.LC_ALL ?? 'C.UTF-8',
       ...extraEnv
     },
     encoding: 'utf8'
@@ -123,6 +125,41 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
       )
       expect(exitCode).toBe(0)
       expect(log).not.toContain('tooling-only session')
+    })
+  })
+
+  test('LLM-відповідь записується у файл з YYMMDD-HHMM-префіксом', async () => {
+    await withTmpDir(async dir => {
+      await mkdir(join(dir, 'docs/adr'), { recursive: true })
+      await mkdir(join(dir, 'bin'), { recursive: true })
+      const fakeClaude = join(dir, 'bin', 'claude')
+      await writeFile(
+        fakeClaude,
+        [
+          '#!/usr/bin/env bash',
+          'cat >/dev/null',
+          "printf '## ADR Тестова назва\\n\\n## Context and Problem Statement\\nТест.\\n'",
+          ''
+        ].join('\n'),
+        'utf8'
+      )
+      await chmod(fakeClaude, 0o755)
+
+      const tpath = join(dir, 'transcript.jsonl')
+      await writeFile(tpath, transcriptJsonl([{ name: 'Edit', file: join(dir, 'src/foo.ts') }]))
+      const { log, adrFiles } = runCaptureHook(dir, JSON.stringify({ transcript_path: tpath, session_id: 'abc12349' }), {
+        PATH: `${join(dir, 'bin')}:/usr/bin:/bin`
+      })
+
+      expect(log).toContain('using claude CLI')
+      expect(log).toContain('wrote:')
+      const writtenPath = log.match(/wrote: (.+)$/mu)?.[1]
+      expect(writtenPath).toBeTruthy()
+      expect(existsSync(writtenPath)).toBe(true)
+      const fileName = writtenPath?.slice(writtenPath.lastIndexOf('/') + 1) ?? ''
+      expect(adrFiles).toContain(fileName)
+      expect(fileName).toMatch(/^\d{6}-\d{4}-тестова-назва\.md$/u)
+      expect(fileName).not.toMatch(/^\d{8}-/u)
     })
   })
 })

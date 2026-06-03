@@ -53,4 +53,40 @@ describe('skill_meta check', () => {
       expect(await check(dir)).toBe(0)
     })
   })
+
+  test('requireRoot:true без worktree → 0 (валідний in-place root-only скіл)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'start-check'))
+      await writeJson(join(dir, 'npm', 'skills', 'start-check', 'meta.json'), {
+        auto: 'завжди',
+        worktree: false,
+        requireRoot: true
+      })
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('requireRoot не boolean → 1', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), {
+        auto: 'завжди',
+        worktree: false,
+        requireRoot: 'yes'
+      })
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
+  test('worktree:true + requireRoot:false → 1 (суперечність)', async () => {
+    await withTmpDir(async dir => {
+      await ensureDir(join(dir, 'npm', 'skills', 'fix'))
+      await writeJson(join(dir, 'npm', 'skills', 'fix', 'meta.json'), {
+        auto: 'завжди',
+        worktree: true,
+        requireRoot: false
+      })
+      expect(await check(dir)).toBe(1)
+    })
+  })
 })

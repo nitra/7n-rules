@@ -17,6 +17,7 @@ const RE_ОПИС = /опис/u
 const RE_BUMP = /bump/u
 const RE_SECTION = /section/u
 const RE_FRONTMATTER = /frontmatter/u
+const LOCAL_TIMESTAMP = new Date(2026, 5, 3, 21, 15, 59).getTime()
 
 describe('parseChangeFile', () => {
   test('парсить валідний frontmatter + опис', () => {
@@ -50,8 +51,12 @@ describe('serializeChangeFile', () => {
 })
 
 describe('changeFileName', () => {
-  test('формат <timestamp>-<rand>.md, детермінований за входами', () => {
-    expect(changeFileName(1748505600000, 'a1b2c3')).toBe('1748505600000-a1b2c3.md')
+  test('формат YYMMDD-HHMM.md, детермінований за timestamp', () => {
+    expect(changeFileName(LOCAL_TIMESTAMP)).toBe('260603-2115.md')
+  })
+
+  test('collision suffix додається тільки коли переданий порядковий номер', () => {
+    expect(changeFileName(LOCAL_TIMESTAMP, 2)).toBe('260603-2115-2.md')
   })
 })
 

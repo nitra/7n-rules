@@ -1,10 +1,10 @@
 /**
- * Один change-файл `<ws>/.changes/<timestamp>-<rand>.md`: YAML-подібний frontmatter
+ * Один change-файл `<ws>/.changes/YYMMDD-HHMM.md`: YAML-подібний frontmatter
  * із двома ключами (`bump`, `section`) + текст опису. Парсер мінімальний — лише ці два
- * ключі, без зовнішніх залежностей.
+ * ключі, без зовнішніх залежностей. Якщо файл за ту саму хвилину вже існує, writer додає
+ * числовий suffix (`-2`, `-3`) атомарним create-only записом.
  */
 
-import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -65,21 +65,36 @@ export function serializeChangeFile(entry) {
 export const CHANGES_DIR = '.changes'
 
 /**
- * @param {number} timestamp `Date.now()`
- * @param {string} suffix короткий випадковий суфікс (hex)
- * @returns {string} `<timestamp>-<suffix>.md`
+ * @param {number} timestamp epoch milliseconds
+ * @returns {string} local timestamp prefix `YYMMDD-HHMM`
  */
-export function changeFileName(timestamp, suffix) {
-  return `${timestamp}-${suffix}.md`
+function formatChangeTimestamp(timestamp) {
+  const d = new Date(timestamp)
+  const yy = String(d.getFullYear()).slice(-2)
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const hour = String(d.getHours()).padStart(2, '0')
+  const minute = String(d.getMinutes()).padStart(2, '0')
+  return `${yy}${month}${day}-${hour}${minute}`
 }
 
 /**
- * Унікальне ім'я для нового change-файлу: timestamp (порядок) + rand (анти-колізія
- * для паралельних агентів у різних worktree, що пишуть у ту саму мілісекунду).
+ * @param {number} timestamp epoch milliseconds
+ * @param {number} [sequence] collision sequence; `1`/omitted has no suffix
+ * @returns {string} `YYMMDD-HHMM.md` or `YYMMDD-HHMM-<n>.md`
+ */
+export function changeFileName(timestamp, sequence = 1) {
+  const base = formatChangeTimestamp(timestamp)
+  return sequence > 1 ? `${base}-${sequence}.md` : `${base}.md`
+}
+
+/**
+ * Базове ім'я для нового change-файлу. Унікальність забезпечує writer: він спершу
+ * пробує `YYMMDD-HHMM.md`, а suffix додає лише при локальному `EEXIST`.
  * @returns {string} результат
  */
 export function newChangeFileName() {
-  return changeFileName(Date.now(), randomBytes(3).toString('hex'))
+  return changeFileName(Date.now())
 }
 
 /**

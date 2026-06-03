@@ -30,6 +30,12 @@ version: '1.11'
 
 Це **не** стосується поля `engines.node` (мінімальна версія Node для сумісності інструментів) і **не** стосується frontend-пакетів з `vite` у `devDependencies`.
 
+## Temporal API
+
+У backend/Bun runtime-коді **не використовуй `Temporal`** (`Temporal.Now`, `Temporal.Instant`, імпорти з polyfill тощо). Поточний Bun runtime ще не має глобального `Temporal` (`typeof Temporal === "undefined"`), тому агентам треба лишатися на сумісному `Date` API або передавати timestamp у чисті функції через параметр.
+
+Перевірка `npx @nitra/cursor fix js-run` сканує JS/TS AST і падає на identifier `Temporal` у backend workspace-коді.
+
 Канон заборонених патернів у `scripts`: `package.json`:
 
 ```json

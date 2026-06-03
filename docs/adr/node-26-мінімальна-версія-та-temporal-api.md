@@ -22,3 +22,7 @@ Temporal API під прапором у Node.js 22/24 і потребує пол
 ## Зачіпає
 
 `package.json` (root + workspaces `demo`, `npm`), `.nvmrc`, `.node-version`, `.cursor/rules/n-js-run.mdc` (довідкові вимоги до Node-версії), будь-який код що використовує `new Date()`.
+
+## Update 2026-06-03
+
+Bun `1.3.14` у поточному runtime не має глобального `Temporal` (`typeof Temporal === "undefined"`), а команди проєкту запускаються через Bun. Тому правило `js-run` забороняє identifier `Temporal` у backend/Bun runtime-коді до появи підтримки в Bun. Для форматування часу використовуємо сумісний `Date` API або передаємо timestamp у чисті функції через параметр.

@@ -92,6 +92,7 @@ import {
 import { detectAutoSkills } from '../scripts/auto-skills.mjs'
 import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
+import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
 import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
 import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
@@ -787,6 +788,9 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
         await mkdir(destDir, { recursive: true })
         const meta = readSkillMetaRaw(srcDir)
         const worktree = meta?.worktree === true
+        // root-guard для in-place скілів (мутують CWD без worktree-ізоляції).
+        // Worktree-скіли root-assert уже мають у worktree-блоці, тож тут лише !worktree.
+        const rootOnly = !worktree && meta?.requireRoot === true
         const entries = await readdir(srcDir, { withFileTypes: true })
         for (const entry of entries) {
           // Лише top-level файли скіла. `meta.json` — метадані (не для споживача);
@@ -796,6 +800,7 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
           let content = await readFile(join(srcDir, entry.name), 'utf8')
           if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)
+            content = injectRootNotice(content, rootOnly)
           }
           await writeFile(join(destDir, entry.name), content, 'utf8')
         }
@@ -1459,15 +1464,51 @@ async function runSync() {
   }
 }
 
+/**
+ * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
+ * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`/
+ * `graph`, `--root`-команди `docgen`/`rename-yaml-extensions`, `worktree`,
+ * sub-лінтери) гард не зачіпає.
+ */
+const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'fix', 'check', 'lint', 'coverage', 'change', 'release'])
+
+/**
+ * Короткий опис дії для тексту root-guard помилки за іменем команди.
+ * @param {string | undefined} cmd підкоманда CLI (або undefined для дефолтного sync)
+ * @returns {string} фраза «що саме мутує CWD»
+ */
+function describeRootGuardedAction(cmd) {
+  switch (cmd) {
+    case undefined:
+    case '':
+      return 'Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-cursor.json і робить bun install у поточному каталозі'
+    case 'fix':
+    case 'check':
+      return '`fix` запускає programmatic-перевірки правил, що переписують конфіги в поточному каталозі'
+    case 'lint':
+      return '`lint` запускає авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) у поточному каталозі'
+    case 'coverage':
+      return '`coverage` генерує COVERAGE.md і Stryker-артефакти в поточному каталозі'
+    case 'change':
+      return '`change` пише change-файл у .changes/ поточного каталогу'
+    case 'release':
+      return '`release` бампає version і переписує CHANGELOG у поточному каталозі'
+    default:
+      return 'Команда @nitra/cursor мутує проєкт у поточному каталозі'
+  }
+}
+
 // CLI: маршрутизація команд
 const [command, ...args] = process.argv.slice(2)
 
 try {
-  // Дефолтний sync (без підкоманди) скаффолдить .cursor/.claude/CLAUDE.md/.n-cursor.json
-  // і робить bun install у cwd(). Guard до перших мутацій: заборона запуску з піддиректорії
-  // git-репо (типово прямий `bun npm/bin/n-cursor.js` не з кореня). Підкоманди не зачіпає.
-  if (command === undefined || command === '') {
-    assertCwdIsProjectRoot()
+  // Root-guard до перших мутацій: дефолтний sync скаффолдить .cursor/.claude/CLAUDE.md/
+  // .n-cursor.json + bun install, а fix/lint/coverage/change/release переписують файли в CWD —
+  // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
+  // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
+  // `--root`-команди (trace, graph, docgen, rename-yaml-extensions) не зачіпаємо.
+  if (ROOT_GUARDED_COMMANDS.has(command)) {
+    assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
   }
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {

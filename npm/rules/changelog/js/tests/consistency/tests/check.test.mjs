@@ -186,6 +186,46 @@ describe('check-changelog (npm-published mode)', () => {
     })
   })
 
+  test('локальна version ПОЗАДУ опублікованої (локаль відстала від CI-релізу), без git → pass', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '3.19.0',
+        files: ['types', 'CHANGELOG.md']
+      })
+      // published 3.20.0 > local 3.19.0 — це не ручний bump, а ще не підтягнутий git pull.
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '3.20.0' }) })
+      expect(code).toBe(0)
+    })
+  })
+
+  test('version ПОЗАДУ опублікованої + change-файл → pass (не ручний bump)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '3.19.0',
+        files: ['lib', 'CHANGELOG.md']
+      })
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1-a.md'), '---\nbump: patch\nsection: Added\n---\nx\n', 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '3.20.0' }) })
+      expect(code).toBe(0)
+    })
+  })
+
+  test('version ПОПЕРЕДУ опублікованої на major (ручний bump) → fail', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), {
+        name: '@x/lib',
+        version: '2.0.0',
+        files: ['lib', 'CHANGELOG.md']
+      })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('2.0.0'), 'utf8')
+      const code = await checkChangelog({ cwd: dir, getPublishedVersion: publishedStub({ '@x/lib': '1.5.0' }) })
+      expect(code).toBe(1)
+    })
+  })
+
   test('version = опублікованій, є change-файл, але files без "CHANGELOG.md" → fail', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), {
