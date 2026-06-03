@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.18.1] - 2026-06-03
+
+### Fixed
+
+- python: applies-гейт пропускає правило без pyproject.toml — позбулися хибного зауваження rego package_json у не-Python репо
+
 ## [3.18.0] - 2026-06-03
 
 ### Added
