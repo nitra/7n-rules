@@ -12,21 +12,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  release-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # commit-back версії + git-тег
       id-token: write # КРИТИЧНО для OIDC!
 
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: false
+          persist-credentials: true # release пушить commit-back + тег
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-bun-deps
 
       - uses: actions/setup-node@v6
         with:
           node-version: '24' # includes npm@11.6.0
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Release (bump + CHANGELOG + tag)
+        run: node npm/bin/n-cursor.js release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5

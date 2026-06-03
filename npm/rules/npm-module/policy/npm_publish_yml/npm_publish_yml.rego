@@ -22,11 +22,11 @@ expected_paths := {p | some p in data.template.snippet.on.push.paths}
 
 expected_branches := {b | some b in data.template.snippet.on.push.branches}
 
-expected_permissions := data.template.snippet.jobs.publish.permissions
+expected_permissions := data.template.snippet.jobs["release-publish"].permissions
 
 # Required publish-step (за маркером): expected `with.package` value з template.
 expected_publish_with_package := s.with.package if {
-	some s in data.template.snippet.jobs.publish.steps
+	some s in data.template.snippet.jobs["release-publish"].steps
 	contains(object.get(s, "uses", ""), publish_action_marker)
 }
 

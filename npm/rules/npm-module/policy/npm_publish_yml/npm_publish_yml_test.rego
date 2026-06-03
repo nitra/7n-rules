@@ -8,11 +8,14 @@ import rego.v1
 template_data := {"snippet": {
 	"name": "npm-publish",
 	"on": {"push": {"paths": ["npm/**"], "branches": ["main"]}},
-	"jobs": {"publish": {
-		"permissions": {"contents": "read", "id-token": "write"},
+	"jobs": {"release-publish": {
+		"permissions": {"contents": "write", "id-token": "write"},
 		"steps": [
 			{"uses": "actions/checkout@v6"},
+			{"uses": "./.github/actions/setup-bun-deps"},
 			{"uses": "actions/setup-node@v6"},
+			{"name": "Configure git identity", "run": "git config ..."},
+			{"name": "Release (bump + CHANGELOG + tag)", "run": "node npm/bin/n-cursor.js release"},
 			{"uses": "JS-DevTools/npm-publish@v4.1.5", "with": {"package": "npm/package.json"}},
 		],
 	}},
@@ -21,11 +24,14 @@ template_data := {"snippet": {
 canonical_input := {
 	"name": "npm-publish",
 	"true": {"push": {"paths": ["npm/**"], "branches": ["main"]}},
-	"jobs": {"publish": {
-		"permissions": {"contents": "read", "id-token": "write"},
+	"jobs": {"release-publish": {
+		"permissions": {"contents": "write", "id-token": "write"},
 		"steps": [
 			{"uses": "actions/checkout@v6"},
+			{"uses": "./.github/actions/setup-bun-deps"},
 			{"uses": "actions/setup-node@v6"},
+			{"name": "Configure git identity", "run": "git config ..."},
+			{"name": "Release (bump + CHANGELOG + tag)", "run": "node npm/bin/n-cursor.js release"},
 			{"uses": "JS-DevTools/npm-publish@v4.1.5", "with": {"package": "npm/package.json"}},
 		],
 	}},
@@ -51,7 +57,7 @@ test_deny_missing_main_branch if {
 test_deny_missing_id_token_write if {
 	bad := json.patch(
 		canonical_input,
-		[{"op": "replace", "path": "/jobs/publish/permissions", "value": {"contents": "read"}}],
+		[{"op": "replace", "path": "/jobs/release-publish/permissions", "value": {"contents": "write"}}],
 	)
 	some msg in npm_publish_yml.deny with input as bad with data.template as template_data
 	contains(msg, "id-token")
@@ -60,7 +66,7 @@ test_deny_missing_id_token_write if {
 test_deny_missing_npm_publish_step if {
 	bad := json.patch(canonical_input, [{
 		"op": "replace",
-		"path": "/jobs/publish/steps",
+		"path": "/jobs/release-publish/steps",
 		"value": [{"uses": "actions/checkout@v6"}],
 	}])
 	some msg in npm_publish_yml.deny with input as bad with data.template as template_data
@@ -70,7 +76,7 @@ test_deny_missing_npm_publish_step if {
 test_deny_wrong_package_in_publish_step if {
 	bad := json.patch(
 		canonical_input,
-		[{"op": "replace", "path": "/jobs/publish/steps/2/with/package", "value": "wrong.json"}],
+		[{"op": "replace", "path": "/jobs/release-publish/steps/5/with/package", "value": "wrong.json"}],
 	)
 	some msg in npm_publish_yml.deny with input as bad with data.template as template_data
 	contains(msg, "npm/package.json")
