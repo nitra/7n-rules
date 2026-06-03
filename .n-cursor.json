@@ -21,9 +21,7 @@
     "vue",
     "worktree"
   ],
-  "ignore": [
-    ".claude/worktrees"
-  ],
+  "ignore": [".claude/worktrees"],
   "disable-rules": [
     "docker",
     "image-avif",
@@ -35,6 +33,7 @@
   "skills": [
     "adr-normalize",
     "coverage-fix",
+    "docgen",
     "fix",
     "fix-tests",
     "lint",

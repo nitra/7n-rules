@@ -44,6 +44,8 @@
   Команда: `/n-adr-normalize`
 - `.cursor/skills/n-coverage-fix/SKILL.md` — Автономна команда: запускає n-cursor coverage → читає вцілілих мутантів → ітеративно пише тести до конвергенції (max 3 ітерації)
   Команда: `/n-coverage-fix`
+- `.cursor/skills/n-docgen/SKILL.md` — Обходить проєкт і для кожного кодового файлу (js/mjs/ts/vue/py) пише вичерпну українську md-документацію у теку docs/ поряд із кодом — диспатчить окремого субагента на кожен файл, за правилами adr/ci4
+  Команда: `/n-docgen`
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
   Команда: `/n-fix`
 - `.cursor/skills/n-fix-tests/SKILL.md` — Ітеративно дописати тести щоб підвищити mutation score — читає вцілілі мутанти з COVERAGE.md і запускає агент до конвергенції

@@ -23,6 +23,47 @@ cd ".worktrees/feature-x-coverage-f"
 ```
 
 Тобто branch-argument лишає slash як у git-гілці, а шлях для `cd` бере sanitized форму: slash → `-`.
+
+**Крок 0.1 — bootstrap у новому дереві (після `cd`, окремий крок — поза «без-expansion» блоком вище).** Дерево щойно створене й **без** `node_modules`. Спершу постав залежності локально: тоді `npx` бере локальну копію `@nitra/cursor` і гонки з CDN немає взагалі. Retry-обгортка нижче — safety-net на випадок, коли версію щойно опубліковано, але edge-кеш CDN ще її не має: `npm` тоді падає з `ETARGET`/`notarget` **до** запуску бінарника (внутрішній JS-retry у `n-cursor` для цього кейсу марний — бінарник ще не стартував).
+
+```bash
+# Локальна копія @nitra/cursor (девзалежність споживача) — npx бере її, без походу в реєстр.
+bun install
+
+# n_cursor_npx <args> — обгортка bootstrap-виклику "npx @nitra/cursor <args>".
+# Ретраїмо ЛИШЕ транзитні помилки реєстру/мережі (CDN ще не пропагував щойно
+# опубліковану версію). Реальний nonzero від CLI (fix повернув ❌, lint-помилка) —
+# віддаємо одразу, без ретраю. Інтервал 30с; дефолт-ліміт 5 хв
+# (env N_CURSOR_NPX_RETRY_MAX_MIN), hard-ceiling 10 хв.
+# Чому 5 хв: CDN-пропагація npm зазвичай < 2 хв, 5 хв — запас; довше → ймовірно
+# реальна проблема (невірна версія / аутейдж), краще віддати помилку, ніж висіти.
+n_cursor_npx() {
+  max_min="${N_CURSOR_NPX_RETRY_MAX_MIN:-5}"
+  case "$max_min" in '' | *[!0-9]*) max_min=5 ;; esac
+  [ "$max_min" -gt 10 ] && max_min=10
+  deadline=$(( $(date +%s) + max_min * 60 ))
+  attempt=1
+  transient='ETARGET|notarget|No matching version|ENOTFOUND|ETIMEDOUT|EAI_AGAIN|ECONNRESET|50[0-9] |502 Bad Gateway|503 Service Unavailable|504 Gateway'
+  while :; do
+    err=$(mktemp)
+    npx @nitra/cursor "$@" 2>"$err"
+    code=$?
+    cat "$err" >&2
+    [ "$code" -eq 0 ] && { rm -f "$err"; return 0; }
+    if grep -Eq "$transient" "$err" && [ "$(date +%s)" -lt "$deadline" ]; then
+      rm -f "$err"
+      echo "n-cursor: очікую пропагації версії по CDN… спроба $attempt, повтор через 30с" >&2
+      attempt=$((attempt + 1))
+      sleep 30
+    else
+      rm -f "$err"
+      return "$code"
+    fi
+  done
+}
+```
+
+Усі подальші bootstrap-виклики `npx @nitra/cursor <cmd>` у цій сесії роби через `n_cursor_npx <cmd>`. Якщо опинився у свіжому shell без цієї функції — спершу повтори блок вище (`bun install` + визначення `n_cursor_npx`).
 <!-- n-cursor:worktree:end -->
 
 # n-coverage-fix — підвищення mutation score
