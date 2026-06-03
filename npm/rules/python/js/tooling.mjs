@@ -2,11 +2,14 @@
  * Перевіряє FS-вимоги правила python.mdc для Python-проєктів на uv.
  *
  * **Що тут лишилося** (FS-existence — не покривається conftest):
- *  - наявність `pyproject.toml` у корені (тригер правила);
  *  - наявність `uv.lock` поруч (uv-проєкт коммітить lock-файл);
  *  - наявність кореневого `package.json` (для `bun run lint-python`);
  *  - наявність `.github/workflows/lint-python.yml`;
  *  - заборона Poetry-артефактів `poetry.lock` / `poetry.toml` (міграція на uv).
+ *
+ * Гейт на `pyproject.toml` робить `applies.mjs` — CLI пропускає правило цілком
+ * без нього. Захисний early-return лишається тут лише для прямого виклику
+ * `check()` (тести/standalone) без `applies.mjs`-гейту.
  *
  * **Що покрила Rego** (`npx \@nitra/cursor fix python`):
  *  - `python/pyproject_toml/` — заборона `[tool.poetry]` + вимога PEP 621 `[project].name/version`;
@@ -31,10 +34,8 @@ export function check(cwd = process.cwd()) {
   const { pass, fail } = reporter
 
   if (!existsSync(join(cwd, 'pyproject.toml'))) {
-    pass('pyproject.toml не знайдено в корені — правило python не застосовне')
     return reporter.getExitCode()
   }
-  pass('pyproject.toml існує — застосовую python.mdc')
 
   if (existsSync(join(cwd, 'uv.lock'))) {
     pass('uv.lock є')
