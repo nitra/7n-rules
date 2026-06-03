@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.18.2] - 2026-06-03
+
+### Changed
+
+- npm-publish.yml канон: workflow робить release+publish одним job (release-publish) — крок n-cursor release перед публікацією, contents: write + persist-credentials. Оновлено template, rego-референси та тести.
+
 ## [3.18.1] - 2026-06-03
 
 ### Fixed
