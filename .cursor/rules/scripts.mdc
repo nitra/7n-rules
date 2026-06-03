@@ -1,7 +1,7 @@
 ---
-description: Програмна перевірка проєкту та flat концерн-лейаут npm/rules/ — концерн = файл, не каталог; helpers у utils/, tests/templates/data усередині js/
+description: Програмна перевірка проєкту та flat концерн-лейаут npm/rules/ — концерн = файл, не каталог; helpers у utils/, tests/templates/data усередині js/; скіл-специфічні скрипти в npm/skills/<id>/js/
 alwaysApply: true
-version: '1.11'
+version: '1.12'
 ---
 
 ## Структура правила (rule-centric, flat concern layout — з 1.14.0)
@@ -52,9 +52,24 @@ Lint розділено на дві фази через поле `lint` у `npm/
 
 **Інваріанта:** видалив `npm/rules/{rule}/` → правило зникло без слідів (нема мертвих посилань у `bin/auto-rules.md`, `npm/scripts/`, `.cursor/rules/`).
 
-Скіли мають дзеркальну структуру в `npm/skills/{skill}/`: `SKILL.md` (конвенція Cursor) і `meta.json` (метадані скіла). `meta.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). У проєкт `meta.json` **не** копіюється; під час синку при `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно). Валідація — концерн `npm-module/js/skill_meta.mjs`.
+Скіли мають **дзеркальну структуру** в `npm/skills/{skill}/` (як правила в `npm/rules/{rule}/`):
 
-**Крос-правильна інфраструктура** (CLI, оркестратори, спільні утиліти) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом.
+```
+npm/skills/{skill}/
+├── SKILL.md                       ← інструкція скіла (конвенція Cursor; frontmatter + body)
+├── meta.json                      ← метадані скіла: auto (умова автоактивації), worktree (bool)
+└── js/                            ← скіл-специфічний код (опційно)
+    ├── <concern>.mjs              ← детермінований скрипт, що обслуговує лише цей скіл
+    └── tests/<concern>.test.mjs   ← тести поруч із джерелом
+```
+
+`meta.json` тримає `auto` (умова автоактивації: `"завжди"` або масив id правил; опційне) і `worktree` (boolean: чи виконувати скіл в окремому git-worktree — один інстанс, без паралелі). Валідація — концерн `npm-module/js/skill_meta.mjs`.
+
+**Контракт розташування скрипта скіла:** код, що обслуговує **лише один скіл** (детермінований сканер, парсер, генератор для цього скіла), живе в `npm/skills/{skill}/js/<concern>.mjs` — **не** в `npm/scripts/`. Імпорти за тією ж конвенцією, що й у правил (`js/<concern>.mjs` → scripts-утиліта: `'../../../scripts/<X>.mjs'`; тест `js/tests/<concern>.test.mjs` → концерн `'../<concern>.mjs'`, scripts-утиліта `'../../../../scripts/<X>.mjs'`). Скіл-скрипт запускається з **установленого пакета** через `npx @nitra/cursor <command>` (підкоманда в `npm/bin/n-cursor.js` робить dynamic import з `'../skills/{skill}/js/<concern>.mjs'`), тож у `package.json:files` каталог `skills/` уже включено, а `*.test.mjs` виключено.
+
+**Синк копіює лише top-level файли скіла.** Під час `npx @nitra/cursor` у проєкт-споживач із `npm/skills/{skill}/` переноситься тільки `SKILL.md` (+ генеровані `.claude/commands/` і `.pi/skills/` стаби); `meta.json` **не** копіюється, підкаталог `js/` **не** копіюється (його код виконується з пакета, як `npm/rules/<id>/js/` ніколи не їде в споживача). Тому `syncSkills` ігнорує підкаталоги — додавання `js/` у скіл не ламає синк. При `worktree:true` у синкнутий `.cursor/skills/n-<id>/SKILL.md` вшивається worktree-блок між маркерами `n-cursor:worktree:start/end` (ідемпотентно).
+
+**Крос-правильна / крос-скіл інфраструктура** (CLI-диспатч, оркестратори, спільні утиліти, що обслуговують ≥2 правила/скіли) — у `npm/scripts/` (`cli-entry.mjs`, `auto-rules.mjs`, `sync-claude-config.mjs`, `utils/` тощо) + тести поруч з джерелом. Скрипт, прив'язаний до одного скіла, у `npm/scripts/` **не** кладемо — він іде в `npm/skills/{skill}/js/` (див. контракт вище).
 
 ## Канон через `template/`, не inline
 

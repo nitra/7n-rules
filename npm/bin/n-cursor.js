@@ -24,6 +24,8 @@
  *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
+ *   `npx \@nitra/cursor docgen scan`    — детермінований JSON-лістинг кодових файлів для скілу docgen (тека `docs/` поряд із джерелом)
+ *   `npx \@nitra/cursor docgen modules` — детермінований JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу docgen
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
  *   `npx \@nitra/cursor skill cursor taze ["task"]` — Cursor CLI (`cursor-agent -p`)
@@ -783,14 +785,17 @@ async function syncSkills(configSkills, bundledSkillsDir = BUNDLED_SKILLS_DIR) {
         await mkdir(destDir, { recursive: true })
         const meta = readSkillMetaRaw(srcDir)
         const worktree = meta?.worktree === true
-        const files = await readdir(srcDir)
-        for (const file of files) {
-          if (file === 'meta.json') continue
-          let content = await readFile(join(srcDir, file), 'utf8')
-          if (file === 'SKILL.md') {
+        const entries = await readdir(srcDir, { withFileTypes: true })
+        for (const entry of entries) {
+          // Лише top-level файли скіла. `meta.json` — метадані (не для споживача);
+          // підкаталоги (`js/` — скіл-специфічний код) виконуються з пакета через
+          // `npx`, у проєкт не копіюються (як `npm/rules/<id>/js/`). Див. scripts.mdc.
+          if (!entry.isFile() || entry.name === 'meta.json') continue
+          let content = await readFile(join(srcDir, entry.name), 'utf8')
+          if (entry.name === 'SKILL.md') {
             content = injectWorktreeNotice(content, worktree)
           }
-          await writeFile(join(destDir, file), content, 'utf8')
+          await writeFile(join(destDir, entry.name), content, 'utf8')
         }
         console.log(`✅`)
         success++
@@ -1580,6 +1585,22 @@ try {
 
       break
     }
+    case 'docgen': {
+      // n-cursor docgen scan|modules — детермінований лістинг для скілу docgen.
+      // scan — кодові файли; modules — логічні модулі (межі за package.json).
+      // Друкує JSON; генерацію доки робить скіл, диспатчачи субагентів.
+      const { runDocgenScanCli, runDocgenModulesCli } = await import('../skills/docgen/js/docgen-scan.mjs')
+      if (args[0] === 'scan') {
+        process.exitCode = await runDocgenScanCli(args.slice(1))
+      } else if (args[0] === 'modules') {
+        process.exitCode = await runDocgenModulesCli(args.slice(1))
+      } else {
+        console.error('Usage: npx @nitra/cursor docgen <scan|modules> [--root <dir>]')
+        process.exitCode = 1
+      }
+
+      break
+    }
     case undefined:
     case '': {
       await runSync()
@@ -1589,7 +1610,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace, graph`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
       )
       process.exitCode = 1
     }
