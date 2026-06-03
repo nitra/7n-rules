@@ -45,3 +45,27 @@ Chosen option: "F1 + E1 + D3 + G3 + H1 + I1", because кожен варіант 
 ### Характеристика важкого та легкого наборів
 
 Важкий набір (CI + worktree): `jscpd`, `knip`, `cspell`, `lint-security`, `lint-ga`, `lint-k8s`, `lint-docker`, `lint-rego`, `lint-text`. Легкий (агент причісує свої правки): `oxfmt` + `eslint`/`oxlint` лише на `git diff`. Принцип: «легкий = що я зачепив; важкий = весь репо + безпека + інфра». `n-lint/meta.json` тимчасово `worktree: false` — `lint` реактивний (лінтить незакомічені зміни поточного checkout, які worktree відрізає) — до реалізації split.
+
+## Update 2026-05-31
+
+### Деталі архітектурних рішень lint-split
+
+**D3 + E1**: `js-lint` — єдиний реальний композит, розщеплено явно: `js-lint` (quick: oxlint+eslint) і `js-lint-ci` (ci: jscpd+knip). Поле `lint: "quick"|"ci"` (E1) з семантикою `quick ⊆ ci`; scope виводиться з фази, не дублюється. D2 (атрибут на рівні інструмента) відхилено як надмірне ускладнення.
+
+**G3 — база quick**: working-tree зміни відносно HEAD + untracked файли. Покриває сценарій «агент щойно створив/змінив файли перед комітом». G2 (merge-base з `main`) відхилено — не охоплює untracked нових файлів.
+
+**H1 — виключення CLI-кроків з quick**: `n-cursor lint-ga`, `lint-rego`, `lint-text` лишаються лише у `ci`-наборі (YAGNI, рідко змінюються в одному PR). H2 (підтримка `--files` у цих CLI-кроках) відкладена.
+
+**Інструменти за фазою**: quick — `oxlint`, `eslint`, `stylelint`, `oxfmt`; ci-only — `jscpd`, `knip`, `trufflehog`, `n-cursor lint-ga/rego/text`.
+
+Сесія завершилась на brainstorming-стадії; spec-документ і план реалізації ще не написані.
+
+## Update 2026-05-31
+
+### F1 — CLI-оркестратор і fix-поведінка (H1)
+
+**F1 vs F2/F3**: `n-cursor lint`/`n-cursor lint-ci` зчитують `rules/*/meta.json` динамічно — аналогічно до `auto-rules.mjs` після Spec B. F2 (генерація скриптів під час sync) не вирішує задачу «передати список файлів інструментам». F3 (хардкод + фільтр по diff) зберігає хардкод у `package.json`.
+
+**H1 — симетрична fix-поведінка**: обидва режими (`lint` і `lint-ci`) виконують `--fix`. H2 (`lint-ci` лише перевіряє, без fix) відхилено — не всі інструменти підтримують однаковий `--no-fix` режим; H1 дає менше сюрпризів на старті.
+
+Поточний хардкод-ланцюг (для довідки): `lint-ga && lint-js && lint-rego && lint-security && lint-style && lint-text && oxfmt .`.

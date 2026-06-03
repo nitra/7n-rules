@@ -102,6 +102,9 @@ export async function withShellcheckStubInPath(fn) {
  *
  * Потрібно для негативних тестів («fail, коли інструмента нема»), що мають працювати на машинах,
  * де користувач уже встановив цей інструмент глобально (наприклад, `brew install shellcheck`).
+ *
+ * Додатково виставляє `N_CURSOR_NO_AUTO_INSTALL=1` на час `fn`: інструменти, що резолвляться
+ * через `ensureTool`, інакше спробували б **реальний** brew/scoop/curl-install під час тесту.
  * @param {string} bin ім'я виконуваного файлу (на Windows додасться `.exe`)
  * @param {() => void | Promise<void>} fn тестовий код, що очікує відсутність бінарника в PATH
  * @returns {Promise<void>}
@@ -110,11 +113,13 @@ export async function withBinRemovedFromPath(bin, fn) {
   const isWin = platform === 'win32'
   const candidates = isWin ? [`${bin}.exe`, bin] : [bin]
   const prevPath = env.PATH
+  const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
   const filtered = (prevPath ?? '')
     .split(delimiter)
     .filter(d => d && !candidates.some(name => existsSync(join(d, name))))
     .join(delimiter)
   env.PATH = filtered
+  env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
   try {
     await fn()
   } finally {
@@ -122,6 +127,11 @@ export async function withBinRemovedFromPath(bin, fn) {
       delete env.PATH
     } else {
       env.PATH = prevPath
+    }
+    if (prevNoInstall === undefined) {
+      delete env['N_CURSOR_NO_AUTO_INSTALL']
+    } else {
+      env['N_CURSOR_NO_AUTO_INSTALL'] = prevNoInstall
     }
   }
 }

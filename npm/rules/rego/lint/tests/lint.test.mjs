@@ -23,6 +23,8 @@ function withTmpRepo(prep, body) {
 
 const NO_PREP = (/** @type {string} */ _cwd) => null
 
+const OPA_RE = /opa/
+
 describe('runLintRego', () => {
   test('returns 0 (skip) when no rego targets exist in cwd', () => {
     const exit = withTmpRepo(NO_PREP, cwd => runLintRego(cwd))
@@ -43,21 +45,21 @@ describe('runLintRego', () => {
     expect(exit).not.toBe(0)
   })
 
-  test('повертає 1 коли opa відсутній у PATH (printOpaInstallHints)', async () => {
-    let exit
+  test('кидає коли opa відсутній у PATH і авто-install відключено (ensureTool hard-fail)', async () => {
     await withBinRemovedFromPath('opa', () => {
-      exit = withTmpRepo(
-        cwd => {
-          mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
-          writeFileSync(
-            join(cwd, 'npm/rules/sample/policy/concern/concern.rego'),
-            'package sample.concern\n\nimport rego.v1\n'
-          )
-        },
-        cwd => runLintRego(cwd)
-      )
+      expect(() =>
+        withTmpRepo(
+          cwd => {
+            mkdirSync(join(cwd, 'npm/rules/sample/policy/concern'), { recursive: true })
+            writeFileSync(
+              join(cwd, 'npm/rules/sample/policy/concern/concern.rego'),
+              'package sample.concern\n\nimport rego.v1\n'
+            )
+          },
+          cwd => runLintRego(cwd)
+        )
+      ).toThrow(OPA_RE)
     })
-    expect(exit).toBe(1)
   })
 
   test('passes on a well-formed rego under npm/rules/*/policy/', () => {

@@ -10,12 +10,15 @@
  * `ensureHkInstall(hkBin)` — реєструє git pre-commit hook через `hk install`; пропускається в CI.
  */
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, renameSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { arch, env, platform } from 'node:process'
 
 import { resolveCmd } from '../utils/resolve-cmd.mjs'
+
+/** Префікс `v` у git-тегу релізу (`v1.2.3` → `1.2.3`). */
+const TAG_V_PREFIX_RE = /^v/
 
 /**
  * Повертає каталог керованого кешу бінарників для поточного OS.
@@ -53,6 +56,7 @@ function mapArch(nodeArch, style) {
  * @property {string} github репо у форматі `owner/repo`
  * @property {(ver: string) => string} asset повертає назву release-ресурсу для Linux
  * @property {string} archStyle стиль маппінгу архітектури: 'hk'|'conftest'|'actionlint'
+ * @property {boolean} [archive] чи є release-ресурс архівом (tar) — default `true`; `false` = сирий бінарник (download + chmod)
  * @property {((ver: string) => string)|null} [binFinder] для архівів де бінарник не у корені; повертає відносний шлях
  */
 
@@ -63,7 +67,7 @@ const TOOLS = {
     scoop: 'hk',
     github: 'jdx/hk',
     archStyle: 'hk',
-    asset: ver => `hk-${mapArch(arch, 'hk')}-unknown-linux-gnu.tar.gz`,
+    asset: _ver => `hk-${mapArch(arch, 'hk')}-unknown-linux-gnu.tar.gz`,
     binFinder: null
   },
   conftest: {
@@ -95,7 +99,51 @@ const TOOLS = {
     scoop: null,
     github: 'dotenv-linter/dotenv-linter',
     archStyle: 'hk',
-    asset: ver => `dotenv-linter-linux-${mapArch(arch, 'hk')}.tar.gz`,
+    asset: _ver => `dotenv-linter-linux-${mapArch(arch, 'hk')}.tar.gz`,
+    binFinder: null
+  },
+  opa: {
+    brew: 'opa',
+    scoop: 'opa',
+    github: 'open-policy-agent/opa',
+    archStyle: 'actionlint',
+    archive: false,
+    asset: _ver => `opa_linux_${mapArch(arch, 'actionlint')}`,
+    binFinder: null
+  },
+  regal: {
+    brew: 'regal',
+    scoop: null,
+    github: 'StyraInc/regal',
+    archStyle: 'conftest',
+    archive: false,
+    asset: _ver => `regal_Linux_${mapArch(arch, 'conftest')}`,
+    binFinder: null
+  },
+  hadolint: {
+    brew: 'hadolint',
+    scoop: 'hadolint',
+    github: 'hadolint/hadolint',
+    archStyle: 'conftest',
+    archive: false,
+    asset: _ver => `hadolint-linux-${mapArch(arch, 'conftest')}`,
+    binFinder: null
+  },
+  kubeconform: {
+    brew: 'kubeconform',
+    scoop: 'kubeconform',
+    github: 'yannh/kubeconform',
+    archStyle: 'actionlint',
+    asset: _ver => `kubeconform-linux-${mapArch(arch, 'actionlint')}.tar.gz`,
+    binFinder: null
+  },
+  kubescape: {
+    brew: 'kubescape',
+    scoop: 'kubescape',
+    github: 'kubescape/kubescape',
+    archStyle: 'actionlint',
+    archive: false,
+    asset: ver => `kubescape_${ver}_linux_${mapArch(arch, 'actionlint')}`,
     binFinder: null
   }
 }
@@ -119,7 +167,7 @@ function fetchLatestVersion(repo, curlBin) {
   }
   const tag = parsed['tag_name']
   if (!tag) throw new Error(`GitHub API: tag_name missing for ${repo}`)
-  return tag.replace(/^v/, '')
+  return tag.replace(TAG_V_PREFIX_RE, '')
 }
 
 /**
@@ -147,6 +195,14 @@ function installFromGithub(toolId, entry, cacheDir) {
   if (dlResult.error) throw new Error(`Завантаження ${toolId} не вдалось: ${dlResult.error.message}`)
   if (dlResult.status !== 0)
     throw new Error(`curl exit ${dlResult.status} при завантаженні ${toolId}: ${(dlResult.stderr ?? '').slice(0, 300)}`)
+
+  // Сирий бінарник (archive: false) — завантажений файл і є бінарником: перейменовуємо у <toolId> + chmod.
+  if (entry.archive === false) {
+    const binPath = join(cacheDir, toolId)
+    renameSync(archivePath, binPath)
+    chmodSync(binPath, 0o755)
+    return binPath
+  }
 
   // .tar.xz потребує -J замість -z
   const isXz = assetName.endsWith('.tar.xz')
@@ -253,7 +309,7 @@ function buildHint(toolId, entry) {
  *
  * Порядок: PATH → кеш → авто-install (якщо не N_CURSOR_NO_AUTO_INSTALL) → hard-fail.
  * Повертає абсолютний шлях або кидає Error.
- * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`)
+ * @param {string} toolId ключ у реєстрі TOOLS (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`)
  * @returns {string} абсолютний шлях до бінарника
  */
 export function ensureTool(toolId) {

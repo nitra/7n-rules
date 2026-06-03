@@ -1,13 +1,15 @@
 /**
  * Спільна логіка виклику hadolint для шляхів до Dockerfile (див. docker.mdc).
  *
- * Відносні шляхи з прямими слешами для контейнера; спочатку hadolint з PATH,
- * інакше docker run з образом HADOLINT_IMAGE. Використовується `./check.mjs`
- * (check-docker) та `../../lint/lint.mjs` (run-docker).
+ * Відносні шляхи з прямими слешами для контейнера; спочатку hadolint через
+ * `ensureTool` (PATH → кеш → авто-install brew/scoop/GitHub Release), а якщо
+ * авто-install відключено/не вдався — docker run з образом HADOLINT_IMAGE.
+ * Використовується `./check.mjs` (check-docker) та `../../lint/lint.mjs` (run-docker).
  */
 import { spawnSync } from 'node:child_process'
 import { relative, sep } from 'node:path'
 
+import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 
 /** Тег образу для резервного запуску (узгоджуй з docker.mdc). */
@@ -24,14 +26,19 @@ export function posixRel(root, absPath) {
 }
 
 /**
- * Запуск hadolint: спочатку PATH, інакше Docker.
+ * Запуск hadolint: спочатку `ensureTool` (PATH/кеш/авто-install), інакше Docker.
  * @param {string} root корінь репозиторію
  * @param {string} absPath абсолютний шлях до Dockerfile
  * @returns {{ ok: boolean, stdout: string, stderr: string, via: string }} результат перевірки hadolint та канал запуску
  */
 export function lintDockerfileWithHadolint(root, absPath) {
   const rel = posixRel(root, absPath)
-  const hadolintPath = resolveCmd('hadolint')
+  let hadolintPath = null
+  try {
+    hadolintPath = ensureTool('hadolint')
+  } catch {
+    // ensureTool кинув (авто-install відключено через N_CURSOR_NO_AUTO_INSTALL або не вдався) → docker-fallback нижче
+  }
   if (hadolintPath) {
     const local = spawnSync(hadolintPath, [rel], {
       cwd: root,

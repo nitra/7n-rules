@@ -225,7 +225,7 @@ export const runLintFooCli = (cwd = process.cwd()) =>              // для CLI
 
 ## Зовнішні CLI-інструменти: резолв і авто-встановлення
 
-**Принцип:** будь-який **зовнішній бінарник**, який спавнить скрипт пакета (`conftest`, `hk`, `hadolint`, `kubeconform`, `actionlint`, `trufflehog`, `regal`, `oxlint` тощо), резолвиться через **єдиний seam** `ensureTool(name)` (`npm/scripts/utils/ensure-tool.mjs`), а **не** через ad-hoc `resolveCmd` + власну install-підказку в кожному місці. Один seam — одна політика резолву, встановлення, підказок і кешу; новий тул = один запис у реєстрі, без дублювання логіки. Це ревізія попереднього **Plan B** («hint + hard-fail, не став сам», як зараз у [`run-conftest-batch.mjs`](../../npm/scripts/lib/run-conftest-batch.mjs)) → тепер **«спробуй поставити, не вийшло — hint + hard-fail»**.
+**Принцип:** будь-який **зовнішній бінарник**, який спавнить скрипт пакета (`conftest`, `hk`, `hadolint`, `kubeconform`, `actionlint`, `trufflehog`, `regal`, `oxlint` тощо), резолвиться через **єдиний seam** [`ensureTool(name)`](../../npm/scripts/lib/ensure-tool.mjs), а **не** через ad-hoc `resolveCmd` + власну install-підказку в кожному місці. Один seam — одна політика резолву, встановлення, підказок і кешу; новий тул = один запис у реєстрі, без дублювання логіки. Це ревізія попереднього **Plan B** («hint + hard-fail, не став сам», як було в `run-conftest-batch.mjs` до міграції) → тепер **«спробуй поставити, не вийшло — hint + hard-fail»**.
 
 **Порядок резолву** (`ensureTool` повертає абсолютний шлях до бінарника або кидає):
 
@@ -244,12 +244,12 @@ export const runLintFooCli = (cwd = process.cwd()) =>              // для CLI
 
 Download-движок (GitHub-release binary під поточний OS+arch) спільний — потрібен для Linux і як Windows-fallback; mac/Windows лише пробують пакетний менеджер **першим**.
 
-**Реєстр тулів** — один маніфест (`npm/scripts/utils/tool-registry.mjs`): на тул запис на кшталт `{ brewFormula, scoopApp, githubRepo, assetPattern, hint }`. `ensureTool` читає звідси — додавання нового тула не торкається движка.
+**Реєстр тулів** — об'єкт `TOOLS` **інлайн** в `ensure-tool.mjs`: на тул запис `{ brew, scoop, github, asset, archStyle, binFinder }` (`scoop: null` = недоступний у Scoop → одразу GitHub-release/hint). Додавання нового тула не торкається движка — лише запис.
 
 **CI та git-hooks:**
 
 - Бінарники в CI ставити **треба** (щоб lint/rego реально працювали) — крок 3 в CI активний.
-- `hk` особливо: у потоці **`n-fix`** робимо `ensureTool('hk')` (бінарник) **+ `hk install`** (вписати pre-commit git-hook). **`hk install` пропускаємо в CI** (хуки на commit там марні) — гард через `process.env.CI`.
+- `hk` особливо: у потоці **`n-fix`** (`runFixCommand`) робимо `ensureTool('hk')` (бінарник) **+ `ensureHkInstall(hkBin)`** (вписати pre-commit git-hook через `hk install`). **`hk install` пропускаємо в CI** (хуки на commit там марні) — гард через `process.env.CI`. Резолв самого тула — **hard-fail**; а `hk install` (вписування git-hook) — **warn** (не фатально), щоб `n-fix` не падав через нього.
 
 **Opt-out:** `N_CURSOR_NO_AUTO_INSTALL=1` → крок 3 пропускається, одразу крок 4 (hint + hard-fail).
 

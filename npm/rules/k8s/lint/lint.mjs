@@ -24,6 +24,7 @@ import { basename, dirname, join, relative } from 'node:path'
 import { parse } from 'yaml'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'
@@ -123,11 +124,7 @@ function runKubeconform(dirs) {
     '-ignore-missing-schemas',
     ...dirs
   ]
-  const kubeconformPath = resolveCmd('kubeconform')
-  if (!kubeconformPath) {
-    console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
-    return 127
-  }
+  const kubeconformPath = ensureTool('kubeconform')
   const r = spawnSync(kubeconformPath, args, { stdio: 'inherit', shell: false })
   if (r.error && 'code' in r.error && r.error.code === 'ENOENT') {
     console.error('kubeconform не знайдено в PATH. Встанови з https://github.com/yannh/kubeconform#readme')
@@ -297,11 +294,7 @@ async function runKubescape(dirs, root) {
   if (exceptionsArgs.length > 0) {
     console.log(`run-k8s: kubescape exceptions — ${KUBESCAPE_EXCEPTIONS_FILE}`)
   }
-  const kubescapePath = resolveCmd('kubescape')
-  if (!kubescapePath) {
-    console.error(KUBESCAPE_MISSING_HINT)
-    return 127
-  }
+  const kubescapePath = ensureTool('kubescape')
   let kubectlPath = null
   for (const d of dirs) {
     const kdirs = await findKustomizationDirs(d)

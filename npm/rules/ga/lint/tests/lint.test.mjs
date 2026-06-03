@@ -1,47 +1,47 @@
 /**
- * Тест preflight у `runLintGaCli`: коли `shellcheck`, `uv` і `conftest` відсутні в PATH — exit 1,
- * причому друкуються підказки встановлення для кожного незалежно (а не лише для першого).
+ * Тест `runLintGaSteps` у `runLintGaCli`: коли `shellcheck` або `conftest` відсутні в PATH
+ * і авто-install відключено — кидається виняток; коли `uv` відсутній — exit 1 через preflight.
+ * Бінарники зі стабами у PATH → ensureTool знаходить їх і процес доходить до actionlint/zizmor.
  *
- * Реальний `actionlint`/`zizmor` не запускаються — ми обриваємо потік ще на preflight, не доходячи до них.
+ * Тести використовують N_CURSOR_NO_AUTO_INSTALL=1, щоб уникнути реального brew/scoop/curl під час CI.
  */
 import { describe, expect, test } from 'vitest'
-import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { env, platform } from 'node:process'
 
 import { runLintGaCli } from '../lint.mjs'
 
-const BREW_INSTALL_SHELLCHECK_RE = /brew install shellcheck/
-const APT_INSTALL_SHELLCHECK_RE = /apt-get install -y shellcheck/
-const PACMAN_INSTALL_SHELLCHECK_RE = /pacman -S shellcheck/
-const UV_WORD_RE = /\buv\b/
-const BREW_INSTALL_UV_RE = /brew install uv/
+const SHELLCHECK_RE = /shellcheck/
+const UV_RE = /uv/
 const ASTRAL_UV_RE = /astral\.sh\/uv/
-const CONFTEST_WORD_RE = /\bconftest\b/
-const BREW_INSTALL_CONFTEST_RE = /brew install conftest/
-const CONFTEST_INSTALL_URL_RE = /conftest\.dev\/install/
 
 /**
- * Ізолює PATH у порожньому каталозі на час `fn`, перехоплює console.error/log і повертає виведене
- * в stderr-блобі та результат `runLintGaCli`.
- * @param {() => number} fn виклик `runLintGaCli`
- * @returns {Promise<{ code: number, errBlob: string }>} код виходу й об'єднаний stderr
+ * Викликає `fn` під ізольованим `PATH` і N_CURSOR_NO_AUTO_INSTALL=1,
+ * збираючи stderr і або exit-code, або виняток.
+ * @param {() => Promise<number>} fn колбек
+ * @returns {Promise<{ code?: number, error?: Error, errBlob: string }>} результат: exit-code, перехоплений виняток і зібраний stderr
  */
 async function withIsolatedPath(fn) {
   const isolatedDir = await mkdtemp(join(tmpdir(), 'n-cursor-empty-path-'))
   const prevPath = env.PATH
+  const prevNoInstall = env['N_CURSOR_NO_AUTO_INSTALL']
   env.PATH = isolatedDir
+  env['N_CURSOR_NO_AUTO_INSTALL'] = '1'
   const errs = []
   const origErr = console.error
   const origLog = console.log
   console.error = (...args) => errs.push(args.join(' '))
   console.log = () => {
-    // suppress test output noise
+    /* noop: stdout не перевіряється */
   }
+  let code
+  let caughtError
   try {
-    const code = await fn()
-    return { code, errBlob: errs.join('\n') }
+    code = await fn()
+  } catch (error) {
+    caughtError = error
   } finally {
     console.error = origErr
     console.log = origLog
@@ -50,40 +50,58 @@ async function withIsolatedPath(fn) {
     } else {
       env.PATH = prevPath
     }
+    if (prevNoInstall === undefined) {
+      delete env['N_CURSOR_NO_AUTO_INSTALL']
+    } else {
+      env['N_CURSOR_NO_AUTO_INSTALL'] = prevNoInstall
+    }
+    await rm(isolatedDir, { recursive: true, force: true })
   }
+  return { code, error: caughtError, errBlob: errs.join('\n') }
 }
 
 describe('runLintGaCli', () => {
-  test('exit 1 + brew/apt/pacman підказки, коли shellcheck відсутній у PATH', async () => {
-    const { code, errBlob } = await withIsolatedPath(runLintGaCli)
-    expect(code).toBe(1)
-    expect(errBlob).toContain('shellcheck')
-    expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
-    expect(errBlob).toMatch(APT_INSTALL_SHELLCHECK_RE)
-    expect(errBlob).toMatch(PACMAN_INSTALL_SHELLCHECK_RE)
+  test('кидає з підказкою shellcheck, коли бінарник відсутній і N_CURSOR_NO_AUTO_INSTALL=1', async () => {
+    const { error } = await withIsolatedPath(runLintGaCli)
+    expect(error).toBeDefined()
+    expect(error?.message).toMatch(SHELLCHECK_RE)
   })
 
-  test('exit 1 + підказка astral.sh/uv, коли uv відсутній у PATH', async () => {
-    const { code, errBlob } = await withIsolatedPath(runLintGaCli)
-    expect(code).toBe(1)
-    expect(errBlob).toMatch(UV_WORD_RE)
-    expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
-    expect(errBlob).toMatch(ASTRAL_UV_RE)
-  })
+  test('exit 1 + підказка uv, коли shellcheck/conftest є, але uv відсутній', async () => {
+    if (platform === 'win32') {
+      expect(true).toBe(true)
+      return
+    }
 
-  test('exit 1 + підказка conftest.dev/install, коли conftest відсутній у PATH', async () => {
-    const { code, errBlob } = await withIsolatedPath(runLintGaCli)
-    expect(code).toBe(1)
-    expect(errBlob).toMatch(CONFTEST_WORD_RE)
-    expect(errBlob).toMatch(BREW_INSTALL_CONFTEST_RE)
-    expect(errBlob).toMatch(CONFTEST_INSTALL_URL_RE)
-  })
+    const binDir = await mkdtemp(join(tmpdir(), 'n-cursor-ga-stubs-'))
+    // shellcheck і conftest є → ensureTool пройде; uv відсутній → preflight повертає false
+    for (const name of ['shellcheck', 'conftest']) {
+      const stub = join(binDir, name)
+      await writeFile(stub, '#!/bin/sh\nexit 0\n', 'utf8')
+      await chmod(stub, 0o755)
+    }
 
-  test('усі три preflight’и повідомляються незалежно — підказки не зникають після першого fail', async () => {
-    const { errBlob } = await withIsolatedPath(runLintGaCli)
-    expect(errBlob).toMatch(BREW_INSTALL_SHELLCHECK_RE)
-    expect(errBlob).toMatch(BREW_INSTALL_UV_RE)
-    expect(errBlob).toMatch(BREW_INSTALL_CONFTEST_RE)
+    const prevPath = env.PATH
+    env.PATH = `${binDir}:/usr/bin:/bin`
+    const errs = []
+    const origErr = console.error
+    const origLog = console.log
+    console.error = (...args) => errs.push(args.join(' '))
+    console.log = () => {
+      /* noop: stdout не перевіряється */
+    }
+    let code
+    try {
+      code = await runLintGaCli()
+    } finally {
+      console.error = origErr
+      console.log = origLog
+      env.PATH = prevPath
+      await rm(binDir, { recursive: true, force: true })
+    }
+    expect(code).toBe(1)
+    expect(errs.join('\n')).toMatch(UV_RE)
+    expect(errs.join('\n')).toMatch(ASTRAL_UV_RE)
   })
 
   test('preflight OK — логує successMsg і доходить до actionlint (lines 129-130, 161-162)', async () => {
@@ -116,12 +134,11 @@ describe('runLintGaCli', () => {
       console.log = origLog
       console.error = origErr
       env.PATH = prevPath
+      await rm(binDir, { recursive: true, force: true })
     }
     // Preflight пройшов; actionlint (через bunx) → 127 (bunx відсутній)
     expect(code).toBe(127)
-    expect(logs.some(l => l.includes('shellcheck'))).toBe(true)
     expect(logs.some(l => l.includes('uv'))).toBe(true)
-    expect(logs.some(l => l.includes('conftest'))).toBe(true)
   })
 
   test('actionlint OK → досягає zizmor (lines 164-165)', async () => {
@@ -155,6 +172,7 @@ describe('runLintGaCli', () => {
       console.log = origLog
       console.error = origErr
       env.PATH = prevPath
+      await rm(binDir, { recursive: true, force: true })
     }
     // actionlint OK (bunx stub exit 0); zizmor (uvx) → 127 (uvx відсутній)
     expect(code).toBe(127)

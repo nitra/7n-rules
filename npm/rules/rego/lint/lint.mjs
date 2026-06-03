@@ -1,7 +1,7 @@
 /**
- * Лінт Rego-полісі (`conftest.mdc` + `rego.mdc`): preflight на `opa` і `regal`,
- * далі послідовно `opa check --strict`, `regal lint` і опційний
- * `conftest verify` (для `*_test.rego`-файлів) якщо conftest у PATH.
+ * Лінт Rego-полісі (`conftest.mdc` + `rego.mdc`): `ensureTool` на `opa` і `regal`
+ * (авто-install per-platform або hard-fail), далі послідовно `opa check --strict`,
+ * `regal lint` і опційний `conftest verify` (для `*_test.rego`-файлів) якщо conftest у PATH.
  *
  * Чому два-три інструменти:
  * - `opa check --strict` — компіляція з типами і строгим режимом (мертвий код, неоднозначні
@@ -13,10 +13,10 @@
  *   Якщо conftest відсутній у PATH — пропускаємо без помилки (тести опційні в локальному середовищі;
  *   у CI потрібно встановити conftest).
  *
- * Без preflight-у на бінарники лінт мовчки злетить з невиразним повідомленням від shell —
- * друкуємо явні install-hints (як це робить `lint-ga.mjs` для shellcheck/uv). `opa` додатково
- * потрібен VS Code-розширенню `tsandall.opa` (LSP, format-on-save через `opa fmt`) — деталі в
- * `mdc/rego.mdc`.
+ * `opa`/`regal` резолвляться через `ensureTool` (PATH → кеш → авто-install brew/scoop/GitHub
+ * Release → hard-fail) — без них лінт мовчки злетів би з невиразним повідомленням від shell.
+ * `opa` додатково потрібен VS Code-розширенню `tsandall.opa` (LSP, format-on-save через
+ * `opa fmt`) — деталі в `mdc/rego.mdc`.
  *
  * Цілі лінту: `npm/rules/` (де живуть Rego-полісі пакета `@nitra/cursor` — у
  * `npm/rules/<id>/policy/<concern>/`). Усі три інструменти приймають один шлях
@@ -31,46 +31,12 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 
 /** Шляхи з Rego-полісі (відносно cwd). Існують не всі на ранніх стадіях — фільтруємо нижче. */
 const LINT_TARGETS = ['npm/rules']
-
-/**
- * Друкує підказку зі встановлення `opa` (потрібен для `opa check --strict` і VS Code LSP).
- * @returns {void}
- */
-function printOpaInstallHints() {
-  process.stderr.write(
-    [
-      '❌ opa не знайдено в PATH.',
-      '   Без нього не запускається `opa check --strict` (типи + мертвий код у *.rego),',
-      '   і не працює VS Code-розширення `tsandall.opa` (LSP, format-on-save через opa fmt).',
-      '   Встанови:',
-      '     macOS:     brew install opa',
-      '     Universal: https://www.openpolicyagent.org/docs/latest/#1-download-opa',
-      ''
-    ].join('\n')
-  )
-}
-
-/**
- * Друкує підказку зі встановлення `regal`.
- * @returns {void}
- */
-function printRegalInstallHints() {
-  process.stderr.write(
-    [
-      '❌ regal не знайдено в PATH.',
-      '   Без нього не перевіряється rego.v1 синтаксис у *.rego (правило `conftest`).',
-      '   Встанови:',
-      '     macOS:     brew install regal',
-      '     Universal: https://docs.styra.com/regal#installation',
-      ''
-    ].join('\n')
-  )
-}
 
 /**
  * Запускає крок з відображенням команди користувачу. Stdout/stderr передаємо як є
@@ -101,19 +67,8 @@ function runStep(bin, args, cwd) {
  */
 export function runLintRegoSteps(cwd = process.cwd()) {
   const root = resolve(cwd)
-  const opa = resolveCmd('opa')
-  const regal = resolveCmd('regal')
-
-  let preflightOk = true
-  if (!opa) {
-    printOpaInstallHints()
-    preflightOk = false
-  }
-  if (!regal) {
-    printRegalInstallHints()
-    preflightOk = false
-  }
-  if (!preflightOk) return 1
+  const opa = ensureTool('opa')
+  const regal = ensureTool('regal')
 
   const targets = LINT_TARGETS.filter(rel => existsSync(resolve(root, rel)))
   if (targets.length === 0) {
