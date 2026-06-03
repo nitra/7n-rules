@@ -224,11 +224,11 @@ function checkPublishWorkflow(passFn, failFn, cwd) {
 }
 
 /**
- * Перетворює glob-патерн (як у npm `files`) у `RegExp` з якорями `^` / `$`.
- * Підтримує globstar (нуль або більше сегментів), `*` (символи без `/`) і `?`
- * (один символ без `/`). Не підтримує brace-expansion і class `[…]` — у
- * негативних патернах `files` цього достатньо для практичних випадків
- * (приклад: negation з префіксом `!` і двома зірочками поряд з `_test.rego`).
+ * Перетворює glob-патерн (як у npm `files` чи `meta.json:auto.glob`) у `RegExp`
+ * з якорями `^` / `$`. Підтримує globstar (нуль або більше сегментів), `*`
+ * (символи без `/`), `?` (один символ без `/`) і brace-альтернативи `{a,b,c}`
+ * (наприклад `*.{png,jpg,svg}` → `(?:png|jpg|svg)`). Клас `[…]` не
+ * підтримується — у негативних патернах `files` цього достатньо.
  * @param {string} glob posix-шлях у glob-нотації
  * @returns {RegExp} `RegExp` з якорями `^` / `$`
  */
@@ -237,11 +237,42 @@ export function globToRegex(glob) {
   const tokens = parts.map(p => {
     if (p === '**') return '__GLOBSTAR__'
     let out = ''
+    let braceDepth = 0
     for (const c of p) {
-      if (c === '*') out += '[^/]*'
-      else if (c === '?') out += '[^/]'
-      else if (REGEX_SPECIAL_IN_GLOB.has(c)) out += `\\${c}`
-      else out += c
+      switch (c) {
+        case '*': {
+          out += '[^/]*'
+          continue
+        }
+        case '?': {
+          out += '[^/]'
+          continue
+        }
+        case '{': {
+          out += '(?:'
+          braceDepth++
+          continue
+        }
+        case '}': {
+          if (braceDepth > 0) {
+            out += ')'
+            braceDepth--
+            continue
+          }
+          break
+        }
+        case ',': {
+          if (braceDepth > 0) {
+            out += '|'
+            continue
+          }
+          break
+        }
+        default: {
+          break
+        }
+      }
+      out += REGEX_SPECIAL_IN_GLOB.has(c) ? `\\${c}` : c
     }
     return out
   })

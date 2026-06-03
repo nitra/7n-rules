@@ -55,6 +55,21 @@ describe('globToRegex', () => {
     const re = globToRegex('**/**')
     expect(re.test('a/b/c')).toBe(true)
   })
+
+  test('brace-альтернативи {a,b,c} — multi-extension', () => {
+    const re = globToRegex('**/*.{png,jpg,jpeg,gif,svg}')
+    expect(re.test('src/logo.png')).toBe(true)
+    expect(re.test('assets/photo.jpeg')).toBe(true)
+    expect(re.test('icon.svg')).toBe(true)
+    expect(re.test('src/app.js')).toBe(false)
+    expect(re.test('src/data.json')).toBe(false)
+  })
+
+  test('кома поза дужками — літерал', () => {
+    const re = globToRegex('a,b.txt')
+    expect(re.test('a,b.txt')).toBe(true)
+    expect(re.test('ab.txt')).toBe(false)
+  })
 })
 
 describe('findTestFrameworkImport', () => {

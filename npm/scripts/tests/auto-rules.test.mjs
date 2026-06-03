@@ -76,6 +76,7 @@ describe('detectAutoRules', () => {
       await writeFile(join(dir, 'src/app.js'), 'export const x = 1\n', 'utf8')
       await writeFile(join(dir, 'src/query.js'), 'const q = gql`query { ping }`\n', 'utf8')
       await writeFile(join(dir, 'src/App.vue'), '<script setup>const a = 1</script>\n', 'utf8')
+      await writeFile(join(dir, 'src/logo.png'), 'x', 'utf8')
 
       const actual = await detectAutoRulesInCwd(dir)
 
@@ -254,11 +255,12 @@ describe('detectAutoRules', () => {
     })
   })
 
-  test('AUTO_RULE_DEPENDENCIES: image-compress додається разом з bun, image-avif — разом з vue', async () => {
+  test('glob-активація: репо із зображенням → image-compress (і image-avif разом з vue)', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'app' })
       await ensureDir(join(dir, 'src'))
       await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
+      await writeFile(join(dir, 'src/logo.png'), 'x', 'utf8')
 
       const actual = await detectAutoRulesInCwd(dir)
 
@@ -268,7 +270,7 @@ describe('detectAutoRules', () => {
     })
   })
 
-  test('AUTO_RULE_DEPENDENCIES: image-avif НЕ додається без vue, image-compress — додається', async () => {
+  test('glob-активація: bun-репо без зображень → image-compress і image-avif відсутні', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'app' })
       await ensureDir(join(dir, 'src'))
@@ -276,9 +278,23 @@ describe('detectAutoRules', () => {
 
       const actual = await detectAutoRulesInCwd(dir)
 
-      expect(actual.rules.includes('vue')).toBe(false)
+      expect(actual.rules.includes('bun')).toBe(true)
+      expect(actual.rules.includes('image-compress')).toBe(false)
       expect(actual.rules.includes('image-avif')).toBe(false)
+    })
+  })
+
+  test('glob-активація: зображення без vue → image-compress є, image-avif немає', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'app' })
+      await ensureDir(join(dir, 'src'))
+      await writeFile(join(dir, 'src/logo.svg'), '<svg></svg>\n', 'utf8')
+
+      const actual = await detectAutoRulesInCwd(dir)
+
+      expect(actual.rules.includes('vue')).toBe(false)
       expect(actual.rules.includes('image-compress')).toBe(true)
+      expect(actual.rules.includes('image-avif')).toBe(false)
     })
   })
 
@@ -287,6 +303,7 @@ describe('detectAutoRules', () => {
       await writeJson(join(dir, 'package.json'), { name: 'app' })
       await ensureDir(join(dir, 'src'))
       await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
+      await writeFile(join(dir, 'src/logo.png'), 'x', 'utf8')
 
       const actual = await detectAutoRules({
         root: dir,
@@ -296,6 +313,7 @@ describe('detectAutoRules', () => {
       })
 
       expect(actual.rules.includes('vue')).toBe(false)
+      expect(actual.rules.includes('image-compress')).toBe(true)
       expect(actual.rules.includes('image-avif')).toBe(false)
     })
   })
@@ -305,6 +323,7 @@ describe('detectAutoRules', () => {
       await writeJson(join(dir, 'package.json'), { name: 'app' })
       await ensureDir(join(dir, 'src'))
       await writeFile(join(dir, 'src/App.vue'), '<script setup></script>\n', 'utf8')
+      await writeFile(join(dir, 'src/logo.png'), 'x', 'utf8')
 
       const actual = await detectAutoRules({
         root: dir,

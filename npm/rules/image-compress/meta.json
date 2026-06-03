@@ -1,1 +1,1 @@
-{ "auto": ["bun"] }
+{ "auto": { "glob": "**/*.{png,jpg,jpeg,gif,svg}" } }
