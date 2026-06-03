@@ -40,6 +40,39 @@ describe("injectWorktreeNotice", () => {
     expect(out).not.toContain('W="${');
   });
 
+  test("worktree=true → Крок 0.1 з bun install та retry-обгорткою n_cursor_npx", () => {
+    const out = injectWorktreeNotice(SKILL, true);
+    // bun install — локальна копія усуває гонку з CDN ще до retry.
+    expect(out).toContain("bun install");
+    // retry-обгортка bootstrap-виклику.
+    expect(out).toContain("n_cursor_npx()");
+    expect(out).toContain('npx @nitra/cursor "$@"');
+    // env-override + hard-ceiling 10 хв.
+    expect(out).toContain("N_CURSOR_NPX_RETRY_MAX_MIN");
+    expect(out).toContain('[ "$max_min" -gt 10 ] && max_min=10');
+    expect(out).toContain("sleep 30");
+    // ретраяться лише транзитні помилки реєстру/мережі.
+    for (const code of [
+      "ETARGET",
+      "notarget",
+      "ENOTFOUND",
+      "ETIMEDOUT",
+      "EAI_AGAIN",
+      "ECONNRESET",
+    ]) {
+      expect(out).toContain(code);
+    }
+  });
+
+  test("worktree=true → Крок 0.1 винесено ПІСЛЯ no-expansion preflight-снипета", () => {
+    const out = injectWorktreeNotice(SKILL, true);
+    // command substitution живе лише у Кроці 0.1, не у «без-expansion» блоці вище.
+    expect(out.indexOf("**Крок 0.1")).toBeGreaterThan(
+      out.indexOf('cd ".worktrees/feature-x-fix"'),
+    );
+    expect(out.indexOf("$(mktemp)")).toBeGreaterThan(out.indexOf("**Крок 0.1"));
+  });
+
   test("ідемпотентність: повторний виклик не дублює блок", () => {
     const once = injectWorktreeNotice(SKILL, true);
     const twice = injectWorktreeNotice(once, true);
