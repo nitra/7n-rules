@@ -1,5 +1,23 @@
 # Changelog
 
+## [3.20.0] - 2026-06-03
+
+### Added
+
+- ensure-tool: авто-встановлення зовнішніх CLI-залежностей (hk, conftest, shellcheck, actionlint, dotenv-linter) — brew/scoop/GitHub Release per-platform; hk install після fix; conftest авто-встановлюється перед fix та lint-ga
+- ensureTool: розширено на opa/regal/hadolint/kubeconform/kubescape (brew/scoop/GitHub Release per-platform) + підтримка сирих бінарників (archive:false → download+chmod, без tar). Мігровано call-sites rego-lint (opa/regal), docker (hadolint з docker-fallback), k8s-lint (kubeconform/kubescape). withBinRemovedFromPath виставляє N_CURSOR_NO_AUTO_INSTALL=1.
+- Guard: дефолтний sync (`npx @nitra/cursor` без підкоманди) забороняє запуск із піддиректорії git-репо — STOP до мутацій, замість скаффолда .cursor/.claude/CLAUDE.md/.n-cursor.json не в той каталог
+
+### Changed
+
+- worktree-only скіли: bootstrap-виклик npx @nitra/cursor у новоствореному worktree тепер ретраїться при транзитних помилках реєстру/CDN (ETARGET/notarget, ENOTFOUND, ETIMEDOUT, EAI_AGAIN, ECONNRESET, 5xx) кожні 30с до 5 хв (env N_CURSOR_NPX_RETRY_MAX_MIN, ceiling 10 хв); реальний nonzero CLI віддається одразу. worktree-notice додає bun install у дереві (локальна копія усуває гонку з CDN) і shell-обгортку n_cursor_npx; fix-скіл кроки 1/6 використовують її
+- npm-module: npm_publish_yml тепер звіряє ВЕСЬ канонічний сніпет напряму (target.json "check":"template", generic deep-subset) замість bespoke subset-of rego — редагування сніпета одразу змінює enforce, без правок rego й міграторів; масиви (steps) матчаться структурним subset-ом за наявністю (order/key-insensitive, зайві кроки дозволені); legacy publish-only workflow тепер падає check (вимагає release-publish job). Новий режим check:template перевикористовний для будь-якого whole-file концерну зі сніпетом.
+- docker hadolint: прибрано docker-run fallback — hadolint тепер лише нативний бінарник через ensureTool (brew/scoop/GitHub Release). Видалено HADOLINT_IMAGE; оновлено docker.mdc і тести.
+
+### Fixed
+
+- nginx-default-tpl: error_log off → error_log /dev/null crit; (error_log off — НЕ валідний nginx, падає під readOnlyRootFilesystem); авто-заміна в шаблонах + оновлено канон .mdc/фікстуру
+
 ## [3.19.0] - 2026-06-03
 
 ### Changed
