@@ -8,7 +8,10 @@
       "Skill(n-coverage-fix)",
       "WebSearch",
       "WebFetch(domain:scoop.sh)",
-      "WebFetch(domain:scoopsearch.com)"
+      "WebFetch(domain:scoopsearch.com)",
+      "Bash(rm -f /Users/vitalii/www/nitra/cursor/.git/worktrees/fix-cli-hide-sync-blocks/index.lock)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m ' *)"
     ]
   }
 }

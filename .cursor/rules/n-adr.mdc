@@ -110,6 +110,7 @@ dist/
 .claude/hooks/*.log
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
+.claude/scheduled_tasks.lock
 ```.
 
 ## Stop-hook у `.claude/settings.json`

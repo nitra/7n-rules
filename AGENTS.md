@@ -57,6 +57,7 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 - **lint-text**: `bun run lint-text`
 - **lint-ga**: `bun run lint-ga`
 - **start**: `bun run start`
+- **lint-python**: `bun run lint-python`
 - **lint-rego**: `bun run lint-rego`
 - **lint-security**: `bun run lint-security`
 - **lint-style**: `bun run lint-style`

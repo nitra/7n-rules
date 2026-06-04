@@ -1133,6 +1133,48 @@ async function runSyncStep(prefix, action) {
 }
 
 /**
+ * Виконує `action`, буферизуючи весь його stdout/console-вивід.
+ *
+ * Мотивація: за успішного прогону sync-блоку рядки `⬇ … ✅` і підсумок
+ * (`🧩 Skills: N скопійовано, 0 з помилками`) не несуть користі й лише
+ * захаращують термінал. Тому буфер скидається в реальний stdout **лише**
+ * коли крок повернув `fail > 0` (або кинув виняток); за `fail === 0` —
+ * відкидається мовчки.
+ *
+ * @template T
+ * @param {() => Promise<T>} action крок синку, що повертає обʼєкт із лічильником помилок `fail`
+ * @returns {Promise<T>} результат `action` без змін
+ */
+async function captureOutput(action) {
+  const buffer = []
+  const realStdoutWrite = process.stdout.write
+  const realLog = console.log
+  const realError = console.error
+  const flush = () => realStdoutWrite.call(process.stdout, buffer.join(''))
+  process.stdout.write = (...args) => {
+    const [chunk] = args
+    buffer.push(typeof chunk === 'string' ? chunk : chunk.toString())
+    const cb = args.find((arg) => typeof arg === 'function')
+    if (cb) cb()
+    return true
+  }
+  console.log = (...args) => buffer.push(`${args.map(String).join(' ')}\n`)
+  console.error = (...args) => buffer.push(`${args.map(String).join(' ')}\n`)
+  try {
+    const result = await action()
+    if (result?.fail > 0) flush()
+    return result
+  } catch (error) {
+    flush()
+    throw error
+  } finally {
+    process.stdout.write = realStdoutWrite
+    console.log = realLog
+    console.error = realError
+  }
+}
+
+/**
  * Копіює керовані `.mdc` файли з пакету до `.cursor/rules`.
  * @param {string[]} rules список rules з конфігу
  * @param {string} bundledRulesDir каталог `rules` пакету-джерела
@@ -1357,14 +1399,19 @@ async function runSync() {
   console.log(`📋 Правил до завантаження: ${rules.length}`)
   console.log(`📋 Skills до синхронізації: ${skills.length}`)
 
-  await runSyncStep('❌ Не вдалося записати setup-bun-deps action: ', async () => {
-    const { destPath } = await syncSetupBunDepsAction(cwd(), effectivePackageRoot)
-    console.log(`📝 Оновлено ${destPath} (composite setup-bun-deps з пакету)\n`)
-  })
+  await runSyncStep('❌ Не вдалося записати setup-bun-deps action: ', () =>
+    captureOutput(async () => {
+      const { destPath } = await syncSetupBunDepsAction(cwd(), effectivePackageRoot)
+      console.log(`📝 Оновлено ${destPath} (composite setup-bun-deps з пакету)\n`)
+    })
+  )
 
   const rulesDir = join(cwd(), RULES_DIR)
   await mkdir(rulesDir, { recursive: true })
-  const { successCount, failCount } = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir)
+  const { successCount, failCount } = await captureOutput(async () => {
+    const stats = await syncManagedRuleFiles(rules, bundledRulesDir, rulesDir)
+    return { ...stats, fail: stats.failCount }
+  })
 
   await runSyncStep(`❌ Не вдалося прибрати зайві файли в ${RULES_DIR}: `, async () => {
     const removed = await removeOrphanManagedRuleFiles(rulesDir, rules)
@@ -1372,10 +1419,13 @@ async function runSync() {
   })
 
   await runSyncStep('❌ Skills: ', async () => {
-    const { success: skillOk, fail: skillFail } = await syncSkills(skills, bundledSkillsDir)
-    if (skills.length > 0) {
-      console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${skillFail} з помилками`)
-    }
+    const { fail: skillFail } = await captureOutput(async () => {
+      const { success: skillOk, fail } = await syncSkills(skills, bundledSkillsDir)
+      if (skills.length > 0) {
+        console.log(`\n🧩 Skills: ${skillOk} скопійовано, ${fail} з помилками`)
+      }
+      return { fail }
+    })
     const removedSkills = await removeOrphanManagedSkillDirs(join(cwd(), SKILLS_DIR), skills)
     logRemovedManagedItems('skills', SKILLS_DIR, removedSkills)
     if (skillFail > 0) {
@@ -1384,13 +1434,16 @@ async function runSync() {
   })
 
   await runSyncStep('❌ Commands: ', async () => {
-    const { success: cmdOk, fail: cmdFail } = await syncCommands(skills, bundledSkillsDir)
-    const { success: localOk, fail: localFail } = await syncLocalOnlySkillCommands(skills)
-    const totalOk = cmdOk + localOk
-    const totalFail = cmdFail + localFail
-    if (totalOk + totalFail > 0) {
-      console.log(`\n⌨️  Commands: ${totalOk} скопійовано, ${totalFail} з помилками`)
-    }
+    const { fail: totalFail } = await captureOutput(async () => {
+      const { success: cmdOk, fail: cmdFail } = await syncCommands(skills, bundledSkillsDir)
+      const { success: localOk, fail: localFail } = await syncLocalOnlySkillCommands(skills)
+      const totalOk = cmdOk + localOk
+      const fail = cmdFail + localFail
+      if (totalOk + fail > 0) {
+        console.log(`\n⌨️  Commands: ${totalOk} скопійовано, ${fail} з помилками`)
+      }
+      return { fail }
+    })
     const commandsDir = join(cwd(), COMMANDS_DIR)
     const removedCmds = await removeOrphanManagedCommandFiles(commandsDir, skills)
     logRemovedManagedItems('commands', COMMANDS_DIR, removedCmds)
@@ -1402,13 +1455,16 @@ async function runSync() {
   })
 
   await runSyncStep('❌ Pi skills: ', async () => {
-    const { success: piOk, fail: piFail } = await syncPiSkills(skills, bundledSkillsDir)
-    const { success: piLocalOk, fail: piLocalFail } = await syncLocalOnlyPiSkills(skills)
-    const totalOk = piOk + piLocalOk
-    const totalFail = piFail + piLocalFail
-    if (totalOk + totalFail > 0) {
-      console.log(`\n🥧 Pi skills: ${totalOk} скопійовано, ${totalFail} з помилками`)
-    }
+    const { fail: totalFail } = await captureOutput(async () => {
+      const { success: piOk, fail: piFail } = await syncPiSkills(skills, bundledSkillsDir)
+      const { success: piLocalOk, fail: piLocalFail } = await syncLocalOnlyPiSkills(skills)
+      const totalOk = piOk + piLocalOk
+      const fail = piFail + piLocalFail
+      if (totalOk + fail > 0) {
+        console.log(`\n🥧 Pi skills: ${totalOk} скопійовано, ${fail} з помилками`)
+      }
+      return { fail }
+    })
     const piSkillsDir = join(cwd(), PI_SKILLS_DIR)
     const removedPi = await removeOrphanManagedPiSkillDirs(piSkillsDir, skills)
     logRemovedManagedItems('pi skills', PI_SKILLS_DIR, removedPi)
@@ -1419,39 +1475,43 @@ async function runSync() {
     }
   })
 
-  await runSyncStep(`❌ Не вдалося оновити ${AGENTS_FILE}: `, () => syncAgentsMd(bundledAgentsTemplatePath))
+  await runSyncStep(`❌ Не вдалося оновити ${AGENTS_FILE}: `, () =>
+    captureOutput(() => syncAgentsMd(bundledAgentsTemplatePath))
+  )
   await runSyncStep('❌ Не вдалося оновити CLAUDE.md: ', () =>
-    syncClaudeMd(/** @type {string[] | undefined} */ (ignore))
+    captureOutput(() => syncClaudeMd(/** @type {string[] | undefined} */ (ignore)))
   )
 
-  await runSyncStep('❌ Не вдалося синхронізувати Claude-конфіг: ', async () => {
-    const result = await syncClaudeConfig({
-      projectRoot: cwd(),
-      bundledPackageRoot: effectivePackageRoot,
-      enabled: claudeConfigEnabled,
-      rules
-    })
-    if (!claudeConfigEnabled) {
-      console.log('🤖 Claude-конфіг: пропущено (claude-config: false у .n-cursor.json)')
-      return
-    }
-    const parts = []
-    if (result.settings) parts.push('.claude/settings.json')
-    if (result.cursorHooks) parts.push('.cursor/hooks.json')
-    if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
-    if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
-    if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')
-    if (result.adrHookLib?.length > 0) {
-      for (const libPath of result.adrHookLib) {
-        parts.push(libPath)
+  await runSyncStep('❌ Не вдалося синхронізувати Claude-конфіг: ', () =>
+    captureOutput(async () => {
+      const result = await syncClaudeConfig({
+        projectRoot: cwd(),
+        bundledPackageRoot: effectivePackageRoot,
+        enabled: claudeConfigEnabled,
+        rules
+      })
+      if (!claudeConfigEnabled) {
+        console.log('🤖 Claude-конфіг: пропущено (claude-config: false у .n-cursor.json)')
+        return
       }
-    }
-    if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
-    if (result.piExtension) parts.push('.pi/extensions/n-cursor-adr/')
-    if (parts.length > 0) {
-      console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
-    }
-  })
+      const parts = []
+      if (result.settings) parts.push('.claude/settings.json')
+      if (result.cursorHooks) parts.push('.cursor/hooks.json')
+      if (result.commands.length > 0) parts.push(`${result.commands.length} slash-commands`)
+      if (result.adrHook) parts.push('.claude/hooks/capture-decisions.sh')
+      if (result.adrNormalizeHook) parts.push('.claude/hooks/normalize-decisions.sh')
+      if (result.adrHookLib?.length > 0) {
+        for (const libPath of result.adrHookLib) {
+          parts.push(libPath)
+        }
+      }
+      if (result.gitignoreAdr) parts.push('.gitignore (adr fragment)')
+      if (result.piExtension) parts.push('.pi/extensions/n-cursor-adr/')
+      if (parts.length > 0) {
+        console.log(`🤖 Claude-конфіг: ${parts.join(', ')}`)
+      }
+    })
+  )
 
   await runSyncStep('❌ Не вдалося оновити .gitignore (worktree): ', async () => {
     const { written } = await syncGitignoreWorktree(cwd())
