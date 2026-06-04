@@ -86,3 +86,19 @@ Chosen option: "F1 + E1 + D3 + G3 + H1 + I1", because кожен варіант 
 Change-файл: `npm/.changes/lint-quick-ci-split.md`. Spec: `docs/superpowers/specs/2026-05-31-lint-quick-ci-split-design.md` (Approved). Plan: `docs/superpowers/plans/2026-05-31-lint-quick-ci-e1.md` (8 задач).
 
 Примітка: `.cursor/rules/n-*` дзеркало оновиться лише після релізу пакета з цими змінами — sync бере правила з опублікованого `@nitra/cursor`, не з локального `npm/rules`.
+
+## Update 2026-05-31
+
+Деталізація рішень реалізації (squash-коміт `ebe76db`, реліз `@nitra/cursor@1.40.0`):
+
+**Конвенція `lint`/`lint-ci`:** `lint` = quick (по змінених), `lint-ci` = full (по всіх). Порожній список змінених → quick завершується миттєво без жодного lint-кроку.
+
+**Поле `meta.json.lint` (E1):** одне поле `"lint": "quick" | "ci"`, семантика quick ⊆ ci; відсутнє поле = правило не є lint-кроком. Реалізовано у `npm/scripts/lib/rule-meta.mjs` (`parseRuleLintPhase`), схема `rule-meta.json`, валідація `npm/rules/npm-module/js/lint/rule_meta.mjs`.
+
+**CLI-оркестратор (F1):** `npm/scripts/lint-cli.mjs` — функції `selectLintRules` та `runLint`. Кейси `case 'lint'` / `case 'lint-ci'` у `npm/bin/n-cursor.js` (~рядок 1466). Старий `npm/scripts/lib/run-lint-cli.mjs` видалено.
+
+**Розщеплення `js-lint` (D3):** `npm/rules/js-lint/` (oxlint+eslint, `"lint":"quick"`) та `npm/rules/js-lint-ci/` (jscpd+knip, `"lint":"ci"`). Класифікація: `style-lint`, `js-lint` → quick; `js-lint-ci`, `ga`, `rego`, `text`, `security` → ci (їхні CLI не приймають список файлів — підтверджено аналізом сигнатур `runLintGaCli`, `runLintRego`, `runLintTextCli`).
+
+**База quick — working-tree + untracked:** `npm/scripts/lib/changed-files.mjs` (`collectChangedFiles`): `git diff HEAD --name-only` + `git ls-files --others --exclude-standard`. Тести: modified tracked, untracked, clean tree — 3/3 PASS (коміт `9edd63e`).
+
+Після squash-merge у `main`: 1987 passed / 0 failed. Worktree `feat/lint-quick-ci` і гілку видалено.

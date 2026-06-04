@@ -10,9 +10,10 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "test": "vitest run",
-    "lint": "bun run lint-ga && bun run lint-js && bun run lint-rego && bun run lint-security && bun run lint-style && bun run lint-text && oxfmt .",
+    "lint": "bun run lint-ga && bun run lint-js && bun run lint-python && bun run lint-rego && bun run lint-security && bun run lint-style && bun run lint-text && oxfmt .",
     "lint-ga": "n-cursor lint-ga",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
+    "lint-python": "bun ./node_modules/@nitra/cursor/rules/python/lint/lint.mjs",
     "lint-rego": "n-cursor lint-rego",
     "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail",
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
