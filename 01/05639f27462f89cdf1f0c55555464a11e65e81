@@ -1,0 +1,29 @@
+npm/.changes/260604-2112.md
+  s_0ba6501faabe05::t_5b832c10c5bd8e 1-5
+npm/rules/k8s/k8s.mdc
+  s_0ba6501faabe05::t_0bf2e75285e4b6 609
+  s_0ba6501faabe05::t_9cbdd474d8bc3a 3
+  s_0ba6501faabe05::t_c6be97d6030422 425
+docs/adr/260604-2114-додавання-nats-порту-tcp-4222-до-in-cluster-egress-allowlist.md
+  ai_agent 1-32
+npm/rules/k8s/policy/network_policy/template/stateful-set.snippet.yaml
+  s_0ba6501faabe05::t_98ace43261fe2a 61
+npm/rules/k8s/policy/network_policy/template/deployment.snippet.yaml
+  s_0ba6501faabe05::t_9a3745051406b2 57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0105639f27462f89cdf1f0c55555464a11e65e81",
+  "prompts": {},
+  "sessions": {
+    "s_0ba6501faabe05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "74b886ca-0791-4267-bb81-899e9f01b0ed",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
