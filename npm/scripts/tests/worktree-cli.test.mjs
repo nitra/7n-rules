@@ -51,6 +51,36 @@ describe('runWorktreeCli add', () => {
     })
   })
 
+  test('брудне основне дерево → нагадує про незакомічені зміни', async () => {
+    await withTmpDir(async dir => {
+      initRepo(dir)
+      writeFileSync(join(dir, 'f.txt'), 'changed', 'utf8') // незакомічена правка основного дерева
+      const lines = []
+      const code = await runWorktreeCli(['add', 'feat/x', 'опис'], {
+        cwd: dir,
+        log: line => lines.push(line),
+        logError: () => {}
+      })
+      expect(code).toBe(0)
+      const out = lines.join('\n')
+      expect(out).toContain('незакомічених змін')
+      expect(out).toContain('   - f.txt')
+    })
+  })
+
+  test('чисте основне дерево → без нагадування', async () => {
+    await withTmpDir(async dir => {
+      initRepo(dir)
+      const lines = []
+      await runWorktreeCli(['add', 'feat/x', 'опис'], {
+        cwd: dir,
+        log: line => lines.push(line),
+        logError: () => {}
+      })
+      expect(lines.join('\n')).not.toContain('незакомічених змін')
+    })
+  })
+
   test('без опису → exit 1, нічого не створює', async () => {
     await withTmpDir(async dir => {
       initRepo(dir)

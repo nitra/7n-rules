@@ -3,6 +3,7 @@
 ## Захищені директорії
 
 Ніколи не змінюй, не видаляй і не створюй файли у цих директоріях:
+
 - `.claude/worktrees/`
 
 @.cursor/rules/conftest.mdc
@@ -48,8 +49,6 @@
   Команда: `/n-docgen`
 - `.cursor/skills/n-fix/SKILL.md` — Виправити проєкт відповідно до всіх правил в .cursor/rules/
   Команда: `/n-fix`
-- `.cursor/skills/n-fix-tests/SKILL.md` — Ітеративно дописати тести щоб підвищити mutation score — читає вцілілі мутанти з COVERAGE.md і запускає агент до конвергенції
-  Команда: `/n-fix-tests`
 - `.cursor/skills/n-lint/SKILL.md` — Запустити кореневий bun run lint, виправити порушення й підтвердити чистий вихід
   Команда: `/n-lint`
 - `.cursor/skills/n-llm-patch/SKILL.md` — Підготовка самодостатнього текстового промпта для іншого Claude/Cursor-агента — read-only аналіз CWD без жодних змін у поточному репо

@@ -3,7 +3,7 @@ name: npm-publish
 on:
   push:
     paths:
-      - 'npm/**'
+      - "npm/**"
     branches:
       - main
 
@@ -28,16 +28,13 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      - name: Release (bump + CHANGELOG + tag)
-        run: node npm/bin/n-cursor.js release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5

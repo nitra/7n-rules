@@ -100,7 +100,7 @@ Zed **замінює** масив `file_scan_exclusions` цілком (не зл
 
 ## Команди
 
-- **Створити** (опис обовʼязковий): `npx @nitra/cursor worktree add <branch> "<навіщо>"`
+- **Створити** (опис обовʼязковий): `npx @nitra/cursor worktree add <branch> "<навіщо>"`. Worktree чекаутиться **від HEAD**, тож незакомічені зміни основного дерева в нього **не** потрапляють — `add` нагадує про них після створення (перелік файлів, а якщо їх багато — лише кількість), щоб worktree-скіл (`/n-fix` тощо) не пропустив правки, які ще не в коміті.
 - **Інвентаризація**: `npx @nitra/cursor worktree list`
 - **Прибрати**: `npx @nitra/cursor worktree remove <branch> [--force]`
 - **Прибрати осиротілі**: `npx @nitra/cursor worktree prune`

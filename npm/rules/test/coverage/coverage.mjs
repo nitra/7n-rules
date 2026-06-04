@@ -75,7 +75,7 @@ export function formatScore({ caught, total }) {
 /**
  * Рендерить таблицю покриття + мутаційного тестування як Markdown.
  * Якщо будь-який рядок містить непустий `survived`, додає секцію
- * `## Вцілілі мутанти` з JSON-блоком для `/n-fix-tests`.
+ * `## Вцілілі мутанти` з JSON-блоком для `/n-coverage-fix`.
  * Якщо `allowedGaps` непустий, додає секцію `## Allowed gaps` з таблицею
  * verdict/confidence/reason для кожного LLM-класифікованого мутанта.
  * Без timestamp, щоб git diff рухався лише при зміні метрик.
@@ -130,10 +130,22 @@ export function renderMarkdown(rows, allowedGaps = []) {
       gapsByFile.get(gap.file).push(gap)
     }
 
-    lines.push('', '## Allowed gaps', '', `> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`, '> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).')
+    lines.push(
+      '',
+      '## Allowed gaps',
+      '',
+      `> LLM-класифікатор виключив ${allowedGaps.length} survived мутант(ів) зі знаменника mutation score.`,
+      '> Категорії: equivalent (поведінково еквівалентний), defensive (impossible state), glue/wrapper (integration test покриває).'
+    )
 
     for (const [file, gaps] of gapsByFile) {
-      lines.push('', `### ${file}`, '', '| Line | Mutant | Verdict | Confidence | Reason |', '| --- | --- | --- | --- | --- |')
+      lines.push(
+        '',
+        `### ${file}`,
+        '',
+        '| Line | Mutant | Verdict | Confidence | Reason |',
+        '| --- | --- | --- | --- | --- |'
+      )
       for (const { mutant, verdict } of gaps) {
         const sanitizedReason = verdict.reason.replaceAll('|', String.raw`\|`).replaceAll('\n', ' ')
         lines.push(

@@ -19,8 +19,16 @@
  *    `origin/main` (або `HEAD~1` без remote).
  *
  * Усі `git` і зовнішні виклики — через `execFile` / `fetch`, без shell-інтерполяції.
+ *
+ * **Autofix-режим** (env `N_CURSOR_CHANGELOG_AUTOFIX=1`, виставляється лише кроком
+ * `npm-changelog` у `hk.pkl` для pre-commit): замість `fail` на відсутній change-файл
+ * правило саме створює його через `writeChange()` з дефолтами (`bump=patch`,
+ * `section=Changed`, `message` = subject останнього коміту) і ставить у git-індекс, щоб
+ * коміт не падав. Поза хуком (CI, ручний `fix`/`check`, read-only review) режим вимкнено —
+ * поведінка лишається fail-on-missing, тож CI не плодить артефактів.
  */
 import { execFile } from 'node:child_process'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
@@ -30,9 +38,22 @@ import {
   parsePyprojectFields,
   readPackageManifest
 } from '../lib/package-manifest.mjs'
+import { writeChange } from '../../release/change.mjs'
 import { readChangeFiles } from '../../release/lib/change-file.mjs'
 
 const execFileAsync = promisify(execFile)
+
+/** Env-прапорець, що вмикає autofix (виставляється кроком `npm-changelog` у `hk.pkl`). */
+const AUTOFIX_ENV_VAR = 'N_CURSOR_CHANGELOG_AUTOFIX'
+
+/** Дефолтний `bump` для autofix-створеного change-файлу (вищий bump редагуєш вручну). */
+const AUTOFIX_BUMP = 'patch'
+
+/** Дефолтна секція для autofix-створеного change-файлу. */
+const AUTOFIX_SECTION = 'Changed'
+
+/** Fallback-опис, коли subject останнього коміту порожній (напр. порожній репозиторій). */
+const AUTOFIX_FALLBACK_MESSAGE = 'оновлення'
 
 /** Кандидати інтеграційними тести гілки для feature-гілок (перша наявна; див. n-changelog.mdc). */
 const FEATURE_BASE_BRANCH_CANDIDATES = Object.freeze(['dev', 'main'])
@@ -430,15 +451,80 @@ async function hasPendingChangeFiles(ws, cwd) {
 }
 
 /**
+ * Опис для autofix-change-файлу: subject останнього коміту (HEAD), а якщо порожній
+ * (порожній репозиторій / detached без імені) — назва гілки, інакше fallback-літерал.
+ * Опис мусить бути непорожнім — `writeChange`/`parseChangeFile` кидають на порожньому.
+ * @param {string} cwd корінь репозиторію
+ * @returns {Promise<string>} непорожній опис зміни
+ */
+async function resolveAutoChangeMessage(cwd) {
+  const lastSubject = await gitOrNull(['log', '-1', '--format=%s'], cwd)
+  const subject = lastSubject?.trim()
+  if (subject) return subject
+  const branch = await currentBranchName(cwd)
+  return branch && branch !== 'HEAD' ? branch : AUTOFIX_FALLBACK_MESSAGE
+}
+
+/**
+ * Реакція на відсутній change-файл: у autofix-режимі — створити його з дефолтами й
+ * поставити у git-індекс (щоб коміт не падав); інакше — fail із підказкою.
+ * @param {string} ws workspace (`.` — корінь)
+ * @param {string} label мітка воркспейсу для повідомлень
+ * @param {string} mf шлях до маніфесту (для fail-підказки)
+ * @param {boolean} autofix чи створювати файл автоматично
+ * @param {(msg: string) => void} pass репортер pass
+ * @param {(msg: string) => void} fail репортер fail
+ * @param {string} cwd корінь репозиторію
+ * @returns {Promise<boolean>} `true` — change-файл створено (autofix); `false` — зафейлено
+ */
+async function reportOrFixMissingChangeFile(ws, label, mf, autofix, pass, fail, cwd) {
+  if (!autofix) {
+    fail(missingChangeFileMessage(label, mf))
+    return false
+  }
+  const message = await resolveAutoChangeMessage(cwd)
+  const relFromWs = await writeChange({ bump: AUTOFIX_BUMP, section: AUTOFIX_SECTION, message, ws, cwd })
+  const created = ws === '.' ? relFromWs : join(ws, relFromWs)
+  // Ставимо новий файл у індекс одразу: pre-commit-хук комітить уже застейджені зміни,
+  // а свіжостворений untracked-файл інакше лишився б поза комітом.
+  await gitOrNull(['add', '--', created], cwd)
+  pass(
+    `${label}: автоматично створено change-файл ${created} ` +
+      `(${AUTOFIX_BUMP}/${AUTOFIX_SECTION}: "${message}") — відредагуй за потреби; bump зробить CI (n-changelog.mdc)`
+  )
+  return true
+}
+
+/**
+ * Published-варіант реакції на відсутній change-файл: створити/зафейлити через
+ * `reportOrFixMissingChangeFile`, а коли autofix створив файл — додатково перевірити,
+ * що `files` містить `CHANGELOG.md` (реліз наближається — CHANGELOG публікується з пакетом).
+ * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest маніфест воркспейсу
+ * @param {string} label мітка воркспейсу
+ * @param {string} mf шлях до маніфесту
+ * @param {boolean} autofix autofix-режим
+ * @param {(msg: string) => void} pass репортер pass
+ * @param {(msg: string) => void} fail репортер fail
+ * @param {string} cwd корінь репозиторію
+ * @returns {Promise<void>} результат
+ */
+async function fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd) {
+  if (await reportOrFixMissingChangeFile(manifest.ws, label, mf, autofix, pass, fail, cwd)) {
+    checkNpmFilesArrayContainsChangelog(manifest, pass, fail)
+  }
+}
+
+/**
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} _Vcurrent параметр (для сумісності сигнатури; bump робить CI)
  * @param {string[]} subWorkspaces параметр
+ * @param {boolean} autofix autofix-режим (створити change-файл замість fail)
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @param {string} cwd робочий каталог
  * @returns {Promise<void>} результат
  */
-async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, subWorkspaces, pass, fail, cwd) {
+async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, subWorkspaces, autofix, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   if (await hasPendingChangeFiles(manifest.ws, cwd)) {
@@ -455,19 +541,19 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
 
   if (branch === LOCAL_ONLY_SKIP_BRANCH) {
     if (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd)) {
-      fail(missingChangeFileMessage(label, mf))
+      await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
     }
     return
   }
 
   const comparison = await resolveChangelogComparisonPoint(branch, cwd)
   if (comparison && (await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))) {
-    fail(missingChangeFileMessage(label, mf))
+    await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
     return
   }
 
   if (branch === 'main' && (await workspaceHasRelevantChangesAgainstBase('HEAD', manifest.ws, subWorkspaces, cwd))) {
-    fail(missingChangeFileMessage(label, mf))
+    await fixOrFailPublishedWorkspace(manifest, label, mf, autofix, pass, fail, cwd)
   }
 }
 
@@ -475,12 +561,13 @@ async function checkPublishedWorkspacePendingGitChanges(manifest, _Vcurrent, sub
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string[]} subWorkspaces параметр
  * @param {(name: string, kind?: import('../lib/package-manifest.mjs').PackageKind) => Promise<string | null>} getPublishedVersion параметр
+ * @param {boolean} autofix autofix-режим (створити change-файл замість fail)
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @param {string} cwd робочий каталог
  * @returns {Promise<void>} результат
  */
-async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail, cwd) {
+async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, autofix, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
@@ -517,22 +604,23 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
       `${label}: version у ${mf} (${Vcurrent}) позаду опублікованої (${Vpublished}) — ` +
         `локаль відстала від реєстру (зроби git pull); це не ручний bump`
     )
-    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
+    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, autofix, pass, fail, cwd)
     return
   }
   pass(`${label}: ${name}@${Vcurrent} збігається з реєстром — перевіряємо git на незрелізні зміни`)
-  await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, pass, fail, cwd)
+  await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, autofix, pass, fail, cwd)
 }
 
 /**
  * @param {string} comparisonRef ref/SHA для `git diff` / `git show`
  * @param {import('../lib/package-manifest.mjs').PackageManifest} manifest параметр
  * @param {string} baseLabel параметр
+ * @param {boolean} autofix autofix-режим (створити change-файл замість fail)
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @param {string} cwd робочий каталог
  */
-async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, pass, fail, cwd) {
+async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel, autofix, pass, fail, cwd) {
   const label = workspaceLabel(manifest)
   const mf = manifestFilePath(manifest.ws, manifest)
   const Vcurrent = manifest.version
@@ -551,17 +639,18 @@ async function checkLocalOnlyChangedWorkspace(comparisonRef, manifest, baseLabel
     pass(`${label}: є change-файл(и) у .changes/ — bump зробить CI (n-changelog.mdc)`)
     return
   }
-  fail(missingChangeFileMessage(label, mf))
+  await reportOrFixMissingChangeFile(manifest.ws, label, mf, autofix, pass, fail, cwd)
 }
 
 /**
  * @param {import('../lib/package-manifest.mjs').PackageManifest[]} localOnly параметр
  * @param {string[]} subWorkspaces параметр
+ * @param {boolean} autofix autofix-режим (створити change-файл замість fail)
  * @param {(msg: string) => void} pass параметр
  * @param {(msg: string) => void} fail параметр
  * @param {string} cwd робочий каталог
  */
-async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd) {
+async function runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail, cwd) {
   if (localOnly.length === 0) return
 
   if (!(await isInsideGitRepo(cwd))) {
@@ -583,7 +672,7 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd) {
   for (const manifest of localOnly) {
     if (!(await workspaceHasRelevantChangesAgainstBase(comparison.ref, manifest.ws, subWorkspaces, cwd))) continue
     checkedAny = true
-    await checkLocalOnlyChangedWorkspace(comparison.ref, manifest, comparison.label, pass, fail, cwd)
+    await checkLocalOnlyChangedWorkspace(comparison.ref, manifest, comparison.label, autofix, pass, fail, cwd)
   }
   if (!checkedAny) {
     pass(`changelog: local-only воркспейси без змін відносно ${comparison.label}`)
@@ -594,6 +683,7 @@ async function runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd) {
  * @param {object} [opts] опції перевірки
  * @param {(name: string, kind?: import('../lib/package-manifest.mjs').PackageKind) => Promise<string | null>} [opts.getPublishedVersion] перевизначення npm/PyPI у тестах
  * @param {string} [opts.cwd] корінь репозиторію (за замовчуванням `process.cwd()`)
+ * @param {boolean} [opts.autofix] явний autofix-режим (за замовчуванням — з env `N_CURSOR_CHANGELOG_AUTOFIX`)
  * @returns {Promise<number>} exit-код перевірки
  */
 export async function check(opts = {}) {
@@ -601,6 +691,7 @@ export async function check(opts = {}) {
   const { pass, fail } = reporter
   const getPublishedVersion = opts.getPublishedVersion ?? createDefaultGetPublishedVersion()
   const cwd = opts.cwd ?? process.cwd()
+  const autofix = opts.autofix ?? process.env[AUTOFIX_ENV_VAR] === '1'
 
   const workspaces = await getMonorepoProjectRootDirs(cwd)
   const subWorkspaces = workspaces.filter(w => w !== '.')
@@ -636,10 +727,10 @@ export async function check(opts = {}) {
   }
 
   for (const manifest of published) {
-    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, pass, fail, cwd)
+    await checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVersion, autofix, pass, fail, cwd)
   }
 
-  await runLocalOnlyChecks(localOnly, subWorkspaces, pass, fail, cwd)
+  await runLocalOnlyChecks(localOnly, subWorkspaces, autofix, pass, fail, cwd)
 
   return reporter.getExitCode()
 }

@@ -37,6 +37,7 @@ export async function check(opts = {}): Promise<number>
 
 - `opts.getPublishedVersion?: (name: string, kind?: 'npm' | 'python') => Promise<string | null>` — перевизначення стандартного резолвера опублікованої версії (для юніт-тестів, оффлайн-режимів).
 - `opts.cwd?: string` — корінь репозиторію; за замовчуванням `process.cwd()`.
+- `opts.autofix?: boolean` — autofix-режим. За замовчуванням береться з env `N_CURSOR_CHANGELOG_AUTOFIX === '1'` (виставляє лише крок `npm-changelog` у `hk.pkl` для pre-commit). Коли увімкнено, замість `fail` на відсутній change-файл правило створює його через `writeChange()` з дефолтами (`bump=patch`, `section=Changed`, `message` = subject останнього коміту, fallback — назва гілки чи `оновлення`) і ставить у git-індекс (`git add`), тож коміт не падає. Поза хуком (CI, ручний `fix`/`check`) режим вимкнено — поведінка лишається fail-on-missing, щоб CI не плодив артефактів.
 
 Повертає **exit-код** (0 — pass, ≠ 0 — fail), отриманий від `createCheckReporter()`.
 

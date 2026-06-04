@@ -5,6 +5,7 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
+
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-coverage-f/`) і **не** паралелиться — один інстанс за раз.
 
@@ -67,6 +68,7 @@ n_cursor_npx() {
 ```
 
 Усі подальші bootstrap-виклики `npx @nitra/cursor <cmd>` у цій сесії роби через `n_cursor_npx <cmd>`. Якщо опинився у свіжому shell без цієї функції — спершу повтори блок вище (`bun install` + визначення `n_cursor_npx`).
+
 <!-- n-cursor:worktree:end -->
 
 # n-coverage-fix — підвищення mutation score
@@ -89,16 +91,21 @@ n_cursor_npx() {
 
 ## Workflow
 
-### Крок 1: Запусти coverage
+### Крок 0: Визнач команди (з `package.json#scripts`)
+
+Прочитай кореневий `package.json` і зафіксуй дві команди (перша що існує):
+
+- **coverage-команда**: `scripts["coverage"]` → виклик `bun run coverage`; fallback `n-cursor coverage`
+- **test-команда**: `scripts["test"]` → виклик `bun run test` (або те, що в скрипті); fallback `bun test`
+
+Далі по тексту «coverage-команда» / «test-команда» = знайдені тут значення.
+
+### Крок 1: Згенеруй або переви́користай `COVERAGE.md`
+
+**Early-skip.** Якщо `COVERAGE.md` уже існує, свіжий (новіший за останню зміну source/тестів) і має секцію `## Вцілілі мутанти` — можеш одразу перейти до Кроку 2 без повторної генерації. Інакше — згенеруй звіт:
 
 ```bash
-n-cursor coverage
-```
-
-Або якщо є у `package.json#scripts`:
-
-```bash
-bun run coverage
+n-cursor coverage   # або coverage-команда з Кроку 0
 ```
 
 Ця команда генерує `COVERAGE.md`. Якщо є survived mutants — COVERAGE.md матиме секцію `## Вцілілі мутанти` з JSON-блоком.
@@ -165,7 +172,7 @@ bun run coverage
 ### Крок 4: Перевір що всі тести проходять
 
 ```bash
-bun test
+bun test   # або test-команда з Кроку 0
 ```
 
 Якщо падають — поверни відповідний Agent з помилкою і попроси виправити.
@@ -173,7 +180,7 @@ bun test
 ### Крок 5: Запусти coverage і порівняй
 
 ```bash
-n-cursor coverage
+n-cursor coverage   # або coverage-команда з Кроку 0
 ```
 
 Прочитай новий `COVERAGE.md`. Розбери JSON-масив вцілілих.

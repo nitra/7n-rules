@@ -87,6 +87,32 @@ export function buildDescription({ branch, task, baseCommit, date }) {
   ].join('\n')
 }
 
+/** Поріг переліку файлів у нагадуванні: понад нього показуємо лише кількість. */
+const DIRTY_LIST_LIMIT = 10
+
+/**
+ * Нагадування про незакомічені зміни основного дерева, які **не** потрапляють
+ * у новий worktree (він створюється від HEAD, без брудного стану). До
+ * `limit` файлів — перелік шляхів; більше — лише підсумкова кількість, щоб не
+ * залити екран. Призначене для виводу одразу після `worktree add`.
+ * @param {string} porcelain вивід `git status --porcelain` основного дерева
+ * @param {number} [limit] поріг переліку (понад нього — лише кількість)
+ * @returns {string | null} текст нагадування або `null`, якщо дерево чисте
+ */
+export function buildDirtyNotice(porcelain, limit = DIRTY_LIST_LIMIT) {
+  // Порядок: XY + пробіл (3 символи) + шлях; для перейменування — `orig -> dest`.
+  const files = String(porcelain ?? '')
+    .split('\n')
+    .map(line => line.slice(3).trim())
+    .filter(Boolean)
+  if (files.length === 0) return null
+  const head = `⚠️  Основне дерево має ${files.length} незакомічених змін — вони НЕ потрапили в цей worktree (створено від HEAD).`
+  const tail = '   Закоміть потрібні файли, якщо worktree-скіл має їх бачити.'
+  if (files.length > limit) return `${head}\n${tail}`
+  const list = files.map(f => `   - ${f}`).join('\n')
+  return `${head}\n${list}\n${tail}`
+}
+
 /**
  * `.md`-описи без відповідного зареєстрованого worktree-checkout.
  * @param {string[]} descFiles абсолютні шляхи `.worktrees/*.md`

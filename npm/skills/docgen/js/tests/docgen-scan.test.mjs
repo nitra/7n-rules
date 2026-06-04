@@ -11,7 +11,7 @@ import {
   runDocgenScanCli,
   runDocgenModulesCli
 } from '../docgen-scan.mjs'
-import { DOCGEN_IGNORE_GLOBS, isDocgenIgnoredPath } from '../docgen-ignore.mjs'
+import { DOCGEN_IGNORE_GLOBS, isDocgenIgnored } from '../docgen-ignore.mjs'
 
 describe('isSourceFile', () => {
   test('документує .js/.mjs/.ts/.vue/.py', () => {
@@ -50,8 +50,9 @@ describe('docPathForSource', () => {
 })
 
 describe('scanForDocgen', () => {
-  test('знаходить кодові файли й обчислює відносні sourcePath/docPath/exists', async () => {
+  test('знаходить кодові файли всередині дерева і пропускає root-level файли', async () => {
     await withTmpDir(async (root) => {
+      await ensureDir(join(root, 'docs', 'adr'))
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.js'), 'export const a = 1\n')
       await writeFile(join(root, 'b.ts'), 'export const b = 2\n')
@@ -62,7 +63,7 @@ describe('scanForDocgen', () => {
       expect(a.docPath).toBe(join('src', 'docs', 'a.md'))
       expect(a.exists).toBe(false)
       expect(a).not.toHaveProperty('relSource')
-      expect(items.map((i) => i.sourcePath).toSorted()).toEqual(['b.ts', join('src', 'a.js')])
+      expect(items.map((i) => i.sourcePath).toSorted()).toEqual([join('src', 'a.js')])
     })
   })
 
@@ -129,17 +130,20 @@ describe('docgen ignore globs', () => {
     expect(DOCGEN_IGNORE_GLOBS).toContain('**/demo/**')
   })
 
-  test('розпізнає ignored path для службових дерев', () => {
-    expect(isDocgenIgnoredPath('.pi/extensions/x.ts')).toBe(true)
-    expect(isDocgenIgnoredPath('benchmarks/demo/src/z.mjs')).toBe(true)
-    expect(isDocgenIgnoredPath('demo/src/main.js')).toBe(true)
-    expect(isDocgenIgnoredPath('src/keep.js')).toBe(false)
+  test('розпізнає ignored path і dir через один helper', () => {
+    expect(isDocgenIgnored('.pi/extensions/x.ts')).toBe(true)
+    expect(isDocgenIgnored('benchmarks/demo/src/z.mjs')).toBe(true)
+    expect(isDocgenIgnored('demo/src/main.js')).toBe(true)
+    expect(isDocgenIgnored('demo', 'dir')).toBe(true)
+    expect(isDocgenIgnored('src/keep.js')).toBe(false)
+    expect(isDocgenIgnored('src', 'dir')).toBe(false)
   })
 })
 
 describe('runDocgenScanCli', () => {
   test('друкує JSON-масив файлів і повертає 0', async () => {
     await withTmpDir(async (root) => {
+      await ensureDir(join(root, 'docs', 'adr'))
       await writeFile(join(root, 'foo.js'), 'export const a = 1\n')
 
       const lines = []
@@ -156,9 +160,7 @@ describe('runDocgenScanCli', () => {
       expect(lines).toHaveLength(1)
       const parsed = JSON.parse(lines[0])
       expect(Array.isArray(parsed)).toBe(true)
-      expect(parsed[0].sourcePath).toBe('foo.js')
-      expect(parsed[0].docPath).toBe(join('docs', 'foo.md'))
-      expect(parsed[0]).not.toHaveProperty('relSource')
+      expect(parsed).toEqual([])
     })
   })
 
@@ -198,11 +200,14 @@ describe('runDocgenScanCli', () => {
 describe('scanForModules', () => {
   test('призначає файл найближчому модулю-предку за package.json', async () => {
     await withTmpDir(async (root) => {
+      await ensureDir(join(root, 'docs', 'adr'))
       await ensureDir(join(root, 'npm', 'rules', 'adr'))
       await writeFile(join(root, 'package.json'), '{"name":"root"}\n')
       await writeFile(join(root, 'npm', 'rules', 'adr', 'package.json'), '{"name":"adr"}\n')
       await writeFile(join(root, 'npm', 'rules', 'adr', 'index.mjs'), 'export const a = 1\n')
-      await writeFile(join(root, 'app.js'), 'export const b = 2\n')
+      await ensureDir(join(root, 'src'))
+      await writeFile(join(root, 'src', 'app.js'), 'export const b = 2\n')
+      await writeFile(join(root, 'app.js'), 'export const skip = 1\n')
 
       const mods = await scanForModules(root)
       const adr = mods.find((m) => m.relRoot === join('npm', 'rules', 'adr'))
@@ -212,7 +217,7 @@ describe('scanForModules', () => {
       expect(adr.moduleRoot).toBe(join(root, 'npm', 'rules', 'adr'))
       expect(adr.docPath).toBe(join(root, 'npm', 'rules', 'adr', 'docs', 'ARCHITECTURE.md'))
       expect(adr.members).toEqual([join('npm', 'rules', 'adr', 'index.mjs')])
-      expect(rootMod.members).toEqual(['app.js'])
+      expect(rootMod.members).toEqual([join('src', 'app.js')])
       expect(rootMod.slug).toBe('root')
     })
   })

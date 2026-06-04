@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
-import { buildDescription, findOrphanDescFiles, firstFreeBranch, sanitizeBranch, worktreePaths } from '../worktree.mjs'
+import {
+  buildDescription,
+  buildDirtyNotice,
+  findOrphanDescFiles,
+  firstFreeBranch,
+  sanitizeBranch,
+  worktreePaths
+} from '../worktree.mjs'
 
 describe('sanitizeBranch', () => {
   test('слеш → дефіс', () => {
@@ -67,6 +74,34 @@ describe('buildDescription', () => {
     expect(md).toContain('2026-05-31')
     expect(md).toContain('abc1234')
     expect(md).toContain('npx @nitra/cursor worktree remove feat/x')
+  })
+})
+
+describe('buildDirtyNotice', () => {
+  test('чисте дерево → null', () => {
+    expect(buildDirtyNotice('')).toBeNull()
+    expect(buildDirtyNotice('\n')).toBeNull()
+    expect(buildDirtyNotice(null)).toBeNull()
+  })
+  test('кілька файлів → перелік шляхів і кількість', () => {
+    const out = buildDirtyNotice(' M .github/workflows/npm-publish.yml\n?? new.txt')
+    expect(out).toContain('2 незакомічених змін')
+    expect(out).toContain('   - .github/workflows/npm-publish.yml')
+    expect(out).toContain('   - new.txt')
+    expect(out).toContain('Закоміть потрібні файли')
+  })
+  test('перейменування → показує orig -> dest', () => {
+    expect(buildDirtyNotice('R  old.js -> new.js')).toContain('   - old.js -> new.js')
+  })
+  test('понад поріг → лише кількість без переліку', () => {
+    const porcelain = Array.from({ length: 12 }, (_, i) => ` M f${i}.txt`).join('\n')
+    const out = buildDirtyNotice(porcelain)
+    expect(out).toContain('12 незакомічених змін')
+    expect(out).not.toContain('   - f0.txt')
+  })
+  test('кастомний поріг переліку', () => {
+    expect(buildDirtyNotice(' M a\n M b\n M c', 2)).not.toContain('   - a')
+    expect(buildDirtyNotice(' M a\n M b', 2)).toContain('   - a')
   })
 })
 

@@ -174,7 +174,7 @@ describe('renderMarkdown — секція вцілілих мутантів', ()
     expect(md).not.toContain('## Recommendations')
   })
 
-  test('містить ```json блок з масивом survived, придатний для /n-fix-tests', () => {
+  test('містить ```json блок з масивом survived, придатний для /n-coverage-fix', () => {
     const rows = [
       {
         area: 'JS',
@@ -354,7 +354,9 @@ describe('renderMarkdown — точні розділювачі та порожн
     ]
     const md = renderMarkdown(rows)
     // \n\n після '# Coverage' = empty line (line 82) + рівно цей header separator (line 83-84)
-    expect(md).toContain('# Coverage\n\n| Область | Рядки | Функції | Вбито мутацій | Score |\n| --- | --- | --- | --- | --- |\n')
+    expect(md).toContain(
+      '# Coverage\n\n| Область | Рядки | Функції | Вбито мутацій | Score |\n| --- | --- | --- | --- | --- |\n'
+    )
   })
 
   test('обрамлює секцію "## Вцілілі мутанти" порожніми рядками і ```json блоком', () => {
@@ -681,9 +683,7 @@ describe('renderMarkdown — exampleTest empty line та fallback на code', ()
         survived: [
           {
             file: 'src/auth.js',
-            mutants: [
-              { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }
-            ],
+            mutants: [{ line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
             exampleTest: { testFile: 'tests/auth.test.mjs', code: 'expect(x).toBe(1)' },
             recommendationText: null
           }
@@ -707,9 +707,7 @@ describe('renderMarkdown — exampleTest empty line та fallback на code', ()
         survived: [
           {
             file: 'src/auth.js',
-            mutants: [
-              { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }
-            ],
+            mutants: [{ line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
             exampleTest: { testFile: 'tests/x.test.mjs', code: null },
             recommendationText: null
           }
@@ -731,9 +729,7 @@ describe('renderMarkdown — exampleTest empty line та fallback на code', ()
         survived: [
           {
             file: 'src/auth.js',
-            mutants: [
-              { line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }
-            ],
+            mutants: [{ line: 12, col: 0, mutantType: 'BooleanLiteral', original: 'true', replacement: 'false' }],
             exampleTest: { testFile: 'tests/x.test.mjs' }, // code прихований → undefined
             recommendationText: null
           }
@@ -762,7 +758,7 @@ describe('runCoverageSteps — writeFile utf8 encoding (вбиває L185:49 "ut
     // 'О' (Cyrillic Capital Letter O, U+041E) у UTF-8 = 0xD0 0x9E
     let found = false
     for (let i = 0; i < bytes.length - 1; i++) {
-      if (bytes[i] === 0xD0 && bytes[i + 1] === 0x9E) {
+      if (bytes[i] === 0xd0 && bytes[i + 1] === 0x9e) {
         found = true
         break
       }
@@ -1151,7 +1147,10 @@ describe('runCoverageSteps — classify повертає verdicts (lines 232-237
       { key: 'src/foo.js:1:0:false', verdict: { verdict: 'equivalent', confidence: 0.95, reason: 'test reason' } }
     ]
     vi.mocked(classify).mockResolvedValueOnce(verdicts)
-    const fx = makeOrchestratorFixture({ rules: ['js-lint'], providers: { 'js-lint': SURVIVED_PROVIDER_WITH_SURVIVED } })
+    const fx = makeOrchestratorFixture({
+      rules: ['js-lint'],
+      providers: { 'js-lint': SURVIVED_PROVIDER_WITH_SURVIVED }
+    })
     const exitCode = await runCoverageSteps({ cwd: fx.cwd, rulesDir: fx.rulesDir })
     expect(exitCode).toBe(0)
     const md = readFileSync(join(fx.cwd, 'COVERAGE.md'), 'utf8')
@@ -1197,11 +1196,13 @@ const makeGap = (file, reason = 'No side effect') => ({
 })
 
 describe('renderMarkdown — allowed gaps exact strings (L132, L133, L136, L138)', () => {
-  const baseRows = [{
-    area: 'JS',
-    coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
-    mutation: { caught: 3, total: 4 }
-  }]
+  const baseRows = [
+    {
+      area: 'JS',
+      coverage: { lines: { covered: 10, total: 20 }, functions: { covered: 5, total: 10 } },
+      mutation: { caught: 3, total: 4 }
+    }
+  ]
 
   test('містить рядок LLM-класифікатора (вбиває L132:16 StringLiteral template→``)', () => {
     const md = renderMarkdown(baseRows, [makeGap('src/a.js')])
@@ -1256,10 +1257,7 @@ describe('renderMarkdown — allowed gaps exact strings (L132, L133, L136, L138)
   })
 
   test('два gaps з одного файлу — обидва у виводі (вбиває L127:11 ConditionalExpression→true)', () => {
-    const gaps = [
-      makeGap('src/shared.js', 'reason A'),
-      makeGap('src/shared.js', 'reason B')
-    ]
+    const gaps = [makeGap('src/shared.js', 'reason A'), makeGap('src/shared.js', 'reason B')]
     const md = renderMarkdown(baseRows, gaps)
     expect(md).toContain('reason A')
     expect(md).toContain('reason B')
@@ -1281,7 +1279,10 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
     ]
     vi.mocked(classify).mockResolvedValueOnce(verdicts)
     const cwd = mkdtempSync(join(tmpdir(), 'threshold-nan-'))
-    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: NaN } }))
+    writeFileSync(
+      join(cwd, '.n-cursor.json'),
+      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: NaN } })
+    )
     const rulesDir = mkdtempSync(join(tmpdir(), 'rules-nan-'))
     const providerDir = join(rulesDir, 'js-lint', 'coverage')
     mkdirSync(providerDir, { recursive: true })
@@ -1300,7 +1301,10 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
     ]
     vi.mocked(classify).mockResolvedValueOnce(verdicts)
     const cwd = mkdtempSync(join(tmpdir(), 'threshold-str-'))
-    writeFileSync(join(cwd, '.n-cursor.json'), JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: '0.5' } }))
+    writeFileSync(
+      join(cwd, '.n-cursor.json'),
+      JSON.stringify({ rules: ['js-lint'], coverage: { classifyConfidenceThreshold: '0.5' } })
+    )
     const rulesDir = mkdtempSync(join(tmpdir(), 'rules-str-'))
     const providerDir = join(rulesDir, 'js-lint', 'coverage')
     mkdirSync(providerDir, { recursive: true })
@@ -1333,8 +1337,12 @@ describe('readClassifyThreshold — invalid threshold (kills L192, L193)', () =>
 })
 
 describe('runCoverageSteps — classify не викликається без survivors (L231:7)', () => {
-  beforeEach(() => { vi.clearAllMocks() })
-  afterEach(() => { vi.restoreAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   test('провайдер без survivors → classify НЕ викликається (вбиває L231:7 ConditionalExpression→true)', async () => {
     vi.mocked(classify).mockResolvedValue([])
@@ -1408,13 +1416,18 @@ describe('runCoverageSteps — "Разом" row filtering (L243-L244)', () => {
 })
 
 describe('runCoverageCli — 2-й run передає fix:false (L272)', () => {
-  afterEach(() => { vi.restoreAllMocks() })
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   test('2-й fn не запускає fix-логіку (вбиває L272:63 BooleanLiteral false→true)', async () => {
     withLock.mockReset()
     let secondFn = null
     withLock.mockReturnValueOnce(0)
-    withLock.mockImplementationOnce((_key, fn) => { secondFn = fn; return 0 })
+    withLock.mockImplementationOnce((_key, fn) => {
+      secondFn = fn
+      return 0
+    })
 
     await runCoverageCli({ fix: true })
     expect(secondFn).toBeTypeOf('function')
@@ -1425,7 +1438,11 @@ describe('runCoverageCli — 2-й run передає fix:false (L272)', () => {
     // withLock знову mock для виклику всередині secondFn
     withLock.mockImplementation((_key, fn2) => fn2())
     let innerCode
-    try { innerCode = await secondFn() } catch { innerCode = 1 }
+    try {
+      innerCode = await secondFn()
+    } catch {
+      innerCode = 1
+    }
     // fix: false → code=1 (немає провайдерів) але НЕ намагається завантажити coverage-fix.mjs
     expect(typeof innerCode).toBe('number')
     rmSync(cwd, { recursive: true, force: true })

@@ -19,6 +19,7 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 
 import { check as checkChangelog } from '../../../consistency.mjs'
+import { readChangeFiles } from '../../../../../release/lib/change-file.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../../../../../../scripts/utils/test-helpers.mjs'
 
 const execFileAsync = promisify(execFile)
@@ -792,6 +793,97 @@ describe('check-changelog (edge cases — coverage)', () => {
       await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
       const code = await checkChangelog({ cwd: dir })
       expect(code).toBe(0)
+    })
+  })
+})
+
+/**
+ * Імена застейджених шляхів (`git diff --cached --name-only`) у заданому `cwd`.
+ * @param {string} cwd робочий каталог
+ * @returns {Promise<string[]>} список застейджених шляхів
+ */
+async function stagedPaths(cwd) {
+  const { stdout } = await execFileAsync('git', ['diff', '--cached', '--name-only'], { cwd })
+  return stdout.split('\n').filter(Boolean)
+}
+
+describe('check-changelog (autofix-режим)', () => {
+  test('npm-published feature-гілка без change-файлу + autofix → створює change-файл і pass', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: '@x/lib', version: '1.0.0', files: ['lib', 'CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await ensureDir(join(dir, 'lib'))
+      await writeFile(join(dir, 'lib/x.js'), '//\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'feat: щось важливе'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'lib/x.js'), 'changed\n', 'utf8')
+
+      const code = await checkChangelog({
+        cwd: dir,
+        autofix: true,
+        getPublishedVersion: publishedStub({ '@x/lib': '1.0.0' })
+      })
+      expect(code).toBe(0)
+
+      const changes = await readChangeFiles('.', dir)
+      expect(changes).toHaveLength(1)
+      expect(changes[0].entry).toMatchObject({ bump: 'patch', section: 'Changed', description: 'feat: щось важливе' })
+    })
+  })
+
+  test('autofix ставить створений change-файл у git-індекс', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+
+      const code = await checkChangelog({ cwd: dir, autofix: true })
+      expect(code).toBe(0)
+      const changes = await readChangeFiles('.', dir)
+      expect(await stagedPaths(dir)).toContain('.changes/' + changes[0].file)
+    })
+  })
+
+  test('autofix вмикається через env N_CURSOR_CHANGELOG_AUTOFIX=1', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+
+      const prev = process.env.N_CURSOR_CHANGELOG_AUTOFIX
+      process.env.N_CURSOR_CHANGELOG_AUTOFIX = '1'
+      try {
+        expect(await checkChangelog({ cwd: dir })).toBe(0)
+      } finally {
+        if (prev === undefined) delete process.env.N_CURSOR_CHANGELOG_AUTOFIX
+        else process.env.N_CURSOR_CHANGELOG_AUTOFIX = prev
+      }
+      expect(await readChangeFiles('.', dir)).toHaveLength(1)
+    })
+  })
+
+  test('autofix вимкнено (за замовчуванням) → fail без створення файлу', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: 'mono', version: '1.0.0', private: true })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
+
+      expect(await checkChangelog({ cwd: dir, autofix: false })).toBe(1)
+      expect(await readChangeFiles('.', dir)).toHaveLength(0)
     })
   })
 })

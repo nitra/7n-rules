@@ -11,13 +11,24 @@ import path from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { isDocgenIgnoredDir, isDocgenIgnoredPath } from './docgen-ignore.mjs'
+import { isDocgenIgnored } from './docgen-ignore.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py'])
 
 /** `*.test.*`, `*.spec.*` — тести, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u
+
+/**
+ * Чи корінь має system-wide docs layout.
+ * Такий корінь зарезервований під репозиторні docs/adr, docs/explanation тощо,
+ * тому file-level docs у нього не пишемо.
+ * @param {string} root абсолютний корінь обходу
+ * @returns {boolean} true — корінь system-wide docs
+ */
+function isSystemWideDocsRoot(root) {
+  return existsSync(path.join(root, 'docs', 'adr')) || existsSync(path.join(root, 'docs', 'explanation'))
+}
 
 /**
  * Чи є файл кодовим джерелом для документування.
@@ -66,11 +77,12 @@ export function scanForDocgen(root) {
       const fullPath = path.join(dir, entry.name)
       const relPath = path.relative(root, fullPath)
       if (entry.isDirectory()) {
-        if (isDocgenIgnoredDir(relPath)) continue
+        if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
       } else if (entry.isFile() && isSourceFile(entry.name)) {
+        if (isSystemWideDocsRoot(root) && path.dirname(relPath) === '.') continue
         const sourcePath = relPath.split(path.sep).join('/')
-        if (isDocgenIgnoredPath(sourcePath)) continue
+        if (isDocgenIgnored(sourcePath)) continue
         const docPath = docPathForSource(sourcePath)
         results.push({
           sourcePath,
@@ -119,7 +131,7 @@ export function findModuleRoots(root) {
       const fullPath = path.join(dir, entry.name)
       const relPath = path.relative(root, fullPath)
       if (entry.isDirectory()) {
-        if (isDocgenIgnoredDir(relPath)) continue
+        if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
       } else if (entry.isFile() && entry.name === 'package.json' && dir !== root) {
         roots.push(dir)

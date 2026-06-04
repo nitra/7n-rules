@@ -10,11 +10,11 @@ import picomatch from 'picomatch'
 export const DOCGEN_IGNORE_GLOBS = Object.freeze([
   '**/node_modules/**',
   '**/dist/**',
-  '**/.git/**',
+  '.git/**',
   '**/__pycache__/**',
   '**/coverage/**',
-  '**/.cursor/**',
-  '**/.claude/**',
+  '.cursor/**',
+  '.claude/**',
   '.pi/**',
   '.pi-template/**',
   '.worktrees/**',
@@ -35,29 +35,20 @@ function toPosixRelPath(relPath) {
 }
 
 /**
- * Перевіряє, чи шлях (файл або каталог) має бути пропущений `docgen`.
- * Для каталогів це працює й на піддерева: glob на кшталт `**\\/demo/**`
- * спрацьовує на `demo/x` під час рекурсивного обходу.
+ * Перевіряє, чи шлях має бути пропущений `docgen`.
+ * Для `kind = 'dir'` це працює і на піддерево каталогу, тож glob на кшталт
+ * `**\\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
  * @param {string} relPath відносний шлях від кореня проєкту
+ * @param {'path'|'dir'} [kind='path'] тип перевірки
  * @returns {boolean} `true`, якщо шлях ігнорується
  */
-export function isDocgenIgnoredPath(relPath) {
+export function isDocgenIgnored(relPath, kind = 'path') {
   if (typeof relPath !== 'string' || relPath.length === 0) {
     return false
   }
   const posixRelPath = toPosixRelPath(relPath)
-  return IGNORE_MATCHERS.some(match => match(posixRelPath))
-}
-
-/**
- * Перевіряє, чи каталог ігнорується разом із усім піддеревом.
- * @param {string} relDir відносний шлях каталогу від кореня проєкту
- * @returns {boolean} `true`, якщо каталог не треба обходити
- */
-export function isDocgenIgnoredDir(relDir) {
-  if (typeof relDir !== 'string' || relDir.length === 0) {
-    return false
+  if (kind === 'dir') {
+    return IGNORE_MATCHERS.some(match => match(posixRelPath) || match(`${posixRelPath}/__docgen__`))
   }
-  const posixRelDir = toPosixRelPath(relDir)
-  return IGNORE_MATCHERS.some(match => match(posixRelDir) || match(`${posixRelDir}/__docgen__`))
+  return IGNORE_MATCHERS.some(match => match(posixRelPath))
 }

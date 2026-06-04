@@ -2,7 +2,7 @@
  * CLI-оркестратор worktree-tool `n-cursor worktree` (виконавець конвенції `.worktrees/`).
  *
  * Підкоманди:
- *   add <branch> "<опис>"     — git worktree add .worktrees/<sanit> -b <branch> (від HEAD) + .md-опис
+ *   add <branch> "<опис>"     — git worktree add .worktrees/<sanit> -b <branch> (від HEAD) + .md-опис + нагадування про незакомічені зміни
  *   remove <branch> [--force] — прибрати checkout + .md (гілку лишає)
  *   list                      — git worktree list + вміст .md-описів
  *   prune                     — git worktree prune + видалити осиротілі .md
@@ -16,7 +16,13 @@ import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
 import { cleanupFlowSiblings } from './dispatcher/lib/state-store.mjs'
-import { buildDescription, findOrphanDescFiles, firstFreeBranch, worktreePaths } from './lib/worktree.mjs'
+import {
+  buildDescription,
+  buildDirtyNotice,
+  findOrphanDescFiles,
+  firstFreeBranch,
+  worktreePaths
+} from './lib/worktree.mjs'
 
 const USAGE = [
   'Usage:',
@@ -110,6 +116,9 @@ function cmdAdd(rest, ctx) {
   if (chosen !== branch) {
     ctx.log(`ℹ️  гілка/worktree "${branch}" уже існує — обрано вільну назву "${chosen}"`)
   }
+  // Знімаємо статус ДО створення worktree: інакше щойно створений checkout/опис у `.worktrees/`
+  // потрапили б у `git status` (коли `.worktrees/` не в .gitignore) і дали б хибне нагадування.
+  const dirty = buildDirtyNotice(git(['status', '--porcelain'], ctx.cwd).stdout)
   const added = git(['worktree', 'add', paths.checkout, '-b', chosen], ctx.cwd)
   if (added.status !== 0) {
     ctx.logError(`worktree add не вдався: ${added.stderr.trim()}`)
@@ -120,6 +129,7 @@ function cmdAdd(rest, ctx) {
   writeFileSync(paths.descFile, md, 'utf8')
   ctx.log(`✅ worktree: ${paths.checkout}`)
   ctx.log(`   опис:    ${paths.descFile}`)
+  if (dirty) ctx.log(dirty) // нагадування про незакомічені зміни основного дерева (зняте ДО add)
   return 0
 }
 

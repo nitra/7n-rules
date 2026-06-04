@@ -22,20 +22,12 @@
     "worktree"
   ],
   "ignore": [".claude/worktrees"],
-  "disable-rules": [
-    "docker",
-    "image-avif",
-    "image-compress",
-    "js-bun-db",
-    "k8s",
-    "nginx-default-tpl"
-  ],
+  "disable-rules": ["docker", "image-avif", "image-compress", "js-bun-db", "k8s", "nginx-default-tpl"],
   "skills": [
     "adr-normalize",
     "coverage-fix",
     "docgen",
     "fix",
-    "fix-tests",
     "lint",
     "llm-patch",
     "publish-telegram",

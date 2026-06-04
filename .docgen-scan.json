@@ -1,15 +1,5 @@
 [
   {
-    "sourcePath": "app.py",
-    "docPath": "docs/app.md",
-    "exists": true
-  },
-  {
-    "sourcePath": "eslint.config.js",
-    "docPath": "docs/eslint.config.md",
-    "exists": true
-  },
-  {
     "sourcePath": "npm/bin/n-cursor.js",
     "docPath": "npm/bin/docs/n-cursor.md",
     "exists": true
@@ -1160,6 +1150,11 @@
     "exists": false
   },
   {
+    "sourcePath": "npm/.pi-template/extensions/n-cursor-adr/index.ts",
+    "docPath": "npm/.pi-template/extensions/n-cursor-adr/docs/index.md",
+    "exists": true
+  },
+  {
     "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-3.js",
     "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-3.md",
     "exists": false
@@ -2045,6 +2040,11 @@
     "exists": false
   },
   {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/.pi-template/extensions/n-cursor-adr/index.ts",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/.pi-template/extensions/n-cursor-adr/docs/index.md",
+    "exists": false
+  },
+  {
     "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-0.js",
     "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-0.md",
     "exists": false
@@ -2915,6 +2915,11 @@
     "exists": false
   },
   {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/.pi-template/extensions/n-cursor-adr/index.ts",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/.pi-template/extensions/n-cursor-adr/docs/index.md",
+    "exists": false
+  },
+  {
     "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/n-cursor.js",
     "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/docs/n-cursor.md",
     "exists": false
@@ -3775,6 +3780,11 @@
     "exists": false
   },
   {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/.pi-template/extensions/n-cursor-adr/index.ts",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/.pi-template/extensions/n-cursor-adr/docs/index.md",
+    "exists": false
+  },
+  {
     "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/n-cursor.js",
     "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/docs/n-cursor.md",
     "exists": false
@@ -4632,6 +4642,11 @@
   {
     "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/stryker.config.mjs",
     "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/docs/stryker.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/.pi-template/extensions/n-cursor-adr/index.ts",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/.pi-template/extensions/n-cursor-adr/docs/index.md",
     "exists": false
   }
 ]
