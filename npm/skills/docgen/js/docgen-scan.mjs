@@ -1,23 +1,20 @@
 /**
  * docgen scanner — детермінований обхід проєкту для скілу `docgen`.
  *
- * Друкує JSON-список кодових файлів із обчисленим `docPath` (тека `docs/` поряд із
- * джерелом). Рішення про overwrite/skip приймає скіл — scanner лише лістить і ставить
- * прапор `exists`. LLM/мережі тут немає: уся генерація доки — у субагентах скілу.
+ * Друкує JSON-список кодових файлів із відносними `sourcePath`/`docPath`
+ * (тека `docs/` поряд із джерелом). Рішення про overwrite/skip приймає скіл —
+ * scanner лише лістить і ставить прапор `exists`. LLM/мережі тут немає: уся
+ * генерація доки — у субагентах скілу.
  */
 // eslint-disable-next-line unicorn/import-style
 import path from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { isDocgenIgnoredDir, isDocgenIgnoredPath } from './docgen-ignore.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py'])
-
-/** Теки, які scanner ніколи не заходить (включно з самими `docs/`). */
-const IGNORED_DIRS = new Set([
-  'node_modules', 'dist', '.git', '__pycache__', 'coverage', '.cursor', '.claude', 'docs'
-])
 
 /** `*.test.*`, `*.spec.*` — тести, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u
@@ -35,8 +32,9 @@ export function isSourceFile(fileName) {
 
 /**
  * Обчислює шлях md-документа для кодового файлу: тека `docs/` поряд із джерелом.
+ * Якщо `sourcePath` відносний, `docPath` теж відносний; якщо абсолютний — абсолютний.
  * @param {string} sourcePath шлях до джерела (відносний або абсолютний)
- * @returns {string} шлях до `<dir>/docs/<stem>.md`
+ * @returns {string} шлях до `<dir>/docs/<stem>.md` у тому ж просторі шляхів
  */
 export function docPathForSource(sourcePath) {
   const dir = path.dirname(sourcePath)
@@ -49,7 +47,7 @@ export function docPathForSource(sourcePath) {
  * Синхронний `readdirSync` — детермінований порядок і простий рекурсивний обхід без
  * гонок; обсяг дерева проєкту це дозволяє.
  * @param {string} root абсолютний корінь обходу
- * @returns {Array<{sourcePath:string, relSource:string, docPath:string, exists:boolean}>} список кандидатів
+ * @returns {Array<{sourcePath:string, docPath:string, exists:boolean}>} список кандидатів з відносними шляхами
  */
 export function scanForDocgen(root) {
   const results = []
@@ -66,16 +64,18 @@ export function scanForDocgen(root) {
     }
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
+      const relPath = path.relative(root, fullPath)
       if (entry.isDirectory()) {
-        if (IGNORED_DIRS.has(entry.name)) continue
+        if (isDocgenIgnoredDir(relPath)) continue
         walk(fullPath)
       } else if (entry.isFile() && isSourceFile(entry.name)) {
-        const docPath = docPathForSource(fullPath)
+        const sourcePath = relPath.split(path.sep).join('/')
+        if (isDocgenIgnoredPath(sourcePath)) continue
+        const docPath = docPathForSource(sourcePath)
         results.push({
-          sourcePath: fullPath,
-          relSource: path.relative(root, fullPath),
+          sourcePath,
           docPath,
-          exists: existsSync(docPath)
+          exists: existsSync(path.join(root, docPath))
         })
       }
     }
@@ -100,7 +100,7 @@ export function slugForModule(root, moduleRoot) {
 
 /**
  * Знаходить корені модулів — теки з `package.json` (корінь завжди модуль).
- * Ті ж IGNORED_DIRS, тож `package.json` у node_modules тощо не враховується.
+ * Ті ж ignore-glob правила, тож `package.json` у службових деревах не враховується.
  * @param {string} root абсолютний корінь обходу
  * @returns {string[]} абсолютні шляхи коренів модулів
  */
@@ -117,8 +117,9 @@ export function findModuleRoots(root) {
     }
     for (const entry of entries) {
       const fullPath = path.join(dir, entry.name)
+      const relPath = path.relative(root, fullPath)
       if (entry.isDirectory()) {
-        if (IGNORED_DIRS.has(entry.name)) continue
+        if (isDocgenIgnoredDir(relPath)) continue
         walk(fullPath)
       } else if (entry.isFile() && entry.name === 'package.json' && dir !== root) {
         roots.push(dir)
@@ -150,17 +151,17 @@ export function nearestModuleRoot(filePath, moduleRoots) {
  * Лістить логічні модулі проєкту з членами-файлами і docPath module-summary.
  * Модулі без кодових файлів пропускаються.
  * @param {string} root абсолютний корінь обходу
- * @returns {Array<{moduleRoot:string, relRoot:string, slug:string, docPath:string, members:string[], exists:boolean}>} модулі (members — relSource-и, відносні від root)
+ * @returns {Array<{moduleRoot:string, relRoot:string, slug:string, docPath:string, members:string[], exists:boolean}>} модулі (members — sourcePath-и, відносні від root)
  */
 export function scanForModules(root) {
   const files = scanForDocgen(root)
   const moduleRoots = findModuleRoots(root)
   const byRoot = new Map()
   for (const file of files) {
-    const moduleRoot = nearestModuleRoot(file.sourcePath, moduleRoots)
+    const moduleRoot = nearestModuleRoot(path.join(root, file.sourcePath), moduleRoots)
     if (moduleRoot === null) continue
     if (!byRoot.has(moduleRoot)) byRoot.set(moduleRoot, [])
-    byRoot.get(moduleRoot).push(file.relSource)
+    byRoot.get(moduleRoot).push(file.sourcePath)
   }
 
   const results = []

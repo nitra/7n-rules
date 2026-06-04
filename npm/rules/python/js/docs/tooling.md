@@ -1,0 +1,153 @@
+# tooling.mjs — FS-перевірка вимог правила `python.mdc`
+
+## Огляд
+
+Модуль `npm/rules/python/js/tooling.mjs` — це **check-частина** правила `python.mdc` для Python-проєктів, які перейшли на пакет-менеджер [uv](https://github.com/astral-sh/uv). Його єдина відповідальність — перевірити **наявність/відсутність файлів** у корені репозиторію, які не може покрити декларативний шар (`conftest`, `Rego`-policies для `fix`-команди).
+
+Модуль експортує функцію `check(cwd)`, що повертає exit-code (0/1) і друкує діагностику через спільний `check-reporter`. Викликається CLI `@nitra/cursor` після того, як `applies.mjs` вирішив, що правило застосовується до поточного workspace.
+
+Розподіл відповідальностей між шарами правила `python`:
+
+| Шар | Що перевіряє |
+| --- | --- |
+| `applies.mjs` | Чи це Python-проєкт узагалі (наявність `pyproject.toml` як вхідний гейт). |
+| `tooling.mjs` (цей файл) | FS-existence: `uv.lock`, `package.json`, `.github/workflows/lint-python.yml`, відсутність `poetry.lock` / `poetry.toml`. |
+| `python/pyproject_toml/` (Rego, `fix`) | Заборона `[tool.poetry]`, вимога `PEP 621` `[project].name` / `[project].version`. |
+| `python/package_json/` (Rego, `fix`) | Наявність скрипта `lint-python` у кореневому `package.json`. |
+| `python/lint_python_yml/` (Rego, `fix`) | Канонічна структура `uses`/`run`-кроків у `.github/workflows/lint-python.yml`. |
+
+Свідомо **не перевіряється** наявність `.venv/`: uv теж створює `.venv/`, тож сам по собі цей каталог не є ознакою Poetry й давав би хибнопозитивні спрацювання.
+
+## Експорти / API
+
+| Символ | Тип | Призначення |
+| --- | --- | --- |
+| `check` | named function | Головна (і єдина) точка входу — FS-перевірка проєкту на відповідність `python.mdc`. |
+
+Default-експорт відсутній. Усі імпорти модуля повинні використовувати іменований імпорт:
+
+```js
+import { check } from './tooling.mjs'
+```
+
+## Функції
+
+### `check(cwd = process.cwd())`
+
+**Сигнатура**
+
+```js
+export function check(cwd = process.cwd()): number
+```
+
+**Параметри**
+
+| Імʼя | Тип | Значення за замовч. | Опис |
+| --- | --- | --- | --- |
+| `cwd` | `string` | `process.cwd()` | Абсолютний шлях до кореня репозиторію, який перевіряється. У звичайному CLI-прогоні передається з runtime; у тестах та standalone-сценаріях — явним аргументом для ізоляції від реального CWD. |
+
+**Повертає**
+
+`number` — exit-code, отриманий від `reporter.getExitCode()`:
+
+- `0` — усі очікувані файли на місці, заборонених артефактів немає.
+- `1` — щонайменше один `fail(...)` був викликаний (відсутня обовʼязкова сутність або присутній заборонений артефакт).
+
+**Side effects**
+
+- Виклик `createCheckReporter()` створює репортер, який пише форматовану діагностику в `stdout` / `stderr` через зареєстровані `pass(message)` та `fail(message)`. Кожен виклик `pass` / `fail` усередині `check()` — потенційний рядок у виведенні CLI.
+- Виконує синхронні `existsSync(...)` для серії шляхів (читання FS — read-only).
+- **Жодних мутацій FS, мережі чи процесу** функція не робить (не пише файли, не виходить через `process.exit`).
+
+**Алгоритм (покроково)**
+
+1. Створює репортер: `const reporter = createCheckReporter()` і деструктурує `{ pass, fail }`.
+2. **Захисний гейт.** Якщо у `cwd` немає `pyproject.toml` — повертає поточний exit-code репортера (на цей момент `0`, оскільки жодних `fail` ще не було). Це дублює гейт `applies.mjs` і потрібне лише для прямого виклику `check()` поза CLI (тести/standalone).
+3. **Перевірка `uv.lock`** (uv-проєкт коммітить lock-файл):
+   - є → `pass('uv.lock є')`,
+   - немає → ``fail('uv.lock не знайдено — згенеруй `uv lock` (python.mdc, без Poetry)')``.
+4. **Заборона Poetry-артефактів.** Для кожного імені з масиву `['poetry.lock', 'poetry.toml']`:
+   - файл існує → `fail('<file> знайдено — прибери Poetry, мігруй на uv (python.mdc)')`,
+   - файла немає → `pass('<file> відсутній')`.
+5. **Наявність кореневого `package.json`** (для запуску `bun run lint-python`):
+   - є → `pass('package.json є (наявність lint-python перевіряє fix → python.package_json)')`,
+   - немає → ``fail('package.json не знайдено в корені — додай для `bun run lint-python` (python.mdc)')``.
+6. **Наявність `.github/workflows/lint-python.yml`** (CI workflow для lint):
+   - є → `pass('<wfPath> є (структуру перевіряє fix → python.lint_python_yml)')`,
+   - немає → `fail('<wfPath> не існує — створи згідно python.mdc')`.
+7. Повертає `reporter.getExitCode()`.
+
+**Інваріанти**
+
+- Послідовність перевірок фіксована й важить для читабельності виводу. Гейт `pyproject.toml` — обовʼязково першим (інакше для не-Python репо посипалися б `fail`-и).
+- Жодна перевірка не «короткозамикає» наступні: навіть якщо `uv.lock` відсутній, далі будуть зроблені перевірки Poetry, `package.json` і workflow — це дозволяє за один прогін побачити повний список проблем.
+
+## Залежності
+
+### Зовнішні (Node.js standard library)
+
+| Імпорт | Звідки | Використання |
+| --- | --- | --- |
+| `existsSync` | `node:fs` | Синхронна перевірка існування файлу за абсолютним шляхом. |
+| `join` | `node:path` | Кросплатформне склеювання `cwd` із відносним шляхом файла, що перевіряється. |
+
+### Внутрішні (проєкт)
+
+| Імпорт | Звідки | Використання |
+| --- | --- | --- |
+| `createCheckReporter` | `../../../scripts/lib/check-reporter.mjs` | Фабрика репортера для check-скриптів. Очікувані поля результату: `pass(msg: string)`, `fail(msg: string)`, `getExitCode(): number` (0 поки не було `fail`, 1 після першого `fail`). |
+
+### Зовнішні сутності (контекст правила)
+
+Файл логічно повʼязаний (але **не імпортує** їх) із:
+
+- `npm/rules/python/python.mdc` — текстове формулювання правила.
+- `npm/rules/python/applies.mjs` — гейт, який вирішує, чи запускати `check()`.
+- Rego-полісі `python/pyproject_toml/`, `python/package_json/`, `python/lint_python_yml/` — покривають структурні (а не FS-existence) аспекти, які цей файл свідомо **не** перевіряє.
+
+## Потік виконання / Використання
+
+### Типовий запуск через CLI
+
+```bash
+npx @nitra/cursor check python
+```
+
+CLI послідовно:
+
+1. Резолвить правило `python`.
+2. Викликає `applies(cwd)` — якщо `false`, правило пропускається повністю.
+3. Якщо `true`, викликає `check(cwd)` із цього файла.
+4. Друкує зібрану діагностику й завершується з отриманим exit-code.
+
+### Прямий виклик (тест / standalone)
+
+```js
+import { check } from '@nitra/cursor/rules/python/js/tooling.mjs'
+
+const code = check('/abs/path/to/repo')
+// code === 0 → проєкт відповідає python.mdc
+// code === 1 → у виводі репортера є помилки, треба полагодити
+process.exitCode = code
+```
+
+### Виправлення виявлених проблем
+
+Файл лише **діагностує** — нічого не змінює. Виправлення:
+
+| Проблема (`fail`-message) | Що зробити |
+| --- | --- |
+| `uv.lock не знайдено` | Запустити `uv lock` у корені проєкту й закомітити результат. |
+| `poetry.lock знайдено` / `poetry.toml знайдено` | Завершити міграцію з Poetry: видалити файл, перенести залежності в `pyproject.toml` під `[project]` (PEP 621) і згенерувати `uv.lock`. |
+| `package.json не знайдено в корені` | Створити `package.json` з полем `scripts.lint-python`. Структуру скрипта перевіряє Rego `python.package_json`. |
+| `.github/workflows/lint-python.yml не існує` | Створити workflow за шаблоном з `python.mdc`. Канонічну структуру кроків перевіряє Rego `python.lint_python_yml`. |
+
+### Граничні випадки
+
+- **Не-Python репо** (немає `pyproject.toml`) — `check()` повертає `0` без виводу. Безпечно викликати в монорепо корені.
+- **Рівно один `fail`** — exit-code усе одно `1`. Репортер не накопичує «вагу» помилок, лише факт.
+- **Усі `pass`** — exit-code `0`, але всі повідомлення `pass` усе одно потрапляють у вивід (для прозорості та CI-логів).
+
+## Rebuild Test
+
+Документ описує модуль розміром 70 рядків з єдиним експортом `check`, кореневим гейтом по `pyproject.toml`, чотирма блоками перевірок (`uv.lock`, заборона Poetry, `package.json`, workflow `lint-python.yml`), залежністю від `node:fs`, `node:path` та `../../../scripts/lib/check-reporter.mjs`. На основі цього опису можна відтворити функціональний еквівалент: створити фабрику репортера, повернути `getExitCode()` без перевірок при відсутності `pyproject.toml`, інакше — викликати `pass`/`fail` для кожного шляху в наведеному порядку зі вказаними повідомленнями (українська локалізація, посилання на `python.mdc`). Сигнатура `check(cwd = process.cwd()): number`, side effects обмежені виводом репортера й читанням FS.

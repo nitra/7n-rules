@@ -1,0 +1,126 @@
+# `npm/rules/graphql/fix.mjs`
+
+## Огляд
+
+Файл є точкою входу до правила `graphql` у складі CLI-інструмента `@nitra/cursor`. Він поєднує дві ролі:
+
+1. **Library mode** — експортує функцію `run(ctx)`, яку зовнішня CLI-оркестрація викликає через `import + run(ctx)` як частину пакетного прогону всіх правил.
+2. **Standalone mode** — якщо файл запущено напряму (`bun rules/graphql/fix.mjs`), виконується повний еквівалент команди `npx @nitra/cursor fix graphql` із завантаженням конфігурації, whitelist та підсумком (summary).
+
+Сама логіка перевірки винесена у спільний helper `runStandardRule`, тобто `fix.mjs` для правила `graphql` — це тонкий wrapper, який лише прив'язує спільну механіку до конкретної директорії правила (через `import.meta.dirname`). Послідовність перевірки, що виконується в результаті: `applies → JS-concerns → policy → mdc-refs`.
+
+Файл є частиною стандартизованої конвенції правил `npm/rules/<id>/fix.mjs`, де `<id>` — ідентифікатор правила (тут `graphql`).
+
+## Експорти / API
+
+| Експорт | Тип | Призначення |
+| --- | --- | --- |
+| `run` | `function(ctx?): Promise<number>` | Named export — library entry-point правила. Викликається оркестратором, який пакетно запускає набір правил. |
+
+Default export відсутній. Інших named-експортів файл не визначає.
+
+Окремий top-level `if`-блок наприкінці файла активує standalone-режим — він не є експортом, а виконується як side-effect модуля при прямому запуску.
+
+## Функції
+
+### `run(ctx)`
+
+```js
+export function run(ctx) {
+  return runStandardRule(import.meta.dirname, ctx)
+}
+```
+
+**Призначення.** Library-обгортка над `runStandardRule`, що запускає стандартний пайплайн правила `graphql`: `applies → JS-concerns → policy → mdc-refs`. Конкретні фази (підбір файлів, перевірка JS, policy-правила, перевірка mdc-посилань) реалізовані у спільному helper; `fix.mjs` тільки повідомляє, *яке саме* правило виконувати, — через шлях до своєї директорії (`import.meta.dirname`), де лежать `meta.json`, `*.mdc`, підтеки `js/`, `policy/`, `lib/` тощо.
+
+**Параметри.**
+
+| Параметр | Тип | Обов'язковий | Опис |
+| --- | --- | --- | --- |
+| `ctx` | `RuleContext` (з `../../scripts/lib/run-standard-rule.mjs`) | Ні | Контекст прогону. Передається оркестратором для перевикористання ресурсів між правилами (наприклад, `walkCache` — кеш обходу файлової системи, аби не сканувати дерево заново для кожного правила). Якщо `ctx` не передано, `runStandardRule` працює зі своїм дефолтним станом. |
+
+**Повертає.** `Promise<number>` — exit-code прогону правила:
+
+- `0` — правило пройшло без порушень (OK).
+- `1` — виявлено порушення (правило фейлиться).
+
+**Side effects.** Сам по собі `run` не має побічних ефектів у файлі — повертає `Promise`, отриманий від `runStandardRule`. Усі реальні ефекти (читання FS, друк діагностики у stdout/stderr, оновлення кешу в `ctx`) інкапсульовані в `runStandardRule`. Зокрема, у library-режимі функція **не** викликає `process.exit` — управління exit-кодом лежить на оркестраторі.
+
+### Standalone-блок (top-level `if`)
+
+```js
+if (isRunAsCli(import.meta.url)) {
+  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+  process.exit(await runRuleCli(import.meta.dirname))
+}
+```
+
+Це не функція, а top-level side-effect модуля. Виконується одноразово при завантаженні.
+
+**Умова активації.** `isRunAsCli(import.meta.url)` повертає `true`, коли модуль завантажений як точка входу (тобто шлях файла збігається з тим, що передано Node/Bun у `process.argv`), а не імпортований як бібліотека.
+
+**Дія.** Викликає `runRuleCli(import.meta.dirname)` — повний CLI-флоу одного правила (config-loading, whitelist, summary) — і завершує процес його exit-кодом через `process.exit`. Це робить файл прямим аналогом виклику `npx @nitra/cursor fix graphql`.
+
+**Чому `process.exit` явний.** Standalone entry-point має повернути коректний exit-code для CI/IDE-інтеграції, тому два правила ESLint (`n/no-process-exit`, `unicorn/no-process-exit`) свідомо вимкнено для цього рядка коментарем-обґрунтуванням.
+
+**Чому `await` на top-level.** Файл використовує top-level `await` — це валідно для ESM-модулів. `runRuleCli` повертає `Promise<number>`, і його результат потрібен синхронно як аргумент `process.exit`.
+
+## Залежності
+
+### Внутрішні (відносні)
+
+| Модуль | Імпорт | Роль |
+| --- | --- | --- |
+| `../../scripts/lib/run-rule-cli.mjs` | `isRunAsCli`, `runRuleCli` | Інфраструктура standalone-режиму: визначення, чи файл запущено як CLI, та повний CLI-флоу одного правила. |
+| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` | Стандартний пайплайн правила (`applies → JS-concerns → policy → mdc-refs`) і тип `RuleContext`. |
+
+Імпорти відносні, бо `fix.mjs` лежить у `npm/rules/graphql/`, а спільні helpers — у `npm/scripts/lib/`. Два рівні `..` піднімають із `rules/graphql/` до `npm/` і потім спускають у `scripts/lib/`.
+
+### Зовнішні
+
+Прямих зовнішніх (npm) залежностей файл не оголошує. Будь-які зовнішні пакети підтягуються транзитивно через `runStandardRule` / `runRuleCli`.
+
+### Платформенні / рантайм
+
+- **ES Modules** — файл використовує синтаксис ESM (`import`, `export`), top-level `await`, `import.meta.url`, `import.meta.dirname`.
+- **`import.meta.dirname`** — доступне у сучасних Node.js (>= 20.11) та Bun. Повертає абсолютний шлях до директорії модуля; використовується як ідентифікатор правила для helpers.
+- **`process.exit`** — Node.js/Bun API; завершує процес із заданим exit-кодом.
+
+## Потік виконання / Використання
+
+### Library mode (оркестрація)
+
+1. Зовнішній код (CLI-оркестратор `@nitra/cursor`) робить `import { run } from '<...>/rules/graphql/fix.mjs'`.
+2. Оркестратор готує `ctx` (наприклад, спільний `walkCache`) і викликає `await run(ctx)`.
+3. `run` делегує виклик у `runStandardRule(import.meta.dirname, ctx)`. Helper, маючи шлях до директорії правила, читає її `meta.json`, `*.mdc`, підтеки `js/`, `policy/` і виконує стандартний пайплайн.
+4. Повертається `0` або `1`. Оркестратор агрегує коди всіх правил у фінальний exit-status.
+
+У цьому режимі `process.exit` **не** викликається — модуль не завершує процес самостійно.
+
+### Standalone mode (пряма CLI)
+
+1. Користувач запускає `bun npm/rules/graphql/fix.mjs` (або шлях через рантайм).
+2. ESM-модуль завантажується. Виконується `isRunAsCli(import.meta.url)` — повертає `true`.
+3. Викликається `await runRuleCli(import.meta.dirname)` — повний CLI-флоу (config, whitelist, summary).
+4. `process.exit(<code>)` завершує процес. Code приходить у CI/IDE як результат прогону правила.
+
+Цей режим повністю еквівалентний `npx @nitra/cursor fix graphql` і існує, щоб правило можна було запустити ізольовано — для дебагу або інтеграції з IDE-таском без участі оркестратора.
+
+### Дві ролі в одному файлі
+
+Подвійна роль (library `run` + standalone `main`) дозволяє:
+
+- **Перевикористовувати** код пайплайна — і оркестратор, і пряма CLI йдуть через однакову логіку `runStandardRule` / `runRuleCli`.
+- **Дотримуватися конвенції** `npm/rules/<id>/fix.mjs`: усі правила мають однакову структуру entry-файла, тому інструменти (IDE-завдання, скрипти scaffold) можуть запускати будь-яке правило за єдиним шляхом.
+
+### Розширення
+
+Щоб додати своєрідну поведінку правила `graphql`, не треба змінювати `fix.mjs` — достатньо покласти відповідні файли в директорію правила:
+
+- `meta.json` — метадані (id, опис).
+- `graphql.mdc` — людиночитна частина правила.
+- `js/` — JS-перевірки (фаза JS-concerns).
+- `policy/` — policy-перевірки.
+- `lib/` — спільний код правила.
+
+`runStandardRule` сам підбере й виконає те, що знайде в директорії. `fix.mjs` залишається тонким wrapper-ом.

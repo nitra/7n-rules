@@ -1,0 +1,134 @@
+# stryker.config.baseline.mjs
+
+## Огляд
+
+Файл `stryker.config.baseline.mjs` — це еталонна (baseline) конфігурація для інструмента mutation testing **Stryker Mutator** (`@stryker-mutator/core`). Він являє собою тестову/довідкову фікстуру, розміщену в директорії з даними для перевірочного правила (`npm/rules/test/js/data/stryker_config/`), і слугує канонічним зразком того, як має виглядати «правильна» Stryker-конфігурація у проєкті.
+
+Файл написаний у форматі ES Module (`.mjs`) і експортує єдиний дефолтний об'єкт із набором опцій, що повністю задають поведінку Stryker-у:
+
+- запуск через **Vitest** test-runner (замість commandRunner);
+- `perTest` coverage analysis для максимального прискорення;
+- ввімкнений **incremental** режим зі збереженням стану між запусками;
+- два репортери (`json` для машинного парсингу та `clear-text` для людиночитного виводу в консоль);
+- усі артефакти (тимчасові файли, JSON-репорт, incremental-state) розміщуються під теками `reports/stryker/...`.
+
+Об'єкт типізовано через JSDoc-анотацію `@type {import('@stryker-mutator/core').PartialStrykerOptions}`, що дає TypeScript-сумісну валідацію в IDE без переходу на `.ts`.
+
+## Експорти / API
+
+Файл має один експорт — **default export**.
+
+| Експорт | Тип | Опис |
+|---|---|---|
+| `default` | `PartialStrykerOptions` (з `@stryker-mutator/core`) | Об'єкт конфігурації Stryker. |
+
+### Структура експортованого об'єкта
+
+| Ключ | Тип | Значення | Призначення |
+|---|---|---|---|
+| `testRunner` | `string` | `'vitest'` | Test-runner-плагін, через який Stryker виконує тести проти мутантів. |
+| `vitest` | `object` | `{ configFile: 'vitest.config.js' }` | Налаштування Vitest-runner-а. Поле `configFile` вказує шлях до конфігурації Vitest, яку Stryker реюзає. |
+| `coverageAnalysis` | `string` | `'perTest'` | Режим аналізу покриття. `perTest` — Stryker для кожного мутанта запускає лише ті тести, що покривають мутовану лінію коду. |
+| `tempDirName` | `string` | `'reports/stryker/.tmp'` | Тимчасова директорія для проміжних файлів Stryker під час прогону. |
+| `reporters` | `string[]` | `['json', 'clear-text']` | Список увімкнених репортерів. `json` пише машинно-читний звіт, `clear-text` виводить у термінал. |
+| `jsonReporter` | `object` | `{ fileName: 'reports/stryker/mutation.json' }` | Налаштування JSON-репортера; `fileName` — шлях для запису підсумкового звіту. |
+| `incremental` | `boolean` | `true` | Вмикає incremental-режим: Stryker зберігає результати між запусками й перевикористовує їх. |
+| `incrementalFile` | `string` | `'reports/stryker/incremental.json'` | Шлях до файлу зі станом incremental-режиму (попередні результати мутацій). |
+
+## Функції
+
+Файл **не містить функцій, класів чи виконуваного коду** — це чисто декларативний конфігураційний модуль. Він лише експортує літерал-об'єкт.
+
+### Side effects
+
+Side effects на рівні модуля **відсутні**:
+
+- немає звернень до файлової системи в момент імпорту;
+- немає викликів зовнішніх API;
+- немає мутацій глобальних об'єктів;
+- немає динамічних `import()` чи `require`.
+
+Усі ефекти виникають **пізніше** — коли Stryker CLI читає цей модуль і застосовує його опції під час запуску mutation-тестування.
+
+## Залежності
+
+### Runtime-залежності
+
+Файл **не імпортує** жодних модулів і не має runtime-залежностей.
+
+### Type-only залежності (через JSDoc)
+
+| Пакет | Імпортований символ | Призначення |
+|---|---|---|
+| `@stryker-mutator/core` | `PartialStrykerOptions` | Тип для type-checking структури об'єкта конфігурації в IDE/TypeScript. На runtime не підтягується. |
+
+### Опосередковані залежності (потрібні Stryker-у під час прогону)
+
+Хоча файл їх не імпортує, для виконання конфігурації в робочому проєкті мають бути встановлені:
+
+| Пакет | Роль |
+|---|---|
+| `@stryker-mutator/core` | Ядро Stryker. |
+| `@stryker-mutator/vitest-runner` | Плагін test-runner-а для Vitest (підвантажується за значенням `testRunner: 'vitest'`). |
+| `vitest` | Сам Vitest з конфігом `vitest.config.js` у корені проєкту. |
+
+### Файлові залежності
+
+- `vitest.config.js` (відносний шлях від робочого каталогу запуску Stryker-у) — Vitest-конфіг, який Stryker реюзає.
+
+### Вихідні артефакти (створюються Stryker-ом)
+
+| Шлях | Що містить |
+|---|---|
+| `reports/stryker/.tmp/` | Тимчасові файли під час прогону (видаляються/перезаписуються). |
+| `reports/stryker/mutation.json` | Підсумковий JSON-звіт із результатами всіх мутантів. |
+| `reports/stryker/incremental.json` | Стан incremental-режиму для прискорення наступних прогонів. |
+
+## Потік виконання / Використання
+
+### Як файл використовується
+
+Файл розміщений у тестовій директорії `npm/rules/test/js/data/stryker_config/` і призначений як **тестова фікстура / еталон** для перевірочних правил (rule-checks), що валідують Stryker-конфіги в реальних воркспейсах монорепо. Тобто rule-checker може:
+
+1. читати цей файл як «known good» приклад;
+2. порівнювати з ним конфіги воркспейсів;
+3. виявляти відхилення (відсутність `incremental`, неправильний `coverageAnalysis`, неправильний `testRunner` тощо).
+
+### Якби файл застосовувався як справжній Stryker-конфіг
+
+Якщо покласти його в корінь воркспейсу під ім'ям `stryker.config.mjs`, Stryker CLI підхопить його автоматично. Запуск:
+
+```bash
+bunx stryker run
+```
+
+Потік виконання:
+
+1. **Завантаження конфігу.** Stryker CLI читає `stryker.config.mjs`, бере дефолтний експорт як `PartialStrykerOptions`.
+2. **Розв'язання test-runner-а.** За значенням `testRunner: 'vitest'` Stryker динамічно підвантажує `@stryker-mutator/vitest-runner`.
+3. **Ініціалізація Vitest.** Vitest-runner читає `vitest.config.js` (поле `vitest.configFile`) і налаштовує Vitest-інстанс.
+4. **Перевірка incremental-стану.** Якщо файл `reports/stryker/incremental.json` існує (`incremental: true`), Stryker завантажує попередні результати й пропускає ті мутанти, що не змінилися (дає **~262×** прискорення на noop-прогонах згідно коментаря в коді, з посиланням на `benchmarks/runner-comparison/SPIKE.md`).
+5. **Coverage analysis.** Stryker генерує coverage-карту й для кожного мутанта (`perTest`) обирає лише підмножину тестів, що покривають мутовану лінію, замість прогону всього test-suite.
+6. **Прогон мутантів.** Concurrency за замовчуванням — `os.cpus().length - 1` (як зазначено в коментарях; явно в конфізі не задано). vitest-runner ізолює мутантів **у пам'яті через AST-patching** — не копіює `node_modules` у sandbox, що було проблемою command-runner-а в Bun-монорепо.
+7. **Тимчасові артефакти.** Усе проміжне пишеться у `reports/stryker/.tmp/`.
+8. **Звітування.** Після завершення:
+   - `clear-text` репортер друкує підсумок у термінал;
+   - `jsonReporter` пише машинний звіт у `reports/stryker/mutation.json`;
+   - оновлюється `reports/stryker/incremental.json` для майбутніх прогонів.
+
+### Ключові архітектурні рішення (з коментарів у файлі)
+
+- **`perTest` замість `all` / `off`** — головний приріст швидкості проти `commandRunner`, де треба ганяти весь test-suite на кожного мутанта.
+- **Без `inPlace`** — vitest-runner ізолює мутантів через AST-patching у пам'яті, тому копіювання робочої директорії не потрібне (стара проблема command-runner-а у Bun monorepo).
+- **`incremental: true`** — критично для CI/локальних повторних прогонів: відновлює стан після крашу/kill і дає ~262× прискорення на noop-прогонах.
+
+### Передумови запуску (контракт середовища)
+
+- існує `vitest.config.js` у CWD;
+- встановлені `@stryker-mutator/core`, `@stryker-mutator/vitest-runner`, `vitest`;
+- тека `reports/stryker/` доступна для запису (Stryker створює її автоматично);
+- наявні тести під Vitest, що покривають кодову базу, яку планується мутувати.
+
+### Інтеграція з правилами проєкту
+
+Через шлях `npm/rules/test/js/data/...` файл є вхідними даними для тестів rule-чекерів (див. `.cursor/rules/n-test.mdc`, `.cursor/rules/n-bun.mdc`). Ці чекери, ймовірно, валідують Stryker-конфіги воркспейсів на відповідність цьому baseline (наприклад, що `testRunner === 'vitest'`, `coverageAnalysis === 'perTest'`, `incremental === true`).

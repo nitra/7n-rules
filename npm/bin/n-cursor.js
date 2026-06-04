@@ -24,7 +24,7 @@
  *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
- *   `npx \@nitra/cursor docgen scan`    — детермінований JSON-лістинг кодових файлів для скілу docgen (тека `docs/` поряд із джерелом)
+ *   `npx \@nitra/cursor docgen scan`    — детермінований JSON-лістинг кодових файлів для скілу docgen (відносні `sourcePath`; ignore-glob snippet у `npm/skills/docgen/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом)
  *   `npx \@nitra/cursor docgen modules` — детермінований JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу docgen
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout

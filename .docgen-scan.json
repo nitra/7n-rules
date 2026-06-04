@@ -1,0 +1,4637 @@
+[
+  {
+    "sourcePath": "app.py",
+    "docPath": "docs/app.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "eslint.config.js",
+    "docPath": "docs/eslint.config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/bin/n-cursor.js",
+    "docPath": "npm/bin/docs/n-cursor.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/bin/rename-yaml-extensions.mjs",
+    "docPath": "npm/bin/docs/rename-yaml-extensions.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/vitest.config.js",
+    "docPath": "npm/docs/vitest.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/auto-skills.mjs",
+    "docPath": "npm/scripts/docs/auto-skills.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/worktree-cli.mjs",
+    "docPath": "npm/scripts/docs/worktree-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+    "docPath": "npm/scripts/docs/ensure-nitra-cursor-dev-dependencies.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/build-agents-commands.mjs",
+    "docPath": "npm/scripts/docs/build-agents-commands.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/cli-entry.mjs",
+    "docPath": "npm/scripts/docs/cli-entry.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-classify/index.mjs",
+    "docPath": "npm/scripts/coverage-classify/docs/index.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-classify/prompt.mjs",
+    "docPath": "npm/scripts/coverage-classify/docs/prompt.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-classify/apply.mjs",
+    "docPath": "npm/scripts/coverage-classify/docs/apply.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-classify/cache.mjs",
+    "docPath": "npm/scripts/coverage-classify/docs/cache.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-classify/verdict-schema.mjs",
+    "docPath": "npm/scripts/coverage-classify/docs/verdict-schema.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/upgrade-nitra-cursor-and-install.mjs",
+    "docPath": "npm/scripts/docs/upgrade-nitra-cursor-and-install.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/graph.mjs",
+    "docPath": "npm/scripts/dispatcher/docs/graph.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/trace.mjs",
+    "docPath": "npm/scripts/dispatcher/docs/trace.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/index.mjs",
+    "docPath": "npm/scripts/dispatcher/docs/index.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/artifact.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/artifact.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/level.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/level.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/state-store.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/state-store.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/commands.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/commands.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/capability.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/capability.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/subagent-runner.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/subagent-runner.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/planner.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/planner.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/executor.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/executor.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/reviewer.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/reviewer.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/active.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/active.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/plan-panel.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/plan-panel.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/plan.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/plan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/budget.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/budget.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/flow-lock.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/flow-lock.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/gate.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/gate.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/flow-resolve.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/flow-resolve.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/spec.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/spec.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/snapshot.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/snapshot.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/review.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/review.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/dispatcher/lib/events.mjs",
+    "docPath": "npm/scripts/dispatcher/lib/docs/events.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/sync-setup-bun-deps-action.mjs",
+    "docPath": "npm/scripts/docs/sync-setup-bun-deps-action.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/tests/fixtures/cli-entry-as-cli.mjs",
+    "docPath": "npm/scripts/tests/fixtures/docs/cli-entry-as-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/coverage-fix.mjs",
+    "docPath": "npm/scripts/docs/coverage-fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/utils/worktree-fingerprint.mjs",
+    "docPath": "npm/scripts/utils/docs/worktree-fingerprint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/find-package-json-paths.mjs",
+    "docPath": "npm/scripts/utils/docs/find-package-json-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/resolve-cargo-manifest.mjs",
+    "docPath": "npm/scripts/utils/docs/resolve-cargo-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/ensure-gitignore-entries.mjs",
+    "docPath": "npm/scripts/utils/docs/ensure-gitignore-entries.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/ast-scan-utils.mjs",
+    "docPath": "npm/scripts/utils/docs/ast-scan-utils.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/resolve-js-root.mjs",
+    "docPath": "npm/scripts/utils/docs/resolve-js-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/pass.mjs",
+    "docPath": "npm/scripts/utils/docs/pass.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/with-lock.mjs",
+    "docPath": "npm/scripts/utils/docs/with-lock.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/resolve-cmd.mjs",
+    "docPath": "npm/scripts/utils/docs/resolve-cmd.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/walkDir.mjs",
+    "docPath": "npm/scripts/utils/docs/walkDir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/test-helpers.mjs",
+    "docPath": "npm/scripts/utils/docs/test-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/walk-cache.mjs",
+    "docPath": "npm/scripts/utils/docs/walk-cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/utils/lock-cache-dir.mjs",
+    "docPath": "npm/scripts/utils/docs/lock-cache-dir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lint-cli.mjs",
+    "docPath": "npm/scripts/docs/lint-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-lint-step.mjs",
+    "docPath": "npm/scripts/lib/docs/run-lint-step.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/load-cursor-config.mjs",
+    "docPath": "npm/scripts/lib/docs/load-cursor-config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/rule-predicates.mjs",
+    "docPath": "npm/scripts/lib/docs/rule-predicates.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/worktree-notice.mjs",
+    "docPath": "npm/scripts/lib/docs/worktree-notice.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/list-rule-ids.mjs",
+    "docPath": "npm/scripts/lib/docs/list-rule-ids.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/worktree.mjs",
+    "docPath": "npm/scripts/lib/docs/worktree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/assert-project-root.mjs",
+    "docPath": "npm/scripts/lib/docs/assert-project-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/ensure-tool.mjs",
+    "docPath": "npm/scripts/lib/docs/ensure-tool.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/discover-checkable-rules.mjs",
+    "docPath": "npm/scripts/lib/docs/discover-checkable-rules.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-standard-rule.mjs",
+    "docPath": "npm/scripts/lib/docs/run-standard-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/template.mjs",
+    "docPath": "npm/scripts/lib/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/discover-check-rules-from-cursor.mjs",
+    "docPath": "npm/scripts/lib/docs/discover-check-rules-from-cursor.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/gha-workflow.mjs",
+    "docPath": "npm/scripts/lib/docs/gha-workflow.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/changed-files.mjs",
+    "docPath": "npm/scripts/lib/docs/changed-files.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-rule-cli.mjs",
+    "docPath": "npm/scripts/lib/docs/run-rule-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-standard-lint.mjs",
+    "docPath": "npm/scripts/lib/docs/run-standard-lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/read-n-cursor-config-lite.mjs",
+    "docPath": "npm/scripts/lib/docs/read-n-cursor-config-lite.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/rule-meta-helpers.mjs",
+    "docPath": "npm/scripts/lib/docs/rule-meta-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/workspaces.mjs",
+    "docPath": "npm/scripts/lib/docs/workspaces.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/check-reporter.mjs",
+    "docPath": "npm/scripts/lib/docs/check-reporter.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/resolve-target-files.mjs",
+    "docPath": "npm/scripts/lib/docs/resolve-target-files.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/mirror-parity.mjs",
+    "docPath": "npm/scripts/lib/docs/mirror-parity.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/root-notice.mjs",
+    "docPath": "npm/scripts/lib/docs/root-notice.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/inline-template-links.mjs",
+    "docPath": "npm/scripts/lib/docs/inline-template-links.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/sync-gitignore-worktree.mjs",
+    "docPath": "npm/scripts/lib/docs/sync-gitignore-worktree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/timing-summary.mjs",
+    "docPath": "npm/scripts/lib/docs/timing-summary.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/check-mdc-template-refs.mjs",
+    "docPath": "npm/scripts/lib/docs/check-mdc-template-refs.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/lib/rule-meta.mjs",
+    "docPath": "npm/scripts/lib/docs/rule-meta.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-rule.mjs",
+    "docPath": "npm/scripts/lib/docs/run-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/diff-added-lines.mjs",
+    "docPath": "npm/scripts/lib/docs/diff-added-lines.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/skill-meta.mjs",
+    "docPath": "npm/scripts/lib/docs/skill-meta.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/run-conftest-batch.mjs",
+    "docPath": "npm/scripts/lib/docs/run-conftest-batch.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/lib/generated-markdown.mjs",
+    "docPath": "npm/scripts/lib/docs/generated-markdown.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/auto-rules.mjs",
+    "docPath": "npm/scripts/docs/auto-rules.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/scripts/rename-yaml-extensions.mjs",
+    "docPath": "npm/scripts/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/skills-cli.mjs",
+    "docPath": "npm/scripts/docs/skills-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/sync-claude-config.mjs",
+    "docPath": "npm/scripts/docs/sync-claude-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/scripts/post-tool-use-fix.mjs",
+    "docPath": "npm/scripts/docs/post-tool-use-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/rules/nginx-default-tpl/fix.mjs",
+    "docPath": "npm/rules/nginx-default-tpl/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/nginx-default-tpl/js/template.mjs",
+    "docPath": "npm/rules/nginx-default-tpl/js/docs/template.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/image-compress/fix.mjs",
+    "docPath": "npm/rules/image-compress/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/image-compress/js/package_setup.mjs",
+    "docPath": "npm/rules/image-compress/js/docs/package_setup.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/adr/fix.mjs",
+    "docPath": "npm/rules/adr/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/adr/js/hooks.mjs",
+    "docPath": "npm/rules/adr/js/docs/hooks.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ga/fix.mjs",
+    "docPath": "npm/rules/ga/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ga/lint/lint.mjs",
+    "docPath": "npm/rules/ga/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ga/js/lint.mjs",
+    "docPath": "npm/rules/ga/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ga/js/workflows.mjs",
+    "docPath": "npm/rules/ga/js/docs/workflows.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/fix.mjs",
+    "docPath": "npm/rules/docker/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/lint/lint.mjs",
+    "docPath": "npm/rules/docker/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/js/lint.mjs",
+    "docPath": "npm/rules/docker/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/lib/docker-mirror.mjs",
+    "docPath": "npm/rules/docker/lib/docs/docker-mirror.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/lib/docker-nginx-user.mjs",
+    "docPath": "npm/rules/docker/lib/docs/docker-nginx-user.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/lib/docker-hadolint.mjs",
+    "docPath": "npm/rules/docker/lib/docs/docker-hadolint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/docker/lib/docker-native-addon.mjs",
+    "docPath": "npm/rules/docker/lib/docs/docker-native-addon.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-db/fix.mjs",
+    "docPath": "npm/rules/js-bun-db/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-db/js/safety.mjs",
+    "docPath": "npm/rules/js-bun-db/js/docs/safety.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-db/lib/bun-sql-scan.mjs",
+    "docPath": "npm/rules/js-bun-db/lib/docs/bun-sql-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/fix.mjs",
+    "docPath": "npm/rules/js-run/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/js/runtime.mjs",
+    "docPath": "npm/rules/js-run/js/docs/runtime.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/conn-imports-scan.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/conn-imports-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/bunyan-imports.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/bunyan-imports.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/promise-settimeout-scan.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/promise-settimeout-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/temporal-scan.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/temporal-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/conn-file-rules.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/conn-file-rules.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-run/lib/check-env-scan.mjs",
+    "docPath": "npm/rules/js-run/lib/docs/check-env-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/fix.mjs",
+    "docPath": "npm/rules/test/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/no-process-chdir.mjs",
+    "docPath": "npm/rules/test/js/docs/no-process-chdir.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/location.mjs",
+    "docPath": "npm/rules/test/js/docs/location.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/vitest-config-pool-forks.mjs",
+    "docPath": "npm/rules/test/js/docs/vitest-config-pool-forks.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/no-relative-fs-path.mjs",
+    "docPath": "npm/rules/test/js/docs/no-relative-fs-path.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/stryker_config.mjs",
+    "docPath": "npm/rules/test/js/docs/stryker_config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/cargo_mutants_config.mjs",
+    "docPath": "npm/rules/test/js/docs/cargo_mutants_config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs",
+    "docPath": "npm/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+    "docPath": "npm/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+    "docPath": "npm/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/test/js/data/vitest_config/vitest.config.baseline.js",
+    "docPath": "npm/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/python/fix.mjs",
+    "docPath": "npm/rules/python/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/python/lint/lint.mjs",
+    "docPath": "npm/rules/python/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/python/js/tooling.mjs",
+    "docPath": "npm/rules/python/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/python/js/applies.mjs",
+    "docPath": "npm/rules/python/js/docs/applies.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/changelog/fix.mjs",
+    "docPath": "npm/rules/changelog/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/changelog/js/consistency.mjs",
+    "docPath": "npm/rules/changelog/js/docs/consistency.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/changelog/lib/package-manifest.mjs",
+    "docPath": "npm/rules/changelog/lib/docs/package-manifest.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/security/fix.mjs",
+    "docPath": "npm/rules/security/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/security/js/lint.mjs",
+    "docPath": "npm/rules/security/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/security/js/trufflehog.mjs",
+    "docPath": "npm/rules/security/js/docs/trufflehog.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/security/js/sample_secret.mjs",
+    "docPath": "npm/rules/security/js/docs/sample_secret.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/k8s/fix.mjs",
+    "docPath": "npm/rules/k8s/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/k8s/lint/lint.mjs",
+    "docPath": "npm/rules/k8s/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/k8s/js/manifests.mjs",
+    "docPath": "npm/rules/k8s/js/docs/manifests.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/tauri/fix.mjs",
+    "docPath": "npm/rules/tauri/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/tauri/js/tooling.mjs",
+    "docPath": "npm/rules/tauri/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/tauri/js/cargo_mutants_config.mjs",
+    "docPath": "npm/rules/tauri/js/docs/cargo_mutants_config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/vue/fix.mjs",
+    "docPath": "npm/rules/vue/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/vue/js/packages.mjs",
+    "docPath": "npm/rules/vue/js/docs/packages.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/vue/lib/vue-forbidden-imports.mjs",
+    "docPath": "npm/rules/vue/lib/docs/vue-forbidden-imports.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rust/fix.mjs",
+    "docPath": "npm/rules/rust/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rust/js/applies.mjs",
+    "docPath": "npm/rules/rust/js/docs/applies.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rust/lib/has-cargo-toml.mjs",
+    "docPath": "npm/rules/rust/lib/docs/has-cargo-toml.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rego/fix.mjs",
+    "docPath": "npm/rules/rego/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rego/lint/lint.mjs",
+    "docPath": "npm/rules/rego/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rego/js/lint.mjs",
+    "docPath": "npm/rules/rego/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/rego/js/applies.mjs",
+    "docPath": "npm/rules/rego/js/docs/applies.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/hasura/fix.mjs",
+    "docPath": "npm/rules/hasura/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/hasura/js/internal_urls.mjs",
+    "docPath": "npm/rules/hasura/js/docs/internal_urls.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/worktree/fix.mjs",
+    "docPath": "npm/rules/worktree/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/capacitor/fix.mjs",
+    "docPath": "npm/rules/capacitor/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/capacitor/js/platforms.mjs",
+    "docPath": "npm/rules/capacitor/js/docs/platforms.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/fix.mjs",
+    "docPath": "npm/rules/release/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/release.mjs",
+    "docPath": "npm/rules/release/docs/release.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/lib/change-file.mjs",
+    "docPath": "npm/rules/release/lib/docs/change-file.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/lib/fallback.mjs",
+    "docPath": "npm/rules/release/lib/docs/fallback.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/lib/aggregate.mjs",
+    "docPath": "npm/rules/release/lib/docs/aggregate.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/release/change.mjs",
+    "docPath": "npm/rules/release/docs/change.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/bun/fix.mjs",
+    "docPath": "npm/rules/bun/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/bun/js/layout.mjs",
+    "docPath": "npm/rules/bun/js/docs/layout.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ci4/fix.mjs",
+    "docPath": "npm/rules/ci4/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/ci4/js/marksman_config.mjs",
+    "docPath": "npm/rules/ci4/js/docs/marksman_config.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/php/fix.mjs",
+    "docPath": "npm/rules/php/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/php/lint/lint.mjs",
+    "docPath": "npm/rules/php/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/php/js/tooling.mjs",
+    "docPath": "npm/rules/php/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/feedback/fix.mjs",
+    "docPath": "npm/rules/feedback/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/npm-module/fix.mjs",
+    "docPath": "npm/rules/npm-module/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/npm-module/js/rule_meta.mjs",
+    "docPath": "npm/rules/npm-module/js/docs/rule_meta.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/npm-module/js/skill_meta.mjs",
+    "docPath": "npm/rules/npm-module/js/docs/skill_meta.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/npm-module/js/package_structure.mjs",
+    "docPath": "npm/rules/npm-module/js/docs/package_structure.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint-ci/fix.mjs",
+    "docPath": "npm/rules/js-lint-ci/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint-ci/js/lint.mjs",
+    "docPath": "npm/rules/js-lint-ci/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/fix.mjs",
+    "docPath": "npm/rules/abie/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/firebase_hosting.mjs",
+    "docPath": "npm/rules/abie/js/docs/firebase_hosting.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/ua_http_route.mjs",
+    "docPath": "npm/rules/abie/js/docs/ua_http_route.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/applies.mjs",
+    "docPath": "npm/rules/abie/js/docs/applies.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/ua_node_selector.mjs",
+    "docPath": "npm/rules/abie/js/docs/ua_node_selector.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/env_dns.mjs",
+    "docPath": "npm/rules/abie/js/docs/env_dns.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/js/hc_pairing.mjs",
+    "docPath": "npm/rules/abie/js/docs/hc_pairing.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/k8s-tree.mjs",
+    "docPath": "npm/rules/abie/lib/docs/k8s-tree.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/kustomization-patches.mjs",
+    "docPath": "npm/rules/abie/lib/docs/kustomization-patches.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/yaml.mjs",
+    "docPath": "npm/rules/abie/lib/docs/yaml.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/overlay-paths.mjs",
+    "docPath": "npm/rules/abie/lib/docs/overlay-paths.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/http-route.mjs",
+    "docPath": "npm/rules/abie/lib/docs/http-route.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/enabled.mjs",
+    "docPath": "npm/rules/abie/lib/docs/enabled.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/env-dns.mjs",
+    "docPath": "npm/rules/abie/lib/docs/env-dns.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/abie/lib/hc-yaml.mjs",
+    "docPath": "npm/rules/abie/lib/docs/hc-yaml.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-redis/fix.mjs",
+    "docPath": "npm/rules/js-bun-redis/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-redis/js/imports.mjs",
+    "docPath": "npm/rules/js-bun-redis/js/docs/imports.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-bun-redis/lib/redis-imports.mjs",
+    "docPath": "npm/rules/js-bun-redis/lib/docs/redis-imports.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/efes/fix.mjs",
+    "docPath": "npm/rules/efes/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/graphql/fix.mjs",
+    "docPath": "npm/rules/graphql/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/graphql/js/tooling.mjs",
+    "docPath": "npm/rules/graphql/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/graphql/lib/graphql-gql-scan.mjs",
+    "docPath": "npm/rules/graphql/lib/docs/graphql-gql-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint/fix.mjs",
+    "docPath": "npm/rules/js-lint/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint/js/lint.mjs",
+    "docPath": "npm/rules/js-lint/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint/js/lint-findings.mjs",
+    "docPath": "npm/rules/js-lint/js/docs/lint-findings.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/rules/js-lint/js/tooling.mjs",
+    "docPath": "npm/rules/js-lint/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-lint/js/utils_imports.mjs",
+    "docPath": "npm/rules/js-lint/js/docs/utils_imports.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/fix.mjs",
+    "docPath": "npm/rules/text/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/lint/run-dotenv-linter.mjs",
+    "docPath": "npm/rules/text/lint/docs/run-dotenv-linter.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/lint/lint.mjs",
+    "docPath": "npm/rules/text/lint/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/lint/run-shellcheck.mjs",
+    "docPath": "npm/rules/text/lint/docs/run-shellcheck.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/lint/run-v8r.mjs",
+    "docPath": "npm/rules/text/lint/docs/run-v8r.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/js/forbidden-prettier.mjs",
+    "docPath": "npm/rules/text/js/docs/forbidden-prettier.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/js/lint.mjs",
+    "docPath": "npm/rules/text/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/text/js/formatting.mjs",
+    "docPath": "npm/rules/text/js/docs/formatting.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/image-avif/fix.mjs",
+    "docPath": "npm/rules/image-avif/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/image-avif/js/avif_generation.mjs",
+    "docPath": "npm/rules/image-avif/js/docs/avif_generation.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-mssql/fix.mjs",
+    "docPath": "npm/rules/js-mssql/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-mssql/js/deps.mjs",
+    "docPath": "npm/rules/js-mssql/js/docs/deps.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "docPath": "npm/rules/js-mssql/lib/docs/mssql-pool-scan.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/style-lint/fix.mjs",
+    "docPath": "npm/rules/style-lint/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/style-lint/js/lint.mjs",
+    "docPath": "npm/rules/style-lint/js/docs/lint.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/style-lint/js/tooling.mjs",
+    "docPath": "npm/rules/style-lint/js/docs/tooling.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/rules/flow/fix.mjs",
+    "docPath": "npm/rules/flow/docs/fix.md",
+    "exists": true
+  },
+  {
+    "sourcePath": "npm/stryker.config.mjs",
+    "docPath": "npm/docs/stryker.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/skills/docgen/js/docgen-scan.mjs",
+    "docPath": "npm/skills/docgen/js/docs/docgen-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/skills/docgen/js/docgen-ignore.mjs",
+    "docPath": "npm/skills/docgen/js/docs/docgen-ignore.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-3.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-3.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-6.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-6.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/bin/n-cursor.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/bin/docs/n-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/bin/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/bin/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-2.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-2.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/vitest.config.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/vitest.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/auto-skills.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/auto-skills.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/ensure-nitra-cursor-dev-dependencies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/build-agents-commands.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/build-agents-commands.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/cli-entry.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/cli-entry.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/index.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/docs/index.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/prompt.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/docs/prompt.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/apply.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/docs/apply.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/docs/cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/verdict-schema.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-classify/docs/verdict-schema.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/upgrade-nitra-cursor-and-install.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/upgrade-nitra-cursor-and-install.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/sync-setup-bun-deps-action.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/sync-setup-bun-deps-action.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/tests/fixtures/cli-entry-as-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/tests/fixtures/docs/cli-entry-as-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/coverage-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/coverage-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/worktree-fingerprint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/worktree-fingerprint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/find-package-json-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/find-package-json-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/resolve-cargo-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/resolve-cargo-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/ensure-gitignore-entries.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/ensure-gitignore-entries.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/ast-scan-utils.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/ast-scan-utils.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/resolve-js-root.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/resolve-js-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/pass.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/pass.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/with-lock.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/with-lock.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/resolve-cmd.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/resolve-cmd.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/walkDir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/walkDir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/test-helpers.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/test-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/walk-cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/walk-cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/lock-cache-dir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/utils/docs/lock-cache-dir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-lint-step.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-lint-step.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/load-cursor-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/load-cursor-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/list-rule-ids.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/list-rule-ids.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/discover-checkable-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/discover-checkable-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-standard-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-standard-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-lint-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-lint-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/discover-check-rules-from-cursor.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/discover-check-rules-from-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/gha-workflow.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/gha-workflow.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-rule-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-rule-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-standard-lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-standard-lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/read-n-cursor-config-lite.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/read-n-cursor-config-lite.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/workspaces.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/workspaces.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/check-reporter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/check-reporter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/resolve-target-files.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/resolve-target-files.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/inline-template-links.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/inline-template-links.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/timing-summary.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/timing-summary.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/check-mdc-template-refs.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/check-mdc-template-refs.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/run-conftest-batch.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/run-conftest-batch.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/generated-markdown.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/lib/docs/generated-markdown.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/auto-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/auto-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/skills-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/skills-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/sync-claude-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/sync-claude-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/post-tool-use-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/scripts/docs/post-tool-use-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/nginx-default-tpl/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/nginx-default-tpl/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/nginx-default-tpl/js/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/nginx-default-tpl/js/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-compress/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-compress/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-compress/js/package_setup.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-compress/js/docs/package_setup.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/adr/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/adr/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/adr/js/hooks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/adr/js/docs/hooks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/js/workflows.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ga/js/docs/workflows.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/js/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/js/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lib/docker-mirror.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lib/docs/docker-mirror.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lib/docker-hadolint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/docker/lib/docs/docker-hadolint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/js/safety.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/js/docs/safety.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/lib/bun-sql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-db/lib/docs/bun-sql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/js/runtime.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/js/docs/runtime.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/conn-imports-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/docs/conn-imports-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/bunyan-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/docs/bunyan-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/promise-settimeout-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/docs/promise-settimeout-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/conn-file-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/docs/conn-file-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/check-env-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-run/lib/docs/check-env-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/no-process-chdir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/no-process-chdir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/location.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/location.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/vitest-config-pool-forks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/vitest-config-pool-forks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/no-relative-fs-path.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/no-relative-fs-path.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/stryker_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/stryker_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/vitest_config/vitest.config.baseline.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/js/consistency.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/js/docs/consistency.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/lib/package-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/changelog/lib/docs/package-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/js/trufflehog.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/js/docs/trufflehog.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/js/sample_secret.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/security/js/docs/sample_secret.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/js/manifests.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/k8s/js/docs/manifests.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/tauri/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/js/packages.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/js/docs/packages.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/lib/vue-forbidden-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/vue/lib/docs/vue-forbidden-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/lib/has-cargo-toml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rust/lib/docs/has-cargo-toml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/rego/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/hasura/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/hasura/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/hasura/js/internal_urls.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/hasura/js/docs/internal_urls.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/capacitor/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/capacitor/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/capacitor/js/platforms.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/capacitor/js/docs/platforms.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/release.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/docs/release.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/change-file.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/docs/change-file.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/fallback.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/docs/fallback.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/aggregate.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/lib/docs/aggregate.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/change.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/release/docs/change.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/bun/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/bun/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/bun/js/layout.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/bun/js/docs/layout.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ci4/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ci4/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ci4/js/marksman_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/ci4/js/docs/marksman_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/php/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/feedback/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/feedback/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/npm-module/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/npm-module/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/npm-module/js/package_structure.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/npm-module/js/docs/package_structure.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/firebase_hosting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/firebase_hosting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/ua_http_route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/ua_http_route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/ua_node_selector.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/ua_node_selector.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/env_dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/env_dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/hc_pairing.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/js/docs/hc_pairing.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/k8s-tree.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/k8s-tree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/kustomization-patches.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/kustomization-patches.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/overlay-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/overlay-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/http-route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/http-route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/enabled.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/enabled.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/env-dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/env-dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/hc-yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/abie/lib/docs/hc-yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/js/imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/js/docs/imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/lib/redis-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-bun-redis/lib/docs/redis-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/efes/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/efes/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/lib/graphql-gql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/graphql/lib/docs/graphql-gql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/js/utils_imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/js/docs/utils_imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-lint/lib/docs/rebuild-oxlint-canonical.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/run-dotenv-linter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/docs/run-dotenv-linter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/run-shellcheck.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/docs/run-shellcheck.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/run-v8r.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/lint/docs/run-v8r.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/js/forbidden-prettier.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/js/docs/forbidden-prettier.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/js/formatting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/text/js/docs/formatting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-avif/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-avif/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-avif/js/avif_generation.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/image-avif/js/docs/avif_generation.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/js/deps.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/js/docs/deps.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/js-mssql/lib/docs/mssql-pool-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/style-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/style-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/style-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/rules/style-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker.config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-5.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-5.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-1.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-1.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-0.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-0.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/stryker-setup-4.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-UAOUBS/docs/stryker-setup-4.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/bin/n-cursor.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/bin/docs/n-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/bin/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/bin/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/vitest.config.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/docs/vitest.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/auto-skills.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/auto-skills.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/ensure-nitra-cursor-dev-dependencies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/build-agents-commands.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/build-agents-commands.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/cli-entry.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/cli-entry.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/index.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/docs/index.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/prompt.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/docs/prompt.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/apply.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/docs/apply.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/docs/cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/verdict-schema.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-classify/docs/verdict-schema.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/upgrade-nitra-cursor-and-install.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/upgrade-nitra-cursor-and-install.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/sync-setup-bun-deps-action.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/sync-setup-bun-deps-action.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/tests/fixtures/cli-entry-as-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/tests/fixtures/docs/cli-entry-as-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/coverage-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/coverage-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/worktree-fingerprint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/worktree-fingerprint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/find-package-json-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/find-package-json-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/resolve-cargo-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/resolve-cargo-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/ensure-gitignore-entries.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/ensure-gitignore-entries.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/ast-scan-utils.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/ast-scan-utils.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/resolve-js-root.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/resolve-js-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/pass.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/pass.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/with-lock.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/with-lock.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/resolve-cmd.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/resolve-cmd.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/walkDir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/walkDir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/test-helpers.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/test-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/walk-cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/walk-cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/lock-cache-dir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/utils/docs/lock-cache-dir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-lint-step.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-lint-step.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/load-cursor-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/load-cursor-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/list-rule-ids.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/list-rule-ids.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/discover-checkable-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/discover-checkable-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-standard-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-standard-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-lint-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-lint-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/discover-check-rules-from-cursor.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/discover-check-rules-from-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/gha-workflow.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/gha-workflow.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-rule-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-rule-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-standard-lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-standard-lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/read-n-cursor-config-lite.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/read-n-cursor-config-lite.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/workspaces.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/workspaces.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/check-reporter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/check-reporter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/resolve-target-files.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/resolve-target-files.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/inline-template-links.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/inline-template-links.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/timing-summary.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/timing-summary.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/check-mdc-template-refs.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/check-mdc-template-refs.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/run-conftest-batch.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/run-conftest-batch.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/generated-markdown.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/lib/docs/generated-markdown.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/auto-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/auto-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/skills-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/skills-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/sync-claude-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/sync-claude-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/post-tool-use-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/scripts/docs/post-tool-use-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/nginx-default-tpl/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/nginx-default-tpl/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/nginx-default-tpl/js/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/nginx-default-tpl/js/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-compress/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-compress/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-compress/js/package_setup.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-compress/js/docs/package_setup.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/adr/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/adr/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/adr/js/hooks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/adr/js/docs/hooks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/js/workflows.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ga/js/docs/workflows.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/js/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/js/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lib/docker-mirror.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lib/docs/docker-mirror.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lib/docker-hadolint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/docker/lib/docs/docker-hadolint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/js/safety.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/js/docs/safety.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/lib/bun-sql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-db/lib/docs/bun-sql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/js/runtime.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/js/docs/runtime.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/conn-imports-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/docs/conn-imports-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/bunyan-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/docs/bunyan-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/promise-settimeout-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/docs/promise-settimeout-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/conn-file-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/docs/conn-file-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/check-env-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-run/lib/docs/check-env-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/no-process-chdir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/no-process-chdir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/location.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/location.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/vitest-config-pool-forks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/vitest-config-pool-forks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/no-relative-fs-path.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/no-relative-fs-path.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/stryker_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/stryker_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/vitest_config/vitest.config.baseline.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/js/consistency.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/js/docs/consistency.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/lib/package-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/changelog/lib/docs/package-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/js/trufflehog.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/js/docs/trufflehog.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/js/sample_secret.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/security/js/docs/sample_secret.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/js/manifests.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/k8s/js/docs/manifests.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/tauri/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/js/packages.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/js/docs/packages.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/lib/vue-forbidden-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/vue/lib/docs/vue-forbidden-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/lib/has-cargo-toml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rust/lib/docs/has-cargo-toml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/rego/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/hasura/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/hasura/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/hasura/js/internal_urls.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/hasura/js/docs/internal_urls.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/capacitor/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/capacitor/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/capacitor/js/platforms.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/capacitor/js/docs/platforms.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/release.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/docs/release.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/change-file.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/docs/change-file.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/fallback.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/docs/fallback.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/aggregate.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/lib/docs/aggregate.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/change.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/release/docs/change.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/bun/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/bun/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/bun/js/layout.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/bun/js/docs/layout.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ci4/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ci4/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ci4/js/marksman_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/ci4/js/docs/marksman_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/php/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/feedback/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/feedback/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/npm-module/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/npm-module/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/npm-module/js/package_structure.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/npm-module/js/docs/package_structure.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/firebase_hosting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/firebase_hosting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/ua_http_route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/ua_http_route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/ua_node_selector.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/ua_node_selector.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/env_dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/env_dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/hc_pairing.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/js/docs/hc_pairing.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/k8s-tree.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/k8s-tree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/kustomization-patches.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/kustomization-patches.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/overlay-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/overlay-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/http-route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/http-route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/enabled.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/enabled.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/env-dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/env-dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/hc-yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/abie/lib/docs/hc-yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/js/imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/js/docs/imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/lib/redis-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-bun-redis/lib/docs/redis-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/efes/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/efes/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/lib/graphql-gql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/graphql/lib/docs/graphql-gql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/js/utils_imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/js/docs/utils_imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-lint/lib/docs/rebuild-oxlint-canonical.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/run-dotenv-linter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/docs/run-dotenv-linter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/run-shellcheck.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/docs/run-shellcheck.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/run-v8r.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/lint/docs/run-v8r.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/js/forbidden-prettier.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/js/docs/forbidden-prettier.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/js/formatting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/text/js/docs/formatting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-avif/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-avif/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-avif/js/avif_generation.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/image-avif/js/docs/avif_generation.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/js/deps.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/js/docs/deps.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/js-mssql/lib/docs/mssql-pool-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/style-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/style-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/style-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/rules/style-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-mSylav/stryker.config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-mSylav/docs/stryker.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/n-cursor.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/docs/n-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/bin/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/vitest.config.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/docs/vitest.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/auto-skills.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/auto-skills.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/ensure-nitra-cursor-dev-dependencies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/build-agents-commands.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/build-agents-commands.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/cli-entry.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/cli-entry.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/index.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/docs/index.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/prompt.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/docs/prompt.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/apply.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/docs/apply.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/docs/cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/verdict-schema.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-classify/docs/verdict-schema.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/upgrade-nitra-cursor-and-install.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/upgrade-nitra-cursor-and-install.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/sync-setup-bun-deps-action.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/sync-setup-bun-deps-action.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/tests/fixtures/cli-entry-as-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/tests/fixtures/docs/cli-entry-as-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/coverage-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/coverage-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/worktree-fingerprint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/worktree-fingerprint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/find-package-json-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/find-package-json-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/resolve-cargo-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/resolve-cargo-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/ensure-gitignore-entries.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/ensure-gitignore-entries.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/ast-scan-utils.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/ast-scan-utils.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/resolve-js-root.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/resolve-js-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/pass.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/pass.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/with-lock.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/with-lock.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/resolve-cmd.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/resolve-cmd.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/walkDir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/walkDir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/test-helpers.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/test-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/walk-cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/walk-cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/lock-cache-dir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/utils/docs/lock-cache-dir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-lint-step.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-lint-step.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/load-cursor-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/load-cursor-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/list-rule-ids.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/list-rule-ids.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/discover-checkable-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/discover-checkable-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-standard-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-standard-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-lint-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-lint-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/discover-check-rules-from-cursor.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/discover-check-rules-from-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/gha-workflow.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/gha-workflow.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-rule-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-rule-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-standard-lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-standard-lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/read-n-cursor-config-lite.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/read-n-cursor-config-lite.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/workspaces.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/workspaces.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/check-reporter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/check-reporter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/resolve-target-files.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/resolve-target-files.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/inline-template-links.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/inline-template-links.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/timing-summary.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/timing-summary.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/check-mdc-template-refs.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/check-mdc-template-refs.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/run-conftest-batch.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/run-conftest-batch.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/generated-markdown.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/lib/docs/generated-markdown.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/auto-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/auto-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/skills-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/skills-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/sync-claude-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/sync-claude-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/post-tool-use-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/scripts/docs/post-tool-use-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/nginx-default-tpl/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/nginx-default-tpl/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/nginx-default-tpl/js/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/nginx-default-tpl/js/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-compress/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-compress/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-compress/js/package_setup.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-compress/js/docs/package_setup.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/adr/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/adr/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/adr/js/hooks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/adr/js/docs/hooks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/js/workflows.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ga/js/docs/workflows.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/js/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/js/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lib/docker-mirror.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lib/docs/docker-mirror.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lib/docker-hadolint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/docker/lib/docs/docker-hadolint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/js/safety.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/js/docs/safety.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/lib/bun-sql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-db/lib/docs/bun-sql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/js/runtime.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/js/docs/runtime.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/conn-imports-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/docs/conn-imports-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/bunyan-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/docs/bunyan-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/promise-settimeout-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/docs/promise-settimeout-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/conn-file-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/docs/conn-file-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/check-env-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-run/lib/docs/check-env-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/no-process-chdir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/no-process-chdir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/location.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/location.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/vitest-config-pool-forks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/vitest-config-pool-forks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/no-relative-fs-path.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/no-relative-fs-path.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/stryker_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/stryker_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/vitest_config/vitest.config.baseline.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/js/consistency.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/js/docs/consistency.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/lib/package-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/changelog/lib/docs/package-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/js/trufflehog.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/js/docs/trufflehog.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/js/sample_secret.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/security/js/docs/sample_secret.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/js/manifests.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/k8s/js/docs/manifests.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/tauri/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/js/packages.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/js/docs/packages.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/lib/vue-forbidden-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/vue/lib/docs/vue-forbidden-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/lib/has-cargo-toml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rust/lib/docs/has-cargo-toml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/rego/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/hasura/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/hasura/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/hasura/js/internal_urls.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/hasura/js/docs/internal_urls.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/capacitor/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/capacitor/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/capacitor/js/platforms.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/capacitor/js/docs/platforms.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/release.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/docs/release.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/change-file.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/docs/change-file.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/fallback.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/docs/fallback.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/aggregate.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/lib/docs/aggregate.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/change.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/release/docs/change.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/bun/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/bun/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/bun/js/layout.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/bun/js/docs/layout.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ci4/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ci4/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ci4/js/marksman_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/ci4/js/docs/marksman_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/php/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/feedback/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/feedback/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/npm-module/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/npm-module/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/npm-module/js/package_structure.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/npm-module/js/docs/package_structure.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/firebase_hosting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/firebase_hosting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/ua_http_route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/ua_http_route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/ua_node_selector.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/ua_node_selector.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/env_dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/env_dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/hc_pairing.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/js/docs/hc_pairing.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/k8s-tree.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/k8s-tree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/kustomization-patches.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/kustomization-patches.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/overlay-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/overlay-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/http-route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/http-route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/enabled.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/enabled.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/env-dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/env-dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/hc-yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/abie/lib/docs/hc-yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/js/imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/js/docs/imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/lib/redis-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-bun-redis/lib/docs/redis-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/efes/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/efes/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/lib/graphql-gql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/graphql/lib/docs/graphql-gql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/js/utils_imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/js/docs/utils_imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-lint/lib/docs/rebuild-oxlint-canonical.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/run-dotenv-linter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/docs/run-dotenv-linter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/run-shellcheck.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/docs/run-shellcheck.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/run-v8r.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/lint/docs/run-v8r.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/js/forbidden-prettier.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/js/docs/forbidden-prettier.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/js/formatting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/text/js/docs/formatting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-avif/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-avif/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-avif/js/avif_generation.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/image-avif/js/docs/avif_generation.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/js/deps.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/js/docs/deps.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/js-mssql/lib/docs/mssql-pool-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/style-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/style-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/style-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/rules/style-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/stryker.config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-p9jVFI/docs/stryker.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/n-cursor.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/docs/n-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/bin/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/vitest.config.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/docs/vitest.config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/auto-skills.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/auto-skills.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/ensure-nitra-cursor-dev-dependencies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/ensure-nitra-cursor-dev-dependencies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/build-agents-commands.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/build-agents-commands.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/cli-entry.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/cli-entry.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/index.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/docs/index.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/prompt.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/docs/prompt.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/apply.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/docs/apply.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/docs/cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/verdict-schema.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-classify/docs/verdict-schema.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/upgrade-nitra-cursor-and-install.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/upgrade-nitra-cursor-and-install.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/sync-setup-bun-deps-action.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/sync-setup-bun-deps-action.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/tests/fixtures/cli-entry-as-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/tests/fixtures/docs/cli-entry-as-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/coverage-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/coverage-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/worktree-fingerprint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/worktree-fingerprint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/find-package-json-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/find-package-json-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/resolve-cargo-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/resolve-cargo-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/ensure-gitignore-entries.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/ensure-gitignore-entries.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/ast-scan-utils.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/ast-scan-utils.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/resolve-js-root.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/resolve-js-root.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/pass.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/pass.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/with-lock.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/with-lock.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/resolve-cmd.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/resolve-cmd.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/walkDir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/walkDir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/test-helpers.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/test-helpers.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/walk-cache.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/walk-cache.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/lock-cache-dir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/utils/docs/lock-cache-dir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-lint-step.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-lint-step.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/load-cursor-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/load-cursor-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/list-rule-ids.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/list-rule-ids.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/discover-checkable-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/discover-checkable-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-standard-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-standard-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-lint-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-lint-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/discover-check-rules-from-cursor.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/discover-check-rules-from-cursor.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/gha-workflow.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/gha-workflow.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-rule-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-rule-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-standard-lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-standard-lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/read-n-cursor-config-lite.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/read-n-cursor-config-lite.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/workspaces.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/workspaces.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/check-reporter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/check-reporter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/resolve-target-files.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/resolve-target-files.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/inline-template-links.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/inline-template-links.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/timing-summary.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/timing-summary.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/check-mdc-template-refs.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/check-mdc-template-refs.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-rule.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-rule.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/run-conftest-batch.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/run-conftest-batch.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/generated-markdown.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/lib/docs/generated-markdown.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/auto-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/auto-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/rename-yaml-extensions.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/rename-yaml-extensions.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/skills-cli.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/skills-cli.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/sync-claude-config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/sync-claude-config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/post-tool-use-fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/scripts/docs/post-tool-use-fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/nginx-default-tpl/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/nginx-default-tpl/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/nginx-default-tpl/js/template.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/nginx-default-tpl/js/docs/template.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-compress/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-compress/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-compress/js/package_setup.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-compress/js/docs/package_setup.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/adr/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/adr/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/adr/js/hooks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/adr/js/docs/hooks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/js/workflows.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ga/js/docs/workflows.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/js/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/js/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lib/docker-mirror.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lib/docs/docker-mirror.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lib/docker-hadolint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/docker/lib/docs/docker-hadolint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/js/safety.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/js/docs/safety.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/lib/bun-sql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-db/lib/docs/bun-sql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/js/runtime.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/js/docs/runtime.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/conn-imports-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/docs/conn-imports-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/bunyan-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/docs/bunyan-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/promise-settimeout-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/docs/promise-settimeout-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/conn-file-rules.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/docs/conn-file-rules.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/check-env-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-run/lib/docs/check-env-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/no-process-chdir.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/no-process-chdir.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/location.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/location.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/vitest-config-pool-forks.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/vitest-config-pool-forks.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/no-relative-fs-path.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/no-relative-fs-path.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/stryker_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/stryker_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/stryker.config.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/vitest_config/vitest.config.baseline.js",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/js/consistency.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/js/docs/consistency.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/lib/package-manifest.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/changelog/lib/docs/package-manifest.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/js/trufflehog.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/js/docs/trufflehog.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/js/sample_secret.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/security/js/docs/sample_secret.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/js/manifests.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/k8s/js/docs/manifests.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/js/cargo_mutants_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/tauri/js/docs/cargo_mutants_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/js/packages.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/js/docs/packages.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/lib/vue-forbidden-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/vue/lib/docs/vue-forbidden-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/lib/has-cargo-toml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rust/lib/docs/has-cargo-toml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/rego/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/hasura/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/hasura/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/hasura/js/internal_urls.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/hasura/js/docs/internal_urls.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/capacitor/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/capacitor/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/capacitor/js/platforms.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/capacitor/js/docs/platforms.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/release.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/docs/release.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/change-file.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/docs/change-file.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/fallback.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/docs/fallback.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/aggregate.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/lib/docs/aggregate.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/change.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/release/docs/change.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/bun/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/bun/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/bun/js/layout.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/bun/js/docs/layout.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ci4/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ci4/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ci4/js/marksman_config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/ci4/js/docs/marksman_config.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/php/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/feedback/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/feedback/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/npm-module/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/npm-module/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/npm-module/js/package_structure.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/npm-module/js/docs/package_structure.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/firebase_hosting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/firebase_hosting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/ua_http_route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/ua_http_route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/applies.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/applies.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/ua_node_selector.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/ua_node_selector.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/env_dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/env_dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/hc_pairing.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/js/docs/hc_pairing.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/k8s-tree.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/k8s-tree.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/kustomization-patches.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/kustomization-patches.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/overlay-paths.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/overlay-paths.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/http-route.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/http-route.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/enabled.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/enabled.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/env-dns.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/env-dns.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/hc-yaml.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/abie/lib/docs/hc-yaml.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/js/imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/js/docs/imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/lib/redis-imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-bun-redis/lib/docs/redis-imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/efes/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/efes/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/lib/graphql-gql-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/graphql/lib/docs/graphql-gql-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/js/utils_imports.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/js/docs/utils_imports.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/lib/rebuild-oxlint-canonical.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-lint/lib/docs/rebuild-oxlint-canonical.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/run-dotenv-linter.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/docs/run-dotenv-linter.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/lint.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/docs/lint.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/run-shellcheck.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/docs/run-shellcheck.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/run-v8r.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/lint/docs/run-v8r.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/js/forbidden-prettier.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/js/docs/forbidden-prettier.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/js/formatting.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/text/js/docs/formatting.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-avif/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-avif/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-avif/js/avif_generation.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/image-avif/js/docs/avif_generation.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/js/deps.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/js/docs/deps.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/js-mssql/lib/docs/mssql-pool-scan.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/style-lint/fix.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/style-lint/docs/fix.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/style-lint/js/tooling.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/rules/style-lint/js/docs/tooling.md",
+    "exists": false
+  },
+  {
+    "sourcePath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/stryker.config.mjs",
+    "docPath": "npm/reports/stryker/.tmp/sandbox-s5nU0t/docs/stryker.config.md",
+    "exists": false
+  }
+]

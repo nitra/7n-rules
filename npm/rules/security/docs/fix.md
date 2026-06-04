@@ -1,0 +1,86 @@
+# fix.mjs — entry-point правила `security`
+
+## Огляд
+
+Файл `npm/rules/security/fix.mjs` — це канонічний entry-point правила з ідентифікатором `security` пакета `@nitra/cursor`. Він реалізує стандартний «двозадачний» патерн всіх правил у директорії `npm/rules/<id>/fix.mjs`:
+
+1. **Library mode** — експортує функцію `run(ctx)`, яку викликає CLI-оркестратор пакета (`npx @nitra/cursor fix <id>` або агрегований прогон усіх правил). У цьому режимі правило ділить кеш обходу файлів (`walkCache`) та інший контекст із іншими правилами одного запуску.
+2. **Standalone mode** — якщо файл запущено напряму (наприклад `bun rules/security/fix.mjs`), виконується повний CLI-цикл: завантаження конфігурації, застосування whitelist, друк summary та повернення коду виходу для CI/IDE.
+
+Уся ділова логіка (фази `applies` → `JS-concerns` → `policy` → `mdc-refs`) делегується спільному раннеру `runStandardRule`, тому сам `fix.mjs` залишається тонким shim-ом, який знає лише власну директорію (`import.meta.dirname`) і передає її далі.
+
+## Експорти / API
+
+| Експорт | Тип | Призначення |
+| --- | --- | --- |
+| `run` | `function(ctx?): Promise<number>` | Іменований експорт — точка входу для library-режиму. Викликається CLI-оркестратором пакета `@nitra/cursor` під час прогону одного або всіх правил. |
+
+Default-експорт не оголошено. Side-effect частина (CLI-bootstrap) виконується лише за умови, що файл є entry-point процесу (див. розділ «Потік виконання»).
+
+## Функції
+
+### `run(ctx)`
+
+```js
+export function run(ctx)
+```
+
+- **Призначення.** Запустити стандартний пайплайн правила: послідовно виконати фази `applies` → `JS-concerns` → `policy` → `mdc-refs`, делегуючи всю реалізацію спільному модулю `runStandardRule`.
+- **Параметри.**
+  - `ctx` *(опційно)* — `RuleContext` із `../../scripts/lib/run-standard-rule.mjs`. Контекст одного прогону, який можуть розділяти кілька правил (наприклад, кеш обходу файлів `walkCache`, опції CLI, агрегатор результатів тощо). Якщо `ctx` не передано, `runStandardRule` має сам ініціалізувати дефолтний контекст.
+- **Повертає.** `Promise<number>` — числовий exit-code:
+  - `0` — правило не знайшло порушень (OK);
+  - `1` — є порушення, які слід репортити вище (failure).
+- **Side effects.** Усі побічні ефекти інкапсульовано в `runStandardRule`: читання файлів проєкту через `walkCache`, перевірки policy, можливі повідомлення в `stdout`/`stderr`, оновлення спільного контексту. Сам `run` лише прокидає `import.meta.dirname` поточного файла, щоб раннер знав, до якого правила належить директорія (структура `npm/rules/<id>/` визначає `id`).
+- **Винятки.** Власних `throw` немає; будь-які помилки приходять із `runStandardRule` і не перехоплюються — їх обробляє верхній рівень (CLI-оркестратор чи `runRuleCli`).
+
+## Залежності
+
+Імпорти модуля:
+
+| Модуль | Імпортовані символи | Роль |
+| --- | --- | --- |
+| `../../scripts/lib/run-rule-cli.mjs` | `isRunAsCli`, `runRuleCli` | Допоміжні функції для standalone-режиму: визначення, що файл запущений як entry-point процесу (`isRunAsCli`), та повний CLI-цикл (`runRuleCli`) із завантаженням конфігурації, whitelist та друком summary. |
+| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` | Спільний раннер, що реалізує канонічний пайплайн правила (`applies` → `JS-concerns` → `policy` → `mdc-refs`). Також надає тип `RuleContext`, який використовується в JSDoc. |
+
+Жодних інших імпортів (зокрема Node-стандартних модулів) у файлі немає — він свідомо тонкий.
+
+Опосередковано модуль покладається на:
+
+- стандартну структуру каталогу правила (`npm/rules/<id>/`), яку розпізнає `runStandardRule` через переданий `import.meta.dirname`;
+- глобальні Node-механізми `import.meta.url` / `import.meta.dirname` для визначення власного шляху;
+- `process.exit` для термінального коду в standalone-режимі.
+
+## Потік виконання / Використання
+
+### Library-режим (виклик з оркестратора)
+
+1. CLI-оркестратор пакета (`npx @nitra/cursor fix` або агрегований прогон усіх правил) робить `import('npm/rules/security/fix.mjs')` і отримує іменований експорт `run`.
+2. Оркестратор готує спільний `RuleContext` (наприклад, ініціалізує `walkCache`, парсить аргументи) і викликає `await run(ctx)`.
+3. `run` повертає `runStandardRule(import.meta.dirname, ctx)` — це promise з exit-code правила.
+4. Оркестратор агрегує exit-коди всіх правил для фінального summary.
+
+### Standalone-режим (`bun rules/security/fix.mjs` / `node ...`)
+
+1. Після завершення імпортів виконується умовний блок `if (isRunAsCli(import.meta.url)) { ... }`.
+2. `isRunAsCli(import.meta.url)` повертає `true`, лише якщо поточний модуль є entry-point процесу (`process.argv[1]` відповідає `import.meta.url`). Це гарантує, що CLI-логіка не спрацює при звичайному імпорті.
+3. У цій гілці викликається `await runRuleCli(import.meta.dirname)` — повний CLI-цикл правила, еквівалентний `npx @nitra/cursor fix security`: завантаження конфігурації, застосування whitelist, друк summary, повернення exit-code.
+4. Отриманий exit-code передається у `process.exit(...)`, щоб CI/IDE отримали коректний статус.
+
+   Top-level `await` всередині блоку дозволено лише тому, що файл — ESM (`.mjs`), а сам блок виконується тільки в standalone-режимі.
+
+### Коментарі ESLint у файлі
+
+Рядок із `process.exit(await runRuleCli(...))` має локальну директиву:
+
+```js
+// eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+```
+
+Це свідома відмова від загальної заборони `process.exit`: для CLI entry-point потрібно повертати числовий код, інакше CI/IDE не зможуть розрізнити OK і порушення. Заборона залишається активною для решти кодової бази.
+
+### Місце у системі правил
+
+- Директорія `npm/rules/security/` визначає правило з `id = security`. Сам `fix.mjs` не вшиває цей `id` рядком — він виводиться зі шляху через `import.meta.dirname`, який передається до `runStandardRule` / `runRuleCli`.
+- Конкретна логіка перевірок (фази `applies` / `JS-concerns` / `policy` / `mdc-refs`) лежить у сусідніх файлах директорії правила та в `runStandardRule`; цей файл лише «склеює» їх із системою CLI пакета `@nitra/cursor`.
+- Патерн «library `run` + standalone `process.exit(await runRuleCli(...))`» однаковий для всіх правил пакета — він дозволяє запускати правило і в межах агрегованого прогону, і окремо для відладки/CI.

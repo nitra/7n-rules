@@ -11,6 +11,7 @@ import {
   runDocgenScanCli,
   runDocgenModulesCli
 } from '../docgen-scan.mjs'
+import { DOCGEN_IGNORE_GLOBS, isDocgenIgnoredPath } from '../docgen-ignore.mjs'
 
 describe('isSourceFile', () => {
   test('документує .js/.mjs/.ts/.vue/.py', () => {
@@ -49,18 +50,37 @@ describe('docPathForSource', () => {
 })
 
 describe('scanForDocgen', () => {
-  test('знаходить кодові файли й обчислює docPath/relSource/exists', async () => {
+  test('знаходить кодові файли й обчислює відносні sourcePath/docPath/exists', async () => {
     await withTmpDir(async (root) => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.js'), 'export const a = 1\n')
       await writeFile(join(root, 'b.ts'), 'export const b = 2\n')
 
       const items = await scanForDocgen(root)
-      const a = items.find((i) => i.relSource === join('src', 'a.js'))
-      expect(a.sourcePath).toBe(join(root, 'src', 'a.js'))
-      expect(a.docPath).toBe(join(root, 'src', 'docs', 'a.md'))
+      const a = items.find((i) => i.sourcePath === join('src', 'a.js'))
+      expect(a.sourcePath).toBe(join('src', 'a.js'))
+      expect(a.docPath).toBe(join('src', 'docs', 'a.md'))
       expect(a.exists).toBe(false)
-      expect(items.map((i) => i.relSource).toSorted()).toEqual(['b.ts', join('src', 'a.js')])
+      expect(a).not.toHaveProperty('relSource')
+      expect(items.map((i) => i.sourcePath).toSorted()).toEqual(['b.ts', join('src', 'a.js')])
+    })
+  })
+
+  test('ігнорує службові дерева за glob-ами', async () => {
+    await withTmpDir(async (root) => {
+      await ensureDir(join(root, '.pi', 'extensions'))
+      await ensureDir(join(root, '.pi-template'))
+      await ensureDir(join(root, 'benchmarks', 'demo', 'src'))
+      await ensureDir(join(root, 'demo', 'src'))
+      await ensureDir(join(root, 'src'))
+      await writeFile(join(root, '.pi', 'extensions', 'x.ts'), 'export default 1\n')
+      await writeFile(join(root, '.pi-template', 'y.js'), 'export default 1\n')
+      await writeFile(join(root, 'benchmarks', 'demo', 'src', 'z.mjs'), 'export default 1\n')
+      await writeFile(join(root, 'demo', 'src', 'main.js'), 'export default 1\n')
+      await writeFile(join(root, 'src', 'keep.js'), 'export default 1\n')
+
+      const items = await scanForDocgen(root)
+      expect(items.map((i) => i.sourcePath)).toEqual(['src/keep.js'])
     })
   })
 
@@ -73,7 +93,7 @@ describe('scanForDocgen', () => {
       await writeFile(join(root, 'index.js'), 'export default 1\n')
 
       const items = await scanForDocgen(root)
-      expect(items.map((i) => i.relSource)).toEqual(['index.js'])
+      expect(items.map((i) => i.sourcePath)).toEqual(['index.js'])
     })
   })
 
@@ -84,7 +104,7 @@ describe('scanForDocgen', () => {
       await writeFile(join(root, 'real.js'), 'export default 1\n')
 
       const items = await scanForDocgen(root)
-      expect(items.map((i) => i.relSource)).toEqual(['real.js'])
+      expect(items.map((i) => i.sourcePath)).toEqual(['real.js'])
     })
   })
 
@@ -95,9 +115,25 @@ describe('scanForDocgen', () => {
       await writeFile(join(root, 'docs', 'foo.md'), '# є\n')
 
       const items = await scanForDocgen(root)
-      expect(items[0].relSource).toBe('foo.js')
+      expect(items[0].sourcePath).toBe('foo.js')
       expect(items[0].exists).toBe(true)
     })
+  })
+})
+
+describe('docgen ignore globs', () => {
+  test('має окремий список glob-ів для службових дерев', () => {
+    expect(DOCGEN_IGNORE_GLOBS).toContain('.pi/**')
+    expect(DOCGEN_IGNORE_GLOBS).toContain('.pi-template/**')
+    expect(DOCGEN_IGNORE_GLOBS).toContain('**/benchmarks/**')
+    expect(DOCGEN_IGNORE_GLOBS).toContain('**/demo/**')
+  })
+
+  test('розпізнає ignored path для службових дерев', () => {
+    expect(isDocgenIgnoredPath('.pi/extensions/x.ts')).toBe(true)
+    expect(isDocgenIgnoredPath('benchmarks/demo/src/z.mjs')).toBe(true)
+    expect(isDocgenIgnoredPath('demo/src/main.js')).toBe(true)
+    expect(isDocgenIgnoredPath('src/keep.js')).toBe(false)
   })
 })
 
@@ -120,7 +156,9 @@ describe('runDocgenScanCli', () => {
       expect(lines).toHaveLength(1)
       const parsed = JSON.parse(lines[0])
       expect(Array.isArray(parsed)).toBe(true)
-      expect(parsed[0].relSource).toBe('foo.js')
+      expect(parsed[0].sourcePath).toBe('foo.js')
+      expect(parsed[0].docPath).toBe(join('docs', 'foo.md'))
+      expect(parsed[0]).not.toHaveProperty('relSource')
     })
   })
 

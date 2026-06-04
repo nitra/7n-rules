@@ -1,0 +1,110 @@
+# Модуль `benchmarks/runner-comparison/demo/src/retry.mjs`
+
+## Огляд
+
+Модуль `benchmarks/runner-comparison/demo/src/retry.mjs` надає одну асинхронну функцію `retry()`, що повторно виконує задану операцію зі стратегією експоненційного відставання (exponential backoff). Файл є частиною демо-проєкту `benchmarks/runner-comparison/demo` та існує як прикладна реалізація механізму повторних спроб для бенчмарків runner-ів. Якщо всі спроби завершуються помилкою, функція `retry()` кидає підсумкову помилку із вкладеною оригінальною помилкою останньої спроби (через `Error.cause`).
+
+## Експорти / API
+
+Модуль `benchmarks/runner-comparison/demo/src/retry.mjs` експортує одну іменовану асинхронну функцію:
+
+| Експорт | Тип | Призначення |
+| --- | --- | --- |
+| `retry` | `async function` (named export) | Повторно виконує операцію з експоненційним backoff і кидає помилку, якщо вичерпано всі спроби. |
+
+Інших експортів (default, констант, класів) у модулі `benchmarks/runner-comparison/demo/src/retry.mjs` немає.
+
+## Функції
+
+### Функція `retry(fn, opts)`
+
+Асинхронна функція `retry()` у модулі `benchmarks/runner-comparison/demo/src/retry.mjs` виконує `fn` повторно зі зростаючою затримкою між спробами, поки не отримає успішний результат або поки не вичерпає бюджет спроб.
+
+Сигнатура (за JSDoc у файлі `benchmarks/runner-comparison/demo/src/retry.mjs`):
+
+```js
+export async function retry(fn, opts = {})
+```
+
+Параметри функції `retry()`:
+
+| Параметр | Тип | За замовчуванням | Опис |
+| --- | --- | --- | --- |
+| `fn` | `(attempt: number) => unknown \| Promise<unknown>` | — (обовʼязковий) | Операція для виконання. Викликається з номером поточної спроби `attempt` (нумерація з `0`). Може повертати як синхронне значення, так і `Promise`. Результат `await`-ається. |
+| `opts` | `{maxAttempts?: number, baseDelay?: number, factor?: number}` | `{}` | Налаштування повторів. |
+| `opts.maxAttempts` | `number` | `3` | Максимальна кількість спроб виконати `fn`. |
+| `opts.baseDelay` | `number` | `10` | Базова затримка у мілісекундах перед другою спробою. |
+| `opts.factor` | `number` | `2` | Множник експоненційного зростання затримки між наступними спробами. |
+
+Повертає функція `retry()` у модулі `benchmarks/runner-comparison/demo/src/retry.mjs`:
+
+- `Promise<unknown>` — значення, яке повернуло перше успішне виконання `fn(attempt)`.
+
+Викидає функція `retry()`:
+
+- `Error` із повідомленням, що збігається з повідомленням останньої перехопленої помилки `lastErr.message`, і з полем `cause`, встановленим у `lastErr` (через `new Error(lastErr.message, { cause: lastErr })`). Кидається лише тоді, коли цикл вичерпав `maxAttempts` спроб без успіху.
+
+Side effects функції `retry()`:
+
+- Викликає `await sleep(delay)` (псевдонім `setTimeout` із `node:timers/promises`) між неуспішними спробами — це призводить до асинхронного очікування в event loop Node.js на `delay` мілісекунд.
+- Викликає переданий `fn(attempt)`, який може мати власні side effects (мережа, IO, мутації стану) — функція `retry()` їх не контролює.
+- Не виконує `console.log`, не зберігає стан між викликами та не модифікує переданий обʼєкт `opts`.
+
+Внутрішні змінні функції `retry()`:
+
+- `maxAttempts` — обчислюється як `opts.maxAttempts ?? 3` (оператор `??` означає, що `0` або `null` тут не замінюються на `3`, лише `undefined`).
+- `baseDelay` — `opts.baseDelay ?? 10`.
+- `factor` — `opts.factor ?? 2`.
+- `attempt` — лічильник спроб, починається з `0`.
+- `lastErr` — остання перехоплена помилка; ініціалізується як `new Error('Retry failed')` на випадок, якщо цикл якимось чином не виконається (захист від невизначеного `lastErr`).
+
+Логіка обчислення затримки між спробами у функції `retry()`:
+
+- Після `attempt += 1` (тобто вже з `1`, `2`, …, `maxAttempts - 1`), якщо `attempt < maxAttempts`, обчислюється `delay = baseDelay * factor ** (attempt - 1)`.
+- При значеннях за замовчуванням (`baseDelay = 10`, `factor = 2`) затримки перед другою/третьою спробою становлять `10 * 2 ** 0 = 10` мс і `10 * 2 ** 1 = 20` мс відповідно.
+
+## Залежності
+
+Файл `benchmarks/runner-comparison/demo/src/retry.mjs` має одну зовнішню залежність — вбудований модуль Node.js:
+
+| Імпорт | Джерело | Псевдонім | Навіщо |
+| --- | --- | --- | --- |
+| `setTimeout` | `node:timers/promises` | `sleep` | Промісифікований `setTimeout` Node.js, що повертає `Promise`, який резолвиться після заданої кількості мілісекунд; використовується для асинхронної паузи `await sleep(delay)` між спробами. |
+
+Зовнішніх npm-залежностей файл `benchmarks/runner-comparison/demo/src/retry.mjs` не має. Розширення `.mjs` означає, що модуль використовується як ESM незалежно від `package.json` довколишнього пакета.
+
+## Потік виконання / Використання
+
+Типове використання функції `retry()` із модуля `benchmarks/runner-comparison/demo/src/retry.mjs`:
+
+```js
+import { retry } from './retry.mjs'
+
+const result = await retry(async (attempt) => {
+  // attempt = 0, 1, 2, ...
+  return await doSomethingThatMayFail(attempt)
+}, { maxAttempts: 5, baseDelay: 50, factor: 2 })
+```
+
+Покроковий потік виконання функції `retry()`:
+
+1. Зчитуються параметри з `opts`: `maxAttempts`, `baseDelay`, `factor` із заміною `undefined` на дефолтні значення `3`, `10`, `2`.
+2. Ініціалізуються `attempt = 0` та `lastErr = new Error('Retry failed')`.
+3. Починається цикл `while (attempt < maxAttempts)`:
+   - Гілка успіху: `return await fn(attempt)` — якщо виклик `fn(attempt)` (або `Promise`, який він повертає) резолвиться, функція `retry()` одразу повертає його значення з циклу та з самої функції.
+   - Гілка помилки (`catch (error)`):
+     - Нормалізація помилки: якщо `error instanceof Error`, `lastErr = error`; інакше `lastErr = new Error(String(error))` — обгортка для не-`Error` викидів (рядків, чисел тощо).
+     - Інкремент: `attempt += 1`.
+     - Перевірка вичерпання спроб: якщо `attempt >= maxAttempts`, виконується `break` і цикл завершується без затримки.
+     - Інакше: обчислюється `delay = baseDelay * factor ** (attempt - 1)` і виконується `await sleep(delay)` перед наступною ітерацією.
+4. Якщо вийшли з циклу через `break` (усі спроби невдалі), функція `retry()` кидає `throw new Error(lastErr.message, { cause: lastErr })`. У результаті:
+   - Зовнішній код отримує `Error` із тим самим повідомленням, що й остання спроба, і має доступ до оригінальної помилки через властивість `cause`.
+
+Ключові гілки логіки функції `retry()`:
+
+- Якщо `maxAttempts <= 0`, цикл `while` не виконається жодного разу, і функція одразу кине `new Error('Retry failed', { cause: ... })` із `lastErr = new Error('Retry failed')` (повідомлення в `throw new Error(lastErr.message, ...)` буде `'Retry failed'`).
+- Якщо `fn(0)` успішно резолвиться з першої спроби, функція `retry()` ніколи не викликає `sleep()` і не доходить до `throw`.
+- Якщо `fn` синхронно повертає не-`Promise`, `await` коректно обгортає це значення в `Promise.resolve(...)` і повертає його.
+- Між останньою невдалою спробою та `throw` затримки `sleep()` не виконується — `break` спрацьовує до виклику `sleep()`.
+
+Модуль `benchmarks/runner-comparison/demo/src/retry.mjs` призначений для виклику з боку коду демо-проєкту `benchmarks/runner-comparison/demo`, який імпортує `retry` за відносним шляхом (наприклад, `./retry.mjs`) і використовує його для побудови сценаріїв з повторюваними асинхронними операціями.
