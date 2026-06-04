@@ -1,0 +1,26 @@
+docs/coverage-fix-skill.md
+  s_58c5f882a1f533::t_b78410f523419f 93
+  s_58c5f882a1f533::t_bd63f8ac93ca78 89
+  s_58c5f882a1f533::t_3209602302c40f 42
+  s_58c5f882a1f533::t_3ef7ee77995fa7 27,68,82-83,117-121,136-139,141
+  s_58c5f882a1f533::t_bf1f404cdeae15 1-26,28-41,43-67,69-81,84-88,90-92,94-116,122-135,140,142-143
+.cspell.json
+  s_58c5f882a1f533::t_997a79140c3bd2 26,28
+  s_58c5f882a1f533::t_f2881def6dab89 21-25,27,29-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "e9f0f61e5762acd0ebe833b39809a8f1c304a9f1",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
