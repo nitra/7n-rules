@@ -27,7 +27,7 @@ template_data := {"snippet": {
 					"github_token": "${{ github.token }}",
 					"last_commit_age_days": 90,
 					"ignore_branches": "main,dev",
-					"dry_run": false,
+					"dry_run": "no",
 				},
 			},
 			{
