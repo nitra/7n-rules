@@ -60,9 +60,9 @@ await pgWrite.unsafe(sql)
 await pgWrite`
   WITH s(id, date, data) AS (
     SELECT * FROM unnest(
-      ${pgWrite.array(batch.map(r => r.id),   'int4')},
-      ${pgWrite.array(batch.map(r => r.date), 'date')},
-      ${pgWrite.array(batch.map(r => r.data), 'jsonb')}
+      ${pgWrite.array(col(batch, 'id'),   'int4')},
+      ${pgWrite.array(col(batch, 'date'), 'date')},
+      ${pgWrite.array(col(batch, 'data'), 'jsonb')}
     )
   )
   MERGE INTO my_table AS t
@@ -107,7 +107,7 @@ await sql`SELECT * FROM unnest(${sql.array(batch.map(r => JSON.stringify(r.data)
 // ✅ об'єкт/масив передається напряму
 await sql`INSERT INTO events (details) VALUES (${detailsForEvent}::jsonb)`
 
-await sql`SELECT * FROM unnest(${sql.array(batch.map(r => r.data), 'jsonb')})`
+await sql`SELECT * FROM unnest(${sql.array(col(batch, 'data'), 'jsonb')})`
 ```
 
 `UNION ALL`-цикл замість `unnest` підходить для малих динамічних запитів (2–5 рядків), де кожна гілка семантично різна. Для bulk upsert — завжди `unnest`.
@@ -300,15 +300,22 @@ const rows = await sql.unsafe(query, values)
 
 Дефолтний експорт `sql` з `'bun'` сам читає змінні середовища (`DATABASE_URL`, `POSTGRES_URL`, `MYSQL_URL`, `PGHOST`/`PGUSER`/... та `MYSQL_HOST`/`MYSQL_USER`/...) і керує пулом — окремий `Pool` як у `pg` створювати не треба.
 
-Для явного конфігу — `new SQL(...)` як **singleton** на рівні модуля, а не на кожен запит:
+Для явного конфігу — `new SQL(...)` як **singleton** на рівні модуля, а не на кожен запит. Файл кладеться у `src/conn/db.js` і експортує іменовані константи `pgWrite` (основний запис) та `pgRead` (read-only replica), щоб glob `**/src/conn/**` у правилах покривав ці файли:
 
 ```javascript
-// db.js
+// src/conn/db.js
 import { SQL } from 'bun'
 
-export const sql = new SQL({
+export const pgWrite = new SQL({
   url: process.env.DATABASE_URL,
   max: 20,
+  idleTimeout: 30,
+  connectionTimeout: 10
+})
+
+export const pgRead = new SQL({
+  url: process.env.PG_CONN_READ ?? process.env.DATABASE_URL,
+  max: 10,
   idleTimeout: 30,
   connectionTimeout: 10
 })
@@ -443,6 +450,28 @@ ${pgRead.array(ids, 'int4')}
 | date string   | date           | `'date'`        |
 | ISO datetime  | timestamptz    | `'timestamptz'` |
 
+### `col(arr, key)` — хелпер для unnest-колонок
+
+OXC formatter (oxfmt ≥ 0.49) примусово розгортає будь-який `CallExpression`, де перший аргумент є `CallExpression` з callback, у багаторядковий блок — незалежно від `printWidth`. Тому `pgWrite.array(arr.map(r => r.field), 'type')` всередині tagged template literal завжди стає 4-рядковим блоком. `col(arr, 'field')` (перший аргумент — identifier, другий — string literal) цей тригер не зачіпає і лишається однорядковим.
+
+Канонічне місце хелпера — `src/utils/col.js` (або `src/conn/col.js` залежно від структури проєкту):
+
+```javascript
+// src/utils/col.js
+export const col = (arr, key) => arr.map(r => r[key])
+```
+
+```javascript
+import { pgWrite } from '#src/conn/db.js'
+import { col } from '#src/utils/col.js'
+
+// ❌ oxfmt розгортає на 4+ рядки незалежно від printWidth
+${pgWrite.array(rows.map(r => r.id), 'int4')}
+
+// ✅ col(arr, key) — перший аргумент не є callback; oxfmt лишає однорядковим
+${pgWrite.array(col(rows, 'id'), 'int4')}
+```
+
 ### Повний приклад (UNNEST + MERGE)
 
 ```javascript
@@ -450,10 +479,10 @@ await pgWrite`
   MERGE INTO "order".product p
   USING (
     SELECT * FROM unnest(
-      ${pgWrite.array(rows.map(r => r.order_id), 'uuid')},
-      ${pgWrite.array(rows.map(r => r.product_id), 'int4')},
-      ${pgWrite.array(rows.map(r => r.qty), 'numeric')},
-      ${pgWrite.array(rows.map(r => r.is_refund), 'bool')}
+      ${pgWrite.array(col(rows, 'order_id'), 'uuid')},
+      ${pgWrite.array(col(rows, 'product_id'), 'int4')},
+      ${pgWrite.array(col(rows, 'qty'), 'numeric')},
+      ${pgWrite.array(col(rows, 'is_refund'), 'bool')}
     ) AS s(order_id, product_id, qty, is_refund)
   ) AS s ON p.order_id = s.order_id AND p.product_id = s.product_id
   WHEN MATCHED THEN
@@ -582,8 +611,8 @@ ws.connect(url) // allow-pg-leftover: WebSocket, не pg
 ```javascript
 // ❌ нове підключення/інстанс на кожен виклик
 function getUser(id) {
-  const sql = new SQL(process.env.DATABASE_URL)
-  return sql`SELECT * FROM users WHERE id = ${id}`
+  const pgWrite = new SQL(process.env.DATABASE_URL)
+  return pgWrite`SELECT * FROM users WHERE id = ${id}`
 }
 ```
 

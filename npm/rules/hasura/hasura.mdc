@@ -26,3 +26,17 @@ HASURA_GRAPHQL_ENDPOINT=http://contract-h-hl.ua-contract.svc.abie-ua.internal:80
 Правило застосовується для проєктів **nitra** (у кореневому `package.json` `"repository": "https://github.com/nitra/*"`) і **abie** (`"repository": "https://github.com/abinbevefes/*"`); для інших репозиторіїв перевірка пропускається.
 
 Файл .env це (без імені) це виключення з цього правила, його змінювати не потрібно
+
+## Міграції: лише `up.sql`, без `down.sql`
+
+При створенні будь-якої нової директорії міграції у `hasura/migrations/` **не створювати файл `down.sql`**.
+У директорії міграції має бути **тільки `up.sql`**.
+
+Приклад коректної структури:
+
+```
+hasura/migrations/default/1781247030100_add_foo/
+└── up.sql   ✓
+```
+
+Файл `down.sql` у цьому проєкті **не використовується** і не повинен з'являтися.
