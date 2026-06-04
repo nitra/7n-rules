@@ -1,0 +1,197 @@
+npm/rules/abie/js/docs/applies.md
+  s_f3553eb6029c44::t_9244bfa4e6cdfa 9-11,13,15-17,21,23-26
+docs/adr/20260601-095434-n-cursor-cli-приховати-підсумки-без-помилок.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1,3-4,7-8,11,16-17,20-21,25-28
+npm/scripts/worktree-cli.mjs
+  s_21d63eaa8bcd2f::t_a958f6bbc1cb38 19-25
+  s_21d63eaa8bcd2f::t_9f39270af8d05c 5
+  s_21d63eaa8bcd2f::t_90198b6f6d840b 119-121
+  s_21d63eaa8bcd2f::t_e8cfb17f7a7c01 132
+docs/adr/260604-1954-нагадування-про-незакомічені-зміни-при-worktree-add.md
+  s_58c5f882a1f533::t_d7fb4d9076c5c9 2-4,7,10,13-15,18,21-22,25-32,36,39,42-43,46,49,53-55
+docs/adr/20260601-095343-bun-build-compile-заборона-native-addons.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1,3-4,7-8,11,16-17,20-23,26-29,31-34
+npm/rules/abie/lib/docs/kustomization-patches.md
+  s_f3553eb6029c44::t_a25a5b7de7e175 5,7,9,11,13-15,17,19-25,27,29,31,33-35,37,39-40,42,44-47
+CLAUDE.md
+  s_58c5f882a1f533::t_28683127063036 6
+hk.pkl
+  s_99e0e17f5453bc::t_fa9fbebd90f209 15-18
+npm/scripts/tests/worktree-cli.test.mjs
+  s_21d63eaa8bcd2f::t_109120c9924b62 54-83
+docs/adr/260604-2000-лаконічний-поведінковий-стиль-документації-в-docgen.md
+  s_58c5f882a1f533::t_6b4c30a96d5cde 2-4,7,10,13-14,17,20,24-25,29,32,35-36,39,42-43,46-53
+npm/rules/changelog/changelog.mdc
+  s_99e0e17f5453bc::t_7865ba6596b0a2 19
+  s_99e0e17f5453bc::t_5b87ef5b83c205 3
+npm/rules/abie/docs/fix.md
+  s_f3553eb6029c44::t_6736fa04e1940c 1,5,7,9-12,14,16-18
+npm/rules/abie/lib/docs/yaml.md
+  s_f3553eb6029c44::t_d793a0c30c85d5 1,5,7,9,11-14,16,18,20,22,24,26-29
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_58c5f882a1f533::t_dada3a64171581 177
+npm/rules/changelog/js/consistency.mjs
+  s_99e0e17f5453bc::t_4c22dce7638ec3 730,733
+  s_99e0e17f5453bc::t_b4ad28c0a59ddf 22-28,31,41,46-56
+  s_99e0e17f5453bc::t_bf2abf11d6f757 607,611
+  s_99e0e17f5453bc::t_919120952dcd27 675
+  s_99e0e17f5453bc::t_31ed9cb48c4e78 686,694
+  s_99e0e17f5453bc::t_b615c0c22e7015 454-460,463-498
+  s_99e0e17f5453bc::t_35e8869c565768 499-516,544,551,556
+  s_99e0e17f5453bc::t_af465ebc7404cf 642
+  s_99e0e17f5453bc::t_8993ebd0e56962 648,653
+  s_99e0e17f5453bc::t_1a3c4426b2b4f9 564,570
+  s_99e0e17f5453bc::t_65b28896c34ca3 618,623
+  s_99e0e17f5453bc::t_7686ba17ae0a3d 521,527
+.cursor/skills/n-docgen/SKILL.md
+  s_ae2c2d88fccd24::t_a6e0f9822252b3 282-283
+  s_f3553eb6029c44::t_f85d8324c7286f 166-168,170-172,174-178,180
+  s_f3553eb6029c44::t_83806032f77690 76
+  s_f3553eb6029c44::t_825142dbea0987 4
+docs/adr/20260601-093533-vue-component-library-auto-import-виняток.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1,3-4,8,11,13,16-17,20-21,25-31
+.n-cursor.json
+  s_58c5f882a1f533::t_28683127063036 25
+npm/skills/docgen/SKILL.md
+  s_f3553eb6029c44::t_cd7692fd37216c 101-103,105-107,109-113,115
+  s_f3553eb6029c44::t_7a6b09fd6c2ca1 4
+  s_ae2c2d88fccd24::t_b95de7a6ef2f86 217-218
+  s_f3553eb6029c44::t_b72f25c2a99d1f 11
+npm/.changes/260604-1957.md
+  s_58c5f882a1f533::t_e781accbad6f7f 1-4,6
+  s_58c5f882a1f533::t_28683127063036 5
+npm/skills/docgen/js/docgen-ignore.mjs
+  s_ae2c2d88fccd24::t_3c3c4b58de990f 38-40,42,45
+npm/rules/changelog/js/docs/consistency.md
+  s_99e0e17f5453bc::t_0411c471335bdc 40
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_99e0e17f5453bc::t_6922a951307970 848-849
+  s_99e0e17f5453bc::t_32dae9bb89fd0a 800-806
+  s_99e0e17f5453bc::t_b40c312b999a23 799,811-847,850-889
+  s_99e0e17f5453bc::t_4b8a3c6defeca4 22
+docs/adr/20260531-201759-oxlint-canonical-json-єдине-джерело.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1,3-4,7-8,11-12,16-17,20-22,26-27
+npm/rules/abie/js/docs/ua_node_selector.md
+  s_f3553eb6029c44::t_18c31562e885b5 1,5,7,9-16,18,20,22,24-28
+npm/rules/abie/lib/docs/env-dns.md
+  s_f3553eb6029c44::t_77e3f8a20f1579 1,5,7,9,11-13,15,17-20,22,24,26,28,30,32-35
+.docgen-scan.json
+  s_53b9673b9290ba::t_fb57c57f9be5fd 1152-1156,2042-2046,2917-2921,3782-3786,4646-4649
+.changes/260604-1950.md
+  s_21d63eaa8bcd2f::t_4d42e953a60830 2-3,5
+.pi/skills/n-docgen/SKILL.md
+  s_f3553eb6029c44::t_42bd8fae888db6 4
+npm/rules/abie/js/docs/hc_pairing.md
+  s_f3553eb6029c44::t_5c9093a965690c 9-17,19,22,25,27,29,31-35
+docs/adr/20260601-065307-worktree-skills-fail-fast-preflight.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1-32
+npm/.changes/260604-1936.md
+  s_99e0e17f5453bc::t_0200e37f7eb581 2-3,5
+npm/rules/abie/lib/docs/k8s-tree.md
+  s_f3553eb6029c44::t_3510f0da132226 1,5,7,9,11-14,16,18-22,24,26-27,29,31,33,35,37-40
+npm/scripts/lib/tests/worktree.test.mjs
+  s_21d63eaa8bcd2f::t_a958f6bbc1cb38 4-11
+  s_21d63eaa8bcd2f::t_eb87b913b9ce47 80-107
+.github/workflows/npm-publish.yml
+  s_99e0e17f5453bc::t_5d547c0a45ad30 6,31-32
+docs/adr/20260601-063852-cursor-test-mdc-без-n-префіксу.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1,3-4,8,12-13,16-17,20-21,26,28
+npm/skills/coverage-fix/SKILL.md
+  s_58c5f882a1f533::t_9a867403938158 27,29-36,38,41
+  s_58c5f882a1f533::t_b2b302207e609d 108,116
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_58c5f882a1f533::t_28683127063036 8,71
+  s_58c5f882a1f533::t_d6649077515749 175,183
+  s_58c5f882a1f533::t_550614249567b0 94,96-103,105,108
+npm/scripts/lib/worktree.mjs
+  s_21d63eaa8bcd2f::t_aa638735867909 90-115
+.cursor/rules/n-ci4.mdc
+  s_ae2c2d88fccd24::t_355773e31c7076 94
+  s_ae2c2d88fccd24::t_5d3e6e9c2bcb06 95
+  s_ae2c2d88fccd24::t_89a37cce64ee31 85-93,96
+npm/rules/abie/lib/docs/http-route.md
+  s_f3553eb6029c44::t_e1409e829cbd5f 5-26,28,30-31,33,35,37,39-44
+npm/rules/abie/js/docs/firebase_hosting.md
+  s_f3553eb6029c44::t_666f3f5c2e8ad1 9-16,18,20-23
+npm/rules/abie/js/docs/env_dns.md
+  s_f3553eb6029c44::t_8b92459659fe0e 9-18,20,22,24,26,28-30
+npm/rules/abie/lib/docs/hc-yaml.md
+  s_f3553eb6029c44::t_34f21172660ee2 5,7,9-14,16,18-19,22,24,26,28,30-33
+npm/skills/docgen/js/docgen-scan.mjs
+  s_ae2c2d88fccd24::t_069e247c1709c0 14,80,85,134
+  s_ae2c2d88fccd24::t_9e7b3117c51130 23-32,83
+docs/adr/20260531-204122-eslint-config-мінімальна-версія-snippet.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1-33
+docs/adr/20260601-091806-docker-nginx-unprivileged-user-root-заборона.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1-32
+docs/adr/260604-1903-зміна-стилю-документації-скілу-docgen-поведінка-замість-реал.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1-33
+npm/rules/abie/js/docs/ua_http_route.md
+  s_f3553eb6029c44::t_0d18f00d130db5 1,5,7,9-16,18,20,22,24-28
+docs/adr/260604-1912-запуск-worktree-only-скілу-n-fix-через-автоматичне-створення.md
+  s_99e0e17f5453bc::t_5d547c0a45ad30 1-28
+npm/rules/abie/lib/docs/enabled.md
+  s_f3553eb6029c44::t_63743f87fa8845 5,9-15,23,27-29
+npm/rules/abie/lib/docs/overlay-paths.md
+  s_f3553eb6029c44::t_ef86cee50e9e53 1,5,7,9,11-18,20,22,24,26,28-30,32,34-38
+npm/skills/docgen/js/tests/docgen-scan.test.mjs
+  s_ae2c2d88fccd24::t_4c666de9953b6f 53,66,163,208-210,220
+  s_ae2c2d88fccd24::t_3bcb080b3bc4c7 14,133-139
+  s_ae2c2d88fccd24::t_07ceaf29036a68 55,146,203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "472bf4872a78c77893d1d67bd848720795b45745",
+  "prompts": {},
+  "sessions": {
+    "s_21d63eaa8bcd2f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "889efce9-844a-483c-84fa-b12a55f91b76",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_53b9673b9290ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e8e88-5765-7a30-8baf-8b1028b2b984",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_99e0e17f5453bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07733932-6418-491f-a9b3-8f94fb6836d9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ae2c2d88fccd24": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8e88-5765-7a30-8baf-8b1028b2b984",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
