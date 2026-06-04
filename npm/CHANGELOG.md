@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.22.0] - 2026-06-04
+
+### Added
+
+- js-lint quick-режим класифікує lint-findings на introduced (рядок у diff від HEAD) vs pre-existing (борг файлу) і позначає у виводі (🆕/🗄) — щоб дотик до файлу не плутав «моє чи старий борг». Захоплює oxlint/eslint --format=json, парсить added-lines git-diff, групує. Блокування без змін (#6/A). Краш інструмента не пропускається тихо.
+
+### Changed
+
+- detectLevel: сигнал складності (mdc/policy/rego/checker/правило/rules/суперечн/інваріант/violation тощо) разом із fix-дієсловом → L2, а не L0 — rules/checks-задачі не класифікуються як тривіальні. Лише складність перекриває L0 (L2-ключі порядок не міняють); 'правило/правила' замість 'правил' (не ловить 'правильно'); без 'conflict' (merge conflict не L2).
+
+### Fixed
+
+- Виправлено canonical clean-merged-branch.yml: dry_run використовує підтримуване action значення no.
+
 ## [3.21.1] - 2026-06-04
 
 ### Changed
