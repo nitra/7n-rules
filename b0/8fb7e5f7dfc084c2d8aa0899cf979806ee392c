@@ -1,0 +1,72 @@
+npm/skills/docgen/js/docgen-scan.mjs
+  s_ae2c2d88fccd24::t_1ca7fe013a7b8d 103,120,122
+  s_ae2c2d88fccd24::t_238d979c4263fd 14,67,69,72-73
+  s_ae2c2d88fccd24::t_c09500185b85bc 4-7,35,37,78,161
+  s_ae2c2d88fccd24::t_c8c318718cda55 50,74,76,154,164
+npm/skills/docgen/SKILL.md
+  s_ae2c2d88fccd24::t_caa45761b39824 53
+  s_f3553eb6029c44::t_cd7692fd37216c 101-103,105-107,109-112,114
+  s_ae2c2d88fccd24::t_0fc6d1988bf719 49
+  s_908f06499a709d::t_5b9dcd9005d9d1 82,96-100,104,108,115
+.cursor/skills/n-docgen/SKILL.md
+  s_ae2c2d88fccd24::t_921dfbc7fd84e8 114
+  s_908f06499a709d::t_17afdcb90141cf 147,161-165,169,173,180
+  s_f3553eb6029c44::t_f85d8324c7286f 166-168,170-172,174-177,179
+  s_ae2c2d88fccd24::t_fc18747e63620a 118
+npm/skills/docgen/js/tests/docgen-scan.test.mjs
+  s_ae2c2d88fccd24::t_95e502827809a1 61-62,159-160
+  s_ae2c2d88fccd24::t_6bc775d077d87f 14,69-83,124-125,128-136
+  s_ae2c2d88fccd24::t_e321e0bc2a01fb 53,60,65,96,107,118
+  s_ae2c2d88fccd24::t_667248865b7112 126-127
+  s_ae2c2d88fccd24::t_4ad5881e187a33 64,161
+npm/bin/n-cursor.js
+  s_ae2c2d88fccd24::t_7a5b099a55bc9b 27
+npm/bin/docs/n-cursor.md
+  s_ae2c2d88fccd24::t_1889d123cc8f64 35
+.docgen-scan.json
+  s_53b9673b9290ba::t_ff382e11f83b04 3-4634
+npm/skills/docgen/js/docgen-ignore.mjs
+  s_ae2c2d88fccd24::t_63b7bd84e256f2 1-12,14-15,21-38,40-63
+  s_ae2c2d88fccd24::t_d89c8ceba0ed2b 18-20
+  s_ae2c2d88fccd24::t_0582421d3d491e 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "b08fb7e5f7dfc084c2d8aa0899cf979806ee392c",
+  "prompts": {},
+  "sessions": {
+    "s_53b9673b9290ba": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e8e88-5765-7a30-8baf-8b1028b2b984",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_908f06499a709d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6fc96069-99f4-4ed9-9e0f-c3141539c857",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ae2c2d88fccd24": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e8e88-5765-7a30-8baf-8b1028b2b984",
+        "model": "gpt-5.4-mini"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
