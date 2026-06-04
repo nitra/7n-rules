@@ -1,0 +1,20 @@
+npm/rules/abie/lib/docs/enabled.md
+  s_f3553eb6029c44::t_63743f87fa8845 5,10,22
+  s_f3553eb6029c44::t_13e6202bd29a92 7,20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "767c7c5d8192c8e9d7007e060081690df12b1384",
+  "prompts": {},
+  "sessions": {
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
