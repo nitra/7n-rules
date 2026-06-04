@@ -1,6 +1,6 @@
 ---
 description: K8s YAML — $schema (yaml-language-server); lint-k8s (kubeconform, kubescape); check-k8s
-version: '1.42'
+version: '1.43'
 globs: "**/k8s/**/*.yaml"
 alwaysApply: false
 ---
@@ -422,7 +422,7 @@ images:
 - **`hpa.yaml`** — `autoscaling/v2`, `HorizontalPodAutoscaler`, **без** `metadata.namespace` (namespace задає kustomization-споживач), `spec.scaleTargetRef.name` **= `metadata.name`** Deployment з base, dev-like значення `minReplicas: 1`, `maxReplicas: 1`.
 - **`pdb.yaml`** — `policy/v1`, `PodDisruptionBudget`, **без** `metadata.namespace`, `spec.selector.matchLabels.app` **= `spec.selector.matchLabels.app`** Deployment, dev-like `minAvailable: 0`.
 
-**Канонічний `base/networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace` (namespace додає `base/kustomization.yaml`); один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у тому ж `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns через `kube-system` namespaceSelector (UDP/TCP 53); link-local DNS `169.254.0.0/16` (UDP/TCP 53, GKE NodeLocal DNSCache); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). **StatefulSet** додатково має egress/ingress `to/from.podSelector: {}` для intra-replica реплікації. Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові правила можна дописати поряд — superset-підхід. Канон — два **повних** snippet-файли (без merge у runtime; JS-генератор/rego обирають один за `kind` workload-у через анотацію `metadata.annotations['nitra.dev/workload-kind']`): [deployment.snippet.yaml](./policy/network_policy/template/deployment.snippet.yaml) (для `Deployment`/`Job`/`CronJob`/`DaemonSet`) та [stateful-set.snippet.yaml](./policy/network_policy/template/stateful-set.snippet.yaml) (для `StatefulSet`; містить deployment-канон + intra-replica правила). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
+**Канонічний `base/networkpolicy.yaml`** — `networking.k8s.io/v1`, `NetworkPolicy`, **без** `metadata.namespace` (namespace додає `base/kustomization.yaml`); один або кілька документів (`---`) — по одному на кожен workload (**Deployment** / **StatefulSet** / **DaemonSet** / **Job** / **CronJob**) у тому ж `base/`; `metadata.name` **= `metadata.name`** workload, `spec.podSelector.matchLabels.app` **= мітка `app`** workload. **Ingress:** `from.podSelector: {}` (інші Pod у namespace). **Egress (усі workload-и):** kube-dns через `kube-system` namespaceSelector (UDP/TCP 53); link-local DNS `169.254.0.0/16` (UDP/TCP 53, GKE NodeLocal DNSCache); **TCP 80 і 443** на `0.0.0.0/0` (HTTP/HTTPS назовні); **in-cluster** — `to.namespaceSelector: {}` з **явним списком TCP-портів** (`80, 443, 5432, 3306, 1433, 6379, 8080, 4222, 4317, 4318`; трафік на `*.svc` / Pod-и в кластері). **StatefulSet** додатково має egress/ingress `to/from.podSelector: {}` для intra-replica реплікації. Заборонено: `egress: [{}]`; `to.namespaceSelector: {}` без `ports:` (catch-all). Додаткові правила можна дописати поряд — superset-підхід. Канон — два **повних** snippet-файли (без merge у runtime; JS-генератор/rego обирають один за `kind` workload-у через анотацію `metadata.annotations['nitra.dev/workload-kind']`): [deployment.snippet.yaml](./policy/network_policy/template/deployment.snippet.yaml) (для `Deployment`/`Job`/`CronJob`/`DaemonSet`) та [stateful-set.snippet.yaml](./policy/network_policy/template/stateful-set.snippet.yaml) (для `StatefulSet`; містить deployment-канон + intra-replica правила). Якщо документа для workload немає — **`check k8s`** дописує його автоматично.
 
 Інші назви каталогу (`scale/`, `hpa-component/`, `pdb-component/`) — fail.
 
@@ -605,6 +605,8 @@ spec:
           port: 6379
         - protocol: TCP
           port: 8080
+        - protocol: TCP
+          port: 4222
         - protocol: TCP
           port: 4317
         - protocol: TCP

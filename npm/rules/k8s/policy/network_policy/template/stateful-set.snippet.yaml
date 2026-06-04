@@ -58,6 +58,8 @@ spec:
         - protocol: TCP
           port: 8080
         - protocol: TCP
+          port: 4222
+        - protocol: TCP
           port: 4317
         - protocol: TCP
           port: 4318
