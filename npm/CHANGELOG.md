@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.21.0] - 2026-06-04
+
+### Added
+
+- Root-guard для всіх деструктивних точок: CLI-команди fix/lint/coverage/change/release + дефолтний sync хардом перевіряють cwd===git-toplevel (assertCwdIsProjectRoot); worktree-preflight підсилено root-assert (pwd vs toplevel); новий meta.json-флаг requireRoot + injectRootNotice для in-place root-only скілів (n-start-check); skillRequiresRoot як явна похідна ознака захисту; валідація requireRoot у npm-module
+- sync .gitignore: ігнорувати .claude/scheduled_tasks.lock (runtime-lock планувальника)
+
+### Changed
+
+- Скорочено timestamp-префікси ADR і change-файлів до YYMMDD-HHMM; додано атомарний suffix для локальних колізій та заборону Temporal у Bun runtime.
+
+### Fixed
+
+- n-changelog: directional version-drift — лише version ВПЕРЕД (> опублікованої/git-бази) валить як ручний bump; version ПОЗАДУ (локаль відстала від CI-релізу, ще не git pull) більше не блокує коміт (compareSemverCore/versionIsAhead)
+
 ## [3.20.0] - 2026-06-03
 
 ### Added
