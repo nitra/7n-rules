@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.21.1] - 2026-06-04
+
+### Changed
+
+- CLI sync: ховати блоки правил / 🧩 Skills / ⌨️ Commands / 🥧 Pi skills (рядки ⬇ і підсумок) за успішного прогону — друкувати лише коли fail > 0 (helper captureOutput)
+- CLI sync: ховати post-sync рядки (📝 setup-bun-deps action / 📝 AGENTS.md / 📝 CLAUDE.md / 🤖 Claude-конфіг) за успішного прогону — через captureOutput, друк лише при помилці
+
 ## [3.21.0] - 2026-06-04
 
 ### Added
