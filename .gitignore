@@ -6,6 +6,7 @@ dist/
 .claude/hooks/*.log
 .claude/hooks/.normalize-state
 .claude/hooks/.normalize.lock
+.claude/scheduled_tasks.lock
 .claude/worktrees/
 .worktrees/
 **/.stryker-tmp/

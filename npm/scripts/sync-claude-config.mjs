@@ -21,8 +21,8 @@
  *   entries додаються, коли правило `adr` увімкнене, і видаляються, коли вимкнене.
  * - `.gitignore` — **merge** (лише з `adr`): дописує відсутні рядки з канонічного
  *   фрагмента `rules/adr/js/hooks/template/.gitignore.snippet` (`node_modules/`, `dist/`,
- *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`); існуючі
- *   рядки не перезаписуються.
+ *   `*.secret`, логи capture/normalize, `.normalize-state`, `.normalize.lock`,
+ *   `.claude/scheduled_tasks.lock`); існуючі рядки не перезаписуються.
  *
  * Опт-аут — `claude-config: false` у `.n-cursor.json`.
  */
