@@ -1,0 +1,77 @@
+.cursor/skills/n-taze/SKILL.md
+  s_58c5f882a1f533::t_aa771b8893441f 9,72
+  s_58c5f882a1f533::t_ccf03adcc3edd3 113-119,121
+  s_58c5f882a1f533::t_1e2f39cd30c619 170
+docs/adr/260605-0715-стиль-документації-docgen-поведінково-орієнтований-замість-в.md
+  ai_agent 1-123
+npm/skills/docgen/bench/etalon/k8s-tree.md
+  s_ed7f21fcaaeb0a::t_3330143e3cd072 1-20
+npm/.changes/260604-1936.md
+  s_58c5f882a1f533::t_aa771b8893441f 5
+npm/skills/docgen/bench/etalon/firebase_hosting.md
+  s_ed7f21fcaaeb0a::t_3330143e3cd072 1-16
+npm/.changes/260605-0716.md
+  s_58c5f882a1f533::t_aa771b8893441f 1-6
+docs/adr/260605-1045-pi-ollama-провайдер-vs-прямий-api-для-docgen-tier1.md
+  s_6537f656fa0815::t_cea0e783dc92b5 1-22
+npm/skills/taze/js/diff.mjs
+  s_58c5f882a1f533::t_26d676f768d17d 28-30
+  s_1d2c9cdb024562::t_338cf707c9dc54 1-27,31-154
+.cursor/rules/scripts.mdc
+  s_58c5f882a1f533::t_03aa44f11fd8dd 74-95
+  s_58c5f882a1f533::t_d5ab3cdc6637a6 4
+npm/skills/taze/js/tests/diff.test.mjs
+  s_1d2c9cdb024562::t_54c80734ddc233 1-14,40-156
+  s_58c5f882a1f533::t_813d43f526d389 33-37
+  s_58c5f882a1f533::t_952abf88c8a65c 15-32,38-39
+npm/bin/n-cursor.js
+  s_58c5f882a1f533::t_0b2d4f81d0254f 1664-1672
+  s_1d2c9cdb024562::t_54c80734ddc233 1744
+npm/skills/taze/SKILL.md
+  s_58c5f882a1f533::t_4c43e40735a9e1 103
+  s_58c5f882a1f533::t_448c43a59c4482 46,48-54
+npm/skills/docgen/bench/etalon/overlay-paths.md
+  s_ed7f21fcaaeb0a::t_3330143e3cd072 1-20
+npm/.changes/260604-2112.md
+  s_58c5f882a1f533::t_aa771b8893441f 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "23be175dae686f2ec9d1467902b746e059c0f589",
+  "prompts": {},
+  "sessions": {
+    "s_1d2c9cdb024562": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8dff0299-2129-4b0d-8b9b-15419f583ba5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_6537f656fa0815": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c4433e0f-bf52-40c9-a1c5-7a0181632705",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ed7f21fcaaeb0a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "17bb1e2e-c280-4116-8ce5-5f1506f5109d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
