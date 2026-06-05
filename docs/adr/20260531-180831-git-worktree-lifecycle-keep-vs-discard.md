@@ -50,3 +50,13 @@ Chosen option: "Ітеративний аналіз кожного worktree із
 **Ізольований worktree для реалізації при активній фермі агентів:** при ~8 паралельних агентських сесіях, що одночасно комітять у `main`, реалізація через окремий worktree запобігає race conditions за спільні файли. Субагенти в ізольованому worktree виконуються послідовно (один на задачу), що виключає внутрішню конкуренцію. Worktree створено: `node npm/bin/n-cursor.js worktree add feat/lint-quick-ci "Spec C: lint split quick/ci (E1)"`. Перед стартом зупинено конкуруючі сесії (PIDs 87165 та 68615) через `kill -KILL`. Субагенти T1–T8 запускались моделями `sonnet` (T1–T5) та `opus` (T6–T8). Фінально — squash-merge у `main` (`ebe76db`), worktree і гілку видалено.
 
 **Вибірковий cherry-pick docs при дискарді застарілих гілок:** якщо гілка містить регресивний код, але унікальний design-документ, що відсутній в main/origin, — зберегти документ через `git show <sha>:<path> > <dest>` і лише тоді виконати `git worktree remove` + `git branch -D`. Приклад: `docs/specs/2026-05-31-n-cursor-lifecycle-composition-design.md` (356 рядків, v2.4) з `claude/keen-swanson-f7dff6` — код регресивний (відсутній lint-split), але spec унікальний.
+
+## Update 2026-06-01
+
+**Конфліктний rebase при синхронізації worktree → main:**
+
+При спробі `git rebase main` у гілці `main-fix` виник конфлікт у `npm/scripts/lib/worktree-notice.mjs`: `main` містив коміт `bfdde36 worktree2`, якого не було в `main-fix` (worktree створювався від `a288edc`). Rebase скасовано (`git rebase --abort`).
+
+Обраний workaround — ручне копіювання цільових файлів (`cp .worktrees/main-fix/.oxlintrc.json .oxlintrc.json`), потім `git stash push -u` → `git pull --ff-only origin main` → `git stash pop` в основному worktree. Після stash pop зміни лишаються незакоміченими — user вирішує, що комітити.
+
+Відкрите питання (залишилось без рішення в сесії): автоматизована команда для «забрати свіжі зміни з поточної гілки і перенести файли з worktree в основне дерево».

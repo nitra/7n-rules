@@ -54,7 +54,7 @@ export async function fixSurvivedMutants(survived, projectRoot) {
  * @param {string} projectRoot корінь проєкту
  * @returns {Promise<string>} текст rich-промпту
  */
-async function buildFixPrompt(survived, projectRoot) {
+export async function buildFixPrompt(survived, projectRoot) {
   const sections = []
 
   for (const { file, mutants, exampleTest } of survived) {

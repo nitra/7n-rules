@@ -1154,7 +1154,7 @@ async function captureOutput(action) {
   process.stdout.write = (...args) => {
     const [chunk] = args
     buffer.push(typeof chunk === 'string' ? chunk : chunk.toString())
-    const cb = args.find((arg) => typeof arg === 'function')
+    const cb = args.find(arg => typeof arg === 'function')
     if (cb) cb()
     return true
   }
@@ -1652,6 +1652,15 @@ try {
 
       break
     }
+    case 'coverage-fix': {
+      // n-cursor coverage-fix index|slice — read-only витяг вцілілих мутантів із
+      // COVERAGE.md для скілу n-coverage-fix. Важкий парсинг несе скрипт (0 LLM-
+      // токенів); агент отримує лише компактний index або зріз під один файл.
+      const { runCoverageFixCli } = await import('../scripts/coverage-fix-extract.mjs')
+      process.exitCode = await runCoverageFixCli(args)
+
+      break
+    }
     case 'change': {
       const { runChangeCli } = await import('../rules/release/change.mjs')
       process.exitCode = await runChangeCli(args)
@@ -1723,7 +1732,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
       )
       process.exitCode = 1
     }

@@ -580,6 +580,16 @@ async function checkPublishedWorkspace(manifest, subWorkspaces, getPublishedVers
     fail(`${label}: у ${mf} відсутнє ім'я пакета (registry-published воркспейс)`)
     return
   }
+  // Autofix/hook-режим: жодної мережі. Реєстровий резолв (`npm view` / PyPI fetch) і
+  // drift-перевірка vs опублікована версія пропускаються — лишається лише наявність
+  // change-файлу (+ autofix) і git-diff. Ручний bump version у хуці не ловиться; його
+  // далі ловить CI та ручний `fix changelog` (без env). Запит користувача: «прибери
+  // npm view з хуку».
+  if (autofix) {
+    pass(`${label}: ${name} — autofix-режим, реєстрову перевірку version пропущено (без npm view)`)
+    await checkPublishedWorkspacePendingGitChanges(manifest, Vcurrent, subWorkspaces, autofix, pass, fail, cwd)
+    return
+  }
   const Vpublished = await resolvePublishedVersion(manifest, getPublishedVersion)
   if (Vpublished === null) {
     pass(`${label}: ${name} — опублікована версія недоступна (мережа/реєстр), перевірку пропущено`)

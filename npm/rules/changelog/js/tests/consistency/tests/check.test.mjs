@@ -833,6 +833,30 @@ describe('check-changelog (autofix-режим)', () => {
     })
   })
 
+  test('autofix не викликає резолвер опублікованої версії (без npm view / мережі)', async () => {
+    await withTmpDir(async dir => {
+      await git(['init', '-q', '-b', 'dev'], dir)
+      await writeJson(join(dir, 'package.json'), { name: '@x/lib', version: '1.0.0', files: ['lib', 'CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), changelogWithVersion('1.0.0'), 'utf8')
+      await ensureDir(join(dir, 'lib'))
+      await writeFile(join(dir, 'lib/x.js'), '//\n', 'utf8')
+      await git(['add', '-A'], dir)
+      await git(['commit', '-q', '-m', 'init'], dir)
+      await git(['checkout', '-q', '-b', 'feat/x'], dir)
+      await writeFile(join(dir, 'lib/x.js'), 'changed\n', 'utf8')
+
+      let called = false
+      const spyResolver = (name, _kind) => {
+        called = true
+        return Promise.resolve('1.0.0')
+      }
+      const code = await checkChangelog({ cwd: dir, autofix: true, getPublishedVersion: spyResolver })
+      expect(code).toBe(0)
+      expect(called).toBe(false)
+      expect(await readChangeFiles('.', dir)).toHaveLength(1)
+    })
+  })
+
   test('autofix ставить створений change-файл у git-індекс', async () => {
     await withTmpDir(async dir => {
       await git(['init', '-q', '-b', 'dev'], dir)
