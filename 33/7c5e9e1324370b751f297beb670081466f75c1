@@ -1,0 +1,34 @@
+npm/bin/n-cursor.js
+  s_58c5f882a1f533::t_09627505e4667b 1673-1681
+  s_58c5f882a1f533::t_a70d437dffd7e6 1753
+npm/.changes/260605-0731.md
+  s_58c5f882a1f533::t_75d853cb436c70 1-6
+npm/skills/start-check/SKILL.md
+  s_58c5f882a1f533::t_77fbc46176889d 54,56,58-59,61,63,65,67-69,71
+  s_58c5f882a1f533::t_c80f51a41352db 24,27,30,32,34,36,39,42,44-46,48-50,52
+.cursor/skills/n-start-check/SKILL.md
+  s_58c5f882a1f533::t_75d853cb436c70 9,21,70,72,74-75,77,79,81,83-85,87
+  s_58c5f882a1f533::t_d0c2252f8fd7bb 40,43,46,48,50,52,55,58,60-62,64-66,68
+npm/skills/start-check/js/check.mjs
+  s_58c5f882a1f533::t_785e03bd90b1d6 26-27
+  s_58c5f882a1f533::t_9957cd546f212a 1-25,28-211
+npm/skills/start-check/js/tests/check.test.mjs
+  s_58c5f882a1f533::t_44f0e6039675d5 1-114,116-167
+  s_58c5f882a1f533::t_22fa913ed82432 115
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "337c5e9e1324370b751f297beb670081466f75c1",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
