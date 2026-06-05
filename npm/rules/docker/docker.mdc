@@ -1,6 +1,6 @@
 ---
 description: Dockerfile — lint-docker / hadolint; перевірка check-docker
-version: '1.11'
+version: '1.12'
 globs: "**/Dockerfile*"
 alwaysApply: false
 ---
@@ -13,7 +13,7 @@ alwaysApply: false
 
 - **backend (типово)**: `mirror.gcr.io/library/alpine:*`
 - **ультра-легкі (glibc / одна статична збірка)**: `scratch` — тільки як `FROM scratch` (офіційний порожній базовий шар), коли весь **runtime** уже в `COPY --from=…`
-- **glibc, Debian (slim)**: `mirror.gcr.io/library/debian:*` **лише** з тегом, у якому є `slim` (наприклад `bookworm-slim`, `trixie-slim`), а не `bookworm` без `slim`
+- **glibc, Debian (slim)**: `mirror.gcr.io/library/debian:*` **лише** з тегом, у якому є `slim` (наприклад `bookworm-slim`, `trixie-slim`), а не `bookworm` без `slim`. Debian-slim виправданий **лише** коли потрібен саме glibc-рантайм (нативні glibc-залежності, prebuilds без musl-варіанта). **Non-root сам по собі не є підставою** переходити сюди: `mirror.gcr.io/oven/bun:alpine` уже має користувача `bun` (uid/gid 1000), тож `USER bun` дає non-root **без зміни бази**. Перехід Alpine→Debian заради лише non-root — **антипатерн** (більший образ + зайва musl→glibc міграція bun-бінарника)
 - **виняток (інтерпретовані стеки)**: `mirror.gcr.io/library/php:*` або `mirror.gcr.io/library/python:*` — якщо сервіс має крутитися в офіційному runtime PHP чи Python, а не як один бінарник на Alpine; інакше лишай **alpine** у фінальному stage
 - **frontend**: `mirror.gcr.io/nginxinc/nginx-unprivileged:*` або `mirror.gcr.io/openresty/openresty:*`
 
@@ -102,7 +102,12 @@ CMD ["bun", "src/index.js"]
 
 ## не превілейований образ
 
-Для всих образів потрібно щоб використовувся non root принцип, наприклад:
+Для всіх образів потрібно щоб використовувся non-root принцип. **Спосіб** досягнення non-root залежить від **бази**, а не від зміни ОС — змінювати дистрибутив (Alpine→Debian) заради лише non-root **не треба**. Два шляхи:
+
+- **standalone-бінарник на `alpine:latest`** (секція «компіляція») — у `alpine` немає готового non-root користувача, тож його створюємо явно: `addgroup -g 1000 app && adduser -D -u 1000 -G app app` + `COPY --chown=app:app` + `USER app` (приклад нижче);
+- **ship `node_modules` на `mirror.gcr.io/oven/bun:alpine`** (секція «виняток: нативний `.node`-аддон») — користувач `bun` (uid/gid 1000) **уже в базі**, тож достатньо `COPY --chown=bun:bun …` + `USER bun`; базу на Debian-slim міняти **не треба** — це той самий антипатерн, що й у переліку фінальних образів вище.
+
+Приклад для standalone-бінарника на alpine:
 
 ```dockerfile
 # Stage 1
