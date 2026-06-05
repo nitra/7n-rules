@@ -1661,6 +1661,15 @@ try {
 
       break
     }
+    case 'taze': {
+      // n-cursor taze diff — read-only semver-diff package.json ↔ package.json.taze-bak
+      // (root + воркспейси) для скілу n-taze: скрипт класифікує major-оновлення,
+      // агент отримує готовий список замість ручного порівняння бекапів.
+      const { runTazeCli } = await import('../skills/taze/js/diff.mjs')
+      process.exitCode = await runTazeCli(args)
+
+      break
+    }
     case 'change': {
       const { runChangeCli } = await import('../rules/release/change.mjs')
       process.exitCode = await runChangeCli(args)
@@ -1732,7 +1741,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
+        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
       )
       process.exitCode = 1
     }
