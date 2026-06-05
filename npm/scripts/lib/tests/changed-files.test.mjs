@@ -44,10 +44,15 @@ describe('collectChangedFiles', () => {
     })
   })
   test('чисте дерево → порожньо', async () => {
-    await withTmpDir(dir => { initRepo(dir); expect(collectChangedFiles(dir)).toEqual([]) })
+    await withTmpDir(dir => {
+      initRepo(dir)
+      expect(collectChangedFiles(dir)).toEqual([])
+    })
   })
   test('поза git → порожньо', async () => {
-    await withTmpDir(dir => { expect(collectChangedFiles(dir)).toEqual([]) })
+    await withTmpDir(dir => {
+      expect(collectChangedFiles(dir)).toEqual([])
+    })
   })
 })
 

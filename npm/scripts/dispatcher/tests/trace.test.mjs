@@ -23,7 +23,12 @@ describe('parseFrontMatter', () => {
 
 describe('analyze', () => {
   test('chain-лінки зі статусом ok/розрив + breaking', () => {
-    const artifacts = [{ file: 'docs/specs/a.md', fm: { kind: 'nitra-spec', id: 'x', status: 'planned', plan: 'docs/plans/a.md', adr: 'docs/adr/missing.md' } }]
+    const artifacts = [
+      {
+        file: 'docs/specs/a.md',
+        fm: { kind: 'nitra-spec', id: 'x', status: 'planned', plan: 'docs/plans/a.md', adr: 'docs/adr/missing.md' }
+      }
+    ]
     const a = analyze(artifacts, t => t === 'docs/plans/a.md')
     expect(a[0].links).toEqual([
       { field: 'adr', target: 'docs/adr/missing.md', ok: false, breaking: true },
@@ -51,7 +56,9 @@ describe('analyze', () => {
 
 describe('render', () => {
   test('→ для ok, ✗ для chain-розриву', () => {
-    const out = render([{ file: 'f', kind: 'nitra-spec', id: 'x', status: 'planned', links: [{ field: 'plan', target: 'p', ok: false, breaking: true }] }])
+    const out = render([
+      { file: 'f', kind: 'nitra-spec', id: 'x', status: 'planned', links: [{ field: 'plan', target: 'p', ok: false, breaking: true }] }
+    ])
     expect(out).toContain('nitra-spec · x [planned]')
     expect(out).toContain('✗ plan: p')
   })

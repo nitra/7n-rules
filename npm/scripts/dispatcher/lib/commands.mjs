@@ -172,16 +172,12 @@ export async function verify(_rest, deps = {}) {
   log(verdict.pass ? '✅ verify: усі gate-и пройдено' : '❌ verify: провалено')
 
   if (state) {
-    recordTransition(
-      { statePath, eventsPath: flowEventsPath(cwd) },
-      { type: 'verify', pass: verdict.pass },
-      state => ({
-        ...state,
-        gates: verdict.gates,
-        fingerprint: verdict.fingerprint,
-        status: verdict.pass ? state.status : 'failed'
-      })
-    )
+    recordTransition({ statePath, eventsPath: flowEventsPath(cwd) }, { type: 'verify', pass: verdict.pass }, state => ({
+      ...state,
+      gates: verdict.gates,
+      fingerprint: verdict.fingerprint,
+      status: verdict.pass ? state.status : 'failed'
+    }))
   }
 
   return verdict.pass ? 0 : 1

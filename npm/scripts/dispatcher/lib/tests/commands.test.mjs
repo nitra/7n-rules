@@ -47,7 +47,12 @@ function capturingRun(sink) {
 describe('init', () => {
   test('новий worktree: створює стан із branch/base_commit', async () => {
     await withTmpDir(async dir => {
-      const code = await init(['feat/x', 'рефактор', 'кешу'], { run: makeRun({ head: 'C123' }), cwd: dir, log: noop, now: FIXED })
+      const code = await init(['feat/x', 'рефактор', 'кешу'], {
+        run: makeRun({ head: 'C123' }),
+        cwd: dir,
+        log: noop,
+        now: FIXED
+      })
       expect(code).toBe(0)
       const s = readState(flowStatePath(join(dir, '.worktrees', 'feat-x')))
       expect(s.branch).toBe('feat/x')
@@ -80,7 +85,12 @@ describe('init', () => {
 
   test('worktree add падає → 1', async () => {
     await withTmpDir(async dir => {
-      const code = await init(['feat/x', 'desc'], { run: makeRun({ worktreeAddStatus: 1 }), cwd: dir, log: noop, now: FIXED })
+      const code = await init(['feat/x', 'desc'], {
+        run: makeRun({ worktreeAddStatus: 1 }),
+        cwd: dir,
+        log: noop,
+        now: FIXED
+      })
       expect(code).toBe(1)
     })
   })
@@ -89,14 +99,24 @@ describe('init', () => {
 describe('verify', () => {
   test('усі gate-и зелені → exit 0', async () => {
     await withTmpDir(async dir => {
-      const code = await verify([], { run: () => ({ status: 0 }), cwd: join(dir, 'wt'), log: noop, fingerprint: () => 'FP' })
+      const code = await verify([], {
+        run: () => ({ status: 0 }),
+        cwd: join(dir, 'wt'),
+        log: noop,
+        fingerprint: () => 'FP'
+      })
       expect(code).toBe(0)
     })
   })
 
   test('gate падає → exit 1', async () => {
     await withTmpDir(async dir => {
-      const code = await verify([], { run: () => ({ status: 1 }), cwd: join(dir, 'wt'), log: noop, fingerprint: () => null })
+      const code = await verify([], {
+        run: () => ({ status: 1 }),
+        cwd: join(dir, 'wt'),
+        log: noop,
+        fingerprint: () => null
+      })
       expect(code).toBe(1)
     })
   })
