@@ -83,10 +83,9 @@ jobs:
           github_token: ${{ github.token }}
           last_commit_age_days: 90
           ignore_branches: main,dev
-          # `no` у workflow → Go-yaml парсить як bool false; тут пишемо явно false,
-          # бо template читає `yaml` (YAML 1.2), де `no` лишається рядком — а нам
-          # потрібна семантична відповідність runtime-парсингу conftest.
-          dry_run: false
+          # Action CLI accepts only yes/no. Go-yaml in conftest parses `no` as
+          # boolean false, so the Rego policy normalizes both forms.
+          dry_run: no
 
       - name: Get output
         env:
