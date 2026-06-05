@@ -43,17 +43,17 @@ risk: low
 ## Рішення (узгоджені розвилки)
 
 1. **`checkDirtyNpmRequiresVersionBump` — видалити.** Надлишкова й інвертована; кейс «зміни
-   без change-файлу» і «drift version» уже коректно ловить `consistency.mjs`. *(Q1=A)*
+   без change-файлу» і «drift version» уже коректно ловить `consistency.mjs`. _(Q1=A)_
 2. **`checkChangelogTopMatchesPackageVersion` — видалити.** Інваріант «top==version»
    істинний лише post-release; у feature-флоу він шкідливий. Drift від ручного bump ловить
    `consistency.mjs`. Поняття backfill і розширення формату change-файлу — **поза scope**.
-   *(Q2=A)*
+   _(Q2=A)_
 3. **Meta-перевірка проти повторного розходження — НЕ додаємо.** Реальний фікс структурний
    (видаляємо суперечливі секції+перевірки, єдине джерело істини). Regex по вільному тексту
-   `.mdc` крихкий і сам стає джерелом тертя; YAGNI. *(Q3=skip)*
+   `.mdc` крихкий і сам стає джерелом тертя; YAGNI. _(Q3=skip)_
 4. **`package_structure.mjs` повністю виходить із теми version/CHANGELOG** — узгодженість
    віддаємо `consistency.mjs`; FS-existence перевірок CHANGELOG у package_structure не
-   лишаємо. *(Q4)*
+   лишаємо. _(Q4)_
 
 ## Зміни секціями
 
@@ -86,7 +86,7 @@ risk: low
 ### D. Тести `npm/rules/npm-module/js/tests/package_structure.test.mjs`
 
 - Прибрати кейси, що покривали видалені функції (зокрема `CHANGELOG version не збігається →
-  fail`, dirty-npm-requires-bump). Решта `package_structure` перевірок — лишити зеленими.
+fail`, dirty-npm-requires-bump). Решта `package_structure` перевірок — лишити зеленими.
 
 ## Не-цілі
 

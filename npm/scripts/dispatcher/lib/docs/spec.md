@@ -15,16 +15,16 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт             | Тип              | Призначення                                                                              |
+| ------------------- | ---------------- | ---------------------------------------------------------------------------------------- |
 | `spec(rest, deps?)` | `async function` | Точка входу CLI-підкоманди `flow spec`. Повертає exit code (`0` — успіх, `1` — помилка). |
 
 Внутрішні (не експортуються):
 
-| Ідентифікатор | Тип | Призначення |
-| --- | --- | --- |
-| `RISKS` | `Set<string>` | Допустимі рівні ризику: `low`, `med`, `high`. |
-| `riskFromSpec(doc, current)` | `function` | Зчитує валідний `risk` зі spec-frontmatter або повертає поточний у стані. |
+| Ідентифікатор                | Тип           | Призначення                                                               |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------- |
+| `RISKS`                      | `Set<string>` | Допустимі рівні ризику: `low`, `med`, `high`.                             |
+| `riskFromSpec(doc, current)` | `function`    | Зчитує валідний `risk` зі spec-frontmatter або повертає поточний у стані. |
 
 ## Функції
 
@@ -129,23 +129,23 @@ async function spec(
 
 ### Стандартна бібліотека Node.js
 
-| Імпорт | Звідки | Використання |
-| --- | --- | --- |
-| `existsSync` | `node:fs` | Перевірка існування spec-документа перед записом транзиції. |
-| `readFileSync` | `node:fs` | Зчитування spec-документа для парсингу front-matter у `riskFromSpec`. |
-| `cwd as processCwd` | `node:process` | Default-значення для `deps.cwd`. |
+| Імпорт              | Звідки         | Використання                                                          |
+| ------------------- | -------------- | --------------------------------------------------------------------- |
+| `existsSync`        | `node:fs`      | Перевірка існування spec-документа перед записом транзиції.           |
+| `readFileSync`      | `node:fs`      | Зчитування spec-документа для парсингу front-matter у `riskFromSpec`. |
+| `cwd as processCwd` | `node:process` | Default-значення для `deps.cwd`.                                      |
 
 ### Внутрішні модулі
 
-| Імпорт | Шлях | Призначення |
-| --- | --- | --- |
-| `resolveArtifact`, `verifyTrace` | `./artifact.mjs` | Резолв шляху артефакту за конвенцією `docs/<kind>/<date>-<slug>.md` та верифікація trace-ланцюга front-matter. |
-| `flowEventsPath` | `./events.mjs` | Шлях до файлу подій воркфлоу (для аудиту транзицій). |
-| `runPanel` | `./plan-panel.mjs` | Запуск agent-panel brainstorm у режимі `mode: 'spec'`. |
-| `createRunner` | `./subagent-runner.mjs` | Фабрика subagent runner для panel mode. |
-| `readState`, `recordTransition` | `./state-store.mjs` | Читання поточного стану та атомарний запис транзиції з мутатором. |
-| `resolveActiveFlowState` | `./flow-resolve.mjs` | Авторезолв активного flow (worktree-awareness, branch fallback). |
-| `parseFrontMatter` | `../trace.mjs` | Парсинг YAML-подібного front-matter Markdown-документа. |
+| Імпорт                           | Шлях                    | Призначення                                                                                                    |
+| -------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `resolveArtifact`, `verifyTrace` | `./artifact.mjs`        | Резолв шляху артефакту за конвенцією `docs/<kind>/<date>-<slug>.md` та верифікація trace-ланцюга front-matter. |
+| `flowEventsPath`                 | `./events.mjs`          | Шлях до файлу подій воркфлоу (для аудиту транзицій).                                                           |
+| `runPanel`                       | `./plan-panel.mjs`      | Запуск agent-panel brainstorm у режимі `mode: 'spec'`.                                                         |
+| `createRunner`                   | `./subagent-runner.mjs` | Фабрика subagent runner для panel mode.                                                                        |
+| `readState`, `recordTransition`  | `./state-store.mjs`     | Читання поточного стану та атомарний запис транзиції з мутатором.                                              |
+| `resolveActiveFlowState`         | `./flow-resolve.mjs`    | Авторезолв активного flow (worktree-awareness, branch fallback).                                               |
+| `parseFrontMatter`               | `../trace.mjs`          | Парсинг YAML-подібного front-matter Markdown-документа.                                                        |
 
 ## Потік виконання / Використання
 

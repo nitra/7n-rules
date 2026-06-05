@@ -10,14 +10,14 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `realRun(cmd, args, opts?)` | `function` | Реальний sync-обгортка над `spawnSync` із захопленням stdout/stderr. |
-| `ensureWorktree(rest, deps?)` | `function` | Парсить аргументи `<branch> "<опис>"`, гарантує worktree (детектить існуючу ізоляцію або створює новий), повертає метадані. |
-| `init(rest, deps?)` | `async function` | Handler `flow init`: ізоляція + первинна ініціалізація `.flow.json`. |
-| `verify(_rest, deps?)` | `async function` | Handler `flow verify`: Quality Gates («Суддя») у поточному worktree з толерантністю до відсутності стану. |
-| `matchChangedWorkspaces(subWorkspaces, changedFiles)` | `function` | Чистий хелпер: підмножина воркспейсів, у яких є зміни (з прив'язкою до найглибшого збігу). |
-| `release(rest, deps?)` | `async function` | Handler `flow release`: генерує `.changes` через `n-cursor change` і пише completion snapshot. |
+| Експорт                                               | Тип              | Призначення                                                                                                                 |
+| ----------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `realRun(cmd, args, opts?)`                           | `function`       | Реальний sync-обгортка над `spawnSync` із захопленням stdout/stderr.                                                        |
+| `ensureWorktree(rest, deps?)`                         | `function`       | Парсить аргументи `<branch> "<опис>"`, гарантує worktree (детектить існуючу ізоляцію або створює новий), повертає метадані. |
+| `init(rest, deps?)`                                   | `async function` | Handler `flow init`: ізоляція + первинна ініціалізація `.flow.json`.                                                        |
+| `verify(_rest, deps?)`                                | `async function` | Handler `flow verify`: Quality Gates («Суддя») у поточному worktree з толерантністю до відсутності стану.                   |
+| `matchChangedWorkspaces(subWorkspaces, changedFiles)` | `function`       | Чистий хелпер: підмножина воркспейсів, у яких є зміни (з прив'язкою до найглибшого збігу).                                  |
+| `release(rest, deps?)`                                | `async function` | Handler `flow release`: генерує `.changes` через `n-cursor change` і пише completion snapshot.                              |
 
 Усі async handler-и повертають Promise<number> — exit code (0 — ок, 1 — помилка). Решта — синхронні.
 

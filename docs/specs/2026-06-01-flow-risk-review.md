@@ -29,6 +29,7 @@ BMAD risk-profile показує цінність risk-driven перевірки
 ## Scope
 
 **In:**
+
 - `detectRisk(desc)` → `low|med|high` за ключовими словами.
 - `reviewersFor(level, risk)` — max(за рівнем, за ризиком).
 - `init` пише `risk` у стан; `flow spec` зчитує `risk:` зі spec-frontmatter (override).

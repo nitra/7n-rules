@@ -22,8 +22,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| ------- | --- | ----------- |
+| Експорт          | Тип                     | Призначення                                                                                                                                                                                                                             |
+| ---------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `runLintTextCli` | `() => Promise<number>` | Публічна CLI-форма команди `lint-text`. Використовується з `bin/n-cursor.js` як підкоманда `lint-text`. Серіалізує виконання через `withLock('lint-text')` і додатково дедуплікує запуски за станом git-дерева через `runStandardLint`. |
 
 Інші ідентифікатори модуля (`PATCH_PREFLIGHT`, `resolvePreflightBin`, `printPreflightMissingMessage`, `preflight`, `runLintTextSteps`) — внутрішні; не експортуються і не призначені для зовнішнього використання.
@@ -104,13 +104,13 @@
 
 Опис однієї залежності preflight-блоку. Визначений локальним JSDoc `@typedef`-ом.
 
-| Поле | Тип | Опис |
-| ---- | --- | ---- |
-| `bin` | `string` | Ім'я виконуваного файлу (POSIX-варіант). |
-| `winBins` | `string[]` (опц.) | Альтернативні імена бінарника на Windows. |
-| `explanation` | `string` | Наслідки відсутності бінарника (для людино-зрозумілого stderr-повідомлення). |
-| `install` | `string[]` | Команди встановлення, по одному рядку на спосіб/платформу. |
-| `successMsg` | `string` | Повідомлення для `console.log` на pass-шляху preflight. |
+| Поле          | Тип               | Опис                                                                         |
+| ------------- | ----------------- | ---------------------------------------------------------------------------- |
+| `bin`         | `string`          | Ім'я виконуваного файлу (POSIX-варіант).                                     |
+| `winBins`     | `string[]` (опц.) | Альтернативні імена бінарника на Windows.                                    |
+| `explanation` | `string`          | Наслідки відсутності бінарника (для людино-зрозумілого stderr-повідомлення). |
+| `install`     | `string[]`        | Команди встановлення, по одному рядку на спосіб/платформу.                   |
+| `successMsg`  | `string`          | Повідомлення для `console.log` на pass-шляху preflight.                      |
 
 ## Константи
 
@@ -119,7 +119,7 @@
 Єдиний об'єкт типу `PreflightDep`, що описує системний `patch` як hint-only залежність:
 
 - `bin: 'patch'`;
-- `explanation: 'Без `patch` не застосуються авто-виправлення shellcheck (`shellcheck -f diff` + `patch -p1`).'` (зібраний через `[...].join('\n   ')` з одного елемента; результат — рівно одна логічна підказка з відступом сумісним з шаблоном виводу `printPreflightMissingMessage`);
+- `explanation: 'Без `patch` не застосуються авто-виправлення shellcheck (`shellcheck -f diff`+`patch -p1`).'` (зібраний через `[...].join('\n   ')` з одного елемента; результат — рівно одна логічна підказка з відступом сумісним з шаблоном виводу `printPreflightMissingMessage`);
 - `install`:
   - `'macOS:         зазвичай уже є в системі'`;
   - `'Debian/Ubuntu: sudo apt-get install -y patch'`;
@@ -135,15 +135,15 @@
 
 ### Внутрішні модулі (відносні імпорти)
 
-| Модуль | Що використовується |
-| ------ | -------------------- |
-| `../../../scripts/lib/run-lint-step.mjs` | `runLintStep` — обгортка для запуску одного кроку лінту з префіксованим логом і нормалізованим exit-кодом. Використовується для `cspell` і `markdownlint`. |
-| `../../../scripts/utils/resolve-cmd.mjs` | `resolveCmd` — пошук бінарника в `PATH`. Викликається з `resolvePreflightBin`. |
-| `../../../scripts/lib/run-standard-lint.mjs` | `runStandardLint` — каноном обгортка `lint-*`: серіалізація через `withLock` + дедуп за станом git-дерева. Викликається з `runLintTextCli`. |
-| `../../../scripts/lib/ensure-tool.mjs` | `ensureTool` — авто-встановлення бінарників (brew/scoop/GitHub Release). Викликається для `shellcheck` і `dotenv-linter` на початку `runLintTextSteps`. |
-| `./run-dotenv-linter.mjs` | `runDotenvLinter` — авто-фікс + фінальна перевірка `.env*`. |
-| `./run-shellcheck.mjs` | `runShellcheckText` — авто-фікс + фінальна перевірка `*.sh` через `shellcheck`. |
-| `./run-v8r.mjs` | `runV8rWithGlobs` — schema-валідація `json/json5/yaml/yml/toml`. |
+| Модуль                                       | Що використовується                                                                                                                                        |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../../../scripts/lib/run-lint-step.mjs`     | `runLintStep` — обгортка для запуску одного кроку лінту з префіксованим логом і нормалізованим exit-кодом. Використовується для `cspell` і `markdownlint`. |
+| `../../../scripts/utils/resolve-cmd.mjs`     | `resolveCmd` — пошук бінарника в `PATH`. Викликається з `resolvePreflightBin`.                                                                             |
+| `../../../scripts/lib/run-standard-lint.mjs` | `runStandardLint` — каноном обгортка `lint-*`: серіалізація через `withLock` + дедуп за станом git-дерева. Викликається з `runLintTextCli`.                |
+| `../../../scripts/lib/ensure-tool.mjs`       | `ensureTool` — авто-встановлення бінарників (brew/scoop/GitHub Release). Викликається для `shellcheck` і `dotenv-linter` на початку `runLintTextSteps`.    |
+| `./run-dotenv-linter.mjs`                    | `runDotenvLinter` — авто-фікс + фінальна перевірка `.env*`.                                                                                                |
+| `./run-shellcheck.mjs`                       | `runShellcheckText` — авто-фікс + фінальна перевірка `*.sh` через `shellcheck`.                                                                            |
+| `./run-v8r.mjs`                              | `runV8rWithGlobs` — schema-валідація `json/json5/yaml/yml/toml`.                                                                                           |
 
 ### Зовнішні CLI-інструменти (запускаються як дочірні процеси)
 

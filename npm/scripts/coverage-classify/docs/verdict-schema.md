@@ -23,10 +23,10 @@
 
 Модуль експортує два символи (обидва — іменовані експорти ES modules):
 
-| Символ | Тип | Призначення |
-| --- | --- | --- |
-| `VerdictSchema` | `ZodObject` | Схема валідації для verdict-об'єкта LLM. |
-| `parseVerdict` | `function(rawText: string)` | Парсер raw-text відповіді LLM у валідований verdict. |
+| Символ          | Тип                         | Призначення                                          |
+| --------------- | --------------------------- | ---------------------------------------------------- |
+| `VerdictSchema` | `ZodObject`                 | Схема валідації для verdict-об'єкта LLM.             |
+| `parseVerdict`  | `function(rawText: string)` | Парсер raw-text відповіді LLM у валідований verdict. |
 
 ### `VerdictSchema`
 

@@ -46,14 +46,14 @@
 
 Власні експорти модуля:
 
-| Експорт                       | Тип                              | Призначення                                                                 |
-| ----------------------------- | -------------------------------- | --------------------------------------------------------------------------- |
-| `discoverRuleAutoActivation`  | `function`                       | Скан `npm/rules/<id>/meta.json` → мапа id → `RuleAutoSpec`.                 |
-| `AUTO_RULE_ORDER`             | `readonly string[]` (frozen)     | Алфавітний порядок усіх правил із розпізнаним `auto`.                       |
-| `AUTO_RULE_DEPENDENCIES`      | `readonly Record<string,string[]>` (frozen) | Граф залежностей із spec-ів типу `rules`.                       |
-| `collectAutoRuleFacts`        | `async function`                 | Обхід дерева й збір content-фактів.                                         |
-| `detectAutoRules`             | `async function`                 | Головна функція: повертає `{ rules: string[] }` за `meta.json` правил.      |
-| `mergeConfigWithAutoDetected` | `function`                       | Зливає виявлені rules+skills у конфіг із поправкою на legacy-id.            |
+| Експорт                       | Тип                                         | Призначення                                                            |
+| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------- |
+| `discoverRuleAutoActivation`  | `function`                                  | Скан `npm/rules/<id>/meta.json` → мапа id → `RuleAutoSpec`.            |
+| `AUTO_RULE_ORDER`             | `readonly string[]` (frozen)                | Алфавітний порядок усіх правил із розпізнаним `auto`.                  |
+| `AUTO_RULE_DEPENDENCIES`      | `readonly Record<string,string[]>` (frozen) | Граф залежностей із spec-ів типу `rules`.                              |
+| `collectAutoRuleFacts`        | `async function`                            | Обхід дерева й збір content-фактів.                                    |
+| `detectAutoRules`             | `async function`                            | Головна функція: повертає `{ rules: string[] }` за `meta.json` правил. |
+| `mergeConfigWithAutoDetected` | `function`                                  | Зливає виявлені rules+skills у конфіг із поправкою на legacy-id.       |
 
 Внутрішні (не експортовані):
 
@@ -214,7 +214,7 @@
   - `'predicate' in spec` → шукає функцію `RULE_PREDICATES[spec.predicate]`. Якщо не знайдено
     — `false`. Інакше викликає за іменем предиката з різними сигнатурами:
     - `repoUrlMarker` → `fn(ctx.packageJsonParsed, spec.arg)` — читає корений `package.json`
-      + arg-маркер.
+      - arg-маркер.
     - `gqlTaggedTemplate` або `hasuraConfigMarker` → `fn(ctx.facts)` — content-факти.
     - `jsBunDbSignal` → `fn(ctx.root, ctx.facts)` — комбінований сигнал.
     - інші (`depInAnyPackageJson`, `nestedPackageWithoutVite`) → `fn(ctx.root, spec.arg)`.

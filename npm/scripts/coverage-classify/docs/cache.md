@@ -41,12 +41,12 @@
 
 Модуль експортує три іменовані функції (ESM):
 
-| Функція | Призначення |
-|---|---|
-| `deriveBlobHash(filePath)` | Обчислити sha1-хеш контенту файла. |
+| Функція                            | Призначення                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------ |
+| `deriveBlobHash(filePath)`         | Обчислити sha1-хеш контенту файла.                                             |
 | `deriveCacheKey(filePath, mutant)` | Сформувати повний ключ кешу для конкретного мутанта в конкретному стані файла. |
-| `readCache(cachePath)` | Безпечно прочитати cache з диска з порожнім fallback. |
-| `writeCache(cachePath, cache)` | Записати cache на диск (з автостворенням батьківських директорій). |
+| `readCache(cachePath)`             | Безпечно прочитати cache з диска з порожнім fallback.                          |
+| `writeCache(cachePath, cache)`     | Записати cache на диск (з автостворенням батьківських директорій).             |
 
 Внутрішня (не експортована) константа:
 
@@ -134,12 +134,12 @@
 
 Лише модулі стандартної бібліотеки Node.js (ESM):
 
-| Імпорт | Звідки | Призначення |
-|---|---|---|
-| `execFileSync` | `node:child_process` | Виклик `git hash-object` як зовнішнього процесу. |
-| `createHash` | `node:crypto` | sha1-fallback, якщо `git` недоступний. |
-| `existsSync`, `mkdirSync`, `readFileSync`, `writeFileSync` | `node:fs` | Sync-FS-операції для cache та source-файлів. |
-| `dirname` | `node:path` | Виокремити батьківську директорію з cache-шляху перед `mkdirSync`. |
+| Імпорт                                                     | Звідки               | Призначення                                                        |
+| ---------------------------------------------------------- | -------------------- | ------------------------------------------------------------------ |
+| `execFileSync`                                             | `node:child_process` | Виклик `git hash-object` як зовнішнього процесу.                   |
+| `createHash`                                               | `node:crypto`        | sha1-fallback, якщо `git` недоступний.                             |
+| `existsSync`, `mkdirSync`, `readFileSync`, `writeFileSync` | `node:fs`            | Sync-FS-операції для cache та source-файлів.                       |
+| `dirname`                                                  | `node:path`          | Виокремити батьківську директорію з cache-шляху перед `mkdirSync`. |
 
 Зовнішніх npm-залежностей **немає**. Усі імпорти — з prefix `node:` (рекомендований формат для Node.js core-модулів).
 

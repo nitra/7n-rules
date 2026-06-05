@@ -37,10 +37,10 @@
 
 ## Експорти / API
 
-| Експорт                | Тип                          | Призначення |
-|------------------------|------------------------------|-------------|
-| `runLintPythonSteps`   | `function`                   | Виконує внутрішні кроки `lint-python` (без зовнішнього локу). Призначений для повторного використання з обгортки `runStandardLint` та для тестування. |
-| `runLintPython`        | `() => Promise<number>`      | Публічна CLI-форма: запускає `runLintPythonSteps` через `runStandardLint`, який бере глобальний лок `lint-python` і дедупає прогони за станом git-дерева. |
+| Експорт              | Тип                     | Призначення                                                                                                                                               |
+| -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `runLintPythonSteps` | `function`              | Виконує внутрішні кроки `lint-python` (без зовнішнього локу). Призначений для повторного використання з обгортки `runStandardLint` та для тестування.     |
+| `runLintPython`      | `() => Promise<number>` | Публічна CLI-форма: запускає `runLintPythonSteps` через `runStandardLint`, який бере глобальний лок `lint-python` і дедупає прогони за станом git-дерева. |
 
 Модуль не має default-export. Усі експорти — іменовані ES Module exports.
 
@@ -87,7 +87,7 @@ uv-середовища.
 - Повертає: `true`, якщо `uv run --frozen <tool> --version` завершився з
   кодом `0`, інакше `false`.
 - Спосіб запуску: `spawnSync(uv, ['run', '--frozen', tool, '--version'],
-  { stdio: 'ignore', shell: false })`. `stdio: 'ignore'` гасить весь вивід
+{ stdio: 'ignore', shell: false })`. `stdio: 'ignore'` гасить весь вивід
   пробної команди, щоб не засмічувати лог.
 - Side effects: запуск дочірнього процесу `uv run --frozen <tool> --version`.
   Опція `--frozen` гарантує, що `uv` не намагатиметься оновлювати lock-файл
@@ -115,14 +115,14 @@ uv-середовища.
   4. Виконує `runTool('uv lock --check', uv, ['lock', '--check'], pass, fail)`.
      За невдачі — повертає поточний код (далі не йде).
   5. Виконує `runTool('uv sync --frozen', uv, ['sync', '--frozen'], pass,
-     fail)`. За невдачі — повертає поточний код.
+fail)`. За невдачі — повертає поточний код.
   6. Створює локальний хелпер `runOptionalUvTool(tool, label, args)`
      (див. нижче) і послідовно запускає:
      - `runOptionalUvTool('ruff', 'ruff check --fix', ['check', '--fix', '.'])`
      - `runOptionalUvTool('ruff', 'ruff format', ['format', '.'])`
      - `runOptionalUvTool('mypy', 'mypy', ['.'])`
-     За першої ж справжньої невдачі (повертає `false`) — повернення поточного
-     коду виходу.
+       За першої ж справжньої невдачі (повертає `false`) — повернення поточного
+       коду виходу.
   7. Повертає `reporter.getExitCode()`.
 - Side effects:
   - Запуск зовнішніх процесів (`uv lock`, `uv sync`, `uv run ruff`,
@@ -152,7 +152,7 @@ uv-середовища.
      пропущено» і повертає `true` (це коректне продовження пайплайну,
      інструмент трактується як optional).
   2. Інакше викликає `runTool(label, uv, ['run', '--frozen', tool, ...args],
-     pass, fail)`.
+pass, fail)`.
 - Side effects: ті ж, що й у `runTool` / `uvToolAvailable` (запуск дочірніх
   процесів, оновлення репортера).
 
@@ -250,7 +250,7 @@ if (isRunAsCli(import.meta.url)) {
 2. `uv sync --frozen` — інсталяція середовища строго за `uv.lock`. За
    невдачі вихід `1`.
 3. `uvToolAvailable(uv, 'ruff')` → `true` → `uv run --frozen ruff check
-   --fix .`. Може **змінити файли**.
+--fix .`. Може **змінити файли**.
 4. `uv run --frozen ruff format .`. Також може **змінити файли**.
 5. `uvToolAvailable(uv, 'mypy')` → `true` → `uv run --frozen mypy .`.
    Лише читає, не змінює дерево.
@@ -302,7 +302,7 @@ node npm/rules/python/lint/lint.mjs
    викликати `pass`, інакше `fail` з кодом (типу number або `1` при
    неприродному завершенні); повертати `boolean`.
 3. Реалізувати `uvToolAvailable(uv, tool)`: `spawnSync(uv, ['run',
-   '--frozen', tool, '--version'], { stdio: 'ignore', shell: false })` →
+'--frozen', tool, '--version'], { stdio: 'ignore', shell: false })` →
    `r.status === 0`.
 4. Експортувати `runLintPythonSteps(cwd = process.cwd())`:
    - створити репортер;
@@ -310,13 +310,13 @@ node npm/rules/python/lint/lint.mjs
    - резолвити `uv`; якщо немає → `fail(...)` і повернути;
    - послідовно: `uv lock --check`, `uv sync --frozen` (обовʼязкові);
    - опційні через локальну функцію-замикач `runOptionalUvTool`: `ruff
-     check --fix .`, `ruff format .`, `mypy .` — кожен через
+check --fix .`, `ruff format .`, `mypy .` — кожен через
      `uvToolAvailable` + `runTool`;
    - повернути `reporter.getExitCode()`.
 5. Експортувати `runLintPython = () => runStandardLint(import.meta.dirname,
-   runLintPythonSteps)`.
+runLintPythonSteps)`.
 6. На верхньому рівні: `if (isRunAsCli(import.meta.url)) process.exitCode =
-   await runLintPython()`.
+await runLintPython()`.
 
 Результат повинен поведінково збігтися з оригіналом: ті самі повідомлення,
 ті самі коди виходу, така ж серіалізація та обробка опційних інструментів.

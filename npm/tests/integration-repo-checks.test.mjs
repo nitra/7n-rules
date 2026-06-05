@@ -52,25 +52,21 @@ describe('check-* на реальному репозиторії', () => {
   // або subprocess-валідаторів — у sandbox вони не виконуються коректно і обривають Stryker
   // dry-run. Для unit-pure mutation analysis інтеграційний тест проти живого дерева не несе
   // додаткової інформації понад те, що дають per-rule unit-тести.
-  test(
-    'узгоджені з поточним деревом cursor',
-    async () => {
-      // Під Stryker (`STRYKER_MUTATOR_WORKER`) — no-op: REPO_ROOT резолвиться у sandbox-копію
-      // (див. коментар вище), тож інтеграційний прогон проти живого дерева тут пропускаємо.
-      if (env.STRYKER_MUTATOR_WORKER) return
-      await withShellcheckStubInPath(async () => {
-        expect(await checkAbie(REPO_ROOT)).toBe(0)
-        expect(await checkBun(REPO_ROOT)).toBe(0)
-        expect(await checkGa(REPO_ROOT)).toBe(0)
-        expect(await checkGraphql(REPO_ROOT)).toBe(0)
-        expect(await checkJsLint(REPO_ROOT)).toBe(0)
-        expect(await checkText(REPO_ROOT)).toBe(0)
-        expect(await checkNpmModule(REPO_ROOT)).toBe(0)
-        expect(await checkDocker(REPO_ROOT)).toBe(0)
-        expect(await checkK8s(REPO_ROOT)).toBe(0)
-        expect(await checkJsRun(REPO_ROOT)).toBe(0)
-      })
-    },
-    120000
-  )
+  test('узгоджені з поточним деревом cursor', async () => {
+    // Під Stryker (`STRYKER_MUTATOR_WORKER`) — no-op: REPO_ROOT резолвиться у sandbox-копію
+    // (див. коментар вище), тож інтеграційний прогон проти живого дерева тут пропускаємо.
+    if (env.STRYKER_MUTATOR_WORKER) return
+    await withShellcheckStubInPath(async () => {
+      expect(await checkAbie(REPO_ROOT)).toBe(0)
+      expect(await checkBun(REPO_ROOT)).toBe(0)
+      expect(await checkGa(REPO_ROOT)).toBe(0)
+      expect(await checkGraphql(REPO_ROOT)).toBe(0)
+      expect(await checkJsLint(REPO_ROOT)).toBe(0)
+      expect(await checkText(REPO_ROOT)).toBe(0)
+      expect(await checkNpmModule(REPO_ROOT)).toBe(0)
+      expect(await checkDocker(REPO_ROOT)).toBe(0)
+      expect(await checkK8s(REPO_ROOT)).toBe(0)
+      expect(await checkJsRun(REPO_ROOT)).toBe(0)
+    })
+  }, 120000)
 })

@@ -15,10 +15,10 @@
 
 Модуль експортує два іменованих експорти (ESM, формат `.mjs`):
 
-| Експорт         | Тип                                              | Опис                                              |
-| --------------- | ------------------------------------------------ | ------------------------------------------------- |
-| `parseQuery`    | `(qs: string) => Record<string, string>`         | Парсить query string у словник параметрів.        |
-| `buildQuery`    | `(params: Record<string, unknown>) => string`    | Серіалізує об'єкт параметрів у query string.      |
+| Експорт      | Тип                                           | Опис                                         |
+| ------------ | --------------------------------------------- | -------------------------------------------- |
+| `parseQuery` | `(qs: string) => Record<string, string>`      | Парсить query string у словник параметрів.   |
+| `buildQuery` | `(params: Record<string, unknown>) => string` | Серіалізує об'єкт параметрів у query string. |
 
 Default-експорту немає.
 
@@ -86,7 +86,7 @@ export function buildQuery(params: Record<string, unknown>): string
 2. Ініціалізує локальний масив `parts = []`.
 3. Ітерує по `Object.entries(params)`:
    - Якщо `v === undefined` або `v === null` — пропускає пару (такі значення не включаються в результат).
-   - Інакше додає в `parts` рядок ``` `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}` ```.
+   - Інакше додає в `parts` рядок `` `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}` ``.
 4. Повертає результат `parts.join('&')`.
 
 Особливості:

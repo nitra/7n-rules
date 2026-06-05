@@ -13,6 +13,7 @@
 ### Task 1: Add Runner Selection Tests
 
 **Files:**
+
 - Modify: `npm/scripts/dispatcher/lib/tests/subagent-runner.test.mjs`
 - Modify: `npm/scripts/tests/skills-cli.test.mjs`
 - Modify: `npm/skills/docgen/js/tests/docgen-run.test.mjs`
@@ -38,6 +39,7 @@ Expected: failures mentioning unsupported `pi` runner and missing `docgen-run.mj
 ### Task 2: Implement Cloud Runner Chain
 
 **Files:**
+
 - Modify: `npm/scripts/dispatcher/lib/subagent-runner.mjs`
 - Modify: `npm/scripts/skills-cli.mjs`
 - Modify: `npm/scripts/tests/skills-cli.test.mjs`
@@ -64,6 +66,7 @@ Expected: all selected tests pass.
 ### Task 3: Implement `docgen run`
 
 **Files:**
+
 - Create: `npm/skills/docgen/js/docgen-run.mjs`
 - Modify: `npm/skills/docgen/js/tests/docgen-run.test.mjs`
 - Modify: `npm/bin/n-cursor.js`
@@ -99,6 +102,7 @@ Expected: all selected tests pass.
 ### Task 4: Docs, CI4, and Release Artifact
 
 **Files:**
+
 - Modify: `docs/ci4/01-context.md`
 - Create: `npm/.changes/<generated>.md`
 

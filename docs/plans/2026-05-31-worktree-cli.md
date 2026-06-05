@@ -43,12 +43,7 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 
-import {
-  buildDescription,
-  findOrphanDescFiles,
-  sanitizeBranch,
-  worktreePaths
-} from '../worktree.mjs'
+import { buildDescription, findOrphanDescFiles, sanitizeBranch, worktreePaths } from '../worktree.mjs'
 
 describe('sanitizeBranch', () => {
   test('слеш → дефіс', () => {
@@ -142,7 +137,10 @@ export function sanitizeBranch(branch) {
   if (typeof branch !== 'string' || branch.trim() === '') {
     throw new Error('worktree: імʼя гілки обовʼязкове')
   }
-  const sanitized = branch.trim().replace(UNSAFE_PATH_CHARS_RE, '-').replace(/^-+|-+$/gu, '')
+  const sanitized = branch
+    .trim()
+    .replace(UNSAFE_PATH_CHARS_RE, '-')
+    .replace(/^-+|-+$/gu, '')
   if (sanitized === '') {
     throw new Error(`worktree: імʼя гілки "${branch}" не містить допустимих символів`)
   }
@@ -578,9 +576,9 @@ import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 У рядку переліку відомих команд (`console.error('   Очікується: …, change, release, skill')`) додати `worktree`:
 
 ```js
-      console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree`
-      )
+console.error(
+  `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, change, release, skill, worktree`
+)
 ```
 
 - [ ] **Step 4: Перевірити вручну на реальному репо (sibling tmp)**
@@ -632,7 +630,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 `npm/skills/worktree/SKILL.md`:
 
-```markdown
+````markdown
 ---
 name: worktree
 description: >-
@@ -666,9 +664,11 @@ cd .worktrees/feat-skill-meta
 cd -
 npx @nitra/cursor worktree remove feat/skill-meta
 ```
+````
 
 Конвенція й заборони (де НЕ створювати worktree) — `.cursor/rules/n-worktree.mdc`.
-```
+
+````
 
 - [ ] **Step 3: Перевірити, що skill валідний (Spec A check, якщо вже є)**
 
@@ -682,7 +682,7 @@ git add npm/skills/worktree/SKILL.md npm/skills/worktree/meta.json
 git commit -m "feat(skills): тонкий skill worktree (вказівник на n-cursor worktree CLI)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
-```
+````
 
 ---
 
@@ -711,11 +711,12 @@ alwaysApply: true
 `.worktrees/` (gitignored) і веде інвентарний файл-опис поруч.
 
 ## Розташування
-
 ```
+
 .worktrees/
-  feat-skill-meta/        ← git worktree checkout
-  feat-skill-meta.md      ← інвентарний опис поруч (gitignored через .worktrees/)
+feat-skill-meta/ ← git worktree checkout
+feat-skill-meta.md ← інвентарний опис поруч (gitignored через .worktrees/)
+
 ```
 
 Слеш у гілці перетворюється на дефіс: `feat/skill-meta` → `.worktrees/feat-skill-meta/`.
@@ -835,6 +836,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Type consistency:** `sanitizeBranch`, `worktreePaths`, `buildDescription`, `findOrphanDescFiles`, `runWorktreeCli(argv, options)` з `cwd/log/logError/now` — імена однакові в логіці, оркестраторі й тестах.
 
 **Відомі ризики для виконавця:**
+
 - `mkdirSync` у Task 2 — можливо невикористаний у коді (лише в тесті prune для ручного створення `.worktrees/`); якщо oxlint/knip скаржиться — прибрати з імпорту коду.
 - Task 5 Step 3: pure-doc правило не авто-вмикається в `.n-cursor.json` — за потреби розповсюдження додати `worktree` у `rules` вручну (звірити з фактичною поведінкою sync під час виконання).
 - prune-тест (Task 2): `git worktree prune` не чіпає `ghost.md` без зареєстрованого worktree — `findOrphanDescFiles` бачить його осиротілим (немає checkout `ghost`), тож видаляє. Звірити, що `listRegisteredCheckouts` повертає лише реальні worktree.

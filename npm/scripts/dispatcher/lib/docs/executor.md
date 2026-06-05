@@ -16,11 +16,11 @@
 
 Модуль експортує три функції (ESM, named exports):
 
-| Експорт         | Тип        | Призначення                                                                                                                                |
-|-----------------|------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `microprompt`   | `function` | Чиста функція побудови тексту мікропромпта для конкретного кроку плану.                                                                    |
-| `patchStep`     | `function` | Чиста функція, що повертає новий обʼєкт стану з оновленим кроком за індексом (immutable update).                                            |
-| `executePlan`   | `async`    | Головна функція: читає стан, ітерує план, дергає `runner`/`verify`/`commit`, записує транзиції стану та повертає підсумковий статус.       |
+| Експорт       | Тип        | Призначення                                                                                                                          |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `microprompt` | `function` | Чиста функція побудови тексту мікропромпта для конкретного кроку плану.                                                              |
+| `patchStep`   | `function` | Чиста функція, що повертає новий обʼєкт стану з оновленим кроком за індексом (immutable update).                                     |
+| `executePlan` | `async`    | Головна функція: читає стан, ітерує план, дергає `runner`/`verify`/`commit`, записує транзиції стану та повертає підсумковий статус. |
 
 Default-експорту немає.
 
@@ -171,12 +171,12 @@ import { executePlan } from './executor.mjs'
 const result = await executePlan(
   { statePath: '.flow/state.json', eventsPath: '.flow/events.jsonl' },
   {
-    runner: subagentRunner,                // { runStep(prompt, { cwd }) }
-    verify: async (cwd) => runGates(cwd),  // { pass, failedOutput }
+    runner: subagentRunner, // { runStep(prompt, { cwd }) }
+    verify: async cwd => runGates(cwd), // { pass, failedOutput }
     commit: (cwd, msg) => gitCommit(cwd, msg),
     cwd: process.cwd(),
     maxRepairAttempts: 3,
-    log: (m) => console.error(m)
+    log: m => console.error(m)
   }
 )
 

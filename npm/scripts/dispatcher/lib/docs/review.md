@@ -14,13 +14,13 @@
 
 Модуль експортує чотири іменовані функції:
 
-| Експорт | Тип | Призначення |
-|---------|-----|-------------|
-| `diffFromBase(base, run, cwd)` | `function` | Будує текст diff: закомічене `base...HEAD` + working tree `git diff`. |
-| `reviewerPrompt(diff, risk)` | `function` | Формує промпт для adversarial-рецензента з фокусом на diff (опційно security-лінза). |
-| `parseFindings(text)` | `function` | Витягає JSON-масив findings з відповіді субагента (fail-soft). |
-| `dedupeFindings(findings)` | `function` | Дедуплікує findings за ключем `(file, issue)`. |
-| `review(_rest, deps)` | `async function` | Головна точка входу команди `flow review`. |
+| Експорт                        | Тип              | Призначення                                                                          |
+| ------------------------------ | ---------------- | ------------------------------------------------------------------------------------ |
+| `diffFromBase(base, run, cwd)` | `function`       | Будує текст diff: закомічене `base...HEAD` + working tree `git diff`.                |
+| `reviewerPrompt(diff, risk)`   | `function`       | Формує промпт для adversarial-рецензента з фокусом на diff (опційно security-лінза). |
+| `parseFindings(text)`          | `function`       | Витягає JSON-масив findings з відповіді субагента (fail-soft).                       |
+| `dedupeFindings(findings)`     | `function`       | Дедуплікує findings за ключем `(file, issue)`.                                       |
+| `review(_rest, deps)`          | `async function` | Головна точка входу команди `flow review`.                                           |
 
 Внутрішня (не експортується) функція `severityIcon(severity)` повертає емодзі-маркер.
 
@@ -108,7 +108,7 @@
 
 ---
 
-### `severityIcon(severity)` *(internal)*
+### `severityIcon(severity)` _(internal)_
 
 **Сигнатура:** `(severity: string) => string`
 

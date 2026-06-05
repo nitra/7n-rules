@@ -58,7 +58,7 @@
 
 ### Changed
 
-- image-compress переведено на glob-активацію (**/*.{png,jpg,jpeg,gif,svg}) замість залежності від bun — у проєктах без растрів/SVG правило більше не додається автоматично; globToRegex отримав підтримку brace-альтернатив {a,b,c}
+- image-compress переведено на glob-активацію (\*_/_.{png,jpg,jpeg,gif,svg}) замість залежності від bun — у проєктах без растрів/SVG правило більше не додається автоматично; globToRegex отримав підтримку brace-альтернатив {a,b,c}
 
 ## [3.18.2] - 2026-06-03
 
@@ -238,7 +238,7 @@
 
 ### Added
 
-- docker: правило «нативний .node-аддон не компілювати» — sharp/@img/*/argon2 у deps + `bun build --compile` прапорцюється (компілятор не вшиває динамічний require → краш у рантаймі); канон — node_modules + `bun <entry>` на mirror.gcr.io/oven/bun:alpine (легітимний bun-рантайм як фінальний stage). lib/docker-native-addon.mjs + інтеграція в js/lint.mjs
+- docker: правило «нативний .node-аддон не компілювати» — sharp/@img/\*/argon2 у deps + `bun build --compile` прапорцюється (компілятор не вшиває динамічний require → краш у рантаймі); канон — node_modules + `bun <entry>` на mirror.gcr.io/oven/bun:alpine (легітимний bun-рантайм як фінальний stage). lib/docker-native-addon.mjs + інтеграція в js/lint.mjs
 
 ### Changed
 
@@ -303,7 +303,7 @@
 
 ### Changed
 
-- js-lint: канон oxlint оновлено — додано 13 правил @e18e/eslint-plugin і ignorePatterns (npm/types/**, demo/node/rules-demo.js)
+- js-lint: канон oxlint оновлено — додано 13 правил @e18e/eslint-plugin і ignorePatterns (npm/types/\*\*, demo/node/rules-demo.js)
 - js-lint: мінімальна версія @nitra/eslint-config піднята до 3.10.0 (Rego package_json + js-lint.mdc v1.27)
 
 ## [1.40.1] - 2026-05-31

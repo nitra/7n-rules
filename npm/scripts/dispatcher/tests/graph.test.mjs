@@ -40,18 +40,30 @@ describe('parseIdList', () => {
 describe('deriveStatus', () => {
   const done = new Set(['B01'])
   test('fact done/failed', () => {
-    expect(deriveStatus({ hasFact: true, factStatus: 'done', dependsOn: [], asks: [], answered: [] }, done)).toBe('done')
-    expect(deriveStatus({ hasFact: true, factStatus: 'failed', dependsOn: [], asks: [], answered: [] }, done)).toBe('failed')
+    expect(deriveStatus({ hasFact: true, factStatus: 'done', dependsOn: [], asks: [], answered: [] }, done)).toBe(
+      'done'
+    )
+    expect(deriveStatus({ hasFact: true, factStatus: 'failed', dependsOn: [], asks: [], answered: [] }, done)).toBe(
+      'failed'
+    )
   })
   test('claim + відкрите питання → awaiting-human', () => {
-    expect(deriveStatus({ hasFact: false, hasClaim: true, asks: ['q1'], answered: [], dependsOn: [] }, done)).toBe('awaiting-human')
+    expect(deriveStatus({ hasFact: false, hasClaim: true, asks: ['q1'], answered: [], dependsOn: [] }, done)).toBe(
+      'awaiting-human'
+    )
   })
   test('claim + питання закрите → in_progress', () => {
-    expect(deriveStatus({ hasFact: false, hasClaim: true, asks: ['q1'], answered: ['q1'], dependsOn: [] }, done)).toBe('in_progress')
+    expect(deriveStatus({ hasFact: false, hasClaim: true, asks: ['q1'], answered: ['q1'], dependsOn: [] }, done)).toBe(
+      'in_progress'
+    )
   })
   test('depends done → ready; інакше blocked', () => {
-    expect(deriveStatus({ hasFact: false, hasClaim: false, asks: [], answered: [], dependsOn: ['B01'] }, done)).toBe('ready')
-    expect(deriveStatus({ hasFact: false, hasClaim: false, asks: [], answered: [], dependsOn: ['B09'] }, done)).toBe('blocked')
+    expect(deriveStatus({ hasFact: false, hasClaim: false, asks: [], answered: [], dependsOn: ['B01'] }, done)).toBe(
+      'ready'
+    )
+    expect(deriveStatus({ hasFact: false, hasClaim: false, asks: [], answered: [], dependsOn: ['B09'] }, done)).toBe(
+      'blocked'
+    )
   })
 })
 

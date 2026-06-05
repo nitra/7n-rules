@@ -15,10 +15,10 @@
 
 ## Експорти / API
 
-| Експорт         | Тип       | Призначення                                                  |
-| --------------- | --------- | ------------------------------------------------------------ |
-| `writeChange`   | `async function` | Створює один change-файл у `<ws>/.changes/` та повертає його шлях відносно workspace. |
-| `runChangeCli`  | `async function` | Парсить CLI-аргументи (`--bump`, `--section`, `--message`, `--ws`), викликає `writeChange` і повертає exit-код для процесу. |
+| Експорт        | Тип              | Призначення                                                                                                                 |
+| -------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `writeChange`  | `async function` | Створює один change-файл у `<ws>/.changes/` та повертає його шлях відносно workspace.                                       |
+| `runChangeCli` | `async function` | Парсить CLI-аргументи (`--bump`, `--section`, `--message`, `--ws`), викликає `writeChange` і повертає exit-код для процесу. |
 
 Модуль не має експортованих констант чи класів, лише ці дві функції. `default`-експорт відсутній — використовуються лише іменовані експорти.
 
@@ -42,11 +42,11 @@ async function writeChange({
 
 **Параметри:**
 
-- `bump` *(string, обов'язковий)* — рівень semver-бампу. Дозволені значення: `major`, `minor`, `patch` (перевіряється у `parseChangeFile`).
-- `section` *(string, обов'язковий)* — секція Keep a Changelog. Дозволені значення: `Added`, `Changed`, `Fixed`, `Removed`.
-- `message` *(string, обов'язковий)* — людиночитаний опис зміни. Якщо `null/undefined`, перетворюється на порожній рядок; далі застосовується `trim()`. Порожній (після обрізки) опис призведе до помилки валідації.
-- `ws` *(string, необов'язковий, default `.`)* — шлях workspace відносно `cwd`. Дозволяє писати change-файли в конкретний підпроект монорепо.
-- `cwd` *(string, необов'язковий, default `process.cwd()`)* — корінь репозиторію. Винесений у параметр для тестованості.
+- `bump` _(string, обов'язковий)_ — рівень semver-бампу. Дозволені значення: `major`, `minor`, `patch` (перевіряється у `parseChangeFile`).
+- `section` _(string, обов'язковий)_ — секція Keep a Changelog. Дозволені значення: `Added`, `Changed`, `Fixed`, `Removed`.
+- `message` _(string, обов'язковий)_ — людиночитаний опис зміни. Якщо `null/undefined`, перетворюється на порожній рядок; далі застосовується `trim()`. Порожній (після обрізки) опис призведе до помилки валідації.
+- `ws` _(string, необов'язковий, default `.`)_ — шлях workspace відносно `cwd`. Дозволяє писати change-файли в конкретний підпроект монорепо.
+- `cwd` _(string, необов'язковий, default `process.cwd()`)_ — корінь репозиторію. Винесений у параметр для тестованості.
 
 **Повертає:** `Promise<string>` — відносний шлях створеного файлу від кореня workspace (`ws`), у форматі `.changes/<timestamp>-<rand>.md`. Зауважте: шлях **не** включає сам `ws` — це робить його зручним для подальшого логування `join(ws, rel)`.
 
@@ -75,7 +75,7 @@ async function runChangeCli(args: string[]): Promise<number>
 
 **Параметри:**
 
-- `args` *(string[], обов'язковий)* — масив аргументів CLI (зазвичай `process.argv.slice(2)`).
+- `args` _(string[], обов'язковий)_ — масив аргументів CLI (зазвичай `process.argv.slice(2)`).
 
 **Розпізнавані прапори** (парсер мінімалістичний, не використовує бібліотеку):
 
@@ -111,7 +111,7 @@ async function runChangeCli(args: string[]): Promise<number>
 
 ### Внутрішні (сусідній модуль `./lib/change-file.mjs`)
 
-- `CHANGES_DIR` *(string-константа `'.changes'`)* — назва підкаталогу всередині workspace.
+- `CHANGES_DIR` _(string-константа `'.changes'`)_ — назва підкаталогу всередині workspace.
 - `newChangeFileName()` — генератор унікального імені файлу (`<Date.now()>-<3byte-hex>.md`).
 - `parseChangeFile(text)` — парсер + валідатор; використовується **тут** для валідації перед записом. Кидає `Error` зі зрозумілим текстом при невалідних `bump`, `section` або порожньому описі.
 - `serializeChangeFile({ bump, section, description })` — формує текст change-файлу: `---\nbump: ...\nsection: ...\n---\n<description>\n`.
@@ -134,7 +134,7 @@ const rel = await writeChange({
   bump: 'patch',
   section: 'Fixed',
   message: 'Fix off-by-one у валідаторі change-файлів',
-  ws: 'npm/rules/release',
+  ws: 'npm/rules/release'
 })
 // rel === '.changes/1735000000000-a1b2c3.md'
 ```

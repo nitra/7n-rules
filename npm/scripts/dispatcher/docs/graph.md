@@ -16,15 +16,15 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `classifyArtifact(name)` | named function | Класифікує ім'я файлу-артефакту в `{ stem, kind, qid? }`. |
-| `parseIdList(value)` | named function | Парсить inline-список `[A, B]` із front-matter у масив id. |
+| Експорт                         | Тип            | Призначення                                                                          |
+| ------------------------------- | -------------- | ------------------------------------------------------------------------------------ |
+| `classifyArtifact(name)`        | named function | Класифікує ім'я файлу-артефакту в `{ stem, kind, qid? }`.                            |
+| `parseIdList(value)`            | named function | Парсить inline-список `[A, B]` із front-matter у масив id.                           |
 | `scanGraph(root, graph, deps?)` | named function | Сканує `docs/graphs/<graph>/nodes/`, групує артефакти, повертає сирий список вузлів. |
-| `deriveStatus(node, doneSet)` | named function | Чисте обчислення статусу одного вузла на базі прапорців та `dependsOn`. |
-| `deriveGraph(nodes)` | named function | Деривує статус для всіх вузлів графа (спочатку обчислюючи `doneSet`). |
-| `renderGraph(graph, nodes)` | named function | Текстовий рендер графа в одну багаторядкову таблицю. |
-| `runGraphCli(args, deps?)` | named function | CLI-точка входу для `n-cursor graph <sub> [graph]`. |
+| `deriveStatus(node, doneSet)`   | named function | Чисте обчислення статусу одного вузла на базі прапорців та `dependsOn`.              |
+| `deriveGraph(nodes)`            | named function | Деривує статус для всіх вузлів графа (спочатку обчислюючи `doneSet`).                |
+| `renderGraph(graph, nodes)`     | named function | Текстовий рендер графа в одну багаторядкову таблицю.                                 |
+| `runGraphCli(args, deps?)`      | named function | CLI-точка входу для `n-cursor graph <sub> [graph]`.                                  |
 
 Внутрішня (не експортована):
 
@@ -47,11 +47,13 @@
 **Сигнатура:** `(name: string) => { stem: string, kind: string, qid?: string } | null`
 
 **Параметри:**
+
 - `name` — рядок з іменем файлу (очікується закінчення на `.md`).
 
 **Повертає:** об'єкт класифікації або `null`, якщо файл не схожий на артефакт.
 
 **Алгоритм:**
+
 1. Якщо ім'я не закінчується на `.md` — повертається `null`.
 2. Відрізається суфікс `.md` → `base`.
 3. Перебираються пари в `PLAIN`; перший суфікс, на який закінчується `base`, дає `{ stem: base без суфікса, kind }`.
@@ -61,6 +63,7 @@
 **Side effects:** немає (чиста функція).
 
 **Приклади:**
+
 - `classifyArtifact('B02-parser.plan.md')` → `{ stem: 'B02-parser', kind: 'plan' }`
 - `classifyArtifact('B02-parser.ask-q1.md')` → `{ stem: 'B02-parser', kind: 'ask', qid: 'q1' }`
 - `classifyArtifact('README.md')` → `null`
@@ -72,6 +75,7 @@
 **Сигнатура:** `(value: string | null | undefined) => string[]`
 
 **Параметри:**
+
 - `value` — значення поля front-matter, наприклад `"[A, B, C]"`.
 
 **Повертає:** масив id; порожні елементи відкидаються; усі елементи `trim`-аються.
@@ -81,6 +85,7 @@
 **Side effects:** немає.
 
 **Зауваги:**
+
 - `replace('[', '')` / `replace(']', '')` без `g`-флага: видаляється лише перше входження кожної дужки — інші лишаються в результаті.
 
 ---
@@ -90,6 +95,7 @@
 **Сигнатура:** `(root: string, graph: string, deps?: { readdir?, readFile? }) => Node[]`
 
 **Параметри:**
+
 - `root` — абсолютний шлях до кореня репо.
 - `graph` — id графа (= ім'я каталогу під `docs/graphs/`).
 - `deps.readdir` — функція `(dir: string) => string[]`; за замовчуванням обгортка над `fs.existsSync` + `fs.readdirSync` (повертає `[]`, якщо каталога немає).
@@ -97,20 +103,21 @@
 
 **Повертає:** масив об'єктів-вузлів. Кожен вузол має поля:
 
-| Поле | Тип | Значення |
-| --- | --- | --- |
-| `stem` | `string` | `id-slug` стем артефакту |
-| `id` | `string` | id вузла (із front-matter `plan` або `stem.split('-')[0]`) |
-| `slug` | `string` | усе після першого `-` у `stem` |
-| `dependsOn` | `string[]` | id-залежності з `plan.dependsOn` |
-| `owner` | `string \| null` | власник з `plan.owner` |
-| `hasClaim` | `boolean` | чи присутній `.claim`-артефакт |
-| `hasFact` | `boolean` | чи присутній `.fact`-артефакт |
+| Поле         | Тип              | Значення                                                        |
+| ------------ | ---------------- | --------------------------------------------------------------- |
+| `stem`       | `string`         | `id-slug` стем артефакту                                        |
+| `id`         | `string`         | id вузла (із front-matter `plan` або `stem.split('-')[0]`)      |
+| `slug`       | `string`         | усе після першого `-` у `stem`                                  |
+| `dependsOn`  | `string[]`       | id-залежності з `plan.dependsOn`                                |
+| `owner`      | `string \| null` | власник з `plan.owner`                                          |
+| `hasClaim`   | `boolean`        | чи присутній `.claim`-артефакт                                  |
+| `hasFact`    | `boolean`        | чи присутній `.fact`-артефакт                                   |
 | `factStatus` | `string \| null` | значення `status` із front-matter `.fact` (за замовч. `'done'`) |
-| `asks` | `string[]` | список `qid` з `.ask-<qid>.md` файлів |
-| `answered` | `string[]` | список `qid` з `.ans-<qid>.md` файлів |
+| `asks`       | `string[]`       | список `qid` з `.ask-<qid>.md` файлів                           |
+| `answered`   | `string[]`       | список `qid` з `.ans-<qid>.md` файлів                           |
 
 **Алгоритм:**
+
 1. Збирається шлях `dir = root/docs/graphs/<graph>/nodes`.
 2. Створюється `Map<stem, node>` та лінива функція `ensure(stem)`, яка ініціалізує запис при першому зверненні.
 3. Для кожного імені у `readdir(dir)`:
@@ -125,10 +132,12 @@
 4. Повертається `[...byStem.values()]`.
 
 **Side effects:**
+
 - Дефолтні `readdir`/`readFile` читають з реальної ФС.
 - При інжектованих `deps` функція повністю детермінована.
 
 **Зауваги щодо стійкості:**
+
 - `parseFrontMatter` може повернути `null` — fallback `?? {}` гарантує безпечний доступ до полів.
 - Якщо в одному графі є кілька `.plan` файлів для одного `stem`, перемагає останній.
 
@@ -139,6 +148,7 @@
 **Сигнатура:** `(node, doneSet: Set<string>) => 'done' | 'failed' | 'awaiting-human' | 'in_progress' | 'ready' | 'blocked'`
 
 **Параметри:**
+
 - `node` — об'єкт вузла з полями `hasFact`, `factStatus`, `hasClaim`, `asks`, `answered`, `dependsOn`.
 - `doneSet` — множина `id` вузлів, які вже мають `fact` зі статусом ≠ `'failed'`.
 
@@ -160,11 +170,13 @@
 **Сигнатура:** `(nodes: Node[]) => (Node & { status })[]`
 
 **Параметри:**
+
 - `nodes` — масив вузлів від `scanGraph`.
 
 **Повертає:** новий масив вузлів з доданим полем `status`.
 
 **Алгоритм:**
+
 1. `doneSet` = множина `id` усіх вузлів, у яких `hasFact && factStatus !== 'failed'`.
 2. Кожен вузол мапиться в `{ ...n, status: deriveStatus(n, doneSet) }`.
 
@@ -177,6 +189,7 @@
 **Сигнатура:** `(graph: string, nodes: Node[]) => string`
 
 **Параметри:**
+
 - `graph` — id графа (для заголовка).
 - `nodes` — вузли з полем `status` (тобто результат `deriveGraph`).
 
@@ -211,6 +224,7 @@
 **Сигнатура:** `(args: string[], deps?: { cwd?, readdir?, readFile?, log? }) => number`
 
 **Параметри:**
+
 - `args` — позиційні аргументи після слова `graph` у вихідному `argv` (тобто `[sub, graphArg]`).
 - `deps.cwd` — root репо; за замовч. `process.cwd()`.
 - `deps.readdir` — як у `scanGraph`/`listGraphs`.
@@ -220,6 +234,7 @@
 **Повертає:** exit-код (`0` — все ok, `1` — невідома/відсутня підкоманда).
 
 **Алгоритм:**
+
 1. `root = deps.cwd ?? process.cwd()`.
 2. `[sub, graphArg] = args`.
 3. Якщо `sub !== 'status'` → друкується usage-рядок `Usage: n-cursor graph status [<graph>]` і повертається `1`.
@@ -230,6 +245,7 @@
 5. Повертається `0`.
 
 **Side effects:**
+
 - Викликає `log` (зазвичай `console.log`).
 - Читає каталог `docs/graphs/` та файли вузлів через дефолтні `readdir`/`readFile`.
 - Не пише в ФС.
@@ -287,13 +303,8 @@ import { runGraphCli, scanGraph, deriveGraph, renderGraph } from './graph.mjs'
 const logs = []
 const fakeReaddir = dir => {
   if (dir.endsWith('docs/graphs')) return ['g1']
-  if (dir.endsWith('docs/graphs/g1/nodes')) return [
-    'B01-init.plan.md',
-    'B01-init.fact.md',
-    'B02-parser.plan.md',
-    'B02-parser.claim.md',
-    'B02-parser.ask-q1.md'
-  ]
+  if (dir.endsWith('docs/graphs/g1/nodes'))
+    return ['B01-init.plan.md', 'B01-init.fact.md', 'B02-parser.plan.md', 'B02-parser.claim.md', 'B02-parser.ask-q1.md']
   return []
 }
 const fakeReadFile = file => {
@@ -316,6 +327,7 @@ const code = runGraphCli(['status'], {
 ### Розширення (планується контрактом)
 
 Наступні зрізи DAG (поза цим файлом):
+
 - `claim` — позначення взяття вузла в роботу.
 - `tick` — інкрементальне оновлення стану.
 - `dispatch` — диспатч готових (`ready`) вузлів виконавцям.

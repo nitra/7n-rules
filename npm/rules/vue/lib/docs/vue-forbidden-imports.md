@@ -17,17 +17,17 @@
 
 Усі експорти — іменовані (named exports), default export відсутній.
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `extractVueScriptBlocks(sfc)` | function | Витягує конкатенований код усіх `<script>` блоків з `.vue` SFC. |
-| `contentForVueImportScan(content, filePath)` | function | Повертає текст для сканування: для `.vue` — лише script-блоки, інакше — увесь вміст. |
-| `findForbiddenVueImportsInText(content, virtualPath?)` | function | Знаходить заборонені static-імпорти з `vue` у вже підготовленому тексті. |
-| `shouldSkipFileForVueImportScan(relativePosix)` | function | Чи пропустити файл під час обходу пакета (генерація, `.d.ts`). |
-| `isVueImportScanSourceFile(relativePath)` | function | Чи розширення файлу підходить для сканування. |
-| `findForbiddenVueImportsInSourceFile(content, relativePath)` | function | Об'єднує підготовку контенту та парсинг для одного файлу. |
-| `isNodeBuiltinSpecifier(spec)` | function | Чи специфікатор імпорту відповідає Node-нативному модулю. |
-| `findForbiddenNodeImportsInText(content, virtualPath?)` | function | Знаходить заборонені Node-імпорти у тексті. |
-| `findForbiddenNodeImportsInVueFile(content, relativePath)` | function | Знаходить заборонені Node-імпорти лише у `.vue` файлах (template ігнорується). |
+| Експорт                                                      | Тип      | Призначення                                                                          |
+| ------------------------------------------------------------ | -------- | ------------------------------------------------------------------------------------ |
+| `extractVueScriptBlocks(sfc)`                                | function | Витягує конкатенований код усіх `<script>` блоків з `.vue` SFC.                      |
+| `contentForVueImportScan(content, filePath)`                 | function | Повертає текст для сканування: для `.vue` — лише script-блоки, інакше — увесь вміст. |
+| `findForbiddenVueImportsInText(content, virtualPath?)`       | function | Знаходить заборонені static-імпорти з `vue` у вже підготовленому тексті.             |
+| `shouldSkipFileForVueImportScan(relativePosix)`              | function | Чи пропустити файл під час обходу пакета (генерація, `.d.ts`).                       |
+| `isVueImportScanSourceFile(relativePath)`                    | function | Чи розширення файлу підходить для сканування.                                        |
+| `findForbiddenVueImportsInSourceFile(content, relativePath)` | function | Об'єднує підготовку контенту та парсинг для одного файлу.                            |
+| `isNodeBuiltinSpecifier(spec)`                               | function | Чи специфікатор імпорту відповідає Node-нативному модулю.                            |
+| `findForbiddenNodeImportsInText(content, virtualPath?)`      | function | Знаходить заборонені Node-імпорти у тексті.                                          |
+| `findForbiddenNodeImportsInVueFile(content, relativePath)`   | function | Знаходить заборонені Node-імпорти лише у `.vue` файлах (template ігнорується).       |
 
 Внутрішні (не експортовані) допоміжні функції: `langFromPath`, `offsetToLine`, `normalizeSnippet`, `isAllowedVueStaticImport`, `virtualPathForParse`.
 

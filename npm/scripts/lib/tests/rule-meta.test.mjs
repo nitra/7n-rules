@@ -25,7 +25,10 @@ describe('parseRuleAutoSpec', () => {
     })
   })
   test('predicate без arg → { predicate }', () => {
-    expect(parseRuleAutoSpec({ predicate: 'gqlTaggedTemplate' })).toEqual({ predicate: 'gqlTaggedTemplate', arg: undefined })
+    expect(parseRuleAutoSpec({ predicate: 'gqlTaggedTemplate' })).toEqual({
+      predicate: 'gqlTaggedTemplate',
+      arg: undefined
+    })
   })
   test('predicate з arg → { predicate, arg }', () => {
     expect(parseRuleAutoSpec({ predicate: 'depInAnyPackageJson', arg: ['mssql'] })).toEqual({

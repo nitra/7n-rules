@@ -36,12 +36,14 @@ plan: null
 ## Scope
 
 **In:**
+
 - `flow review` — нова підкоманда Фасада A: diff від `base_commit`, спавн
   adversarial-рецензента(ів), запис `review` у `.flow.json`.
 - `level` — детекція в `init` + поле стану; впливає на кількість рецензентів.
 - Контракт `flow.mdc` — крок review + згадка рівнів.
 
 **Out (поза цим інкрементом):**
+
 - Risk/NFR окремі артефакти `docs/qa/` (фолдимо «risk note» у spec пізніше).
 - Структурований qa-gate.yaml (тримаємо вердикт у `.flow.json`).
 - DoD-чекліст, tech-spec рівні, advanced-elicitation (окремо).

@@ -20,12 +20,12 @@
 
 Модуль експортує чотири публічні функції (іменовані експорти):
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `resolveConnDirFromPackageJson(pkgJson)` | function | Визначає відносний шлях до каталогу `conn` за `package.json#imports['#conn/*']` (з дефолтом `src/conn`). |
-| `isInsideConnDir(relPosix, connDir)` | function | Перевіряє, чи лежить файл у каталозі `conn` (точно або вкладено). |
-| `findConnFactoryImportsInText(content, virtualPath?)` | function | Знаходить у тексті JS/TS-файлу всі імпорти-«фабрики підключень», повертає список знахідок із позиціями. |
-| `isConnImportsScanSourceFile(relativePathPosix)` | function | Фільтр: чи варто сканувати файл за розширенням (JS/TS-сім'я, виключно без `.d.ts`). |
+| Експорт                                               | Тип      | Призначення                                                                                              |
+| ----------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `resolveConnDirFromPackageJson(pkgJson)`              | function | Визначає відносний шлях до каталогу `conn` за `package.json#imports['#conn/*']` (з дефолтом `src/conn`). |
+| `isInsideConnDir(relPosix, connDir)`                  | function | Перевіряє, чи лежить файл у каталозі `conn` (точно або вкладено).                                        |
+| `findConnFactoryImportsInText(content, virtualPath?)` | function | Знаходить у тексті JS/TS-файлу всі імпорти-«фабрики підключень», повертає список знахідок із позиціями.  |
+| `isConnImportsScanSourceFile(relativePathPosix)`      | function | Фільтр: чи варто сканувати файл за розширенням (JS/TS-сім'я, виключно без `.d.ts`).                      |
 
 Дві допоміжні функції (`stripTrailingSlashes`, `toPosixDir`) і одна класифікуюча (`classifyConnImport`) — приватні модульні (не експортуються).
 

@@ -8,7 +8,7 @@
 2. **Статичний аналіз вихідного коду** (JS/TS) на безпечне використання драйвера `mssql`:
    - заборона створення `new sql.ConnectionPool(...)` всередині функцій (пул має бути singleton на рівні модуля);
    - заборона спільного (shared) `Request`, наприклад `export const request = pool.request()`;
-   - заборона викликів `query(\`...\`)` як звичайної функції — потрібен tagged template `query\`...\``;
+   - заборона викликів `query(\`...\`)`як звичайної функції — потрібен tagged template`query\`...\``;
    - заборона динамічних SQL-списків через `.join(',')` у конструкціях `IN (...)` / `VALUES (...)` (треба TVP, `sql.Table`);
    - вимога числового парсингу значень у `IN (${...})` (`parseInt` / `Number` / `BigInt` / `parseFloat` + фільтр від `NaN`);
    - вимога винести значення для `IN (${...})` в окрему змінну і додати guard на пустоту з `throw`.
@@ -19,19 +19,19 @@
 
 ## Експорти / API
 
-| Символ | Тип | Призначення |
-| --- | --- | --- |
+| Символ  | Тип                                 | Призначення                                                                                                                                     |
+| ------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `check` | `async function(): Promise<number>` | Єдиний публічний експорт. Виконує повну перевірку правила `js-mssql.mdc` у поточному `process.cwd()` і повертає `0` (OK) або `1` (є порушення). |
 
 Інші функції в модулі (`findAllSourcePathsForMssqlScan`, `asObject`, `getMssqlDependencyRange`, `parseLeadingSemver`, `semverGte`, `auditMssqlVersionInPackageJson`, `aggregateMssqlVersionsAcrossPackages`, `scanMssqlOneSourceFile`, `reportZeroMssqlSourceViolations`, `auditMssqlSources`) є **внутрішніми** — не експортуються і призначені лише для декомпозиції логіки `check()`.
 
 ### Константи
 
-| Константа | Значення | Опис |
-| --- | --- | --- |
-| `VERSION_PREFIX_RE` | `/^[\^~>=<]+\s*/u` | Регулярка для відрізання префіксів semver-діапазону (`^`, `~`, `>`, `=`, `<` та комбінацій) перед парсингом. |
-| `SEMVER_RE` | `/^(\d+)\.(\d+)\.(\d+)/u` | Регулярка для захоплення першої semver-трійки `major.minor.patch` після очищення префіксу. |
-| `MIN_MSSQL_VERSION` | `{ major: 12, minor: 5, patch: 0 }` | Мінімально дозволена версія `mssql`, як її задає правило `js-mssql.mdc`. |
+| Константа           | Значення                            | Опис                                                                                                         |
+| ------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `VERSION_PREFIX_RE` | `/^[\^~>=<]+\s*/u`                  | Регулярка для відрізання префіксів semver-діапазону (`^`, `~`, `>`, `=`, `<` та комбінацій) перед парсингом. |
+| `SEMVER_RE`         | `/^(\d+)\.(\d+)\.(\d+)/u`           | Регулярка для захоплення першої semver-трійки `major.minor.patch` після очищення префіксу.                   |
+| `MIN_MSSQL_VERSION` | `{ major: 12, minor: 5, patch: 0 }` | Мінімально дозволена версія `mssql`, як її задає правило `js-mssql.mdc`.                                     |
 
 ## Функції
 
@@ -153,7 +153,7 @@
   5. в кінці викликає `reportZeroMssqlSourceViolations(counters, pass)`.
 - **Side effects:** I/O (читання файлів); виклики `pass` / `fail`.
 
-### `check()` *(export)*
+### `check()` _(export)_
 
 Публічна. Виконує повну перевірку правила.
 
@@ -178,27 +178,27 @@
 
 ### Стандартні модулі Node.js
 
-| Імпорт | Звідки | Використання |
-| --- | --- | --- |
-| `existsSync` | `node:fs` | Перевірка наявності `package.json` у корені (швидкий синхронний guard). |
-| `readFile` | `node:fs/promises` | Асинхронне читання `package.json` та джерельних файлів у UTF-8. |
-| `join`, `relative` | `node:path` | Побудова шляху до `package.json` та нормалізація відносних шляхів для повідомлень. |
+| Імпорт             | Звідки             | Використання                                                                       |
+| ------------------ | ------------------ | ---------------------------------------------------------------------------------- |
+| `existsSync`       | `node:fs`          | Перевірка наявності `package.json` у корені (швидкий синхронний guard).            |
+| `readFile`         | `node:fs/promises` | Асинхронне читання `package.json` та джерельних файлів у UTF-8.                    |
+| `join`, `relative` | `node:path`        | Побудова шляху до `package.json` та нормалізація відносних шляхів для повідомлень. |
 
 ### Внутрішні модулі репозиторію
 
-| Імпорт | Звідки | Призначення |
-| --- | --- | --- |
-| `createCheckReporter` | `../../../scripts/lib/check-reporter.mjs` | Уніфікований репортер для всіх `check`-скриптів: накопичує `pass`/`fail` рядки і формує exit code. |
-| `findAllPackageJsonPaths` | `../../../scripts/utils/find-package-json-paths.mjs` | Рекурсивний пошук усіх `package.json` (моно-репо/workspaces) з урахуванням ignore-шляхів. |
-| `findMssqlPerRequestConnectionInText` | `../lib/mssql-pool-scan.mjs` | Пошук `new sql.ConnectionPool(...)` всередині функцій. |
-| `findSharedMssqlRequestInText` | `../lib/mssql-pool-scan.mjs` | Пошук shared `Request` (наприклад `export const request = pool.request()`). |
-| `findUnsafeMssqlQueryTemplateCallInText` | `../lib/mssql-pool-scan.mjs` | Пошук `query(\`...\`)` як звичайного виклику замість tagged template. |
-| `findUnsafeMssqlDynamicSqlListInText` | `../lib/mssql-pool-scan.mjs` | Пошук динамічних SQL-списків через `.join(',')` у `IN/VALUES`. |
-| `findUnsafeMssqlInListUnparsedInText` | `../lib/mssql-pool-scan.mjs` | Пошук `IN (${...})` без числового парсингу значень. |
-| `findUnsafeMssqlInListMissingEmptyGuardInText` | `../lib/mssql-pool-scan.mjs` | Пошук IN-списків без guard'у на пустоту з `throw`. |
-| `isMssqlScanSourceFile` | `../lib/mssql-pool-scan.mjs` | Фільтр-предикат: чи треба сканувати файл за його relative-шляхом. |
-| `loadCursorIgnorePaths` | `../../../scripts/lib/load-cursor-config.mjs` | Завантаження `.cursorignore` → масив абсолютних ignore-шляхів. |
-| `walkDir` | `../../../scripts/utils/walkDir.mjs` | Рекурсивний обхід файлової системи з callback на кожен файл і ignore-каталогами. |
+| Імпорт                                         | Звідки                                               | Призначення                                                                                        |
+| ---------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `createCheckReporter`                          | `../../../scripts/lib/check-reporter.mjs`            | Уніфікований репортер для всіх `check`-скриптів: накопичує `pass`/`fail` рядки і формує exit code. |
+| `findAllPackageJsonPaths`                      | `../../../scripts/utils/find-package-json-paths.mjs` | Рекурсивний пошук усіх `package.json` (моно-репо/workspaces) з урахуванням ignore-шляхів.          |
+| `findMssqlPerRequestConnectionInText`          | `../lib/mssql-pool-scan.mjs`                         | Пошук `new sql.ConnectionPool(...)` всередині функцій.                                             |
+| `findSharedMssqlRequestInText`                 | `../lib/mssql-pool-scan.mjs`                         | Пошук shared `Request` (наприклад `export const request = pool.request()`).                        |
+| `findUnsafeMssqlQueryTemplateCallInText`       | `../lib/mssql-pool-scan.mjs`                         | Пошук `query(\`...\`)` як звичайного виклику замість tagged template.                              |
+| `findUnsafeMssqlDynamicSqlListInText`          | `../lib/mssql-pool-scan.mjs`                         | Пошук динамічних SQL-списків через `.join(',')` у `IN/VALUES`.                                     |
+| `findUnsafeMssqlInListUnparsedInText`          | `../lib/mssql-pool-scan.mjs`                         | Пошук `IN (${...})` без числового парсингу значень.                                                |
+| `findUnsafeMssqlInListMissingEmptyGuardInText` | `../lib/mssql-pool-scan.mjs`                         | Пошук IN-списків без guard'у на пустоту з `throw`.                                                 |
+| `isMssqlScanSourceFile`                        | `../lib/mssql-pool-scan.mjs`                         | Фільтр-предикат: чи треба сканувати файл за його relative-шляхом.                                  |
+| `loadCursorIgnorePaths`                        | `../../../scripts/lib/load-cursor-config.mjs`        | Завантаження `.cursorignore` → масив абсолютних ignore-шляхів.                                     |
+| `walkDir`                                      | `../../../scripts/utils/walkDir.mjs`                 | Рекурсивний обхід файлової системи з callback на кожен файл і ignore-каталогами.                   |
 
 ### Очікувана форма колбеків репортера
 

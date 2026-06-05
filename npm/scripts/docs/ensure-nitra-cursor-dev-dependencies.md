@@ -176,7 +176,7 @@ import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-
 
 await ensureNitraCursorInRootDevDependencies(tmpDir, {
   bundledVersion: '9.9.9',
-  silent: true,
+  silent: true
 })
 ```
 

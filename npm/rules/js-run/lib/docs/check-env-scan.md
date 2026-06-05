@@ -66,10 +66,10 @@ regex-перевірці підлягає лише сирий рядок із п
 
 Модуль експортує дві named-функції:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `findUncheckedProcessEnvInText` | `(content: string, virtualPath?: string) => EnvViolation[]` | Сканує текст файлу й повертає список порушень |
-| `isCheckEnvScanSourceFile` | `(relativePathPosix: string) => boolean` | Фільтр придатних до сканування файлів за розширенням |
+| Експорт                         | Тип                                                         | Призначення                                          |
+| ------------------------------- | ----------------------------------------------------------- | ---------------------------------------------------- |
+| `findUncheckedProcessEnvInText` | `(content: string, virtualPath?: string) => EnvViolation[]` | Сканує текст файлу й повертає список порушень        |
+| `isCheckEnvScanSourceFile`      | `(relativePathPosix: string) => boolean`                    | Фільтр придатних до сканування файлів за розширенням |
 
 Тип `EnvViolation` (внутрішній, описаний через JSDoc `@typedef`):
 
@@ -287,7 +287,7 @@ walkAstWithAncestors(program, [], (node, ancestors) => {
 `process.env`, ми реєструємо порушення і виходимо, не дивлячись на нього як
 на потенційний `env.X`.
 
-### `findUncheckedProcessEnvInText(content, virtualPath = 'scan.ts') → EnvViolation[]` *(export)*
+### `findUncheckedProcessEnvInText(content, virtualPath = 'scan.ts') → EnvViolation[]` _(export)_
 
 Публічна точка входу: знаходить порушення правила в одному файлі.
 
@@ -314,7 +314,7 @@ walkAstWithAncestors(program, [], (node, ancestors) => {
    нормалізація CRLF/LF).
 5. `collectViolations(...)` — отримати фінальний список і повернути.
 
-### `isCheckEnvScanSourceFile(relativePathPosix) → boolean` *(export)*
+### `isCheckEnvScanSourceFile(relativePathPosix) → boolean` _(export)_
 
 Фільтр придатних до сканування файлів за розширенням.
 
@@ -361,10 +361,7 @@ walkAstWithAncestors(program, [], (node, ancestors) => {
 
 ```js
 import { readFileSync } from 'node:fs'
-import {
-  findUncheckedProcessEnvInText,
-  isCheckEnvScanSourceFile,
-} from './check-env-scan.mjs'
+import { findUncheckedProcessEnvInText, isCheckEnvScanSourceFile } from './check-env-scan.mjs'
 
 const relativePath = 'src/db/connect.ts' // posix
 if (isCheckEnvScanSourceFile(relativePath)) {
@@ -382,8 +379,8 @@ if (isCheckEnvScanSourceFile(relativePath)) {
 
 ```ts
 // src/db/connect.ts
-const host = process.env.DB_HOST          // kind: 'process-env', name: 'DB_HOST'
-const { DB_PORT } = process.env           // kind: 'process-env', name: 'DB_PORT'
+const host = process.env.DB_HOST // kind: 'process-env', name: 'DB_HOST'
+const { DB_PORT } = process.env // kind: 'process-env', name: 'DB_PORT'
 ```
 
 **Контракт 2 — `check-env-missing-checkEnv`** (тільки якщо є відповідний
@@ -392,18 +389,18 @@ const { DB_PORT } = process.env           // kind: 'process-env', name: 'DB_PORT
 ```ts
 import { env, checkEnv } from '@nitra/check-env'
 
-checkEnv(['DB_HOST'])                     // закриває DB_HOST
-const host = env.DB_HOST                  // OK
-const port = env.DB_PORT                  // kind: 'check-env-missing-checkEnv', name: 'DB_PORT'
+checkEnv(['DB_HOST']) // закриває DB_HOST
+const host = env.DB_HOST // OK
+const port = env.DB_PORT // kind: 'check-env-missing-checkEnv', name: 'DB_PORT'
 
-const { DB_USER } = env                   // kind: 'check-env-missing-checkEnv', name: 'DB_USER'
+const { DB_USER } = env // kind: 'check-env-missing-checkEnv', name: 'DB_USER'
 ```
 
 **Приглушення:**
 
 ```ts
 // @nitra/cursor ignore-next-line checkEnv
-const host = process.env.DB_HOST          // НЕ реєструється
+const host = process.env.DB_HOST // НЕ реєструється
 ```
 
 ### Внутрішній порядок виконання `findUncheckedProcessEnvInText`

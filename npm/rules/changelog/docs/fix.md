@@ -13,9 +13,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `run` | `function (ctx?: RuleContext) => Promise<number>` | Library-функція для виклику з зовнішнього CLI; повертає exit-code `0` (OK) або `1` (є порушення). |
+| Експорт | Тип                                               | Призначення                                                                                       |
+| ------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `run`   | `function (ctx?: RuleContext) => Promise<number>` | Library-функція для виклику з зовнішнього CLI; повертає exit-code `0` (OK) або `1` (є порушення). |
 
 Сторонніх іменованих експортів немає. Default export відсутній.
 
@@ -45,7 +45,7 @@ export function run(ctx) {
 
 - **Сигнатура:** `run(ctx?: RuleContext): Promise<number>`
 - **Параметри:**
-  - `ctx` *(optional)* — об'єкт `RuleContext`, тип якого імпортується з `../../scripts/lib/run-standard-rule.mjs`. Зазвичай несе спільний стан між кількома правилами: кеш обходу файлів (`walkCache`), accumulator для summary, прапорці dry-run/auto-fix тощо. Якщо `ctx` не передано — `runStandardRule` створить дефолтний контекст всередині.
+  - `ctx` _(optional)_ — об'єкт `RuleContext`, тип якого імпортується з `../../scripts/lib/run-standard-rule.mjs`. Зазвичай несе спільний стан між кількома правилами: кеш обходу файлів (`walkCache`), accumulator для summary, прапорці dry-run/auto-fix тощо. Якщо `ctx` не передано — `runStandardRule` створить дефолтний контекст всередині.
 - **Повертає:** `Promise<number>` — exit-code правила:
   - `0` — порушень немає (або всі автоматично виправлені);
   - `1` — є невиправні порушення / помилки.
@@ -76,10 +76,10 @@ if (isRunAsCli(import.meta.url)) {
 
 ### Внутрішні (relative imports)
 
-| Модуль | Що використано | Призначення |
-| --- | --- | --- |
-| `../../scripts/lib/run-rule-cli.mjs` | `isRunAsCli`, `runRuleCli` | Хелпери standalone-режиму: детект "запущено як CLI" та повноцінна CLI-обгортка. |
-| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` | Універсальний раннер, що виконує "стандартну" послідовність етапів правила: `applies → JS-concerns → policy → mdc-refs`. Також експортує тип `RuleContext` (через JSDoc-`import`). |
+| Модуль                                    | Що використано             | Призначення                                                                                                                                                                        |
+| ----------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../../scripts/lib/run-rule-cli.mjs`      | `isRunAsCli`, `runRuleCli` | Хелпери standalone-режиму: детект "запущено як CLI" та повноцінна CLI-обгортка.                                                                                                    |
+| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule`          | Універсальний раннер, що виконує "стандартну" послідовність етапів правила: `applies → JS-concerns → policy → mdc-refs`. Також експортує тип `RuleContext` (через JSDoc-`import`). |
 
 Шлях `../../` веде з `npm/rules/changelog/` до `npm/scripts/lib/`.
 

@@ -19,10 +19,10 @@
 
 Модуль має три публічних експорти у форматі ES modules (`.mjs`):
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `MANAGED_RULE_FILE_PREFIX` | `string` | Константа `'n-'` — префікс імен файлів `.mdc`, які вважаються «керованими» пакетом. |
-| `mdcBasenameToCheckId` | `function` | Перетворює базове ім'я `*.mdc` (із розширенням або без) у id для CLI-команди `check`. |
+| Експорт                             | Тип        | Призначення                                                                                      |
+| ----------------------------------- | ---------- | ------------------------------------------------------------------------------------------------ |
+| `MANAGED_RULE_FILE_PREFIX`          | `string`   | Константа `'n-'` — префікс імен файлів `.mdc`, які вважаються «керованими» пакетом.              |
+| `mdcBasenameToCheckId`              | `function` | Перетворює базове ім'я `*.mdc` (із розширенням або без) у id для CLI-команди `check`.            |
 | `discoverCheckRulesFromCursorRules` | `function` | Будує впорядкований список id перевірок як перетин «доступних у пакеті» та «присутніх на диску». |
 
 Усі експорти — іменовані (`export const` / `export function`); default-export відсутній.
@@ -133,7 +133,7 @@ import { discoverCheckRulesFromCursorRules } from './discover-check-rules-from-c
 
 const available = discoverCheckableRules(/* … */)
 const mdcBasenames = readdirSync('.cursor/rules')
-  .filter((f) => f.endsWith('.mdc'))
+  .filter(f => f.endsWith('.mdc'))
   .sort()
 const idsToRun = discoverCheckRulesFromCursorRules(available, mdcBasenames)
 // idsToRun: наприклад, ['adr', 'bun', 'ci4', 'text', 'vue']
@@ -141,13 +141,13 @@ const idsToRun = discoverCheckRulesFromCursorRules(available, mdcBasenames)
 
 Приклад трансформації імен:
 
-| Файл у `.cursor/rules/` | id після `mdcBasenameToCheckId` | Потрапляє у результат? |
-| --- | --- | --- |
-| `n-bun.mdc` | `bun` | Так, якщо `available.includes('bun')` |
-| `n-vue.mdc` | `vue` | Так, якщо `available.includes('vue')` |
-| `my-rule.mdc` | `my-rule` | Лише якщо пакет реєструє `my-rule` як перевірюване |
-| `.cursor/rules/n-text.mdc` | `text` | Так, якщо `available.includes('text')` |
-| `n-bun.mdc` (двічі) | `bun` | У результаті — один раз |
+| Файл у `.cursor/rules/`    | id після `mdcBasenameToCheckId` | Потрапляє у результат?                             |
+| -------------------------- | ------------------------------- | -------------------------------------------------- |
+| `n-bun.mdc`                | `bun`                           | Так, якщо `available.includes('bun')`              |
+| `n-vue.mdc`                | `vue`                           | Так, якщо `available.includes('vue')`              |
+| `my-rule.mdc`              | `my-rule`                       | Лише якщо пакет реєструє `my-rule` як перевірюване |
+| `.cursor/rules/n-text.mdc` | `text`                          | Так, якщо `available.includes('text')`             |
+| `n-bun.mdc` (двічі)        | `bun`                           | У результаті — один раз                            |
 
 Таким чином модуль є тонким, але критичним «клейовим» шаром між:
 

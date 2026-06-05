@@ -14,16 +14,16 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `SCHEMA_VERSION` | `const number` (= `1`) | Поточна версія схеми JSON-стану. Несумісність → fail-closed read. |
-| `flowStatePath(worktreeDir)` | function | Дериватор шляху sibling-файла стану з абсолютного шляху worktree-checkout. |
-| `writeState(statePath, state)` | function | Атомарний запис стану з автоматичним проставленням `schema_version`. |
-| `readState(statePath)` | function | Читання стану з валідацією `schema_version`; `null`, якщо файлу нема. |
-| `updateState(statePath, fn)` | function | Read-modify-write: читає, прогонить через трансформер `fn`, атомарно пише. |
-| `removeState(statePath)` | function | Ідемпотентне видалення sibling-файла стану. |
-| `recordTransition({ statePath, eventsPath }, event, stateFn, now?)` | function | WAL-перехід: спершу `appendEvent`, потім `updateState`. |
-| `cleanupFlowSiblings(worktreeDir)` | function | Видалення всіх runtime-sibling-ів worktree (`.flow.json`, `.events.jsonl`, лок-каталог). |
+| Експорт                                                             | Тип                    | Призначення                                                                              |
+| ------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| `SCHEMA_VERSION`                                                    | `const number` (= `1`) | Поточна версія схеми JSON-стану. Несумісність → fail-closed read.                        |
+| `flowStatePath(worktreeDir)`                                        | function               | Дериватор шляху sibling-файла стану з абсолютного шляху worktree-checkout.               |
+| `writeState(statePath, state)`                                      | function               | Атомарний запис стану з автоматичним проставленням `schema_version`.                     |
+| `readState(statePath)`                                              | function               | Читання стану з валідацією `schema_version`; `null`, якщо файлу нема.                    |
+| `updateState(statePath, fn)`                                        | function               | Read-modify-write: читає, прогонить через трансформер `fn`, атомарно пише.               |
+| `removeState(statePath)`                                            | function               | Ідемпотентне видалення sibling-файла стану.                                              |
+| `recordTransition({ statePath, eventsPath }, event, stateFn, now?)` | function               | WAL-перехід: спершу `appendEvent`, потім `updateState`.                                  |
+| `cleanupFlowSiblings(worktreeDir)`                                  | function               | Видалення всіх runtime-sibling-ів worktree (`.flow.json`, `.events.jsonl`, лок-каталог). |
 
 ## Функції
 

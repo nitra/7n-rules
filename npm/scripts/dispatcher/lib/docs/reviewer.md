@@ -23,10 +23,10 @@
 
 Модуль експортує дві сутності:
 
-| Експорт | Тип | Призначення |
-|---|---|---|
+| Експорт         | Тип                                                     | Призначення                                                                |
+| --------------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
 | `DEFAULT_GATES` | `Array<{ name: string, cmd: string[] }>` (named export) | Канонічний список gate-ів за замовчуванням: `lint` і `coverage --changed`. |
-| `runReview` | `function` (named export) | Виконує послідовність gate-ів і повертає `verdict`-об'єкт. |
+| `runReview`     | `function` (named export)                               | Виконує послідовність gate-ів і повертає `verdict`-об'єкт.                 |
 
 Імпорт:
 
@@ -40,7 +40,7 @@ import { runReview, DEFAULT_GATES } from './reviewer.mjs'
 
 ```js
 export const DEFAULT_GATES = [
-  { name: 'lint',     cmd: ['npx', '@nitra/cursor', 'lint'] },
+  { name: 'lint', cmd: ['npx', '@nitra/cursor', 'lint'] },
   { name: 'coverage', cmd: ['npx', '@nitra/cursor', 'coverage', '--changed'] }
 ]
 ```

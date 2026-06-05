@@ -8,7 +8,12 @@ import { classifyFindings, parseEslint, parseOxlint, renderFindings } from '../l
 
 const OXLINT = JSON.stringify({
   diagnostics: [
-    { message: 'Expected ===', code: 'eslint(eqeqeq)', filename: '/repo/foo.mjs', labels: [{ span: { line: 2, column: 7 } }] }
+    {
+      message: 'Expected ===',
+      code: 'eslint(eqeqeq)',
+      filename: '/repo/foo.mjs',
+      labels: [{ span: { line: 2, column: 7 } }]
+    }
   ]
 })
 const ESLINT = JSON.stringify([
@@ -60,7 +65,10 @@ describe('classifyFindings', () => {
 describe('renderFindings', () => {
   test('групи 🆕/🗄 з ліком', () => {
     const out = renderFindings(
-      { introduced: [{ file: '/repo/foo.mjs', line: 2, rule: 'a', message: 'm' }], preExisting: [{ file: '/repo/foo.mjs', line: 9, rule: 'b', message: 'n' }] },
+      {
+        introduced: [{ file: '/repo/foo.mjs', line: 2, rule: 'a', message: 'm' }],
+        preExisting: [{ file: '/repo/foo.mjs', line: 9, rule: 'b', message: 'n' }]
+      },
       '/repo'
     )
     expect(out).toContain('🆕 introduced (1)')

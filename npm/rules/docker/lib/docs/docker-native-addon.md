@@ -21,12 +21,12 @@
 
 Модуль експортує два константи (іменовані експорти) і три функції (іменовані експорти):
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `NATIVE_ADDON_PACKAGES` | `readonly ['sharp', 'argon2']` | Точні імена відомих нативних аддонів. |
-| `NATIVE_ADDON_SCOPES` | `readonly ['@img/']` | Scope-префікси, чиї пакети трактуються як нативні аддони. |
-| `isNativeAddonPackage(name)` | `(name: string) => boolean` | Чи ім'я npm-пакета є нативним аддоном (точно або за scope-префіксом). |
-| `getNativeAddonDeps(dependencies)` | `(dependencies: unknown) => string[]` | Відсортовані імена нативних аддонів, знайдених у `package.json#dependencies`. |
+| Експорт                                                  | Тип                                                               | Призначення                                                                                   |
+| -------------------------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `NATIVE_ADDON_PACKAGES`                                  | `readonly ['sharp', 'argon2']`                                    | Точні імена відомих нативних аддонів.                                                         |
+| `NATIVE_ADDON_SCOPES`                                    | `readonly ['@img/']`                                              | Scope-префікси, чиї пакети трактуються як нативні аддони.                                     |
+| `isNativeAddonPackage(name)`                             | `(name: string) => boolean`                                       | Чи ім'я npm-пакета є нативним аддоном (точно або за scope-префіксом).                         |
+| `getNativeAddonDeps(dependencies)`                       | `(dependencies: unknown) => string[]`                             | Відсортовані імена нативних аддонів, знайдених у `package.json#dependencies`.                 |
 | `getNativeAddonNoCompileHint(fileContent, nativeAddons)` | `(fileContent: string, nativeAddons: string[]) => string \| null` | Текст hint-помилки, якщо у Dockerfile є `bun build --compile` при наявності нативного аддона. |
 
 Default-експорт відсутній.
@@ -145,10 +145,7 @@ Side effects: відсутні. Чиста функція; жодних звер
 Приклад використання (псевдокод):
 
 ```js
-import {
-  getNativeAddonDeps,
-  getNativeAddonNoCompileHint,
-} from './docker-native-addon.mjs'
+import { getNativeAddonDeps, getNativeAddonNoCompileHint } from './docker-native-addon.mjs'
 
 const pkg = JSON.parse(await readFile('package.json', 'utf8'))
 const nativeAddons = getNativeAddonDeps(pkg.dependencies)

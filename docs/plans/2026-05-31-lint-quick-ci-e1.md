@@ -11,6 +11,7 @@
 **Канон:** новий `.mjs` — верхній JSDoc українською; тести співрозташовані (`cd npm && npx vitest run`); НЕ `process.chdir` у тестах (`withTmpDir`+`cwd:dir`); кроки строго послідовні (заборона паралельного eslint); коміти часті; версію/CHANGELOG не руками (change-файл).
 
 **Поточний стан:**
+
 - `npm/bin/n-cursor.js:1466` `case 'lint'` → `runLintCli()` (timing-оркестратор). **Замінюємо**; додаємо `case 'lint-ci'`.
 - `npm/scripts/lib/run-lint-cli.mjs` — старий timing-оркестратор; стане мертвим — видалити в Task 7 (звірити knip).
 - `lint-ga`/`lint-text`/`lint-rego` (CLI пакета) НЕ приймають файли → `ci`.
@@ -119,10 +120,15 @@ describe('collectChangedFiles', () => {
     })
   })
   test('чисте дерево → порожньо', async () => {
-    await withTmpDir(async dir => { initRepo(dir); expect(collectChangedFiles(dir)).toEqual([]) })
+    await withTmpDir(async dir => {
+      initRepo(dir)
+      expect(collectChangedFiles(dir)).toEqual([])
+    })
   })
   test('поза git → порожньо', async () => {
-    await withTmpDir(async dir => { expect(collectChangedFiles(dir)).toEqual([]) })
+    await withTmpDir(async dir => {
+      expect(collectChangedFiles(dir)).toEqual([])
+    })
   })
 })
 ```
@@ -149,7 +155,10 @@ import { spawnSync } from 'node:child_process'
 function gitLines(args, cwd) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
   if (r.status !== 0 || r.error) return []
-  return r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
+  return r.stdout
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean)
 }
 
 /**
@@ -190,7 +199,12 @@ import { filterJsFiles } from '../lint.mjs'
 
 describe('filterJsFiles', () => {
   test('лишає лише js-подібні розширення', () => {
-    expect(filterJsFiles(['a.js', 'b.ts', 'c.vue', 'd.css', 'e.md', 'f.tsx'])).toEqual(['a.js', 'b.ts', 'c.vue', 'f.tsx'])
+    expect(filterJsFiles(['a.js', 'b.ts', 'c.vue', 'd.css', 'e.md', 'f.tsx'])).toEqual([
+      'a.js',
+      'b.ts',
+      'c.vue',
+      'f.tsx'
+    ])
   })
   test('порожній вхід → порожньо', () => {
     expect(filterJsFiles([])).toEqual([])
@@ -646,7 +660,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```js
 // у rule_meta.mjs, у циклі по правилах, після auto-перевірки:
 import { parseRuleLintPhase } from '../../../scripts/lib/rule-meta.mjs'
-import { existsSync } from 'node:fs'  // вже є
+import { existsSync } from 'node:fs' // вже є
 // ...
 if (raw.lint !== undefined) {
   if (parseRuleLintPhase(raw.lint) === null) {
@@ -702,6 +716,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Type consistency:** `parseRuleLintPhase`, `collectChangedFiles`, `selectLintRules`, `runLint({ci})`, `lint(files, cwd)`, `filterJsFiles`/`filterStyleFiles` — імена узгоджені між задачами й тестами.
 
 **Відомі ризики:**
+
 - `text`/`security`/`ga`/`rego` `js/lint.mjs`-делегати: точні імена експортів CLI звірити (T6 Step 6).
 - js-lint наявний check vs нові кореневі скрипти (T8 Step 3) — узгодити, щоб два check не суперечили.
 - `auto-rules.test.mjs` міг мати фіксований ALL_RULES; нове `js-lint-ci` (opt-in, без auto) не має активуватись, але якщо тест перевіряє повний перелік каталогів — оновити (T8 Step 6).

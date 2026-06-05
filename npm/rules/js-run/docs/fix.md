@@ -13,9 +13,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `run` | `function(ctx?: RuleContext): Promise<number>` | Library entry-point правила — викликається зовнішнім оркестратором у тому ж процесі. |
+| Експорт | Тип                                            | Призначення                                                                          |
+| ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `run`   | `function(ctx?: RuleContext): Promise<number>` | Library entry-point правила — викликається зовнішнім оркестратором у тому ж процесі. |
 
 Додатково в модулі присутній **side-effect блок** на рівні модуля: якщо `isRunAsCli(import.meta.url)` повертає `true`, модуль виконує `await runRuleCli(...)` і завершує процес через `process.exit(...)`. Цей блок не є експортом, але є частиною публічної поведінки файлу.
 
@@ -33,7 +33,7 @@ export function run(ctx) {
 
 - **Сигнатура:** `run(ctx?: RuleContext): Promise<number>`
 - **Параметри:**
-  - `ctx` *(необовʼязковий)* — обʼєкт контексту прогону. Тип імпортується з `../../scripts/lib/run-standard-rule.mjs` як `RuleContext`. Зазвичай містить розділяємий між правилами кеш обходу файлової системи (`walkCache`) та інші cross-rule артефакти, які дозволяють зекономити IO при батч-прогоні. Якщо аргумент не передано, `runStandardRule` створює локальний контекст самостійно.
+  - `ctx` _(необовʼязковий)_ — обʼєкт контексту прогону. Тип імпортується з `../../scripts/lib/run-standard-rule.mjs` як `RuleContext`. Зазвичай містить розділяємий між правилами кеш обходу файлової системи (`walkCache`) та інші cross-rule артефакти, які дозволяють зекономити IO при батч-прогоні. Якщо аргумент не передано, `runStandardRule` створює локальний контекст самостійно.
 - **Повертає:** `Promise<number>` — exit-code прогону:
   - `0` — порушень не знайдено (OK);
   - `1` — знайдено хоча б одне порушення.
@@ -61,13 +61,14 @@ if (isRunAsCli(import.meta.url)) {
 
 Файл має рівно **дві** внутрішні залежності, обидві з `npm/scripts/lib/`:
 
-| Імпорт | Звідки | Що звідти використовується |
-| --- | --- | --- |
-| `isRunAsCli` | `../../scripts/lib/run-rule-cli.mjs` | Предикат: чи модуль запущено як CLI, а не імпортовано як бібліотека. Приймає `import.meta.url`. |
-| `runRuleCli` | `../../scripts/lib/run-rule-cli.mjs` | Повна CLI-обгортка над `runStandardRule`: конфіг + whitelist + summary + повернення exit-code. Приймає `import.meta.dirname`. |
-| `runStandardRule` | `../../scripts/lib/run-standard-rule.mjs` | Універсальний раннер «стандартного» правила: applies → JS-concerns → policy → mdc-refs. Приймає `(dirname, ctx?)`. |
+| Імпорт            | Звідки                                    | Що звідти використовується                                                                                                    |
+| ----------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `isRunAsCli`      | `../../scripts/lib/run-rule-cli.mjs`      | Предикат: чи модуль запущено як CLI, а не імпортовано як бібліотека. Приймає `import.meta.url`.                               |
+| `runRuleCli`      | `../../scripts/lib/run-rule-cli.mjs`      | Повна CLI-обгортка над `runStandardRule`: конфіг + whitelist + summary + повернення exit-code. Приймає `import.meta.dirname`. |
+| `runStandardRule` | `../../scripts/lib/run-standard-rule.mjs` | Універсальний раннер «стандартного» правила: applies → JS-concerns → policy → mdc-refs. Приймає `(dirname, ctx?)`.            |
 
 Зовнішніх npm-залежностей файл не має. Опосередковано він залежить від:
+
 - структури директорії правила (`meta.json`, підтеки `js/`, `policy/`, `.mdc`-файл);
 - існування файлу `js-run.mdc` поруч (документ правила, на який спирається mdc-refs);
 - API-контракту `RuleContext`, який тримається в `run-standard-rule.mjs`.
@@ -80,12 +81,13 @@ if (isRunAsCli(import.meta.url)) {
 // Десь у CLI-оркестраторі @nitra/cursor
 import { run as runJsRun } from '@nitra/cursor/rules/js-run/fix.mjs'
 
-const ctx = createSharedContext()         // walkCache, тощо
-const code = await runJsRun(ctx)          // 0 або 1
+const ctx = createSharedContext() // walkCache, тощо
+const code = await runJsRun(ctx) // 0 або 1
 if (code !== 0) failures.push('js-run')
 ```
 
 Послідовність:
+
 1. Оркестратор створює спільний `ctx` (один на всі правила в прогоні).
 2. Імпортує `run` з `fix.mjs` потрібного правила.
 3. Викликає `run(ctx)` і чекає `Promise<number>`.
@@ -101,6 +103,7 @@ node npm/rules/js-run/fix.mjs
 ```
 
 Послідовність:
+
 1. Інтерпретатор завантажує модуль.
 2. Виконується top-level код: `isRunAsCli(import.meta.url)` повертає `true` (бо файл — entrypoint).
 3. Викликається `await runRuleCli(import.meta.dirname)`:
@@ -134,6 +137,7 @@ node npm/rules/js-run/fix.mjs
 5. JSDoc для `run`: параметр `ctx?: RuleContext` (тип із `run-standard-rule.mjs`), повертає `Promise<number>` (0 — OK, 1 — порушення).
 
 Поведінкові ознаки для перевірки відновленого файлу:
+
 - `import { run } from './fix.mjs'` працює без побічних ефектів (CLI-блок не активується).
 - `bun fix.mjs` запускає повний CLI-прогон і завершує процес із кодом `0` або `1`.
 - `run(ctx)` повертає `Promise`, який резолвиться у число.

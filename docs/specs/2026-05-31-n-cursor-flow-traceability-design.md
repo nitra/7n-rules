@@ -126,17 +126,17 @@ npx @nitra/cursor trace implemented --plan docs/plans/x.md --change npm/.changes
 
 ## Traceability artifacts
 
-| Етап | Artifact | Обов'язкові links |
-| --- | --- | --- |
-| task | `.worktrees/<branch>.flow.json` | `adr`, `spec`, `plan`, `change`, `commits`, `notifications` |
-| ADR | `docs/adr/*.md` | `spec`, optional `plan` |
-| spec | `docs/specs/*.md` | `adr`, `plan` |
-| plan | `docs/plans/*.md` | `spec`, `flow`, `implemented` |
-| code | git commits | `plan`, `change` через plan/flow metadata |
-| tests | flow checks | `plan`, `commit`, command evidence |
-| docs | docs paths in flow state | `spec`, `plan`, `change` |
-| changelog | `.changes/*.md` | `plan`, `commits` |
-| notification | flow event | `responsible`, `channel`, `sentAt`, `summary` |
+| Етап         | Artifact                        | Обов'язкові links                                           |
+| ------------ | ------------------------------- | ----------------------------------------------------------- |
+| task         | `.worktrees/<branch>.flow.json` | `adr`, `spec`, `plan`, `change`, `commits`, `notifications` |
+| ADR          | `docs/adr/*.md`                 | `spec`, optional `plan`                                     |
+| spec         | `docs/specs/*.md`               | `adr`, `plan`                                               |
+| plan         | `docs/plans/*.md`               | `spec`, `flow`, `implemented`                               |
+| code         | git commits                     | `plan`, `change` через plan/flow metadata                   |
+| tests        | flow checks                     | `plan`, `commit`, command evidence                          |
+| docs         | docs paths in flow state        | `spec`, `plan`, `change`                                    |
+| changelog    | `.changes/*.md`                 | `plan`, `commits`                                           |
+| notification | flow event                      | `responsible`, `channel`, `sentAt`, `summary`               |
 
 ## Spec frontmatter
 

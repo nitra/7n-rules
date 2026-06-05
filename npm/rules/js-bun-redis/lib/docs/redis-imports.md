@@ -20,11 +20,11 @@
 
 Модуль експортує **три** іменовані функції:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `findRedisImportsInText(content, virtualPath?)` | `function` | Повертає масив знайдених заборонених імпортів Redis у переданому коді. |
-| `isRedisScanSourceFile(relativePath)` | `function` | Предикат: чи треба сканувати файл за розширенням (`.js/.mjs/.cjs/.jsx/.ts/.mts/.cts/.tsx`). |
-| `shouldSkipFileForRedisScan(relativePosix)` | `function` | Предикат: чи слід пропустити файл (декларації типів `.d.ts`). |
+| Експорт                                         | Тип        | Призначення                                                                                 |
+| ----------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------- |
+| `findRedisImportsInText(content, virtualPath?)` | `function` | Повертає масив знайдених заборонених імпортів Redis у переданому коді.                      |
+| `isRedisScanSourceFile(relativePath)`           | `function` | Предикат: чи треба сканувати файл за розширенням (`.js/.mjs/.cjs/.jsx/.ts/.mts/.cts/.tsx`). |
+| `shouldSkipFileForRedisScan(relativePosix)`     | `function` | Предикат: чи слід пропустити файл (декларації типів `.d.ts`).                               |
 
 Default export відсутній.
 
@@ -63,7 +63,7 @@ export function findRedisImportsInText(
 **Параметри:**
 
 - `content` — повний текст вихідного файлу як рядок.
-- `virtualPath` *(необовʼязковий, дефолт `'scan.ts'`)* — шлях, який передається в парсер і використовується для визначення мови через `langFromPath(...)`. Може бути «віртуальним», тобто не існувати на ФС — потрібен лише для вибору режиму парсингу (наприклад, `.ts` vs `.tsx`). Якщо передати порожній рядок чи `undefined`, всередині буде підставлено `'scan.ts'`.
+- `virtualPath` _(необовʼязковий, дефолт `'scan.ts'`)_ — шлях, який передається в парсер і використовується для визначення мови через `langFromPath(...)`. Може бути «віртуальним», тобто не існувати на ФС — потрібен лише для вибору режиму парсингу (наприклад, `.ts` vs `.tsx`). Якщо передати порожній рядок чи `undefined`, всередині буде підставлено `'scan.ts'`.
 
 **Повертає:** масив обʼєктів-порушень, де кожен елемент має поля:
 
@@ -147,11 +147,7 @@ export function findRedisImportsInText(
 
 ```js
 import { readFileSync } from 'node:fs'
-import {
-  findRedisImportsInText,
-  isRedisScanSourceFile,
-  shouldSkipFileForRedisScan
-} from './redis-imports.mjs'
+import { findRedisImportsInText, isRedisScanSourceFile, shouldSkipFileForRedisScan } from './redis-imports.mjs'
 
 const file = 'pkg/src/cache.ts'
 if (!shouldSkipFileForRedisScan(file) && isRedisScanSourceFile(file)) {
@@ -168,19 +164,19 @@ if (!shouldSkipFileForRedisScan(file) && isRedisScanSourceFile(file)) {
 Усі наступні форми у `cache.ts` будуть знайдені:
 
 ```ts
-import Redis from 'ioredis'                    // ESM static, точна назва
-import { createClient } from 'redis'            // ESM static, кореневий node-redis
-import json from '@redis/json'                  // ESM static, підпакет @redis/*
-import utils from 'ioredis/built/utils'         // ESM static, підшлях ioredis/
-const Redis2 = require('ioredis')               // CommonJS require
-const lib = await import('node-redis')          // динамічний ESM import
+import Redis from 'ioredis' // ESM static, точна назва
+import { createClient } from 'redis' // ESM static, кореневий node-redis
+import json from '@redis/json' // ESM static, підпакет @redis/*
+import utils from 'ioredis/built/utils' // ESM static, підшлях ioredis/
+const Redis2 = require('ioredis') // CommonJS require
+const lib = await import('node-redis') // динамічний ESM import
 ```
 
 А ось такі **не** будуть позначені (бо це сторонні пакети):
 
 ```ts
-import { mock } from 'redis-mock'               // not ioredis/redis/@redis
-import x from 'my-redis-helpers'                // довільний сторонній пакет
+import { mock } from 'redis-mock' // not ioredis/redis/@redis
+import x from 'my-redis-helpers' // довільний сторонній пакет
 ```
 
 ### Поведінка на помилках

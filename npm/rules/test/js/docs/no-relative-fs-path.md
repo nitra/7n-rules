@@ -40,8 +40,8 @@ template literal без виразів), що НЕ починається з:
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт            | Тип              | Призначення                                                                                                      |
+| ------------------ | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `check(cwdParam?)` | `async function` | Точка входу перевірки. Сканує `*.test.{mjs,js}` під `cwd`, повертає exit code `0` (чисто) або `1` (є порушення). |
 
 Усі решта функцій (`extractRelativeLiteralPath`, `isRelativeString`,
@@ -171,8 +171,7 @@ template literal без виразів), що НЕ починається з:
      `readFile(absPath, 'utf8')`, запускає `findOffendersInBody(body)`, до
      кожного знахідки додає `file: relative(cwd, absPath)`.
   5. Якщо `offenders.length === 0` — викликає
-     `pass(\`Жоден з ${testFiles.length} тестових файлів не передає relative-path у FS-функції (test.mdc)\`)`
-     і повертає `reporter.getExitCode()`.
+     `pass(\`Жоден з ${testFiles.length} тестових файлів не передає relative-path у FS-функції (test.mdc)\`)`і повертає`reporter.getExitCode()`.
   6. Інакше — для кожного порушення викликає `fail(...)` із повідомленням
      виду `${file}:${line}: ${fn}() — ${which} '${path}' relative; використовуй join(dir, …) (test.mdc, no-relative-fs-path)`,
      де `which` = `'1-й аргумент'` для `argPos === 0` і

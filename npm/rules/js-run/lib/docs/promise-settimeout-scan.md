@@ -23,10 +23,10 @@ await sleep(ms)
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `findPromiseSetTimeoutInText` | `function` | Знаходить усі входження антипаттерну в тексті, повертає масив `{ line, snippet }`. |
-| `isPromiseSetTimeoutScanSourceFile` | `function` | Фільтр по відносному шляху: чи варто взагалі сканувати цей файл (за розширенням). |
+| Експорт                             | Тип        | Призначення                                                                        |
+| ----------------------------------- | ---------- | ---------------------------------------------------------------------------------- |
+| `findPromiseSetTimeoutInText`       | `function` | Знаходить усі входження антипаттерну в тексті, повертає масив `{ line, snippet }`. |
+| `isPromiseSetTimeoutScanSourceFile` | `function` | Фільтр по відносному шляху: чи варто взагалі сканувати цей файл (за розширенням).  |
 
 Внутрішні (не експортовані) хелпери, які формують ядро аналізу:
 
@@ -240,10 +240,7 @@ function walkAst(
 ### Типовий сценарій (з раннера/перевіряча)
 
 ```js
-import {
-  findPromiseSetTimeoutInText,
-  isPromiseSetTimeoutScanSourceFile
-} from './promise-settimeout-scan.mjs'
+import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from './promise-settimeout-scan.mjs'
 import { readFile } from 'node:fs/promises'
 
 async function scanRepo(files) {
@@ -276,8 +273,14 @@ async function scanRepo(files) {
 new Promise(resolve => setTimeout(resolve, 1000))
 await new Promise(r => setTimeout(r, ms))
 new Promise(resolve => setTimeout(() => resolve(), 500))
-new Promise(function (resolve) { setTimeout(resolve, 200) })
-new Promise(resolve => { setTimeout(function () { resolve() }, 100) })
+new Promise(function (resolve) {
+  setTimeout(resolve, 200)
+})
+new Promise(resolve => {
+  setTimeout(function () {
+    resolve()
+  }, 100)
+})
 ```
 
 ### Що сканер свідомо **не** ловить (негативні приклади)

@@ -17,8 +17,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт               | Тип                                                              | Призначення                                                                                                         |
+| --------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `inlineTemplateLinks` | `async function(text: string, ruleDir: string): Promise<string>` | Замінює Markdown-посилання на template-файли в `.mdc`-тексті на інлайн fenced-блоки з фактичним вмістом цих файлів. |
 
 Усі інші імена в модулі (`langFromExt`, `normalizeTargetName`, константи `MD_LINK_RE`, `TEMPLATE_SEGMENT_RE`, `SLOT_SUFFIX_RES`) — **внутрішні** (не експортуються).
@@ -28,7 +28,7 @@
 ### `MD_LINK_RE`
 
 ```js
-/\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
+;/\[([^\]]{1,200})\]\((\.\/[^)]{1,500})\)/g
 ```
 
 Глобальний regexp, який ловить **Markdown-посилання вигляду `[label](./path)`** із обов'язковим префіксом `./` у href. Group 1 — текст посилання (до 200 символів), group 2 — шлях (до 500 символів, що починається з `./`). Обмеження довжин — захист від ReDoS / pathological input.
@@ -36,7 +36,7 @@
 ### `TEMPLATE_SEGMENT_RE`
 
 ```js
-/\/templates?\//
+;/\/templates?\//
 ```
 
 Перевіряє, чи шлях містить сегмент `/template/` або `/templates/`. Тільки такі посилання вважаються «template-посиланнями» і підлягають заміні; інші Markdown-лінки залишаються недоторканими.
@@ -46,11 +46,7 @@
 Масив із трьох **статичних** regexp:
 
 ```js
-[
-  /^(.+)\.snippet\.[^.]+$/,
-  /^(.+)\.deny\.[^.]+$/,
-  /^(.+)\.contains\.[^.]+$/,
-]
+;[/^(.+)\.snippet\.[^.]+$/, /^(.+)\.deny\.[^.]+$/, /^(.+)\.contains\.[^.]+$/]
 ```
 
 Кожен ловить ім'я файлу з суфіксом-«слотом»: `<name>.snippet.<ext>`, `<name>.deny.<ext>`, `<name>.contains.<ext>`. Group 1 — це ім'я реального target-файлу (без суфікса слоту і без власного розширення). Коментар у коді явно зазначає: regexp-літерали статичні, без `RegExp(variable)`.
@@ -79,7 +75,7 @@ function langFromExt(filePath: string): string
 
 Side effects: жодних — чиста функція над рядком.
 
-Призначення: визначити, який мовний таг ставити після відкривального `` ``` `` у згенерованому fenced-блоці, щоб підсвічування синтаксису працювало коректно.
+Призначення: визначити, який мовний таг ставити після відкривального ` ``` ` у згенерованому fenced-блоці, щоб підсвічування синтаксису працювало коректно.
 
 ### `normalizeTargetName(fileBasename)` — internal
 
@@ -127,15 +123,18 @@ export async function inlineTemplateLinks(
 
 - `Promise<string>` — трансформований текст, у якому всі **template-посилання** замінено на блоки виду:
 
-  ```text
+  ````text
   `<targetName>`:
 
   ```<lang>
   <contents>
-  ```
+  ````
+
   ```
 
   де `targetName` — результат `normalizeTargetName(basename(absPath))`, `lang` — результат `langFromExt(absPath)`, а `contents` — вміст файлу після `.trim()`.
+
+  ```
 
 - Якщо у тексті немає жодного template-посилання — повертається **той самий `text` без змін** (early-exit).
 
@@ -156,16 +155,18 @@ export async function inlineTemplateLinks(
       ```
 
       Жодного fallback / тихого пропуску — це fail-loud за дизайном.
+
    5. Читаємо файл: `raw = await readFile(absPath, 'utf8')`, далі `contents = raw.trim()` (прибираємо хвостові пробіли / переноси).
    6. Обчислюємо `lang = langFromExt(absPath)`.
    7. Обчислюємо `targetName = normalizeTargetName(basename(absPath))`.
    8. Формуємо `replacement` — backtick-екранований заголовок, порожній рядок і fenced-блок із `lang`:
 
       ```js
-      `\`${targetName}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
+      ;`\`${targetName}\`:\n\n\`\`\`${lang}\n${contents}\n\`\`\``
       ```
 
    9. Робимо заміну: `result = result.replace(fullMatch, () => replacement)`. Передача **callback-форми** в `.replace` критично важлива: інакше спецсимволи у `replacement` (наприклад `$&`, `$1` із вмісту шаблону) трактувалися б як backreferences і зламали б вивід.
+
 6. Повертаємо `result`.
 
 Side effects:
@@ -246,7 +247,7 @@ Snippet вимоги до `package.json` — див. [тут](./templates/packag
 6. `normalizeTargetName('package.json.snippet.json')` → `'package.json'` (спрацює regexp `/^(.+)\.snippet\.[^.]+$/`).
 7. `replacement` буде:
 
-   ```text
+   ````text
    `package.json`:
 
    ```json
@@ -255,7 +256,10 @@ Snippet вимоги до `package.json` — див. [тут](./templates/packag
        "lint": "eslint ."
      }
    }
+   ````
+
    ```
+
    ```
 
 8. Результат заміняє оригінальний Markdown-лінк у тексті.

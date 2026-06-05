@@ -24,16 +24,16 @@
 
 ## Експорти / API
 
-| Назва | Тип | Опис |
-| --- | --- | --- |
+| Назва   | Тип                                 | Опис                                                                                                                               |
+| ------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `check` | `(cwd?: string) => Promise<number>` | Єдиний публічний експорт. Виконує всі перевірки текстового стека й повертає код виходу: `0` — порушень немає, `1` — є хоча б одне. |
 
 Решта функцій (`verifyUkApostropheRuleParagraph`, `checkV8rIgnore`, `checkTextConfigsExistence`, `checkPackageJsonText`, `checkLintTextScript`) — внутрішні, не експортуються.
 
 Також у файлі є модульна константа:
 
-| Назва | Значення | Призначення |
-| --- | --- | --- |
+| Назва                   | Значення                      | Призначення                                                                                          |
+| ----------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `UK_APOSTROPHE_HEADING` | `'**Український апостроф:**'` | Заголовок абзацу про апостроф у `text.mdc` / `n-text.mdc`, по якому ведеться пошук у вмісті правила. |
 
 ## Функції
@@ -102,13 +102,13 @@
 
 Ітерується по фіксованому масиву пар `[path, mdcRef]`:
 
-| path | mdcRef (Rego-пакет із описом структури) |
-| --- | --- |
-| `.oxfmtrc.json` | `text.oxfmtrc` |
-| `.cspell.json` | `text.cspell` |
-| `.markdownlint-cli2.jsonc` | `text.markdownlint` |
-| `.vscode/extensions.json` | `text.vscode_extensions` |
-| `.vscode/settings.json` | `text.vscode_settings` |
+| path                       | mdcRef (Rego-пакет із описом структури) |
+| -------------------------- | --------------------------------------- |
+| `.oxfmtrc.json`            | `text.oxfmtrc`                          |
+| `.cspell.json`             | `text.cspell`                           |
+| `.markdownlint-cli2.jsonc` | `text.markdownlint`                     |
+| `.vscode/extensions.json`  | `text.vscode_extensions`                |
+| `.vscode/settings.json`    | `text.vscode_settings`                  |
 
 Для кожної пари:
 

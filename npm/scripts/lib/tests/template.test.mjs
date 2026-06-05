@@ -121,7 +121,9 @@ describe('checkSnippet', () => {
   test('array of objects: structural-subset match (extra attrs + extra keys allowed)', () => {
     const snippet = { steps: [{ uses: 'actions/checkout@v6', with: { 'fetch-depth': 0 } }] }
     const actual = {
-      steps: [{ name: 'Checkout', with: { 'persist-credentials': true, 'fetch-depth': 0 }, uses: 'actions/checkout@v6' }]
+      steps: [
+        { name: 'Checkout', with: { 'persist-credentials': true, 'fetch-depth': 0 }, uses: 'actions/checkout@v6' }
+      ]
     }
     expect(checkSnippet(actual, snippet, opts)).toEqual([])
   })

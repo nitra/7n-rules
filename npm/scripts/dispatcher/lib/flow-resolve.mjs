@@ -90,7 +90,9 @@ export function resolveActiveFlowState({ cwd = processCwd(), branch } = {}, deps
     const label = sanitizeBranch(branch)
     const worktreeDir = worktreePaths(repoRoot, branch).checkout
     if (!exists(worktreeDir)) {
-      return notFound(`worktree для гілки «${branch}» не знайдено (${worktreeDir}) — перевір назву або зроби \`flow init\``)
+      return notFound(
+        `worktree для гілки «${branch}» не знайдено (${worktreeDir}) — перевір назву або зроби \`flow init\``
+      )
     }
     return { statePath: flowStatePath(worktreeDir), worktreeDir, label, autoResolved: false, error: null }
   }

@@ -34,6 +34,7 @@
 **Причина:** конкурентний eslint перевантажує диск і CPU, призводить до некоректних результатів і нестабільного виконання. Це зафіксовано в `CLAUDE.md` проєкту.
 
 **Вимоги:**
+
 - Обидва виконавці (`n-cursor lint-quick` і `n-cursor lint-all`) запускають кроки **строго послідовно**.
 - При написанні implementation plan: `lint-quick`/`lint-all` **не розбиваються на паралельні субагенти**.
 
@@ -45,46 +46,47 @@
 
 ```json
 {
-  "lint":       "quick",            // "quick" або "ci" (quick ⊆ all)
-  "lintCmd":    "n-cursor lint-ga", // команда для виконання
-  "lintScoped": false,              // true → команда приймає список файлів як positional args
-  "lintAlways": false,              // true → запускати навіть якщо нема змінених файлів
-  "lintCiCmd":  "bunx jscpd . && bunx knip --no-config-hints"  // лише для js-lint: ci-only команда
+  "lint": "quick", // "quick" або "ci" (quick ⊆ all)
+  "lintCmd": "n-cursor lint-ga", // команда для виконання
+  "lintScoped": false, // true → команда приймає список файлів як positional args
+  "lintAlways": false, // true → запускати навіть якщо нема змінених файлів
+  "lintCiCmd": "bunx jscpd . && bunx knip --no-config-hints" // лише для js-lint: ci-only команда
 }
 ```
 
 ### Семантика полів
 
-| Поле | Тип | Значення за замовчуванням | Опис |
-|---|---|---|---|
-| `lint` | `"quick" \| "ci"` | відсутнє | Фаза. Відсутнє = правило не є lint-кроком |
-| `lintCmd` | `string` | — | Команда для quick (і повного) прогону |
-| `lintScoped` | `boolean` | `false` | Передавати список змінених файлів як positional аргументи |
-| `lintAlways` | `boolean` | `false` | Не пропускати крок навіть якщо нема змінених файлів |
-| `lintCiCmd` | `string` | — | Додаткова ci-only команда (виконується лише в `lint-all`) |
+| Поле         | Тип               | Значення за замовчуванням | Опис                                                      |
+| ------------ | ----------------- | ------------------------- | --------------------------------------------------------- |
+| `lint`       | `"quick" \| "ci"` | відсутнє                  | Фаза. Відсутнє = правило не є lint-кроком                 |
+| `lintCmd`    | `string`          | —                         | Команда для quick (і повного) прогону                     |
+| `lintScoped` | `boolean`         | `false`                   | Передавати список змінених файлів як positional аргументи |
+| `lintAlways` | `boolean`         | `false`                   | Не пропускати крок навіть якщо нема змінених файлів       |
+| `lintCiCmd`  | `string`          | —                         | Додаткова ci-only команда (виконується лише в `lint-all`) |
 
 ### Семантика оркестратора при `lintScoped`
 
-| `lintScoped` | Режим quick (`lint-quick`) | Режим all (`lint-all`) |
-|---|---|---|
-| `true` | git diff → передає файли: `{lintCmd} file1 file2...`; якщо нема → пропустити (крім `lintAlways: true`) | запускає `lintCmd` без файлів (весь репо) |
-| `false` | запускає `lintCmd` без аргументів | запускає `lintCmd` без аргументів |
+| `lintScoped` | Режим quick (`lint-quick`)                                                                             | Режим all (`lint-all`)                    |
+| ------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------- |
+| `true`       | git diff → передає файли: `{lintCmd} file1 file2...`; якщо нема → пропустити (крім `lintAlways: true`) | запускає `lintCmd` без файлів (весь репо) |
+| `false`      | запускає `lintCmd` без аргументів                                                                      | запускає `lintCmd` без аргументів         |
 
 ---
 
 ## Класифікація lint-кроків
 
-| Правило | `lint` | `lintScoped` | `lintAlways` | `lintCiCmd` |
-|---|---|---|---|---|
-| `ga` | `ci` | `false` | `false` | — |
-| `js-lint` | `quick` | `true` | `false` | `bunx jscpd . && bunx knip --no-config-hints` |
-| `oxfmt` (нове) | `quick` | `true` | `false` | — |
-| `rego` | `quick` | `true` | `false` | — |
-| `style-lint` | `quick` | `true` | `false` | — |
-| `text` | `quick` | `false` | `false` | — |
-| `security` | **відсутнє** | — | — | — |
+| Правило        | `lint`       | `lintScoped` | `lintAlways` | `lintCiCmd`                                   |
+| -------------- | ------------ | ------------ | ------------ | --------------------------------------------- |
+| `ga`           | `ci`         | `false`      | `false`      | —                                             |
+| `js-lint`      | `quick`      | `true`       | `false`      | `bunx jscpd . && bunx knip --no-config-hints` |
+| `oxfmt` (нове) | `quick`      | `true`       | `false`      | —                                             |
+| `rego`         | `quick`      | `true`       | `false`      | —                                             |
+| `style-lint`   | `quick`      | `true`       | `false`      | —                                             |
+| `text`         | `quick`      | `false`      | `false`      | —                                             |
+| `security`     | **відсутнє** | —            | —            | —                                             |
 
 **Примітки:**
+
 - `security` (trufflehog) — **поза оркестратором**: власний CI job, власний скрипт `lint-security`. Ні в `lint-quick`, ні в `lint-all`.
 - `ga` — **тільки `ci`**: workflows у `.github/` є самодостатнім контекстом, reusable workflows посилаються одне на одне — скопування по змінених файлах некоректне. Немає сенсу запускати при звичайній розробці.
 - `lint-all` є **швидшим** за поточний `lint` (не включає trufflehog, який зараз у ланцюгу). `lint-all` = всі orchestrated правила; `security` — окремо.
@@ -146,15 +148,15 @@
 
 ```json
 {
-  "lint":          "<поточний ланцюг — незмінний>",
-  "lint-quick":    "n-cursor lint-quick",
-  "lint-all":      "n-cursor lint-all",
-  "lint-ga":       "<незмінний>",
-  "lint-js":       "<незмінний>",
-  "lint-rego":     "<незмінний>",
+  "lint": "<поточний ланцюг — незмінний>",
+  "lint-quick": "n-cursor lint-quick",
+  "lint-all": "n-cursor lint-all",
+  "lint-ga": "<незмінний>",
+  "lint-js": "<незмінний>",
+  "lint-rego": "<незмінний>",
   "lint-security": "<незмінний>",
-  "lint-style":    "<незмінний>",
-  "lint-text":     "<незмінний>"
+  "lint-style": "<незмінний>",
+  "lint-text": "<незмінний>"
 }
 ```
 
@@ -174,17 +176,17 @@
 ```json
 {
   "properties": {
-    "lint":       { "type": "string", "enum": ["quick", "ci"] },
-    "lintCmd":    { "type": "string" },
+    "lint": { "type": "string", "enum": ["quick", "ci"] },
+    "lintCmd": { "type": "string" },
     "lintScoped": { "type": "boolean", "default": false },
     "lintAlways": { "type": "boolean", "default": false },
-    "lintCiCmd":  { "type": "string" }
+    "lintCiCmd": { "type": "string" }
   },
   "dependentRequired": {
-    "lintCmd":    ["lint"],
+    "lintCmd": ["lint"],
     "lintScoped": ["lint"],
     "lintAlways": ["lint"],
-    "lintCiCmd":  ["lint"]
+    "lintCiCmd": ["lint"]
   }
 }
 ```

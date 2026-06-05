@@ -15,9 +15,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `ensureTool(toolId)` | `function` | Резолвить і за потреби встановлює зовнішній CLI. Повертає абсолютний шлях до бінарника або кидає `Error`. |
+| Експорт                  | Тип        | Призначення                                                                                                    |
+| ------------------------ | ---------- | -------------------------------------------------------------------------------------------------------------- |
+| `ensureTool(toolId)`     | `function` | Резолвить і за потреби встановлює зовнішній CLI. Повертає абсолютний шлях до бінарника або кидає `Error`.      |
 | `ensureHkInstall(hkBin)` | `function` | Виконує `hk install` для реєстрації git pre-commit hook. Жодного return value; на помилку лише `console.warn`. |
 
 Внутрішні (не експортуються, але формують контракт модуля):
@@ -137,7 +137,7 @@
     - Linux: `     Linux: https://github.com/<repo>/releases`.
 - **Side effects:** немає.
 
-### `ensureTool(toolId)` *(export)*
+### `ensureTool(toolId)` _(export)_
 
 - **Сигнатура:** `ensureTool(toolId: string): string`
 - **Параметри:** `toolId` — ключ у реєстрі `TOOLS` (`'hk'`, `'conftest'`, `'shellcheck'`, `'actionlint'`, `'dotenv-linter'`, `'opa'`, `'regal'`, `'hadolint'`, `'kubeconform'`, `'kubescape'`).
@@ -151,7 +151,7 @@
 - **Помилки:** будь-яка з помилок `autoInstall` / `installFrom*` піднімається вгору; додатково — `невідомий тул` та `❌ ... не знайдено в PATH`.
 - **Side effects:** мережа, файлова система, виклик зовнішніх install-команд (`brew`, `scoop`, `curl`, `tar`, `rm`).
 
-### `ensureHkInstall(hkBin)` *(export)*
+### `ensureHkInstall(hkBin)` _(export)_
 
 - **Сигнатура:** `ensureHkInstall(hkBin: string): void`
 - **Параметри:**
@@ -230,8 +230,8 @@ ensureTool('hk')
 ```js
 import { ensureTool, ensureHkInstall } from './lib/ensure-tool.mjs'
 
-const hkBin = ensureTool('hk')      // PATH → кеш → brew/scoop/github
-ensureHkInstall(hkBin)              // git hook у .git/hooks/pre-commit
+const hkBin = ensureTool('hk') // PATH → кеш → brew/scoop/github
+ensureHkInstall(hkBin) // git hook у .git/hooks/pre-commit
 ```
 
 У CI (`process.env.CI=true`) другий виклик стає no-op, що зручно для pipeline-ів, де hooks не потрібні.

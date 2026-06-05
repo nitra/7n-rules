@@ -31,6 +31,7 @@
 ## Task 1: Парсер `rule-meta.mjs`
 
 **Files:**
+
 - Create: `npm/scripts/lib/rule-meta.mjs`
 - Test: `npm/scripts/lib/tests/rule-meta.test.mjs`
 
@@ -66,7 +67,10 @@ describe('parseRuleAutoSpec', () => {
     })
   })
   test('predicate без arg → { predicate }', () => {
-    expect(parseRuleAutoSpec({ predicate: 'gqlTaggedTemplate' })).toEqual({ predicate: 'gqlTaggedTemplate', arg: undefined })
+    expect(parseRuleAutoSpec({ predicate: 'gqlTaggedTemplate' })).toEqual({
+      predicate: 'gqlTaggedTemplate',
+      arg: undefined
+    })
   })
   test('predicate з arg → { predicate, arg }', () => {
     expect(parseRuleAutoSpec({ predicate: 'depInAnyPackageJson', arg: ['mssql'] })).toEqual({
@@ -201,6 +205,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 2: Реєстр предикатів `rule-predicates.mjs`
 
 **Files:**
+
 - Create: `npm/scripts/lib/rule-predicates.mjs`
 - Test: `npm/scripts/lib/tests/rule-predicates.test.mjs`
 
@@ -226,10 +231,17 @@ import { ensureDir, withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('repoUrlMarker', () => {
   test('matches abie repo url', () => {
-    expect(RULE_PREDICATES.repoUrlMarker({ repository: { url: 'https://github.com/abinbevefes/x' } }, 'https://github.com/abinbevefes/')).toBe(true)
+    expect(
+      RULE_PREDICATES.repoUrlMarker(
+        { repository: { url: 'https://github.com/abinbevefes/x' } },
+        'https://github.com/abinbevefes/'
+      )
+    ).toBe(true)
   })
   test('no match', () => {
-    expect(RULE_PREDICATES.repoUrlMarker({ repository: 'https://github.com/other/x' }, 'https://github.com/abinbevefes/')).toBe(false)
+    expect(
+      RULE_PREDICATES.repoUrlMarker({ repository: 'https://github.com/other/x' }, 'https://github.com/abinbevefes/')
+    ).toBe(false)
   })
 })
 
@@ -552,6 +564,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 4: Переписати ядро `auto-rules.mjs` на meta-інтерпретатор
 
 **Files:**
+
 - Modify: `npm/scripts/auto-rules.mjs`
 
 Зберегти публічний контракт `detectAutoRules({root, availableRules, packageJsonParsed, disableRules})` і всі експорти. Замінити внутрішній `autoRuleChecks[]` + хардкод `AUTO_RULE_ORDER`/`AUTO_RULE_DEPENDENCIES` на читання meta.
@@ -618,9 +631,7 @@ export function discoverRuleAutoActivation(rulesDir = RULES_DIR) {
 const RULE_AUTO_ACTIVATION = discoverRuleAutoActivation()
 
 /** Стабільний алфавітний порядок (замість хардкод-масиву). */
-export const AUTO_RULE_ORDER = Object.freeze(
-  Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b))
-)
+export const AUTO_RULE_ORDER = Object.freeze(Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b)))
 
 /** Граф залежностей із meta (Type C) — замість хардкод-константи. */
 export const AUTO_RULE_DEPENDENCIES = Object.freeze(
@@ -639,7 +650,12 @@ export const AUTO_RULE_DEPENDENCIES = Object.freeze(
 Зберегти сигнатуру. Усередині: зібрати факти (`collectAutoRuleFacts`), зібрати **множину posix-шляхів** дерева (для glob), потім для кожного правила з `RULE_AUTO_ACTIVATION` обчислити активацію:
 
 ```js
-export async function detectAutoRules({ root, availableRules, packageJsonParsed, disableRules = DEFAULT_DISABLED_LIST }) {
+export async function detectAutoRules({
+  root,
+  availableRules,
+  packageJsonParsed,
+  disableRules = DEFAULT_DISABLED_LIST
+}) {
   const facts = await collectAutoRuleFacts(root)
   const paths = await collectRepoPaths(root) // новий збирач relative-posix шляхів (Step 4)
   const normalizedRules = new Set(availableRules.map(r => r.trim().toLowerCase()))
@@ -756,6 +772,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 5: Тест tauri + регресія повного сюїту
 
 **Files:**
+
 - Modify: `npm/scripts/tests/auto-rules.test.mjs`
 
 - [ ] **Step 1: Додати tauri у `ALL_RULES` і кейс автодетекту**
@@ -829,6 +846,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 7: JSON-схема `rule-meta.json` + v8r-каталог
 
 **Files:**
+
 - Create: `npm/schemas/rule-meta.json`
 - Modify: `npm/schemas/v8r-catalog.json`
 
@@ -909,6 +927,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 8: Check-концерн `rule_meta.mjs` (валідація)
 
 **Files:**
+
 - Create: `npm/rules/npm-module/js/rule_meta.mjs`
 - Test: `npm/rules/npm-module/js/tests/rule_meta.test.mjs`
 
@@ -929,7 +948,10 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test
 describe('rule_meta check', () => {
   test('валідні meta.json (усі форми) → 0', async () => {
     await withTmpDir(async dir => {
-      const mk = async (id, meta) => { await ensureDir(join(dir, 'npm', 'rules', id)); await writeJson(join(dir, 'npm', 'rules', id, 'meta.json'), meta) }
+      const mk = async (id, meta) => {
+        await ensureDir(join(dir, 'npm', 'rules', id))
+        await writeJson(join(dir, 'npm', 'rules', id, 'meta.json'), meta)
+      }
       await mk('adr', { auto: 'завжди' })
       await mk('changelog', { auto: ['bun'] })
       await mk('vue', { auto: { glob: '**/*.vue' } })
@@ -1078,6 +1100,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Task 9: Документація, change-файл, фінальна верифікація
 
 **Files:**
+
 - Modify: `.cursor/rules/scripts.mdc`, `npm/README.md`
 - Create: change-файл
 
@@ -1158,6 +1181,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Type consistency:** `parseRuleAutoSpec`/`readRuleMetaRaw` (rule-meta), `RULE_PREDICATES` (rule-predicates), `discoverRuleAutoActivation`/`specMatches`/`collectRepoPaths` (auto-rules), `check(cwd)` (rule_meta) — імена узгоджені між задачами й тестами.
 
 **Відомі ризики для виконавця:**
+
 - **Цикл імпортів** rule-predicates ↔ auto-rules: розірвано винесенням спільного в `rule-meta-helpers.mjs` (Task 2 Step 5, Task 4 Step 1). Виконати саме в цьому порядку.
 - **`globToRegex` і `{a,b}`**: Task 2 Step 1 перевіряє; план уже використовує масив-форму для multi-extension, тож brace-підтримка не критична.
 - **`collectAutoRuleFacts` як джерело для предикатів**: лишається в `auto-rules.mjs`; rule-predicates content-предикати беруть `facts` параметром (нема циклу, бо тест імпортує `collectAutoRuleFacts` з auto-rules, а rule-predicates — ні).

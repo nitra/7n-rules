@@ -11,7 +11,15 @@ import { spawnSync } from 'node:child_process'
 export function lint(_files, cwd = process.cwd()) {
   const r = spawnSync(
     'trufflehog',
-    ['filesystem', '.', '--no-update', '--exclude-paths', '.trufflehog-exclude', '--results=verified,unknown', '--fail'],
+    [
+      'filesystem',
+      '.',
+      '--no-update',
+      '--exclude-paths',
+      '.trufflehog-exclude',
+      '--results=verified,unknown',
+      '--fail'
+    ],
     { cwd, stdio: 'inherit' }
   )
   return Promise.resolve(typeof r.status === 'number' ? r.status : 1)

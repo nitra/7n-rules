@@ -25,15 +25,15 @@
 
 Усі експорти з модуля — це **named exports** (іменовані експорти), `default export` немає.
 
-| Експорт | Тип | Короткий опис |
-|---|---|---|
-| `parseWorkflowYaml(content)` | function | Парсить YAML вміст у звичайний об’єкт; при помилці повертає `null`. |
-| `flattenWorkflowSteps(root)` | function | Збирає всі кроки з усіх jobs у плоский список з метаданими `{ jobId, stepIndex, step }`. |
-| `getStepUses(step)` | function | Повертає значення `uses:` кроку або порожній рядок. |
-| `getStepRun(step)` | function | Повертає значення `run:` кроку (підтримує рядок та масив рядків). |
-| `eventPathsIncludeExact(root, event, exact)` | function | Перевіряє, чи містить `on.<event>.paths` точне значення glob. |
-| `verifyLintJsWorkflowStructure(root)` | function | Виконує повний набір структурних перевірок для `lint-js.yml`. |
-| `anyRunStepIncludes(root, needle)` | function | Перевіряє, чи містить будь-який `run` кроку заданий підрядок. |
+| Експорт                                      | Тип      | Короткий опис                                                                            |
+| -------------------------------------------- | -------- | ---------------------------------------------------------------------------------------- |
+| `parseWorkflowYaml(content)`                 | function | Парсить YAML вміст у звичайний об’єкт; при помилці повертає `null`.                      |
+| `flattenWorkflowSteps(root)`                 | function | Збирає всі кроки з усіх jobs у плоский список з метаданими `{ jobId, stepIndex, step }`. |
+| `getStepUses(step)`                          | function | Повертає значення `uses:` кроку або порожній рядок.                                      |
+| `getStepRun(step)`                           | function | Повертає значення `run:` кроку (підтримує рядок та масив рядків).                        |
+| `eventPathsIncludeExact(root, event, exact)` | function | Перевіряє, чи містить `on.<event>.paths` точне значення glob.                            |
+| `verifyLintJsWorkflowStructure(root)`        | function | Виконує повний набір структурних перевірок для `lint-js.yml`.                            |
+| `anyRunStepIncludes(root, needle)`           | function | Перевіряє, чи містить будь-який `run` кроку заданий підрядок.                            |
 
 Внутрішні (неекспортовані) функції-помічники:
 

@@ -19,15 +19,15 @@
 
 Модуль експортує дві функції:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `collectChangedFiles` | `(cwd?: string) => string[]` | Список змінених + untracked файлів робочого дерева відносно `HEAD`. |
+| Експорт                    | Тип                                                | Призначення                                                                                                                  |
+| -------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `collectChangedFiles`      | `(cwd?: string) => string[]`                       | Список змінених + untracked файлів робочого дерева відносно `HEAD`.                                                          |
 | `collectChangedFilesSince` | `(base: string \| null, cwd?: string) => string[]` | Список змінених + untracked файлів **відносно довільного базового комміту**. Без `base` — fallback на `collectChangedFiles`. |
 
 Внутрішня (неекспортована) функція:
 
-| Внутрішнє | Тип | Призначення |
-| --- | --- | --- |
+| Внутрішнє  | Тип                                         | Призначення                                                                                    |
+| ---------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `gitLines` | `(args: string[], cwd: string) => string[]` | Виконує `git <args>` у `cwd` і повертає непорожні trim-нуті рядки stdout або `[]` при помилці. |
 
 ## Функції
@@ -140,10 +140,10 @@ const scope = collectChangedFilesSince(base, repoRoot)
 
 ### Точки помилок (summary)
 
-| Сценарій | Поведінка |
-| --- | --- |
-| Поза git-репо | `collectChangedFiles` → `[]`; `collectChangedFilesSince(null)` → `[]`; `collectChangedFilesSince('SHA')` → `Error` (verify впаде). |
-| `git` відсутній у PATH | Усі виклики `gitLines` → `[]`; `collectChangedFilesSince` із `base` → `Error` (verify впаде). |
-| `base` досяжний | `collectChangedFilesSince` повертає список (можливо порожній). |
-| `base` недосяжний (rebase/force-push/shallow) | `collectChangedFilesSince` кидає `Error`. |
-| `base` falsy (`null`/`undefined`/`''`/`0`) | `collectChangedFilesSince` → результат `collectChangedFiles(cwd)`. |
+| Сценарій                                      | Поведінка                                                                                                                          |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Поза git-репо                                 | `collectChangedFiles` → `[]`; `collectChangedFilesSince(null)` → `[]`; `collectChangedFilesSince('SHA')` → `Error` (verify впаде). |
+| `git` відсутній у PATH                        | Усі виклики `gitLines` → `[]`; `collectChangedFilesSince` із `base` → `Error` (verify впаде).                                      |
+| `base` досяжний                               | `collectChangedFilesSince` повертає список (можливо порожній).                                                                     |
+| `base` недосяжний (rebase/force-push/shallow) | `collectChangedFilesSince` кидає `Error`.                                                                                          |
+| `base` falsy (`null`/`undefined`/`''`/`0`)    | `collectChangedFilesSince` → результат `collectChangedFiles(cwd)`.                                                                 |

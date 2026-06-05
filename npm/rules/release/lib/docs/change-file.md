@@ -14,22 +14,23 @@
 Модуль повністю **самодостатній**: без зовнішніх npm-залежностей; парсер frontmatter — простий рядковий розбір на `:`, без YAML-бібліотеки. Це навмисне обмеження — підтримуються тільки два передбачувані ключі, що знімає клас помилок (мультирядкові значення, типи, escape).
 
 Сценарії використання:
+
 - запис нової нотатки з CLI/агента (`newChangeFileName` + `serializeChangeFile`);
 - читання усіх нотаток workspace для агрегації (`readChangeFiles`);
 - одинична валідація/розбір (`parseChangeFile`).
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `VALID_BUMPS` | `readonly string[]` | Дозволені semver-бампи `['major', 'minor', 'patch']` у порядку від найбільшого до найменшого (порядок є частиною контракту — використовується зовнішнім агрегатором для обчислення `max`). Заморожено `Object.freeze`. |
-| `VALID_SECTIONS` | `readonly string[]` | Дозволені секції Keep a Changelog: `['Added', 'Changed', 'Fixed', 'Removed']`. Заморожено `Object.freeze`. |
-| `CHANGES_DIR` | `string` | Назва підкаталогу з change-файлами в межах workspace — `.changes`. |
-| `parseChangeFile(text)` | `function` | Парсить вміст change-файлу у структурований запис. Кидає `Error` при будь-яких відхиленнях. |
-| `serializeChangeFile(entry)` | `function` | Серіалізує запис назад у текст change-файлу (frontmatter + опис + завершальний `\n`). |
-| `changeFileName(timestamp, suffix)` | `function` | Формує імʼя файлу `<timestamp>-<suffix>.md`. |
-| `newChangeFileName()` | `function` | Згенерувати унікальне імʼя для нового change-файлу (`Date.now()` + 3 байти hex). |
-| `readChangeFiles(ws, cwd?)` | `async function` | Прочитати й розпарсити всі `.md`-файли з `<cwd>/<ws>/.changes/`. |
+| Експорт                             | Тип                 | Призначення                                                                                                                                                                                                            |
+| ----------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VALID_BUMPS`                       | `readonly string[]` | Дозволені semver-бампи `['major', 'minor', 'patch']` у порядку від найбільшого до найменшого (порядок є частиною контракту — використовується зовнішнім агрегатором для обчислення `max`). Заморожено `Object.freeze`. |
+| `VALID_SECTIONS`                    | `readonly string[]` | Дозволені секції Keep a Changelog: `['Added', 'Changed', 'Fixed', 'Removed']`. Заморожено `Object.freeze`.                                                                                                             |
+| `CHANGES_DIR`                       | `string`            | Назва підкаталогу з change-файлами в межах workspace — `.changes`.                                                                                                                                                     |
+| `parseChangeFile(text)`             | `function`          | Парсить вміст change-файлу у структурований запис. Кидає `Error` при будь-яких відхиленнях.                                                                                                                            |
+| `serializeChangeFile(entry)`        | `function`          | Серіалізує запис назад у текст change-файлу (frontmatter + опис + завершальний `\n`).                                                                                                                                  |
+| `changeFileName(timestamp, suffix)` | `function`          | Формує імʼя файлу `<timestamp>-<suffix>.md`.                                                                                                                                                                           |
+| `newChangeFileName()`               | `function`          | Згенерувати унікальне імʼя для нового change-файлу (`Date.now()` + 3 байти hex).                                                                                                                                       |
+| `readChangeFiles(ws, cwd?)`         | `async function`    | Прочитати й розпарсити всі `.md`-файли з `<cwd>/<ws>/.changes/`.                                                                                                                                                       |
 
 Внутрішнє (не експортується):
 
@@ -54,7 +55,7 @@
   - `text` — повний вміст change-файлу (frontmatter + опис).
 - **Повертає:** обʼєкт із трьома полями: `bump`, `section`, `description` (опис — з `.trim()`).
 - **Кидає `Error`:**
-  - `change-файл: відсутній frontmatter \`---\`` — якщо текст не відповідає `FRONTMATTER_RE`.
+  - `change-файл: відсутній frontmatter \`---\``— якщо текст не відповідає`FRONTMATTER_RE`.
   - `change-файл: bump має бути одним із major|minor|patch (отримано «…»)` — якщо `bump` поза `VALID_BUMPS` (включно з відсутнім ключем — тоді в підстановці буде порожній рядок).
   - `change-файл: section має бути одним із Added|Changed|Fixed|Removed (отримано «…»)` — якщо `section` поза `VALID_SECTIONS`.
   - `change-файл: порожній опис` — якщо тіло після frontmatter порожнє після `.trim()`.
@@ -93,7 +94,7 @@
 
 - **Сигнатура:** `() => string`
 - **Параметри:** немає.
-- **Повертає:** `\`<Date.now()>-<rand6hex>.md\``, де `rand6hex` — `randomBytes(3).toString('hex')` (6 hex-символів).
+- **Повертає:** `\`<Date.now()>-<rand6hex>.md\``, де `rand6hex`—`randomBytes(3).toString('hex')` (6 hex-символів).
 - **Side effects:** виклик `Date.now()` і CSPRNG `crypto.randomBytes(3)` — результат недетермінований.
 - **Призначення:** анти-колізія для випадку, коли кілька паралельних агентів у різних git-worktree пишуть нову нотатку в ту саму мілісекунду. Порядкове сортування за timestamp залишається стабільним; випадковий хвіст лише розриває нічию.
 
@@ -141,7 +142,7 @@ await mkdir(dir, { recursive: true })
 const text = serializeChangeFile({
   bump: 'patch',
   section: 'Fixed',
-  description: 'Виправлено падіння CLI при відсутньому `.changes`.',
+  description: 'Виправлено падіння CLI при відсутньому `.changes`.'
 })
 await writeFile(join(dir, newChangeFileName()), text)
 ```
@@ -183,6 +184,7 @@ section: Fixed
 ```
 
 Особливості:
+
 - frontmatter відкривається/закривається саме рядком `---` (3 дефіси, без пробілів);
 - символ розділювача — `\n` (LF); CRLF не підтримується regexp-ом без додаткової нормалізації;
 - ключі `bump` і `section` мають бути в нижньому регістрі точно так, як у `VALID_BUMPS`/`VALID_SECTIONS`;

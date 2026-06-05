@@ -60,9 +60,12 @@ describe('getNginxUnprivilegedUserHint', () => {
 
   test('ok: фінальний stage не nginx (alpine) — правило не застосовне', () => {
     const h = getNginxUnprivilegedUserHint(
-      ['FROM mirror.gcr.io/oven/bun:alpine AS build', 'FROM mirror.gcr.io/library/alpine:latest', 'USER root', 'COPY a b'].join(
-        '\n'
-      )
+      [
+        'FROM mirror.gcr.io/oven/bun:alpine AS build',
+        'FROM mirror.gcr.io/library/alpine:latest',
+        'USER root',
+        'COPY a b'
+      ].join('\n')
     )
     expect(h).toBe(null)
   })
@@ -79,7 +82,9 @@ describe('getNginxUnprivilegedUserHint', () => {
 
   test('fail: USER 0 як перемикання на root', () => {
     const h = getNginxUnprivilegedUserHint(
-      ['FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim', 'USER 0', 'COPY --chown=nginx:nginx a b'].join('\n')
+      ['FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim', 'USER 0', 'COPY --chown=nginx:nginx a b'].join(
+        '\n'
+      )
     )
     expect(h).toContain('USER 0')
     expect(h).toContain('root')
@@ -100,7 +105,11 @@ describe('getNginxUnprivilegedUserHint', () => {
 
   test('fail: будь-який інший явний USER (appuser) теж зайвий', () => {
     const h = getNginxUnprivilegedUserHint(
-      ['FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim', 'USER appuser', 'COPY --chown=nginx:nginx a b'].join('\n')
+      [
+        'FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim',
+        'USER appuser',
+        'COPY --chown=nginx:nginx a b'
+      ].join('\n')
     )
     expect(h).toContain('USER appuser')
     expect(h).toContain('non-root')
@@ -108,7 +117,11 @@ describe('getNginxUnprivilegedUserHint', () => {
 
   test('fail: USER у лапках ("root") нормалізується', () => {
     const h = getNginxUnprivilegedUserHint(
-      ['FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim', 'USER "root"', 'COPY --chown=nginx:nginx a b'].join('\n')
+      [
+        'FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim',
+        'USER "root"',
+        'COPY --chown=nginx:nginx a b'
+      ].join('\n')
     )
     expect(h).toContain('root')
   })
@@ -136,9 +149,10 @@ describe('getNginxUnprivilegedUserHint', () => {
 
   test('ok: COPY --from=build --chown=101:101 (числовий UID теж валідний)', () => {
     const h = getNginxUnprivilegedUserHint(
-      ['FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim', 'COPY --from=build --chown=101:101 /app/dist ./'].join(
-        '\n'
-      )
+      [
+        'FROM mirror.gcr.io/nginxinc/nginx-unprivileged:alpine-slim',
+        'COPY --from=build --chown=101:101 /app/dist ./'
+      ].join('\n')
     )
     expect(h).toBe(null)
   })

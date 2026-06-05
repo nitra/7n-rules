@@ -18,9 +18,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|--------|-----|------------|
-| `run` | `(ctx?: RuleContext) => Promise<number>` | Запуск правила в library-режимі. Повертає `0` (OK) або `1` (порушення). |
+| Експорт | Тип                                      | Призначення                                                             |
+| ------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| `run`   | `(ctx?: RuleContext) => Promise<number>` | Запуск правила в library-режимі. Повертає `0` (OK) або `1` (порушення). |
 
 Інших іменованих експортів немає. Default-експорту немає.
 
@@ -62,10 +62,10 @@ if (isRunAsCli(import.meta.url)) {
 
 Файл імпортує дві внутрішні утиліти-раннера:
 
-| Шлях | Що береться | Роль |
-|------|-------------|-----|
-| `../../scripts/lib/run-rule-cli.mjs` | `isRunAsCli`, `runRuleCli` | Детектор CLI-режиму та повна CLI-обв'язка (config, whitelist, summary, exit-code). |
-| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` (+ тип `RuleContext` у JSDoc) | Уніфікований пайплайн правила: `applies → JS-concerns → policy → mdc-refs`. |
+| Шлях                                      | Що береться                                     | Роль                                                                               |
+| ----------------------------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `../../scripts/lib/run-rule-cli.mjs`      | `isRunAsCli`, `runRuleCli`                      | Детектор CLI-режиму та повна CLI-обв'язка (config, whitelist, summary, exit-code). |
+| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` (+ тип `RuleContext` у JSDoc) | Уніфікований пайплайн правила: `applies → JS-concerns → policy → mdc-refs`.        |
 
 Зовнішніх npm-залежностей немає. Файл використовує лише стандартні ESM-можливості: `import.meta.url`, `import.meta.dirname`.
 

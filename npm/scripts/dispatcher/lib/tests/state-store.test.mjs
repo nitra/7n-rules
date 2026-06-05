@@ -111,7 +111,12 @@ describe('recordTransition (WAL)', () => {
     await withTmpDir(async dir => {
       const statePath = join(dir, 'feat.flow.json')
       const eventsPath = join(dir, 'feat.events.jsonl')
-      recordTransition({ statePath, eventsPath }, { type: 'step_done', step: 1 }, s => ({ ...s, status: 'in_progress' }), FIXED)
+      recordTransition(
+        { statePath, eventsPath },
+        { type: 'step_done', step: 1 },
+        s => ({ ...s, status: 'in_progress' }),
+        FIXED
+      )
       expect(readState(statePath).status).toBe('in_progress')
       expect(readEvents(eventsPath)[0].type).toBe('step_done')
     })

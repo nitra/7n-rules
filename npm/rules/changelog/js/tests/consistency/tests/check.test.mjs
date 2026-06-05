@@ -16,6 +16,7 @@ import { describe, expect, test } from 'vitest'
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { env } from 'node:process'
 import { promisify } from 'node:util'
 
 import { check as checkChangelog } from '../../../consistency.mjs'
@@ -884,13 +885,13 @@ describe('check-changelog (autofix-режим)', () => {
       await git(['checkout', '-q', '-b', 'feat/x'], dir)
       await writeFile(join(dir, 'app.js'), 'x\n', 'utf8')
 
-      const prev = process.env.N_CURSOR_CHANGELOG_AUTOFIX
-      process.env.N_CURSOR_CHANGELOG_AUTOFIX = '1'
+      const prev = env.N_CURSOR_CHANGELOG_AUTOFIX
+      env.N_CURSOR_CHANGELOG_AUTOFIX = '1'
       try {
         expect(await checkChangelog({ cwd: dir })).toBe(0)
       } finally {
-        if (prev === undefined) delete process.env.N_CURSOR_CHANGELOG_AUTOFIX
-        else process.env.N_CURSOR_CHANGELOG_AUTOFIX = prev
+        if (prev === undefined) delete env.N_CURSOR_CHANGELOG_AUTOFIX
+        else env.N_CURSOR_CHANGELOG_AUTOFIX = prev
       }
       expect(await readChangeFiles('.', dir)).toHaveLength(1)
     })

@@ -16,8 +16,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт                         | Тип                                                                | Призначення                                                     |
+| ------------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------- |
 | `buildAgentsCommandBulletItems` | `async function(projectRoot: string): Promise<{ name: string }[]>` | Будує масив елементів секції `commands` для Mustache-розкриття. |
 
 Інших публічних експортів (`default`, ре-експортів) у файлі немає. Внутрішні допоміжні функції та константи (`PACKAGE_NAME`, `AGENTS_MD`, `SCRIPT_KEYS_ORDER`, `readPackageScripts`) не експортуються.
@@ -53,7 +53,7 @@
   2. Ініціалізує масив `items` одним фіксованим елементом:
      `- **Залежності**: \`bun i\``.
   3. Створює `Set<string>` під назвою `added` для відстеження уже доданих ключів скриптів (запобігає дублюванню при подальшому fallback-проході).
-  4. Ітерує `SCRIPT_KEYS_ORDER` у заданому порядку: `test`, `lint`, `lint-js`, `lint-text`, `lint-ga`, `lint-k8s`, `lint-docker`, `start`, `dev`, `build`. Для кожного ключа, для якого `scripts[key]` — непорожній рядок, додає у `items` об'єкт `{ name: '- **<key>**: \`bun run <key>\`' }` і фіксує ключ у `added`.
+  4. Ітерує `SCRIPT_KEYS_ORDER` у заданому порядку: `test`, `lint`, `lint-js`, `lint-text`, `lint-ga`, `lint-k8s`, `lint-docker`, `start`, `dev`, `build`. Для кожного ключа, для якого `scripts[key]` — непорожній рядок, додає у `items` об'єкт `{ name: '- **<key>**: \`bun run <key>\`' }`і фіксує ключ у`added`.
   5. Збирає масив `lintExtraKeys`: усі ключі `scripts`, які починаються з `lint-`, не входять у `added` і мають значення типу `string`. Сортує лексикографічно через `toSorted((a, b) => a.localeCompare(b))` (іммутабельне сортування — оригінальний масив `Object.keys(scripts)` не змінюється).
   6. Дописує у `items` пункти для кожного `lintExtraKey` за тим самим шаблоном.
   7. Додає три фіксовані хвостові пункти:
@@ -84,11 +84,11 @@
 
 Усі імпорти — з вбудованих модулів Node.js (`node:`-префіксовані). Жодних сторонніх npm-залежностей.
 
-| Імпорт | Джерело | Використання |
-| --- | --- | --- |
-| `existsSync` | `node:fs` | Швидка синхронна перевірка наявності `package.json` перед спробою читання. |
-| `readFile` | `node:fs/promises` | Асинхронне читання `package.json` у UTF-8. |
-| `join` | `node:path` | Побудова крос-платформового шляху `projectRoot + 'package.json'`. |
+| Імпорт       | Джерело            | Використання                                                               |
+| ------------ | ------------------ | -------------------------------------------------------------------------- |
+| `existsSync` | `node:fs`          | Швидка синхронна перевірка наявності `package.json` перед спробою читання. |
+| `readFile`   | `node:fs/promises` | Асинхронне читання `package.json` у UTF-8.                                 |
+| `join`       | `node:path`        | Побудова крос-платформового шляху `projectRoot + 'package.json'`.          |
 
 Глобальні API: `JSON.parse`, `Object.keys`, `Array.prototype.filter`, `Array.prototype.toSorted` (Node ≥ 20), `String.prototype.localeCompare`, `String.prototype.startsWith`, `Set` (`add`, `has`).
 
@@ -160,10 +160,10 @@ const items = await buildAgentsCommandBulletItems(process.cwd())
 
 3. Очікуваний результат (за порядком):
    1. `- **Залежності**: \`bun i\``
-   2. `- **test**: \`bun run test\`` (із `SCRIPT_KEYS_ORDER`)
-   3. `- **lint**: \`bun run lint\`` (із `SCRIPT_KEYS_ORDER`)
-   4. `- **dev**: \`bun run dev\`` (із `SCRIPT_KEYS_ORDER`)
-   5. `- **lint-rego**: \`bun run lint-rego\`` (fallback `lint-*`, відсортовано)
+   2. `- **test**: \`bun run test\``(із`SCRIPT_KEYS_ORDER`)
+   3. `- **lint**: \`bun run lint\``(із`SCRIPT_KEYS_ORDER`)
+   4. `- **dev**: \`bun run dev\``(із`SCRIPT_KEYS_ORDER`)
+   5. `- **lint-rego**: \`bun run lint-rego\``(fallback`lint-\*`, відсортовано)
    6. `- **Оновити правила та AGENTS.md** (після змін у правилах/шаблоні CLI): \`npx @nitra/cursor\``
    7. `- **Перевірки правил (programmatic)**: \`npx @nitra/cursor fix\``
    8. `- **knip (невикористані залежності та експорти)**: \`bunx knip\``

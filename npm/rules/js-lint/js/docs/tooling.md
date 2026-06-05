@@ -17,12 +17,12 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `OXLINT_CANONICAL_JSON_PATH` | `string` (named const) | Абсолютний шлях до канонічного `oxlint-canonical.json` у цьому пакеті (`<dirname>/data/tooling/oxlint-canonical.json`). Використовується перевіркою та тестами. |
-| `KNIP_CANONICAL_JSON_PATH` | `string` (named const) | Абсолютний шлях до канонічного `knip-canonical.json` у цьому пакеті. Копіюється у корінь проєкту-споживача, якщо `knip.json` відсутній. |
-| `verifyOxlintRcAgainstCanonical(cfg, canonical)` | `function` (named export) | Чиста функція звірення розпарсеного `.oxlintrc.json` із канонічним JSON. Повертає `{ ok: boolean, failures: string[] }`. |
-| `check(cwd?)` | `async function` (named export) | Точка входу: запускає всі under-the-hood перевірки і повертає `Promise<number>` (0 — все добре, 1 — є fail). |
+| Експорт                                          | Тип                             | Призначення                                                                                                                                                     |
+| ------------------------------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OXLINT_CANONICAL_JSON_PATH`                     | `string` (named const)          | Абсолютний шлях до канонічного `oxlint-canonical.json` у цьому пакеті (`<dirname>/data/tooling/oxlint-canonical.json`). Використовується перевіркою та тестами. |
+| `KNIP_CANONICAL_JSON_PATH`                       | `string` (named const)          | Абсолютний шлях до канонічного `knip-canonical.json` у цьому пакеті. Копіюється у корінь проєкту-споживача, якщо `knip.json` відсутній.                         |
+| `verifyOxlintRcAgainstCanonical(cfg, canonical)` | `function` (named export)       | Чиста функція звірення розпарсеного `.oxlintrc.json` із канонічним JSON. Повертає `{ ok: boolean, failures: string[] }`.                                        |
+| `check(cwd?)`                                    | `async function` (named export) | Точка входу: запускає всі under-the-hood перевірки і повертає `Promise<number>` (0 — все добре, 1 — є fail).                                                    |
 
 Усі решта функцій (`deepEqualOxlintCanonical`, `asRecordOrEmpty`, `compareOxlintRules`, `compareOxlintIgnorePatterns`, `checkEslintConfig`, `checkPackageJsonTypeModule`, `checkWorkspacePackages`, `checkEnginesNode`, `checkEnginesBun`, `checkPackageJsonJsLint`, `checkOxlintRc`, `checkLintJsWorkflows`, `checkKnipConfig`) — **module-private** (не експортуються).
 
@@ -33,10 +33,12 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `function deepEqualOxlintCanonical(actual: unknown, expected: unknown): boolean`
 
 **Параметри:**
+
 - `actual` — значення з `.oxlintrc.json` (будь-який тип);
 - `expected` — еталонне значення з канону.
 
 **Повертає:** `true`, якщо `actual` повністю збігається з `expected` за правилами канону:
+
 - примітиви — `===`;
 - масиви — однакові за `JSON.stringify` (тобто **порядок** теж важливий);
 - об’єкти — **той самий набір ключів** (`expKeys.length === actKeys.length` і всі ключі канону присутні в actual) та рекурсивно рівні значення.
@@ -50,6 +52,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `function asRecordOrEmpty(v: unknown): Record<string, unknown>`
 
 **Параметри:**
+
 - `v` — будь-яке значення.
 
 **Повертає:** саме значення (із cast-коментарем), якщо це plain-object (`typeof v === 'object'`, не `null`, не масив); інакше — `{}`.
@@ -63,6 +66,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `function compareOxlintRules(expected: unknown, actual: unknown, failures: string[]): void`
 
 **Параметри:**
+
 - `expected` — канонічний об’єкт `rules`;
 - `actual` — значення `rules` з поточного `.oxlintrc.json`;
 - `failures` — буфер-масив, у який функція **дописує** повідомлення про невідповідності.
@@ -86,11 +90,13 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `function compareOxlintIgnorePatterns(expected: unknown, actual: unknown, failures: string[]): void`
 
 **Параметри:**
+
 - `expected` — канонічний масив `ignorePatterns`;
 - `actual` — поточний масив `ignorePatterns`;
 - `failures` — буфер для повідомлень.
 
 **Поведінка:**
+
 - якщо `expected` не є масивом — функція мовчки виходить (канон не задає очікувань);
 - якщо `actual` не є масивом — додає повідомлення про обов’язковість масиву;
 - порівнює як **підмножину**: усі канонічні патерни мають бути в `actual` (через `Set`); відсутні патерни перелічуються одним повідомленням. Додаткові локальні патерни **дозволені**.
@@ -101,15 +107,17 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 
 ---
 
-### `verifyOxlintRcAgainstCanonical(cfg, canonical)` *(експортовано)*
+### `verifyOxlintRcAgainstCanonical(cfg, canonical)` _(експортовано)_
 
 **Сигнатура:** `function verifyOxlintRcAgainstCanonical(cfg: unknown, canonical: unknown): { ok: boolean, failures: string[] }`
 
 **Параметри:**
+
 - `cfg` — розпарсений корінь `.oxlintrc.json`;
 - `canonical` — розпарсений `oxlint-canonical.json`.
 
 **Поведінка:**
+
 1. Якщо `cfg` чи `canonical` не є plain-object — повертає `ok: false` з відповідним повідомленням (для `cfg` — про невалідний корінь; для `canonical` — як «внутрішня помилка»).
 2. Для кожного ключа канону:
    - `rules` → делегує `compareOxlintRules`;
@@ -128,11 +136,13 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `async function checkEslintConfig(passFn: (msg:string)=>void, failFn: (msg:string)=>void, cwd: string): Promise<void>`
 
 **Параметри:**
+
 - `passFn` — колбек успіху;
 - `failFn` — колбек помилки;
 - `cwd` — корінь репозиторію.
 
 **Поведінка:**
+
 - шукає `eslint.config.js`, потім `eslint.config.mjs`; якщо жодного — fail і ранній вихід;
 - читає вміст знайденого файла як `utf8` і застосовує три суто **текстові** перевірки наявності підрядків:
   1. `getConfig` — обов’язковий виклик;
@@ -160,6 +170,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `async function checkWorkspacePackages(workspaces: unknown[], passFn, failFn, cwd: string): Promise<void>`
 
 **Поведінка:** для кожного запису workspaces:
+
 - будує шлях `<ws>/package.json`;
 - якщо файл існує — читає та парсить JSON; запускає послідовно `checkPackageJsonTypeModule`, `checkEnginesNode`, `checkEnginesBun`.
 
@@ -202,6 +213,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `async function checkOxlintRc(passFn, failFn, cwd: string): Promise<void>`
 
 **Поведінка:**
+
 1. Якщо `.oxlintrc.json` відсутній → fail і ранній вихід.
 2. Спроба JSON-парсингу; при помилці → fail про невалідний JSON.
 3. Pass-повідомлення про наявність файла.
@@ -217,6 +229,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `async function checkLintJsWorkflows(passFn, failFn, cwd: string): Promise<void>`
 
 **Поведінка:**
+
 - перевіряє існування `.github/workflows/lint-js.yml` → pass з нагадуванням, що структуру валідує Rego (`js_lint.lint_js_yml`); відсутність → fail;
 - якщо існує `.github/workflows/lint.yml` — читає його як текст і перевіряє, що він **не містить одночасно** трьох підрядків `bunx oxlint`, `bunx eslint`, `jscpd`. Якщо містить — fail (дубль кроків JS-лінта), інакше — pass.
 
@@ -229,6 +242,7 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 **Сигнатура:** `async function checkKnipConfig(passFn, failFn, cwd: string): Promise<void>`
 
 **Поведінка:**
+
 - якщо `knip.json` існує у корені — pass і вихід;
 - якщо відсутній і канонічний шаблон `KNIP_CANONICAL_JSON_PATH` теж недоступний (`existsSync` повертає false) — fail з пропозицією перевстановити `@nitra/cursor`;
 - інакше — **копіює** канонічний JSON у `cwd/knip.json` через `copyFile` і повідомляє pass.
@@ -237,11 +251,12 @@ Per-document вимоги (`lint-js` script, мінімальна версія `
 
 ---
 
-### `check(cwd?)` *(експортовано — публічна точка входу)*
+### `check(cwd?)` _(експортовано — публічна точка входу)_
 
 **Сигнатура:** `async function check(cwd?: string): Promise<number>` (за замовчуванням `cwd = process.cwd()`).
 
 **Поведінка:**
+
 1. Створює репортер через `createCheckReporter()` і отримує `pass` / `fail` колбеки.
 2. Послідовно `await`-ить:
    - `checkEslintConfig` — flat-config;
@@ -305,16 +320,16 @@ process.exit(exitCode)
 
 ### Розподіл відповідальності з Rego-policies
 
-| Що перевіряється | Де живе |
-| --- | --- |
-| Наявність `eslint.config.{js,mjs}` + ключові підрядки | **тут** (`checkEslintConfig`) |
-| `type: "module"`, `engines.{node,bun}` у workspace-пакетах | **тут** (`checkWorkspacePackages`) |
+| Що перевіряється                                                                                                                                    | Де живе                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Наявність `eslint.config.{js,mjs}` + ключові підрядки                                                                                               | **тут** (`checkEslintConfig`)                                             |
+| `type: "module"`, `engines.{node,bun}` у workspace-пакетах                                                                                          | **тут** (`checkWorkspacePackages`)                                        |
 | Той самий набір полів у кореневому `package.json`, мінімальна версія `@nitra/eslint-config`, `lint-js`-script, `prettier`, `@nitra/prettier-config` | Rego: `npm/policy/js_lint/package_json/`, `npm/policy/text/package_json/` |
-| Збіг `.oxlintrc.json` з канонічним JSON | **тут** (`checkOxlintRc` + `verifyOxlintRcAgainstCanonical`) |
-| Наявність `lint-js.yml`, заборона дубля у `lint.yml` | **тут** (`checkLintJsWorkflows`) |
-| Структура `lint-js.yml` (`actions/checkout@v6`, `persist-credentials: false`, `setup-bun-deps`, заборона `--fix`) | Rego: `npm/policy/js_lint/lint_js_yml/` |
-| Bootstrap `knip.json` (копіювання канону) | **тут** (`checkKnipConfig`) |
-| Заборона legacy `.eslintrc*` | **тут** (`check`, фінальний цикл) |
+| Збіг `.oxlintrc.json` з канонічним JSON                                                                                                             | **тут** (`checkOxlintRc` + `verifyOxlintRcAgainstCanonical`)              |
+| Наявність `lint-js.yml`, заборона дубля у `lint.yml`                                                                                                | **тут** (`checkLintJsWorkflows`)                                          |
+| Структура `lint-js.yml` (`actions/checkout@v6`, `persist-credentials: false`, `setup-bun-deps`, заборона `--fix`)                                   | Rego: `npm/policy/js_lint/lint_js_yml/`                                   |
+| Bootstrap `knip.json` (копіювання канону)                                                                                                           | **тут** (`checkKnipConfig`)                                               |
+| Заборона legacy `.eslintrc*`                                                                                                                        | **тут** (`check`, фінальний цикл)                                         |
 
 ### Семантика звіту
 
@@ -330,4 +345,4 @@ process.exit(exitCode)
 - експорт `verifyOxlintRcAgainstCanonical(cfg, canonical)` із семантикою «`rules` — підмножина значень, `ignorePatterns` — підмножина елементів, решта полів — повний `deepEqualOxlintCanonical`»;
 - допоміжні приватні функції `deepEqualOxlintCanonical`, `asRecordOrEmpty`, `compareOxlintRules`, `compareOxlintIgnorePatterns` з описаною семантикою (для масивів — порівняння через `JSON.stringify`; для об’єктів — однаковий розмір ключів і рекурсія; primitives — `===`);
 - приватні чекери (`checkEslintConfig`, `checkPackageJsonTypeModule`, `checkWorkspacePackages`, `checkEnginesNode`, `checkEnginesBun`, `checkPackageJsonJsLint`, `checkOxlintRc`, `checkLintJsWorkflows`, `checkKnipConfig`) з зазначеними сигнатурами та повідомленнями;
-- експорт `check(cwd = process.cwd())`, який створює репортер через `createCheckReporter`, послідовно `await`-ить п’ять чекерів у порядку *ESLint → package.json → oxlint → workflows → knip*, потім перевіряє legacy-конфіги ESLint і повертає `reporter.getExitCode()`.
+- експорт `check(cwd = process.cwd())`, який створює репортер через `createCheckReporter`, послідовно `await`-ить п’ять чекерів у порядку _ESLint → package.json → oxlint → workflows → knip_, потім перевіряє legacy-конфіги ESLint і повертає `reporter.getExitCode()`.

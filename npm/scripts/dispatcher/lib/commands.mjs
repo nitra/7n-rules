@@ -159,7 +159,7 @@ export async function verify(_rest, deps = {}) {
     log(`⚠️ verify: активного flow не визначено — гейти прогнано у ${cwd} без запису стану`)
   }
   // М'які ворота: відсутній план — лише попередження, exit-код визначають gate-и.
-  if (state && !(state.plan?.length)) {
+  if (state && !state.plan?.length) {
     log('⚠️ verify: плану не зафіксовано (`flow plan`) — рекомендовано спершу сформувати план')
   }
 

@@ -13,9 +13,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `isAllowedGap(verdict, threshold)` | named function | Перевіряє, чи окремий verdict-об'єкт кваліфікує мутанта як allowed-gap. |
+| Експорт                                    | Тип            | Призначення                                                                                          |
+| ------------------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------- |
+| `isAllowedGap(verdict, threshold)`         | named function | Перевіряє, чи окремий verdict-об'єкт кваліфікує мутанта як allowed-gap.                              |
 | `applyVerdicts(rows, verdicts, threshold)` | named function | Застосовує мапу вердиктів до набору coverage-рядків і повертає augmented rows + список allowed-gaps. |
 
 Default-експорту немає. Внутрішня константа `SKIP_VERDICTS` не експортується.

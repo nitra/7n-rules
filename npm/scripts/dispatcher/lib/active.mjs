@@ -15,13 +15,7 @@ import { flowEventsPath } from './events.mjs'
 import { executePlan } from './executor.mjs'
 import { generatePlan } from './planner.mjs'
 import { runReview } from './reviewer.mjs'
-import {
-  cleanupFlowSiblings,
-  flowStatePath,
-  readState,
-  updateState,
-  writeState
-} from './state-store.mjs'
+import { cleanupFlowSiblings, flowStatePath, readState, updateState, writeState } from './state-store.mjs'
 import { createRunner } from './subagent-runner.mjs'
 
 /**
@@ -162,7 +156,9 @@ export async function resume(_rest, deps = {}) {
     ...s,
     status: 'in_progress',
     plan: s.plan.map(st =>
-      st.status === 'done' ? st : { ...st, retry_count: 0, ...(answers.has(st.step) ? { hint: answers.get(st.step) } : {}) }
+      st.status === 'done'
+        ? st
+        : { ...st, retry_count: 0, ...(answers.has(st.step) ? { hint: answers.get(st.step) } : {}) }
     ),
     hitl: (s.hitl ?? []).map(q => (q.answer ? { ...q, status: 'answered' } : q))
   }))

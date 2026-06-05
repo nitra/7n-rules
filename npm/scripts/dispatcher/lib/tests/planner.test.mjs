@@ -12,7 +12,7 @@ describe('plannerPrompt', () => {
 })
 
 describe('parsePlan', () => {
-  test('масив об\'єктів → нормалізовані кроки', () => {
+  test("масив об'єктів → нормалізовані кроки", () => {
     expect(parsePlan('[{"task":"a","acceptance":"x"},{"task":"b"}]')).toEqual([
       { step: 0, task: 'a', status: 'pending', retry_count: 0, acceptance: 'x' },
       { step: 1, task: 'b', status: 'pending', retry_count: 0 }

@@ -71,9 +71,7 @@ export function discoverRuleAutoActivation(rulesDir = RULES_DIR) {
 const RULE_AUTO_ACTIVATION = discoverRuleAutoActivation()
 
 /** Стабільний алфавітний порядок (замість хардкод-масиву). */
-export const AUTO_RULE_ORDER = Object.freeze(
-  Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b))
-)
+export const AUTO_RULE_ORDER = Object.freeze(Object.keys(RULE_AUTO_ACTIVATION).toSorted((a, b) => a.localeCompare(b)))
 
 /** Граф залежностей із meta (Type C) — замість хардкод-константи. */
 export const AUTO_RULE_DEPENDENCIES = Object.freeze(
@@ -360,7 +358,12 @@ async function specMatches(spec, ctx) {
  * @param {string[]} [params.disableRules] список `disable-rules` з конфігу
  * @returns {Promise<{ rules: string[] }>} список id у стабільному порядку (за `AUTO_RULE_ORDER`)
  */
-export async function detectAutoRules({ root, availableRules, packageJsonParsed, disableRules = DEFAULT_DISABLED_LIST }) {
+export async function detectAutoRules({
+  root,
+  availableRules,
+  packageJsonParsed,
+  disableRules = DEFAULT_DISABLED_LIST
+}) {
   const facts = await collectAutoRuleFacts(root)
   const paths = await collectRepoPaths(root)
   const normalizedRules = new Set(availableRules.map(r => r.trim().toLowerCase()))

@@ -23,13 +23,13 @@
 
 Файл є ES-модулем (`.mjs`) і експортує чотири іменовані функції; стандартного експорту немає.
 
-| Експорт                     | Тип                                          | Призначення                                                                  |
-| --------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------- |
-| `getFromImageToken`         | `(line: string) => string \| null`           | Витягує токен образу з рядка `FROM` Dockerfile.                              |
-| `isDockerHubStyleImageRef`  | `(imageToken: string) => boolean`            | Повертає `true`, якщо посилання схоже на Docker Hub.                         |
-| `normalizeHubRepoPath`      | `(imageToken: string) => string`             | Нормалізує шлях репозиторію (без тега/digest) у канонічну форму.             |
-| `getRequiredMirrorGcrImage` | `(imageToken: string) => string \| null`     | Повертає рекомендований `mirror.gcr.io/...`-референс, якщо потрібен.         |
-| `getMirrorGcrHint`          | `(fileContent: string) => string \| null`    | Сканує вміст Dockerfile та повертає підказку про порушення (або `null`).     |
+| Експорт                     | Тип                                       | Призначення                                                              |
+| --------------------------- | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `getFromImageToken`         | `(line: string) => string \| null`        | Витягує токен образу з рядка `FROM` Dockerfile.                          |
+| `isDockerHubStyleImageRef`  | `(imageToken: string) => boolean`         | Повертає `true`, якщо посилання схоже на Docker Hub.                     |
+| `normalizeHubRepoPath`      | `(imageToken: string) => string`          | Нормалізує шлях репозиторію (без тега/digest) у канонічну форму.         |
+| `getRequiredMirrorGcrImage` | `(imageToken: string) => string \| null`  | Повертає рекомендований `mirror.gcr.io/...`-референс, якщо потрібен.     |
+| `getMirrorGcrHint`          | `(fileContent: string) => string \| null` | Сканує вміст Dockerfile та повертає підказку про порушення (або `null`). |
 
 Внутрішні (не експортовані) допоміжні елементи:
 
@@ -205,19 +205,19 @@ import {
   getFromImageToken,
   isDockerHubStyleImageRef,
   normalizeHubRepoPath,
-  getRequiredMirrorGcrImage,
+  getRequiredMirrorGcrImage
 } from './docker-mirror.mjs'
 
 const token = getFromImageToken('FROM --platform=$BUILDPLATFORM oven/bun:1.2 AS bun')
 // → 'oven/bun:1.2'
 
-isDockerHubStyleImageRef(token)              // → true
-normalizeHubRepoPath(token)                  // → 'oven/bun'
-getRequiredMirrorGcrImage(token)             // → 'mirror.gcr.io/oven/bun'
+isDockerHubStyleImageRef(token) // → true
+normalizeHubRepoPath(token) // → 'oven/bun'
+getRequiredMirrorGcrImage(token) // → 'mirror.gcr.io/oven/bun'
 
-getRequiredMirrorGcrImage('gcr.io/foo/bar')              // → null (чужий реєстр)
-getRequiredMirrorGcrImage('mirror.gcr.io/library/node')  // → null (вже на дзеркалі)
-getRequiredMirrorGcrImage('redis:7')                     // → null (не в списку)
+getRequiredMirrorGcrImage('gcr.io/foo/bar') // → null (чужий реєстр)
+getRequiredMirrorGcrImage('mirror.gcr.io/library/node') // → null (вже на дзеркалі)
+getRequiredMirrorGcrImage('redis:7') // → null (не в списку)
 ```
 
 ### Покриті випадки

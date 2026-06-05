@@ -37,12 +37,12 @@ risk: high
 
 Кожен артефакт атомарний на двох рівнях.
 
-| Файл | Семантика | Локальний примітив | Розподілено |
-| --- | --- | --- | --- |
-| `*.plan.md` | write-once (immutable) | `writeFileSync(p, …, {flag:'wx'})` | 1 commit |
-| `*.claim.md` | create-once (лок) | `wx` (`O_CREAT\|O_EXCL`) — EEXIST=зайнято | commit+**push** (перший виграє) |
-| `*.fact.md` | write-once (термінал) | `wx` | 1 commit |
-| `*.beat` | mutable (heartbeat) | temp+fsync+`rename` (як `.flow.json`) | не комітиться (transient) |
+| Файл         | Семантика              | Локальний примітив                        | Розподілено                     |
+| ------------ | ---------------------- | ----------------------------------------- | ------------------------------- |
+| `*.plan.md`  | write-once (immutable) | `writeFileSync(p, …, {flag:'wx'})`        | 1 commit                        |
+| `*.claim.md` | create-once (лок)      | `wx` (`O_CREAT\|O_EXCL`) — EEXIST=зайнято | commit+**push** (перший виграє) |
+| `*.fact.md`  | write-once (термінал)  | `wx`                                      | 1 commit                        |
+| `*.beat`     | mutable (heartbeat)    | temp+fsync+`rename` (як `.flow.json`)     | не комітиться (transient)       |
 
 - **Heartbeat винесено** з claim у окремий `*.beat` → claim лишається immutable;
   єдиний мутабельний файл оновлюється атомарним `rename` (replace, без торн-рідів).
@@ -125,14 +125,14 @@ tick(graph):
 
 ## CLI-поверхня
 
-| Команда | Дія |
-| --- | --- |
-| `n-cursor graph status` | скан → таблиця позиції DAG (read-only) |
-| `n-cursor graph tick [--max-llm N]` | один прохід: claim+dispatch ready (ідемпотентний) |
-| `n-cursor graph run [--max-llm N] [--max-human M]` | цикл tick'ів до завершення/stall |
-| `n-cursor graph ask <qid>` | показати bundle питання (повний контекст для людини) |
-| `n-cursor graph answer <qid>` | записати рішення (`ans-<qid>.md`, `wx`) → вузол продовжує |
-| `n-cursor graph repair` | зняти осиротілі claim (за claim-age TTL) |
+| Команда                                            | Дія                                                       |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| `n-cursor graph status`                            | скан → таблиця позиції DAG (read-only)                    |
+| `n-cursor graph tick [--max-llm N]`                | один прохід: claim+dispatch ready (ідемпотентний)         |
+| `n-cursor graph run [--max-llm N] [--max-human M]` | цикл tick'ів до завершення/stall                          |
+| `n-cursor graph ask <qid>`                         | показати bundle питання (повний контекст для людини)      |
+| `n-cursor graph answer <qid>`                      | записати рішення (`ans-<qid>.md`, `wx`) → вузол продовжує |
+| `n-cursor graph repair`                            | зняти осиротілі claim (за claim-age TTL)                  |
 
 Усе ідемпотентне й stateless → безпечно з CI/cron/руки.
 

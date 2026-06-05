@@ -107,7 +107,10 @@ export function slugForModule(root, moduleRoot) {
   const rel = path.relative(root, moduleRoot)
   // корінь репо: фіксований sentinel 'root'
   if (rel === '') return 'root'
-  return rel.split(path.sep).join('-').replaceAll(/[^\w-]+/gu, '-')
+  return rel
+    .split(path.sep)
+    .join('-')
+    .replaceAll(/[^\w-]+/gu, '-')
 }
 
 /**

@@ -80,10 +80,17 @@ describe('createRunner', () => {
     expect(r.backend).toBe('claude')
   })
   test('нема backend → throw', async () => {
-    await expect(createRunner({ env: {}, canImportSdk: false, isInPath: () => false })).rejects.toThrow(/спавнити нічим/)
+    await expect(createRunner({ env: {}, canImportSdk: false, isInPath: () => false })).rejects.toThrow(
+      /спавнити нічим/
+    )
   })
   test('sdk коли API key + SDK', async () => {
-    const r = await createRunner({ env: { ANTHROPIC_API_KEY: 'x' }, canImportSdk: true, isInPath: () => false, query: okQuery })
+    const r = await createRunner({
+      env: { ANTHROPIC_API_KEY: 'x' },
+      canImportSdk: true,
+      isInPath: () => false,
+      query: okQuery
+    })
     expect(r.backend).toBe('sdk')
   })
 })

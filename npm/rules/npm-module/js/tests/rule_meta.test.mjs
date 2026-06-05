@@ -8,7 +8,10 @@ import { ensureDir, withTmpDir, writeJson } from '../../../../scripts/utils/test
 describe('rule_meta check', () => {
   test('валідні meta.json (усі форми) → 0', async () => {
     await withTmpDir(async dir => {
-      const mk = async (id, meta) => { await ensureDir(join(dir, 'npm', 'rules', id)); await writeJson(join(dir, 'npm', 'rules', id, 'meta.json'), meta) }
+      const mk = async (id, meta) => {
+        await ensureDir(join(dir, 'npm', 'rules', id))
+        await writeJson(join(dir, 'npm', 'rules', id, 'meta.json'), meta)
+      }
       await mk('adr', { auto: 'завжди' })
       await mk('changelog', { auto: ['bun'] })
       await mk('vue', { auto: { glob: '**/*.vue' } })

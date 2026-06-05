@@ -16,10 +16,10 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `computeGate` | `function` | Чистий синтез вердикту з об'єкта стану. |
-| `gate` | `async function` | CLI-handler підкоманди `flow gate`. |
+| Експорт       | Тип              | Призначення                             |
+| ------------- | ---------------- | --------------------------------------- |
+| `computeGate` | `function`       | Чистий синтез вердикту з об'єкта стану. |
+| `gate`        | `async function` | CLI-handler підкоманди `flow gate`.     |
 
 Модуль не має default-експорту. Внутрішня константа `PENALTY` (штрафи score) **не експортується** і є приватною деталлю реалізації.
 
@@ -117,7 +117,7 @@
    - якщо `resolved.statePath` пустий — логує `gate: <error>` і повертає `1`;
    - якщо `resolved.autoResolved` — логує повідомлення `flow: авторезолвлено активний flow «<label>» (cwd поза worktree)`.
 3. Підставляє `cwd = resolved.worktreeDir ?? cwd0` і `statePath = resolved.statePath`.
-4. Читає стан `readState(statePath)`; якщо `null/undefined` — логує `gate: стану нема — спершу `flow init`` і повертає `1`.
+4. Читає стан `readState(statePath)`; якщо `null/undefined` — логує `gate: стану нема — спершу `flow init``і повертає`1`.
 5. Викликає `computeGate(state)` → `result`.
 6. Викликає `recordTransition` з:
    - шляхами `{ statePath, eventsPath: flowEventsPath(cwd) }`,
@@ -169,13 +169,13 @@ flow gate      → агрегує → state.gate = { verdict, score, reasons, at
 
 ### Сценарії exit-коду
 
-| Сценарій | Лог | Exit |
-|---|---|---|
-| Активний флоу не знайдено | `gate: <error>` | `1` |
-| `.flow.json` відсутній | `gate: стану нема — спершу `flow init`` | `1` |
-| `verdict = FAIL` | `gate: FAIL (score …)` + причини | `1` |
-| `verdict = CONCERNS` | `gate: CONCERNS (score …)` + причини | `0` |
-| `verdict = PASS` | `gate: PASS (score 100)` | `0` |
+| Сценарій                  | Лог                                     | Exit |
+| ------------------------- | --------------------------------------- | ---- |
+| Активний флоу не знайдено | `gate: <error>`                         | `1`  |
+| `.flow.json` відсутній    | `gate: стану нема — спершу `flow init`` | `1`  |
+| `verdict = FAIL`          | `gate: FAIL (score …)` + причини        | `1`  |
+| `verdict = CONCERNS`      | `gate: CONCERNS (score …)` + причини    | `0`  |
+| `verdict = PASS`          | `gate: PASS (score 100)`                | `0`  |
 
 ### Приклад чистого використання `computeGate`
 
@@ -183,8 +183,11 @@ flow gate      → агрегує → state.gate = { verdict, score, reasons, at
 import { computeGate } from './gate.mjs'
 
 const state = {
-  gates: [{ name: 'lint', ok: true }, { name: 'test', ok: false }],
-  review: { findings: [{ severity: 'med' }] },
+  gates: [
+    { name: 'lint', ok: true },
+    { name: 'test', ok: false }
+  ],
+  review: { findings: [{ severity: 'med' }] }
 }
 
 computeGate(state)
@@ -203,7 +206,7 @@ const logs = []
 const code = await gate([], {
   cwd: '/tmp/fixture',
   log: m => logs.push(m),
-  now: () => 1_700_000_000_000,
+  now: () => 1_700_000_000_000
 })
 
 // code === 0 | 1

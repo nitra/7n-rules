@@ -2579,7 +2579,8 @@ describe('enabledApisValueFromPatchText', () => {
   })
 
   test('Strategic Merge data.HASURA_GRAPHQL_ENABLED_APIS', () => {
-    const text = 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
+    const text =
+      'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
     expect(enabledApisValueFromPatchText(text)).toBe('metadata,graphql')
   })
 
@@ -2676,7 +2677,8 @@ describe('hasuraEnabledApisOverrideValue', () => {
     const k = {
       patches: [
         {
-          patch: 'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
+          patch:
+            'apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: db-h\ndata:\n  HASURA_GRAPHQL_ENABLED_APIS: metadata,graphql\n'
         }
       ]
     }
@@ -2685,7 +2687,12 @@ describe('hasuraEnabledApisOverrideValue', () => {
 
   test('патч на іншу ціль (Deployment) ігнорується → null', () => {
     const k = {
-      patches: [{ target: { kind: 'Deployment' }, patch: '- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n' }]
+      patches: [
+        {
+          target: { kind: 'Deployment' },
+          patch: '- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n'
+        }
+      ]
     }
     expect(hasuraEnabledApisOverrideValue(k)).toBeNull()
   })

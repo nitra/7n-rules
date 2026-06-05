@@ -15,8 +15,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
+| Експорт                 | Тип            | Призначення                                                                                                          |
+| ----------------------- | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `runDotenvLinter(cwd?)` | named function | Запуск двофазного циклу `fix` + `check` для `.env`-файлів у дереві `cwd`. Повертає числовий exit-code (`0` або `1`). |
 
 Інші ідентифікатори модуля (`EXCLUDED_PATHS`, `printDotenvLinterInstallHints`, `buildExcludeArgs`) — внутрішні, **не** експортуються.
@@ -29,7 +29,7 @@
 
 - **Сигнатура:** `export function runDotenvLinter(cwd = process.cwd()): number`
 - **Параметри:**
-  - `cwd` *(string, optional)* — кореневий каталог для рекурсивного сканування. За замовчуванням — `process.cwd()`. Перед використанням нормалізується через `node:path#resolve` в абсолютний шлях.
+  - `cwd` _(string, optional)_ — кореневий каталог для рекурсивного сканування. За замовчуванням — `process.cwd()`. Перед використанням нормалізується через `node:path#resolve` в абсолютний шлях.
 - **Повертає:** `number`
   - `0` — `dotenv-linter check` завершився без порушень (включно з ситуацією "Nothing to check").
   - `1` — будь-яка з наступних умов:
@@ -50,14 +50,14 @@
   - `cwd` — нормалізований `root`.
   - `encoding: 'utf8'`, `env: process.env`, `stdio: ['ignore', 'pipe', 'pipe']` (stdin закритий, stdout/stderr захоплюються в буфер).
 
-### `printDotenvLinterInstallHints()` *(internal)*
+### `printDotenvLinterInstallHints()` _(internal)_
 
 - **Сигнатура:** `function printDotenvLinterInstallHints(): void`
 - **Параметри:** немає.
 - **Повертає:** `void`.
 - **Побічні ефекти:** Пише у `process.stderr` багаторядкове повідомлення з трьома варіантами встановлення (`brew`, `curl … sh`, `cargo install`) та заголовком `❌ dotenv-linter не знайдено в PATH.`. Завершується порожнім рядком (зручне відокремлення в логах).
 
-### `buildExcludeArgs()` *(internal)*
+### `buildExcludeArgs()` _(internal)_
 
 - **Сигнатура:** `function buildExcludeArgs(): string[]`
 - **Параметри:** немає.
@@ -140,13 +140,13 @@ if (code !== 0) process.exit(code)
 
 ### Контракт побічних ефектів
 
-| Подія | Куди пишеться | Коли |
-|---|---|---|
-| Підказки встановлення | `process.stderr` | бінарника немає у `PATH` |
-| `error.message` зі `spawnSync` | `process.stderr` | помилка спавну `fix` або `check` |
-| `stdout` дочірнього `check` | `process.stdout` | `check.status !== 0` та буфер непорожній |
-| `stderr` дочірнього `check` | `process.stderr` | `check.status !== 0` та буфер непорожній |
-| Модифікація `.env*`-файлів | дерево `cwd` | фаза `fix` (без `.bak`) |
+| Подія                          | Куди пишеться    | Коли                                     |
+| ------------------------------ | ---------------- | ---------------------------------------- |
+| Підказки встановлення          | `process.stderr` | бінарника немає у `PATH`                 |
+| `error.message` зі `spawnSync` | `process.stderr` | помилка спавну `fix` або `check`         |
+| `stdout` дочірнього `check`    | `process.stdout` | `check.status !== 0` та буфер непорожній |
+| `stderr` дочірнього `check`    | `process.stderr` | `check.status !== 0` та буфер непорожній |
+| Модифікація `.env*`-файлів     | дерево `cwd`     | фаза `fix` (без `.bak`)                  |
 
 ### Інтеграція в `lint-text`
 

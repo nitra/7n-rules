@@ -88,7 +88,7 @@ Pi.dev extension API, що його runtime передає у default export:
    - Об'єднує рядки через `'\n'`.
    - Генерує шлях `jsonlPath = join(tmpdir(), \`n-cursor-pi-transcript-${Date.now()}-${randomUUID()}.jsonl\`)`.
    - Пише файл `jsonlPath` через `writeFileSync(jsonlPath, lines + '\n', 'utf8')`.
-   - У catch-блоці: викликає `ctx.ui?.notify?.(\`@nitra/cursor: transcript serialization failed — ${(error as Error).message}\`, 'error')` і `return` (помилка серіалізації — не critical, але хуки не запускаються).
+   - У catch-блоці: викликає `ctx.ui?.notify?.(\`@nitra/cursor: transcript serialization failed — ${(error as Error).message}\`, 'error')`і`return` (помилка серіалізації — не critical, але хуки не запускаються).
 
 3. **Підготовка stdin payload:**
    - `stdinPayload = JSON.stringify({ transcript_path: jsonlPath, session_id: ctx.sessionId ?? randomUUID() })`.

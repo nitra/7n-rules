@@ -17,11 +17,11 @@
 
 Модуль експортує три іменовані функції (`export function ...`):
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `buildCompletionSnapshot(state, now?)` | pure-функція | Складає JSON-об'єкт snapshot зі стану `.flow.json`. |
-| `upsertSummaryBlock(content, snapshot)` | pure-функція | Вставляє або оновлює блок Summary у наданому markdown-тексті між маркерами. |
-| `writeSummaryToTaskRecord(taskPath, snapshot)` | IO-функція | Читає файл task record (якщо існує), застосовує `upsertSummaryBlock` і пише результат назад. |
+| Експорт                                        | Тип          | Призначення                                                                                  |
+| ---------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `buildCompletionSnapshot(state, now?)`         | pure-функція | Складає JSON-об'єкт snapshot зі стану `.flow.json`.                                          |
+| `upsertSummaryBlock(content, snapshot)`        | pure-функція | Вставляє або оновлює блок Summary у наданому markdown-тексті між маркерами.                  |
+| `writeSummaryToTaskRecord(taskPath, snapshot)` | IO-функція   | Читає файл task record (якщо існує), застосовує `upsertSummaryBlock` і пише результат назад. |
 
 Внутрішні (не експортовані) константи:
 
@@ -95,14 +95,16 @@ upsertSummaryBlock(content: string, snapshot: object): string
 
 **Структура блоку, який будує функція:**
 
-```text
+````text
 <!-- flow:summary:start -->
 ## Summary
 ```json
 { ... pretty-printed snapshot ... }
-```
+````
+
 <!-- flow:summary:end -->
-```
+
+````
 
 (У реальному виводі трійні бектики справжні; тут показано схематично, бо ми всередині markdown.)
 
@@ -129,7 +131,7 @@ upsertSummaryBlock(content: string, snapshot: object): string
 
 ```js
 writeSummaryToTaskRecord(taskPath: string, snapshot: object): void
-```
+````
 
 **Параметри:**
 
@@ -173,10 +175,7 @@ writeSummaryToTaskRecord(taskPath: string, snapshot: object): void
 ```js
 import { readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import {
-  buildCompletionSnapshot,
-  writeSummaryToTaskRecord
-} from './lib/snapshot.mjs'
+import { buildCompletionSnapshot, writeSummaryToTaskRecord } from './lib/snapshot.mjs'
 
 // 1. Зчитати transient-стан.
 const state = JSON.parse(readFileSync('.flow.json', 'utf8'))

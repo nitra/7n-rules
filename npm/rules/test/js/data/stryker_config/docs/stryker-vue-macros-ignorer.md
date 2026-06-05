@@ -22,10 +22,10 @@
 
 Модуль експортує два публічних символи (обидва — named exports, ESM):
 
-| Символ            | Тип                                  | Призначення                                                                                                                                         |
-| ----------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `shouldIgnore`    | `(path) => string \| undefined`      | Predicate-функція, яку Stryker-інструментер викликає для кожного вузла AST. Повертає повідомлення-причину, якщо мутацію треба пропустити.           |
-| `strykerPlugins`  | `Array<{kind, name, value}>`         | Стандартний експорт, який очікує plugin-loader зі Stryker (`@stryker-mutator/core/.../plugin-loader.js`). Містить один запис типу `Ignore`.        |
+| Символ           | Тип                             | Призначення                                                                                                                                 |
+| ---------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `shouldIgnore`   | `(path) => string \| undefined` | Predicate-функція, яку Stryker-інструментер викликає для кожного вузла AST. Повертає повідомлення-причину, якщо мутацію треба пропустити.   |
+| `strykerPlugins` | `Array<{kind, name, value}>`    | Стандартний експорт, який очікує plugin-loader зі Stryker (`@stryker-mutator/core/.../plugin-loader.js`). Містить один запис типу `Ignore`. |
 
 Жодних default-експортів модуль не має.
 
@@ -59,8 +59,8 @@ export function shouldIgnore(path)
 
 **Параметри:**
 
-| Ім'я | Тип | Опис |
-| ---- | --- | ---- |
+| Ім'я   | Тип                         | Опис                                                                                                                                                                                  |
+| ------ | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `path` | `NodePath` (Babel-сумісний) | Об'єкт-обгортка над вузлом AST, який Stryker передає для перевірки. Очікувані поля/методи: `path.isCallExpression(): boolean` та `path.node.callee: { type: string, name?: string }`. |
 
 **Повертає:**
@@ -86,10 +86,10 @@ export function shouldIgnore(path)
 
 ## Внутрішні константи
 
-| Ім'я              | Тип            | Значення                                                                                                                                                                                                                       |
-| ----------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `VUE_SETUP_MACROS` | `Set<string>` | `{'defineProps', 'defineEmits', 'defineModel', 'defineSlots', 'defineExpose', 'defineOptions'}` — повний канонічний набір Vue 3 `<script setup>` макросів. `Set` обрано для O(1) перевірки `has(name)`.                          |
-| `IGNORE_MESSAGE`   | `string`      | `'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'` — повідомлення, яке потрапляє до Stryker-звіту як причина пропуску мутації.            |
+| Ім'я               | Тип           | Значення                                                                                                                                                                                                            |
+| ------------------ | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VUE_SETUP_MACROS` | `Set<string>` | `{'defineProps', 'defineEmits', 'defineModel', 'defineSlots', 'defineExpose', 'defineOptions'}` — повний канонічний набір Vue 3 `<script setup>` макросів. `Set` обрано для O(1) перевірки `has(name)`.             |
+| `IGNORE_MESSAGE`   | `string`      | `'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'` — повідомлення, яке потрапляє до Stryker-звіту як причина пропуску мутації. |
 
 Обидві константи приватні для модуля (не експортуються).
 
@@ -110,12 +110,8 @@ export function shouldIgnore(path)
 // stryker.config.mjs
 export default {
   // ...решта Stryker-конфігурації
-  plugins: [
-    './stryker-vue-macros-ignorer.mjs'
-  ],
-  ignorers: [
-    'vue-macros'
-  ]
+  plugins: ['./stryker-vue-macros-ignorer.mjs'],
+  ignorers: ['vue-macros']
   // ...
 }
 ```

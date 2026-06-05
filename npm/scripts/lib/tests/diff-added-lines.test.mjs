@@ -33,7 +33,7 @@ describe('parseAddedLines', () => {
   })
 })
 
-describe('addedLinesByFile (ін\'єкований git)', () => {
+describe("addedLinesByFile (ін'єкований git)", () => {
   test('tracked diff + untracked → ALL', () => {
     const fakeGit = args => {
       if (args[0] === 'diff') return DIFF

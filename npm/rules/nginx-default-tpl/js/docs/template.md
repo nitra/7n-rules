@@ -27,16 +27,16 @@
 
 Усі експорти — іменовані; default-експорту немає.
 
-| Символ | Тип | Призначення |
-| --- | --- | --- |
+| Символ                                             | Тип            | Призначення                                                                            |
+| -------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- |
 | `findDefaultConfTemplatePaths(root, ignorePaths?)` | async function | Збирає абсолютні шляхи всіх `default.conf.template` у дереві (виключаючи `fixtures/`). |
-| `migrateDefaultTplConfFiles(root, ignorePaths?)` | async function | Мігрує застарілі `default.tpl.conf` у `default.conf.template`. |
-| `migrateErrorLogOffDirective(root, ignorePaths?)` | async function | Замінює `error_log off;` на `error_log /dev/null crit;` у всіх знайдених шаблонах. |
-| `parseIniVariableNames(iniText)` | function | Витягує імена ключів з тексту `.ini` (рядки виду `KEY=value`). |
-| `nginxTemplateViolations(content)` | function | Повертає перше порушення канону шаблону або `null`. |
-| `httpRouteMatchesNginxDefaultTpl(manifest)` | function | Перевіряє структуру `HTTPRoute` (зараз не використовується в `check()`). |
-| `iniKeysMissingInTemplate(keys, template)` | function | Повертає повідомлення про першу ключ-змінну з `*.ini`, якої немає в шаблоні як `$KEY`. |
-| `check(cwd?)` | async function | Головна точка входу правила; повертає `0`/`1` як код виходу. |
+| `migrateDefaultTplConfFiles(root, ignorePaths?)`   | async function | Мігрує застарілі `default.tpl.conf` у `default.conf.template`.                         |
+| `migrateErrorLogOffDirective(root, ignorePaths?)`  | async function | Замінює `error_log off;` на `error_log /dev/null crit;` у всіх знайдених шаблонах.     |
+| `parseIniVariableNames(iniText)`                   | function       | Витягує імена ключів з тексту `.ini` (рядки виду `KEY=value`).                         |
+| `nginxTemplateViolations(content)`                 | function       | Повертає перше порушення канону шаблону або `null`.                                    |
+| `httpRouteMatchesNginxDefaultTpl(manifest)`        | function       | Перевіряє структуру `HTTPRoute` (зараз не використовується в `check()`).               |
+| `iniKeysMissingInTemplate(keys, template)`         | function       | Повертає повідомлення про першу ключ-змінну з `*.ini`, якої немає в шаблоні як `$KEY`. |
+| `check(cwd?)`                                      | async function | Головна точка входу правила; повертає `0`/`1` як код виходу.                           |
 
 Внутрішні (не експортовані) хелпери:
 
@@ -53,6 +53,7 @@
 **Сигнатура:** `async (root: string, ignorePaths?: string[]) => Promise<string[]>`
 
 **Параметри:**
+
 - `root` — абсолютний корінь обходу (зазвичай `process.cwd()` репозиторію);
 - `ignorePaths` — список абсолютних шляхів каталогів, повністю виключених з обходу (зчитується з `.cursorignore` / `.gitignore` через `loadCursorIgnorePaths`).
 
@@ -71,10 +72,12 @@
 **Параметри:** аналогічні `findDefaultConfTemplatePaths`.
 
 **Повертає:** об'єкт з двома масивами відносних (від `root`) шляхів колишніх `default.tpl.conf`:
+
 - `renamed` — файл був просто перейменований у `default.conf.template`;
 - `overwritten` — поруч уже існував `default.conf.template`, тому його вміст замінено вмістом `default.tpl.conf`, а сам `default.tpl.conf` видалено.
 
 **Поведінка:**
+
 1. збирає всі `default.tpl.conf` через `walkDir` і сортує їх для детермінованого порядку обробки;
 2. для кожного шляху обчислює цільовий `default.conf.template` у тому ж каталозі (`dirname` + `join`);
 3. якщо ціль існує (`existsSync`) — читає вміст `default.tpl.conf`, записує його в `default.conf.template` (`writeFile` з `utf8`), видаляє джерело (`unlink`);
@@ -105,6 +108,7 @@
 **Сигнатура:** `(iniText: string) => string[]`
 
 **Параметри:**
+
 - `iniText` — повний текст INI-файлу.
 
 **Повертає:** масив імен ключів у порядку появи (дублікати не дедуплікуються; вони з'являться стільки разів, скільки разів зустрілися).
@@ -120,6 +124,7 @@
 **Сигнатура:** `(content: string) => string | null`
 
 **Параметри:**
+
 - `content` — повний текст `default.conf.template`.
 
 **Повертає:** рядок з першим знайденим порушенням або `null`, якщо шаблон валідний.
@@ -154,6 +159,7 @@
 **Сигнатура:** `(manifest: unknown) => boolean`
 
 **Параметри:**
+
 - `manifest` — десеріалізований корінь YAML-документа (об'єкт, мапа, або довільне значення з парсера).
 
 **Повертає:** `true`, якщо структура збігається з еталонним прикладом `HTTPRoute` з `nginx-default-tpl.mdc`; інакше `false`.
@@ -181,6 +187,7 @@
 **Сигнатура:** `(keys: string[], template: string) => string | null`
 
 **Параметри:**
+
 - `keys` — масив імен змінних (зазвичай результат `parseIniVariableNames`);
 - `template` — повний текст `default.conf.template`.
 
@@ -197,6 +204,7 @@
 **Сигнатура:** `(dockerfileContent: string) => boolean`
 
 **Параметри:**
+
 - `dockerfileContent` — повний текст одного Dockerfile/Containerfile.
 
 **Повертає:** `true`, якщо в тексті одночасно присутні: `find` (через `FIND_CMD_RE`), підрядок `/usr/share/nginx/html`, `gzip` (через `GZIP_CMD_RE`), прапор `-k` і регекс розширень `*.(js|css)` (через `GZIP_EXTENSION_RE`).
@@ -210,6 +218,7 @@
 **Сигнатура:** `(dockerfileContent: string) => boolean`
 
 **Параметри:**
+
 - `dockerfileContent` — повний текст Dockerfile/Containerfile.
 
 **Повертає:** `true`, якщо текст містить одночасно `envsubst` і `default.conf.template`.
@@ -223,11 +232,13 @@
 **Сигнатура:** `async (abs: string, root: string, passFn: (msg: string) => void, failFn: (msg: string) => void) => Promise<void>`
 
 **Параметри:**
+
 - `abs` — абсолютний шлях до `default.conf.template`;
 - `root` — корінь репозиторію (для відносних повідомлень);
 - `passFn`, `failFn` — колбеки `createCheckReporter`.
 
 **Поведінка:**
+
 1. читає шаблон, викликає `nginxTemplateViolations`, рапортує `pass` або `fail` зі стислим описом порушення;
 2. читає сусідній каталог (`readdir(dirname(abs))`); якщо `readdir` падає (наприклад, нет прав), список INI-файлів вважається порожнім (`try/catch`);
 3. з усіх записів обирає тільки ті, що закінчуються на `.ini`;
@@ -245,6 +256,7 @@
 **Сигнатура:** `async (root: string, ignorePaths: string[], passFn, failFn) => Promise<void>`
 
 **Поведінка:**
+
 1. шукає Dockerfile'и через `findDockerfilePaths(root, ignorePaths)` (імпорт з `../../docker/js/lint.mjs`);
 2. якщо їх немає — `fail` з підказкою (бо `default.conf.template` уже знайдено);
 3. читає вміст усіх Dockerfile'ів `Promise.all`;
@@ -275,11 +287,13 @@
 **Сигнатура:** `async (cwd?: string) => Promise<number>`
 
 **Параметри:**
+
 - `cwd` — корінь репозиторію; за замовчанням `process.cwd()`.
 
 **Повертає:** код виходу від `reporter.getExitCode()`: `0`, якщо `failFn` жодного разу не викликався (тільки `pass`); `1` — якщо була хоч одна помилка.
 
 **Поведінка (потік виконання):**
+
 1. створює репортер `createCheckReporter()` і деструктурує `{ pass, fail }`;
 2. читає список ігнорованих шляхів через `loadCursorIgnorePaths(root)`;
 3. виконує міграцію `default.tpl.conf` → `default.conf.template` (`migrateDefaultTplConfFiles`) і репортує `pass` за кожним перейменованим/перезаписаним файлом;

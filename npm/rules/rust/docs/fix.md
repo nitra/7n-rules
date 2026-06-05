@@ -15,9 +15,9 @@
 
 Модуль експортує одну іменовану функцію:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `run` | `(ctx?: RuleContext) => Promise<number>` | Library-mode entry: запуск правила `rust` зі стандартним pipeline. |
+| Експорт | Тип                                      | Призначення                                                        |
+| ------- | ---------------------------------------- | ------------------------------------------------------------------ |
+| `run`   | `(ctx?: RuleContext) => Promise<number>` | Library-mode entry: запуск правила `rust` зі стандартним pipeline. |
 
 Default-експорту немає. Імпортний шлях для зовнішніх споживачів — `@nitra/cursor/rules/rust/fix.mjs` (або еквівалентний relative-шлях усередині монорепо).
 
@@ -33,7 +33,7 @@ export function run(ctx)
 
 - **Сигнатура:** `run(ctx?: RuleContext): Promise<number>`
 - **Параметри:**
-  - `ctx` — *(опційний)* контекст прогону, який передає CLI-оркестратор. Структура задана в `run-standard-rule.mjs` (`RuleContext`); типове поле — `walkCache`, що дозволяє декільком правилам розділяти один обхід файлової системи в межах однієї сесії. Якщо `ctx` не передано (наприклад, у standalone), `runStandardRule` сам ініціалізує внутрішні структури.
+  - `ctx` — _(опційний)_ контекст прогону, який передає CLI-оркестратор. Структура задана в `run-standard-rule.mjs` (`RuleContext`); типове поле — `walkCache`, що дозволяє декільком правилам розділяти один обхід файлової системи в межах однієї сесії. Якщо `ctx` не передано (наприклад, у standalone), `runStandardRule` сам ініціалізує внутрішні структури.
 - **Повертає:** `Promise<number>`
   - `0` — правило завершилось успішно, порушень не знайдено.
   - `1` — знайдено порушення (стандартний exit-code для CI/IDE).
@@ -56,17 +56,17 @@ if (isRunAsCli(import.meta.url)) {
 - **Чому два eslint-disable:**
   - `n/no-process-exit` (плагін `eslint-plugin-n`) — забороняє виклик `process.exit` у бібліотечному коді.
   - `unicorn/no-process-exit` (плагін `eslint-plugin-unicorn`) — теж забороняє `process.exit`.
-  Тут вони відключені свідомо: standalone entry-point має повертати exit-code, інакше неможливо коректно інтегруватися з CI/IDE runners (вони чекають саме на код виходу процесу).
+    Тут вони відключені свідомо: standalone entry-point має повертати exit-code, інакше неможливо коректно інтегруватися з CI/IDE runners (вони чекають саме на код виходу процесу).
 - **Side effects:** завершує процес викликом `process.exit(code)`.
 
 ## Залежності
 
 ### Внутрішні (relative imports)
 
-| Шлях | Що використовується | Роль |
-| --- | --- | --- |
-| `../../scripts/lib/run-rule-cli.mjs` | `isRunAsCli`, `runRuleCli` | Helpers для standalone-режиму: детекція "запущено як CLI" та повний CLI-pipeline одного правила. |
-| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule` | Стандартний рантайм правила: оркестрація фаз `applies → JS-concerns → policy → mdc-refs`. JSDoc-тип `RuleContext` теж імпортується звідси. |
+| Шлях                                      | Що використовується        | Роль                                                                                                                                       |
+| ----------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `../../scripts/lib/run-rule-cli.mjs`      | `isRunAsCli`, `runRuleCli` | Helpers для standalone-режиму: детекція "запущено як CLI" та повний CLI-pipeline одного правила.                                           |
+| `../../scripts/lib/run-standard-rule.mjs` | `runStandardRule`          | Стандартний рантайм правила: оркестрація фаз `applies → JS-concerns → policy → mdc-refs`. JSDoc-тип `RuleContext` теж імпортується звідси. |
 
 ### Зовнішні
 

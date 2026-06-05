@@ -293,7 +293,7 @@
 ### buildClaudeWorktreeEnforcementSectionLines()
 
 - **Сигнатура:** `function buildClaudeWorktreeEnforcementSectionLines(): string[]`
-- **Призначення:** повертає рядки для секції `## Worktree-only skills (\`meta.json\` → \`worktree: true\`)` у `CLAUDE.md` (preflight-вимога запуску таких скілів виключно в `.worktrees/`).
+- **Призначення:** повертає рядки для секції `## Worktree-only skills (\`meta.json\` → \`worktree: true\`)`у`CLAUDE.md`(preflight-вимога запуску таких скілів виключно в`.worktrees/`).
 
 ### buildClaudeSkillsSectionLines()
 

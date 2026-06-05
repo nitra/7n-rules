@@ -16,26 +16,26 @@
 
 Файл має **єдиний експорт** — `default`.
 
-| Експорт | Тип | Опис |
-|---------|-----|------|
+| Експорт   | Тип                                                 | Опис                                                                |
+| --------- | --------------------------------------------------- | ------------------------------------------------------------------- |
 | `default` | `PartialStrykerOptions` (з `@stryker-mutator/core`) | Об'єкт конфігурації Stryker для Vue-проєкту з Vitest test runner-ом |
 
 JSDoc-анотація `/** @type {import('@stryker-mutator/core').PartialStrykerOptions} */` встановлює тип об'єкта згідно з офіційним TS-типом Stryker, що дає IDE/TS-серверу повну валідацію полів та автодоповнення.
 
 ### Структура експортованого об'єкта
 
-| Ключ | Значення | Призначення |
-|------|----------|-------------|
-| `testRunner` | `'vitest'` | Обирає Vitest як тест-раннер для запуску мутантів |
-| `vitest.configFile` | `'vitest.config.js'` | Шлях до конфігурації Vitest, яку має підхопити vitest-runner |
-| `coverageAnalysis` | `'perTest'` | Аналіз покриття на рівні окремих тестів — для кожного мутанта запускаються лише ті тести, що покривають відповідний рядок коду |
-| `tempDirName` | `'reports/stryker/.tmp'` | Тимчасова директорія Stryker (зберігається всередині `reports/`, а не в корені) |
-| `reporters` | `['json', 'clear-text']` | Активні репортери: машинно-читабельний JSON + текстовий вивід у термінал |
-| `jsonReporter.fileName` | `'reports/stryker/mutation.json'` | Куди писати JSON-звіт мутацій |
-| `incremental` | `true` | Вмикає інкрементальний режим: зберігає попередні результати між запусками |
-| `incrementalFile` | `'reports/stryker/incremental.json'` | Файл-кеш для incremental-режиму |
-| `plugins` | `['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` | Підключені Stryker-плагіни: офіційний vitest-runner і локальний ignorer для Vue compiler-macros |
-| `ignorers` | `['vue-macros']` | Активні ignorer-плагіни — ім'я `vue-macros` походить з локального плагіна `./stryker-vue-macros-ignorer.mjs` |
+| Ключ                    | Значення                                                                 | Призначення                                                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `testRunner`            | `'vitest'`                                                               | Обирає Vitest як тест-раннер для запуску мутантів                                                                              |
+| `vitest.configFile`     | `'vitest.config.js'`                                                     | Шлях до конфігурації Vitest, яку має підхопити vitest-runner                                                                   |
+| `coverageAnalysis`      | `'perTest'`                                                              | Аналіз покриття на рівні окремих тестів — для кожного мутанта запускаються лише ті тести, що покривають відповідний рядок коду |
+| `tempDirName`           | `'reports/stryker/.tmp'`                                                 | Тимчасова директорія Stryker (зберігається всередині `reports/`, а не в корені)                                                |
+| `reporters`             | `['json', 'clear-text']`                                                 | Активні репортери: машинно-читабельний JSON + текстовий вивід у термінал                                                       |
+| `jsonReporter.fileName` | `'reports/stryker/mutation.json'`                                        | Куди писати JSON-звіт мутацій                                                                                                  |
+| `incremental`           | `true`                                                                   | Вмикає інкрементальний режим: зберігає попередні результати між запусками                                                      |
+| `incrementalFile`       | `'reports/stryker/incremental.json'`                                     | Файл-кеш для incremental-режиму                                                                                                |
+| `plugins`               | `['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']` | Підключені Stryker-плагіни: офіційний vitest-runner і локальний ignorer для Vue compiler-macros                                |
+| `ignorers`              | `['vue-macros']`                                                         | Активні ignorer-плагіни — ім'я `vue-macros` походить з локального плагіна `./stryker-vue-macros-ignorer.mjs`                   |
 
 ## Функції
 
@@ -60,21 +60,21 @@ Side effects на рівні модуля **відсутні**:
 
 ### Тип-залежності (лише через JSDoc)
 
-| Пакет | Призначення | Спосіб використання |
-|-------|-------------|---------------------|
+| Пакет                   | Призначення                                                | Спосіб використання                                         |
+| ----------------------- | ---------------------------------------------------------- | ----------------------------------------------------------- |
 | `@stryker-mutator/core` | Базовий тип `PartialStrykerOptions` для типізації експорту | Через JSDoc `@type {import('...')}` — не впливає на рантайм |
 
 ### Імпліцитні runtime-залежності (за іменами рядків)
 
 Конфіг **посилається на зовнішні модулі та файли через рядкові ідентифікатори**, які підвантажує сам Stryker під час виконання:
 
-| Залежність | Тип | Опис |
-|------------|-----|------|
-| `'vitest'` (значення `testRunner`) | npm-плагін Stryker | Ім'я раннера — Stryker шукає `@stryker-mutator/vitest-runner` у `node_modules` |
-| `'@stryker-mutator/vitest-runner'` (елемент `plugins`) | npm-пакет | Власне реалізація vitest-runner, мусить бути встановленою як devDependency |
-| `'./stryker-vue-macros-ignorer.mjs'` (елемент `plugins`) | локальний модуль | Кастомний Stryker-плагін у тій самій директорії, що пропускає мутацію Vue compiler-macros (`defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`) |
-| `'vitest.config.js'` (значення `vitest.configFile`) | файл воркспейсу | Конфігурація Vitest у корені тестованого Vue-воркспейсу |
-| `'vue-macros'` (елемент `ignorers`) | ім'я ignorer-а | Внутрішнє ім'я ignorer-а, яке експортує `./stryker-vue-macros-ignorer.mjs` |
+| Залежність                                               | Тип                | Опис                                                                                                                                                                                    |
+| -------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'vitest'` (значення `testRunner`)                       | npm-плагін Stryker | Ім'я раннера — Stryker шукає `@stryker-mutator/vitest-runner` у `node_modules`                                                                                                          |
+| `'@stryker-mutator/vitest-runner'` (елемент `plugins`)   | npm-пакет          | Власне реалізація vitest-runner, мусить бути встановленою як devDependency                                                                                                              |
+| `'./stryker-vue-macros-ignorer.mjs'` (елемент `plugins`) | локальний модуль   | Кастомний Stryker-плагін у тій самій директорії, що пропускає мутацію Vue compiler-macros (`defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`) |
+| `'vitest.config.js'` (значення `vitest.configFile`)      | файл воркспейсу    | Конфігурація Vitest у корені тестованого Vue-воркспейсу                                                                                                                                 |
+| `'vue-macros'` (елемент `ignorers`)                      | ім'я ignorer-а     | Внутрішнє ім'я ignorer-а, яке експортує `./stryker-vue-macros-ignorer.mjs`                                                                                                              |
 
 ## Потік виконання / Використання
 

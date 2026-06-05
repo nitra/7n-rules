@@ -13,12 +13,12 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `bumpVersion(version, bump)` | функція | Інкремент semver-рядка згідно з рівнем бампа |
-| `maxBump(bumps)` | функція | Найвищий пріоритет бампа у списку (`major` > `minor` > `patch`) |
-| `renderChangelogSection(version, date, entries)` | функція | Рендер однієї версійної секції у markdown |
-| `prependChangelogSection(existingText, sectionBlock)` | функція | Вставка нової секції зверху наявного `CHANGELOG.md` |
+| Експорт                                                     | Тип     | Призначення                                                                      |
+| ----------------------------------------------------------- | ------- | -------------------------------------------------------------------------------- |
+| `bumpVersion(version, bump)`                                | функція | Інкремент semver-рядка згідно з рівнем бампа                                     |
+| `maxBump(bumps)`                                            | функція | Найвищий пріоритет бампа у списку (`major` > `minor` > `patch`)                  |
+| `renderChangelogSection(version, date, entries)`            | функція | Рендер однієї версійної секції у markdown                                        |
+| `prependChangelogSection(existingText, sectionBlock)`       | функція | Вставка нової секції зверху наявного `CHANGELOG.md`                              |
 | `aggregateWorkspace({ currentVersion, changeFiles, date })` | функція | Високорівневе об’єднання change-файлів workspace у `newVersion` + `sectionBlock` |
 
 Усі експорти — **іменовані** (`export function …`). Default-export відсутній.
@@ -30,10 +30,12 @@
 **Сигнатура:** `bumpVersion(version: string, bump: 'major'|'minor'|'patch'): string`
 
 **Параметри:**
+
 - `version` — поточна версія у форматі `x.y.z`, де `x`, `y`, `z` — невід’ємні цілі (валідується регулярним виразом `^(\d+)\.(\d+)\.(\d+)$`).
 - `bump` — рівень бампа: `'major'`, `'minor'` або `'patch'`. Будь-яке інше значення (включно з `undefined`, помилковим написанням) поведеться як `'patch'` (через гілку `return` без явної перевірки).
 
 **Повертає:** новий рядок версії згідно з правилами semver:
+
 - `major` → `(major + 1).0.0`
 - `minor` → `major.(minor + 1).0`
 - `patch` (за замовчуванням у `else`-гілці) → `major.minor.(patch + 1)`
@@ -43,6 +45,7 @@
 **Side effects:** немає.
 
 **Приклади:**
+
 - `bumpVersion('1.2.3', 'major')` → `'2.0.0'`
 - `bumpVersion('1.2.3', 'minor')` → `'1.3.0'`
 - `bumpVersion('1.2.3', 'patch')` → `'1.2.4'`
@@ -53,6 +56,7 @@
 **Сигнатура:** `maxBump(bumps: string[]): string`
 
 **Параметри:**
+
 - `bumps` — непорожній (за контрактом виклику) список рядків-рівнів бампа. Допускаються лише значення зі `VALID_BUMPS` (`['major', 'minor', 'patch']`), але функція не валідує їх явно.
 
 **Повертає:** найвищий рівень бампа з масиву за пріоритетом `major > minor > patch`. Якщо у `bumps` немає жодного з `VALID_BUMPS`, повертається `'patch'` (через оператор `??`).
@@ -62,6 +66,7 @@
 **Side effects:** немає.
 
 **Приклади:**
+
 - `maxBump(['patch', 'minor'])` → `'minor'`
 - `maxBump(['patch', 'major', 'minor'])` → `'major'`
 - `maxBump(['patch'])` → `'patch'`
@@ -72,6 +77,7 @@
 **Сигнатура:** `renderChangelogSection(version: string, date: string, entries: Array<{ section: string, description: string }>): string`
 
 **Параметри:**
+
 - `version` — нова версія (рядок `x.y.z`).
 - `date` — дата релізу у форматі `YYYY-MM-DD` (не валідується функцією).
 - `entries` — масив записів change-файлів, де кожен запис має ключі `section` (один із `VALID_SECTIONS`) та `description`. Поле `bump` тут уже не використовується.
@@ -91,6 +97,7 @@
 **Приклад:**
 
 Вхід:
+
 - `version = '1.3.0'`
 - `date = '2026-06-03'`
 - `entries = [{ section: 'Added', description: 'нова опція X' }, { section: 'Fixed', description: 'падіння на Y' }]`
@@ -114,12 +121,14 @@
 **Сигнатура:** `prependChangelogSection(existingText: string, sectionBlock: string): string`
 
 **Параметри:**
+
 - `existingText` — наявний вміст `CHANGELOG.md` (може бути порожнім рядком, або починатися з пробільних символів).
 - `sectionBlock` — попередньо зрендерений markdown-блок (зазвичай результат `renderChangelogSection`).
 
 **Повертає:** оновлений текст `CHANGELOG.md` у форматі Keep a Changelog (новіше зверху).
 
 **Логіка:**
+
 1. `existingText.trimStart()` — обрізаються провідні пробільні символи.
 2. Якщо отриманий текст **не** починається з заголовка `# Changelog`, повертається свіжий документ: `# Changelog\n\n<sectionBlock>` (тобто все попереднє вмонтоване як «без заголовка» відкидається — викликач має самостійно дбати про коректний вхідний файл).
 3. Інакше:
@@ -142,6 +151,7 @@
 ### `aggregateWorkspace({ currentVersion, changeFiles, date })`
 
 **Сигнатура:**
+
 ```
 aggregateWorkspace({
   currentVersion: string,
@@ -151,11 +161,13 @@ aggregateWorkspace({
 ```
 
 **Параметри (іменований об’єкт):**
+
 - `currentVersion` — поточна версія маніфесту workspace (`x.y.z`).
 - `changeFiles` — масив об’єктів, що відповідає виходу `readChangeFiles` з `change-file.mjs`. Кожен елемент має `file` (ім’я файлу `.md`) та `entry` (розпарсений frontmatter + опис).
 - `date` — рядок дати `YYYY-MM-DD` для секції CHANGELOG.
 
 **Повертає:**
+
 - `null`, якщо `changeFiles.length === 0` (явна ознака «нема чого релізити»).
 - Інакше — об’єкт:
   - `newVersion` — результат `bumpVersion(currentVersion, maxBump(<усі bumps>))`.
@@ -165,6 +177,7 @@ aggregateWorkspace({
 **Side effects:** немає. Функція суто комбінує попередньо описані `bumpVersion`, `maxBump`, `renderChangelogSection`.
 
 **Контракт із викликачем:** саме виклик `release.mjs` (або тести) відповідає за:
+
 - запис `CHANGELOG.md` (зазвичай через `prependChangelogSection(readFileSync('CHANGELOG.md'), sectionBlock)`);
 - оновлення поля `version` у `package.json`;
 - видалення файлів зі списку `consumedFiles` із `<ws>/.changes/`;

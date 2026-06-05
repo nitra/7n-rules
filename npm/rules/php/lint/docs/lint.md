@@ -82,9 +82,9 @@ Side effects: `existsSync` (лише читання).
 Алгоритм:
 
 1. Запускає `spawnSync(abs, args, { stdio: 'inherit', shell: false })`. `stdio: 'inherit'` означає, що stdout/stderr дитячого процесу пробрасуються користувачу напряму.
-2. Якщо `r.status === 0` — викликає `pass(\`lint-php: ${label} — OK\`)` і повертає `true`.
+2. Якщо `r.status === 0` — викликає `pass(\`lint-php: ${label} — OK\`)`і повертає`true`.
 3. Інакше визначає код: якщо `r.status` — число, то воно; інакше `1` (захист від `null`, який трапляється, наприклад, при сигналі або провалі запуску).
-4. Викликає `fail(\`lint-php: ${label} — помилка (код ${code}, php.mdc)\`)` і повертає `false`.
+4. Викликає `fail(\`lint-php: ${label} — помилка (код ${code}, php.mdc)\`)`і повертає`false`.
 
 Side effects: запускає дочірній процес, успадковує stdio батьківського процесу.
 
@@ -137,7 +137,7 @@ Side effects:
 Алгоритм:
 
 1. Резолвить абсолютний шлях через `vendorBin(root, binName)`.
-2. Якщо `null` — викликає `pass(\`lint-php: vendor/bin/${binName} — відсутній, крок пропущено\`)` і повертає `true`.
+2. Якщо `null` — викликає `pass(\`lint-php: vendor/bin/${binName} — відсутній, крок пропущено\`)`і повертає`true`.
 3. Інакше делегує `runTool(label, abs, args, pass, fail)` і повертає його результат.
 
 Side effects: ті самі, що в `vendorBin` + `runTool` для виконуваного кроку.

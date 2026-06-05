@@ -25,20 +25,20 @@
 
 ### Константи
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS` | `readonly string[]` (frozen) | Заборонені ключі анотацій `cloud.google.com/neg` та `cloud.google.com/backend-config` у `Service`. |
-| `DEFAULT_CONTAINER_CPU_REQUEST` | `string = '0.5'` | Рекомендований `resources.requests.cpu` поза base. |
-| `DEFAULT_CONTAINER_MEMORY_REQUEST` | `string = '512Mi'` | Рекомендований `resources.requests.memory` поза base. |
-| `K8S_BASE_CONTAINER_CPU_REQUEST` | `string = '0.02'` | Обовʼязковий `cpu` у шарі `…/k8s/…/base/…`. |
-| `K8S_BASE_CONTAINER_MEMORY_REQUEST` | `string = '128Mi'` | Обовʼязковий `memory` у шарі `…/k8s/…/base/…`. |
-| `HASURA_REQUIRED_ENV_KEYS` | `string[]` | Перелік env-ключів, які мають бути у `data` ConfigMap для Hasura-Deployment (для людиночитного pass-повідомлення; авторитет — rego). |
-| `HPA_FILENAME` | `string = 'hpa.yaml'` | Канонічна назва HPA-файла. |
-| `PDB_FILENAME` | `string = 'pdb.yaml'` | Канонічна назва PDB-файла. |
-| `NETWORK_POLICY_FILENAME` | `string = 'networkpolicy.yaml'` | Канонічна назва NetworkPolicy-файла. |
-| `WORKLOAD_KINDS_WITH_NETWORK_POLICY` | `readonly string[]` (frozen) | `kind`-и, для яких потрібен `NetworkPolicy` поруч. |
-| `COMPONENTS_DIR` | `string = 'components'` | Назва каталогу sibling до `base/` для Kustomize Components з HPA/PDB. |
-| `KIND_TO_SNIPPET` | `Record<string, 'deployment' \| 'statefulSet'>` | Mapping `kind` → ім’я snippet-шаблону для `NetworkPolicy`. |
+| Експорт                                 | Тип                                             | Призначення                                                                                                                          |
+| --------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `SERVICE_FORBIDDEN_GCP_ANNOTATION_KEYS` | `readonly string[]` (frozen)                    | Заборонені ключі анотацій `cloud.google.com/neg` та `cloud.google.com/backend-config` у `Service`.                                   |
+| `DEFAULT_CONTAINER_CPU_REQUEST`         | `string = '0.5'`                                | Рекомендований `resources.requests.cpu` поза base.                                                                                   |
+| `DEFAULT_CONTAINER_MEMORY_REQUEST`      | `string = '512Mi'`                              | Рекомендований `resources.requests.memory` поза base.                                                                                |
+| `K8S_BASE_CONTAINER_CPU_REQUEST`        | `string = '0.02'`                               | Обовʼязковий `cpu` у шарі `…/k8s/…/base/…`.                                                                                          |
+| `K8S_BASE_CONTAINER_MEMORY_REQUEST`     | `string = '128Mi'`                              | Обовʼязковий `memory` у шарі `…/k8s/…/base/…`.                                                                                       |
+| `HASURA_REQUIRED_ENV_KEYS`              | `string[]`                                      | Перелік env-ключів, які мають бути у `data` ConfigMap для Hasura-Deployment (для людиночитного pass-повідомлення; авторитет — rego). |
+| `HPA_FILENAME`                          | `string = 'hpa.yaml'`                           | Канонічна назва HPA-файла.                                                                                                           |
+| `PDB_FILENAME`                          | `string = 'pdb.yaml'`                           | Канонічна назва PDB-файла.                                                                                                           |
+| `NETWORK_POLICY_FILENAME`               | `string = 'networkpolicy.yaml'`                 | Канонічна назва NetworkPolicy-файла.                                                                                                 |
+| `WORKLOAD_KINDS_WITH_NETWORK_POLICY`    | `readonly string[]` (frozen)                    | `kind`-и, для яких потрібен `NetworkPolicy` поруч.                                                                                   |
+| `COMPONENTS_DIR`                        | `string = 'components'`                         | Назва каталогу sibling до `base/` для Kustomize Components з HPA/PDB.                                                                |
+| `KIND_TO_SNIPPET`                       | `Record<string, 'deployment' \| 'statefulSet'>` | Mapping `kind` → ім’я snippet-шаблону для `NetworkPolicy`.                                                                           |
 
 ### Predicate / класифікатори шляху
 
@@ -249,22 +249,22 @@
 
 ### Зовнішні (Node.js / npm)
 
-| Імпорт | Модуль | Призначення |
-| --- | --- | --- |
-| `existsSync`, `readFileSync` | `node:fs` | Синхронне читання snippet-шаблонів і перевірка вкладеного `kustomization.yaml`. |
-| `readFile`, `readdir`, `stat`, `unlink`, `writeFile` | `node:fs/promises` | Асинхронні FS-операції з YAML-файлами (читання, запис автофіксів, видалення `BackendConfig`-only файлів, стат каталогів). |
-| `basename`, `dirname`, `join`, `relative`, `resolve` | `node:path` | Маніпуляції зі шляхами (резолв kustomization-посилань, відносні шляхи для повідомлень). |
-| `fileURLToPath` | `node:url` | Конвертація `import.meta.url`-URL snippet-файла у шлях. |
-| `isSeq`, `parseAllDocuments`, `parseDocument`, `stringify` | `yaml` (npm) | Парсинг multi-doc YAML, рендер NetworkPolicy YAML, `toJSON()`/`toJS()` для роботи з обʼєктним поданням. |
+| Імпорт                                                     | Модуль             | Призначення                                                                                                               |
+| ---------------------------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `existsSync`, `readFileSync`                               | `node:fs`          | Синхронне читання snippet-шаблонів і перевірка вкладеного `kustomization.yaml`.                                           |
+| `readFile`, `readdir`, `stat`, `unlink`, `writeFile`       | `node:fs/promises` | Асинхронні FS-операції з YAML-файлами (читання, запис автофіксів, видалення `BackendConfig`-only файлів, стат каталогів). |
+| `basename`, `dirname`, `join`, `relative`, `resolve`       | `node:path`        | Маніпуляції зі шляхами (резолв kustomization-посилань, відносні шляхи для повідомлень).                                   |
+| `fileURLToPath`                                            | `node:url`         | Конвертація `import.meta.url`-URL snippet-файла у шлях.                                                                   |
+| `isSeq`, `parseAllDocuments`, `parseDocument`, `stringify` | `yaml` (npm)       | Парсинг multi-doc YAML, рендер NetworkPolicy YAML, `toJSON()`/`toJS()` для роботи з обʼєктним поданням.                   |
 
 ### Внутрішні (репозиторій)
 
-| Імпорт | Модуль | Призначення |
-| --- | --- | --- |
-| `createCheckReporter` | `../../../scripts/lib/check-reporter.mjs` | Збір pass/fail повідомлень і обчислення `process.exitCode`. |
-| `loadCursorIgnorePaths` | `../../../scripts/lib/load-cursor-config.mjs` | Завантаження списку ігнор-шляхів з cursor-конфіга для `findK8sYamlFiles`. |
-| `runConftestBatch` | `../../../scripts/lib/run-conftest-batch.mjs` | Запуск Rego-полісі (`npm/policy/k8s/*`) одним батчем на namespace; авторитативне ядро пер-документних перевірок (Plan B). |
-| `walkDir` | `../../../scripts/utils/walkDir.mjs` | Обхід дерева файлів з ігнор-списком. |
+| Імпорт                  | Модуль                                        | Призначення                                                                                                               |
+| ----------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `createCheckReporter`   | `../../../scripts/lib/check-reporter.mjs`     | Збір pass/fail повідомлень і обчислення `process.exitCode`.                                                               |
+| `loadCursorIgnorePaths` | `../../../scripts/lib/load-cursor-config.mjs` | Завантаження списку ігнор-шляхів з cursor-конфіга для `findK8sYamlFiles`.                                                 |
+| `runConftestBatch`      | `../../../scripts/lib/run-conftest-batch.mjs` | Запуск Rego-полісі (`npm/policy/k8s/*`) одним батчем на namespace; авторитативне ядро пер-документних перевірок (Plan B). |
+| `walkDir`               | `../../../scripts/utils/walkDir.mjs`          | Обхід дерева файлів з ігнор-списком.                                                                                      |
 
 ### Файли активів
 

@@ -11,9 +11,9 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---------|-----|-------------|
-| `run` | `function(ctx?): Promise<number>` | Library-API: виконує стандартний пайплайн правила; повертає exit-код (0 — OK, 1 — порушення). |
+| Експорт | Тип                               | Призначення                                                                                   |
+| ------- | --------------------------------- | --------------------------------------------------------------------------------------------- |
+| `run`   | `function(ctx?): Promise<number>` | Library-API: виконує стандартний пайплайн правила; повертає exit-код (0 — OK, 1 — порушення). |
 
 Файл також має **side-effect top-level await** на рівні модуля: при запуску як CLI він викликає `process.exit(await runRuleCli(...))`. Жодних інших іменованих експортів, default-експорту чи реекспортів немає.
 
@@ -29,7 +29,7 @@ export function run(ctx) {
 
 - **Сигнатура:** `run(ctx?: RuleContext): Promise<number>`
 - **Параметри:**
-  - `ctx` *(необов’язковий)* — об’єкт контексту прогону типу `RuleContext` з `../../scripts/lib/run-standard-rule.mjs`. Зазвичай містить кеші (наприклад, `walkCache` — спільний результат обходу файлової системи між кількома правилами), щоб не повторювати дорогі операції під час batch-прогону. Якщо `ctx` не передано — `runStandardRule` створює власне ізольоване оточення.
+  - `ctx` _(необов’язковий)_ — об’єкт контексту прогону типу `RuleContext` з `../../scripts/lib/run-standard-rule.mjs`. Зазвичай містить кеші (наприклад, `walkCache` — спільний результат обходу файлової системи між кількома правилами), щоб не повторювати дорогі операції під час batch-прогону. Якщо `ctx` не передано — `runStandardRule` створює власне ізольоване оточення.
 - **Повертає:** `Promise<number>`
   - `0` — правило не знайшло порушень (або всі порушення були автоматично виправлені).
   - `1` — правило знайшло порушення, які потрібно ескалувати у CI / IDE.
@@ -58,11 +58,11 @@ if (isRunAsCli(import.meta.url)) {
 
 ### Внутрішні (relative imports)
 
-| Імпорт | Із | Що використовується |
-|--------|----|--------------------|
-| `isRunAsCli` | `../../scripts/lib/run-rule-cli.mjs` | Детектор entry-point — повертає `true`, якщо поточний модуль викликаний напряму CLI-рантаймом. |
-| `runRuleCli` | `../../scripts/lib/run-rule-cli.mjs` | Standalone-orchestration: повний CLI-цикл одного правила (config + whitelist + summary). |
-| `runStandardRule` | `../../scripts/lib/run-standard-rule.mjs` | Library-pipeline правила: `applies → JS-concerns → policy → mdc-refs`. |
+| Імпорт            | Із                                        | Що використовується                                                                            |
+| ----------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `isRunAsCli`      | `../../scripts/lib/run-rule-cli.mjs`      | Детектор entry-point — повертає `true`, якщо поточний модуль викликаний напряму CLI-рантаймом. |
+| `runRuleCli`      | `../../scripts/lib/run-rule-cli.mjs`      | Standalone-orchestration: повний CLI-цикл одного правила (config + whitelist + summary).       |
+| `runStandardRule` | `../../scripts/lib/run-standard-rule.mjs` | Library-pipeline правила: `applies → JS-concerns → policy → mdc-refs`.                         |
 
 Шляхи відносні до `npm/rules/nginx-default-tpl/`; `../../scripts/lib/` резолвиться у `npm/scripts/lib/`.
 

@@ -14,8 +14,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт       | Тип              | Призначення                                                                                          |
+| ------------- | ---------------- | ---------------------------------------------------------------------------------------------------- |
 | `check(cwd?)` | `async function` | Публічна точка входу. Виконує всі перевірки правила `js-bun-db.mdc` і повертає exit-код (`0` / `1`). |
 
 Решта функцій (`findAllSourcePathsForBunSqlScan`, `scanSourcesForBunSqlPatterns`, `collectPgUsageForFile`, `scanFileForBunSqlPatterns`, `checkPgDependencyAndUsage`, `messageForBunSqlInListGuard`) — внутрішні; з модуля не експортуються.
@@ -23,7 +23,7 @@
 Константи модульного скоупу (теж не експортуються):
 
 - `LISTEN_NOTIFY_KEYWORD_RE` — `/\b(LISTEN|UNLISTEN|NOTIFY)\b/iu`. Дешевий pre-filter regex для пошуку SQL-ключових слів.
-- `NOTIFICATION_LITERAL_RE` — `/['"`]notification['"`]/u`. Дешевий pre-filter regex для рядкового літерала `'notification'` (як ім'я події в `.on('notification', ...)`).
+- `NOTIFICATION_LITERAL_RE` — `/['"`]notification['"`]/u`. Дешевий pre-filter regex для рядкового літерала `'notification'`(як ім'я події в`.on('notification', ...)`).
 
 Обидві винесені у модульний скоуп, щоб не перекомпілювати `RegExp` на кожен виклик `collectPgUsageForFile`.
 
@@ -80,16 +80,16 @@
 - **Side effects:** інкрементує лічильники `counts.*` та викликає `fail(...)` для кожного знайденого порушення.
 - **Деталі:** запускає по черзі сімейство сканерів з `bun-sql-scan.mjs`:
 
-  | Сканер | Лічильник | Тип порушення |
-  | --- | --- | --- |
-  | `findBunSqlPerRequestConnectionInText` | `perRequest` | `new SQL(...)` всередині функції — має бути модульний singleton. |
-  | `findBunSqlUnsafeUseWithoutAllowMarkerInText` | `unsafeCall` | `<obj>.unsafe(...)` без маркера `// allow-unsafe: <reason>` на тому ж/попередньому рядку. |
-  | `findBunSqlUnsafeWithInterpolatedTemplateInText` | `unsafeTemplateInterp` | `sql.unsafe(\`...\${x}...\`)` з template-літералом + інтерполяцією (заборонено навіть з allow-маркером). |
-  | `findBunSqlPgLeftoverCallInText` | `pgLeftover` | `<obj>.connect(...)` / `<obj>.end(...)` у файлах з Bun SQL (Bun сам керує пулом). |
-  | `findUnsafeBunSqlDynamicSqlListInText` | `dynamicList` | Динамічний список через `.join(',')` у `IN (...)` / `VALUES (...)`. |
-  | `findUnsafeBunSqlInListMissingEmptyGuardInText` | `inListGuard` | IN-список без перевірки на пустоту з `throw` — повідомлення формує `messageForBunSqlInListGuard`. |
-  | `findPgFormatShimDefinitionInText` | `pgFormatShim` | Локальне визначення pg-format-сумісного шиму (`format` з `%L` / `%I` / `%s`, або `quoteLiteral` / `quoteIdent` тощо). |
-  | `findPgFormatLikeQueryWrapperInText` | `queryWrapper` | `query(text, params)` обгортка над `<obj>.unsafe(...)` — прихований pg-сумісний шим. |
+  | Сканер                                           | Лічильник              | Тип порушення                                                                                                         |
+  | ------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------------------------------- |
+  | `findBunSqlPerRequestConnectionInText`           | `perRequest`           | `new SQL(...)` всередині функції — має бути модульний singleton.                                                      |
+  | `findBunSqlUnsafeUseWithoutAllowMarkerInText`    | `unsafeCall`           | `<obj>.unsafe(...)` без маркера `// allow-unsafe: <reason>` на тому ж/попередньому рядку.                             |
+  | `findBunSqlUnsafeWithInterpolatedTemplateInText` | `unsafeTemplateInterp` | `sql.unsafe(\`...\${x}...\`)` з template-літералом + інтерполяцією (заборонено навіть з allow-маркером).              |
+  | `findBunSqlPgLeftoverCallInText`                 | `pgLeftover`           | `<obj>.connect(...)` / `<obj>.end(...)` у файлах з Bun SQL (Bun сам керує пулом).                                     |
+  | `findUnsafeBunSqlDynamicSqlListInText`           | `dynamicList`          | Динамічний список через `.join(',')` у `IN (...)` / `VALUES (...)`.                                                   |
+  | `findUnsafeBunSqlInListMissingEmptyGuardInText`  | `inListGuard`          | IN-список без перевірки на пустоту з `throw` — повідомлення формує `messageForBunSqlInListGuard`.                     |
+  | `findPgFormatShimDefinitionInText`               | `pgFormatShim`         | Локальне визначення pg-format-сумісного шиму (`format` з `%L` / `%I` / `%s`, або `quoteLiteral` / `quoteIdent` тощо). |
+  | `findPgFormatLikeQueryWrapperInText`             | `queryWrapper`         | `query(text, params)` обгортка над `<obj>.unsafe(...)` — прихований pg-сумісний шим.                                  |
 
   Кожне повідомлення містить шлях, номер рядка, людський опис проблеми, посилання на правило `js-bun-db.mdc` і сам snippet порушення. Для `findPgFormatShimDefinitionInText` повідомлення розгалужується за `v.kind === 'format_function'` (повна функція з форматерами) vs інше (escape-хелпер на кшталт `quoteLiteral`).
 
@@ -134,7 +134,6 @@
 - **Повертає:** `0`, якщо порушень не знайдено; `1` — інакше. Точне значення обчислює `reporter.getExitCode()`.
 - **Side effects:** читання файлів (`existsSync`, `readFile`, `walkDir`); виклики `reporter.pass(...)` / `reporter.fail(...)` (у дефолтній імплементації — друкують у консоль).
 - **Деталі (порядок виконання):**
-
   1. Створює reporter через `createCheckReporter()`; деструктурує `{ pass }`.
   2. Перевіряє існування `package.json` у корені. Якщо немає — `pass('js-bun-db: package.json у корені відсутній — перевірку пропущено')` і ранній вихід.
   3. Підвантажує `ignorePaths` через `loadCursorIgnorePaths(repoRoot)` (читає `.cursorignore` тощо).

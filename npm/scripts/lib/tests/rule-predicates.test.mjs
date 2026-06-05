@@ -8,10 +8,17 @@ import { ensureDir, withTmpDir, writeJson } from '../../utils/test-helpers.mjs'
 
 describe('repoUrlMarker', () => {
   test('matches abie repo url', () => {
-    expect(RULE_PREDICATES.repoUrlMarker({ repository: { url: 'https://github.com/abinbevefes/x' } }, 'https://github.com/abinbevefes/')).toBe(true)
+    expect(
+      RULE_PREDICATES.repoUrlMarker(
+        { repository: { url: 'https://github.com/abinbevefes/x' } },
+        'https://github.com/abinbevefes/'
+      )
+    ).toBe(true)
   })
   test('no match', () => {
-    expect(RULE_PREDICATES.repoUrlMarker({ repository: 'https://github.com/other/x' }, 'https://github.com/abinbevefes/')).toBe(false)
+    expect(
+      RULE_PREDICATES.repoUrlMarker({ repository: 'https://github.com/other/x' }, 'https://github.com/abinbevefes/')
+    ).toBe(false)
   })
 })
 

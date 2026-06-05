@@ -15,7 +15,10 @@ import { spawnSync } from 'node:child_process'
 function gitLines(args, cwd) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf8' })
   if (r.status !== 0 || r.error) return []
-  return r.stdout.split('\n').map(s => s.trim()).filter(Boolean)
+  return r.stdout
+    .split('\n')
+    .map(s => s.trim())
+    .filter(Boolean)
 }
 
 /**

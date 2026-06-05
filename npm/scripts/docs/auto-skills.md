@@ -18,12 +18,12 @@
 
 Модуль експортує:
 
-| Символ | Тип | Призначення |
-| --- | --- | --- |
-| `discoverSkillAutoActivation(skillsDir?)` | function | Сканує директорію зі скілами та повертає мапу `skillId → SkillAutoSpec`. |
-| `AUTO_SKILL_ORDER` | `readonly string[]` (frozen) | Стабільний алфавітний список id скілів, які мають авто-активацію. |
-| `AUTO_SKILL_RULE_DEPENDENCIES` | `Readonly<Record<string, readonly string[]>>` | Лише ті скіли, у яких `auto: [rule, …]` — мапа `skillId → rules[]`. |
-| `detectAutoSkills({ availableSkills, detectedRules, disableSkills? })` | function | Обчислює фінальний список авто-скілів за станом середовища. |
+| Символ                                                                 | Тип                                           | Призначення                                                              |
+| ---------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------ |
+| `discoverSkillAutoActivation(skillsDir?)`                              | function                                      | Сканує директорію зі скілами та повертає мапу `skillId → SkillAutoSpec`. |
+| `AUTO_SKILL_ORDER`                                                     | `readonly string[]` (frozen)                  | Стабільний алфавітний список id скілів, які мають авто-активацію.        |
+| `AUTO_SKILL_RULE_DEPENDENCIES`                                         | `Readonly<Record<string, readonly string[]>>` | Лише ті скіли, у яких `auto: [rule, …]` — мапа `skillId → rules[]`.      |
+| `detectAutoSkills({ availableSkills, detectedRules, disableSkills? })` | function                                      | Обчислює фінальний список авто-скілів за станом середовища.              |
 
 Тип `SkillAutoSpec` (визначається JSDoc-typedef):
 
@@ -45,7 +45,7 @@ function discoverSkillAutoActivation(skillsDir?: string): Record<string, SkillAu
 
 **Параметри:**
 
-- `skillsDir` *(string, optional)* — шлях до директорії зі скілами. За замовчуванням — `SKILLS_DIR = join(PACKAGE_ROOT, 'skills')`, де `PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))` (тобто корінь npm-пакету). Параметр існує для override у тестах.
+- `skillsDir` _(string, optional)_ — шлях до директорії зі скілами. За замовчуванням — `SKILLS_DIR = join(PACKAGE_ROOT, 'skills')`, де `PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))` (тобто корінь npm-пакету). Параметр існує для override у тестах.
 
 **Повертає:** `Record<string, SkillAutoSpec>` — мапа `skillId (== ім'я піддиректорії) → spec`.
 
@@ -75,9 +75,9 @@ function detectAutoSkills(params: {
 
 **Параметри:**
 
-- `availableSkills` *(string[])* — перелік id скілів, доступних у поточній збірці пакету (без префіксу `n-`). Будь-який скіл, який є в `SKILL_AUTO_ACTIVATION`, але відсутній у `availableSkills`, **не активується**.
-- `detectedRules` *(string[])* — id правил, що їх виявив auto-rules-крок; використовується як множина "виявлених" залежностей для специфікацій `{ rules: [...] }`.
-- `disableSkills` *(string[], optional)* — список id скілів із `.n-cursor.json` із прапором `disable-skills`. За замовчуванням — заморожений пустий масив `DEFAULT_DISABLED_LIST`.
+- `availableSkills` _(string[])_ — перелік id скілів, доступних у поточній збірці пакету (без префіксу `n-`). Будь-який скіл, який є в `SKILL_AUTO_ACTIVATION`, але відсутній у `availableSkills`, **не активується**.
+- `detectedRules` _(string[])_ — id правил, що їх виявив auto-rules-крок; використовується як множина "виявлених" залежностей для специфікацій `{ rules: [...] }`.
+- `disableSkills` _(string[], optional)_ — список id скілів із `.n-cursor.json` із прапором `disable-skills`. За замовчуванням — заморожений пустий масив `DEFAULT_DISABLED_LIST`.
 
 **Повертає:** `{ skills: string[] }` — список id активованих скілів у **стабільному алфавітному порядку** (через `AUTO_SKILL_ORDER.filter(...)`).
 
@@ -142,8 +142,8 @@ import { detectAutoSkills, AUTO_SKILL_ORDER, AUTO_SKILL_RULE_DEPENDENCIES } from
 
 const { skills } = detectAutoSkills({
   availableSkills: ['fix', 'lint', 'adr-normalize', 'taze', 'publish-telegram'],
-  detectedRules:   ['adr', 'bun'],
-  disableSkills:   ['publish-telegram'],
+  detectedRules: ['adr', 'bun'],
+  disableSkills: ['publish-telegram']
 })
 
 // skills буде у стабільному алфавітному порядку:

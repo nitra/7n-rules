@@ -14,8 +14,8 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт      | Тип                       | Призначення                                          |
+| ------------ | ------------------------- | ---------------------------------------------------- |
 | `isRunAsCli` | `function` (named export) | Перевірити, чи модуль-caller є точкою входу процесу. |
 
 Default export відсутній.
@@ -111,7 +111,9 @@ if (isRunAsCli(import.meta.url)) {
 // my-tool.mjs
 import { isRunAsCli } from '../scripts/cli-entry.mjs'
 
-export function doWork(args) { /* ... */ }
+export function doWork(args) {
+  /* ... */
+}
 
 if (isRunAsCli(import.meta.url)) {
   // Гарантовано: цей файл запущено як `node my-tool.mjs ...`

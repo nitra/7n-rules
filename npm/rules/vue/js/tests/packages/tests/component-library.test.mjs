@@ -12,7 +12,9 @@ describe('isVueComponentLibraryPkg', () => {
   })
 
   test('true: vue і в dependencies, і в peerDependencies (повноцінний пакет-бібліотека)', () => {
-    expect(isVueComponentLibraryPkg({ dependencies: { vue: '^3.6.0' }, peerDependencies: { vue: '^3.6.0' } })).toBe(true)
+    expect(isVueComponentLibraryPkg({ dependencies: { vue: '^3.6.0' }, peerDependencies: { vue: '^3.6.0' } })).toBe(
+      true
+    )
   })
 
   test('false: vue лише в dependencies (звичайний Vite-додаток)', () => {

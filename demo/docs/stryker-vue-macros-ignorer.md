@@ -25,17 +25,17 @@
 
 Файл `stryker-vue-macros-ignorer.mjs` має два іменовані експорти ESM:
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `shouldIgnore` | `function(path) => string \| undefined` | Колбек, який Stryker викликає для кожного babel-NodePath. Повертає текст-причину, якщо мутацію треба пропустити, інакше `undefined`. |
-| `strykerPlugins` | `Plugin[]` (масив з одним записом) | Реєстраційний масив для Stryker plugin-loader; містить опис `Ignore`-плагіна з іменем `vue-macros` і значенням `{ shouldIgnore }`. |
+| Експорт          | Тип                                     | Призначення                                                                                                                          |
+| ---------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `shouldIgnore`   | `function(path) => string \| undefined` | Колбек, який Stryker викликає для кожного babel-NodePath. Повертає текст-причину, якщо мутацію треба пропустити, інакше `undefined`. |
+| `strykerPlugins` | `Plugin[]` (масив з одним записом)      | Реєстраційний масив для Stryker plugin-loader; містить опис `Ignore`-плагіна з іменем `vue-macros` і значенням `{ shouldIgnore }`.   |
 
 Внутрішні (не експортовані) сутності модуля `stryker-vue-macros-ignorer.mjs`:
 
-| Ім’я | Тип | Призначення |
-|---|---|---|
-| `VUE_SETUP_MACROS` | `Set<string>` | Множина імен Vue `<script setup>`-макросів, виклики яких треба ігнорувати: `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`. |
-| `IGNORE_MESSAGE` | `string` | Текст-причина, який повертається у Stryker, коли виклик макроса знайдено: `'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'` |
+| Ім’я               | Тип           | Призначення                                                                                                                                                                                                       |
+| ------------------ | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VUE_SETUP_MACROS` | `Set<string>` | Множина імен Vue `<script setup>`-макросів, виклики яких треба ігнорувати: `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`.                                           |
+| `IGNORE_MESSAGE`   | `string`      | Текст-причина, який повертається у Stryker, коли виклик макроса знайдено: `'Vue <script setup> macro call cannot be mutated (defineProps/defineEmits/etc. must be statically analyzable for @vue/compiler-sfc).'` |
 
 ## Функції
 

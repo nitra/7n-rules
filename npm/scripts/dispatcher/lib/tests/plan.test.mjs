@@ -48,7 +48,11 @@ describe('plan', () => {
 
   test('валідний plan-doc → status planned, plan[] + plan_doc', async () => {
     await withTmpDir(async dir => {
-      const { wt, doc } = setup(dir, 'feat-x', '# П\n## Кроки\n1. Зробити A — acceptance: A працює\n2. Зробити B — acceptance: B\n')
+      const { wt, doc } = setup(
+        dir,
+        'feat-x',
+        '# П\n## Кроки\n1. Зробити A — acceptance: A працює\n2. Зробити B — acceptance: B\n'
+      )
       const code = await plan([], { cwd: wt, log: noop, trace: okTrace })
       expect(code).toBe(0)
       const s = readState(flowStatePath(wt))

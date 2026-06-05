@@ -31,28 +31,28 @@ http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080
 
 Модуль є ES-модулем (`.mjs`) і експортує:
 
-| Експорт                        | Тип       | Призначення                                                                                       |
-| ------------------------------ | --------- | ------------------------------------------------------------------------------------------------- |
-| `parseInternalHasuraEndpoint`  | функція   | Розбирає URL-рядок на сегменти кластерної DNS-адреси (`service`, `namespace`, `cluster`, `port`). |
-| `isEnvFile`                    | функція   | Чи підлягає файл за відносним шляхом перевірці hasura.mdc.                                        |
-| `isNitraOrAbieRepository`      | функція   | Чи репозиторій належить організаціям nitra / abinbevefes.                                         |
-| `check`                        | функція (async) | Точка входу: запускає повну перевірку для cwd, повертає exit-код процесу.                  |
+| Експорт                       | Тип             | Призначення                                                                                       |
+| ----------------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| `parseInternalHasuraEndpoint` | функція         | Розбирає URL-рядок на сегменти кластерної DNS-адреси (`service`, `namespace`, `cluster`, `port`). |
+| `isEnvFile`                   | функція         | Чи підлягає файл за відносним шляхом перевірці hasura.mdc.                                        |
+| `isNitraOrAbieRepository`     | функція         | Чи репозиторій належить організаціям nitra / abinbevefes.                                         |
+| `check`                       | функція (async) | Точка входу: запускає повну перевірку для cwd, повертає exit-код процесу.                         |
 
 Внутрішні (не експортовані) допоміжні функції: `readYamlMetadataName`, `collectEnvFiles`, `checkEnvFile`, `readRootRepositoryUrl`.
 
 Внутрішні константи:
 
-| Константа                      | Значення                                          | Призначення                                                                  |
-| ------------------------------ | ------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `NITRA_REPOSITORY_URL_MARKER`  | `'https://github.com/nitra/'`                     | Маркер репозиторіїв організації nitra.                                       |
-| `ABIE_REPOSITORY_URL_MARKER`   | `'https://github.com/abinbevefes/'`               | Маркер репозиторіїв організації abinbevefes (abie).                          |
-| `HASURA_BASE_DIR`              | `'hasura/k8s/base'`                               | Базовий каталог k8s-маніфестів Hasura.                                       |
-| `HASURA_SVC_HL_FILE`           | `'hasura/k8s/base/svc-hl.yaml'`                   | Шлях до headless-сервіса.                                                    |
-| `HASURA_NAMESPACE_FILE`        | `'hasura/k8s/base/namespace.yaml'`                | Шлях до namespace-маніфесту.                                                 |
-| `ENV_FILE_RE`                  | `/\.env$/u`                                       | Регулярка-маркер `*.env` файлів.                                             |
-| `HASURA_ENDPOINT_LINE_RE`      | (див. нижче)                                      | Регулярка для знаходження рядка `HASURA_GRAPHQL_ENDPOINT=...` у `.env`.      |
-| `INTERNAL_HASURA_URL_RE`       | (див. нижче)                                      | Регулярка валідації внутрішнього кластерного URL.                            |
-| `INTERNAL_DNS_SUFFIX`          | `'.internal'`                                     | DNS-суфікс GKE/GCP-кластера.                                                 |
+| Константа                     | Значення                            | Призначення                                                             |
+| ----------------------------- | ----------------------------------- | ----------------------------------------------------------------------- |
+| `NITRA_REPOSITORY_URL_MARKER` | `'https://github.com/nitra/'`       | Маркер репозиторіїв організації nitra.                                  |
+| `ABIE_REPOSITORY_URL_MARKER`  | `'https://github.com/abinbevefes/'` | Маркер репозиторіїв організації abinbevefes (abie).                     |
+| `HASURA_BASE_DIR`             | `'hasura/k8s/base'`                 | Базовий каталог k8s-маніфестів Hasura.                                  |
+| `HASURA_SVC_HL_FILE`          | `'hasura/k8s/base/svc-hl.yaml'`     | Шлях до headless-сервіса.                                               |
+| `HASURA_NAMESPACE_FILE`       | `'hasura/k8s/base/namespace.yaml'`  | Шлях до namespace-маніфесту.                                            |
+| `ENV_FILE_RE`                 | `/\.env$/u`                         | Регулярка-маркер `*.env` файлів.                                        |
+| `HASURA_ENDPOINT_LINE_RE`     | (див. нижче)                        | Регулярка для знаходження рядка `HASURA_GRAPHQL_ENDPOINT=...` у `.env`. |
+| `INTERNAL_HASURA_URL_RE`      | (див. нижче)                        | Регулярка валідації внутрішнього кластерного URL.                       |
+| `INTERNAL_DNS_SUFFIX`         | `'.internal'`                       | DNS-суфікс GKE/GCP-кластера.                                            |
 
 Регулярні вирази:
 

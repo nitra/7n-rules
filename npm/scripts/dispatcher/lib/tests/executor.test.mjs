@@ -71,7 +71,11 @@ describe('executePlan', () => {
   test('retry-then-pass: verify падає раз, тоді зелений', async () => {
     await withTmpDir(async dir => {
       const p = paths(dir)
-      writeState(p.statePath, { branch: 'feat/x', status: 'in_progress', plan: [{ step: 0, task: 'a', status: 'pending', retry_count: 0 }] })
+      writeState(p.statePath, {
+        branch: 'feat/x',
+        status: 'in_progress',
+        plan: [{ step: 0, task: 'a', status: 'pending', retry_count: 0 }]
+      })
       let n = 0
       const commit = vi.fn()
       const res = await executePlan(p, {
@@ -92,7 +96,11 @@ describe('executePlan', () => {
   test('вичерпано спроби → blocked-on-human + HITL; commit НЕ викликається', async () => {
     await withTmpDir(async dir => {
       const p = paths(dir)
-      writeState(p.statePath, { branch: 'feat/x', status: 'in_progress', plan: [{ step: 0, task: 'a', status: 'pending', retry_count: 0 }] })
+      writeState(p.statePath, {
+        branch: 'feat/x',
+        status: 'in_progress',
+        plan: [{ step: 0, task: 'a', status: 'pending', retry_count: 0 }]
+      })
       const commit = vi.fn()
       const res = await executePlan(p, {
         runner: { runStep: async () => ({ ok: true }) },
@@ -117,7 +125,12 @@ describe('executePlan', () => {
       const p = paths(dir)
       writeState(p.statePath, { branch: 'x', status: 'in_progress', plan: [] })
       await expect(
-        executePlan(p, { runner: { runStep: async () => ({}) }, verify: () => ({ pass: true }), commit: () => {}, cwd: dir })
+        executePlan(p, {
+          runner: { runStep: async () => ({}) },
+          verify: () => ({ pass: true }),
+          commit: () => {},
+          cwd: dir
+        })
       ).rejects.toThrow(/немає плану/)
     })
   })

@@ -66,7 +66,12 @@ export async function executePlan(paths, deps) {
       const verdict = await verify(cwd)
       if (verdict.pass) {
         commit(cwd, `flow: step ${step.step} — ${step.task}`) // commit ЛИШЕ після зеленого
-        state = recordTransition(paths, { type: 'step_done', step: step.step }, s => patchStep(s, i, { status: 'done' }), now)
+        state = recordTransition(
+          paths,
+          { type: 'step_done', step: step.step },
+          s => patchStep(s, i, { status: 'done' }),
+          now
+        )
         done = true
       } else {
         state = recordTransition(

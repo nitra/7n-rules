@@ -16,8 +16,8 @@ CI-workflow для image-лінту правилом **не** вимагаєть
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
+| Експорт       | Тип              | Призначення                                                                                                                                           |
+| ------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `check(cwd?)` | `async function` | Публічна точка входу. Виконує перевірки правила `image-compress.mdc` для вказаного робочого каталогу й повертає exit-код (`0` — OK, `1` — є помилки). |
 
 Модуль використовує ES Modules (`.mjs`), іменований експорт `check`. Default-експорту немає.
@@ -148,13 +148,13 @@ process.exit(exitCode)
 
 ### Розподіл відповідальності з Rego
 
-| Перевірка | Де реалізована |
-|---|---|
-| Наявність `package.json` | `package_setup.mjs` |
-| `.n-minify-image.tsv` не в `.gitignore` | `package_setup.mjs` |
-| `.minify-image-cache.tsv` відсутній (диск + `.gitignore`) | `package_setup.mjs` |
-| `scripts.lint-image` коректний (без `--avif`) | Rego (`policy/package_json/`) |
-| `bun run lint-image` в агрегованому `lint` | Rego (`policy/package_json/`) |
+| Перевірка                                                   | Де реалізована                |
+| ----------------------------------------------------------- | ----------------------------- |
+| Наявність `package.json`                                    | `package_setup.mjs`           |
+| `.n-minify-image.tsv` не в `.gitignore`                     | `package_setup.mjs`           |
+| `.minify-image-cache.tsv` відсутній (диск + `.gitignore`)   | `package_setup.mjs`           |
+| `scripts.lint-image` коректний (без `--avif`)               | Rego (`policy/package_json/`) |
+| `bun run lint-image` в агрегованому `lint`                  | Rego (`policy/package_json/`) |
 | `@nitra/minify-image` не в `dependencies`/`devDependencies` | Rego (`policy/package_json/`) |
 
 ## Rebuild Test

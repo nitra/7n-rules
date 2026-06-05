@@ -12,10 +12,10 @@ Plan B-патерн: rego-частина авторитетна для пер-д
 
 ## Експорти / API
 
-| Експорт                          | Тип       | Призначення                                                                  |
-| -------------------------------- | --------- | ---------------------------------------------------------------------------- |
-| `check(cwd?)`                    | `async function` | Головна точка входу: валідує `ga.mdc` для репозиторію `cwd`.            |
-| `checkShellcheckInstalled(pass, fail)` | `function` | Перевіряє наявність бінарника `shellcheck` у PATH (актуальне для `actionlint`). |
+| Експорт                                | Тип              | Призначення                                                                     |
+| -------------------------------------- | ---------------- | ------------------------------------------------------------------------------- |
+| `check(cwd?)`                          | `async function` | Головна точка входу: валідує `ga.mdc` для репозиторію `cwd`.                    |
+| `checkShellcheckInstalled(pass, fail)` | `function`       | Перевіряє наявність бінарника `shellcheck` у PATH (актуальне для `actionlint`). |
 
 Решта функцій модуля — приватні (module-local) хелпери, які не експортуються.
 
@@ -91,7 +91,7 @@ Plan B-патерн: rego-частина авторитетна для пер-д
   2. У корені репо — файли з `MEGALINTER_CONFIG_NAMES` (`.mega-linter.yml`, `.megalinter.yaml`, `.mega-linter.yaml`).
 - Знайшов — `fail` з вимогою видалити інтеграцію; не знайшов — один `pass`.
 
-### `checkShellcheckInstalled(passFn, failFn)` *(export)*
+### `checkShellcheckInstalled(passFn, failFn)` _(export)_
 
 - **Сигнатура:** `(passFn, failFn) => void`
 - **Повертає:** `void`.
@@ -119,7 +119,7 @@ Plan B-патерн: rego-частина авторитетна для пер-д
   2. **Workflow-common батч:** один спавн `conftest` з полісі `ga/workflow_common` на ВСІ `*.yml` у `wfDir`. Шаблон `uses-min-versions.snippet` (якщо є) передається у `templateData`. Порушення → `fail` з префіксом filename; нуль — `pass` про кількість файлів, що відповідають `ga.workflow_common`.
 - **Чому 4 окремих спавни, а не один:** namespace ↔ конкретний workflow; інакше правила одного workflow застосуються до неправильного файла.
 
-### `check(cwd?)` *(export, точка входу)*
+### `check(cwd?)` _(export, точка входу)_
 
 - **Сигнатура:** `async (cwd?: string) => Promise<number>`
 - **Параметри:** `cwd` — корінь репозиторію (за замовчуванням `process.cwd()`).

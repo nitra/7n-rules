@@ -14,13 +14,13 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Опис |
-| --- | --- | --- |
-| `DEFAULT_ORCHESTRATION` | константа: `string` (`'polyfill'`) | Дефолтний режим оркестрації, що повертається, коли в `matrix` немає інформації для моделі і не задано `matrix.default.orchestration`. |
-| `parseModelFlag(args)` | функція | Витягує значення прапорця `--model <value>` з масиву argv. |
-| `declaredModel(sources)` | функція | Повертає оголошену модель за пріоритетом CLI > env > config. |
-| `orchestrationFor(model, matrix)` | функція | Резолвить режим оркестрації (`'native' | 'polyfill'`) для оголошеної моделі за матрицею. |
-| `polyfillStartable(ctx)` | функція | Перевіряє, чи доступний `SubagentRunner`, необхідний для старту polyfill-режиму. |
+| Експорт                           | Тип                                | Опис                                                                                                                                  |
+| --------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `DEFAULT_ORCHESTRATION`           | константа: `string` (`'polyfill'`) | Дефолтний режим оркестрації, що повертається, коли в `matrix` немає інформації для моделі і не задано `matrix.default.orchestration`. |
+| `parseModelFlag(args)`            | функція                            | Витягує значення прапорця `--model <value>` з масиву argv.                                                                            |
+| `declaredModel(sources)`          | функція                            | Повертає оголошену модель за пріоритетом CLI > env > config.                                                                          |
+| `orchestrationFor(model, matrix)` | функція                            | Резолвить режим оркестрації (`'native'                                                                                                | 'polyfill'`) для оголошеної моделі за матрицею. |
+| `polyfillStartable(ctx)`          | функція                            | Перевіряє, чи доступний `SubagentRunner`, необхідний для старту polyfill-режиму.                                                      |
 
 Усі експорти — `named exports`; `default export` відсутній.
 
@@ -148,7 +148,7 @@ import {
   declaredModel,
   orchestrationFor,
   polyfillStartable,
-  DEFAULT_ORCHESTRATION,
+  DEFAULT_ORCHESTRATION
 } from './capability.mjs'
 
 // 1. CLI-парсинг
@@ -158,7 +158,7 @@ const cliModel = parseModelFlag(args)
 const model = declaredModel({
   cliModel,
   envModel: process.env.N_CURSOR_FLOW_MODEL ?? null,
-  configModel: config?.flow?.model ?? null,
+  configModel: config?.flow?.model ?? null
 })
 
 // 3. Режим оркестрації за матрицею
@@ -181,15 +181,15 @@ startFlow({ mode, model })
 
 **Таблиця рішень `orchestrationFor`:**
 
-| `model` | `matrix.models[model]` | `matrix.default.orchestration` | Результат |
-| --- | --- | --- | --- |
-| `'modelA'` | `{ orchestration: 'native' }` | будь-що | `'native'` |
-| `'modelB'` | `{ orchestration: 'polyfill' }` | будь-що | `'polyfill'` |
-| `'unknownModel'` | відсутній | `'native'` | `'native'` |
-| `'unknownModel'` | відсутній | `'polyfill'` | `'polyfill'` |
-| `'unknownModel'` | відсутній | відсутній | `DEFAULT_ORCHESTRATION` (`'polyfill'`) |
-| `null` | (не дивимось) | `'native'` | `'native'` |
-| `null` | (не дивимось) | відсутній | `DEFAULT_ORCHESTRATION` (`'polyfill'`) |
+| `model`          | `matrix.models[model]`          | `matrix.default.orchestration` | Результат                              |
+| ---------------- | ------------------------------- | ------------------------------ | -------------------------------------- |
+| `'modelA'`       | `{ orchestration: 'native' }`   | будь-що                        | `'native'`                             |
+| `'modelB'`       | `{ orchestration: 'polyfill' }` | будь-що                        | `'polyfill'`                           |
+| `'unknownModel'` | відсутній                       | `'native'`                     | `'native'`                             |
+| `'unknownModel'` | відсутній                       | `'polyfill'`                   | `'polyfill'`                           |
+| `'unknownModel'` | відсутній                       | відсутній                      | `DEFAULT_ORCHESTRATION` (`'polyfill'`) |
+| `null`           | (не дивимось)                   | `'native'`                     | `'native'`                             |
+| `null`           | (не дивимось)                   | відсутній                      | `DEFAULT_ORCHESTRATION` (`'polyfill'`) |
 
 ## Rebuild Test
 

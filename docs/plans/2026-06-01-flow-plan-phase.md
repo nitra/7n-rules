@@ -123,7 +123,10 @@ if (!trimmed || PLACEHOLDER.test(trimmed)) {
 
 ```js
 test('лінк flow аналізується як ланка ланцюга', () => {
-  const a = analyze([{ file: 'docs/plans/p.md', fm: { kind: 'nitra-plan', flow: '../../.worktrees/x.flow.json' } }], () => false)
+  const a = analyze(
+    [{ file: 'docs/plans/p.md', fm: { kind: 'nitra-plan', flow: '../../.worktrees/x.flow.json' } }],
+    () => false
+  )
   expect(a[0].links.find(l => l.field === 'flow').ok).toBe(false)
 })
 ```
@@ -148,8 +151,10 @@ import { resolveArtifact, extractSteps, verifyTrace } from '../artifact.mjs'
 
 test('resolveArtifact: найсвіжіший .md у docs/<kind>', async () => {
   await withTmpDir(async dir => {
-    const d = join(dir, 'docs', 'specs'); mkdirSync(d, { recursive: true })
-    writeFileSync(join(d, '2026-01-01-a.md'), 'x'); writeFileSync(join(d, '2026-02-01-b.md'), 'y')
+    const d = join(dir, 'docs', 'specs')
+    mkdirSync(d, { recursive: true })
+    writeFileSync(join(d, '2026-01-01-a.md'), 'x')
+    writeFileSync(join(d, '2026-02-01-b.md'), 'y')
     expect(resolveArtifact(dir, 'specs')).toBe(join(d, '2026-02-01-b.md'))
   })
 })
@@ -184,7 +189,9 @@ import { join } from 'node:path'
 export function resolveArtifact(cwd, kind) {
   const dir = join(cwd, 'docs', kind)
   if (!existsSync(dir)) return null
-  const md = readdirSync(dir).filter(f => f.endsWith('.md')).sort()
+  const md = readdirSync(dir)
+    .filter(f => f.endsWith('.md'))
+    .sort()
   return md.length ? join(dir, md[md.length - 1]) : null
 }
 
@@ -211,10 +218,12 @@ export function extractSteps(text) {
  * @returns {boolean} true, якщо ланцюг цілісний
  */
 export function verifyTrace(cwd, runTrace) {
-  const run = runTrace ?? (c => {
-    const { spawnSync } = require('node:child_process')
-    return spawnSync('npx', ['@nitra/cursor', 'trace'], { cwd: c }).status ?? 1
-  })
+  const run =
+    runTrace ??
+    (c => {
+      const { spawnSync } = require('node:child_process')
+      return spawnSync('npx', ['@nitra/cursor', 'trace'], { cwd: c }).status ?? 1
+    })
   return run(cwd) === 0
 }
 ```
@@ -255,7 +264,10 @@ export async function spec(rest, deps = {}) {
   const cwd = deps.cwd ?? processCwd()
   const log = deps.log ?? console.error
   const state = readState(flowStatePath(cwd))
-  if (!state) { log('spec: стану нема — спершу `flow init`'); return 1 }
+  if (!state) {
+    log('spec: стану нема — спершу `flow init`')
+    return 1
+  }
 
   if (rest.includes('--panel')) {
     const synth = await runPanel({ task: state.branch, cwd, runner: deps.runner, log, mode: 'spec' })
@@ -319,9 +331,10 @@ recordTransition(/* … */, s => ({ ...s, plan: normalized, plan_doc: doc, statu
 
 Спільна для `spec` (mode: 'spec' — підходи) і `plan` (mode: 'plan' — кроки).
 Персони `architect/skeptic/tester` `Promise.all` → суддя синтезує:
+
 - `mode:'plan'` → JSON-масив кроків (повертає масив);
 - `mode:'spec'` → текст підходів (повертає рядок/`true` як сигнал).
-Будь-який фейл → `null` із логом. Runner-інтерфейс — `runStep` (як `planner.mjs`).
+  Будь-який фейл → `null` із логом. Runner-інтерфейс — `runStep` (як `planner.mjs`).
 
 - [ ] **Крок 1: тести** — happy synth (plan → масив кроків; spec → truthy); суддя-фейл → null.
 - [ ] **Крок 2: реалізація** — `PERSONAS` + суддя-промпт за `mode`; парс `[`…`]` для plan.
@@ -361,7 +374,7 @@ export const DEFAULT_HANDLERS = { init, spec, plan, verify, release, run, resume
 
 ```js
 const state = readState(statePath)
-if (state && !(state.plan?.length)) {
+if (state && !state.plan?.length) {
   log('⚠️ verify: плану не зафіксовано (`flow plan`) — рекомендовано спершу сформувати план')
 }
 // далі — наявна логіка; код = verdict.pass ? 0 : 1
@@ -383,16 +396,16 @@ if (state && !(state.plan?.length)) {
    - **human↔agent (дефолт):** питання по одному (перевага multiple-choice) →
      2-3 підходи з рекомендацією → дизайн секціями з апрувом;
    - **agent↔agent:** `flow spec --panel` (панель architect/skeptic/tester → суддя).
-   Збережи дизайн → `docs/specs/<date>-<slug>.md` (`kind: nitra-spec`, `plan: null`),
-   тоді `npx @nitra/cursor flow spec`.
+     Збережи дизайн → `docs/specs/<date>-<slug>.md` (`kind: nitra-spec`, `plan: null`),
+     тоді `npx @nitra/cursor flow spec`.
 
 3. **План** — декомпозиція дизайну в кроки:
    - збережи `docs/plans/<date>-<slug>.md` (`kind: nitra-plan`, `spec:` → лінк на
      spec, `flow:` → шлях `.flow.json`; секція `## Кроки`:
      `N. <task> — acceptance: <критерій>`);
    - `npx @nitra/cursor flow plan` (або `--panel` для agent↔agent).
-   Команда дзеркалить кроки у `.flow.json` (`status: planned`) і запускає `trace`
-   для перевірки ланцюга. `verify` без плану лише попередить.
+     Команда дзеркалить кроки у `.flow.json` (`status: planned`) і запускає `trace`
+     для перевірки ланцюга. `verify` без плану лише попередить.
 ```
 
 У «Чого не роби» додати: «Не лінкуй spec↔plan руками неконсистентно — тримай

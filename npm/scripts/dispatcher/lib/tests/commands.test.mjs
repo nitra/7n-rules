@@ -151,7 +151,12 @@ describe('verify', () => {
       const wt = join(dir, '.worktrees', 'feat-np')
       writeState(flowStatePath(wt), { branch: 'feat/np', status: 'in_progress' }) // без plan
       const msgs = []
-      const code = await verify([], { run: () => ({ status: 0 }), cwd: wt, log: m => msgs.push(m), fingerprint: () => 'FP' })
+      const code = await verify([], {
+        run: () => ({ status: 0 }),
+        cwd: wt,
+        log: m => msgs.push(m),
+        fingerprint: () => 'FP'
+      })
       expect(code).toBe(0)
       expect(msgs.join('\n')).toMatch(/план/i)
     })

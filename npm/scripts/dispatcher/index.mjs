@@ -77,7 +77,7 @@ export function extractBranchFlag(args) {
 export async function runFlowCli(args, deps = {}) {
   const [sub, ...raw] = args
   const handlers = deps.handlers ?? DEFAULT_HANDLERS
-  if (!sub || ! Object.hasOwn(handlers, sub)) {
+  if (!sub || !Object.hasOwn(handlers, sub)) {
     console.error(USAGE)
     return 1
   }

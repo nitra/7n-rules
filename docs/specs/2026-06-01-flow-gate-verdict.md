@@ -29,6 +29,7 @@ plan: null
 ## Scope
 
 **In:**
+
 - Чиста функція `computeGate(state)` → `{ verdict, score, reasons[] }`.
 - Команда `flow gate` — пише `gate` у `.flow.json`, друкує вердикт; exit 1 на FAIL.
 - `release` м'яко попереджає, якщо `gate.verdict === 'FAIL'` (не блокує — наша

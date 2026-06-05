@@ -5,6 +5,7 @@
 Модуль реалізує CLI-команду `n-cursor trace` (специфікація §5.4 / §7) — інструмент **наскрізної простежуваності** (traceability) між артефактами в `docs/`. Він читає YAML-front-matter з усіх Markdown-файлів у каталогах `docs/tasks`, `docs/specs`, `docs/plans`, `docs/adr`, будує ланцюг зв'язків між ними за полями-лінками (`adr`, `spec`, `plan`, `flow`, `change`, `task`) і **флагує розриви** — тобто посилання на неіснуючі файли.
 
 Модуль повністю **read-only**: жодних мутацій файлової системи. Підтримує два режими виводу:
+
 - **текстовий** (за замовчуванням) — людино-читабельний звіт з символами `→`/`✗`/`~`;
 - **JSON** (`--json`) — machine-readable структура для CI / інших інструментів.
 
@@ -14,12 +15,12 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `parseFrontMatter(content)` | named function | Парсить плаский YAML-front-matter Markdown-файла. |
+| Експорт                       | Тип            | Призначення                                                  |
+| ----------------------------- | -------------- | ------------------------------------------------------------ |
+| `parseFrontMatter(content)`   | named function | Парсить плаский YAML-front-matter Markdown-файла.            |
 | `analyze(artifacts, resolve)` | named function | Будує аналіз лінків артефактів зі статусами `ok`/`breaking`. |
-| `render(analysis)` | named function | Текстовий рендер результату `analyze`. |
-| `runTraceCli(args, deps?)` | named function | Точка входу CLI `n-cursor trace [--json]`. |
+| `render(analysis)`            | named function | Текстовий рендер результату `analyze`.                       |
+| `runTraceCli(args, deps?)`    | named function | Точка входу CLI `n-cursor trace [--json]`.                   |
 
 Внутрішні (не експортуються): `isSimpleKey`, `resolveLink`, `renderLink`, константи `LINK_FIELDS`, `INFO_LINK_FIELDS`, `DIRS`.
 
@@ -36,13 +37,16 @@
 **Сигнатура:** `parseFrontMatter(content: string): Record<string, string | null> | null`
 
 **Параметри:**
+
 - `content` — повний текст Markdown-файла.
 
 **Повертає:**
+
 - Об'єкт `{ key: value }` зі значеннями типу `string` (звичайне поле) або `null` (порожнє чи літерал `null`);
 - `null`, якщо файл не починається з `---` або немає закриваючого `\n---`.
 
 **Логіка:**
+
 1. Перевіряє, що файл починається з `---`. Інакше — `null`.
 2. Шукає закриваючий маркер `\n---` починаючи з 4-ї позиції. Якщо нема — `null`.
 3. Розбиває блок front-matter на рядки.
@@ -69,6 +73,7 @@
 ### `analyze(artifacts, resolve)`
 
 **Сигнатура:**
+
 ```
 analyze(
   artifacts: { file: string, fm: Record<string, string | null> }[],
@@ -83,10 +88,12 @@ analyze(
 ```
 
 **Параметри:**
+
 - `artifacts` — масив пар `{ file, fm }`: відносний шлях артефакту та розпарсений front-matter.
 - `resolve` — предикат, що повертає `true`, якщо лінк-цільовий файл існує (зазвичай — bound-`resolveLink`).
 
 **Повертає:** масив аналізованих артефактів. Для кожного:
+
 - `kind`, `id`, `status` — з front-matter (або `null`);
 - `links` — масив об'єктів про кожен наявний лінк:
   - `field` — назва поля (один з `LINK_FIELDS`);
@@ -103,6 +110,7 @@ analyze(
 **Сигнатура:** `resolveLink(root: string, artifactFile: string, target: string, exists: (absPath: string) => boolean): boolean`
 
 **Параметри:**
+
 - `root` — абсолютний шлях кореня репо;
 - `artifactFile` — rel-шлях артефакту (напр. `docs/plans/x.md`);
 - `target` — значення лінка з front-matter;
@@ -119,6 +127,7 @@ analyze(
 **Параметри:** `analysis` — результат `analyze`.
 
 **Повертає:** багаторядковий текст:
+
 - Якщо `analysis` порожній — рядок `'trace: артефактів із front-matter не знайдено'`.
 - Інакше для кожного артефакту:
   - заголовок виду `${kind} · ${id ?? file} [${status ?? '—'}]`;
@@ -131,6 +140,7 @@ analyze(
 **Сигнатура:** `renderLink(l: { field: string, target: string, ok: boolean, breaking: boolean }): string`
 
 **Повертає:** один з трьох форматів:
+
 - `→ <field>: <target>` — резолвлено успішно (`l.ok === true`);
 - `✗ <field>: <target> (РОЗРИВ — файл відсутній)` — нерезолвлене chain-поле (`breaking && !ok`);
 - `~ <field>: <target> (runtime-стан — не рве ланцюг)` — нерезолвлене info-поле (`!breaking && !ok`, наприклад `flow`).
@@ -140,6 +150,7 @@ analyze(
 ### `runTraceCli(args, deps?)`
 
 **Сигнатура:**
+
 ```
 runTraceCli(
   args: string[],
@@ -154,6 +165,7 @@ runTraceCli(
 ```
 
 **Параметри:**
+
 - `args` — CLI-аргументи (підтримується тільки `--json`);
 - `deps` — інжектовані залежності для тестування. Дефолти:
   - `cwd` → `process.cwd()`;
@@ -163,15 +175,18 @@ runTraceCli(
   - `log` → `console.log`.
 
 **Повертає:** exit code:
+
 - `0` — ланцюг цілісний (немає breaking-розривів);
 - `1` — є хоча б один breaking-лінк, що не резолвиться.
 
 **Side effects:**
+
 - Читання FS через `readdir` / `readFile` / `exists` (інжектабельне).
 - Виклик `log` — за замовчуванням друк у `stdout`.
 - Жодних мутацій FS, мережі або стану процесу.
 
 **Логіка покроково:**
+
 1. Резолвить `root`, `readdir`, `readFile`, `exists`, `log` з `deps` або дефолтів.
 2. Проходить кожен каталог з `DIRS`.
 3. У кожному каталозі бере файли з розширенням `.md`.
@@ -213,6 +228,7 @@ n-cursor trace --json
 ```
 
 **Текстовий приклад виводу:**
+
 ```
 spec · NSPEC-42 [draft]
    → adr: ../adr/NADR-7.md
@@ -223,6 +239,7 @@ plan · NPLAN-12 [active]
 ```
 
 **JSON-приклад:**
+
 ```
 [
   {

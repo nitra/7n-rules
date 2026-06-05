@@ -22,12 +22,12 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---------|-----|-------------|
-| `run(rest, deps?)` | `async function` | Команда `flow run` — повний цикл build (планування + виконання). |
-| `resume(_rest, deps?)` | `async function` | Команда `flow resume` — продовжити з останнього чекпойнта. |
-| `cancel(_rest, deps?)` | `async function` | Команда `flow cancel` — прибрати транзитні sibling-и стану. |
-| `repair(rest, deps?)` | `async function` | Команда `flow repair [--discard-step-work]` — fail-closed escape. |
+| Експорт                | Тип              | Призначення                                                       |
+| ---------------------- | ---------------- | ----------------------------------------------------------------- |
+| `run(rest, deps?)`     | `async function` | Команда `flow run` — повний цикл build (планування + виконання).  |
+| `resume(_rest, deps?)` | `async function` | Команда `flow resume` — продовжити з останнього чекпойнта.        |
+| `cancel(_rest, deps?)` | `async function` | Команда `flow cancel` — прибрати транзитні sibling-и стану.       |
+| `repair(rest, deps?)`  | `async function` | Команда `flow repair [--discard-step-work]` — fail-closed escape. |
 
 Усі експорти повертають `Promise<number>` — exit code процесу:
 
@@ -37,11 +37,11 @@
 
 ### Внутрішні (не експортовані) helper-и
 
-| Ім'я | Призначення |
-|------|-------------|
-| `defaultCommit(cwd, msg)` | Дефолтний commit-стратег: `git add -A && git commit -m <msg>` у worktree. |
-| `defaultVerify(cwd)` | Дефолтний verify: проганяє `runReview` з реальним `run` і `fingerprint: () => null`. |
-| `readFlowAutonomous(cwd)` | Зчитує секцію `flow.autonomous` з `.n-cursor.json` (бюджет автономки). |
+| Ім'я                      | Призначення                                                                          |
+| ------------------------- | ------------------------------------------------------------------------------------ |
+| `defaultCommit(cwd, msg)` | Дефолтний commit-стратег: `git add -A && git commit -m <msg>` у worktree.            |
+| `defaultVerify(cwd)`      | Дефолтний verify: проганяє `runReview` з реальним `run` і `fingerprint: () => null`. |
+| `readFlowAutonomous(cwd)` | Зчитує секцію `flow.autonomous` з `.n-cursor.json` (бюджет автономки).               |
 
 ## Функції
 
@@ -50,12 +50,14 @@
 **Сигнатура:** `function defaultCommit(cwd: string, msg: string): void`
 
 **Параметри:**
+
 - `cwd` — абсолютний шлях до worktree;
 - `msg` — повідомлення коміту.
 
 **Повертає:** `void`.
 
 **Side effects:** виконує два синхронних `spawnSync('git', …)`-виклики у вказаному `cwd`:
+
 1. `git add -A` — індексує всі зміни;
 2. `git commit -m <msg>` — створює коміт.
 
@@ -66,6 +68,7 @@
 **Сигнатура:** `function defaultVerify(cwd: string): { pass: boolean, failedOutput: string | null }`
 
 **Параметри:**
+
 - `cwd` — корінь worktree, де крутитимуться gate-команди.
 
 **Повертає:** verdict від `runReview` — об'єкт із полями `pass: boolean` та `failedOutput: string | null`.
@@ -77,6 +80,7 @@
 **Сигнатура:** `function readFlowAutonomous(cwd: string): { maxApiCalls?: number, maxCostUsd?: number, onBudgetExceeded?: string }`
 
 **Параметри:**
+
 - `cwd` — корінь проєкту, де лежить `.n-cursor.json`.
 
 **Повертає:** об'єкт із секції `flow.autonomous` конфігу або порожній `{}`, якщо файл відсутній/невалідний.
@@ -86,6 +90,7 @@
 ### `run(rest, deps?)`
 
 **Сигнатура:**
+
 ```
 async function run(
   rest: string[],
@@ -104,6 +109,7 @@ async function run(
 ```
 
 **Параметри:**
+
 - `rest` — позиційні аргументи CLI, можуть містити прапор `--autonomous` плюс `<branch> <task...>`;
 - `deps` — об'єкт ін'єкцій:
   - `runner` — готовий subagent-runner (інакше створюється через `createRunner(deps)`);
@@ -117,11 +123,13 @@ async function run(
   - `now` — постачальник часу (дефолт: `Date.now`).
 
 **Повертає:** `Promise<number>` — exit code:
+
 - `0` — `result.status === 'done'`;
 - `1` — `ensureWorktree` повернув ненульовий код, runner не створився, або executor дав помилку / `BudgetExceeded` / інший fail-стан;
 - `2` — `result.status === 'blocked-on-human'`.
 
 **Потік:**
+
 1. Підготовка: `log`, `now`, прапор `autonomous` (з `deps.autonomous` або `rest.includes('--autonomous')`), позиційні аргументи (фільтр без `--`-флагів).
 2. `ensureWorktree(positional, deps)` → якщо `code !== 0`, повертає цей же код. Інакше отримуємо `{ worktreeDir, branch, desc, baseCommit }`.
 3. `writeState(statePath, …)` — ініціальний стан із `status: 'in_progress'`, `started_at` у ISO, `metadata.base_commit`, порожнім `plan`.
@@ -141,6 +149,7 @@ async function run(
 ### `resume(_rest, deps?)`
 
 **Сигнатура:**
+
 ```
 async function resume(
   _rest: string[],
@@ -161,6 +170,7 @@ async function resume(
 **Повертає:** `0` / `1` / `2` — як у `run`.
 
 **Потік (Safe-resume, §4.1.7):**
+
 1. `cwd = deps.cwd ?? process.cwd()`, `log`, `now`, `run_ = deps.run ?? realRun`.
 2. `state = readState(flowStatePath(cwd))`. Якщо `state` falsy — лог `'resume: стану нема'`, `return 1`.
 3. `openHitl = (state.hitl ?? []).filter(q => !q.answer)`. Якщо `status === 'blocked-on-human'` і `openHitl.length > 0` — лог `resume: ще blocked — N відкритих HITL-питань (заповни answer і повтори)`, `return 2`.
@@ -176,6 +186,7 @@ async function resume(
 ### `cancel(_rest, deps?)`
 
 **Сигнатура:**
+
 ```
 async function cancel(
   _rest: string[],
@@ -194,6 +205,7 @@ async function cancel(
 ### `repair(rest, deps?)`
 
 **Сигнатура:**
+
 ```
 async function repair(
   rest: string[],
@@ -206,6 +218,7 @@ async function repair(
 ```
 
 **Параметри:**
+
 - `rest` — аргументи CLI; перевіряється наявність `--discard-step-work`;
 - `deps.run` — низькорівневий spawn (дефолт: `realRun`);
 - `deps.cwd` — корінь worktree (дефолт: `process.cwd()`);
@@ -214,6 +227,7 @@ async function repair(
 **Повертає:** `0` — у двох випадках: успішне жорстке скидання або валідне читання стану (включно з «стану нема»); `1` — стан пошкоджено (виняток при `readState`).
 
 **Потік:**
+
 1. Якщо `rest.includes('--discard-step-work')`:
    - `run_('git', ['reset', '--hard', 'HEAD'], { cwd })`;
    - лог `'repair: робоче дерево скинуто до HEAD (--discard-step-work)'`;
@@ -267,6 +281,7 @@ flow repair [--discard-step-work]
 ### Сценарій `flow resume`
 
 Користувач заповнив `answer` у HITL-питаннях `flow.json` і запускає `flow resume`:
+
 1. Зчитується стан, відкриті (без `answer`) HITL → блокує `resume` з кодом `2`.
 2. `git reset --hard HEAD` повертає робоче дерево до останнього коміту (відкочуємо частковий доробок невдалого кроку).
 3. HITL-відповіді стають полями `hint` для відповідних кроків, `retry_count` обнуляється для незавершених кроків.
@@ -275,6 +290,7 @@ flow repair [--discard-step-work]
 ### Сценарій `flow cancel`
 
 Прибирання залишків:
+
 - Видаляється `flow.json`, `flow.events.jsonl`, lock-файли — через `cleanupFlowSiblings(cwd)`.
 - Worktree як такий **не видаляється** — це окрема відповідальність команд worktree-менеджмента.
 
@@ -290,7 +306,9 @@ flow repair [--discard-step-work]
 ```js
 import { run } from './active.mjs'
 
-const fakeRunner = { /* mock */ }
+const fakeRunner = {
+  /* mock */
+}
 const code = await run(['feat/x', 'task'], {
   runner: fakeRunner,
   verify: () => ({ pass: true, failedOutput: null }),

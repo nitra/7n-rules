@@ -26,8 +26,8 @@ flow plan [--panel] [<plan.md>]
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
+| Експорт             | Тип              | Призначення                                                |
+| ------------------- | ---------------- | ---------------------------------------------------------- |
 | `plan(rest, deps?)` | `async function` | Виконати фазу `plan` поточного `flow`. Іменований експорт. |
 
 Інших експортів немає (немає `default`).
@@ -141,6 +141,7 @@ process.exit(code)
 ### Сценарії використання
 
 1. **Human↔agent (типовий ручний flow)**
+
    ```
    flow init my-feature        # створив .flow.json
    flow spec                   # зафіксував docs/specs/<...>.md
@@ -149,9 +150,11 @@ process.exit(code)
    ```
 
 2. **Agent↔agent (panel)**
+
    ```
    flow plan --panel
    ```
+
    Без plan-доку: панель персон через `runPanel({ mode: 'plan' })` синтезує `steps`. Записує `plan_doc: null`.
 
 3. **Явний шлях**
@@ -162,11 +165,11 @@ process.exit(code)
 
 ### Стан до/після
 
-| Поле `.flow.json` | До `plan` | Після `plan` |
-|---|---|---|
-| `status` | `'spec'` (рекомендовано) або інше | `'planned'` |
-| `plan` | відсутнє/попереднє | `normalized` (масив steps) |
-| `plan_doc` | відсутнє | абсолютний шлях до md або `null` (panel) |
+| Поле `.flow.json` | До `plan`                         | Після `plan`                             |
+| ----------------- | --------------------------------- | ---------------------------------------- |
+| `status`          | `'spec'` (рекомендовано) або інше | `'planned'`                              |
+| `plan`            | відсутнє/попереднє                | `normalized` (масив steps)               |
+| `plan_doc`        | відсутнє                          | абсолютний шлях до md або `null` (panel) |
 
 В event-log дописується `{ type: 'plan', steps: <N>, ts: <now> }` (фактичний формат — в `recordTransition`).
 

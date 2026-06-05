@@ -13,10 +13,10 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `defaultRunGit(cwd)` | named function | Створює дефолтний git-раннер, прив’язаний до конкретного `cwd`. |
-| `synthesizeChangeFromCommits(name, ws, opts?)` | named async function | Синтезує один change-запис із git-історії або повертає `null`. |
+| Експорт                                        | Тип                  | Призначення                                                     |
+| ---------------------------------------------- | -------------------- | --------------------------------------------------------------- |
+| `defaultRunGit(cwd)`                           | named function       | Створює дефолтний git-раннер, прив’язаний до конкретного `cwd`. |
+| `synthesizeChangeFromCommits(name, ws, opts?)` | named async function | Синтезує один change-запис із git-історії або повертає `null`.  |
 
 Default-експортів немає.
 
@@ -39,25 +39,30 @@ synthesizeChangeFromCommits(
 **Сигнатура:** `function defaultRunGit(cwd: string): (args: string[]) => Promise<string | null>`
 
 **Параметри:**
-- `cwd` *(string)* — абсолютний або відносний шлях до робочого каталогу, у якому виконуються git-команди.
+
+- `cwd` _(string)_ — абсолютний або відносний шлях до робочого каталогу, у якому виконуються git-команди.
 
 **Повертає:** функцію-раннер `async (args: string[]) => Promise<string | null>`. Раннер:
+
 - виконує `git <...args>` у заданому `cwd` через `execFile` (без shell, без інтерполяції аргументів);
 - у разі успіху повертає **повний stdout** як рядок (без обрізання, без декодування);
 - у разі будь-якої помилки (non-zero exit, ENOENT, відсутність git, repo not found тощо) повертає `null` — **жоден виняток не пробивається назовні**.
 
 **Side effects:**
+
 - Спавнить дочірній процес `git` через `node:child_process.execFile`.
 - Читає файлову систему репозиторію (через сам git).
 - Не пише у stdout/stderr батьківського процесу, не змінює стан репо.
 
 **Дизайнерські рішення:**
+
 - `execFile` (а не `exec`) — захист від shell-injection; аргументи передаються як масив.
 - `try/catch` обгортає виклик, перетворюючи помилку на `null`. Це дозволяє викликачу не дбати про обробку винятків і однаково реагувати на «команда не виконалась» та «команда повернула порожньо».
 
 ### `synthesizeChangeFromCommits(name, ws, opts?)`
 
 **Сигнатура:**
+
 ```text
 async function synthesizeChangeFromCommits(
   name: string,
@@ -67,22 +72,26 @@ async function synthesizeChangeFromCommits(
 ```
 
 **Параметри:**
-- `name` *(string)* — ім’я npm-пакета. Використовується для побудови патерну тегу `<name>@*` у `git describe --match`.
-- `ws` *(string)* — workspace, що виступає pathspec-ом для `git log`. Спеціальне значення `'.'` означає «весь репозиторій, без обмеження шляху»; будь-яке інше значення інтерпретується як директорія і додається до команди як `-- <ws>/`.
-- `opts` *(object, optional)* — опції:
-  - `opts.runGit` *((args) => Promise\<string|null\>)* — кастомний git-раннер (ін’єкція для тестів). Якщо не задано, використовується `defaultRunGit(process.cwd())`.
+
+- `name` _(string)_ — ім’я npm-пакета. Використовується для побудови патерну тегу `<name>@*` у `git describe --match`.
+- `ws` _(string)_ — workspace, що виступає pathspec-ом для `git log`. Спеціальне значення `'.'` означає «весь репозиторій, без обмеження шляху»; будь-яке інше значення інтерпретується як директорія і додається до команди як `-- <ws>/`.
+- `opts` _(object, optional)_ — опції:
+  - `opts.runGit` _((args) => Promise\<string|null\>)_ — кастомний git-раннер (ін’єкція для тестів). Якщо не задано, використовується `defaultRunGit(process.cwd())`.
 
 **Повертає:** `Promise` що резолвиться в:
+
 - **об’єкт** `{ bump: 'patch', section: 'Changed', description: <string> }` — синтетичний change-запис, де `description` є склейкою всіх commit-subject-ів через роздільник `'; '`;
 - **`null`** — у двох випадках:
   1. **Bootstrap-кейс:** `git describe` не знайшов жодного попереднього тегу `<name>@*` (повернув `null` або порожній рядок після `trim`). Перший реліз робиться вручну, fallback не повинен дублювати bump.
   2. **No-op кейс:** теги є, але `git log <lastTag>..HEAD` для даного workspace не повернув жодного непорожнього subject-а (немає змін у скоупі workspace після останнього релізу).
 
 **Side effects:**
+
 - Через `runGit` спавнить **до двох** git-процесів (`git describe`, потім `git log`).
 - Не пише на диск, не мутує жодних аргументів.
 
 **Алгоритм покроково:**
+
 1. Розв’язати раннер: `runGit = opts.runGit ?? defaultRunGit(process.cwd())`.
 2. Викликати `git describe --tags --abbrev=0 --match <name>@* HEAD`. Якщо результат — `null`/порожньо/whitespace після `trim()` — повернути `null` (bootstrap).
 3. Сформувати pathspec: `[]` для `ws === '.'`, інакше `['--', `${ws}/`]`.
@@ -92,6 +101,7 @@ async function synthesizeChangeFromCommits(
 7. Інакше — повернути `{ bump: 'patch', section: 'Changed', description: subjects.join('; ') }`.
 
 **Інваріанти / контракти:**
+
 - `bump` завжди дорівнює рядку `'patch'` — fallback не вгадує `minor`/`major`; підвищити рівень bump-у можна лише явним change-файлом.
 - `section` завжди `'Changed'` — без класифікації за типом коміту (Added/Fixed/тощо).
 - `description` ніколи не порожній (інакше функція повертає `null`).
@@ -136,7 +146,7 @@ if (change) {
 ```js
 const fakeGit = async args => {
   if (args[0] === 'describe') return '@scope/pkg@1.2.3\n'
-  if (args[0] === 'log')      return 'fix: foo\nchore: bar\n\n'
+  if (args[0] === 'log') return 'fix: foo\nchore: bar\n\n'
   return null
 }
 const change = await synthesizeChangeFromCommits('@scope/pkg', 'packages/pkg', { runGit: fakeGit })
@@ -168,11 +178,11 @@ caller
 
 ### Ключові випадки повернення `null`
 
-| Випадок | Причина | Реакція пайплайна |
-|---|---|---|
-| Bootstrap | Немає жодного тегу `<name>@*` | Не синтезувати fallback; перший реліз — вручну. |
-| No-op | Тег є, але `git log` у скоупі workspace порожній | У workspace немає релевантних змін → реліз не потрібен. |
-| Git error | Будь-яка помилка `git` (через тихий раннер) | Інтерпретується як «нічого синтезувати», `null`. |
+| Випадок   | Причина                                          | Реакція пайплайна                                       |
+| --------- | ------------------------------------------------ | ------------------------------------------------------- |
+| Bootstrap | Немає жодного тегу `<name>@*`                    | Не синтезувати fallback; перший реліз — вручну.         |
+| No-op     | Тег є, але `git log` у скоупі workspace порожній | У workspace немає релевантних змін → реліз не потрібен. |
+| Git error | Будь-яка помилка `git` (через тихий раннер)      | Інтерпретується як «нічого синтезувати», `null`.        |
 
 ## Rebuild Test
 
@@ -183,9 +193,9 @@ caller
 3. `defaultRunGit(cwd)` повертає async-функцію `args => …`, що викликає `execFileAsync('git', args, { cwd })` у `try/catch`; в успіху — `stdout`, у будь-якій помилці — `null`.
 4. `synthesizeChangeFromCommits`:
    - бере `runGit` з `opts.runGit ?? defaultRunGit(process.cwd())`;
-   - `git describe --tags --abbrev=0 --match \`${name}@*\` HEAD` → `lastTagRaw`; `lastTag = lastTagRaw?.trim()`; якщо falsy — `return null`;
+   - `git describe --tags --abbrev=0 --match \`${name}@\*\` HEAD`→`lastTagRaw`; `lastTag = lastTagRaw?.trim()`; якщо falsy — `return null`;
    - `pathspec = ws === '.' ? [] : ['--', \`${ws}/\`]`;
-   - `git log --no-merges --format=%s \`${lastTag}..HEAD\` ...pathspec` → `logRaw`;
+   - `git log --no-merges --format=%s \`${lastTag}..HEAD\` ...pathspec`→`logRaw`;
    - `subjects = (logRaw ?? '').split('\n').map(s => s.trim()).filter(Boolean)`;
    - якщо `subjects.length === 0` → `return null`;
    - інакше `return { bump: 'patch', section: 'Changed', description: subjects.join('; ') }`.

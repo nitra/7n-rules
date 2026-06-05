@@ -19,11 +19,11 @@
 
 Модуль експортує три іменовані функції:
 
-| Експорт | Призначення |
-|---|---|
+| Експорт                                          | Призначення                                                 |
+| ------------------------------------------------ | ----------------------------------------------------------- |
 | `findBunyanImportsInText(content, virtualPath?)` | Основний AST-сканер тексту файлу — повертає масив порушень. |
-| `isBunyanScanSourceFile(relativePath)` | Фільтр за розширенням файлу (JS/TS-сім'я). |
-| `shouldSkipFileForBunyanScan(relativePosix)` | Виключення декларацій типів (`*.d.ts`). |
+| `isBunyanScanSourceFile(relativePath)`           | Фільтр за розширенням файлу (JS/TS-сім'я).                  |
+| `shouldSkipFileForBunyanScan(relativePosix)`     | Виключення декларацій типів (`*.d.ts`).                     |
 
 Внутрішні (не експортовані) константи:
 

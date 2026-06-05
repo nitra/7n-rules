@@ -62,4 +62,4 @@ implemented:
 5. Регресія — acceptance: `cd npm && npx vitest run scripts/` зелене (новий
    модульний тест + наявні `ensure-gitignore-entries`/`sync-claude-config`).
 6. Реліз — acceptance: `flow verify` зелений; `flow release --bump patch
-   --section Added` із change-файлом.
+--section Added` із change-файлом.

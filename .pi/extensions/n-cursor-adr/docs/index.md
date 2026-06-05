@@ -77,7 +77,7 @@ export default function (pi: PiExec): void
 ### Inline handler події `'agent_end'`
 
 ```ts
-async (_event, ctx: PiContext) => Promise<void>
+;async (_event, ctx: PiContext) => Promise<void>
 ```
 
 - **Параметри**:
@@ -99,7 +99,7 @@ async (_event, ctx: PiContext) => Promise<void>
    - `.join('\n')` — склеює у JSONL (по рядку на entry, без trailing `\n`).
    - `jsonlPath = join(tmpdir(), \`n-cursor-pi-transcript-${Date.now()}-${randomUUID()}.jsonl\`)` — формує унікальний шлях у системному tmpdir з міткою часу й UUID.
    - `writeFileSync(jsonlPath, lines + '\n', 'utf8')` — синхронно пише файл у UTF-8 із доданим завершальним `\n`.
-   - Уся серіалізація обгорнута в `try { … } catch (error) { … }`. У `catch`: `ctx.ui?.notify?.(\`@nitra/cursor: transcript serialization failed — ${(error as Error).message}\`, 'error')` і ранній `return` — handler виходить без виклику хуків.
+   - Уся серіалізація обгорнута в `try { … } catch (error) { … }`. У `catch`: `ctx.ui?.notify?.(\`@nitra/cursor: transcript serialization failed — ${(error as Error).message}\`, 'error')`і ранній`return` — handler виходить без виклику хуків.
    - Змінна `jsonlPath` оголошена `let` поза `try` (з типом `string`) — щоб після `try` бути доступною. У разі помилки гілка повертає `return`, тож звертань до неявно неініціалізованої `jsonlPath` поза `try` не буде.
 3. **Формування stdin payload**:
    - `const stdinPayload = JSON.stringify({ transcript_path: jsonlPath, session_id: ctx.sessionId ?? randomUUID() })`.

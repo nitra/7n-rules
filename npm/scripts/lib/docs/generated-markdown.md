@@ -15,12 +15,12 @@
 
 Модуль експортує чотири іменовані функції:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `collapseMultipleBlankLines` | `(text: string) => string` | Згортає 3+ послідовних `\n` до рівно `\n\n`. |
-| `expandMustacheSection` | `(template: string, section: string, items: Record<string,string>[], prop: string) => string` | Розгортає блок `{{#section}}…{{/section}}` для кожного елемента масиву `items`, підставляючи `item[prop]` замість `{{prop}}`. |
-| `renderAgentsTemplate` | `(templateText: string, mdcBasenames: string[], skillItems: { name: string }[], commandItems: { name: string }[]) => string` | Високорівневий рендерер шаблону `AGENTS.template.md`: підставляє списки правил, скілів і команд та нормалізує порожні рядки. |
-| `formatGeneratedMarkdownLines` | `(lines: string[]) => string` | Збирає масив рядків у єдиний markdown-документ із гарантованим завершальним `\n` і без подвійних порожніх рядків. |
+| Експорт                        | Тип                                                                                                                          | Призначення                                                                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `collapseMultipleBlankLines`   | `(text: string) => string`                                                                                                   | Згортає 3+ послідовних `\n` до рівно `\n\n`.                                                                                  |
+| `expandMustacheSection`        | `(template: string, section: string, items: Record<string,string>[], prop: string) => string`                                | Розгортає блок `{{#section}}…{{/section}}` для кожного елемента масиву `items`, підставляючи `item[prop]` замість `{{prop}}`. |
+| `renderAgentsTemplate`         | `(templateText: string, mdcBasenames: string[], skillItems: { name: string }[], commandItems: { name: string }[]) => string` | Високорівневий рендерер шаблону `AGENTS.template.md`: підставляє списки правил, скілів і команд та нормалізує порожні рядки.  |
+| `formatGeneratedMarkdownLines` | `(lines: string[]) => string`                                                                                                | Збирає масив рядків у єдиний markdown-документ із гарантованим завершальним `\n` і без подвійних порожніх рядків.             |
 
 Усі функції детерміновані: для однакових входів повертають однаковий вихід.
 
@@ -213,12 +213,7 @@ export function formatGeneratedMarkdownLines(lines)
 import { expandMustacheSection } from './generated-markdown.mjs'
 
 const tpl = '# Rules\n{{#services}}- {{name}}\n{{/services}}\nEnd'
-const out = expandMustacheSection(
-  tpl,
-  'services',
-  [{ name: 'a.mdc' }, { name: 'b.mdc' }],
-  'name'
-)
+const out = expandMustacheSection(tpl, 'services', [{ name: 'a.mdc' }, { name: 'b.mdc' }], 'name')
 // out === '# Rules\n- a.mdc\n- b.mdc\nEnd'
 ```
 
@@ -268,12 +263,7 @@ const md = formatGeneratedMarkdownLines(['# Title', '', '', '', 'Body'])
 і виклик:
 
 ```js
-renderAgentsTemplate(
-  template,
-  ['n-bun.mdc', 'n-vue.mdc'],
-  [{ name: '- /n-fix — fix' }],
-  [{ name: '- /n-lint — lint' }]
-)
+renderAgentsTemplate(template, ['n-bun.mdc', 'n-vue.mdc'], [{ name: '- /n-fix — fix' }], [{ name: '- /n-lint — lint' }])
 ```
 
 Очікувані властивості результату:

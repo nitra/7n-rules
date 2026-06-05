@@ -20,8 +20,8 @@
 
 Модуль експортує одну іменовану функцію:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт                                   | Тип        | Призначення                                                                              |
+| ----------------------------------------- | ---------- | ---------------------------------------------------------------------------------------- |
 | `withFlowLock(worktreeDir, runFn, opts?)` | `function` | Виконує `runFn` під per-branch локом flow, прив’язаним до конкретного worktree-каталогу. |
 
 Default export відсутній.
@@ -124,10 +124,14 @@ import { withFlowLock } from './flow-lock.mjs'
 
 const worktreeDir = '/repo/.worktrees/feat-x'
 
-await withFlowLock(worktreeDir, async () => {
-  // Критична секція: мутації стану flow для гілки feat-x
-  await mutateFlowState(worktreeDir)
-}, { waitTimeout: 30_000, pollInterval: 250 })
+await withFlowLock(
+  worktreeDir,
+  async () => {
+    // Критична секція: мутації стану flow для гілки feat-x
+    await mutateFlowState(worktreeDir)
+  },
+  { waitTimeout: 30_000, pollInterval: 250 }
+)
 ```
 
 Поведінка:

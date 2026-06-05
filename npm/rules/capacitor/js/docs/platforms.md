@@ -54,7 +54,7 @@
   - Інакше — повертає major першого числа в рядку.
 - **Side effects:** немає (чиста функція).
 
-### `firstVersionMajorFromNpmValue(t)` *(внутрішня)*
+### `firstVersionMajorFromNpmValue(t)` _(внутрішня)_
 
 - **Сигнатура:** `(t: string) => number | null`
 - **Параметри:** `t` — фрагмент рядка версії без префікса операторів.
@@ -76,14 +76,14 @@
 - **Повертає:** `true`, якщо нижня межа діапазону визначена і `>= min`; інакше — `false` (зокрема для `*`, `latest`).
 - **Side effects:** немає.
 
-### `reportOneCapacitorCoreRange(fail, pass, rel, range)` *(внутрішня)*
+### `reportOneCapacitorCoreRange(fail, pass, rel, range)` _(внутрішня)_
 
 - **Сигнатура:** `(fail: (m: string) => void, pass: (m: string) => void, rel: string, range: string) => void`
 - **Параметри:** `fail`, `pass` — друк-колбеки reporter; `rel` — posix-relative шлях `package.json`; `range` — значення `@capacitor/core`.
 - **Повертає:** `void`.
 - **Side effects:** викликає `pass(...)` або `fail(...)` зі сформованим повідомленням, у якому згадано `MIN_CAPACITOR_MAJOR` та рекомендацію `^8.0.0`.
 
-### `recordCapacitorFromDependencyObject(rel, obj, out)` *(внутрішня)*
+### `recordCapacitorFromDependencyObject(rel, obj, out)` _(внутрішня)_
 
 - **Сигнатура:** `(rel: string, obj: Record<string, unknown>, out: { byPath: Map<string, string>, anyCapacitor: boolean }) => void`
 - **Параметри:** `rel` — relative-шлях `package.json`; `obj` — один із блоків залежностей; `out` — акумулятор.
@@ -156,7 +156,7 @@
 - **Side effects:** немає.
 - **Зауваження:** назва функції написана з нестандартною капіталізацією `nitrA` — використовується саме так на місці виклику.
 
-### `extractNitraObjectBodySource(source)` *(внутрішня)*
+### `extractNitraObjectBodySource(source)` _(внутрішня)_
 
 - **Сигнатура:** `(source: string) => string | null`
 - **Параметри:** `source` — текст файлу `capacitor.config.ts` або `capacitor.config.mjs`.
@@ -165,14 +165,14 @@
 - **Side effects:** немає.
 - **Обмеження:** не парсить TS/MJS повноцінно; ігнорує можливі `{` / `}` усередині рядків чи коментарів, що теоретично може дати хибний баланс на нетипових вхідних даних. Для штатних `capacitor.config.*` цього достатньо.
 
-### `nitraObjectBodyStringAllowsCocoaPodsExempt(objectBody)` *(внутрішня)*
+### `nitraObjectBodyStringAllowsCocoaPodsExempt(objectBody)` _(внутрішня)_
 
 - **Сигнатура:** `(objectBody: string) => boolean`
 - **Параметри:** `objectBody` — текст тіла об’єкта `nitra`.
 - **Повертає:** `true`, якщо в підрядку є `iosCocoaPodsBecausePluginsLackSpm: true` або `iosCocoaPodsAllowed: true` (регулярки `RE_COCOAPODS_EXEMPT_SPM`, `RE_COCOAPODS_EXEMPT_ALLOW`).
 - **Side effects:** немає.
 
-### `pathJsonShowsNitraCocoapodsExempt(absPath)` *(внутрішня)*
+### `pathJsonShowsNitraCocoapodsExempt(absPath)` _(внутрішня)_
 
 - **Сигнатура:** `(absPath: string) => Promise<boolean>`
 - **Параметри:** `absPath` — повний шлях до JSON-файла (`package.json` або `capacitor.config.json`).
@@ -180,7 +180,7 @@
 - **Логіка:** `existsSync` → `readFile` → `JSON.parse`. Будь-яка помилка читання/парсингу повертає `false`.
 - **Side effects:** дисковий I/O.
 
-### `capacitorConfigTsMjsNitraCocoapodsExempt(root)` *(внутрішня)*
+### `capacitorConfigTsMjsNitraCocoapodsExempt(root)` _(внутрішня)_
 
 - **Сигнатура:** `(root: string) => Promise<boolean>`
 - **Параметри:** `root` — корінь репозиторію.
@@ -188,7 +188,7 @@
 - **Логіка:** для кожного імені викликає `existsSync`, читає вміст, через `extractNitraObjectBodySource` дістає тіло і перевіряє `nitraObjectBodyStringAllowsCocoaPodsExempt`. Знайдено → `true`; інакше після обох — `false`.
 - **Side effects:** дисковий I/O. Винятки `readFile` не перехоплюються, тому пошкоджений файл може кинути помилку наверх (єдина функція в файлі, що не загортає `readFile` у `try/catch`).
 
-### `isIosCocoaPodsExemptByNitraConfig(root)` *(внутрішня)*
+### `isIosCocoaPodsExemptByNitraConfig(root)` _(внутрішня)_
 
 - **Сигнатура:** `(root: string) => Promise<boolean>`
 - **Параметри:** `root` — корінь репозиторію.

@@ -43,7 +43,10 @@ describe('runReview', () => {
     ]
     const v = runReview({ run: runner({ a: 0, b: 1, c: 0 }), cwd: '/x', gates, fingerprint: () => 'FP' })
     expect(v.pass).toBe(false)
-    expect(v.gates).toEqual([{ name: 'a', ok: true }, { name: 'b', ok: false }])
+    expect(v.gates).toEqual([
+      { name: 'a', ok: true },
+      { name: 'b', ok: false }
+    ])
     expect(v.fingerprint).toBe(null)
   })
 

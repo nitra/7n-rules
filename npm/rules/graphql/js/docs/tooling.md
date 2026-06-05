@@ -17,11 +17,11 @@
 
 ## Експорти / API
 
-| Експорт                              | Тип                                  | Призначення                                                                                  |
-| ------------------------------------ | ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `GRAPHQL_RC_FILENAME`                | `string` (const, `.graphqlrc.yml`)   | Очікувана назва файлу GraphQL Config у корені проєкту (з `graphql.mdc`).                     |
-| `REQUIRED_GRAPHQL_VSCODE_EXTENSION`  | `string` (const, `graphql.vscode-graphql`) | Ідентифікатор обов'язкового розширення VS Code, яке має бути в `recommendations`.    |
-| `check(cwd?)`                        | `async function`                     | Основна точка входу — виконує всю перевірку правила `graphql.mdc` і повертає exit code.       |
+| Експорт                             | Тип                                        | Призначення                                                                             |
+| ----------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `GRAPHQL_RC_FILENAME`               | `string` (const, `.graphqlrc.yml`)         | Очікувана назва файлу GraphQL Config у корені проєкту (з `graphql.mdc`).                |
+| `REQUIRED_GRAPHQL_VSCODE_EXTENSION` | `string` (const, `graphql.vscode-graphql`) | Ідентифікатор обов'язкового розширення VS Code, яке має бути в `recommendations`.       |
+| `check(cwd?)`                       | `async function`                           | Основна точка входу — виконує всю перевірку правила `graphql.mdc` і повертає exit code. |
 
 Внутрішні (не експортовані) хелпери:
 
@@ -133,7 +133,7 @@ export async function check(cwd?: string): Promise<number>
 
 **Параметри:**
 
-- `cwd` — *необов'язковий* абсолютний шлях до кореня репозиторію. За замовчуванням `process.cwd()`.
+- `cwd` — _необов'язковий_ абсолютний шлях до кореня репозиторію. За замовчуванням `process.cwd()`.
 
 **Що робить (потік):**
 
@@ -142,7 +142,7 @@ export async function check(cwd?: string): Promise<number>
 3. Викликає `collectScanCandidates(root, ignorePaths)` — отримує список файлів-кандидатів.
 4. Викликає `collectGqlHits(root, candidates)` — отримує файли з `gql`.
 5. **Розгалуження:**
-   - Якщо `hits.length === 0` — викликає `pass(...)` з повідомленням «немає `gql\`…\`` у джерелах, переглянуто N файлів — `.graphqlrc.yml` не вимагається» і **повертає** `reporter.getExitCode()` (зазвичай `0`).
+   - Якщо `hits.length === 0` — викликає `pass(...)` з повідомленням «немає `gql\`…\``у джерелах, переглянуто N файлів —`.graphqlrc.yml`не вимагається» і **повертає**`reporter.getExitCode()`(зазвичай`0`).
    - Інакше викликає `pass(...)` зі звітом про N файлів (з перших 5 з суфіксом `…` якщо більше).
 6. Перевіряє наявність `GRAPHQL_RC_FILENAME` (`.graphqlrc.yml`) у корені через `existsSync`:
    - Існує → `pass('.graphqlrc.yml існує')`.
@@ -164,11 +164,11 @@ export async function check(cwd?: string): Promise<number>
 
 ### Node.js builtins
 
-| Модуль                 | Що використовується                    | Призначення                                                 |
-| ---------------------- | -------------------------------------- | ----------------------------------------------------------- |
-| `node:fs`              | `existsSync`                            | Синхронна перевірка наявності `.graphqlrc.yml` та `.vscode/extensions.json`. |
-| `node:fs/promises`     | `readFile`                              | Асинхронне читання вмісту файлів-кандидатів.                |
-| `node:path`            | `join`, `relative`                      | Збирання абсолютних шляхів і обчислення відносних шляхів від кореня. |
+| Модуль             | Що використовується | Призначення                                                                  |
+| ------------------ | ------------------- | ---------------------------------------------------------------------------- |
+| `node:fs`          | `existsSync`        | Синхронна перевірка наявності `.graphqlrc.yml` та `.vscode/extensions.json`. |
+| `node:fs/promises` | `readFile`          | Асинхронне читання вмісту файлів-кандидатів.                                 |
+| `node:path`        | `join`, `relative`  | Збирання абсолютних шляхів і обчислення відносних шляхів від кореня.         |
 
 ### Внутрішні модулі репозиторію
 
@@ -176,7 +176,7 @@ export async function check(cwd?: string): Promise<number>
 - `../lib/graphql-gql-scan.mjs`:
   - `isGqlScanSourceFile(rel)` — предикат «це source-файл, який потенційно містить `gql`» (за розширенням);
   - `shouldSkipFileForGqlScan(rel)` — предикат «цей файл слід ігнорувати при скануванні» (`.d.ts`, `auto-imports.d.ts` тощо);
-  - `sourceFileHasGqlTaggedTemplate(content, rel)` — AST-перевірка на наявність `gql\`...\`` (через oxc-parser; для `.vue` — після витягування `<script>`).
+  - `sourceFileHasGqlTaggedTemplate(content, rel)` — AST-перевірка на наявність `gql\`...\``(через oxc-parser; для`.vue`— після витягування`<script>`).
 - `../../../scripts/lib/load-cursor-config.mjs` — `loadCursorIgnorePaths(root)`: повертає абсолютні шляхи каталогів, повністю виключених з обходу (узгоджено з іншими check-скриптами).
 - `../../../scripts/lib/run-conftest-batch.mjs` — `runConftestBatch({ policyDirRel, namespace, files })`: запускає `conftest` з rego-пакетом і повертає масив `violations` (об'єкти з `.message`).
 - `../../../scripts/utils/walkDir.mjs` — `walkDir(root, visitor, ignorePaths)`: рекурсивний обхід файлової системи з підтримкою списку ігнорування.
@@ -197,7 +197,7 @@ export async function check(cwd?: string): Promise<number>
 ```js
 import { check } from 'npm/rules/graphql/js/tooling.mjs'
 
-const exitCode = await check()  // або await check('/absolute/path/to/repo')
+const exitCode = await check() // або await check('/absolute/path/to/repo')
 process.exit(exitCode)
 ```
 

@@ -27,12 +27,12 @@
 
 Модуль експортує тільки named-exports (узгоджено з `n-js-lint` / `js-run.mdc`):
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `isConnFileRulesSourceFile(relativePathPosix)` | `(string) => boolean` | Чи файл попадає під правило (JS/TS-сімʼя, без `.d.ts`). |
-| `kebabToCamel(kebab)` | `(string) => string` | Перетворення kebab-case на camelCase. |
-| `isConnFileNameValid(relativePathPosix)` | `(string) => boolean` | Чи basename файла відповідає одному з канонічних шаблонів (`ql-*`, `pg-*`, `mysql-*`, `mssql-*`). |
-| `findConnFileRuleViolations(content, relativePathPosix)` | `(string, string) => Violation[]` | Повний прогін правил для конкретного файла. |
+| Експорт                                                  | Тип                               | Призначення                                                                                       |
+| -------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `isConnFileRulesSourceFile(relativePathPosix)`           | `(string) => boolean`             | Чи файл попадає під правило (JS/TS-сімʼя, без `.d.ts`).                                           |
+| `kebabToCamel(kebab)`                                    | `(string) => string`              | Перетворення kebab-case на camelCase.                                                             |
+| `isConnFileNameValid(relativePathPosix)`                 | `(string) => boolean`             | Чи basename файла відповідає одному з канонічних шаблонів (`ql-*`, `pg-*`, `mysql-*`, `mssql-*`). |
+| `findConnFileRuleViolations(content, relativePathPosix)` | `(string, string) => Violation[]` | Повний прогін правил для конкретного файла.                                                       |
 
 Тип `Violation` (інтенсіональний, не експортується явно):
 
@@ -101,7 +101,7 @@
 
 ---
 
-### `basenameNoExt(relativePathPosix)` *(внутрішня)*
+### `basenameNoExt(relativePathPosix)` _(внутрішня)_
 
 **Сигнатура:** `(relativePathPosix: string) => string`
 
@@ -115,7 +115,7 @@
 
 ---
 
-### `namesFromVariableDeclaration(decl)` *(внутрішня)*
+### `namesFromVariableDeclaration(decl)` _(внутрішня)_
 
 **Сигнатура:** `(decl: Record<string, unknown>) => string[]`
 
@@ -123,13 +123,13 @@
 
 - `decl` — AST-вузол `VariableDeclaration` (тіло `export const/let/var ...`).
 
-**Повертає:** масив імен усіх декларованих змінних, чий `id.type === 'Identifier'`. Підтримує множинні declarators в одному `export const a, b = 1`. Деструктурізації `export const { x } = ...` *не* підтримуються — їхні `id` не є `Identifier`, тож пропускаються (зазвичай у conn-файлах їх немає).
+**Повертає:** масив імен усіх декларованих змінних, чий `id.type === 'Identifier'`. Підтримує множинні declarators в одному `export const a, b = 1`. Деструктурізації `export const { x } = ...` _не_ підтримуються — їхні `id` не є `Identifier`, тож пропускаються (зазвичай у conn-файлах їх немає).
 
 **Side effects:** немає.
 
 ---
 
-### `nameFromFnOrClassDeclaration(decl)` *(внутрішня)*
+### `nameFromFnOrClassDeclaration(decl)` _(внутрішня)_
 
 **Сигнатура:** `(decl: Record<string, unknown>) => string | null`
 
@@ -143,7 +143,7 @@
 
 ---
 
-### `nameFromExportSpecifier(specifier)` *(внутрішня)*
+### `nameFromExportSpecifier(specifier)` _(внутрішня)_
 
 **Сигнатура:** `(specifier: Record<string, unknown> | null | undefined) => string | null`
 
@@ -161,7 +161,7 @@
 
 ---
 
-### `namesFromNamedExport(rec)` *(внутрішня)*
+### `namesFromNamedExport(rec)` _(внутрішня)_
 
 **Сигнатура:** `(rec: Record<string, unknown>) => string[]`
 
@@ -182,7 +182,7 @@
 
 ---
 
-### `collectNamedExportNames(program)` *(внутрішня)*
+### `collectNamedExportNames(program)` _(внутрішня)_
 
 **Сигнатура:** `(program: unknown) => string[]`
 
@@ -196,7 +196,7 @@
 
 ---
 
-### `hasDefaultExport(program)` *(внутрішня)*
+### `hasDefaultExport(program)` _(внутрішня)_
 
 **Сигнатура:** `(program: unknown) => boolean`
 

@@ -15,10 +15,10 @@
 
 Модуль має два іменованих експорти:
 
-| Експорт              | Тип        | Призначення                                                                 |
-| -------------------- | ---------- | --------------------------------------------------------------------------- |
-| `filterStyleFiles`   | `function` | Чистий фільтр: з масиву шляхів повертає тільки `.css` / `.scss` / `.vue`.   |
-| `lint`               | `function` | Запускає `stylelint --fix` через `npx`, повертає `Promise<number>` (exit).  |
+| Експорт            | Тип        | Призначення                                                                |
+| ------------------ | ---------- | -------------------------------------------------------------------------- |
+| `filterStyleFiles` | `function` | Чистий фільтр: з масиву шляхів повертає тільки `.css` / `.scss` / `.vue`.  |
+| `lint`             | `function` | Запускає `stylelint --fix` через `npx`, повертає `Promise<number>` (exit). |
 
 Дефолтного експорту немає.
 
@@ -122,11 +122,7 @@ export function lint(
 ```js
 import { lint } from './lint.mjs'
 
-const changed = [
-  'src/components/Button.vue',
-  'src/utils/dom.ts',
-  'src/styles/main.scss',
-]
+const changed = ['src/components/Button.vue', 'src/utils/dom.ts', 'src/styles/main.scss']
 
 const code = await lint(changed)
 process.exit(code)

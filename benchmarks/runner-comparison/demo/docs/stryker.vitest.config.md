@@ -18,20 +18,20 @@
 
 ### Структура експортованого об'єкта
 
-| Ключ | Тип | Значення у файлі | Призначення |
-| --- | --- | --- | --- |
-| `testRunner` | `string` | `'vitest'` | Назва test runner-плагіна, який Stryker використовує для прогону тестів на мутантах. Очікує встановлений пакет `@stryker-mutator/vitest-runner`. |
-| `vitest` | `object` | `{ configFile: 'vitest.config.js' }` | Опції, специфічні для `vitest` runner. Поле `configFile` вказує шлях до vitest-конфігу відносно cwd запуску Stryker. |
-| `vitest.configFile` | `string` | `'vitest.config.js'` | Шлях до файлу конфігурації `vitest`, який буде використано при прогоні тестів на мутантах. |
-| `coverageAnalysis` | `string` | `'perTest'` | Режим аналізу покриття. Значення `'perTest'` означає, що Stryker запам'ятовує, які тести покривають який код, і запускає лише релевантні тести на кожному мутанті. |
-| `tempDirName` | `string` | `'reports/stryker/.tmp'` | Шлях до тимчасової директорії, у якій Stryker створює sandbox-копії проєкту. |
-| `reporters` | `string[]` | `['json', 'clear-text']` | Список репортерів. `'json'` — машинно-читаний звіт, `'clear-text'` — текстовий summary у stdout. |
-| `jsonReporter` | `object` | `{ fileName: 'reports/stryker/mutation.json' }` | Опції для json-репортера. |
-| `jsonReporter.fileName` | `string` | `'reports/stryker/mutation.json'` | Шлях до файлу, куди json-репортер пише підсумковий звіт мутаційного прогону. |
-| `incremental` | `boolean` | `true` | Увімкнено інкрементальний режим: Stryker перезапускає лише мутанти, що стосуються змінених файлів/тестів. |
-| `incrementalFile` | `string` | `'reports/stryker/incremental-vitest.json'` | Шлях до файлу-стейту інкрементального режиму, у який Stryker записує результати попередніх прогонів для повторного використання. |
-| `mutate` | `string[]` | `['src/**/*.mjs']` | Glob-патерни файлів, які Stryker мутує. Тут — усі `.mjs`-файли в директорії `src/`. |
-| `timeoutMS` | `number` | `60000` | Таймаут (мс) на прогон тест-сюїти для одного мутанта. 60000 мс = 60 секунд. |
+| Ключ                    | Тип        | Значення у файлі                                | Призначення                                                                                                                                                        |
+| ----------------------- | ---------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `testRunner`            | `string`   | `'vitest'`                                      | Назва test runner-плагіна, який Stryker використовує для прогону тестів на мутантах. Очікує встановлений пакет `@stryker-mutator/vitest-runner`.                   |
+| `vitest`                | `object`   | `{ configFile: 'vitest.config.js' }`            | Опції, специфічні для `vitest` runner. Поле `configFile` вказує шлях до vitest-конфігу відносно cwd запуску Stryker.                                               |
+| `vitest.configFile`     | `string`   | `'vitest.config.js'`                            | Шлях до файлу конфігурації `vitest`, який буде використано при прогоні тестів на мутантах.                                                                         |
+| `coverageAnalysis`      | `string`   | `'perTest'`                                     | Режим аналізу покриття. Значення `'perTest'` означає, що Stryker запам'ятовує, які тести покривають який код, і запускає лише релевантні тести на кожному мутанті. |
+| `tempDirName`           | `string`   | `'reports/stryker/.tmp'`                        | Шлях до тимчасової директорії, у якій Stryker створює sandbox-копії проєкту.                                                                                       |
+| `reporters`             | `string[]` | `['json', 'clear-text']`                        | Список репортерів. `'json'` — машинно-читаний звіт, `'clear-text'` — текстовий summary у stdout.                                                                   |
+| `jsonReporter`          | `object`   | `{ fileName: 'reports/stryker/mutation.json' }` | Опції для json-репортера.                                                                                                                                          |
+| `jsonReporter.fileName` | `string`   | `'reports/stryker/mutation.json'`               | Шлях до файлу, куди json-репортер пише підсумковий звіт мутаційного прогону.                                                                                       |
+| `incremental`           | `boolean`  | `true`                                          | Увімкнено інкрементальний режим: Stryker перезапускає лише мутанти, що стосуються змінених файлів/тестів.                                                          |
+| `incrementalFile`       | `string`   | `'reports/stryker/incremental-vitest.json'`     | Шлях до файлу-стейту інкрементального режиму, у який Stryker записує результати попередніх прогонів для повторного використання.                                   |
+| `mutate`                | `string[]` | `['src/**/*.mjs']`                              | Glob-патерни файлів, які Stryker мутує. Тут — усі `.mjs`-файли в директорії `src/`.                                                                                |
+| `timeoutMS`             | `number`   | `60000`                                         | Таймаут (мс) на прогон тест-сюїти для одного мутанта. 60000 мс = 60 секунд.                                                                                        |
 
 ## Функції
 

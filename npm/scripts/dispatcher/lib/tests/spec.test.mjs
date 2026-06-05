@@ -52,7 +52,10 @@ describe('spec', () => {
       const wt = join(dir, '.worktrees', 'feat-r')
       mkdirSync(join(wt, 'docs', 'specs'), { recursive: true })
       writeState(flowStatePath(wt), { branch: 'feat/r', status: 'in_progress', risk: 'low' })
-      writeFileSync(join(wt, 'docs', 'specs', '2026-06-01-feat-r.md'), '---\nkind: nitra-spec\nrisk: high\n---\n# Дизайн\n')
+      writeFileSync(
+        join(wt, 'docs', 'specs', '2026-06-01-feat-r.md'),
+        '---\nkind: nitra-spec\nrisk: high\n---\n# Дизайн\n'
+      )
       await spec([], { cwd: wt, log: noop, trace: okTrace })
       expect(readState(flowStatePath(wt)).risk).toBe('high')
     })
@@ -71,7 +74,7 @@ describe('spec', () => {
     })
   })
 
-  test('--panel із ін\'єктованим runner: синтезує підходи (далі чекає doc)', async () => {
+  test("--panel із ін'єктованим runner: синтезує підходи (далі чекає doc)", async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-p')
       mkdirSync(wt, { recursive: true })

@@ -36,7 +36,10 @@ describe('analyze', () => {
     ])
   })
   test('лінк flow — інформаційний (breaking:false), навіть коли не резолвиться', () => {
-    const a = analyze([{ file: 'docs/plans/p.md', fm: { kind: 'nitra-plan', flow: '../../.worktrees/x.flow.json' } }], () => false)
+    const a = analyze(
+      [{ file: 'docs/plans/p.md', fm: { kind: 'nitra-plan', flow: '../../.worktrees/x.flow.json' } }],
+      () => false
+    )
     expect(a[0].links.find(l => l.field === 'flow')).toEqual({
       field: 'flow',
       target: '../../.worktrees/x.flow.json',
@@ -57,13 +60,27 @@ describe('analyze', () => {
 describe('render', () => {
   test('→ для ok, ✗ для chain-розриву', () => {
     const out = render([
-      { file: 'f', kind: 'nitra-spec', id: 'x', status: 'planned', links: [{ field: 'plan', target: 'p', ok: false, breaking: true }] }
+      {
+        file: 'f',
+        kind: 'nitra-spec',
+        id: 'x',
+        status: 'planned',
+        links: [{ field: 'plan', target: 'p', ok: false, breaking: true }]
+      }
     ])
     expect(out).toContain('nitra-spec · x [planned]')
     expect(out).toContain('✗ plan: p')
   })
   test('~ для нерезолвленого info-поля (flow), не ✗', () => {
-    const out = render([{ file: 'f', kind: 'nitra-plan', id: 'p', status: 'planned', links: [{ field: 'flow', target: 'rt.json', ok: false, breaking: false }] }])
+    const out = render([
+      {
+        file: 'f',
+        kind: 'nitra-plan',
+        id: 'p',
+        status: 'planned',
+        links: [{ field: 'flow', target: 'rt.json', ok: false, breaking: false }]
+      }
+    ])
     expect(out).toContain('~ flow: rt.json')
     expect(out).not.toContain('✗')
   })

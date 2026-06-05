@@ -49,9 +49,7 @@ npx @nitra/cursor docgen scan
 Команда друкує JSON-масив об'єктів. Усі шляхи в ньому — відносні до кореня проєкту:
 
 ```json
-[
-  { "sourcePath": "src/lib/foo.js", "docPath": "src/lib/docs/foo.md", "exists": false }
-]
+[{ "sourcePath": "src/lib/foo.js", "docPath": "src/lib/docs/foo.md", "exists": false }]
 ```
 
 Розпарси JSON.
@@ -135,9 +133,14 @@ npx @nitra/cursor docgen modules
 
 ```json
 [
-  { "moduleRoot": "/abs/npm/rules/adr", "relRoot": "npm/rules/adr",
-    "slug": "npm-rules-adr", "docPath": "/abs/npm/rules/adr/docs/ARCHITECTURE.md",
-    "members": ["npm/rules/adr/index.mjs"], "exists": false }
+  {
+    "moduleRoot": "/abs/npm/rules/adr",
+    "relRoot": "npm/rules/adr",
+    "slug": "npm-rules-adr",
+    "docPath": "/abs/npm/rules/adr/docs/ARCHITECTURE.md",
+    "members": ["npm/rules/adr/index.mjs"],
+    "exists": false
+  }
 ]
 ```
 

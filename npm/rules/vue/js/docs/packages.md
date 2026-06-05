@@ -110,7 +110,7 @@
   4. Перевіряє наявність `<cwd>/<rootDir>/jsconfig.json`; за відсутності — `fail`, інакше `passFn`.
 - **Side effects:** читання файлів з диска; виклики `passFn`/`fail`.
 
-### `isVueComponentLibraryPkg(pkg)` *(експорт)*
+### `isVueComponentLibraryPkg(pkg)` _(експорт)_
 
 - **Сигнатура:** `function isVueComponentLibraryPkg(pkg: { peerDependencies?: Record<string, string> }): boolean`
 - **Параметри:**
@@ -232,7 +232,7 @@
   2. Парсить JSON; якщо `recommendations` містить `'Vue.volar'` — `pass`, інакше — `fail` з підказкою додати рекомендацію.
 - **Side effects:** читання `extensions.json` з диска; виклики `pass`/`fail`.
 
-### `check(cwd)` *(експорт, точка входу)*
+### `check(cwd)` _(експорт, точка входу)_
 
 - **Сигнатура:** `async function check(cwd: string = process.cwd()): Promise<number>`
 - **Параметри:**

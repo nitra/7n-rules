@@ -18,6 +18,7 @@
    - правило не активне (немає в `rules` або є в `disable-rules`) → скрипту `lint-<id>` і токена `bun run lint-<id>` в агрегованому `scripts.lint` **не може** бути (інакше `bun run lint` падатиме на правилі, яке у конфізі вимкнено).
 
 Те, що покриває **Rego** (тобто **не** перевіряється цим файлом):
+
 - `npm/policy/bun/bunfig/` — `[install].linker == "hoisted"` у `bunfig.toml`;
 - `npm/policy/bun/package_json/` — відсутність `packageManager` / `dependencies` у кореневому `package.json`, у `devDependencies` лише пакети `@nitra/*`, агрегований `lint`-скрипт покриває всі `lint-*` через `bun run` і завершується `&& oxfmt .`.
 
@@ -29,8 +30,8 @@ JS-копії перевірок `devDependencies` (історично — `isAl
 
 Модуль експортує **одну** іменовану функцію:
 
-| Експорт | Сигнатура | Призначення |
-| --- | --- | --- |
+| Експорт | Сигнатура                                 | Призначення                                         |
+| ------- | ----------------------------------------- | --------------------------------------------------- |
 | `check` | `async (cwd?: string) => Promise<number>` | Точка входу check-у; повертає exit-код (`0` / `1`). |
 
 Усе інше (`WHITESPACE_RE`, `RULE_SCRIPTS`, `loadNCursorRules`, `lintChainHasScript`, `backtickJoin`, `ownerStatus`, `checkCursorRuleScripts`) — **внутрішні** (module-private), не експортуються.
@@ -61,9 +62,9 @@ const RULE_SCRIPTS = [
 
 ```ts
 type RuleScript = {
-  rules: string[]    // id правил-власників (>= 1); поки активний хоча б один — скрипт обовʼязковий
-  script: string     // ім'я скрипта в package.json:scripts (напр. "lint-docker")
-  doc: string        // .mdc-файл (або кома-список) для повідомлення check-у
+  rules: string[] // id правил-власників (>= 1); поки активний хоча б один — скрипт обовʼязковий
+  script: string // ім'я скрипта в package.json:scripts (напр. "lint-docker")
+  doc: string // .mdc-файл (або кома-список) для повідомлення check-у
 }
 ```
 
@@ -80,13 +81,16 @@ async function loadNCursorRules(cwd: string): Promise<{ rules: Set<string>, disa
 Зчитує `.n-cursor.json` із кореня репозиторію та повертає набори активних і явно вимкнених правил.
 
 **Параметри:**
+
 - `cwd` — абсолютний шлях до кореня репозиторію.
 
 **Повертає:** `Promise<{ rules: Set<string>, disabled: Set<string> }>`:
+
 - `rules` — `Set` рядків зі значення `rules` у JSON; якщо поле відсутнє або не масив — порожній `Set`.
 - `disabled` — `Set` рядків зі значення `disable-rules`; якщо поле відсутнє або не масив — порожній `Set`.
 
 **Поведінка при помилках (fail-safe):**
+
 - файл `.n-cursor.json` відсутній — повертає `{ rules: new Set(), disabled: new Set() }`;
 - помилка `JSON.parse` — повертає той самий «порожній» обʼєкт (через `try/catch` без логування).
 
@@ -101,6 +105,7 @@ function lintChainHasScript(lintScript: string, target: string): boolean
 Перевіряє, чи містить chain зі `scripts.lint` виклик саме `bun run <target>` **як окремий токен**.
 
 **Параметри:**
+
 - `lintScript` — значення `scripts.lint` (або порожній рядок, якщо його немає).
 - `target` — ім'я скрипта без префіксів (`lint-docker`, `lint-k8s`, `lint-image`).
 
@@ -119,6 +124,7 @@ function backtickJoin(items: string[], sep: string): string
 Загортає кожен елемент у backticks і зʼєднує через `sep`. Винесено окремо, щоб не нестити template literals у `pass` / `fail`-повідомленнях.
 
 **Параметри:**
+
 - `items` — масив ідентифікаторів (наприклад id правил).
 - `sep` — роздільник (`', '` для перерахування, `'/'` для альтернативного списку).
 
@@ -138,10 +144,12 @@ function ownerStatus(
 Описує стан правил-власників скрипта для повідомлень про `reason`. Повертає або список увімкнених власників (для passing-кейсу «правило є»), або компактний опис, чому всі вимкнені (для inverse-fail).
 
 **Параметри:**
+
 - `owners` — id правил-власників (`>= 1`).
 - `cursorRules` — `{ rules, disabled }`, отриманий від `loadNCursorRules`.
 
 **Повертає:** `{ enabled, reason }`:
+
 - `enabled` — підмасив `owners`, які присутні в `cursorRules.rules`.
 - `reason` — людинозрозумілий текст про стан правил для логу:
   - якщо є хоча б один активний — `` правило `x` `` або `` правила `x`, `y` `` (з узгодженням числа: `правило` / `правила`);
@@ -163,6 +171,7 @@ function checkCursorRuleScripts(
 Перевіряє двосторонній зв'язок `rules` ↔ `scripts.lint-<id>` для всіх записів із `RULE_SCRIPTS`.
 
 **Параметри:**
+
 - `reporter` — обʼєкт з callback-ами `pass(msg)` / `fail(msg)` (від `createCheckReporter()`).
 - `scripts` — обʼєкт `scripts` із розпарсеного `package.json`.
 - `cursorRules` — `{ rules, disabled }` з `loadNCursorRules`.
@@ -173,13 +182,13 @@ function checkCursorRuleScripts(
 2. `present = Boolean(scripts[script])` — чи є скрипт у `package.json:scripts`.
 3. `inChain = lintChainHasScript(scripts.lint, script)` — чи згаданий `bun run <script>` у chain'і `scripts.lint` (якщо `scripts.lint` не рядок — `lintScript = ''`).
 4. **Якщо хоч одне правило-власник активне** (`status.enabled.length > 0`):
-   - `present === true` → `pass`: `` package.json: є `<script>` (<reason> у .n-cursor.json) ``;
-   - `present === false` → `fail`: `` У .n-cursor.json увімкнено <reason> — додай скрипт `<script>` у кореневий package.json (див. <doc>) ``;
+   - `present === true` → `pass`: ``package.json: є `<script>` (<reason> у .n-cursor.json)``;
+   - `present === false` → `fail`: ``У .n-cursor.json увімкнено <reason> — додай скрипт `<script>` у кореневий package.json (див. <doc>)``;
    - далі `continue` (не перевіряємо inverse-кейс).
 5. **Якщо жоден власник не активний:**
-   - `present === true` → `fail`: `` У .n-cursor.json немає активних власників `a`/`b` — прибери скрипт `<script>` з кореневого package.json (див. <doc>) ``;
-   - `inChain === true` → `fail`: `` У `scripts.lint` є `bun run <script>`, але серед `a/b` жоден не активний у .n-cursor.json — прибери з ланцюжка lint (див. <doc>) ``;
-   - `!present && !inChain` → `pass`: `` package.json: `<script>` відсутній (<reason>) ``.
+   - `present === true` → `fail`: ``У .n-cursor.json немає активних власників `a`/`b` — прибери скрипт `<script>` з кореневого package.json (див. <doc>)``;
+   - `inChain === true` → `fail`: ``У `scripts.lint` є `bun run <script>`, але серед `a/b` жоден не активний у .n-cursor.json — прибери з ланцюжка lint (див. <doc>)``;
+   - `!present && !inChain` → `pass`: ``package.json: `<script>` відсутній (<reason>)``.
 
 Зверни увагу: коли `present === true` і `inChain === true` одночасно (при неактивних власниках), будуть **два** `fail`-повідомлення — окремо про скрипт і окремо про chain. Це дозволяє лагодити обидва місця одним проходом.
 
@@ -192,6 +201,7 @@ export async function check(cwd: string = process.cwd()): Promise<number>
 ```
 
 **Параметри:**
+
 - `cwd` — корінь репозиторію. За замовчуванням — `process.cwd()`.
 
 **Повертає:** `Promise<number>` — exit-код від `reporter.getExitCode()`: `0` (усі перевірки pass) або `1` (є хоча б один `fail`).
@@ -212,6 +222,7 @@ export async function check(cwd: string = process.cwd()): Promise<number>
 10. **Повернення** `reporter.getExitCode()`.
 
 **Side effects:**
+
 - синхронні читання FS через `existsSync` (≥ 8 викликів);
 - асинхронне читання `.n-cursor.json` і `package.json` через `fs/promises.readFile`;
 - мутація стану `reporter` через `pass` / `fail`;

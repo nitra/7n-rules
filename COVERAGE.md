@@ -58621,7 +58621,7 @@ verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn, cwd)
 | 118 |`push',`|`""`| StringLiteral |
 | 118 |`push')`|`""`| StringLiteral |
 | 118 |`paths')`|`""`| StringLiteral |
-| 119 |`'pull_request', getObjKey(getObjKey(on, 'pull_request'), 'paths')]`|`[]`| ArrayDeclaration |
+| 119 |`'pull*request', getObjKey(getObjKey(on, 'pull_request'), 'paths')]`|`[]`| ArrayDeclaration |
 | 119 |`pull_request',`|`""`| StringLiteral |
 | 119 |`pull_request')`|`""`| StringLiteral |
 | 119 |`paths')`|`""`| StringLiteral |
@@ -58637,7 +58637,7 @@ verifyOnePathsGlob(relPath, eventName, raw, passFn, failFn, cwd)
 }`|`{}`| BlockStatement |
 | 136 |`
 return obj && typeof obj === 'object' && !Array.isArray(obj)
-? /\*_ @type {Record<string, unknown>} _/ (obj)[key]
+? /\** @type {Record<string, unknown>} \_/ (obj)[key]
 : undefined
 }`|`{}`| BlockStatement |
 | 137 |`bj && typeof obj === 'object' && !Array.isArray(obj)`|`false`| ConditionalExpression |
@@ -60974,7 +60974,7 @@ test('без utils-каталогів → exit 0 (перевірку пропу�
 | 100 | `iolations.length === 0)` | `false` | ConditionalExpression |
 | 100 | `iolations.length === 0)` | `violations.length !== 0` | EqualityOperator |
 | 100 | `
-    passFn(`${label}jsconfig.json відповідає js_run.jsconfig (rego)`)
+    passFn(`${label}jsconfig.json відповідає js*run.jsconfig (rego)`)
     return
   }` | `{}` | BlockStatement |
 | 101 | `${label}jsconfig.json відповідає js_run.jsconfig (rego)`)`| ```` | StringLiteral |
@@ -61069,7 +61069,7 @@ passFn(`${label}немає імпортів '@nitra/bunyan' / 'bunyan' у дже
 | 363 | `nvViolations === 0)` | `envViolations !== 0` | EqualityOperator |
 | 363 | `
     passFn(
-      `${label}немає прямого process.env._; усі env._ з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`
+      `${label}немає прямого process.env.*; усі env.\_ з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`
     )
   }` | `{}` | BlockStatement |
 | 365 | `${label}немає прямого process.env.*; усі env.* з '@nitra/check-env' закриті checkEnv(['…']) (або '// @nitra/cursor ignore-next-line checkEnv')`` | ```` | StringLiteral |
@@ -61559,7 +61559,7 @@ return reporter.getExitCode()
 | 260 |`[0] === "'" `|`s[0] !== "'"`| EqualityOperator |
 | 260 |`'" `|`""`| StringLiteral |
 | 271 |`
-for (const line of doc.split(YAML_LINE_SPLIT_RE)) {
+for (const line of doc.split(YAML*LINE_SPLIT_RE)) {
 const m = line.match(TYPE_FIELD_RE)
 if (m) {
 const raw = trimYamlScalarQuotes(m[1])
@@ -61800,699 +61800,699 @@ sensitivity: 'base'
 | 593 | `p, i) => kustomizationPatchLabel(p, i))` | `() => undefined` | ArrowFunction |
 | 593 | `, ')` | `""` | StringLiteral |
 | 594 | `, ')` | `""` | StringLiteral |
-| 599 | `^\/[^\s]*$|^$|^\/$/u`|`/\/[^\s]_$|^$|^\/$/u`| Regex |
-| 599 |`^\/[^\s]_$|^$|^\/$/u` | `/^\/[^\s]*|^$|^\/$/u` | Regex |
-| 599 | `^\/[^\s]*$|^$|^\/$/u`|`/^\/[^\s]_$|$|^\/$/u`| Regex |
+| 599 | `^\/[^\s]*$|^$|^\/$/u`|`/\/[^\s]*$|^$|^\/$/u`| Regex |
+| 599 |`^\/[^\s]_$|^$|^\/$/u`|`/^\/[^\s]_|^$|^\/$/u`| Regex |
+| 599 |`^\/[^\s]_$|^$|^\/$/u`|`/^\/[^\s]_$|$|^\/$/u`| Regex |
 | 599 |`^\/[^\s]_$|^$|^\/$/u` | `/^\/[^\s]*$|^|^\/$/u` | Regex |
 | 599 | `^\/[^\s]*$|^$|^\/$/u`|`/^\/[^\s]_$|^$|\/$/u`| Regex |
-| 599 |`^\/[^\s]_$|^$|^\/$/u` | `/^\/[^\s]*$|^$|^\//u` | Regex |
-| 608 | ` < paths.length;` | `i <= paths.length` | EqualityOperator |
-| 611 | `aths[i] === paths[j])` | `false` | ConditionalExpression |
-| 611 | `alse` | `true` | BooleanLiteral |
-| 637 | `tem === null || typeof item !== 'object' || Array.isArray(item))` | `false` | ConditionalExpression |
-| 637 | `tem === null || typeof item !== 'object' || Array.isArray(item))` | `(item === null || typeof item !== 'object') && Array.isArray(item)` | LogicalOperator |
-| 637 | `tem === null || typeof item !== 'object' ` | `false` | ConditionalExpression |
-| 637 | `tem === null || typeof item !== 'object' ` | `item === null && typeof item !== 'object'` | LogicalOperator |
-| 637 | `tem === null ` | `false` | ConditionalExpression |
-| 637 | `ypeof item !== 'object' ` | `false` | ConditionalExpression |
-| 639 | `ypeof rec.op !== 'string' || typeof rec.path !== 'string')` | `false` | ConditionalExpression |
-| 639 | `ypeof rec.op !== 'string' || typeof rec.path !== 'string')` | `typeof rec.op !== 'string' && typeof rec.path !== 'string'` | LogicalOperator |
-| 639 | `ypeof rec.op !== 'string' ` | `false` | ConditionalExpression |
-| 639 | `ypeof rec.path !== 'string')` | `false` | ConditionalExpression |
-| 656 | `ps.length < 2)` | `false` | ConditionalExpression |
-| 659 | `JSON_POINTER_RE.test(o.path))` | `false` | ConditionalExpression |
-| 668 | ` sensitivity: 'base' })` | `{}` | ObjectLiteral |
-| 669 | `, ')` | `""` | StringLiteral |
-| 669 | `, ')` | `""` | StringLiteral |
-| 682 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `false` | ConditionalExpression |
-| 682 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `(obj === null || typeof obj !== 'object') && Array.isArray(obj)` | LogicalOperator |
-| 682 | `bj === null || typeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 682 | `bj === null || typeof obj !== 'object' ` | `obj === null && typeof obj !== 'object'` | LogicalOperator |
-| 682 | `bj === null ` | `false` | ConditionalExpression |
-| 682 | `ypeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 694 | `rray.isArray(patches))` | `false` | ConditionalExpression |
-| 694 | `
-    for (const p of patches) {
-      if (
-        p !== null &&
-        typeof p === 'object' &&
-        !Array.isArray(p) &&
-        typeof p.path === 'string' &&
-        p.path.trim() !== ''
-      ) {
-        out.push(p.path.trim())
-      }
-    }
-  }` | `{}` | BlockStatement |
-| 695 | `
-      if (
-        p !== null &&
-        typeof p === 'object' &&
-        !Array.isArray(p) &&
-        typeof p.path === 'string' &&
-        p.path.trim() !== ''
-      ) {
-        out.push(p.path.trim())
-      }
-    }` | `{}` | BlockStatement |
-| 697 | ` !== null &&
-        typeof p === 'object' &&
-        !Array.isArray(p) &&
-        typeof p.path === 'string' &&
-        p.path.trim() !== ''` | `false` | ConditionalExpression |
-| 697 | ` !== null &&
-        typeof p === 'object' &&
-        !Array.isArray(p) ` | `true` | ConditionalExpression |
-| 697 | ` !== null &&
-        typeof p === 'object' &&
-        !Array.isArray(p) ` | `p !== null && typeof p === 'object' || !Array.isArray(p)` | LogicalOperator |
-| 697 | ` !== null &&
-        typeof p === 'object' ` | `true` | ConditionalExpression |
-| 697 | ` !== null &&
-        typeof p === 'object' ` | `p !== null || typeof p === 'object'` | LogicalOperator |
-| 697 | ` !== null ` | `true` | ConditionalExpression |
-| 697 | ` !== null ` | `p === null` | EqualityOperator |
-| 698 | `ypeof p === 'object' ` | `true` | ConditionalExpression |
-| 698 | `ypeof p === 'object' ` | `typeof p !== 'object'` | EqualityOperator |
-| 698 | `object' ` | `""` | StringLiteral |
-| 699 | `Array.isArray(p) ` | `Array.isArray(p)` | BooleanLiteral |
-| 700 | `string' ` | `""` | StringLiteral |
-| 717 | `tem !== null && typeof item === 'object' && !Array.isArray(item))` | `true` | ConditionalExpression |
-| 717 | `tem !== null && typeof item === 'object' && !Array.isArray(item))` | `item !== null && typeof item === 'object' || !Array.isArray(item)` | LogicalOperator |
-| 717 | `tem !== null && typeof item === 'object' ` | `true` | ConditionalExpression |
-| 717 | `tem !== null && typeof item === 'object' ` | `item !== null || typeof item === 'object'` | LogicalOperator |
-| 717 | `tem !== null ` | `true` | ConditionalExpression |
-| 717 | `ypeof item === 'object' ` | `true` | ConditionalExpression |
-| 719 | `ypeof pth === 'string' && pth.trim() !== '')` | `true` | ConditionalExpression |
-| 719 | `ypeof pth === 'string' && pth.trim() !== '')` | `typeof pth === 'string' || pth.trim() !== ''` | LogicalOperator |
-| 719 | `ypeof pth === 'string' ` | `true` | ConditionalExpression |
-| 719 | `th.trim() !== '')` | `true` | ConditionalExpression |
-| 719 | `th.trim() ` | `pth` | MethodExpression |
-| 719 | `')` | `"Stryker was here!"` | StringLiteral |
-| 720 | `th.trim())` | `pth` | MethodExpression |
-| 733 | `ypeof c === 'string' && c.trim() !== '')` | `true` | ConditionalExpression |
-| 733 | `ypeof c === 'string' && c.trim() !== '')` | `typeof c === 'string' || c.trim() !== ''` | LogicalOperator |
-| 733 | `ypeof c === 'string' ` | `true` | ConditionalExpression |
-| 733 | `.trim() !== '')` | `true` | ConditionalExpression |
-| 733 | `.trim() ` | `c` | MethodExpression |
-| 733 | `')` | `"Stryker was here!"` | StringLiteral |
-| 734 | `.trim())` | `c` | MethodExpression |
-| 747 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `false` | ConditionalExpression |
-| 747 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `(obj === null || typeof obj !== 'object') && Array.isArray(obj)` | LogicalOperator |
-| 747 | `bj === null || typeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 747 | `bj === null || typeof obj !== 'object' ` | `obj === null && typeof obj !== 'object'` | LogicalOperator |
-| 747 | `bj === null ` | `false` | ConditionalExpression |
-| 747 | `ypeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 766 | `
-  const target = resolve(kustDir, r.trim())
-  if (!resolvedFilePathIsUnderRoot(rootNorm, target)) {
-    fail(
-      `${rel}: посилання «${r}» виходить за межі репозиторію (resolve: ${(
+| 599 |`^\/[^\s]_$|^$|^\/$/u`|`/^\/[^\s]_$|^$|^\//u`| Regex |
+| 608 |` < paths.length;`|`i <= paths.length`| EqualityOperator |
+| 611 |`aths[i] === paths[j])`|`false`| ConditionalExpression |
+| 611 |`alse`|`true`| BooleanLiteral |
+| 637 |`tem === null || typeof item !== 'object' || Array.isArray(item))`|`false`| ConditionalExpression |
+| 637 |`tem === null || typeof item !== 'object' || Array.isArray(item))`|`(item === null || typeof item !== 'object') && Array.isArray(item)`| LogicalOperator |
+| 637 |`tem === null || typeof item !== 'object' `|`false`| ConditionalExpression |
+| 637 |`tem === null || typeof item !== 'object' `|`item === null && typeof item !== 'object'`| LogicalOperator |
+| 637 |`tem === null `|`false`| ConditionalExpression |
+| 637 |`ypeof item !== 'object' `|`false`| ConditionalExpression |
+| 639 |`ypeof rec.op !== 'string' || typeof rec.path !== 'string')`|`false`| ConditionalExpression |
+| 639 |`ypeof rec.op !== 'string' || typeof rec.path !== 'string')`|`typeof rec.op !== 'string' && typeof rec.path !== 'string'`| LogicalOperator |
+| 639 |`ypeof rec.op !== 'string' `|`false`| ConditionalExpression |
+| 639 |`ypeof rec.path !== 'string')`|`false`| ConditionalExpression |
+| 656 |`ps.length < 2)`|`false`| ConditionalExpression |
+| 659 |`JSON_POINTER_RE.test(o.path))`|`false`| ConditionalExpression |
+| 668 |` sensitivity: 'base' })`|`{}`| ObjectLiteral |
+| 669 |`, ')`|`""`| StringLiteral |
+| 669 |`, ')`|`""`| StringLiteral |
+| 682 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`false`| ConditionalExpression |
+| 682 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`(obj === null || typeof obj !== 'object') && Array.isArray(obj)`| LogicalOperator |
+| 682 |`bj === null || typeof obj !== 'object' `|`false`| ConditionalExpression |
+| 682 |`bj === null || typeof obj !== 'object' `|`obj === null && typeof obj !== 'object'`| LogicalOperator |
+| 682 |`bj === null `|`false`| ConditionalExpression |
+| 682 |`ypeof obj !== 'object' `|`false`| ConditionalExpression |
+| 694 |`rray.isArray(patches))`|`false`| ConditionalExpression |
+| 694 |`
+for (const p of patches) {
+if (
+p !== null &&
+typeof p === 'object' &&
+!Array.isArray(p) &&
+typeof p.path === 'string' &&
+p.path.trim() !== ''
+) {
+out.push(p.path.trim())
+}
+}
+}`|`{}`| BlockStatement |
+| 695 |`
+if (
+p !== null &&
+typeof p === 'object' &&
+!Array.isArray(p) &&
+typeof p.path === 'string' &&
+p.path.trim() !== ''
+) {
+out.push(p.path.trim())
+}
+}`|`{}`| BlockStatement |
+| 697 |` !== null &&
+typeof p === 'object' &&
+!Array.isArray(p) &&
+typeof p.path === 'string' &&
+p.path.trim() !== ''`|`false`| ConditionalExpression |
+| 697 |` !== null &&
+typeof p === 'object' &&
+!Array.isArray(p) `|`true`| ConditionalExpression |
+| 697 |` !== null &&
+typeof p === 'object' &&
+!Array.isArray(p) `|`p !== null && typeof p === 'object' || !Array.isArray(p)`| LogicalOperator |
+| 697 |` !== null &&
+typeof p === 'object' `|`true`| ConditionalExpression |
+| 697 |` !== null &&
+typeof p === 'object' `|`p !== null || typeof p === 'object'`| LogicalOperator |
+| 697 |` !== null `|`true`| ConditionalExpression |
+| 697 |` !== null `|`p === null`| EqualityOperator |
+| 698 |`ypeof p === 'object' `|`true`| ConditionalExpression |
+| 698 |`ypeof p === 'object' `|`typeof p !== 'object'`| EqualityOperator |
+| 698 |`object' `|`""`| StringLiteral |
+| 699 |`Array.isArray(p) `|`Array.isArray(p)`| BooleanLiteral |
+| 700 |`string' `|`""`| StringLiteral |
+| 717 |`tem !== null && typeof item === 'object' && !Array.isArray(item))`|`true`| ConditionalExpression |
+| 717 |`tem !== null && typeof item === 'object' && !Array.isArray(item))`|`item !== null && typeof item === 'object' || !Array.isArray(item)`| LogicalOperator |
+| 717 |`tem !== null && typeof item === 'object' `|`true`| ConditionalExpression |
+| 717 |`tem !== null && typeof item === 'object' `|`item !== null || typeof item === 'object'`| LogicalOperator |
+| 717 |`tem !== null `|`true`| ConditionalExpression |
+| 717 |`ypeof item === 'object' `|`true`| ConditionalExpression |
+| 719 |`ypeof pth === 'string' && pth.trim() !== '')`|`true`| ConditionalExpression |
+| 719 |`ypeof pth === 'string' && pth.trim() !== '')`|`typeof pth === 'string' || pth.trim() !== ''`| LogicalOperator |
+| 719 |`ypeof pth === 'string' `|`true`| ConditionalExpression |
+| 719 |`th.trim() !== '')`|`true`| ConditionalExpression |
+| 719 |`th.trim() `|`pth`| MethodExpression |
+| 719 |`')`|`"Stryker was here!"`| StringLiteral |
+| 720 |`th.trim())`|`pth`| MethodExpression |
+| 733 |`ypeof c === 'string' && c.trim() !== '')`|`true`| ConditionalExpression |
+| 733 |`ypeof c === 'string' && c.trim() !== '')`|`typeof c === 'string' || c.trim() !== ''`| LogicalOperator |
+| 733 |`ypeof c === 'string' `|`true`| ConditionalExpression |
+| 733 |`.trim() !== '')`|`true`| ConditionalExpression |
+| 733 |`.trim() `|`c`| MethodExpression |
+| 733 |`')`|`"Stryker was here!"`| StringLiteral |
+| 734 |`.trim())`|`c`| MethodExpression |
+| 747 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`false`| ConditionalExpression |
+| 747 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`(obj === null || typeof obj !== 'object') && Array.isArray(obj)`| LogicalOperator |
+| 747 |`bj === null || typeof obj !== 'object' `|`false`| ConditionalExpression |
+| 747 |`bj === null || typeof obj !== 'object' `|`obj === null && typeof obj !== 'object'`| LogicalOperator |
+| 747 |`bj === null `|`false`| ConditionalExpression |
+| 747 |`ypeof obj !== 'object' `|`false`| ConditionalExpression |
+| 766 |`
+const target = resolve(kustDir, r.trim())
+if (!resolvedFilePathIsUnderRoot(rootNorm, target)) {
+fail(
+`${rel}: посилання «${r}» виходить за межі репозиторію (resolve: ${(
         relative(rootNorm, target) || target
       ).replaceAll('\\', '/')}) (k8s.mdc)`
-    )
-    return
-  }
-  /**
-  @type {import('node:fs').Stats | undefined}
-   */
-  let st
-  try {
-    st = await stat(target)
-  } catch {
-    st = undefined
-  }
-  if (st === undefined) {
-    fail(`${rel}: посилання «${r}» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)`)
-  } else if (st.isFile()) {
-    if (!YAML_EXTENSION_RE.test(target)) {
-      fail(
-        `${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
-      )
-    }
-  } else if (!st.isDirectory()) {
-    fail(`${rel}: «${r}» — ні файл, ні каталог (k8s.mdc)`)
-  }
-}` | `{}` | BlockStatement |
-| 767 | `.trim())` | `r` | MethodExpression |
-| 768 | `resolvedFilePathIsUnderRoot(rootNorm, target))` | `resolvedFilePathIsUnderRoot(rootNorm, target)` | BooleanLiteral |
-| 768 | `resolvedFilePathIsUnderRoot(rootNorm, target))` | `true` | ConditionalExpression |
-| 768 | `resolvedFilePathIsUnderRoot(rootNorm, target))` | `false` | ConditionalExpression |
-| 780 | `
-    st = await stat(target)
-  } ` | `{}` | BlockStatement |
-| 785 | `t === undefined)` | `true` | ConditionalExpression |
-| 785 | `t === undefined)` | `false` | ConditionalExpression |
-| 785 | `t === undefined)` | `st !== undefined` | EqualityOperator |
-| 787 | `t.isFile())` | `true` | ConditionalExpression |
-| 787 | `t.isFile())` | `false` | ConditionalExpression |
-| 787 | `
-    if (!YAML_EXTENSION_RE.test(target)) {
-      fail(
-        `${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
-      )
-    }
-  } ` | `{}` | BlockStatement |
-| 788 | `YAML_EXTENSION_RE.test(target))` | `YAML_EXTENSION_RE.test(target)` | BooleanLiteral |
-| 788 | `YAML_EXTENSION_RE.test(target))` | `true` | ConditionalExpression |
-| 788 | `YAML_EXTENSION_RE.test(target))` | `false` | ConditionalExpression |
-| 806 | `
-  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-  const kust = await readFirstYamlObject(kustAbs)
-  if (kust === null || kust.kind !== 'Kustomization') {
-    return
-  }
-  const refs = kustomizePathRefsForExistenceCheck(kust)
-  const kustDir = dirname(resolve(kustAbs))
-  for (const r of refs) {
-    if (typeof r === 'string' && !r.includes('://') && r.trim() !== '') {
-      await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
-    }
-  }
-}` | `{}` | BlockStatement |
-| 807 | `elative(root, kustAbs) || kustAbs)` | `relative(root, kustAbs) && kustAbs` | LogicalOperator |
-| 807 | `\\',` | `""` | StringLiteral |
-| 807 | `/')` | `""` | StringLiteral |
-| 809 | `ust === null || kust.kind !== 'Kustomization')` | `true` | ConditionalExpression |
-| 809 | `ust === null || kust.kind !== 'Kustomization')` | `false` | ConditionalExpression |
-| 809 | `ust === null || kust.kind !== 'Kustomization')` | `kust === null && kust.kind !== 'Kustomization'` | LogicalOperator |
-| 809 | `ust === null ` | `false` | ConditionalExpression |
-| 809 | `ust === null ` | `kust !== null` | EqualityOperator |
-| 809 | `ust.kind !== 'Kustomization')` | `false` | ConditionalExpression |
-| 809 | `ust.kind !== 'Kustomization')` | `kust.kind === 'Kustomization'` | EqualityOperator |
-| 809 | `Kustomization')` | `""` | StringLiteral |
-| 814 | `
-    if (typeof r === 'string' && !r.includes('://') && r.trim() !== '') {
-      await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
-    }
-  }` | `{}` | BlockStatement |
-| 815 | `ypeof r === 'string' && !r.includes('://') && r.trim() !== '')` | `true` | ConditionalExpression |
-| 815 | `ypeof r === 'string' && !r.includes('://') && r.trim() !== '')` | `false` | ConditionalExpression |
-| 815 | `ypeof r === 'string' && !r.includes('://') && r.trim() !== '')` | `typeof r === 'string' && !r.includes('://') || r.trim() !== ''` | LogicalOperator |
-| 815 | `ypeof r === 'string' && !r.includes('://') ` | `true` | ConditionalExpression |
-| 815 | `ypeof r === 'string' && !r.includes('://') ` | `typeof r === 'string' || !r.includes('://')` | LogicalOperator |
-| 815 | `ypeof r === 'string' ` | `true` | ConditionalExpression |
-| 815 | `ypeof r === 'string' ` | `typeof r !== 'string'` | EqualityOperator |
-| 815 | `string' ` | `""` | StringLiteral |
-| 815 | `r.includes('://') ` | `r.includes('://')` | BooleanLiteral |
-| 815 | `://')` | `""` | StringLiteral |
-| 815 | `.trim() !== '')` | `true` | ConditionalExpression |
-| 815 | `.trim() !== '')` | `r.trim() === ''` | EqualityOperator |
-| 815 | `.trim() ` | `r` | MethodExpression |
-| 815 | `')` | `"Stryker was here!"` | StringLiteral |
-| 815 | `
-      await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
-    }` | `{}` | BlockStatement |
-| 828 | `
-  const rootNorm = resolve(root)
-  for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
-    await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
-  }
-}` | `{}` | BlockStatement |
-| 830 | `amlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml'))` | `yamlFilesAbs` | MethodExpression |
-| 830 | ` => basename(p).toLowerCase() === 'kustomization.yaml')` | `() => undefined` | ArrowFunction |
-| 830 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `true` | ConditionalExpression |
-| 830 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `false` | ConditionalExpression |
-| 830 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `basename(p).toLowerCase() !== 'kustomization.yaml'` | EqualityOperator |
-| 830 | `asename(p).toLowerCase() ` | `basename(p).toUpperCase()` | MethodExpression |
-| 830 | `kustomization.yaml')` | `""` | StringLiteral |
-| 830 | `
-    await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
-  }` | `{}` | BlockStatement |
-| 848 | `ypeof ref === 'string' && !ref.includes('://'))` | `true` | ConditionalExpression |
-| 848 | `ypeof ref === 'string' && !ref.includes('://'))` | `typeof ref === 'string' || !ref.includes('://')` | LogicalOperator |
-| 848 | `ypeof ref === 'string' ` | `true` | ConditionalExpression |
-| 853 | `ypeof ref === 'string' && !ref.includes('://'))` | `true` | ConditionalExpression |
-| 853 | `ypeof ref === 'string' && !ref.includes('://'))` | `typeof ref === 'string' || !ref.includes('://')` | LogicalOperator |
-| 853 | `ypeof ref === 'string' ` | `true` | ConditionalExpression |
-| 855 | `asename(abs).toLowerCase() === 'svc.yaml')` | `true` | ConditionalExpression |
-| 873 | `
-  const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
-  let raw
-  try {
-    raw = await readFile(kustAbs, 'utf8')
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    fail(`${rel}: не вдалося прочитати для перевірки svc.yaml/svc-hl.yaml у kustomization (${msg})`)
-    return
-  }
-  const lines = toLines(raw)
-  const body = yamlBodyAfterModeline(lines)
-  /**
-  @type {import('yaml').Document[] | undefined}
-   */
-  let docs
-  try {
-    docs = parseAllDocuments(body)
-  } catch {
-    fail(`${rel}: не вдалося розібрати YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
-    return
-  }
-  const first = docs[0]?.toJSON()
-  if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
-    return
-  }
-  const pathRefs = pathsFromKustomizationObject(first)
-  const kustDir = dirname(kustAbs)
-  const v = kustomizationSvcYamlMissingSvcHlViolation(kustDir, pathRefs)
-  if (v !== null) {
-    fail(`${rel}: ${v}`)
-  }
-}` | `{}` | BlockStatement |
-| 874 | `elative(root, kustAbs) || kustAbs)` | `relative(root, kustAbs) && kustAbs` | LogicalOperator |
-| 874 | `\\',` | `""` | StringLiteral |
-| 874 | `/')` | `""` | StringLiteral |
-| 895 | `ocs[0]?.toJSON(` | `docs[0].toJSON` | OptionalChaining |
-| 896 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `true` | ConditionalExpression |
-| 896 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `false` | ConditionalExpression |
-| 896 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)` | LogicalOperator |
-| 896 | `irst === null || first === undefined || typeof first !== 'object' ` | `false` | ConditionalExpression |
-| 896 | `irst === null || first === undefined || typeof first !== 'object' ` | `(first === null || first === undefined) && typeof first !== 'object'` | LogicalOperator |
-| 896 | `irst === null || first === undefined ` | `false` | ConditionalExpression |
-| 896 | `irst === null || first === undefined ` | `first === null && first === undefined` | LogicalOperator |
-| 896 | `irst === null ` | `false` | ConditionalExpression |
-| 896 | `irst === null ` | `first !== null` | EqualityOperator |
-| 896 | `irst === undefined ` | `false` | ConditionalExpression |
-| 896 | `irst === undefined ` | `first !== undefined` | EqualityOperator |
-| 896 | `ypeof first !== 'object' ` | `false` | ConditionalExpression |
-| 896 | `ypeof first !== 'object' ` | `typeof first === 'object'` | EqualityOperator |
-| 896 | `object' ` | `""` | StringLiteral |
-| 902 | ` !== null)` | `true` | ConditionalExpression |
-| 902 | ` !== null)` | `false` | ConditionalExpression |
-| 902 | ` !== null)` | `v === null` | EqualityOperator |
-| 914 | `
-  for (const kustAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
-    await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
-  }
-}` | `{}` | BlockStatement |
-| 915 | `amlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml'))` | `yamlFiles` | MethodExpression |
-| 915 | ` => basename(p).toLowerCase() === 'kustomization.yaml')` | `() => undefined` | ArrowFunction |
-| 915 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `true` | ConditionalExpression |
-| 915 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `false` | ConditionalExpression |
-| 915 | `asename(p).toLowerCase() === 'kustomization.yaml')` | `basename(p).toLowerCase() !== 'kustomization.yaml'` | EqualityOperator |
-| 915 | `asename(p).toLowerCase() ` | `basename(p).toUpperCase()` | MethodExpression |
-| 915 | `kustomization.yaml')` | `""` | StringLiteral |
-| 915 | `
-    await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
-  }` | `{}` | BlockStatement |
-| 926 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `false` | ConditionalExpression |
-| 926 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `(obj === null || typeof obj !== 'object') && Array.isArray(obj)` | LogicalOperator |
-| 926 | `bj === null || typeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 926 | `bj === null || typeof obj !== 'object' ` | `obj === null && typeof obj !== 'object'` | LogicalOperator |
-| 926 | `bj === null ` | `false` | ConditionalExpression |
-| 926 | `ypeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 931 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 950 | `ypeof apiVersion !== 'string')` | `false` | ConditionalExpression |
-| 953 | `piVersion.trim()` | `apiVersion` | MethodExpression |
-| 954 | ` === '')` | `false` | ConditionalExpression |
-| 954 | `')` | `"Stryker was here!"` | StringLiteral |
-| 972 | `s !== undefined &&
-    ls !== null &&
-    ls !== '' &&
-    ((typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0) ||
-      (typeof ls === 'string' && ls.trim() !== ''))` | `ls !== undefined && ls !== null && ls !== '' || typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0 || typeof ls === 'string' && ls.trim() !== ''` | LogicalOperator |
-| 972 | `s !== undefined &&
-    ls !== null &&
-    ls !== '' ` | `true` | ConditionalExpression |
-| 972 | `s !== undefined &&
-    ls !== null &&
-    ls !== '' ` | `ls !== undefined && ls !== null || ls !== ''` | LogicalOperator |
-| 972 | `s !== undefined &&
-    ls !== null ` | `true` | ConditionalExpression |
-| 972 | `s !== undefined &&
-    ls !== null ` | `ls !== undefined || ls !== null` | LogicalOperator |
-| 972 | `s !== undefined ` | `true` | ConditionalExpression |
-| 973 | `s !== null ` | `true` | ConditionalExpression |
-| 974 | `s !== '' ` | `true` | ConditionalExpression |
-| 974 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 975 | `typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0) ||
-      (typeof ls === 'string' && ls.trim() !== ''))` | `true` | ConditionalExpression |
-| 975 | `ypeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0)` | `false` | ConditionalExpression |
-| 975 | `ypeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0)` | `typeof ls === 'object' && !Array.isArray(ls) || Object.keys(ls).length > 0` | LogicalOperator |
-| 975 | `ypeof ls === 'object' && !Array.isArray(ls) ` | `true` | ConditionalExpression |
-| 975 | `ypeof ls === 'object' && !Array.isArray(ls) ` | `typeof ls === 'object' || !Array.isArray(ls)` | LogicalOperator |
-| 975 | `ypeof ls === 'object' ` | `true` | ConditionalExpression |
-| 975 | `ypeof ls === 'object' ` | `typeof ls !== 'object'` | EqualityOperator |
-| 975 | `object' ` | `""` | StringLiteral |
-| 976 | `ypeof ls === 'string' && ls.trim() !== '')` | `typeof ls === 'string' || ls.trim() !== ''` | LogicalOperator |
-| 976 | `ypeof ls === 'string' ` | `true` | ConditionalExpression |
-| 976 | `s.trim() !== '')` | `true` | ConditionalExpression |
-| 976 | `s.trim() ` | `ls` | MethodExpression |
-| 976 | `')` | `"Stryker was here!"` | StringLiteral |
-| 982 | `sel !== undefined &&
-    asel !== null &&
-    asel !== '' &&
-    ((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
-      (typeof asel === 'string' && asel.trim() !== ''))` | `false` | ConditionalExpression |
-| 982 | `sel !== undefined &&
-    asel !== null &&
-    asel !== '' &&
-    ((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
-      (typeof asel === 'string' && asel.trim() !== ''))` | `asel !== undefined && asel !== null && asel !== '' || typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0 || typeof asel === 'string' && asel.trim() !== ''` | LogicalOperator |
-| 982 | `sel !== undefined &&
-    asel !== null &&
-    asel !== '' ` | `true` | ConditionalExpression |
-| 982 | `sel !== undefined &&
-    asel !== null &&
-    asel !== '' ` | `asel !== undefined && asel !== null || asel !== ''` | LogicalOperator |
-| 982 | `sel !== undefined &&
-    asel !== null ` | `true` | ConditionalExpression |
-| 982 | `sel !== undefined &&
-    asel !== null ` | `asel !== undefined || asel !== null` | LogicalOperator |
-| 982 | `sel !== undefined ` | `true` | ConditionalExpression |
-| 982 | `sel !== undefined ` | `asel === undefined` | EqualityOperator |
-| 999 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `false` | ConditionalExpression |
-| 999 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `(target === null || typeof target !== 'object') && Array.isArray(target)` | LogicalOperator |
-| 999 | `arget === null || typeof target !== 'object' ` | `false` | ConditionalExpression |
-| 999 | `arget === null || typeof target !== 'object' ` | `target === null && typeof target !== 'object'` | LogicalOperator |
-| 999 | `arget === null ` | `false` | ConditionalExpression |
-| 999 | `ypeof target !== 'object' ` | `false` | ConditionalExpression |
-| 1005 | `ind.trim() === '' ` | `false` | ConditionalExpression |
-| 1005 | `ind.trim() ` | `kind` | MethodExpression |
-| 1005 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1005 | `ame.trim() === '')` | `false` | ConditionalExpression |
-| 1005 | `ame.trim() ` | `name` | MethodExpression |
-| 1005 | `')` | `"Stryker was here!"` | StringLiteral |
-| 1018 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `false` | ConditionalExpression |
-| 1018 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `(target === null || typeof target !== 'object') && Array.isArray(target)` | LogicalOperator |
-| 1018 | `arget === null || typeof target !== 'object' ` | `false` | ConditionalExpression |
-| 1018 | `arget === null || typeof target !== 'object' ` | `target === null && typeof target !== 'object'` | LogicalOperator |
-| 1018 | `arget === null ` | `false` | ConditionalExpression |
-| 1018 | `ypeof target !== 'object' ` | `false` | ConditionalExpression |
-| 1024 | `ypeof tk !== 'string' || typeof tn !== 'string')` | `false` | ConditionalExpression |
-| 1024 | `ypeof tk !== 'string' || typeof tn !== 'string')` | `typeof tk !== 'string' && typeof tn !== 'string'` | LogicalOperator |
-| 1024 | `ypeof tk !== 'string' ` | `false` | ConditionalExpression |
-| 1024 | `ypeof tn !== 'string')` | `false` | ConditionalExpression |
-| 1027 | `k.trim() !== res.kind ` | `false` | ConditionalExpression |
-| 1027 | `k.trim() ` | `tk` | MethodExpression |
-| 1027 | `n.trim() ` | `tn` | MethodExpression |
-| 1031 | `ypeof tgtGroup === 'string' && tgtGroup.trim() !== '' && res.group !== tgtGroup.trim())` | `false` | ConditionalExpression |
-| 1031 | `string' ` | `""` | StringLiteral |
-| 1031 | `gtGroup.trim() !== '' ` | `true` | ConditionalExpression |
-| 1031 | `gtGroup.trim() !== '' ` | `tgtGroup.trim() === ''` | EqualityOperator |
-| 1031 | `gtGroup.trim() ` | `tgtGroup` | MethodExpression |
-| 1031 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1031 | `gtGroup.trim())` | `tgtGroup` | MethodExpression |
-| 1035 | `ypeof tgtVersion === 'string' && tgtVersion.trim() !== '' && res.version !== tgtVersion.trim())` | `false` | ConditionalExpression |
-| 1035 | `string' ` | `""` | StringLiteral |
-| 1035 | `gtVersion.trim() !== '' ` | `true` | ConditionalExpression |
-| 1035 | `gtVersion.trim() !== '' ` | `tgtVersion.trim() === ''` | EqualityOperator |
-| 1035 | `gtVersion.trim() ` | `tgtVersion` | MethodExpression |
-| 1035 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1035 | `gtVersion.trim())` | `tgtVersion` | MethodExpression |
-| 1039 | `gtNs.trim() !== '' ` | `true` | ConditionalExpression |
-| 1039 | `gtNs.trim() ` | `tgtNs` | MethodExpression |
-| 1039 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1039 | `gtNs.trim())` | `tgtNs` | MethodExpression |
-| 1052 | `shouldValidateKustomizePatchTarget(target))` | `false` | ConditionalExpression |
-| 1055 | `atalog.some(res => kustomizePatchTargetMatchesDescriptor(target, res))` | `catalog.every(res => kustomizePatchTargetMatchesDescriptor(target, res))` | MethodExpression |
-| 1066 | `.group === b.group &&
-    a.version === b.version &&
-    a.kind === b.kind ` | `true` | ConditionalExpression |
-| 1066 | `.group === b.group &&
-    a.version === b.version &&
-    a.kind === b.kind ` | `a.group === b.group && a.version === b.version || a.kind === b.kind` | LogicalOperator |
-| 1066 | `.group === b.group &&
-    a.version === b.version ` | `true` | ConditionalExpression |
-| 1066 | `.group === b.group &&
-    a.version === b.version ` | `a.group === b.group || a.version === b.version` | LogicalOperator |
-| 1066 | `.group === b.group ` | `true` | ConditionalExpression |
-| 1067 | `.version === b.version ` | `true` | ConditionalExpression |
-| 1068 | `.kind === b.kind ` | `true` | ConditionalExpression |
-| 1070 | `.namespace === b.namespace` | `true` | ConditionalExpression |
-| 1080 | `eta === null || typeof meta !== 'object' || Array.isArray(meta))` | `false` | ConditionalExpression |
-| 1080 | `eta === null || typeof meta !== 'object' || Array.isArray(meta))` | `(meta === null || typeof meta !== 'object') && Array.isArray(meta)` | LogicalOperator |
-| 1080 | `eta === null || typeof meta !== 'object' ` | `false` | ConditionalExpression |
-| 1080 | `eta === null || typeof meta !== 'object' ` | `meta === null && typeof meta !== 'object'` | LogicalOperator |
-| 1080 | `eta === null ` | `false` | ConditionalExpression |
-| 1080 | `ypeof meta !== 'object' ` | `false` | ConditionalExpression |
-| 1084 | `ypeof n === 'string' && n.trim() !== '' ` | `true` | ConditionalExpression |
-| 1084 | `ypeof n === 'string' && n.trim() !== '' ` | `typeof n === 'string' || n.trim() !== ''` | LogicalOperator |
-| 1084 | `ypeof n === 'string' ` | `true` | ConditionalExpression |
-| 1084 | `.trim() !== '' ` | `true` | ConditionalExpression |
-| 1084 | `.trim() ` | `n` | MethodExpression |
-| 1084 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1084 | `.trim() ` | `n` | MethodExpression |
-| 1092 | `
-  if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
-    return ''
-  }
-  const ns = /** @type {Record<string, unknown>} */ (meta).namespace
-  return typeof ns === 'string' && ns.trim() !== '' ? ns.trim() : ''
-}` | `{}` | BlockStatement |
-| 1093 | `eta === null || typeof meta !== 'object' || Array.isArray(meta))` | `true` | ConditionalExpression |
-| 1093 | `eta === null || typeof meta !== 'object' || Array.isArray(meta))` | `false` | ConditionalExpression |
-| 1093 | `eta === null || typeof meta !== 'object' || Array.isArray(meta))` | `(meta === null || typeof meta !== 'object') && Array.isArray(meta)` | LogicalOperator |
-| 1093 | `eta === null || typeof meta !== 'object' ` | `false` | ConditionalExpression |
-| 1093 | `eta === null || typeof meta !== 'object' ` | `meta === null && typeof meta !== 'object'` | LogicalOperator |
-| 1093 | `eta === null ` | `false` | ConditionalExpression |
-| 1093 | `eta === null ` | `meta !== null` | EqualityOperator |
-| 1093 | `ypeof meta !== 'object' ` | `false` | ConditionalExpression |
-| 1093 | `ypeof meta !== 'object' ` | `typeof meta === 'object'` | EqualityOperator |
-| 1093 | `object' ` | `""` | StringLiteral |
-| 1097 | `ypeof ns === 'string' && ns.trim() !== '' ` | `false` | ConditionalExpression |
-| 1097 | `string' ` | `""` | StringLiteral |
-| 1097 | `s.trim() !== '' ` | `true` | ConditionalExpression |
-| 1097 | `s.trim() !== '' ` | `ns.trim() === ''` | EqualityOperator |
-| 1097 | `s.trim() ` | `ns` | MethodExpression |
-| 1097 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1097 | `s.trim() ` | `ns` | MethodExpression |
-| 1107 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `false` | ConditionalExpression |
-| 1107 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `(obj === null || typeof obj !== 'object') && Array.isArray(obj)` | LogicalOperator |
-| 1107 | `bj === null || typeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 1107 | `bj === null || typeof obj !== 'object' ` | `obj === null && typeof obj !== 'object'` | LogicalOperator |
-| 1107 | `bj === null ` | `false` | ConditionalExpression |
-| 1107 | `ypeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 1111 | `ypeof kindRaw !== 'string' || kindRaw.trim() === '')` | `false` | ConditionalExpression |
-| 1111 | `ypeof kindRaw !== 'string' || kindRaw.trim() === '')` | `typeof kindRaw !== 'string' && kindRaw.trim() === ''` | LogicalOperator |
-| 1111 | `ypeof kindRaw !== 'string' ` | `false` | ConditionalExpression |
-| 1111 | `indRaw.trim() === '')` | `false` | ConditionalExpression |
-| 1111 | `indRaw.trim() ` | `kindRaw` | MethodExpression |
-| 1111 | `')` | `"Stryker was here!"` | StringLiteral |
-| 1114 | `indRaw.trim()` | `kindRaw` | MethodExpression |
-| 1115 | `ind === 'Kustomization')` | `false` | ConditionalExpression |
-| 1115 | `Kustomization')` | `""` | StringLiteral |
-| 1120 | `ame === '')` | `false` | ConditionalExpression |
-| 1120 | `')` | `"Stryker was here!"` | StringLiteral |
-| 1124 | `'` | `"Stryker was here!"` | StringLiteral |
-| 1125 | `isClusterScopedKubernetesKind(kind))` | `true` | ConditionalExpression |
-| 1128 | `ypeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''` | `true` | ConditionalExpression |
-| 1128 | `ypeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''` | `typeof kustomizationDefaultNs === 'string' || kustomizationDefaultNs.trim() !== ''` | LogicalOperator |
-| 1128 | `ypeof kustomizationDefaultNs === 'string' ` | `true` | ConditionalExpression |
-| 1128 | `ustomizationDefaultNs.trim() !== ''` | `true` | ConditionalExpression |
-| 1128 | `ustomizationDefaultNs.trim() ` | `kustomizationDefaultNs` | MethodExpression |
-| 1128 | `'` | `"Stryker was here!"` | StringLiteral |
-| 1129 | `ustomizationDefaultNs.trim()` | `kustomizationDefaultNs` | MethodExpression |
-| 1130 | `'` | `"Stryker was here!"` | StringLiteral |
-| 1149 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `true` | ConditionalExpression |
-| 1149 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `false` | ConditionalExpression |
-| 1149 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `lines.length > 0 || MODELINE_RE.test(lines[0])` | LogicalOperator |
-| 1149 | `ines.length > 0 ` | `true` | ConditionalExpression |
-| 1149 | `ines.length > 0 ` | `lines.length >= 0` | EqualityOperator |
-| 1149 | `ines.length > 0 ` | `lines.length <= 0` | EqualityOperator |
-| 1157 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 1159 | ` !== null && typeof r === 'object' && !Array.isArray(r))` | `true` | ConditionalExpression |
-| 1159 | ` !== null && typeof r === 'object' && !Array.isArray(r))` | `r !== null && typeof r === 'object' || !Array.isArray(r)` | LogicalOperator |
-| 1159 | ` !== null && typeof r === 'object' ` | `true` | ConditionalExpression |
-| 1159 | ` !== null && typeof r === 'object' ` | `r !== null || typeof r === 'object'` | LogicalOperator |
-| 1159 | ` !== null ` | `true` | ConditionalExpression |
-| 1159 | `ypeof r === 'object' ` | `true` | ConditionalExpression |
-| 1177 | `isitedKustomization.has(normKust))` | `false` | ConditionalExpression |
-| 1189 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `true` | ConditionalExpression |
-| 1189 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `false` | ConditionalExpression |
-| 1189 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `lines.length > 0 || MODELINE_RE.test(lines[0])` | LogicalOperator |
-| 1189 | `ines.length > 0 ` | `true` | ConditionalExpression |
-| 1189 | `ines.length > 0 ` | `lines.length >= 0` | EqualityOperator |
-| 1189 | `ines.length > 0 ` | `lines.length <= 0` | EqualityOperator |
-| 1200 | `ocs[0]?.toJSON(` | `docs[0].toJSON` | OptionalChaining |
-| 1201 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `false` | ConditionalExpression |
-| 1201 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)` | LogicalOperator |
-| 1201 | `irst === null || first === undefined || typeof first !== 'object' ` | `false` | ConditionalExpression |
-| 1201 | `irst === null || first === undefined || typeof first !== 'object' ` | `(first === null || first === undefined) && typeof first !== 'object'` | LogicalOperator |
-| 1201 | `irst === null || first === undefined ` | `false` | ConditionalExpression |
-| 1201 | `irst === null || first === undefined ` | `first === null && first === undefined` | LogicalOperator |
-| 1201 | `irst === null ` | `false` | ConditionalExpression |
-| 1201 | `irst === undefined ` | `false` | ConditionalExpression |
-| 1201 | `ypeof first !== 'object' ` | `false` | ConditionalExpression |
-| 1210 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 1217 | `ypeof ref !== 'string' || ref.includes('://'))` | `false` | ConditionalExpression |
-| 1217 | `ypeof ref !== 'string' || ref.includes('://'))` | `typeof ref !== 'string' && ref.includes('://')` | LogicalOperator |
-| 1217 | `ypeof ref !== 'string' ` | `false` | ConditionalExpression |
-| 1221 | `resolvedFilePathIsUnderRoot(rootNorm, resolved))` | `false` | ConditionalExpression |
-| 1233 | `t === undefined)` | `false` | ConditionalExpression |
-| 1236 | `t.isFile() && YAML_EXTENSION_RE.test(resolved))` | `true` | ConditionalExpression |
-| 1236 | `t.isFile() && YAML_EXTENSION_RE.test(resolved))` | `st.isFile() || YAML_EXTENSION_RE.test(resolved)` | LogicalOperator |
-| 1240 | `st.isDirectory())` | `st.isDirectory()` | BooleanLiteral |
-| 1240 | `st.isDirectory())` | `true` | ConditionalExpression |
-| 1240 | `st.isDirectory())` | `false` | ConditionalExpression |
-| 1243 | `kustomization.yaml')` | `""` | StringLiteral |
-| 1243 | `kustomization.yaml')` | `""` | StringLiteral |
-| 1244 | `hildK !== null)` | `true` | ConditionalExpression |
-| 1244 | `hildK !== null)` | `false` | ConditionalExpression |
-| 1244 | `hildK !== null)` | `childK === null` | EqualityOperator |
-| 1244 | `
-      const sub = await collectYamlAbsPathsFromKustomizationTree(childK, rootNorm, visitedKustomization)
-      out.push(...sub)
-    }` | `{}` | BlockStatement |
-| 1268 | `/')` | `""` | StringLiteral |
-| 1269 | `isK8sYamlUnderBaseDirectory(rel))` | `false` | ConditionalExpression |
-| 1271 | `oots.some(o => o.kind === 'Deployment'))` | `roots.every(o => o.kind === 'Deployment')` | MethodExpression |
-| 1286 | `isitedKustomization.has(normKust))` | `false` | ConditionalExpression |
-| 1298 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `true` | ConditionalExpression |
-| 1298 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `false` | ConditionalExpression |
-| 1298 | `ines.length > 0 && MODELINE_RE.test(lines[0]) ` | `lines.length > 0 || MODELINE_RE.test(lines[0])` | LogicalOperator |
-| 1298 | `ines.length > 0 ` | `true` | ConditionalExpression |
-| 1298 | `ines.length > 0 ` | `lines.length >= 0` | EqualityOperator |
-| 1298 | `ines.length > 0 ` | `lines.length <= 0` | EqualityOperator |
-| 1309 | `ocs[0]?.toJSON(` | `docs[0].toJSON` | OptionalChaining |
-| 1310 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `false` | ConditionalExpression |
-| 1310 | `irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))` | `(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)` | LogicalOperator |
-| 1310 | `irst === null || first === undefined || typeof first !== 'object' ` | `false` | ConditionalExpression |
-| 1310 | `irst === null || first === undefined || typeof first !== 'object' ` | `(first === null || first === undefined) && typeof first !== 'object'` | LogicalOperator |
-| 1310 | `irst === null || first === undefined ` | `false` | ConditionalExpression |
-| 1310 | `irst === null || first === undefined ` | `first === null && first === undefined` | LogicalOperator |
-| 1310 | `irst === null ` | `false` | ConditionalExpression |
-| 1310 | `irst === undefined ` | `false` | ConditionalExpression |
-| 1310 | `ypeof first !== 'object' ` | `false` | ConditionalExpression |
-| 1314 | `ypeof rec.namespace === 'string' && rec.namespace.trim() !== '' ` | `false` | ConditionalExpression |
-| 1314 | `string' ` | `""` | StringLiteral |
-| 1314 | `ec.namespace.trim() !== '' ` | `true` | ConditionalExpression |
-| 1314 | `ec.namespace.trim() !== '' ` | `rec.namespace.trim() === ''` | EqualityOperator |
-| 1314 | `ec.namespace.trim() ` | `rec.namespace` | MethodExpression |
-| 1314 | `' ` | `"Stryker was here!"` | StringLiteral |
-| 1314 | `ec.namespace.trim() ` | `rec.namespace` | MethodExpression |
-| 1314 | `'` | `"Stryker was here!"` | StringLiteral |
-| 1321 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 1328 | `ypeof ref !== 'string' || ref.includes('://'))` | `false` | ConditionalExpression |
-| 1328 | `ypeof ref !== 'string' || ref.includes('://'))` | `typeof ref !== 'string' && ref.includes('://')` | LogicalOperator |
-| 1328 | `ypeof ref !== 'string' ` | `false` | ConditionalExpression |
-| 1332 | `resolvedFilePathIsUnderRoot(rootNorm, resolved))` | `false` | ConditionalExpression |
-| 1344 | `t === undefined)` | `false` | ConditionalExpression |
-| 1347 | `t.isFile() && YAML_EXTENSION_RE.test(resolved))` | `st.isFile() || YAML_EXTENSION_RE.test(resolved)` | LogicalOperator |
-| 1351 | ` !== null)` | `true` | ConditionalExpression |
-| 1357 | `st.isDirectory())` | `false` | ConditionalExpression |
-| 1360 | `kustomization.yaml')` | `""` | StringLiteral |
-| 1361 | `hildK !== null)` | `true` | ConditionalExpression |
-| 1380 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `true` | ConditionalExpression |
-| 1380 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `false` | ConditionalExpression |
-| 1380 | `bj === null || typeof obj !== 'object' || Array.isArray(obj))` | `(obj === null || typeof obj !== 'object') && Array.isArray(obj)` | LogicalOperator |
-| 1380 | `bj === null || typeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 1380 | `bj === null || typeof obj !== 'object' ` | `obj === null && typeof obj !== 'object'` | LogicalOperator |
-| 1380 | `bj === null ` | `false` | ConditionalExpression |
-| 1380 | `bj === null ` | `obj !== null` | EqualityOperator |
-| 1380 | `ypeof obj !== 'object' ` | `false` | ConditionalExpression |
-| 1380 | `ypeof obj !== 'object' ` | `typeof obj === 'object'` | EqualityOperator |
-| 1380 | `object' ` | `""` | StringLiteral |
-| 1387 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 1395 | `
-    if (!Array.isArray(arr)) {
-      return
-    }
-    let i = 0
-    for (const item of arr) {
-      i++
-      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-        const it = /** @type {Record<string, unknown>} */ (item)
-        if ('target' in it) {
-          out.push({ section, index: i, target: it.target })
-        }
-      }
-    }
-  }` | `{}` | BlockStatement |
-| 1396 | `Array.isArray(arr))` | `true` | ConditionalExpression |
-| 1400 | `
-      i++
-      if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
-        const it = /** @type {Record<string, unknown>} */ (item)
-        if ('target' in it) {
-          out.push({ section, index: i, target: it.target })
-        }
-      }
-    }` | `{}` | BlockStatement |
-| 1401 | `++` | `i--` | UpdateOperator |
-| 1402 | `tem !== null && typeof item === 'object' && !Array.isArray(item))` | `true` | ConditionalExpression |
-| 1402 | `tem !== null && typeof item === 'object' && !Array.isArray(item))` | `false` | ConditionalExpression |
-| 1402 | `tem !== null && typeof item === 'object' && !Array.isArray(item))` | `item !== null && typeof item === 'object' || !Array.isArray(item)` | LogicalOperator |
-| 1402 | `tem !== null && typeof item === 'object' ` | `true` | ConditionalExpression |
-| 1402 | `tem !== null && typeof item === 'object' ` | `item !== null || typeof item === 'object'` | LogicalOperator |
-| 1402 | `tem !== null ` | `true` | ConditionalExpression |
-| 1402 | `tem !== null ` | `item === null` | EqualityOperator |
-| 1402 | `ypeof item === 'object' ` | `true` | ConditionalExpression |
-| 1402 | `ypeof item === 'object' ` | `typeof item !== 'object'` | EqualityOperator |
-| 1402 | `object' ` | `""` | StringLiteral |
-| 1402 | `Array.isArray(item))` | `Array.isArray(item)` | BooleanLiteral |
-| 1402 | `
-        const it = /** @type {Record<string, unknown>} */ (item)
-        if ('target' in it) {
-          out.push({ section, index: i, target: it.target })
-        }
-      }` | `{}` | BlockStatement |
-| 1404 | `target' in it)` | `true` | ConditionalExpression |
-| 1404 | `target' in it)` | `false` | ConditionalExpression |
-| 1404 | `target' ` | `""` | StringLiteral |
-| 1404 | `
-          out.push({ section, index: i, target: it.target })
-        }` | `{}` | BlockStatement |
-| 1405 | ` section, index: i, target: it.target })` | `{}` | ObjectLiteral |
-| 1410 | `patches',` | `""` | StringLiteral |
-| 1411 | `patchesJson6902',` | `""` | StringLiteral |
-| 1420 | `
-  if (target === null || typeof target !== 'object' || Array.isArray(target)) {
-    return String(target)
-  }
-  const t = /** @type {Record<string, unknown>} */ (target)
-  const parts = []
-  const g = t.group
-  const v = t.version
-  const k = t.kind
-  const n = t.name
-  const ns = t.namespace
-  if (typeof g === 'string' && g.trim() !== '') {
-    parts.push(`group=${g.trim()}`)
-  }
-  if (typeof v === 'string' && v.trim() !== '') {
-    parts.push(`version=${v.trim()}`)
-  }
-  if (typeof k === 'string' && k.trim() !== '') {
-    parts.push(`kind=${k.trim()}`)
-  }
-  if (typeof n === 'string' && n.trim() !== '') {
-    parts.push(`name=${n.trim()}`)
-  }
-  if (typeof ns === 'string' && ns.trim() !== '') {
-    parts.push(`namespace=${ns.trim()}`)
-  }
-  return parts.length > 0 ? parts.join(', ') : JSON.stringify(t)
-}` | `{}` | BlockStatement |
-| 1421 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `true` | ConditionalExpression |
-| 1421 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `false` | ConditionalExpression |
-| 1421 | `arget === null || typeof target !== 'object' || Array.isArray(target))` | `(target === null || typeof target !== 'object') && Array.isArray(target)` | LogicalOperator |
-| 1421 | `arget === null || typeof target !== 'object' ` | `false` | ConditionalExpression |
-| 1421 | `arget === null || typeof target !== 'object' ` | `target === null && typeof target !== 'object'` | LogicalOperator |
-| 1421 | `arget === null ` | `false` | ConditionalExpression |
-| 1421 | `arget === null ` | `target !== null` | EqualityOperator |
-| 1421 | `ypeof target !== 'object' ` | `false` | ConditionalExpression |
-| 1421 | `ypeof target !== 'object' ` | `typeof target === 'object'` | EqualityOperator |
-| 1421 | `object' ` | `""` | StringLiteral |
-| 1425 | `]` | `["Stryker was here"]` | ArrayDeclaration |
-| 1431 | `ypeof g === 'string' && g.trim() !== '')` | `false` | ConditionalExpression |
-| 1431 | `string' ` | `""` | StringLiteral |
-| 1434 | `ypeof v === 'string' && v.trim() !== '')` | `false` | ConditionalExpression |
-| 1434 | `string' ` | `""` | StringLiteral |
-| 1437 | `ypeof k === 'string' && k.trim() !== '')` | `true` | ConditionalExpression |
-| 1437 | `ypeof k === 'string' && k.trim() !== '')` | `false` | ConditionalExpression |
-| 1437 | `ypeof k === 'string' && k.trim() !== '')` | `typeof k === 'string' || k.trim() !== ''` | LogicalOperator |
-| 1437 | `ypeof k === 'string' ` | `true` | ConditionalExpression |
-| 1437 | `ypeof k === 'string' ` | `typeof k !== 'string'` | EqualityOperator |
-| 1437 | `string' ` | `""` | StringLiteral |
-| 1437 | `.trim() !== '')` | `true` | ConditionalExpression |
-| 1437 | `.trim() !== '')` | `k.trim() === ''` | EqualityOperator |
-| 1437 | `.trim() ` | `k` | MethodExpression |
-| 1437 | `')` | `"Stryker was here!"` | StringLiteral |
-| 1437 | `
-    parts.push(`kind=${k.trim()}`)
-  }` | `{}` | BlockStatement |
-| 1438 | `kind=${k.trim()}`)` | ``| StringLiteral |
+)
+return
+}
+/\*\*
+@type {import('node:fs').Stats | undefined}
+_/
+let st
+try {
+st = await stat(target)
+} catch {
+st = undefined
+}
+if (st === undefined) {
+fail(`${rel}: посилання «${r}» вказує на неіснуючий ресурс (очікувано файл або каталог; k8s.mdc)`)
+} else if (st.isFile()) {
+if (!YAML_EXTENSION_RE.test(target)) {
+fail(
+`${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
+)
+}
+} else if (!st.isDirectory()) {
+fail(`${rel}: «${r}» — ні файл, ні каталог (k8s.mdc)`)
+}
+}`|`{}`| BlockStatement |
+| 767 |`.trim())`|`r`| MethodExpression |
+| 768 |`resolvedFilePathIsUnderRoot(rootNorm, target))`|`resolvedFilePathIsUnderRoot(rootNorm, target)`| BooleanLiteral |
+| 768 |`resolvedFilePathIsUnderRoot(rootNorm, target))`|`true`| ConditionalExpression |
+| 768 |`resolvedFilePathIsUnderRoot(rootNorm, target))`|`false`| ConditionalExpression |
+| 780 |`
+st = await stat(target)
+} `|`{}`| BlockStatement |
+| 785 |`t === undefined)`|`true`| ConditionalExpression |
+| 785 |`t === undefined)`|`false`| ConditionalExpression |
+| 785 |`t === undefined)`|`st !== undefined`| EqualityOperator |
+| 787 |`t.isFile())`|`true`| ConditionalExpression |
+| 787 |`t.isFile())`|`false`| ConditionalExpression |
+| 787 |`
+if (!YAML_EXTENSION_RE.test(target)) {
+fail(
+`${rel}: «${r}» — за правилами k8s у kustomization для файлів дозволені лише розширення .yaml / .yml (k8s.mdc)`
+)
+}
+} `|`{}`| BlockStatement |
+| 788 |`YAML_EXTENSION_RE.test(target))`|`YAML_EXTENSION_RE.test(target)`| BooleanLiteral |
+| 788 |`YAML_EXTENSION_RE.test(target))`|`true`| ConditionalExpression |
+| 788 |`YAML_EXTENSION_RE.test(target))`|`false`| ConditionalExpression |
+| 806 |`
+const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+const kust = await readFirstYamlObject(kustAbs)
+if (kust === null || kust.kind !== 'Kustomization') {
+return
+}
+const refs = kustomizePathRefsForExistenceCheck(kust)
+const kustDir = dirname(resolve(kustAbs))
+for (const r of refs) {
+if (typeof r === 'string' && !r.includes('://') && r.trim() !== '') {
+await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
+}
+}
+}`|`{}`| BlockStatement |
+| 807 |`elative(root, kustAbs) || kustAbs)`|`relative(root, kustAbs) && kustAbs`| LogicalOperator |
+| 807 |`\\',`|`""`| StringLiteral |
+| 807 |`/')`|`""`| StringLiteral |
+| 809 |`ust === null || kust.kind !== 'Kustomization')`|`true`| ConditionalExpression |
+| 809 |`ust === null || kust.kind !== 'Kustomization')`|`false`| ConditionalExpression |
+| 809 |`ust === null || kust.kind !== 'Kustomization')`|`kust === null && kust.kind !== 'Kustomization'`| LogicalOperator |
+| 809 |`ust === null `|`false`| ConditionalExpression |
+| 809 |`ust === null `|`kust !== null`| EqualityOperator |
+| 809 |`ust.kind !== 'Kustomization')`|`false`| ConditionalExpression |
+| 809 |`ust.kind !== 'Kustomization')`|`kust.kind === 'Kustomization'`| EqualityOperator |
+| 809 |`Kustomization')`|`""`| StringLiteral |
+| 814 |`
+if (typeof r === 'string' && !r.includes('://') && r.trim() !== '') {
+await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
+}
+}`|`{}`| BlockStatement |
+| 815 |`ypeof r === 'string' && !r.includes('://') && r.trim() !== '')`|`true`| ConditionalExpression |
+| 815 |`ypeof r === 'string' && !r.includes('://') && r.trim() !== '')`|`false`| ConditionalExpression |
+| 815 |`ypeof r === 'string' && !r.includes('://') && r.trim() !== '')`|`typeof r === 'string' && !r.includes('://') || r.trim() !== ''`| LogicalOperator |
+| 815 |`ypeof r === 'string' && !r.includes('://') `|`true`| ConditionalExpression |
+| 815 |`ypeof r === 'string' && !r.includes('://') `|`typeof r === 'string' || !r.includes('://')`| LogicalOperator |
+| 815 |`ypeof r === 'string' `|`true`| ConditionalExpression |
+| 815 |`ypeof r === 'string' `|`typeof r !== 'string'`| EqualityOperator |
+| 815 |`string' `|`""`| StringLiteral |
+| 815 |`r.includes('://') `|`r.includes('://')`| BooleanLiteral |
+| 815 |`://')`|`""`| StringLiteral |
+| 815 |`.trim() !== '')`|`true`| ConditionalExpression |
+| 815 |`.trim() !== '')`|`r.trim() === ''`| EqualityOperator |
+| 815 |`.trim() `|`r`| MethodExpression |
+| 815 |`')`|`"Stryker was here!"`| StringLiteral |
+| 815 |`
+await validateKustomizationRef(rel, r, kustDir, rootNorm, fail)
+}`|`{}`| BlockStatement |
+| 828 |`
+const rootNorm = resolve(root)
+for (const kustAbs of yamlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
+}
+}`|`{}`| BlockStatement |
+| 830 |`amlFilesAbs.filter(p => basename(p).toLowerCase() === 'kustomization.yaml'))`|`yamlFilesAbs`| MethodExpression |
+| 830 |` => basename(p).toLowerCase() === 'kustomization.yaml')`|`() => undefined`| ArrowFunction |
+| 830 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`true`| ConditionalExpression |
+| 830 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`false`| ConditionalExpression |
+| 830 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`basename(p).toLowerCase() !== 'kustomization.yaml'`| EqualityOperator |
+| 830 |`asename(p).toLowerCase() `|`basename(p).toUpperCase()`| MethodExpression |
+| 830 |`kustomization.yaml')`|`""`| StringLiteral |
+| 830 |`
+await validateOneKustomizationPathRefsExist(root, kustAbs, rootNorm, fail)
+}`|`{}`| BlockStatement |
+| 848 |`ypeof ref === 'string' && !ref.includes('://'))`|`true`| ConditionalExpression |
+| 848 |`ypeof ref === 'string' && !ref.includes('://'))`|`typeof ref === 'string' || !ref.includes('://')`| LogicalOperator |
+| 848 |`ypeof ref === 'string' `|`true`| ConditionalExpression |
+| 853 |`ypeof ref === 'string' && !ref.includes('://'))`|`true`| ConditionalExpression |
+| 853 |`ypeof ref === 'string' && !ref.includes('://'))`|`typeof ref === 'string' || !ref.includes('://')`| LogicalOperator |
+| 853 |`ypeof ref === 'string' `|`true`| ConditionalExpression |
+| 855 |`asename(abs).toLowerCase() === 'svc.yaml')`|`true`| ConditionalExpression |
+| 873 |`
+const rel = (relative(root, kustAbs) || kustAbs).replaceAll('\\', '/')
+let raw
+try {
+raw = await readFile(kustAbs, 'utf8')
+} catch (error) {
+const msg = error instanceof Error ? error.message : String(error)
+fail(`${rel}: не вдалося прочитати для перевірки svc.yaml/svc-hl.yaml у kustomization (${msg})`)
+return
+}
+const lines = toLines(raw)
+const body = yamlBodyAfterModeline(lines)
+/**
+@type {import('yaml').Document[] | undefined}
+\*/
+let docs
+try {
+docs = parseAllDocuments(body)
+} catch {
+fail(`${rel}: не вдалося розібрати YAML для перевірки svc.yaml/svc-hl.yaml у kustomization (див. k8s.mdc)`)
+return
+}
+const first = docs[0]?.toJSON()
+if (first === null || first === undefined || typeof first !== 'object' || Array.isArray(first)) {
+return
+}
+const pathRefs = pathsFromKustomizationObject(first)
+const kustDir = dirname(kustAbs)
+const v = kustomizationSvcYamlMissingSvcHlViolation(kustDir, pathRefs)
+if (v !== null) {
+fail(`${rel}: ${v}`)
+}
+}`|`{}`| BlockStatement |
+| 874 |`elative(root, kustAbs) || kustAbs)`|`relative(root, kustAbs) && kustAbs`| LogicalOperator |
+| 874 |`\\',`|`""`| StringLiteral |
+| 874 |`/')`|`""`| StringLiteral |
+| 895 |`ocs[0]?.toJSON(`|`docs[0].toJSON`| OptionalChaining |
+| 896 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`true`| ConditionalExpression |
+| 896 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`false`| ConditionalExpression |
+| 896 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)`| LogicalOperator |
+| 896 |`irst === null || first === undefined || typeof first !== 'object' `|`false`| ConditionalExpression |
+| 896 |`irst === null || first === undefined || typeof first !== 'object' `|`(first === null || first === undefined) && typeof first !== 'object'`| LogicalOperator |
+| 896 |`irst === null || first === undefined `|`false`| ConditionalExpression |
+| 896 |`irst === null || first === undefined `|`first === null && first === undefined`| LogicalOperator |
+| 896 |`irst === null `|`false`| ConditionalExpression |
+| 896 |`irst === null `|`first !== null`| EqualityOperator |
+| 896 |`irst === undefined `|`false`| ConditionalExpression |
+| 896 |`irst === undefined `|`first !== undefined`| EqualityOperator |
+| 896 |`ypeof first !== 'object' `|`false`| ConditionalExpression |
+| 896 |`ypeof first !== 'object' `|`typeof first === 'object'`| EqualityOperator |
+| 896 |`object' `|`""`| StringLiteral |
+| 902 |` !== null)`|`true`| ConditionalExpression |
+| 902 |` !== null)`|`false`| ConditionalExpression |
+| 902 |` !== null)`|`v === null`| EqualityOperator |
+| 914 |`
+for (const kustAbs of yamlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml')) {
+await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
+}
+}`|`{}`| BlockStatement |
+| 915 |`amlFiles.filter(p => basename(p).toLowerCase() === 'kustomization.yaml'))`|`yamlFiles`| MethodExpression |
+| 915 |` => basename(p).toLowerCase() === 'kustomization.yaml')`|`() => undefined`| ArrowFunction |
+| 915 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`true`| ConditionalExpression |
+| 915 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`false`| ConditionalExpression |
+| 915 |`asename(p).toLowerCase() === 'kustomization.yaml')`|`basename(p).toLowerCase() !== 'kustomization.yaml'`| EqualityOperator |
+| 915 |`asename(p).toLowerCase() `|`basename(p).toUpperCase()`| MethodExpression |
+| 915 |`kustomization.yaml')`|`""`| StringLiteral |
+| 915 |`
+await validateOneKustomizationSvcHlWithSvc(root, kustAbs, fail)
+}`|`{}`| BlockStatement |
+| 926 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`false`| ConditionalExpression |
+| 926 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`(obj === null || typeof obj !== 'object') && Array.isArray(obj)`| LogicalOperator |
+| 926 |`bj === null || typeof obj !== 'object' `|`false`| ConditionalExpression |
+| 926 |`bj === null || typeof obj !== 'object' `|`obj === null && typeof obj !== 'object'`| LogicalOperator |
+| 926 |`bj === null `|`false`| ConditionalExpression |
+| 926 |`ypeof obj !== 'object' `|`false`| ConditionalExpression |
+| 931 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 950 |`ypeof apiVersion !== 'string')`|`false`| ConditionalExpression |
+| 953 |`piVersion.trim()`|`apiVersion`| MethodExpression |
+| 954 |` === '')`|`false`| ConditionalExpression |
+| 954 |`')`|`"Stryker was here!"`| StringLiteral |
+| 972 |`s !== undefined &&
+ls !== null &&
+ls !== '' &&
+((typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0) ||
+(typeof ls === 'string' && ls.trim() !== ''))`|`ls !== undefined && ls !== null && ls !== '' || typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0 || typeof ls === 'string' && ls.trim() !== ''`| LogicalOperator |
+| 972 |`s !== undefined &&
+ls !== null &&
+ls !== '' `|`true`| ConditionalExpression |
+| 972 |`s !== undefined &&
+ls !== null &&
+ls !== '' `|`ls !== undefined && ls !== null || ls !== ''`| LogicalOperator |
+| 972 |`s !== undefined &&
+ls !== null `|`true`| ConditionalExpression |
+| 972 |`s !== undefined &&
+ls !== null `|`ls !== undefined || ls !== null`| LogicalOperator |
+| 972 |`s !== undefined `|`true`| ConditionalExpression |
+| 973 |`s !== null `|`true`| ConditionalExpression |
+| 974 |`s !== '' `|`true`| ConditionalExpression |
+| 974 |`' `|`"Stryker was here!"`| StringLiteral |
+| 975 |`typeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0) ||
+(typeof ls === 'string' && ls.trim() !== ''))`|`true`| ConditionalExpression |
+| 975 |`ypeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0)`|`false`| ConditionalExpression |
+| 975 |`ypeof ls === 'object' && !Array.isArray(ls) && Object.keys(ls).length > 0)`|`typeof ls === 'object' && !Array.isArray(ls) || Object.keys(ls).length > 0`| LogicalOperator |
+| 975 |`ypeof ls === 'object' && !Array.isArray(ls) `|`true`| ConditionalExpression |
+| 975 |`ypeof ls === 'object' && !Array.isArray(ls) `|`typeof ls === 'object' || !Array.isArray(ls)`| LogicalOperator |
+| 975 |`ypeof ls === 'object' `|`true`| ConditionalExpression |
+| 975 |`ypeof ls === 'object' `|`typeof ls !== 'object'`| EqualityOperator |
+| 975 |`object' `|`""`| StringLiteral |
+| 976 |`ypeof ls === 'string' && ls.trim() !== '')`|`typeof ls === 'string' || ls.trim() !== ''`| LogicalOperator |
+| 976 |`ypeof ls === 'string' `|`true`| ConditionalExpression |
+| 976 |`s.trim() !== '')`|`true`| ConditionalExpression |
+| 976 |`s.trim() `|`ls`| MethodExpression |
+| 976 |`')`|`"Stryker was here!"`| StringLiteral |
+| 982 |`sel !== undefined &&
+asel !== null &&
+asel !== '' &&
+((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
+(typeof asel === 'string' && asel.trim() !== ''))`|`false`| ConditionalExpression |
+| 982 |`sel !== undefined &&
+asel !== null &&
+asel !== '' &&
+((typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0) ||
+(typeof asel === 'string' && asel.trim() !== ''))`|`asel !== undefined && asel !== null && asel !== '' || typeof asel === 'object' && !Array.isArray(asel) && Object.keys(asel).length > 0 || typeof asel === 'string' && asel.trim() !== ''`| LogicalOperator |
+| 982 |`sel !== undefined &&
+asel !== null &&
+asel !== '' `|`true`| ConditionalExpression |
+| 982 |`sel !== undefined &&
+asel !== null &&
+asel !== '' `|`asel !== undefined && asel !== null || asel !== ''`| LogicalOperator |
+| 982 |`sel !== undefined &&
+asel !== null `|`true`| ConditionalExpression |
+| 982 |`sel !== undefined &&
+asel !== null `|`asel !== undefined || asel !== null`| LogicalOperator |
+| 982 |`sel !== undefined `|`true`| ConditionalExpression |
+| 982 |`sel !== undefined `|`asel === undefined`| EqualityOperator |
+| 999 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`false`| ConditionalExpression |
+| 999 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`(target === null || typeof target !== 'object') && Array.isArray(target)`| LogicalOperator |
+| 999 |`arget === null || typeof target !== 'object' `|`false`| ConditionalExpression |
+| 999 |`arget === null || typeof target !== 'object' `|`target === null && typeof target !== 'object'`| LogicalOperator |
+| 999 |`arget === null `|`false`| ConditionalExpression |
+| 999 |`ypeof target !== 'object' `|`false`| ConditionalExpression |
+| 1005 |`ind.trim() === '' `|`false`| ConditionalExpression |
+| 1005 |`ind.trim() `|`kind`| MethodExpression |
+| 1005 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1005 |`ame.trim() === '')`|`false`| ConditionalExpression |
+| 1005 |`ame.trim() `|`name`| MethodExpression |
+| 1005 |`')`|`"Stryker was here!"`| StringLiteral |
+| 1018 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`false`| ConditionalExpression |
+| 1018 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`(target === null || typeof target !== 'object') && Array.isArray(target)`| LogicalOperator |
+| 1018 |`arget === null || typeof target !== 'object' `|`false`| ConditionalExpression |
+| 1018 |`arget === null || typeof target !== 'object' `|`target === null && typeof target !== 'object'`| LogicalOperator |
+| 1018 |`arget === null `|`false`| ConditionalExpression |
+| 1018 |`ypeof target !== 'object' `|`false`| ConditionalExpression |
+| 1024 |`ypeof tk !== 'string' || typeof tn !== 'string')`|`false`| ConditionalExpression |
+| 1024 |`ypeof tk !== 'string' || typeof tn !== 'string')`|`typeof tk !== 'string' && typeof tn !== 'string'`| LogicalOperator |
+| 1024 |`ypeof tk !== 'string' `|`false`| ConditionalExpression |
+| 1024 |`ypeof tn !== 'string')`|`false`| ConditionalExpression |
+| 1027 |`k.trim() !== res.kind `|`false`| ConditionalExpression |
+| 1027 |`k.trim() `|`tk`| MethodExpression |
+| 1027 |`n.trim() `|`tn`| MethodExpression |
+| 1031 |`ypeof tgtGroup === 'string' && tgtGroup.trim() !== '' && res.group !== tgtGroup.trim())`|`false`| ConditionalExpression |
+| 1031 |`string' `|`""`| StringLiteral |
+| 1031 |`gtGroup.trim() !== '' `|`true`| ConditionalExpression |
+| 1031 |`gtGroup.trim() !== '' `|`tgtGroup.trim() === ''`| EqualityOperator |
+| 1031 |`gtGroup.trim() `|`tgtGroup`| MethodExpression |
+| 1031 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1031 |`gtGroup.trim())`|`tgtGroup`| MethodExpression |
+| 1035 |`ypeof tgtVersion === 'string' && tgtVersion.trim() !== '' && res.version !== tgtVersion.trim())`|`false`| ConditionalExpression |
+| 1035 |`string' `|`""`| StringLiteral |
+| 1035 |`gtVersion.trim() !== '' `|`true`| ConditionalExpression |
+| 1035 |`gtVersion.trim() !== '' `|`tgtVersion.trim() === ''`| EqualityOperator |
+| 1035 |`gtVersion.trim() `|`tgtVersion`| MethodExpression |
+| 1035 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1035 |`gtVersion.trim())`|`tgtVersion`| MethodExpression |
+| 1039 |`gtNs.trim() !== '' `|`true`| ConditionalExpression |
+| 1039 |`gtNs.trim() `|`tgtNs`| MethodExpression |
+| 1039 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1039 |`gtNs.trim())`|`tgtNs`| MethodExpression |
+| 1052 |`shouldValidateKustomizePatchTarget(target))`|`false`| ConditionalExpression |
+| 1055 |`atalog.some(res => kustomizePatchTargetMatchesDescriptor(target, res))`|`catalog.every(res => kustomizePatchTargetMatchesDescriptor(target, res))`| MethodExpression |
+| 1066 |`.group === b.group &&
+a.version === b.version &&
+a.kind === b.kind `|`true`| ConditionalExpression |
+| 1066 |`.group === b.group &&
+a.version === b.version &&
+a.kind === b.kind `|`a.group === b.group && a.version === b.version || a.kind === b.kind`| LogicalOperator |
+| 1066 |`.group === b.group &&
+a.version === b.version `|`true`| ConditionalExpression |
+| 1066 |`.group === b.group &&
+a.version === b.version `|`a.group === b.group || a.version === b.version`| LogicalOperator |
+| 1066 |`.group === b.group `|`true`| ConditionalExpression |
+| 1067 |`.version === b.version `|`true`| ConditionalExpression |
+| 1068 |`.kind === b.kind `|`true`| ConditionalExpression |
+| 1070 |`.namespace === b.namespace`|`true`| ConditionalExpression |
+| 1080 |`eta === null || typeof meta !== 'object' || Array.isArray(meta))`|`false`| ConditionalExpression |
+| 1080 |`eta === null || typeof meta !== 'object' || Array.isArray(meta))`|`(meta === null || typeof meta !== 'object') && Array.isArray(meta)`| LogicalOperator |
+| 1080 |`eta === null || typeof meta !== 'object' `|`false`| ConditionalExpression |
+| 1080 |`eta === null || typeof meta !== 'object' `|`meta === null && typeof meta !== 'object'`| LogicalOperator |
+| 1080 |`eta === null `|`false`| ConditionalExpression |
+| 1080 |`ypeof meta !== 'object' `|`false`| ConditionalExpression |
+| 1084 |`ypeof n === 'string' && n.trim() !== '' `|`true`| ConditionalExpression |
+| 1084 |`ypeof n === 'string' && n.trim() !== '' `|`typeof n === 'string' || n.trim() !== ''`| LogicalOperator |
+| 1084 |`ypeof n === 'string' `|`true`| ConditionalExpression |
+| 1084 |`.trim() !== '' `|`true`| ConditionalExpression |
+| 1084 |`.trim() `|`n`| MethodExpression |
+| 1084 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1084 |`.trim() `|`n`| MethodExpression |
+| 1092 |`
+if (meta === null || typeof meta !== 'object' || Array.isArray(meta)) {
+return ''
+}
+const ns = /** @type {Record<string, unknown>} _/ (meta).namespace
+return typeof ns === 'string' && ns.trim() !== '' ? ns.trim() : ''
+}`|`{}`| BlockStatement |
+| 1093 |`eta === null || typeof meta !== 'object' || Array.isArray(meta))`|`true`| ConditionalExpression |
+| 1093 |`eta === null || typeof meta !== 'object' || Array.isArray(meta))`|`false`| ConditionalExpression |
+| 1093 |`eta === null || typeof meta !== 'object' || Array.isArray(meta))`|`(meta === null || typeof meta !== 'object') && Array.isArray(meta)`| LogicalOperator |
+| 1093 |`eta === null || typeof meta !== 'object' `|`false`| ConditionalExpression |
+| 1093 |`eta === null || typeof meta !== 'object' `|`meta === null && typeof meta !== 'object'`| LogicalOperator |
+| 1093 |`eta === null `|`false`| ConditionalExpression |
+| 1093 |`eta === null `|`meta !== null`| EqualityOperator |
+| 1093 |`ypeof meta !== 'object' `|`false`| ConditionalExpression |
+| 1093 |`ypeof meta !== 'object' `|`typeof meta === 'object'`| EqualityOperator |
+| 1093 |`object' `|`""`| StringLiteral |
+| 1097 |`ypeof ns === 'string' && ns.trim() !== '' `|`false`| ConditionalExpression |
+| 1097 |`string' `|`""`| StringLiteral |
+| 1097 |`s.trim() !== '' `|`true`| ConditionalExpression |
+| 1097 |`s.trim() !== '' `|`ns.trim() === ''`| EqualityOperator |
+| 1097 |`s.trim() `|`ns`| MethodExpression |
+| 1097 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1097 |`s.trim() `|`ns`| MethodExpression |
+| 1107 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`false`| ConditionalExpression |
+| 1107 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`(obj === null || typeof obj !== 'object') && Array.isArray(obj)`| LogicalOperator |
+| 1107 |`bj === null || typeof obj !== 'object' `|`false`| ConditionalExpression |
+| 1107 |`bj === null || typeof obj !== 'object' `|`obj === null && typeof obj !== 'object'`| LogicalOperator |
+| 1107 |`bj === null `|`false`| ConditionalExpression |
+| 1107 |`ypeof obj !== 'object' `|`false`| ConditionalExpression |
+| 1111 |`ypeof kindRaw !== 'string' || kindRaw.trim() === '')`|`false`| ConditionalExpression |
+| 1111 |`ypeof kindRaw !== 'string' || kindRaw.trim() === '')`|`typeof kindRaw !== 'string' && kindRaw.trim() === ''`| LogicalOperator |
+| 1111 |`ypeof kindRaw !== 'string' `|`false`| ConditionalExpression |
+| 1111 |`indRaw.trim() === '')`|`false`| ConditionalExpression |
+| 1111 |`indRaw.trim() `|`kindRaw`| MethodExpression |
+| 1111 |`')`|`"Stryker was here!"`| StringLiteral |
+| 1114 |`indRaw.trim()`|`kindRaw`| MethodExpression |
+| 1115 |`ind === 'Kustomization')`|`false`| ConditionalExpression |
+| 1115 |`Kustomization')`|`""`| StringLiteral |
+| 1120 |`ame === '')`|`false`| ConditionalExpression |
+| 1120 |`')`|`"Stryker was here!"`| StringLiteral |
+| 1124 |`'`|`"Stryker was here!"`| StringLiteral |
+| 1125 |`isClusterScopedKubernetesKind(kind))`|`true`| ConditionalExpression |
+| 1128 |`ypeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''`|`true`| ConditionalExpression |
+| 1128 |`ypeof kustomizationDefaultNs === 'string' && kustomizationDefaultNs.trim() !== ''`|`typeof kustomizationDefaultNs === 'string' || kustomizationDefaultNs.trim() !== ''`| LogicalOperator |
+| 1128 |`ypeof kustomizationDefaultNs === 'string' `|`true`| ConditionalExpression |
+| 1128 |`ustomizationDefaultNs.trim() !== ''`|`true`| ConditionalExpression |
+| 1128 |`ustomizationDefaultNs.trim() `|`kustomizationDefaultNs`| MethodExpression |
+| 1128 |`'`|`"Stryker was here!"`| StringLiteral |
+| 1129 |`ustomizationDefaultNs.trim()`|`kustomizationDefaultNs`| MethodExpression |
+| 1130 |`'`|`"Stryker was here!"`| StringLiteral |
+| 1149 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`true`| ConditionalExpression |
+| 1149 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`false`| ConditionalExpression |
+| 1149 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`lines.length > 0 || MODELINE_RE.test(lines[0])`| LogicalOperator |
+| 1149 |`ines.length > 0 `|`true`| ConditionalExpression |
+| 1149 |`ines.length > 0 `|`lines.length >= 0`| EqualityOperator |
+| 1149 |`ines.length > 0 `|`lines.length <= 0`| EqualityOperator |
+| 1157 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 1159 |` !== null && typeof r === 'object' && !Array.isArray(r))`|`true`| ConditionalExpression |
+| 1159 |` !== null && typeof r === 'object' && !Array.isArray(r))`|`r !== null && typeof r === 'object' || !Array.isArray(r)`| LogicalOperator |
+| 1159 |` !== null && typeof r === 'object' `|`true`| ConditionalExpression |
+| 1159 |` !== null && typeof r === 'object' `|`r !== null || typeof r === 'object'`| LogicalOperator |
+| 1159 |` !== null `|`true`| ConditionalExpression |
+| 1159 |`ypeof r === 'object' `|`true`| ConditionalExpression |
+| 1177 |`isitedKustomization.has(normKust))`|`false`| ConditionalExpression |
+| 1189 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`true`| ConditionalExpression |
+| 1189 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`false`| ConditionalExpression |
+| 1189 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`lines.length > 0 || MODELINE_RE.test(lines[0])`| LogicalOperator |
+| 1189 |`ines.length > 0 `|`true`| ConditionalExpression |
+| 1189 |`ines.length > 0 `|`lines.length >= 0`| EqualityOperator |
+| 1189 |`ines.length > 0 `|`lines.length <= 0`| EqualityOperator |
+| 1200 |`ocs[0]?.toJSON(`|`docs[0].toJSON`| OptionalChaining |
+| 1201 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`false`| ConditionalExpression |
+| 1201 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)`| LogicalOperator |
+| 1201 |`irst === null || first === undefined || typeof first !== 'object' `|`false`| ConditionalExpression |
+| 1201 |`irst === null || first === undefined || typeof first !== 'object' `|`(first === null || first === undefined) && typeof first !== 'object'`| LogicalOperator |
+| 1201 |`irst === null || first === undefined `|`false`| ConditionalExpression |
+| 1201 |`irst === null || first === undefined `|`first === null && first === undefined`| LogicalOperator |
+| 1201 |`irst === null `|`false`| ConditionalExpression |
+| 1201 |`irst === undefined `|`false`| ConditionalExpression |
+| 1201 |`ypeof first !== 'object' `|`false`| ConditionalExpression |
+| 1210 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 1217 |`ypeof ref !== 'string' || ref.includes('://'))`|`false`| ConditionalExpression |
+| 1217 |`ypeof ref !== 'string' || ref.includes('://'))`|`typeof ref !== 'string' && ref.includes('://')`| LogicalOperator |
+| 1217 |`ypeof ref !== 'string' `|`false`| ConditionalExpression |
+| 1221 |`resolvedFilePathIsUnderRoot(rootNorm, resolved))`|`false`| ConditionalExpression |
+| 1233 |`t === undefined)`|`false`| ConditionalExpression |
+| 1236 |`t.isFile() && YAML_EXTENSION_RE.test(resolved))`|`true`| ConditionalExpression |
+| 1236 |`t.isFile() && YAML_EXTENSION_RE.test(resolved))`|`st.isFile() || YAML_EXTENSION_RE.test(resolved)`| LogicalOperator |
+| 1240 |`st.isDirectory())`|`st.isDirectory()`| BooleanLiteral |
+| 1240 |`st.isDirectory())`|`true`| ConditionalExpression |
+| 1240 |`st.isDirectory())`|`false`| ConditionalExpression |
+| 1243 |`kustomization.yaml')`|`""`| StringLiteral |
+| 1243 |`kustomization.yaml')`|`""`| StringLiteral |
+| 1244 |`hildK !== null)`|`true`| ConditionalExpression |
+| 1244 |`hildK !== null)`|`false`| ConditionalExpression |
+| 1244 |`hildK !== null)`|`childK === null`| EqualityOperator |
+| 1244 |`
+const sub = await collectYamlAbsPathsFromKustomizationTree(childK, rootNorm, visitedKustomization)
+out.push(...sub)
+}`|`{}`| BlockStatement |
+| 1268 |`/')`|`""`| StringLiteral |
+| 1269 |`isK8sYamlUnderBaseDirectory(rel))`|`false`| ConditionalExpression |
+| 1271 |`oots.some(o => o.kind === 'Deployment'))`|`roots.every(o => o.kind === 'Deployment')`| MethodExpression |
+| 1286 |`isitedKustomization.has(normKust))`|`false`| ConditionalExpression |
+| 1298 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`true`| ConditionalExpression |
+| 1298 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`false`| ConditionalExpression |
+| 1298 |`ines.length > 0 && MODELINE_RE.test(lines[0]) `|`lines.length > 0 || MODELINE_RE.test(lines[0])`| LogicalOperator |
+| 1298 |`ines.length > 0 `|`true`| ConditionalExpression |
+| 1298 |`ines.length > 0 `|`lines.length >= 0`| EqualityOperator |
+| 1298 |`ines.length > 0 `|`lines.length <= 0`| EqualityOperator |
+| 1309 |`ocs[0]?.toJSON(`|`docs[0].toJSON`| OptionalChaining |
+| 1310 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`false`| ConditionalExpression |
+| 1310 |`irst === null || first === undefined || typeof first !== 'object' || Array.isArray(first))`|`(first === null || first === undefined || typeof first !== 'object') && Array.isArray(first)`| LogicalOperator |
+| 1310 |`irst === null || first === undefined || typeof first !== 'object' `|`false`| ConditionalExpression |
+| 1310 |`irst === null || first === undefined || typeof first !== 'object' `|`(first === null || first === undefined) && typeof first !== 'object'`| LogicalOperator |
+| 1310 |`irst === null || first === undefined `|`false`| ConditionalExpression |
+| 1310 |`irst === null || first === undefined `|`first === null && first === undefined`| LogicalOperator |
+| 1310 |`irst === null `|`false`| ConditionalExpression |
+| 1310 |`irst === undefined `|`false`| ConditionalExpression |
+| 1310 |`ypeof first !== 'object' `|`false`| ConditionalExpression |
+| 1314 |`ypeof rec.namespace === 'string' && rec.namespace.trim() !== '' `|`false`| ConditionalExpression |
+| 1314 |`string' `|`""`| StringLiteral |
+| 1314 |`ec.namespace.trim() !== '' `|`true`| ConditionalExpression |
+| 1314 |`ec.namespace.trim() !== '' `|`rec.namespace.trim() === ''`| EqualityOperator |
+| 1314 |`ec.namespace.trim() `|`rec.namespace`| MethodExpression |
+| 1314 |`' `|`"Stryker was here!"`| StringLiteral |
+| 1314 |`ec.namespace.trim() `|`rec.namespace`| MethodExpression |
+| 1314 |`'`|`"Stryker was here!"`| StringLiteral |
+| 1321 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 1328 |`ypeof ref !== 'string' || ref.includes('://'))`|`false`| ConditionalExpression |
+| 1328 |`ypeof ref !== 'string' || ref.includes('://'))`|`typeof ref !== 'string' && ref.includes('://')`| LogicalOperator |
+| 1328 |`ypeof ref !== 'string' `|`false`| ConditionalExpression |
+| 1332 |`resolvedFilePathIsUnderRoot(rootNorm, resolved))`|`false`| ConditionalExpression |
+| 1344 |`t === undefined)`|`false`| ConditionalExpression |
+| 1347 |`t.isFile() && YAML_EXTENSION_RE.test(resolved))`|`st.isFile() || YAML_EXTENSION_RE.test(resolved)`| LogicalOperator |
+| 1351 |` !== null)`|`true`| ConditionalExpression |
+| 1357 |`st.isDirectory())`|`false`| ConditionalExpression |
+| 1360 |`kustomization.yaml')`|`""`| StringLiteral |
+| 1361 |`hildK !== null)`|`true`| ConditionalExpression |
+| 1380 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`true`| ConditionalExpression |
+| 1380 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`false`| ConditionalExpression |
+| 1380 |`bj === null || typeof obj !== 'object' || Array.isArray(obj))`|`(obj === null || typeof obj !== 'object') && Array.isArray(obj)`| LogicalOperator |
+| 1380 |`bj === null || typeof obj !== 'object' `|`false`| ConditionalExpression |
+| 1380 |`bj === null || typeof obj !== 'object' `|`obj === null && typeof obj !== 'object'`| LogicalOperator |
+| 1380 |`bj === null `|`false`| ConditionalExpression |
+| 1380 |`bj === null `|`obj !== null`| EqualityOperator |
+| 1380 |`ypeof obj !== 'object' `|`false`| ConditionalExpression |
+| 1380 |`ypeof obj !== 'object' `|`typeof obj === 'object'`| EqualityOperator |
+| 1380 |`object' `|`""`| StringLiteral |
+| 1387 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 1395 |`
+if (!Array.isArray(arr)) {
+return
+}
+let i = 0
+for (const item of arr) {
+i++
+if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+const it = /\*\* @type {Record<string, unknown>} _/ (item)
+if ('target' in it) {
+out.push({ section, index: i, target: it.target })
+}
+}
+}
+}`|`{}`| BlockStatement |
+| 1396 |`Array.isArray(arr))`|`true`| ConditionalExpression |
+| 1400 |`
+i++
+if (item !== null && typeof item === 'object' && !Array.isArray(item)) {
+const it = /** @type {Record<string, unknown>} \*/ (item)
+if ('target' in it) {
+out.push({ section, index: i, target: it.target })
+}
+}
+}`|`{}`| BlockStatement |
+| 1401 |`++`|`i--`| UpdateOperator |
+| 1402 |`tem !== null && typeof item === 'object' && !Array.isArray(item))`|`true`| ConditionalExpression |
+| 1402 |`tem !== null && typeof item === 'object' && !Array.isArray(item))`|`false`| ConditionalExpression |
+| 1402 |`tem !== null && typeof item === 'object' && !Array.isArray(item))`|`item !== null && typeof item === 'object' || !Array.isArray(item)`| LogicalOperator |
+| 1402 |`tem !== null && typeof item === 'object' `|`true`| ConditionalExpression |
+| 1402 |`tem !== null && typeof item === 'object' `|`item !== null || typeof item === 'object'`| LogicalOperator |
+| 1402 |`tem !== null `|`true`| ConditionalExpression |
+| 1402 |`tem !== null `|`item === null`| EqualityOperator |
+| 1402 |`ypeof item === 'object' `|`true`| ConditionalExpression |
+| 1402 |`ypeof item === 'object' `|`typeof item !== 'object'`| EqualityOperator |
+| 1402 |`object' `|`""`| StringLiteral |
+| 1402 |`Array.isArray(item))`|`Array.isArray(item)`| BooleanLiteral |
+| 1402 |`
+const it = /** @type {Record<string, unknown>} _/ (item)
+if ('target' in it) {
+out.push({ section, index: i, target: it.target })
+}
+}`|`{}`| BlockStatement |
+| 1404 |`target' in it)`|`true`| ConditionalExpression |
+| 1404 |`target' in it)`|`false`| ConditionalExpression |
+| 1404 |`target' `|`""`| StringLiteral |
+| 1404 |`
+out.push({ section, index: i, target: it.target })
+}`|`{}`| BlockStatement |
+| 1405 |` section, index: i, target: it.target })`|`{}`| ObjectLiteral |
+| 1410 |`patches',`|`""`| StringLiteral |
+| 1411 |`patchesJson6902',`|`""`| StringLiteral |
+| 1420 |`
+if (target === null || typeof target !== 'object' || Array.isArray(target)) {
+return String(target)
+}
+const t = /\*\* @type {Record<string, unknown>} _/ (target)
+const parts = []
+const g = t.group
+const v = t.version
+const k = t.kind
+const n = t.name
+const ns = t.namespace
+if (typeof g === 'string' && g.trim() !== '') {
+parts.push(`group=${g.trim()}`)
+}
+if (typeof v === 'string' && v.trim() !== '') {
+parts.push(`version=${v.trim()}`)
+}
+if (typeof k === 'string' && k.trim() !== '') {
+parts.push(`kind=${k.trim()}`)
+}
+if (typeof n === 'string' && n.trim() !== '') {
+parts.push(`name=${n.trim()}`)
+}
+if (typeof ns === 'string' && ns.trim() !== '') {
+parts.push(`namespace=${ns.trim()}`)
+}
+return parts.length > 0 ? parts.join(', ') : JSON.stringify(t)
+}`|`{}`| BlockStatement |
+| 1421 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`true`| ConditionalExpression |
+| 1421 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`false`| ConditionalExpression |
+| 1421 |`arget === null || typeof target !== 'object' || Array.isArray(target))`|`(target === null || typeof target !== 'object') && Array.isArray(target)`| LogicalOperator |
+| 1421 |`arget === null || typeof target !== 'object' `|`false`| ConditionalExpression |
+| 1421 |`arget === null || typeof target !== 'object' `|`target === null && typeof target !== 'object'`| LogicalOperator |
+| 1421 |`arget === null `|`false`| ConditionalExpression |
+| 1421 |`arget === null `|`target !== null`| EqualityOperator |
+| 1421 |`ypeof target !== 'object' `|`false`| ConditionalExpression |
+| 1421 |`ypeof target !== 'object' `|`typeof target === 'object'`| EqualityOperator |
+| 1421 |`object' `|`""`| StringLiteral |
+| 1425 |`]`|`["Stryker was here"]`| ArrayDeclaration |
+| 1431 |`ypeof g === 'string' && g.trim() !== '')`|`false`| ConditionalExpression |
+| 1431 |`string' `|`""`| StringLiteral |
+| 1434 |`ypeof v === 'string' && v.trim() !== '')`|`false`| ConditionalExpression |
+| 1434 |`string' `|`""`| StringLiteral |
+| 1437 |`ypeof k === 'string' && k.trim() !== '')`|`true`| ConditionalExpression |
+| 1437 |`ypeof k === 'string' && k.trim() !== '')`|`false`| ConditionalExpression |
+| 1437 |`ypeof k === 'string' && k.trim() !== '')`|`typeof k === 'string' || k.trim() !== ''`| LogicalOperator |
+| 1437 |`ypeof k === 'string' `|`true`| ConditionalExpression |
+| 1437 |`ypeof k === 'string' `|`typeof k !== 'string'`| EqualityOperator |
+| 1437 |`string' `|`""`| StringLiteral |
+| 1437 |`.trim() !== '')`|`true`| ConditionalExpression |
+| 1437 |`.trim() !== '')`|`k.trim() === ''`| EqualityOperator |
+| 1437 |`.trim() `|`k`| MethodExpression |
+| 1437 |`')`|`"Stryker was here!"`| StringLiteral |
+| 1437 |`
+parts.push(`kind=${k.trim()}`)
+}`|`{}`| BlockStatement |
+| 1438 |`kind=${k.trim()}`)` | ``| StringLiteral |
 | 1438 | `.trim()}` | `k` | MethodExpression |
 | 1440 | `ypeof n === 'string' && n.trim() !== '')` | `true` | ConditionalExpression |
 | 1440 | `ypeof n === 'string' && n.trim() !== '')` | `false` | ConditionalExpression |
@@ -62507,40 +62507,40 @@ sensitivity: 'base'
 | 1440 | `
     parts.push(`name=${n.trim()}`)
   }` | `{}` | BlockStatement |
-| 1441 | `name=${n.trim()}`)` |`` | StringLiteral |
-| 1441 | `.trim()}` | `n` | MethodExpression |
-| 1443 | `ypeof ns === 'string' && ns.trim() !== '')` | `false` | ConditionalExpression |
-| 1443 | `string' ` | `""` | StringLiteral |
-| 1446 | `arts.length > 0 ` | `true` | ConditionalExpression |
-| 1446 | `arts.length > 0 ` | `false` | ConditionalExpression |
-| 1446 | `arts.length > 0 ` | `parts.length >= 0` | EqualityOperator |
-| 1446 | `arts.length > 0 ` | `parts.length <= 0` | EqualityOperator |
-| 1446 | `, ')` | `""` | StringLiteral |
-| 1457 | `   for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
-    if (shouldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)) {
-      fail(
-        `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
-      )
-    }
-  }
-}` | `{}` | BlockStatement |
-| 1458 | `
-    if (shouldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)) {
-      fail(
-        `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
-      )
-    }
-  }` | `{}` | BlockStatement |
-| 1459 | `houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))` | `true` | ConditionalExpression |
-| 1459 | `houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))` | `false` | ConditionalExpression |
-| 1459 | `houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))` | `shouldValidateKustomizePatchTarget(target) || !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)` | LogicalOperator |
-| 1459 | `kustomizeResourceCatalogMatchesPatchTarget(catalog, target))` | `kustomizeResourceCatalogMatchesPatchTarget(catalog, target)` | BooleanLiteral |
-| 1459 | `
-      fail(
-        `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
-      )
-    }` | `{}` | BlockStatement |
-| 1461 | `${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`` | ```` | StringLiteral |
+| 1441 | `name=${n.trim()}`)`|`` | StringLiteral |
+| 1441 |`.trim()}`|`n`| MethodExpression |
+| 1443 |`ypeof ns === 'string' && ns.trim() !== '')`|`false`| ConditionalExpression |
+| 1443 |`string' `|`""`| StringLiteral |
+| 1446 |`arts.length > 0 `|`true`| ConditionalExpression |
+| 1446 |`arts.length > 0 `|`false`| ConditionalExpression |
+| 1446 |`arts.length > 0 `|`parts.length >= 0`| EqualityOperator |
+| 1446 |`arts.length > 0 `|`parts.length <= 0`| EqualityOperator |
+| 1446 |`, ')`|`""`| StringLiteral |
+| 1457 |` for (const { section, index, target } of extractExplicitPatchTargetsFromKustomization(first)) {
+if (shouldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)) {
+fail(
+`${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
+)
+}
+}
+}`|`{}`| BlockStatement |
+| 1458 |`
+if (shouldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)) {
+fail(
+`${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
+)
+}
+}`|`{}`| BlockStatement |
+| 1459 |`houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))`|`true`| ConditionalExpression |
+| 1459 |`houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))`|`false`| ConditionalExpression |
+| 1459 |`houldValidateKustomizePatchTarget(target) && !kustomizeResourceCatalogMatchesPatchTarget(catalog, target))`|`shouldValidateKustomizePatchTarget(target) || !kustomizeResourceCatalogMatchesPatchTarget(catalog, target)`| LogicalOperator |
+| 1459 |`kustomizeResourceCatalogMatchesPatchTarget(catalog, target))`|`kustomizeResourceCatalogMatchesPatchTarget(catalog, target)`| BooleanLiteral |
+| 1459 |`
+fail(
+`${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`
+)
+}`|`{}`| BlockStatement |
+| 1461 |`${rel}: ${section}[${index}].target — немає відповідного ресурсу в resources/bases/components/crds (рекурсивно): ${formatKustomizePatchTargetForMessage(target)}`` | ```` | StringLiteral |
 | 1475 | `
   for (const entry of extractExplicitPatchTargetsFromKustomization(first)) {
     const violation = describePatchTargetRedundancy(entry, catalog)
@@ -63402,7 +63402,7 @@ const bcPresence = classifyBackendConfigManifestPresence(body)
 | 2543 | `ypeof data !== 'object' ` | `false` | ConditionalExpression |
 | 2547 | `Object.hasOwn(d, HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY))` | `false` | ConditionalExpression |
 | 2547 | `
-    return `data.${HASURA_REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
+    return `data.${HASURA*REMOTE_SCHEMA_PERMISSIONS_KEY}: додай ключ зі значенням "true" (Deployment з hasura/graphql-engine — див. k8s.mdc)`
   }` | `{}` | BlockStatement |
 | 2556 | `\.ya?ml$/iu` | `/\.ya?ml/iu` | Regex |
 | 2556 | `\.ya?ml$/iu` | `/\.yaml$/iu` | Regex |
@@ -63630,9 +63630,9 @@ return
 }
 const lines = toLines(raw)
 const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-/\*_
+/\**
 @type {import('yaml').Document[]}
-_/
+\_/
 let docs
 try {
 docs = parseAllDocuments(body)
@@ -65288,7 +65288,7 @@ const treeFlagsMemo = new Map()
 | 6571 |`utf8')`|`""`| StringLiteral |
 | 6585 |`
   const relDir = (relative(rootNorm, dir) || dir).replaceAll('\\', '/')
-  const npAbs = join(dir, NETWORK_POLICY_FILENAME)
+  const npAbs = join(dir, NETWORK*POLICY_FILENAME)
   const npRel = (relative(rootNorm, npAbs) || npAbs).replaceAll('\\', '/')
   if (existsSync(npAbs)) {
   const migrated = await regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail)
@@ -65297,7 +65297,7 @@ const treeFlagsMemo = new Map()
   }
   }
   const existing = await existingNetworkPolicyNames(npAbs)
-  /\*_
+  /\**
   @type {Array<{ name: string, appLabel: string, kind: string }>}
   _/
   const toAdd = []
@@ -65539,7 +65539,7 @@ const treeFlagsMemo = new Map()
   pass('Немає _.yaml під k8s — перевірку $schema пропущено')
   return reporter.getExitCode()
   }`|`{}`| BlockStatement |
-| 6793 |`Немає _.yaml під k8s — перевірку $schema пропущено')`|`""`| StringLiteral |
+| 6793 |`Немає \_.yaml під k8s — перевірку $schema пропущено')`|`""`| StringLiteral |
 | 6797 |`YAML у k8s: ${yamlFiles.length} файл(ів)`)` | ``| StringLiteral |
 | 6809 | `Rego-полісі (npm/policy/k8s/*) виконано на ${yamlFiles.length} файл(ах)`)` |`` | StringLiteral |
   | 6811 | `
@@ -67179,12 +67179,12 @@ test('exit 0 — повний набір конфігів', async () => {
 | 120 |`rue `|`false`| BooleanLiteral |
 | 122 |`.cargo/mutants.toml створено з Tauri canonical baseline (${rel}) (tauri.mdc)`)` | ```` | StringLiteral |
 | 128 | `.cargo/mutants.toml: manual cargo-mutants config preserved (${rel})`)` | ``| StringLiteral |
-| 134 | `.cargo/mutants.toml: додано відсутні Tauri-ключі [${missing.join(', ')}] (${rel}) (tauri.mdc)`)` |`` | StringLiteral |
-| 134 | `, ')` | `""` | StringLiteral |
-| 144 | `rcTauriDirs.length === 0)` | `false` | ConditionalExpression |
-| 144 | `
-    return reporter.getExitCode()
-  }` | `{}` | BlockStatement |
+| 134 | `.cargo/mutants.toml: додано відсутні Tauri-ключі [${missing.join(', ')}] (${rel}) (tauri.mdc)`)`|`` | StringLiteral |
+| 134 |`, ')`|`""`| StringLiteral |
+| 144 |`rcTauriDirs.length === 0)`|`false`| ConditionalExpression |
+| 144 |`
+return reporter.getExitCode()
+}`|`{}` | BlockStatement |
 
 **Приклад тесту** (`npm/rules/tauri/js/tests/cargo_mutants_config.test.mjs`):
 
@@ -67949,7 +67949,7 @@ test('runDotenvLinter повертає 0 коли .env*-файлів немає'
         return []
       }` | `{}` | BlockStatement |
 
-| 91 | ` => p.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `() => undefined` | ArrowFunction |
+| 91 | ` => p.includes('node_modules') || p.startsWith(`node*modules/`) || p.split('/').includes('node_modules')` | `() => undefined` | ArrowFunction |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `false` | ConditionalExpression |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) || p.split('/').includes('node_modules')` | `(p.includes('node_modules') || p.startsWith(`node_modules/`)) && p.split('/').includes('node_modules')` | LogicalOperator |
 | 91 | `.includes('node_modules') || p.startsWith(`node_modules/`) ` | `false` | ConditionalExpression |
@@ -67978,8 +67978,8 @@ test('runDotenvLinter повертає 0 коли .env*-файлів немає'
 | 187 | `atchRun.stdout?.length)` | `patchRun.stdout.length` | OptionalChaining |
 | 188 | `run-shellcheck-text: patch не застосував diff для ${rel}\n`)`| ```` | StringLiteral |
 | 203 |`utf8',`|`""`| StringLiteral |
-| 205 |`0 _ 1024 _ 1024,`|`10 _ 1024 / 1024`| ArithmeticOperator |
-| 205 |`0 _ 1024 `|`10 / 1024`| ArithmeticOperator |
+| 205 |`0 * 1024 _ 1024,`|`10 _ 1024 / 1024`| ArithmeticOperator |
+| 205 |`0 \_ 1024 `|`10 / 1024`| ArithmeticOperator |
 | 206 |`'ignore', 'pipe', 'pipe']`|`[]`| ArrayDeclaration |
 | 206 |`ignore',`|`""`| StringLiteral |
 | 206 |`pipe',`|`""`| StringLiteral |
@@ -69288,7 +69288,7 @@ test('згортає три і більше переносів до одного
 failures.push('checkout@v6 без with.persist-credentials: false')
 }`|`{}`| BlockStatement |
 | 288 |`checkout@v6 без with.persist-credentials: false')`|`""`| StringLiteral |
-| 291 |`usesList.some(u => u.includes(LOCAL_SETUP_BUN_DEPS_MARKER)))`|`false`| ConditionalExpression |
+| 291 |`usesList.some(u => u.includes(LOCAL*SETUP_BUN_DEPS_MARKER)))`|`false`| ConditionalExpression |
 | 291 |`
 failures.push('немає uses: ./.github/actions/setup-bun-deps')
 }`|`{}`| BlockStatement |
@@ -69329,7 +69329,7 @@ typeof withObj === 'object' &&
 /** @type {Record<string, unknown>} \*/ (withObj)['persist-credentials'] === false`|`true`| ConditionalExpression |
 | 375 |`ithObj &&
 typeof withObj === 'object' &&
-/** @type {Record<string, unknown>} _/ (withObj)['persist-credentials'] === false`|`withObj && typeof withObj === 'object' || /\*\* @type {Record<string, unknown>} _/withObj['persist-credentials'] === false`| LogicalOperator |
+/** @type {Record<string, unknown>} */ (withObj)['persist-credentials'] === false`|`withObj && typeof withObj === 'object' || /\*\* @type {Record<string, unknown>} \_/withObj['persist-credentials'] === false`| LogicalOperator |
 | 375 |`ithObj &&
 typeof withObj === 'object' `|`true`| ConditionalExpression |
 | 375 |`ithObj &&

@@ -3682,7 +3682,9 @@ async function validateHasuraConfigMapRemoteSchemaPermissions(root, yamlFilesAbs
     fail(`${rel}: ${v.message}`)
   }
   if (violations.length === 0) {
-    passFn(`Hasura-ConfigMap (${paired.length}) містить обов'язкові env [${HASURA_REQUIRED_ENV_KEYS.join(', ')}] (rego)`)
+    passFn(
+      `Hasura-ConfigMap (${paired.length}) містить обов'язкові env [${HASURA_REQUIRED_ENV_KEYS.join(', ')}] (rego)`
+    )
   }
 }
 
@@ -5041,7 +5043,9 @@ async function validateHasuraOverlayEnabledApisOverride(root, yamlFilesAbs, fail
     if (!(await kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm))) continue
     const value = hasuraEnabledApisOverrideValue(kust)
     if (value === HASURA_OVERLAY_ENABLED_APIS) {
-      passFn(`${rel}: overlay '${segment}' перевизначає HASURA_GRAPHQL_ENABLED_APIS="${HASURA_OVERLAY_ENABLED_APIS}" (k8s.mdc)`)
+      passFn(
+        `${rel}: overlay '${segment}' перевизначає HASURA_GRAPHQL_ENABLED_APIS="${HASURA_OVERLAY_ENABLED_APIS}" (k8s.mdc)`
+      )
     } else if (value === null) {
       fail(
         `${rel}: overlay '${segment}' має у patches[] перевизначати data.HASURA_GRAPHQL_ENABLED_APIS до "${HASURA_OVERLAY_ENABLED_APIS}" (pgdump лише для base/dev) (k8s.mdc)`

@@ -22,9 +22,23 @@ const L2_KEYS = ['feature', 'epic', 'refactor', 'рефактор', 'фіча']
  * класифікувати як trivial і не пропускати spec (беклог #2). Підрядком (case-insensitive).
  */
 const COMPLEXITY_KEYS = [
-  'mdc', 'policy', 'політик', 'rego', 'checker', 'чекер', 'правило', 'правила', 'rules',
-  'суперечн', 'інваріант', 'invariant', 'порушен', 'violation',
-  'кілька файл', 'декілька', 'meta-'
+  'mdc',
+  'policy',
+  'політик',
+  'rego',
+  'checker',
+  'чекер',
+  'правило',
+  'правила',
+  'rules',
+  'суперечн',
+  'інваріант',
+  'invariant',
+  'порушен',
+  'violation',
+  'кілька файл',
+  'декілька',
+  'meta-'
 ]
 
 /**

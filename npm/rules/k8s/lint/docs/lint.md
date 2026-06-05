@@ -24,40 +24,40 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `pathHasK8sSegment(filePath, root?)` | function | Перевіряє, чи має шлях сегмент каталогу `k8s` (відносно `root`, якщо переданий). |
-| `k8sRootFromFile(absFile)` | function | Підіймається вгору від файлу до найближчого предка з назвою `k8s`. |
-| `findK8sRoots(root, ignorePaths?)` | async function | Повертає унікальні сортовані `…/k8s`-корені під `root`, що містять `*.yaml`. |
-| `buildKubescapeExceptionsArgs(root)` | function | Формує `['--exceptions', <abs>]` якщо в корені є `.kubescape-exceptions.json`. |
-| `findKustomizationDirs(dir)` | async function | Знаходить «точки входу» Kustomize (`kustomization.yaml` з `kind` ≠ `Component`). |
-| `runLintK8s` | async function | Публічна CLI-форма: `runStandardLint(import.meta.dirname, runLintK8sSteps)`. |
+| Експорт                              | Тип            | Призначення                                                                      |
+| ------------------------------------ | -------------- | -------------------------------------------------------------------------------- |
+| `pathHasK8sSegment(filePath, root?)` | function       | Перевіряє, чи має шлях сегмент каталогу `k8s` (відносно `root`, якщо переданий). |
+| `k8sRootFromFile(absFile)`           | function       | Підіймається вгору від файлу до найближчого предка з назвою `k8s`.               |
+| `findK8sRoots(root, ignorePaths?)`   | async function | Повертає унікальні сортовані `…/k8s`-корені під `root`, що містять `*.yaml`.     |
+| `buildKubescapeExceptionsArgs(root)` | function       | Формує `['--exceptions', <abs>]` якщо в корені є `.kubescape-exceptions.json`.   |
+| `findKustomizationDirs(dir)`         | async function | Знаходить «точки входу» Kustomize (`kustomization.yaml` з `kind` ≠ `Component`). |
+| `runLintK8s`                         | async function | Публічна CLI-форма: `runStandardLint(import.meta.dirname, runLintK8sSteps)`.     |
 
 CLI-режим: при прямому виконанні скрипта (`bun npm/rules/k8s/lint/lint.mjs`) встановлюється `process.exitCode = await runLintK8s()`.
 
 ### Внутрішні (без `export`) функції
 
-| Функція | Роль |
-|---|---|
-| `runKubeconform(dirs)` | Запуск `kubeconform` для переданого списку каталогів. |
-| `runKustomizeBuild(kubectlPath, dir)` | `kubectl kustomize <dir>` → `{ status, stdout: Buffer }`. |
-| `runKubescapeManifest(kubescapePath, manifest, exceptionsArgs)` | Скан зібраного маніфесту через тимчасовий файл. |
-| `scanRawK8sDir(kubescapePath, dir, exceptionsArgs)` | Сирий dir-скан kubescape для k8s-кореня без Kustomize. |
-| `scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)` | Цикл `kustomize build` → `kubescape scan` по всіх `kdirs`. |
-| `runKubescape(dirs, root)` | Оркестратор фази kubescape: Kustomize-білди або fallback на сирий dir-скан. |
-| `runLintK8sSteps()` | Внутрішня послідовність (без локу): пошук дерев → kubeconform → kubescape. |
+| Функція                                                                   | Роль                                                                        |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `runKubeconform(dirs)`                                                    | Запуск `kubeconform` для переданого списку каталогів.                       |
+| `runKustomizeBuild(kubectlPath, dir)`                                     | `kubectl kustomize <dir>` → `{ status, stdout: Buffer }`.                   |
+| `runKubescapeManifest(kubescapePath, manifest, exceptionsArgs)`           | Скан зібраного маніфесту через тимчасовий файл.                             |
+| `scanRawK8sDir(kubescapePath, dir, exceptionsArgs)`                       | Сирий dir-скан kubescape для k8s-кореня без Kustomize.                      |
+| `scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)` | Цикл `kustomize build` → `kubescape scan` по всіх `kdirs`.                  |
+| `runKubescape(dirs, root)`                                                | Оркестратор фази kubescape: Kustomize-білди або fallback на сирий dir-скан. |
+| `runLintK8sSteps()`                                                       | Внутрішня послідовність (без локу): пошук дерев → kubeconform → kubescape.  |
 
 ### Константи модуля
 
-| Константа | Значення | Призначення |
-|---|---|---|
-| `KUBESCAPE_EXCEPTIONS_FILE` | `.kubescape-exceptions.json` | Ім'я per-project файлу винятків для kubescape. |
-| `KUSTOMIZATION_FILE` | `kustomization.yaml` | Канонічна назва маніфесту Kustomize (`.yml` заборонено). |
-| `KUBESCAPE_MISSING_HINT` | рядок з URL | Підказка користувачу при відсутності kubescape у PATH. |
-| `PATH_SEPARATOR_RE` | `/[/\\]/u` | Регексп розбиття шляху по `/` або `\`. |
-| `YAML_EXT_RE` | `/\.yaml$/iu` | Регексп фільтра YAML-файлів. |
-| `KUBERNETES_VERSION` | `1.33.9` | Версія схем Kubernetes для kubeconform (узгоджена з `YANNH_PIN`). |
-| `DATREE_CRD_SCHEMA_LOCATION` | URL-шаблон | Додаткова локація схем для CRD-ресурсів (Datree CRDs-catalog). |
+| Константа                    | Значення                     | Призначення                                                       |
+| ---------------------------- | ---------------------------- | ----------------------------------------------------------------- |
+| `KUBESCAPE_EXCEPTIONS_FILE`  | `.kubescape-exceptions.json` | Ім'я per-project файлу винятків для kubescape.                    |
+| `KUSTOMIZATION_FILE`         | `kustomization.yaml`         | Канонічна назва маніфесту Kustomize (`.yml` заборонено).          |
+| `KUBESCAPE_MISSING_HINT`     | рядок з URL                  | Підказка користувачу при відсутності kubescape у PATH.            |
+| `PATH_SEPARATOR_RE`          | `/[/\\]/u`                   | Регексп розбиття шляху по `/` або `\`.                            |
+| `YAML_EXT_RE`                | `/\.yaml$/iu`                | Регексп фільтра YAML-файлів.                                      |
+| `KUBERNETES_VERSION`         | `1.33.9`                     | Версія схем Kubernetes для kubeconform (узгоджена з `YANNH_PIN`). |
+| `DATREE_CRD_SCHEMA_LOCATION` | URL-шаблон                   | Додаткова локація схем для CRD-ресурсів (Datree CRDs-catalog).    |
 
 ## Функції
 
@@ -66,12 +66,14 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 **Сигнатура:** `(filePath: string, root?: string) => boolean`
 
 **Параметри:**
+
 - `filePath` — абсолютний або відносний шлях до файлу.
 - `root` (необов'язковий) — корінь репо для relativize.
 
 **Повертає:** `true`, якщо серед компонентів шляху (відносно `root`, якщо передано) є сегмент `k8s`.
 
 **Поведінка / нюанси:**
+
 - Без `root` працює напряму з `filePath` — корисно для перевірки відносного шляху.
 - З `root` обов'язково релятивізує: інакше, якщо сам корінь репо містить компонент `k8s` (наприклад `/Users/.../abie/k8s/`), функція повернула б `true` для **усіх** файлів проєкту, включно з `.github/workflows/*.yml`.
 - Бекслеші нормалізуються в `/` через `replaceAll('\\', '/')`.
@@ -84,6 +86,7 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 **Сигнатура:** `(absFile: string) => string | null`
 
 **Параметри:**
+
 - `absFile` — абсолютний шлях до YAML-файлу.
 
 **Повертає:** абсолютний шлях до найближчого предка з ім'ям `k8s` або `null`, якщо такого сегмента в ланцюжку немає.
@@ -97,12 +100,14 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 **Сигнатура:** `async (root: string, ignorePaths?: string[]) => Promise<string[]>`
 
 **Параметри:**
+
 - `root` — корінь репозиторію.
 - `ignorePaths` (необов'язковий, default `[]`) — абсолютні шляхи каталогів, повністю виключених з обходу (передається у `walkDir`).
 
 **Повертає:** Promise з масивом унікальних, відсортованих за `localeCompare` абсолютних шляхів до `…/k8s`-каталогів, у яких знайдено хоча б один `*.yaml`.
 
 **Алгоритм:**
+
 1. Викликає `walkDir(root, visitor, ignorePaths)`.
 2. Для кожного відвіданого `p`:
    - вираховує відносний шлях `rel` (нормалізує бекслеші);
@@ -119,6 +124,7 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 **Сигнатура:** `(root: string) => string[]`
 
 **Параметри:**
+
 - `root` — корінь репозиторію (де шукається `.kubescape-exceptions.json`).
 
 **Повертає:** `['--exceptions', '<абсолютний шлях>']` якщо файл існує, інакше `[]`.
@@ -130,16 +136,19 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 **Сигнатура:** `async (dir: string) => Promise<string[]>`
 
 **Параметри:**
+
 - `dir` — абсолютний шлях до `…/k8s` (або іншого) каталогу.
 
 **Повертає:** Promise з відсортованим списком абсолютних шляхів до каталогів, що містять **білдабельний** `kustomization.yaml` (тобто такий, що `kustomize build` буде здатний рендерити локально).
 
 **Семантика «білдабельний»:**
+
 - Файл називається саме `kustomization.yaml` (без `.yml` — заборонено каноном).
 - YAML парситься без помилок (інакше — `continue`).
 - Перший документ — об'єкт, у якого `kind !== 'Component'`. `kind: Kustomization` або відсутній `kind` (типово Kustomization) — приймаються; `kind: Component` пропускається, бо Components не білдяться окремо й підключаються через `components:` із overlay.
 
 **Алгоритм:**
+
 1. `walkDir(dir, …)` збирає `candidates` — усі шляхи з `basename === 'kustomization.yaml'`.
 2. Послідовно по `candidates`:
    - `readFile(p, 'utf8')` (помилка → skip);
@@ -150,16 +159,18 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Side effects:** обхід ФС + читання вмісту YAML; парсинг без винятку назовні.
 
-### `runKubeconform(dirs)` *(внутрішня)*
+### `runKubeconform(dirs)` _(внутрішня)_
 
 **Сигнатура:** `(dirs: string[]) => number`
 
 **Параметри:**
+
 - `dirs` — абсолютні шляхи до `…/k8s`-каталогів.
 
 **Повертає:** код виходу процесу `kubeconform` (`r.status ?? 1`); `127` якщо kubeconform відсутній (`ENOENT`).
 
 **Прапори, що передаються `kubeconform`:**
+
 - `-summary` — компактний підсумок наприкінці.
 - `-kubernetes-version 1.33.9` — `KUBERNETES_VERSION`.
 - `-schema-location default` — офіційні схеми Kubernetes.
@@ -169,7 +180,7 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Side effects:** `spawnSync` (stdio inherit) — друкує вихід kubeconform у термінал; на `ENOENT` пише інструкцію встановлення в `stderr`.
 
-### `runKustomizeBuild(kubectlPath, dir)` *(внутрішня)*
+### `runKustomizeBuild(kubectlPath, dir)` _(внутрішня)_
 
 **Сигнатура:** `(kubectlPath: string, dir: string) => { status: number, stdout: Buffer }`
 
@@ -179,11 +190,12 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Side effects:** дочірній процес з inherit stderr.
 
-### `runKubescapeManifest(kubescapePath, manifest, exceptionsArgs)` *(внутрішня)*
+### `runKubescapeManifest(kubescapePath, manifest, exceptionsArgs)` _(внутрішня)_
 
 **Сигнатура:** `(kubescapePath: string, manifest: Buffer, exceptionsArgs: string[]) => { status: number, enoent: boolean }`
 
 **Поведінка:**
+
 1. Створює тимчасову директорію `mkdtempSync(join(tmpdir(), 'nitra-cursor-k8s-'))`.
 2. Пише `manifest` у файл `manifest.yaml` усередині неї.
 3. Запускає `kubescape scan <file> --severity-threshold high <...exceptionsArgs>` зі `stdio: 'inherit'`.
@@ -195,7 +207,7 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Side effects:** створення/видалення тимчасової директорії, запис файлу, дочірній процес.
 
-### `scanRawK8sDir(kubescapePath, dir, exceptionsArgs)` *(внутрішня)*
+### `scanRawK8sDir(kubescapePath, dir, exceptionsArgs)` _(внутрішня)_
 
 **Сигнатура:** `(kubescapePath: string, dir: string, exceptionsArgs: string[]) => number`
 
@@ -203,11 +215,12 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Повертає:** `0` при успіху, `127` якщо kubescape зник з PATH (`ENOENT`), інакше `r.status ?? 1`.
 
-### `scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)` *(внутрішня)*
+### `scanKustomizeK8sDirs(kubectlPath, kubescapePath, kdirs, exceptionsArgs)` _(внутрішня)_
 
 **Сигнатура:** `(kubectlPath: string, kubescapePath: string, kdirs: string[], exceptionsArgs: string[]) => number`
 
 **Поведінка:** для кожного `kdir` із `kdirs`:
+
 1. Друкує лог `run-k8s: kubectl kustomize <kdir> | kubescape scan <tmp>`.
 2. `runKustomizeBuild(kubectlPath, kdir)` — якщо `status !== 0`, негайно повертає цей `status`.
 3. `runKubescapeManifest(kubescapePath, build.stdout, exceptionsArgs)`:
@@ -216,11 +229,12 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Повертає:** `0` лише якщо всі каталоги пройшли; інакше — код першого невдалого процесу.
 
-### `runKubescape(dirs, root)` *(внутрішня)*
+### `runKubescape(dirs, root)` _(внутрішня)_
 
 **Сигнатура:** `async (dirs: string[], root: string) => Promise<number>`
 
 **Алгоритм:**
+
 1. `exceptionsArgs = buildKubescapeExceptionsArgs(root)`; якщо непорожній — лог про використання exceptions-файлу.
 2. `kubescapePath = ensureTool('kubescape')` — забезпечує наявність бінарника (інсталює, якщо налаштовано).
 3. `kubectlPath = null` (lazy resolve).
@@ -235,11 +249,12 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Fallback:** якщо в `…/k8s` немає білдабельного `kustomization.yaml` — сирий dir-скан (не блокувати YAML-only проєкт без Kustomize).
 
-### `runLintK8sSteps()` *(внутрішня)*
+### `runLintK8sSteps()` _(внутрішня)_
 
 **Сигнатура:** `async () => Promise<number>`
 
 **Поведінка:**
+
 1. `root = process.cwd()`.
 2. `ignorePaths = await loadCursorIgnorePaths(root)` — підвантажує патерни з `.cursorignore`.
 3. `dirs = await findK8sRoots(root, ignorePaths)`.
@@ -250,11 +265,12 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 **Повертає:** код виходу для `process.exitCode` (`0` — успіх або пропуск).
 
-### `runLintK8s` *(експортована CLI-форма)*
+### `runLintK8s` _(експортована CLI-форма)_
 
 **Сигнатура:** `() => Promise<number>`
 
 **Реалізація:** `runStandardLint(import.meta.dirname, runLintK8sSteps)` — обгортка з канону `scripts.mdc`, що додає:
+
 - серіалізацію через `withLock('lint-k8s')` (блокування паралельних запусків);
 - дедуплікацію за станом git-дерева (пропуск повторного запуску без змін).
 
@@ -264,30 +280,30 @@ CLI-режим: при прямому виконанні скрипта (`bun np
 
 ### Node.js builtin
 
-| Модуль | Що використовується |
-|---|---|
-| `node:child_process` | `spawnSync` для запуску `kubeconform`, `kubectl`, `kubescape`. |
-| `node:fs` | `existsSync` (exceptions-файл), `mkdtempSync`, `rmSync`, `writeFileSync` (tmp-маніфест). |
-| `node:fs/promises` | `readFile` для парсингу `kustomization.yaml`. |
-| `node:os` | `tmpdir()` як база для тимчасової директорії. |
-| `node:path` | `basename`, `dirname`, `join`, `relative`. |
+| Модуль               | Що використовується                                                                      |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `node:child_process` | `spawnSync` для запуску `kubeconform`, `kubectl`, `kubescape`.                           |
+| `node:fs`            | `existsSync` (exceptions-файл), `mkdtempSync`, `rmSync`, `writeFileSync` (tmp-маніфест). |
+| `node:fs/promises`   | `readFile` для парсингу `kustomization.yaml`.                                            |
+| `node:os`            | `tmpdir()` як база для тимчасової директорії.                                            |
+| `node:path`          | `basename`, `dirname`, `join`, `relative`.                                               |
 
 ### Зовнішні npm-пакети
 
-| Пакет | Використання |
-|---|---|
+| Пакет                         | Використання                                                    |
+| ----------------------------- | --------------------------------------------------------------- |
 | `yaml` (named import `parse`) | Парсинг `kustomization.yaml` для відсіювання `kind: Component`. |
 
 ### Внутрішні модулі репозиторію
 
-| Шлях | Використання |
-|---|---|
-| `../../../scripts/cli-entry.mjs` (`isRunAsCli`) | Детектор «запущено як CLI» (а не імпортовано). |
-| `../../../scripts/lib/ensure-tool.mjs` (`ensureTool`) | Гарантує наявність CLI-інструмента (kubeconform, kubescape) у PATH (інсталює якщо налаштовано). |
-| `../../../scripts/lib/load-cursor-config.mjs` (`loadCursorIgnorePaths`) | Зчитує `.cursorignore` і повертає абсолютні шляхи виключень. |
-| `../../../scripts/utils/resolve-cmd.mjs` (`resolveCmd`) | Знаходить абсолютний шлях до бінарника (для `kubectl`, без installation hook). |
-| `../../../scripts/utils/walkDir.mjs` (`walkDir`) | Рекурсивний обхід ФС із підтримкою ignore-патернів. |
-| `../../../scripts/lib/run-standard-lint.mjs` (`runStandardLint`) | Стандартна обгортка серіалізації + дедупу для lint-команд. |
+| Шлях                                                                    | Використання                                                                                    |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `../../../scripts/cli-entry.mjs` (`isRunAsCli`)                         | Детектор «запущено як CLI» (а не імпортовано).                                                  |
+| `../../../scripts/lib/ensure-tool.mjs` (`ensureTool`)                   | Гарантує наявність CLI-інструмента (kubeconform, kubescape) у PATH (інсталює якщо налаштовано). |
+| `../../../scripts/lib/load-cursor-config.mjs` (`loadCursorIgnorePaths`) | Зчитує `.cursorignore` і повертає абсолютні шляхи виключень.                                    |
+| `../../../scripts/utils/resolve-cmd.mjs` (`resolveCmd`)                 | Знаходить абсолютний шлях до бінарника (для `kubectl`, без installation hook).                  |
+| `../../../scripts/utils/walkDir.mjs` (`walkDir`)                        | Рекурсивний обхід ФС із підтримкою ignore-патернів.                                             |
+| `../../../scripts/lib/run-standard-lint.mjs` (`runStandardLint`)        | Стандартна обгортка серіалізації + дедупу для lint-команд.                                      |
 
 ### Зовнішні CLI-інструменти
 
@@ -357,12 +373,12 @@ const roots = await findK8sRoots(process.cwd())
 
 ### Коди виходу (повертаються через `process.exitCode`)
 
-| Код | Значення |
-|---|---|
-| `0` | Успіх або пропуск (немає `*.yaml` під `k8s`). |
-| `127` | Відсутній зовнішній CLI у PATH: `kubeconform`, `kubescape` або `kubectl`. У stderr — підказка встановлення. |
-| ≠ 0 (інше) | Код невдалого процесу (`kubeconform`, `kubectl kustomize` або `kubescape`). |
-| `1` | Дефолт `r.status ?? 1`, якщо процес завершився без статусу. |
+| Код        | Значення                                                                                                    |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| `0`        | Успіх або пропуск (немає `*.yaml` під `k8s`).                                                               |
+| `127`      | Відсутній зовнішній CLI у PATH: `kubeconform`, `kubescape` або `kubectl`. У stderr — підказка встановлення. |
+| ≠ 0 (інше) | Код невдалого процесу (`kubeconform`, `kubectl kustomize` або `kubescape`).                                 |
+| `1`        | Дефолт `r.status ?? 1`, якщо процес завершився без статусу.                                                 |
 
 ### Файли конфігурації, що впливають на роботу
 

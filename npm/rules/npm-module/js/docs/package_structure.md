@@ -17,27 +17,27 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `globToRegex(glob)` | `function` | Перетворює glob-патерн на `RegExp` із якорями `^` / `$`; підтримує `**`, `*`, `?`, `{a,b,c}`. |
+| Експорт                                         | Тип              | Призначення                                                                                                                |
+| ----------------------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `globToRegex(glob)`                             | `function`       | Перетворює glob-патерн на `RegExp` із якорями `^` / `$`; підтримує `**`, `*`, `?`, `{a,b,c}`.                              |
 | `findTestFrameworkImport(content, virtualPath)` | `async function` | Парсить JS/TS через `oxc-parser` і повертає назву модуля test-фреймворку, якщо знайдено import / require / dynamic import. |
-| `classifyPublishedFileAsTest(relPath, cwd?)` | `async function` | Класифікує файл як test/fixture за каталогом, basename або AST-імпортом. |
-| `check(cwd?)` | `async function` | Головна точка входу checker-а правила `npm-module.mdc`; повертає exit-code `0` / `1`. |
+| `classifyPublishedFileAsTest(relPath, cwd?)`    | `async function` | Класифікує файл як test/fixture за каталогом, basename або AST-імпортом.                                                   |
+| `check(cwd?)`                                   | `async function` | Головна точка входу checker-а правила `npm-module.mdc`; повертає exit-code `0` / `1`.                                      |
 
 Решта функцій (`npmSrcTreeHasJsFile`, `readHkConfig`, `missingHkSrcLayoutFragments`, `missingHkEmitTypesConfigFragments`, `npmTypesFileFromPackageField`, `checkNpmPackageJson`, `checkEmitTypesConfig`, `checkPublishWorkflow`, `collectPublishedFiles`, `checkNoTestsInPublishedFiles`, `checkNpmModuleBasicStructure`) — приватні для модуля.
 
 ## Константи
 
-| Константа | Значення / Опис |
-| --- | --- |
-| `EMIT_TYPES_CONFIG` | `'npm/tsconfig.emit-types.json'` — шлях до TS-config для emit без `src`. |
-| `TEST_DIR_NAMES` | `Set` з `'tests'`, `'__tests__'`, `'fixtures'`, `'__fixtures__'`, `'spec'`, `'test'`. |
-| `TEST_FILE_PATTERNS` | `[/^.+\.(test|spec)\.[cm]?[jt]sx?$/iu]` — патерн test-файлів за basename. Rego-файли (`*_test.rego`) свідомо не входять (conftest-конвенція). |
-| `JS_LIKE_EXT_RE` | `/\.[cm]?[jt]sx?$/iu` — розширення, у яких сканується AST на імпорти test-фреймворків. |
+| Константа                | Значення / Опис                                                                                                      |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `EMIT_TYPES_CONFIG`      | `'npm/tsconfig.emit-types.json'` — шлях до TS-config для emit без `src`.                                             |
+| `TEST_DIR_NAMES`         | `Set` з `'tests'`, `'__tests__'`, `'fixtures'`, `'__fixtures__'`, `'spec'`, `'test'`.                                |
+| `TEST_FILE_PATTERNS`     | `[/^.+\.(test                                                                                                        | spec)\.[cm]?[jt]sx?$/iu]` — патерн test-файлів за basename. Rego-файли (`\*\_test.rego`) свідомо не входять (conftest-конвенція). |
+| `JS_LIKE_EXT_RE`         | `/\.[cm]?[jt]sx?$/iu` — розширення, у яких сканується AST на імпорти test-фреймворків.                               |
 | `TEST_FRAMEWORK_MODULES` | `Set` з `'bun:test'`, `'node:test'`, `'vitest'`, `'@jest/globals'`, `'jest'`, `'mocha'`, `'ava'`, `'tap'`, `'tape'`. |
-| `REGEX_SPECIAL_IN_GLOB` | `Set` спецсимволів regex, які екрануються у glob-сегменті (без `*`/`?`). |
-| `GLOBSTAR_LEADING_RE` | `/^__GLOBSTAR__\//u` — маркер `**/` на початку. |
-| `GLOBSTAR_TRAILING_RE` | `/\/__GLOBSTAR__$/u` — маркер `/**` у кінці. |
+| `REGEX_SPECIAL_IN_GLOB`  | `Set` спецсимволів regex, які екрануються у glob-сегменті (без `*`/`?`).                                             |
+| `GLOBSTAR_LEADING_RE`    | `/^__GLOBSTAR__\//u` — маркер `**/` на початку.                                                                      |
+| `GLOBSTAR_TRAILING_RE`   | `/\/__GLOBSTAR__$/u` — маркер `/**` у кінці.                                                                         |
 
 ## Функції
 

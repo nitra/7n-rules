@@ -77,7 +77,10 @@ export function sdkRunner(deps = {}) {
       let output = ''
       let ok = true
       try {
-        for await (const msg of query({ prompt, options: { cwd, maxTurns: 20, allowedTools: ['Read', 'Edit', 'Bash'] } })) {
+        for await (const msg of query({
+          prompt,
+          options: { cwd, maxTurns: 20, allowedTools: ['Read', 'Edit', 'Bash'] }
+        })) {
           if (typeof msg?.text === 'string') output += msg.text
           if (msg?.type === 'result') ok = msg.is_error !== true
         }
@@ -99,8 +102,7 @@ export async function createRunner(deps = {}) {
   const env = deps.env ?? processEnv
   const isInPath = deps.isInPath ?? (name => isBinaryInPath(name, deps.spawn))
   const canImportSdk = deps.canImportSdk ?? (await probeSdk())
-  const backend =
-    deps.backend ?? selectBackend({ hasApiKey: Boolean(env.ANTHROPIC_API_KEY), canImportSdk, isInPath })
+  const backend = deps.backend ?? selectBackend({ hasApiKey: Boolean(env.ANTHROPIC_API_KEY), canImportSdk, isInPath })
   if (!backend) throw new Error(NO_BACKEND)
   if (backend === 'sdk') return sdkRunner(deps)
   return cliRunner(backend === 'claude' ? 'claude' : 'cursor-agent', deps)

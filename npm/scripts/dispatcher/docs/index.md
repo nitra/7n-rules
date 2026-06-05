@@ -20,11 +20,11 @@
 
 Модуль ESM (`.mjs`). Експортує:
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `DEFAULT_HANDLERS` | `Record<string, (rest: string[], deps: object) => Promise<number>>` | Стандартна мапа підкоманд → handler-функцій (`init`, `spec`, `plan`, `verify`, `review`, `gate`, `release`, `run`, `resume`, `cancel`, `repair`). |
-| `extractBranchFlag` | `function(args: string[]) → { rest: string[], branch: string \| undefined }` | Чистий парсер опційного `--branch <гілка>` / `--branch=<гілка>`; повертає очищений масив аргументів і значення гілки (або `undefined`). |
-| `runFlowCli` | `async function(args: string[], deps?: object) → Promise<number>` | Власне точка входу диспатчера; маршрутизує підкоманду на handler і повертає exit code. |
+| Експорт             | Тип                                                                          | Призначення                                                                                                                                       |
+| ------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_HANDLERS`  | `Record<string, (rest: string[], deps: object) => Promise<number>>`          | Стандартна мапа підкоманд → handler-функцій (`init`, `spec`, `plan`, `verify`, `review`, `gate`, `release`, `run`, `resume`, `cancel`, `repair`). |
+| `extractBranchFlag` | `function(args: string[]) → { rest: string[], branch: string \| undefined }` | Чистий парсер опційного `--branch <гілка>` / `--branch=<гілка>`; повертає очищений масив аргументів і значення гілки (або `undefined`).           |
+| `runFlowCli`        | `async function(args: string[], deps?: object) → Promise<number>`            | Власне точка входу диспатчера; маршрутизує підкоманду на handler і повертає exit code.                                                            |
 
 Default-експорту немає — імпорт іменований.
 
@@ -112,14 +112,14 @@ export async function runFlowCli(
 
 Усі залежності — **локальні** ESM-імпорти з директорії `./lib/`. Кожен handler — окремий модуль; диспатчер не знає їхньої внутрішньої логіки.
 
-| Імпорт | З модуля | Призначення / Фасад |
-| --- | --- | --- |
-| `cancel`, `repair`, `resume`, `run` | `./lib/active.mjs` | Фасад B — Активний Раннер: повний 5-фазний цикл (`run`), продовження з чекпойнта (`resume`), скасування з прибиранням стану (`cancel`), відновлення пошкодженого стану (`repair`). |
-| `init`, `release`, `verify` | `./lib/commands.mjs` | Фасад A — Турнікет: створення worktree + `.flow.json` (`init`), Quality Gates (`verify`), фіксація `.changes` + completion snapshot (`release`). |
-| `gate` | `./lib/gate.mjs` | Фасад A: фінальний вердикт `PASS / CONCERNS / FAIL` (комбінований `verify + review`). |
-| `plan` | `./lib/plan.mjs` | Фасад A: фаза плану → `docs/plans/<…>` + оновлення стану. |
-| `review` | `./lib/review.mjs` | Фасад A: adversarial diff-review (інтенсивність залежить від `level`). |
-| `spec` | `./lib/spec.mjs` | Фасад A: фаза дизайну → `docs/specs/<…>`. |
+| Імпорт                              | З модуля             | Призначення / Фасад                                                                                                                                                                |
+| ----------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cancel`, `repair`, `resume`, `run` | `./lib/active.mjs`   | Фасад B — Активний Раннер: повний 5-фазний цикл (`run`), продовження з чекпойнта (`resume`), скасування з прибиранням стану (`cancel`), відновлення пошкодженого стану (`repair`). |
+| `init`, `release`, `verify`         | `./lib/commands.mjs` | Фасад A — Турнікет: створення worktree + `.flow.json` (`init`), Quality Gates (`verify`), фіксація `.changes` + completion snapshot (`release`).                                   |
+| `gate`                              | `./lib/gate.mjs`     | Фасад A: фінальний вердикт `PASS / CONCERNS / FAIL` (комбінований `verify + review`).                                                                                              |
+| `plan`                              | `./lib/plan.mjs`     | Фасад A: фаза плану → `docs/plans/<…>` + оновлення стану.                                                                                                                          |
+| `review`                            | `./lib/review.mjs`   | Фасад A: adversarial diff-review (інтенсивність залежить від `level`).                                                                                                             |
+| `spec`                              | `./lib/spec.mjs`     | Фасад A: фаза дизайну → `docs/specs/<…>`.                                                                                                                                          |
 
 **Зовнішніх npm-залежностей немає** — модуль використовує лише вбудоване `console` API та `Object.hasOwn` (ECMAScript 2022+).
 
@@ -203,10 +203,10 @@ const code = await runFlowCli(['verify', '--branch', 'main'], { handlers: fakeHa
 
 ### Коди завершення
 
-| Код | Коли | Хто повертає |
-| --- | --- | --- |
-| `1` | відсутня або невідома підкоманда (`!sub` чи `Object.hasOwn` === `false`) | сам диспатчер |
-| будь-яке число | результат handler-а | відповідний модуль із `./lib/` |
+| Код            | Коли                                                                     | Хто повертає                   |
+| -------------- | ------------------------------------------------------------------------ | ------------------------------ |
+| `1`            | відсутня або невідома підкоманда (`!sub` чи `Object.hasOwn` === `false`) | сам диспатчер                  |
+| будь-яке число | результат handler-а                                                      | відповідний модуль із `./lib/` |
 
 ### Обмеження та інваріанти
 

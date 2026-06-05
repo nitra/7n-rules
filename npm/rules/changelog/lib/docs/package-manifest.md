@@ -19,12 +19,12 @@
 
 Усі експорти — **іменовані** (`export function …`). Експорту за замовчуванням немає.
 
-| Експорт | Тип | Призначення |
-|---|---|---|
-| `parsePyprojectFields(text)` | `(string) => { name: string \| null, version: string \| null }` | Розпарсити сирий TOML-текст `pyproject.toml` і витягти `name` / `version`. |
-| `readPackageManifest(ws, cwd?)` | `(string, string?) => Promise<PackageManifest \| null>` | Прочитати маніфест конкретного воркспейсу (`package.json` або `pyproject.toml`). |
-| `getMonorepoProjectRootDirs(repoRoot?)` | `(string?) => Promise<string[]>` | Перелічити всі каталоги-корені пакетів монорепо (npm + Python). |
-| `manifestFilePath(ws, manifest)` | `(string, PackageManifest) => string` | Зібрати відносний шлях до файлу маніфесту воркспейсу. |
+| Експорт                                 | Тип                                                             | Призначення                                                                      |
+| --------------------------------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `parsePyprojectFields(text)`            | `(string) => { name: string \| null, version: string \| null }` | Розпарсити сирий TOML-текст `pyproject.toml` і витягти `name` / `version`.       |
+| `readPackageManifest(ws, cwd?)`         | `(string, string?) => Promise<PackageManifest \| null>`         | Прочитати маніфест конкретного воркспейсу (`package.json` або `pyproject.toml`). |
+| `getMonorepoProjectRootDirs(repoRoot?)` | `(string?) => Promise<string[]>`                                | Перелічити всі каталоги-корені пакетів монорепо (npm + Python).                  |
+| `manifestFilePath(ws, manifest)`        | `(string, PackageManifest) => string`                           | Зібрати відносний шлях до файлу маніфесту воркспейсу.                            |
 
 ### Типи (JSDoc)
 
@@ -162,18 +162,14 @@
 ### Типовий сценарій: перевірка changelog для всього монорепо
 
 ```js
-import {
-  getMonorepoProjectRootDirs,
-  readPackageManifest,
-  manifestFilePath
-} from './package-manifest.mjs'
+import { getMonorepoProjectRootDirs, readPackageManifest, manifestFilePath } from './package-manifest.mjs'
 
 const roots = await getMonorepoProjectRootDirs(process.cwd())
 // roots ≈ ['.', 'apps/admin', 'npm/rules/changelog', 'python/tooling/foo', ...]
 
 for (const ws of roots) {
   const manifest = await readPackageManifest(ws)
-  if (!manifest) continue                     // ні package.json, ні pyproject.toml — пропускаємо
+  if (!manifest) continue // ні package.json, ні pyproject.toml — пропускаємо
   if (!manifest.registryPublishable) continue // приватні / без 'files' / без version — не публікуються
   console.log(manifest.kind, manifestFilePath(ws, manifest), manifest.name, manifest.version)
 }

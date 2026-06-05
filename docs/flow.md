@@ -30,15 +30,15 @@ level    risk    plan[]              gates[]   findings   verdict   completion
 risk   (з spec)  status:planned                          PASS/…     status:done
 ```
 
-| Команда | Призначення | Пише в `.flow.json` |
-| --- | --- | --- |
-| `init <branch> "<опис>"` | worktree + стан; детектить `level` (0–3) і `risk` (low/med/high) | `branch`, `base_commit`, `level`, `risk` |
-| `spec [--panel]` | фаза дизайну; фіксує `docs/specs/<date>-<slug>.md`; підхоплює `risk:` зі spec | `spec_doc`, `risk`, `status: spec` |
-| `plan [--panel]` | фаза плану; дзеркалить кроки `## Кроки` → `plan[]` | `plan[]`, `plan_doc`, `status: planned` |
-| `verify` | механічні Quality Gates (lint + coverage) | `gates[]`, `fingerprint` |
-| `review` | adversarial diff-review (читає лише `git diff base_commit`) | `review.findings[]` |
-| `gate` | синтез вердикту `PASS / CONCERNS / FAIL` + score + причини | `gate` |
-| `release` | `.changes/` + completion snapshot | `status: done`, `completion` |
+| Команда                  | Призначення                                                                   | Пише в `.flow.json`                      |
+| ------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------- |
+| `init <branch> "<опис>"` | worktree + стан; детектить `level` (0–3) і `risk` (low/med/high)              | `branch`, `base_commit`, `level`, `risk` |
+| `spec [--panel]`         | фаза дизайну; фіксує `docs/specs/<date>-<slug>.md`; підхоплює `risk:` зі spec | `spec_doc`, `risk`, `status: spec`       |
+| `plan [--panel]`         | фаза плану; дзеркалить кроки `## Кроки` → `plan[]`                            | `plan[]`, `plan_doc`, `status: planned`  |
+| `verify`                 | механічні Quality Gates (lint + coverage)                                     | `gates[]`, `fingerprint`                 |
+| `review`                 | adversarial diff-review (читає лише `git diff base_commit`)                   | `review.findings[]`                      |
+| `gate`                   | синтез вердикту `PASS / CONCERNS / FAIL` + score + причини                    | `gate`                                   |
+| `release`                | `.changes/` + completion snapshot                                             | `status: done`, `completion`             |
 
 ## Brainstorm: два режими
 
@@ -78,7 +78,7 @@ risk   (з spec)  status:planned                          PASS/…     status:do
 - **`.worktrees/<branch>.flow.json`** — runtime-стан (sibling, поза git).
 - **`.changes/<id>.md`** — changeset (CI бампає версію; руками не чіпати).
 - **`n-cursor trace`** — read-only верифікатор ланцюга `adr ↔ spec ↔ plan ↔
-  flow ↔ change`; флагує розриви. Лінки у frontmatter пише агент; `spec`/`plan`
+flow ↔ change`; флагує розриви. Лінки у frontmatter пише агент; `spec`/`plan`
   їх перевіряють.
 
 Артефакт резолвиться за **slug гілки** (потім за `mtime`) — щоб серед кількох

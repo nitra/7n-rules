@@ -10,14 +10,14 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-|---|---|---|
+| Експорт                                     | Тип              | Призначення                                                                                                                          |
+| ------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `fixSurvivedMutants(survived, projectRoot)` | `async function` | Публічна функція. Запускає агента, проганяє промпт через `@anthropic-ai/claude-agent-sdk` і друкує текстові повідомлення в `stdout`. |
 
 Внутрішні символи (не експортуються):
 
-| Символ | Тип | Призначення |
-|---|---|---|
+| Символ                                  | Тип              | Призначення                                                                                                      |
+| --------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `buildFixPrompt(survived, projectRoot)` | `async function` | Формує текстовий rich-промпт для агента: список мутантів по файлах, контекст з source, приклади тестів, правила. |
 
 JSDoc-типи, оголошені у файлі:
@@ -86,7 +86,7 @@ JSDoc-типи, оголошені у файлі:
       - `ctxEnd = Math.min(srcLines.length, m.line + 3)` — індекс кінця (виключний), 3 рядки після мутанта.
       - `context` — зріз `srcLines.slice(ctxStart, ctxEnd)`, де кожен рядок префіксується абсолютним номером `${ctxStart + i + 1}: ${l}` і з'єднується через `\n`.
       - Опис мутанта — markdown-bullet з полями: рядок, колонка, тип мутації (`m.mutantType` у backticks), оригінал (`m.original`), вцілілий варіант (`m.replacement`), а нижче — fenced code block з контекстом (якщо контекст не порожній). Порожні елементи фільтруються через `.filter(Boolean)`.
-   3. Якщо є `exampleTest.code` — додає окрему секцію `Приклад тесту з \`${exampleTest.testFile}\`` з fenced `js`-блоком. Інакше `exampleSection` — порожній рядок.
+   3. Якщо є `exampleTest.code` — додає окрему секцію `Приклад тесту з \`${exampleTest.testFile}\``з fenced`js`-блоком. Інакше `exampleSection` — порожній рядок.
    4. Заштовхує у `sections` рядок виду:
       ```
       ### `<file>`<exampleSection>
@@ -165,9 +165,7 @@ JSDoc-типи, оголошені у файлі:
 const survived = [
   {
     file: 'src/foo.js',
-    mutants: [
-      { line: 42, col: 10, mutantType: 'ConditionalExpression', original: 'a > b', replacement: 'a >= b' }
-    ],
+    mutants: [{ line: 42, col: 10, mutantType: 'ConditionalExpression', original: 'a > b', replacement: 'a >= b' }],
     exampleTest: { testFile: 'src/foo.test.js', code: "test('foo', () => { /* ... */ })" },
     recommendationText: null
   }

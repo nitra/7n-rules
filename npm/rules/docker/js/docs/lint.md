@@ -9,9 +9,9 @@
 - додатково застосовує власні семантичні перевірки:
   - усі `oven/bun`, `alpine`, `nginx`, `node` з Docker Hub мають іти через `mirror.gcr.io` (делегується `getMirrorGcrHint`);
   - Dockerfile має бути **multistage** (мінімум 2 `FROM`);
-  - фінальний `FROM` має бути дозволеним runtime-образом (alpine, scratch, debian:*slim*, php, python, nginx-unprivileged, openresty; для проєктів із нативним `.node`-аддоном також `mirror.gcr.io/oven/bun:*`);
+  - фінальний `FROM` має бути дозволеним runtime-образом (alpine, scratch, debian:_slim_, php, python, nginx-unprivileged, openresty; для проєктів із нативним `.node`-аддоном також `mirror.gcr.io/oven/bun:*`);
   - якщо у Dockerfile є `bun install` і фінальний stage — alpine (backend), очікується `bun build --compile` у build stage, і у фінальному stage не повинно бути викликів `bun`;
-  - для проєктів із нативним `.node`-аддоном (sharp / @img/* / argon2) компіляція через `bun build --compile` заборонена — застосовується окрема перевірка `getNativeAddonNoCompileHint`;
+  - для проєктів із нативним `.node`-аддоном (sharp / @img/\* / argon2) компіляція через `bun build --compile` заборонена — застосовується окрема перевірка `getNativeAddonNoCompileHint`;
   - фінальний stage має містити `USER <non-root>` (виняток — nginx-unprivileged, який і так від uid=101);
   - для `mirror.gcr.io/nginxinc/nginx-unprivileged` у `FROM` тег має бути саме `alpine-slim`;
   - додаткова перевірка nginx non-root (`getNginxUnprivilegedUserHint`).
@@ -20,17 +20,17 @@
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
-| `isDockerfileName(name)` | named function | Перевіряє, чи basename відповідає Dockerfile / Containerfile (включно з суфіксами). |
-| `findDockerfilePaths(root, ignorePaths?)` | named async function | Збирає абсолютні шляхи до Dockerfile/Containerfile у репозиторії. |
-| `parseFromStages(fileContent)` | named function | Парсить інструкції `FROM` і повертає масив `{ line, image }`. |
-| `splitDockerfileStages(fileContent)` | named function | Розбиває Dockerfile на масив stage-ів `{ from, stageContent }`. |
-| `getMultistageAndRuntimeHint(fileContent, opts?)` | named function | Перевіряє multistage та дозволеність фінального runtime-образу. |
-| `getBunCompileHint(fileContent)` | named function | Перевіряє правило компіляції bun у бінарник на backend runtime. |
-| `getNginxAlpineSlimTagHint(fileContent)` | named function | Перевіряє тег `alpine-slim` для nginx-unprivileged. |
-| `getNonRootRuntimeHint(fileContent)` | named function | Перевіряє наявність `USER <non-root>` у фінальному stage. |
-| `check(cwd?)` | named async function | Точка входу: обходить репозиторій, запускає всі перевірки, повертає exit code. |
+| Експорт                                           | Тип                  | Призначення                                                                         |
+| ------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------- |
+| `isDockerfileName(name)`                          | named function       | Перевіряє, чи basename відповідає Dockerfile / Containerfile (включно з суфіксами). |
+| `findDockerfilePaths(root, ignorePaths?)`         | named async function | Збирає абсолютні шляхи до Dockerfile/Containerfile у репозиторії.                   |
+| `parseFromStages(fileContent)`                    | named function       | Парсить інструкції `FROM` і повертає масив `{ line, image }`.                       |
+| `splitDockerfileStages(fileContent)`              | named function       | Розбиває Dockerfile на масив stage-ів `{ from, stageContent }`.                     |
+| `getMultistageAndRuntimeHint(fileContent, opts?)` | named function       | Перевіряє multistage та дозволеність фінального runtime-образу.                     |
+| `getBunCompileHint(fileContent)`                  | named function       | Перевіряє правило компіляції bun у бінарник на backend runtime.                     |
+| `getNginxAlpineSlimTagHint(fileContent)`          | named function       | Перевіряє тег `alpine-slim` для nginx-unprivileged.                                 |
+| `getNonRootRuntimeHint(fileContent)`              | named function       | Перевіряє наявність `USER <non-root>` у фінальному stage.                           |
+| `check(cwd?)`                                     | named async function | Точка входу: обходить репозиторій, запускає всі перевірки, повертає exit code.      |
 
 Внутрішні (не експортуються): `isAllowedFinalRuntimeImage`, `readNearestDependencies`, `checkDockerfile`, а також модульні константи (`NEWLINE_RE`, `BUN_INSTALL_RE`, `BUN_BUILD_COMPILE_RE`, `BUN_WORD_RE`, `USER_LINE_RE`, `NGINX_UNPRIVILEGED_MIRROR_PREFIX`, `RUNTIME_IMAGES`, `DEBIAN_VIA_MIRROR_RE`, `BUN_RUNTIME_IMAGE`).
 
@@ -72,12 +72,12 @@
 - **Повертає:** масив `FromStage` для кожного рядка, де `getFromImageToken` повернув непорожній image-ref. Номер рядка — 1-based.
 - **Side effects:** немає (чиста функція).
 
-### `isAllowedFinalRuntimeImage(lastLower, hasNativeAddon = false)` *(внутрішня)*
+### `isAllowedFinalRuntimeImage(lastLower, hasNativeAddon = false)` _(внутрішня)_
 
 - **Сигнатура:** `(lastLower: string, hasNativeAddon?: boolean) => boolean`
 - **Параметри:**
   - `lastLower` — image-ref останнього `FROM` без digest, у нижньому регістрі;
-  - `hasNativeAddon` — чи має проєкт нативний `.node`-аддон (sharp / @img/* / argon2).
+  - `hasNativeAddon` — чи має проєкт нативний `.node`-аддон (sharp / @img/\* / argon2).
 - **Повертає:** `true`, якщо образ дозволений як фінальний runtime:
   - `scratch` або `scratch:*`;
   - якщо `hasNativeAddon` — додатково `mirror.gcr.io/oven/bun` або `mirror.gcr.io/oven/bun:*`;
@@ -154,7 +154,7 @@
 - **Повертає:** `0` — все OK, `1` — є зауваження або помилка запуску.
 - **Side effects:** читання файлової системи, синхронний/асинхронний запуск hadolint через `lintDockerfileWithHadolint` (нативний бінарник через `ensureTool`).
 
-### `readNearestDependencies(abs, root)` *(внутрішня)*
+### `readNearestDependencies(abs, root)` _(внутрішня)_
 
 - **Сигнатура:** `(abs: string, root: string) => Promise<Record<string, unknown>>`
 - **Параметри:**
@@ -164,7 +164,7 @@
 - **Повертає:** `dependencies` найближчого `package.json` або порожній об'єкт.
 - **Side effects:** I/O на читання `package.json`; помилки `readFile` поглинаються (catch без оголошення).
 
-### `checkDockerfile(reporter, root, abs)` *(внутрішня)*
+### `checkDockerfile(reporter, root, abs)` _(внутрішня)_
 
 - **Сигнатура:** `(reporter: ReturnType<typeof createCheckReporter>, root: string, abs: string) => Promise<void>`
 - **Параметри:**

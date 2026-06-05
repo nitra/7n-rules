@@ -14,11 +14,11 @@
 
 ## Експорти / API
 
-| Експорт                    | Вид                  | Призначення                                                                                          |
-| -------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `isLintDockerfileName`     | `function`           | Перевіряє basename файла: чи входить він до набору `lint-docker`.                                    |
-| `findLintDockerfilePaths`  | `async function`     | Збирає відсортований список абсолютних шляхів придатних для `lint-docker` файлів.                    |
-| `runLintDocker`            | `() => Promise<number>` | Публічна CLI-форма команди `lint-docker`: серіалізований прогон з кешуванням за станом дерева.    |
+| Експорт                   | Вид                     | Призначення                                                                                    |
+| ------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `isLintDockerfileName`    | `function`              | Перевіряє basename файла: чи входить він до набору `lint-docker`.                              |
+| `findLintDockerfilePaths` | `async function`        | Збирає відсортований список абсолютних шляхів придатних для `lint-docker` файлів.              |
+| `runLintDocker`           | `() => Promise<number>` | Публічна CLI-форма команди `lint-docker`: серіалізований прогон з кешуванням за станом дерева. |
 
 Внутрішня (не експортована) функція:
 
@@ -67,7 +67,7 @@ export async function findLintDockerfilePaths(root, ignorePaths = []): Promise<s
   3. Повертає `out.toSorted((a, b) => a.localeCompare(b))`.
 - **Side effects:** виконує асинхронний обхід файлової системи через `walkDir`. Не пише нічого на диск і нічого не виводить у stdout/stderr.
 
-### `runLintDockerSteps()` *(internal)*
+### `runLintDockerSteps()` _(internal)_
 
 ```js
 async function runLintDockerSteps(): Promise<number>
@@ -128,14 +128,14 @@ if (isRunAsCli(import.meta.url)) {
 
 ### Внутрішні модулі репозиторію
 
-| Імпорт                                                                          | Що з нього береться                | Роль у цьому модулі                                                                          |
-| ------------------------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
-| `../../../scripts/cli-entry.mjs`                                                | `isRunAsCli`                       | Визначення, чи модуль запущено як CLI напряму.                                               |
-| `../lib/docker-hadolint.mjs`                                                    | `lintDockerfileWithHadolint`, `posixRel` | Власне виклик `hadolint` (через PATH або `docker run`) і обчислення POSIX-відносного шляху. |
-| `../../../scripts/lib/check-reporter.mjs`                                       | `createCheckReporter`              | Створення репортера з методами `pass`/`fail` і фінальним `getExitCode`.                      |
-| `../../../scripts/lib/load-cursor-config.mjs`                                   | `loadCursorIgnorePaths`            | Завантаження списку каталогів, які потрібно ігнорувати під час обходу.                       |
-| `../../../scripts/utils/walkDir.mjs`                                            | `walkDir`                          | Асинхронний обхід дерева файлів з підтримкою списку ігнорувань.                              |
-| `../../../scripts/lib/run-standard-lint.mjs`                                    | `runStandardLint`                  | Канонічна обгортка `lint-*`-команд: лок, дедуп за станом git-дерева, уніфікований запуск.    |
+| Імпорт                                        | Що з нього береться                      | Роль у цьому модулі                                                                         |
+| --------------------------------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `../../../scripts/cli-entry.mjs`              | `isRunAsCli`                             | Визначення, чи модуль запущено як CLI напряму.                                              |
+| `../lib/docker-hadolint.mjs`                  | `lintDockerfileWithHadolint`, `posixRel` | Власне виклик `hadolint` (через PATH або `docker run`) і обчислення POSIX-відносного шляху. |
+| `../../../scripts/lib/check-reporter.mjs`     | `createCheckReporter`                    | Створення репортера з методами `pass`/`fail` і фінальним `getExitCode`.                     |
+| `../../../scripts/lib/load-cursor-config.mjs` | `loadCursorIgnorePaths`                  | Завантаження списку каталогів, які потрібно ігнорувати під час обходу.                      |
+| `../../../scripts/utils/walkDir.mjs`          | `walkDir`                                | Асинхронний обхід дерева файлів з підтримкою списку ігнорувань.                             |
+| `../../../scripts/lib/run-standard-lint.mjs`  | `runStandardLint`                        | Канонічна обгортка `lint-*`-команд: лок, дедуп за станом git-дерева, уніфікований запуск.   |
 
 ### Зовнішні CLI/інструменти, що викликаються опосередковано
 
@@ -170,15 +170,13 @@ if (isRunAsCli(import.meta.url)) {
   const code = await runLintDocker() // 0 — OK, 1 — є зауваження/помилки
   ```
 - **Тести/допоміжний код:**
-  ```js
-  import {
-    isLintDockerfileName,
-    findLintDockerfilePaths,
-  } from 'npm/rules/docker/lint/lint.mjs'
 
-  isLintDockerfileName('Dockerfile')          // true
-  isLintDockerfileName('app.Dockerfile')      // true
-  isLintDockerfileName('Dockerfile.dev')      // false
+  ```js
+  import { isLintDockerfileName, findLintDockerfilePaths } from 'npm/rules/docker/lint/lint.mjs'
+
+  isLintDockerfileName('Dockerfile') // true
+  isLintDockerfileName('app.Dockerfile') // true
+  isLintDockerfileName('Dockerfile.dev') // false
 
   const files = await findLintDockerfilePaths(process.cwd(), [])
   ```

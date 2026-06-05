@@ -38,7 +38,13 @@ describe('computeGate', () => {
     expect(r.reasons.join(' ')).toMatch(/verify/)
   })
   test('score клампиться на 0 (багато провалів)', () => {
-    const r = computeGate({ gates: [{ name: 'a', ok: false }, { name: 'b', ok: false }], review: { findings: [{ severity: 'high' }, { severity: 'high' }] } })
+    const r = computeGate({
+      gates: [
+        { name: 'a', ok: false },
+        { name: 'b', ok: false }
+      ],
+      review: { findings: [{ severity: 'high' }, { severity: 'high' }] }
+    })
     expect(r.score).toBe(0)
   })
 })

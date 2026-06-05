@@ -37,19 +37,19 @@ Frontend-пакети (з `vite` у `devDependencies`) повністю проп
 
 ## Експорти / API
 
-| Експорт | Тип | Призначення |
-| --- | --- | --- |
+| Експорт       | Тип              | Призначення                                                                                                         |
+| ------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `check(cwd?)` | `async function` | Єдина публічна точка входу. Запускає перевірку всіх workspace-пакетів. Повертає `0` (все OK) або `1` (є порушення). |
 
 Усі інші функції модуля — внутрішні (без `export`) і використовуються лише з `check`.
 
 ## Функції
 
-### `check(cwd = process.cwd())` *(export)*
+### `check(cwd = process.cwd())` _(export)_
 
 - **Сигнатура:** `async function check(cwd?: string): Promise<number>`
 - **Параметри:**
-  - `cwd` *(string, опційний)* — абсолютний корінь репозиторію; за замовчуванням
+  - `cwd` _(string, опційний)_ — абсолютний корінь репозиторію; за замовчуванням
     `process.cwd()`.
 - **Повертає:** `Promise<number>` — exit-код від `createCheckReporter().getExitCode()`
   (0 — успіх, 1 — є хоча б одне `fail(...)`).
@@ -341,7 +341,7 @@ check(cwd)
   (OTEL), `js_run.jsconfig` (canonical `compilerOptions`/`include`).
 - **JS-оркестрація Rego через `runConftestBatch`**: модуль викликає `conftest` лише там, де
   попередній gate (наявність `src/` + наявність `jsconfig.json`) дозволяє це робити —
-  *Plan B*: Rego-authoritative, JS оркеструє per-package gate.
+  _Plan B_: Rego-authoritative, JS оркеструє per-package gate.
 
 ### Приклад використання
 
@@ -372,7 +372,7 @@ process.exit(exitCode)
 - Gate `vite у devDependencies` → пропуск усього `js-run` для frontend-пакета.
 - Gate `src/` для `jsconfig.json` та делегування структури до Rego `js_run.jsconfig`
   через `runConftestBatch({ policyDirRel: 'js-run/jsconfig', namespace: 'js_run.jsconfig',
-  files: [jcPath] })`.
+files: [jcPath] })`.
 - Дев'ять допоміжних функцій (`backendPackageHasSrcDir`, `relPosix`, `checkBunyanImports`,
   `collectSourceFiles`, `checkConnImports`, `checkConnFileNamingAndExports`,
   `isConnFileToCheck`, `formatConnFileViolation`, `checkProcessEnvUsage`,

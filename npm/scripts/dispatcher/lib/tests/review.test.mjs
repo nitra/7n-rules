@@ -72,7 +72,11 @@ describe('reviewerPrompt', () => {
 
 describe('dedupeFindings', () => {
   test('дедуп за file+issue', () => {
-    const f = [{ file: 'a', issue: 'x' }, { file: 'a', issue: 'x' }, { file: 'b', issue: 'x' }]
+    const f = [
+      { file: 'a', issue: 'x' },
+      { file: 'a', issue: 'x' },
+      { file: 'b', issue: 'x' }
+    ]
     expect(dedupeFindings(f)).toHaveLength(2)
   })
 })
@@ -98,7 +102,12 @@ describe('review', () => {
   test('findings пишуться у стан; код 0; кількість рецензентів за level', async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-x')
-      writeState(flowStatePath(wt), { branch: 'feat/x', status: 'in_progress', level: 3, metadata: { base_commit: 'B' } })
+      writeState(flowStatePath(wt), {
+        branch: 'feat/x',
+        status: 'in_progress',
+        level: 3,
+        metadata: { base_commit: 'B' }
+      })
       const runner = { runStep: () => ({ ok: true, output: '[{"severity":"high","file":"a.mjs","issue":"bug"}]' }) }
       const code = await review([], { cwd: wt, log: noop, run: () => ({ stdout: 'diff' }), runner, now: FIXED })
       expect(code).toBe(0)
@@ -112,7 +121,13 @@ describe('review', () => {
   test('low level + high risk → 3 рецензенти (ризик переважує розмір)', async () => {
     await withTmpDir(async dir => {
       const wt = join(dir, '.worktrees', 'feat-r')
-      writeState(flowStatePath(wt), { branch: 'feat/r', status: 'in_progress', level: 0, risk: 'high', metadata: { base_commit: 'B' } })
+      writeState(flowStatePath(wt), {
+        branch: 'feat/r',
+        status: 'in_progress',
+        level: 0,
+        risk: 'high',
+        metadata: { base_commit: 'B' }
+      })
       const runner = { runStep: () => ({ ok: true, output: '[]' }) }
       await review([], { cwd: wt, log: noop, run: () => ({ stdout: 'diff' }), runner, now: FIXED })
       expect(readState(flowStatePath(wt)).review.reviewers).toBe(3)

@@ -19,25 +19,25 @@
 
 ### Експортовані функції-сканери (повертають список порушень)
 
-| Функція | Сигнатура (скорочено) | Що шукає |
-|---|---|---|
-| `findBunSqlPerRequestConnectionInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | `new SQL(...)` усередині будь-якої функції (порушення singleton-пулу). |
-| `findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | `<obj>.unsafe(...)` без `// allow-unsafe: <reason>`. |
-| `findBunSqlUnsafeWithInterpolatedTemplateInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | `<obj>.unsafe(\`...${x}...\`)` — interpolated template literal як аргумент `unsafe` (injection-поверхня навіть із allow-маркером). |
-| `findBunSqlPgLeftoverCallInText(content, virtualPath?)` | `(string, string?) => { line, snippet, methodName }[]` | `<obj>.connect(...)` / `<obj>.end(...)` у Bun SQL-файлах без `// allow-pg-leftover: <reason>`. |
-| `findUnsafeBunSqlDynamicSqlListInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | `IN (...)` / `VALUES (...)` з `.join(',')` у template literal. |
-| `findUnsafeBunSqlInListMissingEmptyGuardInText(content, virtualPath?)` | `(string, string?) => { line, snippet, reason, name? }[]` | `IN (${...})` без винесення у змінну або без guard `if (empty) throw` перед запитом. |
-| `findPgFormatShimDefinitionInText(content, virtualPath?)` | `(string, string?) => { line, snippet, kind, name }[]` | Визначення pg-format-сумісних шимів (`format`, `pgFormat`, `quoteLiteral`, ...). |
-| `findPgFormatLikeQueryWrapperInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | Об'єктні pg-сумісні `{ query(text, params) { ... unsafe ... } }`-обгортки. |
-| `findPgLibImportInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]` | Імпорт/`require('pg')` (точно пакет `pg`, не `pg-format`/`pg-pool`). |
-| `findPgListenNotifyUsageInText(content, virtualPath?)` | `(string, string?) => { line, snippet, kind }[]` | LISTEN/UNLISTEN/NOTIFY-запити та `.on('notification', ...)`-listener'и. |
+| Функція                                                                 | Сигнатура (скорочено)                                     | Що шукає                                                                                                                         |
+| ----------------------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `findBunSqlPerRequestConnectionInText(content, virtualPath?)`           | `(string, string?) => { line, snippet }[]`                | `new SQL(...)` усередині будь-якої функції (порушення singleton-пулу).                                                           |
+| `findBunSqlUnsafeUseWithoutAllowMarkerInText(content, virtualPath?)`    | `(string, string?) => { line, snippet }[]`                | `<obj>.unsafe(...)` без `// allow-unsafe: <reason>`.                                                                             |
+| `findBunSqlUnsafeWithInterpolatedTemplateInText(content, virtualPath?)` | `(string, string?) => { line, snippet }[]`                | `<obj>.unsafe(\`...${x}...\`)`— interpolated template literal як аргумент`unsafe` (injection-поверхня навіть із allow-маркером). |
+| `findBunSqlPgLeftoverCallInText(content, virtualPath?)`                 | `(string, string?) => { line, snippet, methodName }[]`    | `<obj>.connect(...)` / `<obj>.end(...)` у Bun SQL-файлах без `// allow-pg-leftover: <reason>`.                                   |
+| `findUnsafeBunSqlDynamicSqlListInText(content, virtualPath?)`           | `(string, string?) => { line, snippet }[]`                | `IN (...)` / `VALUES (...)` з `.join(',')` у template literal.                                                                   |
+| `findUnsafeBunSqlInListMissingEmptyGuardInText(content, virtualPath?)`  | `(string, string?) => { line, snippet, reason, name? }[]` | `IN (${...})` без винесення у змінну або без guard `if (empty) throw` перед запитом.                                             |
+| `findPgFormatShimDefinitionInText(content, virtualPath?)`               | `(string, string?) => { line, snippet, kind, name }[]`    | Визначення pg-format-сумісних шимів (`format`, `pgFormat`, `quoteLiteral`, ...).                                                 |
+| `findPgFormatLikeQueryWrapperInText(content, virtualPath?)`             | `(string, string?) => { line, snippet }[]`                | Об'єктні pg-сумісні `{ query(text, params) { ... unsafe ... } }`-обгортки.                                                       |
+| `findPgLibImportInText(content, virtualPath?)`                          | `(string, string?) => { line, snippet }[]`                | Імпорт/`require('pg')` (точно пакет `pg`, не `pg-format`/`pg-pool`).                                                             |
+| `findPgListenNotifyUsageInText(content, virtualPath?)`                  | `(string, string?) => { line, snippet, kind }[]`          | LISTEN/UNLISTEN/NOTIFY-запити та `.on('notification', ...)`-listener'и.                                                          |
 
 ### Експортовані допоміжні предикати
 
-| Функція | Сигнатура | Призначення |
-|---|---|---|
-| `textHasBunSqlImport(content)` | `(string) => boolean` | Текстова перевірка: чи є у файлі `import { sql\|SQL } from 'bun'`. Дешевий pre-filter (без AST). |
-| `textHasPgLibImport(content)` | `(string) => boolean` | Текстова перевірка: чи є у файлі `import ... from 'pg'` або `require('pg')`. Не матчить `pg-format`, `pg-pool`. |
+| Функція                                     | Сигнатура             | Призначення                                                                                                                    |
+| ------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `textHasBunSqlImport(content)`              | `(string) => boolean` | Текстова перевірка: чи є у файлі `import { sql\|SQL } from 'bun'`. Дешевий pre-filter (без AST).                               |
+| `textHasPgLibImport(content)`               | `(string) => boolean` | Текстова перевірка: чи є у файлі `import ... from 'pg'` або `require('pg')`. Не матчить `pg-format`, `pg-pool`.                |
 | `isBunSqlScanSourceFile(relativePathPosix)` | `(string) => boolean` | Чи сканувати цей файл за розширенням: JS/TS-сімʼя (`.js`, `.cjs`, `.mjs`, `.jsx`, `.ts`, `.cts`, `.mts`, `.tsx`), без `.d.ts`. |
 
 ### Не експортовані сутності (internal helpers)
@@ -170,33 +170,33 @@ Set-константи:
 
 ### Внутрішні допоміжні функції (не експортуються)
 
-| Функція | Призначення |
-|---|---|
-| `isLengthMember(node, name)` | `MemberExpression` виду `<name>.length`. |
-| `isZeroNumberLiteral(node)` | Числовий літерал `0` (`NumericLiteral` або `Literal`). |
-| `isSqlHelperIdentifier(node)` | Identifier з ім'ям `sql`. |
-| `extractInListVarNameFromExpr(expr)` | З `${ids}` → `{ name: 'ids' }`; з `${sql(ids)}` → `{ name: 'ids' }`; інакше — `{ error: 'not_var' \| 'sql_helper_not_var' }`. |
-| `isEmptyListTest(test, name)` | Чи це `!ids.length` / `ids.length === 0` / `<= 0` / `< 1` (і дзеркальні форми). |
-| `consequentHasThrow(consequent)` | Чи `consequent` (statement або `BlockStatement`) містить `ThrowStatement`. |
-| `hasEmptyGuardBefore(block, statementIndex, name)` | Чи у `block.body` до індексу `statementIndex` є `IfStatement` з `isEmptyListTest` + `consequentHasThrow`. |
-| `findEnclosingBlockAndStatementIndex(ancestors)` | Шукає найближчий `BlockStatement` і індекс statement у ньому. |
-| `isNewSqlConstructor(node)` | `NewExpression` з callee-Identifier `SQL`. |
-| `isUnsafeCall(node)` / `isUnsafeCallNode` (alias) | `CallExpression` з `callee` = `MemberExpression` `<obj>.unsafe` (не computed). |
-| `hasMarkerCommentNear(callNode, comments, content, markerRe)` | Чи є маркер-коментар, що матчиться на `markerRe`, на тому ж рядку, що `callNode.start`, або рядком вище. Block-коментарі: важливим є `endLine`. |
-| `asPgLeftoverCall(node)` | Якщо це `<obj>.connect(...)` або `<obj>.end(...)` — повертає `{ name }`; інакше `null`. |
-| `propertyKeyName(key)` | Витягає ім'я з `Property.key` (`Identifier.name` або `Literal.value` для string/number). |
-| `nodeContainsPgFormatPlaceholder(root)` | Чи у піддереві є літерал/regex/template з `%L`/`%I`/`%s`. |
-| `asNamedFunctionDecl(node)` | З `FunctionDeclaration` або `VariableDeclarator` з функцією-init — повертає `{ name, body }`. |
-| `asPgFormatLikeQueryProp(prop)` | Чи це `{ query(text, params) { ... unsafe ... } }`-Property. |
-| `hasPgQuerySignature(params)` | 1–2 параметри, перший — Identifier з ім'ям `text`/`sql`/`query`. |
-| `nodeContainsUnsafeCall(root)` | Чи у піддереві є `<obj>.unsafe(...)`. |
-| `collectInListGuardViolationsFromTemplate(template, ancestors, content, out)` | Збирає порушення для одного template'а у контексті `IN (...)`. **Side effect**: пушить у переданий буфер `out`. |
-| `getStringLiteralValue(node)` | `Literal`/`StringLiteral`-значення (string) або `null`. |
-| `isRequireOfModule(node, moduleName)` | Чи `CallExpression` — це `require('<moduleName>')` (точне співпадіння). |
-| `listenNotifyFromCallExpression(node)` | Для `<obj>.query/.queryArray/.queryStream(...)` з LISTEN/NOTIFY-рядком — повертає kind; для `<obj>.on('notification', ...)` — `'notification_listener'`. |
-| `listenNotifyFromTaggedTemplate(node)` | Для TaggedTemplateExpression, де перший quasi починається з LISTEN/UNLISTEN/NOTIFY — повертає kind. |
-| `sqlStringStartsWithListenNotify(arg)` | Аналіз першого аргумента `.query(...)`: string literal або template literal → kind. |
-| `kindFromListenNotifyMatch(text)` | Текст → `'listen_sql'`/`'notify_sql'`/`'unlisten_sql'` або `null` (UNLISTEN мапиться у `unlisten_sql`). |
+| Функція                                                                       | Призначення                                                                                                                                              |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isLengthMember(node, name)`                                                  | `MemberExpression` виду `<name>.length`.                                                                                                                 |
+| `isZeroNumberLiteral(node)`                                                   | Числовий літерал `0` (`NumericLiteral` або `Literal`).                                                                                                   |
+| `isSqlHelperIdentifier(node)`                                                 | Identifier з ім'ям `sql`.                                                                                                                                |
+| `extractInListVarNameFromExpr(expr)`                                          | З `${ids}` → `{ name: 'ids' }`; з `${sql(ids)}` → `{ name: 'ids' }`; інакше — `{ error: 'not_var' \| 'sql_helper_not_var' }`.                            |
+| `isEmptyListTest(test, name)`                                                 | Чи це `!ids.length` / `ids.length === 0` / `<= 0` / `< 1` (і дзеркальні форми).                                                                          |
+| `consequentHasThrow(consequent)`                                              | Чи `consequent` (statement або `BlockStatement`) містить `ThrowStatement`.                                                                               |
+| `hasEmptyGuardBefore(block, statementIndex, name)`                            | Чи у `block.body` до індексу `statementIndex` є `IfStatement` з `isEmptyListTest` + `consequentHasThrow`.                                                |
+| `findEnclosingBlockAndStatementIndex(ancestors)`                              | Шукає найближчий `BlockStatement` і індекс statement у ньому.                                                                                            |
+| `isNewSqlConstructor(node)`                                                   | `NewExpression` з callee-Identifier `SQL`.                                                                                                               |
+| `isUnsafeCall(node)` / `isUnsafeCallNode` (alias)                             | `CallExpression` з `callee` = `MemberExpression` `<obj>.unsafe` (не computed).                                                                           |
+| `hasMarkerCommentNear(callNode, comments, content, markerRe)`                 | Чи є маркер-коментар, що матчиться на `markerRe`, на тому ж рядку, що `callNode.start`, або рядком вище. Block-коментарі: важливим є `endLine`.          |
+| `asPgLeftoverCall(node)`                                                      | Якщо це `<obj>.connect(...)` або `<obj>.end(...)` — повертає `{ name }`; інакше `null`.                                                                  |
+| `propertyKeyName(key)`                                                        | Витягає ім'я з `Property.key` (`Identifier.name` або `Literal.value` для string/number).                                                                 |
+| `nodeContainsPgFormatPlaceholder(root)`                                       | Чи у піддереві є літерал/regex/template з `%L`/`%I`/`%s`.                                                                                                |
+| `asNamedFunctionDecl(node)`                                                   | З `FunctionDeclaration` або `VariableDeclarator` з функцією-init — повертає `{ name, body }`.                                                            |
+| `asPgFormatLikeQueryProp(prop)`                                               | Чи це `{ query(text, params) { ... unsafe ... } }`-Property.                                                                                             |
+| `hasPgQuerySignature(params)`                                                 | 1–2 параметри, перший — Identifier з ім'ям `text`/`sql`/`query`.                                                                                         |
+| `nodeContainsUnsafeCall(root)`                                                | Чи у піддереві є `<obj>.unsafe(...)`.                                                                                                                    |
+| `collectInListGuardViolationsFromTemplate(template, ancestors, content, out)` | Збирає порушення для одного template'а у контексті `IN (...)`. **Side effect**: пушить у переданий буфер `out`.                                          |
+| `getStringLiteralValue(node)`                                                 | `Literal`/`StringLiteral`-значення (string) або `null`.                                                                                                  |
+| `isRequireOfModule(node, moduleName)`                                         | Чи `CallExpression` — це `require('<moduleName>')` (точне співпадіння).                                                                                  |
+| `listenNotifyFromCallExpression(node)`                                        | Для `<obj>.query/.queryArray/.queryStream(...)` з LISTEN/NOTIFY-рядком — повертає kind; для `<obj>.on('notification', ...)` — `'notification_listener'`. |
+| `listenNotifyFromTaggedTemplate(node)`                                        | Для TaggedTemplateExpression, де перший quasi починається з LISTEN/UNLISTEN/NOTIFY — повертає kind.                                                      |
+| `sqlStringStartsWithListenNotify(arg)`                                        | Аналіз першого аргумента `.query(...)`: string literal або template literal → kind.                                                                      |
+| `kindFromListenNotifyMatch(text)`                                             | Текст → `'listen_sql'`/`'notify_sql'`/`'unlisten_sql'` або `null` (UNLISTEN мапиться у `unlisten_sql`).                                                  |
 
 ## Залежності
 
