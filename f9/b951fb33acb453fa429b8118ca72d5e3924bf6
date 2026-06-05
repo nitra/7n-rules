@@ -1,0 +1,62 @@
+npm/rules/changelog/js/consistency.mjs
+  s_99e0e17f5453bc::t_7c6afed0ee89e7 583-592
+npm/rules/changelog/changelog.mdc
+  s_99e0e17f5453bc::t_0c52d2cfd5c87a 19
+npm/scripts/coverage-fix-extract.mjs
+  s_58c5f882a1f533::t_cbb80dffa36681 106
+  s_58c5f882a1f533::t_13dea90ed8429b 42
+  s_58c5f882a1f533::t_c28cc868cd9fde 26-32
+  s_58c5f882a1f533::t_9e8f9d8dfb652c 1-25,33-41,52-105,107-122
+  s_58c5f882a1f533::t_62f933150183b7 43-51
+npm/scripts/tests/coverage-fix-extract.test.mjs
+  s_58c5f882a1f533::t_3f0770f0a360bb 39-48,58-61
+  s_58c5f882a1f533::t_cecf81dd443460 13
+  s_58c5f882a1f533::t_39f9b5f2b76e8c 35
+  s_58c5f882a1f533::t_ed8065f97061c2 1-12,14-34,36-38,49-57,62-84,100-179
+  s_58c5f882a1f533::t_5c085c2468e26c 85-99
+npm/.changes/260604-2133.md
+  s_58c5f882a1f533::t_585058c662fbd7 5
+  s_58c5f882a1f533::t_59ec2d990fe6d2 1-4,6
+npm/bin/n-cursor.js
+  s_58c5f882a1f533::t_f0c1ed1794dc88 1735
+  s_58c5f882a1f533::t_3f0770f0a360bb 1157
+  s_58c5f882a1f533::t_3530ba807cc605 1655-1663
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_58c5f882a1f533::t_3f0770f0a360bb 116
+  s_58c5f882a1f533::t_56c3821bd0d705 168,171,175
+  s_58c5f882a1f533::t_6473afe0b6a9af 113,115,117,119-123,129,131,133,146,148-149,152-154
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_99e0e17f5453bc::t_301264526f05a9 836-859
+npm/skills/coverage-fix/SKILL.md
+  s_58c5f882a1f533::t_3f0770f0a360bb 49
+  s_58c5f882a1f533::t_28c4eabd9d33a6 101,104,108
+  s_58c5f882a1f533::t_93cf7dbb63671e 46,48,50,52-56,62,64,66,79,81-82,85-87
+npm/scripts/coverage-fix.mjs
+  s_58c5f882a1f533::t_dc308ef362065e 57
+npm/rules/changelog/js/docs/consistency.md
+  s_99e0e17f5453bc::t_0f16ecba3b7b44 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f9b951fb33acb453fa429b8118ca72d5e3924bf6",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_99e0e17f5453bc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "07733932-6418-491f-a9b3-8f94fb6836d9",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
