@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.23.0] - 2026-06-05
+
+### Added
+
+- changelog: autofix-режим (env `N_CURSOR_CHANGELOG_AUTOFIX`) — за відсутності change-файлу правило саме створює його (patch/Changed, subject останнього коміту) і ставить у git-індекс, тож pre-commit-хук не падає
+- coverage-fix: новий read-only CLI `n-cursor coverage-fix index|slice --file <path>` — скрипт парсить COVERAGE.md (може бути МБ) за 0 LLM-токенів і віддає агенту лише компактний index або зріз під один файл (контекст ±3 рядки). Скіл n-coverage-fix більше не змушує агента читати весь COVERAGE.md (вузьке місце ~700K токенів). Експортовано buildFixPrompt; модуль scripts/coverage-fix-extract.mjs
+- taze: новий read-only CLI `n-cursor taze diff` — детермінований semver-diff package.json ↔ package.json.taze-bak (root + воркспейси), класифікує major за caret-семантикою (найлівіша ненульова компонента). Скіл n-taze (крок 3) більше не змушує LLM вручну порівнювати бекапи — отримує готовий {major[],minorPatch}. Модуль skills/taze/js/diff.mjs
+- start-check: новий CLI `n-cursor start-check scan|run` — scan виявляє воркспейси зі start і класифікує тип (server/cli), run запускає один із grace-таймаутом (крос-платформно spawnSync, без perl alarm), класифікує OK/FAIL, парсить лог (ready/firstError) і рахує read-only git-sideEffects. Скіл n-start-check більше не змушує LLM розгортати glob, інтерпретувати exit-коди й regex-ити лог. Модуль skills/start-check/js/check.mjs
+
+### Changed
+
+- js-lint: додано e18e/\* deny-правила та канонічні ignorePatterns у .oxlintrc.json
+- k8s.network_policy: додано NATS-порт TCP 4222 до in-cluster egress-allowlist (namespaceSelector: {}) канонічних snippet'ів deployment.snippet.yaml і stateful-set.snippet.yaml. Згенерований base/networkpolicy.yaml тепер дозволяє вихід на nats.nats.svc:4222 — поди з NATS-клієнтом більше не падають у CrashLoopBackOff. Bump k8s.mdc 1.42 → 1.43.
+- docker rule: non-root сам по собі не є підставою переходити Alpine→Debian-slim — oven/bun:alpine уже має bun (uid/gid 1000); розписано два шляхи non-root (alpine standalone vs ship node_modules на bun)
+- n-llm-patch: промпти вимагають change-file flow (npx @nitra/cursor change + fix changelog) замість ручного CHANGELOG.md / version bump
+
+### Removed
+
+- skills: злито n-fix-tests у канонічний n-coverage-fix — n-fix-tests видалено (skill+command+pi, прибрано з .n-cursor.json). coverage-fix увібрав детекцію test/coverage-команд з package.json#scripts (Крок 0) і early-skip уже свіжого COVERAGE.md; підказку у coverage.mjs renderMarkdown перенаправлено на /n-coverage-fix
+
 ## [3.22.0] - 2026-06-04
 
 ### Added
