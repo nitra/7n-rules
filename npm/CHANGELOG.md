@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.24.0] - 2026-06-05
+
+### Added
+
+- test/stryker_config: auto-augment існуючого stryker.config.mjs у Vue JS-roots — точкова вставка plugins/ignorers (vue-macros ignorer) string-splice-ом за AST-аналізом, зі збереженням полів і коментарів; idempotent, з graceful-skip для non-literal/динамічних default-export
+
 ## [3.23.1] - 2026-06-05
 
 ### Changed
