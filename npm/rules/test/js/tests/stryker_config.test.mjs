@@ -11,6 +11,17 @@ import { join } from 'node:path'
 import vitestBaseline from '../data/vitest_config/vitest.config.baseline.js'
 import { check } from '../stryker_config.mjs'
 
+// Канонічні baseline-тексти (читаємо з data/, щоб augment-фікстури не дрейфували
+// від реальних baseline-ів): non-vue (без plugins/ignorers) і повний vue-варіант.
+const STRYKER_BASELINE = readFileSync(
+  new URL('../data/stryker_config/stryker.config.baseline.mjs', import.meta.url),
+  'utf8'
+)
+const STRYKER_VUE_BASELINE = readFileSync(
+  new URL('../data/stryker_config/stryker.config.vue.baseline.mjs', import.meta.url),
+  'utf8'
+)
+
 /**
  * Створює тимчасовий проєкт із заданим `.n-cursor.json#rules` і опційним
  * workspace-layout.
@@ -232,16 +243,125 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + vue-варіант уже існує — не перезаписує плагін і конфіг', async () => {
+  test('js-lint enabled + vue-варіант уже повний — augment no-op, плагін не перезаписано', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
     mkdirSync(join(proj.dir, 'src'), { recursive: true })
     writeFileSync(join(proj.dir, 'src', 'X.vue'), '<template/>')
-    writeFileSync(join(proj.dir, 'stryker.config.mjs'), '// custom stryker')
+    writeFileSync(join(proj.dir, 'stryker.config.mjs'), STRYKER_VUE_BASELINE)
     writeFileSync(join(proj.dir, 'stryker-vue-macros-ignorer.mjs'), '// custom plugin')
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
-    expect(readFileSync(join(proj.dir, 'stryker.config.mjs'), 'utf8')).toBe('// custom stryker')
+    // повний vue-baseline → augment нічого не міняє (byte-identical)
+    expect(readFileSync(join(proj.dir, 'stryker.config.mjs'), 'utf8')).toBe(STRYKER_VUE_BASELINE)
+    // плагін-файл існує → ensureBaselineFile не перезаписує ручний вміст
     expect(readFileSync(join(proj.dir, 'stryker-vue-macros-ignorer.mjs'), 'utf8')).toBe('// custom plugin')
+    proj.cleanup()
+  })
+
+  // ── Augment існуючого stryker.config.mjs у Vue-root (drift-hole) ──────────────
+
+  test('augment(a): Vue-root зі старим non-vue config — вставляє plugins/ignorers, зберігає поля й коментарі', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(target, STRYKER_BASELINE)
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    const cfg = readFileSync(target, 'utf8')
+    expect(cfg).toContain("plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']")
+    expect(cfg).toContain("ignorers: ['vue-macros']")
+    // решта полів збережена 1-в-1
+    expect(cfg).toContain("testRunner: 'vitest'")
+    expect(cfg).toContain("coverageAnalysis: 'perTest'")
+    expect(cfg).toContain("incrementalFile: 'reports/stryker/incremental.json'")
+    // коментарі baseline збережені (string-splice не переформатовує файл)
+    expect(cfg).toContain('// perTest:')
+    expect(cfg).toContain('// incremental:')
+    proj.cleanup()
+  })
+
+  test('augment(b): Vue-root з повним vue-baseline — no-op, файл byte-identical', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(target, STRYKER_VUE_BASELINE)
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(readFileSync(target, 'utf8')).toBe(STRYKER_VUE_BASELINE)
+    proj.cleanup()
+  })
+
+  test('augment(c): частковий config — додає vue-плагін у plugins, створює ignorers, без дублів', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(
+      target,
+      ['export default {', "  testRunner: 'vitest',", "  plugins: ['@stryker-mutator/vitest-runner']", '}', ''].join(
+        '\n'
+      )
+    )
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    const cfg = readFileSync(target, 'utf8')
+    expect(cfg).toContain("plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs']")
+    expect(cfg).toContain("ignorers: ['vue-macros']")
+    // існуючий vitest-runner не дублюється
+    expect(cfg.match(/@stryker-mutator\/vitest-runner/gu)).toHaveLength(1)
+    proj.cleanup()
+  })
+
+  test('augment(d): non-vue root зі старим config — augment не викликається, файл не торкнутий', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(target, STRYKER_BASELINE)
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(readFileSync(target, 'utf8')).toBe(STRYKER_BASELINE)
+    expect(readFileSync(target, 'utf8')).not.toContain('ignorers:')
+    proj.cleanup()
+  })
+
+  test('augment(e): idempotency — другий прогон no-op, byte-identical після першого augment', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    writeFileSync(target, STRYKER_BASELINE)
+    await runCheckIn(proj.dir)
+    const afterFirst = readFileSync(target, 'utf8')
+    expect(afterFirst).toContain("ignorers: ['vue-macros']")
+    await runCheckIn(proj.dir)
+    expect(readFileSync(target, 'utf8')).toBe(afterFirst)
+    proj.cleanup()
+  })
+
+  test('augment(f): non-literal export default (factory) — fail, файл не змінено', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    const original = "export default defineConfig({ testRunner: 'vitest' })\n"
+    writeFileSync(target, original)
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(1)
+    expect(readFileSync(target, 'utf8')).toBe(original)
+    proj.cleanup()
+  })
+
+  test('augment(g): syntax error у config — fail, файл не змінено', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    mkdirSync(join(proj.dir, 'src'), { recursive: true })
+    writeFileSync(join(proj.dir, 'src', 'App.vue'), '<template><div/></template>')
+    const target = join(proj.dir, 'stryker.config.mjs')
+    const original = 'export default { testRunner: '
+    writeFileSync(target, original)
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(1)
+    expect(readFileSync(target, 'utf8')).toBe(original)
     proj.cleanup()
   })
 })
