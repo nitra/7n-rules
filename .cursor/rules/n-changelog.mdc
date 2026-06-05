@@ -1,6 +1,6 @@
 ---
 description: CHANGELOG.md в кожному workspace, з двома моделями бази порівняння (npm і Python)
-version: '3.3'
+version: '3.4'
 alwaysApply: true
 ---
 
@@ -11,6 +11,8 @@ alwaysApply: true
 1. **Поклади change-файл** `<ws>/.changes/YYMMDD-HHMM.md` з frontmatter `bump:` (`major|minor|patch`) + `section:` (`Added|Changed|Fixed|Removed`) і текстом опису. Команда: `npx @nitra/cursor change --bump <…> --section <…> --message "<…>" [--ws <шлях>]`. Якщо файл за ту саму хвилину вже існує, CLI атомарно створює `YYMMDD-HHMM-2.md`, потім `-3` тощо.
 2. **Ніколи** не редагуй `version` і `CHANGELOG.md` вручну — навіть для hotfix. Єдиний артефакт зміни — change-файл; `version`/CHANGELOG формує `n-cursor release` у CI на `main` (агрегує change-файли, ставить git-тег `<name>@<version>`). Будь-яка зміна `version` поза CI (drift від бази чи опублікованої) завалює `check changelog` — навіть якщо поряд є change-файл.
 3. **`npx @nitra/cursor fix changelog`** → exit **`0`** (достатньо наявності change-файлу; `version` лишається незмінним).
+
+**Це правило релевантне завжди після будь-якої зміни** коду/конфігу/тестів/воркспейсу — **не** класифікуй його як «лише для релізу». Уже запущені тести чи білд **не** знімають вимогу changelog. Операційно перед фінальною відповіддю: `git status --short` → зіставити змінені шляхи з workspace-ами → change-файл для кожного релевантного workspace → `npx @nitra/cursor fix changelog` (exit `0`). Якщо у фінальній відповіді не можеш заповнити рядок `Changelog: …`, отже ти пропустив(ла) цей крок.
 
 **Тригер шляхів (приклади):** `npm/**`, `packages/foo/**`, будь-який каталог з власним `package.json` / `pyproject.toml`, куди потрапили правки.
 

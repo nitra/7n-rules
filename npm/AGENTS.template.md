@@ -30,6 +30,10 @@ Generated from the root `package.json` on each `npx @nitra/cursor` sync. Prefer 
 
 Before making changes, read the relevant rule files for the area you are working on.
 
+## Інваріант після змін
+
+`n-changelog.mdc` (alwaysApply) релевантне після **будь-якої** зміни файлів, не лише для релізу. Перед фінальною відповіддю виконай `npx @nitra/cursor fix changelog` (exit `0`) і познач результат рядком `Changelog: …` у відповіді.
+
 ## Priority
 
 If rules conflict:
