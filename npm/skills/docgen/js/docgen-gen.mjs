@@ -221,23 +221,36 @@ async function generateOneShot(facts, src, model) {
   return { md: md + '\n', genTok }
 }
 
+/** Поріг sym за замовчуванням: файли з ≥ symThreshold внутрішніх символів → Tier 2 без спроби local. */
+const DEFAULT_SYM_THRESHOLD = 4
+
 /**
  * Головний API: файл → { md, genTok, ms, score, issues, tier }.
  *
- * Tier 1 = local ollama; Tier 2 = хмарний Claude (якщо score < QUALITY_THRESHOLD).
+ * Routing:
+ *   Pre-routing (0 токенів): facts.internalSymbols.length ≥ symThreshold → одразу Tier 2
+ *   Tier 1 = local ollama; після генерації scoreDoc (детермінований)
+ *   Post-routing: detScore < threshold AND ANTHROPIC_API_KEY → Tier 2 fallback
  * @param {boolean} scoreCloud — якщо true, після Tier 1 запускає cloudScoreDoc як рефері.
- *   Якщо cloud-score < threshold AND ANTHROPIC_API_KEY є — перегенерує через Tier 2.
  */
 export async function generateDoc(file, {
   model = 'gemma3:4b',
   mode = 'orchestrated',
   cloudModel = 'claude-haiku-4-5-20251001',
   threshold = QUALITY_THRESHOLD,
-  scoreCloud = false
+  scoreCloud = false,
+  symThreshold = DEFAULT_SYM_THRESHOLD
 } = {}) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
   const t0 = Date.now()
+
+  // Pre-routing: складні файли → одразу Tier 2 (якщо є ключ), не витрачаємо local-час
+  const complexity = facts.internalSymbols?.length ?? 0
+  if (complexity >= symThreshold && env.ANTHROPIC_API_KEY) {
+    const r2 = await claudeOneShot(facts, src, cloudModel)
+    return { ...r2, ms: Date.now() - t0, score: null, issues: [`pre-routed:sym=${complexity}`], tier: 2 }
+  }
 
   let r = facts.unsupported
     ? await generateOneShot(facts, src, model)
@@ -269,7 +282,7 @@ export async function generateDoc(file, {
   return { ...r, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 1 }
 }
 
-// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>]
+// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N]
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
@@ -277,8 +290,9 @@ if (isRunAsCli(import.meta.url)) {
   const mode = args.includes('--oneshot') ? 'oneshot' : 'orchestrated'
   const scoreCloud = args.includes('--score-cloud')
   const mi = args.indexOf('--model'); const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
-  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>]'); process.exit(1) }
-  const r = await generateDoc(file, { model, mode, scoreCloud })
+  const si = args.indexOf('--sym-threshold'); const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
+  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N]'); process.exit(1) }
+  const r = await generateDoc(file, { model, mode, scoreCloud, symThreshold })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
   const cloudTxt = r.cloudScores ? ` cloud-scores=${JSON.stringify(r.cloudScores)}` : ''
   process.stderr.write(`[tier${r.tier} ${mode}] ${r.ms}ms / ${r.genTok} tok / score=${r.score}${issuesTxt}${cloudTxt}\n`)
