@@ -1,0 +1,29 @@
+.changes/1780740228846-271939.md
+  s_5b444c7c52e667::t_3d09540070b06d 1-5
+npm/skills/docgen/js/docgen-extract.mjs
+  s_5b444c7c52e667::t_3d09540070b06d 1-158
+npm/.changes/1780505556620-0f7c17.md
+  s_5b444c7c52e667::t_3d09540070b06d 1-5
+npm/skills/docgen/js/docgen-gen.mjs
+  s_5b444c7c52e667::t_3d09540070b06d 1-133
+npm/skills/docgen/js/docgen-prompts.mjs
+  s_5b444c7c52e667::t_3d09540070b06d 1-82
+npm/.changes/1780503674512-af6d99.md
+  s_5b444c7c52e667::t_3d09540070b06d 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "5e9d3a7bb0c2698b86f548b8d78b84e269bec328",
+  "prompts": {},
+  "sessions": {
+    "s_5b444c7c52e667": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
