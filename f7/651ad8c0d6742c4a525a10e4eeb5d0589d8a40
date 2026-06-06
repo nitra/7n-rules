@@ -1,0 +1,103 @@
+docs/adr/260606-0732-локальна-ollama-для-docgen-tier-1-замість-хмарного-claude.md
+  ai_agent 1-92
+docs/adr/260606-0731-гібридна-стратегія-docgen-ollama-для-tier-1-claude-для-tier.md
+  ai_agent 1-96
+docs/adr/260606-0804-правило-детермінований-парсинг-у-cli-в-scripts-mdc-v1-13.md
+  ai_agent 1-191
+docs/adr/260606-0755-вибір-моделі-для-docgen-tier-1-на-8-gb-m2-обєктивний-бенчмар.md
+  ai_agent 1-94
+.vscode/extensions.json
+  s_4c3135854b0f22::t_4b57a2b39f0e4b 1,14
+  s_1700c6db1a0cc3::t_974a37218056de 2-13
+package.json
+  s_1700c6db1a0cc3::t_a5a8c5369df9bf 20
+docs/adr/260606-0817-вибір-локальної-моделі-tier-1-для-docgen-на-8-gb-m2.md
+  s_5d13deeecfbf81::t_bec8fe8d27e5ba 1-89
+docs/adr/260606-1134-recursive-compound-dag-як-структура-задачного-простору.md
+  ai_agent 1-168
+думка.MD
+  s_b1aac87b0be864::t_3b838395997741 1,5,9,11,23,27,30-33,46,48,53,57,59-60,65,72,74,79,85,87,89,97,99,118,120,132-133,139,142-147,149-150,153,155,176,178-186
+  s_b1aac87b0be864::t_957ad232abc690 3,7-8,10,12-22,24-26,28-29,34-45,47,49-52,54-56,58,61-64,66-71,73,75-78,80-84,86,88,90-96,98,100-117,119,121-131,134-138,140-141,148,151-152,154,156-175,177
+docs/adr/260606-0730-патерн-скрипт-екстрактор-для-скілів-із-масивними-артефактами.md
+  ai_agent 1-57
+docs/adr/260606-0954-оркестрований-docgen-конвеєр-для-локальних-llm.md
+  s_c0e4b04c790af0::t_4a7b4ad97de6c4 1-47
+docs/adr/260606-1136-архітектура-dynamic-self-modifying-recursive-compound-dag.md
+  ai_agent 1-41
+docs/adr/260606-0830-вибір-моделі-для-docgen-tier-1-на-8-gb-m2-обєктивний-бенчмар.md
+  ai_agent 1-123
+docs/adr/260606-1124-orchestrator-vs-llm-skil-n-fix-bench-ta-local-first-ladder.md
+  s_58c5f882a1f533::t_dfc70abc48b841 1-46
+docs/adr/260606-0730-локальна-ollama-для-docgen-tier-1-замість-хмарних-claude-суб.md
+  ai_agent 1-71
+docs/adr/260606-0746-гібридна-стратегія-docgen-локальна-ollama-для-tier-1-claude.md
+  ai_agent 1-96
+docs/adr/260606-0754-конвеєрна-оркестрація-docgen-детермінований-js-оркестратор-л.md
+  ai_agent 1-41
+docs/adr/260606-0747-локальна-ollama-для-docgen-tier-1-замість-хмарних-субагентів.md
+  ai_agent 1-106
+docs/adr/260606-0755-порівняльний-експеримент-n-fix-holistic-агент-vs-per-rule-sc.md
+  ai_agent 1-39
+docs/adr/260606-1133-рекурсивний-складений-dag-з-єдиним-інтерфейсом-вузла.md
+  ai_agent 1-159
+docs/adr/260606-0744-гібридна-стратегія-docgen-локальна-ollama-для-tier-1-claude.md
+  ai_agent 1-71
+.claude/settings.local.json
+  ai_agent 14-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f7651ad8c0d6742c4a525a10e4eeb5d0589d8a40",
+  "prompts": {},
+  "sessions": {
+    "s_1700c6db1a0cc3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "46098063-d697-476b-aec7-3727cb95d6d0",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_4c3135854b0f22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "406a9aef-0600-4e76-93a3-64174589eed6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_5d13deeecfbf81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2330ec56-2a42-49ce-b706-bd19ab326c61",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c0e4b04c790af0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "31c65070-ecef-47ea-9f14-27775957492d",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
