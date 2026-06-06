@@ -1,0 +1,32 @@
+{
+  "ts": "2026-06-06T09-53-50-042Z",
+  "wallMs": 104383,
+  "rules": [
+    "bun",
+    "rego",
+    "style-lint"
+  ],
+  "ledger": [
+    {
+      "ruleId": "bun",
+      "tier": "T0",
+      "status": "ok",
+      "elapsed": 0
+    },
+    {
+      "ruleId": "rego",
+      "tier": "local",
+      "status": "timeout",
+      "elapsed": 90281
+    },
+    {
+      "ruleId": "style-lint",
+      "tier": "local",
+      "status": "pi-error",
+      "elapsed": 8221
+    }
+  ],
+  "resolved": 1,
+  "failed": 2,
+  "resolvedLocal": 1
+}
