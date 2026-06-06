@@ -1,0 +1,21 @@
+docs/adr/260606-0730-патерн-скрипт-екстрактор-для-скілів-із-масивними-артефактами.md
+  s_f3553eb6029c44::t_9644e7b4a9584b 1-57
+.claude/settings.local.json
+  ai_agent 14-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "4b571833dbfa4fa870a57e5dba6320bca00e663a",
+  "prompts": {},
+  "sessions": {
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
