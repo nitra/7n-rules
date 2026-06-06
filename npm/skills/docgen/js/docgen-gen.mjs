@@ -121,6 +121,53 @@ function scoreDoc(md, facts) {
   return { score: Math.max(0, score), issues }
 }
 
+const SCORE_RUBRIC = `Оціни якість документації для JavaScript-модуля за 4 критеріями (1-3 кожен):
+
+- огляд: 3=описує роль модуля в системі (ЩО і НАВІЩО); 2=частково розмитий; 1=відсутній або перераховує функції
+- поведінка: 3=бізнес-терміни, без деталей реалізації; 2=деякі impl-деталі; 1=переважно реалізація або відсутня
+- гарантії: 3=лише реальні інваріанти підтверджені кодом, без галюцинацій; 2=частково правильні; 1=вигадані або відсутні
+- стиль: 3=без сигнатур/internal-імен, правильна markdown-структура; 2=дрібні порушення; 1=сигнатури/internal-імена/відсутні заголовки
+
+Відповідай ТІЛЬКИ JSON без пояснень:
+{"огляд":N,"поведінка":N,"гарантії":N,"стиль":N,"issues":["коротко про кожен мінус 1-5 слів"]}`
+
+/**
+ * Stage 2.5 cloud: Claude Haiku оцінює якість доку проти коду + фактів.
+ * @returns {{ score: number, scores: object, issues: string[], tok: number }}
+ */
+async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001') {
+  const client = new Anthropic()
+  const factsTxt = [
+    facts.exports?.length ? `Публічні функції: ${facts.exports.map(e => e.name).join(', ')}` : '',
+    facts.internalSymbols?.length ? `Внутрішні (не публічні): ${facts.internalSymbols.join(', ')}` : '',
+    facts.markers?.caches ? 'Кешування: є' : 'Кешування: немає',
+    facts.markers?.network ? 'Мережа: є' : 'Мережа: немає',
+    facts.markers?.readOnly ? 'Read-only (не змінює файли/стан)' : ''
+  ].filter(Boolean).join('\n')
+
+  const msg = await client.messages.create({
+    model,
+    max_tokens: 256,
+    system: SCORE_RUBRIC,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: `ФАКТИ:\n${factsTxt}`, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: `КОД:\n\`\`\`\n${src.slice(0, 4000)}\n\`\`\``, cache_control: { type: 'ephemeral' } },
+        { type: 'text', text: `ДОКУМЕНТАЦІЯ:\n${md}` }
+      ]
+    }]
+  })
+  const tok = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0)
+  try {
+    const j = JSON.parse(msg.content[0]?.text ?? '{}')
+    const total = ((j.огляд ?? 0) + (j.поведінка ?? 0) + (j.гарантії ?? 0) + (j.стиль ?? 0)) / 12 * 100
+    return { score: Math.round(total), scores: j, issues: j.issues ?? [], tok }
+  } catch {
+    return { score: 50, scores: {}, issues: ['parse-error'], tok }
+  }
+}
+
 /** Tier 2: хмарний fallback через Claude коли local-score < QUALITY_THRESHOLD. */
 async function claudeOneShot(facts, src, model = 'claude-haiku-4-5') {
   const client = new Anthropic()
@@ -176,14 +223,17 @@ async function generateOneShot(facts, src, model) {
 
 /**
  * Головний API: файл → { md, genTok, ms, score, issues, tier }.
+ *
  * Tier 1 = local ollama; Tier 2 = хмарний Claude (якщо score < QUALITY_THRESHOLD).
- * @param {string} cloudModel — Claude-модель для Tier 2 (default claude-haiku-4-5).
+ * @param {boolean} scoreCloud — якщо true, після Tier 1 запускає cloudScoreDoc як рефері.
+ *   Якщо cloud-score < threshold AND ANTHROPIC_API_KEY є — перегенерує через Tier 2.
  */
 export async function generateDoc(file, {
   model = 'gemma3:4b',
   mode = 'orchestrated',
-  cloudModel = 'claude-haiku-4-5',
-  threshold = QUALITY_THRESHOLD
+  cloudModel = 'claude-haiku-4-5-20251001',
+  threshold = QUALITY_THRESHOLD,
+  scoreCloud = false
 } = {}) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
@@ -195,26 +245,42 @@ export async function generateDoc(file, {
       ? await generateOneShot(facts, src, model)
       : await generateOrchestrated(facts, src, model)
 
-  const { score, issues } = scoreDoc(r.md, facts)
+  // Stage 2.5a: детермінований скоринг (0 токенів)
+  const { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
 
-  if (score < threshold && env.ANTHROPIC_API_KEY) {
-    const r2 = await claudeOneShot(facts, src, cloudModel)
-    return { ...r2, ms: Date.now() - t0, score, issues, tier: 2 }
+  // Stage 2.5b: хмарний рефері (опціонально)
+  if (scoreCloud && env.ANTHROPIC_API_KEY) {
+    const cs = await cloudScoreDoc(r.md, facts, src, cloudModel)
+    if (cs.score < threshold) {
+      const r2 = await claudeOneShot(facts, src, cloudModel)
+      return { ...r2, ms: Date.now() - t0, score: cs.score, cloudScores: cs.scores,
+               issues: cs.issues, detScore, detIssues, tier: 2 }
+    }
+    return { ...r, ms: Date.now() - t0, score: cs.score, cloudScores: cs.scores,
+             issues: cs.issues, detScore, detIssues, tier: 1 }
   }
 
-  return { ...r, ms: Date.now() - t0, score, issues, tier: 1 }
+  // Детермінований fallback (без scoreCloud)
+  if (detScore < threshold && env.ANTHROPIC_API_KEY) {
+    const r2 = await claudeOneShot(facts, src, cloudModel)
+    return { ...r2, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 2 }
+  }
+
+  return { ...r, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 1 }
 }
 
-// CLI: node docgen-gen.mjs <file> [--oneshot] [--model <m>]
+// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>]
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
   const file = args.find(a => !a.startsWith('--'))
   const mode = args.includes('--oneshot') ? 'oneshot' : 'orchestrated'
+  const scoreCloud = args.includes('--score-cloud')
   const mi = args.indexOf('--model'); const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
-  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--model <m>]'); process.exit(1) }
-  const r = await generateDoc(file, { model, mode })
+  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>]'); process.exit(1) }
+  const r = await generateDoc(file, { model, mode, scoreCloud })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
-  process.stderr.write(`[tier${r.tier} ${mode}] ${r.ms}ms / ${r.genTok} tok / score=${r.score}${issuesTxt}\n`)
+  const cloudTxt = r.cloudScores ? ` cloud-scores=${JSON.stringify(r.cloudScores)}` : ''
+  process.stderr.write(`[tier${r.tier} ${mode}] ${r.ms}ms / ${r.genTok} tok / score=${r.score}${issuesTxt}${cloudTxt}\n`)
   process.stdout.write(r.md)
 }
