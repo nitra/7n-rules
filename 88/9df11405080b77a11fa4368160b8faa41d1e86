@@ -1,0 +1,21 @@
+npm/skills/fix/js/orchestrator.mjs
+  s_58c5f882a1f533::t_b2aa0b1e8e9bdd 40-45,47-48,50-54,56-58,60,62-66,68-69,72-74,76,84,88-89,93-97,99-100,104
+npm/.changes/260606-2053.md
+  s_58c5f882a1f533::t_980df71ed177d0 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "889df11405080b77a11fa4368160b8faa41d1e86",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
