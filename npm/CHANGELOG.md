@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.25.0] - 2026-06-06
+
+### Added
+
+- fix: прапорець `n-cursor fix --json` друкує компактний {total, failed, rules:[{ruleId, ok, output}]} у stdout (per-rule захоплення замість stdio inherit; у json-режимі пропускається ensureHkInstall, щоб stdout лишався чистим JSON). Скіл n-fix більше не парсить термінальний вивід — працює лише з rules[].ok:false. Дефолтна поведінка без прапорця незмінна
+
 ## [3.24.0] - 2026-06-05
 
 ### Added
