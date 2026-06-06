@@ -1,0 +1,29 @@
+docs/думка.MD
+  s_8db9ea12267ed4::t_ff646009baad0a 501-522,635
+docs/adr/260606-2035-уніфікований-runnnn-md-замість-окремих-файлів-помилок-і-журн.md
+  ai_agent 1-109
+docs/adr/260606-2035-спрощення-tier-routing-у-docgen-прибрати-haiku-рефері-додати.md
+  ai_agent 1-103
+docs/adr/260606-2037-уніфікований-runnnn-md-з-полем-actor.md
+  ai_agent 1-88
+docs/adr/260606-2039-єдиний-принцип-автономного-cli-оркестратора-через-meta-json.md
+  ai_agent 1-92
+docs/adr/260606-2035-autonomous-orchestrator-design.md
+  ai_agent 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "4df674cd75e045ee05f602548a71bf3ad3588167",
+  "prompts": {},
+  "sessions": {
+    "s_8db9ea12267ed4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abc0dbe0-c221-4b01-b40f-c68a72ce7683",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}
