@@ -1,0 +1,19 @@
+docs/adr/260606-2035-autonomous-orchestrator-design.md
+  s_59aae6dd398b57::t_1b6f8d97260d30 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "da1afe67fa7e450c4c4826e3dd51cdecc5701f26",
+  "prompts": {},
+  "sessions": {
+    "s_59aae6dd398b57": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "672312ce-3402-4b50-91a5-1654bb0bfc4b",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
