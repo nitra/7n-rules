@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.28.0] - 2026-06-06
+
+### Added
+
+- lib/models.mjs: global model tier classification (LOCAL_MIN/AVG/MAX, CLOUD_MIN/AVG/MAX) via N_*_MODEL env vars; fix llm-worker uses CLOUD_MIN/AVG by default
+
+### Changed
+
+- fix orchestrator: concise output — single line when clean, details only when issues occur
+- llm-worker: rename MODEL_HAIKU/SONNET → MODEL/MODEL_HEAVY, helpful error when pi has no API key for provider
+
 ## [3.27.0] - 2026-06-06
 
 ### Added
