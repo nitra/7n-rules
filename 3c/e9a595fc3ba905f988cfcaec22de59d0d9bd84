@@ -1,0 +1,29 @@
+docs/adr/260606-0755-docgen-orchestrator-v2-section-minimal-context.md
+  s_5d13deeecfbf81::t_52b14a489147b1 1-25
+docs/adr/260606-0747-per-file-виклик-замість-rpc-сесії-для-docgen-tier-1.md
+  s_5d13deeecfbf81::t_a905d563f3ef8b 1-25
+docs/adr/260606-0730-вибір-моделі-для-docgen-tier-1-на-8-gb-m2.md
+  s_5d13deeecfbf81::t_4c32026ed79f4c 1-30
+docs/adr/260606-0730-локальна-ollama-для-docgen-tier-1-гібридна-стратегія.md
+  s_5d13deeecfbf81::t_798d4cb185ee23 1-25
+docs/adr/260606-0730-system-prompt-як-вирішальний-фактор-якості-ollama.md
+  s_5d13deeecfbf81::t_876093a3bb9b04 1-25
+docs/adr/260606-0754-js-оркестратор-як-точка-входу-docgen-інверсія-керування.md
+  s_5d13deeecfbf81::t_6d17c318a7ab98 1-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "3ce9a595fc3ba905f988cfcaec22de59d0d9bd84",
+  "prompts": {},
+  "sessions": {
+    "s_5d13deeecfbf81": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2330ec56-2a42-49ce-b706-bd19ab326c61",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
