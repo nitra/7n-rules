@@ -1,0 +1,23 @@
+docs/adr/20260606-160200-docgen-gemma3-tier1-model.md
+  s_b20e6068085bf1::t_e60859b8c2a0be 1-19
+docs/adr/20260606-160000-docgen-hybrid-tier-routing-sym-threshold.md
+  s_b20e6068085bf1::t_81e695a22d90f6 1-21
+docs/adr/20260606-160100-docgen-orchestrated-vs-oneshot-tier1.md
+  s_b20e6068085bf1::t_8b1cc04abba151 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "4686f98d8e79c062aea7e7fa86405480b2a38185",
+  "prompts": {},
+  "sessions": {
+    "s_b20e6068085bf1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e64ba4a8-6823-4e39-9fb0-4ef8d786ce2f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
