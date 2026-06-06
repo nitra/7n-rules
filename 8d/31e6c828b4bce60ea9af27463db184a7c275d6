@@ -1,0 +1,73 @@
+docs/думка.MD
+  s_b1aac87b0be864::t_ba8520c5a6e6d9 46-47,49-53,55-59,61,63,65,67-69,89,97-98,106,143,149,151-153,233-234,237-238,270,357-360,362,367,369-371,375-380,382-390,401
+  s_b1aac87b0be864::t_db7059374c86a4 48,54,60,62,64,66,70-88,90-96,102,105,107-114,120-134,139,148,150,156,159,168,190,202-232,235-236,254-269,271-281,302,336,361,363-366,368,372-374,381,399-400,402,405,407
+docs/adr/260606-1149-рекурсивний-складений-оаг-як-структура-для-динамічного-графу.md
+  s_5b444c7c52e667::t_1bd5fb40c742b8 1-133
+.vscode/extensions.json
+  s_2daa83d2d92ef3::t_f33ab0d6c24a61 3
+  s_2daa83d2d92ef3::t_4c124c07a069ad 11
+docs/adr/260606-1200-append-only-файлова-система-для-стану-графу.md
+  s_c7647717239cda::t_6c6e626e3cea90 1-48
+docs/adr/260606-1209-рекурсивний-складений-оаг-як-структура-для-динамічного-графу.md
+  ai_agent 1-243
+docs/adr/260606-1210-скасування-та-інвалідація-вузлів-append-only-граф.md
+  ai_agent 1-50
+docs/adr/260606-1201-markdown-yaml-llm-first-формат-файлів-вузла.md
+  s_c7647717239cda::t_430e969cd59cee 1-60
+docs/adr/260606-1202-git-ворктрі-та-агент-медіатор-для-паралельного-виконання.md
+  ai_agent 1-54
+docs/adr/260606-1153-рекурсивний-складений-оаг-як-структура-для-динамічного-графу.md
+  s_fbd381211e6d28::t_70acbddf9a6d29 1-96
+docs/adr/260606-1207-динамічний-самомодифікований-граф-задач.md
+  ai_agent 1-30
+docs/adr/260606-1151-рекурсивний-складений-оаг-як-основна-структура-графу-задач.md
+  s_fbd381211e6d28::t_d95608dbf9e490 1-164
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8d31e6c828b4bce60ea9af27463db184a7c275d6",
+  "prompts": {},
+  "sessions": {
+    "s_2daa83d2d92ef3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bad3e740-cfb9-4a43-9ace-98549e716eb2",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_5b444c7c52e667": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c7647717239cda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "965a813c-e6db-4194-bd60-9f6ee4bf0e1f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_fbd381211e6d28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
