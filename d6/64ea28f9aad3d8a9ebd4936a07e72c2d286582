@@ -1,0 +1,22 @@
+.changes/1780748202473-aa6b16.md
+  s_9b70517d0593df::t_a48d1b1e0ab863 1-5
+npm/skills/docgen/js/docgen-gen.mjs
+  s_9b70517d0593df::t_10823f81cb913f 224-226,230-233,241-242,248-253
+  s_9b70517d0593df::t_8223b17e8d553e 285,293-295
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "d664ea28f9aad3d8a9ebd4936a07e72c2d286582",
+  "prompts": {},
+  "sessions": {
+    "s_9b70517d0593df": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0c5e808d-49d9-460d-a4c1-48a2cda951df",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
