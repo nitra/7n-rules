@@ -1,0 +1,26 @@
+npm/skills/fix/js/orchestrator.mjs
+  s_58c5f882a1f533::t_a1e8dcf0761f33 7
+  s_58c5f882a1f533::t_09c874a3cf59aa 29
+  s_58c5f882a1f533::t_47e89672136d51 78-79,84,88-89
+npm/skills/fix/js/llm-worker.mjs
+  s_58c5f882a1f533::t_fa85a389ec5b5b 16-22
+  s_58c5f882a1f533::t_b7cd1c40c6f34a 114-124
+npm/.changes/260606-2101.md
+  s_58c5f882a1f533::t_b3c3f7b3dde0fa 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "da54f6d286baed687ab1551e0c72d247569e3386",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
