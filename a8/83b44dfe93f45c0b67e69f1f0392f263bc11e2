@@ -1,0 +1,21 @@
+npm/scripts/coverage-classify/index.mjs
+  s_f3553eb6029c44::t_368bcee4443bf5 4-8,10,13,25-29,31-40,42-52,54,56-57,59-66,68-80,83,85,105
+npm/scripts/coverage-classify/tests/index.test.mjs
+  s_f3553eb6029c44::t_f904c5fc622bbc 3-5,7,14,27,41-43,45-46,50-51,53,61,64-68,72,76,79-87,91,94,96-97,105,108-116,120,124-125,150-152,161,163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a883b44dfe93f45c0b67e69f1f0392f263bc11e2",
+  "prompts": {},
+  "sessions": {
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
