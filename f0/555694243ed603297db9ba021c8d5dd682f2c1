@@ -1,0 +1,166 @@
+npm/skills/docgen/js/docgen-prompts.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/taze/js/diff.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/hasura/js/internal_urls.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-lint/js/utils_imports.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/rule_meta.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+docs/думка.MD
+  s_73a2d8971e79fd::t_77a69b2c20101e 66-73,398,762-763
+npm/rules/abie/js/ua_node_selector.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-mssql/js/deps.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/docgen/js/docgen-scan.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+.cursor/rules/scripts.mdc
+  s_73a2d8971e79fd::t_77a69b2c20101e 321-338
+npm/rules/text/js/formatting.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/security/js/trufflehog.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/skill_meta.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/abie/js/hc_pairing.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/test/js/location.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/test/js/cargo_mutants_config.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/graphql/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/test/js/vitest-config-pool-forks.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-lint-ci/js/lint.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/header_doc_pointer.mjs
+  s_90ec9fb2c3856f::t_18d8638fd5cab0 1-82
+npm/rules/test/js/no-process-chdir.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/docgen/js/docgen-gen.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/fix/js/orchestrator.mjs
+  s_58c5f882a1f533::t_09c874a3cf59aa 19
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+  s_58c5f882a1f533::t_b2aa0b1e8e9bdd 30-35,37-38,40-44,46-48,50,52-56,58-59,62-64,66,83-87,89-90,94
+  s_58c5f882a1f533::t_47e89672136d51 68-69,74,78-79
+npm/rules/python/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/security/js/sample_secret.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-bun-redis/js/imports.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/python/js/applies.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/image-avif/js/avif_generation.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-run/js/runtime.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/ci4/js/marksman_config.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/changelog/js/consistency.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/tauri/js/cargo_mutants_config.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/docs/header_doc_pointer.md
+  s_90ec9fb2c3856f::t_6339b62de08520 1-25
+npm/rules/ga/js/workflows.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/test/js/stryker_config.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/abie/js/env_dns.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/abie/js/firebase_hosting.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/rust/js/applies.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/php/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/tests/header_doc_pointer.test.mjs
+  s_90ec9fb2c3856f::t_035d2fe3d556de 1-87
+npm/rules/text/js/forbidden-prettier.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/tauri/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/docker/js/lint.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/vue/js/packages.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/nginx-default-tpl/js/template.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-lint/js/lint-findings.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/docgen/js/docgen-extract.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-lint/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/bun/js/layout.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/npm-module/js/package_structure.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-bun-db/js/safety.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/style-lint/js/lint.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/abie/js/applies.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/style-lint/js/tooling.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/k8s/js/manifests.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/adr/js/hooks.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/abie/js/ua_http_route.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/rego/js/applies.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/capacitor/js/platforms.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/start-check/js/check.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/image-compress/js/package_setup.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/js-lint/js/lint.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/rules/test/js/no-relative-fs-path.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/docgen/js/docgen-ignore.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+npm/skills/fix/js/t0.mjs
+  s_73a2d8971e79fd::t_77a69b2c20101e 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "f0555694243ed603297db9ba021c8d5dd682f2c1",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_73a2d8971e79fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29ea60ce-c50d-4d47-85f3-c0f826c89c8d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_90ec9fb2c3856f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "166067f9-58c4-48c2-afaa-547b28eb33db",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
