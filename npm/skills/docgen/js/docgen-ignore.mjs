@@ -20,7 +20,8 @@ export const DOCGEN_IGNORE_GLOBS = Object.freeze([
   '.worktrees/**',
   '**/benchmarks/**',
   '**/demo/**',
-  '**/docs/**'
+  '**/docs/**',
+  'npm/reports/**'
 ])
 
 const IGNORE_MATCHERS = DOCGEN_IGNORE_GLOBS.map(glob => picomatch(glob, { dot: true }))
