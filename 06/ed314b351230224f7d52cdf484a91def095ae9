@@ -1,0 +1,159 @@
+npm/skills/docgen/js/docgen-extract.mjs
+  ai_agent 12-27,57-60,101-103,122-126,175-178
+npm/scripts/docs/coverage-fix-extract.md
+  ai_agent 5,23-32
+npm/scripts/lib/docs/run-standard-rule.md
+  ai_agent 19-24
+npm/scripts/docs/sync-claude-config.md
+  ai_agent 5,9-20
+npm/scripts/lib/docs/rule-predicates.md
+  ai_agent 5,10-12,15,23-30
+npm/skills/docgen/js/docs/docgen-gen.md
+  ai_agent 18
+npm/skills/fix/js/docs/t0.md
+  ai_agent 5,21-29
+.n-cursor.json
+  ai_agent 25-32
+npm/scripts/utils/docs/worktree-fingerprint.md
+  ai_agent 24-27
+npm/rules/ga/docs/fix.md
+  ai_agent 22-25
+npm/skills/fix/js/t0.mjs
+  ai_agent 60,83-84,119,142-146,192-196,224
+npm/scripts/docs/post-tool-use-fix.md
+  ai_agent 5,20-27
+npm/scripts/docs/worktree-cli.md
+  ai_agent 9-10,12-15,17-20,22-23,25-27,35-46
+npm/scripts/utils/docs/test-helpers.md
+  ai_agent 26-36
+npm/skills/docgen/js/docgen-prompts.mjs
+  ai_agent 31-34,48-53,58-63,70-75,81-86,95-98
+npm/skills/docgen/js/docs/docgen-extract.md
+  ai_agent 5,23-28
+npm/skills/fix/js/tests/orchestrator.test.mjs
+  ai_agent 19,27-32,35,45,48,67,73,75,87-92
+npm/skills/fix/js/orchestrator.mjs
+  ai_agent 33,117
+npm/scripts/utils/docs/with-lock.md
+  ai_agent 5,9-10,19-25
+npm/docs/stryker.config.md
+  ai_agent 21-37
+npm/scripts/tests/fixtures/docs/cli-entry-as-cli.md
+  ai_agent 16-18
+npm/scripts/lib/docs/worktree-notice.md
+  ai_agent 5,11
+npm/skills/start-check/js/docs/check.md
+  ai_agent 9-13,25-34
+.cursor/rules/n-test.mdc
+  ai_agent 168-169
+npm/rules/js-run/lib/docs/temporal-scan.md
+  ai_agent 5,19-25
+npm/scripts/docs/sync-setup-bun-deps-action.md
+  ai_agent 5,22-26
+npm/rules/js-lint/js/docs/lint-findings.md
+  ai_agent 5,23-30
+npm/scripts/utils/docs/resolve-cargo-manifest.md
+  ai_agent 5,19-23
+npm/scripts/utils/docs/walkDir.md
+  ai_agent 5,13-14,25-32
+npm/skills/fix/js/docs/orchestrator.md
+  ai_agent 5,10,12-17,19,23-32
+npm/scripts/lib/docs/read-n-cursor-config-lite.md
+  ai_agent 5,22-28
+npm/scripts/lib/docs/run-standard-lint.md
+  ai_agent 19-22
+npm/scripts/docs/rename-yaml-extensions.md
+  ai_agent 5,9-15,28-36
+npm/scripts/utils/docs/pass.md
+  ai_agent 5,23-25
+npm/scripts/utils/docs/ast-scan-utils.md
+  ai_agent 38-50
+npm/scripts/lib/docs/worktree.md
+  ai_agent 5,27-38
+.cursor/skills/n-fix/SKILL.md
+  ai_agent 76
+npm/scripts/utils/docs/ensure-gitignore-entries.md
+  ai_agent 24-28
+npm/skills/docgen/js/docs/docgen-ignore.md
+  ai_agent 5,19-24
+npm/skills/fix/js/tests/t0.test.mjs
+  ai_agent 50,60,77,88,102,129,155
+npm/scripts/lib/docs/timing-summary.md
+  ai_agent 5
+npm/scripts/docs/skills-cli.md
+  ai_agent 5,9-16,28-35
+npm/scripts/lib/docs/template.md
+  ai_agent 9-15,29-40
+npm/scripts/lib/docs/sync-gitignore-worktree.md
+  ai_agent 21-31
+npm/scripts/lib/docs/rule-meta-helpers.md
+  ai_agent 27-34
+npm/scripts/docs/upgrade-nitra-cursor-and-install.md
+  ai_agent 5,23-29
+npm/rules/ga/js/docs/lint.md
+  ai_agent 17-19
+npm/scripts/lib/docs/assert-project-root.md
+  ai_agent 20-28
+npm/scripts/lib/docs/run-rule.md
+  ai_agent 5,9-12,21-32
+npm/skills/fix/js/llm-worker.mjs
+  ai_agent 37-40,47-50,66-69,92,105-108,126-130,135-139,146-150
+npm/skills/docgen/js/docs/docgen-prompts.md
+  ai_agent 21-24
+npm/skills/taze/js/docs/diff.md
+  ai_agent 5,25-33
+npm/docs/vitest.config.md
+  ai_agent 21-23
+npm/scripts/lib/docs/skill-meta.md
+  ai_agent 5,23-31
+npm/skills/docgen/js/docgen-batch.mjs
+  ai_agent 23-24,32-34,53-54,67,79-80
+npm/scripts/docs/lint-cli.md
+  ai_agent 19-25
+npm/scripts/lib/docs/diff-added-lines.md
+  ai_agent 5,23-34
+npm/scripts/lib/docs/root-notice.md
+  ai_agent 21-28
+npm/skills/docgen/js/docs/docgen-scan.md
+  ai_agent 5,9-18,35-48
+npm/scripts/utils/docs/lock-cache-dir.md
+  ai_agent 5,18-25
+npm/skills/fix/js/docs/llm-worker.md
+  ai_agent 5,9,19-27
+npm/rules/test/js/stryker_config.mjs
+  ai_agent 313-315
+npm/rules/ga/lint/docs/lint.md
+  ai_agent 5,20-27
+npm/scripts/lib/docs/run-lint-step.md
+  ai_agent 22-25
+npm/scripts/utils/docs/resolve-js-root.md
+  ai_agent 19-25
+npm/scripts/lib/docs/run-rule-cli.md
+  ai_agent 5,21-27
+npm/scripts/lib/docs/workspaces.md
+  ai_agent 5,24-30
+npm/scripts/utils/docs/walk-cache.md
+  ai_agent 19-27
+npm/skills/docgen/js/docgen-gen.mjs
+  ai_agent 30-33,39-49,60-62,79-82,105-108,122-125,128-131,137-140,146-149,178-180,186-195,200,269,283-292,301-308,314-317,322-329,352-355,365-368
+npm/rules/ga/js/docs/workflows.md
+  ai_agent 9-12,23-32
+npm/scripts/lib/docs/run-conftest-batch.md
+  ai_agent 10,19-26
+npm/scripts/utils/docs/find-package-json-paths.md
+  ai_agent 5,23-26
+package.json
+  ai_agent 27
+npm/scripts/lib/docs/resolve-target-files.md
+  ai_agent 5,26-34
+npm/scripts/lib/docs/rule-meta.md
+  ai_agent 5,23-34
+npm/scripts/utils/docs/resolve-cmd.md
+  ai_agent 5,23-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "06ed314b351230224f7d52cdf484a91def095ae9",
+  "prompts": {}
+}
