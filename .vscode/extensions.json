@@ -1,5 +1,6 @@
 {
   "recommendations": [
+    "arr.marksman",
     "dbaeumer.vscode-eslint",
     "github.vscode-github-actions",
     "oxc.oxc-vscode",
@@ -7,8 +8,6 @@
     "timonwong.shellcheck",
     "redhat.vscode-yaml",
     "irongeek.vscode-env",
-    "tsandall.opa",
-    "Vue.volar",
-    "arr.marksman"
+    "Vue.volar"
   ]
 }
