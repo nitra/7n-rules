@@ -5,14 +5,15 @@
  *
  * Використання:
  *   `npx \@nitra/cursor`             — завантажити cursor-правила
- *   `npx \@nitra/cursor fix`         — перевірити правила з `.cursor/rules/*.mdc`, для яких у пакеті є `fix.mjs`/policy;
+ *   `npx \@nitra/cursor fix`         — автономний оркестратор: T0-auto + LLM (haiku→sonnet); convergence-loop до чистого стану [--max-iter N] [rules]
  *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
- *   `npx \@nitra/cursor fix bun`     — перевірити лише вказані правила (ігнорує `.cursor/rules/`)
+ *   `npx \@nitra/cursor fix bun`     — оркестратор лише для вказаних правил; `--json` = check-only (structured output для CI)
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor post-tool-use-fix` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
  *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
+ *   `npx \@nitra/cursor fix`         — автономний оркестратор (meta.json: orchestrator:true): T0-auto → LLM via pi (haiku→sonnet) → check-gate → loop; [--max-iter N] [rules]
  *   `npx \@nitra/cursor lint`        — оркестратор lint-ланцюжка з кореневого `package.json` з вимірюванням часу
  *                                     кожного `lint-*` / `oxfmt` скрипта (fail-fast); канонічна заміна
  *                                     раніше ручного `lint-ga && lint-js && …` агрегатора.
@@ -1596,12 +1597,14 @@ try {
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
     case 'fix': {
-      // --json: компактний {total, failed, rules:[{ruleId, ok, output}]} у stdout для скілу n-fix.
-      await runFixCommand(
-        args.filter(a => a !== '--json'),
-        { json: args.includes('--json') }
-      )
-
+      const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
+      process.exitCode = await runOrchestratorCli(args, cwd())
+      break
+    }
+    case '_fix-check': {
+      // Внутрішня команда оркестратора — не є публічним API.
+      // Повертає JSON {total, failed, rules:[{ruleId, ok, output}]} у stdout.
+      await runFixCommand(args, { json: true })
       break
     }
     case 'check': {
@@ -1709,6 +1712,23 @@ try {
 
       break
     }
+    case 'fix-run': {
+      // Backward-compatibility alias → перенаправляємо на `fix`.
+      console.warn(`⚠️  \`fix-run\` deprecated — використовуйте \`fix\``)
+      const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
+      process.exitCode = await runOrchestratorCli(args, cwd())
+      break
+    }
+    case 'fix-t0': {
+      // n-cursor fix-t0 [rule...] — T0-auto рівень n-fix оркестратора.
+      // Запускає fix --json, знаходить violation-output із детермінованим паттерном
+      // (vscode-ext-add, rm-forbidden-file тощо), застосовує програмний фікс (0 LLM),
+      // перевіряє check-gate. Exit 0 = усі T0-паттерни закриті; 1 = є решта для LLM.
+      const { runT0AutoCli } = await import('../skills/fix/js/t0.mjs')
+      process.exitCode = await runT0AutoCli(args, cwd())
+
+      break
+    }
     case 'change': {
       const { runChangeCli } = await import('../rules/release/change.mjs')
       process.exitCode = await runChangeCli(args)
@@ -1780,7 +1800,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
+        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
       )
       process.exitCode = 1
     }

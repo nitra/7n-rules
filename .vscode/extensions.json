@@ -8,6 +8,8 @@
     "timonwong.shellcheck",
     "redhat.vscode-yaml",
     "irongeek.vscode-env",
-    "Vue.volar"
+    "Vue.volar",
+    "tsandall.opa",
+    "stylelint.vscode-stylelint"
   ]
 }
