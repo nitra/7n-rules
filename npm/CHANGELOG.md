@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.26.0] - 2026-06-06
+
+### Added
+
+- Root-guard для всіх деструктивних точок: CLI-команди fix/lint/coverage/change/release + дефолтний sync хардом перевіряють cwd===git-toplevel (assertCwdIsProjectRoot); worktree-preflight підсилено root-assert (pwd vs toplevel); новий meta.json-флаг requireRoot + injectRootNotice для in-place root-only скілів (n-start-check); skillRequiresRoot як явна похідна ознака захисту; валідація requireRoot у npm-module
+
+### Fixed
+
+- n-changelog: directional version-drift — лише version ВПЕРЕД (> опублікованої/git-бази) валить як ручний bump; version ПОЗАДУ (локаль відстала від CI-релізу, ще не git pull) більше не блокує коміт (compareSemverCore/versionIsAhead)
+
 ## [3.25.1] - 2026-06-06
 
 ### Fixed
