@@ -1,0 +1,19 @@
+docs/adr/260606-2124-глобальна-класифікація-моделей-n-local-n-cloud.md
+  s_58c5f882a1f533::t_50c72c60f5d4f7 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "de005722a4885aff73a9f59b0d278eb71006a324",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
