@@ -135,7 +135,7 @@ const SCORE_RUBRIC = `Оціни якість документації для Ja
  * Stage 2.5 cloud: Claude Haiku оцінює якість доку проти коду + фактів.
  * @returns {{ score: number, scores: object, issues: string[], tok: number }}
  */
-async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001') {
+async function cloudScoreDoc(md, facts, src, model = 'claude-sonnet-4-6') {
   const client = new Anthropic()
   const factsTxt = [
     facts.exports?.length ? `Публічні функції: ${facts.exports.map(e => e.name).join(', ')}` : '',
@@ -169,7 +169,7 @@ async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001'
 }
 
 /** Tier 2: хмарний fallback через Claude коли local-score < QUALITY_THRESHOLD. */
-async function claudeOneShot(facts, src, model = 'claude-haiku-4-5') {
+async function claudeOneShot(facts, src, model = 'claude-sonnet-4-6') {
   const client = new Anthropic()
   const prompt = oneShotPromptText(facts, src)
   const msg = await client.messages.create({
@@ -236,7 +236,7 @@ const DEFAULT_SYM_THRESHOLD = 4
 export async function generateDoc(file, {
   model = 'gemma3:4b',
   mode = 'orchestrated',
-  cloudModel = 'claude-haiku-4-5-20251001',
+  cloudModel = 'claude-sonnet-4-6',
   threshold = QUALITY_THRESHOLD,
   scoreCloud = false,
   symThreshold = DEFAULT_SYM_THRESHOLD
@@ -282,16 +282,27 @@ export async function generateDoc(file, {
   return { ...r, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 1 }
 }
 
-// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N]
+// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N] [--tier-only]
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
   const file = args.find(a => !a.startsWith('--'))
   const mode = args.includes('--oneshot') ? 'oneshot' : 'orchestrated'
   const scoreCloud = args.includes('--score-cloud')
+  const tierOnly = args.includes('--tier-only')
   const mi = args.indexOf('--model'); const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
   const si = args.indexOf('--sym-threshold'); const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
-  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N]'); process.exit(1) }
+  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N] [--tier-only]'); process.exit(1) }
+  if (tierOnly) {
+    const { readFileSync } = await import('node:fs')
+    const src = readFileSync(file, 'utf8')
+    const facts = extractFacts(src, file)
+    const sym = facts.internalSymbols?.length ?? 0
+    const tier = sym >= symThreshold ? 2 : 1
+    const dest = tier === 2 ? `cloud (sym=${sym} ≥ ${symThreshold})` : `local  (sym=${sym} < ${symThreshold})`
+    process.stdout.write(`${tier === 2 ? '☁️ ' : '💻'} Tier ${tier} → ${dest}  |  ${file}\n`)
+    process.exit(0)
+  }
   const r = await generateDoc(file, { model, mode, scoreCloud, symThreshold })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
   const cloudTxt = r.cloudScores ? ` cloud-scores=${JSON.stringify(r.cloudScores)}` : ''
