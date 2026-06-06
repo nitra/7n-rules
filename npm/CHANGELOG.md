@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.27.0] - 2026-06-06
+
+### Added
+
+- add fix-t0 CLI command: T0-auto pattern library for n-fix orchestrator (deterministic vscode-ext-add and rm-forbidden-file fixes, 0 LLM tokens)
+- add fix-run: autonomous n-fix orchestrator (convergence-loop fix-t0+LLM, haiku→sonnet escalation, no agent needed)
+
 ## [3.26.0] - 2026-06-06
 
 ### Added
