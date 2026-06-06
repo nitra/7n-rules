@@ -11,26 +11,39 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { env } from 'node:process'
 
-export const MODEL_HAIKU = 'claude-haiku-4-5-20251001'
-export const MODEL_SONNET = 'claude-sonnet-4-6'
+// '' = pi default (subscription model — GPT-5 або що налаштовано в pi).
+// Override через env: N_CURSOR_FIX_MODEL_HAIKU=claude-haiku-4-5-20251001
+// gemma4:4b заборонена без явного дозволу — >120s timeout.
+export const MODEL_HAIKU = env.N_CURSOR_FIX_MODEL_HAIKU ?? ''
+export const MODEL_SONNET = env.N_CURSOR_FIX_MODEL_SONNET ?? ''
 
 /**
  * Витягує відносні шляхи файлів із violation output.
- * Шукає патерни типу `path/to/file.ext` або `[ws] path/to/file.ext:123`.
+ * Розуміє workspace-prefix: `[npm] skills/foo.mjs` → `npm/skills/foo.mjs`.
  *
  * @param {string} output violation output з fix check
- * @returns {string[]} унікальні відносні шляхи
+ * @returns {string[]} унікальні відносні шляхи (від кореня проєкту)
  */
 function extractFilePaths(output) {
   const seen = new Set()
   const results = []
-  // Матчить шляхи: слово/крапка/тире, з розширенням, необов'язковий :рядок на кінці
-  const re = /(?:^|\s|\[[\w/]+\]\s)([\w./][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
+
+  // Патерн з workspace: [npm] skills/foo.mjs або [demo] src/bar.ts
+  const wsRe = /\[([\w-]+)\]\s+([\w./][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
+  for (const m of output.matchAll(wsRe)) {
+    const p = `${m[1]}/${m[2]}`
+    if (!seen.has(p)) { seen.add(p); results.push(p) }
+  }
+
+  // Патерн без workspace: просто path/to/file.ext або ./file.ext
+  const re = /(?:^|\s)(\.?[\w][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(re)) {
     const p = m[1]
     if (!seen.has(p)) { seen.add(p); results.push(p) }
   }
+
   return results
 }
 
@@ -81,9 +94,10 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
  * @returns {{ text: string, error?: string }}
  */
 function callPi(prompt, model) {
+  const modelArgs = model ? ['--model', model] : []
   const r = spawnSync(
     'pi',
-    ['-p', prompt, '--model', model, '--no-session', '--mode', 'text', '--no-tools'],
+    ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'],
     { encoding: 'utf8', timeout: 120_000 }
   )
   if (r.error) return { text: '', error: r.error.message }
@@ -179,3 +193,4 @@ export async function runLlmWorker(ruleId, violationOutput, projectRoot, opts = 
 
   return { ok: true }
 }
+

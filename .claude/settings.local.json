@@ -15,7 +15,11 @@
       "WebFetch(domain:blog.google)",
       "WebFetch(domain:ollama.com)",
       "WebFetch(domain:www.mindstudio.ai)",
-      "WebFetch(domain:www.anthropic.com)"
+      "WebFetch(domain:www.anthropic.com)",
+      "Bash(touch yarn.lock)",
+      "Bash(cp .vscode/extensions.json .vscode/extensions.json.bak)",
+      "Bash(python3 -c ' *)",
+      "Bash(rm .vscode/extensions.json.bak *)"
     ]
   }
 }
