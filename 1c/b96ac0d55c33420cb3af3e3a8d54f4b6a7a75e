@@ -1,0 +1,28 @@
+npm/skills/docgen/js/docgen-batch.mjs
+  s_58c5f882a1f533::t_cd86bf862aaafb 1-5,11-12,14-92
+  s_cc99cb61524299::t_e0d3440b14c507 6-10,13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "1cb96ac0d55c33420cb3af3e3a8d54f4b6a7a75e",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_cc99cb61524299": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e0e1298-a4fb-4868-9fb6-9158303b9ff3",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
