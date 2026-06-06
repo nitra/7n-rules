@@ -1,0 +1,9 @@
+docs/adr/260606-2039-єдиний-принцип-автономного-cli-оркестратора-через-meta-json.md
+  ai_agent 1-92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "fd23f9aa60bbca0714ac329895a59eba27a7fe84",
+  "prompts": {}
+}
