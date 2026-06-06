@@ -1,0 +1,23 @@
+npm/scripts/coverage-fix.mjs
+  ai_agent 42-47
+npm/.changes/260606-0721.md
+  ai_agent 1-6
+npm/exp/break.mjs
+  ai_agent 1-30
+npm/scripts/tests/coverage-fix.test.mjs
+  ai_agent 72,85-90
+package-lock.json
+  ai_agent 1
+docs/adr/260606-0708-cli-екстрактори-замість-llm-парсингу-великих-артефактів-у-ск.md
+  ai_agent 1-31
+yarn.lock
+  ai_agent 1
+demo/stryker.config.mjs
+  ai_agent 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c16d801d3caca8261029da8a453d6abbe98360b0",
+  "prompts": {}
+}
