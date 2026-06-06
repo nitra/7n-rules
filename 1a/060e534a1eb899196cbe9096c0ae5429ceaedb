@@ -1,0 +1,28 @@
+docs/думка.MD
+  s_d1a8755e99ddb5::t_e448cc035e30aa 57,64,66,68,70,100,102-105,115,117-118,131,133,156-157,160-163,173,175-176,178-179,181,185,187-194,196,198,202,204,206,208,212,214-215,217-218,220-221,224-227,231,233,237-239,241-242,244-246,248-249,252-259,267,272,275,296,298,301-303,306,344,357,366,411,442-597,605,613,620,646-650,655,660
+  s_b1aac87b0be864::t_a9d2ef008b6093 261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "1a060e534a1eb899196cbe9096c0ae5429ceaedb",
+  "prompts": {},
+  "sessions": {
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d1a8755e99ddb5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d65f0abb-ffb2-4b18-956c-a078c9cd6016",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
