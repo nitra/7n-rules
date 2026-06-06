@@ -17,6 +17,7 @@
     "lint-rego": "n-cursor lint-rego",
     "lint-security": "trufflehog filesystem . --no-update --exclude-paths .trufflehog-exclude --results=verified,unknown --fail",
     "lint-style": "npx stylelint '**/*.{css,scss,vue}' --fix",
+    "lint-text": "n-cursor lint-text",
     "oxfmt": "oxfmt .",
     "coverage": "n-cursor coverage",
     "benchmark": "bun benchmarks/runner-comparison/run.mjs"

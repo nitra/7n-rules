@@ -11,7 +11,11 @@
       "WebFetch(domain:scoopsearch.com)",
       "Bash(rm -f /Users/vitalii/www/nitra/cursor/.git/worktrees/fix-cli-hide-sync-blocks/index.lock)",
       "Bash(git add *)",
-      "Bash(git commit -q -m ' *)"
+      "Bash(git commit -q -m ' *)",
+      "WebFetch(domain:blog.google)",
+      "WebFetch(domain:ollama.com)",
+      "WebFetch(domain:www.mindstudio.ai)",
+      "WebFetch(domain:www.anthropic.com)"
     ]
   }
 }
