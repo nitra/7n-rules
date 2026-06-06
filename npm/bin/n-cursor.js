@@ -1230,11 +1230,17 @@ function logRemovedManagedItems(title, basePath, names) {
  * На рівні `runFixCommand` локу нема: різні набори правил можуть прогресувати незалежно,
  * а однакові правила серіалізуються в spawn'ах нижче.
  * @param {string[]} requestedRules імена правил; порожній масив — discovery з `.cursor/rules/`
+ * @param {{json?: boolean}} [opts] json — друкувати компактний JSON `{total, failed, rules:[{ruleId, ok, output}]}`
+ *   замість per-rule stdio + timing (для скілу n-fix: агент читає лише впалі правила, не парсить текст)
  * @returns {Promise<void>}
  */
-async function runFixCommand(requestedRules) {
+async function runFixCommand(requestedRules, opts = {}) {
+  const json = opts.json === true
+  // json-режим — діагностичний read-only вивід для скілу: пропускаємо встановлення
+  // git-hook (`ensureHkInstall` друкує «Installed hk hook…» у stdout і забруднив би
+  // чистий JSON; сам pre-commit hook для діагностики не потрібен).
   const hkBin = ensureTool('hk')
-  ensureHkInstall(hkBin)
+  if (!json) ensureHkInstall(hkBin)
   ensureTool('conftest')
 
   const available = await listRuleIds(BUNDLED_RULES_DIR)
@@ -1261,6 +1267,10 @@ async function runFixCommand(requestedRules) {
     }
     idsToRun = discoverCheckRulesFromCursorRules(available, mdcFiles)
     if (idsToRun.length === 0) {
+      if (json) {
+        process.stdout.write(`${JSON.stringify({ total: 0, failed: 0, rules: [] })}\n`)
+        return
+      }
       console.log(
         `\n🔍 ${PACKAGE_NAME} fix — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
           `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
@@ -1272,16 +1282,29 @@ async function runFixCommand(requestedRules) {
   let totalFailed = 0
   /** @type {{ id: string, ms: number, ok: boolean }[]} */
   const timings = []
+  /** @type {{ ruleId: string, ok: boolean, output: string }[]} */
+  const ruleResults = []
   for (const id of idsToRun) {
     const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
     const startedAt = Date.now()
-    const result = spawnSync('bun', [fixPath], { stdio: 'inherit' })
+    // json-режим: захоплюємо stdout/stderr правила у структуру (а не inherit у термінал),
+    // щоб віддати агенту згруповано {ruleId, ok, output} і він читав лише впалі.
+    const result = json
+      ? spawnSync('bun', [fixPath], { encoding: 'utf8' })
+      : spawnSync('bun', [fixPath], { stdio: 'inherit' })
     const ok = result.status === 0
     timings.push({ id: `fix-${id}`, ms: Date.now() - startedAt, ok })
+    if (json) {
+      ruleResults.push({ ruleId: id, ok, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() })
+    }
     if (!ok) totalFailed++
   }
 
-  process.stdout.write(formatTimingSummary('Fix timing', timings))
+  if (json) {
+    process.stdout.write(`${JSON.stringify({ total: idsToRun.length, failed: totalFailed, rules: ruleResults })}\n`)
+  } else {
+    process.stdout.write(formatTimingSummary('Fix timing', timings))
+  }
 
   if (totalFailed > 0) {
     throw new Error(`${totalFailed} з ${idsToRun.length} правил мають проблеми`)
@@ -1573,7 +1596,11 @@ try {
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
     case 'fix': {
-      await runFixCommand(args)
+      // --json: компактний {total, failed, rules:[{ruleId, ok, output}]} у stdout для скілу n-fix.
+      await runFixCommand(
+        args.filter(a => a !== '--json'),
+        { json: args.includes('--json') }
+      )
 
       break
     }
@@ -1582,7 +1609,10 @@ try {
       console.warn(
         `⚠️  Команда \`check\` deprecated — використовуйте \`fix\` (\`npx ${PACKAGE_NAME} fix [<rule>...]\`)`
       )
-      await runFixCommand(args)
+      await runFixCommand(
+        args.filter(a => a !== '--json'),
+        { json: args.includes('--json') }
+      )
 
       break
     }
