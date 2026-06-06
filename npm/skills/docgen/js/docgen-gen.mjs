@@ -8,6 +8,11 @@
  *   Stage 2.5 scoreDoc           — детермінований скоринг проти фактів (0 токенів)
  *   Stage 3  assemble            — фіксовані заголовки/порядок + зрізання fence
  *   Tier 2   claudeOneShot       — хмарний fallback якщо score < QUALITY_THRESHOLD
+ *
+ * Hybrid routing (sym-threshold):
+ *   sym < BORDERLINE_SYM_LOW          → Tier 1 local (без хмарного рефері)
+ *   sym ∈ [BORDERLINE_SYM_LOW, sym<4) → Tier 1 + cloudScoreDoc (Haiku) → при низькому балі → Tier 2
+ *   sym >= DEFAULT_SYM_THRESHOLD      → одразу Tier 2 (pre-routing, без local)
  */
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
@@ -133,9 +138,10 @@ const SCORE_RUBRIC = `Оціни якість документації для Ja
 
 /**
  * Stage 2.5 cloud: Claude Haiku оцінює якість доку проти коду + фактів.
+ * Використовує найдешевшу хмарну модель — haiku — для мінімальної вартості судді.
  * @returns {{ score: number, scores: object, issues: string[], tok: number }}
  */
-async function cloudScoreDoc(md, facts, src, model = 'claude-sonnet-4-6') {
+async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001') {
   const client = new Anthropic()
   const factsTxt = [
     facts.exports?.length ? `Публічні функції: ${facts.exports.map(e => e.name).join(', ')}` : '',
@@ -221,21 +227,28 @@ async function generateOneShot(facts, src, model) {
   return { md: md + '\n', genTok }
 }
 
-/** Поріг sym за замовчуванням: файли з ≥ symThreshold внутрішніх символів → Tier 2 без спроби local. */
+/** Файли з sym ≥ цього значення одразу йдуть у Tier 2 (без локального проходу). */
 const DEFAULT_SYM_THRESHOLD = 4
+/** Файли з sym ≥ цього значення отримують хмарного рефері (Haiku) після локального проходу. */
+const BORDERLINE_SYM_LOW = 2
 
 /**
  * Головний API: файл → { md, genTok, ms, score, issues, tier }.
  *
- * Routing:
- *   Pre-routing (0 токенів): facts.internalSymbols.length ≥ symThreshold → одразу Tier 2
- *   Tier 1 = local ollama; після генерації scoreDoc (детермінований)
- *   Post-routing: detScore < threshold AND ANTHROPIC_API_KEY → Tier 2 fallback
- * @param {boolean} scoreCloud — якщо true, після Tier 1 запускає cloudScoreDoc як рефері.
+ * Routing (sym-threshold):
+ *   sym < BORDERLINE_SYM_LOW                   → Tier 1 (без хмарного рефері)
+ *   sym ∈ [BORDERLINE_SYM_LOW, symThreshold)   → Tier 1 + cloudScoreDoc (Haiku) як рефері
+ *   sym >= symThreshold                         → Pre-routing одразу Tier 2
+ *   scoreCloud=true                             → примусово запускає cloudScoreDoc для всіх Tier 1
+ *
+ * @param {string}  scoreModel    — модель для хмарного рефері (Haiku за замовч.)
+ * @param {string}  cloudModel    — модель для Tier 2 генерації (Sonnet за замовч.)
+ * @param {boolean} scoreCloud    — якщо true, cloudScoreDoc запускається для всіх Tier 1 файлів
  */
 export async function generateDoc(file, {
   model = 'gemma3:4b',
   mode = 'orchestrated',
+  scoreModel = 'claude-haiku-4-5-20251001',
   cloudModel = 'claude-sonnet-4-6',
   threshold = QUALITY_THRESHOLD,
   scoreCloud = false,
@@ -245,7 +258,7 @@ export async function generateDoc(file, {
   const facts = extractFacts(src, file)
   const t0 = Date.now()
 
-  // Pre-routing: складні файли → одразу Tier 2 (якщо є ключ), не витрачаємо local-час
+  // Pre-routing: складні файли (sym ≥ symThreshold) → одразу Tier 2, не витрачаємо local-час
   const complexity = facts.internalSymbols?.length ?? 0
   if (complexity >= symThreshold && env.ANTHROPIC_API_KEY) {
     const r2 = await claudeOneShot(facts, src, cloudModel)
@@ -261,9 +274,10 @@ export async function generateDoc(file, {
   // Stage 2.5a: детермінований скоринг (0 токенів)
   const { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
 
-  // Stage 2.5b: хмарний рефері (опціонально)
-  if (scoreCloud && env.ANTHROPIC_API_KEY) {
-    const cs = await cloudScoreDoc(r.md, facts, src, cloudModel)
+  // Stage 2.5b: cloudScoreDoc (Haiku) як рефері для borderline-файлів або при scoreCloud=true
+  const isBorderline = complexity >= BORDERLINE_SYM_LOW && complexity < symThreshold
+  if ((isBorderline || scoreCloud) && env.ANTHROPIC_API_KEY) {
+    const cs = await cloudScoreDoc(r.md, facts, src, scoreModel)
     if (cs.score < threshold) {
       const r2 = await claudeOneShot(facts, src, cloudModel)
       return { ...r2, ms: Date.now() - t0, score: cs.score, cloudScores: cs.scores,
@@ -273,7 +287,7 @@ export async function generateDoc(file, {
              issues: cs.issues, detScore, detIssues, tier: 1 }
   }
 
-  // Детермінований fallback (без scoreCloud)
+  // Детермінований fallback (без хмарного рефері)
   if (detScore < threshold && env.ANTHROPIC_API_KEY) {
     const r2 = await claudeOneShot(facts, src, cloudModel)
     return { ...r2, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 2 }
@@ -282,7 +296,7 @@ export async function generateDoc(file, {
   return { ...r, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 1 }
 }
 
-// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N] [--tier-only]
+// CLI: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--score-model <m>] [--sym-threshold N] [--tier-only]
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
@@ -291,19 +305,28 @@ if (isRunAsCli(import.meta.url)) {
   const scoreCloud = args.includes('--score-cloud')
   const tierOnly = args.includes('--tier-only')
   const mi = args.indexOf('--model'); const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
+  const smi = args.indexOf('--score-model'); const scoreModel = smi >= 0 ? args[smi + 1] : 'claude-haiku-4-5-20251001'
   const si = args.indexOf('--sym-threshold'); const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
-  if (!file) { console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--sym-threshold N] [--tier-only]'); process.exit(1) }
+  if (!file) {
+    console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--score-cloud] [--model <m>] [--score-model <m>] [--sym-threshold N] [--tier-only]')
+    process.exit(1)
+  }
   if (tierOnly) {
-    const { readFileSync } = await import('node:fs')
     const src = readFileSync(file, 'utf8')
     const facts = extractFacts(src, file)
     const sym = facts.internalSymbols?.length ?? 0
-    const tier = sym >= symThreshold ? 2 : 1
-    const dest = tier === 2 ? `cloud (sym=${sym} ≥ ${symThreshold})` : `local  (sym=${sym} < ${symThreshold})`
-    process.stdout.write(`${tier === 2 ? '☁️ ' : '💻'} Tier ${tier} → ${dest}  |  ${file}\n`)
+    let label, icon
+    if (sym >= symThreshold) {
+      icon = '☁️ '; label = `Tier 2 cloud   (sym=${sym} ≥ ${symThreshold}, pre-routed)`
+    } else if (sym >= BORDERLINE_SYM_LOW) {
+      icon = '🔀'; label = `Tier 1+judge   (sym=${sym} ∈ [${BORDERLINE_SYM_LOW},${symThreshold}), Haiku рефері)`
+    } else {
+      icon = '💻'; label = `Tier 1 local   (sym=${sym} < ${BORDERLINE_SYM_LOW})`
+    }
+    process.stdout.write(`${icon} ${label}  |  ${file}\n`)
     process.exit(0)
   }
-  const r = await generateDoc(file, { model, mode, scoreCloud, symThreshold })
+  const r = await generateDoc(file, { model, mode, scoreCloud, scoreModel, symThreshold })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
   const cloudTxt = r.cloudScores ? ` cloud-scores=${JSON.stringify(r.cloudScores)}` : ''
   process.stderr.write(`[tier${r.tier} ${mode}] ${r.ms}ms / ${r.genTok} tok / score=${r.score}${issuesTxt}${cloudTxt}\n`)
