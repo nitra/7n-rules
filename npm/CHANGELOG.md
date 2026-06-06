@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.25.1] - 2026-06-06
+
+### Fixed
+
+- coverage --fix: додано permissionMode:'bypassPermissions' у claude-agent-sdk query — без нього headless-агент не отримував дозволу на Edit/Bash і не редагував файли (крутився, палив токени, нічого не писав). Тепер автономний coverage --fix реально дописує тести й ганяє bun test
+
 ## [3.25.0] - 2026-06-06
 
 ### Added
