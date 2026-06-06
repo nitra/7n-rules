@@ -1,0 +1,110 @@
+.changes/1780740228846-271939.md
+  ai_agent 1-5
+docs/adr/260606-1315-рекурсивний-складений-оаг-з-файловим-сховищем-стану-та-мета.md
+  ai_agent 1-54
+docs/specs/2026-06-06-task-graph-files.md
+  ai_agent 1-339
+npm/skills/docgen/js/docgen-prompts.mjs
+  ai_agent 1-82
+docs/adr/260606-1259-рекурсивний-складений-оаг-з-динамічним-розкладом-вузлів.md
+  s_58c5f882a1f533::t_d6ea143974fcf5 1-175
+benchmarks/tool-free/results/tool-free-2026-06-06T10-05-33-978Z.json
+  s_58c5f882a1f533::t_771b665b67ca6c 1-32
+docs/adr/260606-1304-рекурсивний-складений-оаг-із-динамічним-розкладом-вузлів-та.md
+  ai_agent 1-179
+docs/думка.MD
+  s_3e72ee335adb6d::t_a618ca22e71b68 1,3,5,7,9,11,13
+docs/adr/ворктрі-межа-атомарності.md
+  s_3e72ee335adb6d::t_24f133860dcc7c 1-30
+npm/.changes/1780503674512-af6d99.md
+  ai_agent 1-5
+docs/adr/260606-1254-d0294f80.md
+  s_58c5f882a1f533::t_6025a7ddac428f 1-34
+docs/adr/260606-1247-рекурсивний-складений-оаг-з-динамічним-розкладом.md
+  ai_agent 1-137
+docs/adr/рекурсивний-складений-ОАГ-динамічний-розклад.md
+  s_3e72ee335adb6d::t_e94d4a54263cbc 1-31
+docs/adr/260606-1245-38aa0305.md
+  ai_agent 1-58
+npm/skills/docgen/js/docgen-extract.mjs
+  ai_agent 1-158
+npm/skills/docgen/js/docgen-gen.mjs
+  ai_agent 1-133
+npm/.changes/1780505556620-0f7c17.md
+  ai_agent 1-5
+benchmarks/tool-free/results/tool-free-2026-06-06T10-01-16-358Z.json
+  s_58c5f882a1f533::t_d6ea143974fcf5 1-32
+docs/adr/260606-1315-js-оркестрований-конвеєр-замість-llm-агента-для-tier-1-docge.md
+  ai_agent 1-92
+docs/adr/260606-1256-рекурсивний-складений-оаг-із-динамічним-розкладом-вузлів.md
+  s_58c5f882a1f533::t_51e1050950bc1a 1-205
+docs/adr/260606-1253-рекурсивний-складений-оаг-з-динамічним-розкладом.md
+  s_58c5f882a1f533::t_f07fbd47d9dc2e 1-289
+docs/adr/260606-1305-js-оркестратор-як-точка-входу-docgen-конвеєра.md
+  ai_agent 1-68
+docs/adr/260606-1313-інверсія-керування-у-docgen-конвеєрі-js-оркеструє-llm.md
+  s_fbd381211e6d28::t_64ca3df7c604bb 1-138
+docs/adr/файловий-стан-append-only-план-факт.md
+  s_f3553eb6029c44::t_a2591832076544 1-30
+docs/adr/260606-1252-рекурсивний-складений-оаг-з-динамічним-розкладом-та-файловим.md
+  s_58c5f882a1f533::t_f07fbd47d9dc2e 1-132
+docs/adr/260606-1308-рекурсивний-складений-оаг-з-динамічним-розкладом-та-файловим.md
+  ai_agent 1-115
+.cursor/rules/scripts.mdc
+  s_f3553eb6029c44::t_a2591832076544 4,109-129
+benchmarks/tool-free/results/tool-free-2026-06-06T09-53-50-042Z.json
+  s_58c5f882a1f533::t_f07fbd47d9dc2e 1-32
+benchmarks/tool-free/run.mjs
+  s_58c5f882a1f533::t_f07fbd47d9dc2e 1-50,79-169,174,176,178,183-188,199-278,282-284,286,310-342,344-352,367-407,411-426
+  s_58c5f882a1f533::t_b6093808064256 189-191,193-194,196,198
+  s_58c5f882a1f533::t_eba4aa857afe63 51-78
+  s_58c5f882a1f533::t_754d01e868df76 343,353-366
+  s_58c5f882a1f533::t_d1b91063855faf 408-410
+  s_58c5f882a1f533::t_951cd685807880 170-173,175,177,179-182
+  s_58c5f882a1f533::t_7c20eb0f08e572 192,195,197
+  s_58c5f882a1f533::t_ab12b9ee9031c3 279-281,285,287-309
+benchmarks/tool-free/results/tool-free-2026-06-06T10-15-03-559Z.json
+  s_58c5f882a1f533::t_e16c5f013be848 1-32
+benchmarks/tool-free/results/tool-free-2026-06-06T10-19-36-211Z.json
+  s_58c5f882a1f533::t_721c0ce387fd6e 1-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "0b567666f8c9fe846e72337be8bc7310d3ac0f7a",
+  "prompts": {},
+  "sessions": {
+    "s_3e72ee335adb6d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "444cab00-893b-4d14-877d-0e79d885bfe1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_fbd381211e6d28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
