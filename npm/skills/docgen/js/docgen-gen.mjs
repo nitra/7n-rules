@@ -105,14 +105,17 @@ function scoreDoc(md, facts) {
     { score -= 20; issues.push('short-behavior') }
 
   const guarantees = s['гарантіїповедінки'] ?? ''
-  // Позитивне твердження кешування — "кешує", але не "не кешує" / "без кешування"
-  const cacheHit = /кешу[єє]/i.test(guarantees) && !/не\s+кешу|без\s+кешу/i.test(guarantees)
+  // Будь-яка згадка "кеш" у Гарантіях коли файл не кешує — галюцинація
+  // Негація: "не кешує", "не має кешування", "без кешування", "немає кешу"
+  const cacheHit = /кеш/i.test(guarantees) && !/(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i.test(guarantees)
   if (!facts.markers?.caches && cacheHit)
     { score -= 20; issues.push('cache-hallucination') }
 
+  // Перевіряємо лише бектік-обгорнуті імена (`sym`) — уникаємо substring false positives
+  const hasName = (text, sym) => text.includes('`' + sym + '`')
   for (const sym of facts.internalSymbols ?? []) {
-    if (guarantees.includes(sym) || (s['огляд'] ?? '').includes(sym))
-      { score -= 10; issues.push(`internal-name:${sym}`) }
+    const inDoc = hasName(guarantees, sym) || hasName(s['огляд'] ?? '', sym) || hasName(s['поведінка'] ?? '', sym)
+    if (inDoc) { score -= 10; issues.push(`internal-name:${sym}`) }
   }
 
   return { score: Math.max(0, score), issues }
