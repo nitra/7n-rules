@@ -1,0 +1,38 @@
+npm/skills/docgen/js/docgen-gen.mjs
+  s_ec0533e057dcf1::t_88d4bb68563934 108-110
+  s_58c5f882a1f533::t_42394dc0312ce0 197
+  s_58c5f882a1f533::t_5ea5691cd73287 15
+  s_ec0533e057dcf1::t_8eb9755eac9f8c 7-8,10,16,18-20
+  s_ec0533e057dcf1::t_8b9e3702acbfd6 79-107,111-137
+  s_ec0533e057dcf1::t_320adafccc0cbf 214-215
+  s_ec0533e057dcf1::t_066cca02dd6939 174-184,188-190,194-196,198-202
+npm/skills/docgen/js/docgen-prompts.mjs
+  s_ec0533e057dcf1::t_c775fa208382bf 83-88
+  s_ec0533e057dcf1::t_28918d2ed22d41 9
+.changes/1780744373340-ca7e71.md
+  s_ec0533e057dcf1::t_f56fbc8eada2cf 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "98d8b45d390a9da490013a7a431bc722784ad32f",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ec0533e057dcf1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f508159-9d26-4711-9657-ebc52d859cfe",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
