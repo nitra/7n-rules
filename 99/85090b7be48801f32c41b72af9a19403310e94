@@ -1,0 +1,19 @@
+думка.MD
+  s_b1aac87b0be864::t_9a0f3727f92dab 46,48-52,57-61,63-64,69-124,159-161,169-174,184-245,264-277,279-280,293,295-296,302
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9985090b7be48801f32c41b72af9a19403310e94",
+  "prompts": {},
+  "sessions": {
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
