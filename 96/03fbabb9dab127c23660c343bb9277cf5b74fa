@@ -1,0 +1,206 @@
+npm/scripts/docs/rename-yaml-extensions.md
+  ai_agent 1-36
+npm/scripts/docs/sync-claude-config.md
+  ai_agent 1-52
+npm/scripts/docs/post-tool-use-fix.md
+  ai_agent 1-27
+npm/scripts/utils/docs/lock-cache-dir.md
+  ai_agent 1-25
+docs/adr/260606-1654-детермінований-sym-поріг-як-tier-routing-сигнал-у-docgen.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-54
+npm/scripts/utils/docs/pass.md
+  ai_agent 1-25
+npm/scripts/docs/skills-cli.md
+  ai_agent 1-35
+docs/adr/260606-1949-двотировий-routing-docgen-на-основі-sym-як-тир-сигналу.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-35
+npm/scripts/docs/lint-cli.md
+  ai_agent 1-25
+.claude/settings.local.json
+  ai_agent 18-22
+npm/scripts/utils/docs/ensure-gitignore-entries.md
+  ai_agent 1-28
+docs/adr/260606-1734-двотировий-routing-docgen-за-кількістю-внутрішніх-символів.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-34
+docs/adr/260606-2031-обєднання-inputs-md-у-task-md.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-162
+docs/adr/260606-1953-автономний-cli-оркестратор-як-єдиний-публічний-контракт-скіл.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-78
+npm/scripts/utils/docs/with-lock.md
+  ai_agent 1-25
+npm/scripts/lib/docs/run-conftest-batch.md
+  ai_agent 1-26
+npm/scripts/lib/docs/workspaces.md
+  ai_agent 1-30
+npm/scripts/lib/docs/root-notice.md
+  ai_agent 1-28
+npm/scripts/docs/upgrade-nitra-cursor-and-install.md
+  ai_agent 1-29
+.changes/260606-2032.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-5
+npm/skills/docgen/js/docs/docgen-ignore.md
+  ai_agent 1-24
+docs/adr/260606-1941-файлова-система-як-сховище-стану-графу-задач.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-193
+docs/adr/260606-1932-короткий-заголовок-українською.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-99
+docs/adr/260606-1932-двотировий-routing-у-docgen-на-основі-кількості-внутрішніх-с.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-38
+docs/adr/260606-1952-sym-4-як-поріг-маршрутизації-tier-2-у-docgen.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-73
+docs/adr/260606-1944-n-cursor-як-автономний-cli-оркестратор.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-126
+npm/scripts/lib/docs/read-n-cursor-config-lite.md
+  ai_agent 1-28
+npm/scripts/utils/docs/resolve-cmd.md
+  ai_agent 1-29
+docs/adr/260606-1934-усі-імена-файлів-і-директорій-англійська.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-151
+npm/docs/vitest.config.md
+  ai_agent 1-23
+npm/scripts/lib/docs/rule-meta-helpers.md
+  ai_agent 1-34
+npm/scripts/lib/docs/run-rule-cli.md
+  ai_agent 1-27
+npm/scripts/lib/docs/diff-added-lines.md
+  ai_agent 1-34
+.vscode/extensions.json
+  ai_agent 12-13
+docs/adr/260606-1948-іменування-файлів-і-директорій-лише-англійська.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-130
+docs/adr/260606-1948-автономні-cli-оркестратори-як-єдина-точка-входу.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-110
+npm/scripts/lib/docs/run-lint-step.md
+  ai_agent 1-25
+docs/adr/260606-1942-sym-4-як-поріг-двотирового-routing-у-docgen.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-116
+npm/skills/fix/js/docs/orchestrator.md
+  ai_agent 1-32
+npm/scripts/docs/worktree-cli.md
+  ai_agent 1-46
+npm/scripts/utils/docs/ast-scan-utils.md
+  ai_agent 1-50
+npm/scripts/lib/docs/worktree.md
+  ai_agent 1-38
+docs/adr/260606-2031-уніфікований-runnnn-md-замість-розрізнених-файлів-спроб.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-151
+npm/scripts/lib/docs/skill-meta.md
+  ai_agent 1-31
+docs/adr/260606-1800-sym-threshold-як-tier-routing-сигнал-у-docgen.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-25
+npm/scripts/tests/fixtures/docs/cli-entry-as-cli.md
+  ai_agent 1-18
+npm/rules/js-lint/js/docs/lint-findings.md
+  ai_agent 1-30
+docs/adr/260606-1934-d943f92b.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-47
+npm/docs/stryker.config.md
+  ai_agent 1-37
+npm/scripts/utils/docs/find-package-json-paths.md
+  ai_agent 1-26
+npm/scripts/utils/docs/worktree-fingerprint.md
+  ai_agent 1-27
+npm/skills/docgen/js/docs/docgen-extract.md
+  ai_agent 1-28
+npm/skills/start-check/js/docs/check.md
+  ai_agent 1-34
+npm/skills/docgen/js/docs/docgen-gen.md
+  ai_agent 1-41
+docs/adr/260606-2027-уніфікований-runnnn-md-єдиний-immutable-файл-на-спробу.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-116
+npm/scripts/lib/docs/resolve-target-files.md
+  ai_agent 1-34
+npm/scripts/lib/docs/rule-predicates.md
+  ai_agent 1-30
+npm/scripts/utils/docs/resolve-js-root.md
+  ai_agent 1-25
+npm/scripts/utils/docs/test-helpers.md
+  ai_agent 1-36
+npm/scripts/utils/docs/walkDir.md
+  ai_agent 1-32
+npm/skills/docgen/js/docgen-gen.mjs
+  ai_agent 13-15,232-243,249-251,270,273-281,283,285,288-290,293,296,299,309,316-319,323,325
+npm/skills/fix/js/docs/t0.md
+  ai_agent 1-29
+npm/skills/taze/js/docs/diff.md
+  ai_agent 1-33
+docs/adr/260606-2027-sym-4-як-поріг-двотирового-routing-у-docgen.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-53
+docs/adr/260606-1943-уніфікований-runnnn-md-єдиний-запис-будь-якої-спроби-вузла.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-291
+docs/adr/260606-1954-уніфікація-файлів-стану-вузла-у-runnnn-md.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-119
+npm/scripts/docs/coverage-fix-extract.md
+  ai_agent 1-32
+npm/scripts/lib/docs/rule-meta.md
+  ai_agent 1-34
+npm/scripts/utils/docs/resolve-cargo-manifest.md
+  ai_agent 1-23
+npm/scripts/lib/docs/template.md
+  ai_agent 1-40
+npm/scripts/lib/docs/worktree-notice.md
+  ai_agent 1-27
+npm/skills/docgen/js/docs/docgen-scan.md
+  ai_agent 1-48
+docs/adr/260606-1947-n-cursor-як-автономний-cli-оркестратор-fix-lint-taze.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-22
+npm/scripts/lib/docs/run-standard-rule.md
+  ai_agent 1-24
+npm/scripts/lib/docs/run-standard-lint.md
+  ai_agent 1-22
+npm/scripts/lib/docs/run-rule.md
+  ai_agent 1-32
+npm/skills/docgen/js/docs/docgen-prompts.md
+  ai_agent 1-24
+npm/skills/fix/js/docs/llm-worker.md
+  ai_agent 1-27
+docs/adr/260606-1944-призначення-та-поведінка-аудитора-у-графі-задач.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-187
+npm/scripts/utils/docs/walk-cache.md
+  ai_agent 1-27
+npm/skills/fix/js/llm-worker.mjs
+  ai_agent 14,16-20,24,27,32-41,46,97,100,196
+docs/adr/260606-2029-inputs-md-обєднано-в-task-md.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-130
+npm/rules/js-run/lib/docs/temporal-scan.md
+  ai_agent 1-25
+npm/scripts/lib/docs/sync-gitignore-worktree.md
+  ai_agent 1-31
+npm/skills/docgen/js/docgen-batch.mjs
+  ai_agent 1-92
+npm/scripts/docs/sync-setup-bun-deps-action.md
+  ai_agent 1-26
+docs/adr/260606-2029-спрощення-gate-у-tier-1-docgen-det-scorer-timeout-замість-ha.md
+  s_f3553eb6029c44::t_09731eac6b0170 1-33
+docs/думка.MD
+  s_b1aac87b0be864::t_25001ccbca4a0b 567-596
+  s_b1aac87b0be864::t_d1c551b4d5b47d 506-512
+npm/scripts/lib/docs/timing-summary.md
+  ai_agent 1-24
+npm/scripts/lib/docs/assert-project-root.md
+  ai_agent 1-28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9603fbabb9dab127c23660c343bb9277cf5b74fa",
+  "prompts": {},
+  "sessions": {
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
