@@ -39,7 +39,12 @@ export async function fixSurvivedMutants(survived, projectRoot) {
     options: {
       cwd: projectRoot,
       maxTurns: 20,
-      allowedTools: ['Read', 'Edit', 'Bash']
+      allowedTools: ['Read', 'Edit', 'Bash'],
+      // Без permissionMode headless-агент SDK не отримує дозволу на запис/Bash —
+      // він крутиться, палить токени, але НЕ редагує файли (підтверджено пробом).
+      // `bypassPermissions` потрібен, бо агент і пише тести (Edit), і ганяє `bun test` (Bash);
+      // `acceptEdits` авто-підтверджує лише edits, а Bash лишився б заблокованим.
+      permissionMode: 'bypassPermissions'
     }
   })) {
     if (msg.type === 'text') process.stdout.write(msg.text)

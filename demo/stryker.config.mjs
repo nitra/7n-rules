@@ -8,5 +8,7 @@ export default {
   tempDirName: 'reports/stryker/.tmp',
   reporters: ['json', 'clear-text'],
   jsonReporter: { fileName: 'reports/stryker/mutation.json' },
-  coverageAnalysis: 'off'
+  coverageAnalysis: 'off',
+  plugins: ['@stryker-mutator/vitest-runner', './stryker-vue-macros-ignorer.mjs'],
+  ignorers: ['vue-macros']
 }

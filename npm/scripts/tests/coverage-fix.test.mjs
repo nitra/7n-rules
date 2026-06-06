@@ -69,7 +69,7 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
     vi.restoreAllMocks()
   })
 
-  test('передає cwd, maxTurns=20, allowedTools=[Read,Edit,Bash]', async () => {
+  test('передає cwd, maxTurns=20, allowedTools=[Read,Edit,Bash], permissionMode=bypassPermissions', async () => {
     await withTmpDir(async dir => {
       await fixSurvivedMutants(
         [
@@ -82,7 +82,12 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
         ],
         dir
       )
-      expect(capturedQuery?.options).toEqual({ cwd: dir, maxTurns: 20, allowedTools: ['Read', 'Edit', 'Bash'] })
+      expect(capturedQuery?.options).toEqual({
+        cwd: dir,
+        maxTurns: 20,
+        allowedTools: ['Read', 'Edit', 'Bash'],
+        permissionMode: 'bypassPermissions'
+      })
     })
   })
 
