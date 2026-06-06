@@ -1,0 +1,229 @@
+docs/думка.MD
+  s_b1aac87b0be864::t_941bf7309d256a 255-258,260
+  s_c45c954616ffe3::t_0e5e81128ce7dc 426,428-433,435
+  s_c45c954616ffe3::t_41a5b883726064 437
+  s_b1aac87b0be864::t_6573cfb39cb8b2 609
+  s_b1aac87b0be864::t_ad086cab211eca 417,419
+  s_c45c954616ffe3::t_eed60db918246f 240
+  s_c45c954616ffe3::t_c3330b823cd9b7 259
+  s_c45c954616ffe3::t_c3707383ab39f3 458,460-461
+  s_c45c954616ffe3::t_9a32e93af2d870 470,475,477-478
+  s_b1aac87b0be864::t_bf8f91a3a66706 494-510
+  s_c45c954616ffe3::t_f4cbcbc0fa9a3c 488-493
+docs/adr/260606-1417-секційно-мінімальний-контекст-для-js-оркестрованого-docgen-к.md
+  s_8c779e15a98dab::t_d5ad62c1d28836 1-67
+docs/adr/260606-1526-топологія-графу-розподілена-в-task-md-кожного-дочірнього-вуз.md
+  ai_agent 1-131
+.changes/260606-1411.md
+  s_58c5f882a1f533::t_1edd340b5bac0e 1-5
+docs/adr/260606-1439-d0294f80.md
+  ai_agent 1-34
+docs/adr/260606-1557-d0294f80.md
+  ai_agent 1-26
+docs/adr/260606-1615-злиття-inputs-md-у-task-md.md
+  ai_agent 1-144
+npm/skills/fix/SKILL.md
+  s_d1a8755e99ddb5::t_e448cc035e30aa 11,16,19,21,23
+npm/.changes/1780743597387-636bd1.md
+  s_58c5f882a1f533::t_daf4bf04953408 1-5
+docs/adr/260606-1549-38aa0305.md
+  s_b20e6068085bf1::t_eb553b8f442868 1-40
+docs/adr/260606-1410-секційно-мінімальний-контекст-для-оркестрованого-docgen-конв.md
+  s_58c5f882a1f533::t_7afe5bf9f0ba93 1-152
+docs/adr/260606-1559-d943f92b.md
+  ai_agent 1-27
+npm/skills/fix/js/tests/t0.test.mjs
+  s_58c5f882a1f533::t_06c5aa1aa681c6 1-191
+docs/adr/20260601-213006-worktrees-gitignore-sync-крок.md
+  ai_agent 1-4,7-8,11-14,17-18,21-23,27,30-44
+docs/adr/260606-1522-розподілена-топологія-графу-в-deps-кожного-вузла.md
+  s_9d3fd7f0c0cce5::t_080522ebfd362e 1-129
+docs/adr/260606-1406-файловий-формат-вузлів-llm-first-markdown-з-yaml-фронтматеро.md
+  s_ec0533e057dcf1::t_579aa5912801f4 1-108
+npm/bin/n-cursor.js
+  s_58c5f882a1f533::t_9c3d5b6aea6c9a 16
+  s_58c5f882a1f533::t_242165022b250a 1600-1601
+  s_58c5f882a1f533::t_1425eb02c1614d 1716-1717
+  s_58c5f882a1f533::t_135bfded310f4f 1803
+  s_58c5f882a1f533::t_93fbe01a63b708 1604-1607
+npm/skills/fix/meta.json
+  s_58c5f882a1f533::t_918dc11196d947 1
+docs/adr/20260601-210321-n-changelog-єдине-джерело-bump-та-meta-перевірка.md
+  ai_agent 1,3-4,7-8,11,14-15,19,23-26,28,30-35,37,39-42,44
+docs/adr/260606-1414-t0-auto-рівень-у-n-fix-оркестраторі.md
+  ai_agent 2-4,7-9,12,15-17,20,23,27-31,35,38,41,45,48,52-54,58,61,64-65,69,72-73,76-78
+docs/adr/260606-1556-злиття-inputs-md-у-task-md-єдиний-файл-визначення-вузла.md
+  ai_agent 1-129
+docs/adr/260606-1443-d0294f80.md
+  ai_agent 1-55
+docs/adr/260606-1557-gemma3-4b-в-оркестрованому-режимі-еталон-tier-1-docgen.md
+  ai_agent 1-70
+docs/adr/260606-1600-іменування-файлів-і-директорій-тільки-англійська.md
+  ai_agent 1-171
+docs/adr/20260601-191135-e18e-eslint-plugin-явна-devdependency.md
+  s_d1a8755e99ddb5::t_e448cc035e30aa 32-35
+.cursor/skills/n-fix/SKILL.md
+  s_d1a8755e99ddb5::t_e448cc035e30aa 83,86,88,90
+docs/adr/260606-1410-файлова-система-як-єдине-сховище-стану-графу.md
+  s_58c5f882a1f533::t_7afe5bf9f0ba93 1-130
+npm/skills/fix/js/t0.mjs
+  s_58c5f882a1f533::t_e4845cf010e18d 196
+  s_58c5f882a1f533::t_dfa333758815b4 102
+  s_58c5f882a1f533::t_a171b9434a16be 146
+  s_58c5f882a1f533::t_2798bb2869668d 1-101,103-145,147-195,197-229
+.vscode/extensions.json
+  s_d1a8755e99ddb5::t_e448cc035e30aa 11-13
+npm/skills/fix/js/tests/orchestrator.test.mjs
+  s_c9d23e2fadaf08::t_ed12230ef8d70a 1-144
+docs/adr/260606-1405-файлова-система-як-єдине-сховище-стану-графу-задач.md
+  ai_agent 1-711
+npm/skills/docgen/js/docgen-ignore.mjs
+  s_f3553eb6029c44::t_ea9f3b253b5267 24-25
+docs/adr/260606-1439-t0-auto-рівень-у-n-fix-оркестраторі-детермінований-фікс-без.md
+  ai_agent 1-73
+docs/adr/260606-1453-хмарний-рефері-якості-claude-haiku-у-docgen-конвеєрі.md
+  ai_agent 1-80
+docs/adr/260606-1414-append-only-файлова-система-як-єдине-сховище-стану-графу-зад.md
+  s_8c779e15a98dab::t_d5ad62c1d28836 1-121
+docs/adr/260606-1527-уніфікований-файл-спроби-runnnn-md-для-всіх-акторів.md
+  ai_agent 1-90
+npm/skills/fix/js/llm-worker.mjs
+  s_c9d23e2fadaf08::t_7ec55fafff29fe 1,6,9-18,24,33,36,53,56,58,61,73,75,96,113,119-120,122-124,132,177-178,181
+  s_58c5f882a1f533::t_a614046cffd8e8 2-5,7-8,19-23,25-32,34-35,37-52,54-55,57,59-60,62-72,74,76-95,97-112,114-118,121,125-131,133-176,179-180
+docs/adr/260606-1453-js-оркестрований-конвеєр-для-docgen-замість-one-shot.md
+  ai_agent 2-4,7-8,10,12,14-20,22,24-28,30,32-36,38-60,63-71,73-85,89-93,95-111
+docs/adr/260606-1358-фінальна-схема-outputs-md.md
+  ai_agent 1-479
+docs/adr/260606-1545-прибрати-ops-директорію-та-уніфікований-runnnn-md-з-actor.md
+  ai_agent 2-4,7,9-38,41,44,47-49,52,55,59-63
+docs/adr/260606-1549-автономний-оркестратор-n-fix-cli-як-виконавець-замість-агент.md
+  ai_agent 1-107
+npm/skills/fix/js/orchestrator.mjs
+  s_58c5f882a1f533::t_be58ab3e6a11a9 4-8,10,24,29,39,42,48-49,51,57,61,63-64,66,69,73,77,79,84,87-88,94,98,102,108-110,115-116
+  s_c9d23e2fadaf08::t_14e9efa6743bc9 1-3,9,11-23,25-28,30,38,40-41,43-47,50,52-56,58-60,62,65,67-68,70-72,74-76,78,80-83,85-86,89-93,95-97,99-101,103-107,111-114,117-128
+  s_236323a120e01a::t_9f1f64d1757c77 31-37
+docs/adr/260606-1553-autonomous-cli-orchestrators.md
+  s_58c5f882a1f533::t_189548f86a6c13 1-141
+docs/adr/260606-1404-архітектура-динамічного-самомодифікованого-графу-задач.md
+  s_fbd381211e6d28::t_f3e08a4b098878 1-264
+docs/adr/260606-1545-динамічний-граф-задач-злиття-inputs-md-в-task-md.md
+  ai_agent 1-101
+docs/adr/260606-1555-архітектура-автономних-cli-оркестраторів.md
+  ai_agent 2-4,7-15,18,21-23,26,29-30,33-39
+npm/.changes/260606-1541.md
+  s_c9d23e2fadaf08::t_9f4f289ae69d84 1-5
+docs/adr/260606-1545-автономний-оркестратор-n-cursor-fix.md
+  s_ff5b9fc73c2424::t_ff73d7c817b435 2-4,7-22,25,28-30,33,36-37,40-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "2ee5b649979eea7ee1a9d06e36ca67fc1f4a0e29",
+  "prompts": {},
+  "sessions": {
+    "s_236323a120e01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb19066b-47b3-49ac-87e5-5f792820ed79",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_8c779e15a98dab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f613a8f1-1ea6-4466-8d8e-f9d8a711caa4",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9d3fd7f0c0cce5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37e87849-791a-48d2-867a-d58de0167362",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b20e6068085bf1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e64ba4a8-6823-4e39-9fb0-4ef8d786ce2f",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c45c954616ffe3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2bc3a7f6-26bd-44b7-ab2b-30fe9c4be271",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_c9d23e2fadaf08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7029ae6a-0c93-443d-b5ed-8052bcf996a2",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_d1a8755e99ddb5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d65f0abb-ffb2-4b18-956c-a078c9cd6016",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ec0533e057dcf1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4f508159-9d26-4711-9657-ebc52d859cfe",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_fbd381211e6d28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ff5b9fc73c2424": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c8a877b-94fb-4ccf-904f-83dddfe5783c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
