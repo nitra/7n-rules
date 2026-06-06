@@ -1,0 +1,31 @@
+.changes/260606-1548.md
+  s_ff5b9fc73c2424::t_278c3fe274cc96 1-5
+.changes/260606-1545.md
+  s_236323a120e01a::t_bd9b5f3a5dff55 1-5
+.vscode/extensions.json
+  s_ff5b9fc73c2424::t_1d797378576fb2 11-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "57df8aba7be7e3281d100dd3090c06e1bb9eb0fd",
+  "prompts": {},
+  "sessions": {
+    "s_236323a120e01a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb19066b-47b3-49ac-87e5-5f792820ed79",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ff5b9fc73c2424": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c8a877b-94fb-4ccf-904f-83dddfe5783c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
