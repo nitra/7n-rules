@@ -1,0 +1,25 @@
+npm/scripts/dispatcher/lib/subagent-runner.mjs
+  s_f3553eb6029c44::t_243d5e5ce57ccd 2-3,5-6,8-9,13,16-20,22-31,35-37,39-41,44-45,47-49
+npm/scripts/dispatcher/lib/tests/subagent-runner.test.mjs
+  s_f3553eb6029c44::t_2f680519f72d4e 2-3,7,9-12,15-23,25-26,29-35,37-39,42-52,54-55,57-59,61-63,66-69
+npm/scripts/tests/coverage-fix.test.mjs
+  s_f3553eb6029c44::t_d24fb1e81058aa 4,7-8,15,35-37,39,43-48,50,54-56,58,66-73,84-85,87,102-103,105-109,126-127,129-131,135,146-147,149-150,165-166,168-169,184-185,187,202-203,205,226-227,229-230,245-246,248-250
+npm/scripts/coverage-fix.mjs
+  s_f3553eb6029c44::t_013f6b2bb56867 2,7,11-15,23,26,29,39-41,43-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "1279b3f71aecd7e7a0c5e9dfe8a5d07989f23b1a",
+  "prompts": {},
+  "sessions": {
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
