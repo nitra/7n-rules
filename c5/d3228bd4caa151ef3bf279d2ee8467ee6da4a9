@@ -1,0 +1,133 @@
+npm/scripts/lib/docs/template.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-40
+npm/scripts/utils/docs/ensure-gitignore-entries.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-28
+npm/scripts/utils/docs/test-helpers.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-36
+npm/skills/fix/js/docs/orchestrator.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-32
+npm/scripts/docs/rename-yaml-extensions.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-36
+npm/scripts/lib/docs/rule-predicates.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-30
+npm/scripts/lib/docs/worktree.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-38
+npm/scripts/lib/docs/run-lint-step.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/scripts/lib/docs/run-standard-lint.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-22
+npm/scripts/lib/docs/timing-summary.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-24
+npm/scripts/utils/docs/pass.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/scripts/lib/docs/workspaces.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-30
+npm/scripts/docs/worktree-cli.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-46
+npm/scripts/lib/docs/rule-meta.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-34
+npm/scripts/utils/docs/walkDir.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-32
+npm/scripts/docs/post-tool-use-fix.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/skills/docgen/js/docs/docgen-gen.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-41
+npm/scripts/lib/docs/run-standard-rule.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-24
+npm/scripts/utils/docs/worktree-fingerprint.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/skills/docgen/js/docs/docgen-ignore.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-24
+npm/docs/vitest.config.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-23
+npm/rules/js-lint/js/docs/lint-findings.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-30
+npm/scripts/utils/docs/find-package-json-paths.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-26
+npm/scripts/lib/docs/sync-gitignore-worktree.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-31
+npm/skills/docgen/js/docs/docgen-extract.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-28
+npm/skills/docgen/js/docs/docgen-scan.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-48
+npm/skills/fix/js/docs/llm-worker.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/scripts/lib/docs/run-rule.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-32
+npm/scripts/utils/docs/resolve-cargo-manifest.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-23
+npm/scripts/lib/docs/run-conftest-batch.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-26
+npm/scripts/tests/fixtures/docs/cli-entry-as-cli.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-18
+npm/skills/taze/js/docs/diff.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-33
+npm/scripts/lib/docs/rule-meta-helpers.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-34
+npm/scripts/docs/skills-cli.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-35
+npm/scripts/docs/upgrade-nitra-cursor-and-install.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-29
+npm/scripts/lib/docs/root-notice.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-28
+npm/skills/docgen/js/docs/docgen-prompts.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-24
+npm/scripts/docs/sync-setup-bun-deps-action.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-26
+npm/scripts/docs/coverage-fix-extract.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-32
+npm/scripts/lib/docs/assert-project-root.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-28
+npm/scripts/lib/docs/resolve-target-files.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-34
+npm/scripts/lib/docs/skill-meta.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-31
+npm/scripts/lib/docs/worktree-notice.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/scripts/utils/docs/with-lock.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/scripts/utils/docs/walk-cache.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/scripts/utils/docs/resolve-js-root.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/skills/start-check/js/docs/check.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-34
+npm/scripts/utils/docs/lock-cache-dir.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/rules/js-run/lib/docs/temporal-scan.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/skills/fix/js/docs/t0.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-29
+npm/docs/stryker.config.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-37
+npm/scripts/lib/docs/diff-added-lines.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-34
+npm/scripts/lib/docs/read-n-cursor-config-lite.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-28
+npm/scripts/lib/docs/run-rule-cli.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-27
+npm/scripts/docs/lint-cli.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-25
+npm/scripts/utils/docs/resolve-cmd.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-29
+npm/scripts/docs/sync-claude-config.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-52
+npm/scripts/utils/docs/ast-scan-utils.md
+  s_58c5f882a1f533::t_cbe23ebe73db38 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c5d3228bd4caa151ef3bf279d2ee8467ee6da4a9",
+  "prompts": {},
+  "sessions": {
+    "s_58c5f882a1f533": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "38aa0305-a12b-4078-9085-ce03884efdd6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
