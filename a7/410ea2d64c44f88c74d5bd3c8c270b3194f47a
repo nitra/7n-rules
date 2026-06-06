@@ -1,0 +1,30 @@
+docs/adr/260606-1142-рекурсивний-складений-оаг-як-модель-задачного-оркестратора.md
+  s_5b444c7c52e667::t_2a3026121c49b8 1-104
+думка.MD
+  s_5b444c7c52e667::t_73083c591df1fb 5,14-20,23,29,36-41,52,55-56,59,61,67,74,77-78,91-93,113-114,124-127,132-133,161,176
+  s_b1aac87b0be864::t_0c5afe85a9c1ad 94
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "a7410ea2d64c44f88c74d5bd3c8c270b3194f47a",
+  "prompts": {},
+  "sessions": {
+    "s_5b444c7c52e667": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_b1aac87b0be864": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0294f80-5a1c-42f7-98bb-df26b88de1e5",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
