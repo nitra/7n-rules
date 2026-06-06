@@ -1,24 +1,4 @@
-/**
- * Перевіряє інструментарій Tauri (tauri.mdc): VSCode `extensions.json` для
- * проєктів, у яких є маркер Tauri.
- *
- * Cross-file gating (JS):
- *   1. Tauri-маркер визначаємо обходом усіх workspace-пакетів через
- *      `getMonorepoPackageRootDirs()` (корінь + workspaces). Кожен workspace
- *      перевіряється за **будь-яким** з:
- *      - існує каталог `<ws>/src-tauri/`;
- *      - існує файл `<ws>/src-tauri/Cargo.toml`;
- *      - існує файл `<ws>/src-tauri/tauri.conf.json`;
- *      - існує файл `<ws>/tauri.conf.json` (legacy flat-layout);
- *      - `<ws>/package.json#dependencies` чи `devDependencies` містить ключ
- *        з префіксом `@tauri-apps/`.
- *   2. Якщо маркера немає — пропустити перевірку (tauri-tooling не вимагається).
- *   3. Інакше — для `.vscode/extensions.json` зробити FS-existence + делегувати
- *      content `rego.tauri.vscode_extensions` через `runConftestBatch`.
- *
- * Rego-полісі глобально без `target.json` поруч (не auto-discoverable через `n-cursor fix`) — це conditional
- * правило. Plan B: Rego-authoritative + JS-orchestrator з `runConftestBatch`.
- */
+/** @see ./docs/tooling.md */
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

@@ -1,12 +1,4 @@
-/**
- * Перевіряє правило graphql.mdc: наявність **`.graphqlrc.yml`** і рекомендації
- * **`graphql.vscode-graphql`**, якщо у дереві є **`gql\`…\``**.
- *
- * Обхід репозиторію — **`walkDir`** від **`process.cwd()`** (пропуски як у інших check). Кандидати — **`.vue`** та **`.js`/`.ts`/`.jsx`/`.tsx`** тощо; пропуск **`.d.ts`**, **auto-imports.d.ts** тощо — **`shouldSkipFileForGqlScan`**.
- *
- * Виявлення **`gql`** — **oxc-parser** після витягування `<script>` з SFC (**`graphql-gql-scan.mjs`**). Якщо збігів немає — перевірка завершується успішно без вимог до конфігів.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

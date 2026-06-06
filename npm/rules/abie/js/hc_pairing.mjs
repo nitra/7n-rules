@@ -1,11 +1,4 @@
-/**
- * Перевірка abie: для кожного каталогу з `kind: Deployment` під `k8s/` поруч має бути `hc.yaml`
- * з коректним modeline (yaml-language-server $schema).
- *
- * Це JS-частина (FS-парність + modeline). Структурну валідацію `HealthCheckPolicy`
- * (apiVersion, requestPath, port, targetRef з суфіксом `-hl`) робить CLI через
- * `policy/health_check_policy/target.json` (walkGlob по hc.yaml у k8s-дереві).
- */
+/** @see ./docs/hc_pairing.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'

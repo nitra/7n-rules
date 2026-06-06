@@ -19,7 +19,9 @@
       "Bash(touch yarn.lock)",
       "Bash(cp .vscode/extensions.json .vscode/extensions.json.bak)",
       "Bash(python3 -c ' *)",
-      "Bash(rm .vscode/extensions.json.bak *)"
+      "Bash(rm .vscode/extensions.json.bak *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ]
   }
 }

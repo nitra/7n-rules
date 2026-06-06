@@ -1,23 +1,4 @@
-/**
- * Концерн `cargo_mutants_config` правила tauri (tauri.mdc): для кожного
- * `<workspace>/src-tauri/Cargo.toml` без дублювання гарантує наявність
- * Tauri-specific cargo-mutants налаштувань у `<workspace>/src-tauri/.cargo/mutants.toml`.
- *
- * Семантика (фіксована між Tauri-проєктами):
- *   - `src/main.rs` — binary shell entrypoint (smoke/e2e, не mutation unit);
- *   - `src/**\/{android,ios,mobile}.rs` — mobile plugin bridge / platform glue;
- *   - `src/**\/{macos,windows,linux,desktop}.rs` — desktop platform bridge / OS integration glue.
- *
- * Self-gating: silently skip, якщо в monorepo не знайдено жодного
- * `<ws>/src-tauri/Cargo.toml` (test rule сам створить нейтральний baseline там,
- * де потрібно).
- *
- * Ідемпотентність:
- *   - якщо файл відсутній — створює з Tauri-canonical baseline;
- *   - якщо файл існує і всі канонічні ключі вже є — `manual cargo-mutants config preserved`;
- *   - якщо файл існує, але якихось канонічних top-level ключів немає — додає
- *     лише відсутні ключі окремим блоком у кінці; існуючих значень не торкається.
- */
+/** @see ./docs/cargo_mutants_config.md */
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'

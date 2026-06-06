@@ -1,21 +1,4 @@
-/**
- * Перевіряє вимоги правила `image-compress.mdc` для оптимізації raster/SVG через
- * `@nitra/minify-image` ≥ 3.2.0 (локально).
- *
- * **Що тут лишилося** (FS / cross-file):
- *  - наявність `package.json` у корені;
- *  - `.n-minify-image.tsv` (committed source of truth з sha1/originalSize/size) НЕ
- *    в `.gitignore` — він має бути в git;
- *  - застарілий `.minify-image-cache.tsv` (з версій < 3.2) видалений з кореня та
- *    з `.gitignore`.
- *
- * **Що покрила Rego** (`npx \@nitra/cursor fix`,
- * `npm/rules/image-compress/policy/package_json/`):
- *  - `scripts.lint-image` викликає `npx \@nitra/minify-image --src=. --write`
- *    без `--avif` (AVIF — окреме правило `image-avif`);
- *  - агрегований `lint` (якщо є) містить `bun run lint-image`;
- *  - `@nitra/minify-image` НЕ у `dependencies` / `devDependencies` (через `npx`).
- */
+/** @see ./docs/package_setup.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

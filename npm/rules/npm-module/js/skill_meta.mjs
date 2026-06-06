@@ -1,16 +1,4 @@
-/**
- * Перевірка метаданих скілів пакета `@nitra/cursor` (концерн правила npm-module).
- *
- * Кожен `npm/skills/<id>/` має містити валідний `meta.json`:
- *  - `worktree` присутнє і boolean;
- *  - `auto` (якщо присутнє) — розпізнане (`"завжди"` або непорожній масив рядків);
- *  - `requireRoot` (якщо присутнє) — boolean; не може бути `false` при `worktree:true`
- *    (worktree вже вимагає кореня — суперечність вводить в оману);
- *  - залишковий `auto.md` заборонено (міграція на meta.json завершена).
- *
- * Концерн застосовний лише в репо самого пакета (де є `npm/skills/`); у споживача
- * каталогу `npm/skills/` нема, тож перевірка мовчки проходить.
- */
+/** @see ./docs/skill_meta.md */
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 

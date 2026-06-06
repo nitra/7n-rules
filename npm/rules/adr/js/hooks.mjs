@@ -1,23 +1,4 @@
-/**
- * Перевіряє вимоги правила adr.mdc: ADR Stop-hook'и `capture-decisions.sh` і
- * `normalize-decisions.sh` у Claude Code.
- *
- * Очікування:
- * - `.claude/hooks/capture-decisions.sh` та `.claude/hooks/normalize-decisions.sh`
- *   існують і байт-у-байт збігаються з канонічними `.claude-template/hooks/*`
- *   пакета (sync керує файлами повністю).
- * - `.claude/settings.json` (project-shared) має managed-групи у `hooks.Stop` для
- *   обох скриптів (маркери у `command` — самі шляхи до скриптів).
- * - `.cursor/hooks.json` має managed entries у `hooks.stop` для обох скриптів, щоб
- *   Cursor Agent теж запускав ADR capture/normalize після завершення відповіді.
- * - `.claude/settings.local.json` (якщо існує) НЕ має дублів цих managed-груп —
- *   після переходу на project-shared такі записи створили б два запуски на одну подію.
- * - `.gitignore` у корені містить шаблон, який покриває
- *   `.claude/hooks/capture-decisions.log` і `.claude/hooks/normalize-decisions.log`.
- *
- * LLM CLI (`claude` або `cursor-agent`) у `PATH` — інформативна перевірка: якщо жодного
- * немає, скрипт працює, але мовчки виходить, тому це warning, а не fail.
- */
+/** @see ./docs/hooks.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { delimiter, dirname, join } from 'node:path'

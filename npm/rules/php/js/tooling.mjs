@@ -1,14 +1,4 @@
-/**
- * Перевіряє вимоги правила php.mdc для PHP-проєктів.
- *
- * **Що тут лишилося** (FS-existence — не покривається conftest):
- *  - наявність `composer.json` у корені;
- *  - наявність `.github/workflows/lint-php.yml`.
- *
- * **Що покрила Rego** (`npx \@nitra/cursor check`):
- *  - `npm/policy/php/package_json/` — наявність скрипта `lint-php` у `package.json`;
- *  - `npm/policy/php/lint_php_yml/` — крок `run: bun run lint-php` у workflow.
- */
+/** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'

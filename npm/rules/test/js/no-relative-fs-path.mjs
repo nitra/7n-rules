@@ -1,26 +1,4 @@
-/**
- * Заборона **relative-path** аргументів у FS-функціях усередині тестів.
- *
- * Контекст (test.mdc, секція "Заборона `process.chdir` у тестах"):
- * Після видалення `withTmpCwd` усі тести отримують `dir` параметром і мають
- * будувати **абсолютні** шляхи через `join(dir, …)`. Якщо хтось забуде префікс
- * і напише `writeFile('foo.json', …)` чи `copyFile(src, 'foo.json')` —
- * relative-path резолвиться у `process.cwd()` (= `npm/`), що зливає тестову
- * фікстуру у production tree. Інцидент v1.28.0: `tests/check-rule-fixtures.test.mjs`
- * залишив `copyFile(src, 'values-dev.ini')` і `copyFile(src, 'default.conf.template')` —
- * створило файли `npm/values-dev.ini` і `npm/default.conf.template`.
- *
- * Сканер AST-based (oxc-parser): знаходить виклики `node:fs`/`node:fs/promises`
- * функцій із **string literal** аргументом-шляхом, який НЕ починається з:
- *   - `/`, `\\` — POSIX/Windows absolute;
- *   - `file:`/`http`/`data:` — URL-схема (передається до `new URL(...)`);
- *   - `${…}` (template-literal з виразом) і `\`…\${dir}\`` патерни — обчислений шлях;
- *   - `:` для Windows-літер диску `C:\…` (рідко в тестах, але legit).
- * Виклики, чий path-аргумент — НЕ literal (CallExpression `join(...)`, BinaryExpression,
- * Identifier, MemberExpression) — пропускаємо: припускаємо що це абсолютний шлях.
- *
- * Скани: `**\/*.test.{js,mjs}` з загальними `walkDir` skip + `.n-cursor.json#ignore`.
- */
+/** @see ./docs/no-relative-fs-path.md */
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 

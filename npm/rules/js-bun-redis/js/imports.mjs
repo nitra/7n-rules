@@ -1,15 +1,4 @@
-/**
- * Перевіряє правило `js-bun-redis.mdc`.
- *
- * Заборонено в JS/TS-джерелах будь-який `import` / `require` / динамічний `import()` пакетів
- * `ioredis`, `node-redis`, `redis` (та підпакетів `@redis/*`, підшляхів `ioredis/...` /
- * `redis/...`). Замість них треба використовувати Bun native Redis:
- * `import { redis } from 'bun'` (<https://bun.com/docs/runtime/redis>).
- *
- * Перевірку `dependencies` (заборона `ioredis` / `node-redis` / `redis` / `@redis/*` у будь-якому
- * `package.json`) винесено в Rego-полісі `npm/policy/js_bun_redis/package_json/`; її запускає
- * `npx \@nitra/cursor check`. Тут лишився AST-скан коду через `oxc-parser`.
- */
+/** @see ./docs/imports.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

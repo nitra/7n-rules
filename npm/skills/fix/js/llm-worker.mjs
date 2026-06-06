@@ -1,23 +1,15 @@
-/**
- * LLM-worker для n-fix оркестратора — C1 pattern:
- *   script збирає контекст (rule .mdc + файли з violation) →
- *   pi повертає JSON зі змінами →
- *   script застосовує.
- *
- * Всі LLM-виклики через `pi` (користувач налаштовує ключі самостійно).
- * Tool-use не використовується — LLM отримує повний контекст у промпті.
- */
+/** @see ./docs/llm-worker.md */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
+import { CLOUD_MIN, CLOUD_AVG } from '../../../lib/models.mjs'
 
-// '' = pi default (subscription model — GPT-5 або що налаштовано в pi).
-// Override через env: N_CURSOR_FIX_MODEL_HAIKU=claude-haiku-4-5-20251001
-// gemma4:4b заборонена без явного дозволу — >120s timeout.
-export const MODEL_HAIKU = env.N_CURSOR_FIX_MODEL_HAIKU ?? ''
-export const MODEL_SONNET = env.N_CURSOR_FIX_MODEL_SONNET ?? ''
+// Тир за замовчуванням: CLOUD_MIN → CLOUD_AVG при ескалації.
+// Перевизначення через N_CURSOR_FIX_MODEL / N_CURSOR_FIX_MODEL_HEAVY.
+export const MODEL = env.N_CURSOR_FIX_MODEL ?? CLOUD_MIN
+export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? CLOUD_AVG
 
 /**
  * Витягує відносні шляхи файлів із violation output.
@@ -109,6 +101,17 @@ function callPi(prompt, model) {
   if (r.error) return { text: '', error: r.error.message }
   if (r.status !== 0) {
     const stderr = r.stderr?.slice(0, 300) ?? ''
+    if (stderr.toLowerCase().includes('no api key') || stderr.toLowerCase().includes('api key')) {
+      const provider = model ? model.split('/')[0] : 'дефолтного провайдера'
+      return {
+        text: '',
+        error: [
+          `pi: немає ключа для ${provider}.`,
+          `Встановіть N_CLOUD_MIN_MODEL=provider/model-id`,
+          `(напр.: openai/gpt-5.4-mini, google/gemini-2.5-flash, ollama/gemma3:4b)`,
+        ].join(' ')
+      }
+    }
     return { text: '', error: `pi exit ${r.status}: ${stderr}` }
   }
   return { text: r.stdout?.trim() ?? '' }
@@ -163,7 +166,7 @@ function parseResponse(text) {
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 export async function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
-  const model = opts.model ?? MODEL_HAIKU
+  const model = opts.model ?? MODEL
 
   // 1. Читаємо rule .mdc
   const mdcPath = join(projectRoot, '.cursor', 'rules', `n-${ruleId}.mdc`)

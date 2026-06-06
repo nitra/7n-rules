@@ -1,13 +1,4 @@
-/**
- * Quick-крок lint правила js-lint: oxlint + eslint (з автофіксом).
- *
- * Викликається lint-оркестратором (`n-cursor lint` / `lint-ci`):
- *  - `files` = масив змінених файлів (quick) → лінтимо лише js-подібні з них і
- *    КЛАСИФІКУЄМО лишені findings на introduced (рядок у diff від HEAD) vs
- *    pre-existing (борг файлу) — беклог #6, варіант A (видимість; блокування без змін);
- *  - `files` = undefined (ci) → лінтимо весь проєкт (стрімінг, без класифікації).
- * Крос-файлові jscpd/knip — окреме правило js-lint-ci (фаза ci).
- */
+/** @see ./docs/lint.md */
 import { spawnSync } from 'node:child_process'
 
 import { addedLinesByFile } from '../../../scripts/lib/diff-added-lines.mjs'

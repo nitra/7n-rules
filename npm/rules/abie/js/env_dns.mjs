@@ -1,12 +1,4 @@
-/**
- * Скан env-файлів abie (`*.dev.env`, `*.ua.env`): кожен внутрішньокластерний URL
- * `http://<svc>.<ns>.svc.<dns>` має відповідати кластеру за іменем файла:
- *   - `dev.env` → `abie-dev.internal` + `dev-*` namespace
- *   - `ua.env`  → `abie-ua.internal` + `ua-*` namespace
- *
- * Файл `.env` без імені (локальний для розробника) — виключено.
- * @param {string} [cwd] корінь репозиторію
- */
+/** @see ./docs/env_dns.md */
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 

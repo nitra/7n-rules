@@ -1,20 +1,4 @@
-/**
- * `vitest.config.js` має ставити `pool: 'forks'` — defense-in-depth для
- * race-bug у `process.cwd()` (test.mdc, секція "Заборона `process.chdir` у тестах").
- *
- * Чому не достатньо самої заборони `process.chdir(`: third-party код у залежностях
- * може робити chdir всередині vitest worker'а. У `pool: 'threads'` (default) усі
- * workers ділять один процес → race на `process.cwd()` між паралельними test
- * files. `pool: 'forks'` ізолює кожен test file у власному child-процесі.
- *
- * Перевірка — substring у source-тексті `vitest.config.js`. Не парсимо JS AST,
- * бо це може бути будь-який export-формат (ESM default, named, CommonJS).
- * Достатньо знайти `pool:` із значенням `'forks'`/`"forks"` (whitespace дозволений).
- *
- * Скіпи: правило не застосовне, якщо `vitest.config.js` не існує (нема vitest
- * у проєкті) — це не помилка, лише skip. Якщо файл є — `pool: 'forks'`
- * обов'язковий.
- */
+/** @see ./docs/vitest-config-pool-forks.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

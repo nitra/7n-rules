@@ -1,21 +1,4 @@
-/**
- * Перевіряє, що файли всередині будь-якого `utils/` каталогу не мають імпортів за межі
- * самого каталогу (relative-import з `..`). За правилом `js-lint.mdc` каталог `utils/` — це
- * generic helpers без бізнес-логіки і без залежностей від домену; якщо файлу потрібен
- * сусідній модуль, конфіг проєкту чи cross-rule helper — він має жити в `lib/`, а не в `utils/`.
- *
- * Перевіряються лише не-тестові `.mjs|.mts|.cjs|.cts|.js|.ts|.jsx|.tsx` під будь-яким
- * `utils/`-каталогом у monorepo-воркспейсах. Файли всередині `utils/tests/` (тести)
- * і будь-які `__fixtures__/` ігноруються — тести легально імпортують свій модуль через `../X`.
- *
- * Дозволені імпорти:
- *  - `./X`, `./sub/X` — same-dir чи глибше всередині самої `utils/`
- *  - bare-package (`oxc-parser`, `@scope/pkg`) — npm-залежність
- *  - `node:fs`, `fs` тощо — Node-builtin
- *
- * Заборонено:
- *  - будь-який `..`-шлях (`../X`, `../../X`) — це порушення granular `utils/`-кордону
- */
+/** @see ./docs/utils_imports.md */
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 

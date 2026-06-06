@@ -1,10 +1,4 @@
-/**
- * Applies-гейт правила rust: маркер — наявність `Cargo.toml` у `cwd` або
- * в будь-якому workspace-підкаталозі (рекурсивний пошук з пропуском
- * `node_modules`, `.git`, `.next`, `.turbo`). Якщо повертає `false` —
- * `runStandardRule` пропускає всі концерни (JS і policy) цього правила.
- * `check()` друкує тільки context-pass; реальна робота — у policy-концернах.
- */
+/** @see ./docs/applies.md */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 

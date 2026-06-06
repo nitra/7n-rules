@@ -1,37 +1,4 @@
-/**
- * Запускає hadolint для Dockerfile / Containerfile у всьому репозиторії (див. docker.mdc).
- *
- * Додатково переконуються, що образи `oven/bun`, `alpine`, `nginx`, `node` з Docker Hub
- * вказуються через `mirror.gcr.io` (див. `./docker-mirror.mjs`).
- *
- * Також перевіряє, що Dockerfile/Containerfile має **multistage build** і що фінальний stage
- * використовує дозволений runtime-образ (див. docker.mdc):
- * - backend: `mirror.gcr.io/library/alpine:*`, `scratch`, `mirror.gcr.io/library/debian:` з тегом, що
- *   містить `slim` (не повний `debian:bookworm`), за винятком PHP/Python — `mirror.gcr.io/library/php:*` або
- *   `mirror.gcr.io/library/python:*`
- * - frontend: `mirror.gcr.io/nginxinc/nginx-unprivileged:*`, `mirror.gcr.io/openresty/openresty:*`
- *
- * Якщо в Dockerfile є крок `bun install` і це не frontend-образ (фінальний stage — alpine),
- * то очікується компіляція в один бінарник через `bun build --compile` у build stage, а у
- * фінальному stage не повинно залишатися build tooling (Bun/Node).
- *
- * Виняток — проєкти з нативним `.node`-аддоном (sharp/@img/argon2), який вантажиться через
- * динамічний `require`: їх НЕ можна компілювати (`bun build --compile` не вшиває нативний
- * біндинг → краш у рантаймі). Для них канон — node_modules + `bun <entry>` на базі
- * `mirror.gcr.io/oven/bun:alpine` (див. `../lib/docker-native-addon.mjs`).
- *
- * Мета — щоб у фінальному образі не було build tooling (Bun/Node та залежностей), а лише
- * дозволений runtime (alpine, scratch, debian slim, за потреби php/python, nginx або openresty).
- *
- * Для nginx-образів (`mirror.gcr.io/nginxinc/nginx-unprivileged`) у будь-якому `FROM` очікується
- * тег `alpine-slim` (docker.mdc: мінімальні образи), не `latest` /
- * `alpine` / інші. `nginx-unprivileged` запускається від не-root користувача (uid=101) без явного
- * `USER` у Dockerfile — перевірка non-root для нього пропускається.
- *
- * Знаходить Dockerfile, Dockerfile.*, Containerfile, Containerfile.*; пропускає node_modules, .git
- * тощо. hadolint — нативний бінарник через `ensureTool` (PATH/кеш/авто-install; без docker run).
- * Кореневий .hadolint.yaml підхоплюється hadolint автоматично.
- */
+/** @see ./docs/lint.md */
 import { readFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 

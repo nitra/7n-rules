@@ -1,27 +1,4 @@
-/**
- * Знаходить пакети з `vue` у dependencies і перевіряє їх за правилом vue.mdc.
- *
- * Вміст `vite.config`, editor-файли для Vite client types, у репозиторії —
- * рекомендацію розширення Vue.volar.
- *
- * Залежності Vue/Vite (`vite >= 8`, `@vitejs/plugin-vue`, `vue-macros`,
- * `unplugin-auto-import`, `vite-plugin-vue-layouts-next`, заборона `esbuild`) —
- * у policy `vue.package_json`.
- *
- * У кожному Vue+Vite-пакеті очікується `src/vite-env.d.ts` з `/// <reference types="vite/client" />`
- * та `jsconfig.json` у корені пакета (типи для імпортів асетів у `.vue`).
- *
- * У `vite.config.*` заборонено використовувати `process.env.npm_lifecycle_event` (Bun не підставляє його як npm),
- * натомість використовуй `mode` з `defineConfig(({ mode }) => ...)`.
- *
- * Заборонені явні value-імпорти з `vue` у джерелах пакета — сканування `.vue`/`.ts`/`.js` тощо
- * через **oxc-parser** (`module.staticImports`; див. `./vue-forbidden-imports.mjs`); дозволені лише type-only та side-effect `import 'vue'`.
- *
- * Окремо в `.vue` SFC заборонено імпорти Node-нативних модулів — `node:*` префікс або bare-ім’я
- * вбудованого модуля Node (`fs`, `path`, `timers/promises` тощо). Vue SFC виконується у браузері,
- * де Node API недоступне; такий код треба тримати у server-side утілітах.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/packages.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

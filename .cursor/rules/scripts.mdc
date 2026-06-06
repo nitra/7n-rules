@@ -318,6 +318,24 @@ Download-движок (GitHub-release binary під поточний OS+arch) с
 - `hk install` без гарду `process.env.CI` — у CI він зайвий.
 - warn-and-continue при відсутньому тулі — ні; **hard-fail** після підказки.
 
+## Контракт: module-level JSDoc vs docs/
+
+Якщо для `.mjs`-файлу у `npm/rules/*/js/` або `npm/skills/*/js/` існує `docs/<stem>.md` — наратив у module-level JSDoc є дублюванням. **Єдиний дозволений варіант** — pointer (≤1 змістовний рядок):
+
+```js
+/** @see ./docs/applies.md */
+```
+
+або відсутній header взагалі. Якщо `docs/<stem>.md` **немає** — header залишається єдиним джерелом опису і обмежень немає.
+
+**Механічний замок** реалізований концерном `npm-module/js/header_doc_pointer.mjs`: при `check` сканує обидва каталоги і репортує файли, де docs є, але header > 1 рядка.
+
+**Безпечна послідовність** при перенесенні наративу в docs:
+
+1. docgen (або вручну) **записує** `docs/<stem>.md` — вміст header має бути повністю відображений.
+2. **Перевіряємо**, що docs ⊇ header (diff або очима): header часто кодує намір, якого нема у коді.
+3. Лише тоді замінюємо header на pointer або прибираємо.
+
 ## Аналіз JavaScript / TypeScript: Oxc AST
 
 За замовчуванням для **перевірки змісту JS/TS** у `npm/rules/<id>/js/` (check/run/lint) і утилітах `npm/scripts/utils/` намагайся використовувати саме **Oxc AST-парсер** — пакет **`oxc-parser`** (`parseSync` тощо), обхід **`module` / `program` / вузлів AST**, а не «сліпі» regex по всьому файлу.

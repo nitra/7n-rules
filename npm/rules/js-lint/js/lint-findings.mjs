@@ -1,10 +1,4 @@
-/**
- * Нормалізація й класифікація lint-findings (oxlint + eslint) на introduced
- * (рядок у diff від HEAD) vs pre-existing (борг файлу) — беклог #6, варіант A.
- *
- * Формати: oxlint `--format=json` → `{ diagnostics:[{ filename, code, labels:[{span:{line}}] }] }`;
- * eslint `--format=json` → `[{ filePath, messages:[{ ruleId, line, message }] }]`. Шляхи абсолютні.
- */
+/** @see ./docs/lint-findings.md */
 import { isAbsolute, relative } from 'node:path'
 
 import { isIntroducedLine } from '../../../scripts/lib/diff-added-lines.mjs'

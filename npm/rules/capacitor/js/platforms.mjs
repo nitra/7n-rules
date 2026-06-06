@@ -1,26 +1,4 @@
-/**
- * Перевіряє відповідність проєкту правилам capacitor.mdc для застосунків **Capacitor**.
- *
- * Якщо у репозиторії **немає** ознак Capacitor (див. наведене) — вихід **0**, перевірка не застосовується.
- *
- * **Ознака Capacitor:** наявні **`capacitor.config.json`**, **`capacitor.config.ts`**, **`capacitor.config.mjs`**
- * (у корені) **або** у будь-якому `package.json` (рекурсивно, з пропуском типових каталогів) оголошено
- * хоча б одну залежність **`@capacitor/…`** (у **`dependencies`**, **`devDependencies`**, опційно
- * **`optionalDependencies`**, **`peerDependencies`**).
- *
- * **Версія мінімум 8:** у кожному `package.json`, де вказано **`@capacitor/core`**, діапазон версії
- * мусить допускати лише **Capacitor 8+** (оцінка мінімального **major** з рядка діапазону npm, зокрема
- * `||` і діапазонів через `-` у спрощеному вигляді). **`*`**, **latest** та нерозпізнані випадки — **порушення**:
- * варто задати явний діапазон, наприклад **`^8.0.0`**. Якщо оголошено `capacitor.config.*` без жодного
- * **`@capacitor/core`** у дереві `package.json` — також помилка.
- *
- * **iOS:** зазвичай **без** **Podfile** поза **Pods** (тільки **SPM**). **@nitra/**-плагіни за політикою **SPM** —
- * їх **не** перелічуємо й **не** перевіряємо. Якщо **Podfile** є, його можна зареєструвати як **виняток**
- * (див. **capacitor.mdc**): у кореневому **`package.json`** або
- * **`capacitor.config.json` / `capacitor.config.ts` / `capacitor.config.mjs`**, об’єкт **nitra** з
- * **`iosCocoaPodsBecausePluginsLackSpm: true`** (або **`iosCocoaPodsAllowed: true`**); тоді **Podfile** **не** fail.
- * Якщо **`ios/`** **немає** — iOS-умови не застосовуються.
- */
+/** @see ./docs/platforms.md */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

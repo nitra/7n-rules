@@ -1,24 +1,4 @@
-/**
- * Перевіряє FS-вимоги правила python.mdc для Python-проєктів на uv.
- *
- * **Що тут лишилося** (FS-existence — не покривається conftest):
- *  - наявність `uv.lock` поруч (uv-проєкт коммітить lock-файл);
- *  - наявність кореневого `package.json` (для `bun run lint-python`);
- *  - наявність `.github/workflows/lint-python.yml`;
- *  - заборона Poetry-артефактів `poetry.lock` / `poetry.toml` (міграція на uv).
- *
- * Гейт на `pyproject.toml` робить `applies.mjs` — CLI пропускає правило цілком
- * без нього. Захисний early-return лишається тут лише для прямого виклику
- * `check()` (тести/standalone) без `applies.mjs`-гейту.
- *
- * **Що покрила Rego** (`npx \@nitra/cursor fix python`):
- *  - `python/pyproject_toml/` — заборона `[tool.poetry]` + вимога PEP 621 `[project].name/version`;
- *  - `python/package_json/` — наявність скрипта `lint-python` у `package.json`;
- *  - `python/lint_python_yml/` — `uses`/`run`-кроки канонічного workflow.
- *
- * `.venv/` навмисно НЕ перевіряється: uv теж створює `.venv`, тож його наявність
- * не є ознакою Poetry й давала б хибні спрацювання.
- */
+/** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 

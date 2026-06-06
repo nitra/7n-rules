@@ -1,11 +1,4 @@
-/**
- * FS-частина правила `security`.
- *
- * Перевіряє:
- *  - наявність `package.json` (структуру валідує policy security.package_json);
- *  - наявність `.trufflehog-exclude` у корені та subset канонічних patterns
- *    (text-subset, бо `.trufflehog-exclude` — plain text, не структурований).
- */
+/** @see ./docs/trufflehog.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

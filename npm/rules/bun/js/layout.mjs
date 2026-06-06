@@ -1,22 +1,4 @@
-/**
- * Перевіряє відповідність репозиторію правилам Bun (bun.mdc).
- *
- * **Що тут лишилося** (FS / cross-file — не покривається conftest):
- *  - наявність `bun.lock`, `bunfig.toml`, `package.json` у корені (FS-existence);
- *  - заборонені lockfile та артефакти yarn/pnpm (`package-lock.json`, `yarn.lock`,
- *    `pnpm-lock.yaml`, `.yarnrc.yml`, директорія `.yarn/`);
- *  - двосторонній зв'язок `.n-cursor.json:rules` ↔ `package.json:scripts` для правил із
- *    `lint-<id>` (`docker`, `k8s`): rule увімкнено → скрипт мусить існувати; rule
- *    відсутнє (або в `disable-rules`) → скрипту та згадки `bun run lint-<id>` у
- *    агрегованому `scripts.lint` бути **не може** (інакше `bun run lint` падатиме
- *    на правилі, яке у конфізі вимкнено).
- *
- * **Що покрила Rego** (`npx \@nitra/cursor check`):
- *  - `npm/policy/bun/bunfig/` — `[install].linker == "hoisted"` у `bunfig.toml`;
- *  - `npm/policy/bun/package_json/` — відсутність `packageManager` / `dependencies`
- *    у кореневому `package.json`, у `devDependencies` лише `@nitra/*`, агрегований
- *    `lint`-скрипт покриває всі `lint-*` через `bun run` і завершується `&& oxfmt .`.
- */
+/** @see ./docs/layout.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

@@ -1,24 +1,4 @@
-/**
- * Заборона `process.chdir(...)` у тестах.
- *
- * Контекст (test.mdc, секція "Заборона `process.chdir` у тестах"):
- * `process.chdir` — process-wide мутація. Vitest за замовчуванням ставить
- * `pool: 'threads'`, де workers ділять один процес: паралельний test file
- * може перехопити cwd сусіда посеред FS- або `git`-операції. Реальний
- * інцидент — `git init`+`git commit` із tmp-фікстури `withTmpCwd` потрапив у
- * реальний робочий репозиторій і створив rogue commit з автором `test
- * <test@test>`. Тому канон: `withTmpDir(async dir => ...)` зі
- * `scripts/utils/test-helpers.mjs` (без `chdir`) + явні `cwd: dir` у child-
- * процесах + `await check(dir)` для concern-функцій.
- *
- * Цей concern сканує `**\/*.test.{js,mjs}` і падає на будь-яке вживання
- * `process.chdir(`. Виняток — коментарі/документація: regex знаходить лише
- * викликний паттерн (відкривна дужка), тож згадки у JSDoc типу
- * "не використовуй `process.chdir`" не тригерять.
- *
- * Скіпи: `node_modules`, `.git`, `dist`, `build`, `.venv`, `venv` (через
- * `walkDir`) і шляхи з `.n-cursor.json:ignore`.
- */
+/** @see ./docs/no-process-chdir.md */
 import { readFile } from 'node:fs/promises'
 import { basename, relative } from 'node:path'
 

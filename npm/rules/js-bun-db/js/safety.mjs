@@ -1,34 +1,4 @@
-/**
- * Перевіряє правило js-bun-db.mdc.
- *
- * 1) У жодному `package.json` (включно з workspace-пакетами) у `dependencies` не повинно
- *    бути `pg-format` чи `mysql2` — їх треба замінити на Bun native SQL
- *    (`import { sql, SQL } from 'bun'`, https://bun.com/docs/runtime/sql). `pg-format` —
- *    ручне форматування SQL через escape; tagged template Bun SQL параметризує значення
- *    нативно і не лишає простору для injection. Перевірка цих двох — у Rego-полісі
- *    `npm/policy/js_bun_db/package_json/`.
- *
- * 2) Для `pg` діє виключення: Bun SQL поки не реалізує LISTEN/NOTIFY, тож якщо у
- *    проекті знайдено реальне використання `LISTEN ...` / `NOTIFY ...` / `UNLISTEN ...`
- *    або listener'а `.on('notification', ...)`, dependency `pg` дозволено. Інакше
- *    `pg` лишається забороненим — fail з підказкою про виключення. Додатково — per-file:
- *    кожен файл з `import ... from 'pg'` повинен сам містити LISTEN/NOTIFY-патерн;
- *    звичайні SELECT/INSERT/UPDATE через `pg` (replace на Bun SQL!) не дозволені.
- *
- * 3) Якщо в коді використовується Bun SQL (імпорт `sql`/`SQL` з `'bun'`), додатково
- *    перевіряє небезпечні патерни:
- *    - `new SQL(...)` всередині функції (пул має бути singleton на рівні модуля).
- *    - Будь-який `<obj>.unsafe(...)` без маркера-коментаря `// allow-unsafe: <reason>`
- *      на тому ж рядку або рядком вище. `sql.unsafe` за замовчуванням заборонено;
- *      допустимий лише для підстановки назви таблиці/колонки чи dynamic SQL/DDL,
- *      коли значення контролюється кодом (не user input) — в інших випадках
- *      переробляємо на tagged template `sql\`...\${value}...\``.
- *    - pg-leftover виклики `<obj>.connect(...)` / `<obj>.end(...)` у файлах, що
- *      імпортують Bun SQL: пулом керує Bun, життєвий цикл вручну не потрібен.
- *      Opt-out — маркер `// allow-pg-leftover: <reason>`.
- *    - Динамічні SQL-списки через `.join(',')` у `IN (...)` / `VALUES (...)`
- *      (треба `sql([...])`).
- */
+/** @see ./docs/safety.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

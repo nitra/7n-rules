@@ -1,22 +1,4 @@
-/**
- * Перевіряє CSS/SCSS лінт за правилом style-lint.mdc.
- *
- * **Що тут лишилося** (FS / cross-file — не покривається conftest):
- *  - наявність зовнішнього файлу конфігу stylelint (`.stylelintrc.*`,
- *    `stylelint.config.js`) як альтернатива полю `stylelint` у `package.json`
- *    (cross-file: треба знати, чи є поле, чи немає);
- *  - `.stylelintignore` у корені.
- *
- * **Що покрила Rego** (`npx \@nitra/cursor check`):
- *  - `npm/policy/style_lint/package_json/` — скрипт `lint-style` через `npx stylelint`,
- *    `@nitra/stylelint-config` у `devDependencies`, поле `stylelint.extends`;
- *  - `npm/policy/style_lint/lint_style_yml/` — `npx stylelint` у `run` workflow;
- *  - `npm/policy/style_lint/vscode_extensions/` — `stylelint.vscode-stylelint`
- *    у `recommendations` `.vscode/extensions.json`;
- *  - `npm/policy/style_lint/vscode_settings/` — `css.validate`/`scss.validate`/
- *    `less.validate: false` у `.vscode/settings.json`.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

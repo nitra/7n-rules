@@ -1,21 +1,4 @@
-/**
- * Перевіряє nginx-шаблон і супутні файли за правилом nginx-default-tpl.mdc.
- *
- * Якщо в дереві є **default.conf.template**: канонічні директиви (порт 8080, /healthz, gzip_static,
- * без proxy), поруч **\*.ini** (ключі з ini мають зустрічатися в шаблоні як **$KEY**), у будь-якому
- * Dockerfile — **find** + **gzip** для каталогу `/usr/share/nginx/html` та **envsubst** з
- * **default.conf.template**. Приклад **HTTPRoute** з правила — для рев’ю; автоматична перевірка
- * вимкнена (різні схеми маршрутизації). Функція **`httpRouteMatchesNginxDefaultTpl`** лишається для
- * тестів і майбутнього вузького застосування. VSCode: **extensions.json** та **settings.json** з
- * форматером nginx і **formatOnSave**.
- *
- * У дереві від **cwd** усі **default.tpl.conf** стають **default.conf.template**: перейменування, або
- * якщо **default.conf.template** уже є — він перезаписується вмістом **default.tpl.conf**, після чого
- * **default.tpl.conf** видаляється. Якщо після міграції шаблону немає — перевірка пропускається (0).
- *
- * Невалідна директива **`error_log off;`** (nginx трактує "off" як ім'я файлу `/etc/nginx/off` і падає під
- * readOnlyRootFilesystem) автоматично замінюється на **`error_log /dev/null crit;`** у кожному шаблоні.
- */
+/** @see ./docs/template.md */
 import { existsSync } from 'node:fs'
 import { readdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, relative } from 'node:path'

@@ -1,14 +1,4 @@
-/**
- * Applies-гейт правила `rego` (rego.mdc): правило застосовне, лише якщо в репозиторії є
- * хоча б один `.rego`-файл (під типовими skip-ами і `.n-cursor.json:ignore`).
- *
- * Якщо `.rego` нема — CLI пропускає правило цілком (включно з polices `package_json`,
- * `vscode_extensions`, `vscode_settings`), бо вимоги rego-tooling неактуальні. Якщо є — CLI
- * прогонить policy-концерни через `target.json`-маніфести у `rules/rego/policy/<name>/`.
- *
- * JS тут лишається лише як cross-file гейт: walkDir не виразити декларативно через `target.json`.
- * Друк короткого pass-повідомлення з контекстом робить `check()` (необовʼязковий).
- */
+/** @see ./docs/applies.md */
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 import { loadCursorIgnorePaths } from '../../../scripts/lib/load-cursor-config.mjs'
 import { walkDir } from '../../../scripts/utils/walkDir.mjs'

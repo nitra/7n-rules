@@ -1,9 +1,4 @@
-/**
- * Глоби, які `docgen` завжди ігнорує.
- *
- * Це окремий snippet-модуль: список правиться тут, scanner лише читає його
- * через predicate. Патерни пишуться в posix-формі відносно кореня проєкту.
- */
+/** @see ./docs/docgen-ignore.md */
 import picomatch from 'picomatch'
 
 /** Базовий список glob-ів для `docgen` ignore. */

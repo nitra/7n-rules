@@ -1,27 +1,4 @@
-/**
- * Перевіряє правило hasura.mdc для проєктів **nitra** і **abie**: значення
- * `HASURA_GRAPHQL_ENDPOINT` у `*.env` має бути **внутрішнім** кластерним URL,
- * а не публічним доменом.
- *
- * Запускається лише якщо в кореневому `package.json` поле `repository`
- * вказує на `https://github.com/nitra/...` або `https://github.com/abinbevefes/...`
- * (інші репозиторії пропускаються без помилок — як у abie-перевірках).
- *
- * Очікуваний формат URL — кластерний DNS-суфікс `<cluster>.internal`:
- *  - GKE / GCP: `http://<service>.<namespace>.svc.<cluster>.internal:<port>`
- *    приклад: `http://contract-h-hl.ua-contract.svc.abie-ua.internal:8080`
- *
- * Сегменти беруться з `hasura/k8s/base/svc-hl.yaml` (`metadata.name` —
- * headless, має закінчуватись на `-h-hl`; див. `hasura.svc_hl` / k8s.svc_hl_yaml) і
- * `hasura/k8s/base/namespace.yaml`
- * (`metadata.name` — namespace). Якщо ці YAML є в репозиторії, у URL додатково
- * звіряються конкретні `<service>` і `<namespace>` з ними.
- *
- * Скануються всі файли `*.env` (наприклад `dev.env`, `production.env`); файл
- * `.env` без імені — виключення з правила (локальний файл розробника), його
- * не перевіряємо. Пропускаються `node_modules`, `.git`, `dist`, `coverage`,
- * `.turbo`, `.next` (як у `walkDir`).
- */
+/** @see ./docs/internal_urls.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { basename, join, relative } from 'node:path'

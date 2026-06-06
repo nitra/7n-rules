@@ -1,34 +1,4 @@
-/**
- * Перевіряє текстовий стек і форматування за правилом text.mdc.
- *
- * **Що тут лишилося** (FS / VSCode-конфіги / markdown / лінт-скрипт):
- *  - `.v8rignore` (текстовий формат, рядки шляхів);
- *  - `.vscode/extensions.json` рекомендації (markdownlint, oxc, shellcheck) і
- *    `.vscode/settings.json` (`editor.formatOnSave`, `[lang].editor.defaultFormatter`);
- *  - наявність FS-файлів `.oxfmtrc.json`, `.cspell.json`, `.markdownlint-cli2.jsonc`,
- *    `package.json` (саме *існування* — структуру вже валідує Rego);
- *  - абзац про український апостроф у `.cursor/rules/n-text.mdc` /
- *    `npm/mdc/text.mdc` (markdown-текст, не JSON/YAML);
- *  - складна валідація скрипта `lint-text` (cspell, markdownlint, v8r у трьох
- *    варіантах, run-shellrules/text/fix.mjs, обовʼязкові glob-и);
- *  - workflow `lint-text.yml` має крок `bun run lint-text` (структура — rego `text.lint_text`).
- *
- * **Що покрила Rego** (`npx \@nitra/cursor check`):
- *  - `npm/policy/text/oxfmtrc/` — обовʼязкові ключі `.oxfmtrc.json` і канонічні
- *    значення (semi/singleQuote/tabWidth/useTabs/printWidth) + `ignorePatterns`
- *    канонічні glob-и;
- *  - `npm/policy/text/cspell/` — `.cspell.json` `version "0.2"`, `language`,
- *    імпорт `@nitra/cspell-dict`, заборона `@cspell/dict-*`, обовʼязкові
- *    `ignorePaths`;
- *  - `npm/policy/text/markdownlint/` — `.markdownlint-cli2.jsonc` `gitignore: true`
- *    (працює лише якщо файл — валідний JSON без коментарів);
- *  - `npm/policy/text/package_json/` — заборона Prettier (`prettier` поле +
- *    `prettier`/`@nitra/prettier-config` у залежностях), `@nitra/cspell-dict ^2.0.0+`
- *    у `devDependencies`, заборона `markdownlint-cli2` у залежностях.
- *  - `npm/policy/bun/package_json/` — у `devDependencies` лише `@nitra/*`
- *    (раніше дублювалося тут).
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/formatting.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'

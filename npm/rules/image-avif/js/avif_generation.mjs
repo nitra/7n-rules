@@ -1,30 +1,4 @@
-/**
- * Перевіряє відповідність репозиторію правилу `image-avif.mdc`: AVIF-генерацію та
- * ув'язування `.avif`-двійників з посиланнями у `.vue`/`.html`.
- *
- * Дії під час `check image-avif`:
- * 1. **Pre-scan**: знайти в `.vue`/`.html` хоча б одне raster-посилання, яке потенційно
- *    можна переписати на AVIF-двійник (через `import x from '...png'` або
- *    `<img src="...png" />`). Пакети з opt-out `disable-avif: true` пропускаються.
- *    Якщо жодного raster-посилання не знайдено → exit 0 одразу (`npx --avif` не запускаємо,
- *    rewrite/cleanup-пасс теж пропускаємо — нічого не змінилось би).
- * 2. `npx \@nitra/minify-image --src=. --write --avif` — генерує AVIF-двійники.
- * 3. У кожному workspace-пакеті переписує raster-посилання у `.vue`/`.html` на `.avif`
- *    (де AVIF-двійник реально існує на диску). Pakety з `"\@nitra/minify-image": {
- *    "disable-avif": true }` у `package.json` пропускаються.
- * 4. Прибирає AVIF-сироти — `<name>.<ext>.avif`, на які не лишилось жодного посилання
- *    у `.vue`/`.html` репозиторію, видаляються (умова правила: «AVIF лишається лише
- *    там, де заміна вдалася»).
- *
- * Якщо raster-посилання у `.vue`/`.html` не вдалось переписати (наприклад, оригіналу
- * нема на диску → `.avif` теж не згенерувався) — фейл на конкретний файл.
- *
- * Правило самостійне від `image-compress`: AVIF можна вмикати лише в адмінках (де AVIF
- * підтримується сучасними браузерами) і не вмикати в публічних сайтах. Перевірка скрипта
- * `lint-image` (заборона `--avif` у ньому) залишається у `image-compress` — тут вона не
- * дублюється.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/avif_generation.md */
 import { existsSync } from 'node:fs'
 import { readFile, unlink, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

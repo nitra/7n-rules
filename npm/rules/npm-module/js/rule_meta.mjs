@@ -1,13 +1,4 @@
-/**
- * Перевірка метаданих правил пакета `@nitra/cursor` (концерн правила npm-module).
- *
- * Кожен `npm/rules/<id>/` має містити валідний `meta.json`:
- *  - `auto` (якщо присутнє) — розпізнане `parseRuleAutoSpec` (завжди / масив / glob / predicate);
- *  - для `predicate` — імʼя є в реєстрі `RULE_PREDICATES`;
- *  - залишковий `auto.md` заборонено (міграція на meta.json завершена).
- *
- * Застосовний лише в репо пакета (де є `npm/rules/`); у споживача каталогу нема — пропуск.
- */
+/** @see ./docs/rule_meta.md */
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 

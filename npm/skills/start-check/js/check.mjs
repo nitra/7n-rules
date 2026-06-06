@@ -1,19 +1,4 @@
-/**
- * `n-cursor start-check scan|run` — детермінована частина smoke-перевірки
- * bun-монорепо для скілу `n-start-check`.
- *
- * Мотивація: скіл раніше казав LLM-агенту вручну розгортати glob-воркспейси,
- * читати кожен `package.json`, класифікувати `start` (сервер vs CLI), запускати
- * процес із таймаутом через `perl alarm`, інтерпретувати exit-коди й парсити лог
- * на рядки готовності/помилки. Усе це детерміновано — скрипт робить це надійно й
- * крос-платформно (`spawnSync` з `timeout`), а агент лишається тільки з
- * діагностикою: **чому** саме воркспейс упав.
- *
- * `scan` — `[{workspace, name, hasStart, startCmd, type}]`.
- * `run <ws>` — `{workspace, type, exitCode, timedOut, status, ready, firstError,
- * logTail, sideEffects}` (sideEffects — read-only git-diff проти стану до запуску;
- * власне відкат лишається явним кроком скіла).
- */
+/** @see ./docs/check.md */
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'

@@ -1,8 +1,4 @@
-/**
- * Перевірка abie: у **підкаталогах першого рівня** (без `.git`/`node_modules`) не має бути
- * `.firebaserc`, `firebase.json`, `.firebase/` (abie.mdc — Firebase Hosting заборонено).
- * У самому корені репозиторію ці імена не перевіряються (можуть бути від суміжних проєктів).
- */
+/** @see ./docs/firebase_hosting.md */
 import { existsSync } from 'node:fs'
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'

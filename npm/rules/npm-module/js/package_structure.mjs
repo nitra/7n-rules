@@ -1,31 +1,4 @@
-/**
- * Перевіряє структуру npm-модуля в монорепо за правилом npm-module.mdc.
- *
- * Workspace `npm/`, `npm/package.json`, workflow `npm-publish.yml` з OIDC, `on.push.paths` з glob для каталогу npm.
- *
- * Якщо під `npm/src` є хоча б один файл `.js`, очікується канонічний layout: `types` → `./types/index.d.ts`,
- * згенерований `index.d.ts` у `npm/types/`, і hk з викликом `tsc` по файлах під `npm/src`.
- *
- * Якщо таких файлів немає — layout через `npm/tsconfig.emit-types.json`: поле `types` має вказувати на існуючий
- * файл під `./types/…`, у hk — `tsc -p tsconfig.emit-types.json`, у JSON-конфігу — потрібні compilerOptions для emit.
- *
- * Поля workflow перевіряються після **YAML parse**, щоб не плутати з коментарями.
- *
- * Компактність опублікованого пакета (cross-file / FS / AST частина):
- *  - Пер-документні структурні deny для `npm/package.json` (`files` whitelist обовʼязковий,
- *    без `devDependencies`) — у rego-пакеті `npm_module.npm_package_json` (Rego-authoritative).
- *  - Тут лишається лише `checkNoTestsInPublishedFiles`: walk шляхів з `"files"` (з урахуванням
- *    негативних glob-патернів) і скан test-style каталогів (`tests/`, `__tests__/`, `fixtures/`,
- *    `__fixtures__/`, `spec/`, `test/`), імен файлів (`*.test.*` / `*.spec.*`) і AST-імпортів
- *    test-фреймворків (`bun:test`, `node:test`, `vitest`, `@jest/globals`, `mocha`, `jest`, `ava`, …).
- *    Виняток: `*_test.rego` дозволені поруч з полісі — це конвенція conftest.
- *
- * Версія та CHANGELOG тут НЕ перевіряються: єдиний артефакт зміни — change-файл, а узгодженість
- * `version`/`CHANGELOG.md` (включно з drift від ручного bump) валідує `changelog/js/consistency.mjs`
- * за моделлю `n-changelog.mdc`. Інваріант «верхня секція CHANGELOG == package.json.version» істинний
- * лише post-release і його гарантує `n-cursor release` у CI — локально його не підтримують руками.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/package_structure.md */
 import { existsSync } from 'node:fs'
 import { readFile, stat } from 'node:fs/promises'
 import { join, sep } from 'node:path'

@@ -1,40 +1,4 @@
-/**
- * Для кожного workspace-пакета перевіряє правило js-run.mdc.
- *
- * Покрито:
- *  - заборона `@nitra/bunyan` / `bunyan` як у залежностях `package.json`, так і в коді
- *    (`import` / `require` / динамічний `import()`); імпорти сканує AST через `oxc-parser`
- *    (див. `utils/bunyan-imports.mjs`);
- *  - наявність `OTEL_RESOURCE_ATTRIBUTES` зі значеннями `service.name=` та `service.namespace=`
- *    у `k8s/base/configmap.yaml`, якщо такий файл існує (відповідність імені ConfigMap імені
- *    Deployment перевіряється в `rules/k8s/fix.mjs`);
- *  - «Внутрішні аліаси» (`#conn/*`): імпорти `bun#SQL`, будь-який `mssql`, `@nitra/graphql-request#GraphQLClient`
- *    дозволені лише у каталозі conn (за замовчуванням `src/conn/`; за наявності
- *    `package.json#imports['#conn/*']` — у його цільовому каталозі); поза ним — порушення
- *    (див. `utils/conn-imports-scan.mjs`);
- *  - «Нейминг та експорти у `#conn/`»: всередині conn-каталогу basename файла має відповідати
- *    канону `ql-<id>` / `(pg|mysql|mssql)-(read|write)[-<id>]`; `export default` заборонений; має бути
- *    іменований експорт з імʼям, що дорівнює camelCase від basename файла (`pg-write-contract.js`
- *    → `export const pgWriteContract`); `index.*` як reexport-барель пропускаємо
- *    (див. `utils/conn-file-rules.mjs`);
- *  - «process.env / CheckEnv»: пряме `process.env.X` має бути замінено на `env` —
- *    з `@nitra/check-env` (для обов'язкових змінних, із `checkEnv([...])`) або з
- *    `node:process` (для опційних). Коли `env` імпортовано з `@nitra/check-env`,
- *    кожен `env.X` має бути закритий літеральним викликом `checkEnv(['X', ...])`
- *    у тому ж файлі або коментарем `// \@nitra/cursor ignore-next-line checkEnv`
- *    на попередньому рядку (див. `utils/check-env-scan.mjs`);
- *  - «Паузи через setTimeout»: `new Promise(resolve => setTimeout(resolve, ms))` (з/без `await`)
- *    треба замінити на `await setTimeout(ms)` з `node:timers/promises`
- *    (див. `utils/promise-settimeout-scan.mjs`);
- *  - «Temporal у Bun runtime»: identifier `Temporal` заборонений, бо поточний Bun runtime
- *    не має глобального Temporal API (див. `utils/temporal-scan.mjs`);
- *  - «jsconfig.json»: у backend-пакеті з каталогом `src/` у корені має бути `jsconfig.json`,
- *    вміст якого збігається з каноном js-run.mdc (NodeNext і include на дерево `src`).
- *
- * Per-document валідація `package.json` (bunyan, `node` у `scripts`) делегована rego-пакету
- * `js_run.package_json` у `npm/rules/js-run/policy/package_json/`; JS — cross-file (AST, FS).
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/runtime.md */
 import { existsSync, statSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

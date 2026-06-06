@@ -1,13 +1,4 @@
-/**
- * Suspect FS-перевірка: жоден Prettier-артефакт у корені проєкту не дозволений.
- *
- * `text.mdc` забороняє `prettier`, `@nitra/prettier-config` і всі прояви Prettier-конфігів.
- * Rego-полісі `text.package_json` ловить scripts/dependencies/devDependencies; цей concern
- * ловить FS-сторону — конфіги й ignore-файли, які runner Prettier зчитує автоматично.
- *
- * Список синхронізовано з конфіг-форматами Prettier 3.x
- * (https://prettier.io/docs/configuration). Якщо Prettier додасть новий формат — додай рядок.
- */
+/** @see ./docs/forbidden-prettier.md */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 

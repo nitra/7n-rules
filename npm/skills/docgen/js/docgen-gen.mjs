@@ -1,19 +1,4 @@
-/**
- * docgen-конвеєр (входна точка): код файлу → .md-документація.
- *
- * Інверсія керування: веде цей JS, а локальна модель — лише сервіс перефразування.
- *   Stage 0  extractFacts        — факти з коду (0 токенів)
- *   Stage 1  sectionInstructions — точкові промпти на кожну секцію (спільний KV-cached префікс)
- *   Stage 2  stripSignatures     — детермінований зріз сигнатур (0 токенів)
- *   Stage 2.5 scoreDoc           — детермінований скоринг проти фактів (0 токенів)
- *   Stage 3  assemble            — фіксовані заголовки/порядок + зрізання fence
- *   Tier 2   claudeOneShot       — хмарний fallback якщо score < QUALITY_THRESHOLD
- *
- * Hybrid routing (sym-threshold):
- *   sym < DEFAULT_SYM_THRESHOLD → Tier 1 local + det-scorer (0 токенів)
- *                                → timeout > LOCAL_TIMEOUT_MS або score < QUALITY_THRESHOLD → Tier 2
- *   sym >= DEFAULT_SYM_THRESHOLD → одразу Tier 2 (pre-routing, без local)
- */
+/** @see ./docs/docgen-gen.md */
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { request } from 'node:http'

@@ -1,16 +1,4 @@
-/**
- * Перевіряє лінт JavaScript за правилом js-lint.mdc.
- *
- * Flat ESLint з getConfig і ignore для auto-imports,
- * `.oxlintrc.json` має збігатися з каноном oxlint у пакеті (`npm/rules/js-lint/js/data/tooling/oxlint-canonical.json`):
- * plugins, jsPlugins, categories, усі правила з канону (додаткові записи в `rules` дозволені), settings, env,
- * globals, ignorePatterns. Також перевіряє workspace `package.json` на `type: "module"`
- * і `engines`, workflow-дубль у `lint.yml`, `knip.json` autofill і застарілі `.eslintrc*`.
- *
- * Per-document вимоги (`lint-js`, `@nitra/eslint-config`, root `engines`, `.jscpd.json`,
- * `.vscode/extensions.json`, `lint-js.yml`) — у policy-пакетах `js_lint.*`.
- * @param {string} cwd корінь репозиторію
- */
+/** @see ./docs/tooling.md */
 import { existsSync } from 'node:fs'
 import { copyFile, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'

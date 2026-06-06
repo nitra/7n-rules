@@ -1,12 +1,4 @@
-/**
- * Перевіряє, що всі `*.test.mjs` лежать у каталозі `tests/` (а не поряд із джерельним файлом).
- *
- * Конвенція (test.mdc): `dir/foo.mjs` → тест у `dir/tests/foo.test.mjs`.
- * `*_test.rego` виключені: Rego unit-тести живуть поряд із полісі (OPA community convention).
- *
- * Пропускає: `node_modules`, `.git`, `dist`, `build`, `.venv`, `venv` (через `walkDir`)
- * і шляхи з `.n-cursor.json:ignore`.
- */
+/** @see ./docs/location.md */
 import { basename, dirname, relative } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'

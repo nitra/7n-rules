@@ -1,32 +1,4 @@
-/**
- * Перевіряє, що кожен workspace із релізно-релевантними змінами зафіксував їх через
- * change-файл `<ws>/.changes/*.md` — єдиний дозволений артефакт зміни. Bump `version`
- * і генерацію `CHANGELOG.md` робить виключно `n-cursor release` у CI на `main`.
- *
- * Інваріант (на будь-якій гілці): `version` у дереві не має **випереджати** базу. Лише
- * drift **уперед** (`version` > опублікованої в реєстрі / > git-бази) — ручний bump поза
- * CI — завалює перевірку, навіть із change-файлом. Version **позаду** бази (локаль відстала
- * від уже опублікованого CI-релізу, ще не зроблено `git pull`) — НЕ порушення: це не ручний
- * bump, а git і так не дасть запушити non-fast-forward. Pass лише коли є change-файл, а
- * version не випереджає базу; зміни без change-файлу — fail.
- *
- * Дві моделі бази — на рівні воркспейсу (див. n-changelog.mdc):
- *
- * 1) **registry-published** (npm: `name` + `files`, не `private`; Python: `project.name` +
- *    статична `project.version`): база = опублікована версія в npm / PyPI.
- * 2) **local-only** (приватні npm без `files`, Python без імені/версії для реєстру):
- *    feature-гілка — `merge-base` з `dev`, інакше з `main`; на `main` — diff від
- *    `origin/main` (або `HEAD~1` без remote).
- *
- * Усі `git` і зовнішні виклики — через `execFile` / `fetch`, без shell-інтерполяції.
- *
- * **Autofix-режим** (env `N_CURSOR_CHANGELOG_AUTOFIX=1`, виставляється лише кроком
- * `npm-changelog` у `hk.pkl` для pre-commit): замість `fail` на відсутній change-файл
- * правило саме створює його через `writeChange()` з дефолтами (`bump=patch`,
- * `section=Changed`, `message` = subject останнього коміту) і ставить у git-індекс, щоб
- * коміт не падав. Поза хуком (CI, ручний `fix`/`check`, read-only review) режим вимкнено —
- * поведінка лишається fail-on-missing, тож CI не плодить артефактів.
- */
+/** @see ./docs/consistency.md */
 import { execFile } from 'node:child_process'
 import { join } from 'node:path'
 import { promisify } from 'node:util'

@@ -1,18 +1,4 @@
-/**
- * T0-auto: детермінований рівень виправлень для n-fix оркестратора.
- *
- * Парсить `output` з `n-cursor fix --json` → застосовує програмний фікс без LLM.
- * Умова застосування: violation-message містить конкретне цільове значення
- * (назву файлу, рядок для вставки, ім'я залежності), яке можна видобути regex.
- *
- * Ієрархія: T0 (rm/create, знаний тип) → T0-auto (parse violation) → T1 (LLM).
- * T0-auto запускається першим у конвергентному циклі; T1 — лише для решти.
- *
- * Публічний API:
- *   applyT0Auto(ruleId, violationOutput, cwd) → { applied: boolean, actions: string[] }
- *   listT0AutoRules()                         → string[]  (ids що мають хоч один паттерн)
- *   runT0AutoCli(args, cwd)                   → Promise<number>  (exit 0=clean, 1=violation)
- */
+/** @see ./docs/t0.md */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'

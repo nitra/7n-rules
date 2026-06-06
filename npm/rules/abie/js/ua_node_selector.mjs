@@ -1,11 +1,4 @@
-/**
- * Якщо в дереві `k8s/` пакета є `Deployment`, у `ua/kustomization.yaml` має бути inline-patch
- * на `Deployment` з `path /spec/template/spec/nodeSelector` і `preem: false` (abie.mdc).
- *
- * Структурні обмеження JSON6902 (заборона `remove + add` на той самий path) перевіряє k8s.mdc /
- * `k8s.kustomization` rego — тут лише abie-специфічне.
- * @param {string} [cwd] корінь репозиторію
- */
+/** @see ./docs/ua_node_selector.md */
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 

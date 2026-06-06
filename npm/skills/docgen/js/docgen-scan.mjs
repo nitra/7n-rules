@@ -1,11 +1,4 @@
-/**
- * docgen scanner — детермінований обхід проєкту для скілу `docgen`.
- *
- * Друкує JSON-список кодових файлів із відносними `sourcePath`/`docPath`
- * (тека `docs/` поряд із джерелом). Рішення про overwrite/skip приймає скіл —
- * scanner лише лістить і ставить прапор `exists`. LLM/мережі тут немає: уся
- * генерація доки — у субагентах скілу.
- */
+/** @see ./docs/docgen-scan.md */
 // eslint-disable-next-line unicorn/import-style
 import path from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'

@@ -1,27 +1,4 @@
-/**
- * Концерн `stryker_config` правила test (test.mdc): якщо `js-lint` присутнє в
- * `.n-cursor.json#rules` і не у `disable-rules` — визначає ВСІ JS-roots
- * (всі workspaces з package.json, або cwd у single-package) і копіює canonical
- * baseline `stryker.config.mjs` + `vitest.config.js` у кожен root, де файлу немає.
- *
- * Для JS-roots із `.vue` файлами (Vue 3 + `<script setup>`) копіюється vue-варіант
- * baseline, який реєструє локальний Ignore-плагін `vue-macros` — інакше Stryker
- * огортає виклики `defineProps`/`defineEmits`/... у coverage-тернарник і
- * `@vue/compiler-sfc` падає при компіляції SFC. Плагін копіюється у той самий
- * jsRoot як `stryker-vue-macros-ignorer.mjs`.
- *
- * Augment (drift-hole): якщо у Vue-root `stryker.config.mjs` уже існував (проєкт
- * мав non-vue config ще до 3.x Vue-підтримки), `ensureBaselineFile` його не
- * перетирає — тож `augmentVueStrykerConfig` точково вставляє `plugins`/`ignorers`
- * у наявний файл (string-splice за AST-аналізом), зберігаючи решту полів і
- * коментарів. Idempotent: повторний прогон нічого не дублює.
- *
- * Self-gating: концерн silently skips коли `js-lint` не enabled — це навмисно,
- * щоб не шуміти у single-language проєктах без JS coverage tooling.
- *
- * Baseline — мінімум для запуску Stryker з vitest-runner + perTest; mutate-патерни
- * лишаються на Stryker defaults (`src/**\/*.{js,mjs,ts,jsx,tsx,cjs}`).
- */
+/** @see ./docs/stryker_config.md */
 import { existsSync } from 'node:fs'
 import { copyFile, glob, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'

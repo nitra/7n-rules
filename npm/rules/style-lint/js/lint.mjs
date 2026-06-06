@@ -1,8 +1,4 @@
-/**
- * Quick-крок lint правила style-lint: stylelint --fix по css/scss/vue.
- *
- * `files` (quick) → лише style-файли з них; undefined (ci) → весь glob `**\/*.{css,scss,vue}`.
- */
+/** @see ./docs/lint.md */
 import { spawnSync } from 'node:child_process'
 
 const STYLE_EXT_RE = /\.(?:css|scss|vue)$/u

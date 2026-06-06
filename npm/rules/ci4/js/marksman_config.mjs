@@ -1,22 +1,4 @@
-/**
- * Концерн `marksman_config` правила ci4 (ci4.mdc): копіює canonical
- * `.marksman.toml` baseline у корінь cwd, якщо файлу ще немає.
- *
- * Marksman LSP читає `.marksman.toml` для визначення workspace-роота,
- * GLFM-флага (GitHub-Flavored Markdown), стилю wiki-links і code actions.
- * Дефолти marksman не вмикають GLFM і використовують `title-slug-ref` —
- * але portable subset з ci4.mdc вимагає GLFM (alerts/таблиці/todo) +
- * `file-stem` (ADR slug == ім'я файла). Без явного конфіга частина
- * marksman-функцій працює інакше, ніж задокументовано у правилі.
- *
- * Idempotent: якщо `.marksman.toml` вже існує (навіть з кастомним вмістом)
- * — не перетирається, тільки рапортується факт існування. Ручні правки
- * користувача зберігаються між прогонами.
- *
- * Файл скопійовано в `cwd`, бо marksman визначає workspace-root за
- * розташуванням свого `.marksman.toml`. У корені репо марксман бачить
- * і docs/, і README.md усіх workspaces одним workspace-ом.
- */
+/** @see ./docs/marksman_config.md */
 import { existsSync } from 'node:fs'
 import { copyFile } from 'node:fs/promises'
 import { dirname, join, relative } from 'node:path'

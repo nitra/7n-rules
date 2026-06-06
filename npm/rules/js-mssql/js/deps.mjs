@@ -1,13 +1,4 @@
-/**
- * Перевіряє правило js-mssql.mdc.
- *
- * Якщо в будь-якому `package.json` у репозиторії (включно з workspace-пакетами) в секції `dependencies`
- * присутній пакет `mssql`, його версія має бути не менше 12.5.0.
- *
- * Додатково, якщо `mssql` використовується в репозиторії, перевіряє що підключення
- * не створюється “на кожен запит”: `new sql.ConnectionPool(...)` не має знаходитись
- * всередині функцій. Пул має бути singleton (на рівні модуля) і повторно використовуватись.
- */
+/** @see ./docs/deps.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'

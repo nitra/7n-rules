@@ -1,13 +1,4 @@
-/**
- * Якщо в каталозі пакета (батько `k8s/`) є `vite.config.{js,mjs,ts}`, у `ua/kustomization.yaml`
- * має бути inline-patch HTTPRoute (непорожній `target.name`): `/spec/hostnames` (домени abie),
- * `/spec/parentRefs/0/namespace` (`ua` або `ua-*`).
- *
- * Для спільних сервісів (`auth-run-hl`, `file-link-hl`) у base-HTTPRoute пакета — кожен `backendRef`
- * має `namespace: dev`; в overlay patch — JSON6902 на `/spec/rules/…/backendRefs/…/namespace` зі
- * `value: ua`. Кількість patch-ів = кількість таких посилань у base.
- * @param {string} [cwd] корінь репозиторію
- */
+/** @see ./docs/ua_http_route.md */
 import { readFile } from 'node:fs/promises'
 import { relative } from 'node:path'
 

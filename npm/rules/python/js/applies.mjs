@@ -1,11 +1,4 @@
-/**
- * Applies-гейт правила `python` (python.mdc): правило застосовне, лише якщо в корені є
- * `pyproject.toml`. Інакше CLI пропускає всі concerns (JS і policy) — інакше rego
- * `python/package_json` хибно вимагає `scripts.lint-python` навіть для не-Python репо.
- *
- * JS тут — гейт на наявність кореневого `pyproject.toml`. Подальші FS-перевірки
- * (`uv.lock`, `package.json`, `lint-python.yml`, заборона Poetry) — у `tooling.mjs`.
- */
+/** @see ./docs/applies.md */
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 

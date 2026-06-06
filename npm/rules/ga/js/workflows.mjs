@@ -1,19 +1,4 @@
-/**
- * Перевіряє GitHub Actions за правилом ga.mdc.
- *
- * Workflows лише з розширенням `.yml`, наявність clean/lint workflow,
- * відсутність MegaLinter, виклик у `lint-ga.yml`,
- * наявність composite `.github/actions/setup-bun-deps/action.yml` (його записує npx `\@nitra/cursor`),
- *
- * Структурні поля 4 канонічних workflow (`clean-ga-workflows.yml`, `clean-merged-branch.yml`,
- * `lint-ga.yml`, `git-ai.yml`) і УНІВЕРСАЛЬНІ перевірки для всіх `.github/workflows/*.yml`
- * (`concurrency`, заборонені `oven-sh/setup-bun` / `actions/cache` / `bun install` у `uses`/`run`,
- * shell-продовження `\` у `run`, обов'язковий `actions/checkout@v6` перед локальним
- * `setup-bun-deps`), а також `package.json`, `.vscode/*` і `.github/zizmor.yml` —
- * у Rego-полісі під `npm/policy/ga/`. Тут лишилися FS/git/tooling перевірки:
- * наявність файлів, MegaLinter leftovers, `on.*.paths` через `git ls-files :(glob)`,
- * і локальний `shellcheck`.
- */
+/** @see ./docs/workflows.md */
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { execFileSync } from 'node:child_process'

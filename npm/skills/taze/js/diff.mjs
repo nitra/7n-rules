@@ -1,18 +1,4 @@
-/**
- * `n-cursor taze diff` — read-only детермінований diff версій залежностей між
- * `package.json` і його бекапом `package.json.taze-bak` (root + усі воркспейси
- * монорепо), із класифікацією кожної зміни за semver.
- *
- * Мотивація: скіл `n-taze` раніше казав LLM-агенту вручну порівнювати backup із
- * новим `package.json` по всіх воркспейсах і вирішувати, де «змінилась перша
- * значуща цифра semver» (major). Це детермінований JSON-diff + semver-логіка —
- * скрипт робить це за мілісекунди й без помилок, а агент отримує готовий список
- * major-оновлень для справді когнітивної роботи (читання CHANGELOG, рефакторинг).
- *
- * «Breaking» (major) рахуємо за caret-семантикою — змінилась найлівіша ненульова
- * компонента: `1.x→2.x`, `0.4.x→0.5.x`, `0.0.3→0.0.4`. Minor/patch вважаємо
- * сумісними.
- */
+/** @see ./docs/diff.md */
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
