@@ -1,0 +1,33 @@
+docs/adr/260606-2051-уніфікований-runnnn-md-для-всіх-акторів.md
+  s_fbd381211e6d28::t_5efb0882293c46 1-131
+docs/adr/260606-2053-уніфікований-orchestrator-true-у-meta-json-для-автономних-cl.md
+  s_fbd381211e6d28::t_5efb0882293c46 1-41
+docs/adr/260606-2056-уніфікований-публічний-інтерфейс-fix-як-автономний-оркестрат.md
+  s_fbd381211e6d28::t_29866eb3c19a53 1-89
+docs/adr/260606-2130-docgen-cli-orchestrator-design.md
+  s_73a2d8971e79fd::t_ac9e3851aba620 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "cd80760fdc0f312ffb57905759e2399f3dc26de9",
+  "prompts": {},
+  "sessions": {
+    "s_73a2d8971e79fd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "29ea60ce-c50d-4d47-85f3-c0f826c89c8d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_fbd381211e6d28": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019e9c0e-6d03-70e1-b38f-f1f7b03b2ee7",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
