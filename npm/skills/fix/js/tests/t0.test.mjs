@@ -47,11 +47,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
         'utf8'
       )
 
-      const result = applyT0Auto(
-        'rego',
-        'recommendations має містити "tsandall.opa"',
-        dir
-      )
+      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
 
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('вже є')
@@ -61,11 +57,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   test('додає кілька розширень з одного output', async () => {
     await withTmpDir(async dir => {
       mkdirSync(join(dir, '.vscode'))
-      writeFileSync(
-        join(dir, '.vscode/extensions.json'),
-        JSON.stringify({ recommendations: [] }, null, 2),
-        'utf8'
-      )
+      writeFileSync(join(dir, '.vscode/extensions.json'), JSON.stringify({ recommendations: [] }, null, 2), 'utf8')
 
       const result = applyT0Auto(
         'multi',
@@ -82,11 +74,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
 
   test('повертає applied=false якщо .vscode/extensions.json відсутній', async () => {
     await withTmpDir(async dir => {
-      const result = applyT0Auto(
-        'rego',
-        'recommendations має містити "tsandall.opa"',
-        dir
-      )
+      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
     })
@@ -97,11 +85,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(join(dir, '.vscode/extensions.json'), 'not-json', 'utf8')
 
-      const result = applyT0Auto(
-        'rego',
-        'recommendations має містити "tsandall.opa"',
-        dir
-      )
+      const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('невалідний JSON')
     })
@@ -115,11 +99,7 @@ describe('applyT0Auto: rm-forbidden-file', () => {
     await withTmpDir(async dir => {
       writeFileSync(join(dir, 'package-lock.json'), '{}', 'utf8')
 
-      const result = applyT0Auto(
-        'bun',
-        '❌ Знайдено заборонений файл: package-lock.json — видали його',
-        dir
-      )
+      const result = applyT0Auto('bun', '❌ Знайдено заборонений файл: package-lock.json — видали його', dir)
 
       expect(result.applied).toBe(true)
       expect(result.actions[0]).toContain('package-lock.json')
@@ -146,11 +126,7 @@ describe('applyT0Auto: rm-forbidden-file', () => {
 
   test('applied=false якщо файл вже відсутній', async () => {
     await withTmpDir(async dir => {
-      const result = applyT0Auto(
-        'bun',
-        'Знайдено заборонений файл: package-lock.json',
-        dir
-      )
+      const result = applyT0Auto('bun', 'Знайдено заборонений файл: package-lock.json', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
     })
@@ -176,7 +152,7 @@ describe('filterT0AutoRules', () => {
     const rules = [
       { ruleId: 'rego', output: 'recommendations має містити "tsandall.opa"' },
       { ruleId: 'ci4', output: 'ESLint: no-console violation' },
-      { ruleId: 'bun', output: 'Знайдено заборонений файл: package-lock.json' },
+      { ruleId: 'bun', output: 'Знайдено заборонений файл: package-lock.json' }
     ]
     const t0Rules = filterT0AutoRules(rules)
     expect(t0Rules).toContain('rego')

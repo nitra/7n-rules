@@ -18,14 +18,14 @@ syncGitignoreWorktree — Синхронізує файл `.gitignore` в кат
 
 ## Гарантії поведінки
 
-*   Гарантує, що кореневий `.gitignore` проєкту ігнорує локальні git-worktree (`.worktrees/`).
-*   Викликається з дефолтного sync (`npx \@nitra/cursor`) окремим top-level кроком.
-*   Не викликається в контексті `syncClaudeConfig`.
-*   `.worktrees/` є артефактом завжди-активного flow/worktree-tooling.
-*   Один запис `.worktrees/` покриває каталог worktree та всі sibling-файли в ньому.
-*   Запис безумовний, без гейта за `.n-cursor.json`-правилами.
-*   Продюсер артефактів — завжди-активний flow.
-*   Делегує наявній idempotent+append-only утиліті `ensureGitignoreEntries`.
-*   `ensureGitignoreEntries` не перезаписує/не видаляє наявні рядки.
-*   `ensureGitignoreEntries` створює `.gitignore`, якщо нема.
-*   Не використовує кешування.
+- Гарантує, що кореневий `.gitignore` проєкту ігнорує локальні git-worktree (`.worktrees/`).
+- Викликається з дефолтного sync (`npx \@nitra/cursor`) окремим top-level кроком.
+- Не викликається в контексті `syncClaudeConfig`.
+- `.worktrees/` є артефактом завжди-активного flow/worktree-tooling.
+- Один запис `.worktrees/` покриває каталог worktree та всі sibling-файли в ньому.
+- Запис безумовний, без гейта за `.n-cursor.json`-правилами.
+- Продюсер артефактів — завжди-активний flow.
+- Делегує наявній idempotent+append-only утиліті `ensureGitignoreEntries`.
+- `ensureGitignoreEntries` не перезаписує/не видаляє наявні рядки.
+- `ensureGitignoreEntries` створює `.gitignore`, якщо нема.
+- Не використовує кешування.

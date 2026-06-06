@@ -34,14 +34,20 @@ function extractFilePaths(output) {
   const wsRe = /\[([\w-]+)\]\s+([\w./][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(wsRe)) {
     const p = `${m[1]}/${m[2]}`
-    if (!seen.has(p)) { seen.add(p); results.push(p) }
+    if (!seen.has(p)) {
+      seen.add(p)
+      results.push(p)
+    }
   }
 
   // Патерн без workspace: просто path/to/file.ext або ./file.ext
   const re = /(?:^|\s)(\.?[\w][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(re)) {
     const p = m[1]
-    if (!seen.has(p)) { seen.add(p); results.push(p) }
+    if (!seen.has(p)) {
+      seen.add(p)
+      results.push(p)
+    }
   }
 
   return results
@@ -57,9 +63,10 @@ function extractFilePaths(output) {
  * @returns {string}
  */
 function buildPrompt(ruleId, ruleMdc, output, files) {
-  const filesBlock = files.length === 0
-    ? '(no files identified)'
-    : files.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join('\n\n')
+  const filesBlock =
+    files.length === 0
+      ? '(no files identified)'
+      : files.map(f => `<file path="${f.path}">\n${f.content}\n</file>`).join('\n\n')
 
   return [
     `You fix project structure violations. Return ONLY valid JSON — no explanation, no markdown.`,
@@ -82,7 +89,7 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
     `- "path" is relative to the project root`,
     `- "content" is the complete new file content (not a diff)`,
     `- Only include files that actually need to change`,
-    `- If nothing can be fixed automatically, return {"changes":[],"error":"reason"}`,
+    `- If nothing can be fixed automatically, return {"changes":[],"error":"reason"}`
   ].join('\n')
 }
 
@@ -95,11 +102,10 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
  */
 function callPi(prompt, model) {
   const modelArgs = model ? ['--model', model] : []
-  const r = spawnSync(
-    'pi',
-    ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'],
-    { encoding: 'utf8', timeout: 120_000 }
-  )
+  const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
+    encoding: 'utf8',
+    timeout: 120_000
+  })
   if (r.error) return { text: '', error: r.error.message }
   if (r.status !== 0) {
     const stderr = r.stderr?.slice(0, 300) ?? ''
@@ -117,19 +123,31 @@ function callPi(prompt, model) {
  */
 function parseResponse(text) {
   // Спроба 1: прямий JSON
-  try { return JSON.parse(text) } catch { /* fallthrough */ }
+  try {
+    return JSON.parse(text)
+  } catch {
+    /* fallthrough */
+  }
 
   // Спроба 2: витягти з ```json ... ```
   const m = text.match(/```(?:json)?\s*([\s\S]*?)```/)
   if (m) {
-    try { return JSON.parse(m[1].trim()) } catch { /* fallthrough */ }
+    try {
+      return JSON.parse(m[1].trim())
+    } catch {
+      /* fallthrough */
+    }
   }
 
   // Спроба 3: перший { ... } блок
   const start = text.indexOf('{')
   const end = text.lastIndexOf('}')
   if (start !== -1 && end > start) {
-    try { return JSON.parse(text.slice(start, end + 1)) } catch { /* fallthrough */ }
+    try {
+      return JSON.parse(text.slice(start, end + 1))
+    } catch {
+      /* fallthrough */
+    }
   }
 
   return null
@@ -193,4 +211,3 @@ export async function runLlmWorker(ruleId, violationOutput, projectRoot, opts = 
 
   return { ok: true }
 }
-

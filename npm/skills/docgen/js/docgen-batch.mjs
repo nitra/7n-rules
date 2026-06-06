@@ -20,7 +20,8 @@ const missing = allFiles.filter(x => !x.exists)
 console.log(`\n📋 Файлів для генерації: ${missing.length}`)
 
 // 2. Розкласти по тирах
-const local = [], cloud = []
+const local = [],
+  cloud = []
 for (const f of missing) {
   try {
     const src = readFileSync(join(ROOT, f.sourcePath), 'utf8')
@@ -28,7 +29,9 @@ for (const f of missing) {
     const sym = (facts.internalSymbols ?? []).length
     if (sym >= 4) cloud.push({ ...f, sym })
     else local.push({ ...f, sym })
-  } catch { local.push({ ...f, sym: 0 }) }
+  } catch {
+    local.push({ ...f, sym: 0 })
+  }
 }
 
 console.log(`  Local (sym<4): ${local.length}`)
@@ -47,8 +50,8 @@ for (const f of cloud) {
     writeFileSync(docAbs, result.md)
     stats.ok++
     stats.cloudOk++
-    console.log(`  ✓ ${f.sourcePath} (sym=${f.sym}, ${Math.round((Date.now()-t0)/1000)}s)`)
-  } catch(e) {
+    console.log(`  ✓ ${f.sourcePath} (sym=${f.sym}, ${Math.round((Date.now() - t0) / 1000)}s)`)
+  } catch (e) {
     stats.err++
     stats.errors.push(f.sourcePath)
     console.error(`  ✗ ${f.sourcePath}: ${e.message}`)
@@ -61,7 +64,7 @@ let done = 0
 for (const f of local) {
   done++
   const t0 = Date.now()
-  const pct = Math.round(done/local.length*100)
+  const pct = Math.round((done / local.length) * 100)
   process.stdout.write(`  [${done}/${local.length} ${pct}%] ${f.sourcePath} ... `)
   try {
     const result = await generateDoc(join(ROOT, f.sourcePath), {
@@ -73,8 +76,8 @@ for (const f of local) {
     writeFileSync(docAbs, result.md)
     stats.ok++
     stats.localOk++
-    process.stdout.write(`✓ ${Math.round((Date.now()-t0)/1000)}s score=${result.score ?? '?'}\n`)
-  } catch(e) {
+    process.stdout.write(`✓ ${Math.round((Date.now() - t0) / 1000)}s score=${result.score ?? '?'}\n`)
+  } catch (e) {
     stats.err++
     stats.errors.push(f.sourcePath)
     process.stdout.write(`✗ ${e.message}\n`)

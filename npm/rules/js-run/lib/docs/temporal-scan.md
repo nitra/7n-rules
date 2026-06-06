@@ -2,7 +2,7 @@
 
 ## Огляд
 
-Цей файл є частиною системи, яка сканує код Bun workspace на наявність використання ключового слова `Temporal`.  Він запобігає використанню `Temporal` у backend-коді, оскільки Bun 1.3.x ще не має глобального `Temporal`, та охоплює сценарії з імпортом та polyfill.  Це забезпечує відповідність коду поточним вимогам Bun runtime щодо обробки часу.
+Цей файл є частиною системи, яка сканує код Bun workspace на наявність використання ключового слова `Temporal`. Він запобігає використанню `Temporal` у backend-коді, оскільки Bun 1.3.x ще не має глобального `Temporal`, та охоплює сценарії з імпортом та polyfill. Це забезпечує відповідність коду поточним вимогам Bun runtime щодо обробки часу.
 
 ## Поведінка
 
@@ -16,10 +16,10 @@
 
 ## Гарантії поведінки
 
-*   Функція `findTemporalUsageInText` повертає `true` лише якщо знайде identifier `Temporal` у наданому тексті.
-*   Функція `findTemporalUsageInText` повертає `false` якщо identifier `Temporal` не знайдено.
-*   Функція `isTemporalScanSourceFile` повертає `true` якщо у файлі є identifier `Temporal`.
-*   Функція `isTemporalScanSourceFile` повертає `false` якщо у файлі немає identifier `Temporal`.
-*   Результат роботи `findTemporalUsageInText` не гарантує, що identifier `Temporal` використовується правильно.
-*   Результат роботи `isTemporalScanSourceFile` не гарантує, що використання `Temporal` є допустимим.
-*   Кеш не використовується.
+- Функція `findTemporalUsageInText` повертає `true` лише якщо знайде identifier `Temporal` у наданому тексті.
+- Функція `findTemporalUsageInText` повертає `false` якщо identifier `Temporal` не знайдено.
+- Функція `isTemporalScanSourceFile` повертає `true` якщо у файлі є identifier `Temporal`.
+- Функція `isTemporalScanSourceFile` повертає `false` якщо у файлі немає identifier `Temporal`.
+- Результат роботи `findTemporalUsageInText` не гарантує, що identifier `Temporal` використовується правильно.
+- Результат роботи `isTemporalScanSourceFile` не гарантує, що використання `Temporal` є допустимим.
+- Кеш не використовується.

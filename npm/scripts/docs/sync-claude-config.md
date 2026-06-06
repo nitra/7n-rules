@@ -2,22 +2,22 @@
 
 ## Огляд
 
-Цей файл синхронізує конфігурацію Claude Code з шаблонів пакету `npm/.claude-template`, включаючи налаштування, slash-команди та хуки. Він забезпечує узгодженість між проєктом та базовою конфігурацією, автоматично оновлюючи та підтримуючи налаштування хуків та команд.  Це дозволяє використовувати стандартні налаштування та автоматично адаптувати проєкт до змін у шаблоні.
+Цей файл синхронізує конфігурацію Claude Code з шаблонів пакету `npm/.claude-template`, включаючи налаштування, slash-команди та хуки. Він забезпечує узгодженість між проєктом та базовою конфігурацією, автоматично оновлюючи та підтримуючи налаштування хуків та команд. Це дозволяє використовувати стандартні налаштування та автоматично адаптувати проєкт до змін у шаблоні.
 
 ## Поведінка
 
-*   `parseGitignoreFragmentLines`: Розбиває рядок фрагменту `.gitignore` на окремі рядки, видаляє порожні та коментарні рядки.
-*   `syncGitignoreAdrFragment`: Дописує відсутні рядки з канонічного фрагменту `.gitignore` у `.gitignore` проєкту.
-*   `syncClaudeCommands`: Копіює slash-команди з `commands/` темплейту в `.claude/commands/*.md`.
-*   `syncClaudeSettings`: Об'єднує конфігурацію Claude Code з темплейту, зберігаючи користувацькі налаштування та перезаписуючи хуки, що ідентифікуються маркерами.
-*   `syncCursorHooksConfig`: Об'єднує конфігурацію хуків Cursor з темплейту, додаючи або видаляючи хуки ADR Stop-hook залежно від наявності правила `adr`.
-*   `syncAdrHookScript`: Копіює bash-скрипт ADR capture Stop-hook з темплейту в `.claude/hooks/capture-decisions.sh`.
-*   `syncAdrNormalizeHookScript`: Копіює bash-скрипт ADR normalize Stop-hook з темплейту в `.claude/hooks/normalize-decisions.sh`.
-*   `syncAdrHookLibScripts`: Копіює bash-скрипти lib-файлів з `commands/` темплейту в `.claude/hooks/lib/`.
-*   `removeOrphanAdrHookLib`: Видаляє директорію lib-файлів з `.claude/hooks/lib/`, якщо правило `adr` вимкнено.
-*   `syncPiExtensions`: Копіює розширення TypeScript з `npm/.pi-template/extensions/n-cursor-adr/` в `.pi/extensions/n-cursor-adr/`.
-*   `removeOrphanPiExtension`: Видаляє директорію розширення TypeScript з `.pi/extensions/n-cursor-adr/`, якщо правило `adr` вимкнено.
-*   `syncClaudeConfig`: Синхронізує конфігурацію Claude Code та Cursor hooks, об'єднуючи їх та додаючи/видаляючи хуки
+- `parseGitignoreFragmentLines`: Розбиває рядок фрагменту `.gitignore` на окремі рядки, видаляє порожні та коментарні рядки.
+- `syncGitignoreAdrFragment`: Дописує відсутні рядки з канонічного фрагменту `.gitignore` у `.gitignore` проєкту.
+- `syncClaudeCommands`: Копіює slash-команди з `commands/` темплейту в `.claude/commands/*.md`.
+- `syncClaudeSettings`: Об'єднує конфігурацію Claude Code з темплейту, зберігаючи користувацькі налаштування та перезаписуючи хуки, що ідентифікуються маркерами.
+- `syncCursorHooksConfig`: Об'єднує конфігурацію хуків Cursor з темплейту, додаючи або видаляючи хуки ADR Stop-hook залежно від наявності правила `adr`.
+- `syncAdrHookScript`: Копіює bash-скрипт ADR capture Stop-hook з темплейту в `.claude/hooks/capture-decisions.sh`.
+- `syncAdrNormalizeHookScript`: Копіює bash-скрипт ADR normalize Stop-hook з темплейту в `.claude/hooks/normalize-decisions.sh`.
+- `syncAdrHookLibScripts`: Копіює bash-скрипти lib-файлів з `commands/` темплейту в `.claude/hooks/lib/`.
+- `removeOrphanAdrHookLib`: Видаляє директорію lib-файлів з `.claude/hooks/lib/`, якщо правило `adr` вимкнено.
+- `syncPiExtensions`: Копіює розширення TypeScript з `npm/.pi-template/extensions/n-cursor-adr/` в `.pi/extensions/n-cursor-adr/`.
+- `removeOrphanPiExtension`: Видаляє директорію розширення TypeScript з `.pi/extensions/n-cursor-adr/`, якщо правило `adr` вимкнено.
+- `syncClaudeConfig`: Синхронізує конфігурацію Claude Code та Cursor hooks, об'єднуючи їх та додаючи/видаляючи хуки
 
 ## Публічний API
 

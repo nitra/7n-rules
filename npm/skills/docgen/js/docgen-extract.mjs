@@ -9,8 +9,22 @@
  */
 
 const BUILTIN_MODULES = new Set([
-  'fs', 'path', 'crypto', 'os', 'util', 'stream', 'events', 'http', 'https',
-  'url', 'child_process', 'process', 'assert', 'buffer', 'zlib', 'readline'
+  'fs',
+  'path',
+  'crypto',
+  'os',
+  'util',
+  'stream',
+  'events',
+  'http',
+  'https',
+  'url',
+  'child_process',
+  'process',
+  'assert',
+  'buffer',
+  'zlib',
+  'readline'
 ])
 
 /** Прибирає `/** *​/`-обрамлення й `*`-префікси, повертає чистий текст рядками. */
@@ -40,7 +54,10 @@ function parseJsDoc(raw) {
       params.push({ name: pm[1], desc: desc === 'опис.' ? '' : desc })
       continue
     }
-    if (rm) { ret = rm[1].trim(); continue }
+    if (rm) {
+      ret = rm[1].trim()
+      continue
+    }
     if (l.startsWith('@')) continue
     descLines.push(l)
   }
@@ -81,7 +98,9 @@ function extractExports(src) {
 
 /** Імпорти, класифіковані на stdlib / npm / internal. */
 function extractImports(src) {
-  const stdlib = new Set(), npm = new Set(), internal = new Set()
+  const stdlib = new Set(),
+    npm = new Set(),
+    internal = new Set()
   const re = /^import\s+[\s\S]*?from\s+['"]([^'"]+)['"]/gm
   let m
   while ((m = re.exec(src))) {
@@ -100,10 +119,11 @@ function extractInternalSymbols(src) {
   let m
   while ((m = re.exec(src))) {
     if (m[1]) out.add(m[1].trim())
-    if (m[2]) for (const n of m[2].split(',')) {
-      const name = n.replace(/\s+as\s+.*/, '').trim()
-      if (name) out.add(name)
-    }
+    if (m[2])
+      for (const n of m[2].split(',')) {
+        const name = n.replace(/\s+as\s+.*/, '').trim()
+        if (name) out.add(name)
+      }
   }
   return [...out]
 }
@@ -152,7 +172,10 @@ import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { readFileSync } from 'node:fs'
 if (isRunAsCli(import.meta.url)) {
   const file = process.argv[2]
-  if (!file) { console.error('Usage: node docgen-extract.mjs <file>'); process.exit(1) }
+  if (!file) {
+    console.error('Usage: node docgen-extract.mjs <file>')
+    process.exit(1)
+  }
   const facts = extractFacts(readFileSync(file, 'utf8'), file)
   console.log(JSON.stringify(facts, null, 2))
 }

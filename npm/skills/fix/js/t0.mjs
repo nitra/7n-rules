@@ -57,7 +57,7 @@ const PATTERNS = [
       parsed.recommendations = [...recs, ...toAdd]
       writeFileSync(extPath, JSON.stringify(parsed, null, 2) + '\n', 'utf8')
       return { ok: true, action: `додано до extensions.json: ${toAdd.join(', ')}` }
-    },
+    }
   },
 
   // ── rm-forbidden-file ────────────────────────────────────────────────────────
@@ -80,8 +80,8 @@ const PATTERNS = [
       }
       if (removed.length === 0) return { ok: false, action: 'файлів не знайдено' }
       return { ok: true, action: `видалено: ${removed.join(', ')}` }
-    },
-  },
+    }
+  }
 ]
 
 /**
@@ -116,9 +116,7 @@ export function applyT0Auto(ruleId, violationOutput, cwd) {
  * @returns {string[]}
  */
 export function filterT0AutoRules(failedRules) {
-  return failedRules
-    .filter(r => PATTERNS.some(p => p.test(r.output)))
-    .map(r => r.ruleId)
+  return failedRules.filter(r => PATTERNS.some(p => p.test(r.output))).map(r => r.ruleId)
 }
 
 // ─── CLI entry-point ──────────────────────────────────────────────────────────
@@ -141,11 +139,11 @@ export async function runT0AutoCli(args, cwd) {
   const verbose = args.includes('--verbose') || args.includes('-v')
 
   // 1. Запустити fix --json
-  const fixResult = spawnSync(
-    'bun',
-    [N_CURSOR_BIN, '_fix-check', ...ruleFilter],
-    { cwd, encoding: 'utf8', timeout: 120_000 }
-  )
+  const fixResult = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...ruleFilter], {
+    cwd,
+    encoding: 'utf8',
+    timeout: 120_000
+  })
   const raw = fixResult.stdout?.trim()
   if (!raw) {
     console.error(`n-cursor fix-t0: fix --json повернув порожній stdout`)
@@ -191,11 +189,11 @@ export async function runT0AutoCli(args, cwd) {
   }
 
   // 4. Check-gate: перевірити лише ті правила, що ми чіпали
-  const recheck = spawnSync(
-    'bun',
-    [N_CURSOR_BIN, '_fix-check', ...applied.map(a => a.ruleId)],
-    { cwd, encoding: 'utf8', timeout: 120_000 }
-  )
+  const recheck = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...applied.map(a => a.ruleId)], {
+    cwd,
+    encoding: 'utf8',
+    timeout: 120_000
+  })
   const recheckRaw = recheck.stdout?.trim()
   if (!recheckRaw) {
     console.error(`fix-t0: check-gate: fix --json повернув порожній stdout`)
@@ -223,7 +221,7 @@ export async function runT0AutoCli(args, cwd) {
   const total = failed.length
   console.log(
     `✅ fix-t0: ${totalFixed}/${total} правил закрито T0-auto` +
-    (skipped.length > 0 ? `; ${skipped.join(', ')} → T1 (LLM)` : '')
+      (skipped.length > 0 ? `; ${skipped.join(', ')} → T1 (LLM)` : '')
   )
   return 0
 }

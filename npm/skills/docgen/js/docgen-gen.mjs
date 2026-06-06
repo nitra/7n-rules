@@ -27,16 +27,26 @@ const QUALITY_THRESHOLD = 70
 /** Один виклик чату до ollama зі streaming (токени стримуються → socket активний, жодного timeout). */
 async function ollamaChat(messages, { model, numPredict = 600 }) {
   const body = JSON.stringify({
-    model, messages, stream: true, think: false,
+    model,
+    messages,
+    stream: true,
+    think: false,
     options: { num_ctx: 8192, temperature: 0.2, num_predict: numPredict },
     keep_alive: '15m'
   })
   return new Promise((resolve, reject) => {
     const req = request(
-      { hostname: 'localhost', port: 11434, path: '/api/chat', method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
-      (res) => {
-        let text = '', genTok = 0, buf = ''
+      {
+        hostname: 'localhost',
+        port: 11434,
+        path: '/api/chat',
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+      },
+      res => {
+        let text = '',
+          genTok = 0,
+          buf = ''
         res.on('data', chunk => {
           buf += chunk.toString()
           const lines = buf.split('\n')
@@ -47,7 +57,9 @@ async function ollamaChat(messages, { model, numPredict = 600 }) {
               const j = JSON.parse(line)
               text += j.message?.content ?? ''
               if (j.done) genTok = j.eval_count ?? 0
-            } catch { /* partial line */ }
+            } catch {
+              /* partial line */
+            }
           }
         })
         res.on('end', () => resolve({ text, genTok }))
@@ -64,7 +76,10 @@ async function ollamaChat(messages, { model, numPredict = 600 }) {
 function stripSection(text) {
   let t = text.trim()
   if (t.startsWith('```')) {
-    t = t.replace(/^```[a-z]*\n?/, '').replace(/\n?```\s*$/, '').trim()
+    t = t
+      .replace(/^```[a-z]*\n?/, '')
+      .replace(/\n?```\s*$/, '')
+      .trim()
   }
   t = t.replace(/^#{1,6}\s+.*\n+/, '') // зрізати випадковий заголовок
   return t.trim()
@@ -87,8 +102,10 @@ function parseSections(md) {
   let cur = null
   for (const line of md.split('\n')) {
     const m = line.match(/^##\s+(.+)/)
-    if (m) { cur = m[1].toLowerCase().replace(/[^а-яіїєґa-z0-9]/gi, ''); result[cur] = '' }
-    else if (cur) result[cur] += line + '\n'
+    if (m) {
+      cur = m[1].toLowerCase().replace(/[^а-яіїєґa-z0-9]/gi, '')
+      result[cur] = ''
+    } else if (cur) result[cur] += line + '\n'
   }
   return result
 }
@@ -102,25 +119,34 @@ function scoreDoc(md, facts) {
   let score = 100
   const issues = []
 
-  if (!s['огляд'])
-    { score -= 25; issues.push('no-overview') }
+  if (!s['огляд']) {
+    score -= 25
+    issues.push('no-overview')
+  }
 
   const behavior = s['поведінка'] ?? ''
-  if (behavior.length < 60)
-    { score -= 20; issues.push('short-behavior') }
+  if (behavior.length < 60) {
+    score -= 20
+    issues.push('short-behavior')
+  }
 
   const guarantees = s['гарантіїповедінки'] ?? ''
   // Будь-яка згадка "кеш" у Гарантіях коли файл не кешує — галюцинація
   // Негація: "не кешує", "не має кешування", "без кешування", "немає кешу"
   const cacheHit = /кеш/i.test(guarantees) && !/(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i.test(guarantees)
-  if (!facts.markers?.caches && cacheHit)
-    { score -= 20; issues.push('cache-hallucination') }
+  if (!facts.markers?.caches && cacheHit) {
+    score -= 20
+    issues.push('cache-hallucination')
+  }
 
   // Перевіряємо лише бектік-обгорнуті імена (`sym`) — уникаємо substring false positives
   const hasName = (text, sym) => text.includes('`' + sym + '`')
   for (const sym of facts.internalSymbols ?? []) {
     const inDoc = hasName(guarantees, sym) || hasName(s['огляд'] ?? '', sym) || hasName(s['поведінка'] ?? '', sym)
-    if (inDoc) { score -= 10; issues.push(`internal-name:${sym}`) }
+    if (inDoc) {
+      score -= 10
+      issues.push(`internal-name:${sym}`)
+    }
   }
 
   return { score: Math.max(0, score), issues }
@@ -149,25 +175,29 @@ async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001'
     facts.markers?.caches ? 'Кешування: є' : 'Кешування: немає',
     facts.markers?.network ? 'Мережа: є' : 'Мережа: немає',
     facts.markers?.readOnly ? 'Read-only (не змінює файли/стан)' : ''
-  ].filter(Boolean).join('\n')
+  ]
+    .filter(Boolean)
+    .join('\n')
 
   const msg = await client.messages.create({
     model,
     max_tokens: 256,
     system: SCORE_RUBRIC,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'text', text: `ФАКТИ:\n${factsTxt}`, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `КОД:\n\`\`\`\n${src.slice(0, 4000)}\n\`\`\``, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `ДОКУМЕНТАЦІЯ:\n${md}` }
-      ]
-    }]
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: `ФАКТИ:\n${factsTxt}`, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: `КОД:\n\`\`\`\n${src.slice(0, 4000)}\n\`\`\``, cache_control: { type: 'ephemeral' } },
+          { type: 'text', text: `ДОКУМЕНТАЦІЯ:\n${md}` }
+        ]
+      }
+    ]
   })
   const tok = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0)
   try {
     const j = JSON.parse(msg.content[0]?.text ?? '{}')
-    const total = ((j.огляд ?? 0) + (j.поведінка ?? 0) + (j.гарантії ?? 0) + (j.стиль ?? 0)) / 12 * 100
+    const total = (((j.огляд ?? 0) + (j.поведінка ?? 0) + (j.гарантії ?? 0) + (j.стиль ?? 0)) / 12) * 100
     return { score: Math.round(total), scores: j, issues: j.issues ?? [], tok }
   } catch {
     return { score: 50, scores: {}, issues: ['parse-error'], tok }
@@ -236,9 +266,7 @@ const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
 function withTimeout(promise, ms) {
   return Promise.race([
     promise,
-    new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`local timeout after ${ms / 1000}s`)), ms)
-    )
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`local timeout after ${ms / 1000}s`)), ms))
   ])
 }
 
@@ -252,13 +280,16 @@ function withTimeout(promise, ms) {
  *
  * @param {string}  cloudModel    — модель для Tier 2 генерації (Sonnet за замовч.)
  */
-export async function generateDoc(file, {
-  model = 'gemma3:4b',
-  mode = 'orchestrated',
-  cloudModel = 'claude-sonnet-4-6',
-  threshold = QUALITY_THRESHOLD,
-  symThreshold = DEFAULT_SYM_THRESHOLD
-} = {}) {
+export async function generateDoc(
+  file,
+  {
+    model = 'gemma3:4b',
+    mode = 'orchestrated',
+    cloudModel = 'claude-sonnet-4-6',
+    threshold = QUALITY_THRESHOLD,
+    symThreshold = DEFAULT_SYM_THRESHOLD
+  } = {}
+) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
   const t0 = Date.now()
@@ -267,20 +298,35 @@ export async function generateDoc(file, {
   const complexity = facts.internalSymbols?.length ?? 0
   if (complexity >= symThreshold && env.ANTHROPIC_API_KEY) {
     const r2 = await claudeOneShot(facts, src, cloudModel)
-    return { ...r2, ms: Date.now() - t0, score: null, issues: [`pre-routed:sym=${complexity}`], tier: 2, model: cloudModel }
+    return {
+      ...r2,
+      ms: Date.now() - t0,
+      score: null,
+      issues: [`pre-routed:sym=${complexity}`],
+      tier: 2,
+      model: cloudModel
+    }
   }
 
   // Tier 1: локальна генерація з timeout 5 хв — при перевищенні одразу Tier 2
   let r
   try {
-    const localPromise = facts.unsupported || mode === 'oneshot'
-      ? generateOneShot(facts, src, model)
-      : generateOrchestrated(facts, src, model)
+    const localPromise =
+      facts.unsupported || mode === 'oneshot'
+        ? generateOneShot(facts, src, model)
+        : generateOrchestrated(facts, src, model)
     r = await withTimeout(localPromise, LOCAL_TIMEOUT_MS)
   } catch (e) {
     if (env.ANTHROPIC_API_KEY) {
       const r2 = await claudeOneShot(facts, src, cloudModel)
-      return { ...r2, ms: Date.now() - t0, score: null, issues: [`local-timeout: ${e.message}`], tier: 2, model: cloudModel }
+      return {
+        ...r2,
+        ms: Date.now() - t0,
+        score: null,
+        issues: [`local-timeout: ${e.message}`],
+        tier: 2,
+        model: cloudModel
+      }
     }
     throw e
   }
@@ -303,8 +349,10 @@ if (isRunAsCli(import.meta.url)) {
   const file = args.find(a => !a.startsWith('--'))
   const mode = args.includes('--oneshot') ? 'oneshot' : 'orchestrated'
   const tierOnly = args.includes('--tier-only')
-  const mi = args.indexOf('--model'); const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
-  const si = args.indexOf('--sym-threshold'); const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
+  const mi = args.indexOf('--model')
+  const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
+  const si = args.indexOf('--sym-threshold')
+  const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
   if (!file) {
     console.error('Usage: node docgen-gen.mjs <file> [--oneshot] [--model <m>] [--sym-threshold N] [--tier-only]')
     process.exit(1)
@@ -314,9 +362,10 @@ if (isRunAsCli(import.meta.url)) {
     const facts = extractFacts(src, file)
     const sym = facts.internalSymbols?.length ?? 0
     const icon = sym >= symThreshold ? '☁️ ' : '💻'
-    const label = sym >= symThreshold
-      ? `Tier 2 cloud   (sym=${sym} ≥ ${symThreshold}, pre-routed)`
-      : `Tier 1 local   (sym=${sym} < ${symThreshold})`
+    const label =
+      sym >= symThreshold
+        ? `Tier 2 cloud   (sym=${sym} ≥ ${symThreshold}, pre-routed)`
+        : `Tier 1 local   (sym=${sym} < ${symThreshold})`
     process.stdout.write(`${icon} ${label}  |  ${file}\n`)
     process.exit(0)
   }

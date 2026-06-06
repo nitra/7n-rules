@@ -310,7 +310,9 @@ async function augmentVueStrykerConfig(reporter, cwd, jsRoot) {
   try {
     recheck = parseSync(target, next, { lang: 'js', sourceType: 'module' })
   } catch (error) {
-    reporter.fail(`stryker.config.mjs: augment дав некоректний результат (${rel}): ${error.message} — відкат, додай вручну`)
+    reporter.fail(
+      `stryker.config.mjs: augment дав некоректний результат (${rel}): ${error.message} — відкат, додай вручну`
+    )
     return
   }
   if (recheck.errors?.length) {

@@ -16,7 +16,7 @@ describe('orchestrator logic', () => {
     const result = await runLoopMock({
       states: [{ total: 3, failed: 0, rules: [] }],
       t0Exit: 0,
-      llmResults: [],
+      llmResults: []
     })
     expect(result).toBe(0)
   })
@@ -24,11 +24,15 @@ describe('orchestrator logic', () => {
   test('T0-auto closes all → returns 0 without LLM', async () => {
     const result = await runLoopMock({
       states: [
-        { total: 3, failed: 1, rules: [{ ruleId: 'bun', ok: false, output: 'Знайдено заборонений файл: package-lock.json' }] },
-        { total: 3, failed: 0, rules: [] }, // після T0
+        {
+          total: 3,
+          failed: 1,
+          rules: [{ ruleId: 'bun', ok: false, output: 'Знайдено заборонений файл: package-lock.json' }]
+        },
+        { total: 3, failed: 0, rules: [] } // після T0
       ],
       t0Exit: 0,
-      llmResults: [],
+      llmResults: []
     })
     expect(result).toBe(0)
   })
@@ -38,10 +42,10 @@ describe('orchestrator logic', () => {
       states: [
         { total: 3, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'складне порушення' }] },
         { total: 3, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'складне порушення' }] }, // after T0 (no change)
-        { total: 3, failed: 0, rules: [] }, // after LLM
+        { total: 3, failed: 0, rules: [] } // after LLM
       ],
       t0Exit: 1,
-      llmResults: [{ ok: true, turns: 5 }],
+      llmResults: [{ ok: true, turns: 5 }]
     })
     expect(result).toBe(0)
   })
@@ -60,15 +64,15 @@ describe('orchestrator logic', () => {
         { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] },
         { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }, // after T0
         // final check
-        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] },
+        { total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }
       ],
       t0Exit: 1,
       llmResults: [
         { ok: false, turns: 10, error: 'fail' }, // iter 1: haiku fails → failCount=1
         { ok: false, turns: 10, error: 'fail' }, // iter 2: haiku fails → failCount=2
-        { ok: false, turns: 10, error: 'fail' }, // iter 3: sonnet fails → failCount=3
+        { ok: false, turns: 10, error: 'fail' } // iter 3: sonnet fails → failCount=3
       ],
-      onLlmCall: (ruleId, _output, _root, opts) => models.push(opts.model),
+      onLlmCall: (ruleId, _output, _root, opts) => models.push(opts.model)
     })
     expect(result).toBe(1) // unresolved
     expect(models[0]).toContain('haiku')
@@ -80,8 +84,12 @@ describe('orchestrator logic', () => {
     const result = await runLoopMock({
       states: Array(8).fill({ total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }),
       t0Exit: 1,
-      llmResults: [{ ok: false, turns: 5 }, { ok: false, turns: 5 }, { ok: false, turns: 5 }],
-      maxIter: 3,
+      llmResults: [
+        { ok: false, turns: 5 },
+        { ok: false, turns: 5 },
+        { ok: false, turns: 5 }
+      ],
+      maxIter: 3
     })
     expect(result).toBe(1)
   })

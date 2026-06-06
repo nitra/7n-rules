@@ -6,7 +6,6 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-adr-normal/`) і **не** паралелиться — один інстанс за раз.
 
@@ -69,7 +68,6 @@ n_cursor_npx() {
 ```
 
 Усі подальші bootstrap-виклики `npx @nitra/cursor <cmd>` у цій сесії роби через `n_cursor_npx <cmd>`. Якщо опинився у свіжому shell без цієї функції — спершу повтори блок вище (`bun install` + визначення `n_cursor_npx`).
-
 <!-- n-cursor:worktree:end -->
 
 # n-adr-normalize — ручна нормалізація ADR-чернеток

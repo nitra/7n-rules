@@ -5,7 +5,6 @@ description: >-
 ---
 
 <!-- n-cursor:worktree:start -->
-
 > [!IMPORTANT]
 > **Worktree-only skill.** Виконується **виключно** в окремому git-worktree (`.worktrees/<current-branch>-fix/`) і **не** паралелиться — один інстанс за раз.
 
@@ -68,14 +67,13 @@ n_cursor_npx() {
 ```
 
 Усі подальші bootstrap-виклики `npx @nitra/cursor <cmd>` у цій сесії роби через `n_cursor_npx <cmd>`. Якщо опинився у свіжому shell без цієї функції — спершу повтори блок вище (`bun install` + визначення `n_cursor_npx`).
-
 <!-- n-cursor:worktree:end -->
 
 # n-fix — автоматичне виправлення проєкту
 
 ## Scope
 
-Цей скіл відповідає **лише за структуру** проєкту: щоб `.cursor/rules/` + `npx @nitra/cursor fix` були задоволені (наявність конфігів, залежностей, скриптів, GitHub workflows, відсутність заборонених файлів). **Лінт-порушення у самому коді** (ESLint, oxlint, jscpd, cspell, knip, sonarjs, stylelint тощо) — **поза скоупом**; їх діагностує й виправляє **`/n-lint`** (`bun run lint`). Не запускай `bun run lint` із цього скілу і не намагайся виправляти його порушення тут — це задача `/n-lint`. Якщо `npx @nitra/cursor fix` чистий, а `bun run lint` лишився червоним — запусти `/n-lint` окремо.
+Цей скіл відповідає **лише за структуру** проєкту: щоб `.cursor/rules/` + `npx @nitra/cursor fix` були задоволені (наявність конфігів, залежностей, скриптів, GitHub workflows, відсутність заборонених файлів). **Лінт-порушення у самому коді** (ESLint, oxlint, jscpd, cspell, knip, sonarjs, stylelint тощо) — **поза скоупом**; їх діагностує й виправляє **`/n-lint`** (`bun run lint`).
 
 ## Workflow
 

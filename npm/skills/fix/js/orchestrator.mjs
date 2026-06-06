@@ -30,9 +30,7 @@ export async function runOrchestratorCli(args, cwd) {
 
   const maxIterIdx = args.indexOf('--max-iter')
   const maxIter =
-    maxIterIdx !== -1
-      ? Number(args[maxIterIdx + 1] ?? DEFAULT_MAX_ITER) || DEFAULT_MAX_ITER
-      : DEFAULT_MAX_ITER
+    maxIterIdx !== -1 ? Number(args[maxIterIdx + 1] ?? DEFAULT_MAX_ITER) || DEFAULT_MAX_ITER : DEFAULT_MAX_ITER
   const skipIdxs = new Set(maxIterIdx !== -1 ? [maxIterIdx, maxIterIdx + 1] : [])
   const ruleFilter = args.filter((a, i) => !a.startsWith('-') && !skipIdxs.has(i))
 
@@ -116,7 +114,7 @@ function runFixCheck(cwd, ruleFilter = []) {
   const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...ruleFilter], {
     cwd,
     encoding: 'utf8',
-    timeout: 120_000,
+    timeout: 120_000
   })
   const stdout = r.stdout?.trim()
   if (!stdout) return null
