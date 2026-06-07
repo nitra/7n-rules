@@ -29,6 +29,7 @@
     "bin",
     "github-actions",
     "schemas",
+    "lib",
     "scripts",
     "skills",
     ".claude-template",
