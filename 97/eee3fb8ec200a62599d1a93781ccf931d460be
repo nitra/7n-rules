@@ -1,0 +1,39 @@
+docs/adr/260607-0646-додати-lib-до-поля-files-у-npm-package-json.md
+  ai_agent 1-27
+.changes/260607-0645.md
+  s_1a55d9a662f4ee::t_b06cd7084ab0cd 1,3-5
+  ai_agent 2
+docs/adr/260607-0646-teleport-як-ssh-gateway-для-доступу-розробників-до-k8s-task.md
+  ai_agent 1-102
+docs/думка.MD
+  s_ef0e75ba077ce7::t_019265d3f42f19 579-580,585,588
+  s_ef0e75ba077ce7::t_c62c2f71b72e3f 433
+npm/package.json
+  s_1a55d9a662f4ee::t_0fb5a62c9096cf 32
+docs/adr/260607-0646-рефакторинг-n-cursor-flow-в-уніфікований-n-cursor-graph.md
+  ai_agent 1-145
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "97eee3fb8ec200a62599d1a93781ccf931d460be",
+  "prompts": {},
+  "sessions": {
+    "s_1a55d9a662f4ee": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "a934d2a8-ef58-4ed7-871f-be4386ea2c81",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_ef0e75ba077ce7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "efd479fb-5979-47a8-ba9f-3a48e2a4df4d",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
