@@ -1,0 +1,287 @@
+npm/rules/k8s/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/changelog/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/lib/root-notice.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 43-44,62,65
+npm/rules/js-run/lib/docs/check-env-scan.md
+  s_1282b051a06b12::t_03c6e97a95b48f 77-78
+npm/rules/ga/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-bun-redis/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/rego/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-lint-ci/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-mssql/lib/docs/mssql-pool-scan.md
+  s_1282b051a06b12::t_03c6e97a95b48f 255-257,332-334,343-345
+npm/scripts/coverage-classify/tests/verdict-schema.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 10,72
+npm/skills/fix/js/orchestrator.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 23-24,56,101-103
+npm/rules/python/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 33-35,67
+npm/rules/rust/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/skills/fix/js/tests/orchestrator.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 8,85,108-109,111,120-123
+npm/rules/efes/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 86,180
+npm/scripts/coverage-classify/tests/index.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 27,42-43
+npm/rules/efes/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/lib/worktree.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17,86,125
+npm/scripts/docs/cli-entry.md
+  s_1282b051a06b12::t_03c6e97a95b48f 97-99,117-119
+.changes/260607-0842.md
+  s_1282b051a06b12::t_aed5ec948e1c56 1-5
+npm/rules/docker/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/dispatcher/trace.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 27-30,50,62
+npm/skills/docgen/js/docgen-prompts.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 9-13,17,37-39,92-97,106-111
+npm/rules/js-run/lib/docs/promise-settimeout-scan.md
+  s_1282b051a06b12::t_03c6e97a95b48f 17,247-249
+npm/rules/hasura/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+benchmarks/runner-comparison/demo/src/docs/promise-pool.md
+  s_1282b051a06b12::t_03c6e97a95b48f 63-65
+npm/scripts/dispatcher/tests/trace.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 97,119,131,142
+npm/rules/image-avif/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/image-avif/js/docs/avif_generation.md
+  s_1282b051a06b12::t_03c6e97a95b48f 198
+npm/rules/ga/js/lint.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 10
+npm/rules/text/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 27-29
+npm/rules/ci4/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/vue/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-bun-db/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-lint-ci/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 57-59,85
+npm/rules/js-lint/js/docs/utils_imports.md
+  s_1282b051a06b12::t_03c6e97a95b48f 155
+npm/rules/php/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 61,85
+npm/scripts/auto-rules.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 335
+npm/rules/docker/lint/docs/lint.md
+  s_1282b051a06b12::t_03c6e97a95b48f 170
+npm/scripts/coverage-classify/index.mjs
+  s_1282b051a06b12::t_091f3c0d7fa4ef 63-64
+  s_1282b051a06b12::t_03c6e97a95b48f 26,28,44-46,48,72,77
+npm/skills/docgen/js/docgen-ignore.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 39
+npm/scripts/dispatcher/lib/tests/flow-signals.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 14,144,182
+npm/rules/k8s/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 29-31
+npm/rules/capacitor/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/lib/models.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 58
+npm/rules/adr/js/tests/normalize-decisions-tooling-only.test.mjs
+  s_1282b051a06b12::t_091f3c0d7fa4ef 151
+npm/rules/php/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/release/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 25-27,46
+npm/scripts/lib/tests/skill-meta.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 42
+npm/rules/security/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 77
+npm/rules/tauri/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/dispatcher/lib/executor.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 52
+npm/skills/fix/js/tests/t0.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 7,17,42,58,76,84,99,111,128,140
+npm/scripts/lib/tests/rule-meta.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 68
+npm/scripts/dispatcher/lib/docs/events.md
+  s_1282b051a06b12::t_03c6e97a95b48f 122
+npm/scripts/dispatcher/lib/tests/flow-verify.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 16-17
+npm/scripts/dispatcher/lib/tests/executor.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 13-14,59,84,108,131,133,136
+npm/scripts/dispatcher/tests/index.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 24,31,38,45,52,59,66,72
+npm/scripts/lib/docs/load-cursor-config.md
+  s_1282b051a06b12::t_03c6e97a95b48f 104-106
+npm/rules/flow/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 16
+npm/skills/fix/js/llm-worker.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 14-15,51,54-55,90-92,122-123,134,159,162-163,165
+  s_1282b051a06b12::t_091f3c0d7fa4ef 27,37,207-208
+npm/rules/test/js/no-relative-fs-path.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 65,99
+npm/rules/adr/js/tests/capture-decisions-tooling-only.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17-20,160,165-166
+  s_1282b051a06b12::t_091f3c0d7fa4ef 145
+npm/scripts/tests/coverage-fix.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 66-69
+npm/scripts/coverage-classify/tests/cache.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 15-18,25,66,79
+npm/rules/js-mssql/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/tests/ensure-nitra-cursor-dev-dependencies.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 14-15,128
+npm/rules/js-run/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 29-31
+npm/scripts/coverage-classify/tests/prompt.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 11-14,34,38-39
+npm/scripts/lib/worktree-notice.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 39-45,106,108-110,112,212,215
+demo/src/App.vue
+  s_1282b051a06b12::t_03c6e97a95b48f 12-14
+npm/rules/release/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 15
+npm/rules/bun/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 27-29
+npm/rules/abie/lib/tests/hc-yaml.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 11,67-68,70
+npm/scripts/dispatcher/lib/tests/plan-panel.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 9,19
+npm/rules/bun/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/dispatcher/lib/flow-verify.mjs
+  s_1282b051a06b12::t_091f3c0d7fa4ef 95-96
+  s_1282b051a06b12::t_03c6e97a95b48f 19-20,30-31,47,71
+npm/rules/worktree/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/lib/tests/run-rule.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17-29
+npm/rules/python/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/style-lint/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 29-31
+npm/rules/rego/js/lint.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 10
+npm/scripts/utils/resolve-js-root.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 11,27
+npm/rules/text/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/skills/docgen/js/docgen-extract.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 3-5,25-48,51-52,54,59-63,71-72,89-93,95,106-107,110,114-118,121,129-133,135,137-138,140,147-151,154,158,165-169,177-181,190,212
+npm/scripts/dispatcher/lib/flow-signals.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 20-21,70,85,95-97,117,142,152,162,185
+  s_1282b051a06b12::t_091f3c0d7fa4ef 224-225
+npm/rules/js-bun-db/lib/docs/bun-sql-scan.md
+  s_1282b051a06b12::t_03c6e97a95b48f 273-276,287,317
+npm/scripts/dispatcher/lib/subagent-runner.mjs
+  s_1282b051a06b12::t_091f3c0d7fa4ef 48-49
+  s_1282b051a06b12::t_03c6e97a95b48f 17,19-20,30,37,39,45
+benchmarks/tool-free/run.mjs
+  s_1282b051a06b12::t_091f3c0d7fa4ef 284,286,346-347
+  s_1282b051a06b12::t_03c6e97a95b48f 27-29,58-59,62,69-71,106-108,128-129,132,138-139,154-157,159,172,251-253
+npm/rules/style-lint/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/ci4/js/docs/marksman_config.md
+  s_1282b051a06b12::t_03c6e97a95b48f 99
+npm/rules/graphql/lib/docs/graphql-gql-scan.md
+  s_1282b051a06b12::t_03c6e97a95b48f 166-168
+npm/rules/tauri/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 36-38,63
+npm/rules/abie/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/changelog/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 41-43
+npm/rules/text/js/lint.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 10
+npm/rules/security/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/feedback/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/dispatcher/tests/graph.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 16-18,122-123,127
+npm/rules/ci4/js/tests/marksman_config.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 13-16,45-47
+npm/rules/js-lint/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/dispatcher/lib/flow-plan.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 15-16,27,47,96,144,147
+  s_1282b051a06b12::t_091f3c0d7fa4ef 114-115,129-130
+npm/rules/nginx-default-tpl/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 25-27
+npm/rules/docker/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 166
+npm/rules/test/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/scripts/tests/worktree-cli.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 24,62,78
+npm/rules/test/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 35-37
+npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 2668,2670
+npm/rules/js-run/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/npm-module/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/npm-module/js/tests/header_doc_pointer.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17-26
+npm/rules/graphql/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/js-mssql/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 32-34
+npm/rules/nginx-default-tpl/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/rules/npm-module/js/header_doc_pointer.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17-24,29,33-37
+npm/rules/graphql/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 29-31,56
+npm/skills/fix/js/t0.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 3,7-11,26,28,58,60,82,103-104,124
+npm/rules/image-avif/docs/fix.md
+  s_1282b051a06b12::t_03c6e97a95b48f 34-36,55
+npm/rules/image-compress/fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 17
+npm/bin/n-cursor.js
+  s_1282b051a06b12::t_091f3c0d7fa4ef 1566,1568,1570,1572-1573,1575-1576,1578-1579,1581-1582,1584-1585,1587
+npm/skills/docgen/js/docgen-batch.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 23-24,94
+  s_1282b051a06b12::t_091f3c0d7fa4ef 54,57,80,83
+npm/scripts/dispatcher/lib/tests/flow-plan.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 22-24,70
+npm/scripts/coverage-fix.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 45,47
+npm/rules/changelog/js/tests/consistency/tests/check.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 850
+npm/scripts/lib/rule-predicates.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 136
+npm/rules/nginx-default-tpl/js/tests/template/tests/check.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 22-23,73
+npm/skills/docgen/js/docgen-gen.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 9,13-36,41-42,45,53-54,58,62-66,71,73,82-84,105,122-128,140-147,155-160,179-183,213-219,221,273,275,277,289-293
+  s_1282b051a06b12::t_091f3c0d7fa4ef 248,251,253
+npm/scripts/utils/with-lock.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 131
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_1282b051a06b12::t_03c6e97a95b48f 5-6,95
+npm/scripts/docs/build-agents-commands.md
+  s_1282b051a06b12::t_03c6e97a95b48f 157
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "26d559caf5223d193d7853c71611476fff062fd6",
+  "prompts": {},
+  "sessions": {
+    "s_1282b051a06b12": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90067322-b72e-4fc8-9aab-41c6ef93cee8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
