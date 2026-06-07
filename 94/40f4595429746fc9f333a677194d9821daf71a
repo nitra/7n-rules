@@ -1,0 +1,117 @@
+docs/adr/260607-0555-каскадний-fallback-для-tier-моделей-через-resolvemodel-tier.md
+  ai_agent 1-109
+npm/.changes/260607-0535.md
+  ai_agent 1-5
+npm/scripts/dispatcher/index.mjs
+  ai_agent 2,4-9,11-13,17-22,28,34,38,44
+npm/scripts/dispatcher/lib/flow-verify.mjs
+  ai_agent 2,4-11,13-14,17-55,58-68,70-71,73-81,84-87,91-96,99-102,106-119,122-125
+npm/scripts/dispatcher/lib/tests/flow-plan.test.mjs
+  ai_agent 2-3,5,7,9,11-18,21,23-38,41-57,59-67,69-70,73-81,84-91,94-99,102-111,113-114,117-123
+docs/adr/260607-0538-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-73
+docs/adr/260607-0549-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-54,56-83
+docs/adr/260607-0546-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-5,7-25,27-51,53-97
+tasks/coverage-skill-test/task.md
+  ai_agent 1-27
+docs/adr/260607-0544-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-43
+docs/adr/260607-0536-бамп-major-версії-через-change-файл-а-не-пряме-редагування.md
+  ai_agent 1-5,7,9-10,12-14,16-17,19-21,23-26
+docs/adr/260607-0553-каскадний-fallback-для-tier-моделей-через-resolvemodel.md
+  ai_agent 1-113
+docs/думка.MD
+  ai_agent 18,118,165-166,592,594,596,598-626,628,630,646-647,649,758,760,762-780,782,784,786,794-795,800,802-804,807,811-828,831-837,839-909,911-914,916-920,923-930,933-941,962-963,982-1000
+docs/adr/260607-0619-файлова-структура-вузлів-графу-задач.md
+  ai_agent 1-67
+docs/adr/260607-0550-зміна-шрифту-редактора-zed-для-зручності-при-астигматизмі.md
+  ai_agent 1-38
+npm/scripts/dispatcher/lib/flow-plan.mjs
+  ai_agent 2,4-8,10-11,14,16-33,36-39,41-49,51-77,81-93,95-96,98-106,109-114,118-120,122-129,133-151
+tasks/skills-orchestrator-migration/task.md
+  ai_agent 1-31
+docs/adr/260607-0607-переформатування-flow-під-дворівневий-протокол-вузла-графу.md
+  ai_agent 1-132
+npm/scripts/dispatcher/lib/tests/flow-verify.test.mjs
+  ai_agent 2-3,5,7,9-12,15,17-29,32-34,36-37,39-45,47-55,57-58,61-69,71-72,75-84,87-101,103-124
+npm/scripts/dispatcher/tests/index.test.mjs
+  ai_agent 2-3,7,23-25,27,30-34,37-62,65-68,71-73
+.changes/260607-0626.md
+  ai_agent 1-5
+docs/adr/260607-0640-видалення-n-cursor-flow-і-перехід-до-єдиного-n-cursor-graph.md
+  ai_agent 1-158
+npm/scripts/dispatcher/lib/flow-signals.mjs
+  ai_agent 2-13,16,21-28,30-55,59-62,64-74,78-84,86-88,92-95,97-99,103-112,115,118,120-122,126-129,131-132,134-142,144-151,155-158,160-161,165-181,184,187-204,206-209,211-220,222-224,227-234
+docs/adr/260607-0632-видалення-n-cursor-flow-та-уніфікація-під-n-cursor-graph.md
+  ai_agent 1-135
+npm/scripts/worktree-cli.mjs
+  ai_agent 163-164
+docs/adr/260607-0609-файлова-система-як-сховище-стану-задач-tasks.md
+  ai_agent 1-45
+npm/skills/docgen/js/docgen-gen.mjs
+  ai_agent 6,8,92-93,95,97,99-106,128-132,135-137,139,143-144,146,148-150,157,174,178,181-182,185-187,191,207,218,233,235
+npm/.changes/260607-0537.md
+  ai_agent 1-5
+docs/adr/260607-0612-файлова-структура-вузлів-задач-за-думка-md.md
+  ai_agent 1-31
+docs/adr/260607-0550-уніфікація-flow-під-архітектуру-думка-md-два-етапи-вузла.md
+  ai_agent 1-62
+docs/adr/260607-0539-зміна-шрифту-редактора-zed-на-atkinson-hyperlegible-mono.md
+  ai_agent 1-82
+docs/adr/260607-0616-структура-задач-у-tasks-node-task-md.md
+  ai_agent 1-54
+docs/adr/260607-0542-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-66
+docs/adr/260607-0543-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-5,7,9-10,12-15,17-18,20-22,24-29,31,33,35,37-38,40-44,46-47,49-54
+docs/adr/260607-0605-інтеграція-flow-в-архітектуру-graph-думка-md.md
+  ai_agent 1-122
+docs/adr/260607-0538-каскадний-fallback-для-tier-моделей.md
+  ai_agent 1-45
+docs/adr/260607-0614-поглинання-flow-у-graph-єдиний-namespace-для-оркестрації-вуз.md
+  ai_agent 1-133
+docs/adr/260607-0606-переосмислення-flow-під-архітектуру-думка-md.md
+  ai_agent 1-130
+docs/adr/260607-0536-введення-типу-агента-flow-у-nitra-cursor.md
+  ai_agent 1-441
+docs/adr/260607-0615-рефакторинг-n-cursor-flow-під-архітектуру-task-orchestration.md
+  ai_agent 1-137
+docs/adr/260607-0536-зміна-шрифту-редактора-з-menlo-на-atkinson-hyperlegible-mono.md
+  ai_agent 1-52
+docs/adr/260607-0622-структура-task-вузла-у-файловій-системі.md
+  ai_agent 1-106
+docs/adr/260607-0627-введення-teleport-як-ssh-gateway-для-доступу-розробників-до.md
+  ai_agent 1-36
+docs/adr/260607-0540-зміна-шрифту-редактора-zed-з-menlo-на-atkinson-hyperlegible.md
+  ai_agent 1-60
+docs/adr/260607-0603-каскадний-fallback-для-tier-моделей-через-resolvemodel.md
+  ai_agent 1-146
+docs/adr/260607-0627-переосмислення-n-cursor-flow-під-двоетапний-протокол-вузла.md
+  ai_agent 1-145
+docs/adr/260607-0634-resolvemodel-каскадний-fallback-для-6-тирної-моделі.md
+  ai_agent 1-64
+docs/adr/260607-0637-файлова-структура-вузлів-задач-у-tasks.md
+  ai_agent 1-70
+docs/adr/260607-0641-teleport-як-ssh-шлюз-для-доступу-розробників-до-task-pods-у.md
+  ai_agent 1-78
+docs/adr/260607-0555-каскадний-fallback-для-tier-моделей-через-resolvemodel-tier-2.md
+  ai_agent 1-61
+docs/adr/260607-0643-видалення-n-cursor-flow-і-уніфікація-під-n-cursor-graph.md
+  ai_agent 1-116
+docs/adr/260607-0636-ліквідація-namespace-flow-та-уніфікація-у-graph.md
+  ai_agent 1-218
+npm/scripts/dispatcher/lib/tests/flow-signals.test.mjs
+  ai_agent 2-3,5-32,35-40,42,45-50,52,55-60,62-63,65,67-83,85-86,89-97,99,103-112,114-115,117-128,130-131,135-146,148-149,152-166,168-171,174-184,186-204,207-217,219-220
+docs/adr/260607-0621-ліквідація-n-cursor-flow-та-злиття-з-n-cursor-graph.md
+  ai_agent 1-251
+docs/adr/260607-0607-аудит-черга-через-pending-auditnnn-md.md
+  ai_agent 1-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "9440f4595429746fc9f333a677194d9821daf71a",
+  "prompts": {}
+}
