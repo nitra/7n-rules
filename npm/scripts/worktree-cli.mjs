@@ -15,7 +15,6 @@ import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'no
 import { join } from 'node:path'
 import { cwd as processCwd } from 'node:process'
 
-import { cleanupFlowSiblings } from './dispatcher/lib/state-store.mjs'
 import {
   buildDescription,
   buildDirtyNotice,
@@ -161,7 +160,8 @@ function cmdRemove(rest, ctx) {
     return 1
   }
   if (existsSync(paths.descFile)) rmSync(paths.descFile, { force: true })
-  cleanupFlowSiblings(paths.checkout) // flow-sibling-и (.flow.json/.events.jsonl/lock) — інакше осиротіють (§1.4)
+  // В новій архітектурі (думка.MD) state зберігається у файлах вузлів (task.md, outputs, run),
+  // а не у .flow.json/.events.jsonl/lock sibling-ах. Cleanup sibling-ів більше не потрібен.
   ctx.log(`✅ прибрано: ${paths.checkout} (гілку ${branch} лишено)`)
   return 0
 }
