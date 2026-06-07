@@ -1,0 +1,11 @@
+.changes/1780750751172-837d43.md
+  ai_agent 5
+bun.lock
+  ai_agent 309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "ecee0db6278f1d0a0bbdec402b74798bf87ef9ad",
+  "prompts": {}
+}
