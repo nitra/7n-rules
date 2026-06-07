@@ -42,3 +42,23 @@ Chosen option: "B1 — окремий sync-крок, безумовно", becaus
 **Чому гейт за worktree-rule (B2) відхилено**: продюсер артефактів `.worktrees/` — `flow` (`alwaysApply: true`) і `worktree-cli`, активні незалежно від worktree-rule. ADR-фрагмент коректно гейтується, бо продюсер (adr Stop-hook) і гейт (adr-rule) — та сама сутність; для worktree ця симетрія не виконується.
 
 Ключові файли: `npm/bin/n-cursor.js` (`runSync`, `runSyncStep`), `npm/scripts/sync-claude-config.mjs` (ранній return при `claude-config: false`), `npm/scripts/utils/ensure-gitignore-entries.mjs`.
+
+## Update 2026-06-01
+
+### Відхилені варіанти та обґрунтування вибору b1
+
+Додатково розглядалися:
+- **A (lazy)** — `ensureGitignoreEntries()` у `worktree add` CLI в момент створення каталогу; відхилено як неповне (не покриває `flow init` та інші продюсери).
+- **B2 (gated)** — sync-крок, гейтований за наявністю worktree-правила в `.n-cursor.json`; відхилено: вимкнене правило + активний `flow` залишає дірку.
+- **Вмонтування всередині `syncClaudeConfig()`** — відхилено: функція має ранній `return` при `claude-config: false`, що ховало б запис; неправильне змішування концернів.
+
+Обраний **b1** (окремий безумовний sync-крок): продюсер `.worktrees/` (`n-flow.mdc: alwaysApply: true`) завжди активний; гейт за тумблером розсинхронив би виробника і `.gitignore`. Утиліта `ensureGitignoreEntries()` вже існувала і є idempotent — інтеграція коштувала один виклик.
+
+### Деталі реалізації
+
+- Новий модуль: `npm/scripts/lib/sync-gitignore-worktree.mjs` (обгортка над `ensureGitignoreEntries`)
+- Тести: `npm/scripts/lib/tests/sync-gitignore-worktree.test.mjs` (4 тести: fresh-repo, idempotency, append-only, existing gitignore)
+- Spec: `docs/specs/2026-06-01-worktree-add-gitignore.md`
+- Plan: `docs/plans/2026-06-01-worktree-add-gitignore.md`
+- Коміт: `e0f5e52 feat(sync): гарантувати .worktrees/ у .gitignore під час sync`
+- Базова утиліта: `npm/scripts/utils/ensure-gitignore-entries.mjs` (idempotent append-only з header-коментарем; також використовується для Stryker temp-каталогів)

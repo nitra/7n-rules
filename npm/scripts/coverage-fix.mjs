@@ -1,13 +1,18 @@
 /**
- * `n-cursor coverage --fix`: запускає Claude Code агента для написання тестів
+ * `n-cursor coverage --fix`: запускає pi-агента для написання тестів
  * по вцілілих мутантах Stryker. Агент отримує список мутантів з контекстом
  * (file, line, оригінальний код, вцілілий варіант, тип мутації) і самостійно
  * знаходить або створює відповідні test-файли.
  *
- * Залежить від `@anthropic-ai/claude-agent-sdk` (dependencies у npm/package.json).
+ * Модель: CLOUD_MAX (складна агентна задача) або N_CURSOR_COVERAGE_FIX_MODEL.
  */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
+
+import { resolveModel } from '../lib/models.mjs'
+
+const MODEL = process.env.N_CURSOR_COVERAGE_FIX_MODEL ?? resolveModel('max')
 
 /**
  * @typedef {{line:number, col:number, mutantType:string, original:string, replacement:string}} MutantDetail
@@ -15,12 +20,13 @@ import { join } from 'node:path'
  */
 
 /**
- * Запускає Claude Code агента для написання тестів по вцілілих мутантах.
+ * Запускає pi-агента для написання тестів по вцілілих мутантах.
  * @param {SurvivedFileGroup[]} survived вцілілі мутанти, згруповані по файлах
  * @param {string} projectRoot абсолютний шлях до кореня проєкту
+ * @param {{ callPi?: (prompt: string, model: string, opts: { cwd: string }) => void }} [opts] ін'єкції для тестів
  * @returns {Promise<void>}
  */
-export async function fixSurvivedMutants(survived, projectRoot) {
+export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
   const totalMutants = survived.reduce((s, g) => s + g.mutants.length, 0)
   if (totalMutants === 0) {
     console.log('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
@@ -30,26 +36,23 @@ export async function fixSurvivedMutants(survived, projectRoot) {
   const prompt = await buildFixPrompt(survived, projectRoot)
   console.log(`\n🤖 coverage --fix: запускаю агента для ${totalMutants} вцілілих мутантів...\n`)
 
-  // Dynamic import: @anthropic-ai/claude-agent-sdk завантажується лише при --fix,
-  // щоб не гальмувати звичайний coverage-прогін за відсутності пакету.
-  const { query } = await import('@anthropic-ai/claude-agent-sdk')
+  const callPiFn = opts.callPi ?? callPi
+  callPiFn(prompt, MODEL, { cwd: projectRoot })
+}
 
-  for await (const msg of query({
-    prompt,
-    options: {
-      cwd: projectRoot,
-      maxTurns: 20,
-      allowedTools: ['Read', 'Edit', 'Bash'],
-      // Без permissionMode headless-агент SDK не отримує дозволу на запис/Bash —
-      // він крутиться, палить токени, але НЕ редагує файли (підтверджено пробом).
-      // `bypassPermissions` потрібен, бо агент і пише тести (Edit), і ганяє `bun test` (Bash);
-      // `acceptEdits` авто-підтверджує лише edits, а Bash лишився б заблокованим.
-      permissionMode: 'bypassPermissions'
-    }
-  })) {
-    if (msg.type === 'text') process.stdout.write(msg.text)
-  }
-  process.stdout.write('\n')
+/**
+ * Викликає pi в агентному режимі з live-output до stdout.
+ * @param {string} prompt
+ * @param {string} model  provider/model-id або '' для pi-дефолту
+ * @param {{ cwd?: string }} [piOpts]
+ */
+function callPi(prompt, model, { cwd } = {}) {
+  const modelArgs = model ? ['--model', model] : []
+  spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session'], {
+    cwd,
+    stdio: 'inherit',
+    timeout: 900_000
+  })
 }
 
 /**

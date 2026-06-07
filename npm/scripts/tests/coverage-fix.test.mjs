@@ -1,31 +1,18 @@
 /**
  * Тести для scripts/coverage-fix.mjs:
  *   - early-return при порожньому `survived[]` з логом про вбитих мутантів;
- *   - buildFixPrompt (опосередковано) — гілки exampleTest/code, контекст ±3 рядки,
+ *   - buildFixPrompt — гілки exampleTest/code, контекст ±3 рядки,
  *     graceful fallback коли source-файл недоступний.
  *
- * `@anthropic-ai/claude-agent-sdk` мокається — реальний агент не запускається.
- * Захоплюємо аргументи `query(...)` і перевіряємо текст промпта.
+ * callPi ін'єктується через opts.callPi — реальний агент не запускається.
+ * Захоплюємо (prompt, model, piOpts) і перевіряємо текст промпту.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { ensureDir, withTmpDir } from '../utils/test-helpers.mjs'
-
-/** @type {{ prompt: string, options: { cwd: string, maxTurns: number, allowedTools: string[] } } | null} */
-let capturedQuery = null
-
-vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
-  query: vi.fn(args => {
-    capturedQuery = args
-    return (async function* () {
-      yield { type: 'text', text: 'mock-msg' }
-    })()
-  })
-}))
-
-const { fixSurvivedMutants } = await import('../coverage-fix.mjs')
+import { fixSurvivedMutants } from '../coverage-fix.mjs'
 
 const SAMPLE_SOURCE = `import { foo } from './foo.mjs'
 
@@ -39,29 +26,36 @@ export function bar() {
 describe('fixSurvivedMutants — early return', () => {
   let logSpy
   beforeEach(() => {
-    capturedQuery = null
     logSpy = vi.spyOn(console, 'log').mockReturnValue()
   })
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  test('survived=[] → друкує "Всі мутанти вбиті" і не викликає query', async () => {
-    await fixSurvivedMutants([], '/repo')
+  test('survived=[] → друкує "Всі мутанти вбиті" і не викликає callPi', async () => {
+    const mockCallPi = vi.fn()
+    await fixSurvivedMutants([], '/repo', { callPi: mockCallPi })
     expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
-    expect(capturedQuery).toBeNull()
+    expect(mockCallPi).not.toHaveBeenCalled()
   })
 
   test('survived з порожніми mutants[] → той самий early-return', async () => {
-    await fixSurvivedMutants([{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }], '/repo')
+    const mockCallPi = vi.fn()
+    await fixSurvivedMutants(
+      [{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }],
+      '/repo',
+      { callPi: mockCallPi }
+    )
     expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
-    expect(capturedQuery).toBeNull()
+    expect(mockCallPi).not.toHaveBeenCalled()
   })
 })
 
-describe('fixSurvivedMutants — викликає query з rich-промптом (buildFixPrompt)', () => {
+describe('fixSurvivedMutants — викликає pi з rich-промптом (buildFixPrompt)', () => {
+  let capturedArgs
+
   beforeEach(() => {
-    capturedQuery = null
+    capturedArgs = null
     vi.spyOn(console, 'log').mockReturnValue()
     vi.spyOn(process.stdout, 'write').mockReturnValue(true)
   })
@@ -69,7 +63,14 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
     vi.restoreAllMocks()
   })
 
-  test('передає cwd, maxTurns=20, allowedTools=[Read,Edit,Bash], permissionMode=bypassPermissions', async () => {
+  /** Хелпер: повертає opts.callPi mock, що зберігає аргументи. */
+  function captureCallPi() {
+    return (prompt, model, piOpts) => {
+      capturedArgs = { prompt, model, cwd: piOpts?.cwd }
+    }
+  }
+
+  test('передає cwd проєкту до pi', async () => {
     await withTmpDir(async dir => {
       await fixSurvivedMutants(
         [
@@ -80,14 +81,10 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.options).toEqual({
-        cwd: dir,
-        maxTurns: 20,
-        allowedTools: ['Read', 'Edit', 'Bash'],
-        permissionMode: 'bypassPermissions'
-      })
+      expect(capturedArgs?.cwd).toBe(dir)
     })
   })
 
@@ -102,13 +99,14 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).toContain('## Вцілілі мутанти')
-      expect(capturedQuery?.prompt).toContain('### `pkg/foo.mjs`')
-      expect(capturedQuery?.prompt).toContain('Рядок 2, колонка 1, тип мутації `ArithmeticOperator`')
-      expect(capturedQuery?.prompt).toContain('Оригінал: `a + b`')
-      expect(capturedQuery?.prompt).toContain('Вижив варіант: `a - b`')
+      expect(capturedArgs?.prompt).toContain('## Вцілілі мутанти')
+      expect(capturedArgs?.prompt).toContain('### `pkg/foo.mjs`')
+      expect(capturedArgs?.prompt).toContain('Рядок 2, колонка 1, тип мутації `ArithmeticOperator`')
+      expect(capturedArgs?.prompt).toContain('Оригінал: `a + b`')
+      expect(capturedArgs?.prompt).toContain('Вижив варіант: `a - b`')
     })
   })
 
@@ -125,17 +123,17 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).toContain('Контекст:')
-      expect(capturedQuery?.prompt).toContain('4: ')
-      expect(capturedQuery?.prompt).toContain("if (x === 1) return 'one'")
+      expect(capturedArgs?.prompt).toContain('Контекст:')
+      expect(capturedArgs?.prompt).toContain('4: ')
+      expect(capturedArgs?.prompt).toContain("if (x === 1) return 'one'")
     })
   })
 
-  test('коли source-файл недоступний — секція контексту не додається, query все одно викликається', async () => {
+  test('коли source-файл недоступний — секція контексту не додається, pi все одно викликається', async () => {
     await withTmpDir(async dir => {
-      // pkg/foo.mjs НЕ створюємо
       await fixSurvivedMutants(
         [
           {
@@ -145,10 +143,11 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).not.toContain('Контекст:')
-      expect(capturedQuery?.prompt).toContain('Оригінал: `true`')
+      expect(capturedArgs?.prompt).not.toContain('Контекст:')
+      expect(capturedArgs?.prompt).toContain('Оригінал: `true`')
     })
   })
 
@@ -163,10 +162,11 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).toContain('Приклад тесту з `tests/foo.test.mjs`')
-      expect(capturedQuery?.prompt).toContain("test('x', () => expect(1).toBe(1))")
+      expect(capturedArgs?.prompt).toContain('Приклад тесту з `tests/foo.test.mjs`')
+      expect(capturedArgs?.prompt).toContain("test('x', () => expect(1).toBe(1))")
     })
   })
 
@@ -181,9 +181,10 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).not.toContain('Приклад тесту')
+      expect(capturedArgs?.prompt).not.toContain('Приклад тесту')
     })
   })
 
@@ -198,9 +199,10 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).not.toContain('Приклад тесту')
+      expect(capturedArgs?.prompt).not.toContain('Приклад тесту')
     })
   })
 
@@ -221,10 +223,11 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      expect(capturedQuery?.prompt).toContain('### `a.mjs`')
-      expect(capturedQuery?.prompt).toContain('### `b.mjs`')
+      expect(capturedArgs?.prompt).toContain('### `a.mjs`')
+      expect(capturedArgs?.prompt).toContain('### `b.mjs`')
     })
   })
 
@@ -239,12 +242,12 @@ describe('fixSurvivedMutants — викликає query з rich-промптом
             recommendationText: null
           }
         ],
-        dir
+        dir,
+        { callPi: captureCallPi() }
       )
-      const prompt = capturedQuery?.prompt ?? ''
-      expect(prompt).toContain('## Правила')
-      expect(prompt).toContain('Не змінюй source-файли')
-      expect(prompt).toContain('bun test')
+      expect(capturedArgs?.prompt).toContain('## Правила')
+      expect(capturedArgs?.prompt).toContain('Не змінюй source-файли')
+      expect(capturedArgs?.prompt).toContain('bun test')
     })
   })
 })

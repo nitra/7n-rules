@@ -42,3 +42,19 @@ Chosen option: "Оголосити `n-changelog.mdc` єдиним джерело
 - **C — Інверсувати логіку** (фейлити при ручному bump): аналогічно залишає дублювання
 
 Вибір A прибирає джерело хибно-позитивного фейлу без залишкового дублювання. Transcript підтверджує: «Механізму `backfill` не існує… Формат change-файлу підтримує лише `bump` + `section` + опис». Q2 і Q3 сесії не зафіксовані.
+
+## Update 2026-06-01
+
+### Видалення конфліктних перевірок із package_structure.mjs
+
+Видалено з `npm/rules/npm-module/js/package_structure.mjs`: функції `checkDirtyNpmRequiresVersionBump` і `checkChangelogTopMatchesPackageVersion`, хелпери `gitInsideWorkTree`, `gitDiffNameOnlyNpm`, `gitShowNpmPackageVersionAt`, `firstChangelogSectionVersion`, константи `CHANGELOG_FIRST_VERSION_RE`, `PACKAGE_JSON_VERSION_RE`, імпорти `execFile`, `promisify`. Відповідні тест-кейси видалено з `npm/rules/npm-module/js/tests/package_structure.test.mjs`.
+
+Причина: `checkDirtyNpmRequiresVersionBump` мала інвертовану логіку (фейлила у правильному стані флоу); `checkChangelogTopMatchesPackageVersion` тримала post-release інваріант як активну перевірку у feature-флоу. Обидва кейси вже коректно покриває `npm/rules/changelog/js/consistency.mjs`.
+
+### Перенесення post-release інваріанту у changelog.mdc
+
+Інваріант «top section == version» перенесено до `npm/rules/changelog/changelog.mdc` v3.2 у нову секцію «Post-release інваріант (гарантує CI)». `npm/rules/npm-module/npm-module.mdc` v1.14: секції «Build версія» і «CHANGELOG» переписано — єдиний артефакт змін `npx @nitra/cursor change …`; bump і генерація CHANGELOG делеговані `n-cursor release` у CI. Захист від рецидиву реалізовано документаційним твердженням у `changelog.mdc`: «жодне інше правило не дублює інструкцій bump».
+
+### Відмова від backfill-механізму у форматі change-файлу
+
+Edge case «version опублікована без CHANGELOG-секції» (historical debt від manual bump) не отримав спеціального backfill-наративу. Формат change-файлу (`npm/rules/release/lib/change-file.mjs`) підтримує лише `bump` + `section` + опис; розширення виходить за межі задачі «узгодити правила». Будь-який drift вже ловить `consistency.mjs`.

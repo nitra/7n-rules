@@ -4,12 +4,12 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
-import { CLOUD_MIN, CLOUD_AVG } from '../../../lib/models.mjs'
+import { resolveModel } from '../../../lib/models.mjs'
 
-// Тир за замовчуванням: CLOUD_MIN → CLOUD_AVG при ескалації.
+// Тир за замовчуванням: min → avg при ескалації (каскад local→cloud).
 // Перевизначення через N_CURSOR_FIX_MODEL / N_CURSOR_FIX_MODEL_HEAVY.
-export const MODEL = env.N_CURSOR_FIX_MODEL ?? CLOUD_MIN
-export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? CLOUD_AVG
+export const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
+export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? resolveModel('avg')
 
 /**
  * Витягує відносні шляхи файлів із violation output.

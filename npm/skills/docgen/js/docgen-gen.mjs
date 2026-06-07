@@ -2,10 +2,18 @@
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
 import { request } from 'node:http'
+import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
-import Anthropic from '@anthropic-ai/sdk'
+import { LOCAL_MIN, resolveModel } from '../../../lib/models.mjs'
 import { extractFacts } from './docgen-extract.mjs'
 import { sectionMessages, oneShotMessages, STYLE, oneShotPromptText } from './docgen-prompts.mjs'
+
+/** Strips provider prefix from tier string for direct ollama HTTP (ollama/gemma3:4b → gemma3:4b). */
+function localModelId(tier) {
+  if (!tier) return 'gemma3:4b'
+  const i = tier.indexOf('/')
+  return i === -1 ? tier : tier.slice(i + 1)
+}
 
 const QUALITY_THRESHOLD = 70
 
@@ -137,73 +145,20 @@ function scoreDoc(md, facts) {
   return { score: Math.max(0, score), issues }
 }
 
-const SCORE_RUBRIC = `Оціни якість документації для JavaScript-модуля за 4 критеріями (1-3 кожен):
-
-- огляд: 3=описує роль модуля в системі (ЩО і НАВІЩО); 2=частково розмитий; 1=відсутній або перераховує функції
-- поведінка: 3=бізнес-терміни, без деталей реалізації; 2=деякі impl-деталі; 1=переважно реалізація або відсутня
-- гарантії: 3=лише реальні інваріанти підтверджені кодом, без галюцинацій; 2=частково правильні; 1=вигадані або відсутні
-- стиль: 3=без сигнатур/internal-імен, правильна markdown-структура; 2=дрібні порушення; 1=сигнатури/internal-імена/відсутні заголовки
-
-Відповідай ТІЛЬКИ JSON без пояснень:
-{"огляд":N,"поведінка":N,"гарантії":N,"стиль":N,"issues":["коротко про кожен мінус 1-5 слів"]}`
-
-/**
- * Stage 2.5 cloud: Claude Haiku оцінює якість доку проти коду + фактів.
- * Використовує найдешевшу хмарну модель — haiku — для мінімальної вартості судді.
- * @returns {{ score: number, scores: object, issues: string[], tok: number }}
- */
-async function cloudScoreDoc(md, facts, src, model = 'claude-haiku-4-5-20251001') {
-  const client = new Anthropic()
-  const factsTxt = [
-    facts.exports?.length ? `Публічні функції: ${facts.exports.map(e => e.name).join(', ')}` : '',
-    facts.internalSymbols?.length ? `Внутрішні (не публічні): ${facts.internalSymbols.join(', ')}` : '',
-    facts.markers?.caches ? 'Кешування: є' : 'Кешування: немає',
-    facts.markers?.network ? 'Мережа: є' : 'Мережа: немає',
-    facts.markers?.readOnly ? 'Read-only (не змінює файли/стан)' : ''
-  ]
-    .filter(Boolean)
-    .join('\n')
-
-  const msg = await client.messages.create({
-    model,
-    max_tokens: 256,
-    system: SCORE_RUBRIC,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: `ФАКТИ:\n${factsTxt}`, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `КОД:\n\`\`\`\n${src.slice(0, 4000)}\n\`\`\``, cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `ДОКУМЕНТАЦІЯ:\n${md}` }
-        ]
-      }
-    ]
+/** Tier 2: виклик через pi (провайдер-нейтрально). model — рядок `provider/model-id`. */
+function piOneShot(facts, src, model) {
+  const fullPrompt = `${STYLE}\n\n${oneShotPromptText(facts, src)}`
+  const modelArgs = model ? ['--model', model] : []
+  const r = spawnSync('pi', ['-p', fullPrompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
+    encoding: 'utf8',
+    timeout: 120_000
   })
-  const tok = (msg.usage?.input_tokens ?? 0) + (msg.usage?.output_tokens ?? 0)
-  try {
-    const j = JSON.parse(msg.content[0]?.text ?? '{}')
-    const total = (((j.огляд ?? 0) + (j.поведінка ?? 0) + (j.гарантії ?? 0) + (j.стиль ?? 0)) / 12) * 100
-    return { score: Math.round(total), scores: j, issues: j.issues ?? [], tok }
-  } catch {
-    return { score: 50, scores: {}, issues: ['parse-error'], tok }
-  }
-}
-
-/** Tier 2: хмарний fallback через Claude коли local-score < QUALITY_THRESHOLD. */
-async function claudeOneShot(facts, src, model = 'claude-sonnet-4-6') {
-  const client = new Anthropic()
-  const prompt = oneShotPromptText(facts, src)
-  const msg = await client.messages.create({
-    model,
-    max_tokens: 1500,
-    system: STYLE,
-    messages: [{ role: 'user', content: prompt }]
-  })
-  const text = msg.content[0]?.text ?? ''
-  const genTok = msg.usage?.output_tokens ?? 0
+  if (r.error) throw new Error(`pi Tier 2 error: ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`pi Tier 2 exit ${r.status}: ${r.stderr?.slice(0, 300) ?? ''}`)
+  const text = r.stdout?.trim() ?? ''
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
-  return { md: md + '\n', genTok }
+  return { md: md + '\n', genTok: 0 }
 }
 
 /** Stage 3: фіксовані заголовки у фіксованому порядку. */
@@ -246,6 +201,10 @@ async function generateOneShot(facts, src, model) {
 const DEFAULT_SYM_THRESHOLD = 4
 /** Максимальний час локальної генерації на один файл перед ескалацією у Tier 2. */
 const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
+/** Дефолтна Tier 1 модель: N_CURSOR_DOCGEN_MODEL → LOCAL_MIN → ollama gemma3:4b. */
+const DEFAULT_LOCAL_MODEL = localModelId(env.N_CURSOR_DOCGEN_MODEL ?? LOCAL_MIN)
+/** Дефолтна Tier 2 модель (provider/model-id для pi): N_CURSOR_DOCGEN_CLOUD_MODEL → resolveModel('avg'). */
+const DEFAULT_CLOUD_MODEL = env.N_CURSOR_DOCGEN_CLOUD_MODEL ?? resolveModel('avg')
 
 /** Повертає promise, що відхиляється через `ms` мс з повідомленням про timeout. */
 function withTimeout(promise, ms) {
@@ -268,9 +227,9 @@ function withTimeout(promise, ms) {
 export async function generateDoc(
   file,
   {
-    model = 'gemma3:4b',
+    model = DEFAULT_LOCAL_MODEL,
     mode = 'orchestrated',
-    cloudModel = 'claude-sonnet-4-6',
+    cloudModel = DEFAULT_CLOUD_MODEL,
     threshold = QUALITY_THRESHOLD,
     symThreshold = DEFAULT_SYM_THRESHOLD
   } = {}
@@ -281,8 +240,8 @@ export async function generateDoc(
 
   // Pre-routing: складні файли (sym ≥ symThreshold) → одразу Tier 2, не витрачаємо local-час
   const complexity = facts.internalSymbols?.length ?? 0
-  if (complexity >= symThreshold && env.ANTHROPIC_API_KEY) {
-    const r2 = await claudeOneShot(facts, src, cloudModel)
+  if (complexity >= symThreshold && cloudModel) {
+    const r2 = piOneShot(facts, src, cloudModel)
     return {
       ...r2,
       ms: Date.now() - t0,
@@ -302,8 +261,8 @@ export async function generateDoc(
         : generateOrchestrated(facts, src, model)
     r = await withTimeout(localPromise, LOCAL_TIMEOUT_MS)
   } catch (e) {
-    if (env.ANTHROPIC_API_KEY) {
-      const r2 = await claudeOneShot(facts, src, cloudModel)
+    if (cloudModel) {
+      const r2 = piOneShot(facts, src, cloudModel)
       return {
         ...r2,
         ms: Date.now() - t0,
@@ -319,8 +278,8 @@ export async function generateDoc(
   // Stage 2.5: детермінований скоринг (0 токенів) — gate перед Tier 2
   const { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
 
-  if (detScore < threshold && env.ANTHROPIC_API_KEY) {
-    const r2 = await claudeOneShot(facts, src, cloudModel)
+  if (detScore < threshold && cloudModel) {
+    const r2 = piOneShot(facts, src, cloudModel)
     return { ...r2, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 2, model: cloudModel }
   }
 
@@ -335,7 +294,7 @@ if (isRunAsCli(import.meta.url)) {
   const mode = args.includes('--oneshot') ? 'oneshot' : 'orchestrated'
   const tierOnly = args.includes('--tier-only')
   const mi = args.indexOf('--model')
-  const model = mi >= 0 ? args[mi + 1] : 'gemma3:4b'
+  const model = mi >= 0 ? args[mi + 1] : DEFAULT_LOCAL_MODEL
   const si = args.indexOf('--sym-threshold')
   const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
   if (!file) {

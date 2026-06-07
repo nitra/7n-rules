@@ -1,25 +1,19 @@
 /**
  * Public API класифікатора: classify(survived, cwd, opts) → verdicts[]
  *
- * Orchestration:
- *   1. Перевірка ANTHROPIC_API_KEY + dynamic import SDK (graceful skip).
- *   2. Для кожного мутанта: cache lookup → класифікація → cache write.
- *   3. На неуспішну класифікацію після retries — conservative fallback worth-testing/confidence=0.
- *
- * Prompt caching: system-prompt передається з cache_control: ephemeral —
- * усі мутанти одного прогону reuse кешований префікс на стороні API.
+ * Routing:
+ *   1. Cache lookup → hit → використати збережений verdict.
+ *   2. Cache miss → Tier 1 (LOCAL_MIN через pi) → parseVerdict.
+ *   3. Tier 1 fail (pi error / bad JSON / Zod) → Tier 2 (CLOUD_MIN через pi).
+ *   4. Tier 2 fail → conservative fallback worth-testing/confidence=0.
  */
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
-import { env } from 'node:process'
-import { setTimeout } from 'node:timers/promises'
 
+import { CLOUD_MIN, resolveModel } from '../../lib/models.mjs'
 import { deriveCacheKey, readCache, writeCache } from './cache.mjs'
 import { buildUserPrompt, SYSTEM_PROMPT } from './prompt.mjs'
 import { parseVerdict } from './verdict-schema.mjs'
-
-const MODEL = 'claude-sonnet-4-6'
-const MAX_RETRIES = 2
-const DEFAULT_RETRY_DELAY_MS = 1000
 
 const FALLBACK_VERDICT = {
   verdict: 'worth-testing',
@@ -28,36 +22,67 @@ const FALLBACK_VERDICT = {
 }
 
 /**
- * Класифікує survived мутантів через Claude API.
- * Без API key / без SDK / при критичних помилках — повертає [] (graceful skip).
- * @param {Array<{file: string, mutants: Array<object>, exampleTest?: object|null, recommendationText?: string|null}>} survived список survived груп (як у COVERAGE.md)
+ * Викликає pi і повертає raw stdout.
+ * @param {string} prompt
+ * @param {string} model  provider/model-id або '' для pi-дефолту
+ * @returns {string}
+ * @throws якщо pi не знайдено або повертає ненульовий exit code
+ */
+function callPi(prompt, model) {
+  const modelArgs = model ? ['--model', model] : []
+  const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
+    encoding: 'utf8',
+    timeout: 60_000
+  })
+  if (r.error) throw new Error(`pi error: ${r.error.message}`)
+  if (r.status !== 0) throw new Error(`pi exit ${r.status}: ${r.stderr?.slice(0, 200) ?? ''}`)
+  return r.stdout?.trim() ?? ''
+}
+
+/**
+ * Два тири: LOCAL_MIN → Tier 2 CLOUD_MIN → FALLBACK_VERDICT.
+ * @param {{file: string, mutants: object[]}} group
+ * @param {object} mutant
+ * @param {string} cwd
+ * @param {(prompt: string, model: string) => string} callPiFn  ін'єкція для тестів
+ * @returns {object} verdict
+ */
+function classifyOne(group, mutant, cwd, callPiFn) {
+  const prompt = `${SYSTEM_PROMPT}\n\n${buildUserPrompt({ ...mutant, file: group.file }, cwd)}`
+  const loc = `${group.file}:${mutant.line}:${mutant.col}`
+
+  // Tier 1: resolveModel('min') — каскад local→cloud якщо локалі нема
+  try {
+    const text = callPiFn(prompt, resolveModel('min'))
+    return parseVerdict(text)
+  } catch {
+    // Tier 2: CLOUD_MIN
+    try {
+      const text = callPiFn(prompt, CLOUD_MIN)
+      return parseVerdict(text)
+    } catch (e) {
+      console.warn(`⚠ coverage classify: ${loc} both tiers failed: ${e.message}`)
+      return { ...FALLBACK_VERDICT }
+    }
+  }
+}
+
+/**
+ * Класифікує survived мутантів через pi (LOCAL_MIN → CLOUD_MIN → fallback).
+ * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived
  * @param {string} cwd корінь проєкту
- * @param {{cachePath?: string, client?: object, retryDelayMs?: number}} [opts] ін'єкції для тестів
+ * @param {{cachePath?: string, callPi?: Function}} [opts] ін'єкції для тестів
  * @returns {Promise<Array<{key: string, verdict: object}>>} verdicts
  */
 export async function classify(survived, cwd, opts = {}) {
   const cachePath = opts.cachePath ?? join(cwd, 'npm/reports/coverage-classify.cache.json')
-  const retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
-
-  if (!env.ANTHROPIC_API_KEY) {
-    console.warn('⚠ coverage classify: ANTHROPIC_API_KEY not set, classification skipped')
-    return []
-  }
-
-  let SDK
-  try {
-    SDK = await import('@anthropic-ai/sdk')
-  } catch {
-    console.warn('⚠ coverage classify: @anthropic-ai/sdk not installed, classification skipped')
-    return []
-  }
-  const Anthropic = SDK.default
-  const client = opts.client ?? new Anthropic()
+  const callPiFn = opts.callPi ?? callPi
+  const cacheModel = `${resolveModel('min') || 'default'}+${CLOUD_MIN || 'cloud'}`
 
   const cache = readCache(cachePath)
-  if (cache.model !== MODEL) {
+  if (cache.model !== cacheModel) {
     cache.entries = {}
-    cache.model = MODEL
+    cache.model = cacheModel
   }
 
   const verdicts = []
@@ -77,7 +102,7 @@ export async function classify(survived, cwd, opts = {}) {
         }
       }
       if (!verdict) {
-        verdict = await classifyOne(client, group, mutant, cwd, retryDelayMs)
+        verdict = classifyOne(group, mutant, cwd, callPiFn)
         if (cacheKey) {
           cache.entries[cacheKey] = { ...verdict, classifiedAt: new Date().toISOString() }
         }
@@ -89,41 +114,4 @@ export async function classify(survived, cwd, opts = {}) {
 
   writeCache(cachePath, cache)
   return verdicts
-}
-
-/**
- * Один виклик API з retry. На фейл після MAX_RETRIES — повертає FALLBACK_VERDICT.
- * @param {{messages: {create: Function}}} client SDK client
- * @param {{file: string}} group group для контексту
- * @param {object} mutant mutant data
- * @param {string} cwd корінь
- * @param {number} retryDelayMs base delay для exp-backoff (0 у тестах)
- * @returns {Promise<object>} verdict (parsed або fallback)
- */
-async function classifyOne(client, group, mutant, cwd, retryDelayMs) {
-  const userPrompt = buildUserPrompt({ ...mutant, file: group.file }, cwd)
-  let lastError = null
-
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const response = await client.messages.create({
-        model: MODEL,
-        max_tokens: 1024,
-        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
-        messages: [{ role: 'user', content: userPrompt }]
-      })
-      const text = response?.content?.[0]?.text ?? ''
-      return parseVerdict(text)
-    } catch (error) {
-      lastError = error
-      if (attempt < MAX_RETRIES && retryDelayMs > 0) {
-        await setTimeout(retryDelayMs * 2 ** attempt)
-      }
-    }
-  }
-
-  console.warn(
-    `⚠ coverage classify: ${group.file}:${mutant.line}:${mutant.col} failed after ${MAX_RETRIES + 1} attempts: ${lastError?.message ?? 'unknown'}`
-  )
-  return { ...FALLBACK_VERDICT }
 }
