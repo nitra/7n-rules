@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.29.0] - 2026-06-07
+
+### Added
+
+- resolveModel(tier) — прозорий каскадний fallback local→cloud для всіх 3 тирів (min/avg/max)
+
 ## [3.28.0] - 2026-06-06
 
 ### Added
