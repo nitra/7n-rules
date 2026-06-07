@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.0] - 2026-06-07
+
+### Changed
+
+- major version bump to 4.0.0
+- docgen Tier 1: пряму ollama HTTP замінено на pi+resolveModel('min') — universally через каскад
+
 ## [3.29.0] - 2026-06-07
 
 ### Added
