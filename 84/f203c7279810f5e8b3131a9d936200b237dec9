@@ -1,0 +1,68 @@
+docs/adr/260606-2139-спрощення-tier-routing-у-docgen-видалення-haiku-рефері-додав.md
+  s_f3553eb6029c44::t_e24de18cd36932 1-66
+npm/skills/fix/js/llm-worker.mjs
+  s_66bb3de0d45e29::t_b5ef84afcccb41 7,9,11-12
+docs/adr/260606-2137-спрощення-tier-routing-у-docgen-детермінований-gate-замість.md
+  s_f3553eb6029c44::t_e24de18cd36932 2-4,7-11,14,17-19,22,25,29-30,34,37,40-41,44,47,51-60,64,67,70,73,76,80-82,86,89,92-93,96,99-100,103-106
+tasks/ui-task-view/task.md
+  s_4c5d14c8e44b05::t_5ed6d72812662e 1-27
+docs/adr/260606-2142-видалення-haiku-рефері-і-спрощення-tier-routing-у-docgen.md
+  s_f3553eb6029c44::t_e24de18cd36932 1-84
+npm/.changes/260606-2204.md
+  s_66bb3de0d45e29::t_ff55f3bcaeced1 1-5
+docs/adr/260606-2143-299215fa.md
+  s_f3553eb6029c44::t_e24de18cd36932 1-31
+docs/adr/260606-2134-299215fa.md
+  s_f3553eb6029c44::t_e24de18cd36932 1-81
+npm/lib/models.mjs
+  s_66bb3de0d45e29::t_70375a82f35b84 14-26,52-68
+docs/adr/260606-2141-реформування-flow-під-архітектуру-думка-md-graph-як-оркестра.md
+  s_f3553eb6029c44::t_e24de18cd36932 2-4,7,10,13-16,19,22,26,30,33,36-38,41,44,48,52,55,58-60,63,66-67,70
+npm/scripts/coverage-fix.mjs
+  s_66bb3de0d45e29::t_48bac838e87a32 13-15
+npm/scripts/coverage-classify/index.mjs
+  s_66bb3de0d45e29::t_04bb2fcd098efb 13
+  s_66bb3de0d45e29::t_93ea8c5d5c20f7 54,56
+  s_66bb3de0d45e29::t_9fa26c4a483adb 80
+npm/scripts/dispatcher/lib/subagent-runner.mjs
+  s_66bb3de0d45e29::t_d68b91c7ceb792 40
+  s_66bb3de0d45e29::t_cf9b6d020e1669 13
+  s_66bb3de0d45e29::t_d195838b9a4016 3
+npm/skills/docgen/js/docgen-gen.mjs
+  s_66bb3de0d45e29::t_d52ad5f6283953 7
+  s_66bb3de0d45e29::t_76d8ce23dd63f3 206-207
+docs/думка.MD
+  s_f3553eb6029c44::t_7035eba28be38c 727-793,831,833-836
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "84f203c7279810f5e8b3131a9d936200b237dec9",
+  "prompts": {},
+  "sessions": {
+    "s_4c5d14c8e44b05": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "bce336cc-aa1a-406e-9d06-59ac3091f37c",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_66bb3de0d45e29": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e669f3c-28f9-4b13-9f55-6a6ec894debe",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f3553eb6029c44": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d943f92b-e895-4110-8ae0-338380a03c95",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
