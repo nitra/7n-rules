@@ -1,0 +1,19 @@
+npm/types/bin/n-cursor.d.ts
+  s_1282b051a06b12::t_e9548a56c0738d 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "8f93099a36b966b3c019140425e021a8f421ebb4",
+  "prompts": {},
+  "sessions": {
+    "s_1282b051a06b12": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "90067322-b72e-4fc8-9aab-41c6ef93cee8",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
