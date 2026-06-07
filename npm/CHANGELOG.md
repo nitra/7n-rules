@@ -1,5 +1,11 @@
 # Changelog
 
+## [4.1.0] - 2026-06-07
+
+### Added
+
+- checkOllama() + ollama HTTP як primary path, pi як fallback у docgen-gen
+
 ## [4.0.0] - 2026-06-07
 
 ### Changed
