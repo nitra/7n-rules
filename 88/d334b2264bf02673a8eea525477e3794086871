@@ -1,0 +1,34 @@
+npm/scripts/dispatcher/trace.mjs
+  s_62ec3315d01380::t_7ce0162545520d 14,59,74,116
+npm/scripts/lib/changed-files.mjs
+  s_62ec3315d01380::t_99ce426ae6c1d4 36-50,57-59
+npm/scripts/lib/sync-gitignore-worktree.mjs
+  s_62ec3315d01380::t_7ce0162545520d 5,7-9
+npm/scripts/worktree-cli.mjs
+  s_62ec3315d01380::t_7ce0162545520d 163
+npm/scripts/docs/worktree-cli.md
+  s_62ec3315d01380::t_7ce0162545520d 20
+npm/rules/test/coverage/coverage.mjs
+  s_62ec3315d01380::t_99ce426ae6c1d4 22,213-216,219-220,230,307
+npm/rules/test/test.mdc
+  s_62ec3315d01380::t_7ce0162545520d 133
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_62ec3315d01380::t_05616f39e32a29 792
+  s_62ec3315d01380::t_f95aa4e7bf976c 22,29,348-373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "88d334b2264bf02673a8eea525477e3794086871",
+  "prompts": {},
+  "sessions": {
+    "s_62ec3315d01380": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ea57a-67f1-7962-837c-f62d09f088d9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
