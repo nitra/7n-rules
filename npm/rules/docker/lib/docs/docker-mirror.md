@@ -166,7 +166,7 @@
 - **Внутрішні модулі:** немає; модуль самодостатній.
 - **Глобальні API:** виключно стандартний JavaScript — `RegExp`, `String.prototype` (`split`, `trim`, `match`, `slice`, `toLowerCase`, `replace`, `includes`, `startsWith`, `lastIndexOf`), `Set`, `Array.prototype.entries`.
 - **Runtime:** ESM, працює в Node.js та Bun. Розширення `.mjs` обов'язкове за правилом `n-bun`/`n-js-run`.
-- **JSDoc типи:** використовуються `@type`, `@param`, `@returns` із касти `/** @type {const} */` для іммутабельних літералів — допомагають TypeScript/JSDoc-перевірці й ESLint.
+- **JSDoc типи:** використовуються `@type`, `@param`, `@returns` із касти `/** @type {const} */` для імутабельних літералів — допомагають TypeScript/JSDoc-перевірці й ESLint.
 
 ## Потік виконання / Використання
 

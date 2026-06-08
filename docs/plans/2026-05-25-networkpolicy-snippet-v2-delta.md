@@ -1474,14 +1474,14 @@ GKE NodeLocal DNSCache (`169.254.0.0/16:53/UDP+TCP`) — частина кано
 **Bad:**
 
 - Дублювання `egress` правил між `deployment.snippet.yaml` і `statefulset.snippet.yaml` (~40 рядків). Свідома ціна за runtime-простоту (jodno merge між snippets).
-- Anotация `nitra.dev/workload-kind` стає обовʼязковою — існуючі `networkpolicy.yaml`, створені вручну, потребують перезапису через `n-fix`.
+- Анотація `nitra.dev/workload-kind` стає обовʼязковою — існуючі `networkpolicy.yaml`, створені вручну, потребують перезапису через `n-fix`.
 - Major version bump публічного `@nitra/cursor` API.
 
 ## Alternatives considered
 
 - **Single canon-snippet + ручна синхронізація rego** — простіше, але не підтримує StatefulSet differentiation; vсе одно треба сихронізувати rego-фікстури вручну.
 - **Common + delta snippets** — DRY-er (~70 рядків), але вимагає runtime merge в JS і rego; менше явності.
-- **Anotация в спеціальному файлі (`workload-kind.yaml`)** — додає файл без додаткової цінності; анотація вже на місці.
+- **Анотація в спеціальному файлі (`workload-kind.yaml`)** — додає файл без додаткової цінності; анотація вже на місці.
 
 ## References
 

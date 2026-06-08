@@ -41,7 +41,7 @@
 
 ### Зовнішні залежності (за типом)
 
-- `@stryker-mutator/core` — використовується лише як джерело типу `PartialStrykerOptions` через JSDoc-аннотацію `/** @type {import('@stryker-mutator/core').PartialStrykerOptions} */`. На runtime пакет не імпортується в цьому файлі, але має бути встановлений у проєкті, бо саме CLI `stryker` зчитує конфіг.
+- `@stryker-mutator/core` — використовується лише як джерело типу `PartialStrykerOptions` через JSDoc-анотацію `/** @type {import('@stryker-mutator/core').PartialStrykerOptions} */`. На runtime пакет не імпортується в цьому файлі, але має бути встановлений у проєкті, бо саме CLI `stryker` зчитує конфіг.
 - `@stryker-mutator/vitest-runner` — потрібен у проєкті, бо `testRunner: 'vitest'` посилається на цей плагін; у файлі не імпортується явно.
 - `vitest` — runtime-залежність test runner, очікувана у проєкті.
 
@@ -88,4 +88,4 @@
 
 ### Rebuild Test (відтворення файлу за документом)
 
-Щоб відтворити файл `stryker.vitest.config.mjs` за цим документом, потрібно створити `.mjs`-модуль із JSDoc-аннотацією типу `import('@stryker-mutator/core').PartialStrykerOptions` над `export default`, який повертає об'єкт із полями: `testRunner: 'vitest'`; `vitest: { configFile: 'vitest.config.js' }`; `coverageAnalysis: 'perTest'`; `tempDirName: 'reports/stryker/.tmp'`; `reporters: ['json', 'clear-text']`; `jsonReporter: { fileName: 'reports/stryker/mutation.json' }`; `incremental: true`; `incrementalFile: 'reports/stryker/incremental-vitest.json'`; `mutate: ['src/**/*.mjs']`; `timeoutMS: 60000`.
+Щоб відтворити файл `stryker.vitest.config.mjs` за цим документом, потрібно створити `.mjs`-модуль із JSDoc-анотацією типу `import('@stryker-mutator/core').PartialStrykerOptions` над `export default`, який повертає об'єкт із полями: `testRunner: 'vitest'`; `vitest: { configFile: 'vitest.config.js' }`; `coverageAnalysis: 'perTest'`; `tempDirName: 'reports/stryker/.tmp'`; `reporters: ['json', 'clear-text']`; `jsonReporter: { fileName: 'reports/stryker/mutation.json' }`; `incremental: true`; `incrementalFile: 'reports/stryker/incremental-vitest.json'`; `mutate: ['src/**/*.mjs']`; `timeoutMS: 60000`.

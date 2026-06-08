@@ -79,7 +79,7 @@ getNativeAddonDeps(dependencies: unknown): string[]
 1. Якщо `!dependencies` (null/undefined/інше falsy), або `typeof dependencies !== 'object'`, або `Array.isArray(dependencies)` — повернути `[]`.
 2. Зібрати ключі через `Object.keys(dependencies)`.
 3. Відфільтрувати через `isNativeAddonPackage`.
-4. Повернути копію, відсортовану через `.toSorted((a, b) => a.localeCompare(b))` (іммутабельне сортування, не мутує вихідний масив ключів).
+4. Повернути копію, відсортовану через `.toSorted((a, b) => a.localeCompare(b))` (імутабельне сортування, не мутує вихідний масив ключів).
 
 Side effects: відсутні. Чиста функція; виклик `Object.keys` не мутує вхід.
 
