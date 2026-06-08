@@ -24,6 +24,7 @@
     "n-cursor": "./bin/n-cursor.js"
   },
   "files": [
+    "docs",
     "types",
     "rules",
     "bin",
