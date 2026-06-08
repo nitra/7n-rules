@@ -1,0 +1,21 @@
+docs/superpowers/plans/2026-06-08-meta-task-extraction.md
+  s_62ec3315d01380::t_d2f234fdc8ae9c 1-67,69-119,121-168,172-219,221-298,300-393,395-458,460,462-509,511-517,525-531,537-571,573-639,641-689
+  s_62ec3315d01380::t_6aee91f89205ba 68,120,220,299,394,459,510,572,640
+  s_62ec3315d01380::t_d64f38ac262747 169-171,461,518-524,532-536
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "16544683ce46c8b853eeb932605ad3fae41b7bf0",
+  "prompts": {},
+  "sessions": {
+    "s_62ec3315d01380": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ea57a-67f1-7962-837c-f62d09f088d9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
