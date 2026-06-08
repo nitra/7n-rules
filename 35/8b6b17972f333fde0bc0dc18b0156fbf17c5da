@@ -1,0 +1,20 @@
+docs/superpowers/specs/2026-06-08-meta-task-extraction-design.md
+  s_62ec3315d01380::t_e10d032c3f7c9c 54,57,70-71,216-217
+  s_62ec3315d01380::t_68d78c54cfbe78 1-53,55-56,58-69,72-215,218-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "358b6b17972f333fde0bc0dc18b0156fbf17c5da",
+  "prompts": {},
+  "sessions": {
+    "s_62ec3315d01380": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019ea57a-67f1-7962-837c-f62d09f088d9",
+        "model": "gpt-5.5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
