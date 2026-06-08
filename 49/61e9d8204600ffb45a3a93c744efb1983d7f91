@@ -1,0 +1,73 @@
+npm/rules/test/coverage/coverage.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 22,213-216,219-220,230,307
+npm/rules/test/test.mdc
+  s_e8ebab9a13fd24::t_84f226ff56feb7 133
+npm/bin/docs/n-cursor.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 8
+npm/scripts/dispatcher/trace.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 14,59,74,116
+npm/.changes/260608-1315.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1-6
+npm/bin/n-cursor.js
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1552-1553,1793
+npm/scripts/docs/worktree-cli.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 20
+npm/rules/test/coverage/tests/coverage.test.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 22,29,348-376,792
+npm/scripts/lib/changed-files.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 36-50,57-59
+docs/adr/20260608-1144-docgen-transport-order-mismatch.md
+  s_18ef1425b11b40::t_f0d3512d754627 1,4,7-8,11,14-16,19-21
+npm/.changes/260608-1153.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1-5
+npm/scripts/dispatcher/tests/index.test.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 2-6,8-11,13,15-27,29-33,36-39,42-45,48-51,54-58,61-64,67-70
+npm/scripts/lib/sync-gitignore-worktree.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 5,7-9
+npm/skills/docgen/js/docgen-gen.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 32,43,188,191,193,214,216
+npm/.changes/260608-1149.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1-5
+npm/scripts/worktree-cli.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 163
+docs/adr/20260608-1149-pi-конкатенує-roles-у-plain-text-без-семантики.md
+  s_f8c09c7429b04f::t_c597fcc62c7e96 1,4,7-8,11,14-15,18-22
+docs/superpowers/plans/2026-06-08-meta-task-extraction.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1,3,5,7,9,11,13,15-20,22,24-63,65,67,69,71,73-162,165,167,169-245,248-258,261-263,265,268-274,277,279-308,311-313,316-318,320-325,328-329,332,334-344,347-388,391,393,395-399,401,403,405-408,410,412,414,416,418,420,422,424-429,431,433,435,437,439,441-445,447,449,451-454,456,458,460-463,465,467,469,471,473-475,477,479,481-486,488,490,492,494-498,500-505,507,509,511-524,526,528,530,532,534-536,538,540,542,544,546,548,550,552,554,556-558,560,562,564-567,569,571,573-578,580,582,584-597,600,602-614,616,618,620,622-626,628,630,632-635,637,639,641,643,645,647-653,655,657,659-664,666,668,670-674,676,678,680,682,684-687,689
+npm/tests/fix-mjs-contract.test.mjs
+  s_e8ebab9a13fd24::t_84f226ff56feb7 21-22
+docs/superpowers/specs/2026-06-08-meta-task-extraction-design.md
+  s_e8ebab9a13fd24::t_84f226ff56feb7 1,3,5-6,8,10-14,16,18,20-27,29-30,32,34-36,38,40,42-46,51-68,70-107,109,111-115,117-177,179-280
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4961e9d8204600ffb45a3a93c744efb1983d7f91",
+  "prompts": {},
+  "sessions": {
+    "s_18ef1425b11b40": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "61a9f5fa-d917-43b2-a6b6-1f7b0e38583e",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    },
+    "s_e8ebab9a13fd24": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "019ea578-af34-7763-a09c-38042af06f87",
+        "model": "unknown"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_f8c09c7429b04f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "86cd675f-6cc3-4f9c-9956-d6edda71f024",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": null
+    }
+  }
+}
