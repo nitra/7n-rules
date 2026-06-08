@@ -29,7 +29,7 @@ function stripSection(text) {
  */
 function stripSignatures(text) {
   let t = text
-  for (let i = 0; i < 2; i++) t = t.replace(/([`\w$.]+)\([^()]*\)/g, '$1')
+  for (let i = 0; i < 2; i++) t = t.replaceAll(/([`\w$.]+)\([^()]*\)/g, '$1')
   return t
 }
 
@@ -40,7 +40,7 @@ function parseSections(md) {
   for (const line of md.split('\n')) {
     const m = line.match(/^##\s+(.+)/)
     if (m) {
-      cur = m[1].toLowerCase().replace(/[^а-яіїєґa-z0-9]/gi, '')
+      cur = m[1].toLowerCase().replaceAll(/[^а-яіїєґa-z0-9]/gi, '')
       result[cur] = ''
     } else if (cur) result[cur] += line + '\n'
   }
@@ -185,12 +185,12 @@ export async function generateDoc(
     r = facts.unsupported
       ? piOneShot(facts, src, model, LOCAL_TIMEOUT_MS)
       : piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS)
-  } catch (e) {
+  } catch (error) {
     if (cloudModel) {
       const r2 = piOneShot(facts, src, cloudModel)
-      return { ...r2, ms: Date.now() - t0, score: null, issues: [`tier1-error: ${e.message}`], tier: 2, model: cloudModel }
+      return { ...r2, ms: Date.now() - t0, score: null, issues: [`tier1-error: ${error.message}`], tier: 2, model: cloudModel }
     }
-    throw e
+    throw error
   }
 
   // Stage 2.5: детермінований скоринг (0 токенів) — gate перед Tier 2
@@ -211,9 +211,9 @@ if (isRunAsCli(import.meta.url)) {
   const file = args.find(a => !a.startsWith('--'))
   const tierOnly = args.includes('--tier-only')
   const mi = args.indexOf('--model')
-  const model = mi >= 0 ? args[mi + 1] : DEFAULT_LOCAL_MODEL
+  const model = mi !== -1 ? args[mi + 1] : DEFAULT_LOCAL_MODEL
   const si = args.indexOf('--sym-threshold')
-  const symThreshold = si >= 0 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
+  const symThreshold = si !== -1 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
   if (!file) {
     console.error('Usage: node docgen-gen.mjs <file> [--model <m>] [--sym-threshold N] [--tier-only]')
     process.exit(1)

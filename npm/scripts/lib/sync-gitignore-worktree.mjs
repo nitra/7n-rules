@@ -2,12 +2,11 @@
  * Гарантує, що кореневий `.gitignore` проєкту ігнорує локальні git-worktree
  * (`.worktrees/`). Викликається з дефолтного sync (`npx \@nitra/cursor`) окремим
  * top-level кроком — поза `syncClaudeConfig`, бо `.worktrees/` — артефакт
- * завжди-активного flow/worktree-tooling, а не Claude/Cursor-конфігу.
+ * завжди-активного worktree-tooling, а не Claude/Cursor-конфігу.
  *
- * Один запис `.worktrees/` покриває каталог worktree та всі sibling-файли в ньому
- * (`<branch>.flow.json`, `.events.jsonl`, `<name>.md`, `.flow-lock-*`). Запис
- * безумовний (без гейта за `.n-cursor.json`-правилами): продюсер артефактів —
- * завжди-активний flow, тож гейт міг би розсинхронитися з ним.
+ * Один запис `.worktrees/` покриває checkout-и та локальні описи worktree.
+ * Запис безумовний (без гейта за `.n-cursor.json`-правилами), щоб config не міг
+ * розсинхронитися з реальною поведінкою worktree-команд.
  *
  * Делегує наявній idempotent+append-only утиліті `ensureGitignoreEntries` (header-
  * секція, не перезаписує/не видаляє наявні рядки; створює `.gitignore`, якщо нема).

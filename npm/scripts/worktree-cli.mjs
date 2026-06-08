@@ -160,8 +160,7 @@ function cmdRemove(rest, ctx) {
     return 1
   }
   if (existsSync(paths.descFile)) rmSync(paths.descFile, { force: true })
-  // В новій архітектурі (думка.MD) state зберігається у файлах вузлів (task.md, outputs, run),
-  // а не у .flow.json/.events.jsonl/lock sibling-ах. Cleanup sibling-ів більше не потрібен.
+  // Окремих sibling runtime-файлів більше немає, тож cleanup обмежений checkout і описом.
   ctx.log(`✅ прибрано: ${paths.checkout} (гілку ${branch} лишено)`)
   return 0
 }

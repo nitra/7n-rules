@@ -5,7 +5,7 @@
 Файл `npm/bin/n-cursor.js` — це виконуваний скрипт (shebang `#!/usr/bin/env node`), що слугує єдиною точкою входу CLI пакета `@nitra/cursor`. Скрипт виконує дві ролі:
 
 1. **Синхронізатор пакетних артефактів у проєкті-споживачі** — без аргументів копіює `.mdc`-правила, скіли, slash-команди, генерує `AGENTS.md`, `CLAUDE.md`, синхронізує `.claude/settings.json`, `.cursor/hooks.json`, composite GitHub Action `setup-bun-deps`, `.pi/skills`, а також `.gitignore` для `.worktrees/`.
-2. **Маршрутизатор підкоманд** — диспатчить `fix`, `check`, `rename-yaml-extensions`, `post-tool-use-fix`, `lint`, `lint-ci`, `lint-ga`, `lint-rego`, `lint-k8s`, `lint-docker`, `lint-text`, `coverage`, `change`, `release`, `skill`, `worktree`, `flow`, `trace`, `graph`, `docgen` у відповідні внутрішні модулі пакета.
+2. **Маршрутизатор підкоманд** — диспатчить `fix`, `check`, `rename-yaml-extensions`, `post-tool-use-fix`, `lint`, `lint-ci`, `lint-ga`, `lint-rego`, `lint-k8s`, `lint-docker`, `lint-text`, `coverage`, `change`, `release`, `skill`, `worktree`, `trace`, `docgen` у відповідні внутрішні модулі пакета.
 
 Скрипт — ES-модуль (`import` синтаксис). Виконує реальні файлові операції в `cwd()` і у каталогах пакету (`BUNDLED_PACKAGE_ROOT`). Усі шляхи відносно поточної робочої директорії проєкту-споживача.
 
@@ -29,9 +29,7 @@
 - `npx @nitra/cursor release` — реліз-команда.
 - `npx @nitra/cursor skill list|taze|cursor|claude …` — керування скілами (промпт на stdout, виклик Cursor/Claude CLI).
 - `npx @nitra/cursor worktree …` — керування git-worktree.
-- `npx @nitra/cursor flow` — Dual-Mode Dispatcher (Пасивний Турнікет + Активний Раннер).
 - `npx @nitra/cursor trace` — наскрізна простежуваність ADR↔spec↔plan↔change.
-- `npx @nitra/cursor graph` — read-only DAG-статус.
 - `npx @nitra/cursor docgen scan|modules` — детермінований JSON-лістинг для скілу docgen; `scan` друкує відносний `sourcePath`, ignore-glob snippet живе в `npm/skills/docgen/js/docgen-ignore.mjs`.
 
 ### Конвенції та ключові артефакти
@@ -77,9 +75,7 @@
   - `runCoverageCli` з `../rules/test/coverage/coverage.mjs`
   - `runChangeCli` з `../rules/release/change.mjs`
   - `runReleaseCli` з `../rules/release/release.mjs`
-  - `runFlowCli` зі `../scripts/dispatcher/index.mjs`
   - `runTraceCli` зі `../scripts/dispatcher/trace.mjs`
-  - `runGraphCli` зі `../scripts/dispatcher/graph.mjs`
   - `runDocgenScanCli`, `runDocgenModulesCli` зі `../skills/docgen/js/docgen-scan.mjs`
 
 ## Константи модуля
@@ -481,9 +477,7 @@ try {
 - `'release'` → динамічний import `../rules/release/release.mjs` → `runReleaseCli(args)`.
 - `'skill'` → `runSkillsCli(args)` (синхронний).
 - `'worktree'` → `runWorktreeCli(args)`.
-- `'flow'` → динамічний import `../scripts/dispatcher/index.mjs` → `runFlowCli(args)`.
 - `'trace'` → динамічний import `../scripts/dispatcher/trace.mjs` → `runTraceCli(args)`.
-- `'graph'` → динамічний import `../scripts/dispatcher/graph.mjs` → `runGraphCli(args)`.
 - `'docgen'` → динамічний import `../skills/docgen/js/docgen-scan.mjs`. Якщо `args[0] === 'scan'` → `runDocgenScanCli(args.slice(1))`; якщо `'modules'` → `runDocgenModulesCli(args.slice(1))`; інакше друкує `Usage: …` і `process.exitCode = 1`.
 - `undefined` або `''` (нема команди) → `runSync()`.
 - `default` — невідома команда: stderr, перелік очікуваних, `process.exitCode = 1`.
@@ -543,9 +537,7 @@ try {
 - `../rules/test/coverage/coverage.mjs` — `runCoverageCli`.
 - `../rules/release/change.mjs` — `runChangeCli`.
 - `../rules/release/release.mjs` — `runReleaseCli`.
-- `../scripts/dispatcher/index.mjs` — `runFlowCli`.
 - `../scripts/dispatcher/trace.mjs` — `runTraceCli`.
-- `../scripts/dispatcher/graph.mjs` — `runGraphCli`.
 - `../skills/docgen/js/docgen-scan.mjs` — `runDocgenScanCli`, `runDocgenModulesCli`.
 
 ### Зовнішні інструменти (виконуються через `spawnSync` / в `fix.mjs`)

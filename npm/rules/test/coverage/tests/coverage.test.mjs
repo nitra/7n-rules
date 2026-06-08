@@ -19,12 +19,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import {
   addCoverage,
   addMutation,
   formatCoverage,
   formatScore,
   renderMarkdown,
+  resolveChangedScope,
   runCoverageCli,
   runCoverageSteps
 } from '../coverage.mjs'
@@ -340,6 +342,35 @@ describe('runCoverageSteps', () => {
     // Разом: lines 20/40 → 50.00%; functions 6/10 → 60.00%; mutation 8/10 → 80.00%
     expect(md).toContain('| **Разом** | 50.00% (20/40) | 60.00% (6/10) | 8/10 | 80.00% |')
     fx.cleanup()
+  })
+})
+
+describe('resolveChangedScope', () => {
+  test('changed scope бере git merge-base без .flow.json sibling-стану', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'coverage-changed-git-base-'))
+    spawnSync('git', ['init', '-q', '--initial-branch=main'], { cwd: dir })
+    spawnSync('git', ['config', 'user.email', 't@t'], { cwd: dir })
+    spawnSync('git', ['config', 'user.name', 't'], { cwd: dir })
+    writeFileSync(join(dir, 'base.js'), 'export const base = 1\n', 'utf8')
+    spawnSync('git', ['add', '.'], { cwd: dir })
+    spawnSync('git', ['commit', '-qm', 'base'], { cwd: dir })
+    const mainHead = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: dir, encoding: 'utf8' }).stdout.trim()
+
+    spawnSync('git', ['switch', '-q', '-c', 'feature'], { cwd: dir })
+    writeFileSync(join(dir, 'committed.js'), 'export const committed = 1\n', 'utf8')
+    spawnSync('git', ['add', '.'], { cwd: dir })
+    spawnSync('git', ['commit', '-qm', 'feature step'], { cwd: dir })
+    writeFileSync(join(dir, 'base.js'), 'export const base = 2\n', 'utf8')
+    writeFileSync(join(dir, 'untracked.js'), 'export const untracked = 1\n', 'utf8')
+
+    const errSpy = vi.spyOn(console, 'error').mockReturnValue()
+    const scope = resolveChangedScope(dir)
+
+    expect(scope.base).toBe(mainHead)
+    expect(scope.files).toEqual(expect.arrayContaining(['committed.js', 'base.js', 'untracked.js']))
+    expect(errSpy).not.toHaveBeenCalled()
+    errSpy.mockRestore()
+    rmSync(dir, { recursive: true, force: true })
   })
 })
 
@@ -758,7 +789,7 @@ describe('runCoverageSteps — writeFile utf8 encoding (вбиває L185:49 "ut
     // 'О' (Cyrillic Capital Letter O, U+041E) у UTF-8 = 0xD0 0x9E
     let found = false
     for (let i = 0; i < bytes.length - 1; i++) {
-      if (bytes[i] === 0xd0 && bytes[i + 1] === 0x9e) {
+      if (bytes[i] === 0xD0 && bytes[i + 1] === 0x9E) {
         found = true
         break
       }

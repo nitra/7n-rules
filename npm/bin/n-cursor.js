@@ -1549,8 +1549,8 @@ async function runSync() {
 
 /**
  * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
- * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`/
- * `graph`, `--root`-команди `docgen`/`rename-yaml-extensions`, `worktree`,
+ * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`,
+ * `--root`-команди `docgen`/`rename-yaml-extensions`, `worktree`,
  * sub-лінтери) гард не зачіпає.
  */
 const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'fix', 'check', 'lint', 'coverage', 'change', 'release'])
@@ -1757,33 +1757,11 @@ try {
 
       break
     }
-    case 'flow': {
-      // n-cursor flow — Dual-Mode Dispatcher (spec §8): Пасивний Турнікет
-      // (init/verify/release) + Активний Раннер (run) навколо .flow.json.
-      const { runFlowCli } = await import('../scripts/dispatcher/index.mjs')
-      process.exitCode = await runFlowCli(args)
-
-      break
-    }
     case 'trace': {
       // n-cursor trace — наскрізна простежуваність (spec §5.4/§7): граф
       // ADR↔spec↔plan↔change за front-matter + флаг розривів. exit 1 на розрив.
       const { runTraceCli } = await import('../scripts/dispatcher/trace.mjs')
       process.exitCode = runTraceCli(args)
-
-      break
-    }
-    case 'graph': {
-      // n-cursor graph — task DAG orchestration system (думка.MD, file-presence protocol)
-      const { runGraphTasksCli } = await import('../scripts/dispatcher/graph-tasks.mjs')
-      process.exitCode = await runGraphTasksCli(args)
-
-      break
-    }
-    case 'watch': {
-      // n-cursor watch — one-shot DAG scan: audit queue + stale worktrees + needs-plan
-      const { runGraphTasksCli } = await import('../scripts/dispatcher/graph-tasks.mjs')
-      process.exitCode = await runGraphTasksCli(['watch', ...args])
 
       break
     }
@@ -1812,7 +1790,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, flow, trace, graph, watch, docgen`
+        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, trace, docgen`
       )
       process.exitCode = 1
     }

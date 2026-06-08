@@ -19,8 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { applyVerdicts } from '../../../scripts/coverage-classify/apply.mjs'
 import { classify } from '../../../scripts/coverage-classify/index.mjs'
-import { flowStatePath, readState } from '../../../scripts/dispatcher/lib/state-store.mjs'
-import { collectChangedFilesSince } from '../../../scripts/lib/changed-files.mjs'
+import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/lib/changed-files.mjs'
 import { readNCursorConfigLite } from '../../../scripts/lib/read-n-cursor-config-lite.mjs'
 import { withLock } from '../../../scripts/utils/with-lock.mjs'
 
@@ -211,23 +210,14 @@ async function readClassifyThreshold(cwd) {
 /**
  * Резолвить scope змінених файлів для `--changed`-режиму.
  *
- * Base — `metadata.base_commit` зі стану flow (sibling-файл `.flow.json` поруч із
- * worktree-checkout). `git diff <base>` проти робочого дерева ловить committed і
- * uncommitted однаково — тож scope не залежить від того, чи executor уже закомітив
- * крок. Поза flow (нема/пошкоджений стан) — fallback на робоче дерево vs HEAD.
- * @param {string} cwd корінь проєкту (= worktree-checkout у межах flow)
+ * Base — git merge-base поточної гілки з `main` або `origin/main`.
+ * `git diff <base>` проти робочого дерева ловить committed і uncommitted однаково,
+ * тож scope не залежить від того, чи крок уже закомічено.
+ * @param {string} cwd корінь проєкту
  * @returns {{base: string|null, files: string[]}} base-ref і relative-posix список змінених файлів
  */
-function resolveChangedScope(cwd) {
-  let base = null
-  try {
-    const state = readState(flowStatePath(cwd))
-    base = state?.metadata?.base_commit ?? null
-  } catch {
-    // пошкоджений/несумісний стан — попереджаємо й падаємо на HEAD (working-tree scope).
-    console.error('coverage --changed: стан flow нечитабельний — scope визначається від HEAD робочого дерева')
-    base = null
-  }
+export function resolveChangedScope(cwd) {
+  const base = resolveChangedBase(cwd)
   return { base, files: collectChangedFilesSince(base, cwd) }
 }
 
@@ -237,7 +227,7 @@ function resolveChangedScope(cwd) {
  * При `opts.fix === true` після запису COVERAGE.md запускає агента (coverage-fix.mjs)
  * для написання тестів по вцілілих мутантах.
  * При `opts.changed === true` провайдери звужують scope до змінених від base файлів
- * (для flow-турнікета). Порожній scope (нема релевантних змін) — це pass (exit 0)
+ * для швидкого gate. Порожній scope (нема релевантних змін) — це pass (exit 0)
  * без перезапису наявного COVERAGE.md, а НЕ помилка «жодного провайдера».
  * @param {{cwd?:string, rulesDir?:string, fix?:boolean, changed?:boolean}} [opts] ін'єкція cwd/rulesDir для тестів; fix — --fix режим; changed — scope лише змінених
  * @returns {Promise<number>} exit code (0 OK, 1 коли жоден провайдер не дав даних у full-режимі)
@@ -314,7 +304,7 @@ export async function runCoverageSteps(opts = {}) {
  * CLI entrypoint для `n-cursor coverage [--fix] [--changed]`.
  * Із `--fix`: збирає метрики → запускає агента → повторно збирає метрики.
  * Без `--fix`: лише збирає метрики.
- * Із `--changed`: звужує scope до змінених від base файлів (flow-турнікет).
+ * Із `--changed`: звужує scope до змінених від git merge-base файлів.
  * Лок охоплює кожен coverage-прогін окремо.
  * @param {{fix?:boolean, changed?:boolean}} [opts] прапори --fix / --changed
  * @returns {Promise<number>} exit code

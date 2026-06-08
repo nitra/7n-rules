@@ -33,14 +33,30 @@ export function collectChangedFiles(cwd = process.cwd()) {
 }
 
 /**
+ * Визначає git base для scoped-перевірок без зовнішнього runtime-стану.
+ * Пріоритет: локальна `main`, потім `origin/main`; якщо обидві відсутні,
+ * повертає null і caller порівнює лише робоче дерево з HEAD.
+ * @param {string} [cwd] корінь репо
+ * @returns {string|null} merge-base commit або null
+ */
+export function resolveChangedBase(cwd = process.cwd()) {
+  for (const ref of ['main', 'origin/main']) {
+    const result = spawnSync('git', ['merge-base', 'HEAD', ref], { cwd, encoding: 'utf8' })
+    const base = result.status === 0 && !result.error ? result.stdout.trim() : ''
+    if (base) return base
+  }
+  return null
+}
+
+/**
  * Список змінених + untracked файлів **відносно базового комміту**.
  *
  * `git diff <base>` (без `..`/`...`, без `HEAD`) порівнює base-комміт із поточним
  * **робочим деревом** — тобто однаково ловить і закомічене від base, і staged, і
  * незакомічені модифікації. Це гарантує однакову поведінку незалежно від того, чи
- * зміни вже закомічені у worktree (потрібно для flow-турнікета, де executor комітить
- * кожен крок). Без `base` — fallback на `collectChangedFiles` (робоче дерево vs HEAD).
- * @param {string|null} [base] базовий комміт (`metadata.base_commit` зі стану flow)
+ * зміни вже закомічені у worktree. Без `base` — fallback на `collectChangedFiles`
+ * (робоче дерево vs HEAD).
+ * @param {string|null} [base] базовий комміт
  * @param {string} [cwd] корінь репо
  * @returns {string[]} унікальні шляхи (без видалених)
  */
