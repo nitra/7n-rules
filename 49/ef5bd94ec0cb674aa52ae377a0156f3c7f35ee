@@ -1,0 +1,25 @@
+npm/rules/test/coverage/coverage.mjs
+  s_0adc9332cefeb7::t_5af15d0e494382 22
+npm/bin/n-cursor.js
+  s_0adc9332cefeb7::t_3e375f516a6358 1793
+npm/scripts/lib/flow-state.mjs
+  s_0adc9332cefeb7::t_e9592324bb1dfd 1-50
+npm/scripts/dispatcher/tests/index.test.mjs
+  s_0adc9332cefeb7::t_c1f22a3fd521f7 2-6,8-11,13,15-27,29-33,36-39,42-45,48-51,54-58,61-64,67-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "49ef5bd94ec0cb674aa52ae377a0156f3c7f35ee",
+  "prompts": {},
+  "sessions": {
+    "s_0adc9332cefeb7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c18754ec-1682-4f3a-8d22-f88954a11d8d",
+        "model": "claude-haiku-4-5-20251001"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
