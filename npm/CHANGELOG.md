@@ -1,5 +1,19 @@
 # Changelog
 
+## [5.0.0] - 2026-06-08
+
+### Changed
+
+- docs: додати план extraction Meta-task
+
+### Fixed
+
+- coverage `--changed` більше не залежить від runtime-стану `.flow.json`; scope визначається через git merge-base
+
+### Removed
+
+- видалено вбудовані flow і graph; Meta-task винесено в окремий пакет @7n/mt
+
 ## [4.1.2] - 2026-06-08
 
 ### Added
