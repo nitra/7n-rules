@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.4] - 2026-06-08
+
+### Changed
+
+- @nitra/cursor 4
+
 ## [0.0.3] - 2026-06-05
 
 ### Changed
