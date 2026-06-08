@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest'
 import { ABIE_HC_SCHEMA_URL, validateAbieHcModeline } from '../hc-yaml.mjs'
 
 const REL_PATH = 'k8s/foo/hc.yaml'
+const PKG_X_PREFIX_RE = /^pkg-x\/k8s\/hc\.yaml:/u
 
 describe('ABIE_HC_SCHEMA_URL', () => {
   test('має канонічний CRDs-catalog URL для HealthCheckPolicy v1', () => {
@@ -63,10 +64,10 @@ describe('validateAbieHcModeline', () => {
 
   test('relPath включається в повідомлення для всіх помилок', () => {
     const customPath = 'pkg-x/k8s/hc.yaml'
-    expect(validateAbieHcModeline('', customPath)).toMatch(/^pkg-x\/k8s\/hc\.yaml:/u)
-    expect(validateAbieHcModeline('foo\n', customPath)).toMatch(/^pkg-x\/k8s\/hc\.yaml:/u)
+    expect(validateAbieHcModeline('', customPath)).toMatch(PKG_X_PREFIX_RE)
+    expect(validateAbieHcModeline('foo\n', customPath)).toMatch(PKG_X_PREFIX_RE)
     expect(validateAbieHcModeline('# yaml-language-server: $schema=https://x.json\n', customPath)).toMatch(
-      /^pkg-x\/k8s\/hc\.yaml:/u
+      PKG_X_PREFIX_RE
     )
   })
 })

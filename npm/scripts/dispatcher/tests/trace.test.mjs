@@ -94,7 +94,7 @@ describe('runTraceCli', () => {
     cwd: '/root',
     readFile: () => '---\nkind: nitra-spec\nid: x\nstatus: planned\nplan: docs/plans/a.md\n---',
     readdir: dir => (dir.endsWith('docs/specs') ? ['a-design.md'] : []),
-    log: () => {}
+    log: () => { /* noop */ }
   }
 
   test('цілий ланцюг → exit 0', () => {
@@ -116,7 +116,7 @@ describe('runTraceCli', () => {
       cwd: '/root',
       readFile: () => '---\nkind: nitra-spec\nid: x\nstatus: planned\nplan: ../plans/a.md\n---',
       readdir: dir => (dir.endsWith('docs/specs') ? ['a-design.md'] : []),
-      log: () => {},
+      log: () => { /* noop */ },
       // лінк існує лише за резолвом відносно теки артефакту (docs/specs/ + ../plans/ = docs/plans/)
       exists: t => t === '/root/docs/plans/a.md'
     }
@@ -128,7 +128,7 @@ describe('runTraceCli', () => {
       cwd: '/root',
       readFile: () => '---\nkind: nitra-plan\nid: p\nstatus: planned\nflow: ../../.worktrees/x.flow.json\n---',
       readdir: dir => (dir.endsWith('docs/plans') ? ['p.md'] : []),
-      log: () => {},
+      log: () => { /* noop */ },
       exists: () => false
     }
     expect(runTraceCli([], deps)).toBe(0)
@@ -139,7 +139,7 @@ describe('runTraceCli', () => {
       cwd: '/root',
       readFile: () => '---\nkind: nitra-plan\nid: p\nstatus: planned\nspec: ../specs/missing.md\n---',
       readdir: dir => (dir.endsWith('docs/plans') ? ['p.md'] : []),
-      log: () => {},
+      log: () => { /* noop */ },
       exists: () => false
     }
     expect(runTraceCli([], deps)).toBe(1)

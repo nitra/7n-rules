@@ -74,7 +74,8 @@ regex-перевірці підлягає лише сирий рядок із п
 Тип `EnvViolation` (внутрішній, описаний через JSDoc `@typedef`):
 
 ```js
-/** @typedef {{
+/**
+ * @typedef {{
  *   line: number,
  *   name: string,
  *   kind: 'process-env' | 'check-env-missing-checkEnv'

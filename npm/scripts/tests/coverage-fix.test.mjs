@@ -63,7 +63,10 @@ describe('fixSurvivedMutants — викликає pi з rich-промптом (b
     vi.restoreAllMocks()
   })
 
-  /** Хелпер: повертає opts.callPi mock, що зберігає аргументи. */
+  /**
+   * Хелпер: повертає opts.callPi mock, що зберігає аргументи.
+   * @returns {Function} mock-функція callPi
+   */
   function captureCallPi() {
     return (prompt, model, piOpts) => {
       capturedArgs = { prompt, model, cwd: piOpts?.cwd }

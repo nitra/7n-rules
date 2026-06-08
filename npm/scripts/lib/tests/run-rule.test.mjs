@@ -14,6 +14,20 @@ import { runRule, runTemplateSubsetConcern } from '../run-rule.mjs'
 import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
 
 /**
+ * Будує концерн із `template/<basename>.snippet.yml` і повертає шляхи.
+ * @param {string} dir tmp-каталог
+ * @param {string} basename імʼя target-файла (напр. `wf.yml`)
+ * @param {string} snippetYaml вміст канонічного сніпета
+ * @returns {Promise<{ concernAbsDir: string, target: object }>} абсолютний шлях концерну і target-конфіг
+ */
+async function buildConcern(dir, basename, snippetYaml) {
+  const concernAbsDir = join(dir, 'policy', 'c')
+  await ensureDir(join(concernAbsDir, 'template'))
+  await writeFile(join(concernAbsDir, 'template', `${basename}.snippet.yml`), snippetYaml, 'utf8')
+  return { concernAbsDir, target: { check: 'template', files: { single: basename } } }
+}
+
+/**
  * Записує JS-файл у `<dir>/rules/<id>/js/<concern>.mjs` з довільним вмістом (flat-layout з 1.14.0).
  * @param {string} dir абсолютний шлях тимчасового каталогу
  * @param {string} ruleId id правила
@@ -162,20 +176,6 @@ describe('runRule — policy concerns', () => {
 })
 
 describe('runTemplateSubsetConcern — snippet-driven (check:"template")', () => {
-  /**
-   * Будує концерн із `template/<basename>.snippet.yml` і повертає шляхи.
-   * @param {string} dir tmp-каталог
-   * @param {string} basename імʼя target-файла (напр. `wf.yml`)
-   * @param {string} snippetYaml вміст канонічного сніпета
-   * @returns {Promise<{ concernAbsDir: string, target: object }>}
-   */
-  async function buildConcern(dir, basename, snippetYaml) {
-    const concernAbsDir = join(dir, 'policy', 'c')
-    await ensureDir(join(concernAbsDir, 'template'))
-    await writeFile(join(concernAbsDir, 'template', `${basename}.snippet.yml`), snippetYaml, 'utf8')
-    return { concernAbsDir, target: { check: 'template', files: { single: basename } } }
-  }
-
   const SNIPPET = `name: npm-publish
 jobs:
   release-publish:

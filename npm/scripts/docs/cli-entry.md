@@ -94,6 +94,9 @@ export function isRunAsCli(metaUrl)
 ```js
 import { isRunAsCli } from './cli-entry.mjs' // або відносний шлях
 
+/**
+ *
+ */
 export async function runCli(argv) {
   // ...
 }
@@ -111,6 +114,9 @@ if (isRunAsCli(import.meta.url)) {
 // my-tool.mjs
 import { isRunAsCli } from '../scripts/cli-entry.mjs'
 
+/**
+ *
+ */
 export function doWork(args) {
   /* ... */
 }

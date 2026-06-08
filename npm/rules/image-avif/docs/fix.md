@@ -31,6 +31,9 @@
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }
@@ -49,7 +52,7 @@ export function run(ctx) {
 
 ```js
 if (isRunAsCli(import.meta.url)) {
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+  // eslint-disable-next-line n/no-process-exit
   process.exit(await runRuleCli(import.meta.dirname))
 }
 ```

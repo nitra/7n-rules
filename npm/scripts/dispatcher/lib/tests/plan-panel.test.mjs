@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest'
 
 import { runPanel } from '../plan-panel.mjs'
 
-const noop = () => {}
+const noop = () => { /* noop */ }
 
 /**
  * Фейковий runner: повертає output за першим знайденим ключем-фрагментом промпта.
@@ -16,7 +16,7 @@ const noop = () => {}
  */
 function fakeRunner(map, ok = true) {
   return {
-    runStep: async prompt => {
+    runStep: prompt => {
       const key = Object.keys(map).find(k => prompt.includes(k))
       return { ok, output: key ? map[key] : '' }
     }

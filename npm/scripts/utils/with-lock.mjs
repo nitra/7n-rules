@@ -128,7 +128,7 @@ export async function withLock(key, runFn, opts = {}) {
 
   const onSignal = () => {
     release()
-    // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- SIGINT/SIGTERM мають завершити процес із кодом 130
+    // eslint-disable-next-line n/no-process-exit -- SIGINT/SIGTERM мають завершити процес із кодом 130
     process.exit(130)
   }
   process.once('SIGINT', onSignal)

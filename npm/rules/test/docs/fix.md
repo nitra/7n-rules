@@ -32,6 +32,9 @@
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }

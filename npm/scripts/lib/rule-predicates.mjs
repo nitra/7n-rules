@@ -133,7 +133,7 @@ export const RULE_PREDICATES = {
    * @param {{ hasBunSqlImport: boolean }} facts факти
    * @returns {Promise<boolean>} true, якщо deps pg/pg-format/mysql2 або import sql з bun
    */
-  async jsBunDbSignal(cwd, facts) {
+  jsBunDbSignal(cwd, facts) {
     if (facts.hasBunSqlImport === true) return true
     return anyDepInTree(cwd, ['pg', 'pg-format', 'mysql2'])
   },

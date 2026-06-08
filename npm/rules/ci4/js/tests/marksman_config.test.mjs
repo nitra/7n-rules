@@ -10,6 +10,10 @@ import { join } from 'node:path'
 import { check } from '../marksman_config.mjs'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
+const CORE_SECTION_RE = /^\[core\]/m
+const COMPLETION_SECTION_RE = /^\[completion\]/m
+const CODE_ACTION_SECTION_RE = /^\[code_action\]/m
+
 describe('check ci4.marksman_config', () => {
   test('успіх: порожній cwd → .marksman.toml створюється з baseline', async () => {
     await withTmpDir(async dir => {
@@ -38,9 +42,9 @@ describe('check ci4.marksman_config', () => {
     await withTmpDir(async dir => {
       expect(await check(dir)).toBe(0)
       const content = await readFile(join(dir, '.marksman.toml'), 'utf8')
-      expect(content).toMatch(/^\[core\]/m)
-      expect(content).toMatch(/^\[completion\]/m)
-      expect(content).toMatch(/^\[code_action\]/m)
+      expect(content).toMatch(CORE_SECTION_RE)
+      expect(content).toMatch(COMPLETION_SECTION_RE)
+      expect(content).toMatch(CODE_ACTION_SECTION_RE)
     })
   })
 

@@ -119,6 +119,7 @@ Default-експорт відсутній.
 1. **Обчислення шляху журналу** — один раз на сесію/процес:
    ```js
    import { flowEventsPath, appendEvent, readEvents } from './events.mjs'
+   
    const eventsPath = flowEventsPath('/repo/.worktrees/feat-x')
    // → '/repo/.worktrees/feat-x.events.jsonl'
    ```

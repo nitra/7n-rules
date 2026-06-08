@@ -74,7 +74,7 @@ export function run(ctx)
 Рядок із `process.exit(await runRuleCli(...))` має локальну директиву:
 
 ```js
-// eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+ 
 ```
 
 Це свідома відмова від загальної заборони `process.exit`: для CLI entry-point потрібно повертати числовий код, інакше CI/IDE не зможуть розрізнити OK і порушення. Заборона залишається активною для решти кодової бази.

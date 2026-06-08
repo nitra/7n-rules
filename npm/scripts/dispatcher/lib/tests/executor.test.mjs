@@ -10,6 +10,8 @@ import { withTmpDir } from '../../../utils/test-helpers.mjs'
 import { executePlan, microprompt, patchStep } from '../executor.mjs'
 import { readState, writeState } from '../state-store.mjs'
 
+const NO_PLAN_RE = /немає плану/
+
 const FIXED = () => 1_700_000_000_000
 
 /**
@@ -54,7 +56,7 @@ describe('executePlan', () => {
       writeState(p.statePath, { branch: 'feat/x', status: 'in_progress', plan: plan2() })
       const commit = vi.fn()
       const res = await executePlan(p, {
-        runner: { runStep: vi.fn(async () => ({ ok: true })) },
+        runner: { runStep: vi.fn(() => ({ ok: true })) },
         verify: () => ({ pass: true }),
         commit,
         cwd: dir,
@@ -79,7 +81,7 @@ describe('executePlan', () => {
       let n = 0
       const commit = vi.fn()
       const res = await executePlan(p, {
-        runner: { runStep: async () => ({ ok: true }) },
+        runner: { runStep: () => ({ ok: true }) },
         verify: () => ({ pass: n++ > 0, failedOutput: 'lint err' }),
         commit,
         cwd: dir,
@@ -103,7 +105,7 @@ describe('executePlan', () => {
       })
       const commit = vi.fn()
       const res = await executePlan(p, {
-        runner: { runStep: async () => ({ ok: true }) },
+        runner: { runStep: () => ({ ok: true }) },
         verify: () => ({ pass: false, failedOutput: 'err' }),
         commit,
         cwd: dir,
@@ -126,12 +128,12 @@ describe('executePlan', () => {
       writeState(p.statePath, { branch: 'x', status: 'in_progress', plan: [] })
       await expect(
         executePlan(p, {
-          runner: { runStep: async () => ({}) },
+          runner: { runStep: () => ({}) },
           verify: () => ({ pass: true }),
-          commit: () => {},
+          commit: () => { /* noop */ },
           cwd: dir
         })
-      ).rejects.toThrow(/немає плану/)
+      ).rejects.toThrow(NO_PLAN_RE)
     })
   })
 })

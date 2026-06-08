@@ -8,6 +8,7 @@ import { glob, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 const WORKSPACE_GLOB_IGNORE = ['**/node_modules/**', '**/.git/**']
+const PACKAGE_JSON_SUFFIX_RE = /[/\\]package\.json$/
 
 /**
  * Розгортає один workspace-патерн у список абсолютних шляхів каталогів з package.json.
@@ -23,7 +24,7 @@ async function expandWorkspacePattern(cwd, pattern) {
   }
   const results = []
   for await (const rel of glob(`${pattern}/package.json`, { cwd, exclude: WORKSPACE_GLOB_IGNORE })) {
-    const wsRel = rel.replace(/[/\\]package\.json$/, '')
+    const wsRel = rel.replace(PACKAGE_JSON_SUFFIX_RE, '')
     results.push(join(cwd, wsRel))
   }
   return results.sort()

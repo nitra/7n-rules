@@ -152,6 +152,7 @@
 
 ```mjs
 import { check } from './utils_imports.mjs'
+
 const exitCode = await check()
 process.exit(exitCode)
 ```

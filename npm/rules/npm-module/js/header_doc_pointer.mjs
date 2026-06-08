@@ -14,16 +14,27 @@ const MODULE_JSDOC_RE = /\/\*\*[\s\S]*?\*\//
  */
 const CODE_START_RE = /^(?:import|export)\b/m
 
-/** Кількість непорожніх рядків між `/**` і `*\/` (після зрізання `*`-відступу). */
+const NON_WHITESPACE_RE = /\S/
+const STAR_INDENT_RE = /^\s*\*\s?/
+
+/**
+ * Кількість непорожніх рядків між `/**` і `*\/` (після зрізання `*`-відступу).
+ * @param {string} block повний текст JSDoc-блоку з обрамленням
+ * @returns {number} кількість непорожніх рядків у тілі
+ */
 function contentLineCount(block) {
   return block
     .split('\n')
     .slice(1, -1)
-    .filter(l => /\S/.test(l.replace(/^\s*\*\s?/, '')))
+    .filter(l => NON_WHITESPACE_RE.test(l.replace(STAR_INDENT_RE, '')))
     .length
 }
 
-/** Повертає module-level JSDoc або `null`, якщо його немає. */
+/**
+ * Повертає module-level JSDoc або `null`, якщо його немає.
+ * @param {string} source вміст mjs-файлу
+ * @returns {string|null} текст module-level JSDoc-блоку або null
+ */
 function moduleJsDoc(source) {
   const codeStart = CODE_START_RE.exec(source)
   const prefix = codeStart ? source.slice(0, codeStart.index) : source

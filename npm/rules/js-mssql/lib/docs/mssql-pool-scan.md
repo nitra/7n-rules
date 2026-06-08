@@ -252,6 +252,9 @@ const violationsGuard = findUnsafeMssqlInListMissingEmptyGuardInText(content, re
 Порушення:
 
 ```javascript
+/**
+ *
+ */
 export async function handler() {
   const pool = new sql.ConnectionPool(config) // створення на кожен запит
   await pool.connect()
@@ -326,6 +329,9 @@ await sql.query`SELECT * FROM t WHERE id IN (${rawIds.map(Number)})`
 Порушення (`missing_guard` — немає `if (!ids.length) throw`):
 
 ```javascript
+/**
+ *
+ */
 async function load(ids) {
   await sql.query`SELECT * FROM t WHERE id IN (${ids})`
 }
@@ -334,6 +340,9 @@ async function load(ids) {
 Не порушення:
 
 ```javascript
+/**
+ *
+ */
 async function load(ids) {
   if (!ids.length) throw new Error('empty')
   await sql.query`SELECT * FROM t WHERE id IN (${ids})`

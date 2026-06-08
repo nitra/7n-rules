@@ -54,6 +54,9 @@ export function run(ctx)
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }
@@ -79,7 +82,7 @@ if (isRunAsCli(import.meta.url)) {
 - **Дія:** виконує `await runRuleCli(import.meta.dirname)` — повний CLI-сценарій (config-loading, whitelist, summary), а потім завершує процес `process.exit(<exit-code>)` з тим самим кодом, що повернув `runRuleCli` (0 або 1) — це критично для CI/IDE, які орієнтуються на код виходу.
 - **Side effects:** завершення процесу (`process.exit`), вся I/O `runRuleCli`. Виклики `process.exit` тут спеціально дозволені директивою:
   ```js
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+   
   ```
 
 ## Залежності

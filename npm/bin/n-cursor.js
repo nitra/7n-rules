@@ -1141,7 +1141,6 @@ async function runSyncStep(prefix, action) {
  * захаращують термінал. Тому буфер скидається в реальний stdout **лише**
  * коли крок повернув `fail > 0` (або кинув виняток); за `fail === 0` —
  * відкидається мовчки.
- *
  * @template T
  * @param {() => Promise<T>} action крок синку, що повертає обʼєкт із лічильником помилок `fail`
  * @returns {Promise<T>} результат `action` без змін
@@ -1564,21 +1563,28 @@ const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'fix', 'check', 'lint', 'c
 function describeRootGuardedAction(cmd) {
   switch (cmd) {
     case undefined:
-    case '':
+    case '': {
       return 'Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-cursor.json і робить bun install у поточному каталозі'
+    }
     case 'fix':
-    case 'check':
+    case 'check': {
       return '`fix` запускає programmatic-перевірки правил, що переписують конфіги в поточному каталозі'
-    case 'lint':
+    }
+    case 'lint': {
       return '`lint` запускає авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) у поточному каталозі'
-    case 'coverage':
+    }
+    case 'coverage': {
       return '`coverage` генерує COVERAGE.md і Stryker-артефакти в поточному каталозі'
-    case 'change':
+    }
+    case 'change': {
       return '`change` пише change-файл у .changes/ поточного каталогу'
-    case 'release':
+    }
+    case 'release': {
       return '`release` бампає version і переписує CHANGELOG у поточному каталозі'
-    default:
+    }
+    default: {
       return 'Команда @nitra/cursor мутує проєкт у поточному каталозі'
+    }
   }
 }
 
@@ -1768,10 +1774,16 @@ try {
       break
     }
     case 'graph': {
-      // n-cursor graph — read-only позиція DAG вузлів (node-dag-state spec):
-      // status сканує docs/graphs/<g>/nodes/ і деривує статус кожного вузла.
-      const { runGraphCli } = await import('../scripts/dispatcher/graph.mjs')
-      process.exitCode = runGraphCli(args)
+      // n-cursor graph — task DAG orchestration system (думка.MD, file-presence protocol)
+      const { runGraphTasksCli } = await import('../scripts/dispatcher/graph-tasks.mjs')
+      process.exitCode = await runGraphTasksCli(args)
+
+      break
+    }
+    case 'watch': {
+      // n-cursor watch — one-shot DAG scan: audit queue + stale worktrees + needs-plan
+      const { runGraphTasksCli } = await import('../scripts/dispatcher/graph-tasks.mjs')
+      process.exitCode = await runGraphTasksCli(['watch', ...args])
 
       break
     }
@@ -1800,7 +1812,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, flow, trace, graph, docgen`
+        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, flow, trace, graph, watch, docgen`
       )
       process.exitCode = 1
     }

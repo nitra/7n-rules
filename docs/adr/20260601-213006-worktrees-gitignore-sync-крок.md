@@ -62,3 +62,17 @@ Chosen option: "B1 — окремий sync-крок, безумовно", becaus
 - Plan: `docs/plans/2026-06-01-worktree-add-gitignore.md`
 - Коміт: `e0f5e52 feat(sync): гарантувати .worktrees/ у .gitignore під час sync`
 - Базова утиліта: `npm/scripts/utils/ensure-gitignore-entries.mjs` (idempotent append-only з header-коментарем; також використовується для Stryker temp-каталогів)
+
+## Update 2026-06-01
+
+### Реалізація
+
+Коміт реалізації: `e0f5e52 feat(sync): гарантувати .worktrees/ у .gitignore під час sync`. Spec: `docs/specs/2026-06-01-worktree-add-gitignore.md`; Plan: `docs/plans/2026-06-01-worktree-add-gitignore.md`. Тести: `npm/scripts/lib/tests/sync-gitignore-worktree.test.mjs` — 4 кейси (fresh repo → `written: true`; idempotency; append-only зі збереженням кастомного вмісту; `written` boolean у return).
+
+### Відмова від гейтингу за worktree-правилом
+
+Під час дизайну розглядалося умовне дописування `.worktrees/` у `.gitignore` лише коли worktree-правило увімкнено у `.n-cursor.json` — аналогія з `gitignoreAdr` у `sync-claude-config.mjs` (`const includeAdrHook = ... rules.includes('adr')`). Відхилено на користь безумовного кроку (b1).
+
+**Причина:** для `adr` гейт коректний — продюсер (ADR Stop-hook) і тумблер — одна сутність; якщо правило вимкнено, артефактів нема. Для worktree продюсер (`flow init` / `worktree-cli`) є `alwaysApply: true` і незалежний від worktree-rule — гейт за правилом розсинхронізував би ігнорування з реальним продюсером.
+
+Наслідки: репо, де worktree-rule вимкнено але `flow init` використовується, не отримує брудний `git status`. Репо без worktree — несе один зайвий ignore-рядок (idempotent noop).

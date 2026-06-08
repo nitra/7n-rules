@@ -49,7 +49,7 @@ export function patchStep(state, index, patch) {
  * @returns {Promise<{ status: 'done' | 'blocked-on-human', step?: number }>} результат
  */
 export async function executePlan(paths, deps) {
-  const { runner, verify, commit, cwd, maxRepairAttempts = 3, log = () => {}, now = Date.now } = deps
+  const { runner, verify, commit, cwd, maxRepairAttempts = 3, log = () => { /* noop */ }, now = Date.now } = deps
   let state = readState(paths.statePath)
   if (!state?.plan?.length) {
     throw new Error('executor: у стані немає плану — спершу planner')

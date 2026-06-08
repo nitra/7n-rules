@@ -36,6 +36,13 @@ const NAME_RE = /^name:\s*["']?([^"'\n]+)["']?\s*$/mu
 /** Перший H1 як fallback, якщо frontmatter не містить `name`. */
 const H1_RE = /^#\s+(.+)$/mu
 
+const N_PREFIX_RE = /^n-/u
+const COMBINING_DIACRITICS_RE = /[̀-ͯ]/gu
+const NON_ALPHANUM_RE = /[^a-z0-9]+/gu
+const TRAILING_DASHES_RE = /^-+|-+$/gu
+const TRAILING_DASH_RE = /-+$/u
+const LEADING_NEWLINES_RE = /^\n+/u
+
 const CYRILLIC_TRANSLIT = new Map(
   Object.entries({
     а: 'a',
@@ -96,13 +103,13 @@ function deriveSuffix(content) {
   const raw = content.match(NAME_RE)?.[1] ?? content.match(H1_RE)?.[1] ?? FALLBACK_SUFFIX
   const slug = transliterate(raw)
     .trim()
-    .replace(/^n-/u, '')
+    .replace(N_PREFIX_RE, '')
     .normalize('NFKD')
-    .replaceAll(/[\u0300-\u036F]/gu, '')
-    .replaceAll(/[^a-z0-9]+/gu, '-')
-    .replaceAll(/^-+|-+$/gu, '')
+    .replaceAll(COMBINING_DIACRITICS_RE, '')
+    .replaceAll(NON_ALPHANUM_RE, '-')
+    .replaceAll(TRAILING_DASHES_RE, '')
 
-  return (slug || FALLBACK_SUFFIX).slice(0, 10).replace(/-+$/u, '') || FALLBACK_SUFFIX
+  return (slug || FALLBACK_SUFFIX).slice(0, 10).replace(TRAILING_DASH_RE, '') || FALLBACK_SUFFIX
 }
 
 /**
@@ -202,8 +209,8 @@ export function injectWorktreeNotice(content, enabled) {
   const fm = withoutBlock.match(FRONTMATTER_RE)
   if (fm) {
     const head = fm[1]
-    const rest = withoutBlock.slice(head.length).replace(/^\n+/u, '')
+    const rest = withoutBlock.slice(head.length).replace(LEADING_NEWLINES_RE, '')
     return `${head}\n${block}\n\n${rest}`
   }
-  return `${block}\n\n${withoutBlock.replace(/^\n+/u, '')}`
+  return `${block}\n\n${withoutBlock.replace(LEADING_NEWLINES_RE, '')}`
 }

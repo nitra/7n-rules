@@ -13,6 +13,9 @@ import {
   scanGraph
 } from '../graph.mjs'
 
+const GRAPH_G_RE = /граф g/
+const B01_RE = /B01/
+
 describe('classifyArtifact', () => {
   test('plain-артефакти', () => {
     expect(classifyArtifact('B01-schema.plan.md')).toEqual({ stem: 'B01-schema', kind: 'plan' })
@@ -116,12 +119,12 @@ describe('scanGraph + runGraphCli', () => {
     const fs = fakeFs(['B01-schema.plan.md'], { 'B01-schema.plan.md': '---\nid: B01\ndependsOn: []\n---' })
     const code = runGraphCli(['status'], { cwd: '/root', ...fs, log: m => out.push(m) })
     expect(code).toBe(0)
-    expect(out.join('\n')).toMatch(/граф g/)
-    expect(out.join('\n')).toMatch(/B01/)
+    expect(out.join('\n')).toMatch(GRAPH_G_RE)
+    expect(out.join('\n')).toMatch(B01_RE)
   })
 
   test('невідома підкоманда → usage + 1', () => {
-    expect(runGraphCli(['bogus'], { cwd: '/root', readdir: () => [], log: () => {} })).toBe(1)
+    expect(runGraphCli(['bogus'], { cwd: '/root', readdir: () => [], log: () => { /* noop */ } })).toBe(1)
   })
 })
 

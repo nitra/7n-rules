@@ -195,6 +195,7 @@
 
 ```js
 import { check } from './npm/rules/image-avif/js/avif_generation.mjs'
+
 const exitCode = await check(process.cwd())
 process.exit(exitCode)
 ```

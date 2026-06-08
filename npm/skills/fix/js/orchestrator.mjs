@@ -20,8 +20,8 @@ export async function runOrchestratorCli(args, cwd) {
 
   const maxIterIdx = args.indexOf('--max-iter')
   const maxIter =
-    maxIterIdx !== -1 ? Number(args[maxIterIdx + 1] ?? DEFAULT_MAX_ITER) || DEFAULT_MAX_ITER : DEFAULT_MAX_ITER
-  const skipIdxs = new Set(maxIterIdx !== -1 ? [maxIterIdx, maxIterIdx + 1] : [])
+    maxIterIdx === -1 ? DEFAULT_MAX_ITER : (Number(args[maxIterIdx + 1] ?? DEFAULT_MAX_ITER) || DEFAULT_MAX_ITER)
+  const skipIdxs = new Set(maxIterIdx === -1 ? [] : [maxIterIdx, maxIterIdx + 1])
   const ruleFilter = args.filter((a, i) => !a.startsWith('-') && !skipIdxs.has(i))
 
   /** @type {Map<string, number>} ruleId → кількість LLM-провалів підряд */
@@ -53,7 +53,7 @@ export async function runOrchestratorCli(args, cwd) {
 
     const afterT0 = runFixCheck(cwd, ruleFilter)
     const failedAfterT0 = afterT0?.rules.filter(r => !r.ok) ?? failed
-    const t0Fixed = failed.filter(r => !failedAfterT0.find(f => f.ruleId === r.ruleId))
+    const t0Fixed = failed.filter(r => !failedAfterT0.some(f => f.ruleId === r.ruleId))
 
     if (t0Fixed.length > 0) {
       console.log(`  ⚙️  T0-auto: ${t0Fixed.map(r => r.ruleId).join(', ')}`)
@@ -98,10 +98,9 @@ export async function runOrchestratorCli(args, cwd) {
 /**
  * Внутрішня check-gate: запускає fix-перевірки і повертає структурований результат.
  * Не є публічним CLI — викликається лише оркестратором.
- *
- * @param {string}   cwd
- * @param {string[]} ruleFilter
- * @returns {{ total: number, failed: number, rules: Array<{ ruleId: string, ok: boolean, output: string }> } | null}
+ * @param {string}   cwd корінь проєкту
+ * @param {string[]} ruleFilter список ID правил (порожній — усі)
+ * @returns {{ total: number, failed: number, rules: Array<{ ruleId: string, ok: boolean, output: string }> } | null} JSON-результат або null якщо stdout порожній/невалідний
  */
 function runFixCheck(cwd, ruleFilter = []) {
   const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...ruleFilter], {

@@ -83,7 +83,7 @@ export function run(ctx) {
 
 ```js
 if (isRunAsCli(import.meta.url)) {
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+  // eslint-disable-next-line n/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
   process.exit(await runRuleCli(import.meta.dirname))
 }
 ```
@@ -177,6 +177,7 @@ $ bun npm/rules/efes/fix.mjs
 
 ```js
 import { run } from 'npm/rules/efes/fix.mjs'
+
 const code = await run() // 0 або 1
 ```
 

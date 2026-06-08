@@ -1,9 +1,13 @@
 /** @see ./docs/t0.md */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+const REC_REQUIRE_RE = /recommendations має містити "[^"]+"/
+const REC_MATCH_ALL_RE = /recommendations має містити "([^"]+)"/g
+const FORBIDDEN_FILE_RE = /Знайдено заборонений файл: \S+/
+const FORBIDDEN_FILE_MATCH_ALL_RE = /Знайдено заборонений файл: (\S+)/g
 
 /**
  * Патерни T0-auto.
@@ -19,9 +23,9 @@ const PATTERNS = [
   // Fix: додати рядок у .vscode/extensions.json#recommendations
   {
     id: 'vscode-ext-add',
-    test: out => /recommendations має містити "[^"]+"/.test(out),
+    test: out => REC_REQUIRE_RE.test(out),
     apply: (out, cwd) => {
-      const matches = [...out.matchAll(/recommendations має містити "([^"]+)"/g)]
+      const matches = [...out.matchAll(REC_MATCH_ALL_RE)]
       if (matches.length === 0) return { ok: false, action: 'no match' }
 
       const extPath = join(cwd, '.vscode/extensions.json')
@@ -51,9 +55,9 @@ const PATTERNS = [
   // Fix: видалити файл
   {
     id: 'rm-forbidden-file',
-    test: out => /Знайдено заборонений файл: \S+/.test(out),
+    test: out => FORBIDDEN_FILE_RE.test(out),
     apply: (out, cwd) => {
-      const matches = [...out.matchAll(/Знайдено заборонений файл: (\S+)/g)]
+      const matches = [...out.matchAll(FORBIDDEN_FILE_MATCH_ALL_RE)]
       if (matches.length === 0) return { ok: false, action: 'no match' }
 
       const removed = []
@@ -72,11 +76,10 @@ const PATTERNS = [
 
 /**
  * Застосовує всі T0-auto паттерни до одного violation-output.
- *
  * @param {string} ruleId id правила (для логу)
  * @param {string} violationOutput рядок з поля `output` у `fix --json`
  * @param {string} cwd корінь проєкту
- * @returns {{ applied: boolean, actions: string[] }}
+ * @returns {{ applied: boolean, actions: string[] }} результат: чи щось застосовано і список дій
  */
 export function applyT0Auto(ruleId, violationOutput, cwd) {
   const actions = []
@@ -97,9 +100,8 @@ export function applyT0Auto(ruleId, violationOutput, cwd) {
 /**
  * Повертає список id правил, для яких є хоча б один T0-auto паттерн
  * (визначається по violation-output із `fix --json`).
- *
- * @param {{ ruleId: string, output: string }[]} failedRules
- * @returns {string[]}
+ * @param {{ ruleId: string, output: string }[]} failedRules повний список правил із output
+ * @returns {string[]} ID правил із наявним T0-auto патерном
  */
 export function filterT0AutoRules(failedRules) {
   return failedRules.filter(r => PATTERNS.some(p => p.test(r.output))).map(r => r.ruleId)
@@ -115,12 +117,11 @@ const N_CURSOR_BIN = join(HERE, '../../../bin/n-cursor.js')
  * CLI підкоманда `n-cursor fix-t0 [rule...]`.
  * Запускає `fix --json`, застосовує T0-auto для кожного violation,
  * повторно перевіряє check-gate, виводить підсумок.
- *
  * @param {string[]} args аргументи підкоманди (опційний список rule-ids)
  * @param {string}   cwd  корінь проєкту
  * @returns {Promise<number>} 0 — T0-auto закрив всі або немає порушень; 1 — лишились
  */
-export async function runT0AutoCli(args, cwd) {
+export function runT0AutoCli(args, cwd) {
   const ruleFilter = args.filter(a => !a.startsWith('--'))
   const verbose = args.includes('--verbose') || args.includes('-v')
 

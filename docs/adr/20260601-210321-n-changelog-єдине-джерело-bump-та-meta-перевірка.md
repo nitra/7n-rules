@@ -58,3 +58,21 @@ Chosen option: "Оголосити `n-changelog.mdc` єдиним джерело
 ### Відмова від backfill-механізму у форматі change-файлу
 
 Edge case «version опублікована без CHANGELOG-секції» (historical debt від manual bump) не отримав спеціального backfill-наративу. Формат change-файлу (`npm/rules/release/lib/change-file.mjs`) підтримує лише `bump` + `section` + опис; розширення виходить за межі задачі «узгодити правила». Будь-який drift вже ловить `consistency.mjs`.
+
+## Update 2026-06-01
+
+### Видалення суперечливих перевірок з `package_structure.mjs`
+
+`package_structure.mjs` містив `checkDirtyNpmRequiresVersionBump` (фейлила у правильному стані: зміни є, version не зрушено) та `checkChangelogTopMatchesPackageVersion` (тримала post-release-інваріант як живу локальну перевірку). Обидві видалено разом із git-хелперами (`gitInsideWorkTree`, `gitDiffNameOnlyNpm`, `gitShowNpmPackageVersionAt`), імпортами `execFile`/`promisify` та регексами. Валідацію делеговано `npm/rules/changelog/js/consistency.mjs` (рядки 36, 71, 127–140), що вже коректно покриває drift від ручного bump і відсутність change-файлу.
+
+`npm/rules/npm-module/npm-module.mdc` (v1.13→1.14): секції «Build версія» і «CHANGELOG» замінено на «Єдиний артефакт зміни — change-файл (`npx @nitra/cursor change …`)». `npm/rules/changelog/changelog.mdc` (v3.1→3.2): додано «Post-release інваріант (гарантує CI)» — `## [version]` == `package.json`.version є істинним лише після `n-cursor release` у CI.
+
+Гілка `changelog-npm-module-align`, коміти `fe08579` (видалення + .mdc v3.2/v1.14), `38828ad` (jsdoc-фікс, sonarjs-фікс, change-файл, docs). Специфікація: `docs/specs/2026-06-01-changelog-npm-module-align.md`.
+
+### Відмова від backfill-механізму
+
+Edge case «version опублікована в реєстрі без CHANGELOG-секції»: механізму `backfill: <version>` у форматі change-файлу не існує (`npm/rules/release/lib/change-file.mjs` підтримує лише `bump` + `section` + опис). Введення виходить за scope; `consistency.mjs` покриває drift-кейс без нового механізму.
+
+### Відмова від meta-перевірки regex-по-`.mdc`
+
+Відхилена як YAGNI: крихка (хибні спрацювання на легітимні згадки «version»), стає власним джерелом тертя. Структурний фікс — видалення інструкцій ручного bump з `npm-module.mdc` — усуває причину рецидиву фізично без нового tooling.

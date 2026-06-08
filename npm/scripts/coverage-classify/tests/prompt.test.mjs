@@ -8,6 +8,10 @@ import { writeFile } from 'node:fs/promises'
 import { buildUserPrompt, SYSTEM_PROMPT } from '../prompt.mjs'
 import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
 
+const JSON_RE = /JSON/u
+const REASON_RE = /reason/u
+const CONFIDENCE_RE = /confidence/u
+
 const SAMPLE_SOURCE = `import { foo } from './foo.mjs'
 
 export function bar() {
@@ -27,12 +31,12 @@ describe('SYSTEM_PROMPT', () => {
   })
 
   test('вимагає JSON-only output', () => {
-    expect(SYSTEM_PROMPT).toMatch(/JSON/u)
+    expect(SYSTEM_PROMPT).toMatch(JSON_RE)
   })
 
   test('містить schema constraints (reason min length, confidence range)', () => {
-    expect(SYSTEM_PROMPT).toMatch(/reason/u)
-    expect(SYSTEM_PROMPT).toMatch(/confidence/u)
+    expect(SYSTEM_PROMPT).toMatch(REASON_RE)
+    expect(SYSTEM_PROMPT).toMatch(CONFIDENCE_RE)
   })
 })
 

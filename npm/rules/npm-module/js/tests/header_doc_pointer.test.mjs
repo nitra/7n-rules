@@ -14,6 +14,16 @@ const MULTI = `/**
 const POINTER = `/** @see ./docs/applies.md */\n`
 const NO_HEADER = `import { foo } from './foo.mjs'\nexport function check() { return 0 }\n`
 
+/**
+ * Створює тестовий JS-файл у структурі rules для перевірок header_doc_pointer.
+ * @param {string} dir корінь тестового tmp-каталогу
+ * @param {string} segment сегмент усередині (rules/skills)
+ * @param {string} rule ідентифікатор правила
+ * @param {string} stem основа імені файлу без розширення
+ * @param {string} content вміст файлу
+ * @param {boolean} [hasDocs] чи створити поряд docs/<stem>.md
+ * @returns {Promise<void>}
+ */
 async function mkJs(dir, segment, rule, stem, content, hasDocs = false) {
   const jsDir = join(dir, segment, rule, 'js')
   await ensureDir(jsDir)

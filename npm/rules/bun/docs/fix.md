@@ -24,6 +24,9 @@ Default-експорту немає. Окрім `run`, файл має **top-lev
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }

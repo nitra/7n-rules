@@ -23,9 +23,9 @@ const FALLBACK_VERDICT = {
 
 /**
  * Викликає pi і повертає raw stdout.
- * @param {string} prompt
+ * @param {string} prompt текст промпта
  * @param {string} model  provider/model-id або '' для pi-дефолту
- * @returns {string}
+ * @returns {string} stdout pi-процесу
  * @throws якщо pi не знайдено або повертає ненульовий exit code
  */
 function callPi(prompt, model) {
@@ -41,11 +41,11 @@ function callPi(prompt, model) {
 
 /**
  * Два тири: LOCAL_MIN → Tier 2 CLOUD_MIN → FALLBACK_VERDICT.
- * @param {{file: string, mutants: object[]}} group
- * @param {object} mutant
- * @param {string} cwd
+ * @param {{file: string, mutants: object[]}} group група мутантів одного файлу
+ * @param {object} mutant конкретний мутант
+ * @param {string} cwd корінь проєкту
  * @param {(prompt: string, model: string) => string} callPiFn  ін'єкція для тестів
- * @returns {object} verdict
+ * @returns {object} verdict класифікації
  */
 function classifyOne(group, mutant, cwd, callPiFn) {
   const prompt = `${SYSTEM_PROMPT}\n\n${buildUserPrompt({ ...mutant, file: group.file }, cwd)}`
@@ -60,8 +60,8 @@ function classifyOne(group, mutant, cwd, callPiFn) {
     try {
       const text = callPiFn(prompt, CLOUD_MIN)
       return parseVerdict(text)
-    } catch (e) {
-      console.warn(`⚠ coverage classify: ${loc} both tiers failed: ${e.message}`)
+    } catch (error) {
+      console.warn(`⚠ coverage classify: ${loc} both tiers failed: ${error.message}`)
       return { ...FALLBACK_VERDICT }
     }
   }
@@ -69,12 +69,12 @@ function classifyOne(group, mutant, cwd, callPiFn) {
 
 /**
  * Класифікує survived мутантів через pi (LOCAL_MIN → CLOUD_MIN → fallback).
- * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived
+ * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived список вцілілих мутантів
  * @param {string} cwd корінь проєкту
  * @param {{cachePath?: string, callPi?: Function}} [opts] ін'єкції для тестів
  * @returns {Promise<Array<{key: string, verdict: object}>>} verdicts
  */
-export async function classify(survived, cwd, opts = {}) {
+export function classify(survived, cwd, opts = {}) {
   const cachePath = opts.cachePath ?? join(cwd, 'npm/reports/coverage-classify.cache.json')
   const callPiFn = opts.callPi ?? callPi
   const cacheModel = `${resolveModel('min') || 'default'}+${CLOUD_MIN || 'cloud'}`

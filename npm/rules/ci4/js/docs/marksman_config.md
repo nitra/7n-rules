@@ -96,6 +96,7 @@ export async function check(cwd = process.cwd()): Promise<number>
 1. Зовнішній runner (зазвичай CLI `n-cursor` або агрегатор правил) імпортує `check` і викликає його:
    ```js
    import { check } from '@nitra/cursor/npm/rules/ci4/js/marksman_config.mjs'
+   
    const code = await check(process.cwd())
    process.exit(code)
    ```

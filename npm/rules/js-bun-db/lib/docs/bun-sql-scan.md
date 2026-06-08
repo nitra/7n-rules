@@ -270,6 +270,10 @@ Set-константи:
 
    ```js
    import { SQL } from 'bun'
+   
+   /**
+    *
+    */
    export async function handler(req) {
      const sql = new SQL(process.env.DATABASE_URL) // <-- порушення
      return sql`select 1`
@@ -280,6 +284,7 @@ Set-константи:
 
    ```js
    import { sql } from 'bun'
+   
    const text = `select * from ${tableName}`
    sql.unsafe(text) // <-- порушення: немає // allow-unsafe: <reason>
    ```
@@ -309,6 +314,7 @@ Set-константи:
 
    ```js
    import { sql } from 'bun'
+   
    await sql.end() // <-- порушення: немає // allow-pg-leftover: <reason>
    ```
 

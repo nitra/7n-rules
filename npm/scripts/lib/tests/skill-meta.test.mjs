@@ -39,7 +39,7 @@ describe('readSkillMetaRaw', () => {
   })
 
   test('відсутній meta.json → null', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       expect(readSkillMetaRaw(dir)).toBeNull()
     })
   })

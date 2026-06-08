@@ -40,6 +40,8 @@ git rev-parse --show-toplevel
 /** Канонічний блок root-інструкції (з маркерами). */
 const BLOCK = `${ROOT_START}\n${NOTICE_BODY}\n${ROOT_END}`
 
+const LEADING_NEWLINES_RE = /^\n+/u
+
 /**
  * Вставляє / оновлює / видаляє root-guard блок у вмісті `SKILL.md`.
  * @param {string} content вміст `SKILL.md`
@@ -57,8 +59,8 @@ export function injectRootNotice(content, enabled) {
   const fm = withoutBlock.match(FRONTMATTER_RE)
   if (fm) {
     const head = fm[1]
-    const rest = withoutBlock.slice(head.length).replace(/^\n+/u, '')
+    const rest = withoutBlock.slice(head.length).replace(LEADING_NEWLINES_RE, '')
     return `${head}\n${BLOCK}\n\n${rest}`
   }
-  return `${BLOCK}\n\n${withoutBlock.replace(/^\n+/u, '')}`
+  return `${BLOCK}\n\n${withoutBlock.replace(LEADING_NEWLINES_RE, '')}`
 }

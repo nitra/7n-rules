@@ -1,7 +1,3 @@
-<script setup>
-import welcomeImage from './assets/welcome.png.avif'
-</script>
-
 <template>
   <main class="welcome">
     <img :src="welcomeImage" alt="Welcome" class="welcome__image" />
@@ -12,6 +8,10 @@ import welcomeImage from './assets/welcome.png.avif'
     </p>
   </main>
 </template>
+
+<script setup>
+import welcomeImage from './assets/welcome.png.avif'
+</script>
 
 <style scoped>
 .welcome {

@@ -7,6 +7,7 @@ import { describe, expect, test } from 'vitest'
 import { parseVerdict, VerdictSchema } from '../verdict-schema.mjs'
 
 const MIN_REASON = 'Branch is covered by integration test runStandardRule'
+const NO_JSON_RE = /No JSON/u
 
 describe('VerdictSchema', () => {
   test('валідний worth-testing verdict', () => {
@@ -68,7 +69,7 @@ describe('parseVerdict', () => {
   })
 
   test("throw коли немає JSON-об'єкта у тексті", () => {
-    expect(() => parseVerdict('No JSON here')).toThrow(/No JSON/u)
+    expect(() => parseVerdict('No JSON here')).toThrow(NO_JSON_RE)
   })
 
   test('throw на невалідному JSON', () => {

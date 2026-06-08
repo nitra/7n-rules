@@ -332,7 +332,7 @@ function resolveRuleDependencies(detectedRules, addRule) {
  * @param {{root:string, facts:object, paths:string[], packageJsonParsed:unknown}} ctx контекст
  * @returns {Promise<boolean>} true, якщо правило активне
  */
-async function specMatches(spec, ctx) {
+function specMatches(spec, ctx) {
   if ('always' in spec) return true
   if ('glob' in spec) {
     const res = spec.glob.map(g => globToRegex(g))

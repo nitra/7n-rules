@@ -36,7 +36,7 @@ function toPosixRelPath(relPath) {
  * Для `kind = 'dir'` це працює і на піддерево каталогу, тож glob на кшталт
  * `**\\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
  * @param {string} relPath відносний шлях від кореня проєкту
- * @param {'path'|'dir'} [kind='path'] тип перевірки
+ * @param {'path'|'dir'} [kind] тип перевірки (за замовчуванням `'path'`)
  * @returns {boolean} `true`, якщо шлях ігнорується
  */
 export function isDocgenIgnored(relPath, kind = 'path') {

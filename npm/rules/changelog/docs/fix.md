@@ -38,6 +38,9 @@ if (isRunAsCli(import.meta.url)) {
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }

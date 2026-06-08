@@ -60,6 +60,9 @@ Side effects функції `promisePool()`:
 Усередині `promisePool()` оголошено допоміжну асинхронну функцію `run()` (closure):
 
 ```js
+/**
+ *
+ */
 async function run() {
   while (next < items.length) {
     const i = next++

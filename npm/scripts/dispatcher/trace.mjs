@@ -24,6 +24,10 @@ const INFO_LINK_FIELDS = new Set(['flow'])
 /** Каталоги з traceable-артефактами. */
 const DIRS = ['docs/tasks', 'docs/specs', 'docs/plans', 'docs/adr']
 
+const LEADING_QUOTE_RE = /^["']/u
+const TRAILING_QUOTE_RE = /["']$/u
+const SIMPLE_KEY_CHAR_RE = /[a-z_]/iu
+
 /**
  * Парсить плаский YAML-front-matter (key: value). Не обробляє вкладеність —
  * достатньо для spec/plan/task-record полів. Інлайн-коментарі (` #…`) відрізає.
@@ -43,7 +47,7 @@ export function parseFrontMatter(content) {
     let val = line.slice(ci + 1)
     const hi = val.indexOf(' #')
     if (hi !== -1) val = val.slice(0, hi)
-    val = val.trim().replace(/^["']/u, '').replace(/["']$/u, '')
+    val = val.trim().replace(LEADING_QUOTE_RE, '').replace(TRAILING_QUOTE_RE, '')
     fm[key] = val === '' || val === 'null' ? null : val
   }
   return fm
@@ -55,7 +59,7 @@ export function parseFrontMatter(content) {
  * @returns {boolean} true для простого ключа
  */
 function isSimpleKey(key) {
-  return key.length > 0 && [...key].every(c => /[a-z_]/iu.test(c))
+  return key.length > 0 && [...key].every(c => SIMPLE_KEY_CHAR_RE.test(c))
 }
 
 /**

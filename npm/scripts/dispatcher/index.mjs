@@ -8,9 +8,9 @@
  * flow failed  — CWD → node path → `graph failed <path>`
  * flow spawn   — CWD → node path → `graph spawn <path>`
  */
-import { plan } from './lib/flow-plan.mjs'
-import { verify } from './lib/flow-verify.mjs'
-import { audit, done, failed, spawn } from './lib/flow-signals.mjs'
+import { cmdPlan as plan } from './graph/lib/cmd-plan.mjs'
+import { cmdVerify as verify } from './graph/lib/cmd-verify.mjs'
+import { cmdAudit as audit, cmdDone as done, cmdFailed as failed, cmdSpawn as spawn } from './graph/lib/cmd-signals.mjs'
 
 const USAGE = [
   'Usage:',

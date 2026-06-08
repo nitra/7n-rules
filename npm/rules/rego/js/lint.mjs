@@ -7,6 +7,6 @@ import { runLintRego } from '../lint/lint.mjs'
  * @param {string[] | undefined} _files ігнорується (whole-repo аналіз)
  * @returns {Promise<number>} exit code
  */
-export async function lint(_files) {
+export function lint(_files) {
   return runLintRego()
 }

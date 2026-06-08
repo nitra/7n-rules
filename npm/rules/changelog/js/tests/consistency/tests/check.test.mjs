@@ -847,7 +847,7 @@ describe('check-changelog (autofix-режим)', () => {
       await writeFile(join(dir, 'lib/x.js'), 'changed\n', 'utf8')
 
       let called = false
-      const spyResolver = (name, _kind) => {
+      const spyResolver = (_name, _kind) => {
         called = true
         return Promise.resolve('1.0.0')
       }

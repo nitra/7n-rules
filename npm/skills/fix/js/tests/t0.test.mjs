@@ -4,7 +4,7 @@
  *   - filterT0AutoRules: відсіює правила без T0 паттерну
  *   - edge cases: дублікати, відсутні файли, невалідний JSON
  */
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { describe, expect, test } from 'vitest'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
@@ -14,7 +14,7 @@ import { applyT0Auto, filterT0AutoRules } from '../t0.mjs'
 
 describe('applyT0Auto: vscode-ext-add', () => {
   test('додає відсутнє розширення до recommendations', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(
         join(dir, '.vscode/extensions.json'),
@@ -39,7 +39,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('не дублює якщо розширення вже є', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(
         join(dir, '.vscode/extensions.json'),
@@ -55,7 +55,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('додає кілька розширень з одного output', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(join(dir, '.vscode/extensions.json'), JSON.stringify({ recommendations: [] }, null, 2), 'utf8')
 
@@ -73,7 +73,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('повертає applied=false якщо .vscode/extensions.json відсутній', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const result = applyT0Auto('rego', 'recommendations має містити "tsandall.opa"', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
@@ -81,7 +81,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
   })
 
   test('повертає applied=false якщо extensions.json невалідний JSON', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       mkdirSync(join(dir, '.vscode'))
       writeFileSync(join(dir, '.vscode/extensions.json'), 'not-json', 'utf8')
 
@@ -96,7 +96,7 @@ describe('applyT0Auto: vscode-ext-add', () => {
 
 describe('applyT0Auto: rm-forbidden-file', () => {
   test('видаляє заборонений файл', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'package-lock.json'), '{}', 'utf8')
 
       const result = applyT0Auto('bun', '❌ Знайдено заборонений файл: package-lock.json — видали його', dir)
@@ -108,7 +108,7 @@ describe('applyT0Auto: rm-forbidden-file', () => {
   })
 
   test('видаляє кілька заборонених файлів', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       writeFileSync(join(dir, 'package-lock.json'), '{}', 'utf8')
       writeFileSync(join(dir, 'yarn.lock'), '', 'utf8')
 
@@ -125,7 +125,7 @@ describe('applyT0Auto: rm-forbidden-file', () => {
   })
 
   test('applied=false якщо файл вже відсутній', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const result = applyT0Auto('bun', 'Знайдено заборонений файл: package-lock.json', dir)
       expect(result.applied).toBe(false)
       expect(result.actions[0]).toContain('не знайдено')
@@ -137,7 +137,7 @@ describe('applyT0Auto: rm-forbidden-file', () => {
 
 describe('applyT0Auto: output без T0 паттерну', () => {
   test('повертає applied=false для нерозпізнаного output', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       const result = applyT0Auto('ci4', 'ESLint: no-console violation in src/main.js', dir)
       expect(result.applied).toBe(false)
       expect(result.actions).toHaveLength(0)

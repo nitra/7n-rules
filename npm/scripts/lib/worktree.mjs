@@ -14,6 +14,7 @@ import { basename, join } from 'node:path'
 
 /** Символи, безпечні для імені каталогу/файла; решта → дефіс. */
 const UNSAFE_PATH_CHARS_RE = /[^a-zA-Z0-9._-]+/gu
+const MD_EXTENSION_RE = /\.md$/u
 
 /**
  * Перетворює імʼя git-гілки на безпечне імʼя каталогу/файла для `.worktrees/`.
@@ -82,7 +83,7 @@ export function buildDescription({ branch, task, baseCommit, date }) {
     `**Дата:** ${date}`,
     `**База (коміт):** ${baseCommit}`,
     '',
-    'Прибрати: ' + '`' + `npx @nitra/cursor worktree remove ${branch}` + '`',
+    `Прибрати: \`npx @nitra/cursor worktree remove ${branch}\``,
     ''
   ].join('\n')
 }
@@ -121,5 +122,5 @@ export function buildDirtyNotice(porcelain, limit = DIRTY_LIST_LIMIT) {
  */
 export function findOrphanDescFiles(descFiles, registeredCheckouts) {
   const checkoutBasenames = new Set(registeredCheckouts.map(c => basename(c)))
-  return descFiles.filter(md => !checkoutBasenames.has(basename(md).replace(/\.md$/u, '')))
+  return descFiles.filter(md => !checkoutBasenames.has(basename(md).replace(MD_EXTENSION_RE, '')))
 }

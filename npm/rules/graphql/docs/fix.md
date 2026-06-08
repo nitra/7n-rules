@@ -26,6 +26,9 @@ Default export відсутній. Інших named-експортів файл 
 ### `run(ctx)`
 
 ```js
+/**
+ *
+ */
 export function run(ctx) {
   return runStandardRule(import.meta.dirname, ctx)
 }
@@ -50,7 +53,7 @@ export function run(ctx) {
 
 ```js
 if (isRunAsCli(import.meta.url)) {
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+  // eslint-disable-next-line n/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
   process.exit(await runRuleCli(import.meta.dirname))
 }
 ```

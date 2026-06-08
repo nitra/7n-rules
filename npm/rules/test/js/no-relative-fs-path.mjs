@@ -62,6 +62,7 @@ const FS_PATH_ARG_POSITIONS = new Map([
  * одного з них — це OK (тест свідомо передає absolute чи URL).
  */
 const ABSOLUTE_PREFIXES = ['/', '\\', 'file:', 'http:', 'https:', 'data:']
+const WINDOWS_DRIVE_RE = /^[A-Za-z]:[\\/]/u
 
 /**
  * Чи string literal — relative path (тобто баг). Перевіряє лише string-літерали
@@ -95,7 +96,7 @@ function isRelativeString(s) {
     if (s.startsWith(prefix)) return false
   }
   // Windows drive letter, наприклад `C:\foo` або `C:/foo`.
-  if (/^[A-Za-z]:[\\/]/u.test(s)) return false
+  if (WINDOWS_DRIVE_RE.test(s)) return false
   return true
 }
 

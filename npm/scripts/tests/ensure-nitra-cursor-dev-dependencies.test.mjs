@@ -11,6 +11,8 @@ import {
 } from '../ensure-nitra-cursor-dev-dependencies.mjs'
 import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 
+const SEMVER_RE = /^\d+\.\d+\.\d+/u
+
 describe('ensureNitraCursorInRootDevDependencies', () => {
   test('дописує devDependencies, якщо пакету ще немає', async () => {
     await withTmpDir(async dir => {
@@ -123,6 +125,6 @@ describe('readBundledPackageVersion', () => {
   test('повертає рядок з реального package.json', async () => {
     const ver = await readBundledPackageVersion()
     expect(typeof ver).toBe('string')
-    expect(ver).toMatch(/^\d+\.\d+\.\d+/u)
+    expect(ver).toMatch(SEMVER_RE)
   })
 })

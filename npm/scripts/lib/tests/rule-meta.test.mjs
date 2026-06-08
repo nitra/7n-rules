@@ -65,7 +65,7 @@ describe('readRuleMetaRaw', () => {
     })
   })
   test('відсутній → null', async () => {
-    await withTmpDir(async dir => {
+    await withTmpDir(dir => {
       expect(readRuleMetaRaw(dir)).toBeNull()
     })
   })

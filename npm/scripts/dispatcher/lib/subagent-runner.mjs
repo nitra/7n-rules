@@ -14,10 +14,10 @@ import { resolveModel } from '../../../lib/models.mjs'
 
 /**
  * Викликає pi і повертає { ok, output }.
- * @param {string} prompt
+ * @param {string} prompt текст промпта
  * @param {string} model  provider/model-id або '' для pi-дефолту
- * @param {{ cwd?: string }} [opts]
- * @returns {{ ok: boolean, output: string }}
+ * @param {{ cwd?: string }} [opts] опційні параметри (cwd)
+ * @returns {{ ok: boolean, output: string }} результат із статусом і output
  */
 function callPi(prompt, model, { cwd } = {}) {
   const modelArgs = model ? ['--model', model] : []
@@ -27,26 +27,26 @@ function callPi(prompt, model, { cwd } = {}) {
     timeout: 600_000
   })
   const ok = !r.error && r.status === 0
-  const output = (r.stdout ?? '') + (r.error ? r.error.message : !ok ? (r.stderr ?? '') : '')
+  const output = (r.stdout ?? '') + (r.error ? r.error.message : (ok ? '' : (r.stderr ?? '')))
   return { ok, output }
 }
 
 /**
  * Створює pi-runner. Повертає { backend: 'pi', runStep }.
  * @param {{ model?: string, callPi?: Function }} [deps]  ін'єкції для тестів
- * @returns {Promise<{ backend: string, runStep: (prompt: string, opts?: object) => Promise<{ ok: boolean, output: string }> }>}
+ * @returns {Promise<{ backend: string, runStep: (prompt: string, opts?: object) => Promise<{ ok: boolean, output: string }> }>} runner із backend='pi' і методом runStep
  */
-export async function createRunner(deps = {}) {
+export function createRunner(deps = {}) {
   const model = deps.model ?? resolveModel('avg')
   const callPiFn = deps.callPi ?? callPi
 
   return {
     backend: 'pi',
-    async runStep(prompt, opts = {}) {
+    runStep(prompt, opts = {}) {
       try {
         return callPiFn(prompt, model, opts)
-      } catch (e) {
-        return { ok: false, output: String(e?.message ?? e) }
+      } catch (error) {
+        return { ok: false, output: String(error?.message ?? error) }
       }
     }
   }

@@ -42,9 +42,9 @@ export async function fixSurvivedMutants(survived, projectRoot, opts = {}) {
 
 /**
  * Викликає pi в агентному режимі з live-output до stdout.
- * @param {string} prompt
+ * @param {string} prompt текст промпта
  * @param {string} model  provider/model-id або '' для pi-дефолту
- * @param {{ cwd?: string }} [piOpts]
+ * @param {{ cwd?: string }} [piOpts] опційні параметри (cwd)
  */
 function callPi(prompt, model, { cwd } = {}) {
   const modelArgs = model ? ['--model', model] : []

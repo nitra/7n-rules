@@ -163,7 +163,7 @@ export function run(ctx) {
 
 if (isRunAsCli(import.meta.url)) {
   // Standalone-ентрі: повний еквівалент `npx @nitra/cursor fix <id>`.
-  // eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit
+  // eslint-disable-next-line n/no-process-exit
   process.exit(await runRuleCli(import.meta.dirname))
 }
 ```

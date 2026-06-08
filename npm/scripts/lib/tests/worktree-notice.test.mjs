@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest'
 
 import { WORKTREE_END, WORKTREE_START, injectWorktreeNotice } from '../worktree-notice.mjs'
 
+const WORKTREE_BLOCK_RE = /<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->/u
+
 const SKILL = `---
 name: fix
 description: щось
@@ -90,7 +92,7 @@ describe('injectWorktreeNotice', () => {
   test('зміна тексту всередині маркерів не ламає ре-синк', () => {
     const withBlock = injectWorktreeNotice(SKILL, true)
     const tampered = withBlock.replace(
-      /<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->/u,
+      WORKTREE_BLOCK_RE,
       `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`
     )
     const resynced = injectWorktreeNotice(tampered, true)

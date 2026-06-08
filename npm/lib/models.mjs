@@ -55,8 +55,7 @@ export const CLOUD_MAX = env.N_CLOUD_MAX_MODEL ?? ''
 /**
  * Повертає перший непорожній model-id для запитаного тиру,
  * каскадно перевіряючи локальні тири, а тоді хмарний еквівалент.
- *
- * @param {'min'|'avg'|'max'} tier
+ * @param {'min'|'avg'|'max'} tier тир запитуваної моделі
  * @returns {string} provider/model-id або '' для pi-дефолту
  * @throws {TypeError} якщо tier невідомий
  */

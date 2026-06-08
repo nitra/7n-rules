@@ -14,6 +14,7 @@ await new Promise(resolve => setTimeout(resolve, ms))
 
 ```js
 import { setTimeout as sleep } from 'node:timers/promises'
+
 await sleep(ms)
 ```
 
@@ -243,6 +244,9 @@ function walkAst(
 import { findPromiseSetTimeoutInText, isPromiseSetTimeoutScanSourceFile } from './promise-settimeout-scan.mjs'
 import { readFile } from 'node:fs/promises'
 
+/**
+ *
+ */
 async function scanRepo(files) {
   const violations = []
   for (const relPath of files) {

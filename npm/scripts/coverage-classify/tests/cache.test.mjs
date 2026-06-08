@@ -12,13 +12,17 @@ import { existsSync } from 'node:fs'
 import { deriveBlobHash, deriveCacheKey, readCache, writeCache } from '../cache.mjs'
 import { withTmpDir } from '../../utils/test-helpers.mjs'
 
+const SHA1_RE = /^[a-f0-9]{40}$/u
+const CACHE_KEY_RE = /^[a-f0-9]{40}:1:17:[A-Za-z0-9_-]+$/u
+const BASE64URL_RE = /^[A-Za-z0-9_-]+$/u
+
 describe('deriveBlobHash', () => {
   test('повертає sha1 для існуючого файла (через git hash-object або fallback)', async () => {
     await withTmpDir(async dir => {
       const f = join(dir, 'a.txt')
       await writeFile(f, 'hello world\n', 'utf8')
       const hash = deriveBlobHash(f)
-      expect(hash).toMatch(/^[a-f0-9]{40}$/u)
+      expect(hash).toMatch(SHA1_RE)
     })
   })
 
@@ -59,7 +63,7 @@ describe('deriveCacheKey', () => {
       await writeFile(f, 'export const x = 1\n', 'utf8')
       const mutant = { line: 1, col: 17, replacement: '2' }
       const key = deriveCacheKey(f, mutant)
-      expect(key).toMatch(/^[a-f0-9]{40}:1:17:[A-Za-z0-9_-]+$/u)
+      expect(key).toMatch(CACHE_KEY_RE)
     })
   })
 
@@ -72,7 +76,7 @@ describe('deriveCacheKey', () => {
       // base64url не містить +, /, =, тільки A-Z a-z 0-9 - _
       const parts = key.split(':')
       expect(parts).toHaveLength(4)
-      expect(parts[3]).toMatch(/^[A-Za-z0-9_-]+$/u)
+      expect(parts[3]).toMatch(BASE64URL_RE)
     })
   })
 })

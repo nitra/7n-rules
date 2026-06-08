@@ -11,10 +11,11 @@ import { resolveModel } from '../../../lib/models.mjs'
 export const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
 export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? resolveModel('avg')
 
+const JSON_CODE_BLOCK_RE = /```(?:json)?\s*([\s\S]*?)```/
+
 /**
  * Витягує відносні шляхи файлів із violation output.
  * Розуміє workspace-prefix: `[npm] skills/foo.mjs` → `npm/skills/foo.mjs`.
- *
  * @param {string} output violation output з fix check
  * @returns {string[]} унікальні відносні шляхи (від кореня проєкту)
  */
@@ -23,7 +24,7 @@ function extractFilePaths(output) {
   const results = []
 
   // Патерн з workspace: [npm] skills/foo.mjs або [demo] src/bar.ts
-  const wsRe = /\[([\w-]+)\]\s+([\w./][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
+  const wsRe = /\[([\w-]+)\]\s+([\w./][\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(wsRe)) {
     const p = `${m[1]}/${m[2]}`
     if (!seen.has(p)) {
@@ -33,7 +34,7 @@ function extractFilePaths(output) {
   }
 
   // Патерн без workspace: просто path/to/file.ext або ./file.ext
-  const re = /(?:^|\s)(\.?[\w][\w./\-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
+  const re = /(?:^|\s)(\.?[\w][\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(re)) {
     const p = m[1]
     if (!seen.has(p)) {
@@ -47,12 +48,11 @@ function extractFilePaths(output) {
 
 /**
  * Будує prompt для pi: правило + порушення + поточний вміст файлів.
- *
- * @param {string} ruleId
+ * @param {string} ruleId ID правила
  * @param {string} ruleMdc   вміст .mdc-файлу правила
  * @param {string} output    violation output
- * @param {Array<{path:string, content:string}>} files
- * @returns {string}
+ * @param {Array<{path:string, content:string}>} files прочитані файли (path + content)
+ * @returns {string} текст промпта для pi
  */
 function buildPrompt(ruleId, ruleMdc, output, files) {
   const filesBlock =
@@ -87,10 +87,9 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
 
 /**
  * Запускає pi і повертає stdout як рядок.
- *
- * @param {string} prompt
- * @param {string} model
- * @returns {{ text: string, error?: string }}
+ * @param {string} prompt текст промпта
+ * @param {string} model назва моделі (provider/id)
+ * @returns {{ text: string, error?: string }} stdout pi або повідомлення про помилку
  */
 function callPi(prompt, model) {
   const modelArgs = model ? ['--model', model] : []
@@ -120,9 +119,8 @@ function callPi(prompt, model) {
 /**
  * Парсить JSON-відповідь від pi.
  * pi може обгорнути JSON у ```json ... ```, тому пробуємо витягти.
- *
- * @param {string} text
- * @returns {{ changes: Array<{path:string,content:string}>, error?: string } | null}
+ * @param {string} text сирий stdout pi
+ * @returns {{ changes: Array<{path:string,content:string}>, error?: string } | null} розпарсений патч або null
  */
 function parseResponse(text) {
   // Спроба 1: прямий JSON
@@ -133,7 +131,7 @@ function parseResponse(text) {
   }
 
   // Спроба 2: витягти з ```json ... ```
-  const m = text.match(/```(?:json)?\s*([\s\S]*?)```/)
+  const m = text.match(JSON_CODE_BLOCK_RE)
   if (m) {
     try {
       return JSON.parse(m[1].trim())
@@ -158,14 +156,13 @@ function parseResponse(text) {
 
 /**
  * LLM-worker: виправляє одне rule-порушення через pi (C1 pattern).
- *
- * @param {string} ruleId
+ * @param {string} ruleId ID правила
  * @param {string} violationOutput  output з fix check для цього rule
  * @param {string} projectRoot      абсолютний шлях до кореня проєкту
- * @param {{ model?: string }} opts
- * @returns {Promise<{ ok: boolean, error?: string }>}
+ * @param {{ model?: string }} opts опції (model — перевизначення моделі)
+ * @returns {Promise<{ ok: boolean, error?: string }>} статус виправлення і можлива помилка
  */
-export async function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
+export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const model = opts.model ?? MODEL
 
   // 1. Читаємо rule .mdc
@@ -207,8 +204,8 @@ export async function runLlmWorker(ruleId, violationOutput, projectRoot, opts = 
     const abs = join(projectRoot, change.path)
     try {
       writeFileSync(abs, change.content, 'utf8')
-    } catch (e) {
-      return { ok: false, error: `write ${change.path}: ${e.message}` }
+    } catch (error) {
+      return { ok: false, error: `write ${change.path}: ${error.message}` }
     }
   }
 

@@ -6,7 +6,6 @@
     "changelog",
     "ci4",
     "feedback",
-    "flow",
     "ga",
     "js-lint",
     "js-lint-ci",
@@ -21,9 +20,12 @@
     "vue",
     "worktree"
   ],
-  "ignore": [".claude/worktrees"],
+  "ignore": [
+    ".claude/worktrees"
+  ],
   "disable-rules": [
     "docker",
+    "flow",
     "image-avif",
     "image-compress",
     "js-bun-db",

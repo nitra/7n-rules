@@ -14,6 +14,10 @@ import { fileURLToPath } from 'node:url'
 
 import { withTmpDir } from '../../../../scripts/utils/test-helpers.mjs'
 
+const WROTE_LINE_RE = /wrote: (.+)$/mu
+const ADR_FILENAME_RE = /^\d{6}-\d{4}-тестова-назва\.md$/u
+const LEGACY_DATE_PREFIX_RE = /^\d{8}-/u
+
 const here = dirname(fileURLToPath(import.meta.url))
 const HOOK_SCRIPT = resolve(here, '..', '..', '..', '..', '.claude-template', 'hooks', 'capture-decisions.sh')
 
@@ -138,7 +142,7 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
         [
           '#!/usr/bin/env bash',
           'cat >/dev/null',
-          "printf '## ADR Тестова назва\\n\\n## Context and Problem Statement\\nТест.\\n'",
+          String.raw`printf '## ADR Тестова назва\n\n## Context and Problem Statement\nТест.\n'`,
           ''
         ].join('\n'),
         'utf8'
@@ -153,13 +157,13 @@ describe('capture-decisions.sh — structural tooling-only skip', () => {
 
       expect(log).toContain('using claude CLI')
       expect(log).toContain('wrote:')
-      const writtenPath = log.match(/wrote: (.+)$/mu)?.[1]
+      const writtenPath = log.match(WROTE_LINE_RE)?.[1]
       expect(writtenPath).toBeTruthy()
       expect(existsSync(writtenPath)).toBe(true)
       const fileName = writtenPath?.slice(writtenPath.lastIndexOf('/') + 1) ?? ''
       expect(adrFiles).toContain(fileName)
-      expect(fileName).toMatch(/^\d{6}-\d{4}-тестова-назва\.md$/u)
-      expect(fileName).not.toMatch(/^\d{8}-/u)
+      expect(fileName).toMatch(ADR_FILENAME_RE)
+      expect(fileName).not.toMatch(LEGACY_DATE_PREFIX_RE)
     })
   })
 })

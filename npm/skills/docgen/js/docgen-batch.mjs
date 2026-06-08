@@ -20,8 +20,8 @@ const missing = allFiles.filter(x => !x.exists)
 console.log(`\n📋 Файлів для генерації: ${missing.length}`)
 
 // 2. Розкласти по тирах
-const local = [],
-  cloud = []
+const cloud = [],
+  local = []
 for (const f of missing) {
   try {
     const src = readFileSync(join(ROOT, f.sourcePath), 'utf8')
@@ -51,10 +51,10 @@ for (const f of cloud) {
     stats.ok++
     stats.cloudOk++
     console.log(`  ✓ ${f.sourcePath} (sym=${f.sym}, ${Math.round((Date.now() - t0) / 1000)}s)`)
-  } catch (e) {
+  } catch (error) {
     stats.err++
     stats.errors.push(f.sourcePath)
-    console.error(`  ✗ ${f.sourcePath}: ${e.message}`)
+    console.error(`  ✗ ${f.sourcePath}: ${error.message}`)
   }
 }
 
@@ -77,10 +77,10 @@ for (const f of local) {
     stats.ok++
     stats.localOk++
     process.stdout.write(`✓ ${Math.round((Date.now() - t0) / 1000)}s score=${result.score ?? '?'}\n`)
-  } catch (e) {
+  } catch (error) {
     stats.err++
     stats.errors.push(f.sourcePath)
-    process.stdout.write(`✗ ${e.message}\n`)
+    process.stdout.write(`✗ ${error.message}\n`)
   }
 }
 
@@ -91,5 +91,5 @@ console.log(`  💻 Local (gemma3:4b): ${stats.localOk} файлів`)
 console.log(`  ☁️  Cloud (Claude/pi): ${stats.cloudOk} файлів`)
 if (stats.errors.length > 0) {
   console.log('Помилки:')
-  stats.errors.forEach(e => console.log(`  - ${e}`))
+  for (const e of stats.errors) console.log(`  - ${e}`)
 }

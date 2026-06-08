@@ -2665,9 +2665,9 @@ resources:
   })
 })
 
-describe('hasuraEnabledApisOverrideValue', () => {
-  const kustWithPatch = patch => ({ patches: [{ target: { kind: 'ConfigMap' }, patch }] })
+const kustWithPatch = patch => ({ patches: [{ target: { kind: 'ConfigMap' }, patch }] })
 
+describe('hasuraEnabledApisOverrideValue', () => {
   test('повертає значення ConfigMap-патча', () => {
     const k = kustWithPatch('- op: replace\n  path: /data/HASURA_GRAPHQL_ENABLED_APIS\n  value: metadata,graphql\n')
     expect(hasuraEnabledApisOverrideValue(k)).toBe('metadata,graphql')

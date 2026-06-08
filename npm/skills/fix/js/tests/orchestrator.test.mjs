@@ -5,7 +5,7 @@
  * Реальний n-cursor fix --json не викликається (offline-тест).
  */
 
-import { describe, test, expect, mock, beforeEach } from 'bun:test'
+import { describe, test, expect } from 'bun:test'
 
 // ── мінімальний mock модуля orchestrator без реального spawnSync ──
 // Тестуємо getFixState та загальний flow через заміну спавну
@@ -82,7 +82,7 @@ describe('orchestrator logic', () => {
 
   test('max-iter reached with unresolved → returns 1', async () => {
     const result = await runLoopMock({
-      states: Array(8).fill({ total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] }),
+      states: Array.from({ length: 8 }, () => ({ total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] })),
       t0Exit: 1,
       llmResults: [
         { ok: false, turns: 5 },
@@ -99,16 +99,16 @@ describe('orchestrator logic', () => {
 
 /**
  * Імітує runOrchestratorCli з mock-станами замість реального spawnSync.
- *
  * @param {{
  *   states: Array<{total:number,failed:number,rules:Array<{ruleId:string,ok:boolean,output:string}>}>,
  *   t0Exit: number,
  *   llmResults: Array<{ok:boolean,turns:number,error?:string}>,
  *   maxIter?: number,
  *   onLlmCall?: Function
- * }} opts
+ * }} opts опції симуляції (стани, exit code T0, результати LLM)
+ * @returns {Promise<number>} 0 — convergence, 1 — unresolved
  */
-async function runLoopMock({ states, t0Exit, llmResults, maxIter = 3, onLlmCall }) {
+function runLoopMock({ states, t0Exit, llmResults, maxIter = 3, onLlmCall }) {
   const MODEL_HAIKU = 'claude-haiku-4-5-20251001'
   const MODEL_SONNET = 'claude-sonnet-4-6'
   const ESCALATE_AFTER = 2
@@ -117,6 +117,10 @@ async function runLoopMock({ states, t0Exit, llmResults, maxIter = 3, onLlmCall 
   let llmIdx = 0
   const failCount = new Map()
 
+  /**
+   * Повертає наступний стан із масиву (clamped до останнього).
+   * @returns {object} наступний стан
+   */
   function nextState() {
     return states[Math.min(stateIdx++, states.length - 1)]
   }

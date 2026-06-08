@@ -12,7 +12,6 @@
 @.cursor/rules/n-changelog.mdc
 @.cursor/rules/n-ci4.mdc
 @.cursor/rules/n-feedback.mdc
-@.cursor/rules/n-flow.mdc
 @.cursor/rules/n-ga.mdc
 @.cursor/rules/n-js-lint-ci.mdc
 @.cursor/rules/n-js-lint.mdc

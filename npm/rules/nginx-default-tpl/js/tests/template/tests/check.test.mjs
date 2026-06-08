@@ -19,6 +19,8 @@ import {
 } from '../../../template.mjs'
 import { ensureDir, withTmpDir } from '../../../../../../scripts/utils/test-helpers.mjs'
 
+const ERROR_LOG_OFF_RE = /error_log\s+off/u
+
 const fixDir = join(fileURLToPath(new URL('.', import.meta.url)), '../fixtures')
 
 describe('parseIniVariableNames / iniKeysMissingInTemplate', () => {
@@ -68,7 +70,7 @@ describe('migrateErrorLogOffDirective', () => {
       expect(fixed).toEqual(['nginx/default.conf.template'])
       const body = await readFile(tpl, 'utf8')
       expect(body).toContain('error_log /dev/null crit;')
-      expect(body).not.toMatch(/error_log\s+off/u)
+      expect(body).not.toMatch(ERROR_LOG_OFF_RE)
     })
   })
 

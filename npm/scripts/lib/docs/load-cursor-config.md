@@ -101,6 +101,9 @@ const ignored = await loadCursorIgnorePaths(root)
 // ignored: ['/abs/path/.worktrees', '/abs/path/node_modules', ...]
 
 // Далі при обході файлів пропускаємо ті, що під будь-яким із ignored:
+/**
+ *
+ */
 function isIgnored(absPosixPath) {
   return ignored.some(ig => absPosixPath === ig || absPosixPath.startsWith(ig + '/'))
 }

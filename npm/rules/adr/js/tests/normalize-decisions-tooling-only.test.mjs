@@ -148,7 +148,7 @@ describe('normalize-decisions.sh — structural tooling-only delete', () => {
         [
           '#!/usr/bin/env bash',
           'cat >/dev/null',
-          "printf '%s\\n' '{\"operations\":[{\"op\":\"rewrite\",\"file\":\"260520-1010-foo.md\",\"slug\":\"bar\",\"content\":\"# Bar\\\\n\\\\n**Status:** Accepted\\\\n**Date:** 2026-05-20\\\\n\"}]}'",
+          String.raw`printf '%s\n' '{"operations":[{"op":"rewrite","file":"260520-1010-foo.md","slug":"bar","content":"# Bar\\n\\n**Status:** Accepted\\n**Date:** 2026-05-20\\n"}]}'`,
           ''
         ].join('\n'),
         'utf8'

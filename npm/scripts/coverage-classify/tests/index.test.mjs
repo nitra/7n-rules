@@ -24,7 +24,7 @@ const SAMPLE = `export function foo() {
 /**
  * Будує survived-фікстуру з одним EqualityOperator-мутантом для вказаного файлу.
  * @param {string} file шлях до source-файлу мутанта
- * @returns {object[]}
+ * @returns {object[]} масив survived-груп для класифікатора
  */
 function survivedFixture(file) {
   return [
@@ -39,8 +39,8 @@ function survivedFixture(file) {
 
 /**
  * Повертає JSON-рядок verdict для передачі у mock callPi.
- * @param {object} verdictJson
- * @returns {string}
+ * @param {object} verdictJson об'єкт verdict для серіалізації
+ * @returns {string} JSON-рядок verdict
  */
 function verdictText(verdictJson) {
   return JSON.stringify(verdictJson)

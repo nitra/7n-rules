@@ -6,11 +6,15 @@ export const STYLE = [
   'Заборонено: сигнатури, типи, параметри функцій; перелік stdlib-модулів; опис regex чи внутрішніх приватних імен.'
 ].join(' ')
 
-/** Короткий людиночитний витяг фактів (без коду). */
+/**
+ * Короткий людиночитний витяг фактів (без коду).
+ * @param {object} facts факт-лист про файл
+ * @returns {string} текстовий блок «factsTxt» для system-prompt
+ */
 function factsSummary(facts) {
   const m = facts.markers || {}
   const lines = []
-  if (facts.header) lines.push(`Намір файлу: ${facts.header.replace(/\n/g, ' ')}`)
+  if (facts.header) lines.push(`Намір файлу: ${facts.header.replaceAll('\n', ' ')}`)
   if (facts.exports?.length) lines.push(`Публічні функції: ${facts.exports.map(e => e.name).join(', ')}`)
   if (m.skips?.length) lines.push(`Свідомо пропускає шляхи: ${m.skips.join(', ')}`)
   lines.push(`Read-only: ${m.readOnly ? 'так' : 'ні'}`)
@@ -30,7 +34,9 @@ const msgs = (system, user) => [
 /**
  * Секційні набори messages з МІНІМАЛЬНИМ контекстом під кожну секцію.
  * Код потрапляє лише в `behavior`; решта секцій — на факт-листі.
- * @returns {Array<{key:string, messages:object[], numPredict:number}>}
+ * @param {object} facts факт-лист про файл
+ * @param {string} src вміст файлу
+ * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів
  */
 export function sectionMessages(facts, src) {
   const factsTxt = factsSummary(facts)
@@ -83,7 +89,12 @@ export function sectionMessages(facts, src) {
   return out
 }
 
-/** One-shot messages (база для порівняння). */
+/**
+ * One-shot messages (база для порівняння).
+ * @param {object} facts факт-лист про файл
+ * @param {string} src вміст файлу
+ * @returns {Array<object>} messages-масив для LLM API
+ */
 export function oneShotMessages(facts, src) {
   const multi = (facts.exports?.length || 0) > 1
   return msgs(
@@ -92,7 +103,12 @@ export function oneShotMessages(facts, src) {
   )
 }
 
-/** Лише текст user-промпту для one-shot (для хмарного fallback через Anthropic SDK). */
+/**
+ * Лише текст user-промпту для one-shot (для хмарного fallback через Anthropic SDK).
+ * @param {object} facts факт-лист про файл
+ * @param {string} src вміст файлу
+ * @returns {string} plain-text user-prompt
+ */
 export function oneShotPromptText(facts, src) {
   const multi = (facts.exports?.length || 0) > 1
   return `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``

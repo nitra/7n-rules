@@ -58,6 +58,7 @@ export function run(ctx)
 
 ```js
 import { run } from '@nitra/cursor/rules/php/fix.mjs'
+
 const code = await run(sharedCtx)
 ```
 
@@ -81,7 +82,7 @@ const code = await run(sharedCtx)
 У standalone-гілці явно вимкнено два правила лінтера:
 
 ```js
-// eslint-disable-next-line n/no-process-exit, unicorn/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
+// eslint-disable-next-line n/no-process-exit -- standalone entry-point має повертати exit-code для CI/IDE
 process.exit(await runRuleCli(import.meta.dirname))
 ```
 

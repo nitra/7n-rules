@@ -24,6 +24,9 @@ const N_CURSOR_BIN = join(REPO_ROOT, 'npm/bin/n-cursor.js')
 const RESULTS_DIR = join(HERE, 'results')
 mkdirSync(RESULTS_DIR, { recursive: true })
 
+const EXTENSION_VIOLATION_RE = /recommendations має містити "([^"]+)"/
+const CODE_BLOCK_RE = /`{3,}(?:\w+)?\n([\s\S]*?)`{3,}/
+
 // --- CLI args ---
 const argv = process.argv.slice(2)
 const rulesArg = argv.find(a => a.startsWith('--rules='))?.split('=')[1]
@@ -52,15 +55,20 @@ const RULE_FILES = {
  * Витягує назву розширення з рядка порушення.
  * Наприклад: '❌ .vscode/extensions.json: recommendations має містити "tsandall.opa"'
  * → 'tsandall.opa'
+ * @param {string} violationText текст порушення з fix output
+ * @returns {string|null} ID розширення або null
  */
 function extractExtensionFromViolation(violationText) {
-  const m = violationText.match(/recommendations має містити "([^"]+)"/)
+  const m = violationText.match(EXTENSION_VIOLATION_RE)
   return m?.[1] ?? null
 }
 
 /**
  * T0 фікс для violations у .vscode/extensions.json:
  * парсить violation output → додає конкретний рядок → детерміновано, 0 LLM.
+ * @param {string} root корінь проєкту
+ * @param {string} violationOutput текст порушення
+ * @returns {boolean} true якщо файл оновлено
  */
 function t0ExtensionsJsonFix(root, violationOutput) {
   const extPath = join(root, '.vscode/extensions.json')
@@ -95,6 +103,9 @@ const T0_FIXES = {
 /**
  * Запускає `n-cursor fix --json <rules>` у вказаному CWD.
  * Повертає розпарсений об'єкт {total, failed, rules}.
+ * @param {string[]} ruleIds список ID правил
+ * @param {string} cwd робочий каталог
+ * @returns {object} JSON-результат fix
  */
 function runFixJson(ruleIds, cwd) {
   const result = spawnSync('bun', [N_CURSOR_BIN, 'fix', '--json', ...ruleIds], {
@@ -114,14 +125,18 @@ function runFixJson(ruleIds, cwd) {
 /**
  * Витягує вміст першого code-block з markdown-відповіді.
  * Підтримує 3+ backtick fences з опційним language hint.
+ * @param {string} text markdown-текст
+ * @returns {string} вміст code-block або обрізаний текст
  */
 function extractCodeBlock(text) {
-  const m = text.match(/`{3,}(?:\w+)?\n([\s\S]*?)`{3,}/)
+  const m = text.match(CODE_BLOCK_RE)
   return m ? m[1].trim() : text.trim()
 }
 
 /**
  * Перевіряє, чи рядок є валідним JSON.
+ * @param {string} s рядок для парсингу
+ * @returns {object|null} розпарсений JSON або null
  */
 function tryParseJson(s) {
   try {
@@ -136,12 +151,12 @@ function tryParseJson(s) {
 /**
  * Gemma3:4b в text-режимі (без tools).
  * Оркестратор читає файли → будує промпт → pi → парсить відповідь → пише → check.
- *
- * @param {string} ruleId
- * @param {string} projectRoot
- * @param {{ timeout?: number }} opts
+ * @param {string} ruleId ID правила
+ * @param {string} projectRoot корінь проєкту-цілі
+ * @param {{ timeout?: number }} opts опції (timeout у мс)
+ * @returns {Promise<object>} результат tier із статусом і метаданими
  */
-async function toolFreeWorker(ruleId, projectRoot, opts = {}) {
+function toolFreeWorker(ruleId, projectRoot, opts = {}) {
   const { timeout = 90_000 } = opts
 
   // 1. Підтвердити порушення
@@ -154,7 +169,7 @@ async function toolFreeWorker(ruleId, projectRoot, opts = {}) {
 
   // 2. Прочитати правило
   const mdcPath = join(projectRoot, `.cursor/rules/n-${ruleId}.mdc`)
-  const ruleMdc = existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8').slice(0, 2500) : `(rule ${ruleId})`
+  const _ruleMdc = existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8').slice(0, 2500) : `(rule ${ruleId})`
 
   // 3. Прочитати файли
   const filePaths = RULE_FILES[ruleId] ?? []
@@ -233,6 +248,9 @@ async function toolFreeWorker(ruleId, projectRoot, opts = {}) {
 
 /**
  * Haiku з tools (claude-agent-sdk) — ескалаційний tier.
+ * @param {string} ruleId ID правила
+ * @param {string} projectRoot корінь проєкту-цілі
+ * @returns {Promise<object>} результат ескалації
  */
 async function haikuWorker(ruleId, projectRoot) {
   const { query } = await import('@anthropic-ai/claude-agent-sdk')
@@ -263,9 +281,9 @@ async function haikuWorker(ruleId, projectRoot) {
         model: 'claude-haiku-4-5-20251001',
       },
     })) { /* drain */ }
-  } catch (err) {
+  } catch (error) {
     const elapsed = Math.round(performance.now() - t0)
-    return { status: 'tier-fail', elapsed, error: String(err.message).slice(0, 100) }
+    return { status: 'tier-fail', elapsed, error: String(error.message).slice(0, 100) }
   }
 
   const elapsed = Math.round(performance.now() - t0)
@@ -325,8 +343,8 @@ for (const ruleId of TARGET_RULES_LIST) {
   let initResult
   try {
     initResult = runFixJson([ruleId], EXPERIMENT_ROOT)
-  } catch (err) {
-    console.error(`  ❌ fix --json failed: ${err.message}`)
+  } catch (error) {
+    console.error(`  ❌ fix --json failed: ${error.message}`)
     ledger.push({ ruleId, tier: 'error', status: 'error', elapsed: 0 })
     continue
   }
