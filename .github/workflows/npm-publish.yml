@@ -37,7 +37,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Release (bump + CHANGELOG + tag)
-        run: n-cursor release
+        run: bunx n-cursor release
 
       - name: Publish package
         uses: JS-DevTools/npm-publish@v4.1.5
