@@ -1,5 +1,13 @@
 # Changelog
 
+## [5.0.1] - 2026-06-09
+
+### Fixed
+
+- npm-module/npm_publish_yml: крок Release у канонічному сніпеті викликає бінарник `n-cursor release` з PATH замість `node npm/bin/n-cursor.js release` — шлях npm/bin/n-cursor.js не існує у downstream-споживачів і ламав їхній npm-publish (`Cannot find module .../npm/bin/n-cursor.js`, напр. @7n/n)
+- ci/setup-bun-deps: синхронізовано `bun.lock` з `package.json` — застарілий lockfile валив `bun install --frozen-lockfile` у workflow `npm-publish` ще до кроку release, блокуючи публікацію
+- npm-module/npm_publish_yml: крок Release викликає `bunx n-cursor release` замість `n-cursor release` — голий workflow-`run:` не має `node_modules/.bin` у PATH (на відміну від npm/bun-скриптів), тож `n-cursor` падав з `command not found` (exit 127); `bunx` резолвить бінарник із node_modules і працює і в @nitra/cursor, і в downstream-споживачів
+
 ## [5.0.0] - 2026-06-08
 
 ### Changed
