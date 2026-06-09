@@ -3,7 +3,7 @@ name: npm-publish
 on:
   push:
     paths:
-      - 'npm/**'
+      - 'npm/.changes/**'
     branches:
       - main
 
