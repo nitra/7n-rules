@@ -76,3 +76,13 @@ Chosen option: "B1 — окремий sync-крок, безумовно", becaus
 **Причина:** для `adr` гейт коректний — продюсер (ADR Stop-hook) і тумблер — одна сутність; якщо правило вимкнено, артефактів нема. Для worktree продюсер (`flow init` / `worktree-cli`) є `alwaysApply: true` і незалежний від worktree-rule — гейт за правилом розсинхронізував би ігнорування з реальним продюсером.
 
 Наслідки: репо, де worktree-rule вимкнено але `flow init` використовується, не отримує брудний `git status`. Репо без worktree — несе один зайвий ignore-рядок (idempotent noop).
+
+## Update 2026-06-01
+
+Деталі реалізації та обґрунтування безумовного запису (b1 vs b2):
+
+Новий модуль `npm/scripts/lib/sync-gitignore-worktree.mjs` — тонка обгортка над `ensureGitignoreEntries` з одним патерном `.worktrees/`. Підключений як окремий `runSyncStep` у `n-cursor.js` (сусід `syncClaudeConfig`), а не всередині неї (яка має ранній `return` при `claude-config: false` — це відʼєднало б запис від реального продюсера). Звіт: `'.gitignore (worktree)'`.
+
+**b1 (безумовно) vs b2 (гейт за `rules.includes('worktree')`):** обрано b1, бо продюсер `.worktrees/` — це `flow` (`n-flow.mdc`, `alwaysApply: true`) і `worktree-cli`, незалежні від rule-тумблерів. Гейт b2 міг розсинхронізувати продюсента й ignore-рядок: вимкнення worktree-rule → рядок зникає, але `flow init` далі створює `.worktrees/` → повертається dirty-status проблема. Для `adr` гейт коректний (продюсер і гейт — одна сутність); для `flow` — ні. Мінус b1: репо без worktree-usage отримує зайвий рядок у `.gitignore` — нешкідливий no-op.
+
+Ідемпотентність: якщо рядок вже є — no-op. Коміт `e0f5e52`. Файли: `npm/scripts/lib/sync-gitignore-worktree.mjs` (новий, 4 тести), `npm/bin/n-cursor.js`.

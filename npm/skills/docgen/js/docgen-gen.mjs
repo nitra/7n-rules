@@ -5,7 +5,8 @@ import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
 import { extractFacts } from './docgen-extract.mjs'
-import { STYLE, oneShotPromptText, sectionMessages } from './docgen-prompts.mjs'
+import { extractAnchors } from './docgen-extract-anchors.mjs'
+import { oneShotMessages, sectionMessages, criticMessages, refineMessages, guaranteesFromMarkers } from './docgen-prompts.mjs'
 
 const QUALITY_THRESHOLD = 70
 
@@ -89,8 +90,62 @@ function scoreDoc(md, facts) {
   return { score: Math.max(0, score), issues }
 }
 
-/** Викликає pi і повертає stdout. Кидає якщо pi повертає ненульовий код. */
-function callPi(prompt, model, timeoutMs) {
+/**
+ * omlx-бекенд: справжні OpenAI-сумісні messages (system+user збереженi).
+ * Вмикається `N_CURSOR_DOCGEN_BACKEND=omlx`.
+ * URL: `N_CURSOR_DOCGEN_OMLX_URL` або http://127.0.0.1:8000/v1/chat/completions.
+ * Модель: переданий `model`, потім `N_CURSOR_DOCGEN_OMLX_MODEL`, потім дефолт.
+ */
+function callOmlxMessages(messages, model, timeoutMs, temperature = 0.2) {
+  const url = env.N_CURSOR_DOCGEN_OMLX_URL ?? 'http://127.0.0.1:8000/v1/chat/completions'
+  const m = model || env.N_CURSOR_DOCGEN_OMLX_MODEL || 'mlx-community--gemma-4-e2b-it-4bit'
+  const body = JSON.stringify({
+    model: m,
+    messages,
+    max_tokens: 4096,
+    temperature
+  })
+  // Ретраїмо лише transient curl-помилки (18 = transfer closed, 56 = recv failure, 52 = empty reply).
+  const TRANSIENT_CURL_CODES = new Set([18, 52, 56])
+  let lastErr
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = spawnSync(
+      'curl',
+      ['-sS', '-X', 'POST', url, '-H', 'Content-Type: application/json', '-H', 'Connection: close', '--max-time', String(Math.ceil(timeoutMs / 1000)), '--data-binary', '@-'],
+      { input: body, encoding: 'utf8', timeout: timeoutMs + 5000 }
+    )
+    if (r.error) {
+      lastErr = new Error(`omlx curl error: ${r.error.message}`)
+      break
+    }
+    if (r.status !== 0) {
+      if (TRANSIENT_CURL_CODES.has(r.status) && attempt < 3) {
+        lastErr = new Error(`omlx curl exit ${r.status} (transient, retry ${attempt})`)
+        continue
+      }
+      throw new Error(`omlx curl exit ${r.status}: ${r.stderr?.slice(0, 300) ?? ''}`)
+    }
+    let j
+    try { j = JSON.parse(r.stdout) } catch { throw new Error(`omlx bad json: ${r.stdout?.slice(0, 200) ?? ''}`) }
+    if (j.error) throw new Error(`omlx api: ${JSON.stringify(j.error).slice(0, 300)}`)
+    const content = j.choices?.[0]?.message?.content?.trim() ?? ''
+    if (!content) {
+      const finish = j.choices?.[0]?.finish_reason
+      throw new Error(`omlx empty content (finish=${finish})`)
+    }
+    return content
+  }
+  throw lastErr ?? new Error('omlx unknown failure')
+}
+
+/**
+ * Універсальний виклик LLM за повним messages-масивом.
+ * - omlx: шле messages напряму (system збережено)
+ * - pi: конкатенує message.content (pi приймає лише plain prompt)
+ */
+function callLlm(messages, model, timeoutMs, temperature = 0.2) {
+  if (env.N_CURSOR_DOCGEN_BACKEND === 'omlx') return callOmlxMessages(messages, model, timeoutMs, temperature)
+  const prompt = messages.map(m => m.content).join('\n\n')
   const modelArgs = model ? ['--model', model] : []
   const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
     encoding: 'utf8',
@@ -101,9 +156,30 @@ function callPi(prompt, model, timeoutMs) {
   return r.stdout?.trim() ?? ''
 }
 
-/** One-shot: один pi-виклик на весь документ. */
+/**
+ * E2 — один цикл critique→refine на секцію.
+ * Повертає або уточнену чорнетку, або оригінал якщо критик повідомив NONE.
+ */
+function critiqueRefineSection(sectionKey, draft, facts, anchors, model, timeoutMs) {
+  const critique = callLlm(criticMessages(sectionKey, draft, facts, anchors), model, timeoutMs).trim()
+  if (!critique || /^\s*NONE\s*$/i.test(critique) || critique.length < 12) return draft
+  const refined = callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, timeoutMs).trim()
+  return stripSignatures(stripSection(refined)) || draft
+}
+
+/**
+ * Чи треба refine для секції API: тільки якщо є >1 експорту і всі desc-и порожні
+ * (саме там модель схильна писати «застосовує логіку до файлу»).
+ */
+function apiNeedsRefine(facts) {
+  const exps = facts.exports ?? []
+  if (exps.length <= 1) return false
+  return exps.every(e => !e.desc)
+}
+
+/** One-shot: один виклик LLM на весь документ. */
 function piOneShot(facts, src, model, timeoutMs = 120_000) {
-  const text = callPi(`${STYLE}\n\n${oneShotPromptText(facts, src)}`, model, timeoutMs)
+  const text = callLlm(oneShotMessages(facts, src), model, timeoutMs)
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
   return { md: md + '\n', genTok: 0 }
@@ -129,12 +205,19 @@ function assemble(stem, sections) {
  * Orchestrated: N окремих pi-викликів, по одному на секцію.
  * Код потрапляє лише в `behavior`; решта секцій — на мінімальному факт-листі.
  */
-function piOrchestrated(facts, src, model, timeoutMs) {
+function piOrchestrated(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2 } = {}) {
   const sections = {}
-  for (const s of sectionMessages(facts, src)) {
-    // messages = [{role:'system',content}, {role:'user',content}] → plain text prompt для pi
-    const prompt = s.messages.map(m => m.content).join('\n\n')
-    sections[s.key] = stripSignatures(stripSection(callPi(prompt, model, timeoutMs)))
+  const anc = anchors ?? extractAnchors(src)
+  // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
+  sections.guarantees = guaranteesFromMarkers(facts)
+  for (const s of sectionMessages(facts, src, anc)) {
+    if (s.key === 'guarantees') continue // вже згенеровано детерміновано
+    let draft = stripSignatures(stripSection(callLlm(s.messages, model, timeoutMs, temperature)))
+    // E2 + E3: critique→refine лише для секцій, де gemma-4 зриває на generic
+    if (s.key === 'overview' || (s.key === 'api' && apiNeedsRefine(facts))) {
+      draft = critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
+    }
+    sections[s.key] = draft
   }
   return { md: assemble(basename(facts.relPath), sections), genTok: 0 }
 }
@@ -181,10 +264,11 @@ export async function generateDoc(
   // Tier 1: pi orchestrated (секція за секцією), timeout на секцію = LOCAL_TIMEOUT_MS
   // facts.unsupported → one-shot (структура файлу нестандартна)
   let r
+  const anchors = facts.unsupported ? null : extractAnchors(src)
   try {
     r = facts.unsupported
       ? piOneShot(facts, src, model, LOCAL_TIMEOUT_MS)
-      : piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS)
+      : piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS, { anchors })
   } catch (error) {
     if (cloudModel) {
       const r2 = piOneShot(facts, src, cloudModel)
@@ -194,7 +278,25 @@ export async function generateDoc(
   }
 
   // Stage 2.5: детермінований скоринг (0 токенів) — gate перед Tier 2
-  const { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
+  let { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
+
+  // E4: best-of-N. Якщо score нижчий за threshold і немає cloud-fallback — спроба
+  // ще раз з вищою температурою, керуємо через env (повторні прогони коштовні).
+  if (detScore < threshold && !cloudModel && !facts.unsupported && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
+    try {
+      const r2 = piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5 })
+      const s2 = scoreDoc(r2.md, facts)
+      if (s2.score > detScore) {
+        r = r2
+        detScore = s2.score
+        detIssues = [...s2.issues, 'best-of-2:retry-won']
+      } else {
+        detIssues = [...detIssues, 'best-of-2:retry-lost']
+      }
+    } catch (error) {
+      detIssues = [...detIssues, `best-of-2:retry-error: ${error.message}`]
+    }
+  }
 
   if (detScore < threshold && cloudModel) {
     const r2 = piOneShot(facts, src, cloudModel)
