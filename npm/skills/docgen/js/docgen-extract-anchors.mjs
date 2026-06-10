@@ -46,7 +46,7 @@ function uniq(arr) {
  * }}
  */
 export function extractAnchors(src) {
-  const urls = uniq([...src.matchAll(URL_RE)].map(m => m[0]))
+  const urls = uniq(Array.from(src.matchAll(URL_RE), m => m[0]))
 
   const magicStrings = []
   const seenNames = new Set()
@@ -59,12 +59,12 @@ export function extractAnchors(src) {
     }
   }
 
-  const errorMarkers = uniq([...src.matchAll(ERROR_MARKER_RE)].map(m => m[1]))
-  const configRefs = uniq([...src.matchAll(CONFIG_REF_RE)].map(m => m[1]))
+  const errorMarkers = uniq(Array.from(src.matchAll(ERROR_MARKER_RE), m => m[1]))
+  const configRefs = uniq(Array.from(src.matchAll(CONFIG_REF_RE), m => m[1]))
 
   // Витягуємо code-block приклади тільки з file-header — там автор зазвичай показує контракт.
   const headerMatch = src.match(FILE_HEADER_RE)
-  const examples = headerMatch ? uniq([...headerMatch[1].matchAll(CODE_BLOCK_RE)].map(m => m[1].trim())) : []
+  const examples = headerMatch ? uniq(Array.from(headerMatch[1].matchAll(CODE_BLOCK_RE), m => m[1].trim())) : []
 
   return { urls, magicStrings, errorMarkers, configRefs, examples }
 }

@@ -5,12 +5,20 @@
  * Налаштовується один раз у середовищі; кожен скіл посилається на потрібний тир.
  *
  * Приклад ~/.bashrc або .env:
- *   N_LOCAL_MIN_MODEL=ollama/gemma3:4b
+ *   N_LOCAL_MIN_MODEL=omlx/mlx-community--gemma-4-e2b-it-4bit
  *   N_CLOUD_MIN_MODEL=openai/gpt-5.4-mini
  *   N_CLOUD_AVG_MODEL=openai/gpt-5.4
  *   N_CLOUD_MAX_MODEL=openai/gpt-5.5
  *
  * Значення '' означає "pi дефолтний провайдер" (залежить від ~/.pi конфігу).
+ *
+ * ## Бекенд за префіксом model-id
+ *
+ * model-id з префіксом `omlx/...` маршрутизується прямим HTTP до локального
+ * omlx-сервера (`npm/lib/omlx.mjs`), минаючи pi; решта (`openai/...`,
+ * `ollama/...`, '') — через pi CLI. Тому локальні тири варто задавати у форматі
+ * `omlx/<model>`, аби local-inference йшов напряму, а pi лишався шаром для хмари
+ * (див. ADR 260610-1349).
  *
  * ## Каскад local → cloud (контракт)
  *

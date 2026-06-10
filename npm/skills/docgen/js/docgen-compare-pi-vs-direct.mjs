@@ -77,7 +77,7 @@ const pi = await runBackendAsync('pi')
 function avg(a) { return a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0 }
 function median(a) {
   if (!a.length) return 0
-  const s = [...a].sort((x, y) => x - y)
+  const s = a.toSorted((x, y) => x - y)
   return s[Math.floor(s.length / 2)]
 }
 

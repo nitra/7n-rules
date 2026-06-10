@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
+import { callOmlx, isOmlxModel } from '../../../lib/omlx.mjs'
 
 // Тир за замовчуванням: min → avg при ескалації (каскад local→cloud).
 // Перевизначення через N_CURSOR_FIX_MODEL / N_CURSOR_FIX_MODEL_HEAVY.
@@ -86,12 +87,20 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
 }
 
 /**
- * Запускає pi і повертає stdout як рядок.
+ * Викликає LLM за model-id і повертає текст відповіді.
+ * `omlx/...` → прямий HTTP до omlx (text-only, локально); решта → pi CLI.
  * @param {string} prompt текст промпта
- * @param {string} model назва моделі (provider/id)
- * @returns {{ text: string, error?: string }} stdout pi або повідомлення про помилку
+ * @param {string} model назва моделі (provider/id, `omlx/...` або '')
+ * @returns {{ text: string, error?: string }} текст відповіді або повідомлення про помилку
  */
-function callPi(prompt, model) {
+function callModel(prompt, model) {
+  if (isOmlxModel(model)) {
+    try {
+      return { text: callOmlx([{ role: 'user', content: prompt }], model, { timeoutMs: 120_000 }) }
+    } catch (error) {
+      return { text: '', error: error.message }
+    }
+  }
   const modelArgs = model ? ['--model', model] : []
   const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
     encoding: 'utf8',
@@ -117,9 +126,9 @@ function callPi(prompt, model) {
 }
 
 /**
- * Парсить JSON-відповідь від pi.
- * pi може обгорнути JSON у ```json ... ```, тому пробуємо витягти.
- * @param {string} text сирий stdout pi
+ * Парсить JSON-відповідь від моделі.
+ * Модель може обгорнути JSON у ```json ... ```, тому пробуємо витягти.
+ * @param {string} text сирий текст відповіді
  * @returns {{ changes: Array<{path:string,content:string}>, error?: string } | null} розпарсений патч або null
  */
 function parseResponse(text) {
@@ -183,12 +192,12 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
     })
     .filter(Boolean)
 
-  // 3. Будуємо prompt і викликаємо pi
+  // 3. Будуємо prompt і викликаємо модель
   const prompt = buildPrompt(ruleId, ruleMdc, violationOutput, files)
-  const { text, error: piError } = callPi(prompt, model)
+  const { text, error: modelError } = callModel(prompt, model)
 
-  if (piError) return { ok: false, error: piError }
-  if (!text) return { ok: false, error: 'pi returned empty response' }
+  if (modelError) return { ok: false, error: modelError }
+  if (!text) return { ok: false, error: 'model returned empty response' }
 
   // 4. Парсимо відповідь
   const parsed = parseResponse(text)

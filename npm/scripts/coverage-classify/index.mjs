@@ -3,14 +3,19 @@
  *
  * Routing:
  *   1. Cache lookup → hit → використати збережений verdict.
- *   2. Cache miss → Tier 1 (LOCAL_MIN через pi) → parseVerdict.
- *   3. Tier 1 fail (pi error / bad JSON / Zod) → Tier 2 (CLOUD_MIN через pi).
+ *   2. Cache miss → Tier 1 (resolveModel('min')) → parseVerdict.
+ *   3. Tier 1 fail (model error / bad JSON / Zod) → Tier 2 (CLOUD_MIN через pi).
  *   4. Tier 2 fail → conservative fallback worth-testing/confidence=0.
+ *
+ * Бекенд обирається за model-id: `omlx/...` → прямий HTTP до omlx (локально),
+ * решта → pi CLI. Якщо omlx-Tier 1 недоступний, помилка падає в той самий catch
+ * і класифікація відкочується на хмарний Tier 2 через pi.
  */
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 import { CLOUD_MIN, resolveModel } from '../../lib/models.mjs'
+import { callOmlx, isOmlxModel } from '../../lib/omlx.mjs'
 import { deriveCacheKey, readCache, writeCache } from './cache.mjs'
 import { buildUserPrompt, SYSTEM_PROMPT } from './prompt.mjs'
 import { parseVerdict } from './verdict-schema.mjs'
@@ -22,13 +27,17 @@ const FALLBACK_VERDICT = {
 }
 
 /**
- * Викликає pi і повертає raw stdout.
+ * Викликає LLM за model-id і повертає raw текст відповіді.
+ * `omlx/...` → прямий HTTP до omlx (text-only); решта → pi CLI.
  * @param {string} prompt текст промпта
- * @param {string} model  provider/model-id або '' для pi-дефолту
- * @returns {string} stdout pi-процесу
- * @throws якщо pi не знайдено або повертає ненульовий exit code
+ * @param {string} model  provider/model-id, `omlx/...` або '' для pi-дефолту
+ * @returns {string} текст відповіді моделі
+ * @throws якщо backend недоступний або повертає помилку
  */
-function callPi(prompt, model) {
+function callModel(prompt, model) {
+  if (isOmlxModel(model)) {
+    return callOmlx([{ role: 'user', content: prompt }], model, { timeoutMs: 60_000 })
+  }
   const modelArgs = model ? ['--model', model] : []
   const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
     encoding: 'utf8',
@@ -44,21 +53,21 @@ function callPi(prompt, model) {
  * @param {{file: string, mutants: object[]}} group група мутантів одного файлу
  * @param {object} mutant конкретний мутант
  * @param {string} cwd корінь проєкту
- * @param {(prompt: string, model: string) => string} callPiFn  ін'єкція для тестів
+ * @param {(prompt: string, model: string) => string} callModelFn  ін'єкція для тестів
  * @returns {object} verdict класифікації
  */
-function classifyOne(group, mutant, cwd, callPiFn) {
+function classifyOne(group, mutant, cwd, callModelFn) {
   const prompt = `${SYSTEM_PROMPT}\n\n${buildUserPrompt({ ...mutant, file: group.file }, cwd)}`
   const loc = `${group.file}:${mutant.line}:${mutant.col}`
 
   // Tier 1: resolveModel('min') — каскад local→cloud якщо локалі нема
   try {
-    const text = callPiFn(prompt, resolveModel('min'))
+    const text = callModelFn(prompt, resolveModel('min'))
     return parseVerdict(text)
   } catch {
     // Tier 2: CLOUD_MIN
     try {
-      const text = callPiFn(prompt, CLOUD_MIN)
+      const text = callModelFn(prompt, CLOUD_MIN)
       return parseVerdict(text)
     } catch (error) {
       console.warn(`⚠ coverage classify: ${loc} both tiers failed: ${error.message}`)
@@ -68,15 +77,15 @@ function classifyOne(group, mutant, cwd, callPiFn) {
 }
 
 /**
- * Класифікує survived мутантів через pi (LOCAL_MIN → CLOUD_MIN → fallback).
+ * Класифікує survived мутантів (resolveModel('min') → CLOUD_MIN → fallback).
  * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived список вцілілих мутантів
  * @param {string} cwd корінь проєкту
- * @param {{cachePath?: string, callPi?: Function}} [opts] ін'єкції для тестів
+ * @param {{cachePath?: string, callModel?: Function}} [opts] ін'єкції для тестів
  * @returns {Promise<Array<{key: string, verdict: object}>>} verdicts
  */
 export function classify(survived, cwd, opts = {}) {
   const cachePath = opts.cachePath ?? join(cwd, 'npm/reports/coverage-classify.cache.json')
-  const callPiFn = opts.callPi ?? callPi
+  const callModelFn = opts.callModel ?? callModel
   const cacheModel = `${resolveModel('min') || 'default'}+${CLOUD_MIN || 'cloud'}`
 
   const cache = readCache(cachePath)
@@ -102,7 +111,7 @@ export function classify(survived, cwd, opts = {}) {
         }
       }
       if (!verdict) {
-        verdict = classifyOne(group, mutant, cwd, callPiFn)
+        verdict = classifyOne(group, mutant, cwd, callModelFn)
         if (cacheKey) {
           cache.entries[cacheKey] = { ...verdict, classifiedAt: new Date().toISOString() }
         }

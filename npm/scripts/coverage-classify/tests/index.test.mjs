@@ -38,7 +38,7 @@ function survivedFixture(file) {
 }
 
 /**
- * Повертає JSON-рядок verdict для передачі у mock callPi.
+ * Повертає JSON-рядок verdict для передачі у mock callModel.
  * @param {object} verdictJson об'єкт verdict для серіалізації
  * @returns {string} JSON-рядок verdict
  */
@@ -47,10 +47,10 @@ function verdictText(verdictJson) {
 }
 
 describe('classify', () => {
-  let mockCallPi
+  let mockCallModel
 
   beforeEach(() => {
-    mockCallPi = vi.fn()
+    mockCallModel = vi.fn()
     vi.spyOn(console, 'warn').mockReturnValue()
   })
 
@@ -61,40 +61,40 @@ describe('classify', () => {
   test('Tier 1 валідний → verdict повертається, Tier 2 не викликається', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
-      mockCallPi.mockReturnValueOnce(verdictText({ verdict: 'worth-testing', confidence: 0.85, reason: REASON }))
+      mockCallModel.mockReturnValueOnce(verdictText({ verdict: 'worth-testing', confidence: 0.85, reason: REASON }))
       const result = await classify(survivedFixture('foo.mjs'), dir, {
         cachePath: join(dir, 'cache.json'),
-        callPi: mockCallPi
+        callModel: mockCallModel
       })
       expect(result).toHaveLength(1)
       expect(result[0].key).toBe('foo.mjs:2:7:!==')
       expect(result[0].verdict.verdict).toBe('worth-testing')
-      expect(mockCallPi).toHaveBeenCalledTimes(1)
+      expect(mockCallModel).toHaveBeenCalledTimes(1)
     })
   })
 
   test('Tier 1 bad JSON → Tier 2 викликається → valid verdict', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
-      mockCallPi
+      mockCallModel
         .mockReturnValueOnce('not json')
         .mockReturnValueOnce(verdictText({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
       const result = await classify(survivedFixture('foo.mjs'), dir, {
         cachePath: join(dir, 'cache.json'),
-        callPi: mockCallPi
+        callModel: mockCallModel
       })
       expect(result[0].verdict.verdict).toBe('equivalent')
-      expect(mockCallPi).toHaveBeenCalledTimes(2)
+      expect(mockCallModel).toHaveBeenCalledTimes(2)
     })
   })
 
   test('обидва тири fail → FALLBACK_VERDICT (worth-testing / confidence=0)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
-      mockCallPi.mockImplementation(() => { throw new Error('pi not found') })
+      mockCallModel.mockImplementation(() => { throw new Error('pi not found') })
       const result = await classify(survivedFixture('foo.mjs'), dir, {
         cachePath: join(dir, 'cache.json'),
-        callPi: mockCallPi
+        callModel: mockCallModel
       })
       expect(result).toHaveLength(1)
       expect(result[0].verdict.verdict).toBe('worth-testing')
@@ -102,17 +102,17 @@ describe('classify', () => {
     })
   })
 
-  test('cache hit → callPi не викликається', async () => {
+  test('cache hit → callModel не викликається', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCallPi.mockReturnValue(verdictText({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
+      mockCallModel.mockReturnValue(verdictText({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
 
-      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callPi: mockCallPi })
-      expect(mockCallPi).toHaveBeenCalledTimes(1)
+      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callModel: mockCallModel })
+      expect(mockCallModel).toHaveBeenCalledTimes(1)
 
-      const r2 = await classify(survivedFixture('foo.mjs'), dir, { cachePath, callPi: mockCallPi })
-      expect(mockCallPi).toHaveBeenCalledTimes(1) // не змінилося
+      const r2 = await classify(survivedFixture('foo.mjs'), dir, { cachePath, callModel: mockCallModel })
+      expect(mockCallModel).toHaveBeenCalledTimes(1) // не змінилося
       expect(r2[0].verdict.verdict).toBe('equivalent')
     })
   })
@@ -121,8 +121,8 @@ describe('classify', () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCallPi.mockReturnValueOnce(verdictText({ verdict: 'glue', confidence: 0.8, reason: REASON }))
-      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callPi: mockCallPi })
+      mockCallModel.mockReturnValueOnce(verdictText({ verdict: 'glue', confidence: 0.8, reason: REASON }))
+      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callModel: mockCallModel })
       const { readFileSync } = await import('node:fs')
       const cached = JSON.parse(readFileSync(cachePath, 'utf8'))
       expect(Object.keys(cached.entries)).toHaveLength(1)
@@ -147,9 +147,9 @@ describe('classify', () => {
         }),
         'utf8'
       )
-      mockCallPi.mockReturnValueOnce(verdictText({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
-      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callPi: mockCallPi })
-      expect(mockCallPi).toHaveBeenCalledTimes(1) // не cache hit — model змінилася
+      mockCallModel.mockReturnValueOnce(verdictText({ verdict: 'equivalent', confidence: 0.9, reason: REASON }))
+      await classify(survivedFixture('foo.mjs'), dir, { cachePath, callModel: mockCallModel })
+      expect(mockCallModel).toHaveBeenCalledTimes(1) // не cache hit — model змінилася
     })
   })
 
@@ -158,9 +158,9 @@ describe('classify', () => {
       await writeFile(join(dir, 'a.mjs'), SAMPLE, 'utf8')
       await writeFile(join(dir, 'b.mjs'), SAMPLE, 'utf8')
       const cachePath = join(dir, 'cache.json')
-      mockCallPi.mockReturnValue(verdictText({ verdict: 'worth-testing', confidence: 0.8, reason: REASON }))
+      mockCallModel.mockReturnValue(verdictText({ verdict: 'worth-testing', confidence: 0.8, reason: REASON }))
       const survived = [...survivedFixture('a.mjs'), ...survivedFixture('b.mjs')]
-      const result = await classify(survived, dir, { cachePath, callPi: mockCallPi })
+      const result = await classify(survived, dir, { cachePath, callModel: mockCallModel })
       expect(result).toHaveLength(2)
       expect(result[0].key.startsWith('a.mjs:')).toBe(true)
       expect(result[1].key.startsWith('b.mjs:')).toBe(true)
