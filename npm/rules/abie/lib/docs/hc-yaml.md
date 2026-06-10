@@ -2,25 +2,25 @@
 
 ## Огляд
 
-Файл виконує структурну валідацію конфігураційного файлу `hc.yaml` для перевірки відповідності даних визначенню політики перевірки стану. Валідація здійснюється порівнянням даних з контрактом `HealthCheckPolicy`, який визначений у рего-файлі. Ця функція забезпечує перевірку відповідно до схеми, визначеної за посиланням https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json. Використовується константа ABIE_HC_SCHEMA_URL, яка позначає цей URL. Результат валідації повертається у форматі булевого значення або null.
+Файл виконує структурну валідацію конфігурації `modeline` у файлах `hc.yaml`. Функція `validateAbieHcModeline` перевіряє відповідність конфігурації визначеному контракту. Валідація проводиться порівнянням конфігурації з визначеною схемою, доступною за посиланням https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json. Цей процес забезпечує коректність конфігурації для ідентифікації (abie.mdc). Експортована константа ABIE_HC_SCHEMA_URL використовується для посилання на цю схему.
 
 ## Поведінка
 
-validateAbieHcModeline перевіряє modeline у вхідному контенті.
+validateAbieHcModeline перевіряє modeline у файлі `hc.yaml`.
 
-Перевіряє, чи перший рядок не порожній. Якщо рядок порожній, повертає повідомлення про необхідність формату modeline (abie.mdc).
+Перевіряє, чи перший рядок не порожній. Повертає повідомлення про необхідність наявності modeline `# yaml-language-server: $schema=… (abie.mdc)`.
 
-Перевіряє наявність modeline у першому рядку. Якщо modeline відсутній, повертає повідомлення про необхідність формату modeline (abie.mdc).
+Перевіряє, чи перший рядок містить необхідний modeline. Повертає повідомлення про відсутність modeline $schema (abie.mdc).
 
-Перевіряє, чи значення $schema відповідає очікуваному URL. Якщо значення не відповідає, повертає повідомлення про необхідність використання URL https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json (abie.mdc).
+Перевіряє, чи значення $schema відповідає очікуваному URL. Повертає повідомлення про неправильне значення $schema, включаючи необхідний URL: https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json (abie.mdc).
 
 Повертає null у разі успішної валідації.
 
 ## Публічний API
 
-ABIE_HC_SCHEMA_URL — Вказує на необхідний URL `$schema` для файлу `hc.yaml` (abie.mdc).
+ABIE_HC_SCHEMA_URL — Зберігає референтний URL `$schema` для файлу `hc.yaml` (abie.mdc).
 
-validateAbieHcModeline — Перевіряє синтаксис modeline (`# yaml-language-server: $schema=...`) у файлі `hc.yaml`.
+validateAbieHcModeline — Перевіряє формат modeline (`# yaml-language-server: $schema=...`) у файлі `hc.yaml`.
 
 ## Гарантії поведінки
 
