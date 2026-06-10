@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.1.0] - 2026-06-10
+
+### Changed
+
+- local-inference: маршрут моделей за префіксом `omlx/` напряму в omlx HTTP (npm/lib/omlx.mjs) минаючи pi; coverage-classify і fix/llm-worker переведено на спільний callOmlx, docgen де-дубльовано; pi лишається шаром для хмари й агентних задач (ADR 260610-1349)
+
 ## [5.0.3] - 2026-06-10
 
 ### Changed
