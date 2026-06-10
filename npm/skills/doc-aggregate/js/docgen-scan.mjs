@@ -13,9 +13,7 @@ const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py'])
 const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u
 
 /**
- * Чи корінь має system-wide docs layout.
- * Такий корінь зарезервований під репозиторні docs/adr, docs/explanation тощо,
- * тому file-level docs у нього не пишемо.
+ * Чи корінь має system-wide docs layout (зарезервований під repo docs/adr тощо).
  * @param {string} root абсолютний корінь обходу
  * @returns {boolean} true — корінь system-wide docs
  */
@@ -26,7 +24,7 @@ function isSystemWideDocsRoot(root) {
 /**
  * Чи є файл кодовим джерелом для документування.
  * @param {string} fileName базове ім'я файлу
- * @returns {boolean} true — документуємо; false — пропускаємо
+ * @returns {boolean} true — документуємо
  */
 export function isSourceFile(fileName) {
   if (fileName.endsWith('.d.ts')) return false
@@ -35,30 +33,14 @@ export function isSourceFile(fileName) {
 }
 
 /**
- * Обчислює шлях md-документа для кодового файлу: тека `docs/` поряд із джерелом.
- * Якщо `sourcePath` відносний, `docPath` теж відносний; якщо абсолютний — абсолютний.
- * @param {string} sourcePath шлях до джерела (відносний або абсолютний)
- * @returns {string} шлях до `<dir>/docs/<stem>.md` у тому ж просторі шляхів
- */
-export function docPathForSource(sourcePath) {
-  const dir = path.dirname(sourcePath)
-  const stem = path.basename(sourcePath, path.extname(sourcePath))
-  return path.join(dir, 'docs', `${stem}.md`)
-}
-
-/**
- * Рекурсивно обходить дерево від `root`, повертає кодові файли для документування.
- * Синхронний `readdirSync` — детермінований порядок і простий рекурсивний обхід без
- * гонок; обсяг дерева проєкту це дозволяє.
+ * Рекурсивно збирає кодові файли проєкту (posix-шляхи від кореня).
  * @param {string} root абсолютний корінь обходу
- * @returns {Array<{sourcePath:string, docPath:string, exists:boolean}>} список кандидатів з відносними шляхами
+ * @returns {string[]} sourcePath-и
  */
-export function scanForDocgen(root) {
+export function scanSourceFiles(root) {
   const results = []
 
-  /**
-   * @param {string} dir поточний каталог обходу
-   */
+  /** @param {string} dir поточний каталог обходу */
   function walk(dir) {
     let entries
     try {
@@ -76,12 +58,7 @@ export function scanForDocgen(root) {
         if (isSystemWideDocsRoot(root) && path.dirname(relPath) === '.') continue
         const sourcePath = relPath.split(path.sep).join('/')
         if (isDocgenIgnored(sourcePath)) continue
-        const docPath = docPathForSource(sourcePath)
-        results.push({
-          sourcePath,
-          docPath,
-          exists: existsSync(path.join(root, docPath))
-        })
+        results.push(sourcePath)
       }
     }
   }
@@ -98,7 +75,6 @@ export function scanForDocgen(root) {
  */
 export function slugForModule(root, moduleRoot) {
   const rel = path.relative(root, moduleRoot)
-  // корінь репо: фіксований sentinel 'root'
   if (rel === '') return 'root'
   return rel
     .split(path.sep)
@@ -108,7 +84,6 @@ export function slugForModule(root, moduleRoot) {
 
 /**
  * Знаходить корені модулів — теки з `package.json` (корінь завжди модуль).
- * Ті ж ignore-glob правила, тож `package.json` у службових деревах не враховується.
  * @param {string} root абсолютний корінь обходу
  * @returns {string[]} абсолютні шляхи коренів модулів
  */
@@ -159,17 +134,17 @@ export function nearestModuleRoot(filePath, moduleRoots) {
  * Лістить логічні модулі проєкту з членами-файлами і docPath module-summary.
  * Модулі без кодових файлів пропускаються.
  * @param {string} root абсолютний корінь обходу
- * @returns {Array<{moduleRoot:string, relRoot:string, slug:string, docPath:string, members:string[], exists:boolean}>} модулі (members — sourcePath-и, відносні від root)
+ * @returns {Array<{moduleRoot:string, relRoot:string, slug:string, docPath:string, members:string[], exists:boolean}>} модулі (members — sourcePath-и від root)
  */
 export function scanForModules(root) {
-  const files = scanForDocgen(root)
+  const files = scanSourceFiles(root)
   const moduleRoots = findModuleRoots(root)
   const byRoot = new Map()
-  for (const file of files) {
-    const moduleRoot = nearestModuleRoot(path.join(root, file.sourcePath), moduleRoots)
+  for (const sourcePath of files) {
+    const moduleRoot = nearestModuleRoot(path.join(root, sourcePath), moduleRoots)
     if (moduleRoot === null) continue
     if (!byRoot.has(moduleRoot)) byRoot.set(moduleRoot, [])
-    byRoot.get(moduleRoot).push(file.sourcePath)
+    byRoot.get(moduleRoot).push(sourcePath)
   }
 
   const results = []
@@ -190,7 +165,7 @@ export function scanForModules(root) {
 }
 
 /**
- * Парсить `--root <dir>` з argv; default — cwd.
+ * Парсить `--root <dir>`; default — cwd.
  * @param {string[]} argv аргументи після підкоманди
  * @returns {string} абсолютний корінь
  */
@@ -200,42 +175,22 @@ export function resolveRoot(argv) {
 }
 
 /**
- * Парсить `--root <dir>` (default — cwd), сканує і друкує JSON-масив у stdout.
- * @param {string[]} argv аргументи після назви субкоманди (наприклад ['--root', '<dir>'])
- * @returns {Promise<number>} exit-код: 0 — успіх, 1 — корінь не існує
+ * `doc-aggregate modules` — сканує модулі і друкує JSON-масив у stdout.
+ * @param {string[]} argv аргументи після назви субкоманди
+ * @returns {number} exit-код: 0 — успіх, 1 — корінь не існує
  */
-export async function runDocgenScanCli(argv) {
+export function runDocAggregateModulesCli(argv) {
   const root = resolveRoot(argv)
-
   if (!existsSync(root) || !statSync(root).isDirectory()) {
-    console.error(`docgen scan: корінь не існує або не є директорією: ${root}`)
+    console.error(`doc-aggregate modules: корінь не існує або не є директорією: ${root}`)
     return 1
   }
-
-  const items = await scanForDocgen(root)
-  console.log(JSON.stringify(items, null, 2))
-  return 0
-}
-
-/**
- * Парсить `--root`, сканує модулі і друкує JSON-масив у stdout.
- * @param {string[]} argv аргументи після назви субкоманди (наприклад ['--root', '<dir>'])
- * @returns {Promise<number>} exit-код: 0 — успіх, 1 — корінь не існує
- */
-export async function runDocgenModulesCli(argv) {
-  const root = resolveRoot(argv)
-
-  if (!existsSync(root) || !statSync(root).isDirectory()) {
-    console.error(`docgen modules: корінь не існує або не є директорією: ${root}`)
-    return 1
-  }
-
-  const items = await scanForModules(root)
-  console.log(JSON.stringify(items, null, 2))
+  console.log(JSON.stringify(scanForModules(root), null, 2))
   return 0
 }
 
 if (isRunAsCli(import.meta.url)) {
-  // Прямий запуск: `node skills/docgen/js/docgen-scan.mjs --root <dir>`
-  process.exitCode = await runDocgenScanCli(process.argv.slice(2))
+  // Прямий запуск: `node skills/doc-aggregate/js/docgen-scan.mjs modules --root <dir>`
+  const [sub, ...rest] = process.argv.slice(2)
+  process.exitCode = runDocAggregateModulesCli(sub === 'modules' ? rest : process.argv.slice(2))
 }

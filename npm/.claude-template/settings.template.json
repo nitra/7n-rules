@@ -20,6 +20,28 @@
             "timeout": 300
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no @nitra/cursor doc-files check --hook",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx --no @nitra/cursor doc-files check --git",
+            "timeout": 120
+          }
+        ]
       }
     ]
   }
