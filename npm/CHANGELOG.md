@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.0.3] - 2026-06-10
+
+### Changed
+
+- docs(abie): regenerate hc-yaml + http-route via omlx-orchestrator
+
 ## [5.0.2] - 2026-06-10
 
 ### Changed
