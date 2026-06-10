@@ -1,0 +1,21 @@
+npm/skills/docgen/js/docgen-compare-pi-vs-direct.mjs
+  s_ff8c4629d2adb0::t_c5df3c68036dc5 1-95
+npm/.changes/260610-0745.md
+  s_ff8c4629d2adb0::t_7139b776450e20 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "87e88584eccdad7701cfe3ee3bc5d93414ff35a6",
+  "prompts": {},
+  "sessions": {
+    "s_ff8c4629d2adb0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e8df471-0800-4cad-8dd8-282eb35ec91b",
+        "model": "claude-opus-4-7"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
