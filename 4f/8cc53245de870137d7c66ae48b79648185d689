@@ -1,0 +1,31 @@
+npm/lib/docs/omlx.md
+  s_e5d2df44139a96::t_546ca770df36f5 4-5,8,12,16-30,34-41,45-48
+npm/skills/doc-files/.changes/260612-0036.md
+  s_74c2737fb2a1b4::t_56bb0349c7db1e 1-5
+npm/rules/abie/docs/fix.md
+  s_e5d2df44139a96::t_546ca770df36f5 4-5,12,14,16,18-23,25-28,32-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "4f8cc53245de870137d7c66ae48b79648185d689",
+  "prompts": {},
+  "sessions": {
+    "s_74c2737fb2a1b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54f63bb7-8e2f-46b8-9c32-658ee5c0f7c6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e5d2df44139a96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36feb651-c0d9-4478-9131-4bb08d1bceaa",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
