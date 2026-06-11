@@ -32,7 +32,7 @@ function factsSummary(facts) {
   if (m.skips?.length) lines.push(`Свідомо пропускає шляхи: ${m.skips.join(', ')}`)
   lines.push(`Read-only: ${m.readOnly ? 'так' : 'ні'}`)
   if (m.catchesErrors) lines.push('Перехоплює помилки (fail-safe), не кидає винятків назовні')
-  if (m.returnsFalsyOnFail) lines.push('За невдачі повертає false/null замість винятку')
+  if (m.returnsFalsyOnFail) lines.push('За невдачі повертає значення помилки (false/null/Err) замість винятку чи паніки')
   lines.push(m.caches ? 'Кешування: так, у межах прогону' : 'Кешування: НЕМАЄ — не згадуй кеш у гарантіях')
   if (m.network) lines.push('Звертається до мережі')
   else lines.push('Робота з мережею: немає')
@@ -195,7 +195,7 @@ export function guaranteesFromMarkers(facts) {
   const lines = []
   if (m.readOnly) lines.push('- Read-only: файл не виконує операцій запису у файлову систему.')
   if (m.catchesErrors) lines.push('- Перехоплює помилки і не пропускає винятків назовні (fail-safe).')
-  if (m.returnsFalsyOnFail) lines.push('- За невдалої перевірки повертає `false`/`null` замість винятку.')
+  if (m.returnsFalsyOnFail) lines.push('- За невдачі повертає значення помилки (`false`/`null`/`Err`) замість генерування винятку чи паніки.')
   if (m.caches) lines.push('- Кешує результати в межах одного прогону.')
   if (m.skips?.length) {
     lines.push(`- Свідомо пропускає шляхи: ${m.skips.map(s => '`' + s + '`').join(', ')}.`)
