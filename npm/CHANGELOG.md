@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.2.0] - 2026-06-11
+
+### Changed
+
+- doc-files: local-only конвеєр (Крок 0 за ADR 260610-2228) — спільний npm/lib/llm.mjs з роутингом за префіксом omlx/ і wire-trace; видалено cloud-ескалації та pre-route sym; degraded-маркер score/issues у frontmatter, gen --retry-degraded і check --degraded; preflight omlx (down/memory-guard/auth) перед масовим прогоном; callOmlx шле Authorization Bearer (N_CURSOR_OMLX_KEY або ~/.omlx/settings.json)
+- doc-files: міграція корпусу док на CRC-контракт — 126 git-актуальним докам застамповано frontmatter (дока не старіша за джерело за git-історією); 76 файлів (73 git-відсталі доки + 3 без док) лишено stale як чесний беклог перегенерації локальним конвеєром
+
+### Fixed
+
+- lint: санація шарів, що ховалися за першим падінням oxlint — повний bun run lint доведено до lint-js/style зелених: JSDoc/regex/sonarjs фікси у ~25 файлах, slow-regex обмежено bounded-квантифікаторами, eslint ignore для згенерованих docs/*.md, jscpd ignore (.git, COVERAGE.md, docs, відомі легасі-клони), knip ignoreBinaries (pi/claude/fix-t0), stylelint/cspell ignore згенерованих артефактів; docgen-ignore у doc-aggregate став re-export з doc-files
+
 ## [5.1.0] - 2026-06-10
 
 ### Changed
