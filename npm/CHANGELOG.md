@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.3.1] - 2026-06-11
+
+### Fixed
+
+- lint: усунено eslint/oxlint-помилки (24) — ігнор кореневого `.worktrees/` в eslint.config, GENERIC_RE→масив дрібних patternів (sonarjs/regex-complexity), Array#sort→toSorted; cspell: додано `ollama` у словник
+
 ## [5.3.0] - 2026-06-11
 
 ### Added
