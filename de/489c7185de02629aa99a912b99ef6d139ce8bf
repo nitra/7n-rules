@@ -1,0 +1,32 @@
+npm/skills/doc-files/js/docgen-scan.mjs
+  s_3c6589599589ab::t_d10a010c88bd3a 29
+  s_3c6589599589ab::t_ac855fa5da786c 63,65
+  s_3c6589599589ab::t_90aa3151871631 99-100,105-106
+  s_3c6589599589ab::t_8a630d805aa041 124
+  s_3c6589599589ab::t_16dda3c69c3da5 77
+  s_3c6589599589ab::t_c3699bbe87b546 50-52
+  s_3c6589599589ab::t_fa037f94d357a6 2
+  s_3c6589599589ab::t_e14ea5584acd8b 192,271
+  s_3c6589599589ab::t_940ad05dff9a3b 202-204
+  s_3c6589599589ab::t_80951d2bada77b 264
+  s_3c6589599589ab::t_f5a2f584c83d24 40
+  s_3c6589599589ab::t_79ba3cbb363aa2 218
+npm/rules/k8s/js/manifests.mjs
+  s_3c6589599589ab::t_56315671bcd755 4861,4863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "de489c7185de02629aa99a912b99ef6d139ce8bf",
+  "prompts": {},
+  "sessions": {
+    "s_3c6589599589ab": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dcbd14cd-85ea-4d0d-9118-6a0f6fc7c58a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
