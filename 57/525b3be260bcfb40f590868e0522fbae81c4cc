@@ -1,0 +1,21 @@
+docs/adr/260612-0010-rust-підтримка-в-doc-files-рядковий-парсер-замість-ast.md
+  s_74c2737fb2a1b4::t_9f731df99997a5 1-87
+npm/skills/doc-files/js/docs/docgen-extract.md
+  s_74c2737fb2a1b4::t_9f731df99997a5 4-5,8,12,16-29,33,37-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "57525b3be260bcfb40f590868e0522fbae81c4cc",
+  "prompts": {},
+  "sessions": {
+    "s_74c2737fb2a1b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54f63bb7-8e2f-46b8-9c32-658ee5c0f7c6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
