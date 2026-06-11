@@ -17,7 +17,11 @@
 const URL_RE = /https?:\/\/[^\s'"`)<>]+/g
 const EXPORT_CONST_RE = /export\s+const\s+([A-Z][A-Z0-9_]+)\s*=\s*(['"`])([^'"`]+)\2/g
 const ERROR_MARKER_RE = /\(([a-z][\w-]*\.mdc)\)/g
-const CONFIG_REF_RE = /\b(\.[a-z][\w.-]*\.json)\b/gi
+// Повне ім'я json-конфіга (з опційним провідним дотом). Lookbehind `(?<![\w.])`
+// не дає почати матч усередині складеного імені — інакше `settings.local.json`
+// дало б хибний анкор `.local.json`, а `capacitor.config.json` → `.config.json`,
+// і модель, маючи їх у «обов'язкових анкорах», писала б неіснуючий файл як факт.
+const CONFIG_REF_RE = /(?<![\w.])(\.?[a-z][\w.-]*\.json)\b/gi
 const FILE_HEADER_RE = /^\s*\/\*\*([\s\S]*?)\*\//
 const CODE_BLOCK_RE = /```[a-z]{0,12}\n([\s\S]*?)\n[ \t]{0,8}\*?[ \t]{0,8}```/g
 
@@ -71,6 +75,17 @@ export function extractAnchors(src) {
   const examples = headerMatch ? uniq(Array.from(headerMatch[1].matchAll(CODE_BLOCK_RE), m => m[1].trim())) : []
 
   return { urls, magicStrings, errorMarkers, configRefs, examples }
+}
+
+/**
+ * Плоский список анкор-токенів, які мають дослівно зʼявитися в документі (R5):
+ * URLs, імена констант-рядків, маркери `(rule.mdc)`, конфіги. Приклади й
+ * code-блоки опускаються — їх багаторядковість не звіряється підрядком.
+ * @param {ReturnType<typeof extractAnchors>} a анкори файлу
+ * @returns {string[]} токени для перевірки покриття/валідності
+ */
+export function anchorTokens(a) {
+  return [...a.urls, ...a.magicStrings.map(s => s.name), ...a.errorMarkers.map(m => `(${m})`), ...a.configRefs]
 }
 
 /**

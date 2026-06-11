@@ -52,31 +52,26 @@ const msgs = (system, user) => [
 
 /**
  * Секційні набори messages з МІНІМАЛЬНИМ контекстом під кожну секцію.
- * Код потрапляє лише в `behavior`; решта секцій — на факт-листі.
+ * Код потрапляє лише в `behavior`; «Огляд» генерується окремо ОСТАННІМ
+ * (`overviewMessages`) з уже написаної Поведінки — тут його немає.
  * @param {object} facts факт-лист про файл
  * @param {string} src вміст файлу
  * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
- * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів
+ * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (behavior[, api])
  */
 export function sectionMessages(facts, src, anchors = null) {
   const factsTxt = factsSummary(facts)
   const anch = anchorsBlock(anchors)
   const multi = (facts.exports?.length || 0) > 1
 
-  // Огляд — лише факти (без коду)
-  const overview = {
-    key: 'overview',
-    numPredict: 220,
-    messages: msgs(
-      `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
-      'Напиши вміст секції «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Без заголовка, без переліку функцій. Заборонені generic-фрази типу «забезпечує перевірку», «виконує валідацію» — пиши КОНКРЕТНО що саме і за яким контрактом.'
-    )
-  }
-
-  // Поведінка — ЄДИНА секція, якій потрібен код
+  // R6: Поведінка описує РІВНО експортовані імена, не службові помічники
+  const exportNames = (facts.exports ?? []).map(e => e.name)
   const behaviorTask = multi
     ? 'для кожної публічної функції — один короткий пункт «що вона робить»'
     : 'нумерований алгоритм у бізнес-термінах'
+  const onlyExports = exportNames.length
+    ? ` Описуй РІВНО ці публічні імена і жодних інших: ${exportNames.join(', ')}.`
+    : ''
   const noInternal = facts.internalSymbols?.length
     ? ` НЕ згадуй за іменами службові функції: ${facts.internalSymbols.join(', ')}.`
     : ''
@@ -85,12 +80,12 @@ export function sectionMessages(facts, src, anchors = null) {
     numPredict: 500,
     messages: msgs(
       `${STYLE}\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\`\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
-      `Напиши вміст секції «Поведінка»: ${behaviorTask}. Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
+      `Напиши вміст секції «Поведінка»: ${behaviorTask}.${onlyExports} Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
     )
   }
 
   // API — лише список експортів (без коду)
-  if (!multi && !facts.exports?.some(e => e.desc)) return [overview, behavior]
+  if (!multi && !facts.exports?.some(e => e.desc)) return [behavior]
   const list = facts.exports.map(e => `- ${e.name}: ${e.desc || '(сформулюй стисло з наміру файлу)'}`).join('\n')
   const api = {
     key: 'api',
@@ -100,7 +95,24 @@ export function sectionMessages(facts, src, anchors = null) {
       `Перепиши цей список як стислі маркери «назва — що робить», СВОЇМИ словами (не копіюй дослівно), без типів і сигнатур. Використовуй РІВНО ці назви, не додавай і не прибирай:\n${list}\nБез заголовка. Без generic-фраз «застосовує логіку», «перевіряє коректність» — пиши конкретно ЩО саме застосовує/перевіряє.`
     )
   }
-  return [overview, behavior, api]
+  return [behavior, api]
+}
+
+/**
+ * R3 — «Огляд» ОСТАННІМ: узагальнення вже написаної Поведінки, а не здогад із
+ * голого факт-листа. Лікує generic/хибний Огляд на складних файлах.
+ * @param {object} facts факт-лист про файл
+ * @param {string} behaviorText готовий текст секції «Поведінка»
+ * @param {object|null} [anchors] анкори файлу
+ * @returns {Array<{role:string,content:string}>} messages-масив для Огляду
+ */
+export function overviewMessages(facts, behaviorText, anchors = null) {
+  const factsTxt = factsSummary(facts)
+  const anch = anchorsBlock(anchors)
+  return msgs(
+    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
+    `На основі вже написаної секції «Поведінка» (нижче) напиши «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Узагальнюй САМЕ описану поведінку, не додавай нових фактів. Без заголовка, без переліку функцій. Заборонені абстрактні формули без конкретики («перевірка/валідація/обробка даних», «відповідність контракту», «застосовує логіку») — пиши, ЩО саме і за яким контрактом.\n\nПОВЕДІНКА:\n${behaviorText}`
+  )
 }
 
 /**

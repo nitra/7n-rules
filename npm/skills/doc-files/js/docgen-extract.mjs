@@ -30,6 +30,9 @@ const RETURNS_LINE_RE = /^@returns?[ \t]{1,8}(?:\{[^}]{0,200}\}[ \t]{1,8})?(.{0,
 const FILE_HEADER_RE = /^\s*\/\*\*([\s\S]*?)\*\//
 const PRECEDING_JSDOC_RE = /\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/
 const EXPORT_DECL_RE = /export\s+(?:async\s+)?(function|const|class)\s+(\w+)/g
+// Top-level function/class декларації (колонка 0) — для R6: службові функції,
+// які не експортуються, не мають протікати у Поведінку/API як «публічні».
+const TOP_FN_DECL_RE = /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function\*?|class)\s+(\w+)/gm
 const IMPORT_FROM_RE = /^import[ \t]{1,8}[\s\S]{0,300}?from\s{1,8}['"]([^'"]+)['"]/gm
 const NODE_PREFIX_RE = /^node:/
 const INTERNAL_IMPORT_RE = /import[ \t]{1,8}([^'"]{0,300}?)from[ \t]{1,8}['"]\.[^'"]{1,300}['"]/g
@@ -41,7 +44,10 @@ const CATCH_RE = /catch\s*\(/
 const TRY_RE = /\btry\s*\{/
 const FALSY_RETURN_RE = /return\s+(false|null|''|"")/
 const NETWORK_RE = /\bfetch\(|https?\.|axios|got\(/
-const CACHE_RE = /new Map\(\)|Cache|cache/
+// Кеш — лише за ІМЕНОВАНИМ маркером (`cache`/`Cache`/`memoize`), не за будь-яким
+// `new Map()`: акумулятор (напр. `byPath = new Map()`) — не кеш, а хибна гарантія
+// «Кешує результати» гірша за пропуск (фабрикація > мовчання).
+const CACHE_RE = /cache|memoi[sz]e/i
 
 /**
  * Прибирає `/** *​/`-обрамлення й `*`-префікси, повертає чистий текст рядками.
@@ -169,6 +175,22 @@ function extractInternalSymbols(src) {
 }
 
 /**
+ * Імена top-level функцій/класів, які НЕ експортуються (службові помічники).
+ * Модель не має подавати їх як «публічні функції» у Поведінці/API (R6).
+ * Const-стрілки свідомо не ловимо — менше false-positive на змістовних константах.
+ * @param {string} src вміст файлу
+ * @returns {Array<string>} список імен неекспортованих функцій/класів
+ */
+function extractLocalSymbols(src) {
+  const exported = new Set(Array.from(src.matchAll(EXPORT_DECL_RE), m => m[2]))
+  const out = new Set()
+  for (const m of src.matchAll(TOP_FN_DECL_RE)) {
+    if (!exported.has(m[1])) out.add(m[1])
+  }
+  return [...out]
+}
+
+/**
  * Поведінкові маркери — евристики регулярками.
  * @param {string} src вміст файлу
  * @returns {object} набір прапорців-евристик
@@ -207,6 +229,7 @@ export function extractFacts(src, relPath) {
     exports: extractExports(src),
     imports: extractImports(src),
     internalSymbols: extractInternalSymbols(src),
+    localSymbols: extractLocalSymbols(src),
     markers: extractMarkers(src)
   }
 }

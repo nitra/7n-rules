@@ -7,11 +7,12 @@ import { DEFAULT_OMLX_MODEL } from '../../../lib/omlx.mjs'
 import { callLlm } from '../../../lib/llm.mjs'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { extractFacts } from './docgen-extract.mjs'
-import { extractAnchors } from './docgen-extract-anchors.mjs'
+import { extractAnchors, anchorTokens } from './docgen-extract-anchors.mjs'
 import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import {
   oneShotMessages,
   sectionMessages,
+  overviewMessages,
   criticMessages,
   refineMessages,
   guaranteesFromMarkers
@@ -25,6 +26,15 @@ const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
 const CACHE_MENTION_RE = /кеш/i
 const CACHE_NEGATION_RE = /(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i
 const CRITIC_NONE_RE = /^\s*NONE\s*$/i
+// R4: абстрактні «нічого-не-кажучі» формули, які обходять exact-blocklist і дають score=100
+const GENERIC_RE =
+  /відповідност\S*\s+(?:даних\s+)?(?:визначеному\s+)?контракту|валідаці\S*\s+даних|перевірк\S*\s+(?:відповідності\s+)?даних|обробк\S*\s+даних|застосову\S*\s+логіку|інспекту\S*\s+та\s+збира\S*\s+дан/i
+// R7: часті русизми/суржик (курований безпечний список — без false-positive на нормальній мові).
+// Без \b: кирилиця не є ASCII-`\w`, тож межі слова в JS-regex не спрацьовують — терміни специфічні.
+const SURZHIK_RE =
+  /пропуская|являється|в залежності|по замовчуванню|на протязі|відповідаюч|слідуюч|наступним разом|приймати участь|у відповідності/i
+const ANCHOR_MISS_PENALTY = 5
+const ANCHOR_MISS_CAP = 20
 
 /**
  * Прибирає код-фенс-обгортку (потрійні бектіки) й випадковий провідний
@@ -86,16 +96,24 @@ function hasName(text, sym) {
  * Stage 2.5 — детермінований скоринг (0 токенів): перевіряє вихід проти фактів.
  * @param {string} md зібраний документ
  * @param {object} facts факт-лист про файл
+ * @param {{ anchors?: object|null, src?: string }} [ctx] анкори й джерело для R5
  * @returns {{ score: number, issues: string[] }} оцінка 0–100 і коди проблем
  */
-function scoreDoc(md, facts) {
+export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   const s = parseSections(md)
   let score = 100
   const issues = []
+  const overview = s['огляд'] ?? ''
 
   if (!s['огляд']) {
     score -= 25
     issues.push('no-overview')
+  }
+
+  // R4: generic-Огляд (парафрази, які обходять exact-blocklist) — як майже-відсутній.
+  if (GENERIC_RE.test(overview)) {
+    score -= 35
+    issues.push('generic-overview')
   }
 
   const behavior = s['поведінка'] ?? ''
@@ -113,12 +131,33 @@ function scoreDoc(md, facts) {
     issues.push('cache-hallucination')
   }
 
-  for (const sym of facts.internalSymbols ?? []) {
-    const inDoc = hasName(guarantees, sym) || hasName(s['огляд'] ?? '', sym) || hasName(s['поведінка'] ?? '', sym)
+  // R6: службові (неекспортовані) функції не мають фігурувати як публічні
+  const api = s['публічнийapi'] ?? ''
+  for (const sym of [...(facts.internalSymbols ?? []), ...(facts.localSymbols ?? [])]) {
+    const inDoc = hasName(guarantees, sym) || hasName(overview, sym) || hasName(behavior, sym) || hasName(api, sym)
     if (inDoc) {
       score -= 10
       issues.push(`internal-name:${sym}`)
     }
+  }
+
+  // R5: кожен валідний анкор (дослівний підрядок src) має зʼявитися в документі
+  if (anchors && src) {
+    let missPenalty = 0
+    for (const tok of anchorTokens(anchors)) {
+      if (!src.includes(tok)) continue // валідність: фейковий анкор не вимагаємо
+      if (!md.includes(tok) && missPenalty < ANCHOR_MISS_CAP) {
+        missPenalty += ANCHOR_MISS_PENALTY
+        issues.push(`anchor-miss:${tok}`)
+      }
+    }
+    score -= missPenalty
+  }
+
+  // R7: суржик/русизми
+  if (SURZHIK_RE.test(md)) {
+    score -= 10
+    issues.push('surzhik')
   }
 
   return { score: Math.max(0, score), issues }
@@ -205,15 +244,21 @@ function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, tempera
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
+  // Спершу Поведінка (+API) — секції з фактажем
   for (const s of sectionMessages(facts, src, anc)) {
-    if (s.key === 'guarantees') continue // вже згенеровано детерміновано
     let draft = stripSignatures(stripSection(callLlm(s.messages, model, { timeoutMs, temperature })))
-    // E2 + E3: critique→refine лише для секцій, де мала модель зриває на generic
-    if (s.key === 'overview' || (s.key === 'api' && apiNeedsRefine(facts))) {
+    // E2: critique→refine для API, коли всі описи порожні (модель зриває на generic)
+    if (s.key === 'api' && apiNeedsRefine(facts)) {
       draft = critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
     }
     sections[s.key] = draft
   }
+  // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
+  let overview = stripSignatures(
+    stripSection(callLlm(overviewMessages(facts, sections.behavior ?? '', anc), model, { timeoutMs, temperature }))
+  )
+  overview = critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
+  sections.overview = overview
   return { md: assemble(basename(facts.relPath), sections) }
 }
 
@@ -253,13 +298,13 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
   }
 
   // Stage 2.5: детермінований скоринг (0 токенів)
-  let { score, issues } = scoreDoc(r.md, facts)
+  let { score, issues } = scoreDoc(r.md, facts, { anchors, src })
 
   // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
   if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
     try {
       const r2 = orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5 })
-      const s2 = scoreDoc(r2.md, facts)
+      const s2 = scoreDoc(r2.md, facts, { anchors, src })
       if (s2.score > score) {
         r = r2
         score = s2.score
