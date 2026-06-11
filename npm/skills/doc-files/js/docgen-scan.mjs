@@ -11,7 +11,7 @@ import { isDocgenIgnored } from './docgen-ignore.mjs'
 import { QUALITY_THRESHOLD, readDocQuality, staleness } from './docgen-crc.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
-const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py'])
+const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py', '.rs'])
 
 /** `*.test.*`, `*.spec.*` — тести, документувати не треба. */
 const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u

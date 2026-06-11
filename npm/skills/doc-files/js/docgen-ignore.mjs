@@ -5,6 +5,7 @@ import picomatch from 'picomatch'
 export const DOCGEN_IGNORE_GLOBS = Object.freeze([
   '**/node_modules/**',
   '**/dist/**',
+  '**/target/**',
   '.git/**',
   '**/__pycache__/**',
   '**/coverage/**',
