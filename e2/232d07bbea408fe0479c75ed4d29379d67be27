@@ -1,0 +1,307 @@
+npm/rules/js-run/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+docs/adr/260611-0625-omlx-memory-guard-structured-error-backoff.md
+  s_9c9821dd0ad1f8::t_9acbc2c0028597 1,3-4,7-8,11-13,16-17,20-24,27-30
+npm/scripts/lib/docs/list-rule-ids.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/.pi-template/extensions/n-cursor-adr/docs/index.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-run/lib/docs/promise-settimeout-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/style-lint/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/docker/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/docker/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/worktree-cli.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/js/docs/firebase_hosting.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/resolve-cmd.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/docker/js/docs/lint.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-6,8,10,12,14,16-17,19-20,22-23,25-26,28-29,31-32,34-35,37-38,40-41,43-44,46-47,49,51-67,69,71-74
+npm/docs/stryker.config.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/vue/lib/docs/vue-forbidden-imports.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/load-cursor-config.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/text/lint/docs/run-dotenv-linter.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/security/js/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/lib/docs/llm.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 4
+npm/rules/efes/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/nginx-default-tpl/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/workspaces.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/changelog/lib/docs/package-manifest.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/build-agents-commands.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/resolve-cargo-manifest.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/worktree-fingerprint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/bun/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/docker/lib/docs/docker-mirror.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/graphql/lib/docs/graphql-gql-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/hc-yaml.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/test/js/data/stryker_config/docs/stryker-vue-macros-ignorer.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/rename-yaml-extensions.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/ci4/docs/fix.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-6,8,10,12,14,16,18,20,22,24,26,28,30-31,33,35-37
+npm/rules/docker/lib/docs/docker-native-addon.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-standard-lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/js/docs/env_dns.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-7,12,16-29,33-35
+npm/scripts/lib/docs/timing-summary.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/lib/docs/change-file.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/python/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/changelog/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/check-mdc-template-refs.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-conftest-batch.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/image-avif/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/python/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/inline-template-links.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-run/lib/docs/temporal-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-lint/js/docs/utils_imports.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/security/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/text/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/text/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/auto-skills.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-bun-redis/lib/docs/redis-imports.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/assert-project-root.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/test-helpers.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/enabled.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/rule-meta-helpers.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/docs/vitest.config.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-lint-step.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-standard-rule.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/text/lint/docs/run-v8r.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/ga/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/coverage-classify/docs/apply.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+docs/adr/260611-0625-stop-gate-bootstrap-threshold.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1,3-4,7-8,11-14,17-18,21-25,28-31
+npm/scripts/lib/docs/read-n-cursor-config-lite.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/graphql/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-run/lib/docs/conn-imports-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/discover-checkable-rules.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/capacitor/docs/fix.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-6,8,10,12,14,16,18,20,22,24,26,28-29,31,33-35
+npm/rules/js-lint-ci/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-run/lib/docs/conn-file-rules.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/skills-cli.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/walkDir.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/php/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/post-tool-use-fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/test/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/check-reporter.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-mssql/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/env-dns.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+docs/adr/20260603-135618-ensuretool-авто-встановлення-зовнішніх-cli.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1,3-4,7-8,11-14,18-29,34,37-41,44-45,48-83
+npm/scripts/lib/docs/generated-markdown.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/docs/change.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/test/js/data/vitest_config/docs/vitest.config.baseline.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/bun/js/docs/layout.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-6,8,10,12,14,16-17,19-20,22-23,25-26,28-29,31-32,34-35,37-38,40-41,43-44,46,48,50,52-55
+npm/scripts/lib/docs/gha-workflow.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/pass.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/adr/js/docs/hooks.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-7,12,14,16-17,19-20,22-23,25-26,28-29,31-32,34,36,38,40-44
+docs/adr/20260603-112803-npm-publish-yml-generic-snippet-driven-check.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1,3-4,8,12-14,18,22-25,29-30,35-36,39-48
+npm/scripts/docs/upgrade-nitra-cursor-and-install.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/k8s/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/docker/lib/docs/docker-nginx-user.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/sync-setup-bun-deps-action.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/ci4/js/docs/marksman_config.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/php/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/docs/release.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/text/lint/docs/run-shellcheck.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/lint-cli.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/js/docs/ua_node_selector.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-8,12,16-27,31-33
+npm/scripts/utils/docs/lock-cache-dir.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/tauri/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/js/docs/applies.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-rule-cli.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/ast-scan-utils.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/resolve-target-files.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/ensure-nitra-cursor-dev-dependencies.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/image-avif/js/docs/avif_generation.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/discover-check-rules-from-cursor.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/ensure-tool.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/find-package-json-paths.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/docs/cli-entry.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/lib/docs/aggregate.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/k8s-tree.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/.changes/260611-0622.md
+  s_7d07517e0aae7f::t_db1239e4f43209 1-5
+npm/rules/test/js/data/stryker_config/docs/stryker.config.baseline.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/adr/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/k8s/docs/fix.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/capacitor/js/docs/platforms.md
+  s_9c9821dd0ad1f8::t_fe172576285c66 1-7,12,14,16-17,19-20,22-23,25-26,28-29,31-32,34-35,37-38,40-41,43-44,46-47,49-50,52-53,55-56,58-59,61-62,64,66,68,70-80,82,84-89
+npm/scripts/lib/docs/rule-meta.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-run/lib/docs/bunyan-imports.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/tests/fixtures/docs/cli-entry-as-cli.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+docs/adr/260611-0625-negative-assertions-anti-hallucination.md
+  s_9c9821dd0ad1f8::t_326b468d17fc57 1-31
+npm/rules/docker/lib/docs/docker-hadolint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/kustomization-patches.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/test/js/data/stryker_config/docs/stryker.config.vue.baseline.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/yaml.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/walk-cache.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/overlay-paths.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/skill-meta.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-bun-db/lib/docs/bun-sql-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/js-mssql/lib/docs/mssql-pool-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/abie/lib/docs/http-route.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/rust/lib/docs/has-cargo-toml.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/diff-added-lines.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/run-rule.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/release/lib/docs/fallback.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/utils/docs/ensure-gitignore-entries.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+docs/adr/260611-0625-internal-symbols-anti-leak-guard.md
+  s_9c9821dd0ad1f8::t_1abf02848ccf45 1,3-4,7-8,11-14,17-18,21-25,28-31
+npm/rules/js-run/lib/docs/check-env-scan.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/rules/rego/lint/docs/lint.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/coverage-classify/docs/verdict-schema.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+npm/scripts/lib/docs/template.md
+  s_7d07517e0aae7f::t_dba84acbc81bb2 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "e2232d07bbea408fe0479c75ed4d29379d67be27",
+  "prompts": {},
+  "sessions": {
+    "s_7d07517e0aae7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b46c022-4ebd-4607-817b-3df1cbb1414d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_9c9821dd0ad1f8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ee01eed5-41d2-44a8-a7ac-741a97ce8429",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
