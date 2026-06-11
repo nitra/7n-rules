@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/yaml.mjs
+  crc: 1b50e492
+---
+
 # yaml.mjs
 
 ## Огляд

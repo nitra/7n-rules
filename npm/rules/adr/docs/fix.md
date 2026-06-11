@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/adr/fix.mjs
+  crc: b46c541a
+---
+
 # `npm/rules/adr/fix.mjs`
 
 ## Огляд

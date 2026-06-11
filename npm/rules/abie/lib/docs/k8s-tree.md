@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/k8s-tree.mjs
+  crc: 077f3478
+---
+
 # k8s-tree
 
 ## Огляд

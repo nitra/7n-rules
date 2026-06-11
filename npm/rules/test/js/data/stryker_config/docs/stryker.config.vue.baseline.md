@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs
+  crc: a1405dc2
+---
+
 # stryker.config.vue.baseline.mjs
 
 ## Огляд

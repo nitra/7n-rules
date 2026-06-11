@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/security/js/lint.mjs
+  crc: f3265f82
+---
+
 # lint.mjs — Security: TruffleHog filesystem scan
 
 ## Огляд

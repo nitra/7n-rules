@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs
+  crc: 30a5e9f9
+---
+
 # stryker-vue-macros-ignorer.mjs
 
 ## Огляд

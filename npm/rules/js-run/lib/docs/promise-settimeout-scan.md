@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/promise-settimeout-scan.mjs
+  crc: a7cea379
+---
+
 # promise-settimeout-scan.mjs
 
 ## Огляд

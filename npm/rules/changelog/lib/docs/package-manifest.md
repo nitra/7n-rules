@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/changelog/lib/package-manifest.mjs
+  crc: ced8ad49
+---
+
 # package-manifest.mjs
 
 ## Огляд

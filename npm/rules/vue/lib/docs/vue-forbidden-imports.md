@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/vue/lib/vue-forbidden-imports.mjs
+  crc: 946eb1a6
+---
+
 # vue-forbidden-imports.mjs
 
 ## Огляд

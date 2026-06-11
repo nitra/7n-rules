@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/test-helpers.mjs
+  crc: 0e4357fe
+---
+
 # test-helpers.mjs
 
 ## Огляд

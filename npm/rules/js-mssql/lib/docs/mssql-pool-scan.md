@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-mssql/lib/mssql-pool-scan.mjs
+  crc: 7490294a
+---
+
 # mssql-pool-scan.mjs
 
 ## Огляд

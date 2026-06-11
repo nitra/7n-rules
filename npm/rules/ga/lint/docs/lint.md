@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/ga/lint/lint.mjs
+  crc: c391782d
+---
+
 # lint.mjs
 
 ## Огляд

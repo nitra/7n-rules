@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-lint-ci/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — точка входу правила `js-lint-ci`
 
 ## Огляд

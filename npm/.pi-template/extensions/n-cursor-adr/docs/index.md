@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/.pi-template/extensions/n-cursor-adr/index.ts
+  crc: 3233716f
+---
+
 # index.ts
 
 ## Огляд

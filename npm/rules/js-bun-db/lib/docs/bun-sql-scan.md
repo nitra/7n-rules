@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-bun-db/lib/bun-sql-scan.mjs
+  crc: 990f04d7
+---
+
 # bun-sql-scan.mjs
 
 ## Огляд

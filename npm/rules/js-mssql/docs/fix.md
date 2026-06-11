@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-mssql/fix.mjs
+  crc: 12fc1644
+---
+
 # `npm/rules/js-mssql/fix.mjs`
 
 ## Огляд

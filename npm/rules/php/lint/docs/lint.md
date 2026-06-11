@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/php/lint/lint.mjs
+  crc: cafd914f
+---
+
 # lint.mjs — PHP lint runner
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/diff-added-lines.mjs
+  crc: 161edaca
+---
+
 # diff-added-lines.mjs
 
 ## Огляд

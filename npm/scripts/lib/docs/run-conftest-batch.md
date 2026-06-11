@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/run-conftest-batch.mjs
+  crc: 5ec640a0
+---
+
 # run-conftest-batch.mjs
 
 ## Огляд

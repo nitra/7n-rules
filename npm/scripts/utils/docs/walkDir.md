@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/walkDir.mjs
+  crc: 5e5fec27
+---
+
 # walkDir.mjs
 
 ## Огляд

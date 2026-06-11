@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs
 
 ## Огляд

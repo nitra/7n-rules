@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/docker/lib/docker-hadolint.mjs
+  crc: b97701f3
+---
+
 # docker-hadolint.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/docker/lint/lint.mjs
+  crc: 98a98d10
+---
+
 # lint.mjs — реалізація підкоманди `lint-docker`
 
 ## Огляд

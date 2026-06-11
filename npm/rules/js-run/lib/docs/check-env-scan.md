@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/check-env-scan.mjs
+  crc: 56c971d4
+---
+
 # `check-env-scan.mjs` — AST-сканер правила «process.env / CheckEnv»
 
 ## Огляд

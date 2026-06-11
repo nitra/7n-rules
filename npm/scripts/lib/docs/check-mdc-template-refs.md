@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/check-mdc-template-refs.mjs
+  crc: 17b81322
+---
+
 # check-mdc-template-refs.mjs
 
 ## Огляд

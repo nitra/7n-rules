@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/rename-yaml-extensions.mjs
+  crc: 6ffbfdff
+---
+
 # rename-yaml-extensions.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/release/lib/aggregate.mjs
+  crc: 1f78a0fe
+---
+
 # aggregate.mjs
 
 ## Огляд

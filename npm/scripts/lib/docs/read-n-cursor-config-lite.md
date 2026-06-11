@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/read-n-cursor-config-lite.mjs
+  crc: a5fb0592
+---
+
 # read-n-cursor-config-lite.mjs
 
 ## Огляд

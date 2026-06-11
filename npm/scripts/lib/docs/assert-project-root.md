@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/assert-project-root.mjs
+  crc: 3ad7981a
+---
+
 # assert-project-root.mjs
 
 ## Огляд

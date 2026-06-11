@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/bunyan-imports.mjs
+  crc: 5f403a53
+---
+
 # `bunyan-imports.mjs`
 
 ## Огляд

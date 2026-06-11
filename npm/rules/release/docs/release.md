@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/release/release.mjs
+  crc: b2b02de4
+---
+
 # `release.mjs` — оркестратор реліз-процесу `n-cursor release`
 
 ## Огляд

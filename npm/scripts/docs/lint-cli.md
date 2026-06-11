@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lint-cli.mjs
+  crc: 3724b90c
+---
+
 # lint-cli.mjs
 
 ## Огляд

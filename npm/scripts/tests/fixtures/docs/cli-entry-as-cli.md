@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/tests/fixtures/cli-entry-as-cli.mjs
+  crc: b8c5b5eb
+---
+
 # cli-entry-as-cli.mjs
 
 ## Огляд

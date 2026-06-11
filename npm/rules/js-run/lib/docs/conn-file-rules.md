@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/conn-file-rules.mjs
+  crc: 4bebf12c
+---
+
 # conn-file-rules.mjs
 
 ## Огляд

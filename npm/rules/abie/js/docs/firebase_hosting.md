@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/js/firebase_hosting.mjs
+  crc: 3b2459a8
+---
+
 # firebase_hosting.mjs
 
 ## Огляд

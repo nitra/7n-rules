@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/pass.mjs
+  crc: 0f69dfba
+---
+
 # pass.mjs
 
 ## Огляд

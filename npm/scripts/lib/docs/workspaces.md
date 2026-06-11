@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/workspaces.mjs
+  crc: 995c1633
+---
+
 # workspaces.mjs
 
 ## Огляд

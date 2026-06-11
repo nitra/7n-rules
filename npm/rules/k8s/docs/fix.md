@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/k8s/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — точка входу правила `k8s`
 
 ## Огляд

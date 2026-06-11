@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/worktree-fingerprint.mjs
+  crc: df297382
+---
+
 # worktree-fingerprint.mjs
 
 ## Огляд

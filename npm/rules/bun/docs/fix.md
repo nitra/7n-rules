@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/bun/fix.mjs
+  crc: 12fc1644
+---
+
 # `npm/rules/bun/fix.mjs`
 
 ## Огляд

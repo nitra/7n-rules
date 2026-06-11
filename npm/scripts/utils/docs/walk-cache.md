@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/walk-cache.mjs
+  crc: 82798fa2
+---
+
 # walk-cache.mjs
 
 ## Огляд

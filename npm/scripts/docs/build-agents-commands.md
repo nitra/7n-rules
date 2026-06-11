@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/build-agents-commands.mjs
+  crc: 5a4cde2f
+---
+
 # build-agents-commands.mjs
 
 ## Огляд

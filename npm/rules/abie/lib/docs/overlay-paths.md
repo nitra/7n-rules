@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/overlay-paths.mjs
+  crc: 752f7012
+---
+
 # overlay-paths
 
 ## Огляд

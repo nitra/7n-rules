@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/coverage-classify/apply.mjs
+  crc: 0f54e6a0
+---
+
 # apply.mjs
 
 ## Огляд

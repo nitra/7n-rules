@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/resolve-target-files.mjs
+  crc: a3b361d9
+---
+
 # resolve-target-files.mjs
 
 ## Огляд

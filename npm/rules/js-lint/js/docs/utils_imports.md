@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-lint/js/utils_imports.mjs
+  crc: 7eaeaf96
+---
+
 # utils_imports.mjs — перевірка кордону `utils/`-каталогів
 
 ## Огляд

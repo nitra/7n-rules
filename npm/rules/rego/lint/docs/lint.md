@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/rego/lint/lint.mjs
+  crc: 1059537a
+---
+
 # lint.mjs — Лінт Rego-полісі (`opa` + `regal` + опційний `conftest`)
 
 ## Огляд

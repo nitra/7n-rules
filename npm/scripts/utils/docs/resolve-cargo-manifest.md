@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/resolve-cargo-manifest.mjs
+  crc: af1efa42
+---
+
 # resolve-cargo-manifest.mjs
 
 ## Огляд

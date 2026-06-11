@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/python/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — entry-point правила `python`
 
 ## Огляд

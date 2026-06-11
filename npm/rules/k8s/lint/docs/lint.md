@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/k8s/lint/lint.mjs
+  crc: b6119c36
+---
+
 # lint.mjs — лінт Kubernetes-маніфестів (kubeconform + kubescape)
 
 ## Огляд

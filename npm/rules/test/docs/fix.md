@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/test/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — правило `test`
 
 ## Огляд

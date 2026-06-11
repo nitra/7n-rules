@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/load-cursor-config.mjs
+  crc: c86a80f4
+---
+
 # load-cursor-config.mjs
 
 ## Огляд

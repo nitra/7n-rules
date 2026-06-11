@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/discover-check-rules-from-cursor.mjs
+  crc: 5e312e3e
+---
+
 # discover-check-rules-from-cursor.mjs
 
 ## Огляд

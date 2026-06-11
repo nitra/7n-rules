@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/run-rule-cli.mjs
+  crc: ab1715f2
+---
+
 # run-rule-cli.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/text/lint/run-shellcheck.mjs
+  crc: e6fa8c23
+---
+
 # run-shellcheck.mjs
 
 ## Огляд

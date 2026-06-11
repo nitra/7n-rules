@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/release/fix.mjs
+  crc: 0508fb5e
+---
+
 # fix.mjs — точка входу правила `release`
 
 ## Огляд

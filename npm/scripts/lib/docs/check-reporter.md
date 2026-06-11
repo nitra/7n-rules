@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/check-reporter.mjs
+  crc: b76ed480
+---
+
 # check-reporter.mjs
 
 ## Огляд

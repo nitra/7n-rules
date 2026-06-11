@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/find-package-json-paths.mjs
+  crc: 06c208de
+---
+
 # find-package-json-paths.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/docker/lib/docker-nginx-user.mjs
+  crc: 23fc4989
+---
+
 # docker-nginx-user.mjs
 
 ## Огляд

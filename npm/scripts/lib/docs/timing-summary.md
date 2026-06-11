@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/timing-summary.mjs
+  crc: f21a9b91
+---
+
 # timing-summary.mjs
 
 ## Огляд

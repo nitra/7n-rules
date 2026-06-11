@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/kustomization-patches.mjs
+  crc: 1dd36b33
+---
+
 # kustomization-patches.mjs
 
 ## Огляд

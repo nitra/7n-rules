@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — точка входу правила `js-run`
 
 ## Огляд

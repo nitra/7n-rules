@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/text/lint/run-v8r.mjs
+  crc: caf707a8
+---
+
 # run-v8r.mjs
 
 ## Огляд

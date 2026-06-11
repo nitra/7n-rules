@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/run-lint-step.mjs
+  crc: 5932fa98
+---
+
 # run-lint-step.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/inline-template-links.mjs
+  crc: 7726f0ef
+---
+
 # inline-template-links.mjs
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/js/applies.mjs
+  crc: f5b6777a
+---
+
 # applies.mjs
 
 ## Огляд

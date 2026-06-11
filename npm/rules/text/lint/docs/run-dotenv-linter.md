@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/text/lint/run-dotenv-linter.mjs
+  crc: 8bb94af4
+---
+
 # run-dotenv-linter.mjs
 
 ## Огляд

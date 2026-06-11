@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/style-lint/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — точка входу правила `style-lint`
 
 ## Огляд

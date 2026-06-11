@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/skills-cli.mjs
+  crc: 11ba0be9
+---
+
 # skills-cli.mjs
 
 ## Огляд

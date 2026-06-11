@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/ensure-gitignore-entries.mjs
+  crc: 35e65c1b
+---
+
 # ensure-gitignore-entries.mjs
 
 ## Огляд

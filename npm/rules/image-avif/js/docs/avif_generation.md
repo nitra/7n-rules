@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/image-avif/js/avif_generation.mjs
+  crc: 101bb0dd
+---
+
 # avif_generation.mjs
 
 ## Огляд

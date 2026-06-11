@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/template.mjs
+  crc: 3bc0617f
+---
+
 # template.mjs
 
 ## Огляд

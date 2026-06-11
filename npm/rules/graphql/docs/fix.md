@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/graphql/fix.mjs
+  crc: 12fc1644
+---
+
 # `npm/rules/graphql/fix.mjs`
 
 ## Огляд

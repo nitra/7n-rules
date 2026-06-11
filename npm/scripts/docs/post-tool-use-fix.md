@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/post-tool-use-fix.mjs
+  crc: 50bf19e1
+---
+
 # post-tool-use-fix.mjs
 
 ## Огляд

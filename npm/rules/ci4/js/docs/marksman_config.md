@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/ci4/js/marksman_config.mjs
+  crc: 07883aa5
+---
+
 # marksman_config.mjs
 
 ## Огляд

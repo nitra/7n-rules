@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/ensure-tool.mjs
+  crc: 230254b3
+---
+
 # ensure-tool.mjs
 
 ## Огляд

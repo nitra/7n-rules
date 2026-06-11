@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/test/js/data/vitest_config/vitest.config.baseline.js
+  crc: d32a8e2d
+---
+
 # vitest.config.baseline.js
 
 ## Огляд

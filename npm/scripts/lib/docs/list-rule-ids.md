@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/list-rule-ids.mjs
+  crc: 5ef1ead5
+---
+
 # list-rule-ids.mjs
 
 ## Огляд

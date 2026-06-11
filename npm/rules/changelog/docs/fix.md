@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/changelog/fix.mjs
+  crc: 12fc1644
+---
+
 # fix.mjs — точка входу правила `changelog`
 
 ## Огляд

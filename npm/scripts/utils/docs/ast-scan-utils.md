@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/ast-scan-utils.mjs
+  crc: 0f9b4a21
+---
+
 # ast-scan-utils.mjs
 
 ## Огляд

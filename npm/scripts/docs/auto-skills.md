@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/auto-skills.mjs
+  crc: 44328898
+---
+
 # `auto-skills.mjs`
 
 ## Огляд

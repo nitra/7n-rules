@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/enabled.mjs
+  crc: 6b02ea18
+---
+
 # enabled.mjs
 
 ## Огляд

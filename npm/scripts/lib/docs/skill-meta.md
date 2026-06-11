@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/skill-meta.mjs
+  crc: 0c638d18
+---
+
 # skill-meta.mjs
 
 ## Огляд

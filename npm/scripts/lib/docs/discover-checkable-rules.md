@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/discover-checkable-rules.mjs
+  crc: 39016d17
+---
+
 # discover-checkable-rules.mjs
 
 ## Огляд

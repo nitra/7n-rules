@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/cli-entry.mjs
+  crc: b51b5d0a
+---
+
 # `cli-entry.mjs`
 
 ## Огляд

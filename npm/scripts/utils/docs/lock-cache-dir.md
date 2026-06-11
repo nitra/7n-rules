@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/lock-cache-dir.mjs
+  crc: 3b63d4b1
+---
+
 # lock-cache-dir.mjs
 
 ## Огляд

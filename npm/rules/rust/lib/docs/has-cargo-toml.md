@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/rust/lib/has-cargo-toml.mjs
+  crc: f55fc57e
+---
+
 # has-cargo-toml.mjs
 
 ## Огляд

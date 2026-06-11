@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/docker/lib/docker-mirror.mjs
+  crc: b7c0bd04
+---
+
 # docker-mirror.mjs
 
 ## Огляд

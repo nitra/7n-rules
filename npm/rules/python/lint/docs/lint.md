@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/python/lint/lint.mjs
+  crc: 92c8f115
+---
+
 # `lint.mjs` — лінт-крок `lint-python`
 
 ## Огляд

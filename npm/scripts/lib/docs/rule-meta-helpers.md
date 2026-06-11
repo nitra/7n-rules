@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/rule-meta-helpers.mjs
+  crc: a7e1ae1d
+---
+
 # rule-meta-helpers.mjs
 
 ## Огляд

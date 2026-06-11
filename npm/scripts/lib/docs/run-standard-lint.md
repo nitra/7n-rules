@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/run-standard-lint.mjs
+  crc: e7e3f0ae
+---
+
 # run-standard-lint.mjs
 
 ## Огляд

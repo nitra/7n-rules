@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/temporal-scan.mjs
+  crc: 5b15b070
+---
+
 # temporal-scan.mjs
 
 ## Огляд

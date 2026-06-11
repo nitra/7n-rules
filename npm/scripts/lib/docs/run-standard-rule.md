@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/run-standard-rule.mjs
+  crc: aeb5299a
+---
+
 # run-standard-rule.mjs
 
 ## Огляд

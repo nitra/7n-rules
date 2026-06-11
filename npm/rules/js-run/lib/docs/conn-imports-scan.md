@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-run/lib/conn-imports-scan.mjs
+  crc: 5234d8ba
+---
+
 # conn-imports-scan.mjs
 
 ## Огляд

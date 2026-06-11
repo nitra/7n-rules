@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/resolve-cmd.mjs
+  crc: 31c290fc
+---
+
 # resolve-cmd.mjs
 
 ## Огляд

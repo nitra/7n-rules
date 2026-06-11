@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
+  crc: 6271a5ad
+---
+
 # stryker.config.baseline.mjs
 
 ## Огляд

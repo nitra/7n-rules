@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/hc-yaml.mjs
+  crc: e9aba7c8
+---
+
 # hc-yaml.mjs
 
 ## Огляд

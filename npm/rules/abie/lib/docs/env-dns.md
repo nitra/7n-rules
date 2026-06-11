@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/env-dns.mjs
+  crc: 91aa8ee4
+---
+
 # env-dns.mjs
 
 ## Огляд

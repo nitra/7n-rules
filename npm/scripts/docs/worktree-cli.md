@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/worktree-cli.mjs
+  crc: 92deb344
+---
+
 # worktree-cli.mjs
 
 ## Огляд

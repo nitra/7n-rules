@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/coverage-classify/verdict-schema.mjs
+  crc: 8a2c0df1
+---
+
 # verdict-schema.mjs
 
 ## Огляд

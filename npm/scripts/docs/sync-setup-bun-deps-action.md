@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/sync-setup-bun-deps-action.mjs
+  crc: 098d7209
+---
+
 # sync-setup-bun-deps-action.mjs
 
 ## Огляд

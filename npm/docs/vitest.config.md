@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/vitest.config.js
+  crc: d4917e1f
+---
+
 # vitest.config.js
 
 ## Огляд

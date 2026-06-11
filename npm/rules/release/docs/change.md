@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/release/change.mjs
+  crc: 1ff4f816
+---
+
 # `change.mjs` — створення одного change-файлу
 
 ## Огляд

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/gha-workflow.mjs
+  crc: 266986bf
+---
+
 # gha-workflow.mjs
 
 ## Огляд

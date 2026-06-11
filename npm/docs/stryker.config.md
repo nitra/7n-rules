@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/stryker.config.mjs
+  crc: b8c7377b
+---
+
 # stryker.config.mjs
 
 ## Огляд

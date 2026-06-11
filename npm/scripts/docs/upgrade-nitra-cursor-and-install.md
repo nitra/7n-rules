@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/upgrade-nitra-cursor-and-install.mjs
+  crc: b0742ab3
+---
+
 # upgrade-nitra-cursor-and-install.mjs
 
 ## Огляд

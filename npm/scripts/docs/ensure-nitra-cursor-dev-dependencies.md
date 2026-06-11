@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
+  crc: c3df2c0e
+---
+
 # ensure-nitra-cursor-dev-dependencies.mjs
 
 ## Огляд

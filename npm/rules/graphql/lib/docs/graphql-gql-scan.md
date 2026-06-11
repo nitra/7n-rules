@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/graphql/lib/graphql-gql-scan.mjs
+  crc: e110f9dd
+---
+
 # graphql-gql-scan.mjs
 
 ## Огляд

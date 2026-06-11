@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/release/lib/fallback.mjs
+  crc: 99eb10bc
+---
+
 # fallback.mjs
 
 ## Огляд

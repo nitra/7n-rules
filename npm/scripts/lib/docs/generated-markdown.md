@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/generated-markdown.mjs
+  crc: 14b85a57
+---
+
 # generated-markdown.mjs
 
 ## Огляд

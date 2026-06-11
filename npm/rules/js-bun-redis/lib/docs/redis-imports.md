@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/js-bun-redis/lib/redis-imports.mjs
+  crc: 887fc929
+---
+
 # redis-imports.mjs
 
 ## Огляд

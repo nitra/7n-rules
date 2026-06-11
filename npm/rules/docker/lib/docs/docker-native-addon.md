@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/docker/lib/docker-native-addon.mjs
+  crc: 8b747dec
+---
+
 # docker-native-addon.mjs
 
 ## Огляд

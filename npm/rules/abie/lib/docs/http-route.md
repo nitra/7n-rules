@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/abie/lib/http-route.mjs
+  crc: 3ec544d6
+---
+
 # http-route.mjs
 
 ## Огляд
