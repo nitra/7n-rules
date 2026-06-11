@@ -1,0 +1,29 @@
+npm/skills/doc-files/js/tests/docgen-extract.test.mjs
+  s_e5d2df44139a96::t_11f94cddda56e2 39-114
+npm/skills/doc-files/.changes/260612-0012.md
+  s_74c2737fb2a1b4::t_6e661a724bdb8e 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "cf07aba10b93fd9aa2df8e5a325a961c9ebdd61c",
+  "prompts": {},
+  "sessions": {
+    "s_74c2737fb2a1b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54f63bb7-8e2f-46b8-9c32-658ee5c0f7c6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_e5d2df44139a96": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "36feb651-c0d9-4478-9131-4bb08d1bceaa",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
