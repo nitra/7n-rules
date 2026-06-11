@@ -25,7 +25,7 @@ describe('extractUnitsJs — юніти top-level', () => {
   const by = name => units.find(u => u.name === name)
 
   test('знаходить function/const/class', () => {
-    expect(units.map(u => u.name).sort()).toEqual(['Inner', 'check', 'helper', 'parse'])
+    expect(units.map(u => u.name).toSorted()).toEqual(['Inner', 'check', 'helper', 'parse'])
   })
 
   test('прапор exported коректний', () => {

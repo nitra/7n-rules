@@ -32,8 +32,9 @@ describe("configRefs — повне ім'я файлу, без зрізу все
 })
 
 describe('urls — template-literal обрізається до статичного префікса (R10)', () => {
-  test('${...} у URL не тягне сміття в анкор', () => {
-    const src = 'fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`)'
+  test('інтерпольований вираз у URL не тягне сміття в анкор', () => {
+    // template-literal у фікстурі: \${…} екрановано, тож представляє вихідний код без інтерполяції
+    const src = `fetch(\`https://pypi.org/pypi/\${encodeURIComponent(name)}/json\`)`
     expect(extractAnchors(src).urls).toEqual(['https://pypi.org/pypi/'])
   })
 

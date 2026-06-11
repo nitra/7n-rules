@@ -1,11 +1,12 @@
 /** @see ./docs/docgen-gen.md */
-import { readFileSync } from 'node:fs'
+import { readFileSync, existsSync } from 'node:fs'
 import { basename } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
 import { DEFAULT_OMLX_MODEL } from '../../../lib/omlx.mjs'
 import { callLlm } from '../../../lib/llm.mjs'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+import { docPathForSource } from './docgen-scan.mjs'
 import { extractFacts } from './docgen-extract.mjs'
 import { extractAnchors, anchorTokens } from './docgen-extract-anchors.mjs'
 import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
@@ -26,15 +27,28 @@ const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
 const CACHE_MENTION_RE = /кеш/i
 const CACHE_NEGATION_RE = /(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i
 const CRITIC_NONE_RE = /^\s*NONE\s*$/i
-// R4: абстрактні «нічого-не-кажучі» формули, які обходять exact-blocklist і дають score=100
-const GENERIC_RE =
-  /відповідност\S*\s+(?:даних\s+)?(?:визначеному\s+)?контракту|валідаці\S*\s+даних|перевірк\S*\s+(?:відповідності\s+)?даних|обробк\S*\s+даних|застосову\S*\s+логіку|інспекту\S*\s+та\s+збира\S*\s+дан/i
+// R4: абстрактні «нічого-не-кажучі» формули, які обходять exact-blocklist і дають score=100.
+// Масив дрібних патернів замість однієї alternation-regex (sonarjs/regex-complexity); .some() еквівалентний.
+const GENERIC_RES = [
+  /відповідност\S*\s+(?:даних\s+)?(?:визначеному\s+)?контракту/i,
+  /валідаці\S*\s+даних/i,
+  /перевірк\S*\s+(?:відповідності\s+)?даних/i,
+  /обробк\S*\s+даних/i,
+  /застосову\S*\s+логіку/i,
+  /інспекту\S*\s+та\s+збира\S*\s+дан/i
+]
 // R7: часті русизми/суржик (курований безпечний список — без false-positive на нормальній мові).
 // Без \b: кирилиця не є ASCII-`\w`, тож межі слова в JS-regex не спрацьовують — терміни специфічні.
 const SURZHIK_RE =
   /пропуская|являється|в залежності|по замовчуванню|на протязі|відповідаюч|слідуюч|наступним разом|приймати участь|у відповідності/i
 const ANCHOR_MISS_PENALTY = 5
 const ANCHOR_MISS_CAP = 20
+// Захищена людино-керована секція (Варіант B): дослівно зберігається, ніколи не
+// перезаписується LLM-виходом, виключена зі скорингу. Opt-in = сам факт наявності.
+const PROTECTED_HEADING = 'Призначення'
+const PROTECTED_START_RE = /^##\s+Призначення\s*$/
+const H2_RE = /^##\s/
+const H1_RE = /^#\s/
 
 /**
  * Прибирає код-фенс-обгортку (потрійні бектіки) й випадковий провідний
@@ -83,6 +97,43 @@ function parseSections(md) {
 }
 
 /**
+ * Відокремлює захищену секцію `## Призначення` (Варіант B). Межа — наступний `## `
+ * (H2); `###`+ усередині не обривають блок.
+ * @param {string} md документ
+ * @returns {{ body: string|null, without: string }} тіло блоку (або null) і md без нього
+ */
+export function splitProtected(md) {
+  const lines = md.split('\n')
+  const start = lines.findIndex(l => PROTECTED_START_RE.test(l))
+  if (start === -1) return { body: null, without: md }
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (H2_RE.test(lines[i])) {
+      end = i
+      break
+    }
+  }
+  const body = lines.slice(start + 1, end).join('\n').trim()
+  const without = [...lines.slice(0, start), ...lines.slice(end)].join('\n')
+  return { body: body || null, without }
+}
+
+/**
+ * Вставляє захищений блок `## Призначення` одразу після H1 (фіксована позиція).
+ * @param {string} md машинно-згенерований документ (без блоку)
+ * @param {string|null} intent тіло блоку або null
+ * @returns {string} документ із блоком (або без змін, якщо intent порожній)
+ */
+export function insertProtected(md, intent) {
+  if (!intent) return md
+  const lines = md.split('\n')
+  const h1 = lines.findIndex(l => H1_RE.test(l))
+  const at = h1 === -1 ? 0 : h1 + 1
+  lines.splice(at, 0, '', `## ${PROTECTED_HEADING}`, '', intent)
+  return lines.join('\n')
+}
+
+/**
  * Чи містить текст бектік-обгорнуте імʼя символу (`sym`) — уникає substring false positives.
  * @param {string} text текст секції
  * @param {string} sym імʼя символу без бектіків
@@ -90,6 +141,45 @@ function parseSections(md) {
  */
 function hasName(text, sym) {
   return text.includes('`' + sym + '`')
+}
+
+/**
+ * R6: штраф за службові (неекспортовані) символи, подані як публічні.
+ * @param {object} facts факт-лист про файл
+ * @param {{ overview: string, behavior: string, api: string, guarantees: string }} secs тексти секцій
+ * @param {string[]} issues акумулятор кодів проблем (мутується)
+ * @returns {number} сумарний штраф (≥0)
+ */
+function internalSymbolPenalty(facts, { overview, behavior, api, guarantees }, issues) {
+  let penalty = 0
+  for (const sym of [...(facts.internalSymbols ?? []), ...(facts.localSymbols ?? [])]) {
+    const inDoc = hasName(guarantees, sym) || hasName(overview, sym) || hasName(behavior, sym) || hasName(api, sym)
+    if (inDoc) {
+      penalty += 10
+      issues.push(`internal-name:${sym}`)
+    }
+  }
+  return penalty
+}
+
+/**
+ * R5: штраф за відсутні в документі валідні анкори (дослівні підрядки src).
+ * @param {string} md зібраний документ
+ * @param {object} anchors анкори файлу
+ * @param {string} src вміст файлу
+ * @param {string[]} issues акумулятор кодів проблем (мутується)
+ * @returns {number} штраф, обмежений ANCHOR_MISS_CAP
+ */
+function anchorMissPenalty(md, anchors, src, issues) {
+  let penalty = 0
+  for (const tok of anchorTokens(anchors)) {
+    if (!src.includes(tok)) continue // валідність: фейковий анкор не вимагаємо
+    if (!md.includes(tok) && penalty < ANCHOR_MISS_CAP) {
+      penalty += ANCHOR_MISS_PENALTY
+      issues.push(`anchor-miss:${tok}`)
+    }
+  }
+  return penalty
 }
 
 /**
@@ -111,7 +201,7 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
   }
 
   // R4: generic-Огляд (парафрази, які обходять exact-blocklist) — як майже-відсутній.
-  if (GENERIC_RE.test(overview)) {
+  if (GENERIC_RES.some(re => re.test(overview))) {
     score -= 35
     issues.push('generic-overview')
   }
@@ -133,29 +223,15 @@ export function scoreDoc(md, facts, { anchors = null, src = '' } = {}) {
 
   // R6: службові (неекспортовані) функції не мають фігурувати як публічні
   const api = s['публічнийapi'] ?? ''
-  for (const sym of [...(facts.internalSymbols ?? []), ...(facts.localSymbols ?? [])]) {
-    const inDoc = hasName(guarantees, sym) || hasName(overview, sym) || hasName(behavior, sym) || hasName(api, sym)
-    if (inDoc) {
-      score -= 10
-      issues.push(`internal-name:${sym}`)
-    }
-  }
+  score -= internalSymbolPenalty(facts, { overview, behavior, api, guarantees }, issues)
 
   // R5: кожен валідний анкор (дослівний підрядок src) має зʼявитися в документі
   if (anchors && src) {
-    let missPenalty = 0
-    for (const tok of anchorTokens(anchors)) {
-      if (!src.includes(tok)) continue // валідність: фейковий анкор не вимагаємо
-      if (!md.includes(tok) && missPenalty < ANCHOR_MISS_CAP) {
-        missPenalty += ANCHOR_MISS_PENALTY
-        issues.push(`anchor-miss:${tok}`)
-      }
-    }
-    score -= missPenalty
+    score -= anchorMissPenalty(md, anchors, src, issues)
   }
 
-  // R7: суржик/русизми
-  if (SURZHIK_RE.test(md)) {
+  // R7: суржик/русизми — лише в машинних секціях (захищене «Призначення» — людське, не штрафуємо)
+  if (SURZHIK_RE.test(splitProtected(md).without)) {
     score -= 10
     issues.push('surzhik')
   }
@@ -199,13 +275,14 @@ function apiNeedsRefine(facts) {
  * @param {string} src вміст файлу
  * @param {string} model model-id
  * @param {number} [timeoutMs] ліміт на виклик
+ * @param {{ intent?: string|null }} [opts] захищена секція «Призначення» для збереження
  * @returns {{ md: string }} зібраний документ
  */
-function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS) {
+function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS, { intent = null } = {}) {
   const text = callLlm(oneShotMessages(facts, src), model, { timeoutMs })
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
-  return { md: md + '\n' }
+  return { md: insertProtected(md + '\n', intent) }
 }
 
 /**
@@ -236,16 +313,16 @@ function assemble(stem, sections) {
  * @param {string} src вміст файлу
  * @param {string} model model-id
  * @param {number} timeoutMs ліміт на один виклик
- * @param {{ anchors?: object|null, temperature?: number }} [opts] анкори й температура семплінгу
+ * @param {{ anchors?: object|null, temperature?: number, intent?: string|null }} [opts] анкори, температура, захищена секція як контекст
  * @returns {{ md: string }} зібраний документ
  */
-function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2 } = {}) {
+function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2, intent = null } = {}) {
   const sections = {}
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
   // Спершу Поведінка (+API) — секції з фактажем
-  for (const s of sectionMessages(facts, src, anc)) {
+  for (const s of sectionMessages(facts, src, anc, intent)) {
     let draft = stripSignatures(stripSection(callLlm(s.messages, model, { timeoutMs, temperature })))
     // E2: critique→refine для API, коли всі описи порожні (модель зриває на generic)
     if (s.key === 'api' && apiNeedsRefine(facts)) {
@@ -255,11 +332,14 @@ function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, tempera
   }
   // R3: «Огляд» — ОСТАННІМ, узагальненням уже написаної Поведінки (не голого факт-листа)
   let overview = stripSignatures(
-    stripSection(callLlm(overviewMessages(facts, sections.behavior ?? '', anc), model, { timeoutMs, temperature }))
+    stripSection(
+      callLlm(overviewMessages(facts, sections.behavior ?? '', anc, intent), model, { timeoutMs, temperature })
+    )
   )
   overview = critiqueRefineSection('overview', overview, facts, anc, model, timeoutMs)
   sections.overview = overview
-  return { md: assemble(basename(facts.relPath), sections) }
+  // Варіант B: дослівно повертаємо захищений блок у фіксовану позицію
+  return { md: insertProtected(assemble(basename(facts.relPath), sections), intent) }
 }
 
 /** Максимальний час генерації одного LLM-виклику. */
@@ -279,18 +359,20 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? (resolveModel('m
  * з вищою температурою (best-of-2); якщо й він не допоміг — результат
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
- * @param {{ model?: string, threshold?: number }} [opts] model-id і поріг degraded
+ * @param {{ model?: string, threshold?: number, existingMd?: string|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції)
  * @returns {{ md: string, ms: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації
  */
-export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD } = {}) {
+export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
   const t0 = Date.now()
 
+  // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
+  const intent = existingMd ? splitProtected(existingMd).body : null
   const anchors = facts.unsupported ? null : extractAnchors(src)
   let r = facts.unsupported
-    ? oneShotDoc(facts, src, model)
-    : orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors })
+    ? oneShotDoc(facts, src, model, LOCAL_TIMEOUT_MS, { intent })
+    : orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, intent })
 
   // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
   if (facts.unsupported) {
@@ -303,7 +385,7 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
   // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
   if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
     try {
-      const r2 = orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5 })
+      const r2 = orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5, intent })
       const s2 = scoreDoc(r2.md, facts, { anchors, src })
       if (s2.score > score) {
         r = r2
@@ -329,7 +411,10 @@ if (isRunAsCli(import.meta.url)) {
   if (!file) {
     throw new Error('Usage: node docgen-gen.mjs <file> [--model <m>]')
   }
-  const r = generateDoc(file, { model })
+  // Зберегти захищену секцію «Призначення», якщо дока вже існує
+  const docPath = docPathForSource(file)
+  const existingMd = existsSync(docPath) ? readFileSync(docPath, 'utf8') : null
+  const r = generateDoc(file, { model, existingMd })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
   process.stderr.write(`[local ${r.model}] ${r.ms}ms / score=${r.score}${r.degraded ? ' DEGRADED' : ''}${issuesTxt}\n`)
   process.stdout.write(r.md)

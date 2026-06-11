@@ -51,17 +51,30 @@ const msgs = (system, user) => [
 ]
 
 /**
+ * Блок read-only авторитетного контексту із захищеної секції «Призначення»
+ * (Варіант B): машинні секції мають узгоджуватися з ним і НЕ дублювати його.
+ * @param {string|null} intent тіло секції «Призначення» або null
+ * @returns {string} текстовий блок для system-промпта або порожній рядок
+ */
+function intentContext(intent) {
+  if (!intent) return ''
+  return `\n\nАВТОРИТЕТНИЙ КОНТЕКСТ (секція «Призначення», написана людиною — НЕ повторюй дослівно, узгоджуйся й доповнюй):\n${intent}`
+}
+
+/**
  * Секційні набори messages з МІНІМАЛЬНИМ контекстом під кожну секцію.
  * Код потрапляє лише в `behavior`; «Огляд» генерується окремо ОСТАННІМ
  * (`overviewMessages`) з уже написаної Поведінки — тут його немає.
  * @param {object} facts факт-лист про файл
  * @param {string} src вміст файлу
  * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
+ * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
  * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів (behavior[, api])
  */
-export function sectionMessages(facts, src, anchors = null) {
+export function sectionMessages(facts, src, anchors = null, intent = null) {
   const factsTxt = factsSummary(facts)
   const anch = anchorsBlock(anchors)
+  const intentCtx = intentContext(intent)
   const multi = (facts.exports?.length || 0) > 1
 
   // R6: Поведінка описує РІВНО експортовані імена, не службові помічники
@@ -79,7 +92,7 @@ export function sectionMessages(facts, src, anchors = null) {
     key: 'behavior',
     numPredict: 500,
     messages: msgs(
-      `${STYLE}\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\`\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
+      `${STYLE}\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\`\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}${intentCtx}`,
       `Напиши вміст секції «Поведінка»: ${behaviorTask}.${onlyExports} Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
     )
   }
@@ -104,14 +117,16 @@ export function sectionMessages(facts, src, anchors = null) {
  * @param {object} facts факт-лист про файл
  * @param {string} behaviorText готовий текст секції «Поведінка»
  * @param {object|null} [anchors] анкори файлу
+ * @param {string|null} [intent] захищена секція «Призначення» як read-only контекст
  * @returns {Array<{role:string,content:string}>} messages-масив для Огляду
  */
-export function overviewMessages(facts, behaviorText, anchors = null) {
+export function overviewMessages(facts, behaviorText, anchors = null, intent = null) {
   const factsTxt = factsSummary(facts)
   const anch = anchorsBlock(anchors)
+  const dedup = intent ? ' Не дублюй секцію «Призначення».' : ''
   return msgs(
-    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
-    `На основі вже написаної секції «Поведінка» (нижче) напиши «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Узагальнюй САМЕ описану поведінку, не додавай нових фактів. Без заголовка, без переліку функцій. Заборонені абстрактні формули без конкретики («перевірка/валідація/обробка даних», «відповідність контракту», «застосовує логіку») — пиши, ЩО саме і за яким контрактом.\n\nПОВЕДІНКА:\n${behaviorText}`
+    `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}${intentContext(intent)}`,
+    `На основі вже написаної секції «Поведінка» (нижче) напиши «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Узагальнюй САМЕ описану поведінку, не додавай нових фактів. Без заголовка, без переліку функцій. Заборонені абстрактні формули без конкретики («перевірка/валідація/обробка даних», «відповідність контракту», «застосовує логіку») — пиши, ЩО саме і за яким контрактом.${dedup}\n\nПОВЕДІНКА:\n${behaviorText}`
   )
 }
 

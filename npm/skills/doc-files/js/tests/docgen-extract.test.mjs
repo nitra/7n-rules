@@ -3,6 +3,7 @@ import { describe, expect, test } from 'vitest'
 import { extractFacts } from '../docgen-extract.mjs'
 
 const caches = src => extractFacts(src, 'x.mjs').markers.caches
+const symbols = src => extractFacts(src, 'x.mjs').localSymbols
 
 describe('markers.caches — лише іменований cache/memo-маркер, не будь-який new Map() (R2)', () => {
   test('акумулятор new Map() не вважається кешем', () => {
@@ -23,8 +24,6 @@ describe('markers.caches — лише іменований cache/memo-марке
 })
 
 describe('localSymbols — неекспортовані top-level функції/класи (R6)', () => {
-  const symbols = src => extractFacts(src, 'x.mjs').localSymbols
-
   test('службова функція потрапляє, експортована — ні', () => {
     const src = 'export function check() {}\nfunction helper() {}\nclass Inner {}\n'
     const ls = symbols(src)

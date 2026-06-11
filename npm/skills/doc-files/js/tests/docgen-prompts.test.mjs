@@ -2,6 +2,9 @@ import { describe, expect, test } from 'vitest'
 
 import { sectionMessages, overviewMessages } from '../docgen-prompts.mjs'
 
+const RE_EXACT_NAMES = /РІВНО ці публічні імена/
+const RE_GENERIC_BAN = /відповідність контракту|обробка даних/
+
 const FACTS = {
   relPath: 'npm/rules/bun/js/layout.mjs',
   header: 'перевірка bun-розкладки',
@@ -22,7 +25,7 @@ describe('sectionMessages — Огляд більше не тут (R3)', () => {
     const behavior = sectionMessages(multi, 'src', null).find(s => s.key === 'behavior')
     const user = behavior.messages.at(-1).content
     expect(user).toContain('check, parse')
-    expect(user).toMatch(/РІВНО ці публічні імена/)
+    expect(user).toMatch(RE_EXACT_NAMES)
   })
 })
 
@@ -31,6 +34,6 @@ describe('overviewMessages — узагальнення Поведінки (R3)'
     const ms = overviewMessages(FACTS, 'Шукає bun.lock і забороняє yarn.lock.', null)
     const user = ms.at(-1).content
     expect(user).toContain('Шукає bun.lock і забороняє yarn.lock.')
-    expect(user).toMatch(/відповідність контракту|обробка даних/)
+    expect(user).toMatch(RE_GENERIC_BAN)
   })
 })
