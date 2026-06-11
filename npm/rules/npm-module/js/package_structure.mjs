@@ -257,7 +257,6 @@ export function globToRegex(glob) {
   // Дозволено: уся функція існує саме для конструкції RegExp з glob-pattern
   // у `files` (значення з npm/package.json, не від кінцевого користувача), і
   // спецсимволи вже екрановано через `REGEX_SPECIAL_IN_GLOB` вище.
-  // eslint-disable-next-line security/detect-non-literal-regexp
   return new RegExp(`^${re}$`, 'u')
 }
 

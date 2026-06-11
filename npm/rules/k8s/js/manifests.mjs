@@ -3984,11 +3984,8 @@ const noopFail = msg => msg
  * @type {readonly { ipBlock: { cidr: string } }[]}
  */
 const NETWORK_POLICY_GCLB_INGRESS_FROM = Object.freeze([
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '35.191.0.0/16' } },
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '130.211.0.0/22' } },
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '10.0.0.0/8' } }
 ])
 
@@ -4858,9 +4855,8 @@ function firstValidYamlJsonFromPatchText(patchText) {
       if (d.errors.length === 0) return d.toJSON()
     }
   } catch {
-    return undefined
+    // ignore parse errors
   }
-  return undefined
 }
 
 /**

@@ -74,7 +74,6 @@ export async function runLint(opts = {}) {
       log(`⚠️  lint: правило ${id} має lint-фазу, але немає js/lint.mjs — пропускаю.\n`)
       continue
     }
-    // eslint-disable-next-line no-unsanitized/method -- шлях з discovered rule dir
     const mod = await import(lintPath)
     const code = await mod.lint(changed, cwd)
     if (code !== 0) return code

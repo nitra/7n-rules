@@ -28,7 +28,6 @@ describe('fix.mjs contract — усі правила', () => {
     })
 
     test(`${id}: rules/${id}/fix.mjs експортує run()`, async () => {
-      // eslint-disable-next-line no-unsanitized/method -- id з readdir whitelist'у rules/
       const mod = await import(pathToFileURL(join(RULES_DIR, id, 'fix.mjs')).href)
       expect(typeof mod.run).toBe('function')
     })

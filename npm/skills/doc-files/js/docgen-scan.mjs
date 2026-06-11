@@ -1,6 +1,5 @@
 /** @see ./docs/docgen-scan.md */
-// eslint-disable-next-line unicorn/import-style
-import path from 'node:path'
+import { join, dirname, basename, extname, relative, resolve, sep, isAbsolute, posix } from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { once } from 'node:events'
@@ -27,7 +26,7 @@ const DEFAULT_GATE_MAX = Number(env.N_CURSOR_DOC_FILES_GATE_MAX ?? 50) || 50
  * @returns {boolean} true — корінь system-wide docs
  */
 function isSystemWideDocsRoot(root) {
-  return existsSync(path.join(root, 'docs', 'adr')) || existsSync(path.join(root, 'docs', 'explanation'))
+  return existsSync(join(root, 'docs', 'adr')) || existsSync(join(root, 'docs', 'explanation'))
 }
 
 /**
@@ -38,7 +37,7 @@ function isSystemWideDocsRoot(root) {
 export function isSourceFile(fileName) {
   if (fileName.endsWith('.d.ts')) return false
   if (TEST_FILE_RE.test(fileName)) return false
-  return SOURCE_EXTENSIONS.has(path.extname(fileName))
+  return SOURCE_EXTENSIONS.has(extname(fileName))
 }
 
 /**
@@ -48,9 +47,9 @@ export function isSourceFile(fileName) {
  * @returns {string} шлях до `<dir>/docs/<stem>.md` у тому ж просторі шляхів
  */
 export function docPathForSource(sourcePath) {
-  const dir = path.dirname(sourcePath)
-  const stem = path.basename(sourcePath, path.extname(sourcePath))
-  return path.join(dir, 'docs', `${stem}.md`)
+  const dir = dirname(sourcePath)
+  const stem = basename(sourcePath, extname(sourcePath))
+  return join(dir, 'docs', `${stem}.md`)
 }
 
 /**
@@ -61,9 +60,9 @@ export function docPathForSource(sourcePath) {
  * @returns {boolean} true — кандидат на доку
  */
 export function isDocCandidate(root, relPath) {
-  const fileName = path.posix.basename(relPath)
+  const fileName = posix.basename(relPath)
   if (!isSourceFile(fileName)) return false
-  if (isSystemWideDocsRoot(root) && path.posix.dirname(relPath) === '.') return false
+  if (isSystemWideDocsRoot(root) && posix.dirname(relPath) === '.') return false
   return !isDocgenIgnored(relPath)
 }
 
@@ -75,7 +74,7 @@ export function isDocCandidate(root, relPath) {
  */
 export function describeFile(root, sourcePath) {
   const docPath = docPathForSource(sourcePath)
-  const { stale, reason } = staleness(path.join(root, sourcePath), path.join(root, docPath))
+  const { stale, reason } = staleness(join(root, sourcePath), join(root, docPath))
   return { sourcePath, docPath, stale, reason }
 }
 
@@ -97,14 +96,14 @@ export function scanForDocFiles(root) {
       return
     }
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      const relPath = path.relative(root, fullPath)
+      const fullPath = join(dir, entry.name)
+      const relPath = relative(root, fullPath)
       if (entry.isDirectory()) {
         if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
       } else if (entry.isFile() && isSourceFile(entry.name)) {
-        if (isSystemWideDocsRoot(root) && path.dirname(relPath) === '.') continue
-        const sourcePath = relPath.split(path.sep).join('/')
+        if (isSystemWideDocsRoot(root) && dirname(relPath) === '.') continue
+        const sourcePath = relPath.split(sep).join('/')
         if (isDocgenIgnored(sourcePath)) continue
         results.push(describeFile(root, sourcePath))
       }
@@ -122,7 +121,7 @@ export function scanForDocFiles(root) {
  */
 export function resolveRoot(argv) {
   const i = argv.indexOf('--root')
-  return i !== -1 && argv[i + 1] ? path.resolve(argv[i + 1]) : process.cwd()
+  return i !== -1 && argv[i + 1] ? resolve(argv[i + 1]) : process.cwd()
 }
 
 /**
@@ -190,7 +189,7 @@ function gitChangedSources(root) {
   return out
     .split('\n')
     .map(s => s.trim())
-    .filter(rel => rel && isDocCandidate(root, rel) && existsSync(path.join(root, rel)))
+    .filter(rel => rel && isDocCandidate(root, rel) && existsSync(join(root, rel)))
 }
 
 /**
@@ -200,9 +199,9 @@ function gitChangedSources(root) {
  * @returns {string|null} posix-шлях від кореня
  */
 function toRelSource(root, candidate) {
-  const rel = path.relative(root, path.resolve(root, candidate))
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return null
-  return rel.split(path.sep).join('/')
+  const rel = relative(root, resolve(root, candidate))
+  if (rel.startsWith('..') || isAbsolute(rel)) return null
+  return rel.split(sep).join('/')
 }
 
 /**
@@ -216,7 +215,7 @@ function runDegradedReport(root) {
   const degraded = []
   for (const f of scanForDocFiles(root)) {
     if (f.stale) continue
-    const { score, issues } = readDocQuality(path.join(root, f.docPath))
+    const { score, issues } = readDocQuality(join(root, f.docPath))
     if (score !== null && score < QUALITY_THRESHOLD) degraded.push({ ...f, score, issues })
   }
   if (degraded.length === 0) {
@@ -262,14 +261,14 @@ export async function runDocFilesCheckCli(argv) {
   if (hookMode) {
     const fp = extractHookFilePath(await readStdin())
     const rel = fp ? toRelSource(root, fp) : null
-    sources = rel && isDocCandidate(root, rel) && existsSync(path.join(root, rel)) ? [rel] : []
+    sources = rel && isDocCandidate(root, rel) && existsSync(join(root, rel)) ? [rel] : []
   } else if (gitMode) {
     sources = gitChangedSources(root)
   } else {
     sources = argv
       .filter(a => !a.startsWith('--') && a !== argv[maxIdx + 1])
       .map(a => toRelSource(root, a))
-      .filter(rel => rel && isDocCandidate(root, rel) && existsSync(path.join(root, rel)))
+      .filter(rel => rel && isDocCandidate(root, rel) && existsSync(join(root, rel)))
   }
 
   const stale = sources.map(src => describeFile(root, src)).filter(f => f.stale)

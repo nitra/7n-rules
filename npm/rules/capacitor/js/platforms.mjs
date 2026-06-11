@@ -21,11 +21,9 @@ const IGNORED_DIRS_FOR_PACKAGE_JSON = new Set([
 ])
 
 /** `||` у діапазоні npm-версій */
-// eslint-disable-next-line sonarjs/slow-regex -- короткі **semver**-підрядки у **package.json**
 const NPM_OR_PARTS_RE = /\s*\|\|\s*/
 
 /** `a - b` (діапазон діапазонів) */
-// eslint-disable-next-line sonarjs/slow-regex -- форма **X - Y** у **npm**-range
 const NPM_HYPHEN_RANGE_RE = /^(.+?)\s+-\s+(.+)$/
 
 const FIRST_VERSION_NUM_RE = /^(?:v)?(\d+)/i

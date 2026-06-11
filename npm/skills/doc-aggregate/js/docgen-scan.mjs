@@ -1,6 +1,5 @@
 /** @see ./docs/docgen-scan.md */
-// eslint-disable-next-line unicorn/import-style
-import path from 'node:path'
+import { join, relative, dirname, extname, sep, isAbsolute, resolve } from 'node:path'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
@@ -18,7 +17,7 @@ const TEST_FILE_RE = /\.(?:test|spec)\.[^.]+$/u
  * @returns {boolean} true — корінь system-wide docs
  */
 function isSystemWideDocsRoot(root) {
-  return existsSync(path.join(root, 'docs', 'adr')) || existsSync(path.join(root, 'docs', 'explanation'))
+  return existsSync(join(root, 'docs', 'adr')) || existsSync(join(root, 'docs', 'explanation'))
 }
 
 /**
@@ -29,7 +28,7 @@ function isSystemWideDocsRoot(root) {
 export function isSourceFile(fileName) {
   if (fileName.endsWith('.d.ts')) return false
   if (TEST_FILE_RE.test(fileName)) return false
-  return SOURCE_EXTENSIONS.has(path.extname(fileName))
+  return SOURCE_EXTENSIONS.has(extname(fileName))
 }
 
 /**
@@ -49,14 +48,14 @@ export function scanSourceFiles(root) {
       return
     }
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      const relPath = path.relative(root, fullPath)
+      const fullPath = join(dir, entry.name)
+      const relPath = relative(root, fullPath)
       if (entry.isDirectory()) {
         if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
       } else if (entry.isFile() && isSourceFile(entry.name)) {
-        if (isSystemWideDocsRoot(root) && path.dirname(relPath) === '.') continue
-        const sourcePath = relPath.split(path.sep).join('/')
+        if (isSystemWideDocsRoot(root) && dirname(relPath) === '.') continue
+        const sourcePath = relPath.split(sep).join('/')
         if (isDocgenIgnored(sourcePath)) continue
         results.push(sourcePath)
       }
@@ -74,10 +73,10 @@ export function scanSourceFiles(root) {
  * @returns {string} slug: `npm/rules/adr` → `npm-rules-adr`, корінь → `root`
  */
 export function slugForModule(root, moduleRoot) {
-  const rel = path.relative(root, moduleRoot)
+  const rel = relative(root, moduleRoot)
   if (rel === '') return 'root'
   return rel
-    .split(path.sep)
+    .split(sep)
     .join('-')
     .replaceAll(/[^\w-]+/gu, '-')
 }
@@ -99,8 +98,8 @@ export function findModuleRoots(root) {
       return
     }
     for (const entry of entries) {
-      const fullPath = path.join(dir, entry.name)
-      const relPath = path.relative(root, fullPath)
+      const fullPath = join(dir, entry.name)
+      const relPath = relative(root, fullPath)
       if (entry.isDirectory()) {
         if (isDocgenIgnored(relPath, 'dir')) continue
         walk(fullPath)
@@ -123,8 +122,8 @@ export function findModuleRoots(root) {
 export function nearestModuleRoot(filePath, moduleRoots) {
   let best = null
   for (const moduleRoot of moduleRoots) {
-    const rel = path.relative(moduleRoot, filePath)
-    if (rel.startsWith('..') || path.isAbsolute(rel)) continue
+    const rel = relative(moduleRoot, filePath)
+    if (rel.startsWith('..') || isAbsolute(rel)) continue
     if (best === null || moduleRoot.length > best.length) best = moduleRoot
   }
   return best
@@ -141,7 +140,7 @@ export function scanForModules(root) {
   const moduleRoots = findModuleRoots(root)
   const byRoot = new Map()
   for (const sourcePath of files) {
-    const moduleRoot = nearestModuleRoot(path.join(root, sourcePath), moduleRoots)
+    const moduleRoot = nearestModuleRoot(join(root, sourcePath), moduleRoots)
     if (moduleRoot === null) continue
     if (!byRoot.has(moduleRoot)) byRoot.set(moduleRoot, [])
     byRoot.get(moduleRoot).push(sourcePath)
@@ -151,10 +150,10 @@ export function scanForModules(root) {
   for (const moduleRoot of moduleRoots) {
     const members = byRoot.get(moduleRoot)
     if (!members || members.length === 0) continue
-    const docPath = path.join(moduleRoot, 'docs', 'ARCHITECTURE.md')
+    const docPath = join(moduleRoot, 'docs', 'ARCHITECTURE.md')
     results.push({
       moduleRoot,
-      relRoot: path.relative(root, moduleRoot) || '.',
+      relRoot: relative(root, moduleRoot) || '.',
       slug: slugForModule(root, moduleRoot),
       docPath,
       members: members.toSorted(),
@@ -171,7 +170,7 @@ export function scanForModules(root) {
  */
 export function resolveRoot(argv) {
   const i = argv.indexOf('--root')
-  return i !== -1 && argv[i + 1] ? path.resolve(argv[i + 1]) : process.cwd()
+  return i !== -1 && argv[i + 1] ? resolve(argv[i + 1]) : process.cwd()
 }
 
 /**

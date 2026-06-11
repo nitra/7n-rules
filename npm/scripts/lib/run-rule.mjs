@@ -53,7 +53,6 @@ async function evaluateAppliesGate(bundledRulesDir, rule) {
   const concern = rule.jsConcerns.find(c => c.name === APPLIES_CONCERN_NAME)
   if (!concern) return true
   const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern)
-  // eslint-disable-next-line no-unsanitized/method -- path з discovered concern, файл з whitelist'у readdir
   const mod = await import(path)
   if (typeof mod.applies !== 'function') return true
   return Boolean(await mod.applies())
@@ -170,7 +169,6 @@ export async function runRule(rule, bundledRulesDir, walkCache) {
 
   for (const concern of rule.jsConcerns) {
     const path = resolveJsCheckPath(bundledRulesDir, rule.id, concern)
-    // eslint-disable-next-line no-unsanitized/method -- path з discovered concern, файл з whitelist'у readdir
     const mod = await import(path)
     if (typeof mod.check === 'function') {
       const code = await mod.check()

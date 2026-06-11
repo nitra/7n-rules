@@ -211,6 +211,141 @@ function extractMarkers(src) {
   }
 }
 
+// ── Rust-екстрактор ──────────────────────────────────────────────────────────
+
+// Модульний //! doc-коментар (inner doc)
+const RS_MODULE_DOC_RE = /^(?:[ \t]*\/\/![ \t]?(.*)\n)*/m
+
+// pub fn / pub struct / pub enum / pub trait (та fn із exposure-атрибутом)
+const RS_PUB_ITEM_RE = /^[ \t]*(pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(fn|struct|enum|trait|type)\s+(\w+)/gm
+
+// Exposure-атрибути (#[tauri::command] тощо)
+const RS_EXPOSURE_ATTR_RE = /#\[(?:tauri::command|wasm_bindgen|uniffi::export|pyo3::pyfunction|napi)/gm
+
+// /// line-doc перед елементом
+const RS_LINE_DOC_RE = /(?:[ \t]*\/\/\/[ \t]?.*\n)*/
+
+// use crate::module::{A, B}  або  use std::..;
+const RS_USE_RE = /^[ \t]*use\s+([\w:]+(?:::\{[^}]+\})?(?:::\*)?(?:::\w+)?)\s*;/gm
+
+// Файловий запис: fs::write / File::create / remove_file / create_dir / write_all
+const RS_WRITE_RE = /fs::write|File::create|remove_file|create_dir|BufWriter::new|OpenOptions[^;]*\.write\s*\(\s*true/
+
+// Обробка помилок (але не просто `?`)
+const RS_CATCH_RE = /\.unwrap_or(?:_else|_default)?|if\s+let\s+Err\s*\(|match\s+\S+.*\{\s*[\s\S]*?Err\s*\(|\.map_err\s*\(|\.ok\s*\(\)/
+
+// Функції, що повертають Result або Option
+const RS_RESULT_RE = /->\s*(?:Result|Option)\s*</
+
+// Мережа
+const RS_NETWORK_RE = /reqwest|hyper::|TcpStream|UdpSocket|tokio::net/
+
+// Кешування
+const RS_CACHE_RE = /\bcache\b|\bCache\b|lazy_static!|OnceCell|OnceLock|DashMap/i
+
+/**
+ * Видобуває `///` doc-рядки перед рядком `lineIdx` (назад через `#[...]` та пусті рядки).
+ * @param {string[]} lines рядки файлу
+ * @param {number} lineIdx індекс рядка декларації
+ * @returns {string} опис або ''
+ */
+function rsDocBefore(lines, lineIdx) {
+  const doc = []
+  for (let i = lineIdx - 1; i >= 0; i--) {
+    const t = lines[i].trim()
+    if (t.startsWith('///')) doc.unshift(t.slice(3).trim())
+    else if (t.startsWith('#[') || t.startsWith('#![') || t === '') { /* skip */ }
+    else break
+  }
+  return doc.join(' ').trim()
+}
+
+/**
+ * Витягує факт-лист для `.rs` файлу.
+ * @param {string} src вміст файлу
+ * @param {string} relPath відносний шлях
+ * @returns {object} факт-лист без `unsupported`
+ */
+function extractFactsRust(src, relPath) {
+  // header — //! module-level doc
+  const headerLines = []
+  for (const line of src.split('\n')) {
+    const t = line.trim()
+    if (t.startsWith('//!')) headerLines.push(t.slice(3).trim())
+    else if (t === '' || t.startsWith('//')) continue
+    else break
+  }
+  const header = headerLines.join(' ').trim()
+
+  // Exposure-атрибути: рядки, після яких fn стає фактично pub
+  const srcLines = src.split('\n')
+  const exposedLineSet = new Set()
+  for (const m of src.matchAll(RS_EXPOSURE_ATTR_RE)) {
+    // Знаходимо, який рядок містить цей атрибут
+    let pos = 0
+    for (let li = 0; li < srcLines.length; li++) {
+      if (pos + srcLines[li].length >= m.index) {
+        // Шукаємо наступний не-атрибутний рядок з fn
+        for (let nli = li + 1; nli < Math.min(li + 5, srcLines.length); nli++) {
+          const t = srcLines[nli].trim()
+          if (t.startsWith('#[') || t === '') continue
+          if (/^(?:pub\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+/.test(t)) exposedLineSet.add(nli)
+          break
+        }
+        break
+      }
+      pos += srcLines[li].length + 1
+    }
+  }
+
+  // exports — pub items + exposure-exposed fns
+  const exports = []
+  let lineOffset = 0
+  for (let li = 0; li < srcLines.length; li++) {
+    const line = srcLines[li]
+    const m = line.match(/^[ \t]*(pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?(fn|struct|enum|trait|type)\s+(\w+)/)
+    if (m) {
+      const isPub = Boolean(m[1]) || exposedLineSet.has(li)
+      if (isPub) {
+        const desc = rsDocBefore(srcLines, li)
+        exports.push({ name: m[3], kind: m[2], desc })
+      }
+    }
+    lineOffset += line.length + 1
+  }
+
+  // localSymbols — приватні fn (не pub і не exposed) — не документуємо як публічний API
+  const localSymbols = []
+  for (let li = 0; li < srcLines.length; li++) {
+    const line = srcLines[li]
+    const m = line.match(/^[ \t]*(?:async\s+)?(?:unsafe\s+)?fn\s+(\w+)/)
+    if (m && !exports.some(e => e.name === m[1])) localSymbols.push(m[1])
+  }
+
+  // imports — use-рядки, класифіковані на std / external / internal
+  const stdlib = new Set()
+  const external = new Set()
+  for (const m of src.matchAll(RS_USE_RE)) {
+    const path = m[1]
+    const root = path.split('::')[0]
+    if (root === 'std' || root === 'core' || root === 'alloc') stdlib.add(path)
+    else external.add(path)
+  }
+  const imports = { stdlib: [...stdlib], external: [...external], internal: [] }
+
+  // markers
+  const markers = {
+    readOnly: !RS_WRITE_RE.test(src),
+    catchesErrors: RS_CATCH_RE.test(src),
+    returnsFalsyOnFail: RS_RESULT_RE.test(src),
+    network: RS_NETWORK_RE.test(src),
+    caches: RS_CACHE_RE.test(src),
+    skips: []
+  }
+
+  return { relPath, lang: 'rs', header, exports, imports, internalSymbols: [], localSymbols, markers }
+}
+
 /**
  * Головний екстрактор: код файлу → факт-лист.
  * @param {string} src вміст файлу
@@ -219,6 +354,7 @@ function extractMarkers(src) {
  */
 export function extractFacts(src, relPath) {
   const lang = relPath.split('.').pop()
+  if (lang === 'rs') return extractFactsRust(src, relPath)
   if (!['js', 'mjs', 'ts'].includes(lang)) {
     return { relPath, lang, unsupported: true, header: '', exports: [], imports: {}, markers: {} }
   }

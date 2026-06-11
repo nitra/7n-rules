@@ -170,7 +170,6 @@ export function renderMarkdown(rows, allowedGaps = []) {
 async function loadProvider(rulesDir, ruleId) {
   const providerPath = join(rulesDir, ruleId, 'coverage', 'coverage.mjs')
   if (!existsSync(providerPath)) return null
-  // eslint-disable-next-line no-unsanitized/method -- providerPath з join(rulesDir, ruleId, …), ruleId з конфігу
   const mod = await import(pathToFileURL(providerPath).href)
   if (typeof mod.detect !== 'function' || typeof mod.collect !== 'function') return null
   return mod
@@ -292,7 +291,6 @@ export async function runCoverageSteps(opts = {}) {
   console.log('✓ COVERAGE.md')
 
   if (opts.fix) {
-    // eslint-disable-next-line no-unsanitized/method -- шлях відносний до пакету, не user-input
     const { fixSurvivedMutants } = await import(new URL('../../../scripts/coverage-fix.mjs', import.meta.url).href)
     await fixSurvivedMutants(allSurvived, cwd)
   }

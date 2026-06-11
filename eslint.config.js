@@ -45,5 +45,53 @@ export default [
         { allowModules: ['vitest', '@vitest/coverage-v8', '@stryker-mutator/vitest-runner'] }
       ]
     }
+  },
+  // SIGINT/SIGTERM-хендлер: process.exit(130) — POSIX-конвенція для "killed by signal".
+  {
+    files: ['npm/scripts/utils/with-lock.mjs'],
+    rules: {
+      'n/no-process-exit': 'off'
+    }
+  },
+  // Динамічний import() від шляху з readdirSync-whitelist'у (не від user input).
+  {
+    files: [
+      'npm/scripts/lint-cli.mjs',
+      'npm/scripts/lib/run-rule.mjs',
+      'npm/tests/fix-mjs-contract.test.mjs',
+      'npm/rules/test/coverage/coverage.mjs'
+    ],
+    rules: {
+      'no-unsanitized/method': 'off'
+    }
+  },
+  // k8s: відомі GCP-GCLB та RFC-1918 IP-діапазони — не секрети, не user input (k8s.mdc).
+  {
+    files: ['npm/rules/k8s/js/manifests.mjs', 'npm/rules/k8s/js/tests/**/*.mjs'],
+    rules: {
+      'sonarjs/no-hardcoded-ip': 'off'
+    }
+  },
+  // Hasura: кластерний endpoint мусить бути http:// (hasura.mdc визначає схему).
+  {
+    files: ['npm/rules/hasura/js/tests/**/*.mjs'],
+    rules: {
+      '@microsoft/sdl/no-insecure-url': 'off',
+      'sonarjs/no-clear-text-protocols': 'off'
+    }
+  },
+  // Semver-рядки в npm version range — короткі (< 100 символів), не ReDoS-загроза.
+  {
+    files: ['npm/rules/capacitor/js/platforms.mjs'],
+    rules: {
+      'sonarjs/slow-regex': 'off'
+    }
+  },
+  // glob→RegExp з попередньо екранованим glob-pattern (REGEX_SPECIAL_IN_GLOB).
+  {
+    files: ['npm/rules/npm-module/js/package_structure.mjs'],
+    rules: {
+      'security/detect-non-literal-regexp': 'off'
+    }
   }
 ]

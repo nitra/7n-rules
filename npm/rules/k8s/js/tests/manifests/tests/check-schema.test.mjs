@@ -69,14 +69,10 @@ const HTTPROUTE_NP_MAPPING_RE = /HTTPRoute → NetworkPolicy mapping/
 const K8S_MDC_RE = /k8s\.mdc/
 
 const EXPECTED_GCLB_INGRESS_FROM = [
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '35.191.0.0/16' } },
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '130.211.0.0/22' } },
-  // eslint-disable-next-line sonarjs/no-hardcoded-ip
   { ipBlock: { cidr: '10.0.0.0/8' } }
 ]
-// eslint-disable-next-line sonarjs/no-hardcoded-ip
 const GCLB_HC_GLOBAL_CIDR = '35.191.0.0/16'
 // AWS link-local CIDR (metadata service) — канонічне правило egress у NetworkPolicy snippet (k8s.mdc).
 // Збираємо з частин, щоб sonarjs/no-hardcoded-ip не флагав літерал у тестовому assert.
