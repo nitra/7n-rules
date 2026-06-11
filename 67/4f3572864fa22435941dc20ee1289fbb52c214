@@ -1,0 +1,29 @@
+npm/skills/doc-files/.changes/260612-0012.md
+  s_74c2737fb2a1b4::t_97b197aaec9730 1-5
+npm/skills/doc-files/js/docs/docgen-extract-anchors.md
+  s_74c2737fb2a1b4::t_97b197aaec9730 4-5,8,12-18,22-32,36-39,43-45
+npm/skills/doc-files/js/docs/docgen-files-batch.md
+  s_74c2737fb2a1b4::t_97b197aaec9730 4-5,8,12-16,20-29,33-35
+npm/skills/doc-files/js/docs/docgen-extract.md
+  s_74c2737fb2a1b4::t_97b197aaec9730 4-5,8,12,16-29,33,37-39
+docs/adr/260612-0010-rust-підтримка-в-doc-files-рядковий-парсер-замість-ast.md
+  s_74c2737fb2a1b4::t_97b197aaec9730 1-87
+npm/skills/doc-files/js/tests/docgen-extract.test.mjs
+  s_74c2737fb2a1b4::t_97b197aaec9730 39-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "674f3572864fa22435941dc20ee1289fbb52c214",
+  "prompts": {},
+  "sessions": {
+    "s_74c2737fb2a1b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54f63bb7-8e2f-46b8-9c32-658ee5c0f7c6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
