@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.3.3] - 2026-06-11
+
+### Changed
+
+- ✨ feat(npm/skills/doc-files): doc-files: підтримка Rust (.rs) — SOURCE_…
+
 ## [5.3.2] - 2026-06-11
 
 ### Changed
