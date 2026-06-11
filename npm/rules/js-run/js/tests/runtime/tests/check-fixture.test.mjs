@@ -109,7 +109,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       await mkdir(join(dir, 'pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join(dir, 'pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
       await writeFile(
-        join(dir, 'pkg', 'src', 'conn', 'pg-write.js'),
+        join(dir, 'pkg', 'src', 'conn', 'pg-write.mjs'),
         `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pgWrite = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )
@@ -117,13 +117,13 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test("0, якщо src/conn/mssql-write.js з 'export const mssqlWrite'", async () => {
+  test("0, якщо src/conn/mssql-write.mjs з 'export const mssqlWrite'", async () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await mkdir(join(dir, 'pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join(dir, 'pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
       await writeFile(
-        join(dir, 'pkg', 'src', 'conn', 'mssql-write.js'),
+        join(dir, 'pkg', 'src', 'conn', 'mssql-write.mjs'),
         `import sql from 'mssql'\nexport const mssqlWrite = new sql.ConnectionPool({})\n`,
         'utf8'
       )
@@ -131,13 +131,13 @@ describe('check-js-run (мінімальний проєкт)', () => {
     })
   })
 
-  test('1, якщо src/conn/mssql-write.js експортує не mssqlWrite, а mssqlWriter', async () => {
+  test('1, якщо src/conn/mssql-write.mjs експортує не mssqlWrite, а mssqlWriter', async () => {
     await withTmpDir(async dir => {
       await writeRootWithWorkspacePkg(dir, { '@nitra/pino': '^1.0.0' })
       await mkdir(join(dir, 'pkg', 'src', 'conn'), { recursive: true })
       await writeJson(join(dir, 'pkg', 'jsconfig.json'), CANONICAL_BACKEND_JSCONFIG)
       await writeFile(
-        join(dir, 'pkg', 'src', 'conn', 'mssql-write.js'),
+        join(dir, 'pkg', 'src', 'conn', 'mssql-write.mjs'),
         `import sql from 'mssql'\nexport const mssqlWriter = new sql.ConnectionPool({})\n`,
         'utf8'
       )
@@ -181,7 +181,7 @@ describe('check-js-run (мінімальний проєкт)', () => {
       })
       await mkdir(join(dir, 'pkg', 'lib', 'connections'), { recursive: true })
       await writeFile(
-        join(dir, 'pkg', 'lib', 'connections', 'pg-write.js'),
+        join(dir, 'pkg', 'lib', 'connections', 'pg-write.mjs'),
         `import { checkEnv, env } from '@nitra/check-env'\nimport { SQL } from 'bun'\ncheckEnv(['PG_CONN'])\nexport const pgWrite = new SQL({ url: env.PG_CONN })\n`,
         'utf8'
       )

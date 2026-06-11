@@ -2,7 +2,7 @@
 description: Використання pg / mysql2 / Bun SQL у Node.js та Bun
 globs: "**/package.json,**/src/conn/**"
 alwaysApply: false
-version: '1.14'
+version: '1.15'
 ---
 
 ## Підтримувані версії баз даних
@@ -300,10 +300,10 @@ const rows = await sql.unsafe(query, values)
 
 Дефолтний експорт `sql` з `'bun'` сам читає змінні середовища (`DATABASE_URL`, `POSTGRES_URL`, `MYSQL_URL`, `PGHOST`/`PGUSER`/... та `MYSQL_HOST`/`MYSQL_USER`/...) і керує пулом — окремий `Pool` як у `pg` створювати не треба.
 
-Для явного конфігу — `new SQL(...)` як **singleton** на рівні модуля, а не на кожен запит. Файл кладеться у `src/conn/db.js` і експортує іменовані константи `pgWrite` (основний запис) та `pgRead` (read-only replica), щоб glob `**/src/conn/**` у правилах покривав ці файли:
+Для явного конфігу — `new SQL(...)` як **singleton** на рівні модуля, а не на кожен запит. Файл кладеться у `src/conn/db.mjs` і експортує іменовані константи `pgWrite` (основний запис) та `pgRead` (read-only replica), щоб glob `**/src/conn/**` у правилах покривав ці файли:
 
 ```javascript
-// src/conn/db.js
+// src/conn/db.mjs
 import { SQL } from 'bun'
 
 export const pgWrite = new SQL({
@@ -454,16 +454,16 @@ ${pgRead.array(ids, 'int4')}
 
 OXC formatter (oxfmt ≥ 0.49) примусово розгортає будь-який `CallExpression`, де перший аргумент є `CallExpression` з callback, у багаторядковий блок — незалежно від `printWidth`. Тому `pgWrite.array(arr.map(r => r.field), 'type')` всередині tagged template literal завжди стає 4-рядковим блоком. `col(arr, 'field')` (перший аргумент — identifier, другий — string literal) цей тригер не зачіпає і лишається однорядковим.
 
-Канонічне місце хелпера — `src/utils/col.js` (або `src/conn/col.js` залежно від структури проєкту):
+Канонічне місце хелпера — `src/utils/col.mjs` (або `src/conn/col.mjs` залежно від структури проєкту):
 
 ```javascript
-// src/utils/col.js
+// src/utils/col.mjs
 export const col = (arr, key) => arr.map(r => r[key])
 ```
 
 ```javascript
-import { pgWrite } from '#src/conn/db.js'
-import { col } from '#src/utils/col.js'
+import { pgWrite } from '#src/conn/db.mjs'
+import { col } from '#src/utils/col.mjs'
 
 // ❌ oxfmt розгортає на 4+ рядки незалежно від printWidth
 ${pgWrite.array(rows.map(r => r.id), 'int4')}

@@ -1,7 +1,7 @@
 /** @type {import('@stryker-mutator/core').PartialStrykerOptions} */
 export default {
   testRunner: 'vitest',
-  vitest: { configFile: 'vitest.config.js' },
+  vitest: { configFile: 'vitest.config.mjs' },
   // perTest: Stryker запускає лише тести, що покривають мутовану лінію — головний приріст
   // швидкості проти command runner (де треба було б ганяти ввесь test-suite на кожен мутант).
   coverageAnalysis: 'perTest',

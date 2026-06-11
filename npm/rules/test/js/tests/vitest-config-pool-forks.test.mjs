@@ -21,6 +21,20 @@ export default defineConfig({ test: { pool: 'forks' } })
     })
   })
 
+  test("успіх: vitest.config.mjs з pool: 'forks' → exit 0", async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'vitest.config.mjs'), "export default { test: { pool: 'forks' } }\n")
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test("порушення: vitest.config.mjs з pool: 'threads' → exit 1", async () => {
+    await withTmpDir(async dir => {
+      await writeFile(join(dir, 'vitest.config.mjs'), "export default { test: { pool: 'threads' } }\n")
+      expect(await check(dir)).toBe(1)
+    })
+  })
+
   test('успіх: pool: "forks" з подвійними кавичками → exit 0', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'vitest.config.js'), 'export default { test: { pool: "forks" } }\n')
@@ -42,7 +56,7 @@ export default defineConfig({ test: { pool: 'forks' } })
     })
   })
 
-  test('успіх: vitest.config.js відсутній → skip → exit 0', async () => {
+  test('успіх: vitest.config.{mjs,js} відсутній → skip → exit 0', async () => {
     await withTmpDir(async dir => {
       expect(await check(dir)).toBe(0)
     })

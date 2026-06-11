@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '2.1'
+version: '2.2'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -44,14 +44,14 @@ const folderStructure = `
   assets/
   public/
   App.vue
-  main.js
+  main.mjs
 `
 ```
 
 ### Найменування файлів
 
 - **SFC:** імена файлів компонентів у **PascalCase** починаючи з букви N(`NMyWidget.vue`).
-- **Інші JS-модулі:** узгоджено **kebab-case** (`date-utils.js`).
+- **Інші JS-модулі:** узгоджено **kebab-case** (`date-utils.mjs`).
 
 ### Модулі та архітектура
 
@@ -116,9 +116,9 @@ const additionalInstructions = `
 
 ### Тестування
 
-- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.js` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
+- **Unit + Component / DOM:** **Vitest** (`vitest`) + **Vue Test Utils** з **happy-dom** як DOM-середовищем. Це канон, узгоджений з `test.mdc` (Stryker з vitest-runner + `perTest`-аналіз покриття). `vitest.config.mjs` повторно використовує `vite.config.js` через `mergeConfig` і перемикає `environment` на `'happy-dom'`:
 
-```js title="vitest.config.js"
+```js title="vitest.config.mjs"
 import { defineConfig, mergeConfig } from 'vitest/config'
 import viteConfig from './vite.config.js'
 
@@ -590,7 +590,7 @@ function getTr() {
 Називай store за назвою сторінки або компонента — `customerPageStore`, `routePageStore` тощо. На сторінці звертайся до нього через змінну `pageStore`.
 
 ```javascript
-// store/customerPage.js
+// store/customerPage.mjs
 export const useCustomerPageStore = defineStore('customerPage', {
   state: () => ({
     filterName: '',

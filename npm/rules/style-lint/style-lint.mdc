@@ -1,6 +1,6 @@
 ---
 description: Правила стилів CSS та SCSS
-version: '1.4'
+version: '1.5'
 globs: "**/*.{css,scss,vue}"
 alwaysApply: false
 ---

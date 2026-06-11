@@ -18,6 +18,24 @@ const STRYKER_VUE_PLUGIN_PATH = join(HERE, 'data', 'stryker_config', 'stryker-vu
 const STRYKER_VUE_PLUGIN_FILENAME = 'stryker-vue-macros-ignorer.mjs'
 const VITEST_BASELINE_PATH = join(HERE, 'data', 'vitest_config', 'vitest.config.baseline.js')
 
+// Канонічна назва vitest-конфіга — `.mjs` (нові файли, js-lint.mdc); legacy
+// `.js` лишається валідним. Перший знайдений виграє (.mjs пріоритетніший).
+const VITEST_CONFIG_NAMES = ['vitest.config.mjs', 'vitest.config.js']
+// Заміна literal `configFile` у скопійованому stryker-baseline на фактичне
+// ім'я vitest-конфіга jsRoot-а (узгодження Stryker ↔ vitest).
+const STRYKER_CONFIG_FILE_RE = /configFile: 'vitest\.config\.[cm]?js'/u
+
+/**
+ * Визначає ім'я vitest-конфіга для jsRoot: існуючий `.mjs`/`.js` (якщо є),
+ * інакше дефолт `vitest.config.mjs` (нові файли — `.mjs`). Існуючий
+ * `vitest.config.js` лишається валідним (backward-compat), новий не плодиться.
+ * @param {string} jsRoot абсолютний шлях до workspace-каталогу
+ * @returns {string} ім'я vitest-конфіга
+ */
+function resolveVitestConfigName(jsRoot) {
+  return VITEST_CONFIG_NAMES.find(name => existsSync(join(jsRoot, name))) ?? 'vitest.config.mjs'
+}
+
 // Канонічні entries, які vue-варіант baseline тримає у `plugins`/`ignorers`.
 // Augment-крок (augmentVueStrykerConfig) дбає, щоб саме вони були присутні в
 // уже-існуючому `stryker.config.mjs` Vue-root-а. Нову property пишемо у
@@ -64,15 +82,20 @@ async function hasVueFiles(jsRoot) {
  * @param {string} cwd корінь проєкту (для relative-шляхів у логах)
  * @param {string} baselinePath абсолютний шлях до canonical baseline
  * @param {string} target абсолютний шлях, куди копіювати
- * @param {string} label зрозуміла для людини мітка ("stryker.config.mjs" / "vitest.config.js")
+ * @param {string} label зрозуміла для людини мітка ("stryker.config.mjs" / "vitest.config.mjs")
+ * @param {(content: string) => string} [transform] опційне перетворення тексту baseline перед записом
  * @returns {Promise<void>}
  */
-async function ensureBaselineFile(reporter, cwd, baselinePath, target, label) {
+async function ensureBaselineFile(reporter, cwd, baselinePath, target, label, transform) {
   if (existsSync(target)) {
     reporter.pass(`${label} існує (${relative(cwd, target)})`)
     return
   }
-  await copyFile(baselinePath, target)
+  if (transform) {
+    await writeFile(target, transform(await readFile(baselinePath, 'utf8')), 'utf8')
+  } else {
+    await copyFile(baselinePath, target)
+  }
   reporter.pass(`${label} створено з canonical baseline (${relative(cwd, target)}) (test.mdc)`)
 }
 
@@ -341,7 +364,12 @@ export async function check(cwd = process.cwd()) {
     // і саме тут augment закриває drift-hole.
     const wasMissing = !existsSync(strykerTarget)
     const strykerBaseline = isVueRoot ? STRYKER_VUE_BASELINE_PATH : STRYKER_BASELINE_PATH
-    await ensureBaselineFile(reporter, cwd, strykerBaseline, strykerTarget, 'stryker.config.mjs')
+    // configFile у новоствореному baseline має вказувати на фактичний vitest-конфіг
+    // jsRoot-а (existing `.js`/`.mjs` або дефолтний `.mjs`).
+    const vitestName = resolveVitestConfigName(jsRoot)
+    await ensureBaselineFile(reporter, cwd, strykerBaseline, strykerTarget, 'stryker.config.mjs', content =>
+      content.replace(STRYKER_CONFIG_FILE_RE, `configFile: '${vitestName}'`)
+    )
     if (isVueRoot) {
       if (!wasMissing) {
         await augmentVueStrykerConfig(reporter, cwd, jsRoot)
@@ -354,7 +382,7 @@ export async function check(cwd = process.cwd()) {
         STRYKER_VUE_PLUGIN_FILENAME
       )
     }
-    await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, 'vitest.config.js'), 'vitest.config.js')
+    await ensureBaselineFile(reporter, cwd, VITEST_BASELINE_PATH, join(jsRoot, vitestName), vitestName)
   }
 
   // Гарантуємо що тест-артефакти (Stryker output, lcov HTML-звіт) ніколи не

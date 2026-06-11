@@ -77,4 +77,26 @@ describe('check (style-lint tooling)', () => {
       expect(await check(dir)).toBe(0)
     })
   })
+
+  test('exit 0 — конфіг через stylelint.config.mjs (новий канон)', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'x' })
+      await writeFile(join(dir, 'stylelint.config.mjs'), 'export default {}\n', 'utf8')
+      await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
+      await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
+
+  test('exit 0 — конфіг через .stylelintrc.cjs', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'x' })
+      await writeFile(join(dir, '.stylelintrc.cjs'), 'module.exports = {}\n', 'utf8')
+      await writeFile(join(dir, '.stylelintignore'), 'dist/\n', 'utf8')
+      await ensureDir(join(dir, '.github/workflows'))
+      await writeFile(join(dir, '.github/workflows/lint-style.yml'), '# yml\n', 'utf8')
+      expect(await check(dir)).toBe(0)
+    })
+  })
 })

@@ -82,7 +82,7 @@ describe('stryker_config concern', () => {
     expect(existsSync(target)).toBe(true)
     const content = readFileSync(target, 'utf8')
     expect(content).toContain("testRunner: 'vitest'")
-    expect(content).toContain("vitest: { configFile: 'vitest.config.js' }")
+    expect(content).toContain("vitest: { configFile: 'vitest.config.mjs' }")
     expect(content).toContain("coverageAnalysis: 'perTest'")
     expect(content).toContain("jsonReporter: { fileName: 'reports/stryker/mutation.json' }")
     expect(content).toContain('incremental: true')
@@ -90,12 +90,14 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled — копіює також vitest.config.js разом зі stryker.config.mjs', async () => {
+  test('js-lint enabled — копіює також vitest.config.mjs разом зі stryker.config.mjs', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
-    const vitestTarget = join(proj.dir, 'vitest.config.js')
+    const vitestTarget = join(proj.dir, 'vitest.config.mjs')
     expect(existsSync(vitestTarget)).toBe(true)
+    // нові файли — `.mjs`, не `.js` (js-lint.mdc)
+    expect(existsSync(join(proj.dir, 'vitest.config.js'))).toBe(false)
     const content = readFileSync(vitestTarget, 'utf8')
     expect(content).toContain("from 'vitest/config'")
     expect(content).toContain('defineConfig')
@@ -109,9 +111,9 @@ describe('stryker_config concern', () => {
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(proj.dir, 'app', 'stryker.config.mjs'))).toBe(true)
-    expect(existsSync(join(proj.dir, 'app', 'vitest.config.js'))).toBe(true)
+    expect(existsSync(join(proj.dir, 'app', 'vitest.config.mjs'))).toBe(true)
     expect(existsSync(join(proj.dir, 'stryker.config.mjs'))).toBe(false)
-    expect(existsSync(join(proj.dir, 'vitest.config.js'))).toBe(false)
+    expect(existsSync(join(proj.dir, 'vitest.config.mjs'))).toBe(false)
     proj.cleanup()
   })
 
@@ -126,9 +128,9 @@ describe('stryker_config concern', () => {
     const exitCode = await runCheckIn(dir)
     expect(exitCode).toBe(0)
     expect(existsSync(join(dir, 'app', 'stryker.config.mjs'))).toBe(true)
-    expect(existsSync(join(dir, 'app', 'vitest.config.js'))).toBe(true)
+    expect(existsSync(join(dir, 'app', 'vitest.config.mjs'))).toBe(true)
     expect(existsSync(join(dir, 'scripts', 'stryker.config.mjs'))).toBe(true)
-    expect(existsSync(join(dir, 'scripts', 'vitest.config.js'))).toBe(true)
+    expect(existsSync(join(dir, 'scripts', 'vitest.config.mjs'))).toBe(true)
     expect(existsSync(join(dir, 'stryker.config.mjs'))).toBe(false)
     rmSync(dir, { recursive: true, force: true })
   })
@@ -143,13 +145,31 @@ describe('stryker_config concern', () => {
     proj.cleanup()
   })
 
-  test('js-lint enabled + vitest.config.js існує — не перезаписує', async () => {
+  test('js-lint enabled + legacy vitest.config.js існує — не перезаписує, .mjs не плодиться, stryker configFile = .js', async () => {
     const proj = makeProj({ rules: ['js-lint'] })
     const target = join(proj.dir, 'vitest.config.js')
     writeFileSync(target, '// custom vitest config')
     const exitCode = await runCheckIn(proj.dir)
     expect(exitCode).toBe(0)
+    // legacy `.js` лишається як є; новий `.mjs` поряд не створюється
     expect(readFileSync(target, 'utf8')).toBe('// custom vitest config')
+    expect(existsSync(join(proj.dir, 'vitest.config.mjs'))).toBe(false)
+    // stryker configFile приведено до фактичного імені — `.js`
+    const stryker = readFileSync(join(proj.dir, 'stryker.config.mjs'), 'utf8')
+    expect(stryker).toContain("configFile: 'vitest.config.js'")
+    proj.cleanup()
+  })
+
+  test('js-lint enabled + vitest.config.mjs існує — не перезаписує, .js не плодиться, stryker configFile = .mjs', async () => {
+    const proj = makeProj({ rules: ['js-lint'] })
+    const target = join(proj.dir, 'vitest.config.mjs')
+    writeFileSync(target, '// custom vitest config')
+    const exitCode = await runCheckIn(proj.dir)
+    expect(exitCode).toBe(0)
+    expect(readFileSync(target, 'utf8')).toBe('// custom vitest config')
+    expect(existsSync(join(proj.dir, 'vitest.config.js'))).toBe(false)
+    const stryker = readFileSync(join(proj.dir, 'stryker.config.mjs'), 'utf8')
+    expect(stryker).toContain("configFile: 'vitest.config.mjs'")
     proj.cleanup()
   })
 

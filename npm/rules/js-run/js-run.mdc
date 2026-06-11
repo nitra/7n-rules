@@ -2,7 +2,7 @@
 description: Це правила для backend проектів на JavaScript/Node.js, сюди входять і job і WEB сервери.
 globs: "**/package.json,**/jsconfig.json,**/src/**/*.{js,mjs,cjs,ts,tsx}"
 alwaysApply: false
-version: '1.11'
+version: '1.12'
 ---
 
 ## Область застосування
@@ -97,7 +97,7 @@ import sql from 'mssql'
 import { GraphQLClient } from '@nitra/graphql-request'
 ```
 
-то ці підключення повинні бути винесені в окремий файл, наприклад `/src/conn/pg.js`, в package.json повинні бути додано аліас:
+то ці підключення повинні бути винесені в окремий файл, наприклад `/src/conn/pg.mjs`, в package.json повинні бути додано аліас:
 
 ```json
 {
@@ -110,7 +110,7 @@ import { GraphQLClient } from '@nitra/graphql-request'
 
 так виглядатиме підключення до PostgreSQL в коді:
 
-```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.mjs"
 import { checkEnv, env } from '@nitra/check-env'
 import { SQL } from 'bun'
 
@@ -140,7 +140,7 @@ export const graphQLClientSmart = new GraphQLClient(env.QL, {
 а в коді повинно бути використано:
 
 ```js
-import { pool } from '#conn/pg.js'
+import { pool } from '#conn/pg.mjs'
 
 // або
 
@@ -152,24 +152,24 @@ import { gql, graphQLClient } from '@nitra/graphql-request'
 Назва файла в `src/conn/` має одразу повідомляти, **до чого** підключаємось і **в якому режимі**:
 
 - **GraphQL** — префікс `ql-`, далі ідентифікатор endpoint:
-  - `src/conn/ql-contract.js`
-  - `src/conn/ql-smart.js`
+  - `src/conn/ql-contract.mjs`
+  - `src/conn/ql-smart.mjs`
 - **PostgreSQL** — префікс `pg-`, далі тип підключення (репліка vs мастер): `read` або `write`:
-  - `src/conn/pg-read.js`
-  - `src/conn/pg-write.js`
+  - `src/conn/pg-read.mjs`
+  - `src/conn/pg-write.mjs`
 - **PostgreSQL до кількох БД** — додатково ідентифікатор підключення після типу:
-  - `src/conn/pg-read-smart.js`
-  - `src/conn/pg-write-contract.js`
-- **MySQL** — префікс `mysql-` за тією ж схемою (`mysql-read.js`, `mysql-write-<id>.js` тощо).
-- **MSSQL** — префікс `mssql-` за тією ж схемою (`mssql-read.js`, `mssql-write-<id>.js` тощо). Хоча npm-пакет один (`mssql`), а драйвер MS SQL Server під капотом T-SQL — у файловій назві відрізняємо MS SQL Server від MySQL, бо це різні СУБД, різні діалекти, різні рантаймні залежності. Якщо проєкт історично використовує `mysql-…` для MSSQL-підключень — він валідний і далі (для backward-compat), але новий код пишемо з префіксом `mssql-`.
+  - `src/conn/pg-read-smart.mjs`
+  - `src/conn/pg-write-contract.mjs`
+- **MySQL** — префікс `mysql-` за тією ж схемою (`mysql-read.mjs`, `mysql-write-<id>.mjs` тощо).
+- **MSSQL** — префікс `mssql-` за тією ж схемою (`mssql-read.mjs`, `mssql-write-<id>.mjs` тощо). Хоча npm-пакет один (`mssql`), а драйвер MS SQL Server під капотом T-SQL — у файловій назві відрізняємо MS SQL Server від MySQL, бо це різні СУБД, різні діалекти, різні рантаймні залежності. Якщо проєкт історично використовує `mysql-…` для MSSQL-підключень — він валідний і далі (для backward-compat), але новий код пишемо з префіксом `mssql-`.
 
-Підключення до БД **обов'язково** має бути ідентифіковано як `read` (репліка) або `write` (мастер). Якщо з імені змінної оточення (наприклад, `env.PG_CONN`) це не очевидно — визнач режим за операціями в коді: якщо немає операцій зміни даних (`INSERT`/`UPDATE`/`DELETE`/DDL) — це `pg-read.js`, інакше `pg-write.js`.
+Підключення до БД **обов'язково** має бути ідентифіковано як `read` (репліка) або `write` (мастер). Якщо з імені змінної оточення (наприклад, `env.PG_CONN`) це не очевидно — визнач режим за операціями в коді: якщо немає операцій зміни даних (`INSERT`/`UPDATE`/`DELETE`/DDL) — це `pg-read.mjs`, інакше `pg-write.mjs`.
 
 ### Експорти у файлах `src/conn/`
 
 У файлах підключень **заборонений** `export default`. Експорт має бути **іменований** і збігатися з назвою файла в camelCase.
 
-Приклад — `src/conn/ql-smart.js`:
+Приклад — `src/conn/ql-smart.mjs`:
 
 ```javascript title="❌ Так не можна"
 export default new GraphQLClient(env.SMART_QL, {
@@ -187,13 +187,13 @@ export const qlSmart = new GraphQLClient(env.SMART_QL, {
 })
 ```
 
-Відповідно: `pg-read.js` → `export const pgRead = …`, `pg-write-contract.js` → `export const pgWriteContract = …`, `ql-contract.js` → `export const qlContract = …`.
+Відповідно: `pg-read.mjs` → `export const pgRead = …`, `pg-write-contract.mjs` → `export const pgWriteContract = …`, `ql-contract.mjs` → `export const qlContract = …`.
 
 ## CheckEnv
 
 Усі змінні оточення, які використовуються в коді, повинні бути перевірені за допомогою `checkEnv` з пакету `@nitra/check-env`. Це гарантує, що всі необхідні змінні оточення встановлені перед запуском програми.
 
-```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.js"
+```javascript title="Приклад підключення до PostgreSQL в /src/conn/pg.mjs"
 import { checkEnv, env } from '@nitra/check-env'
 import { SQL } from 'bun'
 

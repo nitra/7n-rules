@@ -5,6 +5,18 @@ import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
 
+// Зовнішні файли конфігу stylelint, які підхоплює cosmiconfig. Канон нових
+// JS-конфігів — `.mjs`/`.cjs` (js-lint.mdc), legacy `.js` лишається валідним.
+const STYLELINT_CONFIG_FILES = [
+  '.stylelintrc.json',
+  '.stylelintrc.js',
+  '.stylelintrc.cjs',
+  '.stylelintrc.mjs',
+  'stylelint.config.js',
+  'stylelint.config.cjs',
+  'stylelint.config.mjs'
+]
+
 /**
  * Альтернатива полю `stylelint` у `package.json` — зовнішній файл конфігу. Якщо
  * поля немає і файлу немає, фейлимося; якщо є хоч щось — пропускаємо. Поле
@@ -18,10 +30,7 @@ async function checkStylelintConfigPresence(reporter, cwd) {
   if (!existsSync(pkgPath)) return
   const pkg = JSON.parse(await readFile(pkgPath, 'utf8'))
   const hasField = pkg.stylelint && typeof pkg.stylelint === 'object'
-  const hasExternalCfg =
-    existsSync(join(cwd, '.stylelintrc.json')) ||
-    existsSync(join(cwd, '.stylelintrc.js')) ||
-    existsSync(join(cwd, 'stylelint.config.js'))
+  const hasExternalCfg = STYLELINT_CONFIG_FILES.some(name => existsSync(join(cwd, name)))
   if (hasField || hasExternalCfg) {
     pass('Конфіг stylelint є — у package.json або окремим файлом')
   } else {
