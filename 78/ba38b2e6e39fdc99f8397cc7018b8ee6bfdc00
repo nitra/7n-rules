@@ -1,0 +1,19 @@
+npm/skills/doc-files/.changes/260612-0002.md
+  s_94882c41603dc2::t_085923febdca60 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "78ba38b2e6e39fdc99f8397cc7018b8ee6bfdc00",
+  "prompts": {},
+  "sessions": {
+    "s_94882c41603dc2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d0376a6a-e806-4473-aa31-5ca3e3ae2817",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
