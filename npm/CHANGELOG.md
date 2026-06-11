@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.3.2] - 2026-06-11
+
+### Changed
+
+- release: @nitra/cursor@5.3.1
+
 ## [5.3.1] - 2026-06-11
 
 ### Fixed
