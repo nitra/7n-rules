@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.0] - 2026-06-11
+
+### Added
+
+- js-lint: нові JS-файли створюються з явним розширенням .mjs/.cjs (не .js); приклади нового вихідного коду в js-run/js-bun-db/vue переведено на .mjs. test: підтримка vitest.config.mjs — pool-forks і stryker_config приймають .mjs/.js (новий канон .mjs, legacy .js не дублюється), stryker.configFile приводиться до фактичного імені. style-lint: чекер розпізнає stylelint.config.mjs/.cjs та .stylelintrc.mjs/.cjs.
+- llm wire-trace: always-on багатий JSONL-запис на кожен `callLlm` (обидва канали — reasoning + слід) у `<cwd>/.n-cursor/llm-trace.jsonl` (gitignored, недеструктивна ротація 50 MB, kill-switch `N_CURSOR_LLM_TRACE=0`); `callOmlxRaw` дістає reasoning_content/usage/finish_reason/attempts (`callOmlx` лишається `string`-обгорткою); `fix`+`coverage-classify` мігровано з прямого `callOmlx`/`pi`-spawn на спільний `callLlm` (caller-мітка). Спека: docs/specs/2026-06-10-omlx-wire-trace-capture-design.md
+
 ## [5.2.1] - 2026-06-11
 
 ### Changed
