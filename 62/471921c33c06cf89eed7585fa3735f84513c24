@@ -1,0 +1,19 @@
+docs/superpowers/plans/2026-06-11-doc-files-regen-rollout.md
+  s_7d07517e0aae7f::t_d9de90684445ff 1-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "62471921c33c06cf89eed7585fa3735f84513c24",
+  "prompts": {},
+  "sessions": {
+    "s_7d07517e0aae7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b46c022-4ebd-4607-817b-3df1cbb1414d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
