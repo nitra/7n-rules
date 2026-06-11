@@ -1,5 +1,5 @@
 /**
- * PostToolUse hook для Claude Code: точкова маршрутизація `npx @nitra/cursor fix`
+ * PostToolUse hook для Claude Code: точкова маршрутизація `npx \@nitra/cursor fix`
  * за типом зміненого файла. Запускається після кожного `Edit` / `Write` / `MultiEdit`;
  * замінює дорогий синхронний `Stop`-хук, що ганяв повний `fix` усіх правил на кожному
  * turn-і.
@@ -8,7 +8,7 @@
  * - stdin Claude Code: JSON із `tool_input.file_path` (відносний шлях зміненого файла);
  * - exit 0, якщо файл не має маршрут (PostToolUse не блокує turn у будь-якому випадку,
  *   але ми лишаємо exit-код прозорим — для діагностики);
- * - інакше spawn `npx --no @nitra/cursor fix <rules…>` із передаванням exit-коду.
+ * - інакше spawn `npx --no \@nitra/cursor fix <rules…>` із передаванням exit-коду.
  *
  * Маршрути впорядковані від найбільш специфічного до загального; перший збіг — переможець.
  * `docs/adr/**\/*.md` свідомо повертає `[]`: ADR-нормалізація вже покривається async
@@ -46,7 +46,7 @@ const ROUTES = Object.freeze([
  * Повертає список правил, які слід прогнати для зміненого `filePath`.
  * Перший збіг із `ROUTES` — переможець; невідомі шляхи / некоректні входи → `[]`.
  * @param {unknown} filePath відносний шлях зміненого файла зі stdin Claude Code
- * @returns {string[]} ID правил для `npx @nitra/cursor fix`
+ * @returns {string[]} ID правил для `npx \@nitra/cursor fix`
  */
 export function routeFilePathToRules(filePath) {
   if (typeof filePath !== 'string' || filePath === '') {

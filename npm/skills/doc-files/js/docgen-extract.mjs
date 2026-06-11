@@ -65,7 +65,7 @@ function cleanJsDoc(raw) {
 }
 
 /**
- * Опис (без @-тегів) + параметри з @param як «name — опис».
+ * Опис (без @-тегів) + параметри з `@param` як «name — опис».
  * @param {string} raw сирий JSDoc-блок
  * @returns {{desc:string, params:Array<{name:string, desc:string}>, ret:string}} розпарсений опис, параметри й опис повернення
  */

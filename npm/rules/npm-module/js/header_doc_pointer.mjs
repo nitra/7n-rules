@@ -42,6 +42,77 @@ function moduleJsDoc(source) {
 }
 
 /**
+ * Чи `.mjs`-файл, що не є тестом (`*.test.mjs`).
+ * @param {import('node:fs').Dirent} fileEntry запис каталогу
+ * @returns {boolean} true для звичайних source-файлів
+ */
+function isSourceMjs(fileEntry) {
+  return (
+    fileEntry.isFile() && fileEntry.name.endsWith('.mjs') && !fileEntry.name.endsWith('.test.mjs')
+  )
+}
+
+/**
+ * Перевіряє один source-файл: якщо поряд є `docs/<stem>.md` і module-level JSDoc
+ * містить >1 непорожній рядок — репортить порушення.
+ * @param {string} jsDir каталог `js/`
+ * @param {import('node:fs').Dirent} fileEntry запис файлу
+ * @param {string} cwd корінь репозиторію
+ * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @returns {Promise<void>}
+ */
+async function checkSourceFile(jsDir, fileEntry, cwd, reporter) {
+  const stem = basename(fileEntry.name, '.mjs')
+  const docsPath = join(jsDir, 'docs', `${stem}.md`)
+  if (!existsSync(docsPath)) return
+
+  const filePath = join(jsDir, fileEntry.name)
+  const source = await readFile(filePath, 'utf8')
+  const block = moduleJsDoc(source)
+  if (!block) return
+
+  const count = contentLineCount(block)
+  if (count > 1) {
+    reporter.fail(
+      `${filePath.slice(cwd.length + 1)}: docs/${stem}.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз ${count})`
+    )
+  }
+}
+
+/**
+ * Перевіряє всі source-файли в одному `js/`-каталозі правила/скіла.
+ * @param {string} jsDir каталог `js/`
+ * @param {string} cwd корінь репозиторію
+ * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @returns {Promise<void>}
+ */
+async function checkJsDir(jsDir, cwd, reporter) {
+  for (const fileEntry of await readdir(jsDir, { withFileTypes: true })) {
+    if (!isSourceMjs(fileEntry)) continue
+    await checkSourceFile(jsDir, fileEntry, cwd, reporter)
+  }
+}
+
+/**
+ * Перевіряє один base-сегмент (`npm/rules` чи `npm/skills`): обходить піддиректорії
+ * правил/скілів і їхні `js/`-каталоги.
+ * @param {string} absBase абсолютний шлях до base-сегмента
+ * @param {string} cwd корінь репозиторію
+ * @param {ReturnType<typeof createCheckReporter>} reporter репортер
+ * @returns {Promise<void>}
+ */
+async function checkBaseSegment(absBase, cwd, reporter) {
+  for (const ruleEntry of await readdir(absBase, { withFileTypes: true })) {
+    if (!ruleEntry.isDirectory() || ruleEntry.name.startsWith('.')) continue
+
+    const jsDir = join(absBase, ruleEntry.name, 'js')
+    if (!existsSync(jsDir)) continue
+
+    await checkJsDir(jsDir, cwd, reporter)
+  }
+}
+
+/**
  * Сканує `npm/rules/*\/js/*.mjs` і `npm/skills/*\/js/*.mjs`.
  * Якщо поряд існує `docs/<stem>.md` — module-level JSDoc має бути pointer (≤1 рядок),
  * а не наратив; якщо docs немає — без обмежень.
@@ -54,33 +125,7 @@ export async function check(cwd = process.cwd()) {
   for (const baseSegment of ['npm/rules', 'npm/skills']) {
     const absBase = join(cwd, baseSegment)
     if (!existsSync(absBase)) continue
-
-    for (const ruleEntry of await readdir(absBase, { withFileTypes: true })) {
-      if (!ruleEntry.isDirectory() || ruleEntry.name.startsWith('.')) continue
-
-      const jsDir = join(absBase, ruleEntry.name, 'js')
-      if (!existsSync(jsDir)) continue
-
-      for (const fileEntry of await readdir(jsDir, { withFileTypes: true })) {
-        if (!fileEntry.isFile() || !fileEntry.name.endsWith('.mjs') || fileEntry.name.endsWith('.test.mjs')) continue
-
-        const stem = basename(fileEntry.name, '.mjs')
-        const docsPath = join(jsDir, 'docs', `${stem}.md`)
-        if (!existsSync(docsPath)) continue
-
-        const filePath = join(jsDir, fileEntry.name)
-        const source = await readFile(filePath, 'utf8')
-        const block = moduleJsDoc(source)
-        if (!block) continue
-
-        const count = contentLineCount(block)
-        if (count > 1) {
-          reporter.fail(
-            `${filePath.slice(cwd.length + 1)}: docs/${stem}.md вже описує поведінку — module-level JSDoc має бути pointer (≤1 рядок, зараз ${count})`
-          )
-        }
-      }
-    }
+    await checkBaseSegment(absBase, cwd, reporter)
   }
 
   return reporter.getExitCode()

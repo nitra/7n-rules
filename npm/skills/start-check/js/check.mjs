@@ -111,7 +111,7 @@ function diffSideEffects(before, after) {
  * Запускає `start` одного воркспейсу з grace-таймаутом і класифікує результат.
  * @param {string} cwd корінь репозиторію
  * @param {string} workspace відносний шлях воркспейсу
- * @param {{graceMs?:number, type?:('server'|'cli'), spawnImpl?:Function}} [opts] grace-період, тип (інакше з package.json), інʼєкція spawn для тестів
+ * @param {{graceMs?:number, type?:('server'|'cli'), spawnImpl?:typeof import('node:child_process').spawnSync}} [opts] grace-період, тип (інакше з package.json), інʼєкція spawn для тестів
  * @returns {Promise<{workspace:string, type:string, exitCode:number|null, timedOut:boolean, status:('OK'|'FAIL'), ready:boolean, firstError:string|null, logTail:string, sideEffects:{newFiles:string[], changedTracked:string[]}}>} результат прогону
  */
 export async function runWorkspaceStart(cwd, workspace, opts = {}) {

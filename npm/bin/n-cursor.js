@@ -1243,7 +1243,73 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Spawn-wrapper для `npx @nitra/cursor fix [<rule>...]`. Один шлях у коді: для кожного правила
+ * Визначає список правил для fix: явно задані (з валідацією проти available) або
+ * discovery з `.cursor/rules/*.mdc`. Друкує діагностику й кидає на невідомих правилах.
+ * @param {string[]} requestedRules запитані правила (порожній → discovery)
+ * @param {string[]} available доступні в пакеті rule-id
+ * @param {boolean} json json-режим (впливає на early-return вивід при порожньому discovery)
+ * @returns {Promise<string[]|null>} список id або null — нічого запускати (вивід уже зроблено)
+ */
+async function resolveFixRuleIds(requestedRules, available, json) {
+  if (requestedRules.length > 0) {
+    const unknown = requestedRules.filter(id => !available.includes(id))
+    if (unknown.length > 0) {
+      console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
+      console.log(`   Доступні: ${available.join(', ')}`)
+      throw new Error(`Unknown rules: ${unknown.join(', ')}`)
+    }
+    return requestedRules
+  }
+
+  const mdcFiles = await listProjectRulesMdcFiles()
+  if (mdcFiles.length === 0) {
+    throw new Error(
+      `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} fix bun ga\``
+    )
+  }
+  const idsToRun = discoverCheckRulesFromCursorRules(available, mdcFiles)
+  if (idsToRun.length === 0) {
+    if (json) {
+      process.stdout.write(`${JSON.stringify({ total: 0, failed: 0, rules: [] })}\n`)
+      return null
+    }
+    console.log(
+      `\n🔍 ${PACKAGE_NAME} fix — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
+        `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
+    )
+    return null
+  }
+  return idsToRun
+}
+
+/**
+ * Прогоняє `fix.mjs` кожного правила окремим процесом; збирає timings і (для json) per-rule output.
+ * @param {string[]} idsToRun правила до запуску
+ * @param {boolean} json json-режим — захоплює stdout/stderr у структуру замість inherit у термінал
+ * @returns {{ totalFailed: number, timings: {id:string, ms:number, ok:boolean}[], ruleResults: {ruleId:string, ok:boolean, output:string}[] }} підсумок прогону
+ */
+function runRuleFixProcesses(idsToRun, json) {
+  let totalFailed = 0
+  const timings = []
+  const ruleResults = []
+  for (const id of idsToRun) {
+    const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
+    const startedAt = Date.now()
+    const result = json
+      ? spawnSync('bun', [fixPath], { encoding: 'utf8' })
+      : spawnSync('bun', [fixPath], { stdio: 'inherit' })
+    const ok = result.status === 0
+    timings.push({ id: `fix-${id}`, ms: Date.now() - startedAt, ok })
+    if (json) {
+      ruleResults.push({ ruleId: id, ok, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() })
+    }
+    if (!ok) totalFailed++
+  }
+  return { totalFailed, timings, ruleResults }
+}
+
+/**
+ * Spawn-wrapper для `npx \@nitra/cursor fix [<rule>...]`. Один шлях у коді: для кожного правила
  * робить `bun rules/<id>/fix.mjs` як окремий процес. Сам `fix.mjs` читає `.n-cursor.json`,
  * перевіряє whitelist (`runRuleCli`) і друкує per-rule summary.
  *
@@ -1272,56 +1338,12 @@ async function runFixCommand(requestedRules, opts = {}) {
     throw new Error('No rules found')
   }
 
-  let idsToRun
-  if (requestedRules.length > 0) {
-    const unknown = requestedRules.filter(id => !available.includes(id))
-    if (unknown.length > 0) {
-      console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
-      console.log(`   Доступні: ${available.join(', ')}`)
-      throw new Error(`Unknown rules: ${unknown.join(', ')}`)
-    }
-    idsToRun = requestedRules
-  } else {
-    const mdcFiles = await listProjectRulesMdcFiles()
-    if (mdcFiles.length === 0) {
-      throw new Error(
-        `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} fix bun ga\``
-      )
-    }
-    idsToRun = discoverCheckRulesFromCursorRules(available, mdcFiles)
-    if (idsToRun.length === 0) {
-      if (json) {
-        process.stdout.write(`${JSON.stringify({ total: 0, failed: 0, rules: [] })}\n`)
-        return
-      }
-      console.log(
-        `\n🔍 ${PACKAGE_NAME} fix — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
-          `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
-      )
-      return
-    }
-  }
+  // json-режим: захоплюємо stdout/stderr правила у структуру (а не inherit у термінал),
+  // щоб віддати агенту згруповано {ruleId, ok, output} і він читав лише впалі.
+  const idsToRun = await resolveFixRuleIds(requestedRules, available, json)
+  if (idsToRun === null) return
 
-  let totalFailed = 0
-  /** @type {{ id: string, ms: number, ok: boolean }[]} */
-  const timings = []
-  /** @type {{ ruleId: string, ok: boolean, output: string }[]} */
-  const ruleResults = []
-  for (const id of idsToRun) {
-    const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
-    const startedAt = Date.now()
-    // json-режим: захоплюємо stdout/stderr правила у структуру (а не inherit у термінал),
-    // щоб віддати агенту згруповано {ruleId, ok, output} і він читав лише впалі.
-    const result = json
-      ? spawnSync('bun', [fixPath], { encoding: 'utf8' })
-      : spawnSync('bun', [fixPath], { stdio: 'inherit' })
-    const ok = result.status === 0
-    timings.push({ id: `fix-${id}`, ms: Date.now() - startedAt, ok })
-    if (json) {
-      ruleResults.push({ ruleId: id, ok, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() })
-    }
-    if (!ok) totalFailed++
-  }
+  const { totalFailed, timings, ruleResults } = runRuleFixProcesses(idsToRun, json)
 
   if (json) {
     process.stdout.write(`${JSON.stringify({ total: idsToRun.length, failed: totalFailed, rules: ruleResults })}\n`)

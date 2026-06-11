@@ -22,7 +22,7 @@ export const VerdictSchema = z.object({
  * Витягує JSON-об'єкт з raw-text LLM-відповіді і валідує через VerdictSchema.
  * @param {string} rawText raw-text відповідь LLM
  * @returns {{verdict: string, confidence: number, reason: string, suggestedTest?: string}} verdict
- * @throws якщо JSON не знайдено, не парситься, або не відповідає схемі
+ * @throws {Error} якщо JSON не знайдено, не парситься, або не відповідає схемі
  */
 export function parseVerdict(rawText) {
   const jsonStart = rawText.indexOf('{')

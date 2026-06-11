@@ -6,11 +6,11 @@
  * `.n-cursor.json`) — далі stdout або делегування в `cursor-agent` / `claude`.
  *
  * Підтримувані формати:
- *   `npx @nitra/cursor skill list`
- *   `npx @nitra/cursor skill taze`
- *   `npx @nitra/cursor skill cursor taze`
- *   `npx @nitra/cursor skill cursor taze "онови залежності"`
- *   `npx @nitra/cursor skill claude taze` — те саме через Claude Code CLI
+ *   `npx \@nitra/cursor skill list`
+ *   `npx \@nitra/cursor skill taze`
+ *   `npx \@nitra/cursor skill cursor taze`
+ *   `npx \@nitra/cursor skill cursor taze "онови залежності"`
+ *   `npx \@nitra/cursor skill claude taze` — те саме через Claude Code CLI
  */
 
 import { spawnSync } from 'node:child_process'

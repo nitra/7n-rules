@@ -79,7 +79,7 @@ function listDescFiles(cwd) {
 /**
  * add: створити worktree від HEAD + .md-опис.
  * @param {string[]} rest [branch, ...descParts]
- * @param {{ cwd: string, log: Function, logError: Function, now: () => Date }} ctx контекст
+ * @param {{ cwd: string, log: (line: string) => void, logError: (line: string) => void, now: () => Date }} ctx контекст
  * @returns {number} exit code
  */
 function cmdAdd(rest, ctx) {
@@ -135,7 +135,7 @@ function cmdAdd(rest, ctx) {
 /**
  * remove: прибрати checkout + .md (гілку лишає).
  * @param {string[]} rest [branch, ...flags]
- * @param {{ cwd: string, log: Function, logError: Function }} ctx контекст
+ * @param {{ cwd: string, log: (line: string) => void, logError: (line: string) => void }} ctx контекст
  * @returns {number} exit code
  */
 function cmdRemove(rest, ctx) {
@@ -167,7 +167,7 @@ function cmdRemove(rest, ctx) {
 
 /**
  * list: git worktree list + вміст .md-описів.
- * @param {{ cwd: string, log: Function }} ctx контекст
+ * @param {{ cwd: string, log: (line: string) => void }} ctx контекст
  * @returns {number} exit code
  */
 function cmdList(ctx) {
@@ -181,7 +181,7 @@ function cmdList(ctx) {
 
 /**
  * prune: git worktree prune + видалити осиротілі .md.
- * @param {{ cwd: string, log: Function }} ctx контекст
+ * @param {{ cwd: string, log: (line: string) => void }} ctx контекст
  * @returns {number} exit code
  */
 function cmdPrune(ctx) {
@@ -198,7 +198,7 @@ function cmdPrune(ctx) {
 /**
  * Точка входу підкоманди worktree.
  * @param {string[]} argv аргументи після `worktree`
- * @param {{ cwd?: string, log?: Function, logError?: Function, now?: () => Date }} [options] ін'єкція для тестів
+ * @param {{ cwd?: string, log?: (line: string) => void, logError?: (line: string) => void, now?: () => Date }} [options] ін'єкція для тестів
  * @returns {Promise<number>} exit code
  */
 export function runWorktreeCli(argv, options = {}) {

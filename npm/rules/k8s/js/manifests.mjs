@@ -3942,7 +3942,7 @@ export function loadSnippetSpec(snippetName) {
   const url = NETWORK_POLICY_SNIPPET_URLS[snippetName]
   if (!url) throw new Error(`Unknown NetworkPolicy snippet: ${snippetName}`)
   const raw = readFileSync(fileURLToPath(url), 'utf8')
-  _snippetCache[snippetName] = /** @type {any} */ (parseDocument(raw).toJS()).spec
+  _snippetCache[snippetName] = /** @type {{ spec: Record<string, unknown> }} */ (parseDocument(raw).toJS()).spec
   return _snippetCache[snippetName]
 }
 
@@ -3981,7 +3981,7 @@ const noopFail = msg => msg
 /**
  * `from`-peers для HTTPRoute-aware ingress-правила (GCP HC global + Envoy data-plane / proxy-only subnet).
  * Порядок зафіксовано детерміністичним (HC-global → 10.0.0.0/8). Див. розділ «HTTPRoute → NetworkPolicy ingress» у k8s.mdc.
- * @type {ReadonlyArray<{ ipBlock: { cidr: string } }>}
+ * @type {readonly { ipBlock: { cidr: string } }[]}
  */
 const NETWORK_POLICY_GCLB_INGRESS_FROM = Object.freeze([
   // eslint-disable-next-line sonarjs/no-hardcoded-ip
@@ -4061,45 +4061,7 @@ export async function collectHttpRouteIngressForWorkload(dir, appLabel, fail) {
   const servicesByName = new Map()
 
   for (const abs of yamlFiles) {
-    let raw
-    try {
-      raw = await readFile(abs, 'utf8')
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${abs}: не вдалося прочитати для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
-      continue
-    }
-    const lines = toLines(raw)
-    const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
-    /** @type {import('yaml').Document[]} */
-    let docs
-    try {
-      docs = parseAllDocuments(body)
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error)
-      fail(`${abs}: не вдалося розібрати YAML для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
-      continue
-    }
-    for (const doc of docs) {
-      if (doc.errors.length > 0) {
-        fail(
-          `${abs}: YAML містить помилки для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${doc.errors[0].message}`
-        )
-        continue
-      }
-      const rec = asPlainRecord(doc.toJSON())
-      if (rec === null) continue
-      const av = rec.apiVersion
-      if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
-        collectHttpRouteBackendRefsInto(rec.spec, allBackendRefs)
-      } else if (rec.kind === 'Service') {
-        const name = manifestMetadataName(rec)
-        if (name !== null) {
-          const app = serviceSelectorAppLabel(rec.spec)
-          if (app !== null) servicesByName.set(name, app)
-        }
-      }
-    }
+    await collectHttpRouteFileInto(abs, allBackendRefs, servicesByName, fail)
   }
 
   /** @type {Set<number>} */
@@ -4110,6 +4072,68 @@ export async function collectHttpRouteIngressForWorkload(dir, appLabel, fail) {
   }
   if (ports.size === 0) return null
   return { ports: [...ports].toSorted((a, b) => a - b) }
+}
+
+/**
+ * Читає й парсить один YAML-файл і акумулює HTTPRoute-backendRefs та Service `app`-мітки.
+ * Read/parse/doc-помилки репортяться через `fail` і не зупиняють обхід (як у оригінальному циклі).
+ * @param {string} abs абсолютний шлях до YAML-файлу
+ * @param {Array<{ name: string, port: number }>} allBackendRefs акумулятор backendRefs
+ * @param {Map<string, string>} servicesByName акумулятор Service name → app-label
+ * @param {(msg: string) => void} fail callback при read/parse-помилці
+ * @returns {Promise<void>} результат
+ */
+async function collectHttpRouteFileInto(abs, allBackendRefs, servicesByName, fail) {
+  let raw
+  try {
+    raw = await readFile(abs, 'utf8')
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${abs}: не вдалося прочитати для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
+    return
+  }
+  const lines = toLines(raw)
+  const body = lines.length > 0 && MODELINE_RE.test(lines[0]) ? yamlBodyAfterModeline(lines) : lines.join('\n')
+  /** @type {import('yaml').Document[]} */
+  let docs
+  try {
+    docs = parseAllDocuments(body)
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
+    fail(`${abs}: не вдалося розібрати YAML для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${msg}`)
+    return
+  }
+  for (const doc of docs) {
+    if (doc.errors.length > 0) {
+      fail(
+        `${abs}: YAML містить помилки для GCLB ingress (HTTPRoute → NetworkPolicy mapping; k8s.mdc): ${doc.errors[0].message}`
+      )
+      continue
+    }
+    collectHttpRouteDocInto(doc.toJSON(), allBackendRefs, servicesByName)
+  }
+}
+
+/**
+ * Класифікує один YAML-документ (HTTPRoute / Service) і акумулює backendRefs / Service `app`-мітку.
+ * @param {unknown} json розпарсений документ
+ * @param {Array<{ name: string, port: number }>} allBackendRefs акумулятор backendRefs
+ * @param {Map<string, string>} servicesByName акумулятор Service name → app-label
+ * @returns {void} результат
+ */
+function collectHttpRouteDocInto(json, allBackendRefs, servicesByName) {
+  const rec = asPlainRecord(json)
+  if (rec === null) return
+  const av = rec.apiVersion
+  if (rec.kind === 'HTTPRoute' && typeof av === 'string' && av.startsWith(GATEWAY_API_GROUP_PREFIX)) {
+    collectHttpRouteBackendRefsInto(rec.spec, allBackendRefs)
+  } else if (rec.kind === 'Service') {
+    const name = manifestMetadataName(rec)
+    if (name !== null) {
+      const app = serviceSelectorAppLabel(rec.spec)
+      if (app !== null) servicesByName.set(name, app)
+    }
+  }
 }
 
 /**
@@ -4824,6 +4848,55 @@ export async function kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm) {
 }
 
 /**
+ * Парсить `patchText` як YAML і повертає JSON першого документа без помилок (або undefined).
+ * @param {string} patchText непорожній trimmed-текст patch
+ * @returns {unknown} JSON першого валідного документа або undefined
+ */
+function firstValidYamlJsonFromPatchText(patchText) {
+  try {
+    for (const d of parseAllDocuments(patchText)) {
+      if (d.errors.length === 0) return d.toJSON()
+    }
+  } catch {
+    return undefined
+  }
+  return undefined
+}
+
+/**
+ * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` з JSON6902-патчу (масив операцій).
+ * Повертає значення першої `add`/`replace`-операції на `/data/HASURA_GRAPHQL_ENABLED_APIS`.
+ * @param {unknown[]} ops масив JSON6902-операцій
+ * @returns {string | null} присвоєне значення (рядок) або null
+ */
+function enabledApisValueFromJson6902(ops) {
+  for (const item of ops) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
+    const rec = /** @type {Record<string, unknown>} */ (item)
+    const op = typeof rec.op === 'string' ? rec.op.trim().toLowerCase() : ''
+    const path = typeof rec.path === 'string' ? normalizeJsonPatchPath(rec.path) : ''
+    if ((op === 'add' || op === 'replace') && path === HASURA_ENABLED_APIS_DATA_POINTER) {
+      return typeof rec.value === 'string' ? rec.value : JSON.stringify(rec.value)
+    }
+  }
+  return null
+}
+
+/**
+ * Значення `data.HASURA_GRAPHQL_ENABLED_APIS` зі Strategic-Merge-патчу (об'єкт із `data`).
+ * @param {object} parsed розпарсений об'єкт patch
+ * @returns {string | null} присвоєне значення (рядок) або null
+ */
+function enabledApisValueFromStrategicMerge(parsed) {
+  const data = /** @type {Record<string, unknown>} */ (parsed).data
+  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
+  const d = /** @type {Record<string, unknown>} */ (data)
+  if (!Object.hasOwn(d, 'HASURA_GRAPHQL_ENABLED_APIS')) return null
+  const v = d.HASURA_GRAPHQL_ENABLED_APIS
+  return typeof v === 'string' ? v : JSON.stringify(v)
+}
+
+/**
  * Значення, яке inline-`patch` присвоює `data.HASURA_GRAPHQL_ENABLED_APIS`. Підтримка двох форматів:
  * **JSON6902** (`op` add/replace на `/data/HASURA_GRAPHQL_ENABLED_APIS`) і **Strategic Merge**
  * (`data.HASURA_GRAPHQL_ENABLED_APIS`). Зовнішні patch-файли (`patches[].path`) не охоплені — Plan B trade-off.
@@ -4833,36 +4906,10 @@ export async function kustomizationTreeHasHasuraDeployment(kustAbs, rootNorm) {
 export function enabledApisValueFromPatchText(patchText) {
   const t = typeof patchText === 'string' ? patchText.trim() : ''
   if (t === '') return null
-  let parsed
-  try {
-    for (const d of parseAllDocuments(t)) {
-      if (d.errors.length === 0) {
-        parsed = d.toJSON()
-        break
-      }
-    }
-  } catch {
-    return null
-  }
-  if (Array.isArray(parsed)) {
-    for (const item of parsed) {
-      if (item === null || typeof item !== 'object' || Array.isArray(item)) continue
-      const rec = /** @type {Record<string, unknown>} */ (item)
-      const op = typeof rec.op === 'string' ? rec.op.trim().toLowerCase() : ''
-      const path = typeof rec.path === 'string' ? normalizeJsonPatchPath(rec.path) : ''
-      if ((op === 'add' || op === 'replace') && path === HASURA_ENABLED_APIS_DATA_POINTER) {
-        return typeof rec.value === 'string' ? rec.value : JSON.stringify(rec.value)
-      }
-    }
-    return null
-  }
+  const parsed = firstValidYamlJsonFromPatchText(t)
+  if (Array.isArray(parsed)) return enabledApisValueFromJson6902(parsed)
   if (parsed === null || typeof parsed !== 'object') return null
-  const data = /** @type {Record<string, unknown>} */ (parsed).data
-  if (data === null || typeof data !== 'object' || Array.isArray(data)) return null
-  const d = /** @type {Record<string, unknown>} */ (data)
-  if (!Object.hasOwn(d, 'HASURA_GRAPHQL_ENABLED_APIS')) return null
-  const v = d.HASURA_GRAPHQL_ENABLED_APIS
-  return typeof v === 'string' ? v : JSON.stringify(v)
+  return enabledApisValueFromStrategicMerge(parsed)
 }
 
 /**
@@ -6308,6 +6355,34 @@ function networkPolicyPodSelectorAppLabel(spec) {
 }
 
 /**
+ * Витягує `kind` workload з анотації `nitra.dev/workload-kind` у `metadata.annotations`
+ * NetworkPolicy-документа; дефолт `'Deployment'`, якщо анотації немає або вона порожня.
+ * @param {Record<string, unknown>} docRec корінь NetworkPolicy-документа
+ * @returns {string} workload-kind
+ */
+function legacyNetworkPolicyWorkloadKind(docRec) {
+  const meta = getNestedObject(docRec, 'metadata')
+  const annotations = meta === null ? null : getNestedObject(meta, 'annotations')
+  const rawKind = annotations === null ? null : annotations['nitra.dev/workload-kind']
+  return typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
+}
+
+/**
+ * Будує `{ name, appLabel, kind }` для regenerate-канону з одного legacy NetworkPolicy-документа,
+ * або `null`, якщо `name`/`appLabel` неповні (документ пропускається).
+ * @param {unknown} doc розпарсений NetworkPolicy-документ
+ * @returns {{ name: string, appLabel: string, kind: string } | null} spec або null
+ */
+function legacyNetworkPolicySpecFromDoc(doc) {
+  const name = manifestMetadataName(doc)
+  const docRec = /** @type {Record<string, unknown>} */ (doc)
+  const appLabel = networkPolicyPodSelectorAppLabel(docRec.spec)
+  const kind = legacyNetworkPolicyWorkloadKind(docRec)
+  if (typeof name === 'string' && name !== '' && appLabel !== '') return { name, appLabel, kind }
+  return null
+}
+
+/**
  * Migrate legacy `networkpolicy.yaml`: якщо хоч один документ має catch-all in-cluster egress —
  * перезаписати **всі** документи у файлі через `buildNetworkPolicyYaml(name, appLabel, kind, gclbPorts)`.
  * `gclbPorts` витягуються з HTTPRoute paired у тому ж каталозі (див. `collectHttpRouteIngressForWorkload`).
@@ -6327,21 +6402,8 @@ export async function regenerateLegacyNetworkPolicyDocsInFile(npAbs, fail) {
    */
   const specs = []
   for (const doc of docs) {
-    const name = manifestMetadataName(doc)
-    const docRec = /** @type {Record<string, unknown>} */ (doc)
-    const spec = docRec.spec
-    const appLabel = networkPolicyPodSelectorAppLabel(spec)
-    const meta = docRec.metadata
-    const annotations =
-      meta !== null && typeof meta === 'object' && !Array.isArray(meta)
-        ? /** @type {Record<string, unknown>} */ (meta).annotations
-        : null
-    const rawKind =
-      annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations)
-        ? /** @type {Record<string, unknown>} */ (annotations)['nitra.dev/workload-kind']
-        : null
-    const kind = typeof rawKind === 'string' && rawKind !== '' ? rawKind : 'Deployment'
-    if (typeof name === 'string' && name !== '' && appLabel !== '') specs.push({ name, appLabel, kind })
+    const spec = legacyNetworkPolicySpecFromDoc(doc)
+    if (spec !== null) specs.push(spec)
   }
   if (specs.length === 0) return false
   const dir = dirname(npAbs)

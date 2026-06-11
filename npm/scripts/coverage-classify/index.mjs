@@ -30,7 +30,7 @@ const FALLBACK_VERDICT = {
  * @param {string} prompt текст промпта
  * @param {string} model  provider/model-id, `omlx/...` або '' для pi-дефолту
  * @returns {string} текст відповіді моделі
- * @throws якщо backend недоступний або повертає помилку
+ * @throws {Error} якщо backend недоступний або повертає помилку
  */
 function callModel(prompt, model) {
   return callLlm([{ role: 'user', content: prompt }], model, { timeoutMs: 60_000, caller: 'coverage' })
@@ -68,7 +68,7 @@ function classifyOne(group, mutant, cwd, callModelFn) {
  * Класифікує survived мутантів (resolveModel('min') → CLOUD_MIN → fallback).
  * @param {Array<{file: string, mutants: object[], exampleTest?: object|null, recommendationText?: string|null}>} survived список вцілілих мутантів
  * @param {string} cwd корінь проєкту
- * @param {{cachePath?: string, callModel?: Function}} [opts] ін'єкції для тестів
+ * @param {{cachePath?: string, callModel?: (prompt: string, model: string) => string}} [opts] ін'єкції для тестів
  * @returns {Promise<Array<{key: string, verdict: object}>>} verdicts
  */
 export function classify(survived, cwd, opts = {}) {

@@ -108,7 +108,7 @@ describe('orchestrator logic', () => {
  *   t0Exit: number,
  *   llmResults: Array<{ok:boolean,turns:number,error?:string}>,
  *   maxIter?: number,
- *   onLlmCall?: Function
+ *   onLlmCall?: (ruleId: string, output: string, root: string, opts: { model: string }) => void
  * }} opts опції симуляції (стани, exit code T0, результати LLM)
  * @returns {Promise<number>} 0 — convergence, 1 — unresolved
  */

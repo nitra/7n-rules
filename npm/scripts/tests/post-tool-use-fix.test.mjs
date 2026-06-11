@@ -6,8 +6,8 @@
  * Порядок маршрутів — від найбільш специфічного до загального; перший збіг — переможець.
  *
  * `runPostToolUseFixCli({ stdinJson, spawnFn })` — entry для CLI команди
- * `npx @nitra/cursor post-tool-use-fix`: парсить stdin JSON, дістає `tool_input.file_path`,
- * передає у `routeFilePathToRules` і за наявності правил spawn'ить `npx @nitra/cursor fix <rules>`.
+ * `npx \@nitra/cursor post-tool-use-fix`: парсить stdin JSON, дістає `tool_input.file_path`,
+ * передає у `routeFilePathToRules` і за наявності правил spawn'ить `npx \@nitra/cursor fix <rules>`.
  */
 import { describe, expect, vi, test } from 'vitest'
 import { EventEmitter } from 'node:events'

@@ -1,5 +1,5 @@
 /**
- * Guard для дефолтної синхронізації `npx @nitra/cursor` (гілка без підкоманди).
+ * Guard для дефолтної синхронізації `npx \@nitra/cursor` (гілка без підкоманди).
  *
  * Дефолтний sync (`runSync` у `bin/n-cursor.js`) скаффолдить у `cwd()` керовані
  * артефакти — `.cursor/rules/`, `.cursor/skills/`, `.claude/`, `AGENTS.md`,

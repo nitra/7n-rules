@@ -1,7 +1,7 @@
 /**
  * Standalone CLI runner для одного правила. Викликається з `rules/<id>/fix.mjs`
  * у блоці `if (import.meta.main)` — це робить `bun rules/<id>/fix.mjs` повним
- * еквівалентом старого `npx @nitra/cursor fix <id>`: читає `.n-cursor.json`,
+ * еквівалентом старого `npx \@nitra/cursor fix <id>`: читає `.n-cursor.json`,
  * перевіряє whitelist, друкує summary, повертає aggregated exit-code.
  *
  * Library-mode виклик з CLI orchestration — інше: див. `runStandardRule` + `fix.mjs::run(ctx)`.

@@ -33,6 +33,8 @@
     "applys",
     "dflt",
     "moduleline",
+    "Ollama",
+    "ollama",
     "omlx",
     "stdlib",
     "toplevel",

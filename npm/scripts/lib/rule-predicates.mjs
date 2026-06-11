@@ -23,35 +23,44 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
  */
 async function anyDepInTree(root, keys) {
   const wanted = new Set(keys)
-  let found = false
-  /** @param {string} dir каталог обходу @returns {Promise<void>} */
+  /**
+   * Чи package.json за `abs` оголошує будь-який пакет із `wanted` у `dependencies`.
+   * @param {string} abs шлях до package.json
+   * @returns {Promise<boolean>} true, якщо знайдено хоч один
+   */
+  async function pkgDeclaresWanted(abs) {
+    try {
+      const deps = JSON.parse(await readFile(abs, 'utf8'))?.dependencies
+      if (deps && typeof deps === 'object' && !Array.isArray(deps)) {
+        for (const k of wanted) if (Object.hasOwn(deps, k)) return true
+      }
+    } catch {
+      /* ігноруємо пошкоджені package.json */
+    }
+    return false
+  }
+  /**
+   * @param {string} dir каталог обходу
+   * @returns {Promise<boolean>} true, якщо знайдено хоч один пакет
+   */
   async function walk(dir) {
-    if (found) return
     let entries
     try {
       entries = await readdir(dir, { withFileTypes: true })
     } catch {
-      return
+      return false
     }
     for (const entry of entries) {
-      if (found) return
       const abs = join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (!IGNORED_DIR_NAMES.has(entry.name)) await walk(abs)
-      } else if (entry.isFile() && entry.name === 'package.json') {
-        try {
-          const deps = JSON.parse(await readFile(abs, 'utf8'))?.dependencies
-          if (deps && typeof deps === 'object' && !Array.isArray(deps)) {
-            for (const k of wanted) if (Object.hasOwn(deps, k)) found = true
-          }
-        } catch {
-          /* ігноруємо пошкоджені package.json */
-        }
+        if (!IGNORED_DIR_NAMES.has(entry.name) && (await walk(abs))) return true
+      } else if (entry.isFile() && entry.name === 'package.json' && (await pkgDeclaresWanted(abs))) {
+        return true
       }
     }
+    return false
   }
-  await walk(root)
-  return found
+  return walk(root)
 }
 
 /**
@@ -62,7 +71,10 @@ async function anyDepInTree(root, keys) {
 async function nestedWithoutVite(root) {
   const rootPkg = join(root, 'package.json')
   let result = false
-  /** @param {string} dir каталог @returns {Promise<void>} */
+  /**
+   * @param {string} dir каталог
+   * @returns {Promise<void>}
+   */
   async function walk(dir) {
     if (result) return
     let entries

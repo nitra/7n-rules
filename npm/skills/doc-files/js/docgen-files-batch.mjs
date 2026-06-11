@@ -80,6 +80,68 @@ function preflightProblem() {
 }
 
 /**
+ * Текст-суфікс режиму для прогрес-рядка.
+ * @param {{ overwrite: boolean, retryDegraded: boolean }} mode режими
+ * @returns {string} ` (--overwrite)` / ` (--retry-degraded)` / порожній рядок
+ */
+function modeSuffix({ overwrite, retryDegraded }) {
+  if (overwrite) return ' (--overwrite)'
+  if (retryDegraded) return ' (--retry-degraded)'
+  return ''
+}
+
+/**
+ * Генерує й штампує доку для одного файлу, оновлюючи лічильники й прогрес.
+ * @param {object} file елемент scanForDocFiles
+ * @param {string} root абсолютний корінь
+ * @param {{ done: number, total: number }} progress позиція у прогресі
+ * @param {{ ok: number, degraded: number, err: number, errors: string[] }} stats акумулятор статистики
+ * @returns {Promise<void>}
+ */
+async function generateOne(file, root, progress, stats) {
+  const sourceAbs = join(root, file.sourcePath)
+  process.stdout.write(`  [${progress.done}/${progress.total}] ${file.sourcePath} … `)
+  try {
+    const docAbs = join(root, file.docPath)
+    // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
+    const existingMd = existsSync(docAbs) ? readFileSync(docAbs, 'utf8') : null
+    const result = await generateDoc(sourceAbs, { existingMd })
+    const crc = crc32(readFileSync(sourceAbs))
+    mkdirSync(dirname(docAbs), { recursive: true })
+    const quality =
+      result.score === null ? null : { score: result.score, issues: result.degraded ? result.issues : [] }
+    writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality))
+    stats.ok++
+    if (result.degraded) {
+      stats.degraded++
+      process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}\n`)
+    } else {
+      process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}\n`)
+    }
+  } catch (error) {
+    stats.err++
+    stats.errors.push(file.sourcePath)
+    process.stdout.write(`✗ ${error.message}\n`)
+  }
+}
+
+/**
+ * Підсумковий звіт прогону у stdout.
+ * @param {{ ok: number, degraded: number, err: number, errors: string[] }} stats статистика
+ * @returns {void}
+ */
+function reportStats(stats) {
+  console.log(`\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ⚠ degraded: ${stats.degraded}  ✗ Err: ${stats.err}`)
+  if (stats.errors.length > 0) {
+    console.log('Помилки:')
+    for (const e of stats.errors) console.log(`  - ${e}`)
+  }
+  if (stats.degraded > 0) {
+    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor doc-files gen --retry-degraded`)
+  }
+}
+
+/**
  * `doc-files gen` — згенерувати документацію для застарілих/відсутніх док.
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {Promise<number>} exit-код: 0 — без помилок, 1 — хоча б одна помилка або фейл preflight
@@ -106,47 +168,16 @@ export async function runDocFilesGenCli(argv) {
     return 1
   }
 
-  let modeTxt = ''
-  if (overwrite) modeTxt = ' (--overwrite)'
-  else if (retryDegraded) modeTxt = ' (--retry-degraded)'
-  console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${modeTxt}`)
+  console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite, retryDegraded })}`)
   const stats = { ok: 0, degraded: 0, err: 0, errors: [] }
 
   let done = 0
   for (const file of targets) {
     done++
-    const sourceAbs = join(root, file.sourcePath)
-    process.stdout.write(`  [${done}/${targets.length}] ${file.sourcePath} … `)
-    try {
-      const result = await generateDoc(sourceAbs)
-      const crc = crc32(readFileSync(sourceAbs))
-      const docAbs = join(root, file.docPath)
-      mkdirSync(dirname(docAbs), { recursive: true })
-      const quality =
-        result.score === null ? null : { score: result.score, issues: result.degraded ? result.issues : [] }
-      writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality))
-      stats.ok++
-      if (result.degraded) {
-        stats.degraded++
-        process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}\n`)
-      } else {
-        process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}\n`)
-      }
-    } catch (error) {
-      stats.err++
-      stats.errors.push(file.sourcePath)
-      process.stdout.write(`✗ ${error.message}\n`)
-    }
+    await generateOne(file, root, { done, total: targets.length }, stats)
   }
 
-  console.log(`\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ⚠ degraded: ${stats.degraded}  ✗ Err: ${stats.err}`)
-  if (stats.errors.length > 0) {
-    console.log('Помилки:')
-    for (const e of stats.errors) console.log(`  - ${e}`)
-  }
-  if (stats.degraded > 0) {
-    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor doc-files gen --retry-degraded`)
-  }
+  reportStats(stats)
   return stats.err > 0 ? 1 : 0
 }
 

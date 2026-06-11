@@ -9,6 +9,8 @@ export default [
       '**/auto-imports.d.ts',
       'docs/**',
       '.claude/worktrees/**',
+      // git-worktree чекаути (gitignored): повні копії репо + handoff-доки, не лінтимо.
+      '.worktrees/**',
       // Згенеровані артефакти (gitignored): coverage report і Stryker mutation sandbox/output.
       '**/coverage/**',
       '**/reports/stryker/**',
