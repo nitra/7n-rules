@@ -15,6 +15,8 @@
  */
 
 const URL_RE = /https?:\/\/[^\s'"`)<>]+/g
+// Після обрізання template-частини URL має лишитися host (R10).
+const STATIC_URL_RE = /^https?:\/\/[^/${]+/
 const EXPORT_CONST_RE = /export\s+const\s+([A-Z][A-Z0-9_]+)\s*=\s*(['"`])([^'"`]+)\2/g
 const ERROR_MARKER_RE = /\(([a-z][\w-]*\.mdc)\)/g
 // Повне ім'я json-конфіга (з опційним провідним дотом). Lookbehind `(?<![\w.])`
@@ -54,7 +56,16 @@ function uniq(arr) {
  * }} категоризовані анкори файлу
  */
 export function extractAnchors(src) {
-  const urls = uniq(Array.from(src.matchAll(URL_RE), m => m[0]))
+  // R10: template-literal URL (`https://h/${expr}/x`) — обрізаємо на `${`, лишаючи
+  // статичний префікс. Інакше анкор тягне у доку сміття типу `…/${encodeURIComponent(name`.
+  const urls = uniq(
+    Array.from(src.matchAll(URL_RE), m => m[0])
+      .map(u => {
+        const i = u.indexOf('${')
+        return i === -1 ? u : u.slice(0, i)
+      })
+      .filter(u => STATIC_URL_RE.test(u))
+  )
 
   const magicStrings = []
   const seenNames = new Set()

@@ -31,10 +31,21 @@ describe("configRefs — повне ім'я файлу, без зрізу все
   })
 })
 
+describe('urls — template-literal обрізається до статичного префікса (R10)', () => {
+  test('${...} у URL не тягне сміття в анкор', () => {
+    const src = 'fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`)'
+    expect(extractAnchors(src).urls).toEqual(['https://pypi.org/pypi/'])
+  })
+
+  test('звичайний URL лишається цілим', () => {
+    expect(extractAnchors('// https://example.com/doc/page').urls).toEqual(['https://example.com/doc/page'])
+  })
+})
+
 describe('anchorTokens — плоский список для перевірки покриття (R5)', () => {
   test('збирає urls, імена констант, маркери (rule.mdc), конфіги', () => {
     const src = [
-      "// https://example.com/doc",
+      '// https://example.com/doc',
       "export const TAG = 'x-tag'",
       "throw new Error('погано (foo.mdc)')",
       "readFile('.n-cursor.json')"
