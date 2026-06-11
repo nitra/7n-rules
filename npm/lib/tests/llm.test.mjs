@@ -1,30 +1,37 @@
 /**
  * Тести npm/lib/llm.mjs:
  *   - pickBackend — маршрутизація виключно за префіксом `omlx/`
- *   - callLlm — omlx-гілка (curl) vs pi-гілка (CLI), помилки, wire-trace
+ *   - callLlm — omlx-гілка (curl) vs pi-гілка (CLI), помилки, always-on wire-trace
  *   - omlxHealthCheck — ok / memory-guard / down / порожній контент
  *
- * spawnSync і appendFileSync мокаються — жодних реальних викликів.
+ * spawnSync мокається; запис трейсу — через мок `writeTrace` (IO омлх-trace
+ * тестується окремо в omlx-trace.test.mjs), `buildTraceRecord` лишається справжній.
  */
 import { env } from 'node:process'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { spawnSyncMock, appendFileSyncMock, readFileSyncMock } = vi.hoisted(() => ({
+const { spawnSyncMock, readFileSyncMock, writeTraceMock } = vi.hoisted(() => ({
   spawnSyncMock: vi.fn(),
-  appendFileSyncMock: vi.fn(),
   readFileSyncMock: vi.fn(() => {
     // settings.json відсутній → resolveOmlxApiKey → null → без Authorization
     throw new Error('ENOENT')
-  })
+  }),
+  writeTraceMock: vi.fn()
 }))
 vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
-vi.mock('node:fs', () => ({ appendFileSync: appendFileSyncMock, readFileSync: readFileSyncMock }))
+vi.mock('node:fs', () => ({ readFileSync: readFileSyncMock }))
+vi.mock('../omlx-trace.mjs', async importOriginal => ({
+  ...(await importOriginal()),
+  writeTrace: writeTraceMock
+}))
 
 const { callLlm, omlxHealthCheck, pickBackend } = await import('../llm.mjs')
 
 const ERR_PI_EXIT_1 = /pi exit 1/
 const ERR_PI_EXIT_3 = /pi exit 3/
 const RE_MEMORY_CEILING = /memory ceiling/
+/** Форма sha256-hex (64 hex-символи). */
+const SHA256_RE = /^[a-f0-9]{64}$/
 
 /**
  * Успішна omlx-відповідь spawnSync('curl', …) із заданим контентом.
@@ -35,6 +42,22 @@ function curlOk(content) {
   return { status: 0, stdout: JSON.stringify({ choices: [{ message: { content } }] }), stderr: '' }
 }
 
+/**
+ * Багата omlx-curl-відповідь із reasoning_content + usage.
+ * @param {string} content контент відповіді
+ * @returns {{status:number, stdout:string, stderr:string}} mock spawnSync
+ */
+function curlRich(content) {
+  return {
+    status: 0,
+    stdout: JSON.stringify({
+      choices: [{ message: { content, reasoning_content: 'Думаю…' }, finish_reason: 'stop' }],
+      usage: { completion_tokens: 7 }
+    }),
+    stderr: ''
+  }
+}
+
 const MESSAGES = [
   { role: 'system', content: 'Ти технічний письменник.' },
   { role: 'user', content: 'Опиши файл.' }
@@ -42,7 +65,7 @@ const MESSAGES = [
 
 beforeEach(() => {
   spawnSyncMock.mockReset()
-  appendFileSyncMock.mockReset()
+  writeTraceMock.mockReset()
   delete env.N_CURSOR_LLM_TRACE
 })
 
@@ -99,40 +122,40 @@ describe('callLlm — маршрутизація', () => {
   })
 })
 
-describe('callLlm — wire-trace', () => {
-  test('без N_CURSOR_LLM_TRACE трейс не пишеться', () => {
-    spawnSyncMock.mockReturnValue(curlOk('x'))
-    callLlm(MESSAGES, 'omlx/m')
-    expect(appendFileSyncMock).not.toHaveBeenCalled()
+describe('callLlm — wire-trace (always-on)', () => {
+  test('omlx-успіх → writeTrace з backend/ok + reasoning/usage/caller', () => {
+    spawnSyncMock.mockReturnValue(curlRich('x'))
+    callLlm(MESSAGES, 'omlx/m', { caller: 'doc-files' })
+    const rec = writeTraceMock.mock.calls[0][0]
+    expect(rec).toMatchObject({
+      backend: 'omlx',
+      model: 'omlx/m',
+      caller: 'doc-files',
+      reasoning: 'Думаю…',
+      reasoning_source: 'field',
+      finish_reason: 'stop',
+      ok: true
+    })
+    expect(rec.usage.completion_tokens).toBe(7)
+    expect(rec.messages_sha256).toMatch(SHA256_RE)
   })
 
-  test('успіх → JSONL-рядок з backend/ok=true', () => {
-    env.N_CURSOR_LLM_TRACE = '/fake-trace-dir/llm-trace.jsonl'
-    spawnSyncMock.mockReturnValue(curlOk('x'))
-    callLlm(MESSAGES, 'omlx/m')
-    const [file, line] = appendFileSyncMock.mock.calls[0]
-    expect(file).toBe('/fake-trace-dir/llm-trace.jsonl')
-    const entry = JSON.parse(line)
-    expect(entry).toMatchObject({ backend: 'omlx', model: 'omlx/m', ok: true })
-    expect(entry.promptChars).toBeGreaterThan(0)
+  test('pi-успіх → rich-поля null, caller=unknown за замовчуванням', () => {
+    spawnSyncMock.mockReturnValue({ status: 0, stdout: 'pi-out', stderr: '' })
+    callLlm(MESSAGES, 'openai/gpt-5.4-mini')
+    const rec = writeTraceMock.mock.calls[0][0]
+    expect(rec).toMatchObject({ backend: 'pi', caller: 'unknown', ok: true })
+    expect(rec.reasoning).toBeNull()
+    expect(rec.usage).toBeNull()
   })
 
-  test('помилка → ok=false з текстом, виняток прокидається далі', () => {
-    env.N_CURSOR_LLM_TRACE = '/fake-trace-dir/llm-trace.jsonl'
+  test('помилка → writeTrace ok=false з текстом, виняток прокидається далі', () => {
     spawnSyncMock.mockReturnValue({ status: 1, stdout: '', stderr: 'err' })
     expect(() => callLlm(MESSAGES, '')).toThrow(ERR_PI_EXIT_1)
-    const entry = JSON.parse(appendFileSyncMock.mock.calls[0][1])
-    expect(entry.ok).toBe(false)
-    expect(entry.error).toMatch(ERR_PI_EXIT_1)
-  })
-
-  test('помилка запису трейсу не ламає виклик', () => {
-    env.N_CURSOR_LLM_TRACE = '/fake-trace-dir/llm-trace.jsonl'
-    appendFileSyncMock.mockImplementation(() => {
-      throw new Error('disk full')
-    })
-    spawnSyncMock.mockReturnValue(curlOk('x'))
-    expect(callLlm(MESSAGES, 'omlx/m')).toBe('x')
+    const rec = writeTraceMock.mock.calls[0][0]
+    expect(rec.ok).toBe(false)
+    expect(rec.error).toMatch(ERR_PI_EXIT_1)
+    expect(rec.content).toBeNull()
   })
 })
 

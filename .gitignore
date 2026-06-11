@@ -23,3 +23,6 @@ dist/
 
 # LLM classification cache for survived mutations (coverage-classify)
 npm/reports/coverage-classify.cache.json
+
+# LLM wire-trace raw log (omlx-wire-trace spec): сирий потік, локальний, не в git
+.n-cursor/

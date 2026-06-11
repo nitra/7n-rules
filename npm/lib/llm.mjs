@@ -7,15 +7,16 @@
  *
  * Жодних env-перемикачів бекенда: рядок моделі сам визначає транспорт.
  *
- * Wire-trace (ADR 260610-1516/1524): якщо виставлено `N_CURSOR_LLM_TRACE=<file>`,
- * кожен виклик append-ить один JSONL-рядок з бекендом, моделлю, тривалістю і
- * розмірами prompt/output. Трейс fail-safe: помилка запису не ламає виклик.
+ * Wire-trace (спека 2026-06-10-omlx-wire-trace-capture-design): **always-on**
+ * багатий JSONL-запис на кожен виклик — обидва канали (reasoning + слід). Для
+ * omlx захоплює content/reasoning/usage/finish_reason/attempts; для pi — лише
+ * те, що CLI дає (rich-поля null). Деталі запису/шляху/ротації — `omlx-trace.mjs`.
  */
 import { spawnSync } from 'node:child_process'
-import { appendFileSync } from 'node:fs'
 import { env } from 'node:process'
 
-import { callOmlx, isOmlxModel } from './omlx.mjs'
+import { callOmlxRaw, isOmlxModel } from './omlx.mjs'
+import { buildTraceRecord, writeTrace } from './omlx-trace.mjs'
 
 /** Дефолтний timeout одного виклику (узгоджено з LOCAL_TIMEOUT доки-конвеєра). */
 const DEFAULT_TIMEOUT_MS = 120_000
@@ -27,20 +28,6 @@ const DEFAULT_TIMEOUT_MS = 120_000
  */
 export function pickBackend(model) {
   return isOmlxModel(model) ? 'omlx' : 'pi'
-}
-
-/**
- * Fail-safe append JSONL-рядка трейсу у файл з `N_CURSOR_LLM_TRACE`.
- * @param {object} entry один запис трейсу
- */
-function trace(entry) {
-  const file = env.N_CURSOR_LLM_TRACE
-  if (!file) return
-  try {
-    appendFileSync(file, JSON.stringify(entry) + '\n')
-  } catch {
-    // трейс не має ламати основний виклик
-  }
 }
 
 /**
@@ -64,42 +51,68 @@ function callPi(messages, model, timeoutMs) {
 }
 
 /**
- * Універсальний LLM-виклик з маршрутизацією за префіксом model-id.
+ * Універсальний LLM-виклик з маршрутизацією за префіксом model-id і always-on
+ * wire-trace (обидва канали).
  * @param {Array<{role:string, content:string}>} messages OpenAI-style messages (system зберігається на omlx)
  * @param {string} model model-id; `omlx/<m>` → прямий HTTP, інакше → pi CLI
- * @param {{ timeoutMs?: number, temperature?: number, maxTokens?: number, url?: string }} [opts] timeout, температура, ліміт виходу, override URL
+ * @param {{ timeoutMs?: number, temperature?: number, maxTokens?: number, url?: string, caller?: string }} [opts] timeout, температура, ліміт виходу, override URL, мітка викликача для trace
  * @returns {string} текст відповіді (непорожній на omlx; pi може повернути '')
  */
 export function callLlm(messages, model, opts = {}) {
-  const { timeoutMs = DEFAULT_TIMEOUT_MS, temperature = 0.2, maxTokens, url } = opts
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, temperature = 0.2, maxTokens, url, caller } = opts
   const backend = pickBackend(model)
+  const resolvedCaller = caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
   const t0 = Date.now()
-  const promptChars = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0)
   try {
-    const out =
-      backend === 'omlx'
-        ? callOmlx(messages, model, { url, timeoutMs, temperature, ...(maxTokens ? { maxTokens } : {}) })
-        : callPi(messages, model, timeoutMs)
-    trace({
-      ts: new Date().toISOString(),
-      backend,
-      model,
-      ms: Date.now() - t0,
-      promptChars,
-      outChars: out.length,
-      ok: true
-    })
-    return out
+    let content
+    let reasoning = null
+    let reasoningSource = null
+    let finishReason = null
+    let usage = null
+    let attempts = 1
+    if (backend === 'omlx') {
+      const raw = callOmlxRaw(messages, model, { url, timeoutMs, temperature, ...(maxTokens ? { maxTokens } : {}) })
+      ;({ content, reasoning, reasoningSource, finishReason, usage, attempts } = raw)
+    } else {
+      content = callPi(messages, model, timeoutMs)
+    }
+    writeTrace(
+      buildTraceRecord({
+        ts: new Date().toISOString(),
+        caller: resolvedCaller,
+        backend,
+        model,
+        temperature,
+        maxTokens,
+        messages,
+        content,
+        reasoning,
+        reasoningSource,
+        finishReason,
+        usage,
+        ms: Date.now() - t0,
+        attempts,
+        ok: true,
+        error: null
+      })
+    )
+    return content
   } catch (error) {
-    trace({
-      ts: new Date().toISOString(),
-      backend,
-      model,
-      ms: Date.now() - t0,
-      promptChars,
-      ok: false,
-      error: String(error.message).slice(0, 200)
-    })
+    writeTrace(
+      buildTraceRecord({
+        ts: new Date().toISOString(),
+        caller: resolvedCaller,
+        backend,
+        model,
+        temperature,
+        maxTokens,
+        messages,
+        ms: Date.now() - t0,
+        attempts: null,
+        ok: false,
+        error: String(error.message).slice(0, 200)
+      })
+    )
     throw error
   }
 }
@@ -124,7 +137,7 @@ const AUTH_ERROR_MARKER = 'authentication_error'
 export function omlxHealthCheck(opts = {}) {
   const { url, model = '', timeoutMs = DEFAULT_TIMEOUT_MS } = opts
   try {
-    callOmlx([{ role: 'user', content: 'ok' }], model, { url, timeoutMs, maxTokens: 1, temperature: 0 })
+    callOmlxRaw([{ role: 'user', content: 'ok' }], model, { url, timeoutMs, maxTokens: 1, temperature: 0 })
     return { ok: true, reason: null, detail: '' }
   } catch (error) {
     const detail = String(error.message)

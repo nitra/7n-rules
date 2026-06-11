@@ -12,7 +12,8 @@ const { spawnSyncMock, readFileSyncMock } = vi.hoisted(() => ({ spawnSyncMock: v
 vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
 vi.mock('node:fs', () => ({ readFileSync: readFileSyncMock }))
 
-const { callOmlx, isOmlxModel, omlxModelId, resolveOmlxApiKey, DEFAULT_OMLX_MODEL } = await import('../omlx.mjs')
+const { callOmlx, callOmlxRaw, extractReasoning, isOmlxModel, omlxModelId, resolveOmlxApiKey, DEFAULT_OMLX_MODEL } =
+  await import('../omlx.mjs')
 
 const ERR_CURL_EXIT_7 = /omlx curl exit 7/
 const ERR_BAD_JSON = /omlx bad json/
@@ -27,6 +28,21 @@ const ERR_CURL_ERROR = /omlx curl error/
  */
 function okResult(content) {
   return { status: 0, stdout: JSON.stringify({ choices: [{ message: { content } }] }), stderr: '' }
+}
+
+/**
+ * Багата omlx-відповідь spawnSync із reasoning_content/usage/finish_reason.
+ * @param {{content?:string, reasoning?:string, finish?:string, usage?:object}} fields поля message/usage/finish
+ * @returns {{status:number, stdout:string, stderr:string}} mock-результат spawnSync
+ */
+function richResult(fields = {}) {
+  const { content = 'x', reasoning, finish = 'stop', usage } = fields
+  const message = { content, ...(reasoning ? { reasoning_content: reasoning } : {}) }
+  return {
+    status: 0,
+    stdout: JSON.stringify({ choices: [{ message, finish_reason: finish }], ...(usage ? { usage } : {}) }),
+    stderr: ''
+  }
 }
 
 /**
@@ -178,5 +194,66 @@ describe('auth (resolveOmlxApiKey + Authorization-заголовок)', () => {
     spawnSyncMock.mockReturnValue(okResult('x'))
     callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')
     expect(spawnSyncMock.mock.calls[0][1].join(' ')).not.toContain('Authorization')
+  })
+})
+
+describe('extractReasoning', () => {
+  test('reasoning_content → source=field', () => {
+    const r = extractReasoning({ content: '391', reasoning_content: 'Okay…' }, 'stop')
+    expect(r).toEqual({ reasoning: 'Okay…', reasoningSource: 'field' })
+  })
+
+  test('<think>…</think> у content → source=think_tag, обрізаний внутрішній текст', () => {
+    const r = extractReasoning({ content: '<think> hmm </think>answer' }, 'stop')
+    expect(r).toEqual({ reasoning: 'hmm', reasoningSource: 'think_tag' })
+  })
+
+  test('finish=length без поля/тега → source=truncated, reasoning=content', () => {
+    const r = extractReasoning({ content: 'Okay, the user…' }, 'length')
+    expect(r).toEqual({ reasoning: 'Okay, the user…', reasoningSource: 'truncated' })
+  })
+
+  test('звичайний content (finish=stop) → reasoning=null', () => {
+    expect(extractReasoning({ content: '391' }, 'stop')).toEqual({ reasoning: null, reasoningSource: null })
+  })
+})
+
+describe('callOmlxRaw', () => {
+  beforeEach(() => {
+    spawnSyncMock.mockReset()
+  })
+
+  test('успіх → багатий обʼєкт із content/reasoning/finish/usage/attempts', () => {
+    spawnSyncMock.mockReturnValue(
+      richResult({ content: '391', reasoning: 'Okay…', usage: { completion_tokens: 308 } })
+    )
+    const r = callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g')
+    expect(r).toMatchObject({
+      content: '391',
+      reasoning: 'Okay…',
+      reasoningSource: 'field',
+      finishReason: 'stop',
+      attempts: 1
+    })
+    expect(r.usage.completion_tokens).toBe(308)
+  })
+
+  test('без usage/reasoning → usage=null, reasoning=null', () => {
+    spawnSyncMock.mockReturnValue(richResult({ content: 'plain' }))
+    const r = callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g')
+    expect(r.usage).toBeNull()
+    expect(r.reasoning).toBeNull()
+  })
+
+  test('transient retry → attempts відображає номер успішної спроби', () => {
+    spawnSyncMock
+      .mockReturnValueOnce({ status: 52, stdout: '', stderr: 'empty reply' })
+      .mockReturnValueOnce(richResult({ content: 'after-retry' }))
+    expect(callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g').attempts).toBe(2)
+  })
+
+  test('callOmlx — обгортка, повертає лише .content', () => {
+    spawnSyncMock.mockReturnValue(richResult({ content: '  391  ', reasoning: 'r' }))
+    expect(callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')).toBe('391')
   })
 })

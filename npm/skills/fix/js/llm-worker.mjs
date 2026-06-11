@@ -2,10 +2,9 @@
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
-import { callOmlx, isOmlxModel } from '../../../lib/omlx.mjs'
+import { callLlm } from '../../../lib/llm.mjs'
 
 // Тир за замовчуванням: min → avg при ескалації (каскад local→cloud).
 // Перевизначення через N_CURSOR_FIX_MODEL / N_CURSOR_FIX_MODEL_HEAVY.
@@ -13,6 +12,7 @@ export const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
 export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? resolveModel('avg')
 
 const JSON_CODE_BLOCK_RE = /```(?:json)?[ \t]{0,8}\n?([\s\S]*?)```/
+const API_KEY_RE = /api key/i
 
 /**
  * Витягує відносні шляхи файлів із violation output.
@@ -87,29 +87,18 @@ function buildPrompt(ruleId, ruleMdc, output, files) {
 }
 
 /**
- * Викликає LLM за model-id і повертає текст відповіді.
- * `omlx/...` → прямий HTTP до omlx (text-only, локально); решта → pi CLI.
+ * Викликає LLM через спільний `callLlm` (маршрут за префіксом model-id; wire-trace).
+ * Зберігає дружнє повідомлення про відсутній API-ключ для хмарних провайдерів.
  * @param {string} prompt текст промпта
  * @param {string} model назва моделі (provider/id, `omlx/...` або '')
  * @returns {{ text: string, error?: string }} текст відповіді або повідомлення про помилку
  */
 function callModel(prompt, model) {
-  if (isOmlxModel(model)) {
-    try {
-      return { text: callOmlx([{ role: 'user', content: prompt }], model, { timeoutMs: 120_000 }) }
-    } catch (error) {
-      return { text: '', error: error.message }
-    }
-  }
-  const modelArgs = model ? ['--model', model] : []
-  const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
-    encoding: 'utf8',
-    timeout: 120_000
-  })
-  if (r.error) return { text: '', error: r.error.message }
-  if (r.status !== 0) {
-    const stderr = r.stderr?.slice(0, 300) ?? ''
-    if (stderr.toLowerCase().includes('no api key') || stderr.toLowerCase().includes('api key')) {
+  try {
+    return { text: callLlm([{ role: 'user', content: prompt }], model, { timeoutMs: 120_000, caller: 'fix' }) }
+  } catch (error) {
+    const msg = String(error.message)
+    if (API_KEY_RE.test(msg)) {
       const provider = model ? model.split('/')[0] : 'дефолтного провайдера'
       return {
         text: '',
@@ -120,9 +109,8 @@ function callModel(prompt, model) {
         ].join(' ')
       }
     }
-    return { text: '', error: `pi exit ${r.status}: ${stderr}` }
+    return { text: '', error: msg }
   }
-  return { text: r.stdout?.trim() ?? '' }
 }
 
 /**

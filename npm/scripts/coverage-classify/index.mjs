@@ -11,11 +11,10 @@
  * решта → pi CLI. Якщо omlx-Tier 1 недоступний, помилка падає в той самий catch
  * і класифікація відкочується на хмарний Tier 2 через pi.
  */
-import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 
 import { CLOUD_MIN, resolveModel } from '../../lib/models.mjs'
-import { callOmlx, isOmlxModel } from '../../lib/omlx.mjs'
+import { callLlm } from '../../lib/llm.mjs'
 import { deriveCacheKey, readCache, writeCache } from './cache.mjs'
 import { buildUserPrompt, SYSTEM_PROMPT } from './prompt.mjs'
 import { parseVerdict } from './verdict-schema.mjs'
@@ -27,25 +26,14 @@ const FALLBACK_VERDICT = {
 }
 
 /**
- * Викликає LLM за model-id і повертає raw текст відповіді.
- * `omlx/...` → прямий HTTP до omlx (text-only); решта → pi CLI.
+ * Викликає LLM через спільний `callLlm` (маршрут за префіксом model-id; wire-trace).
  * @param {string} prompt текст промпта
  * @param {string} model  provider/model-id, `omlx/...` або '' для pi-дефолту
  * @returns {string} текст відповіді моделі
  * @throws якщо backend недоступний або повертає помилку
  */
 function callModel(prompt, model) {
-  if (isOmlxModel(model)) {
-    return callOmlx([{ role: 'user', content: prompt }], model, { timeoutMs: 60_000 })
-  }
-  const modelArgs = model ? ['--model', model] : []
-  const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
-    encoding: 'utf8',
-    timeout: 60_000
-  })
-  if (r.error) throw new Error(`pi error: ${r.error.message}`)
-  if (r.status !== 0) throw new Error(`pi exit ${r.status}: ${r.stderr?.slice(0, 200) ?? ''}`)
-  return r.stdout?.trim() ?? ''
+  return callLlm([{ role: 'user', content: prompt }], model, { timeoutMs: 60_000, caller: 'coverage' })
 }
 
 /**

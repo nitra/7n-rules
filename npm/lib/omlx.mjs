@@ -70,16 +70,42 @@ export function omlxModelId(model) {
 }
 
 /**
- * Прямий HTTP-виклик до omlx через `curl` (spawnSync). Повертає текст
- * `choices[0].message.content`. Ретраїть лише transient curl-помилки
- * (18 = transfer closed, 52 = empty reply, 56 = recv failure).
+ * Витягує reasoning (думки моделі) з omlx-`message`. Джерела за пріоритетом:
+ *   - `field`     — окреме поле `message.reasoning_content` (Qwen3-Thinking тощо);
+ *   - `think_tag` — `<think>…</think>` усередині `content` (інші thinking-моделі);
+ *   - `truncated` — `finish_reason: "length"` зрізав думку в `content` до закриття
+ *                   тега → сирий reasoning лишився в `content` без `</think>`;
+ *   - `null`      — reasoning немає (не-thinking модель).
+ * @param {{content?:string, reasoning_content?:string}} message обʼєкт `choices[0].message`
+ * @param {string|null} finishReason `choices[0].finish_reason`
+ * @returns {{ reasoning: string|null, reasoningSource: 'field'|'think_tag'|'truncated'|null }} текст думок і його джерело
+ */
+const THINK_TAG_RE = /<think>([\s\S]*?)<\/think>/
+
+/**
+ *
+ */
+export function extractReasoning(message, finishReason) {
+  const field = message?.reasoning_content
+  if (field && field.trim()) return { reasoning: field, reasoningSource: 'field' }
+  const content = message?.content ?? ''
+  const m = content.match(THINK_TAG_RE)
+  if (m) return { reasoning: m[1].trim(), reasoningSource: 'think_tag' }
+  if (finishReason === 'length' && content.trim()) return { reasoning: content, reasoningSource: 'truncated' }
+  return { reasoning: null, reasoningSource: null }
+}
+
+/**
+ * Ядро прямого HTTP-виклику до omlx через `curl` (spawnSync). Повертає **багатий**
+ * обʼєкт: контент + reasoning + usage + finish_reason + кількість спроб. Ретраїть
+ * лише transient curl-помилки (18 = transfer closed, 52 = empty reply, 56 = recv failure).
  * @param {Array<{role:string, content:string}>} messages OpenAI-messages (system+user збережено)
  * @param {string} model model-id (з/без `omlx/`-префікса); порожній → дефолт
  * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ
- * @returns {string} непорожній контент відповіді
+ * @returns {{ content:string, reasoning:string|null, reasoningSource:string|null, finishReason:string|null, usage:object|null, attempts:number }} багатий результат виклику
  * @throws на curl-помилці, не-200 exit, поганому JSON чи порожньому контенті
  */
-export function callOmlx(messages, model, opts = {}) {
+export function callOmlxRaw(messages, model, opts = {}) {
   const {
     url = env.N_CURSOR_OMLX_URL ?? DEFAULT_OMLX_URL,
     timeoutMs = 60_000,
@@ -136,12 +162,24 @@ export function callOmlx(messages, model, opts = {}) {
       throw new Error(`omlx bad json: ${r.stdout?.slice(0, 200) ?? ''}`)
     }
     if (j.error) throw new Error(`omlx api: ${JSON.stringify(j.error).slice(0, 300)}`)
-    const content = j.choices?.[0]?.message?.content?.trim() ?? ''
-    if (!content) {
-      const finish = j.choices?.[0]?.finish_reason
-      throw new Error(`omlx empty content (finish=${finish})`)
-    }
-    return content
+    const message = j.choices?.[0]?.message ?? {}
+    const finishReason = j.choices?.[0]?.finish_reason ?? null
+    const content = message.content?.trim() ?? ''
+    if (!content) throw new Error(`omlx empty content (finish=${finishReason})`)
+    const { reasoning, reasoningSource } = extractReasoning(message, finishReason)
+    return { content, reasoning, reasoningSource, finishReason, usage: j.usage ?? null, attempts: attempt }
   }
   throw lastErr ?? new Error('omlx unknown failure')
+}
+
+/**
+ * Тонка обгортка над `callOmlxRaw` для споживачів, яким потрібен лише текст.
+ * Контракт незмінний: повертає непорожній `choices[0].message.content`.
+ * @param {Array<{role:string, content:string}>} messages OpenAI-messages
+ * @param {string} model model-id (з/без `omlx/`-префікса)
+ * @param {object} [opts] ті самі опції, що й у `callOmlxRaw`
+ * @returns {string} непорожній контент відповіді
+ */
+export function callOmlx(messages, model, opts = {}) {
+  return callOmlxRaw(messages, model, opts).content
 }
