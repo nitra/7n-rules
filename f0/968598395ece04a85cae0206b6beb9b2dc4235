@@ -1,0 +1,113 @@
+npm/rules/release/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 15
+docs/adr/260611-2334-іменовані-імпорти-node-path-замість-default-імпорту.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-33
+npm/rules/abie/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/rust/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/test/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/skills/doc-aggregate/js/docgen-scan.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 2,20,31,51-52,57-58,76,79,101-102,125-126,143,153,156,173
+npm/skills/doc-files/.changes/260612-0002.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-5
+docs/adr/260611-2352-підтримка-rust-у-doc-files-поетапне-введення-one-shot-orches.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-35
+docs/adr/260611-2333-додавання-мінімальної-підтримки-rs-у-doc-files.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-32
+docs/adr/260612-0002-заміна-inline-eslint-disable-на-file-level-overrides-і-рефак.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-43
+npm/rules/efes/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/feedback/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/image-compress/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/vue/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+docs/adr/260611-2354-заміна-дефолтного-імпорту-node-path-на-іменовані-імпорти.md
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-68
+npm/skills/doc-files/js/units-rs.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 1-213
+npm/rules/ga/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+eslint.config.js
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 48-95
+npm/skills/doc-files/js/docgen-scan.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 2,29,40,50-52,63,65,77,99-100,105-106,124,192,202-204,218,264,271
+npm/rules/image-avif/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/worktree/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/text/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/security/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/skills/doc-files/js/units.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 4,9-10,18
+npm/skills/doc-files/js/docgen-extract.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 214-348,357
+npm/rules/graphql/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/hasura/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-lint/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-mssql/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-bun-db/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-run/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/style-lint/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/tauri/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/adr/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/rego/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/nginx-default-tpl/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/npm-module/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/php/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/bun/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/capacitor/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/ci4/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/docker/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/k8s/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-lint-ci/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/k8s/js/manifests.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 4858
+npm/rules/python/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/changelog/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+npm/rules/js-bun-redis/fix.mjs
+  s_74c2737fb2a1b4::t_a0014dc2269ed0 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f0968598395ece04a85cae0206b6beb9b2dc4235",
+  "prompts": {},
+  "sessions": {
+    "s_74c2737fb2a1b4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54f63bb7-8e2f-46b8-9c32-658ee5c0f7c6",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
