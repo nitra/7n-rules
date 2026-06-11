@@ -1,0 +1,316 @@
+npm/rules/npm-module/js/docs/header_doc_pointer.md
+  s_7d07517e0aae7f::t_d36072e1e04c9e 1-6
+  s_7d07517e0aae7f::t_6206706b92eb1b 22
+npm/skills/doc-aggregate/js/docs/docgen-ignore.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+  s_7d07517e0aae7f::t_87f966acdde9a2 7-21
+npm/scripts/lib/worktree.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 31
+npm/scripts/docs/coverage-fix.md
+  s_7d07517e0aae7f::t_056ced33481353 1-6
+npm/scripts/coverage-fix.mjs
+  s_7d07517e0aae7f::t_d467f7b38efad5 12,16
+npm/rules/text/lint/tests/run-shellcheck.test.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 88
+npm/skills/start-check/js/docs/check.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/skills/doc-files/js/docgen-scan.mjs
+  s_7d07517e0aae7f::t_5e630d8411b438 226-231
+  s_7d07517e0aae7f::t_25d436ed65dc08 11
+  s_7d07517e0aae7f::t_6206706b92eb1b 287-289
+  s_7d07517e0aae7f::t_6bcd7111671b23 209-225,232-237,242-246,255
+.n-cursor.json
+  s_7d07517e0aae7f::t_6206706b92eb1b 23-24
+.cursor/skills/n-lint/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 8,71
+.jscpd.json
+  s_7d07517e0aae7f::t_62e97a905446f6 11
+  s_7d07517e0aae7f::t_7fbde0527cb5a5 21,23-26
+  s_7d07517e0aae7f::t_ab2f83a16a6d53 27-28
+  s_7d07517e0aae7f::t_91d83792ccb662 7
+  s_7d07517e0aae7f::t_b40d479a6f8358 22
+npm/skills/doc-files/js/docs/docgen-prompts.md
+  s_7d07517e0aae7f::t_3852d9d3533d72 7-32
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-3,5-6
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+npm/scripts/tests/coverage-fix.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 44-46
+tasks/coverage-skill-test/task.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 5,23,28
+docs/superpowers/specs/2026-06-10-doc-files-local-only-pipeline.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 21-32,87-93,176-183,204-208
+  s_7d07517e0aae7f::t_5df036b13f255a 1,3-5,7,9,11,13,15-17,19,34,36-49,51,53,55,57-64,66,68,71-74,77-80,82,84,86,94,96,98-101,103,105-107,109,111,113-117,119,121,123,125,127,129,131,133-137,139,141-150,153-156,158,160,162-163,165,167,169-172,174,185-192,194,196-200,202,210
+docs/specs/2026-06-01-changelog-npm-module-align.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 55-56
+docs/adr/260610-2228-doc-files-local-only-конвеєр-claims-render-з-ast-декомпозицією.md
+  s_7d07517e0aae7f::t_7d1746cbe165cc 1,3-4,8,12-19,23,25,29-35,39
+.cursor/rules/n-npm-module.mdc
+  s_7d07517e0aae7f::t_620e478f1d8681 66,78
+npm/scripts/utils/resolve-js-root.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 30
+npm/rules/abie/lib/docs/enabled.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 11,13,15,17,19,21,23
+npm/lib/omlx.mjs
+  s_7d07517e0aae7f::t_9925541ebb3caf 14-17
+  s_7d07517e0aae7f::t_d013527df3f5c4 88-89,94-97
+  s_7d07517e0aae7f::t_6206706b92eb1b 104-118
+  s_7d07517e0aae7f::t_e2f5311ffa2725 20-22,28-46
+  s_7d07517e0aae7f::t_00fdbb1a8970d9 78
+.cursor/skills/n-start-check/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 9,21
+docs/specs/2026-06-10-omlx-wire-trace-capture-design.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 51-52,54,80-82,87-88,91-92,94,100-101,103
+npm/skills/start-check/js/check.mjs
+  s_7d07517e0aae7f::t_92a7377ee2ffa5 70-71,140-142
+.cursor/skills/n-taze/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 9,72
+npm/CHANGELOG.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 78
+npm/rules/docker/lint/docs/lint.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 168,171,174
+.cspell.json
+  s_7d07517e0aae7f::t_00ea239c52c3d2 37,45,51,58,62,78,87,96-97,110,115
+  s_7d07517e0aae7f::t_d5c65b7e6dfa21 18-27
+  s_7d07517e0aae7f::t_d68fe01649d488 30-36,41-44,46-50,52-57,59-61,63-77,79-86,88-95,98-102,106-109,112-114,116-117
+tasks/skills-orchestrator-migration/task.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 5,24,29,33
+npm/.changes/260610-2323.md
+  s_7d07517e0aae7f::t_d5c65b7e6dfa21 1-5
+npm/scripts/dispatcher/tests/index.test.mjs
+  s_7d07517e0aae7f::t_03ad8ca43e8e87 15-19,22-23
+  s_7d07517e0aae7f::t_4f9e8781d1c68b 38,44,50,56,63,69,75
+npm/scripts/tests/worktree-cli.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 24-31,69-71,87-89
+.cursor/rules/n-test.mdc
+  s_7d07517e0aae7f::t_620e478f1d8681 133
+.cursor/skills/n-docgen/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 8,71
+npm/skills/doc-files/js/tests/docgen-crc.test.mjs
+  s_7d07517e0aae7f::t_00fe6f5b7d5d14 6-15
+  s_7d07517e0aae7f::t_b0db8f85b845ce 17,22
+  s_7d07517e0aae7f::t_1e2a4cdbbb6ffc 37,40,44,49-65
+  s_7d07517e0aae7f::t_6206706b92eb1b 45-48,105-108
+  s_7d07517e0aae7f::t_f864db5cf1330d 82-104,109-111
+npm/skills/doc-files/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 27
+  s_7d07517e0aae7f::t_b62b054397dfca 56-59,63,67-69
+  s_7d07517e0aae7f::t_65cb39f470d56f 31,33-34,38-41
+  s_7d07517e0aae7f::t_e7e6ffe155ad47 80
+npm/lib/docs/omlx.md
+  s_7d07517e0aae7f::t_76aab48c93a6a8 7-32
+  s_7d07517e0aae7f::t_faceca1bac4743 1-3,5-6
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+npm/scripts/coverage-fix-extract.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 30
+.stylelintignore
+  s_7d07517e0aae7f::t_c90304e321b1a2 2-3
+npm/skills/doc-files/js/docgen-files-batch.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 96-98,125-126
+  s_7d07517e0aae7f::t_bad8acb232dc05 109-111
+  s_7d07517e0aae7f::t_930a145c277eaf 2,4-11,17-19,23,25,32-37,41-75,79-83,85,89,92,95,99,103-106,112-113,127,129-134,142,147-149,156,168-170
+  s_7d07517e0aae7f::t_ab875b658a1200 76-78
+npm/scripts/tests/post-tool-use-fix.test.mjs
+  s_7d07517e0aae7f::t_6e6cf8be14d0bd 25,169
+npm/skills/fix/js/docs/llm-worker.md
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-3,5-6
+npm/skills/doc-files/js/docs/docgen-files-batch.md
+  s_7d07517e0aae7f::t_faceca1bac4743 2-3
+  s_7d07517e0aae7f::t_235e2e2f50e48d 7,9,11,13,15-19,21,23-25
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+docs/specs/2026-06-10-docgen-split-doc-files-doc-aggregate-design.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 64
+npm/rules/ci4/js/docs/marksman_config.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 97,100,104
+npm/skills/fix/js/orchestrator.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 23
+npm/scripts/lib/docs/worktree.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/skills/doc-files/js/docs/docgen-crc.md
+  s_7d07517e0aae7f::t_f5a9bbd50a40bd 7-32
+  s_7d07517e0aae7f::t_a223fc434f68e5 4
+  s_7d07517e0aae7f::t_faceca1bac4743 1-3,5-6
+npm/skills/doc-files/js/docgen-crc.mjs
+  s_7d07517e0aae7f::t_9303d55887d533 47-50
+  s_7d07517e0aae7f::t_caf7992cd4603d 94
+  s_7d07517e0aae7f::t_ddd79cd37e84d8 10-15,23-24,29-32,56-57,59,65-66,70-77,83-93,95-98,100,103-104,106-112,122,125,127,140-148
+  s_7d07517e0aae7f::t_73d1afb89ea090 52
+  s_7d07517e0aae7f::t_73652fc858f34c 113-114
+tasks/ui-task-view/task.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 5,23,27
+npm/rules/security/docs/fix.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 77
+npm/scripts/lib/root-notice.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 22
+docs/eslint.config.md
+  s_7d07517e0aae7f::t_d36072e1e04c9e 1-6
+npm/.pi-template/extensions/n-cursor-adr/docs/index.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 26-34
+.cursor/skills/n-coverage-fix/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 8,71
+package.json
+  s_da2db6cec4e31b::t_0f47cdbc13c2a7 22
+npm/lib/tests/llm.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 148-150,187-191
+  s_7d07517e0aae7f::t_17f29b8d4748d5 25-28
+  s_7d07517e0aae7f::t_56ecdf9a7c76cd 114
+  s_7d07517e0aae7f::t_1e61fd8a5c6876 175-185
+  s_7d07517e0aae7f::t_4940953947dcf7 9,46,50,110,121,130
+  s_7d07517e0aae7f::t_1744fc9f95fe2f 98
+  s_7d07517e0aae7f::t_f6a657632ea7aa 12,14-18,21
+  s_7d07517e0aae7f::t_7c7755e656e34c 1-8,10,13,19-20,22-24,29-45,47-49,51-55,57-60,62-73,75-85,87-93,95-97,102-106,108-109,111-113,115-117,119-120,122,124-125,128-129,131-135,139-142,144-147,151-155,157-163,165-172,174,186,192-194
+  s_7d07517e0aae7f::t_18f59c72f1e9e8 156
+  s_7d07517e0aae7f::t_90230986cdef3e 123,126
+.cursor/skills/n-fix/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 8,71
+npm/skills/doc-files/js/docs/docgen-scan.md
+  s_7d07517e0aae7f::t_faceca1bac4743 1-3,5-6
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+  s_7d07517e0aae7f::t_12bb3cfa474dd8 7-25
+npm/skills/doc-files/js/docs/docgen-gen.md
+  s_7d07517e0aae7f::t_faceca1bac4743 1-3,5-6
+  s_7d07517e0aae7f::t_d36072e1e04c9e 4
+  s_7d07517e0aae7f::t_32cae3e067c4ef 7-30
+npm/skills/doc-files/js/docgen-prompts.mjs
+  s_7d07517e0aae7f::t_79f9b1b16e661b 42-47,58
+  s_7d07517e0aae7f::t_3170cf2cb055db 139-140,142-144
+  s_7d07517e0aae7f::t_d81b0d46af79fe 163
+  s_7d07517e0aae7f::t_cd13ce75ce0611 67,74,83,88,90,93-101,103
+  s_7d07517e0aae7f::t_6206706b92eb1b 77-82,119
+  s_7d07517e0aae7f::t_57cfea6dbdb243 109,112-113
+  s_7d07517e0aae7f::t_f396ef17926b62 11-15
+npm/scripts/docs/coverage-fix-extract.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/skills/doc-files/js/docgen-extract.mjs
+  s_7d07517e0aae7f::t_14f0e75d5b0435 35-38
+  s_7d07517e0aae7f::t_73dc70a40be889 28-29,32-33
+  s_7d07517e0aae7f::t_8750a2afe244e6 157-160,164-166
+.changes/260609-0656.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 5
+npm/rules/js-bun-db/lib/docs/bun-sql-scan.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 273,287,317
+npm/lib/tests/omlx.test.mjs
+  s_7d07517e0aae7f::t_4940953947dcf7 8,148,152,156,160,171
+  s_7d07517e0aae7f::t_a5c24931f73993 140-147,149-151,153-155,157-159,161-170,172-182
+  s_7d07517e0aae7f::t_6206706b92eb1b 90-93,127-131
+  s_7d07517e0aae7f::t_333d3fd45584a9 11,13,15
+.cursor/skills/n-adr-normalize/SKILL.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 9,72
+npm/scripts/lib/docs/root-notice.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/lib/llm.mjs
+  s_7d07517e0aae7f::t_21a51bbb1f0155 121-122
+  s_7d07517e0aae7f::t_d52327bb0b00e9 2,4-12,15-16,18,20-21,23-29,32-42,44,46-57,59,61-64,66-69,71-82,92-93,103,105,107-108,112-113,115-117,119-120,123-131,133-135
+  s_7d07517e0aae7f::t_6c8f35b4d2b3ab 109-110,114,118,132
+  s_7d07517e0aae7f::t_c8c1f6298990a4 70
+  s_7d07517e0aae7f::t_6206706b92eb1b 83-91,94-102
+npm/skills/doc-files/js/docgen-gen.mjs
+  s_7d07517e0aae7f::t_3285c1383b34c7 6-7,139,141,165-166,169,194,203,210-211,217,220,222-227,232-235,249-252,255-256,258-259,261,263,265-266,268,271,275,278,289
+  s_7d07517e0aae7f::t_721450265c7796 11
+  s_7d07517e0aae7f::t_1db845c6525648 8,20-21,23-27,29,32-34,38,40,48-49,57-61,66,68,75-84,87-89,110,130-136,140,148-149,157-164,172-177,196-201,230,236-238,240,283,285,287
+  s_7d07517e0aae7f::t_6206706b92eb1b 12-18,246-248
+  s_7d07517e0aae7f::t_a81fab64fc8d8f 22
+  s_7d07517e0aae7f::t_b07f82cf901d9f 30-31
+  s_7d07517e0aae7f::t_eeb3624eaecab2 53
+CLAUDE.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 6
+npm/scripts/coverage-classify/cache.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 32
+npm/scripts/utils/tests/lock-cache-dir.test.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 35-36,41,44
+npm/rules/js-lint-ci/docs/fix.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 85
+npm/scripts/utils/docs/resolve-js-root.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/rules/npm-module/js/header_doc_pointer.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 29,65
+docs/doc-files-skill.md
+  s_7d07517e0aae7f::t_61761baa903d14 1,3,5,7,9,11-14,16,18,20-37,39-40,42,44-49,51-64,67,69-71,73,75-92,94,96,98-103,105,107,109,111,113,115-120,122,124,126,128-131,133-135,137,139-141,143,145-147,149,151-175,177,179-190
+npm/.changes/260610-2250.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 5
+  s_7d07517e0aae7f::t_01569f2ddb9d39 1-4,6
+eslint.config.js
+  s_7d07517e0aae7f::t_ab74fd7dd8f4dd 17-19
+COVERAGE.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 62413-62445,62447-62461,62501-62503,62510,62575-62577,62587,62630,62633
+npm/scripts/docs/build-agents-commands.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 157
+npm/skills/doc-files/js/docs/docgen-extract.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+  s_7d07517e0aae7f::t_8a1354c179d20f 7-29
+knip.json
+  s_7d07517e0aae7f::t_6206706b92eb1b 9-19
+npm/skills/doc-aggregate/js/docgen-ignore.mjs
+  s_7d07517e0aae7f::t_f96d0fc0f08087 2-7,9
+npm/skills/doc-files/js/tests/docgen-scan.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 59-62
+  s_7d07517e0aae7f::t_833cfc11fee881 30
+npm/scripts/lib/docs/mirror-parity.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/scripts/lib/mirror-parity.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 59
+npm/scripts/coverage-classify/docs/prompt.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/skills/fix/js/llm-worker.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 15,38
+  s_7d07517e0aae7f::t_6206706b92eb1b 119
+npm/scripts/lib/docs/worktree-notice.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/rules/abie/lib/docs/env-dns.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 20-22
+docs/superpowers/plans/2026-06-08-meta-task-extraction.md
+  s_7d07517e0aae7f::t_6206706b92eb1b 139-152
+npm/scripts/lib/worktree-notice.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 28,34,37,42-43
+npm/scripts/coverage-classify/tests/index.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 94-96
+npm/scripts/lib/tests/worktree-notice.test.mjs
+  s_7d07517e0aae7f::t_6206706b92eb1b 94
+npm/skills/doc-files/js/docs/docgen-extract-anchors.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+  s_7d07517e0aae7f::t_580ed124d8c15c 7-27
+npm/scripts/coverage-classify/prompt.mjs
+  s_7d07517e0aae7f::t_197bef704ca513 58
+npm/skills/fix/js/docs/orchestrator.md
+  s_7d07517e0aae7f::t_d36072e1e04c9e 1-6
+npm/skills/doc-files/js/docgen-extract-anchors.mjs
+  s_7d07517e0aae7f::t_3a91d73cb39c7a 22
+  s_7d07517e0aae7f::t_67b0d314093491 24-28
+  s_7d07517e0aae7f::t_2ea7f86730b47a 80-81
+  s_7d07517e0aae7f::t_89c1f6467e5030 87-92,95-98
+  s_7d07517e0aae7f::t_6eab98754ab81f 50
+  s_7d07517e0aae7f::t_21c3aea2b1e969 43
+npm/scripts/coverage-classify/docs/cache.md
+  s_7d07517e0aae7f::t_a223fc434f68e5 1-6
+npm/skills/fix/js/tests/orchestrator.test.mjs
+  s_7d07517e0aae7f::t_759ddbf1ff436d 8
+  s_7d07517e0aae7f::t_6206706b92eb1b 85-89
+npm/lib/docs/llm.md
+  s_7d07517e0aae7f::t_1134f9306ecbd8 7-29
+  s_7d07517e0aae7f::t_faceca1bac4743 1-3,5-6
+  s_7d07517e0aae7f::t_a223fc434f68e5 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "d6c2359678a5db729ce7e448526df70b17bf397d",
+  "prompts": {},
+  "sessions": {
+    "s_7d07517e0aae7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b46c022-4ebd-4607-817b-3df1cbb1414d",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    },
+    "s_da2db6cec4e31b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8cd8d81f-2872-41c6-a29c-5e1ea6518ad1",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
