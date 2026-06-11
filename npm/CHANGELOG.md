@@ -1,5 +1,11 @@
 # Changelog
 
+## [5.3.4] - 2026-06-11
+
+### Changed
+
+- ✨ feat(npm/skills/doc-files): Rust (.rs): тести extractFactsRust у docg…
+
 ## [5.3.3] - 2026-06-11
 
 ### Changed
