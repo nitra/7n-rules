@@ -26,8 +26,7 @@ function contentLineCount(block) {
   return block
     .split('\n')
     .slice(1, -1)
-    .filter(l => NON_WHITESPACE_RE.test(l.replace(STAR_INDENT_RE, '')))
-    .length
+    .filter(l => NON_WHITESPACE_RE.test(l.replace(STAR_INDENT_RE, ''))).length
 }
 
 /**
@@ -63,12 +62,7 @@ export async function check(cwd = process.cwd()) {
       if (!existsSync(jsDir)) continue
 
       for (const fileEntry of await readdir(jsDir, { withFileTypes: true })) {
-        if (
-          !fileEntry.isFile() ||
-          !fileEntry.name.endsWith('.mjs') ||
-          fileEntry.name.endsWith('.test.mjs')
-        )
-          continue
+        if (!fileEntry.isFile() || !fileEntry.name.endsWith('.mjs') || fileEntry.name.endsWith('.test.mjs')) continue
 
         const stem = basename(fileEntry.name, '.mjs')
         const docsPath = join(jsDir, 'docs', `${stem}.md`)

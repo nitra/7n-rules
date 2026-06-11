@@ -165,11 +165,13 @@ if (isRunAsCli(import.meta.url)) {
 
 - **CLI:** `bun run n-cursor lint-docker` (або відповідний bin-скрипт) — основний сценарій.
 - **Програмно з інших скриптів:**
+
   ```js
   import { runLintDocker } from 'npm/rules/docker/lint/lint.mjs'
-  
+
   const code = await runLintDocker() // 0 — OK, 1 — є зауваження/помилки
   ```
+
 - **Тести/допоміжний код:**
 
   ```js

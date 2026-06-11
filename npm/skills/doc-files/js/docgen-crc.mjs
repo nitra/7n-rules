@@ -7,6 +7,12 @@
  * CRC не залежить від git-стану (rebase, незакомічене, гілки), тож придатний і для
  * per-edit hook (бачить лише змінений файл), і для повного сканування.
  *
+ * Degraded-маркер (ADR 260610-2228): якщо локальний конвеєр не дотягнув до порогу
+ * якості, дока все одно пишеться, а frontmatter додатково несе `score` (det-оцінка)
+ * та `issues` (коди проблем). CRC при цьому свіжий — Stop-гейт не блокує задачі через
+ * слабкість моделі; борг видимий через `check --degraded` і адресно перегенеровується
+ * через `gen --retry-degraded`.
+ *
  * Frontmatter — єдиний дозволений виняток із правила «чистий Markdown без HTML»:
  * це машинні метадані, не контент. Формат:
  *
@@ -14,10 +20,16 @@
  *   docgen:
  *     source: src/lib/foo.js
  *     crc: a3f1c9e0
+ *     score: 55
+ *     issues: short-behavior,internal-name:bar
  *   ---
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { crc32 as zlibCrc32 } from 'node:zlib'
+import { env } from 'node:process'
+
+/** Поріг degraded: дока зі `score` нижче вважається неякісною. */
+export const QUALITY_THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? 70) || 70
 
 /**
  * CRC32 вмісту у hex (8 символів, з провідними нулями). Делегує у нативний
@@ -32,36 +44,74 @@ export function crc32(input) {
 
 /** Провідний YAML-frontmatter-блок `---\n…\n---`. */
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
-const SOURCE_RE = /^[ \t]*source:[ \t]*(.+)$/mu
-const CRC_RE = /^[ \t]*crc:[ \t]*(.+)$/mu
+const SOURCE_RE = /^[ \t]{0,8}source:[ \t]{0,8}(.+)$/mu
+const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
+const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu
+const ISSUES_RE = /^[ \t]{0,8}issues:[ \t]{0,8}(.+)$/mu
 const LEADING_NEWLINES_RE = /^\n+/u
+const ISSUE_CODE_TAIL_RE = /[,:]$/u
 
 /**
  * Парсить frontmatter файлової доки. Без блоку — `data:null` і `body` дорівнює входу.
+ * Поля `score`/`issues` опційні (back-compat зі старими доками): без них —
+ * `score:null`, `issues:[]`.
  * @param {string} md вміст md-файлу
- * @returns {{ data: { source: string|null, crc: string|null }|null, body: string }} метадані + тіло без frontmatter
+ * @returns {{ data: { source: string|null, crc: string|null, score: number|null, issues: string[] }|null, body: string }} метадані + тіло без frontmatter
  */
 export function parseDocFrontmatter(md) {
   const match = md.match(FRONTMATTER_RE)
   if (!match) return { data: null, body: md }
   const block = match[1]
+  const scoreRaw = block.match(SCORE_RE)?.[1]
+  const issuesRaw = block.match(ISSUES_RE)?.[1]
   return {
     data: {
       source: block.match(SOURCE_RE)?.[1].trim() ?? null,
-      crc: block.match(CRC_RE)?.[1].trim() ?? null
+      crc: block.match(CRC_RE)?.[1].trim() ?? null,
+      score: scoreRaw === undefined ? null : Number(scoreRaw),
+      issues: issuesRaw
+        ? issuesRaw
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+        : []
     },
     body: md.slice(match[0].length)
   }
 }
 
+/** Максимум кодів issues у frontmatter — це маркер, а не повний лог. */
+const MAX_ISSUE_CODES = 8
+
 /**
- * Будує frontmatter-блок із шляхом джерела та CRC.
+ * Нормалізує issues до YAML-безпечних кодів: бере фрагмент до першого пробілу
+ * (зрізає людиночитні хвости помилок), відкидає порожні, обмежує кількість.
+ * @param {string[]} issues сирі issue-рядки від скорера
+ * @returns {string[]} коди без пробілів
+ */
+function issueCodes(issues) {
+  return issues
+    .map(i => String(i).split(' ')[0].replace(ISSUE_CODE_TAIL_RE, ''))
+    .filter(Boolean)
+    .slice(0, MAX_ISSUE_CODES)
+}
+
+/**
+ * Будує frontmatter-блок із шляхом джерела, CRC і (опційно) якістю.
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
- * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …\n---\n`
+ * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки; null — без полів якості
+ * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …[\n  score: …][\n  issues: …]\n---\n`
  */
-export function buildDocFrontmatter(source, crc) {
-  return `---\ndocgen:\n  source: ${source}\n  crc: ${crc}\n---\n`
+export function buildDocFrontmatter(source, crc, quality = null) {
+  const lines = [`source: ${source}`, `crc: ${crc}`]
+  if (quality && typeof quality.score === 'number') {
+    lines.push(`score: ${quality.score}`)
+    const codes = issueCodes(quality.issues ?? [])
+    if (codes.length > 0) lines.push(`issues: ${codes.join(',')}`)
+  }
+  const indented = lines.map(l => '  ' + l).join('\n')
+  return `---\ndocgen:\n${indented}\n---\n`
 }
 
 /**
@@ -69,11 +119,12 @@ export function buildDocFrontmatter(source, crc) {
  * @param {string} md тіло доки (з frontmatter або без)
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
+ * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки
  * @returns {string} md зі свіжим frontmatter
  */
-export function stampDoc(md, source, crc) {
+export function stampDoc(md, source, crc, quality = null) {
   const { body } = parseDocFrontmatter(md)
-  return `${buildDocFrontmatter(source, crc)}\n${body.replace(LEADING_NEWLINES_RE, '')}`
+  return `${buildDocFrontmatter(source, crc, quality)}\n${body.replace(LEADING_NEWLINES_RE, '')}`
 }
 
 /**
@@ -84,6 +135,17 @@ export function stampDoc(md, source, crc) {
 export function readDocCrc(docAbsPath) {
   if (!existsSync(docAbsPath)) return null
   return parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data?.crc ?? null
+}
+
+/**
+ * Якість, збережена у frontmatter доки.
+ * @param {string} docAbsPath абсолютний шлях md-доки
+ * @returns {{ score: number|null, issues: string[] }} `score:null` — доки немає або поле відсутнє
+ */
+export function readDocQuality(docAbsPath) {
+  if (!existsSync(docAbsPath)) return { score: null, issues: [] }
+  const data = parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data
+  return { score: data?.score ?? null, issues: data?.issues ?? [] }
 }
 
 /**

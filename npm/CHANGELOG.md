@@ -75,7 +75,7 @@
 
 ### Added
 
-- lib/models.mjs: global model tier classification (LOCAL_MIN/AVG/MAX, CLOUD_MIN/AVG/MAX) via N_*_MODEL env vars; fix llm-worker uses CLOUD_MIN/AVG by default
+- lib/models.mjs: global model tier classification (LOCAL*MIN/AVG/MAX, CLOUD_MIN/AVG/MAX) via N*\*\_MODEL env vars; fix llm-worker uses CLOUD_MIN/AVG by default
 
 ### Changed
 

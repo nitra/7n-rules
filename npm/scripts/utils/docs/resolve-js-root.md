@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/utils/resolve-js-root.mjs
+  crc: 2c2b9f11
+---
+
 # resolve-js-root.mjs
 
 ## Огляд

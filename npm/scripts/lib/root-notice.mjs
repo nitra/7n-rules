@@ -19,7 +19,7 @@ export const ROOT_START = '<!-- n-cursor:root:start -->'
 export const ROOT_END = '<!-- n-cursor:root:end -->'
 
 /** Наявний блок разом із сусідніми порожніми рядками (для чистого видалення). */
-const BLOCK_RE = /\n*<!-- n-cursor:root:start -->[\s\S]*?<!-- n-cursor:root:end -->\n*/u
+const BLOCK_RE = /\n{0,8}<!-- n-cursor:root:start -->[\s\S]*?<!-- n-cursor:root:end -->\n{0,8}/u
 
 /** Закриття YAML-frontmatter на початку файла. */
 const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---\n)/u

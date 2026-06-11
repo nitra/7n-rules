@@ -67,8 +67,8 @@ export async function scanStartWorkspaces(cwd) {
  * @param {string} log обʼєднаний stdout+stderr
  * @returns {{ready:boolean, firstError:string|null, logTail:string}} витяг
  */
-export function parseStartLog(log) {
-  const text = log ?? ''
+export function parseStartLog(log = '') {
+  const text = log
   const lines = text.split('\n')
   const firstError = lines.find(l => ERROR_RE.test(l))?.trim() ?? null
   const logTail = lines
@@ -137,7 +137,9 @@ export async function runWorkspaceStart(cwd, workspace, opts = {}) {
 
   // server: успіх = дожив до кінця grace (timedOut) або встиг віддати рядок готовності.
   // cli: успіх = чистий вихід 0 у межах grace.
-  const status = type === 'server' ? (timedOut || ready ? 'OK' : 'FAIL') : exitCode === 0 ? 'OK' : 'FAIL'
+  let status
+  if (type === 'server') status = timedOut || ready ? 'OK' : 'FAIL'
+  else status = exitCode === 0 ? 'OK' : 'FAIL'
 
   return {
     workspace,

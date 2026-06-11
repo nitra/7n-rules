@@ -56,5 +56,5 @@ export async function findMirrorDrift(repoRoot) {
     const expected = await expectedMirrorContent(m.canonicalPath)
     if (readFileSync(m.mirrorPath, 'utf8') !== expected) drift.push(m.id)
   }
-  return drift.sort()
+  return drift.toSorted()
 }

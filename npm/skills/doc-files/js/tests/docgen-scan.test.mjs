@@ -27,7 +27,7 @@ describe('docPathForSource', () => {
 
 describe('isDocCandidate', () => {
   test('кодовий файл у дереві — кандидат; ignore-дерева й тести — ні', async () => {
-    await withTmpDir(async root => {
+    await withTmpDir(root => {
       expect(isDocCandidate(root, 'src/a.js')).toBe(true)
       expect(isDocCandidate(root, 'node_modules/pkg/x.js')).toBe(false)
       expect(isDocCandidate(root, 'src/a.test.js')).toBe(false)
@@ -56,7 +56,10 @@ describe('scanForDocFiles (CRC staleness)', () => {
     await withTmpDir(async root => {
       await ensureDir(join(root, 'src', 'docs'))
       await writeFile(join(root, 'src', 'foo.js'), 'export const a = 1\n')
-      await writeFile(join(root, 'src', 'docs', 'foo.md'), stampDoc('## Огляд\n', 'src/foo.js', crc32('export const a = 1\n')))
+      await writeFile(
+        join(root, 'src', 'docs', 'foo.md'),
+        stampDoc('## Огляд\n', 'src/foo.js', crc32('export const a = 1\n'))
+      )
 
       expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: false, reason: null })
 

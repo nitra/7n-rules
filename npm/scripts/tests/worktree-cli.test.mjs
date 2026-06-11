@@ -21,7 +21,14 @@ function initRepo(dir) {
   return dir
 }
 
-const silent = { log: () => { /* noop */ }, logError: () => { /* noop */ } }
+const silent = {
+  log: () => {
+    /* noop */
+  },
+  logError: () => {
+    /* noop */
+  }
+}
 
 describe('runWorktreeCli add', () => {
   test('створює checkout + .md від HEAD', async () => {
@@ -59,7 +66,9 @@ describe('runWorktreeCli add', () => {
       const code = await runWorktreeCli(['add', 'feat/x', 'опис'], {
         cwd: dir,
         log: line => lines.push(line),
-        logError: () => { /* noop */ }
+        logError: () => {
+          /* noop */
+        }
       })
       expect(code).toBe(0)
       const out = lines.join('\n')
@@ -75,7 +84,9 @@ describe('runWorktreeCli add', () => {
       await runWorktreeCli(['add', 'feat/x', 'опис'], {
         cwd: dir,
         log: line => lines.push(line),
-        logError: () => { /* noop */ }
+        logError: () => {
+          /* noop */
+        }
       })
       expect(lines.join('\n')).not.toContain('незакомічених змін')
     })

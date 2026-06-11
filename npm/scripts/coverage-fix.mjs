@@ -9,10 +9,11 @@
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { env } from 'node:process'
 
 import { resolveModel } from '../lib/models.mjs'
 
-const MODEL = process.env.N_CURSOR_COVERAGE_FIX_MODEL ?? resolveModel('max')
+const MODEL = env.N_CURSOR_COVERAGE_FIX_MODEL ?? resolveModel('max')
 
 /**
  * @typedef {{line:number, col:number, mutantType:string, original:string, replacement:string}} MutantDetail

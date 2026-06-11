@@ -14,7 +14,9 @@ export default [
       '**/reports/stryker/**',
       // Згенерований coverage-звіт у markdown — містить JS-snippets, які лінтер ловить як код.
       'COVERAGE.md',
-      '**/COVERAGE.md'
+      '**/COVERAGE.md',
+      // Згенеровані doc-files доки (<dir>/docs/<stem>.md) — ілюстративні snippets, не runnable-код.
+      '**/docs/*.md'
     ]
   },
   ...getConfig({

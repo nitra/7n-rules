@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/worktree-notice.mjs
+  crc: dc4fba22
+---
+
 # worktree-notice.mjs
 
 ## Огляд

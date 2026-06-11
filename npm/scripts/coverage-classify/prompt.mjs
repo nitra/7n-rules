@@ -55,7 +55,7 @@ worth-testing with low confidence instead of glue/wrapper.
  */
 function extractTestTitles(content) {
   const titles = []
-  for (const match of content.matchAll(/^\s*(describe|test|it)\(['"`](.+?)['"`]/gmu)) {
+  for (const match of content.matchAll(/^[ \t]{0,16}(describe|test|it)\(['"`](.{1,300}?)['"`]/gmu)) {
     titles.push(`${match[1]}: ${match[2]}`)
   }
   return titles.join('\n') || '(no describe/test blocks found)'

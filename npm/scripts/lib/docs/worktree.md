@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/worktree.mjs
+  crc: ffcdbca5
+---
+
 # worktree.mjs
 
 ## Огляд

@@ -3,12 +3,23 @@ import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
 
 import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
-import { crc32, parseDocFrontmatter, buildDocFrontmatter, stampDoc, readDocCrc, staleness } from '../docgen-crc.mjs'
+import {
+  QUALITY_THRESHOLD,
+  buildDocFrontmatter,
+  crc32,
+  parseDocFrontmatter,
+  readDocCrc,
+  readDocQuality,
+  staleness,
+  stampDoc
+} from '../docgen-crc.mjs'
+
+const HEX8_RE = /^[0-9a-f]{8}$/u
 
 describe('crc32', () => {
   test('детермінований, 8-символьний hex', () => {
     const a = crc32('export const a = 1\n')
-    expect(a).toMatch(/^[0-9a-f]{8}$/u)
+    expect(a).toMatch(HEX8_RE)
     expect(crc32('export const a = 1\n')).toBe(a)
   })
 
@@ -23,11 +34,35 @@ describe('crc32', () => {
 })
 
 describe('frontmatter', () => {
-  test('buildDocFrontmatter → парситься назад', () => {
+  test('buildDocFrontmatter → парситься назад (без quality — score:null)', () => {
     const fm = buildDocFrontmatter('src/lib/foo.js', 'a3f1c9e0')
     const { data, body } = parseDocFrontmatter(`${fm}\n## Огляд\n`)
-    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0' })
+    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0', score: null, issues: [] })
     expect(body.trim()).toBe('## Огляд')
+  })
+
+  test('quality: score+issues пишуться і парсяться назад', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', {
+      score: 55,
+      issues: ['short-behavior', 'internal-name:bar']
+    })
+    const { data } = parseDocFrontmatter(fm)
+    expect(data.score).toBe(55)
+    expect(data.issues).toEqual(['short-behavior', 'internal-name:bar'])
+  })
+
+  test('quality: issues нормалізуються до кодів (зріз по пробілу, стеля 8)', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `code-${i} людський хвіст помилки`)
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', { score: 10, issues: many })
+    const { data } = parseDocFrontmatter(fm)
+    expect(data.issues).toHaveLength(8)
+    expect(data.issues[0]).toBe('code-0')
+  })
+
+  test('quality: score без issues → рядка issues немає', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', { score: 90 })
+    expect(fm).toContain('score: 90')
+    expect(fm).not.toContain('issues:')
   })
 
   test('без frontmatter → data:null, тіло без змін', () => {
@@ -43,6 +78,36 @@ describe('frontmatter', () => {
     expect(data.crc).toBe('feedface')
     expect(body).toContain('## Огляд')
     expect(re.match(/^---/gmu)).toHaveLength(2) // рівно один frontmatter-блок
+  })
+
+  test('stampDoc з quality несе degraded-маркер; без quality — знімає його', () => {
+    const degraded = stampDoc('## Огляд\nтекст\n', 'src/foo.js', 'deadbeef', { score: 40, issues: ['no-overview'] })
+    expect(parseDocFrontmatter(degraded).data).toMatchObject({ score: 40, issues: ['no-overview'] })
+    const fresh = stampDoc(degraded, 'src/foo.js', 'feedface')
+    expect(parseDocFrontmatter(fresh).data.score).toBeNull()
+  })
+})
+
+describe('readDocQuality / QUALITY_THRESHOLD', () => {
+  test('дефолтний поріг — 70', () => {
+    expect(QUALITY_THRESHOLD).toBe(70)
+  })
+
+  test('читає score/issues; null для відсутньої доки чи доки без score', async () => {
+    await withTmpDir(async root => {
+      expect(readDocQuality(join(root, 'absent.md'))).toEqual({ score: null, issues: [] })
+
+      const plain = join(root, 'plain.md')
+      await writeFile(plain, stampDoc('## Огляд\n', 'src/a.js', 'deadbeef'))
+      expect(readDocQuality(plain)).toEqual({ score: null, issues: [] })
+
+      const degraded = join(root, 'degraded.md')
+      await writeFile(
+        degraded,
+        stampDoc('## Огляд\n', 'src/b.js', 'deadbeef', { score: 55, issues: ['short-behavior'] })
+      )
+      expect(readDocQuality(degraded)).toEqual({ score: 55, issues: ['short-behavior'] })
+    })
   })
 })
 

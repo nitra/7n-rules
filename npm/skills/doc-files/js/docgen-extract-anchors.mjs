@@ -19,9 +19,13 @@ const EXPORT_CONST_RE = /export\s+const\s+([A-Z][A-Z0-9_]+)\s*=\s*(['"`])([^'"`]
 const ERROR_MARKER_RE = /\(([a-z][\w-]*\.mdc)\)/g
 const CONFIG_REF_RE = /\b(\.[a-z][\w.-]*\.json)\b/gi
 const FILE_HEADER_RE = /^\s*\/\*\*([\s\S]*?)\*\//
-const CODE_BLOCK_RE = /```[a-z]*\n([\s\S]*?)\n\s*\*?\s*```/g
+const CODE_BLOCK_RE = /```[a-z]{0,12}\n([\s\S]*?)\n[ \t]{0,8}\*?[ \t]{0,8}```/g
 
-/** Dedup масив, зберігаючи порядок появи. */
+/**
+ * Dedup масив, зберігаючи порядок появи.
+ * @param {Array<string>} arr вхідний масив
+ * @returns {Array<string>} масив без дублікатів у вихідному порядку
+ */
 function uniq(arr) {
   const seen = new Set()
   const out = []
@@ -36,14 +40,14 @@ function uniq(arr) {
 
 /**
  * Витягує анкори з вихідного коду файла.
- * @param {string} src
+ * @param {string} src вміст файлу
  * @returns {{
  *   urls: string[],
  *   magicStrings: Array<{name:string, value:string}>,
  *   errorMarkers: string[],
  *   configRefs: string[],
  *   examples: string[]
- * }}
+ * }} категоризовані анкори файлу
  */
 export function extractAnchors(src) {
   const urls = uniq(Array.from(src.matchAll(URL_RE), m => m[0]))
@@ -73,20 +77,25 @@ export function extractAnchors(src) {
  * Форматує анкори у компактний текст для system-промпта.
  * Якщо анкорів немає взагалі — повертає порожній рядок (системний блок про
  * анкори не додається, щоб не вводити LLM в оману «обовʼязковими» полями).
- * @param {ReturnType<typeof extractAnchors>} a
- * @returns {string}
+ * @param {ReturnType<typeof extractAnchors>} a анкори файлу
+ * @returns {string} компактний текстовий блок або порожній рядок
  */
 export function anchorsToPrompt(a) {
   const blocks = []
   if (a.urls.length) blocks.push(`URLs (згадай у тексті): ${a.urls.join(', ')}`)
   if (a.magicStrings.length) {
-    blocks.push(
-      `Експортовані константи-рядки (наведи назву і призначення): ${a.magicStrings.map(s => `${s.name}=${JSON.stringify(s.value)}`).join('; ')}`
-    )
+    const consts = a.magicStrings.map(s => s.name + '=' + JSON.stringify(s.value)).join('; ')
+    blocks.push(`Експортовані константи-рядки (наведи назву і призначення): ${consts}`)
   }
-  if (a.errorMarkers.length) blocks.push(`Маркери повідомлень (згадай у Поведінці): ${a.errorMarkers.map(m => `(${m})`).join(', ')}`)
+  if (a.errorMarkers.length) {
+    const markers = a.errorMarkers.map(m => '(' + m + ')').join(', ')
+    blocks.push(`Маркери повідомлень (згадай у Поведінці): ${markers}`)
+  }
   if (a.configRefs.length) blocks.push(`Конфіги, на які спирається код: ${a.configRefs.join(', ')}`)
-  if (a.examples.length) blocks.push(`Приклади з документації автора (наведи дослівно у Поведінці):\n${a.examples.map(e => '```\n' + e + '\n```').join('\n')}`)
+  if (a.examples.length) {
+    const fenced = a.examples.map(e => '```\n' + e + '\n```').join('\n')
+    blocks.push(`Приклади з документації автора (наведи дослівно у Поведінці):\n${fenced}`)
+  }
   if (!blocks.length) return ''
   return `АНКОРИ ДО ОБОВ'ЯЗКОВОГО ВКЛЮЧЕННЯ:\n${blocks.join('\n')}`
 }

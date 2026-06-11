@@ -11,12 +11,39 @@
  * Так `resolveModel(tier)` лишається незмінним: достатньо виставити локальний
  * тир у форматі `N_LOCAL_MIN_MODEL=omlx/mlx-community--gemma-4-e2b-it-4bit`, і
  * виклик сам піде напряму в omlx замість pi.
+ *
+ * Auth: якщо в omlx увімкнено API-ключ, він резолвиться через
+ * `resolveOmlxApiKey` (opts → `N_CURSOR_OMLX_KEY` → `~/.omlx/settings.json`)
+ * і шлеться як `Authorization: Bearer …`.
  */
 import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 import { env } from 'node:process'
 
 /** Дефолтний endpoint omlx (override — `N_CURSOR_OMLX_URL`). */
 export const DEFAULT_OMLX_URL = 'http://127.0.0.1:8000/v1/chat/completions'
+
+/**
+ * API-ключ для omlx-сервера, коли в ньому ввімкнено auth
+ * (`~/.omlx/settings.json` → `auth.skip_api_key_verification: false`).
+ * Порядок: явний `apiKey` → env `N_CURSOR_OMLX_KEY` → `auth.api_key` із
+ * локального `~/.omlx/settings.json` (zero-config для власної машини; читання
+ * fail-safe) → `null` (заголовок не шлеться).
+ * @param {string} [apiKey] явний ключ із opts виклику
+ * @returns {string|null} ключ для `Authorization: Bearer …` або null
+ */
+export function resolveOmlxApiKey(apiKey) {
+  if (apiKey) return apiKey
+  if (env.N_CURSOR_OMLX_KEY) return env.N_CURSOR_OMLX_KEY
+  try {
+    const settings = JSON.parse(readFileSync(join(homedir(), '.omlx', 'settings.json'), 'utf8'))
+    return settings?.auth?.api_key || null
+  } catch {
+    return null
+  }
+}
 
 /** Дефолтна модель, якщо в id лишився голий `omlx/` (override — `N_CURSOR_OMLX_MODEL`). */
 export const DEFAULT_OMLX_MODEL = 'mlx-community--gemma-4-e2b-it-4bit'
@@ -46,10 +73,9 @@ export function omlxModelId(model) {
  * Прямий HTTP-виклик до omlx через `curl` (spawnSync). Повертає текст
  * `choices[0].message.content`. Ретраїть лише transient curl-помилки
  * (18 = transfer closed, 52 = empty reply, 56 = recv failure).
- *
  * @param {Array<{role:string, content:string}>} messages OpenAI-messages (system+user збережено)
  * @param {string} model model-id (з/без `omlx/`-префікса); порожній → дефолт
- * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string }} [opts]
+ * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ
  * @returns {string} непорожній контент відповіді
  * @throws на curl-помилці, не-200 exit, поганому JSON чи порожньому контенті
  */
@@ -59,18 +85,37 @@ export function callOmlx(messages, model, opts = {}) {
     timeoutMs = 60_000,
     temperature = 0.2,
     maxTokens = 4096,
-    fallbackModel = env.N_CURSOR_OMLX_MODEL ?? DEFAULT_OMLX_MODEL
+    fallbackModel = env.N_CURSOR_OMLX_MODEL ?? DEFAULT_OMLX_MODEL,
+    apiKey
   } = opts
 
   const m = omlxModelId(model) || fallbackModel
   const body = JSON.stringify({ model: m, messages, max_tokens: maxTokens, temperature })
+  // Ключ локального сервера в argv допустимий: localhost-секрет власної машини,
+  // короткоживучий процес; stdin уже зайнятий body (`--data-binary @-`).
+  const key = resolveOmlxApiKey(apiKey)
+  const authArgs = key ? ['-H', `Authorization: Bearer ${key}`] : []
 
   const TRANSIENT_CURL_CODES = new Set([18, 52, 56])
   let lastErr
   for (let attempt = 1; attempt <= 3; attempt++) {
     const r = spawnSync(
       'curl',
-      ['-sS', '-X', 'POST', url, '-H', 'Content-Type: application/json', '-H', 'Connection: close', '--max-time', String(Math.ceil(timeoutMs / 1000)), '--data-binary', '@-'],
+      [
+        '-sS',
+        '-X',
+        'POST',
+        url,
+        '-H',
+        'Content-Type: application/json',
+        '-H',
+        'Connection: close',
+        ...authArgs,
+        '--max-time',
+        String(Math.ceil(timeoutMs / 1000)),
+        '--data-binary',
+        '@-'
+      ],
       { input: body, encoding: 'utf8', timeout: timeoutMs + 5000 }
     )
     if (r.error) {

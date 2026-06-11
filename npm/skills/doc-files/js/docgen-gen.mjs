@@ -1,26 +1,43 @@
 /** @see ./docs/docgen-gen.md */
 import { readFileSync } from 'node:fs'
 import { basename } from 'node:path'
-import { spawnSync } from 'node:child_process'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
-import { callOmlx } from '../../../lib/omlx.mjs'
+import { DEFAULT_OMLX_MODEL } from '../../../lib/omlx.mjs'
+import { callLlm } from '../../../lib/llm.mjs'
+import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { extractFacts } from './docgen-extract.mjs'
 import { extractAnchors } from './docgen-extract-anchors.mjs'
-import { oneShotMessages, sectionMessages, criticMessages, refineMessages, guaranteesFromMarkers } from './docgen-prompts.mjs'
+import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
+import {
+  oneShotMessages,
+  sectionMessages,
+  criticMessages,
+  refineMessages,
+  guaranteesFromMarkers
+} from './docgen-prompts.mjs'
 
-const QUALITY_THRESHOLD = 70
+const FENCE_OPEN_RE = /^```[a-z]*\n?/
+const FENCE_CLOSE_RE = /\n?```\s*$/
+const LEADING_HEADING_RE = /^#{1,6}[ \t]{1,8}[^\n]{0,400}\n{1,8}/
+const SECTION_HEADING_RE = /^##\s+(.+)/
+const SECTION_KEY_CLEAN_RE = /[^а-яіїєґa-z0-9]/gi
+const CACHE_MENTION_RE = /кеш/i
+const CACHE_NEGATION_RE = /(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i
+const CRITIC_NONE_RE = /^\s*NONE\s*$/i
 
-/** Прибирає ```-обгортку й випадковий провідний `##`-заголовок із секції. */
+/**
+ * Прибирає код-фенс-обгортку (потрійні бектіки) й випадковий провідний
+ * `##`-заголовок із секції.
+ * @param {string} text сирий вихід моделі
+ * @returns {string} очищений текст секції
+ */
 function stripSection(text) {
   let t = text.trim()
   if (t.startsWith('```')) {
-    t = t
-      .replace(/^```[a-z]*\n?/, '')
-      .replace(/\n?```\s*$/, '')
-      .trim()
+    t = t.replace(FENCE_OPEN_RE, '').replace(FENCE_CLOSE_RE, '').trim()
   }
-  t = t.replace(/^#{1,6}\s+.*\n+/, '') // зрізати випадковий заголовок
+  t = t.replace(LEADING_HEADING_RE, '') // зрізати випадковий заголовок
   return t.trim()
 }
 
@@ -28,21 +45,27 @@ function stripSection(text) {
  * Stage 2 (детермінований лінт, 0 токенів): зрізає сигнатури `name(args)` → `name`.
  * Два проходи — щоб зняти вкладені виклики на кшталт `check(cwd = process.cwd())`.
  * Не чіпає дужки без ідентифікатора перед ними (напр. `(abie.mdc)`, «(наприклад)»).
+ * @param {string} text текст секції
+ * @returns {string} текст без сигнатур у дужках
  */
 function stripSignatures(text) {
   let t = text
-  for (let i = 0; i < 2; i++) t = t.replaceAll(/([`\w$.]+)\([^()]*\)/g, '$1')
+  for (let i = 0; i < 2; i++) t = t.replaceAll(/([`\w$.]{1,80})\([^()]{0,300}\)/g, '$1')
   return t
 }
 
-/** Розбиває md на секції за ## заголовками → { огляд, поведінка, api, гарантіїповедінки, … } */
+/**
+ * Розбиває md на секції за ## заголовками.
+ * @param {string} md зібраний документ
+ * @returns {Record<string, string>} нормалізований ключ секції → її тіло
+ */
 function parseSections(md) {
   const result = {}
   let cur = null
   for (const line of md.split('\n')) {
-    const m = line.match(/^##\s+(.+)/)
+    const m = line.match(SECTION_HEADING_RE)
     if (m) {
-      cur = m[1].toLowerCase().replaceAll(/[^а-яіїєґa-z0-9]/gi, '')
+      cur = m[1].toLowerCase().replaceAll(SECTION_KEY_CLEAN_RE, '')
       result[cur] = ''
     } else if (cur) result[cur] += line + '\n'
   }
@@ -50,8 +73,20 @@ function parseSections(md) {
 }
 
 /**
+ * Чи містить текст бектік-обгорнуте імʼя символу (`sym`) — уникає substring false positives.
+ * @param {string} text текст секції
+ * @param {string} sym імʼя символу без бектіків
+ * @returns {boolean} true — імʼя згадано
+ */
+function hasName(text, sym) {
+  return text.includes('`' + sym + '`')
+}
+
+/**
  * Stage 2.5 — детермінований скоринг (0 токенів): перевіряє вихід проти фактів.
- * @returns {{ score: number, issues: string[] }}
+ * @param {string} md зібраний документ
+ * @param {object} facts факт-лист про файл
+ * @returns {{ score: number, issues: string[] }} оцінка 0–100 і коди проблем
  */
 function scoreDoc(md, facts) {
   const s = parseSections(md)
@@ -72,14 +107,12 @@ function scoreDoc(md, facts) {
   const guarantees = s['гарантіїповедінки'] ?? ''
   // Будь-яка згадка "кеш" у Гарантіях коли файл не кешує — галюцинація
   // Негація: "не кешує", "не має кешування", "без кешування", "немає кешу"
-  const cacheHit = /кеш/i.test(guarantees) && !/(?:не|без)\s+(?:\S+\s+)?кеш|немає\s+кеш/i.test(guarantees)
+  const cacheHit = CACHE_MENTION_RE.test(guarantees) && !CACHE_NEGATION_RE.test(guarantees)
   if (!facts.markers?.caches && cacheHit) {
     score -= 20
     issues.push('cache-hallucination')
   }
 
-  // Перевіряємо лише бектік-обгорнуті імена (`sym`) — уникаємо substring false positives
-  const hasName = (text, sym) => text.includes('`' + sym + '`')
   for (const sym of facts.internalSymbols ?? []) {
     const inDoc = hasName(guarantees, sym) || hasName(s['огляд'] ?? '', sym) || hasName(s['поведінка'] ?? '', sym)
     if (inDoc) {
@@ -92,51 +125,28 @@ function scoreDoc(md, facts) {
 }
 
 /**
- * omlx-бекенд: справжні OpenAI-сумісні messages (system+user збереженi).
- * Вмикається `N_CURSOR_DOCGEN_BACKEND=omlx`. Делегує у спільний `callOmlx`
- * (npm/lib/omlx.mjs) з docgen-специфічними env-дефолтами URL/моделі.
- */
-function callOmlxMessages(messages, model, timeoutMs, temperature = 0.2) {
-  return callOmlx(messages, model, {
-    url: env.N_CURSOR_DOCGEN_OMLX_URL,
-    timeoutMs,
-    temperature,
-    fallbackModel: env.N_CURSOR_DOCGEN_OMLX_MODEL
-  })
-}
-
-/**
- * Універсальний виклик LLM за повним messages-масивом.
- * - omlx: шле messages напряму (system збережено)
- * - pi: конкатенує message.content (pi приймає лише plain prompt)
- */
-function callLlm(messages, model, timeoutMs, temperature = 0.2) {
-  if (env.N_CURSOR_DOCGEN_BACKEND === 'omlx') return callOmlxMessages(messages, model, timeoutMs, temperature)
-  const prompt = messages.map(m => m.content).join('\n\n')
-  const modelArgs = model ? ['--model', model] : []
-  const r = spawnSync('pi', ['-p', prompt, ...modelArgs, '--no-session', '--mode', 'text', '--no-tools'], {
-    encoding: 'utf8',
-    timeout: timeoutMs
-  })
-  if (r.error) throw new Error(`pi error: ${r.error.message}`)
-  if (r.status !== 0) throw new Error(`pi exit ${r.status}: ${r.stderr?.slice(0, 300) ?? ''}`)
-  return r.stdout?.trim() ?? ''
-}
-
-/**
  * E2 — один цикл critique→refine на секцію.
  * Повертає або уточнену чорнетку, або оригінал якщо критик повідомив NONE.
+ * @param {'overview'|'behavior'|'api'} sectionKey ключ секції
+ * @param {string} draft чорнетка секції
+ * @param {object} facts факт-лист
+ * @param {object|null} anchors анкори файлу
+ * @param {string} model model-id
+ * @param {number} timeoutMs ліміт на один виклик
+ * @returns {string} фінальний текст секції
  */
 function critiqueRefineSection(sectionKey, draft, facts, anchors, model, timeoutMs) {
-  const critique = callLlm(criticMessages(sectionKey, draft, facts, anchors), model, timeoutMs).trim()
-  if (!critique || /^\s*NONE\s*$/i.test(critique) || critique.length < 12) return draft
-  const refined = callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, timeoutMs).trim()
+  const critique = callLlm(criticMessages(sectionKey, draft, facts, anchors), model, { timeoutMs }).trim()
+  if (!critique || CRITIC_NONE_RE.test(critique) || critique.length < 12) return draft
+  const refined = callLlm(refineMessages(sectionKey, draft, critique, facts, anchors), model, { timeoutMs }).trim()
   return stripSignatures(stripSection(refined)) || draft
 }
 
 /**
  * Чи треба refine для секції API: тільки якщо є >1 експорту і всі desc-и порожні
  * (саме там модель схильна писати «застосовує логіку до файлу»).
+ * @param {object} facts факт-лист
+ * @returns {boolean} true — секцію API варто прогнати через критика
  */
 function apiNeedsRefine(facts) {
   const exps = facts.exports ?? []
@@ -144,15 +154,27 @@ function apiNeedsRefine(facts) {
   return exps.every(e => !e.desc)
 }
 
-/** One-shot: один виклик LLM на весь документ. */
-function piOneShot(facts, src, model, timeoutMs = 120_000) {
-  const text = callLlm(oneShotMessages(facts, src), model, timeoutMs)
+/**
+ * One-shot: один виклик LLM на весь документ (для unsupported-структур).
+ * @param {object} facts факт-лист
+ * @param {string} src вміст файлу
+ * @param {string} model model-id
+ * @param {number} [timeoutMs] ліміт на виклик
+ * @returns {{ md: string }} зібраний документ
+ */
+function oneShotDoc(facts, src, model, timeoutMs = LOCAL_TIMEOUT_MS) {
+  const text = callLlm(oneShotMessages(facts, src), model, { timeoutMs })
   let md = stripSignatures(stripSection(text))
   if (!md.startsWith('#')) md = `# ${basename(facts.relPath)}\n\n${md}`
-  return { md: md + '\n', genTok: 0 }
+  return { md: md + '\n' }
 }
 
-/** Stage 3: фіксовані заголовки у фіксованому порядку. */
+/**
+ * Stage 3: фіксовані заголовки у фіксованому порядку.
+ * @param {string} stem назва файлу для H1
+ * @param {Record<string, string>} sections тексти секцій за ключами
+ * @returns {string} зібраний md-документ
+ */
 function assemble(stem, sections) {
   const order = [
     ['overview', '## Огляд'],
@@ -169,138 +191,101 @@ function assemble(stem, sections) {
 }
 
 /**
- * Orchestrated: N окремих pi-викликів, по одному на секцію.
+ * Orchestrated: N окремих LLM-викликів, по одному на секцію.
  * Код потрапляє лише в `behavior`; решта секцій — на мінімальному факт-листі.
+ * @param {object} facts факт-лист
+ * @param {string} src вміст файлу
+ * @param {string} model model-id
+ * @param {number} timeoutMs ліміт на один виклик
+ * @param {{ anchors?: object|null, temperature?: number }} [opts] анкори й температура семплінгу
+ * @returns {{ md: string }} зібраний документ
  */
-function piOrchestrated(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2 } = {}) {
+function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, temperature = 0.2 } = {}) {
   const sections = {}
   const anc = anchors ?? extractAnchors(src)
   // E3: «Гарантії» — детермінований шаблон з markers (0 LLM-запитів, 0 generic-фраз)
   sections.guarantees = guaranteesFromMarkers(facts)
   for (const s of sectionMessages(facts, src, anc)) {
     if (s.key === 'guarantees') continue // вже згенеровано детерміновано
-    let draft = stripSignatures(stripSection(callLlm(s.messages, model, timeoutMs, temperature)))
-    // E2 + E3: critique→refine лише для секцій, де gemma-4 зриває на generic
+    let draft = stripSignatures(stripSection(callLlm(s.messages, model, { timeoutMs, temperature })))
+    // E2 + E3: critique→refine лише для секцій, де мала модель зриває на generic
     if (s.key === 'overview' || (s.key === 'api' && apiNeedsRefine(facts))) {
       draft = critiqueRefineSection(s.key, draft, facts, anc, model, timeoutMs)
     }
     sections[s.key] = draft
   }
-  return { md: assemble(basename(facts.relPath), sections), genTok: 0 }
+  return { md: assemble(basename(facts.relPath), sections) }
 }
 
-
-
-/** Файли з sym ≥ цього значення одразу йдуть у Tier 2 (без Tier 1 проходу). */
-const DEFAULT_SYM_THRESHOLD = 4
-/** Максимальний час Tier 1 генерації на один файл перед ескалацією у Tier 2. */
+/** Максимальний час генерації одного LLM-виклику. */
 const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
-/** Дефолтна Tier 1 модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min'). */
-const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('min')
-/** Дефолтна Tier 2 модель: N_CURSOR_DOCGEN_CLOUD_MODEL → resolveModel('avg'). */
-const DEFAULT_CLOUD_MODEL = env.N_CURSOR_DOCGEN_CLOUD_MODEL ?? resolveModel('avg')
+/**
+ * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') → omlx напряму.
+ * Останній fallback гарантує local-only шлях без жодних env (через pi CLI той
+ * самий локальний виклик виміряно повільніший на ~46%).
+ */
+export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? (resolveModel('min') || `omlx/${DEFAULT_OMLX_MODEL}`)
 
 /**
- * Головний API: файл → { md, genTok, ms, score, issues, tier }.
+ * Головний API: файл → md-дока з det-оцінкою.
  *
- * Routing (sym-threshold):
- *   sym < symThreshold  → Tier 1 pi(resolveModel('min'), timeout=5хв) + det-scorer
- *                       → timeout або det-score < threshold → Tier 2
- *   sym >= symThreshold → Pre-routing одразу Tier 2
+ * Local-only (ADR 260610-2228): жодних cloud-ескалацій і pre-route — будь-який
+ * файл генерується локальною моделлю. Якщо det-score нижче порогу, один retry
+ * з вищою температурою (best-of-2); якщо й він не допоміг — результат
+ * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
+ * @param {string} file абсолютний шлях джерела
+ * @param {{ model?: string, threshold?: number }} [opts] model-id і поріг degraded
+ * @returns {{ md: string, ms: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації
  */
-export async function generateDoc(
-  file,
-  {
-    model = DEFAULT_LOCAL_MODEL,
-    cloudModel = DEFAULT_CLOUD_MODEL,
-    threshold = QUALITY_THRESHOLD,
-    symThreshold = DEFAULT_SYM_THRESHOLD
-  } = {}
-) {
+export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD } = {}) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
   const t0 = Date.now()
 
-  // Pre-routing: складні файли (sym ≥ symThreshold) → одразу Tier 2
-  const complexity = facts.internalSymbols?.length ?? 0
-  if (complexity >= symThreshold && cloudModel) {
-    const r2 = piOneShot(facts, src, cloudModel)
-    return { ...r2, ms: Date.now() - t0, score: null, issues: [`pre-routed:sym=${complexity}`], tier: 2, model: cloudModel }
-  }
-
-  // Tier 1: pi orchestrated (секція за секцією), timeout на секцію = LOCAL_TIMEOUT_MS
-  // facts.unsupported → one-shot (структура файлу нестандартна)
-  let r
   const anchors = facts.unsupported ? null : extractAnchors(src)
-  try {
-    r = facts.unsupported
-      ? piOneShot(facts, src, model, LOCAL_TIMEOUT_MS)
-      : piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS, { anchors })
-  } catch (error) {
-    if (cloudModel) {
-      const r2 = piOneShot(facts, src, cloudModel)
-      return { ...r2, ms: Date.now() - t0, score: null, issues: [`tier1-error: ${error.message}`], tier: 2, model: cloudModel }
-    }
-    throw error
+  let r = facts.unsupported
+    ? oneShotDoc(facts, src, model)
+    : orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors })
+
+  // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
+  if (facts.unsupported) {
+    return { ...r, ms: Date.now() - t0, score: null, issues: [], degraded: false, model }
   }
 
-  // Stage 2.5: детермінований скоринг (0 токенів) — gate перед Tier 2
-  let { score: detScore, issues: detIssues } = scoreDoc(r.md, facts)
+  // Stage 2.5: детермінований скоринг (0 токенів)
+  let { score, issues } = scoreDoc(r.md, facts)
 
-  // E4: best-of-N. Якщо score нижчий за threshold і немає cloud-fallback — спроба
-  // ще раз з вищою температурою, керуємо через env (повторні прогони коштовні).
-  if (detScore < threshold && !cloudModel && !facts.unsupported && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
+  // E4: best-of-2 — один retry з вищою температурою, det-вибір кращого
+  if (score < threshold && env.N_CURSOR_DOCGEN_BEST_OF !== '0') {
     try {
-      const r2 = piOrchestrated(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5 })
+      const r2 = orchestratedDoc(facts, src, model, LOCAL_TIMEOUT_MS, { anchors, temperature: 0.5 })
       const s2 = scoreDoc(r2.md, facts)
-      if (s2.score > detScore) {
+      if (s2.score > score) {
         r = r2
-        detScore = s2.score
-        detIssues = [...s2.issues, 'best-of-2:retry-won']
+        score = s2.score
+        issues = [...s2.issues, 'best-of-2:retry-won']
       } else {
-        detIssues = [...detIssues, 'best-of-2:retry-lost']
+        issues = [...issues, 'best-of-2:retry-lost']
       }
     } catch (error) {
-      detIssues = [...detIssues, `best-of-2:retry-error: ${error.message}`]
+      issues = [...issues, `best-of-2:retry-error: ${error.message}`]
     }
   }
 
-  if (detScore < threshold && cloudModel) {
-    const r2 = piOneShot(facts, src, cloudModel)
-    return { ...r2, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 2, model: cloudModel }
-  }
-
-  return { ...r, ms: Date.now() - t0, score: detScore, issues: detIssues, tier: 1, model }
+  return { ...r, ms: Date.now() - t0, score, issues, degraded: score < threshold, model }
 }
 
-// CLI: node docgen-gen.mjs <file> [--model <m>] [--sym-threshold N] [--tier-only]
-import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
+// CLI: node docgen-gen.mjs <file> [--model <m>]
 if (isRunAsCli(import.meta.url)) {
   const args = process.argv.slice(2)
   const file = args.find(a => !a.startsWith('--'))
-  const tierOnly = args.includes('--tier-only')
   const mi = args.indexOf('--model')
-  const model = mi !== -1 ? args[mi + 1] : DEFAULT_LOCAL_MODEL
-  const si = args.indexOf('--sym-threshold')
-  const symThreshold = si !== -1 ? Number(args[si + 1]) : DEFAULT_SYM_THRESHOLD
+  const model = mi === -1 ? DEFAULT_LOCAL_MODEL : args[mi + 1]
   if (!file) {
-    console.error('Usage: node docgen-gen.mjs <file> [--model <m>] [--sym-threshold N] [--tier-only]')
-    process.exit(1)
+    throw new Error('Usage: node docgen-gen.mjs <file> [--model <m>]')
   }
-  if (tierOnly) {
-    const src = readFileSync(file, 'utf8')
-    const facts = extractFacts(src, file)
-    const sym = facts.internalSymbols?.length ?? 0
-    const icon = sym >= symThreshold ? '☁️ ' : '💻'
-    const label =
-      sym >= symThreshold
-        ? `Tier 2 cloud   (sym=${sym} ≥ ${symThreshold}, pre-routed)`
-        : `Tier 1 local   (sym=${sym} < ${symThreshold})`
-    process.stdout.write(`${icon} ${label}  |  ${file}\n`)
-    process.exit(0)
-  }
-  const r = await generateDoc(file, { model, symThreshold })
+  const r = generateDoc(file, { model })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
-  process.stderr.write(`[tier${r.tier} pi-orchestrated] ${r.ms}ms / score=${r.score}${issuesTxt}\n`)
+  process.stderr.write(`[local ${r.model}] ${r.ms}ms / score=${r.score}${r.degraded ? ' DEGRADED' : ''}${issuesTxt}\n`)
   process.stdout.write(r.md)
 }

@@ -5,12 +5,14 @@
  *
  * spawnSync('curl', …) мокається — жодних реальних мережевих викликів.
  */
+import { env } from 'node:process'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
-const { spawnSyncMock } = vi.hoisted(() => ({ spawnSyncMock: vi.fn() }))
+const { spawnSyncMock, readFileSyncMock } = vi.hoisted(() => ({ spawnSyncMock: vi.fn(), readFileSyncMock: vi.fn() }))
 vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
+vi.mock('node:fs', () => ({ readFileSync: readFileSyncMock }))
 
-const { callOmlx, isOmlxModel, omlxModelId, DEFAULT_OMLX_MODEL } = await import('../omlx.mjs')
+const { callOmlx, isOmlxModel, omlxModelId, resolveOmlxApiKey, DEFAULT_OMLX_MODEL } = await import('../omlx.mjs')
 
 const ERR_CURL_EXIT_7 = /omlx curl exit 7/
 const ERR_BAD_JSON = /omlx bad json/
@@ -85,7 +87,10 @@ describe('callOmlx', () => {
 
   test('body містить messages, temperature, max_tokens', () => {
     spawnSyncMock.mockReturnValue(okResult('x'))
-    const messages = [{ role: 'system', content: 's' }, { role: 'user', content: 'u' }]
+    const messages = [
+      { role: 'system', content: 's' },
+      { role: 'user', content: 'u' }
+    ]
     callOmlx(messages, 'omlx/g', { temperature: 0.7, maxTokens: 256 })
     const body = sentBody()
     expect(body.messages).toEqual(messages)
@@ -119,12 +124,59 @@ describe('callOmlx', () => {
   })
 
   test('порожній контент → кидає omlx empty content', () => {
-    spawnSyncMock.mockReturnValue({ status: 0, stdout: JSON.stringify({ choices: [{ message: { content: '' }, finish_reason: 'length' }] }), stderr: '' })
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: JSON.stringify({ choices: [{ message: { content: '' }, finish_reason: 'length' }] }),
+      stderr: ''
+    })
     expect(() => callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')).toThrow(ERR_EMPTY)
   })
 
   test('spawnSync.error (curl відсутній) → кидає omlx curl error', () => {
     spawnSyncMock.mockReturnValue({ error: new Error('spawn curl ENOENT') })
     expect(() => callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')).toThrow(ERR_CURL_ERROR)
+  })
+})
+
+describe('auth (resolveOmlxApiKey + Authorization-заголовок)', () => {
+  beforeEach(() => {
+    spawnSyncMock.mockReset()
+    readFileSyncMock.mockReset()
+    readFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
+    delete env.N_CURSOR_OMLX_KEY
+  })
+
+  afterEach(() => {
+    delete env.N_CURSOR_OMLX_KEY
+  })
+
+  test('пріоритет: явний apiKey → env → settings.json → null', () => {
+    env.N_CURSOR_OMLX_KEY = 'env-key'
+    expect(resolveOmlxApiKey('explicit')).toBe('explicit')
+    expect(resolveOmlxApiKey()).toBe('env-key')
+
+    delete env.N_CURSOR_OMLX_KEY
+    readFileSyncMock.mockReturnValue(JSON.stringify({ auth: { api_key: 'settings-key' } }))
+    expect(resolveOmlxApiKey()).toBe('settings-key')
+
+    readFileSyncMock.mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
+    expect(resolveOmlxApiKey()).toBeNull()
+  })
+
+  test('з ключем → curl шле Authorization: Bearer', () => {
+    env.N_CURSOR_OMLX_KEY = 'secret-1234'
+    spawnSyncMock.mockReturnValue(okResult('x'))
+    callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')
+    expect(spawnSyncMock.mock.calls[0][1]).toContain('Authorization: Bearer secret-1234')
+  })
+
+  test('без ключа → заголовка Authorization немає', () => {
+    spawnSyncMock.mockReturnValue(okResult('x'))
+    callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')
+    expect(spawnSyncMock.mock.calls[0][1].join(' ')).not.toContain('Authorization')
   })
 })

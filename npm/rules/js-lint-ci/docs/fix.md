@@ -82,7 +82,7 @@ if (isRunAsCli(import.meta.url)) {
 - **Дія:** виконує `await runRuleCli(import.meta.dirname)` — повний CLI-сценарій (config-loading, whitelist, summary), а потім завершує процес `process.exit(<exit-code>)` з тим самим кодом, що повернув `runRuleCli` (0 або 1) — це критично для CI/IDE, які орієнтуються на код виходу.
 - **Side effects:** завершення процесу (`process.exit`), вся I/O `runRuleCli`. Виклики `process.exit` тут спеціально дозволені директивою:
   ```js
-   
+
   ```
 
 ## Залежності

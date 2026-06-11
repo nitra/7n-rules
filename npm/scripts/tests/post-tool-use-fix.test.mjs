@@ -22,7 +22,7 @@ import { routeFilePathToRules, runPostToolUseFixCli } from '../post-tool-use-fix
  * @returns {EventEmitter} fake child
  */
 function makeFakeChild(exitCode) {
-  // eslint-disable-next-line unicorn/prefer-event-target -- node:events.once() приймає лише EventEmitter, не EventTarget
+  // oxlint-disable-next-line unicorn/prefer-event-target -- node:events.once() приймає лише EventEmitter, не EventTarget
   const child = new EventEmitter()
   setImmediate(() => child.emit('exit', exitCode))
   return child
@@ -166,7 +166,7 @@ describe('runPostToolUseFixCli', () => {
 
   test('повертає 1 коли once(child, exit) відхиляється (error від child)', async () => {
     const stdinJson = JSON.stringify({ tool_name: 'Edit', tool_input: { file_path: 'src/foo.mjs' } })
-    // eslint-disable-next-line unicorn/prefer-event-target -- мокаємо ChildProcess, який сам є EventEmitter (Node API), а не EventTarget
+    // oxlint-disable-next-line unicorn/prefer-event-target -- мокаємо ChildProcess, який сам є EventEmitter (Node API), а не EventTarget
     const errorChild = new EventEmitter()
     setImmediate(() => errorChild.emit('error', new Error('spawn failed')))
     const spawnFn = vi.fn(() => errorChild)

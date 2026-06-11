@@ -25,15 +25,17 @@ const BUILTIN_MODULES = new Set([
 const JSDOC_OPEN_RE = /^\s*\/\*\*?/
 const JSDOC_CLOSE_RE = /\*\/\s*$/
 const STAR_PREFIX_RE = /^\s*\*?\s?/
-const PARAM_LINE_RE = /^@param\s+(?:\{[^}]*\}\s+)?\[?([A-Za-z0-9_.]+)\]?\s*(.*)$/
-const RETURNS_LINE_RE = /^@returns?\s+(?:\{[^}]*\}\s+)?(.*)$/
+const PARAM_LINE_RE = /^@param[ \t]{1,8}(?:\{[^}]{0,200}\}[ \t]{1,8})?\[?([\w.]{1,80})\]?[ \t]{0,8}(.{0,400})$/
+const RETURNS_LINE_RE = /^@returns?[ \t]{1,8}(?:\{[^}]{0,200}\}[ \t]{1,8})?(.{0,400})$/
 const FILE_HEADER_RE = /^\s*\/\*\*([\s\S]*?)\*\//
 const PRECEDING_JSDOC_RE = /\/\*\*(?:(?!\*\/)[\s\S])*\*\/\s*$/
-const EXPORT_DECL_RE = /export\s+(?:async\s+)?(function|const|class)\s+([A-Za-z0-9_]+)/g
-const IMPORT_FROM_RE = /^import\s+[\s\S]*?from\s+['"]([^'"]+)['"]/gm
+const EXPORT_DECL_RE = /export\s+(?:async\s+)?(function|const|class)\s+(\w+)/g
+const IMPORT_FROM_RE = /^import[ \t]{1,8}[\s\S]{0,300}?from\s{1,8}['"]([^'"]+)['"]/gm
 const NODE_PREFIX_RE = /^node:/
-const INTERNAL_IMPORT_RE = /import\s+(?:([A-Za-z0-9_$]+)\s*,?\s*)?(?:\{([^}]+)\})?\s+from\s+['"](\.[^'"]+)['"]/g
-const IMPORT_AS_RE = /\s+as\s+.*/
+const INTERNAL_IMPORT_RE = /import[ \t]{1,8}([^'"]{0,300}?)from[ \t]{1,8}['"]\.[^'"]{1,300}['"]/g
+const NAMED_BRACES_RE = /\{([^}]{1,400})\}/
+const IDENT_RE = /^[\w$]{1,80}$/
+const IMPORT_AS_RE = /[ \t]{1,8}as[ \t]{1,8}.{0,200}/
 const WRITE_FS_RE = /\b(writeFile|mkdir|rmdir|unlink|appendFile|createWriteStream|rm\()/
 const CATCH_RE = /catch\s*\(/
 const TRY_RE = /\btry\s*\{/
@@ -152,12 +154,16 @@ function extractImports(src) {
 function extractInternalSymbols(src) {
   const out = new Set()
   for (const m of src.matchAll(INTERNAL_IMPORT_RE)) {
-    if (m[1]) out.add(m[1].trim())
-    if (m[2])
-      for (const n of m[2].split(',')) {
+    const clause = m[1]
+    const named = clause.match(NAMED_BRACES_RE)
+    if (named) {
+      for (const n of named[1].split(',')) {
         const name = n.replace(IMPORT_AS_RE, '').trim()
         if (name) out.add(name)
       }
+    }
+    const defName = clause.replace(NAMED_BRACES_RE, '').replaceAll(',', ' ').trim().split(' ')[0]
+    if (defName && IDENT_RE.test(defName)) out.add(defName)
   }
   return [...out]
 }

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/skills/fix/js/llm-worker.mjs
+  crc: 8317f878
+---
+
 # llm-worker.mjs
 
 ## Огляд

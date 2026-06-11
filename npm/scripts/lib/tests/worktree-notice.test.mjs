@@ -91,10 +91,7 @@ describe('injectWorktreeNotice', () => {
 
   test('зміна тексту всередині маркерів не ламає ре-синк', () => {
     const withBlock = injectWorktreeNotice(SKILL, true)
-    const tampered = withBlock.replace(
-      WORKTREE_BLOCK_RE,
-      `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`
-    )
+    const tampered = withBlock.replace(WORKTREE_BLOCK_RE, `${WORKTREE_START}\n> змінений текст\n${WORKTREE_END}`)
     const resynced = injectWorktreeNotice(tampered, true)
     expect(resynced.split(WORKTREE_START)).toHaveLength(2)
     expect(resynced).toContain('один інстанс за раз')

@@ -8,7 +8,11 @@ export const STYLE = [
   'Заборонено: сигнатури, типи, параметри функцій; перелік stdlib-модулів; опис regex чи внутрішніх приватних імен.'
 ].join(' ')
 
-/** Окремий блок інструкцій з анкорами — підставляється коли вони є. */
+/**
+ * Окремий блок інструкцій з анкорами — підставляється коли вони є.
+ * @param {object|null} anchors анкори файлу (або null)
+ * @returns {string} текстовий блок для system-промпта або порожній рядок
+ */
 function anchorsBlock(anchors) {
   if (!anchors) return ''
   const txt = anchorsToPrompt(anchors)
@@ -35,6 +39,12 @@ function factsSummary(facts) {
   return lines.join('\n')
 }
 
+/**
+ * Пара system+user messages для одного виклику.
+ * @param {string} system system-промпт
+ * @param {string} user user-промпт
+ * @returns {Array<{role:string, content:string}>} messages-масив
+ */
 const msgs = (system, user) => [
   { role: 'system', content: system },
   { role: 'user', content: user }
@@ -45,64 +55,68 @@ const msgs = (system, user) => [
  * Код потрапляє лише в `behavior`; решта секцій — на факт-листі.
  * @param {object} facts факт-лист про файл
  * @param {string} src вміст файлу
+ * @param {object|null} [anchors] анкори файлу для обовʼязкового включення
  * @returns {Array<{key:string, messages:object[], numPredict:number}>} набір секційних промптів
  */
 export function sectionMessages(facts, src, anchors = null) {
   const factsTxt = factsSummary(facts)
   const anch = anchorsBlock(anchors)
   const multi = (facts.exports?.length || 0) > 1
-  const out = []
 
   // Огляд — лише факти (без коду)
-  out.push({
+  const overview = {
     key: 'overview',
     numPredict: 220,
     messages: msgs(
       `${STYLE}\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
       'Напиши вміст секції «Огляд»: 1-3 речення — що файл робить і навіщо існує (роль у системі). Без заголовка, без переліку функцій. Заборонені generic-фрази типу «забезпечує перевірку», «виконує валідацію» — пиши КОНКРЕТНО що саме і за яким контрактом.'
     )
-  })
+  }
 
   // Поведінка — ЄДИНА секція, якій потрібен код
-  out.push({
+  const behaviorTask = multi
+    ? 'для кожної публічної функції — один короткий пункт «що вона робить»'
+    : 'нумерований алгоритм у бізнес-термінах'
+  const noInternal = facts.internalSymbols?.length
+    ? ` НЕ згадуй за іменами службові функції: ${facts.internalSymbols.join(', ')}.`
+    : ''
+  const behavior = {
     key: 'behavior',
     numPredict: 500,
     messages: msgs(
       `${STYLE}\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\`\n\nВІДОМІ ФАКТИ:\n${factsTxt}${anch}`,
-      `Напиши вміст секції «Поведінка»: ${multi ? 'для кожної публічної функції — один короткий пункт «що вона робить»' : 'нумерований алгоритм у бізнес-термінах'}. Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${facts.internalSymbols?.length ? ` НЕ згадуй за іменами службові функції: ${facts.internalSymbols.join(', ')}.` : ''} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
+      `Напиши вміст секції «Поведінка»: ${behaviorTask}. Якщо у фактах є свідомі пропуски шляхів — згадай їх там, де доречно (не вигадуй інших «не перевіряє»). НЕ пиши аргументи функцій у дужках, без regex.${noInternal} Без заголовка, без додаткових ## чи # підзаголовків усередині секції.`
     )
-  })
-
-  // API — лише список експортів (без коду)
-  if (multi || facts.exports?.some(e => e.desc)) {
-    const list = facts.exports.map(e => `- ${e.name}: ${e.desc || '(сформулюй стисло з наміру файлу)'}`).join('\n')
-    out.push({
-      key: 'api',
-      numPredict: 320,
-      messages: msgs(
-        `${STYLE}${anch}`,
-        `Перепиши цей список як стислі маркери «назва — що робить», СВОЇМИ словами (не копіюй дослівно), без типів і сигнатур. Використовуй РІВНО ці назви, не додавай і не прибирай:\n${list}\nБез заголовка. Без generic-фраз «застосовує логіку», «перевіряє коректність» — пиши конкретно ЩО саме застосовує/перевіряє.`
-      )
-    })
   }
 
-  return out
+  // API — лише список експортів (без коду)
+  if (!multi && !facts.exports?.some(e => e.desc)) return [overview, behavior]
+  const list = facts.exports.map(e => `- ${e.name}: ${e.desc || '(сформулюй стисло з наміру файлу)'}`).join('\n')
+  const api = {
+    key: 'api',
+    numPredict: 320,
+    messages: msgs(
+      `${STYLE}${anch}`,
+      `Перепиши цей список як стислі маркери «назва — що робить», СВОЇМИ словами (не копіюй дослівно), без типів і сигнатур. Використовуй РІВНО ці назви, не додавай і не прибирай:\n${list}\nБез заголовка. Без generic-фраз «застосовує логіку», «перевіряє коректність» — пиши конкретно ЩО саме застосовує/перевіряє.`
+    )
+  }
+  return [overview, behavior, api]
 }
 
 /**
  * E2-step 1 — критик. Перевіряє чорнетку секції на конкретні дефекти.
  * Повертає messages для LLM-запиту: вихід має бути СПИСКОМ issues або словом NONE.
- * @param {'overview'|'behavior'|'api'} sectionKey
+ * @param {'overview'|'behavior'|'api'} sectionKey ключ секції
  * @param {string} draft вже згенерована чорнетка секції
  * @param {object} facts факт-лист
- * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors
- * @returns {Array<{role:string,content:string}>}
+ * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors анкори файлу
+ * @returns {Array<{role:string,content:string}>} messages-масив для критика
  */
 export function criticMessages(sectionKey, draft, facts, anchors) {
   const anch = anchorsBlock(anchors)
   const criteria = [
     'generic-фрази без конкретики («забезпечує перевірку», «виконує валідацію», «застосовує логіку»)',
-    'пропущені обов\'язкові АНКОРИ з контексту (URLs, magic-string constants, error-маркери, конфіги, code-приклади)',
+    "пропущені обов'язкові АНКОРИ з контексту (URLs, magic-string constants, error-маркери, конфіги, code-приклади)",
     'граматичні помилки українською («перед їх застосування», «моделіне», англіцизми як «applys», «moduleline»)',
     'h1/h2/h3 підзаголовки всередині секції — їх не повинно бути',
     'дослівна копія JSDoc-сигнатури або параметрів у дужках',
@@ -122,12 +136,12 @@ export function criticMessages(sectionKey, draft, facts, anchors) {
 
 /**
  * E2-step 2 — refine. Переписує чорнетку, виправляючи перелічені issues.
- * @param {'overview'|'behavior'|'api'} sectionKey
- * @param {string} draft
+ * @param {'overview'|'behavior'|'api'} sectionKey ключ секції
+ * @param {string} draft чорнетка секції
  * @param {string} issues список issues від critic
- * @param {object} facts
- * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors
- * @returns {Array<{role:string,content:string}>}
+ * @param {object} facts факт-лист
+ * @param {ReturnType<import('./docgen-extract-anchors.mjs').extractAnchors>} anchors анкори файлу
+ * @returns {Array<{role:string,content:string}>} messages-масив для переписування
  */
 export function refineMessages(sectionKey, draft, issues, facts, anchors) {
   const anch = anchorsBlock(anchors)
@@ -146,7 +160,7 @@ export function refineMessages(sectionKey, draft, issues, facts, anchors) {
 /**
  * E3 — детермінований шаблон секції «Гарантії поведінки» з facts.markers.
  * НЕ використовує LLM: 0 запитів, 0 галюцинацій, 0 generic-фраз.
- * @param {object} facts
+ * @param {object} facts факт-лист
  * @returns {string} текст секції (без `## Гарантії` — це додає assemble())
  */
 export function guaranteesFromMarkers(facts) {
@@ -176,15 +190,4 @@ export function oneShotMessages(facts, src) {
     STYLE,
     `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
   )
-}
-
-/**
- * Лише текст user-промпту для one-shot (для хмарного fallback через Anthropic SDK).
- * @param {object} facts факт-лист про файл
- * @param {string} src вміст файлу
- * @returns {string} plain-text user-prompt
- */
-export function oneShotPromptText(facts, src) {
-  const multi = (facts.exports?.length || 0) > 1
-  return `Напиши документацію для файлу. Секції: ## Огляд (1-3 речення), ## Поведінка (нумерований/маркований алгоритм), ${multi ? '## Публічний API (назва + що робить), ' : ''}## Гарантії поведінки.\n\nФАЙЛ ${facts.relPath}:\n\`\`\`\n${src}\n\`\`\``
 }

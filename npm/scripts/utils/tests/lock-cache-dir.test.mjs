@@ -32,15 +32,15 @@ describe('resolveLockCacheDir', () => {
   })
 
   it('fallback на node_modules/.cache поза git-репо (ненульовий статус)', () => {
-    const dir = resolveLockCacheDir('lint-ga', { cwd: '/tmp/x', spawn: gitFail })
-    expect(dir).toBe(join('/tmp/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
+    const dir = resolveLockCacheDir('lint-ga', { cwd: '/no-git/x', spawn: gitFail })
+    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
   })
 
   it('fallback коли git недоступний (spawn кидає error)', () => {
     const dir = resolveLockCacheDir('lint-ga', {
-      cwd: '/tmp/x',
+      cwd: '/no-git/x',
       spawn: () => ({ status: null, stdout: '', error: new Error('ENOENT') })
     })
-    expect(dir).toBe(join('/tmp/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
+    expect(dir).toBe(join('/no-git/x', 'node_modules/.cache/n-cursor', 'lint-ga'))
   })
 })

@@ -17,9 +17,9 @@ collectAbieEnvFiles
 
 ## Публічний API
 
-* abieEnvNameFromBasename — Витягує `dev` або `ua` з імені env-файлу.
-* validateAbieEnvInternalUrls — Виявляє розбіжності кластерного DNS/namespace у внутрішніх URL-адресах.
-* collectAbieEnvFiles — Збирає `.env` файли, що відповідають формату abie env (dev.env, ua.env, з провідною крапкою).
+- abieEnvNameFromBasename — Витягує `dev` або `ua` з імені env-файлу.
+- validateAbieEnvInternalUrls — Виявляє розбіжності кластерного DNS/namespace у внутрішніх URL-адресах.
+- collectAbieEnvFiles — Збирає `.env` файли, що відповідають формату abie env (dev.env, ua.env, з провідною крапкою).
 
 ## Гарантії поведінки
 

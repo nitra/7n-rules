@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/coverage-fix-extract.mjs
+  crc: a7f39f0e
+---
+
 # coverage-fix-extract.mjs
 
 ## Огляд

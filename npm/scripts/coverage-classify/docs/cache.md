@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/coverage-classify/cache.mjs
+  crc: 53b251b1
+---
+
 # cache.mjs
 
 ## Огляд

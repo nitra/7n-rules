@@ -48,10 +48,10 @@
 
 Накопичення «назавжди» стосується **агрегату знань**, а не сирого потоку:
 
-| Шар | Що | Доля |
-|---|---|---|
+| Шар                                             | Що                                                  | Доля                                                                                                                                   |
+| ----------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | **Raw** `.n-cursor/omlx-trace.jsonl` (+ архіви) | потік wire-записів: код, reasoning, великий, шумний | **gitignored**, локальний; у git не комітиться (роздув історії + вихідний код у кожному коміті). Лежить, доки батч-агрегація не спожиє |
-| **Aggregate** | дистильовані висновки після батч-аналізу | **коммітиться в git, назавжди** (`docs/omlx-insights/`) — історія + code-review |
+| **Aggregate**                                   | дистильовані висновки після батч-аналізу            | **коммітиться в git, назавжди** (`docs/omlx-insights/`) — історія + code-review                                                        |
 
 Сира ротація тому **недеструктивна**: дані доживають до агрегації, а не перезаписуються.
 
@@ -77,29 +77,30 @@
 
 ```jsonc
 {
-  "ts": "2026-06-10T...",        // ISO, момент завершення виклику
-  "caller": "docgen|fix|coverage|unknown",  // opts.caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
-  "model": "Qwen3-4B-Thinking-2507-4bit",   // після omlxModelId(), уже без префікса
+  "ts": "2026-06-10T...", // ISO, момент завершення виклику
+  "caller": "docgen|fix|coverage|unknown", // opts.caller ?? env.N_CURSOR_TRACE_CALLER ?? 'unknown'
+  "model": "Qwen3-4B-Thinking-2507-4bit", // після omlxModelId(), уже без префікса
   "url": "http://127.0.0.1:8000/v1/chat/completions",
   "temperature": 0.2,
   "max_tokens": 4096,
 
-  "messages": [                  // ролі ЗБЕРЕЖЕНІ — наша перевага над pi
+  "messages": [
+    // ролі ЗБЕРЕЖЕНІ — наша перевага над pi
     { "role": "system", "content": "…(cap 8000 симв.)…" }
   ],
-  "messages_sha256": "…",        // hash повного messages-масиву (дедуплікація)
-  "messages_truncated": false,   // true, якщо хоч одне content обрізане
+  "messages_sha256": "…", // hash повного messages-масиву (дедуплікація)
+  "messages_truncated": false, // true, якщо хоч одне content обрізане
 
-  "content": "391",              // фінальна відповідь
+  "content": "391", // фінальна відповідь
   "reasoning": "Okay, the user…", // reasoning_content АБО <think>-вміст; null якщо нема
   "reasoning_source": "field|think_tag|null",
   "finish_reason": "stop",
   "usage": { "...": "verbatim з відповіді" },
 
-  "ms": 12740,                   // latency навколо retry-циклу
-  "attempts": 1,                 // скільки спроб curl зайняло
+  "ms": 12740, // latency навколо retry-циклу
+  "attempts": 1, // скільки спроб curl зайняло
   "ok": true,
-  "error": null                  // або рядок помилки на невдачі
+  "error": null // або рядок помилки на невдачі
 }
 ```
 

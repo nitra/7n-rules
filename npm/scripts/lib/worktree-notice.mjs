@@ -25,22 +25,22 @@ export const WORKTREE_END = '<!-- n-cursor:worktree:end -->'
 const FALLBACK_SUFFIX = 'task'
 
 /** Наявний блок разом із сусідніми порожніми рядками (для чистого видалення). */
-const BLOCK_RE = /\n*<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->\n*/u
+const BLOCK_RE = /\n{0,8}<!-- n-cursor:worktree:start -->[\s\S]*?<!-- n-cursor:worktree:end -->\n{0,8}/u
 
 /** Закриття YAML-frontmatter на початку файла. */
 const FRONTMATTER_RE = /^(---\n[\s\S]*?\n---\n)/u
 
 /** Значення `name` з YAML-frontmatter. */
-const NAME_RE = /^name:\s*["']?([^"'\n]+)["']?\s*$/mu
+const NAME_RE = /^name:[ \t]{0,8}["']?([^"'\n]+?)["']?[ \t]{0,8}$/mu
 
 /** Перший H1 як fallback, якщо frontmatter не містить `name`. */
-const H1_RE = /^#\s+(.+)$/mu
+const H1_RE = /^#[ \t]{1,8}(.+)$/mu
 
 const N_PREFIX_RE = /^n-/u
 const COMBINING_DIACRITICS_RE = /[̀-ͯ]/gu
 const NON_ALPHANUM_RE = /[^a-z0-9]+/gu
-const TRAILING_DASHES_RE = /^-+|-+$/gu
-const TRAILING_DASH_RE = /-+$/u
+const TRAILING_DASHES_RE = /^-{1,80}|-{1,80}$/gu
+const TRAILING_DASH_RE = /-{1,80}$/u
 const LEADING_NEWLINES_RE = /^\n+/u
 
 const CYRILLIC_TRANSLIT = new Map(

@@ -1,3 +1,9 @@
+---
+docgen:
+  source: eslint.config.js
+  crc: a04ca099
+---
+
 # `eslint.config.js`
 
 ## Огляд

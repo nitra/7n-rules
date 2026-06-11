@@ -84,12 +84,8 @@ echo $1
       expect(true).toBe(true)
       return
     }
-    const outLines = []
     const origOut = process.stdout.write.bind(process.stdout)
-    process.stdout.write = chunk => {
-      outLines.push(chunk)
-      return true
-    }
+    process.stdout.write = () => true
     try {
       await withTmpDir(async dir => {
         // SC2034: unused variable — не авто-виправляється shellcheck

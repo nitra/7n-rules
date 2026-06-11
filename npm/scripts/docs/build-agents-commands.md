@@ -154,7 +154,7 @@ const items = await buildAgentsCommandBulletItems(process.cwd())
 
    ```js
    import { buildAgentsCommandBulletItems } from '/абсолютний/шлях/до/build-agents-commands.mjs'
-   
+
    const items = await buildAgentsCommandBulletItems('/абсолютний/шлях/до/тимчасової/теки')
    console.log(items)
    ```

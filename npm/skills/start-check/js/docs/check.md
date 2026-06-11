@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/skills/start-check/js/check.mjs
+  crc: 1809127a
+---
+
 # check.mjs
 
 ## Огляд

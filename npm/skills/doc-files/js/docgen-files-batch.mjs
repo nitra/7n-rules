@@ -1,52 +1,116 @@
 /**
- * JS-оркестрація генерації файлових док (Tier 1).
+ * JS-оркестрація генерації файлових док (local-only, ADR 260610-2228).
  *
- * Уся черга/батчинг/роутинг/CRC-штамп живуть тут, а не в контексті моделі — тому
- * масовий перший прогін на сотні файлів не «заморює» агента. `generateDoc` сам
- * маршрутизує файл за складністю: прості (sym<threshold) → локальна модель,
- * складні → cloud-модель. Після генерації JS детерміновано штампує frontmatter
- * `source`+`crc`, тож наступний `doc-files check` бачить доку свіжою.
+ * Уся черга/батчинг/CRC-штамп живуть тут, а не в контексті моделі — тому
+ * масовий перший прогін на сотні файлів не «заморює» агента. Конвеєр суто
+ * локальний: жодних cloud-ескалацій; якщо det-score нижче порогу — дока все
+ * одно пишеться з degraded-маркером (`score`/`issues` у frontmatter), а
+ * `gen --retry-degraded` адресно переганяє лише такі доки пізніше.
+ *
+ * Перед масовим прогоном — health-check omlx: memory-guard зайнятої 8GB машини
+ * означає «відклади прогін», а не сотні хибних «✗» у звіті.
  */
 import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { generateDoc } from './docgen-gen.mjs'
-import { crc32, stampDoc } from './docgen-crc.mjs'
+import { omlxHealthCheck, pickBackend } from '../../../lib/llm.mjs'
+import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
+import { crc32, stampDoc, readDocQuality, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
 
 /**
- * Парсить `--limit N` / `--from N` для дозапуску великого прогону.
+ * Парсить `--limit N` / `--from N` / прапори режимів для дозапуску великого прогону.
  * @param {string[]} argv аргументи
- * @returns {{ from: number, limit: number, overwrite: boolean }} зріз і прапор перегенерації
+ * @returns {{ from: number, limit: number, overwrite: boolean, retryDegraded: boolean }} зріз і режими
  */
 function parseGenArgs(argv) {
   const num = (flag, dflt) => {
     const i = argv.indexOf(flag)
     return i !== -1 && argv[i + 1] ? Number(argv[i + 1]) || dflt : dflt
   }
-  return { from: num('--from', 0), limit: num('--limit', Infinity), overwrite: argv.includes('--overwrite') }
+  return {
+    from: num('--from', 0),
+    limit: num('--limit', Infinity),
+    overwrite: argv.includes('--overwrite'),
+    retryDegraded: argv.includes('--retry-degraded')
+  }
 }
 
 /**
- * `doc-files gen` — згенерувати документацію для застарілих/відсутніх файлів.
+ * Цілі генерації за режимом:
+ *   - default          → застарілі (stale);
+ *   - `--overwrite`     → усі;
+ *   - `--retry-degraded` → свіжі за CRC, але зі `score < QUALITY_THRESHOLD`.
+ * @param {string} root абсолютний корінь
+ * @param {Array<object>} all результат scanForDocFiles
+ * @param {{ overwrite: boolean, retryDegraded: boolean }} mode режими
+ * @returns {Array<object>} відфільтровані цілі
+ */
+function selectTargets(root, all, { overwrite, retryDegraded }) {
+  if (retryDegraded) {
+    return all.filter(f => {
+      if (f.stale) return false
+      const { score } = readDocQuality(join(root, f.docPath))
+      return score !== null && score < QUALITY_THRESHOLD
+    })
+  }
+  if (overwrite) return all
+  return all.filter(f => f.stale)
+}
+
+/**
+ * Preflight локального бекенда: для omlx-моделі — мінімальний chat-виклик.
+ * @returns {string|null} текст фатальної проблеми або null якщо можна генерувати
+ */
+function preflightProblem() {
+  if (pickBackend(DEFAULT_LOCAL_MODEL) !== 'omlx') return null
+  const hc = omlxHealthCheck({ model: DEFAULT_LOCAL_MODEL })
+  if (hc.ok) return null
+  if (hc.reason === 'memory-guard') {
+    return `omlx memory-guard: модель не влазить у динамічну стелю пам'яті (машина зайнята).\n  Звільни пам'ять або повтори прогін пізніше.\n  ${hc.detail}`
+  }
+  if (hc.reason === 'down') {
+    return `omlx-сервер не відповідає. Запусти \`omlx serve\` і повтори.\n  ${hc.detail}`
+  }
+  if (hc.reason === 'auth') {
+    return `omlx вимагає API-ключ. Вистав N_CURSOR_OMLX_KEY (auth.api_key з ~/.omlx/settings.json).\n  ${hc.detail}`
+  }
+  return `omlx помилка: ${hc.detail}`
+}
+
+/**
+ * `doc-files gen` — згенерувати документацію для застарілих/відсутніх док.
  * @param {string[]} argv аргументи після назви субкоманди
- * @returns {Promise<number>} exit-код: 0 — без помилок, 1 — хоча б одна помилка
+ * @returns {Promise<number>} exit-код: 0 — без помилок, 1 — хоча б одна помилка або фейл preflight
  */
 export async function runDocFilesGenCli(argv) {
   const root = resolveRoot(argv)
-  const { from, limit, overwrite } = parseGenArgs(argv)
+  const { from, limit, overwrite, retryDegraded } = parseGenArgs(argv)
 
   const all = scanForDocFiles(root)
-  const targets = (overwrite ? all : all.filter(f => f.stale)).slice(from, from + limit)
+  const targets = selectTargets(root, all, { overwrite, retryDegraded }).slice(from, from + limit)
 
   if (targets.length === 0) {
-    console.log('✓ doc-files: усі файлові доки свіжі. Нічого генерувати.')
+    console.log(
+      retryDegraded
+        ? '✓ doc-files: degraded-док немає. Нічого переганяти.'
+        : '✓ doc-files: усі файлові доки свіжі. Нічого генерувати.'
+    )
     return 0
   }
 
-  console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${overwrite ? ' (--overwrite)' : ''}`)
-  const stats = { ok: 0, err: 0, errors: [] }
+  const problem = preflightProblem()
+  if (problem) {
+    console.error(`✗ doc-files gen: ${problem}`)
+    return 1
+  }
+
+  let modeTxt = ''
+  if (overwrite) modeTxt = ' (--overwrite)'
+  else if (retryDegraded) modeTxt = ' (--retry-degraded)'
+  console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${modeTxt}`)
+  const stats = { ok: 0, degraded: 0, err: 0, errors: [] }
 
   let done = 0
   for (const file of targets) {
@@ -58,9 +122,16 @@ export async function runDocFilesGenCli(argv) {
       const crc = crc32(readFileSync(sourceAbs))
       const docAbs = join(root, file.docPath)
       mkdirSync(dirname(docAbs), { recursive: true })
-      writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc))
+      const quality =
+        result.score === null ? null : { score: result.score, issues: result.degraded ? result.issues : [] }
+      writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality))
       stats.ok++
-      process.stdout.write(`✓ tier${result.tier} crc=${crc}\n`)
+      if (result.degraded) {
+        stats.degraded++
+        process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}\n`)
+      } else {
+        process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}\n`)
+      }
     } catch (error) {
       stats.err++
       stats.errors.push(file.sourcePath)
@@ -68,10 +139,13 @@ export async function runDocFilesGenCli(argv) {
     }
   }
 
-  console.log(`\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ✗ Err: ${stats.err}`)
+  console.log(`\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ⚠ degraded: ${stats.degraded}  ✗ Err: ${stats.err}`)
   if (stats.errors.length > 0) {
     console.log('Помилки:')
     for (const e of stats.errors) console.log(`  - ${e}`)
+  }
+  if (stats.degraded > 0) {
+    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor doc-files gen --retry-degraded`)
   }
   return stats.err > 0 ? 1 : 0
 }
@@ -79,6 +153,7 @@ export async function runDocFilesGenCli(argv) {
 /**
  * `doc-files stamp` — детерміновано (пере)штампувати frontmatter `source`+`crc`
  * у НАЯВНИХ доках без виклику LLM. Для міграції док, які ще не мають CRC.
+ * Поля якості (`score`/`issues`) при цьому зберігаються з наявного frontmatter.
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {number} exit-код: 0 — успіх
  */
@@ -90,7 +165,9 @@ export function runDocFilesStampCli(argv) {
     if (!existsSync(docAbs)) continue
     const sourceAbs = join(root, file.sourcePath)
     const crc = crc32(readFileSync(sourceAbs))
-    writeFileSync(docAbs, stampDoc(readFileSync(docAbs, 'utf8'), file.sourcePath, crc))
+    const md = readFileSync(docAbs, 'utf8')
+    const { score, issues } = readDocQuality(docAbs)
+    writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }))
     stamped++
   }
   console.log(`✓ doc-files stamp: оновлено frontmatter у ${stamped} доці(ах).`)

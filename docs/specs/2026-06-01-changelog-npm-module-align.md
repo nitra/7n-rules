@@ -52,8 +52,8 @@ risk: low
    (видаляємо суперечливі секції+перевірки, єдине джерело істини). Regex по вільному тексту
    `.mdc` крихкий і сам стає джерелом тертя; YAGNI. _(Q3=skip)_
 4. **`package_structure.mjs` повністю виходить із теми version/CHANGELOG** — узгодженість
-   віддаємо `consistency.mjs`; FS-existence перевірок CHANGELOG у package_structure не
-   лишаємо. _(Q4)_
+   віддаємо `consistency.mjs`; FS-existence перевірок CHANGELOG у package*structure не
+   лишаємо. *(Q4)\_
 
 ## Зміни секціями
 

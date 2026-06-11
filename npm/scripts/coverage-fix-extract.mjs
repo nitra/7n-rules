@@ -27,7 +27,7 @@ const SURVIVED_SECTION = '## Вцілілі мутанти'
  * захоплюється в групу 1 — renderMarkdown пише 3, але oxfmt підвищує до 4+, коли
  * сам JSON-вміст містить ``` (типово для original/replacement мутантів).
  */
-const FENCE_OPEN_RE = /(`{3,})json[^\n]*\n/
+const FENCE_OPEN_RE = /(`{3,8})json[^\n]{0,200}\n/
 
 /**
  * Витягує JSON-масив вцілілих мутантів із тексту COVERAGE.md: знаходить секцію

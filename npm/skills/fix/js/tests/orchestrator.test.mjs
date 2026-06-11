@@ -5,7 +5,7 @@
  * Реальний n-cursor fix --json не викликається (offline-тест).
  */
 
-import { describe, test, expect } from 'bun:test'
+import { describe, expect, test } from 'vitest'
 
 // ── мінімальний mock модуля orchestrator без реального spawnSync ──
 // Тестуємо getFixState та загальний flow через заміну спавну
@@ -82,7 +82,11 @@ describe('orchestrator logic', () => {
 
   test('max-iter reached with unresolved → returns 1', async () => {
     const result = await runLoopMock({
-      states: Array.from({ length: 8 }, () => ({ total: 1, failed: 1, rules: [{ ruleId: 'rego', ok: false, output: 'X' }] })),
+      states: Array.from({ length: 8 }, () => ({
+        total: 1,
+        failed: 1,
+        rules: [{ ruleId: 'rego', ok: false, output: 'X' }]
+      })),
       t0Exit: 1,
       llmResults: [
         { ok: false, turns: 5 },

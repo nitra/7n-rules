@@ -270,7 +270,7 @@ Set-константи:
 
    ```js
    import { SQL } from 'bun'
-   
+
    /**
     *
     */
@@ -284,7 +284,7 @@ Set-константи:
 
    ```js
    import { sql } from 'bun'
-   
+
    const text = `select * from ${tableName}`
    sql.unsafe(text) // <-- порушення: немає // allow-unsafe: <reason>
    ```
@@ -314,7 +314,7 @@ Set-константи:
 
    ```js
    import { sql } from 'bun'
-   
+
    await sql.end() // <-- порушення: немає // allow-pg-leftover: <reason>
    ```
 

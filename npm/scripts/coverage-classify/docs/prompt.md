@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/coverage-classify/prompt.mjs
+  crc: 12bfb99a
+---
+
 # prompt.mjs
 
 ## Огляд

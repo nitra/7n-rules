@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/rules/npm-module/js/header_doc_pointer.mjs
+  crc: 9058c4ea
+---
+
 # header_doc_pointer.mjs
 
 ## Огляд
@@ -13,6 +19,7 @@
 5. Рахує непорожні змістовні рядки блоку (після зрізання відступу `*`). Більше одного → порушення.
 
 Допустимі форми при наявних docs:
+
 - відсутній module-level JSDoc (0 рядків)
 - `/** @see ./docs/<stem>.md */` (1 рядок)
 - `/** Контракт: ./docs/<stem>.md */` (1 рядок)

@@ -91,7 +91,9 @@ describe('classify', () => {
   test('обидва тири fail → FALLBACK_VERDICT (worth-testing / confidence=0)', async () => {
     await withTmpDir(async dir => {
       await writeFile(join(dir, 'foo.mjs'), SAMPLE, 'utf8')
-      mockCallModel.mockImplementation(() => { throw new Error('pi not found') })
+      mockCallModel.mockImplementation(() => {
+        throw new Error('pi not found')
+      })
       const result = await classify(survivedFixture('foo.mjs'), dir, {
         cachePath: join(dir, 'cache.json'),
         callModel: mockCallModel

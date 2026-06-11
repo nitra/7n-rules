@@ -41,11 +41,9 @@ describe('fixSurvivedMutants — early return', () => {
 
   test('survived з порожніми mutants[] → той самий early-return', async () => {
     const mockCallPi = vi.fn()
-    await fixSurvivedMutants(
-      [{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }],
-      '/repo',
-      { callPi: mockCallPi }
-    )
+    await fixSurvivedMutants([{ file: 'x.mjs', mutants: [], exampleTest: null, recommendationText: null }], '/repo', {
+      callPi: mockCallPi
+    })
     expect(logSpy).toHaveBeenCalledWith('✓ Всі мутанти вбиті — доповнення тестів не потрібне')
     expect(mockCallPi).not.toHaveBeenCalled()
   })

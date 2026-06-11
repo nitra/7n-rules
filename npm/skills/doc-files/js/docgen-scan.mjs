@@ -8,7 +8,7 @@ import { env } from 'node:process'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { isDocgenIgnored } from './docgen-ignore.mjs'
-import { staleness } from './docgen-crc.mjs'
+import { QUALITY_THRESHOLD, readDocQuality, staleness } from './docgen-crc.mjs'
 
 /** Кодові розширення, для яких генеруємо документацію. */
 const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.ts', '.vue', '.py'])
@@ -206,13 +206,44 @@ function toRelSource(root, candidate) {
 }
 
 /**
+ * `doc-files check --degraded` — інформаційний список свіжих за CRC док зі
+ * `score < QUALITY_THRESHOLD` (локальний конвеєр не дотягнув; ADR 260610-2228).
+ * Не блокує (exit 0): degraded — борг для `gen --retry-degraded`, а не гейт.
+ * @param {string} root абсолютний корінь
+ * @returns {number} exit-код: завжди 0
+ */
+function runDegradedReport(root) {
+  const degraded = []
+  for (const f of scanForDocFiles(root)) {
+    if (f.stale) continue
+    const { score, issues } = readDocQuality(path.join(root, f.docPath))
+    if (score !== null && score < QUALITY_THRESHOLD) degraded.push({ ...f, score, issues })
+  }
+  if (degraded.length === 0) {
+    console.log(`✓ doc-files: degraded-док немає (поріг ${QUALITY_THRESHOLD}).`)
+    return 0
+  }
+  const list = degraded
+    .map(f => {
+      const issuesTxt = f.issues.length ? ': ' + f.issues.join(',') : ''
+      return `  - ${f.sourcePath} (score=${f.score}${issuesTxt})`
+    })
+    .join('\n')
+  console.log(
+    `⚠ doc-files: degraded-док ${degraded.length} (score < ${QUALITY_THRESHOLD}):\n${list}\n→ перегенеруй: npx @nitra/cursor doc-files gen --retry-degraded`
+  )
+  return 0
+}
+
+/**
  * `doc-files check` — детермінований детектор застарілості для hook'ів і CLI.
  *
  * Режими:
- * - `--hook`  — PostToolUse: бере `file_path` зі stdin JSON, перевіряє один файл.
- * - `--git`   — Stop-гейт: перевіряє `git diff --name-only HEAD`. Поріг `--max N`
- *               (default 50): якщо stale більше — не блокуємо (exit 0 + попередження).
- * - `<paths…>` — явні шляхи-джерела.
+ * - `--hook`     — PostToolUse: бере `file_path` зі stdin JSON, перевіряє один файл.
+ * - `--git`      — Stop-гейт: перевіряє `git diff --name-only HEAD`. Поріг `--max N`
+ *                  (default 50): якщо stale більше — не блокуємо (exit 0 + попередження).
+ * - `--degraded` — інформаційний звіт по доках зі score нижче порогу (exit 0).
+ * - `<paths…>`   — явні шляхи-джерела.
  *
  * Exit 2 (стале знайдено) — для hook'а це блок/нагадування Claude; exit 0 — все свіже
  * або великий прогін понад поріг.
@@ -221,6 +252,7 @@ function toRelSource(root, candidate) {
  */
 export async function runDocFilesCheckCli(argv) {
   const root = resolveRoot(argv)
+  if (argv.includes('--degraded')) return runDegradedReport(root)
   const hookMode = argv.includes('--hook')
   const gitMode = argv.includes('--git')
   const maxIdx = argv.indexOf('--max')
@@ -252,7 +284,9 @@ export async function runDocFilesCheckCli(argv) {
   }
 
   const list = stale.map(f => `  - ${f.sourcePath} (${f.reason})`).join('\n')
-  console.error(`✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: /doc-files`)
+  console.error(
+    `✗ doc-files: документація застаріла/відсутня для ${stale.length} файл(ів):\n${list}\n→ перегенеруй: /doc-files`
+  )
   return 2
 }
 

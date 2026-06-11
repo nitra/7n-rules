@@ -27,7 +27,7 @@ async function expandWorkspacePattern(cwd, pattern) {
     const wsRel = rel.replace(PACKAGE_JSON_SUFFIX_RE, '')
     results.push(join(cwd, wsRel))
   }
-  return results.sort()
+  return results.toSorted()
 }
 
 /**

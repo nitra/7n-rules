@@ -29,7 +29,7 @@ export function deriveBlobHash(filePath) {
     return execFileSync('git', ['hash-object', filePath], { encoding: 'utf8' }).trim()
   } catch {
     const content = readFileSync(filePath)
-    return createHash('sha1').update(content).digest('hex')
+    return createHash('sha256').update(content).digest('hex')
   }
 }
 

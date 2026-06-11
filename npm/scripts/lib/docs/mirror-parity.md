@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/mirror-parity.mjs
+  crc: 15dc336a
+---
+
 ## Огляд
 
 Модуль `mirror-parity.mjs` забезпечує перевірку парності (parity) між «дзеркальними» файлами правил Cursor у `.cursor/rules/n-<id>.mdc` та їх канонічними джерелами у `npm/rules/<id>/<id>.mdc`. Ідея така: репозиторій містить два представлення одного й того ж правила:

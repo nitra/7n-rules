@@ -4,9 +4,11 @@
   "minLines": 25,
   "reporters": ["console"],
   "ignore": [
+    ".git/**",
     ".claude/worktrees/**",
     "**/dist/**",
     "**/CHANGELOG.md",
+    "**/COVERAGE.md",
     "**/.stryker-tmp/**",
     ".cursor/skills/**",
     "npm/AGENTS.template.md",
@@ -16,8 +18,14 @@
     "npm/github-actions/setup-bun-deps/action.yml",
     "npm/rules/js-lint/js/data/tooling/oxlint-canonical.json",
     "npm/rules/js-lint/js/data/tooling/knip-canonical.json",
-    "docs/adr/_inbox/**",
-    "docs/superpowers/**",
+    "demo/stryker-vue-macros-ignorer.mjs",
+    "npm/skills/llm-patch/SKILL.md",
+    "npm/rules/js-mssql/lib/mssql-pool-scan.mjs",
+    "npm/rules/k8s/js/manifests.mjs",
+    "npm/rules/k8s/js/tests/manifests/tests/check-schema.test.mjs",
+    "npm/rules/test/js/no-relative-fs-path.mjs",
+    "docs/**",
+    "**/docs/*.md",
     "npm/rules/*/policy/*/template/*.yml.snippet.yml",
     "npm/rules/*/policy/*/template/*.snippet.yaml"
   ]

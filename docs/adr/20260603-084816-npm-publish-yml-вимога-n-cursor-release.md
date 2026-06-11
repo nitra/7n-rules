@@ -29,3 +29,19 @@ Chosen option: "(a) будь-який крок із `n-cursor … release` у ф
 ## Update 2026-06-03
 
 Template `npm-publish.yml.snippet.yml` оновлено до реального workflow: job перейменовано на `release-publish`, додано `contents: write`, `persist-credentials: true`, `fetch-depth: 0`, composite `setup-bun-deps`, кроки `Configure git identity` та `Release` перед публікацією. Rego переведено на bracket-нотацію `jobs["release-publish"]`. Тести `npm_publish_yml_test.rego`: json-patch шляхи під новий job, індекс publish-кроку `5`; 559 тестів, 0 failures. Валідація: `node npm/bin/n-cursor.js fix npm-module` → `npm_publish_yml: 1 файл OK`. Change-файл: `npm/.changes/1780466073890-276f52.md` (patch, Changed).
+
+## Update 2026-06-03
+
+### Канонічний template: release+publish в одному job
+
+Реальний `.github/workflows/npm-publish.yml` містив кроки `Configure git identity` та `Release (bump + CHANGELOG + tag)` перед публікацією, тоді як канонічний template описував лише publish-only workflow. Template, rego-референси та проза `.mdc` оновлено під реальний workflow.
+
+- `npm/rules/npm-module/policy/npm_publish_yml/template/npm-publish.yml.snippet.yml` — job `release-publish`, `contents: write`, `persist-credentials: true`, `fetch-depth: 0`, composite `./.github/actions/setup-bun-deps`, кроки `Configure git identity` та `Release (bump + CHANGELOG + tag)` перед `JS-DevTools/npm-publish@v4.1.5`.
+- `npm/rules/npm-module/policy/npm_publish_yml/npm_publish_yml.rego` — `jobs.publish` → `jobs["release-publish"]` (bracket-нотація через дефіс у назві job).
+- `npm/rules/npm-module/policy/npm_publish_yml/npm_publish_yml_test.rego` — оновлено `template_data` і json-patch шляхи; індекс publish-кроку `2` → `5`.
+- `npm/rules/npm-module/npm-module.mdc` — проза розділу «## npm publish» оновлена; синк підставив новий inlined блок у `.cursor/rules/n-npm-module.mdc`.
+- `npm/.changes/1780466073890-276f52.md` — changelog entry (Changed, patch).
+
+### Rego-політика залишається subset-of
+
+При оновленні template вирішено не розширювати deny-правила: policy перевіряє лише необхідний мінімум (4 умови: `on.push.paths` ⊇ `npm/**`; `on.push.branches` ⊇ `main`; хоч один job має `id-token: write`; є крок `uses: JS-DevTools/npm-publish` з `with.package: npm/package.json`). Release-крок є розширенням канону, а не обов'язковою вимогою для всіх проєктів — enforce додаткових кроків виходив би за межі наявного scope перевірки.

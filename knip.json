@@ -6,7 +6,17 @@
     "globals",
     "@stryker-mutator/core"
   ],
-  "ignoreBinaries": ["cspell", "oxfmt", "stylelint", "trufflehog"],
+  "ignoreBinaries": [
+    "cspell",
+    "oxfmt",
+    "stylelint",
+    "trufflehog",
+    "pi",
+    "claude",
+    "cursor-agent",
+    "fix-t0",
+    "_fix-check"
+  ],
   "ignoreExportsUsedInFile": true,
   "ignoreIssues": {
     "npm/rules/**/js/applies.mjs": ["exports"],

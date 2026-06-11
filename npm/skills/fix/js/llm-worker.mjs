@@ -12,7 +12,7 @@ import { callOmlx, isOmlxModel } from '../../../lib/omlx.mjs'
 export const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
 export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? resolveModel('avg')
 
-const JSON_CODE_BLOCK_RE = /```(?:json)?\s*([\s\S]*?)```/
+const JSON_CODE_BLOCK_RE = /```(?:json)?[ \t]{0,8}\n?([\s\S]*?)```/
 
 /**
  * Витягує відносні шляхи файлів із violation output.
@@ -35,7 +35,7 @@ function extractFilePaths(output) {
   }
 
   // Патерн без workspace: просто path/to/file.ext або ./file.ext
-  const re = /(?:^|\s)(\.?[\w][\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
+  const re = /(?:^|\s)(\.?\w[\w./-]*\.(?:json|js|mjs|ts|vue|yml|yaml|toml|mdc|md|sh|py))(?::\d+)?/gm
   for (const m of output.matchAll(re)) {
     const p = m[1]
     if (!seen.has(p)) {
@@ -116,7 +116,7 @@ function callModel(prompt, model) {
         error: [
           `pi: немає ключа для ${provider}.`,
           `Встановіть N_CLOUD_MIN_MODEL=provider/model-id`,
-          `(напр.: openai/gpt-5.4-mini, google/gemini-2.5-flash, ollama/gemma3:4b)`,
+          `(напр.: openai/gpt-5.4-mini, google/gemini-2.5-flash, ollama/gemma3:4b)`
         ].join(' ')
       }
     }

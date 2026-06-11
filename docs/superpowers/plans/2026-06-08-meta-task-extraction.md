@@ -136,8 +136,20 @@ import { COMMAND_NAMES, runMtCli } from '../cli.mjs'
 describe('runMtCli', () => {
   test('exposes the complete public command surface', () => {
     expect(COMMAND_NAMES).toEqual([
-      'setup', 'init', 'plan', 'verify', 'run', 'status', 'scan',
-      'watch', 'audit', 'done', 'failed', 'spawn', 'invalidate', 'kill'
+      'setup',
+      'init',
+      'plan',
+      'verify',
+      'run',
+      'status',
+      'scan',
+      'watch',
+      'audit',
+      'done',
+      'failed',
+      'spawn',
+      'invalidate',
+      'kill'
     ])
   })
 

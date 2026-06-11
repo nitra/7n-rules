@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/skills/fix/js/orchestrator.mjs
+  crc: 8b7a7de5
+---
+
 # orchestrator.mjs
 
 ## Огляд

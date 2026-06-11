@@ -1,3 +1,9 @@
+---
+docgen:
+  source: npm/scripts/lib/root-notice.mjs
+  crc: 5f3ca2bb
+---
+
 # root-notice.mjs
 
 ## Огляд
