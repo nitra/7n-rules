@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/skills/doc-files/js/docgen-ignore.mjs
-  crc: f9206fe0
+  crc: c17cd785
   score: 100
 ---
 
@@ -13,7 +13,7 @@ DOCGEN_IGNORE_GLOBS
 Список шляхів, які docgen повинен ігнорувати.
 
 isDocgenIgnored
-Перевіряє, чи вказаний шлях знаходиться у списку ігнорованих шляхів. Повертає булеве значення.
+Перевіряє, чи шлях знаходиться у списку ігнорованих шляхів.
 
 ## Поведінка
 
@@ -25,7 +25,7 @@ isDocgenIgnored
 
 ## Публічний API
 
-DOCGEN_IGNORE_GLOBS — Базовий список glob-ів для ігнорування у `docgen`.
+DOCGEN_IGNORE_GLOBS — Список glob-ів для ігнорування у `docgen`.
 isDocgenIgnored — Визначає, чи шлях повинен бути пропущений `docgen`. Для `kind = 'dir'` працює і на підкаталоги, наприклад, `**\\/demo/**` спрацьовує на `demo/x` під час рекурсивного обходу.
 
 ## Гарантії поведінки
