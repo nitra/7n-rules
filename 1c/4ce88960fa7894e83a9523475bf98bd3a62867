@@ -1,0 +1,69 @@
+package.json
+  s_92ad32eb89e816::t_90cb511d49f04c 43-44
+npm/scripts/lib/rule-predicates.mjs
+  s_92ad32eb89e816::t_d0cc1c98c54972 24
+npm/skills/doc-files/js/tests/docgen-scan.test.mjs
+  s_92ad32eb89e816::t_b4c9055d4555a9 95-102
+  s_92ad32eb89e816::t_0184cf2ac81edd 78-94,103-106
+  s_92ad32eb89e816::t_6dbdca94396c8b 6-13
+npm/skills/doc-files/js/docgen-scan.mjs
+  s_92ad32eb89e816::t_52ce0b8006f0e8 268-270,275,277
+  s_92ad32eb89e816::t_b4c9055d4555a9 271-274
+npm/scripts/utils/with-lock.mjs
+  s_92ad32eb89e816::t_36be524754446f 129-131,133
+npm/skills/doc-files/js/docgen-extract.mjs
+  s_92ad32eb89e816::t_c0fc2eb2ace9ba 314
+  s_92ad32eb89e816::t_5e947e9f7c4a85 328-330,332,335
+  s_92ad32eb89e816::t_4d872404252564 217-220
+  s_92ad32eb89e816::t_6a9b3bf599dd2a 362
+  s_92ad32eb89e816::t_e442925ee0ad80 253-266
+  s_92ad32eb89e816::t_295c9cd374880c 344
+  s_92ad32eb89e816::t_b4c9055d4555a9 278-280
+  s_92ad32eb89e816::t_a63e2a9791e000 343
+  s_92ad32eb89e816::t_5067030256511c 222-226
+  s_92ad32eb89e816::t_93542161d0668f 237-241
+npm/lib/omlx.mjs
+  s_92ad32eb89e816::t_1c573f33e73757 72-73
+npm/lib/docs/omlx.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/scripts/lib/docs/rule-predicates.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/skills/doc-files/js/docs/docgen-scan.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/skills/doc-files/js/tests/docgen-protected.test.mjs
+  s_92ad32eb89e816::t_96aabf6aac01f4 46-48,53
+npm/skills/doc-files/js/docs/docgen-extract.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/.changes/260612-0808.md
+  s_92ad32eb89e816::t_b4c9055d4555a9 5-6
+  s_92ad32eb89e816::t_dd4616a5b2b328 1-4
+npm/.changes/260612-0815.md
+  s_92ad32eb89e816::t_b4c9055d4555a9 5
+  s_92ad32eb89e816::t_3d171a57766b98 1-4,6
+npm/scripts/utils/docs/with-lock.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/skills/doc-files/js/docs/units-rs.md
+  s_92ad32eb89e816::t_eb92881a2ac8c4 4
+npm/skills/doc-files/js/units-rs.mjs
+  s_92ad32eb89e816::t_b683a3fdf4fefd 86-87,89-90,92-96
+  s_92ad32eb89e816::t_a63e2a9791e000 147
+  s_92ad32eb89e816::t_5a83bb5be22318 111
+  s_92ad32eb89e816::t_c7464530505045 158-159,162-166,172-173,175-178
+  s_92ad32eb89e816::t_b4c9055d4555a9 12-15,44-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "1c4ce88960fa7894e83a9523475bf98bd3a62867",
+  "prompts": {},
+  "sessions": {
+    "s_92ad32eb89e816": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53c8de91-3280-48b3-901c-d8d5de69ece9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
