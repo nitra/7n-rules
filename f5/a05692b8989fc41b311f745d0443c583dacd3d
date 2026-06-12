@@ -1,0 +1,19 @@
+docs/adr/260604-1040-відновлення-captureoutput-sync-виводу-cli.md
+  s_2844331a64f998::t_febbe8985ccce5 33-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f5a05692b8989fc41b311f745d0443c583dacd3d",
+  "prompts": {},
+  "sessions": {
+    "s_2844331a64f998": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4c281c34-5d62-43e1-95dd-de78865536a7",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
