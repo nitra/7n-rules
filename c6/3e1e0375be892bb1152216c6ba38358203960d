@@ -1,0 +1,19 @@
+docs/superpowers/specs/2026-06-12-doc-files-lint-doc-fix-doc-split.md
+  s_92ad32eb89e816::t_fa5d5be2bf8508 1-279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "c63e1e0375be892bb1152216c6ba38358203960d",
+  "prompts": {},
+  "sessions": {
+    "s_92ad32eb89e816": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "53c8de91-3280-48b3-901c-d8d5de69ece9",
+        "model": "claude-fable-5"
+      },
+      "human_author": "vitaliytv <v@nitra.ai>"
+    }
+  }
+}
