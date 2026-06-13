@@ -79,3 +79,7 @@ Fallback-логіка в `n-cursor release`: `git log <fromRef>..<toRef> -- <wsD
 Виконано: `npx @nitra/cursor change --bump patch --section Added --message "..." --ws npm` → `npm/.changes/1780116534790-9f47f9.md`; revert ручного bump (`1.33.1 → 1.33.0`).
 
 Валідація: `npx @nitra/cursor fix changelog` → `✅ npm: @nitra/cursor — нова локальна версія (1.32.0 → 1.33.1)`. Коміт: `5c77b23 refactor(npm): перенесення на change-file workflow`.
+
+## Update 2026-06-04
+
+Досліджено автоматичне створення change-файлу через `PostToolUse` hook Claude Code (аналогічно репо `/Users/vitaliytv/www/vitaliytv/7n`). Крок `npm-changelog` у `hk.pkl` блокує коміт командою `bun ./npm/bin/n-cursor.js fix changelog`, якщо у `npm/**` є релевантні зміни без change-файлу у `.changes/`. Потенційний механізм: `npm/scripts/post-tool-use-fix.mjs` + `PostToolUse` hook у `.claude/settings.json`. Реалізацію не завершено — сесія перервалась на фазі дослідження. Ручна команда для довідки: `npx @nitra/cursor change --bump <major|minor|patch> --section <Added|Changed|Fixed|Removed> --message "<...>"`.

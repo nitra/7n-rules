@@ -30,3 +30,7 @@ Chosen option: "Жорсткіший текст у SKILL.md з явним STOP/A
 - `npm/bin/n-cursor.js` — `buildClaudeWorktreeEnforcementSectionLines()` + вставка після «Лінт і ESLint» у генераторі CLAUDE.md
 - Тести: `worktree-notice.test.mjs` + `generated-markdown.test.mjs` → 11/11
 - Change-файл: `npm/.changes/1780285755419-9af9c4.md` (minor / Changed)
+
+## Update 2026-06-04
+
+Підтверджено на практиці для `n-fix`: виклик `/n-fix` у основному дереві (`main`, `/Users/vitaliytv/www/nitra/cursor`) — preflight автоматично створив worktree `main-fix` командою `npx @nitra/cursor worktree add "main-fix" "n-fix: worktree-only skill"`, встановив залежності (`bun install`, 875 пакетів) і запустив `npx @nitra/cursor fix`. Результат: exit=0, 19 успішних перевірок, `git status --short` порожній.
