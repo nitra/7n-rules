@@ -45,10 +45,19 @@ export function resolveOmlxApiKey(apiKey) {
   }
 }
 
-/** Дефолтна модель, якщо в id лишився голий `omlx/` (override — `N_CURSOR_OMLX_MODEL`). */
-export const DEFAULT_OMLX_MODEL = 'mlx-community--gemma-4-e2b-it-4bit'
-
 const OMLX_PREFIX = 'omlx/'
+
+/** Backoff між transient-ретраями curl (мс): 2 паузи на 3 спроби. */
+const BACKOFF_MS = [2000, 8000]
+
+/**
+ * Блокуюча пауза без зайнятого циклу (sync — для retry-loop у `callOmlxRaw`).
+ * @param {number} ms тривалість паузи
+ * @returns {void}
+ */
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
 
 /**
  * Чи цей model-id адресує локальний omlx-бекенд (префікс `omlx/`).
@@ -93,14 +102,37 @@ export function extractReasoning(message, finishReason) {
 }
 
 /**
+ * Парсить успішну (curl-exit 0) omlx-відповідь у багатий обʼєкт.
+ * @param {string} stdout сире тіло відповіді curl
+ * @param {number} attempt номер успішної спроби (для поля `attempts`)
+ * @returns {{ content:string, reasoning:string|null, reasoningSource:string|null, finishReason:string|null, usage:object|null, attempts:number }} багатий результат
+ * @throws {Error} на поганому JSON, api-помилці чи порожньому контенті
+ */
+function parseOmlxResponse(stdout, attempt) {
+  let j
+  try {
+    j = JSON.parse(stdout)
+  } catch {
+    throw new Error(`omlx bad json: ${stdout?.slice(0, 200) ?? ''}`)
+  }
+  if (j.error) throw new Error(`omlx api: ${JSON.stringify(j.error).slice(0, 300)}`)
+  const message = j.choices?.[0]?.message ?? {}
+  const finishReason = j.choices?.[0]?.finish_reason ?? null
+  const content = message.content?.trim() ?? ''
+  if (!content) throw new Error(`omlx empty content (finish=${finishReason})`)
+  const { reasoning, reasoningSource } = extractReasoning(message, finishReason)
+  return { content, reasoning, reasoningSource, finishReason, usage: j.usage ?? null, attempts: attempt }
+}
+
+/**
  * Ядро прямого HTTP-виклику до omlx через `curl` (spawnSync). Повертає **багатий**
  * обʼєкт: контент + reasoning + usage + finish_reason + кількість спроб. Ретраїть
- * лише transient curl-помилки (18 = transfer closed, 52 = empty reply, 56 = recv failure).
+ * transient-помилки (curl 18/28/52/56 + spawnSync ETIMEDOUT) із backoff 2s→8s.
  * @param {Array<{role:string, content:string}>} messages OpenAI-messages (system+user збережено)
- * @param {string} model model-id (з/без `omlx/`-префікса); порожній → дефолт
- * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ
+ * @param {string} model model-id (з/без `omlx/`-префікса); порожній і без `fallbackModel` → throw
+ * @param {{ url?: string, timeoutMs?: number, temperature?: number, maxTokens?: number, fallbackModel?: string, apiKey?: string, backoffMs?: number[] }} [opts] URL, timeout, температура, ліміт виходу, fallback-модель, API-ключ, backoff між ретраями (мс)
  * @returns {{ content:string, reasoning:string|null, reasoningSource:string|null, finishReason:string|null, usage:object|null, attempts:number }} багатий результат виклику
- * @throws на curl-помилці, не-200 exit, поганому JSON чи порожньому контенті
+ * @throws {Error} на curl-помилці, не-200 exit, поганому JSON чи порожньому контенті
  */
 export function callOmlxRaw(messages, model, opts = {}) {
   const {
@@ -108,18 +140,23 @@ export function callOmlxRaw(messages, model, opts = {}) {
     timeoutMs = 60_000,
     temperature = 0.2,
     maxTokens = 4096,
-    fallbackModel = env.N_CURSOR_OMLX_MODEL ?? DEFAULT_OMLX_MODEL,
-    apiKey
+    fallbackModel = env.N_CURSOR_OMLX_MODEL ?? '',
+    apiKey,
+    backoffMs = BACKOFF_MS
   } = opts
 
   const m = omlxModelId(model) || fallbackModel
+  if (!m) {
+    throw new Error('omlx: модель не задано — постав N_LOCAL_MIN_MODEL (або N_CURSOR_OMLX_MODEL)')
+  }
   const body = JSON.stringify({ model: m, messages, max_tokens: maxTokens, temperature })
   // Ключ локального сервера в argv допустимий: localhost-секрет власної машини,
   // короткоживучий процес; stdin уже зайнятий body (`--data-binary @-`).
   const key = resolveOmlxApiKey(apiKey)
   const authArgs = key ? ['-H', `Authorization: Bearer ${key}`] : []
 
-  const TRANSIENT_CURL_CODES = new Set([18, 52, 56])
+  // 18=transfer closed, 28=operation timeout, 52=empty reply, 56=recv failure — усі transient.
+  const TRANSIENT_CURL_CODES = new Set([18, 28, 52, 56])
   let lastErr
   for (let attempt = 1; attempt <= 3; attempt++) {
     const r = spawnSync(
@@ -143,28 +180,22 @@ export function callOmlxRaw(messages, model, opts = {}) {
     )
     if (r.error) {
       lastErr = new Error(`omlx curl error: ${r.error.message}`)
+      // spawnSync-таймаут (ETIMEDOUT) — transient: сервер перевантажений, ретраїмо з backoff.
+      if (r.error.code === 'ETIMEDOUT' && attempt < 3) {
+        sleepSync(backoffMs[attempt - 1])
+        continue
+      }
       break
     }
     if (r.status !== 0) {
       if (TRANSIENT_CURL_CODES.has(r.status) && attempt < 3) {
         lastErr = new Error(`omlx curl exit ${r.status} (transient, retry ${attempt})`)
+        sleepSync(backoffMs[attempt - 1])
         continue
       }
       throw new Error(`omlx curl exit ${r.status}: ${r.stderr?.slice(0, 300) ?? ''}`)
     }
-    let j
-    try {
-      j = JSON.parse(r.stdout)
-    } catch {
-      throw new Error(`omlx bad json: ${r.stdout?.slice(0, 200) ?? ''}`)
-    }
-    if (j.error) throw new Error(`omlx api: ${JSON.stringify(j.error).slice(0, 300)}`)
-    const message = j.choices?.[0]?.message ?? {}
-    const finishReason = j.choices?.[0]?.finish_reason ?? null
-    const content = message.content?.trim() ?? ''
-    if (!content) throw new Error(`omlx empty content (finish=${finishReason})`)
-    const { reasoning, reasoningSource } = extractReasoning(message, finishReason)
-    return { content, reasoning, reasoningSource, finishReason, usage: j.usage ?? null, attempts: attempt }
+    return parseOmlxResponse(r.stdout, attempt)
   }
   throw lastErr ?? new Error('omlx unknown failure')
 }

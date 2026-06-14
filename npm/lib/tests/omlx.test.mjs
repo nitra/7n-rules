@@ -12,7 +12,7 @@ const { spawnSyncMock, readFileSyncMock } = vi.hoisted(() => ({ spawnSyncMock: v
 vi.mock('node:child_process', () => ({ spawnSync: spawnSyncMock }))
 vi.mock('node:fs', () => ({ readFileSync: readFileSyncMock }))
 
-const { callOmlx, callOmlxRaw, extractReasoning, isOmlxModel, omlxModelId, resolveOmlxApiKey, DEFAULT_OMLX_MODEL } =
+const { callOmlx, callOmlxRaw, extractReasoning, isOmlxModel, omlxModelId, resolveOmlxApiKey } =
   await import('../omlx.mjs')
 
 const ERR_CURL_EXIT_7 = /omlx curl exit 7/
@@ -95,10 +95,29 @@ describe('callOmlx', () => {
     expect(sentBody().model).toBe('mlx-community--gemma')
   })
 
-  test('порожній model → fallback на дефолт', () => {
+  test('порожній model + N_CURSOR_OMLX_MODEL → fallback на env', () => {
     spawnSyncMock.mockReturnValue(okResult('x'))
-    callOmlx([{ role: 'user', content: 'hi' }], '')
-    expect(sentBody().model).toBe(DEFAULT_OMLX_MODEL)
+    const prev = env.N_CURSOR_OMLX_MODEL
+    env.N_CURSOR_OMLX_MODEL = 'env-fallback-model'
+    try {
+      callOmlx([{ role: 'user', content: 'hi' }], '')
+      expect(sentBody().model).toBe('env-fallback-model')
+    } finally {
+      if (prev === undefined) delete env.N_CURSOR_OMLX_MODEL
+      else env.N_CURSOR_OMLX_MODEL = prev
+    }
+  })
+
+  test('порожній model без fallback → throw (fail-loud, без spawn)', () => {
+    spawnSyncMock.mockReturnValue(okResult('x'))
+    const prev = env.N_CURSOR_OMLX_MODEL
+    delete env.N_CURSOR_OMLX_MODEL
+    try {
+      expect(() => callOmlx([{ role: 'user', content: 'hi' }], '')).toThrow(/модель не задано/)
+      expect(spawnSyncMock).not.toHaveBeenCalled()
+    } finally {
+      if (prev !== undefined) env.N_CURSOR_OMLX_MODEL = prev
+    }
   })
 
   test('body містить messages, temperature, max_tokens', () => {
@@ -118,8 +137,16 @@ describe('callOmlx', () => {
     spawnSyncMock
       .mockReturnValueOnce({ status: 52, stdout: '', stderr: 'empty reply' })
       .mockReturnValueOnce(okResult('after-retry'))
-    const out = callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g')
+    const out = callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g', { backoffMs: [0, 0] })
     expect(out).toBe('after-retry')
+    expect(spawnSyncMock).toHaveBeenCalledTimes(2)
+  })
+
+  test('spawnSync ETIMEDOUT → retry з backoff → успіх', () => {
+    const timeout = Object.assign(new Error('spawnSync curl ETIMEDOUT'), { code: 'ETIMEDOUT' })
+    spawnSyncMock.mockReturnValueOnce({ error: timeout }).mockReturnValueOnce(okResult('after-timeout'))
+    const out = callOmlx([{ role: 'user', content: 'hi' }], 'omlx/g', { backoffMs: [0, 0] })
+    expect(out).toBe('after-timeout')
     expect(spawnSyncMock).toHaveBeenCalledTimes(2)
   })
 
@@ -249,7 +276,7 @@ describe('callOmlxRaw', () => {
     spawnSyncMock
       .mockReturnValueOnce({ status: 52, stdout: '', stderr: 'empty reply' })
       .mockReturnValueOnce(richResult({ content: 'after-retry' }))
-    expect(callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g').attempts).toBe(2)
+    expect(callOmlxRaw([{ role: 'user', content: 'hi' }], 'omlx/g', { backoffMs: [0, 0] }).attempts).toBe(2)
   })
 
   test('callOmlx — обгортка, повертає лише .content', () => {

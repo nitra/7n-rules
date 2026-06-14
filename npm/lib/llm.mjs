@@ -121,6 +121,26 @@ export function callLlm(messages, model, opts = {}) {
 const MEMORY_GUARD_MARKER = 'memory ceiling'
 /** Тип помилки omlx про відсутній/хибний API-ключ. */
 const AUTH_ERROR_MARKER = 'authentication_error'
+/** Детерміновані помилки: контекст/модель — ретрай чи чекання не допоможе. */
+const PERMANENT_RE = /too long|exceeds[^.]*context|not found/i
+
+/**
+ * Класифікує omlx-помилку **після** того, як `callOmlxRaw` вичерпав внутрішні
+ * ретраї — для реакції оркестратора (skip vs circuit-breaker vs звичайна помилка):
+ *   - `permanent` — детерміновано (контекст завеликий, модель відсутня): skip, не ретраїти;
+ *   - `systemic`  — середовище/сервер (memory-guard, auth, down/таймаут): каскадить → circuit-breaker;
+ *   - `transient` — решта (empty content, bad json): рідкісне, не каскадить.
+ * @param {string} message текст `error.message`
+ * @returns {'transient'|'systemic'|'permanent'} клас помилки
+ */
+export function classifyOmlxError(message) {
+  const m = String(message)
+  if (PERMANENT_RE.test(m)) return 'permanent'
+  if (m.includes(MEMORY_GUARD_MARKER) || m.includes(AUTH_ERROR_MARKER) || m.startsWith('omlx curl')) {
+    return 'systemic'
+  }
+  return 'transient'
+}
 
 /**
  * Preflight-перевірка omlx перед масовим прогоном: мінімальний chat-виклик

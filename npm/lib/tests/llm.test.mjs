@@ -25,7 +25,7 @@ vi.mock('../omlx-trace.mjs', async importOriginal => ({
   writeTrace: writeTraceMock
 }))
 
-const { callLlm, omlxHealthCheck, pickBackend } = await import('../llm.mjs')
+const { callLlm, omlxHealthCheck, pickBackend, classifyOmlxError } = await import('../llm.mjs')
 
 const ERR_PI_EXIT_1 = /pi exit 1/
 const ERR_PI_EXIT_3 = /pi exit 3/
@@ -162,7 +162,7 @@ describe('callLlm — wire-trace (always-on)', () => {
 describe('omlxHealthCheck', () => {
   test('живий сервер із контентом → ok', () => {
     spawnSyncMock.mockReturnValue(curlOk('Ok'))
-    expect(omlxHealthCheck()).toEqual({ ok: true, reason: null, detail: '' })
+    expect(omlxHealthCheck({ model: 'omlx/m' })).toEqual({ ok: true, reason: null, detail: '' })
   })
 
   test('memory-guard → reason=memory-guard (машина зайнята, не помилка моделі)', () => {
@@ -173,7 +173,7 @@ describe('omlxHealthCheck', () => {
       }),
       stderr: ''
     })
-    const r = omlxHealthCheck()
+    const r = omlxHealthCheck({ model: 'omlx/m' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('memory-guard')
     expect(r.detail).toMatch(RE_MEMORY_CEILING)
@@ -181,7 +181,7 @@ describe('omlxHealthCheck', () => {
 
   test('curl не достукався → reason=down', () => {
     spawnSyncMock.mockReturnValue({ status: 7, stdout: '', stderr: 'Failed to connect' })
-    const r = omlxHealthCheck()
+    const r = omlxHealthCheck({ model: 'omlx/m' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('down')
   })
@@ -192,7 +192,7 @@ describe('omlxHealthCheck', () => {
       stdout: JSON.stringify({ choices: [{ message: { content: '' }, finish_reason: 'length' }] }),
       stderr: ''
     })
-    expect(omlxHealthCheck().ok).toBe(true)
+    expect(omlxHealthCheck({ model: 'omlx/m' }).ok).toBe(true)
   })
 
   test('вимога API-ключа → reason=auth', () => {
@@ -201,7 +201,7 @@ describe('omlxHealthCheck', () => {
       stdout: JSON.stringify({ error: { message: 'API key required', type: 'authentication_error' } }),
       stderr: ''
     })
-    const r = omlxHealthCheck()
+    const r = omlxHealthCheck({ model: 'omlx/m' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('auth')
   })
@@ -212,8 +212,27 @@ describe('omlxHealthCheck', () => {
       stdout: JSON.stringify({ error: { message: 'model not found' } }),
       stderr: ''
     })
-    const r = omlxHealthCheck()
+    const r = omlxHealthCheck({ model: 'omlx/m' })
     expect(r.ok).toBe(false)
     expect(r.reason).toBe('error')
+  })
+})
+
+describe('classifyOmlxError', () => {
+  test('permanent — завеликий контекст / модель відсутня', () => {
+    expect(classifyOmlxError('omlx api: Prompt too long: 9177917 tokens exceeds max context window')).toBe('permanent')
+    expect(classifyOmlxError("Model 'x' not found. Available models: y")).toBe('permanent')
+  })
+
+  test('systemic — memory-guard / auth / down (каскадить)', () => {
+    expect(classifyOmlxError('omlx api: ... memory ceiling 11.84GB')).toBe('systemic')
+    expect(classifyOmlxError('omlx api: {"type":"authentication_error"}')).toBe('systemic')
+    expect(classifyOmlxError('omlx curl exit 7: connection refused')).toBe('systemic')
+    expect(classifyOmlxError('omlx curl error: spawnSync curl ETIMEDOUT')).toBe('systemic')
+  })
+
+  test('transient — решта (empty content, bad json)', () => {
+    expect(classifyOmlxError('omlx empty content (finish=length)')).toBe('transient')
+    expect(classifyOmlxError('omlx bad json: <html>')).toBe('transient')
   })
 })

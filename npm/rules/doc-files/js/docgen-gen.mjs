@@ -3,7 +3,6 @@ import { readFileSync, existsSync } from 'node:fs'
 import { basename } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
-import { DEFAULT_OMLX_MODEL } from '../../../lib/omlx.mjs'
 import { callLlm as callLlmRaw } from '../../../lib/llm.mjs'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from './docgen-scan.mjs'
@@ -365,11 +364,12 @@ function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, tempera
 /** Максимальний час генерації одного LLM-виклику. */
 const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
 /**
- * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') → omlx напряму.
- * Останній fallback гарантує local-only шлях без жодних env (через pi CLI той
- * самий локальний виклик виміряно повільніший на ~46%).
+ * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') (→ N_LOCAL_MIN_MODEL).
+ * Без хардкод-fallback: модель налаштовує кожен локально (`N_LOCAL_MIN_MODEL`); якщо
+ * нічого не задано — порожньо, і preflight оркестратора фейлить гучно (а не шле
+ * запит до неіснуючої моделі).
  */
-export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? (resolveModel('min') || `omlx/${DEFAULT_OMLX_MODEL}`)
+export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('min')
 
 /**
  * Головний API: файл → md-дока з det-оцінкою.

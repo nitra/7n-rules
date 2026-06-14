@@ -10,11 +10,11 @@
  * Перед масовим прогоном — health-check omlx: memory-guard зайнятої 8GB машини
  * означає «відклади прогін», а не сотні хибних «✗» у звіті.
  */
-import { readFileSync, mkdirSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { omlxHealthCheck, pickBackend } from '../../../lib/llm.mjs'
+import { omlxHealthCheck, pickBackend, classifyOmlxError } from '../../../lib/llm.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
 import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
@@ -64,6 +64,9 @@ function selectTargets(root, all, { overwrite, retryDegraded }) {
  * @returns {string|null} текст фатальної проблеми або null якщо можна генерувати
  */
 function preflightProblem() {
+  if (!DEFAULT_LOCAL_MODEL) {
+    return 'модель не задано. Вистав N_LOCAL_MIN_MODEL (напр. omlx/mlx-community--gemma-4-e4b-it-OptiQ-4bit) і повтори.'
+  }
   if (pickBackend(DEFAULT_LOCAL_MODEL) !== 'omlx') return null
   const hc = omlxHealthCheck({ model: DEFAULT_LOCAL_MODEL })
   if (hc.ok) return null
@@ -103,17 +106,39 @@ function fmtTiming(r) {
   return `${s(r.ms)} (llm ${s(llmMs)}/${r.llmCalls ?? 0} calls, orch ${s(r.ms - llmMs)})`
 }
 
+/** Скільки systemic-збоїв підряд → негайний abort батчу (fail-fast, без cooldown). */
+const SYSTEMIC_ABORT_STREAK = 3
+
+/**
+ * Діагностика розміру джерела (для дослідження, що роздуває контекст):
+ * байти + груба оцінка токенів (~bytes/4). Без size-guard-гейта — лише вивід.
+ * @param {number} bytes розмір файлу в байтах
+ * @returns {string} напр. `12.3KB ~3.1k tok`
+ */
+function fmtSize(bytes) {
+  return `${(bytes / 1024).toFixed(1)}KB ~${(bytes / 4 / 1000).toFixed(1)}k tok`
+}
+
 /**
  * Генерує й штампує доку для одного файлу, оновлюючи лічильники й прогрес.
+ * Помилку класифікує (`classifyOmlxError`): `permanent` → skip (не «помилка для
+ * перегону»), `systemic`/`transient` → у `errors`. Повертає клас для циклу
+ * (circuit-breaker рахує systemic-підряд).
  * @param {object} file елемент scanForDocFiles
  * @param {string} root абсолютний корінь
  * @param {{ done: number, total: number }} progress позиція у прогресі
- * @param {{ ok: number, degraded: number, err: number, errors: string[] }} stats акумулятор статистики
- * @returns {Promise<void>}
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats акумулятор
+ * @returns {Promise<'ok'|'permanent'|'systemic'|'transient'>} результат для керування циклом
  */
 async function generateOne(file, root, progress, stats) {
   const sourceAbs = join(root, file.sourcePath)
-  process.stdout.write(`  [${progress.done}/${progress.total}] ${file.sourcePath} … `)
+  let size = 0
+  try {
+    size = statSync(sourceAbs).size
+  } catch {
+    // файл зник між скануванням і генерацією — лишаємо розмір 0
+  }
+  process.stdout.write(`  [${progress.done}/${progress.total}] ${file.sourcePath} [${fmtSize(size)}] … `)
   try {
     const docAbs = join(root, file.docPath)
     // Варіант B: передаємо наявну доку, щоб зберегти захищену секцію «Призначення»
@@ -131,23 +156,37 @@ async function generateOne(file, root, progress, stats) {
     } else {
       process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}  ${fmtTiming(result)}\n`)
     }
+    return 'ok'
   } catch (error) {
-    stats.err++
-    stats.errors.push(file.sourcePath)
-    process.stdout.write(`✗ ${error.message}\n`)
+    const cls = classifyOmlxError(error.message)
+    if (cls === 'permanent') {
+      stats.skipped.push(file.sourcePath)
+      process.stdout.write(`⊘ skip (permanent): ${error.message}\n`)
+    } else {
+      stats.err++
+      stats.errors.push(file.sourcePath)
+      process.stdout.write(`✗ ${cls}: ${error.message}\n`)
+    }
+    return cls
   }
 }
 
 /**
  * Підсумковий звіт прогону у stdout.
- * @param {{ ok: number, degraded: number, err: number, errors: string[] }} stats статистика
+ * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats статистика
  * @returns {void}
  */
 function reportStats(stats) {
-  console.log(`\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ⚠ degraded: ${stats.degraded}  ✗ Err: ${stats.err}`)
+  console.log(
+    `\n${'─'.repeat(50)}\n✓ OK: ${stats.ok}  ⚠ degraded: ${stats.degraded}  ✗ Err: ${stats.err}  ⊘ Skip: ${stats.skipped.length}`
+  )
   if (stats.errors.length > 0) {
     console.log('Помилки:')
     for (const e of stats.errors) console.log(`  - ${e}`)
+  }
+  if (stats.skipped.length > 0) {
+    console.log('Пропущено (permanent — завеликий контекст / модель відсутня):')
+    for (const e of stats.skipped) console.log(`  - ${e}`)
   }
   if (stats.degraded > 0) {
     console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor fix-doc-files --retry-degraded`)
@@ -157,7 +196,7 @@ function reportStats(stats) {
 /**
  * `doc-files gen` — згенерувати документацію для застарілих/відсутніх док.
  * @param {string[]} argv аргументи після назви субкоманди
- * @returns {Promise<number>} exit-код: 0 — без помилок, 1 — хоча б одна помилка або фейл preflight
+ * @returns {Promise<number>} exit-код: 0 — без помилок; 1 — помилки/фейл preflight; 2 — systemic-abort
  */
 export async function runDocFilesGenCli(argv) {
   const root = resolveRoot(argv)
@@ -182,15 +221,31 @@ export async function runDocFilesGenCli(argv) {
   }
 
   console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite, retryDegraded })}`)
-  const stats = { ok: 0, degraded: 0, err: 0, errors: [] }
+  const stats = { ok: 0, degraded: 0, err: 0, errors: [], skipped: [] }
 
   let done = 0
+  let systemicStreak = 0
+  let aborted = false
   for (const file of targets) {
     done++
-    await generateOne(file, root, { done, total: targets.length }, stats)
+    const status = await generateOne(file, root, { done, total: targets.length }, stats)
+    // Circuit-breaker: K systemic-збоїв підряд → негайний abort (середовище впало,
+    // решта файлів так само згорить). Будь-який не-systemic результат скидає лічильник.
+    if (status === 'systemic') {
+      if (++systemicStreak >= SYSTEMIC_ABORT_STREAK) {
+        aborted = true
+        console.error(
+          `\n✗ doc-files: ${SYSTEMIC_ABORT_STREAK} systemic-збої підряд (omlx memory-guard / сервер) — abort на ${done}/${targets.length}.\n  Звільни RAM або перезапусти omlx і повтори — зроблене лишилось, решта підбереться за CRC.`
+        )
+        break
+      }
+    } else {
+      systemicStreak = 0
+    }
   }
 
   reportStats(stats)
+  if (aborted) return 2
   return stats.err > 0 ? 1 : 0
 }
 

@@ -79,8 +79,34 @@ export function describeFile(root, sourcePath) {
 }
 
 /**
+ * Підмножина шляхів, які git вважає ігнорованими (`.gitignore` + global excludes).
+ * Один батч-виклик `git check-ignore --stdin`. Tracked-файли git не репортить як
+ * ігноровані (тож `euscp.js` лишається кандидатом). Поза git-репо / коли жоден не
+ * ігнорується — порожній набір (graceful: фільтр просто не застосовується).
+ * @param {string} root абсолютний корінь (cwd для git)
+ * @param {string[]} relPaths posix-шляхи від кореня
+ * @returns {Set<string>} підмножина ігнорованих relPaths
+ */
+function gitIgnoredPaths(root, relPaths) {
+  if (relPaths.length === 0) return new Set()
+  try {
+    const out = execFileSync('git', ['check-ignore', '--stdin'], {
+      cwd: root,
+      input: relPaths.join('\n'),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'] // git пише «not a git repository» у stderr — глушимо
+    })
+    return new Set(out.split('\n').map(s => s.trim()).filter(Boolean))
+  } catch {
+    // exit 1 (жоден не ігнорується) і 128 (не git-репо) → execFileSync кидає; обидва = «не фільтруємо».
+    return new Set()
+  }
+}
+
+/**
  * Рекурсивно обходить дерево від `root`, повертає кодові файли зі станом застарілості.
  * Синхронний `readdirSync` — детермінований порядок без гонок; обсяг дерева це дозволяє.
+ * Поверх `DOCGEN_IGNORE_GLOBS` відсіює ще й те, що в `.gitignore` (через git check-ignore).
  * @param {string} root абсолютний корінь обходу
  * @returns {Array<{sourcePath:string, docPath:string, stale:boolean, reason:'missing'|'crc-mismatch'|null}>} кандидати з відносними шляхами
  */
@@ -111,7 +137,8 @@ export function scanForDocFiles(root) {
   }
 
   walk(root)
-  return results
+  const ignored = gitIgnoredPaths(root, results.map(r => r.sourcePath))
+  return ignored.size ? results.filter(r => !ignored.has(r.sourcePath)) : results
 }
 
 /**

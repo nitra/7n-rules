@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest'
 import { join } from 'node:path'
 import { writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 
 import { withTmpDir, ensureDir } from '../../../../scripts/utils/test-helpers.mjs'
 import {
@@ -72,6 +73,20 @@ describe('scanForDocFiles (CRC staleness)', () => {
 
       await writeFile(join(root, 'src', 'foo.js'), 'export const a = 999\n')
       expect(describeFile(root, 'src/foo.js')).toMatchObject({ stale: true, reason: 'crc-mismatch' })
+    })
+  })
+
+  test('поважає .gitignore: ignored-файл випадає, решта лишається', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src'))
+      await writeFile(join(root, 'src', 'keep.js'), 'export const k = 1\n')
+      await writeFile(join(root, 'src', 'build.js'), 'export const b = 1\n')
+      await writeFile(join(root, '.gitignore'), 'src/build.js\n')
+      execFileSync('git', ['init', '-q'], { cwd: root })
+
+      const paths = scanForDocFiles(root).map(i => i.sourcePath)
+      expect(paths).toContain('src/keep.js')
+      expect(paths).not.toContain('src/build.js')
     })
   })
 })
