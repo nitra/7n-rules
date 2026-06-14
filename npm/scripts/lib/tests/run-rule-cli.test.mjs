@@ -1,39 +1,19 @@
 /**
- * Тести runRuleCli: "не enabled" і "enabled, порожній rule dir → exit 0".
+ * Тести runRuleCli після видалення per-rule whitelist-гейту.
  *
- * `runRuleCli` викликає `readNCursorConfigLite()` без аргументів (process.cwd()),
- * тому мокаємо модуль через `vi.mock` — хукується до імпорту.
+ * `runRuleCli` більше НЕ читає `.n-cursor.json` — гейтинг активних правил живе виключно
+ * у `resolveCheckRuleIds` (selection). Прямий `bun rules/<id>/fix.mjs` виконується
+ * беззастережно (свідомий debug/override-запуск). Тут перевіряємо: запуск незалежний
+ * від конфіга, exit-код віддзеркалює результат concern'ів.
  */
 import { describe, expect, test, vi } from 'vitest'
 import { join } from 'node:path'
 
 import { runRuleCli } from '../run-rule-cli.mjs'
-import { readNCursorConfigLite } from '../read-n-cursor-config-lite.mjs'
 import { ensureDir, withTmpDir } from '../../utils/test-helpers.mjs'
 
-vi.mock('../read-n-cursor-config-lite.mjs', async importOriginal => {
-  const original = await importOriginal()
-  return { ...original, readNCursorConfigLite: vi.fn(original.readNCursorConfigLite) }
-})
-
 describe('runRuleCli', () => {
-  test('правило не enabled (exists:true, rules без testrule) → exit 0 + "Пропущено"', async () => {
-    vi.mocked(readNCursorConfigLite).mockResolvedValueOnce({ exists: true, rules: ['other'], disableRules: [] })
-
-    const logs = []
-    vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
-    try {
-      const code = await runRuleCli('/fake/rules/testrule')
-      expect(code).toBe(0)
-      expect(logs.some(l => l.includes('Пропущено'))).toBe(true)
-    } finally {
-      vi.restoreAllMocks()
-    }
-  })
-
-  test('правило enabled (exists:false → open by default), порожній ruleDir → exit 0 + "Результат"', async () => {
-    vi.mocked(readNCursorConfigLite).mockResolvedValueOnce({ exists: false, rules: [], disableRules: [] })
-
+  test('запускається беззастережно (без whitelist-гейту), порожній ruleDir → exit 0 + "Результат"', async () => {
     await withTmpDir(async dir => {
       const logs = []
       vi.spyOn(console, 'log').mockImplementation((...args) => logs.push(args.join(' ')))
@@ -43,16 +23,17 @@ describe('runRuleCli', () => {
       try {
         const code = await runRuleCli(dir)
         expect(code).toBe(0)
+        expect(logs.some(l => l.includes('перевірка правила'))).toBe(true)
         expect(logs.some(l => l.includes('Результат'))).toBe(true)
+        // Гейту немає — "Пропущено" не друкується ніколи.
+        expect(logs.some(l => l.includes('Пропущено'))).toBe(false)
       } finally {
         vi.restoreAllMocks()
       }
     })
   })
 
-  test('правило enabled, js-concern повертає 1 → exit 1', async () => {
-    vi.mocked(readNCursorConfigLite).mockResolvedValueOnce({ exists: false, rules: [], disableRules: [] })
-
+  test('js-concern повертає 1 → exit 1', async () => {
     await withTmpDir(async dir => {
       await ensureDir(join(dir, 'js'))
       const { writeFile } = await import('node:fs/promises')
