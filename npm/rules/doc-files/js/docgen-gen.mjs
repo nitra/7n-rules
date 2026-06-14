@@ -4,7 +4,7 @@ import { basename } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
 import { DEFAULT_OMLX_MODEL } from '../../../lib/omlx.mjs'
-import { callLlm } from '../../../lib/llm.mjs'
+import { callLlm as callLlmRaw } from '../../../lib/llm.mjs'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { docPathForSource } from './docgen-scan.mjs'
 import { extractFacts } from './docgen-extract.mjs'
@@ -18,6 +18,26 @@ import {
   refineMessages,
   guaranteesFromMarkers
 } from './docgen-prompts.mjs'
+
+/** Облік LLM-викликів і часу в них у межах однієї генерації (скидається на старті generateDoc). */
+let llmMeter = { calls: 0, ms: 0 }
+
+/**
+ * Обгортка callLlm з обліком: лічить кількість викликів і сумарний час у них.
+ * callLlm синхронний (spawnSync/curl), генерація одного файлу послідовна — лічильник без гонок.
+ * Усі виклики `callLlm(...)` у цьому модулі йдуть через неї автоматично (імпорт як callLlmRaw).
+ * @param {...any} args ті самі аргументи, що й у callLlm з lib/llm.mjs
+ * @returns {string} відповідь моделі
+ */
+function callLlm(...args) {
+  const started = Date.now()
+  try {
+    return callLlmRaw(...args)
+  } finally {
+    llmMeter.calls += 1
+    llmMeter.ms += Date.now() - started
+  }
+}
 
 const FENCE_OPEN_RE = /^```[a-z]*\n?/
 const FENCE_CLOSE_RE = /\n?```\s*$/
@@ -360,12 +380,13 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? (resolveModel('m
  * позначається `degraded`, рішення про перегенерацію приймає batch/користувач.
  * @param {string} file абсолютний шлях джерела
  * @param {{ model?: string, threshold?: number, existingMd?: string|null }} [opts] model-id, поріг degraded, наявна дока (для збереження захищеної секції)
- * @returns {{ md: string, ms: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації
+ * @returns {{ md: string, ms: number, llmMs: number, llmCalls: number, score: number|null, issues: string[], degraded: boolean, model: string }} документ і метадані генерації (ms — увесь файл; llmMs/llmCalls — лише LLM; решта ms — оркестрація)
  */
 export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}) {
   const src = readFileSync(file, 'utf8')
   const facts = extractFacts(src, file)
   const t0 = Date.now()
+  llmMeter = { calls: 0, ms: 0 }
 
   // Варіант B: захищена секція «Призначення» з наявної доки — зберегти й подати як контекст
   const intent = existingMd ? splitProtected(existingMd).body : null
@@ -376,7 +397,16 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
 
   // unsupported (vue/py до юніт-шару): скорер не застосовний — score=null, не degraded
   if (facts.unsupported) {
-    return { ...r, ms: Date.now() - t0, score: null, issues: [], degraded: false, model }
+    return {
+      ...r,
+      ms: Date.now() - t0,
+      llmMs: llmMeter.ms,
+      llmCalls: llmMeter.calls,
+      score: null,
+      issues: [],
+      degraded: false,
+      model
+    }
   }
 
   // Stage 2.5: детермінований скоринг (0 токенів)
@@ -399,7 +429,16 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
     }
   }
 
-  return { ...r, ms: Date.now() - t0, score, issues, degraded: score < threshold, model }
+  return {
+    ...r,
+    ms: Date.now() - t0,
+    llmMs: llmMeter.ms,
+    llmCalls: llmMeter.calls,
+    score,
+    issues,
+    degraded: score < threshold,
+    model
+  }
 }
 
 // CLI: node docgen-gen.mjs <file> [--model <m>]
@@ -416,6 +455,8 @@ if (isRunAsCli(import.meta.url)) {
   const existingMd = existsSync(docPath) ? readFileSync(docPath, 'utf8') : null
   const r = generateDoc(file, { model, existingMd })
   const issuesTxt = r.issues?.length ? ` issues=${r.issues.join(',')}` : ''
-  process.stderr.write(`[local ${r.model}] ${r.ms}ms / score=${r.score}${r.degraded ? ' DEGRADED' : ''}${issuesTxt}\n`)
+  process.stderr.write(
+    `[local ${r.model}] ${r.ms}ms (llm ${r.llmMs}ms/${r.llmCalls} calls, orch ${r.ms - r.llmMs}ms) / score=${r.score}${r.degraded ? ' DEGRADED' : ''}${issuesTxt}\n`
+  )
   process.stdout.write(r.md)
 }

@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/text/lint/run-shellcheck.mjs
-  crc: e6fa8c23
+  crc: 6b2daaa8
 ---
 
 # run-shellcheck.mjs

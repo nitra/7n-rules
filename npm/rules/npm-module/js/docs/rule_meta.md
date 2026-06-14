@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/npm-module/js/rule_meta.mjs
-  crc: fa29bd00
+  crc: 8262678c
   score: 100
 ---
 

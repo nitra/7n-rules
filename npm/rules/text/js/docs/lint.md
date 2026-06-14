@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/text/js/lint.mjs
-  crc: 4ee054a0
+  crc: 49aab7ce
   score: 100
 ---
 

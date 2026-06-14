@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/text/lint/run-dotenv-linter.mjs
-  crc: 8bb94af4
+  crc: 4719ac66
 ---
 
 # run-dotenv-linter.mjs

@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/lint-cli.mjs
-  crc: d4a7562d
+  crc: 9e0a12b9
   score: 100
 ---
 

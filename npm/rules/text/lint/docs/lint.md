@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/text/lint/lint.mjs
-  crc: 05f3f108
+  crc: bdaef0f8
 ---
 
 # `lint.mjs` — CLI-обгортка `lint-text`

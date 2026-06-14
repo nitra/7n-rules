@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/lib/rule-meta.mjs
-  crc: 4475d5ff
+  crc: fa5ca866
 ---
 
 # rule-meta.mjs

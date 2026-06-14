@@ -91,6 +91,19 @@ function modeSuffix({ overwrite, retryDegraded }) {
 }
 
 /**
+ * Рядок таймінгу одного файлу: загальний час, час у LLM (і кількість викликів)
+ * та залишок — оркестрація (екстракт фактів, скоринг, парсинг, IO). Дає зрозуміти,
+ * скільки коштує сама модель проти JS-оркестрації.
+ * @param {{ ms: number, llmMs?: number, llmCalls?: number }} r результат generateDoc
+ * @returns {string} напр. `12.3s (llm 11.8s/7 calls, orch 0.5s)`
+ */
+function fmtTiming(r) {
+  const s = ms => `${(ms / 1000).toFixed(1)}s`
+  const llmMs = r.llmMs ?? 0
+  return `${s(r.ms)} (llm ${s(llmMs)}/${r.llmCalls ?? 0} calls, orch ${s(r.ms - llmMs)})`
+}
+
+/**
  * Генерує й штампує доку для одного файлу, оновлюючи лічильники й прогрес.
  * @param {object} file елемент scanForDocFiles
  * @param {string} root абсолютний корінь
@@ -114,9 +127,9 @@ async function generateOne(file, root, progress, stats) {
     stats.ok++
     if (result.degraded) {
       stats.degraded++
-      process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}\n`)
+      process.stdout.write(`⚠ degraded score=${result.score} crc=${crc}  ${fmtTiming(result)}\n`)
     } else {
-      process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}\n`)
+      process.stdout.write(`✓ score=${result.score ?? '—'} crc=${crc}  ${fmtTiming(result)}\n`)
     }
   } catch (error) {
     stats.err++
