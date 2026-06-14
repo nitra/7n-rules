@@ -1,5 +1,11 @@
 # Changelog
 
+## [10.0.0] - 2026-06-14
+
+### Changed
+
+- Інлайн _fix-check/fix-t0 у прямі функції — видалено внутрішні subcommand'и. runFixCheck (scripts/lib/fix/run-fix-check) + listProjectRulesMdcFiles винесено з bin; orchestrator/t0/PostToolUse-хук/lint-конформність кличуть прямо (без subprocess-обгортки). Per-rule ізоляція збережена
+
 ## [9.4.0] - 2026-06-14
 
 ### Changed
