@@ -229,7 +229,7 @@ function runDegradedReport(root) {
     })
     .join('\n')
   console.log(
-    `⚠ doc-files: degraded-док ${degraded.length} (score < ${QUALITY_THRESHOLD}):\n${list}\n→ перегенеруй: npx @nitra/cursor doc-files gen --retry-degraded`
+    `⚠ doc-files: degraded-док ${degraded.length} (score < ${QUALITY_THRESHOLD}):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files --retry-degraded`
   )
   return 0
 }
@@ -285,7 +285,7 @@ export async function runDocFilesCheckCli(argv) {
   // Великий прогін: Stop-гейт не блокує, лише попереджає (захист від нескінченного блоку).
   if (gitMode && stale.length > gateMax) {
     console.error(
-      `⚠ doc-files: застарілих док ${stale.length} (> ${gateMax}) — гейт не блокує. Запусти масовий прогін:\n  npx @nitra/cursor doc-files gen`
+      `⚠ doc-files: застарілих док ${stale.length} (> ${gateMax}) — гейт не блокує. Запусти масовий прогін:\n  npx @nitra/cursor fix-doc-files`
     )
     return 0
   }

@@ -137,7 +137,7 @@ function reportStats(stats) {
     for (const e of stats.errors) console.log(`  - ${e}`)
   }
   if (stats.degraded > 0) {
-    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor doc-files gen --retry-degraded`)
+    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor fix-doc-files --retry-degraded`)
   }
 }
 
@@ -164,7 +164,7 @@ export async function runDocFilesGenCli(argv) {
 
   const problem = preflightProblem()
   if (problem) {
-    console.error(`✗ doc-files gen: ${problem}`)
+    console.error(`✗ fix-doc-files: ${problem}`)
     return 1
   }
 
@@ -201,7 +201,7 @@ export function runDocFilesStampCli(argv) {
     writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }))
     stamped++
   }
-  console.log(`✓ doc-files stamp: оновлено frontmatter у ${stamped} доці(ах).`)
+  console.log(`✓ fix-doc-files --stamp: оновлено frontmatter у ${stamped} доці(ах).`)
   return 0
 }
 

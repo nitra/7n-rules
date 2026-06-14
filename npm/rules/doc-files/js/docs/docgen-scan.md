@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/rules/doc-files/js/docgen-scan.mjs
-  crc: 46f11827
+  crc: dcc90d44
   score: 100
 ---
 
