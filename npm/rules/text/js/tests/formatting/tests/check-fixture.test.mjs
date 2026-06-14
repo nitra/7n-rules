@@ -87,7 +87,7 @@ description: test
       await ensureDir(join(dir, '.github/workflows'))
       await writeFile(
         join(dir, '.github/workflows', 'lint-text.yml'),
-        'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bun run lint-text\n',
+        'name: T\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: n-cursor lint-text --read-only\n',
         'utf8'
       )
       expect(await check(dir)).toBe(0)

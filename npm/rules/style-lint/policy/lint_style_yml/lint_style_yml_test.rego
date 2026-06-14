@@ -3,10 +3,10 @@ package style_lint.lint_style_yml_test
 import data.style_lint.lint_style_yml
 import rego.v1
 
-template_data := {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "npx stylelint '**/*.{css,scss,vue}' --fix"}]}}}}
+template_data := {"snippet": {"jobs": {"stylelint": {"steps": [{"run": "npx stylelint '**/*.{css,scss,vue}'"}]}}}}
 
 test_allow_canonical if {
-	wf := {"jobs": {"stylelint": {"steps": [{"run": "npx stylelint '**/*.{css,scss,vue}' --fix"}]}}}
+	wf := {"jobs": {"stylelint": {"steps": [{"run": "npx stylelint '**/*.{css,scss,vue}'"}]}}}
 	count(lint_style_yml.deny) == 0 with input as wf with data.template as template_data
 }
 

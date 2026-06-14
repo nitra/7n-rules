@@ -27,7 +27,7 @@ template_data := {"snippet": {
 			{"uses": "./.github/actions/setup-bun-deps"},
 			{"name": "Install shellcheck", "run": shellcheck_install_run},
 			{"name": "Install dotenv-linter", "run": dotenv_install_run},
-			{"name": "Lint text", "run": "bun run lint-text"},
+			{"name": "Lint text", "run": "n-cursor lint-text --read-only"},
 		],
 	}},
 }}
@@ -48,7 +48,7 @@ canonical_input := {
 			{"uses": "./.github/actions/setup-bun-deps"},
 			{"name": "Install shellcheck", "run": shellcheck_install_run},
 			{"name": "Install dotenv-linter", "run": dotenv_install_run},
-			{"name": "Lint text", "run": "bun run lint-text"},
+			{"name": "Lint text", "run": "n-cursor lint-text --read-only"},
 		],
 	}},
 }
@@ -81,7 +81,7 @@ test_deny_missing_lint_text_run if {
 		[{"op": "replace", "path": "/jobs/text/steps/4/run", "value": "echo skip"}],
 	)
 	some msg in lint_text.deny with input as bad with data.template as template_data
-	contains(msg, "bun run lint-text")
+	contains(msg, "n-cursor lint-text --read-only")
 }
 
 test_data_template_drives_name if {

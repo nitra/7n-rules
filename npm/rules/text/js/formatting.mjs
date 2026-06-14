@@ -95,7 +95,7 @@ function checkTextConfigsExistence(passFn, failFn, cwd) {
 
 /**
  * Перевіряє package.json для текстового стека: складний `lint-text` скрипт і
- * виклик `bun run lint-text` у відповідному workflow. Решта (Prettier-заборона,
+ * виклик `n-cursor lint-text --read-only` у відповідному workflow (CI — нуль мутацій). Решта (Prettier-заборона,
  * `@nitra/cspell-dict ^2.0.0+`, заборона `markdownlint-cli2` у залежностях,
  * `@nitra/*` гейт) — у Rego (`text.package_json`, `bun.package_json`).
  * @param {(msg: string) => void} passFn callback при успішній перевірці
@@ -112,11 +112,12 @@ async function checkPackageJsonText(passFn, failFn, cwd) {
   if (existsSync(lintTextWf)) {
     const wf = await readFile(lintTextWf, 'utf8')
     const root = parseWorkflowYaml(wf)
-    const ok = root ? anyRunStepIncludes(root, 'bun run lint-text') : wf.includes('bun run lint-text')
+    const canonRun = 'n-cursor lint-text --read-only'
+    const ok = root ? anyRunStepIncludes(root, canonRun) : wf.includes(canonRun)
     if (ok) {
-      passFn('lint-text.yml викликає bun run lint-text')
+      passFn(`lint-text.yml викликає ${canonRun}`)
     } else {
-      failFn('lint-text.yml має містити крок bun run lint-text')
+      failFn(`lint-text.yml має містити крок ${canonRun} (CI — read-only, нуль мутацій)`)
     }
   } else {
     failFn('.github/workflows/lint-text.yml не існує — створи згідно n-text.mdc')

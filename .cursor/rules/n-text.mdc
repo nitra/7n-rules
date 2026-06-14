@@ -296,7 +296,7 @@ jobs:
           | sh -s -- -b /usr/local/bin
 
       - name: Lint text
-        run: bun run lint-text
+        run: n-cursor lint-text --read-only
 ```
 
 Перед **`./.github/actions/setup-bun-deps`** — **`actions/checkout@v6`** (див. **ga.mdc**). Після composite — кроки **`Install shellcheck`** (apt) і **`Install dotenv-linter`** (curl), бо `n-cursor lint-text` вимагає обидва бінарники в PATH; на ubuntu-latest shellcheck часто вже є, dotenv-linter — ні. Composite: Node 24, Bun, кеш, `bun install --frozen-lockfile`.
