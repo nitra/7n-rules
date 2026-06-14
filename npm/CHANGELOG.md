@@ -1,5 +1,11 @@
 # Changelog
 
+## [7.1.0] - 2026-06-14
+
+### Added
+
+- lint-text підкоманда приймає --read-only (детект без авто-фіксу markdownlint/shellcheck/dotenv) — для CI-режиму без мутацій
+
 ## [7.0.0] - 2026-06-14
 
 ### Changed
