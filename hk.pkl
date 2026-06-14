@@ -15,7 +15,7 @@ local linters = new Mapping<String, Step> {
         check_first = false
         // Autofix-режим (env): за відсутності change-файлу правило саме його створює
         // (patch/Changed, subject останнього коміту) і ставить у індекс — коміт не падає.
-        fix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js fix changelog"
+        fix = "N_CURSOR_CHANGELOG_AUTOFIX=1 bun ./npm/bin/n-cursor.js lint changelog"
     }
 }
 

@@ -1687,7 +1687,14 @@ try {
     }
     case 'lint': {
       // Дві ортогональні осі: --full (scope: весь репо vs дельта vs origin) × --read-only (behavior).
-      process.exitCode = await runLint({ full: args.includes('--full'), readOnly: args.includes('--read-only') })
+      // Позиційні (не-флаг) аргументи — фільтр правил конформності (напр. `lint changelog`):
+      // прогнати лише конформність цих правил, без лінтер-скану (мапить колишній `fix <rule>`).
+      const rules = args.filter(a => !a.startsWith('-'))
+      process.exitCode = await runLint({
+        full: args.includes('--full'),
+        readOnly: args.includes('--read-only'),
+        rules
+      })
 
       break
     }

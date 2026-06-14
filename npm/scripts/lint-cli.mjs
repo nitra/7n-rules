@@ -32,14 +32,15 @@ const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
  * @param {string} cwd корінь
  * @param {boolean} readOnly true → лише детект (нуль мутацій)
  * @param {(s: string) => void} log логер
+ * @param {string[]} [filter] фільтр правил (порожній — усі)
  * @returns {Promise<number>} 0 — чисто, 1 — порушення/помилка
  */
-async function runConformance(cwd, readOnly, log) {
+async function runConformance(cwd, readOnly, log, filter = []) {
   if (!readOnly) {
     const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
-    return runOrchestratorCli([], cwd)
+    return runOrchestratorCli(filter, cwd)
   }
-  const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check'], { cwd, encoding: 'utf8', timeout: 600_000 })
+  const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...filter], { cwd, encoding: 'utf8', timeout: 600_000 })
   let parsed = null
   try {
     parsed = JSON.parse((r.stdout ?? '').trim())
@@ -91,17 +92,24 @@ function readAllMeta(rulesDir) {
 
 /**
  * Запускає lint-оркестрацію.
- * @param {{ full?: boolean, readOnly?: boolean, cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
+ * @param {{ full?: boolean, readOnly?: boolean, rules?: string[], cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
  *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
- *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default).
+ *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default);
+ *   - `rules` — непорожній фільтр → лише конформність цих правил (без лінтер-скану; мапить `fix <rule>`).
  * @returns {Promise<number>} exit code
  */
 export async function runLint(opts = {}) {
   const full = opts.full === true
   const readOnly = opts.readOnly === true
+  const rules = Array.isArray(opts.rules) ? opts.rules : []
   const cwd = opts.cwd ?? processCwd()
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const log = opts.log ?? (s => process.stdout.write(s))
+
+  // Rule-filter режим (напр. `lint changelog` із hk): лише конформність указаних правил, без лінтерів.
+  if (rules.length > 0) {
+    return runConformance(cwd, readOnly, log, rules)
+  }
 
   // Default scope — дельта vs origin (merge-base main/origin/main); `--full` — весь репо.
   const changed = full ? undefined : collectChangedFilesSince(resolveChangedBase(cwd), cwd)
