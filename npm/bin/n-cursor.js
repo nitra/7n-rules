@@ -1686,12 +1686,14 @@ try {
       break
     }
     case 'lint': {
-      process.exitCode = await runLint({ ci: false })
+      // Дві ортогональні осі: --full (scope: весь репо vs дельта vs origin) × --read-only (behavior).
+      process.exitCode = await runLint({ full: args.includes('--full'), readOnly: args.includes('--read-only') })
 
       break
     }
     case 'lint-ci': {
-      process.exitCode = await runLint({ ci: true })
+      // CI = весь репо в read-only (нуль мутацій, нуль LLM) — еквівалент `lint --read-only --full`.
+      process.exitCode = await runLint({ full: true, readOnly: true })
 
       break
     }

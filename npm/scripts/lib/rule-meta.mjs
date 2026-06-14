@@ -48,16 +48,20 @@ export function parseRuleAutoSpec(value) {
   return null
 }
 
-/** Допустимі фази lint. */
-const LINT_PHASES = new Set(['quick', 'ci'])
+/** Допустимі значення `meta.json.lint` (вісь scope: чи детектор дробиться на changed-set). */
+const LINT_SCOPES = new Set(['per-file', 'full'])
 
 /**
- * Нормалізує значення `meta.json.lint` у фазу lint.
+ * Нормалізує значення `meta.json.lint` у scope детектора.
+ *  - `"per-file"` — детектор декомпозується на змінені файли (дельта vs origin);
+ *  - `"full"`     — нероздільно крос-файловий (лише `--full` / CI).
+ * Об'єктна форма `{scope, ci}` скасована: CI=`--read-only --full` ганяє все повністю,
+ * тож per-rule CI-override не потрібен (spec 2026-06-14-lint-rule-consolidation §3-А).
  * @param {unknown} value значення поля `lint`
- * @returns {'quick' | 'ci' | null} фаза або `null` (відсутнє/невалідне = не lint-крок)
+ * @returns {'per-file' | 'full' | null} scope або `null` (відсутнє/невалідне = не lint-крок)
  */
-export function parseRuleLintPhase(value) {
-  return typeof value === 'string' && LINT_PHASES.has(value) ? /** @type {'quick'|'ci'} */ (value) : null
+export function parseRuleLintSpec(value) {
+  return typeof value === 'string' && LINT_SCOPES.has(value) ? /** @type {'per-file'|'full'} */ (value) : null
 }
 
 /**

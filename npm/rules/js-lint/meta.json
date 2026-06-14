@@ -1,1 +1,1 @@
-{ "auto": { "glob": ["**/*.mjs", "**/*.cjs", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"] }, "lint": "quick" }
+{ "auto": { "glob": ["**/*.mjs", "**/*.cjs", "**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx"] }, "lint": "per-file" }

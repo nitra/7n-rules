@@ -1,1 +1,1 @@
-{ "auto": "завжди", "lint": "ci" }
+{ "auto": "завжди", "lint": "per-file" }

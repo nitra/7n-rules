@@ -52,9 +52,10 @@ function buildExcludeArgs() {
 /**
  * Запускає dotenv-linter з авто-фіксом і фінальною перевіркою.
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
+ * @param {boolean} [readOnly] true → пропустити авто-фікс (`fix`), лише `check` (нуль мутацій)
  * @returns {number} 0 — OK; 1 — інструмент відсутній або є залишкові порушення
  */
-export function runDotenvLinter(cwd = process.cwd()) {
+export function runDotenvLinter(cwd = process.cwd(), readOnly = false) {
   const root = resolve(cwd)
   const bin = resolveCmd('dotenv-linter')
   if (!bin) {
@@ -63,15 +64,17 @@ export function runDotenvLinter(cwd = process.cwd()) {
   }
 
   const exclude = buildExcludeArgs()
-  const fixRun = spawnSync(bin, ['fix', '-r', '--no-backup', '--quiet', ...exclude, '.'], {
-    cwd: root,
-    encoding: 'utf8',
-    env: process.env,
-    stdio: ['ignore', 'pipe', 'pipe']
-  })
-  if (fixRun.error) {
-    process.stderr.write(`${fixRun.error.message}\n`)
-    return 1
+  if (!readOnly) {
+    const fixRun = spawnSync(bin, ['fix', '-r', '--no-backup', '--quiet', ...exclude, '.'], {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    if (fixRun.error) {
+      process.stderr.write(`${fixRun.error.message}\n`)
+      return 1
+    }
   }
 
   const checkRun = spawnSync(bin, ['check', '-r', '--quiet', ...exclude, '.'], {

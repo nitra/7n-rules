@@ -1,1 +1,1 @@
-{ "auto": { "glob": ["**/*.css", "**/*.vue"] }, "lint": "quick" }
+{ "auto": { "glob": ["**/*.css", "**/*.vue"] }, "lint": "per-file" }

@@ -2,7 +2,15 @@
 
 **Дата:** 2026-06-14
 **Статус:** чернетка — на затвердження
-**Зв'язані документи:** спека `2026-06-12-doc-files-lint-doc-fix-doc-split.md` (`doc-files` — один із класифікованих тут механізмів), канон `lint-*`/`fix-<id>` і серіалізація важких CLI у `.cursor/rules/scripts.mdc`, утиліти `npm/scripts/lib/changed-files.mjs` (`resolveChangedBase`, `collectChangedFilesSince` — уже використовує `coverage --changed`)
+**Зв'язані документи:** спека `2026-06-12-doc-files-lint-doc-fix-doc-split.md` (`doc-files` — один із класифікованих тут механізмів), канон `lint-*`/`fix-<id>` і серіалізація важких CLI у `.cursor/rules/scripts.mdc`, утиліти `npm/scripts/lib/changed-files.mjs` (`resolveChangedBase`, `collectChangedFilesSince` — уже використовує `coverage --changed`), **компаньйон-спека `docs/specs/2026-06-14-lint-orchestrator-fix-readonly-unification-design.md`** (вісь поведінки `fix`/`--read-only`, поглинання `fix`-двигуна, omlx-ескалація)
+
+> **Amendment (2026-06-14, узгоджено з компаньйон-спекою).** Вісь scope (ця спека) доповнюється **ортогональною віссю поведінки** `fix`(default)/`--read-only` (компаньйон-спека). Наслідки для рішень нижче:
+>
+> - **Контекст B `--ci` схлопується** у `--read-only --full`: CI ганяє весь репо в read-only (нуль мутацій, нуль LLM). Окремий прапор `--ci` і хелпер `effectiveCi` **прибираються**.
+> - Оскільки CI тепер завжди `--full`, **поле-override `meta.json:lint.ci` стає зайвим**; `lint` лишається рядком `"per-file" | "full"` (об'єктна форма більше не потрібна). `security` → `"per-file"` (у CI він і так full, бо CI=`--full`).
+> - **Контракт `lint.mjs` розширюється** до `lint(files, cwd, { readOnly })` (було `lint(files, cwd)`).
+>
+> Правки нижче вже враховують amendment (рядки А/Б/Д/З §3, §4, §5, §8, §9, §12).
 
 ## 1. Мета
 
@@ -54,34 +62,33 @@
 
 | # | Питання | Рішення |
 | --- | --- | --- |
-| А | Дві осі замість однієї | `meta.json:lint` стає об'єктом `{scope, ci}`: `scope` — здатність декомпозиції (`per-file`\|`full`), `ci` — опційний override режиму в CI (дефолт = `scope`) |
-| Б | Шорткат | рядок `"per-file"` ≡ `{scope:"per-file"}`, `"full"` ≡ `{scope:"full"}`; об'єктна форма потрібна лише там, де `ci ≠ scope` (наразі тільки `security`) |
+| А | Вісь scope | `meta.json:lint` — рядок `"per-file" \| "full"`: здатність декомпозиції детектора на changed-set. *(Amendment: об'єктна форма `{scope, ci}` скасована — CI завжди `--full`, тож override не потрібен.)* |
+| Б | Шорткат | значення — лише рядок `"per-file"` або `"full"`; `undefined` = правило не lint-крок. *(Amendment: об'єктна форма прибрана.)* |
 | В | База дельти | усі per-file прогони рахують `collectChangedFilesSince(resolveChangedBase())` — merge-base vs `main`/`origin/main`, fail-closed на недосяжний base. **Замінює** `collectChangedFiles` (vs HEAD) в оркестраторі |
-| Г | Три контексти | деривуються з `{scope, ci}` без додаткових полів (див. §5) |
-| Д | `security` | `{scope:"per-file", ci:"full"}` — локально агенту швидкий per-file скан, у CI завжди повний (defense-in-depth: ротація baseline, зміна `.trufflehog-exclude`) |
+| Г | Дві осі × контексти | scope (`per-file`/`full`) × behavior (`fix`/`--read-only`) → контексти деривуються без додаткових полів (див. §5) |
+| Д | `security` | `"per-file"` — локально агенту швидкий per-file скан; у CI повний автоматично, бо CI=`--read-only --full`. *(Amendment: було `{scope:"per-file", ci:"full"}`.)* |
 | Е | Домівка | нове правило **`npm/rules/lint/`** — оркестратор + контракт класифікації + канон-`.mdc`. Детектори лишаються у своїх правилах; кожен декларує `lint` у власному `meta.json` (не зливаємо каталоги — кожен механізм має власні policy/конфіги/тести; канон `scripts.mdc` «одне правило — один каталог») |
 | Ж | Сумісність `meta.json` | hard-rename `quick`/`ci` → новий формат у тому ж кроці: `meta.json` **не** синкається у споживачів (`scripts.mdc`), зовнішньої сумісності тримати не треба |
-| З | `lint.mjs`-контракт | сигнатура `lint(files, cwd)` без змін: `files` — масив змінених (per-file) або `undefined` (full) |
+| З | `lint.mjs`-контракт | сигнатура `lint(files, cwd, { readOnly })`: `files` — масив змінених (per-file) або `undefined` (full); `readOnly` — лише детект без мутацій (дефолт `false`). *(Amendment: додано `opts.readOnly`.)* |
 
 ## 4. `meta.json:lint` — схема
 
 ```jsonc
 // npm/rules/<id>/meta.json
 {
-  "lint": {
-    "scope": "per-file" | "full",   // чи детектор декомпозується на changed-set
-    "ci": "per-file" | "full"        // опційний; режим у CI; дефолт = scope
-  }
+  "lint": "per-file" | "full"   // чи детектор декомпозується на changed-set
 }
 ```
 
-Еквівалентні шорткати:
+Значення:
 
 ```jsonc
-"lint": "per-file"   // ≡ { "scope": "per-file", "ci": "per-file" }
-"lint": "full"       // ≡ { "scope": "full",     "ci": "full" }
+"lint": "per-file"   // детектор дробиться на змінені файли (дельта vs origin)
+"lint": "full"       // нероздільно крос-файловий — лише у --full / CI
 "lint": undefined    // правило не є lint-кроком
 ```
+
+> *(Amendment.)* Об'єктна форма `{scope, ci}` скасована: CI=`--read-only --full` ганяє все повністю, тож per-rule CI-override не потрібен.
 
 Цільові значення всіх механізмів:
 
@@ -91,33 +98,37 @@
 | `style-lint` | `"per-file"` |
 | `doc-files` | `"per-file"` |
 | `text` | `"per-file"` *(переїзд із `ci`)* |
-| `security` | `{ "scope": "per-file", "ci": "full" }` |
+| `security` | `"per-file"` *(у CI повний автоматично — CI=`--full`)* |
 | `js-lint-ci` | `"full"` |
 | `rego` | `"full"` |
 | `ga` | `"full"` |
 
-**Інваріанта валідатора:** наявність `lint` (будь-якої форми) ⇒ існує `js/lint.mjs` (або
-`lint/lint.mjs`) у каталозі правила; `ci` без `scope` чи невідомі значення — `fail`.
+**Інваріанта валідатора:** наявність `lint` ⇒ існує `js/lint.mjs` (або
+`lint/lint.mjs`) у каталозі правила; значення поза `"per-file" | "full"` — `fail`.
 
-## 5. Три контексти виконання
+## 5. Контексти виконання (дві осі)
 
-Усі три деривуються з `{scope, ci}` чисто, без нових полів. Хелпер
-`effectiveCi(rule) = rule.ci ?? rule.scope`.
+Контексти деривуються з двох ортогональних осей — **scope** (`per-file`/`full`, ця спека) ×
+**behavior** (`fix`/`--read-only`, компаньйон-спека) — без нових полів.
 
 | Контекст | Entry-point | Які правила | Режим |
 | --- | --- | --- | --- |
-| **A · Локальний агент** (змінив файли) | `n-cursor lint` (дефолт) | лише `scope === "per-file"` | `lint(changedVsOrigin, cwd)` |
-| **B · CI** | `n-cursor lint --ci` (виклик у GA) | **усі** | `effectiveCi === "per-file"` → `lint(changedVsOrigin)`; `"full"` → `lint(undefined)` |
-| **C · Повний аудит** | `n-cursor lint --full` | **усі** | `lint(undefined)` — весь репо |
+| **A · Локальний агент** (змінив файли) | `n-cursor lint` | лише `lint === "per-file"` | `lint(changedVsOrigin, cwd, { readOnly:false })` — fix |
+| **A′ · Локальний детект / pre-commit** | `n-cursor lint --read-only` | лише `lint === "per-file"` | `lint(changedVsOrigin, cwd, { readOnly:true })` |
+| **B · CI** | `n-cursor lint --read-only --full` (виклик у GA) | **усі** | `lint(undefined, cwd, { readOnly:true })` — весь репо, нуль мутацій |
+| **C · Повний локальний аудит** | `n-cursor lint --full` | **усі** | `lint(undefined, cwd, { readOnly:false })` — весь репо, fix |
+
+> *(Amendment.)* Колишній контекст B `--ci` з `effectiveCi`-міксом (per-file правила по дельті в
+> CI) **схлопнуто** у `--read-only --full`. Хелпер `effectiveCi` прибрано.
 
 Наслідки:
 
-- Контекст A **не** запускає whole-tree (`scope:"full"`) механізми — це робота CI; агент після
+- Контекст A/A′ **не** запускає whole-tree (`lint:"full"`) механізми — це робота CI; агент після
   правок отримує лише швидкий per-file фідбек.
-- У контексті B `security` (`ci:"full"`) і всі `scope:"full"` йдуть повними; `js-lint`,
-  `style-lint`, `doc-files`, `text` — по дельті vs origin (під інваріантом «base зелений» нова
-  проблема завжди в зміненому файлі).
-- Контекст C — для thorough-перевірки локально / перед релізом; ігнорує per-file-оптимізацію.
+- Контекст B — увесь репо в read-only: усі механізми (включно з `js-lint-ci`, `rego`, `ga`,
+  `security`) йдуть повністю, без мутацій і без LLM; падіння при будь-якій знахідці. Трейдоф:
+  втрата per-file-оптимізації CI заради простоти двовісної моделі (read-only детект дешевий).
+- Контекст C — thorough-перевірка з автофіксом локально / перед релізом.
 
 ## 6. База дельти: HEAD → origin
 
@@ -140,10 +151,10 @@
 
 ```text
 npm/rules/lint/
-  lint.mdc                    # канон: класифікація meta.json, три контексти, база-origin
+  lint.mdc                    # канон: класифікація meta.json, контексти (scope×behavior), база-origin
   meta.json                   # саме правило lint — { "auto": "завжди" } (без lint-поля: воно не self-lint)
   js/
-    orchestrate.mjs           # ← переїзд lint-cli.mjs: selectLintRules + runLint({mode})
+    orchestrate.mjs           # ← переїзд lint-cli.mjs: selectLintRules + runLint({full, readOnly})
     tests/orchestrate.test.mjs
   policy/
     package_json/
@@ -164,18 +175,22 @@ npm/rules/lint/
 
 | Команда | Контекст | Реалізація |
 | --- | --- | --- |
-| `n-cursor lint` | A (агент, per-file vs origin) | `runLint({ mode: 'agent' })` |
-| `n-cursor lint --ci` | B (CI) | `runLint({ mode: 'ci' })` |
-| `n-cursor lint --full` | C (повний аудит) | `runLint({ mode: 'full' })` |
+| `n-cursor lint` | A (агент, per-file vs origin, fix) | `runLint({ full:false, readOnly:false })` |
+| `n-cursor lint --read-only` | A′ (детект / pre-commit) | `runLint({ full:false, readOnly:true })` |
+| `n-cursor lint --read-only --full` | B (CI) | `runLint({ full:true, readOnly:true })` |
+| `n-cursor lint --full` | C (повний аудит, fix) | `runLint({ full:true, readOnly:false })` |
+
+Дві ортогональні опції: `--full` (scope) × `--read-only` (behavior). Окремого прапора `--ci`
+немає — CI = `--read-only --full`.
 
 Кореневий `package.json` цього репо:
 
 ```jsonc
 {
   "scripts": {
-    "lint": "n-cursor lint",          // дефолт = контекст A
-    "lint-ci": "n-cursor lint --ci",
-    "lint-full": "n-cursor lint --full"
+    "lint": "n-cursor lint",                       // дефолт = контекст A
+    "lint-ci": "n-cursor lint --read-only --full", // контекст B
+    "lint-full": "n-cursor lint --full"            // контекст C
   }
 }
 ```
@@ -183,51 +198,59 @@ npm/rules/lint/
 Індивідуальні `lint-<x>` скрипти та їхні окремі прямі виклики в кореневому ланцюжку
 **прибираються** — єдина точка входу через оркестратор за `meta.json`. (Самі `lint-<x>`
 підкоманди `n-cursor` лишаються — їх кличе оркестратор і вони доступні для точкового дебагу.)
-Серіалізація кожного важкого кроку — через `runStandardLint` як і зараз (`scripts.mdc`).
+
+**Паралелізм (узгоджено з компаньйон-спекою):** заборона паралельного `eslint`/`oxlint`
+**знімається** — паралельні прогони по диз'юнктних file-shard-ах не конфліктують. Безумовна
+`runStandardLint`-серіалізація лишається лише для whole-tree-прогонів того самого корпусу
+(`--full`-механізми). Потребує оновлення `CLAUDE.md` і `.cursor/rules/scripts.mdc`.
 
 ## 9. GA workflows
 
 Кожен механізм у CI запускається у своєму режимі за `meta.json`. Два варіанти розкладки
 (вирішити на імплементації):
 
-- **9a (рекомендовано):** один workflow `lint.yml`, крок `n-cursor lint --ci` — оркестратор
-  сам прожене кожне правило в його CI-режимі. Менше дублювання, класифікація — єдине джерело.
+- **9a (рекомендовано):** один workflow `lint.yml`, крок `n-cursor lint --read-only --full` —
+  оркестратор прожене всі правила в read-only по всьому репо. Менше дублювання, класифікація —
+  єдине джерело. Нуль мутацій, нуль LLM.
 - **9b:** зберегти per-механізм workflow (`lint-js.yml`, `lint-text.yml`, …), кожен кличе
-  свою підкоманду; whole-tree — як є, per-file — з `--since` від last-green (див. спеку
-  doc-files §8 щодо резолву last-green через `gh run list … --status success`).
+  `n-cursor lint --read-only --full <rule>` для свого правила.
 
-`security` у CI — **завжди** повний прогін незалежно від варіанта (`ci:"full"`).
+`security` у CI — повний прогін автоматично, бо CI=`--full`.
 
 ## 10. Порядок міграції
 
-1. **Схема + валідатор.** `parseRuleLintSpec` (об'єкт/шорткат) у `rule-meta.mjs`;
+1. **Схема + валідатор.** `parseRuleLintSpec` (рядок `"per-file"|"full"`) у `rule-meta.mjs`;
    `checkLintField` під новий формат; JSON-схема `schemas/` якщо є.
 2. **База-origin.** `lint-cli.mjs` quick-шлях → `collectChangedFilesSince(resolveChangedBase())`.
 3. **Правило `lint`.** Створити `npm/rules/lint/` (mdc, meta, `js/orchestrate.mjs` ← `lint-cli.mjs`,
-   policy package_json); три режими `agent|ci|full`.
+   policy package_json); опції `--full` × `--read-only`.
 4. **Класифікація.** Оновити `meta.json:lint` усіх восьми механізмів за таблицею §4
-   (зокрема `text` → per-file, `security` → об'єкт).
-5. **package.json + GA.** Скрипти `lint`/`lint-ci`/`lint-full`; workflow за §9; прибрати
-   старі прямі `lint-<x>` з кореневого ланцюжка.
-6. **Тести.** `selectLintRules`/`effectiveCi` per контекст; парсер нового формату; база-origin
+   (зокрема `text` → per-file, `security` → `"per-file"`).
+5. **package.json + GA.** Скрипти `lint`/`lint-ci`(=`--read-only --full`)/`lint-full`; workflow
+   за §9; прибрати старі прямі `lint-<x>` з кореневого ланцюжка.
+6. **Тести.** `selectLintRules` per контекст; парсер нового формату; база-origin
    (`resolveChangedBase` mock); `text`/`security` у правильних наборах.
 7. **Фінал.** `bun test` у `npm/`, один послідовний `n-cursor lint --full`; change-файли
-   (`npm/` змінено → bump за n-changelog, minor).
+   (`npm/` змінено → bump за n-changelog; разом із віссю поведінки — **major**, див. §12).
+
+> Вісь поведінки (`--read-only`, поглинання `fix`-двигуна, omlx) — окремий план міграції у
+> компаньйон-спеці; ця нумерація покриває лише вісь scope.
 
 ## 11. Тести
 
-- `parseRuleLintSpec`: шорткати, об'єкт, дефолт `ci=scope`, невалідні значення → null/fail.
-- `selectLintRules(metaById, mode)`: A → лише per-file; B → всі; C → всі; сортування алфавітне.
-- `effectiveCi`: `security` → `full`; `text` → `per-file`; `js-lint-ci` → `full`.
-- `runLint`: режим A передає changed-список, B/full — undefined для full-правил, changed для
-  ci:"per-file"; fail-fast на першому ненульовому коді.
+- `parseRuleLintSpec`: рядки `"per-file"`/`"full"`, `undefined`, невалідні значення → null/fail.
+- `selectLintRules(metaById, ctx)`: A/A′ → лише per-file; B/C → всі; сортування алфавітне.
+- `runLint`: контекст A/A′ передає changed-список (per-file), B/C → undefined (весь репо);
+  `readOnly` пробрасується у `lint.mjs`; fail-fast на першому ненульовому коді.
+- Інваріант нуль-мутацій: `lint --read-only` на брудному дереві → `git diff` незмінний.
 - База: `resolveChangedBase` null → fallback HEAD; недосяжний base → throw (fail-closed).
-- Валідатор: `lint` без `js/lint.mjs` → fail; об'єкт без `scope` → fail.
+- Валідатор: `lint` без `js/lint.mjs` → fail; значення поза `"per-file"|"full"` → fail.
 
 ## 12. Сумісність і semver
 
-- **Minor-реліз**: новий формат `meta.json:lint` — внутрішній (не синкається у споживачів);
-  нові команди `lint --ci`/`--full`; кореневі скрипти споживача оновлюються через policy.
-- `n-cursor lint` (без прапорця) змінює базу з HEAD на origin і набір на per-file-only —
-  зафіксувати в CHANGELOG (поведінкова зміна quick-фази).
-- `lint-ci` стара підкоманда → аліас `lint --ci` (deprecation-warn), зняття — наступний major.
+- **Major-реліз** (узгоджено з компаньйон-спекою): новий формат `meta.json:lint`; нові опції
+  `--read-only`/`--full`; видалення `n-cursor fix`/`fix-t0`/`_fix-check` **без аліасів** (R-5 —
+  зворотної сумісності не тримаємо).
+- `n-cursor lint` (без прапорця) змінює базу з HEAD на origin, набір на per-file-only і поведінку
+  на fix-by-default — зафіксувати в CHANGELOG.
+- Стара підкоманда `lint-ci` → `lint --read-only --full` (без deprecation-аліасу).

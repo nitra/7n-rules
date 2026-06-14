@@ -54,14 +54,15 @@ function runJson(args, cwd) {
 }
 
 /**
- * Full-режим (ci): лінт усього проєкту зі стрімінгом і fail-fast (без класифікації).
+ * Full-режим (--full): лінт усього проєкту зі стрімінгом і fail-fast (без класифікації).
  * @param {string} cwd корінь
+ * @param {boolean} readOnly true → без `--fix` (детект, нуль мутацій — CI)
  * @returns {number} exit code
  */
-function lintFullProject(cwd) {
-  const ox = runInherit(['oxlint', '--fix'], cwd)
+function lintFullProject(cwd, readOnly) {
+  const ox = runInherit(readOnly ? ['oxlint'] : ['oxlint', '--fix'], cwd)
   if (ox !== 0) return ox
-  return runInherit(['eslint', '--fix', '.'], cwd)
+  return runInherit(readOnly ? ['eslint', '.'] : ['eslint', '--fix', '.'], cwd)
 }
 
 /**
@@ -69,12 +70,16 @@ function lintFullProject(cwd) {
  * на introduced / pre-existing (беклог #6/A). Блокування на будь-якому finding.
  * @param {string[]} js js-подібні змінені файли
  * @param {string} cwd корінь
+ * @param {boolean} readOnly true → пропустити фікс-пас (детект, нуль мутацій)
  * @returns {number} exit code (0 — чисто; 1 — лишились findings)
  */
-function lintChangedClassified(js, cwd) {
+function lintChangedClassified(js, cwd, readOnly) {
   // Фікс-пас обох інструментів (послідовно; обидва — щоб репорт показав повну картину).
-  runFix(['oxlint', '--fix', ...js], cwd)
-  runFix(['eslint', '--fix', ...js], cwd)
+  // У read-only пропускаємо — лише детект без мутацій (CI / pre-commit).
+  if (!readOnly) {
+    runFix(['oxlint', '--fix', ...js], cwd)
+    runFix(['eslint', '--fix', ...js], cwd)
+  }
 
   // Репорт-пас по ФІНАЛЬНОМУ (пост-фікс) файлу — рядки findings і diff узгоджені.
   const oxRes = runJson(['oxlint', '--format=json', ...js], cwd)
@@ -99,16 +104,18 @@ function lintChangedClassified(js, cwd) {
 }
 
 /**
- * Запускає oxlint+eslint з автофіксом.
- * @param {string[] | undefined} files quick: лише ці файли; undefined: весь проєкт
+ * Запускає oxlint+eslint. За замовчуванням — з автофіксом; `opts.readOnly` — лише детект.
+ * @param {string[] | undefined} files per-file: лише ці файли; undefined: весь проєкт (--full)
  * @param {string} [cwd] корінь репо
+ * @param {{ readOnly?: boolean }} [opts] readOnly → без `--fix` (нуль мутацій)
  * @returns {Promise<number>} 0 — OK, ≠0 — порушення
  */
-export function lint(files, cwd = process.cwd()) {
+export function lint(files, cwd = process.cwd(), opts = {}) {
+  const readOnly = opts.readOnly === true
   if (files === undefined) {
-    return Promise.resolve(lintFullProject(cwd))
+    return Promise.resolve(lintFullProject(cwd, readOnly))
   }
   const js = filterJsFiles(files)
   if (js.length === 0) return Promise.resolve(0)
-  return Promise.resolve(lintChangedClassified(js, cwd))
+  return Promise.resolve(lintChangedClassified(js, cwd, readOnly))
 }

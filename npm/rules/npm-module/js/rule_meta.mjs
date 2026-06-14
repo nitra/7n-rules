@@ -3,7 +3,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createCheckReporter } from '../../../scripts/lib/check-reporter.mjs'
-import { parseRuleAutoSpec, parseRuleLintPhase, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
+import { parseRuleAutoSpec, parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
 import { RULE_PREDICATES } from '../../../scripts/lib/rule-predicates.mjs'
 
 /**
@@ -37,8 +37,8 @@ function checkAutoField(id, raw, reporter) {
  */
 function checkLintField(id, ruleDir, raw, reporter) {
   if (raw.lint === undefined) return true
-  if (parseRuleLintPhase(raw.lint) === null) {
-    reporter.fail(`rules/${id}: meta.json.lint нерозпізнане (очікується "quick"|"ci")`)
+  if (parseRuleLintSpec(raw.lint) === null) {
+    reporter.fail(`rules/${id}: meta.json.lint нерозпізнане (очікується "per-file"|"full")`)
     return false
   }
   if (!existsSync(join(ruleDir, 'js', 'lint.mjs'))) {

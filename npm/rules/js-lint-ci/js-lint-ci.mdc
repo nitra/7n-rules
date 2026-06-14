@@ -10,7 +10,7 @@ version: '1.0'
 `jscpd` і `knip` аналізують увесь граф проєкту, тож мають сенс лише у повному прогоні
 `npx @nitra/cursor lint-ci` (не у швидкому `lint` по змінених файлах). Per-file режиму нема.
 
-Швидкий етап js-lint (oxlint/eslint) — у правилі `js-lint` (`lint: quick`).
+Швидкий етап js-lint (oxlint/eslint) — у правилі `js-lint` (`lint: per-file`).
 
 ## Залежнісна політика (що не додавати)
 

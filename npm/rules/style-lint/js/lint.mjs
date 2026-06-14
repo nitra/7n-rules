@@ -12,12 +12,13 @@ export function filterStyleFiles(files) {
 }
 
 /**
- * @param {string[] | undefined} files quick: ці файли; undefined: весь проєкт
+ * @param {string[] | undefined} files per-file: ці файли; undefined: весь проєкт (--full)
  * @param {string} [cwd] корінь
+ * @param {{ readOnly?: boolean }} [opts] readOnly → без `--fix` (детект, нуль мутацій)
  * @returns {Promise<number>} exit code
  */
-export function lint(files, cwd = process.cwd()) {
-  const args = ['stylelint', '--fix']
+export function lint(files, cwd = process.cwd(), opts = {}) {
+  const args = opts.readOnly === true ? ['stylelint'] : ['stylelint', '--fix']
   if (files === undefined) {
     args.push('**/*.{css,scss,vue}')
   } else {

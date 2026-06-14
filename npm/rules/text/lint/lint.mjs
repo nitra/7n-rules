@@ -95,28 +95,30 @@ function preflight(dep) {
 
 /**
  * Внутрішні кроки `lint-text` без локу.
+ * @param {boolean} [readOnly] true → лише детект без авто-фіксу (нуль мутацій — CI/pre-commit)
  * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
  */
-function runLintTextSteps() {
+function runLintTextSteps(readOnly = false) {
   // Auto-install: throws on failure → propagates as exit 1 from runStandardLint
   ensureTool('shellcheck')
   ensureTool('dotenv-linter')
 
-  // patch is hint-only (system tool)
-  if (!preflight(PATCH_PREFLIGHT)) return 1
+  // patch потрібен лише для авто-фіксу shellcheck; у read-only пропускаємо preflight.
+  if (!readOnly && !preflight(PATCH_PREFLIGHT)) return 1
 
   const cspellCode = runLintStep('cspell', 'npx', ['cspell', '.'])
   if (cspellCode !== 0) return cspellCode
 
-  console.log('\n▶ shellcheck (авто-фікс + фінальна перевірка *.sh)')
-  const shellcheckCode = runShellcheckText()
+  console.log(`\n▶ shellcheck (${readOnly ? 'перевірка' : 'авто-фікс + фінальна перевірка'} *.sh)`)
+  const shellcheckCode = runShellcheckText(process.cwd(), readOnly)
   if (shellcheckCode !== 0) return shellcheckCode
 
-  console.log('\n▶ dotenv-linter (авто-фікс + фінальна перевірка .env*)')
-  const dotenvCode = runDotenvLinter()
+  console.log(`\n▶ dotenv-linter (${readOnly ? 'перевірка' : 'авто-фікс + фінальна перевірка'} .env*)`)
+  const dotenvCode = runDotenvLinter(process.cwd(), readOnly)
   if (dotenvCode !== 0) return dotenvCode
 
-  const markdownlintCode = runLintStep('markdownlint', 'bunx', ['markdownlint-cli2', '--fix', '**/*.md', '**/*.mdc'])
+  const mdArgs = readOnly ? ['markdownlint-cli2', '**/*.md', '**/*.mdc'] : ['markdownlint-cli2', '--fix', '**/*.md', '**/*.mdc']
+  const markdownlintCode = runLintStep('markdownlint', 'bunx', mdArgs)
   if (markdownlintCode !== 0) return markdownlintCode
 
   console.log('\n▶ v8r (schema-валідація json/json5/yaml/yml/toml)')
@@ -125,6 +127,8 @@ function runLintTextSteps() {
 
 /**
  * Публічна CLI-форма: серіалізує через `withLock('lint-text')` + дедуп за станом git-дерева.
+ * @param {{ readOnly?: boolean }} [opts] readOnly → детект без авто-фіксу
  * @returns {Promise<number>} код виходу
  */
-export const runLintTextCli = () => runStandardLint(import.meta.dirname, () => runLintTextSteps())
+export const runLintTextCli = (opts = {}) =>
+  runStandardLint(import.meta.dirname, () => runLintTextSteps(opts.readOnly === true))

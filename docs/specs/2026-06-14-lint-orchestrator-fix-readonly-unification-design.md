@@ -1,82 +1,87 @@
-# Spec: Уніфікація lint-оркестратора — fix-by-default + `--read-only`, заміна `n-cursor fix`
+# Spec: lint — вісь поведінки `fix`(default)/`--read-only`, поглинання `fix`-двигуна, omlx-ескалація
 
 **Дата:** 2026-06-14
 **Статус:** Draft
-**Тип:** Major (breaking) — змінює публічний CLI-контракт і per-rule контракт правил
+**Тип:** Major (breaking) — змінює публічний CLI-контракт і per-rule контракт; **без зворотної сумісності**
+
+**Зв'язані документи:**
+
+- `docs/superpowers/specs/2026-06-14-lint-rule-consolidation.md` — **джерело істини по осі scope** (`per-file`/`full`, контексти запуску, база-origin, дім `npm/rules/lint/`). Ця спека — **ортогональний компаньйон по осі поведінки**.
+- `docs/superpowers/specs/2026-06-12-doc-files-lint-doc-fix-doc-split.md` — `doc-files` як один із класифікованих механізмів; конвенція exit-кодів.
+- `.cursor/rules/scripts.mdc` — контракт оркестратора (convergence-loop, check-gate, escalation ladder).
+- `npm/lib/llm.mjs` + `npm/lib/omlx.mjs` + `npm/lib/models.mjs` — єдина точка LLM-викликів; маршрутизація `omlx/<model>` → прямий HTTP, каскад local→cloud через `resolveModel(tier)`.
 
 ---
 
 ## Проблема
 
-Сьогодні в проєкті **дві окремі машини**, що частково дублюють одна одну й мають різні ментальні моделі:
+Сьогодні дві окремі машини на одну по суті задачу «привести проєкт у відповідність»:
 
-1. **`lint`-світ** — прогін зовнішніх code-quality тулів (oxlint, eslint, jscpd, knip, cspell, stylelint, actionlint, zizmor, trufflehog…). Оркестратор: `npm/scripts/lint-cli.mjs`. Контракт правила: `npm/rules/<id>/js/lint.mjs` → `lint(files, cwd)`. Прямий прогін без циклу. Тули, що вміють `--fix`, **завжди** кличуться з `--fix` — навіть у CI, де мутувати дерево не можна.
+1. **`lint`-світ** — прогін зовнішніх тулів (oxlint/eslint/jscpd/knip/cspell/stylelint/actionlint/zizmor/trufflehog…). Оркестратор `npm/scripts/lint-cli.mjs`, контракт `js/lint.mjs → lint(files, cwd)`. Прямий прогін без циклу. Тули з `--fix` **завжди** з `--fix` — навіть у CI, де мутувати дерево не можна.
+2. **`fix`-світ** — конформність конфігів/файлів/воркфлоу через **convergence-loop + check-gate + Tier0→LLM-ескалація**. Оркестратор `npm/skills/fix/js/orchestrator.mjs`, контракт `fix.mjs` + `check()`-concerns + Rego-policy.
 
-2. **`fix`-світ** — конформність конфігів/файлів/воркфлоу через **convergence-loop + check-gate + Tier0(детермінований)→LLM(haiku→sonnet)**. Оркестратор: `npm/skills/fix/js/orchestrator.mjs`. Контракт правила: `fix.mjs` + `check()`-concerns + Rego-policy. Має повноцінний двигун ітеративного виправлення.
+Наслідки:
 
-Наслідки розриву:
+- **Немає осі fix vs read-only** — у CI лінт або мутує дерево, або немає чистого «лише детект».
+- **Detect-only тули нічого не фіксять** (knip/jscpd/cspell/actionlint/zizmor) — хоча двигун LLM-ескалації **вже існує** в `fix`-світі, просто не під'єднаний.
+- **Два оркестратори, два контракти, два скіли** (`/n-lint`, `/n-fix`).
 
-- **Немає осі fix vs read-only.** У CI лінт або мутує дерево (`--fix` завжди ввімкнений), або немає чистого «лише детект». Це некоректно для CI (CI має падати, а не правити).
-- **Detect-only тули нічого не фіксять.** knip/jscpd/cspell/actionlint/zizmor лише репортять — користувач править руками, хоча двигун LLM-ескалації **вже існує** в `fix`-світі, просто не під'єднаний до лінтерів.
-- **Два контракти, два оркестратори, два скіли** (`/n-lint` і `/n-fix`) на одну по суті задачу «привести проєкт у відповідність».
-- **Частина правил має lint без fix, частина — fix без lint.** Немає єдиної точки входу «перевір і виправ правило X».
-
-**Ключове спостереження.** Двигун `fix` (Tier0 → check-gate → LLM-ескалація) — це рівно та машина, якої потребує автофікс detect-only тулів. Лінтер-тули мають стати **ще одними concern-ами**, що годують той самий check-gate. Тоді `n-cursor fix` не видаляється — його **двигун стає fix-режимом нового `lint`**.
+**Ключове спостереження.** Двигун `fix` (Tier0-детермінований → check-gate → LLM-ескалація) — це рівно та машина, якої потребує автофікс detect-only тулів. Лінтер-тули мають стати **ще одними concern-ами**, що годують той самий check-gate. Тому `n-cursor fix` не отримує аліас — його **двигун поглинається** fix-режимом `lint`, а самі команди видаляються.
 
 ---
 
 ## Цілі
 
-1. **Одна вісь поведінки:** `lint` за замовчуванням **і детектить, і виправляє** (fix-режим); прапор `--read-only` залишає **лише детект** без жодних мутацій.
-2. **Один оркестратор, один per-rule контракт.** Кожне правило виставляє єдину lint-здатність; зовнішні тули, `check()`-concerns і Rego-policy — це **concern-и** під цим контрактом.
-3. **Detect-only тули отримують автофікс** — детермінованим скриптом, де можливо (Tier 0), або LLM, де скрипт неефективний (Tier 1+). Через наявний двигун convergence-loop.
-4. **CI ⇒ read-only автоматично.** Жодних мутацій дерева в CI; жодного LLM в CI; падіння при будь-якій знахідці.
-5. **`n-cursor fix` замінюється** цим оркестратором: його двигун, check-gate, Tier0-auto і LLM-ескалація переходять у fix-режим `lint`. Старий `fix` лишається делегувальним аліасом до наступного major.
-6. **Усі правила отримують lint** — навіть ті, що раніше мали лише fix або лише lint. Уніфікуємо точки виклику на один оркестратор.
+1. **Вісь поведінки:** `lint` за замовчуванням **і детектить, і виправляє** (fix-режим); прапор `--read-only` лишає **лише детект** без мутацій.
+2. **Один оркестратор, один per-rule контракт.** Зовнішні тули, `check()`-concerns і Rego-policy — це **concern-и** під цим контрактом.
+3. **Detect-only тули отримують автофікс** — детермінованим скриптом (Tier 0), або LLM (Tier 1+) через наявний двигун convergence-loop. **Усе фіксимо** — винятків `manual` немає.
+4. **CI ⇒ `--read-only --full`.** Нуль мутацій, нуль LLM, падіння при будь-якій знахідці.
+5. **`n-cursor fix` видаляється повністю** (без аліасу): двигун, check-gate, Tier0-auto і LLM-ескалація переходять у fix-режим `lint`.
+6. **Усі правила беруть участь у lint** (за класифікацією spec consolidation).
 7. **Output дає лише «що не так»** — і в read-only, і в fix (у fix — лише невиправний залишок).
+8. **LLM-ескалація — на omlx** (локальний MLX), не хмарна: прямі виклики через `lib/llm.mjs` (`omlx/<model>`) або агентний `mimo code`. Cloud — лише фолбек каскаду.
 
 ---
 
 ## Не в цьому spec
 
-- Конкретні per-tool LLM-фіксери для кожного detect-only тула (knip/jscpd/cspell…) — їхня реалізація йде окремими задачами; тут лише **стратегія й таблиця класифікації**.
-- Видалення legacy-команд `lint-ga`/`lint-js`/`lint-text`/`lint-rego` і старого `fix` — окремий крок наступного major (тут лише план депрекації).
-- Зміна формату Rego-policy чи `target.json` — concern-модель лишається як є.
+- **Вісь scope** (`per-file`/`full`, контексти, база-origin, `meta.json:lint={scope,ci}`, дім `npm/rules/lint/`) — повністю в spec consolidation; тут лише посилаємось.
+- **Конкретні per-tool LLM-фіксери** для кожного detect-only тула (knip/jscpd/cspell/actionlint/zizmor/v8r/regal…) — **окрема задача-наступник після реалізації цієї спеки**. Тут лише стратегія класифікації (`auto`/`llm`) і двигун, що їх викликає.
+- **Зворотна сумісність** — не тримаємо. Hard-rename, старі команди видаляються (R-5).
 
 ---
 
-## Дві ортогональні осі
+## Зв'язок зі spec consolidation: дві ортогональні осі
 
-Уніфікований оркестратор має дві незалежні осі:
-
-| Вісь | Значення | Що визначає | Джерело |
-| --- | --- | --- | --- |
-| **Scope** (обсяг) | `quick` \| `ci`(all) | які файли перевіряти | `meta.json` `lint` + git diff |
-| **Behavior** (поведінка) | `fix` (default) \| `read-only` | мутувати чи лише детектити | прапор `--read-only` / CI-контекст |
-
-- `quick` — лише змінені файли (`git diff --name-only HEAD` + untracked), для локальної розробки.
-- `ci`(all) — увесь репо, включно з крос-файловими аналізаторами (jscpd, knip).
-- `fix` — Tier0(детермінований) → check-gate → LLM-ескалація; виправляє максимум, падає на невиправному залишку.
-- `read-only` — лише детект, **нуль мутацій**, нуль LLM; падає на будь-якій знахідці.
-
-**Правило зчеплення:** CI-входи (`lint-ci`, GA-воркфлоу) **завжди** виставляють `read-only`. Локальний `lint` за замовчуванням `fix`+`quick`. Осі незалежні: можливі всі чотири комбінації, але CI фіксує `read-only`.
-
-| Команда | Scope | Behavior |
+| Вісь | Значення | Джерело істини |
 | --- | --- | --- |
-| `n-cursor lint` | quick | fix |
-| `n-cursor lint --read-only` | quick | read-only |
-| `n-cursor lint --ci` (або `lint-ci`) | all | **read-only (форсовано)** |
-| `n-cursor lint --ci --fix` | all | fix (локальний повний автофікс, не для CI) |
+| **Scope** (обсяг) | default (дельта vs origin) \| `--full` (весь репо) | **spec consolidation** |
+| **Behavior** (поведінка) | `fix` (default) \| `--read-only` | **ця спека** |
+
+Осі незалежні → чотири комбінації двох прапорів `--read-only` × `--full`:
+
+| Команда | Scope | Behavior | Контекст |
+| --- | --- | --- | --- |
+| `n-cursor lint` | дельта vs origin | fix | локальний агент (default) |
+| `n-cursor lint --read-only` | дельта vs origin | detect | локальний швидкий детект; **pre-commit hook** |
+| `n-cursor lint --full` | весь репо | fix | повний локальний аудит (було `lint --ci --fix`) |
+| `n-cursor lint --read-only --full` | весь репо | detect | **CI** (було `lint --ci` / `lint-ci`) |
+
+**Реконсиляція з consolidation §5/§8 (потрібно узгодити).** Consolidation вводить третій контекст `--ci` з `effectiveCi`/`{scope,ci}`-override (CI ганяє per-file правила по дельті, full — повністю). Ця спека **схлопує** його у дві ортогональні осі: CI = `--read-only --full` (усе, весь репо, лише детект). Наслідки, які треба внести в consolidation:
+
+- Окремий прапор `--ci` **зникає**; CI кличе `lint --read-only --full`.
+- Оскільки CI тепер завжди `--full`, поле-override `meta.json:lint.ci` (напр. `security: {scope:"per-file", ci:"full"}`) **стає зайвим** — кожне правило в CI і так full. `security` спрощується до `"per-file"`.
+- Втрата: per-file-оптимізація CI по дельті. Виграш: проста двовісна модель + гарантоване покриття всього репо в read-only (без LLM детект дешевий). **Підтвердити цей трейдоф** при злитті специфікацій.
 
 ---
 
 ## Уніфікований контракт правила
 
-Кожне checkable-правило виставляє **одну** lint-здатність:
+Розширюємо контракт consolidation (`lint(files, cwd)`) третім аргументом — режимом поведінки:
 
 ```js
 /**
- * @param {string[]|undefined} files  змінені файли (quick) або undefined (all)
+ * @param {string[]|undefined} files  дельта vs origin (scope=default) або undefined (--full)
  * @param {string} cwd
  * @param {{ readOnly: boolean }} opts
  * @returns {Promise<{ ok: boolean, findings: Finding[] }>}
@@ -87,62 +92,59 @@ export async function lint(files, cwd, { readOnly }) { /* ... */ }
 ```ts
 type Finding = {
   ruleId: string
-  concern: string        // який concern знайшов (oxlint | knip | policy:manifest | …)
+  concern: string        // oxlint | knip | policy:manifest | …
   file?: string
   line?: number
-  message: string        // «що не так» — людинозрозуміло
-  fixable: 'auto' | 'llm' | 'manual'  // як це закривається
+  message: string        // «що не так», людинозрозуміло
+  fixable: 'auto' | 'llm'  // як закривається (manual немає — все фіксимо)
 }
 ```
 
 - `ok: true` ⇔ `findings: []`.
-- У **read-only** `findings` — усе знайдене.
-- У **fix** `findings` — **лише невиправний залишок** після Tier0+LLM.
+- **read-only** → `findings` = усе знайдене.
+- **fix** → `findings` = **лише невиправний залишок** після Tier0+omlx.
+
+> **Реконсиляція з consolidation §3-З** («сигнатура `lint(files, cwd)` без змін»): ця спека **додає** `opts.readOnly`. Узгодити: контракт стає `lint(files, cwd, { readOnly })`; default `readOnly:false`.
 
 ### Concern-модель
 
-Правило складається з **concern-ів**, кожен — одного з трьох типів. Concern має `detect()` (обов'язково) і опційно `fixAuto()`:
+Правило = набір **concern-ів**, кожен має `detect()` (обов'язково) і опційно `fixAuto()`:
 
-| Тип concern | Приклад | `detect()` | `fixAuto()` (Tier 0) | Tier 1+ (LLM) |
+| Тип concern | Приклад | `detect()` | `fixAuto()` (Tier 0) | Tier 1+ (omlx) |
 | --- | --- | --- | --- | --- |
-| **external-tool** | oxlint, eslint, cspell, knip, jscpd, stylelint, actionlint, trufflehog | прогін тула без `--fix`, парс виводу → findings | прогін тула з `--fix` (де є) | LLM править залишок (де `--fix` нема або не закрив) |
-| **check (JS)** | `js/<concern>.mjs` `check(ctx)` | повертає findings | детермінований fixer, якщо існує | LLM закриває залишок |
-| **policy (Rego)** | `policy/<concern>/*.rego` через conftest | deny-правила → findings | T0-auto (створення файлу, merge конфігу) | LLM закриває залишок |
+| **external-tool** | oxlint, eslint, cspell, knip, jscpd, stylelint, actionlint, trufflehog | прогін тула без `--fix` → findings | прогін із `--fix` (де є) | LLM править залишок |
+| **check (JS)** | `js/<concern>.mjs` `check(ctx)` | findings | детермінований fixer (де є) | LLM закриває залишок |
+| **policy (Rego)** | `policy/<concern>/*.rego` через conftest | deny → findings | T0-auto (створення файлу, merge конфігу) | LLM закриває залишок |
 
-Це узагальнює поточну дихотомію: `js/lint.mjs` стає external-tool concern-ами; `fix.mjs`+`check()`+policy стають check/policy concern-ами. **Усі вони течуть в один check-gate.**
-
----
-
-## Семантика `read-only` режиму (== CI)
-
-Контракт жорсткий:
-
-1. Для кожного правила, для кожного concern — **лише `detect()`**. Жодного `--fix`, жодного запису у ФС, жодного LLM-виклику.
-2. Агрегуємо всі `findings`. Вивід — **лише «що не так»** (без шуму про те, що пройшло).
-3. **Exit 1**, якщо є хоч одна знахідка; **exit 0** — чисто.
-4. **Гарантія нуль-мутацій (інваріант, тестується):** прогін `lint --read-only` на брудному дереві → `git diff` після прогону **байт-у-байт незмінний**.
-
-Це режим, у якому CI-воркфлоу (`lint-doc.yml`, `lint-js.yml`, …) ганяють перевірку: детермінований, без LLM, без правок, падає на порушенні.
+Узагальнює дихотомію: `js/lint.mjs` → external-tool concern-и; `fix.mjs`+`check()`+policy → check/policy concern-и. **Усі течуть в один check-gate.**
 
 ---
 
-## Семантика `fix` режиму (default, локальний)
+## Семантика `read-only` (== CI, == pre-commit)
 
-Зберігаємо двигун поточного `fix`-оркестратора (`scripts.mdc` → «КОНТРАКТ ОРКЕСТРАТОРА») без послаблень — він стає двигуном fix-режиму:
+1. Для кожного concern — **лише `detect()`**. Жодного `--fix`, жодного запису у ФС, жодного LLM.
+2. Вивід — **лише «що не так»**.
+3. **Exit 1** при будь-якій знахідці; **exit 0** — чисто. (`--hook`/`--git`-форми — exit 2 за hook-протоколом, як у doc-files.)
+4. **Інваріант нуль-мутацій (тестується):** `lint --read-only` на брудному дереві → `git diff` байт-у-байт незмінний.
+
+---
+
+## Семантика `fix` (default, локальний)
+
+Зберігаємо двигун поточного `fix`-оркестратора (`scripts.mdc`) — він стає двигуном fix-режиму:
 
 ```
 for iter in 1..maxIter (default 3):
     1. Tier 0 — детермінований fix:
        для кожного concern із fixAuto(): застосувати
-       (oxlint --fix, eslint --fix, stylelint --fix, markdownlint --fix,
-        ruff --fix, oxfmt, Rego T0-auto, створення missing-файлів,
-        cspell dict-add, …)
+       (oxlint/eslint/stylelint/markdownlint/ruff --fix, oxfmt,
+        Rego T0-auto, створення missing-файлів, cspell dict-add, …)
     2. Check-gate — повторний detect() по всіх concern-ах
        if findings == 0: break
-    3. Tier 1+ — LLM-ескалація (haiku → sonnet після ESCALATE_AFTER=2):
-       лише для залишку з fixable ∈ {llm}
-       (knip unused export, jscpd дублі, cspell реальна одрук,
-        actionlint/zizmor правки воркфлоу, складні check-фейли)
+    3. Tier 1+ — omlx-ескалація (local min → avg → max через resolveModel):
+       лише для залишку з fixable === 'llm'
+       (knip unused, jscpd дублі, cspell одрук, actionlint/zizmor,
+        trufflehog-знахідки, складні check-фейли)
        кожен виклик у try/catch; tier-fail → escalate, не крах
     4. Check-gate знову
        if findings == 0: break
@@ -150,148 +152,132 @@ if findings != 0: exit 1, вивід — лише залишок
 else: exit 0
 ```
 
-Інваріанти зі `scripts.mdc`, які **не послаблюємо**:
+Інваріанти зі `scripts.mdc` **не послаблюємо**: check-gate (закриття лише через повторний `detect()→ok`), escalation ladder, fail-fast локального tier (≤60 с, одна спроба), per-rule serialization через `withLock('lint-<ruleId>')`.
 
-- **Check-gate.** Одиниця закриття = повторний `detect()` дає `ok: true`. Модель «не може вважати себе готовою».
-- **Escalation ladder** `local → haiku → sonnet`; tier-fail (maxTurns/ETIMEDOUT/будь-яка помилка) — ескалація, не крах.
-- **Fail-fast локаль:** локальний tier ≤60 с і одна спроба.
-- **Per-rule serialization** через `withLock('lint-<ruleId>')` — одне правило не переписують паралельно.
-
-**Точна відповідність пункту 4 (detect-only автофікс):** detect-only тул, що не вміє `--fix`, у fix-режимі дає знахідку → check-gate бачить її як невиправлену → Tier 1+ диспатчить LLM, який закриває її → check-gate підтверджує. Двигун уже є; ми лише під'єднуємо лінтер-concern-и до нього.
+**Точна відповідність пункту 3 (detect-only автофікс):** detect-only тул без `--fix` → знахідка → check-gate бачить як невиправлену → Tier 1+ диспатчить omlx → check-gate підтверджує. Двигун є; під'єднуємо лінтер-concern-и.
 
 ---
 
-## Стратегія автофіксу detect-only тулів (пункт 4)
+## omlx-ескалація (заміна хмарної)
 
-Класифікація `fixable` per concern — визначає, що йде в Tier 0, що в Tier 1+, а що **ніколи не автофікситься** (лишається `manual` і завжди у виводі як residue):
+Tier 1+ працює на **локальному omlx** (Apple MLX), не на хмарі:
 
-| Concern | `--fix` нативний? | Tier 0 (скрипт) | Tier 1+ (LLM) | Примітка |
-| --- | --- | --- | --- | --- |
-| oxlint | ✅ | `--fix` | залишок | |
-| eslint | ✅ | `--fix` | залишок | **без паралельних прогонів** |
-| stylelint | ✅ | `--fix` | залишок | |
-| markdownlint-cli2 | ✅ | `--fix` | залишок | |
-| ruff | ✅ | `--fix` | залишок | |
-| oxfmt | ✅ (форматер) | прогін | — | |
-| shellcheck | ⚠️ (diff+patch) | patch | залишок | |
-| dotenv-linter | ✅ | `--fix` | — | |
-| cspell | ❌ | dict-add для відомих термінів | реальна одрук → LLM-rewrite | словник vs одрук — рішення Tier1 |
-| knip | ❌ | — | видалення unused export/dep → LLM | |
-| jscpd | ❌ | — | дедуплікація → LLM | потенційно великий рефактор |
-| actionlint | ❌ | — | правка воркфлоу → LLM | |
-| zizmor | ❌ | — | hardening воркфлоу → LLM | |
-| v8r | ❌ | — | правка json/yaml під схему → LLM | |
-| opa check / regal | ❌ | — | правка Rego → LLM | |
-| **trufflehog** | ❌ | — | **НІКОЛИ (manual)** | секрет не «фіксять» автоматично — рішення людини (ротація/видалення); завжди residue, exit 1 |
-
-**Відкрите рішення (R-1):** перелік `manual`-concern-ів, які навіть у fix-режимі ніколи не торкаємо LLM-ом (мінімум — trufflehog/security). Потребує підтвердження.
+- **Маршрутизація вже готова:** `npm/lib/llm.mjs` за префіксом `omlx/<model>` йде прямим HTTP (`callOmlx`), минаючи `pi`. Тир — через `resolveModel('min'→'avg'→'max')`, каскад **local→cloud** (cloud лише фолбек, якщо локальний тир не задано/недоступний).
+- **Існуючий воркер** `npm/skills/fix/js/llm-worker.mjs` уже ходить через `resolveModel('min')`/`resolveModel('avg')` + `callLlm`. Переїзд = задати `N_LOCAL_MIN_MODEL=omlx/…` (і `_AVG`/`_MAX`); код воркера переноситься в новий оркестратор без зміни контракту.
+- **Два транспорти Tier 1+** (на розсуд concern-фіксера):
+  - **прямі виклики** — `callLlm` (omlx HTTP) повертає текст, воркер застосовує правку (як зараз).
+  - **`mimo code`** — агентний код-тул, що сам редагує файли (для багатофайлових/контекстних правок).
+- Ескалація `min → avg → max` — у межах локальних omlx-моделей; cloud — лише останній фолбек каскаду.
+- Wire-trace (`omlx-trace.mjs`, always-on) фіксує кожен виклик — лишається.
 
 ---
 
-## Exit codes і JSON-вивід
+## Стратегія автофіксу concern-ів
+
+Класифікація `fixable` визначає Tier 0 vs Tier 1+. **Manual-категорії немає — усе фіксимо** (R-1):
+
+| Concern | `--fix`? | Tier 0 (скрипт) | Tier 1+ (omlx) |
+| --- | --- | --- | --- |
+| oxlint / eslint / stylelint / markdownlint / ruff | ✅ | `--fix` | залишок |
+| oxfmt / dotenv-linter | ✅ | прогін | — |
+| shellcheck | ⚠️ | diff+patch | залишок |
+| cspell | ❌ | dict-add (відомі терміни) | реальна одрук → rewrite |
+| knip | ❌ | — | видалення unused export/dep |
+| jscpd | ❌ | — | дедуплікація |
+| actionlint / zizmor | ❌ | — | правка/hardening воркфлоу |
+| v8r / opa / regal | ❌ | — | правка під схему/Rego |
+| **trufflehog** | ❌ | — | **omlx-фікс** (видалення/заміна секрету); знахідка завжди у виводі до закриття |
+
+> **Follow-up (поза цією спекою):** конкретна реалізація кожного Tier 1+ фіксера — окрема задача-наступник. Тут зафіксовано лише класифікацію й те, що двигун їх викликає.
+
+---
+
+## Заміна `n-cursor fix` — повне видалення
+
+| Видаляється | Куди переходить |
+| --- | --- |
+| `n-cursor fix [rules]` | `n-cursor lint [rules]` (fix-режим) — **без аліасу** |
+| `n-cursor fix-t0` | Tier 0 всередині fix-режиму `lint` |
+| `n-cursor _fix-check --json` | `n-cursor lint --read-only --json` |
+| `skills/fix/js/orchestrator.mjs` | двигун fix-режиму уніфікованого оркестратора |
+| `skills/fix/js/llm-worker.mjs` | Tier 1+ (omlx) уніфікованого оркестратора |
+| per-rule `fix.mjs` + `check()` + policy | check/policy **concern-и** під `lint`-контрактом |
+| `lint-cli.mjs` (`runLint`) | поглинається оркестратором `npm/rules/lint/js/orchestrate.mjs` (consolidation §7) |
+| хуки на `fix --json` | перемикаються на `lint --read-only --json` (без compat-shim) |
+
+**Унікальні здатності, що ОБОВ'ЯЗКОВО зберігаємо:** convergence-loop, check-gate, Tier0-детермінізм, omlx-ескалація, Rego/conftest-енфорсмент, template-driven перевірки, per-rule serialization.
+
+---
+
+## Exit codes і JSON
 
 | Code | Значення |
 | --- | --- |
-| `0` | чисто (немає знахідок / весь залишок виправлено) |
-| `1` | є знахідки (read-only) або невиправний залишок (fix) — вивід лише «що не так» |
-| `2` | внутрішня помилка оркестратора (не пов'язана зі знахідками) |
+| `0` | чисто (немає знахідок / залишок виправлено) |
+| `1` | є знахідки (read-only) або невиправний залишок (fix) |
+| `2` | hook-форми (`--hook`/`--git`) — blocking feedback (doc-files-конвенція); або внутрішня помилка оркестратора |
 
-JSON-контракт (для скілів/CI; заміняє `_fix-check --json`):
+JSON (`--json`, заміняє `_fix-check --json`):
 
 ```json
 {
   "mode": "fix" | "read-only",
-  "scope": "quick" | "all",
-  "total": 21,
-  "failed": 2,
-  "rules": [
-    { "ruleId": "js-lint", "ok": false, "findings": [ /* Finding[] */ ] }
-  ]
+  "scope": "delta" | "full",
+  "total": 21, "failed": 2,
+  "rules": [ { "ruleId": "js-lint", "ok": false, "findings": [ /* Finding[] */ ] } ]
 }
 ```
 
-Прапор `--json` лишає в stdout лише цей об'єкт.
+---
+
+## Паралелізм: знімаємо заборону
+
+**Рішення:** заборону на паралельний `eslint`/`oxlint` **знімаємо** — паралельні прогони по **різних файлах** не конфліктують (контенція була від whole-tree-прогонів, що ділять той самий корпус).
+
+- Оркестратор **МОЖЕ** паралелити external-tool concern-и по **диз'юнктних file-shard-ах** (per-file scope це природно дозволяє).
+- **Потребує оновлення governance-документів** (поза кодом цієї спеки, але обов'язкова частина major):
+  - `CLAUDE.md` — секція «Лінт і ESLint (без паралельних запусків)» → переписати: паралельно по різних файлах дозволено; серіалізація потрібна лише для whole-tree-прогонів того самого корпусу.
+  - `.cursor/rules/scripts.mdc` / `.cursor/skills/n-lint/SKILL.md` — узгодити з новим правилом; зняти безумовну `runStandardLint`-серіалізацію там, де shard-и диз'юнктні.
 
 ---
 
-## Зміни в `meta.json`
+## Scoped check/policy у default-режимі (R-4)
 
-- `lint: "quick" | "ci"` **лишається** — селектор scope-фази (як зараз).
-- **Усі checkable-правила** (мають js-concerns або policy-concerns) тепер беруть участь у `lint`. Якщо `lint`-поле відсутнє — дефолт `ci` (повний прогін), бо правило все одно має concern-и.
-- Прибираємо потребу окремого «fix-участь»: участь у fix-режимі = участь у lint (одна машина).
-- (Опційно, R-2) поле `lintQuickConcerns` / маркер «ci-only concern» — щоб важкі крос-файлові concern-и (jscpd, knip) не ганялись у `quick`. Зараз це робить розділення js-lint/js-lint-ci; треба вирішити, чи переносити в поле concern-а.
-
----
-
-## Заміна `n-cursor fix` — мапа переходу
-
-| Сьогодні (`fix`-світ) | Після уніфікації |
-| --- | --- |
-| `n-cursor fix [rules]` | `n-cursor lint [rules]` (fix-режим) — `fix` стає делегувальним аліасом |
-| `n-cursor fix-t0` (Tier0-auto) | Tier 0 всередині fix-режиму `lint` |
-| `n-cursor _fix-check --json` | `n-cursor lint --read-only --json` |
-| `skills/fix/js/orchestrator.mjs` (convergence-loop) | двигун fix-режиму уніфікованого оркестратора |
-| `skills/fix/js/llm-worker.mjs` (haiku→sonnet) | Tier 1+ уніфікованого оркестратора |
-| per-rule `fix.mjs` + `check()` + policy | check/policy **concern-и** під `lint`-контрактом |
-| `lint-cli.mjs` (`runLint`) | поглинається уніфікованим оркестратором; external-tool concern-и |
-| `js/lint.mjs` → `lint(files, cwd)` | мігрує на `lint(files, cwd, { readOnly })` |
-
-**Унікальні здатності, що ОБОВ'ЯЗКОВО зберігаємо:** convergence-loop, check-gate, Tier0-детермінізм, LLM-ескалація (haiku→sonnet), Rego/conftest-енфорсмент, template-driven перевірки, per-rule serialization.
+У scope=default (дельта vs origin) **check/policy-concern-и теж scoped по змінених файлах** — не whole-repo. Whole-repo — лише у `--full`. Це вимагає, щоб `check(ctx)`/policy-таргети вміли приймати `files`-фільтр (узгодити з concern-API consolidation).
 
 ---
 
 ## Скіли
 
-- `/n-lint` стає **єдиним** скілом: ганяє `n-cursor lint` (fix-режим за замовчуванням), worktree-only, серіалізований (без паралельних eslint).
-- `/n-fix` — депрекований; його SKILL.md стає тонким аліасом, що делегує на `/n-lint`, до наступного major.
-- Scope-розділення з SKILL.md (`/n-fix` = структура, `/n-lint` = код) **зникає** — одна машина закриває обидва.
+- `/n-lint` — **єдиний** скіл: ганяє `n-cursor lint` (fix за замовчуванням), worktree-only.
+- `/n-fix` — **видаляється** (не аліас): scope-розділення «структура vs код» зникає, одна машина закриває обидва.
 
 ---
 
-## CI-воркфлоу
+## Pre-commit hook (R-6)
 
-- Усі lint-воркфлоу (`lint-js.yml`, `lint-doc.yml`, `lint-ga.yml`, …) ганяють `n-cursor lint --ci` (== `read-only` + `all`).
-- Гарантія: нуль мутацій, нуль LLM, детермінований exit 1/0. CI **не** править дерево — лише падає з переліком «що не так».
-
----
-
-## Критичне обмеження: заборона паралельного eslint/oxlint
-
-Зі `CLAUDE.md`: `eslint`/`oxlint`/`lint` **не можна** запускати паралельно — ні між собою, ні в кількох процесах/агентах/shell-сесіях. Конкурентний eslint перевантажує диск/CPU і дає нестабільні результати.
-
-**Вимоги до оркестратора:**
-
-- External-tool concern-и (особливо eslint/oxlint/stylelint) виконуються **строго послідовно**, один прогін на сесію.
-- При написанні implementation plan: оркестратор **не** розбивати на паралельні субагенти для лінтер-кроків.
-- Rule-conformance concern-и (check/policy) можна паралелити **між** правилами, але eslint/oxlint-concern-и — ніколи.
-- Per-rule `withLock` + глобальний lint-lock на eslint/oxlint-фазу.
+Pre-commit ганяє **лише `lint --read-only`** (дельта vs origin, staged): детермінований, без LLM, без мутацій; exit 1 блокує коміт із переліком «що не так». Жодного автофіксу в pre-commit (не блокувати коміт правками/LLM).
 
 ---
 
 ## Ризики й відкриті питання
 
-- **R-1.** Перелік `manual`-concern-ів, що ніколи не автофіксяться навіть у fix-режимі (мінімум trufflehog/security). Підтвердити.
-- **R-2.** Куди переносити «ci-only concern» (jscpd/knip), щоб вони не ганялись у `quick`: поле concern-а vs збереження js-lint/js-lint-ci розділення.
-- **R-3.** LLM у локальному `lint` — недетермінований і повільний. Tier 0 лишається дефолтним швидким шляхом; LLM-tier спрацьовує **лише** на залишку. Чи потрібен прапор `--no-llm` для суто-детермінованого локального fix? (ймовірно так — для швидкого pre-commit.)
-- **R-4.** Scope check/policy-concern-ів у `quick`: історично вони ганяються по всьому репо. Визначити — scoped по змінених файлах чи whole-repo навіть у quick.
-- **R-5.** Зворотна сумісність споживачів `n-cursor fix --json` (скіли, хуки `post-tool-use-fix.mjs`) — аліас має зберегти JSON-формат на час депрекації.
-- **R-6.** Pre-commit хук: який режим? Імовірно `lint --fix` (швидкий Tier0, `--no-llm`) на staged-файлах, щоб не блокувати коміт LLM-ом.
+- **O-1 (реконсиляція).** Схлопування consolidation-контексту `--ci` у `--read-only --full` (втрата per-file-CI-оптимізації, зайвість `meta.json:lint.ci`). Підтвердити при злитті специфікацій.
+- **O-2.** Розширення контракту `lint(files, cwd)` → `lint(files, cwd, { readOnly })` — узгодити з consolidation §3-З і всіма наявними `lint.mjs`.
+- **O-3.** omlx-якість/латентність Tier 1+ на складних фіксах (jscpd-дедуп, zizmor-hardening) vs cloud-фолбек — заміряти; визначити поріг ескалації в cloud.
+- **O-4.** `mimo code` як транспорт Tier 1+ — інтеграційний контракт (вхід/вихід, застосування правок, таймаут) — деталізувати в задачі-наступнику фіксерів.
 
 ---
 
-## План міграції (phased — major)
+## План міграції (phased — major; будується поверх consolidation)
 
-1. **Фаза 1 — двигун.** Винести двигун `fix`-оркестратора в уніфікований `lint`-оркестратор; ввести вісь `--read-only` і per-rule контракт `lint(files, cwd, { readOnly })`. Старі `fix`/`lint`/`lint-ci` — делегувальні аліаси на новий оркестратор. Гарантія нуль-мутацій у read-only — з тестом-інваріантом.
-2. **Фаза 2 — concern-и.** Мігрувати кожне правило: `js/lint.mjs` → external-tool concern-и з `detect()`/`fixAuto()`; `fix.mjs`+`check()`+policy → check/policy concern-и під єдиним контрактом. Класифікувати `fixable` per concern (таблиця вище).
-3. **Фаза 3 — detect-only автофікс.** Під'єднати Tier 1+ LLM-фіксери для knip/jscpd/cspell/actionlint/zizmor/… за таблицею стратегії.
-4. **Фаза 4 — CI.** Перевести воркфлоу на `lint --ci` (read-only). Перевірити нуль-мутацій у CI.
-5. **Фаза 5 — скіли.** `/n-lint` єдиний; `/n-fix` депрекований аліас.
-6. **Фаза 6 (наступний major) — прибирання.** Видалити legacy `fix`, `fix-t0`, `_fix-check`, старі `lint-*` скрипти й split lint.mjs/fix.mjs; зняти аліаси.
-
----
-
-## Зворотна сумісність
-
-- `n-cursor fix [rules]`, `fix-t0`, `_fix-check --json` — делегувальні аліаси з незмінним JSON-форматом до major-прибирання (Фаза 6).
-- Кореневі `lint-ga`/`lint-js`/`lint-text`/`lint-rego`/`lint-style`/`lint-python` — лишаються робочими аліасами на час переходу.
-- Хуки (`post-tool-use-fix.mjs`) перемикаються на новий оркестратор без зміни зовнішнього контракту.
+1. **База scope.** Реалізувати spec consolidation (правило `npm/rules/lint/`, `{scope,ci}`, база-origin, три→дві осі). *Передумова.*
+2. **Вісь behavior.** Додати `--read-only`/`--full`-прапори й `opts.readOnly` у контракт `lint`; інваріант нуль-мутацій + тест.
+3. **Поглинання двигуна.** Перенести convergence-loop/check-gate/Tier0 зі `skills/fix/js/orchestrator.mjs` у `rules/lint/js/orchestrate.mjs`; **видалити** `fix`/`fix-t0`/`_fix-check`.
+4. **omlx-ескалація.** Перенести `llm-worker.mjs` у Tier 1+; задати `N_LOCAL_*_MODEL=omlx/…`; cloud — фолбек.
+5. **Concern-и.** Мігрувати правила: `js/lint.mjs`→external-tool concern-и (`detect`/`fixAuto`); `fix.mjs`+`check()`+policy→check/policy concern-и; класифікувати `fixable`.
+6. **Scoped check/policy (R-4)** + **паралелізм по shard-ах**; оновити `CLAUDE.md`/`scripts.mdc`/`n-lint` SKILL.
+7. **Хуки/скіли.** Pre-commit → `lint --read-only`; `/n-fix` видалити; хуки → `lint --read-only --json`.
+8. **CI.** Воркфлоу → `n-cursor lint --read-only --full`; перевірити нуль-мутацій у CI.
+9. **Фінал.** `bun test` у `npm/`; один `n-cursor lint --full`; change-файли (n-changelog, major).
+10. **Follow-up (окрема задача).** Реалізація конкретних per-tool omlx-фіксерів (knip/jscpd/cspell/actionlint/zizmor/v8r/regal/trufflehog).

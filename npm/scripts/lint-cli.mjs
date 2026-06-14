@@ -1,34 +1,38 @@
 /**
- * Оркестратор `n-cursor lint` (quick) / `n-cursor lint-ci` (full).
+ * Оркестратор `n-cursor lint` — дві ортогональні осі (spec 2026-06-14-lint-rule-consolidation
+ * + компаньйон 2026-06-14-lint-orchestrator-fix-readonly-unification):
+ *  - **scope** (`--full`): default = дельта vs origin (лише `per-file` правила);
+ *    `--full` = весь репо (`per-file` ∪ `full` правила);
+ *  - **behavior** (`--read-only`): default = fix; `--read-only` = лише детект без мутацій.
  *
- * Data-driven: сканує `rules/<id>/meta.json` за полем `lint` (`quick`|`ci`),
- * послідовно (заборона паралельного eslint) викликає `rules/<id>/js/lint.mjs`:
- *  - quick: `lint(changedFiles)` — лише змінені файли (git diff HEAD + untracked);
- *  - ci:    `lint(undefined)` — весь проєкт.
- * Порядок правил — алфавітний; ci-набір = quick ∪ ci. Fail-fast: перший ненульовий код спиняє.
+ * Data-driven: сканує `rules/<id>/meta.json` за полем `lint` (`per-file`|`full`),
+ * викликає `rules/<id>/js/lint.mjs` → `lint(files, cwd, { readOnly })`:
+ *  - default scope: `files` = змінені відносно origin (`collectChangedFilesSince`);
+ *  - `--full`:      `files = undefined` — весь проєкт.
+ * Порядок правил — алфавітний. Fail-fast: перший ненульовий код спиняє.
  */
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { cwd as processCwd } from 'node:process'
 
-import { parseRuleLintPhase, readRuleMetaRaw } from './lib/rule-meta.mjs'
-import { collectChangedFiles } from './lib/changed-files.mjs'
+import { parseRuleLintSpec, readRuleMetaRaw } from './lib/rule-meta.mjs'
+import { collectChangedFilesSince, resolveChangedBase } from './lib/changed-files.mjs'
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 
 /**
- * Вибирає id правил для фази, алфавітно.
+ * Вибирає id правил для контексту, алфавітно.
  * @param {Record<string, {lint?: unknown}>} metaById мапа id → meta-обʼєкт
- * @param {'quick'|'ci'} phase цільова фаза (quick → лише quick; ci → quick+ci)
+ * @param {boolean} full `false` → лише `per-file` правила; `true` → усі (`per-file` ∪ `full`)
  * @returns {string[]} відсортовані id
  */
-export function selectLintRules(metaById, phase) {
+export function selectLintRules(metaById, full) {
   const out = []
   for (const [id, raw] of Object.entries(metaById)) {
-    const p = parseRuleLintPhase(raw?.lint)
-    if (p === 'quick' || (phase === 'ci' && p === 'ci')) out.push(id)
+    const scope = parseRuleLintSpec(raw?.lint)
+    if (scope === 'per-file' || (full && scope === 'full')) out.push(id)
   }
   return out.toSorted((a, b) => a.localeCompare(b))
 }
@@ -52,22 +56,26 @@ function readAllMeta(rulesDir) {
 
 /**
  * Запускає lint-оркестрацію.
- * @param {{ ci?: boolean, cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
+ * @param {{ full?: boolean, readOnly?: boolean, cwd?: string, rulesDir?: string, log?: (s: string) => void }} [opts] параметри
+ *   - `full` — весь репо (`true`) проти дельти vs origin (`false`, default);
+ *   - `readOnly` — лише детект без мутацій (`true`) проти fix (`false`, default).
  * @returns {Promise<number>} exit code
  */
 export async function runLint(opts = {}) {
-  const ci = opts.ci === true
+  const full = opts.full === true
+  const readOnly = opts.readOnly === true
   const cwd = opts.cwd ?? processCwd()
   const rulesDir = opts.rulesDir ?? RULES_DIR
   const log = opts.log ?? (s => process.stdout.write(s))
 
-  const changed = ci ? undefined : collectChangedFiles(cwd)
-  if (!ci && changed.length === 0) {
-    log('\nℹ️  lint: немає змінених файлів — нічого перевіряти.\n')
+  // Default scope — дельта vs origin (merge-base main/origin/main); `--full` — весь репо.
+  const changed = full ? undefined : collectChangedFilesSince(resolveChangedBase(cwd), cwd)
+  if (!full && changed.length === 0) {
+    log('\nℹ️  lint: немає змінених файлів відносно origin — нічого перевіряти.\n')
     return 0
   }
 
-  const ids = selectLintRules(readAllMeta(rulesDir), ci ? 'ci' : 'quick')
+  const ids = selectLintRules(readAllMeta(rulesDir), full)
   for (const id of ids) {
     const lintPath = join(rulesDir, id, 'js', 'lint.mjs')
     if (!existsSync(lintPath)) {
@@ -75,7 +83,7 @@ export async function runLint(opts = {}) {
       continue
     }
     const mod = await import(lintPath)
-    const code = await mod.lint(changed, cwd)
+    const code = await mod.lint(changed, cwd, { readOnly })
     if (code !== 0) return code
   }
   return 0

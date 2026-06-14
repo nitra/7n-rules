@@ -96,17 +96,19 @@ export function listShellScriptPaths(cwd) {
 /**
  * Запускає shellcheck із авто-виправленнями і фінальною перевіркою.
  * @param {string} [cwd] робочий каталог (за замовчуванням `process.cwd()`)
+ * @param {boolean} [readOnly] true → пропустити авто-фікс (diff+patch), лише фінальна перевірка
  * @returns {number} 0 — OK; 1 — помилка середовища або залишкові зауваження shellcheck
  */
-export function runShellcheckText(cwd = process.cwd()) {
+export function runShellcheckText(cwd = process.cwd(), readOnly = false) {
   const root = resolve(cwd)
   const shellcheck = resolveCmd('shellcheck')
   if (!shellcheck) {
     printShellcheckInstallHints()
     return 1
   }
-  const patchBin = resolveCmd('patch')
-  if (!patchBin) {
+  // patch потрібен лише для авто-фіксу (diff+patch); у read-only його відсутність не блокує детект.
+  const patchBin = readOnly ? null : resolveCmd('patch')
+  if (!readOnly && !patchBin) {
     printPatchInstallHints()
     return 1
   }
@@ -116,9 +118,11 @@ export function runShellcheckText(cwd = process.cwd()) {
     return 0
   }
 
-  for (const rel of files) {
-    const fixCode = autofixOneFile(shellcheck, patchBin, root, rel)
-    if (fixCode !== 0) return fixCode
+  if (!readOnly) {
+    for (const rel of files) {
+      const fixCode = autofixOneFile(shellcheck, /** @type {string} */ (patchBin), root, rel)
+      if (fixCode !== 0) return fixCode
+    }
   }
 
   return runFinalShellcheck(shellcheck, files, root)

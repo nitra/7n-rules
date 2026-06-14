@@ -1,1 +1,1 @@
-{ "auto": "завжди", "lint": "quick" }
+{ "auto": "завжди", "lint": "per-file" }
