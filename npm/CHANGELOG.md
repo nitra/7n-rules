@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.3.0] - 2026-06-14
+
+### Added
+
+- per-tool omlx-фіксер (point 4): cspell autofix одруків через omlx у fix-режимі lint-text; спільне ядро llm-fix-apply (parse/read/apply, перевикористане llm-worker); generic llm-lint-fix; re-detect лишає валідні терміни для словника. Відновлено канон lint-text.yml --read-only (відкочений паралельним агентом)
+
 ## [9.2.0] - 2026-06-14
 
 ### Changed
