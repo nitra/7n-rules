@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor doc-files check --hook",
+            "command": "npx --no @nitra/cursor lint-doc-files --hook",
             "timeout": 120
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "npx --no @nitra/cursor doc-files check --git",
+            "command": "npx --no @nitra/cursor lint-doc-files --git",
             "timeout": 120
           }
         ]

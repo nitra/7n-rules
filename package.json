@@ -10,7 +10,8 @@
   "scripts": {
     "start": "bun ./npm/bin/n-cursor.js",
     "test": "vitest run",
-    "lint": "bun run lint-ga && bun run lint-js && bun run lint-python && bun run lint-rego && bun run lint-security && bun run lint-style && bun run lint-text && oxfmt .",
+    "lint": "bun run lint-doc-files && bun run lint-ga && bun run lint-js && bun run lint-python && bun run lint-rego && bun run lint-security && bun run lint-style && bun run lint-text && oxfmt .",
+    "lint-doc-files": "bun ./npm/bin/n-cursor.js lint-doc-files",
     "lint-ga": "n-cursor lint-ga",
     "lint-js": "bunx oxlint --fix && bunx eslint --fix . && bunx jscpd . && bunx knip --no-config-hints",
     "lint-python": "bun ./node_modules/@nitra/cursor/rules/python/lint/lint.mjs",
@@ -40,7 +41,8 @@
   "knip": {
     "ignore": [
       "demo/stryker-vue-macros-ignorer.mjs",
-      "npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs"
+      "npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs",
+      "npm/skills/fix/js/llm-worker.mjs"
     ]
   }
 }

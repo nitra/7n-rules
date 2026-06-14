@@ -1,0 +1,60 @@
+---
+description: Файлова документація — обовʼязковий крок задачі (як lint); детермінований детектор застарілості за CRC джерела (lint-doc-files), генерація local-only конвеєром (fix-doc-files)
+globs: "**/*.{js,mjs,ts,vue,py,rs},**/docs/**"
+alwaysApply: true
+version: '1.0'
+---
+
+Кожен кодовий файл (`.js .mjs .ts .vue .py .rs`, крім тестів і `.d.ts`) має **актуальну**
+файлову доку поряд: `<dir>/docs/<stem>.md`. Це **обовʼязковий крок кожної задачі**, нарівні
+з lint. Актуальність детермінується за **CRC** джерела, записаним у frontmatter доки.
+
+## Дві відповідальності — дві команди
+
+- **`lint-doc-files`** — детермінований **детектор**: знаходить кодові файли без актуальної
+  доки. **0 викликів LLM**, працює локально, в hook'ах і в CI.
+- **`fix-doc-files`** — **генератор**: створює/оновлює доки local-only конвеєром (omlx) зі
+  штампом CRC. Потребує локальної моделі; у CI **не** запускається.
+
+Це та сама пара, що `/n-lint` (детект) проти `/n-fix` (закриття) у решті проєкту.
+
+## Stale = `missing` ∪ `crc-mismatch`
+
+Дока застаріла, якщо її **немає** (`missing`) або `crc(джерело) ≠ crc` у frontmatter
+(`crc-mismatch`). **Degraded** (низький score, але CRC свіжий) — **не** stale; це борг, видимий
+через `lint-doc-files --degraded` і закривається `fix-doc-files --retry-degraded`.
+
+Алгоритм детекту (кандидати, ignore-дерево, CRC, реверс-мапінг доки→джерело) повністю в
+`js/docgen-scan.mjs` / `js/docgen-crc.mjs` / `js/docgen-ignore.mjs` і адаптері `js/lint.mjs`;
+тут — лише людинозрозумілий контракт, без дублювання логіки.
+
+## Мапа команд
+
+| Команда | Exit | Семантика |
+| --- | --- | --- |
+| `lint-doc-files` | 1 — є stale | повний детект, людиночитний список stale |
+| `lint-doc-files [paths…]` | 1 | точковий детект заданих джерел |
+| `lint-doc-files --missing-only` | 1 | лише `missing`, без `crc-mismatch` |
+| `lint-doc-files --json` | 0 | JSON-лістинг усіх кандидатів зі станом |
+| `lint-doc-files --hook` | 2 — stale | PostToolUse: stdin JSON, один файл |
+| `lint-doc-files --git [--max N]` | 2 — stale | Stop-гейт: `git diff` HEAD; понад поріг (`N_CURSOR_DOC_FILES_GATE_MAX`, дефолт 50) — warn + exit 0 |
+| `lint-doc-files --degraded` | 0 | звіт про доки зі score < порогу |
+| `fix-doc-files [--limit/--from/--overwrite/--retry-degraded]` | 0/1 | local-only генерація зі штампом CRC |
+| `fix-doc-files --stamp` | 0/1 | детерміноване перештампування `source`+`crc` без LLM |
+
+Exit-коди: повний прогін — **1** (конвенція `lint-*`); `--hook`/`--git` — **2** (hook-протокол
+Claude Code: blocking feedback).
+
+## Hook'и
+
+PostToolUse (`lint-doc-files --hook`) **сигналить** про дрейф після правки кодового файлу;
+Stop-гейт (`lint-doc-files --git`) **блокує завершення** задачі за наявності застарілих док
+(виняток — масовий прогін понад поріг). Регенерація — `/doc-files` (JS-оркестрована, не диспатч
+субагентів). Агрегуюча дока (module-summary, доменні) — окремий скіл `/doc-aggregate`.
+
+## Серіалізація
+
+Повний `lint-doc-files` і `fix-doc-files` серіалізуються через `runStandardLint` /
+`runStandardRule` (ключі `lint-doc-files` / `fix-doc-files`, виводяться зі шляху каталогу).
+`--hook` / `--git` — окрема форма **без локу** (швидкий точковий вердикт). Деталі —
+`.cursor/rules/scripts.mdc`, секція «Серіалізація важких CLI-команд».

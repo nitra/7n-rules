@@ -25,10 +25,9 @@
  *   `npx \@nitra/cursor lint-docker` — канонічний lint-docker (docker.mdc): `hadolint` по `Dockerfile`/`*.Dockerfile`
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
- *   `npx \@nitra/cursor doc-files scan`  — JSON-лістинг кодових файлів зі станом застарілості (`stale`: `missing`|`crc-mismatch`) для обовʼязкового скілу doc-files (ignore-glob у `npm/skills/doc-files/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом)
- *   `npx \@nitra/cursor doc-files check` — детектор застарілості для hook'ів (`--hook` PostToolUse, `--git` Stop-гейт із порогом `--max`); exit 2 — стале знайдено
- *   `npx \@nitra/cursor doc-files gen`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC у frontmatter (`--limit`/`--from`/`--overwrite`)
- *   `npx \@nitra/cursor doc-files stamp` — детерміновано (пере)штампувати CRC у наявних доках без LLM
+ *   `npx \@nitra/cursor lint-doc-files`  — детермінований детектор застарілості файлових док (`stale`: `missing`|`crc-mismatch`); правило doc-files (ignore-glob у `npm/rules/doc-files/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом). Режими: повний (exit 1), `--json` (exit 0), `--missing-only`, `--hook`/`--git` (hook-протокол, exit 2), `--degraded`
+ *   `npx \@nitra/cursor fix-doc-files`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC (`--limit`/`--from`/`--overwrite`/`--retry-degraded`); `--stamp` — детерміноване перештампування CRC без LLM
+ *   `npx \@nitra/cursor doc-files <sub>` — DEPRECATED-аліас (scan|check|gen|stamp) → `lint-doc-files`/`fix-doc-files`
  *   `npx \@nitra/cursor doc-aggregate modules` — JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу doc-aggregate
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
@@ -1595,7 +1594,7 @@ async function runSync() {
 /**
  * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
  * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`,
- * `--root`-команди `doc-files`/`doc-aggregate`/`rename-yaml-extensions`, `worktree`,
+ * `--root`-команди `lint-doc-files`/`fix-doc-files`/`doc-files`/`doc-aggregate`/`rename-yaml-extensions`, `worktree`,
  * sub-лінтери) гард не зачіпає.
  */
 const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'fix', 'check', 'lint', 'coverage', 'change', 'release'])
@@ -1641,7 +1640,7 @@ try {
   // .n-cursor.json + bun install, а fix/lint/coverage/change/release переписують файли в CWD —
   // усе це ключиться на cwd(). Запуск із піддиректорії git-репо (типово прямий
   // `bun npm/bin/n-cursor.js` не з кореня) зачепив би не той каталог → STOP. Read-only та
-  // `--root`-команди (trace, graph, doc-files, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
+  // `--root`-команди (trace, graph, lint-doc-files, fix-doc-files, doc-files, doc-aggregate, rename-yaml-extensions) не зачіпаємо.
   if (ROOT_GUARDED_COMMANDS.has(command)) {
     assertCwdIsProjectRoot(cwd(), describeRootGuardedAction(command))
   }
@@ -1810,36 +1809,58 @@ try {
 
       break
     }
+    case 'lint-doc-files': {
+      // n-cursor lint-doc-files — детермінований детектор застарілості файлових док
+      // (missing ∪ crc-mismatch). Режими: (повний) exit 1, --json exit 0, --missing-only,
+      //   --hook/--git/--degraded — hook-протокол (exit 2/0). Деталі — doc-files.mdc.
+      const { runLintDocFilesCli } = await import('../rules/doc-files/lint/lint.mjs')
+      process.exitCode = await runLintDocFilesCli(args)
+
+      break
+    }
+    case 'fix-doc-files': {
+      // n-cursor fix-doc-files — local-only генерація файлових док (omlx) + CRC-штамп
+      // (--limit/--from/--overwrite/--retry-degraded); --stamp — детерміноване
+      // перештампування source+crc без LLM. У CI не запускається (потрібна локальна модель).
+      if (args.includes('--stamp')) {
+        const { runDocFilesStampCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
+        process.exitCode = runDocFilesStampCli(args.filter(a => a !== '--stamp'))
+      } else {
+        const { runDocFilesGenCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
+        process.exitCode = await runDocFilesGenCli(args)
+      }
+
+      break
+    }
     case 'doc-files': {
-      // n-cursor doc-files scan|check|gen|stamp — обовʼязковий крок задачі (як lint):
-      // файлова дока поряд із джерелом, застарілість за CRC у frontmatter.
-      //   scan  — JSON-лістинг кодових файлів зі станом stale (missing|crc-mismatch);
-      //   check — детектор застарілості для hook'ів (--hook PostToolUse, --git Stop-гейт);
-      //   gen   — JS-оркестрована генерація доки (роутинг local/cloud) + CRC-штамп;
-      //   stamp — детерміновано (пере)штампувати CRC у наявних доках без LLM.
+      // Делегувальний аліас (deprecated): doc-files scan|check|gen|stamp →
+      // lint-doc-files / fix-doc-files. Зняття — наступний major (спека 2026-06-12).
+      // Зміна exit: plain `check` 2→1 (через lint-doc-files); --hook/--git зберігають 2.
+      console.error('⚠ `doc-files <sub>` застаріло — використовуй `lint-doc-files` / `fix-doc-files`.')
+      const rest = args.slice(1)
       switch (args[0]) {
         case 'scan': {
-          const { runDocFilesScanCli } = await import('../skills/doc-files/js/docgen-scan.mjs')
-          process.exitCode = runDocFilesScanCli(args.slice(1))
+          const { runLintDocFilesCli } = await import('../rules/doc-files/lint/lint.mjs')
+          process.exitCode = await runLintDocFilesCli(['--json', ...rest])
           break
         }
         case 'check': {
-          const { runDocFilesCheckCli } = await import('../skills/doc-files/js/docgen-scan.mjs')
-          process.exitCode = await runDocFilesCheckCli(args.slice(1))
+          const { runLintDocFilesCli } = await import('../rules/doc-files/lint/lint.mjs')
+          process.exitCode = await runLintDocFilesCli(rest)
           break
         }
         case 'gen': {
-          const { runDocFilesGenCli } = await import('../skills/doc-files/js/docgen-files-batch.mjs')
-          process.exitCode = await runDocFilesGenCli(args.slice(1))
+          const { runDocFilesGenCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
+          process.exitCode = await runDocFilesGenCli(rest)
           break
         }
         case 'stamp': {
-          const { runDocFilesStampCli } = await import('../skills/doc-files/js/docgen-files-batch.mjs')
-          process.exitCode = runDocFilesStampCli(args.slice(1))
+          const { runDocFilesStampCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')
+          process.exitCode = runDocFilesStampCli(rest)
           break
         }
         default: {
-          console.error('Usage: npx @nitra/cursor doc-files <scan|check|gen|stamp> [--root <dir>]')
+          console.error('Usage: npx @nitra/cursor lint-doc-files | fix-doc-files [--root <dir>]')
           process.exitCode = 1
         }
       }
@@ -1869,7 +1890,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, trace, doc-files, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, trace, doc-files, doc-aggregate`
       )
       process.exitCode = 1
     }

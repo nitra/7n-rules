@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/sync-claude-config.mjs
-  crc: 1233d1a1
+  crc: ad7b8440
   score: 95
 ---
 

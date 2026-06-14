@@ -21,7 +21,7 @@ const IGNORED_DIR_NAMES = new Set(['node_modules', '.git', '.next', '.turbo'])
  * @param {string[]} keys імена пакетів
  * @returns {Promise<boolean>} true, якщо знайдено хоч один
  */
-async function anyDepInTree(root, keys) {
+function anyDepInTree(root, keys) {
   const wanted = new Set(keys)
   /**
    * Чи package.json за `abs` оголошує будь-який пакет із `wanted` у `dependencies`.

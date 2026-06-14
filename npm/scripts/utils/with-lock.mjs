@@ -126,9 +126,11 @@ export async function withLock(key, runFn, opts = {}) {
     /* result.json не існує або пошкоджений */
   }
 
-  const onSignal = () => {
+  // Після release лок ре-рейзиться той самий сигнал: `once` вже зняв обробник,
+  // тож процес завершується дефолтною дією з коректним кодом (130/143)
+  const onSignal = signal => {
     release()
-    process.exit(130)
+    process.kill(process.pid, signal)
   }
   process.once('SIGINT', onSignal)
   process.once('SIGTERM', onSignal)

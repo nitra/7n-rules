@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/skills/doc-aggregate/js/docgen-ignore.mjs
-  crc: 8821af65
+  crc: 5faaffd0
 ---
 
 # docgen-ignore

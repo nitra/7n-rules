@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/lib/rule-predicates.mjs
-  crc: b647d4e2
+  crc: 71fba574
   score: 95
 ---
 

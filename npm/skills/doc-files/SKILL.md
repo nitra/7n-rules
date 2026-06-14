@@ -31,7 +31,7 @@ docgen:
 ## Оркестрацію веде JS, не модель; конвеєр — local-only
 
 Уся важка робота — черга, батчинг, виклики LLM і штамп CRC — живе в JS-команді
-`doc-files gen`. **Ти не диспатчиш субагентів і не тримаєш сотні файлів у контексті**
+`fix-doc-files`. **Ти не диспатчиш субагентів і не тримаєш сотні файлів у контексті**
 — тому навіть масовий перший прогін усього репо не «заморює». Цей скіл **тонкий**: твоє завдання —
 запустити генерацію і прочитати підсумок.
 
@@ -50,7 +50,7 @@ docgen:
 ### Крок 1: Генерація застарілих/відсутніх док
 
 ```bash
-npx @nitra/cursor doc-files gen
+npx @nitra/cursor fix-doc-files
 ```
 
 Команда сама: перевіряє omlx (preflight: «сервер лежить» / «модель не влазить у пам'ять
@@ -66,18 +66,18 @@ npx @nitra/cursor doc-files gen
 
 Дочекайся підсумку `✓ OK: <N>  ⚠ degraded: <D>  ✗ Err: <E>`. Якщо є помилки — перелічи
 проблемні файли. Exit-код `1` означає, що хоча б один файл не згенерувався (або не пройшов
-preflight). Degraded — не помилка: дока існує, борг видно у `check --degraded`.
+preflight). Degraded — не помилка: дока існує, борг видно у `lint-doc-files --degraded`.
 
 ### Крок 3 (за потреби): перевірка перед завершенням
 
 ```bash
-npx @nitra/cursor doc-files check --git
+npx @nitra/cursor lint-doc-files --git
 ```
 
 Перевіряє змінені у задачі джерела (`git diff --name-only HEAD`) проти CRC їхніх док.
 Цю ж перевірку виконує **Stop-hook** як твердий гейт: завершити задачу зі застарілими
 доками не можна (виняток — масовий прогін понад поріг `N_CURSOR_DOC_FILES_GATE_MAX`, дефолт 50).
-Degraded-доки гейт **не** блокує (CRC свіжий); їх список — `doc-files check --degraded`.
+Degraded-доки гейт **не** блокує (CRC свіжий); їх список — `lint-doc-files --degraded`.
 
 ## Правила стилю документа (за adr/ci4)
 
@@ -97,4 +97,4 @@ Degraded-доки гейт **не** блокує (CRC свіжий); їх спи
   усі теки `docs/`, а також `*.test.*` / `*.spec.*` / `*.d.ts`. Кореневий repo `docs/` —
   system-wide only: file-level docs туди не пишуться. Список glob-ів — `docgen-ignore.mjs`.
 - Агрегуюча документація (module-summary, доменні доки) — окремий скіл `doc-aggregate`, за запитом.
-- Для наявних док без CRC одноразово: `npx @nitra/cursor doc-files stamp` (штампує frontmatter без LLM).
+- Для наявних док без CRC одноразово: `npx @nitra/cursor fix-doc-files --stamp` (штампує frontmatter без LLM).

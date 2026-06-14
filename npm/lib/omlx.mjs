@@ -69,6 +69,8 @@ export function omlxModelId(model) {
   return isOmlxModel(model) ? model.slice(OMLX_PREFIX.length) : model
 }
 
+const THINK_TAG_RE = /<think>([\s\S]*?)<\/think>/
+
 /**
  * Витягує reasoning (думки моделі) з omlx-`message`. Джерела за пріоритетом:
  *   - `field`     — окреме поле `message.reasoning_content` (Qwen3-Thinking тощо);
@@ -79,11 +81,6 @@ export function omlxModelId(model) {
  * @param {{content?:string, reasoning_content?:string}} message обʼєкт `choices[0].message`
  * @param {string|null} finishReason `choices[0].finish_reason`
  * @returns {{ reasoning: string|null, reasoningSource: 'field'|'think_tag'|'truncated'|null }} текст думок і його джерело
- */
-const THINK_TAG_RE = /<think>([\s\S]*?)<\/think>/
-
-/**
- *
  */
 export function extractReasoning(message, finishReason) {
   const field = message?.reasoning_content

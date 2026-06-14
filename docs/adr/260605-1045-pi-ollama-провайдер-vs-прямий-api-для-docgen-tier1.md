@@ -20,3 +20,17 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 Виміряні дані: бенчмарк `/tmp/docgen-bench3/run.py`; результати `/tmp/docgen-bench3/results.jsonl` (3 моделі × 2 транспорти × 3 файли); еталонні доки — `/tmp/docgen-bench3/etalon/`.
 
 Архітектурний наслідок: щоб pi мав доступ до інструментів, йому потрібне CWD = корінь репозиторію; CLI `docgen gen --engine pi-ollama` має запускатися з кореня.
+
+## Update 2026-06-04
+
+Додаткові архітектурні деталі гібридного підходу (transcript d943f92b):
+
+**CLI-інтерфейс**: `npx @nitra/cursor docgen gen --engine ollama|claude [--root <dir>] [--concurrency 1] [--num-ctx 8192] [--max-bytes 24000] [--overwrite]`. Ollama-шлях використовує sequential `for-of` (concurrency=1, не `Promise.all`).
+
+**Quality-gate** для Ollama-виводу: непорожній вихід; починається з `# <stem>`; містить хоча б одну секцію `## `. При невдачі — 1 retry, потім пропуск файлу.
+
+**Єдине джерело правди промпту**: `npm/skills/docgen/js/docgen-prompt.mjs`, функція `buildTier1Prompt({ sourcePath, docPath, sourceContent })`. При зміні стилю документації — оновлювати лише цей модуль; `SKILL.md` та `.cursor/skills/n-docgen/SKILL.md` синхронізуються.
+
+**Замір продуктивності на M2/8 GB, `gemma4:e4b` (9.6 GB)**: warm load 74 с, генерація 0.4 tok/s, інгест 5.4 tok/s — модель перевищує RAM і свопується. При 1042 файлах → ~37 діб. Рекомендований поріг: модель ≤ ~50% RAM. Рекомендована модель для 8 GB: `qwen2.5-coder:7b` (q4 ~4.7 GB); повний потенціал від 32 GB RAM.
+
+Реалізацію в код не внесено — зафіксовано архітектурне рішення та результати feasibility-оцінки.

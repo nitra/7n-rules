@@ -33,7 +33,9 @@ import { join } from 'node:path'
 /** Маркер PostToolUse fix-hook'а (`npx --no \@nitra/cursor post-tool-use-fix`). */
 export const MANAGED_HOOK_COMMAND_MARKER = '@nitra/cursor post-tool-use-fix'
 /** Маркер doc-files staleness-hook'ів (PostToolUse `--hook` і Stop-гейт `--git`). */
-export const DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor doc-files check'
+export const DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor lint-doc-files'
+/** Legacy-маркер старих doc-files hook'ів (`doc-files check`) — cleanup при ресинку наявних інсталяцій. */
+export const LEGACY_DOC_FILES_HOOK_COMMAND_MARKER = '@nitra/cursor doc-files check'
 /** Legacy-маркер старого Stop-hook'а — лишаємо для cleanup-у при оновленні існуючих інсталяцій. */
 export const LEGACY_STOP_HOOK_COMMAND_MARKER = '@nitra/cursor stop-hook'
 /** Маркер ADR Stop-hook'а — підрядок шляху до bash-скрипта capture-decisions. */
@@ -51,6 +53,7 @@ export const CURSOR_ADR_NORMALIZE_HOOK_COMMAND_MARKER = '.claude/hooks/normalize
 export const MANAGED_HOOK_COMMAND_MARKERS = Object.freeze([
   MANAGED_HOOK_COMMAND_MARKER,
   DOC_FILES_HOOK_COMMAND_MARKER,
+  LEGACY_DOC_FILES_HOOK_COMMAND_MARKER,
   LEGACY_STOP_HOOK_COMMAND_MARKER,
   ADR_HOOK_COMMAND_MARKER,
   ADR_NORMALIZE_HOOK_COMMAND_MARKER

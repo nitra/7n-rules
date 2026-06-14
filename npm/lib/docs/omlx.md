@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/lib/omlx.mjs
-  crc: 63d3a8d7
+  crc: 0073bdfd
   score: 90
 ---
 

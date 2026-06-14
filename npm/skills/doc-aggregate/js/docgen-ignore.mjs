@@ -1,9 +1,9 @@
 /**
- * Re-export спільного списку ignore-глобів зі скіла doc-files.
+ * Re-export спільного списку ignore-глобів із правила doc-files.
  *
- * Канонічне джерело — `npm/skills/doc-files/js/docgen-ignore.mjs`: обидва скіли
- * (file-level доки і агрегати) мусять бачити однакове дерево кодових файлів,
- * інакше агрегат посилатиметься на файли без док (або навпаки). Залежність
- * спрямована doc-aggregate → doc-files за ADR про розбиття docgen.
+ * Канонічне джерело — `npm/rules/doc-files/js/docgen-ignore.mjs`: скіл doc-aggregate
+ * і правило doc-files мусять бачити однакове дерево кодових файлів, інакше агрегат
+ * посилатиметься на файли без док (або навпаки). Залежність спрямована
+ * doc-aggregate → doc-files за ADR про розбиття docgen.
  */
-export * from '../../doc-files/js/docgen-ignore.mjs'
+export * from '../../../rules/doc-files/js/docgen-ignore.mjs'

@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/utils/with-lock.mjs
-  crc: 0d4b2f30
+  crc: 21848085
   score: 95
 ---
 
