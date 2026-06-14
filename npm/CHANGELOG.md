@@ -1,5 +1,15 @@
 # Changelog
 
+## [6.0.0] - 2026-06-14
+
+### Added
+
+- fix-doc-files: пер-файловий таймінг у виводі — `<total>s (llm <llmS>/<N> calls, orch <orchS>)`: видно, скільки часу зайняла модель (і кількість LLM-викликів) проти JS-оркестрації. `generateDoc` повертає `llmMs`/`llmCalls`; облік через прозору обгортку `callLlm` (синхронні spawnSync-виклики, послідовна генерація — без гонок).
+
+### Changed
+
+- lint: вісь scope per-file|full (база-origin) + вісь behavior fix-by-default/--read-only; meta.json:lint hard-rename quick|ci→per-file|full; lint-ci=--read-only --full; контракт lint(files,cwd,{readOnly})
+
 ## [5.4.0] - 2026-06-14
 
 ### Added
