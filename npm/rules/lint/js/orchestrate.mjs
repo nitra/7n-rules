@@ -14,7 +14,6 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { spawnSync } from 'node:child_process'
 import { cwd as processCwd } from 'node:process'
 
 import { parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
@@ -23,7 +22,6 @@ import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/l
 // Цей файл: npm/rules/lint/js/orchestrate.mjs → PACKAGE_ROOT = npm (чотири dirname угору).
 const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
-const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
 
 /**
  * Конформність-фаза lint (whole-repo: config/file/workflow conformance — те, що раніше робив `fix`).
@@ -41,20 +39,11 @@ async function runConformance(cwd, readOnly, log, filter = []) {
     const { runOrchestratorCli } = await import('../../../scripts/lib/fix/orchestrator.mjs')
     return runOrchestratorCli(filter, cwd)
   }
-  const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...filter], { cwd, encoding: 'utf8', timeout: 600_000 })
-  let parsed = null
-  try {
-    parsed = JSON.parse((r.stdout ?? '').trim())
-  } catch {
-    parsed = null
-  }
-  if (!parsed) {
-    log('❌ lint: конформність — помилка перевірки (_fix-check не повернув JSON)\n')
-    return 1
-  }
-  const failed = parsed.rules.filter(/** @param {{ok:boolean}} x */ x => !x.ok)
+  const { runFixCheck } = await import('../../../scripts/lib/fix/run-fix-check.mjs')
+  const { rules } = await runFixCheck(filter, cwd)
+  const failed = rules.filter(x => !x.ok)
   if (failed.length === 0) return 0
-  log(`❌ lint: конформність — ${failed.length} порушень: ${failed.map(/** @param {{ruleId:string}} x */ x => x.ruleId).join(', ')}\n`)
+  log(`❌ lint: конформність — ${failed.length} порушень: ${failed.map(x => x.ruleId).join(', ')}\n`)
   for (const f of failed) if (f.output) log(`${f.output}\n`)
   return 1
 }

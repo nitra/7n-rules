@@ -8,11 +8,13 @@
  *
  * Контракт:
  * - stdin Claude Code: JSON із `tool_input.file_path`; якщо файлу немає (напр. Bash) — exit 0 (skip);
- * - інакше spawn `_fix-check` (детект усіх правил), exit-код прозоро пробрасуємо (PostToolUse
- *   не блокує turn, але код лишаємо інформативним: 1 — є порушення конформності).
+ * - інакше пряма `runFixCheck` (детект усіх правил, без subprocess-обгортки), exit-код прозоро:
+ *   1 — є порушення конформності (PostToolUse не блокує turn, але код лишаємо інформативним).
  */
-import { spawn } from 'node:child_process'
 import { once } from 'node:events'
+import { cwd as processCwd } from 'node:process'
+
+import { runFixCheck } from './lib/fix/run-fix-check.mjs'
 
 /**
  * Зчитує stdin до EOF як utf8 рядок. На TTY — повертає `''` одразу.
@@ -57,9 +59,9 @@ export function extractFilePath(stdinJson) {
 /**
  * Точка входу. Викликається з `bin/n-cursor.js` коли argv[0] === `post-tool-use-fix`.
  * Параметри доступні для інʼєкції для тестів: `stdinJson` обходить read від `process.stdin`,
- * `spawnFn` — заміна `node:child_process.spawn`.
- * @param {{ stdinJson?: string, spawnFn?: typeof spawn }} [options] параметри для тестів
- * @returns {Promise<number>} exit code (0 — пропущено / конформність ОК; інше — є порушення)
+ * `runFixCheckFn` — заміна `runFixCheck`.
+ * @param {{ stdinJson?: string, runFixCheckFn?: typeof runFixCheck }} [options] параметри для тестів
+ * @returns {Promise<number>} exit code (0 — пропущено / конформність ОК; 1 — є порушення)
  */
 export async function runPostToolUseFixCli(options = {}) {
   const stdinJson = options.stdinJson ?? (await readStdin())
@@ -68,12 +70,15 @@ export async function runPostToolUseFixCli(options = {}) {
   if (filePath === null) {
     return 0
   }
-  const spawnFn = options.spawnFn ?? spawn
-  // Один read-only виклик: детект конформності всіх активованих правил, без роутингу.
-  const child = spawnFn('npx', ['--no', '@nitra/cursor', '_fix-check'], { stdio: 'inherit' })
+  const check = options.runFixCheckFn ?? runFixCheck
+  // Один read-only детект конформності всіх активованих правил (пряма функція, без subprocess).
   try {
-    const [code] = await once(child, 'exit')
-    return code ?? 1
+    const { failed, rules } = await check([], processCwd())
+    if (failed === 0) return 0
+    for (const r of rules.filter(x => !x.ok)) {
+      if (r.output) process.stderr.write(`${r.output}\n`)
+    }
+    return 1
   } catch (error) {
     process.stderr.write(`post-tool-use-fix: не вдалося запустити детект конформності — ${error.message}\n`)
     return 1

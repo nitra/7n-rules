@@ -1,8 +1,8 @@
 /** @see ./docs/t0.md */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { spawnSync } from 'node:child_process'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
+
+import { runFixCheck } from './run-fix-check.mjs'
 
 const REC_REQUIRE_RE = /recommendations має містити "[^"]+"/
 const REC_MATCH_ALL_RE = /recommendations має містити "([^"]+)"/g
@@ -109,27 +109,6 @@ export function filterT0AutoRules(failedRules) {
 
 // ─── CLI entry-point ──────────────────────────────────────────────────────────
 
-const HERE = dirname(fileURLToPath(import.meta.url))
-/** Абсолютний шлях до npm/bin/n-cursor.js відносно цього файлу */
-const N_CURSOR_BIN = join(HERE, '../../../bin/n-cursor.js')
-
-/**
- * Запускає `_fix-check` і парсить JSON-результат.
- * @param {string[]} ruleFilter список rule-ids (порожній — усі)
- * @param {string}   cwd  корінь проєкту
- * @returns {{ rules: Array<{ ruleId: string, ok: boolean, output: string }> } | { _empty: true } | { _badJson: true }} JSON або маркер помилки
- */
-function fixCheck(ruleFilter, cwd) {
-  const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...ruleFilter], { cwd, encoding: 'utf8', timeout: 120_000 })
-  const raw = r.stdout?.trim()
-  if (!raw) return { _empty: true, stderr: r.stderr }
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return { _badJson: true }
-  }
-}
-
 /**
  * Застосовує T0-auto до кожного провального правила, розділяючи на applied/skipped.
  * @param {Array<{ ruleId: string, output: string }>} failed провальні правила
@@ -154,26 +133,16 @@ function applyT0ToFailed(failed, cwd) {
  * CLI підкоманда `n-cursor fix-t0 [rule...]`.
  * Запускає `fix --json`, застосовує T0-auto для кожного violation,
  * повторно перевіряє check-gate, виводить підсумок.
- * @param {string[]} args аргументи підкоманди (опційний список rule-ids)
+ * @param {string[]} args аргументи (опційний список rule-ids)
  * @param {string}   cwd  корінь проєкту
  * @returns {Promise<number>} 0 — T0-auto закрив всі або немає порушень; 1 — лишились
  */
-export function runT0AutoCli(args, cwd) {
+export async function runT0AutoCli(args, cwd) {
   const ruleFilter = args.filter(a => !a.startsWith('--'))
   const verbose = args.includes('--verbose') || args.includes('-v')
 
-  // 1. Запустити fix --json
-  const fixJson = fixCheck(ruleFilter, cwd)
-  if (fixJson._empty) {
-    console.error(`n-cursor fix-t0: fix --json повернув порожній stdout`)
-    console.error(fixJson.stderr?.slice(0, 300) ?? '')
-    return 1
-  }
-  if (fixJson._badJson) {
-    console.error(`n-cursor fix-t0: fix --json повернув невалідний JSON`)
-    return 1
-  }
-
+  // 1. Конформність-детект (пряма функція, без subprocess)
+  const fixJson = await runFixCheck(ruleFilter, cwd)
   const failed = fixJson.rules.filter(r => !r.ok)
   if (failed.length === 0) {
     console.log(`✅ fix-t0: всі правила чисті — T0 не потрібен`)
@@ -195,11 +164,7 @@ export function runT0AutoCli(args, cwd) {
   }
 
   // 4. Check-gate: перевірити лише ті правила, що ми чіпали
-  const recheckJson = fixCheck(applied.map(a => a.ruleId), cwd)
-  if (recheckJson._empty) {
-    console.error(`fix-t0: check-gate: fix --json повернув порожній stdout`)
-    return 1
-  }
+  const recheckJson = await runFixCheck(applied.map(a => a.ruleId), cwd)
   const stillFailed = recheckJson.rules.filter(r => !r.ok)
 
   if (verbose) {

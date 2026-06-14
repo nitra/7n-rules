@@ -97,8 +97,7 @@ import { readSkillMetaRaw } from '../scripts/lib/skill-meta.mjs'
 import { injectWorktreeNotice } from '../scripts/lib/worktree-notice.mjs'
 import { injectRootNotice } from '../scripts/lib/root-notice.mjs'
 import { runPostToolUseFixCli } from '../scripts/post-tool-use-fix.mjs'
-import { discoverCheckRulesFromCursorRules } from '../scripts/lib/discover-check-rules-from-cursor.mjs'
-import { listRuleIds } from '../scripts/lib/list-rule-ids.mjs'
+import { listProjectRulesMdcFiles } from '../scripts/lib/list-project-rules-mdc.mjs'
 import { ensureNitraCursorInRootDevDependencies } from '../scripts/ensure-nitra-cursor-dev-dependencies.mjs'
 import { assertCwdIsProjectRoot } from '../scripts/lib/assert-project-root.mjs'
 import { runLintDocker } from '../rules/docker/lint/lint.mjs'
@@ -114,8 +113,6 @@ import { runSkillsCli } from '../scripts/skills-cli.mjs'
 import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 import { runLint } from '../rules/lint/js/orchestrate.mjs'
-import { formatTimingSummary } from '../scripts/lib/timing-summary.mjs'
-import { ensureHkInstall, ensureTool } from '../scripts/lib/ensure-tool.mjs'
 
 const PACKAGE_NAME = '@nitra/cursor'
 const CONFIG_FILE = '.n-cursor.json'
@@ -523,19 +520,6 @@ function formatPiSkillFrontmatter(skillName, descriptionRaw) {
     text = 'Див. SKILL.md у каталозі скілу в .cursor/skills.'
   }
   return `---\nname: ${skillName}\ndescription: >-\n  ${text}\n---\n\n`
-}
-
-/**
- * Повертає відсортовані імена *.mdc у .cursor/rules поточного проєкту
- * @returns {Promise<string[]>} базові імена файлів (лише .mdc)
- */
-async function listProjectRulesMdcFiles() {
-  const rulesDir = join(cwd(), RULES_DIR)
-  if (!existsSync(rulesDir)) {
-    return []
-  }
-  const names = await readdir(rulesDir)
-  return names.filter(n => n.endsWith('.mdc')).toSorted((a, b) => a.localeCompare(b))
 }
 
 /**
@@ -1243,120 +1227,6 @@ function logRemovedManagedItems(title, basePath, names) {
 }
 
 /**
- * Визначає список правил для fix: явно задані (з валідацією проти available) або
- * discovery з `.cursor/rules/*.mdc`. Друкує діагностику й кидає на невідомих правилах.
- * @param {string[]} requestedRules запитані правила (порожній → discovery)
- * @param {string[]} available доступні в пакеті rule-id
- * @param {boolean} json json-режим (впливає на early-return вивід при порожньому discovery)
- * @returns {Promise<string[]|null>} список id або null — нічого запускати (вивід уже зроблено)
- */
-async function resolveFixRuleIds(requestedRules, available, json) {
-  if (requestedRules.length > 0) {
-    const unknown = requestedRules.filter(id => !available.includes(id))
-    if (unknown.length > 0) {
-      console.error(`❌ Невідомі правила: ${unknown.join(', ')}`)
-      console.log(`   Доступні: ${available.join(', ')}`)
-      throw new Error(`Unknown rules: ${unknown.join(', ')}`)
-    }
-    return requestedRules
-  }
-
-  const mdcFiles = await listProjectRulesMdcFiles()
-  if (mdcFiles.length === 0) {
-    throw new Error(
-      `Немає файлів *.mdc у ${RULES_DIR}/. Запустіть \`npx ${PACKAGE_NAME}\` або вкажіть правила: \`npx ${PACKAGE_NAME} fix bun ga\``
-    )
-  }
-  const idsToRun = discoverCheckRulesFromCursorRules(available, mdcFiles)
-  if (idsToRun.length === 0) {
-    if (json) {
-      process.stdout.write(`${JSON.stringify({ total: 0, failed: 0, rules: [] })}\n`)
-      return null
-    }
-    console.log(
-      `\n🔍 ${PACKAGE_NAME} fix — у ${RULES_DIR}/ немає правил з programmatic перевіркою ` +
-        `(відповідного fix.mjs у пакеті). Нічого не запущено.\n`
-    )
-    return null
-  }
-  return idsToRun
-}
-
-/**
- * Прогоняє `fix.mjs` кожного правила окремим процесом; збирає timings і (для json) per-rule output.
- * @param {string[]} idsToRun правила до запуску
- * @param {boolean} json json-режим — захоплює stdout/stderr у структуру замість inherit у термінал
- * @returns {{ totalFailed: number, timings: {id:string, ms:number, ok:boolean}[], ruleResults: {ruleId:string, ok:boolean, output:string}[] }} підсумок прогону
- */
-function runRuleFixProcesses(idsToRun, json) {
-  let totalFailed = 0
-  const timings = []
-  const ruleResults = []
-  for (const id of idsToRun) {
-    const fixPath = join(BUNDLED_RULES_DIR, id, 'fix.mjs')
-    const startedAt = Date.now()
-    const result = json
-      ? spawnSync('bun', [fixPath], { encoding: 'utf8' })
-      : spawnSync('bun', [fixPath], { stdio: 'inherit' })
-    const ok = result.status === 0
-    timings.push({ id: `fix-${id}`, ms: Date.now() - startedAt, ok })
-    if (json) {
-      ruleResults.push({ ruleId: id, ok, output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim() })
-    }
-    if (!ok) totalFailed++
-  }
-  return { totalFailed, timings, ruleResults }
-}
-
-/**
- * Spawn-wrapper для `npx \@nitra/cursor fix [<rule>...]`. Один шлях у коді: для кожного правила
- * робить `bun rules/<id>/fix.mjs` як окремий процес. Сам `fix.mjs` читає `.n-cursor.json`,
- * перевіряє whitelist (`runRuleCli`) і друкує per-rule summary.
- *
- * Без аргументів — discover з `.cursor/rules/*.mdc` у проекті-споживачі.
- *
- * Серіалізація паралельних запусків — per-rule, всередині `runStandardRule` (`withLock('fix-<id>')`).
- * На рівні `runFixCommand` локу нема: різні набори правил можуть прогресувати незалежно,
- * а однакові правила серіалізуються в spawn'ах нижче.
- * @param {string[]} requestedRules імена правил; порожній масив — discovery з `.cursor/rules/`
- * @param {{json?: boolean}} [opts] json — друкувати компактний JSON `{total, failed, rules:[{ruleId, ok, output}]}`
- *   замість per-rule stdio + timing (для скілу n-fix: агент читає лише впалі правила, не парсить текст)
- * @returns {Promise<void>}
- */
-async function runFixCommand(requestedRules, opts = {}) {
-  const json = opts.json === true
-  // json-режим — діагностичний read-only вивід для скілу: пропускаємо встановлення
-  // git-hook (`ensureHkInstall` друкує «Installed hk hook…» у stdout і забруднив би
-  // чистий JSON; сам pre-commit hook для діагностики не потрібен).
-  const hkBin = ensureTool('hk')
-  if (!json) ensureHkInstall(hkBin)
-  ensureTool('conftest')
-
-  const available = await listRuleIds(BUNDLED_RULES_DIR)
-  if (available.length === 0) {
-    console.error('❌ Не знайдено жодного правила у пакеті')
-    throw new Error('No rules found')
-  }
-
-  // json-режим: захоплюємо stdout/stderr правила у структуру (а не inherit у термінал),
-  // щоб віддати агенту згруповано {ruleId, ok, output} і він читав лише впалі.
-  const idsToRun = await resolveFixRuleIds(requestedRules, available, json)
-  if (idsToRun === null) return
-
-  const { totalFailed, timings, ruleResults } = runRuleFixProcesses(idsToRun, json)
-
-  if (json) {
-    process.stdout.write(`${JSON.stringify({ total: idsToRun.length, failed: totalFailed, rules: ruleResults })}\n`)
-  } else {
-    process.stdout.write(formatTimingSummary('Fix timing', timings))
-  }
-
-  if (totalFailed > 0) {
-    throw new Error(`${totalFailed} з ${idsToRun.length} правил мають проблеми`)
-  }
-}
-
-/**
  * Читає поле `version` з `package.json` пакету за абсолютним шляхом до його кореня.
  * @param {string} packageRoot корінь пакету (тека з `package.json`)
  * @returns {Promise<string | null>} semver рядком або null, якщо файлу/поля немає або JSON некоректний
@@ -1643,13 +1513,6 @@ try {
   }
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
-    case '_fix-check': {
-      // Внутрішня команда движка конформності (не публічний API): per-rule fix.mjs run() = детект.
-      // Повертає JSON {total, failed, rules:[{ruleId, ok, output}]} у stdout. Викликається
-      // конформність-фазою `lint` (read-only) і движком orchestrator/t0.
-      await runFixCommand(args, { json: true })
-      break
-    }
     case 'rename-yaml-extensions': {
       const code = await runRenameYamlExtensionsCli(args)
       if (code !== 0) {
@@ -1750,16 +1613,6 @@ try {
       // один із grace-таймаутом і класифікує OK/FAIL. Агент лишається з діагностикою.
       const { runStartCheckCli } = await import('../skills/start-check/js/check.mjs')
       process.exitCode = await runStartCheckCli(args)
-
-      break
-    }
-    case 'fix-t0': {
-      // Внутрішня фаза движка конформності (не публічний API): T0-auto рівень.
-      // Запускає _fix-check, знаходить violation-output із детермінованим паттерном
-      // (vscode-ext-add, rm-forbidden-file тощо), застосовує програмний фікс (0 LLM),
-      // перевіряє check-gate. Викликається orchestrator.mjs (fix-режим конформності lint).
-      const { runT0AutoCli } = await import('../scripts/lib/fix/t0.mjs')
-      process.exitCode = await runT0AutoCli(args, cwd())
 
       break
     }
