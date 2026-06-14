@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.1.1] - 2026-06-14
+
+### Changed
+
+- 📝 docs(lint): перенести doc оркестратора lint-cli.md → rules/lint/js/docs/orchestrate.md
+
 ## [9.1.0] - 2026-06-14
 
 ### Changed
