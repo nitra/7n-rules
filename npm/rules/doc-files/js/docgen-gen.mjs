@@ -363,6 +363,18 @@ function orchestratedDoc(facts, src, model, timeoutMs, { anchors = null, tempera
 
 /** Максимальний час генерації одного LLM-виклику. */
 const LOCAL_TIMEOUT_MS = 5 * 60 * 1000
+
+/** Контекстне вікно локальної моделі в токенах (оцінка; override — N_CURSOR_DOCGEN_CTX). */
+const DEFAULT_CONTEXT_TOKENS = 131072
+
+/**
+ * Бюджет токенів на джерело: половина контекстного вікна (решта — факти/стиль/вихід).
+ * Перевищення → pre-send guard відсікає файл без жодного LLM-виклику.
+ * @returns {number} бюджет у токенах
+ */
+function srcTokenBudget() {
+  return Math.floor((Number(env.N_CURSOR_DOCGEN_CTX) || DEFAULT_CONTEXT_TOKENS) * 0.5)
+}
 /**
  * Дефолтна модель: N_CURSOR_DOCGEN_MODEL → resolveModel('min') (→ N_LOCAL_MIN_MODEL).
  * Без хардкод-fallback: модель налаштовує кожен локально (`N_LOCAL_MIN_MODEL`); якщо
@@ -384,6 +396,14 @@ export const DEFAULT_LOCAL_MODEL = env.N_CURSOR_DOCGEN_MODEL ?? resolveModel('mi
  */
 export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUALITY_THRESHOLD, existingMd = null } = {}) {
   const src = readFileSync(file, 'utf8')
+  // Pre-send guard: весь src вшивається у промпт як є (екстракт фактів його НЕ
+  // замінює). Для гігантів (vendored/генерат) це переповнює контекст → інстант-skip
+  // без LLM-виклику. Маркер «Prompt too long» → classifyOmlxError → permanent → skip.
+  const estTokens = Math.round(Buffer.byteLength(src, 'utf8') / 4)
+  const budget = srcTokenBudget()
+  if (estTokens > budget) {
+    throw new Error(`docgen pre-send guard: джерело ~${estTokens} токенів > бюджет ${budget} (0.5× контексту) — Prompt too long, skip`)
+  }
   const facts = extractFacts(src, file)
   const t0 = Date.now()
   llmMeter = { calls: 0, ms: 0 }

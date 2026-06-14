@@ -29,3 +29,20 @@ Chosen option: "Злити в один канонічний `n-coverage-fix`", b
 * Відмінності, що підлягають перенесенню з `n-fix-tests` до `n-coverage-fix`: детекція команд через `package.json#scripts` (fallback для `test`/`coverage`)
 * Додати до `n-coverage-fix`: ранній skip генерації, якщо `COVERAGE.md` уже свіжий (покриває обидва entry-point: «згенеруй і фіксь» та «фіксь по готовому звіту»)
 * Фінальний стан `n-fix-tests`: або видалити, або лишити як shim з одним рядком-посиланням на `n-coverage-fix`
+
+## Update 2026-06-04
+
+### Додаткові розглянуті варіанти
+
+- Залишити обидва скіли, усунути дублювання через спільний include/фрагмент — відхилено: не усуває дрейф між двома `SKILL.md`.
+- Зробити `n-fix-tests` тонким shim-аліасом без повного видалення — відхилено: ще одна точка підтримки.
+
+### Деталі реалізації
+
+- Джерело правди — `npm/skills/coverage-fix/SKILL.md`; похідні копії (`.cursor/skills/n-coverage-fix/`, `.pi/skills/n-coverage-fix/`) генеруються синком — оновлювалися вручну, бо дефолтний синк тягне опубліковану версію пакета.
+- Видалено через `git rm`: `npm/skills/fix-tests/`, `.cursor/skills/n-fix-tests/`, `.pi/skills/n-fix-tests/`, `.claude/commands/n-fix-tests.md`.
+- `"fix-tests"` прибрано з масиву `skills` у `.n-cursor.json`; рядки `n-fix-tests` прибрано з `AGENTS.md` і `CLAUDE.md`.
+- JSDoc у `npm/rules/test/coverage/coverage.mjs` і назва тесту в `coverage.test.mjs`: `/n-fix-tests` → `/n-coverage-fix`.
+- Change-файл: `npm/.changes/260604-1957.md` (`bump: minor`, `section: Removed`).
+- Документація скіла: `docs/coverage-fix-skill.md`.
+- 86 тестів `coverage.test.mjs` і 27 тестів `skills-cli`/`auto-skills` — зелені після змін.

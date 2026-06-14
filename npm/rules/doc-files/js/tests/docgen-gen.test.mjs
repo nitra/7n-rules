@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi, afterEach } from 'vitest'
 
-import { scoreDoc } from '../docgen-gen.mjs'
+vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
+
+import { readFileSync } from 'node:fs'
+import { scoreDoc, generateDoc } from '../docgen-gen.mjs'
 
 const FACTS = { markers: { caches: false }, internalSymbols: [], localSymbols: [] }
 
@@ -81,5 +84,18 @@ describe('scoreDoc — R7 суржик', () => {
 describe('scoreDoc — еталон', () => {
   test('чистий документ → 100, без issues', () => {
     expect(scoreDoc(CLEAN, FACTS)).toEqual({ score: 100, issues: [] })
+  })
+})
+
+describe('generateDoc — pre-send byte-guard', () => {
+  afterEach(() => {
+    delete process.env.N_CURSOR_DOCGEN_CTX
+    vi.restoreAllMocks()
+  })
+
+  test('джерело понад бюджет → throw Prompt too long (skip, без LLM)', () => {
+    process.env.N_CURSOR_DOCGEN_CTX = '100' // бюджет = 50 токенів ≈ 200 байтів
+    readFileSync.mockReturnValue('x'.repeat(2000)) // ~500 токенів > 50
+    expect(() => generateDoc('/big.js')).toThrow(/Prompt too long/)
   })
 })

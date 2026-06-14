@@ -35,3 +35,13 @@ Chosen option: "Показувати нагадування на екрані + 
 - Оновлено `.cursor/rules/n-worktree.mdc` — додано рядок про поведінку нагадування.
 - Change-файл: `.changes/260604-1950.md` (bump `minor`, секція `Added`).
 - Продакшн-репо захищений `.gitignore` (рядки 10–11 виключають `.worktrees/`); тестовий fresh temp-dir цього запису не має — звідси й регресія.
+
+## Update 2026-06-04
+
+### Деталі реалізації
+
+- `npm/scripts/lib/worktree.mjs` — `buildDirtyNotice(porcelain, limit = 10)`: чиста функція; ≤10 файлів → перелік, >10 → лише кількість; чисте дерево → `null`.
+- `npm/scripts/worktree-cli.mjs` — `cmdAdd` знімає `git status --porcelain` **до** виклику `git worktree add`: щойно створений checkout `.worktrees/<name>` не потрапляє у власний статус (без цього тест «чисте дерево → без нагадування» падав в ізольованому репо без `.gitignore`).
+- Change-файл: `.changes/260604-1950.md` (`bump: minor`, секція `Added`).
+- `.cursor/rules/n-worktree.mdc` — документує нову поведінку команди `add`.
+- Покриття: 29 тестів (unit + інтеграційні), кейси: «брудне дерево → нагадує», «чисте дерево → мовчить».

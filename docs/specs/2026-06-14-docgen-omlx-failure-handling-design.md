@@ -37,7 +37,15 @@
 
 **In:** класифікатор; ETIMEDOUT+backoff у `callOmlxRaw`; circuit breaker у батчі; permanent→skip; stdout-діагностика розмірів; scan поважає `.gitignore`; прибрати хардкод `DEFAULT_OMLX_MODEL` (fail-loud); тести.
 
-**Out:** size-guard як гейт (не потрібен — лише діагностика); preflight unload/load (одна модель); кастомні minified/vendored глоби (тільки `.gitignore`); пороги в env (усе хардкод).
+**Out:** preflight unload/load (одна модель); кастомні minified/vendored глоби (тільки `.gitignore`); пороги circuit-breaker/retry в env (хардкод).
+
+**Відкладено — AST chunk+merge для великих файлів:** розкласти великий файл AST-ом
+на одиниці прийнятного розміру → LLM на кожну → злити скриптом. Свідомо **не будуємо**:
+скан корпусу azov показав, що єдині файли, які переповнюють контекст — це vendored
+Emscripten-блоби (`euscp*.js`), де chunk+merge дає **нуль корисного** (документування
+рантайму `_malloc`/`___cxa_throw`). Рукописних великих файлів, яким бракує контексту,
+у корпусі **немає** (найбільший — 46 KB Vue, влазить уп'ятеро). Тригер на побудову:
+поява реального великого *рукописного* файлу. Доти byte-guard (skip) достатній.
 
 ## Рішення 1: класифікатор помилок (D6 → `llm.mjs`)
 
@@ -57,9 +65,16 @@
 
 Лічильник **підряд**-systemic у циклі. `streak ≥ 3` → **негайний abort** батчу (без cooldown/recheck — рухаємось далі швидше) з actionable-меседжем («omlx memory-guard посеред прогону; звільни RAM і повтори — зроблено N/total») і **окремим exit-кодом 2** (відрізнити «середовище впало» від «N файлів з помилками»). Будь-який не-systemic результат → `streak = 0`. Resume через CRC (невдалі не пишуться → лишаються stale).
 
-## Рішення 4: permanent → skip + stdout-діагностика + `.gitignore` + канон-id
+## Рішення 4: permanent → skip + pre-send byte-guard + `.gitignore` + канон-id
 
-- **Без size-guard-гейта** (D3): великий файл просто впаде на `permanent` і піде у skip. Натомість — **stdout-діагностика розміру** (байти + груба оцінка токенів) у прогрес-рядку кожного файлу, для дослідження, що саме роздуває контекст.
+- **Pre-send byte-guard** (D3, переглянуто після аналізу `euscp.js`): екстракт фактів —
+  regex, не AST, і **не замінює** код: у промпт усе одно вшивається весь `${src}`
+  (`docgen-prompts.mjs:95,218`). Тому в `generateDoc` перед будь-яким LLM-викликом —
+  оцінка `Buffer.byteLength(src)/4` токенів; якщо `> 0.5× контексту`
+  (`N_CURSOR_DOCGEN_CTX`, дефолт 131072 → бюджет 65536) — **throw з маркером
+  «Prompt too long»** → `classifyOmlxError` → `permanent` → інстант-skip без
+  14.5 MB-POST. Перевірено на `euscp.js`: 0.07с, ~3.6M tok > 65536 → skip.
+- **stdout-діагностика розміру** (байти + ~токени) у прогрес-рядку кожного файлу — для дослідження.
 - **Окремий `skipped[]`** (не `errors[]`): permanent-skip не впливає на exit «1 = були помилки».
 - **Scan поважає `.gitignore`** (D4): у `scanForDocFiles` — батч-фільтр `git check-ignore --stdin` поверх наявних `DOCGEN_IGNORE_GLOBS` (graceful, якщо не git-репо). Кастомних minified/vendored глобів не додаємо. `euscp.js` не в `.gitignore` → лишається кандидатом, впаде на permanent + діагностику (свідомо).
 - **Канон-id**: оркестратор шле resolved `DEFAULT_LOCAL_MODEL`, не голий `omlx/`, щоб trace при fallback фіксував реальну модель.
@@ -91,7 +106,7 @@
 
 - **D1** K=3 підряд-systemic → негайний abort (без cooldown), exit 2.
 - **D2** ретрай у `callOmlxRaw`, хардкод backoff 2s→8s, +ETIMEDOUT.
-- **D3** size-guard не робимо; лише stdout-діагностика розміру.
+- **D3** pre-send byte-guard (`> 0.5× контексту` → permanent-skip) + stdout-діагностика розміру; AST chunk+merge відкладено (нема рукописних великих файлів).
 - **D4** scan поважає `.gitignore` (git check-ignore), без кастомних глобів.
 - **D5** прибрати хардкод `DEFAULT_OMLX_MODEL`, fail-loud.
 - **D6** класифікатор у `llm.mjs`; пороги хардкод (не env).
