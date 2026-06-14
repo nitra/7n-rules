@@ -1711,8 +1711,9 @@ try {
       break
     }
     case 'lint-text': {
-      // Канонічний lint-text: cspell → run-shellcheck → markdownlint-cli2 --fix → run-v8r (text.mdc).
-      process.exitCode = await runLintTextCli()
+      // Канонічний lint-text: cspell → shellcheck → dotenv → markdownlint → v8r (text.mdc).
+      // `--read-only` (CI): без авто-фіксу (markdownlint/shellcheck/dotenv) — нуль мутацій.
+      process.exitCode = await runLintTextCli({ readOnly: args.includes('--read-only') })
 
       break
     }
