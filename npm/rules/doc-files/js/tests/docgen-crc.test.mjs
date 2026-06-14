@@ -9,6 +9,7 @@ import {
   crc32,
   parseDocFrontmatter,
   readDocCrc,
+  readDocModel,
   readDocQuality,
   staleness,
   stampDoc
@@ -37,8 +38,26 @@ describe('frontmatter', () => {
   test('buildDocFrontmatter → парситься назад (без quality — score:null)', () => {
     const fm = buildDocFrontmatter('src/lib/foo.js', 'a3f1c9e0')
     const { data, body } = parseDocFrontmatter(`${fm}\n## Огляд\n`)
-    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0', score: null, issues: [] })
+    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0', model: null, score: null, issues: [] })
     expect(body.trim()).toBe('## Огляд')
+  })
+
+  test('model: повний id пишеться після crc і парситься назад', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', null, 'omlx/gemma-4-e4b-it-OptiQ-4bit')
+    expect(fm).toMatch(/crc: a3f1c9e0\n {2}model: omlx\/gemma-4-e4b-it-OptiQ-4bit/u)
+    expect(parseDocFrontmatter(fm).data.model).toBe('omlx/gemma-4-e4b-it-OptiQ-4bit')
+  })
+
+  test('model: відсутній аргумент → поля model немає, парситься як null', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0')
+    expect(fm).not.toContain('model:')
+    expect(parseDocFrontmatter(fm).data.model).toBeNull()
+  })
+
+  test('model співіснує з quality: обидва пишуться і парсяться', () => {
+    const fm = buildDocFrontmatter('src/foo.js', 'a3f1c9e0', { score: 55, issues: ['short-behavior'] }, 'omlx/m')
+    const { data } = parseDocFrontmatter(fm)
+    expect(data).toMatchObject({ model: 'omlx/m', score: 55, issues: ['short-behavior'] })
   })
 
   test('quality: score+issues пишуться і парсяться назад', () => {
@@ -85,6 +104,27 @@ describe('frontmatter', () => {
     expect(parseDocFrontmatter(degraded).data).toMatchObject({ score: 40, issues: ['no-overview'] })
     const fresh = stampDoc(degraded, 'src/foo.js', 'feedface')
     expect(parseDocFrontmatter(fresh).data.score).toBeNull()
+  })
+
+  test('stampDoc проносить model у свіжий frontmatter', () => {
+    const re = stampDoc('## Огляд\n', 'src/foo.js', 'deadbeef', null, 'omlx/m')
+    expect(parseDocFrontmatter(re).data.model).toBe('omlx/m')
+  })
+})
+
+describe('readDocModel', () => {
+  test('читає model; null для відсутньої доки чи доки без поля', async () => {
+    await withTmpDir(async root => {
+      expect(readDocModel(join(root, 'absent.md'))).toBeNull()
+
+      const plain = join(root, 'plain.md')
+      await writeFile(plain, stampDoc('## Огляд\n', 'src/a.js', 'deadbeef'))
+      expect(readDocModel(plain)).toBeNull()
+
+      const withModel = join(root, 'with-model.md')
+      await writeFile(withModel, stampDoc('## Огляд\n', 'src/b.js', 'deadbeef', null, 'omlx/gemma'))
+      expect(readDocModel(withModel)).toBe('omlx/gemma')
+    })
   })
 })
 

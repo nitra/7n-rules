@@ -58,4 +58,4 @@ jobs:
           | sh -s -- -b /usr/local/bin
 
       - name: Lint text
-        run: n-cursor lint-text --read-only
+        run: bun run lint-text

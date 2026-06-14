@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path'
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { omlxHealthCheck, pickBackend } from '../../../lib/llm.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
-import { crc32, stampDoc, readDocQuality, QUALITY_THRESHOLD } from './docgen-crc.mjs'
+import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
 
 /**
@@ -123,7 +123,7 @@ async function generateOne(file, root, progress, stats) {
     mkdirSync(dirname(docAbs), { recursive: true })
     const quality =
       result.score === null ? null : { score: result.score, issues: result.degraded ? result.issues : [] }
-    writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality))
+    writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality, result.model))
     stats.ok++
     if (result.degraded) {
       stats.degraded++
@@ -197,7 +197,7 @@ export async function runDocFilesGenCli(argv) {
 /**
  * `doc-files stamp` — детерміновано (пере)штампувати frontmatter `source`+`crc`
  * у НАЯВНИХ доках без виклику LLM. Для міграції док, які ще не мають CRC.
- * Поля якості (`score`/`issues`) при цьому зберігаються з наявного frontmatter.
+ * Поля `model` та якості (`score`/`issues`) при цьому зберігаються з наявного frontmatter.
  * @param {string[]} argv аргументи після назви субкоманди
  * @returns {number} exit-код: 0 — успіх
  */
@@ -211,7 +211,8 @@ export function runDocFilesStampCli(argv) {
     const crc = crc32(readFileSync(sourceAbs))
     const md = readFileSync(docAbs, 'utf8')
     const { score, issues } = readDocQuality(docAbs)
-    writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }))
+    const model = readDocModel(docAbs)
+    writeFileSync(docAbs, stampDoc(md, file.sourcePath, crc, score === null ? null : { score, issues }, model))
     stamped++
   }
   console.log(`✓ fix-doc-files --stamp: оновлено frontmatter у ${stamped} доці(ах).`)

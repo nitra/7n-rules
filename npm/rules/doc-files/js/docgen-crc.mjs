@@ -20,9 +20,14 @@
  *   docgen:
  *     source: src/lib/foo.js
  *     crc: a3f1c9e0
+ *     model: omlx/gemma-4-e4b-it-OptiQ-4bit
  *     score: 55
  *     issues: short-behavior,internal-name:bar
  *   ---
+ *
+ * `model` — повний id моделі-генератора (як повертає resolveModel, із префіксом
+ * провайдера). Пасивна метадата: маркер «віку» доки за моделлю на додачу до CRC
+ * джерела. На staleness НЕ впливає — звіряється лише `crc`.
  */
 import { existsSync, readFileSync } from 'node:fs'
 import { crc32 as zlibCrc32 } from 'node:zlib'
@@ -46,6 +51,7 @@ export function crc32(input) {
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
 const SOURCE_RE = /^[ \t]{0,8}source:[ \t]{0,8}(.+)$/mu
 const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
+const MODEL_RE = /^[ \t]{0,8}model:[ \t]{0,8}(.+)$/mu
 const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu
 const ISSUES_RE = /^[ \t]{0,8}issues:[ \t]{0,8}(.+)$/mu
 const LEADING_NEWLINES_RE = /^\n+/u
@@ -53,10 +59,10 @@ const ISSUE_CODE_TAIL_RE = /[,:]$/u
 
 /**
  * Парсить frontmatter файлової доки. Без блоку — `data:null` і `body` дорівнює входу.
- * Поля `score`/`issues` опційні (back-compat зі старими доками): без них —
- * `score:null`, `issues:[]`.
+ * Поля `model`/`score`/`issues` опційні (back-compat зі старими доками): без них —
+ * `model:null`, `score:null`, `issues:[]`.
  * @param {string} md вміст md-файлу
- * @returns {{ data: { source: string|null, crc: string|null, score: number|null, issues: string[] }|null, body: string }} метадані + тіло без frontmatter
+ * @returns {{ data: { source: string|null, crc: string|null, model: string|null, score: number|null, issues: string[] }|null, body: string }} метадані + тіло без frontmatter
  */
 export function parseDocFrontmatter(md) {
   const match = md.match(FRONTMATTER_RE)
@@ -68,6 +74,7 @@ export function parseDocFrontmatter(md) {
     data: {
       source: block.match(SOURCE_RE)?.[1].trim() ?? null,
       crc: block.match(CRC_RE)?.[1].trim() ?? null,
+      model: block.match(MODEL_RE)?.[1].trim() ?? null,
       score: scoreRaw === undefined ? null : Number(scoreRaw),
       issues: issuesRaw
         ? issuesRaw
@@ -97,14 +104,16 @@ function issueCodes(issues) {
 }
 
 /**
- * Будує frontmatter-блок із шляхом джерела, CRC і (опційно) якістю.
+ * Будує frontmatter-блок із шляхом джерела, CRC, (опційно) моделлю-генератором і якістю.
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
  * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки; null — без полів якості
- * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …[\n  score: …][\n  issues: …]\n---\n`
+ * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
+ * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …[\n  model: …][\n  score: …][\n  issues: …]\n---\n`
  */
-export function buildDocFrontmatter(source, crc, quality = null) {
+export function buildDocFrontmatter(source, crc, quality = null, model = null) {
   const lines = [`source: ${source}`, `crc: ${crc}`]
+  if (model) lines.push(`model: ${model}`)
   if (quality && typeof quality.score === 'number') {
     lines.push(`score: ${quality.score}`)
     const codes = issueCodes(quality.issues ?? [])
@@ -120,11 +129,12 @@ export function buildDocFrontmatter(source, crc, quality = null) {
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
  * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки
+ * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
  * @returns {string} md зі свіжим frontmatter
  */
-export function stampDoc(md, source, crc, quality = null) {
+export function stampDoc(md, source, crc, quality = null, model = null) {
   const { body } = parseDocFrontmatter(md)
-  return `${buildDocFrontmatter(source, crc, quality)}\n${body.replace(LEADING_NEWLINES_RE, '')}`
+  return `${buildDocFrontmatter(source, crc, quality, model)}\n${body.replace(LEADING_NEWLINES_RE, '')}`
 }
 
 /**
@@ -146,6 +156,17 @@ export function readDocQuality(docAbsPath) {
   if (!existsSync(docAbsPath)) return { score: null, issues: [] }
   const data = parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data
   return { score: data?.score ?? null, issues: data?.issues ?? [] }
+}
+
+/**
+ * Модель-генератор, збережена у frontmatter доки; `null` — доки немає або поле відсутнє
+ * (старі доки до введення `model`).
+ * @param {string} docAbsPath абсолютний шлях md-доки
+ * @returns {string|null} повний id моделі або null
+ */
+export function readDocModel(docAbsPath) {
+  if (!existsSync(docAbsPath)) return null
+  return parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data?.model ?? null
 }
 
 /**
