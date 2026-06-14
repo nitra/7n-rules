@@ -4,8 +4,11 @@
  * (`orchestrator.mjs`, `t0.mjs`) і PostToolUse-хук.
  *
  * Per-rule ізоляція зберігається: кожне `rules/<id>/fix.mjs` усе ще запускається окремим
- * процесом `bun` (config-loading + whitelist + crash-isolation). Прибрано лише зовнішній
- * wrapper-subprocess, що його раніше шелили оркестратор/хук.
+ * процесом `bun` (crash-isolation). Прибрано лише зовнішній wrapper-subprocess, що його
+ * раніше шелили оркестратор/хук.
+ *
+ * Селекція активних правил — виключно тут (`resolveCheckRuleIds` за `.n-cursor.json`);
+ * per-rule whitelist у спавнених процесах прибрано як дубль (див. `runRuleCli`).
  */
 import { spawnSync } from 'node:child_process'
 import { dirname, join } from 'node:path'
@@ -16,24 +19,42 @@ import { listRuleIds } from '../list-rule-ids.mjs'
 import { ensureTool } from '../ensure-tool.mjs'
 import { discoverCheckRulesFromCursorRules } from '../discover-check-rules-from-cursor.mjs'
 import { listProjectRulesMdcFiles } from '../list-project-rules-mdc.mjs'
+import { isRuleEnabled, readNCursorConfigLite } from '../read-n-cursor-config-lite.mjs'
 
 // Цей файл: npm/scripts/lib/fix/run-fix-check.mjs → npm/rules (чотири dirname угору + rules).
 const BUNDLED_RULES_DIR = join(dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url))))), 'rules')
 
 /**
- * Визначає id правил для прогону: явні (з валідацією) або discovery з `.cursor/rules/*.mdc`.
- * @param {string[]} requestedRules запитані (порожній → discovery)
- * @param {string[]} available доступні rule-id у пакеті
+ * Визначає id правил для прогону. `.n-cursor.json` — **єдине джерело правди** селекції:
+ *  - явні `requestedRules` — валідуються проти `available`, тоді звужуються до активних
+ *    (явний запит лише фільтрує всередині активних, не вмикає вимкнене правило);
+ *  - без явних і конфіг **є** — беремо саме активні правила конфіга (`available ∩ enabled`).
+ *    Це прибирає дрейф «правило в `.n-cursor.json:rules`, але `.cursor/rules/*.mdc` нема
+ *    (sync не прогнаний) → раніше тихо пропускалось»;
+ *  - без явних і конфіга **нема** — open-by-default debug: fallback на зматеріалізовані
+ *    `.cursor/rules/*.mdc` (єдиний сигнал «що встановлено», коли немає whitelist).
+ *
+ * Per-rule дубль-гейту (`runRuleCli → isRuleEnabled`) більше немає — гейтинг живе лише тут.
+ * @param {string[]} requestedRules запитані (порожній → auto-селекція)
+ * @param {string[]} available доступні rule-id у пакеті (алфавітно)
  * @param {string} cwd корінь
  * @returns {Promise<string[]>} id для прогону (можливо порожній)
  * @throws {Error} на невідомих явно заданих правилах
  */
-async function resolveCheckRuleIds(requestedRules, available, cwd) {
+export async function resolveCheckRuleIds(requestedRules, available, cwd) {
+  const config = await readNCursorConfigLite(cwd)
+
   if (requestedRules.length > 0) {
     const unknown = requestedRules.filter(id => !available.includes(id))
     if (unknown.length > 0) throw new Error(`Unknown rules: ${unknown.join(', ')}`)
-    return requestedRules
+    return requestedRules.filter(id => isRuleEnabled(config, id))
   }
+
+  if (config.exists) {
+    return available.filter(id => isRuleEnabled(config, id))
+  }
+
+  // Конфіга нема → fallback на зматеріалізоване (debug / open-by-default).
   const mdcFiles = await listProjectRulesMdcFiles(cwd)
   if (mdcFiles.length === 0) return []
   return discoverCheckRulesFromCursorRules(available, mdcFiles)
