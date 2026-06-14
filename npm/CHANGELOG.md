@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.0.0] - 2026-06-14
+
+### Removed
+
+- Повністю видалено скіл /n-fix (раніше делегат): функціонал у /n-lint. Прибрано npm/skills/fix, дзеркала .cursor/skills/n-fix + .claude/commands/n-fix.md, запис у CLAUDE.md; auto-skills тести оновлено
+
 ## [8.0.0] - 2026-06-14
 
 ### Changed
