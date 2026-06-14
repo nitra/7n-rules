@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.2.0] - 2026-06-14
+
+### Changed
+
+- docgen: класифікація omlx-збоїв (transient/systemic/permanent) — ретрай ETIMEDOUT з backoff, circuit-breaker на systemic-каскад (exit 2), permanent→skip; scan поважає .gitignore; прибрано хардкод DEFAULT_OMLX_MODEL (fail-loud, модель через N_LOCAL_MIN_MODEL)
+
 ## [9.1.1] - 2026-06-14
 
 ### Changed
