@@ -1,5 +1,11 @@
 # Changelog
 
+## [8.0.0] - 2026-06-14
+
+### Changed
+
+- CI lint read-only: lint-text.yml → n-cursor lint-text --read-only, lint-style.yml → stylelint без --fix; канон оновлено синхронно (snippet+formatting.mjs+rego-тести+mdc) — CI нуль мутацій
+
 ## [7.1.0] - 2026-06-14
 
 ### Added
