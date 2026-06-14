@@ -2,8 +2,8 @@ import { describe, expect, test } from 'vitest'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { runLint, selectLintRules } from '../lint-cli.mjs'
-import { withTmpDir, writeJson } from '../utils/test-helpers.mjs'
+import { runLint, selectLintRules } from '../orchestrate.mjs'
+import { withTmpDir, writeJson } from '../../../../scripts/utils/test-helpers.mjs'
 
 const META = {
   'js-lint': { lint: 'per-file' },

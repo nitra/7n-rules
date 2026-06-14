@@ -17,10 +17,11 @@ import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 import { cwd as processCwd } from 'node:process'
 
-import { parseRuleLintSpec, readRuleMetaRaw } from './lib/rule-meta.mjs'
-import { collectChangedFilesSince, resolveChangedBase } from './lib/changed-files.mjs'
+import { parseRuleLintSpec, readRuleMetaRaw } from '../../../scripts/lib/rule-meta.mjs'
+import { collectChangedFilesSince, resolveChangedBase } from '../../../scripts/lib/changed-files.mjs'
 
-const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
+// Цей файл: npm/rules/lint/js/orchestrate.mjs → PACKAGE_ROOT = npm (чотири dirname угору).
+const PACKAGE_ROOT = dirname(dirname(dirname(dirname(fileURLToPath(import.meta.url)))))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
 const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
 
@@ -37,7 +38,7 @@ const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
  */
 async function runConformance(cwd, readOnly, log, filter = []) {
   if (!readOnly) {
-    const { runOrchestratorCli } = await import('./lib/fix/orchestrator.mjs')
+    const { runOrchestratorCli } = await import('../../../scripts/lib/fix/orchestrator.mjs')
     return runOrchestratorCli(filter, cwd)
   }
   const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...filter], { cwd, encoding: 'utf8', timeout: 600_000 })
