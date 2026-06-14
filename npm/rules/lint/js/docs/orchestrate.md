@@ -1,11 +1,11 @@
 ---
 docgen:
-  source: npm/scripts/lint-cli.mjs
-  crc: 9e0a12b9
+  source: rules/lint/js/orchestrate.mjs
+  crc: 34ce8f70
   score: 100
 ---
 
-# lint-cli.mjs
+# orchestrate.mjs
 
 ## Огляд
 
