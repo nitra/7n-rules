@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.4.0] - 2026-06-14
+
+### Changed
+
+- docgen: класифікація omlx-збоїв (transient/systemic/permanent) — ретрай ETIMEDOUT з backoff (2s→8s), circuit-breaker на systemic-каскад (3 підряд → abort, exit 2), permanent→skip; pre-send byte-guard (джерело > 0.5× контексту → instant-skip без LLM); scan поважає .gitignore; прибрано хардкод DEFAULT_OMLX_MODEL (fail-loud, модель через N_LOCAL_MIN_MODEL)
+
 ## [9.3.0] - 2026-06-14
 
 ### Added
