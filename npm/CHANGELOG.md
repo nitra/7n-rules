@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.0.0] - 2026-06-14
+
+### Changed
+
+- lint --full поглинає конформність (колишній fix): read-only → детект через per-rule fix.mjs run(); fix → convergence-движок. Конформність як whole-repo фаза лише у --full
+- lint приймає фільтр правил (lint <rule>) → конформність лише цих правил (мапить колишній fix <rule>); hk pre-commit changelog → lint changelog
+- governance: знято заборону паралельного eslint — паралельно по диз'юнктних файлах дозволено; серіалізувати лише whole-tree прогони того самого корпусу (CLAUDE.md-секція + n-lint SKILL)
+
+### Removed
+
+- Видалено команди fix/check/fix-run; рух-движок конформності переміщено skills/fix/js→scripts/lib/fix і поглинуто в lint. PostToolUse-хук → read-only детект усіх правил (без роутингу). /n-fix → делегат на /n-lint. fix-t0/_fix-check лишаються внутрішніми фазами движка
+
 ## [6.0.0] - 2026-06-14
 
 ### Added
