@@ -12,7 +12,7 @@ import { describe, expect, test } from 'vitest'
 import { detectAutoSkills, discoverSkillAutoActivation } from '../auto-skills.mjs'
 import { ensureDir, withTmpDir, writeJson } from '../utils/test-helpers.mjs'
 
-const ALL_SKILLS = ['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze']
+const ALL_SKILLS = ['adr-normalize', 'lint', 'llm-patch', 'publish-telegram', 'taze']
 
 describe('detectAutoSkills', () => {
   test('завжди-додавані скіли — без правил у конфігу', () => {
@@ -21,7 +21,7 @@ describe('detectAutoSkills', () => {
       detectedRules: []
     })
 
-    expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram'])
+    expect(actual.skills).toEqual(['lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('adr-normalize додається, коли правило adr виявлене', () => {
@@ -30,7 +30,7 @@ describe('detectAutoSkills', () => {
       detectedRules: ['adr']
     })
 
-    expect(actual.skills).toEqual(['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram'])
+    expect(actual.skills).toEqual(['adr-normalize', 'lint', 'llm-patch', 'publish-telegram'])
   })
 
   test('taze додається разом з правилом bun', () => {
@@ -39,7 +39,7 @@ describe('detectAutoSkills', () => {
       detectedRules: ['bun']
     })
 
-    expect(actual.skills).toEqual(['fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
+    expect(actual.skills).toEqual(['lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
   test('повний набір: adr + bun → всі скіли у фіксованому порядку', () => {
@@ -48,26 +48,26 @@ describe('detectAutoSkills', () => {
       detectedRules: ['adr', 'bun']
     })
 
-    expect(actual.skills).toEqual(['adr-normalize', 'fix', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
+    expect(actual.skills).toEqual(['adr-normalize', 'lint', 'llm-patch', 'publish-telegram', 'taze'])
   })
 
   test('disable-skills блокує автододавання', () => {
     const actual = detectAutoSkills({
       availableSkills: ALL_SKILLS,
       detectedRules: ['adr', 'bun'],
-      disableSkills: ['fix', 'taze']
+      disableSkills: ['lint', 'taze']
     })
 
-    expect(actual.skills).toEqual(['adr-normalize', 'lint', 'llm-patch', 'publish-telegram'])
+    expect(actual.skills).toEqual(['adr-normalize', 'llm-patch', 'publish-telegram'])
   })
 
   test('недоступні в пакеті скіли не додаються', () => {
     const actual = detectAutoSkills({
-      availableSkills: ['fix', 'lint'],
+      availableSkills: ['lint', 'llm-patch'],
       detectedRules: ['bun']
     })
 
-    expect(actual.skills).toEqual(['fix', 'lint'])
+    expect(actual.skills).toEqual(['lint', 'llm-patch'])
   })
 
   test('taze НЕ додається без правила bun', () => {
