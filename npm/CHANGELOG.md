@@ -1,5 +1,11 @@
 # Changelog
 
+## [9.1.0] - 2026-06-14
+
+### Changed
+
+- rules/lint/ home: оркестратор lint-cli.mjs → npm/rules/lint/js/orchestrate.mjs, rules/lint зареєстровано як правило (meta.json + no-op fix.mjs); движок лишається в scripts/lib/fix (spec consolidation §7)
+
 ## [9.0.0] - 2026-06-14
 
 ### Removed
