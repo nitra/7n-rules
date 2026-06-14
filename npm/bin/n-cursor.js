@@ -1597,7 +1597,7 @@ async function runSync() {
  * `--root`-команди `lint-doc-files`/`fix-doc-files`/`doc-files`/`doc-aggregate`/`rename-yaml-extensions`, `worktree`,
  * sub-лінтери) гард не зачіпає.
  */
-const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'fix', 'check', 'lint', 'coverage', 'change', 'release'])
+const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'coverage', 'change', 'release'])
 
 /**
  * Короткий опис дії для тексту root-guard помилки за іменем команди.
@@ -1610,12 +1610,8 @@ function describeRootGuardedAction(cmd) {
     case '': {
       return 'Дефолтна синхронізація скаффолдить .cursor/, .claude/, CLAUDE.md, .n-cursor.json і робить bun install у поточному каталозі'
     }
-    case 'fix':
-    case 'check': {
-      return '`fix` запускає programmatic-перевірки правил, що переписують конфіги в поточному каталозі'
-    }
     case 'lint': {
-      return '`lint` запускає авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) у поточному каталозі'
+      return '`lint` за замовчуванням авто-fix лінтерів (oxfmt/eslint --fix/stylelint --fix) і конформності (--full) у поточному каталозі'
     }
     case 'coverage': {
       return '`coverage` генерує COVERAGE.md і Stryker-артефакти в поточному каталозі'
@@ -1646,27 +1642,11 @@ try {
   }
   await ensureNitraCursorInRootDevDependencies(cwd())
   switch (command) {
-    case 'fix': {
-      const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
-      process.exitCode = await runOrchestratorCli(args, cwd())
-      break
-    }
     case '_fix-check': {
-      // Внутрішня команда оркестратора — не є публічним API.
-      // Повертає JSON {total, failed, rules:[{ruleId, ok, output}]} у stdout.
+      // Внутрішня команда движка конформності (не публічний API): per-rule fix.mjs run() = детект.
+      // Повертає JSON {total, failed, rules:[{ruleId, ok, output}]} у stdout. Викликається
+      // конформність-фазою `lint` (read-only) і движком orchestrator/t0.
       await runFixCommand(args, { json: true })
-      break
-    }
-    case 'check': {
-      // Backward-compatibility alias. Перейменовано на `fix` у 1.13.84 (узгоджено з ім'ям файла `rules/<id>/fix.mjs`).
-      console.warn(
-        `⚠️  Команда \`check\` deprecated — використовуйте \`fix\` (\`npx ${PACKAGE_NAME} fix [<rule>...]\`)`
-      )
-      await runFixCommand(
-        args.filter(a => a !== '--json'),
-        { json: args.includes('--json') }
-      )
-
       break
     }
     case 'rename-yaml-extensions': {
@@ -1771,19 +1751,12 @@ try {
 
       break
     }
-    case 'fix-run': {
-      // Backward-compatibility alias → перенаправляємо на `fix`.
-      console.warn(`⚠️  \`fix-run\` deprecated — використовуйте \`fix\``)
-      const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
-      process.exitCode = await runOrchestratorCli(args, cwd())
-      break
-    }
     case 'fix-t0': {
-      // n-cursor fix-t0 [rule...] — T0-auto рівень n-fix оркестратора.
-      // Запускає fix --json, знаходить violation-output із детермінованим паттерном
+      // Внутрішня фаза движка конформності (не публічний API): T0-auto рівень.
+      // Запускає _fix-check, знаходить violation-output із детермінованим паттерном
       // (vscode-ext-add, rm-forbidden-file тощо), застосовує програмний фікс (0 LLM),
-      // перевіряє check-gate. Exit 0 = усі T0-паттерни закриті; 1 = є решта для LLM.
-      const { runT0AutoCli } = await import('../skills/fix/js/t0.mjs')
+      // перевіряє check-gate. Викликається orchestrator.mjs (fix-режим конформності lint).
+      const { runT0AutoCli } = await import('../scripts/lib/fix/t0.mjs')
       process.exitCode = await runT0AutoCli(args, cwd())
 
       break
@@ -1899,7 +1872,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, fix, check, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, fix-t0, change, release, skill, worktree, lint-ci, trace, doc-files, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, lint-ci, trace, doc-files, doc-aggregate`
       )
       process.exitCode = 1
     }

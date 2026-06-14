@@ -37,7 +37,7 @@ const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
  */
 async function runConformance(cwd, readOnly, log, filter = []) {
   if (!readOnly) {
-    const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
+    const { runOrchestratorCli } = await import('./lib/fix/orchestrator.mjs')
     return runOrchestratorCli(filter, cwd)
   }
   const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check', ...filter], { cwd, encoding: 'utf8', timeout: 600_000 })

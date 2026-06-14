@@ -1,23 +1,22 @@
 ---
 name: n-fix
 description: >-
-  Виправити проєкт відповідно до всіх правил в .cursor/rules/
+  DEPRECATED — використовуй /n-lint. fix злито в lint: `n-cursor lint` тепер і
+  детектить, і виправляє (конформність + лінтери) за один прохід.
 ---
 
-# n-fix — автоматичне виправлення проєкту
+# n-fix — DEPRECATED (делегат на /n-lint)
 
-## Scope
+Команду `n-cursor fix` **видалено**: рух-движок конформності (convergence-loop /
+check-gate / Tier0 / LLM) поглинуто в `lint` (спека
+`docs/specs/2026-06-14-lint-orchestrator-fix-readonly-unification-design.md`).
 
-Цей скіл відповідає **лише за структуру** проєкту: щоб `.cursor/rules/` + `npx @nitra/cursor fix` були задоволені (наявність конфігів, залежностей, скриптів, GitHub workflows, відсутність заборонених файлів). **Лінт-порушення у самому коді** (ESLint, oxlint, jscpd, cspell, knip, sonarjs, stylelint тощо) — **поза скоупом**; їх діагностує й виправляє **`/n-lint`** (`bun run lint`).
+**Використовуй `/n-lint`** замість цього скіла:
 
-## Workflow
+- `n-cursor lint` — дельта vs origin, **fix за замовчуванням** (лінтери на змінених файлах);
+- `n-cursor lint --full` — весь репо + **конформність** (колишній `fix`: конфіги/файли/воркфлоу
+  через convergence-движок);
+- `n-cursor lint --read-only [--full]` — лише детект, нуль мутацій (CI / pre-commit);
+- `n-cursor lint <rule>` — конформність одного правила (колишній `fix <rule>`).
 
-```bash
-n_cursor_npx fix
-```
-
-Exit 0 = чисто, 1 = є unresolved (перевір вивід — буде список правил що не закрились після 3 ітерацій).
-
-Якщо змінились залежності — `bun i`. Якщо змінились JS/TS файли — `oxfmt .`.
-
-Для конкретних правил: `n_cursor_npx fix bun ga`.
+Цей скіл лишено як тонкий делегат до наступного major; уся логіка — у `/n-lint`.
