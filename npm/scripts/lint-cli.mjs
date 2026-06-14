@@ -14,6 +14,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
 import { cwd as processCwd } from 'node:process'
 
 import { parseRuleLintSpec, readRuleMetaRaw } from './lib/rule-meta.mjs'
@@ -21,6 +22,40 @@ import { collectChangedFilesSince, resolveChangedBase } from './lib/changed-file
 
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const RULES_DIR = join(PACKAGE_ROOT, 'rules')
+const N_CURSOR_BIN = join(PACKAGE_ROOT, 'bin', 'n-cursor.js')
+
+/**
+ * Конформність-фаза lint (whole-repo: config/file/workflow conformance — те, що раніше робив `fix`).
+ * Per-file декомпозиції немає, тож виконується лише у `--full`.
+ *  - read-only: детект через `_fix-check` (per-rule `fix.mjs run()` = перевірка, без мутацій);
+ *  - fix: convergence-движок (check → Tier0 → omlx) через orchestrator.
+ * @param {string} cwd корінь
+ * @param {boolean} readOnly true → лише детект (нуль мутацій)
+ * @param {(s: string) => void} log логер
+ * @returns {Promise<number>} 0 — чисто, 1 — порушення/помилка
+ */
+async function runConformance(cwd, readOnly, log) {
+  if (!readOnly) {
+    const { runOrchestratorCli } = await import('../skills/fix/js/orchestrator.mjs')
+    return runOrchestratorCli([], cwd)
+  }
+  const r = spawnSync('bun', [N_CURSOR_BIN, '_fix-check'], { cwd, encoding: 'utf8', timeout: 600_000 })
+  let parsed = null
+  try {
+    parsed = JSON.parse((r.stdout ?? '').trim())
+  } catch {
+    parsed = null
+  }
+  if (!parsed) {
+    log('❌ lint: конформність — помилка перевірки (_fix-check не повернув JSON)\n')
+    return 1
+  }
+  const failed = parsed.rules.filter(/** @param {{ok:boolean}} x */ x => !x.ok)
+  if (failed.length === 0) return 0
+  log(`❌ lint: конформність — ${failed.length} порушень: ${failed.map(/** @param {{ruleId:string}} x */ x => x.ruleId).join(', ')}\n`)
+  for (const f of failed) if (f.output) log(`${f.output}\n`)
+  return 1
+}
 
 /**
  * Вибирає id правил для контексту, алфавітно.
@@ -85,6 +120,13 @@ export async function runLint(opts = {}) {
     const mod = await import(lintPath)
     const code = await mod.lint(changed, cwd, { readOnly })
     if (code !== 0) return code
+  }
+
+  // Конформність-фаза (поглинула `fix`): whole-repo, лише у `--full`. Кастомний rulesDir
+  // (юніт-тести селектора) — реальний пакет недоступний, тож пропускаємо.
+  if (full && opts.rulesDir === undefined) {
+    const conformanceCode = await runConformance(cwd, readOnly, log)
+    if (conformanceCode !== 0) return conformanceCode
   }
   return 0
 }
