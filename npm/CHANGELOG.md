@@ -1,5 +1,16 @@
 # Changelog
 
+## [5.4.0] - 2026-06-14
+
+### Added
+
+- doc-files: міграція скіл→правило `npm/rules/doc-files/` (git mv `js/`); нові команди `lint-doc-files` (детермінований детектор stale `missing`∪`crc-mismatch`, exit 1; режими `--json`/`--missing-only`/`--hook`/`--git`/`--degraded`) і `fix-doc-files` (local-only генерація + `--stamp`); `lint`-адаптер агрегатора (`lint:"quick"`); `doc-files <sub>` стає делегувальним deprecated-аліасом (plain `check` exit 2→1; `--hook`/`--git` лишають exit 2); hook-маркер `@nitra/cursor lint-doc-files` із cleanup legacy `doc-files check`; тонкий скіл doc-files.
+
+### Fixed
+
+- lint-js: 12 oxlint-помилок — RS\_\*-регекспи догори module scope і прибрані невикористані (docgen-extract, docgen-protected.test), повернуто JSDoc extractReasoning на місце (omlx), async без await (rule-predicates), сигнальний re-raise замість process.exit у with-lock (коректні коди 130/143), опис @returns (units-rs)
+- doc-files check <paths>: перший позиційний шлях мовчки губився без --max (порівняння зі значенням argv[maxIdx+1] при maxIdx=-1); значення прапорців тепер виключаються за індексом (--max, --root) + регресійні тести
+
 ## [5.3.4] - 2026-06-11
 
 ### Changed
