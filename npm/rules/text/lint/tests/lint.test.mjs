@@ -130,8 +130,8 @@ describe('runLintTextCli', () => {
       env.PATH = prevPath
       await rm(binDir, { recursive: true, force: true })
     }
-    // Preflight пройшов (всі бінарники знайдено), cspell → 127 (npx відсутній)
-    expect(code).toBe(127)
+    // Preflight пройшов (всі бінарники знайдено), cspell-крок → 1 (npx відсутній у runCspellText)
+    expect(code).toBe(1)
     // successMsg від patch preflight
     expect(logs.some(l => l.includes('patch'))).toBe(true)
   })

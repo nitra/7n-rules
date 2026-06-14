@@ -24,6 +24,7 @@ import { runLintStep } from '../../../scripts/lib/run-lint-step.mjs'
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
 import { runStandardLint } from '../../../scripts/lib/run-standard-lint.mjs'
 import { ensureTool } from '../../../scripts/lib/ensure-tool.mjs'
+import { runCspellText } from './cspell-fix.mjs'
 import { runDotenvLinter } from './run-dotenv-linter.mjs'
 import { runShellcheckText } from './run-shellcheck.mjs'
 import { runV8rWithGlobs } from './run-v8r.mjs'
@@ -106,7 +107,8 @@ function runLintTextSteps(readOnly = false) {
   // patch потрібен лише для авто-фіксу shellcheck; у read-only пропускаємо preflight.
   if (!readOnly && !preflight(PATCH_PREFLIGHT)) return 1
 
-  const cspellCode = runLintStep('cspell', 'npx', ['cspell', '.'])
+  console.log(`\n▶ cspell (${readOnly ? 'перевірка' : 'omlx-автофікс одруків + перевірка'})`)
+  const cspellCode = runCspellText(process.cwd(), readOnly)
   if (cspellCode !== 0) return cspellCode
 
   console.log(`\n▶ shellcheck (${readOnly ? 'перевірка' : 'авто-фікс + фінальна перевірка'} *.sh)`)

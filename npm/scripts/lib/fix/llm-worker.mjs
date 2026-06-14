@@ -1,17 +1,17 @@
 /** @see ./docs/llm-worker.md */
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { env } from 'node:process'
 import { resolveModel } from '../../../lib/models.mjs'
 import { callLlm } from '../../../lib/llm.mjs'
+import { applyChanges, parseChangesResponse, readFilesForFix } from './llm-fix-apply.mjs'
 
 // Тир за замовчуванням: min → avg при ескалації (каскад local→cloud).
 // Перевизначення через N_CURSOR_FIX_MODEL / N_CURSOR_FIX_MODEL_HEAVY.
 export const MODEL = env.N_CURSOR_FIX_MODEL ?? resolveModel('min')
 export const MODEL_HEAVY = env.N_CURSOR_FIX_MODEL_HEAVY ?? resolveModel('avg')
 
-const JSON_CODE_BLOCK_RE = /```(?:json)?[ \t]{0,8}\n?([\s\S]*?)```/
 const API_KEY_RE = /api key/i
 
 /**
@@ -114,44 +114,6 @@ function callModel(prompt, model) {
 }
 
 /**
- * Парсить JSON-відповідь від моделі.
- * Модель може обгорнути JSON у ```json ... ```, тому пробуємо витягти.
- * @param {string} text сирий текст відповіді
- * @returns {{ changes: Array<{path:string,content:string}>, error?: string } | null} розпарсений патч або null
- */
-function parseResponse(text) {
-  // Спроба 1: прямий JSON
-  try {
-    return JSON.parse(text)
-  } catch {
-    /* fallthrough */
-  }
-
-  // Спроба 2: витягти з ```json ... ```
-  const m = text.match(JSON_CODE_BLOCK_RE)
-  if (m) {
-    try {
-      return JSON.parse(m[1].trim())
-    } catch {
-      /* fallthrough */
-    }
-  }
-
-  // Спроба 3: перший { ... } блок
-  const start = text.indexOf('{')
-  const end = text.lastIndexOf('}')
-  if (start !== -1 && end > start) {
-    try {
-      return JSON.parse(text.slice(start, end + 1))
-    } catch {
-      /* fallthrough */
-    }
-  }
-
-  return null
-}
-
-/**
  * LLM-worker: виправляє одне rule-порушення через pi (C1 pattern).
  * @param {string} ruleId ID правила
  * @param {string} violationOutput  output з fix check для цього rule
@@ -167,18 +129,7 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   const ruleMdc = existsSync(mdcPath) ? readFileSync(mdcPath, 'utf8') : '(rule file not found)'
 
   // 2. Витягуємо файли з violation output і читаємо їх
-  const filePaths = extractFilePaths(violationOutput)
-  const files = filePaths
-    .map(p => {
-      const abs = join(projectRoot, p)
-      if (!existsSync(abs)) return null
-      try {
-        return { path: p, content: readFileSync(abs, 'utf8') }
-      } catch {
-        return null
-      }
-    })
-    .filter(Boolean)
+  const files = readFilesForFix(extractFilePaths(violationOutput), projectRoot)
 
   // 3. Будуємо prompt і викликаємо модель
   const prompt = buildPrompt(ruleId, ruleMdc, violationOutput, files)
@@ -188,7 +139,7 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   if (!text) return { ok: false, error: 'model returned empty response' }
 
   // 4. Парсимо відповідь
-  const parsed = parseResponse(text)
+  const parsed = parseChangesResponse(text)
   if (!parsed) return { ok: false, error: `cannot parse pi response: ${text.slice(0, 200)}` }
   if (parsed.error) return { ok: false, error: parsed.error }
 
@@ -196,15 +147,5 @@ export function runLlmWorker(ruleId, violationOutput, projectRoot, opts = {}) {
   if (changes.length === 0) return { ok: false, error: 'pi returned no changes' }
 
   // 5. Застосовуємо зміни
-  for (const change of changes) {
-    if (!change.path || typeof change.content !== 'string') continue
-    const abs = join(projectRoot, change.path)
-    try {
-      writeFileSync(abs, change.content, 'utf8')
-    } catch (error) {
-      return { ok: false, error: `write ${change.path}: ${error.message}` }
-    }
-  }
-
-  return { ok: true }
+  return applyChanges(changes, projectRoot)
 }
