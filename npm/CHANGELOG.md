@@ -1,5 +1,13 @@
 # Changelog
 
+## [11.2.0] - 2026-06-15
+
+### Changed
+
+- cspell-fix: заміна зламаного whole-file rewrite на classify→.cspell.json. Стара схема (llmLintFix whole-file) давала timeout 120с та parse-fail на реальних файлах; нова класифікує знахідки через bounded omlx-запит (≤80 слів → компактний JSON) і авто-дописує валідні слова у .cspell.json словник (sorted+dedup), а ймовірні одруки емітує на рев'ю без авто-застосування. Підтверджено на репо: 73 слова у словник за ≈5с (vs 120с timeout раніше).
+- cspell-fix: whole-file omlx-апплай → класифікація+словник (нова схема, спека docs/specs/2026-06-15-opportunistic-llm-fix-tier.md). Старий підхід (модель повертає весь файл як JSON) на укр+тех-репо операційно ламався — 120с-таймаути, memory-guard reject, parse-fail (вимір: 1406 знахідок / 292 файли, ~90% — валідні терміни, не одруки). Новий fix-режим робить **один bounded omlx-виклик**: класифікує distinct «Unknown word» → валідні слова авто-дописує у `.cspell.json#words` (sorted/dedup, видно в diff) → ймовірні одруки лишає списком на рев'ю (НЕ авто-виправляє — апплай небезпечний) → re-detect. read-only незмінний (нуль мутацій). Єдиний knob моделі — `N_LOCAL_MIN_MODEL` (прибрано `N_CURSOR_FIX_MODEL` із цього шляху). Preflight omlx (fast-skip замість приречених викликів), cap класифікації з логом надлишку. `groupFindingsByFile` → `unknownWords`/`appendWordsToDict`.
+- llm: спільний `preflightLocalModel(model)` у `npm/lib/llm.mjs` — omlx health-check (memory-guard / down / auth) як одна цеглина opportunistic LLM-fix tier (спека docs/specs/2026-06-15-opportunistic-llm-fix-tier.md). Прибрано дубльовані локальні `preflightProblem` із `doc-files/js/docgen-files-batch.mjs` (генерація) і `text/lint/cspell-fix.mjs` (класифікація) — обидва тепер кличуть спільний хелпер із `N_LOCAL_MIN_MODEL`. Per-target loop/circuit-breaker лишається у doc-files (cspell — single-call). Поведінка незмінна.
+
 ## [11.1.0] - 2026-06-15
 
 ### Changed
