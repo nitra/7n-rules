@@ -1661,6 +1661,15 @@ try {
 
       break
     }
+    case 'adr-normalize-local': {
+      // Local-backend ADR-нормалізації: викликається з .claude/hooks/normalize-decisions.sh
+      // як заміна single-shot LLM-виклику. Проганяє конвеєр (retrieval→edge-judge→
+      // cluster→gen) на малій локальній моделі й друкує `{operations}` JSON у stdout.
+      const { runAdrNormalizeLocalCli } = await import('../scripts/lib/adr/normalize-cli.mjs')
+      process.exitCode = await runAdrNormalizeLocalCli(args)
+
+      break
+    }
     case 'doc-aggregate': {
       // n-cursor doc-aggregate modules — детермінований лістинг логічних модулів
       // (межі за package.json) для Tier 2 module-summary скілу doc-aggregate.
@@ -1684,7 +1693,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

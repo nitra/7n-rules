@@ -268,17 +268,47 @@ CURSOR_MODEL="${ADR_NORMALIZE_CURSOR_MODEL:-claude-4.6-sonnet-medium}"
 
 RESPONSE_FILE="$TMP_DIR/response.txt"
 
-if command -v claude >/dev/null 2>&1; then
-  log "using claude CLI (model: $CLAUDE_MODEL)"
-  claude -p --model "$CLAUDE_MODEL" < "$FULL_PROMPT_FILE" > "$RESPONSE_FILE" 2>>"$LOG" || true
-elif command -v cursor-agent >/dev/null 2>&1; then
-  log "using cursor-agent CLI (model: $CURSOR_MODEL)"
-  FULL_PROMPT=$(cat "$FULL_PROMPT_FILE")
-  cursor-agent -p --mode ask --output-format text --model "$CURSOR_MODEL" -- "$FULL_PROMPT" > "$RESPONSE_FILE" 2>>"$LOG" || true
-else
-  log "no LLM CLI found, skipping"
-  exit 0
+# Backend selection. `local` — конвеєр на малій локальній моделі (privacy + $0,
+# `npm/scripts/lib/adr/normalize-pipeline.mjs`); `claude`/`cursor` — single-shot
+# у хмару. Auto-default: local, якщо налаштовано `N_LOCAL_MIN_MODEL`, інакше
+# claude → cursor. Команда local-бекенда override-иться через ADR_NORMALIZE_LOCAL_CMD
+# (для тестів/in-repo: `node npm/bin/n-cursor.js adr-normalize-local`).
+BACKEND="${ADR_NORMALIZE_BACKEND:-}"
+if [ -z "$BACKEND" ]; then
+  if [ -n "${N_LOCAL_MIN_MODEL:-}" ]; then
+    BACKEND=local
+  elif command -v claude >/dev/null 2>&1; then
+    BACKEND=claude
+  elif command -v cursor-agent >/dev/null 2>&1; then
+    BACKEND=cursor
+  else
+    BACKEND=none
+  fi
 fi
+
+ADR_LOCAL_CMD="${ADR_NORMALIZE_LOCAL_CMD:-npx --no @nitra/cursor adr-normalize-local}"
+
+case "$BACKEND" in
+  local)
+    log "using local pipeline backend (model: ${N_LOCAL_MIN_MODEL:-?})"
+    # local-бекенд будує власні дрібні промпти з батча — FULL_PROMPT_FILE не потрібен.
+    # shellcheck disable=SC2086
+    $ADR_LOCAL_CMD --batch "$BATCH_LIST" --clean "$CLEAN_LIST" --adr-dir "$ADR_DIR" > "$RESPONSE_FILE" 2>>"$LOG" || true
+    ;;
+  claude)
+    log "using claude CLI (model: $CLAUDE_MODEL)"
+    claude -p --model "$CLAUDE_MODEL" < "$FULL_PROMPT_FILE" > "$RESPONSE_FILE" 2>>"$LOG" || true
+    ;;
+  cursor)
+    log "using cursor-agent CLI (model: $CURSOR_MODEL)"
+    FULL_PROMPT=$(cat "$FULL_PROMPT_FILE")
+    cursor-agent -p --mode ask --output-format text --model "$CURSOR_MODEL" -- "$FULL_PROMPT" > "$RESPONSE_FILE" 2>>"$LOG" || true
+    ;;
+  *)
+    log "no LLM backend available, skipping"
+    exit 0
+    ;;
+esac
 
 if [ ! -s "$RESPONSE_FILE" ]; then
   log "empty LLM response"
