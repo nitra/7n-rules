@@ -30,12 +30,13 @@ function factsSummary(facts) {
   if (facts.header) lines.push(`Намір файлу: ${facts.header.replaceAll('\n', ' ')}`)
   if (facts.exports?.length) lines.push(`Публічні функції: ${facts.exports.map(e => e.name).join(', ')}`)
   if (m.skips?.length) lines.push(`Свідомо пропускає шляхи: ${m.skips.join(', ')}`)
-  lines.push(`Read-only: ${m.readOnly ? 'так' : 'ні'}`)
-  if (m.catchesErrors) lines.push('Перехоплює помилки (fail-safe), не кидає винятків назовні')
-  if (m.returnsFalsyOnFail) lines.push('За невдачі повертає значення помилки (false/null/Err) замість винятку чи паніки')
-  lines.push(m.caches ? 'Кешування: так, у межах прогону' : 'Кешування: НЕМАЄ — не згадуй кеш у гарантіях')
+  // «Фабрикація > мовчання»: лише ПОЗИТИВНІ high-confidence сигнали; жодних дефолтних
+  // негативів (read-only «ні», «мережа: немає») — модель echo-їть їх як хибну гарантію.
+  if (m.readOnly) lines.push('Read-only: не пише (ФС/БД)')
   if (m.network) lines.push('Звертається до мережі')
-  else lines.push('Робота з мережею: немає')
+  if (m.catchesErrors) lines.push('Перехоплює помилки (fail-safe), не кидає винятків назовні')
+  if (m.returnsFalsyOnFail) lines.push('За певних помилок повертає порожнє значення (напр. null) замість винятку')
+  lines.push(m.caches ? 'Кешування: так, у межах прогону' : 'Кешування: НЕМАЄ — не згадуй кеш у гарантіях')
   return lines.join('\n')
 }
 
@@ -193,15 +194,16 @@ export function refineMessages(sectionKey, draft, issues, facts, anchors) {
 export function guaranteesFromMarkers(facts) {
   const m = facts.markers || {}
   const lines = []
-  if (m.readOnly) lines.push('- Read-only: файл не виконує операцій запису у файлову систему.')
+  // «Фабрикація > мовчання»: лише ПОЗИТИВНІ high-confidence гарантії. Жодних
+  // негативів/дефолтів (no-network, determinism) — їх не довести file-local аналізом.
+  if (m.readOnly) lines.push('- Read-only: не виконує операцій запису (ФС/БД).')
   if (m.catchesErrors) lines.push('- Перехоплює помилки і не пропускає винятків назовні (fail-safe).')
-  if (m.returnsFalsyOnFail) lines.push('- За невдачі повертає значення помилки (`false`/`null`/`Err`) замість генерування винятку чи паніки.')
+  if (m.returnsFalsyOnFail) lines.push('- За певних помилок повертає порожнє значення (напр. `null`) замість винятку.')
   if (m.caches) lines.push('- Кешує результати в межах одного прогону.')
   if (m.skips?.length) {
     lines.push(`- Свідомо пропускає шляхи: ${m.skips.map(s => '`' + s + '`').join(', ')}.`)
   }
-  if (!m.network) lines.push('- Не звертається до мережі.')
-  if (!lines.length) return '- Поведінка детермінована: результат залежить лише від вхідних даних.'
+  if (!lines.length) return '- (специфічних машинно-виведених гарантій немає)'
   return lines.join('\n')
 }
 

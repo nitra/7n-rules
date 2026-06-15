@@ -49,6 +49,10 @@ const FALSY_RETURN_RE = /catch[\s\S]{0,400}?return\s+(false|null|''|"")/
 // octokit/.request/.query). Хибний false-negative тут = небезпечна гарантія
 // «без мережі», тож свідомо схиляємось до over-detection (м'якший бік помилки).
 const NETWORK_RE = /\bfetch\(|https?:\/\/|\bhttps?\.|axios|\bgot\(|graphql|\.request\(|\.query\(|\.mutate\(|octokit|node-fetch|undici|\bgrpc\b|websocket/i
+// Будь-який `throw` назовні → НЕ можна гарантувати «fail-safe / без винятків».
+const THROW_RE = /\bthrow\s/
+// Запис у БД / зовнішню мутацію → НЕ read-only (навіть якщо нема ФС-запису).
+const MUTATION_RE = /\b(insert|update|delete|upsert|drop|destroy|save)[A-Za-z]*\s*[(,]|[Mm]utation\b|\bmut[A-Z]\w*|\.(save|create|update|delete|insert|destroy|mutate)\(/
 // Кеш — лише за ІМЕНОВАНИМ маркером (`cache`/`Cache`/`memoize`), не за будь-яким
 // `new Map()`: акумулятор (напр. `byPath = new Map()`) — не кеш, а хибна гарантія
 // «Кешує результати» гірша за пропуск (фабрикація > мовчання).
@@ -207,9 +211,11 @@ function extractMarkers(src) {
     if (src.includes(`'${lit}`) || src.includes(`"${lit}`) || src.includes(`/${lit}`)) skips.add(lit)
   }
   return {
-    readOnly: !WRITE_FS_RE.test(src),
-    catchesErrors: CATCH_RE.test(src) || TRY_RE.test(src),
-    returnsFalsyOnFail: FALSY_RETURN_RE.test(src),
+    // «Фабрикація > мовчання»: прапорець true лише за high-confidence; інакше
+    // guaranteesFromMarkers/factsSummary його ОПУСКАЮТЬ (не стверджують протилежне).
+    readOnly: !WRITE_FS_RE.test(src) && !MUTATION_RE.test(src),                    // ні ФС-запису, ні DB-мутацій
+    catchesErrors: (CATCH_RE.test(src) || TRY_RE.test(src)) && !THROW_RE.test(src), // fail-safe лише якщо НЕ кидає
+    returnsFalsyOnFail: FALSY_RETURN_RE.test(src) && !THROW_RE.test(src),
     network: NETWORK_RE.test(src),
     caches: CACHE_RE.test(src),
     skips: [...skips]
