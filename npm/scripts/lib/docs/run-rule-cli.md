@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/lib/run-rule-cli.mjs
-  crc: 21a7b19a
+  crc: 264e7ab0
   score: 100
 ---
 

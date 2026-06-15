@@ -14,7 +14,15 @@ import { ensureDir, withTmpDir, writeJson } from '../../../utils/test-helpers.mj
 
 const AVAILABLE = ['adr', 'bun', 'changelog', 'text']
 
-/** Створює `.cursor/rules/<name>.mdc` у dir. */
+/** Очікуване повідомлення про невідоме правило (статичний regex — поза call'ом). */
+const UNKNOWN_RULE_RE = /Unknown rules: nope/u
+
+/**
+ * Створює `.cursor/rules/<name>.mdc` у dir.
+ * @param {string} dir корінь tmp-проєкту
+ * @param {string} name базове ім'я `.mdc` (напр. `n-bun`)
+ * @returns {Promise<void>}
+ */
 async function writeMdc(dir, name) {
   const rulesDir = join(dir, '.cursor', 'rules')
   await ensureDir(rulesDir)
@@ -60,7 +68,7 @@ describe('resolveCheckRuleIds', () => {
   test('явний запит з невідомим правилом → throw', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, '.n-cursor.json'), { rules: ['bun'] })
-      await expect(resolveCheckRuleIds(['nope'], AVAILABLE, dir)).rejects.toThrow(/Unknown rules: nope/u)
+      await expect(resolveCheckRuleIds(['nope'], AVAILABLE, dir)).rejects.toThrow(UNKNOWN_RULE_RE)
     })
   })
 
