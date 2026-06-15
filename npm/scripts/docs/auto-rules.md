@@ -1,7 +1,7 @@
 ---
 docgen:
   source: npm/scripts/auto-rules.mjs
-  crc: 972b56fc
+  crc: d50b922f
   score: 90
 ---
 
@@ -29,7 +29,7 @@ detectAutoRules
 Визначає активні правила на основі spec, перевіряючи їх проти згенерованих фактів.
 
 mergeConfigWithAutoDetected
-Доповнює конфігурацію, додаючи визначені автоправила та налаштування, з урахуванням legacy-ID.
+Доповнює конфігурацію, додаючи визначені автоправила та налаштування, з урахуванням legacy-ID; за наявності `availableRules`/`availableSkills` ще й відсіює з `rules`/`skills` неактуальні id, яких немає у пакеті (повертає їх у полі `pruned`).
 
 ## Публічний API
 

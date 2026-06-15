@@ -25,7 +25,7 @@
  *   `npx \@nitra/cursor lint-text`   — канонічний lint-text (text.mdc): `cspell` → `shellcheck` (з auto-fix) →
  *                                     `markdownlint-cli2 --fix` → `v8r` (json/json5/yaml/yml/toml)
  *   `npx \@nitra/cursor lint-doc-files`  — детермінований детектор застарілості файлових док (`stale`: `missing`|`crc-mismatch`); правило doc-files (ignore-glob у `npm/rules/doc-files/js/docgen-ignore.mjs`; тека `docs/` поряд із джерелом). Режими: повний (exit 1), `--json` (exit 0), `--missing-only`, `--hook`/`--git` (hook-протокол, exit 2), `--degraded`
- *   `npx \@nitra/cursor fix-doc-files`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC (`--limit`/`--from`/`--overwrite`/`--retry-degraded`); `--stamp` — детерміноване перештампування CRC без LLM
+ *   `npx \@nitra/cursor fix-doc-files`   — JS-оркестрована генерація файлових док (роутинг local/cloud) зі штампом CRC (`--limit`/`--from`/`--overwrite`); `--stamp` — детерміноване перештампування CRC без LLM
  *   `npx \@nitra/cursor doc-aggregate modules` — JSON-лістинг логічних модулів (межі за `package.json`) для Tier 2 скілу doc-aggregate
  *   `npx \@nitra/cursor skill list`     — скіли пакета без синку в проєкт
  *   `npx \@nitra/cursor skill taze`     — промпт на stdout
@@ -315,8 +315,17 @@ async function readConfig(paths = {}) {
     const merged = mergeConfigWithAutoDetected({
       config: parsedConfig,
       detectedRules: autoDetectedRules.rules,
-      detectedSkills: autoDetectedSkills.skills
+      detectedSkills: autoDetectedSkills.skills,
+      availableRules,
+      availableSkills
     })
+
+    if (merged.pruned) {
+      const parts = []
+      if (merged.pruned.rules.length > 0) parts.push(`rules: ${merged.pruned.rules.join(', ')}`)
+      if (merged.pruned.skills.length > 0) parts.push(`skills: ${merged.pruned.skills.join(', ')}`)
+      console.log(`🧹 Прибрано з ${CONFIG_FILE} неактуальні (немає у пакеті) — ${parts.join('; ')}\n`)
+    }
 
     const rest = Object.fromEntries(Object.entries(parsedConfig).filter(([k]) => k !== '$schema'))
     const normalized = {
@@ -1650,7 +1659,7 @@ try {
     }
     case 'fix-doc-files': {
       // n-cursor fix-doc-files — local-only генерація файлових док (omlx) + CRC-штамп
-      // (--limit/--from/--overwrite/--retry-degraded); --stamp — детерміноване
+      // (--limit/--from/--overwrite); --stamp — детерміноване
       // перештампування source+crc без LLM. У CI не запускається (потрібна локальна модель).
       if (args.includes('--stamp')) {
         const { runDocFilesStampCli } = await import('../rules/doc-files/js/docgen-files-batch.mjs')

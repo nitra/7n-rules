@@ -173,7 +173,7 @@
 #### Вкладена normalizeConfigWithAutoRules(parsedConfig)
 
 - **Сигнатура:** `async function normalizeConfigWithAutoRules(parsedConfig: Record<string, unknown>): Promise<Record<string, unknown>>`
-- **Призначення:** перевіряє типи полів, обчислює `auto-detected rules` (`detectAutoRules`), будує ефективний список правил (поточні + auto, мінус `disable-rules`), за яким `detectAutoSkills` визначає скіли. Далі `mergeConfigWithAutoDetected` зливає дані, після чого `$schema` вирівнюється до `CONFIG_SCHEMA_URL`, додаються `disable-rules`/`disable-skills` (якщо непорожні), результат проходить через `sortConfigIdArrays`.
+- **Призначення:** перевіряє типи полів, обчислює `auto-detected rules` (`detectAutoRules`), будує ефективний список правил (поточні + auto, мінус `disable-rules`), за яким `detectAutoSkills` визначає скіли. Далі `mergeConfigWithAutoDetected` зливає дані (передаючи `availableRules`/`availableSkills` із каталогів пакета, щоб відсіяти з `rules`/`skills` неактуальні id, яких уже немає у пакеті — прибрані логуються через `🧹`), після чого `$schema` вирівнюється до `CONFIG_SCHEMA_URL`, додаються `disable-rules`/`disable-skills` (якщо непорожні), результат проходить через `sortConfigIdArrays`.
 
 ### logRuleMigrationsIfAny(parsedConfig)
 

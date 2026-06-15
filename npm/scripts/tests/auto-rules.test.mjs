@@ -560,6 +560,68 @@ describe('mergeConfigWithAutoDetected — skills', () => {
   })
 })
 
+describe('mergeConfigWithAutoDetected — відсів неактуальних (available)', () => {
+  test('прибирає rules/skills, яких немає у пакеті, і повертає їх у pruned', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: {
+        rules: ['text', 'flow', 'bun'],
+        skills: ['lint', 'fix', 'fix-tests']
+      },
+      detectedRules: [],
+      detectedSkills: [],
+      availableRules: ['text', 'bun', 'vue'],
+      availableSkills: ['lint', 'worktree']
+    })
+
+    expect(merged.rules).toEqual(['text', 'bun'])
+    expect(merged.skills).toEqual(['lint'])
+    expect(merged.pruned).toEqual({ rules: ['flow'], skills: ['fix', 'fix-tests'] })
+  })
+
+  test('без available нічого не прибирає і pruned відсутній', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: { rules: ['text', 'flow'], skills: ['lint', 'fix'] },
+      detectedRules: [],
+      detectedSkills: []
+    })
+
+    expect(merged.rules).toEqual(['text', 'flow'])
+    expect(merged.skills).toEqual(['lint', 'fix'])
+    expect(merged.pruned).toBeUndefined()
+  })
+
+  test('усі id актуальні → pruned відсутній', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: { rules: ['text'], skills: ['lint'] },
+      detectedRules: [],
+      detectedSkills: [],
+      availableRules: ['text', 'bun'],
+      availableSkills: ['lint', 'worktree']
+    })
+
+    expect(merged.pruned).toBeUndefined()
+  })
+
+  test('не чіпає disable-rules/disable-skills навіть якщо їх немає у пакеті', () => {
+    const merged = mergeConfigWithAutoDetected({
+      config: {
+        rules: ['text'],
+        skills: ['lint'],
+        'disable-rules': ['flow'],
+        'disable-skills': ['fix']
+      },
+      detectedRules: [],
+      detectedSkills: [],
+      availableRules: ['text'],
+      availableSkills: ['lint']
+    })
+
+    expect(merged['disable-rules']).toEqual(['flow'])
+    expect(merged['disable-skills']).toEqual(['fix'])
+    expect(merged.pruned).toBeUndefined()
+  })
+})
+
 describe('detectAutoRules — workspace без devDependencies (line 217)', () => {
   test('вкладений package.json без devDependencies → packageJsonLacksViteDevDependency: true', async () => {
     await withTmpDir(async dir => {

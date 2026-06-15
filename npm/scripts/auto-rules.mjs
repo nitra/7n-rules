@@ -392,14 +392,45 @@ export async function detectAutoRules({
 }
 
 /**
- * Доповнює конфіг автодетектом (лише додає; існуючі вручну задані елементи не прибирає).
+ * Розділяє список id на доступні в пакеті й застарілі (відсутні).
+ * Без `available` нічого не прибирає — усе вважається доступним.
+ * @param {string[]} ids перелік id (rules або skills)
+ * @param {string[] | undefined} available id, що реально є у каталозі пакета
+ * @returns {{ kept: string[], pruned: string[] }} відфільтровані й прибрані id
+ */
+function partitionByAvailability(ids, available) {
+  if (!available) return { kept: ids, pruned: [] }
+  const availableSet = new Set(available)
+  const kept = []
+  const pruned = []
+  for (const id of ids) {
+    if (availableSet.has(id)) kept.push(id)
+    else pruned.push(id)
+  }
+  return { kept, pruned }
+}
+
+/**
+ * Доповнює конфіг автодетектом (лише додає; існуючі вручну задані елементи не прибирає),
+ * а за наявності `availableRules`/`availableSkills` ще й прибирає з `rules`/`skills`
+ * неактуальні id, яких уже немає у пакеті (наприклад, правило чи скіл видалено з нової
+ * версії \@nitra/cursor) — інакше sync щоразу падав би на завантаженні відсутнього
+ * `rules/<id>.mdc` чи `skills/<id>/`. Прибрані id повертаються у полі `pruned` (для логу).
  * @param {object} params параметри оновлення
  * @param {{ rules: unknown, skills?: unknown, ['disable-rules']?: unknown, ['disable-skills']?: unknown }} params.config розпарсений `.n-cursor.json`
  * @param {string[]} params.detectedRules правила, визначені автодетектом
  * @param {string[]} params.detectedSkills skills, визначені автодетектом
- * @returns {{ rules: string[], skills: string[] } & Record<string, unknown>} новий нормалізований конфіг
+ * @param {string[]} [params.availableRules] id правил, наявних у каталозі `rules/` пакета (для відсіву неактуальних)
+ * @param {string[]} [params.availableSkills] id skills, наявних у каталозі `skills/` пакета (для відсіву неактуальних)
+ * @returns {{ rules: string[], skills: string[], pruned?: { rules: string[], skills: string[] } } & Record<string, unknown>} новий нормалізований конфіг
  */
-export function mergeConfigWithAutoDetected({ config, detectedRules, detectedSkills }) {
+export function mergeConfigWithAutoDetected({
+  config,
+  detectedRules,
+  detectedSkills,
+  availableRules,
+  availableSkills
+}) {
   const existingRules = migrateRuleIds(normalizeIdList(config.rules))
   const existingSkills = normalizeIdList(config.skills)
   const disableRules = migrateRuleIds(normalizeIdList(config['disable-rules']))
@@ -419,13 +450,19 @@ export function mergeConfigWithAutoDetected({ config, detectedRules, detectedSki
     }
   }
 
-  /** @type {{ rules: string[], skills: string[] } & Record<string, unknown>} */
-  const normalized = { rules, skills }
+  const { kept: keptRules, pruned: prunedRules } = partitionByAvailability(rules, availableRules)
+  const { kept: keptSkills, pruned: prunedSkills } = partitionByAvailability(skills, availableSkills)
+
+  /** @type {{ rules: string[], skills: string[], pruned?: { rules: string[], skills: string[] } } & Record<string, unknown>} */
+  const normalized = { rules: keptRules, skills: keptSkills }
   if (disableRules.length > 0) {
     normalized['disable-rules'] = disableRules
   }
   if (disableSkills.length > 0) {
     normalized['disable-skills'] = disableSkills
+  }
+  if (prunedRules.length > 0 || prunedSkills.length > 0) {
+    normalized.pruned = { rules: prunedRules, skills: prunedSkills }
   }
   return normalized
 }
