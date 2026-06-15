@@ -1,5 +1,6 @@
 /**
- * Адаптер агрегатора `n-cursor lint` для правила doc-files.
+ * Адаптер агрегатора `n-cursor lint` для правила doc-files (opportunistic LLM-fix
+ * tier, спека docs/specs/2026-06-15-opportunistic-llm-fix-tier.md).
  *
  * Quick-фаза отримує список змінених файлів і мапить їх у пари в **обидва** боки:
  *  - змінене **джерело** (`.js/.mjs/.ts/.vue/.py/.rs`) → перевірка його доки `<dir>/docs/<stem>.md`;
@@ -7,8 +8,11 @@
  *    (той самий stem у каталозі над текою `docs`).
  * Ci-фаза (files === undefined) проганяє повний скан дерева.
  *
- * Порушення — `missing` ∪ `crc-mismatch` (детермінований CRC-детект, 0 LLM-токенів);
- * degraded не блокує. Exit 1 — є stale; 0 — все свіже (конвенція агрегатора).
+ * Детект — `missing` ∪ `crc-mismatch` (детермінований CRC, 0 LLM-токенів); degraded не блокує.
+ * Поведінка за осями (правило має `meta.json: llmFix:true`):
+ *  - `readOnly` (CI/hook): **лише детект** — нуль мутацій/LLM, exit 1 на stale (детермінований гейт);
+ *  - fix-by-default + omlx **піднято**: opportunistic-генерація stale-доків → re-detect → 0 якщо полагоджено;
+ *  - fix-by-default + omlx **недоступно**: fix пропущено (повідомлення) + exit 1 — гейт тримається, без false-green.
  */
 import { join, dirname, basename, extname } from 'node:path'
 import { existsSync, readdirSync } from 'node:fs'
@@ -79,18 +83,34 @@ function reportStale(stale) {
 }
 
 /**
- * Крок агрегатора lint для doc-files.
+ * Збирає застарілі (missing ∪ crc-mismatch) описи у scope кроку.
+ * @param {string[] | undefined} files quick: лише ці файли; undefined: весь репозиторій
+ * @param {string} cwd корінь репо
+ * @returns {Array<{sourcePath:string, docPath:string, reason:string|null}>} stale-описи (готові як targets генерації)
+ */
+function collectStale(files, cwd) {
+  if (files === undefined) return scanForDocFiles(cwd).filter(f => f.stale)
+  const sources = sourcesFromChanged(files, cwd)
+  return sources.map(src => describeFile(cwd, src)).filter(f => f.stale)
+}
+
+/**
+ * Крок агрегатора lint для doc-files (opportunistic LLM-fix tier).
  * @param {string[] | undefined} files quick: лише ці файли; undefined: весь репозиторій
  * @param {string} [cwd] корінь репо
- * @returns {Promise<number>} 0 — OK, 1 — є застарілі доки
+ * @param {{ readOnly?: boolean }} [opts] readOnly: лише детект (CI/hook), без мутацій/LLM
+ * @returns {Promise<number>} 0 — доки свіжі; 1 — є застарілі (детект, fix пропущено чи помилка генерації)
  */
-export function lint(files, cwd = process.cwd()) {
-  if (files === undefined) {
-    const stale = scanForDocFiles(cwd).filter(f => f.stale)
-    return Promise.resolve(reportStale(stale))
-  }
-  const sources = sourcesFromChanged(files, cwd)
-  if (sources.length === 0) return Promise.resolve(0)
-  const stale = sources.map(src => describeFile(cwd, src)).filter(f => f.stale)
-  return Promise.resolve(reportStale(stale))
+export async function lint(files, cwd = process.cwd(), { readOnly = false } = {}) {
+  const stale = collectStale(files, cwd)
+  if (stale.length === 0) return 0
+  if (readOnly) return reportStale(stale)
+
+  // fix-by-default: opportunistic-генерація через спільне ядро (preflight omlx →
+  // батч із circuit-breaker'ом). omlx недоступний → runGenerationBatch друкує причину
+  // й повертає !=0; ми re-detect'имо й через reportStale віддаємо exit 1 (гейт тримається).
+  process.stdout.write(`ℹ️  doc-files: ${stale.length} застарілих — пробую авто-фікс (omlx)…\n`)
+  const { runGenerationBatch } = await import('./docgen-files-batch.mjs')
+  await runGenerationBatch(stale, cwd, { headline: `📋 doc-files: генерація ${stale.length} файл(ів)` })
+  return reportStale(collectStale(files, cwd))
 }

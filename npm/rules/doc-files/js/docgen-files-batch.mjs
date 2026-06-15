@@ -63,7 +63,7 @@ function selectTargets(root, all, { overwrite, retryDegraded }) {
  * Preflight локального бекенда: для omlx-моделі — мінімальний chat-виклик.
  * @returns {string|null} текст фатальної проблеми або null якщо можна генерувати
  */
-function preflightProblem() {
+export function preflightProblem() {
   if (!DEFAULT_LOCAL_MODEL) {
     return 'модель не задано. Вистав N_LOCAL_MIN_MODEL (напр. omlx/mlx-community--gemma-4-e4b-it-OptiQ-4bit) і повтори.'
   }
@@ -214,13 +214,29 @@ export async function runDocFilesGenCli(argv) {
     return 0
   }
 
+  return runGenerationBatch(targets, root, {
+    headline: `📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite, retryDegraded })}`
+  })
+}
+
+/**
+ * Спільне ядро генерації: preflight локального бекенда → послідовний прогін
+ * `targets` через `generateOne` з circuit-breaker'ом (K systemic-збоїв підряд →
+ * abort) → підсумковий звіт. Перевикористовують і батч-CLI (`runDocFilesGenCli`),
+ * і opportunistic lint-крок doc-files (scoped-набір змінених файлів).
+ * @param {Array<object>} targets елементи scanForDocFiles (sourcePath/docPath)
+ * @param {string} root абсолютний корінь
+ * @param {{ headline?: string }} [opts] headline — рядок-шапка прогону у stdout
+ * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
+ */
+export async function runGenerationBatch(targets, root, { headline } = {}) {
   const problem = preflightProblem()
   if (problem) {
     console.error(`✗ fix-doc-files: ${problem}`)
     return 1
   }
 
-  console.log(`📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite, retryDegraded })}`)
+  if (headline) console.log(headline)
   const stats = { ok: 0, degraded: 0, err: 0, errors: [], skipped: [] }
 
   let done = 0
