@@ -2,7 +2,7 @@
 
 Дата: 2026-06-14
 Власник: @vitaliytv
-Статус: **Implemented ✅** (2026-06-15) — `docgen-judge.mjs` + інтеграція в `generateDoc` за `N_CURSOR_DOCGEN_JUDGE=1`, scope `inaccurate`, дефолт OFF, 9 тестів. Передісторія: Q4 + маркова правка дали FP-rate `scoreDoc` **92.3% → 46.2%** («фабрикація > мовчання»); judge закриває залишковий семантичний хвіст. Деталі в «Результати виміру».
+Статус: **Implemented ✅** (2026-06-15) — `docgen-judge.mjs` + інтеграція в `generateDoc`; авто-активація за наявності `N_CLOUD_MIN_MODEL`, scope `inaccurate`, без cloud-моделі OFF, 9 тестів. Передісторія: Q4 + маркова правка дали FP-rate `scoreDoc` **92.3% → 46.2%** («фабрикація > мовчання»); judge закриває залишковий семантичний хвіст. Деталі в «Результати виміру».
 
 ## Результати виміру (Q4) — 2026-06-14
 
@@ -118,7 +118,7 @@ Judge генералізує (1) і (2) одним викликом заміст
 extractFacts → orchestratedDoc (+E2 critique-refine) → scoreDoc (det, 7 правил)
   → best-of-2 (E4)
   → [НОВЕ] judgeGate(doc, src, facts, detScore):
-        умова запуску: N_CURSOR_DOCGEN_JUDGE=1  І  score у «підозрілій смузі»
+        умова запуску: N_CLOUD_MIN_MODEL задано  І  score ≥ threshold
         → judge(src, doc) → verdict {verdict, confidence, reason}
         → якщо verdict ∈ {generic, inaccurate} і confidence ≥ JUDGE_THRESHOLD:
              позначити degraded=true, issues += `judge:<verdict>`
@@ -176,10 +176,8 @@ judge: resolveModel('avg')  →  CLOUD_MIN  →  FALLBACK_VERDICT { verdict:'acc
 
 | Змінна | Дефолт | Призначення |
 |---|---|---|
-| `N_CURSOR_DOCGEN_JUDGE` | `0` (off) | `1` — увімкнути judge-гейт |
-| `N_CURSOR_DOCGEN_JUDGE_MODEL` | `resolveModel('avg')` | модель судді (override) |
-| `N_CURSOR_DOCGEN_JUDGE_THRESHOLD` | `0.7` | min confidence, щоб verdict впливав на degraded |
-| `N_CURSOR_DOCGEN_JUDGE_BAND` | `15` | ширина «підозрілої смуги» навколо threshold |
+| `N_CLOUD_MIN_MODEL` | (порожньо) | **модель судді ТА авто-активація**: задано → гейт увімкнено (без нього — OFF, 0 змін) |
+| `N_CURSOR_DOCGEN_JUDGE_THRESHOLD` | `0.7` | min confidence verdict'а `inaccurate`, щоб позначити degraded |
 
 ### `generateDoc` return (дельта)
 

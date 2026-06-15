@@ -5,19 +5,20 @@
  *
  * Доповнює детермінований `scoreDoc`: ловить `inaccurate`-доки (твердження, що
  * суперечать джерелу), яких структурно-лексичний скорер не бачить у принципі.
- * Запускається ЛИШЕ за `N_CURSOR_DOCGEN_JUDGE=1`, сильнішою (хмарною) моделлю, і
- * лише на доках що ПРОЙШЛИ det-скорер (`score ≥ threshold`) — саме там ховаються
- * false-positives. Scope строго `inaccurate` (вимір показав generic=0%). Дефолт
- * вимкнено → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
+ * Активується АВТОМАТИЧНО, якщо задано `N_CLOUD_MIN_MODEL` (бо суддя потребує
+ * сильнішої за генератор хмарної моделі — без неї судити нема чим). Працює лише на
+ * доках що ПРОЙШЛИ det-скорер (`score ≥ threshold`) — саме там ховаються
+ * false-positives. Scope строго `inaccurate` (вимір показав generic=0%). Без
+ * `N_CLOUD_MIN_MODEL` → 0 змін поведінки. Патерн дзеркалить `scripts/coverage-classify`.
  */
 import { env } from 'node:process'
 import { callLlm } from '../../../lib/llm.mjs'
-import { resolveModel } from '../../../lib/models.mjs'
+import { CLOUD_MIN } from '../../../lib/models.mjs'
 
-/** Гейт увімкнено лише за явним env `N_CURSOR_DOCGEN_JUDGE=1`. */
-export const JUDGE_ENABLED = env.N_CURSOR_DOCGEN_JUDGE === '1'
-/** Модель-суддя: env override → `resolveModel('avg')` (сильніша за генератор `min`). */
-export const JUDGE_MODEL = env.N_CURSOR_DOCGEN_JUDGE_MODEL || resolveModel('avg')
+/** Модель-суддя = `N_CLOUD_MIN_MODEL` (хмарний cloud-min tier). */
+export const JUDGE_MODEL = CLOUD_MIN
+/** Гейт активується АВТОМАТИЧНО, коли задано `N_CLOUD_MIN_MODEL` (без нього нема надійного судді). */
+export const JUDGE_ENABLED = Boolean(CLOUD_MIN)
 /** Мін. впевненість, щоб verdict `inaccurate` позначив док як degraded. */
 export const JUDGE_CONFIDENCE = Number(env.N_CURSOR_DOCGEN_JUDGE_THRESHOLD ?? 0.7) || 0.7
 

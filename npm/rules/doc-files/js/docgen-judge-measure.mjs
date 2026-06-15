@@ -14,7 +14,7 @@
  *
  * Usage:
  *   node docgen-judge-measure.mjs <file1> <file2> ...
- *   MEASURE_CACHE=/tmp/x N_CURSOR_DOCGEN_JUDGE_MODEL=openai-codex/gpt-5.4 node docgen-judge-measure.mjs ...
+ *   MEASURE_CACHE=/tmp/x N_CLOUD_MIN_MODEL=openai-codex/gpt-5.4 node docgen-judge-measure.mjs ...
  */
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { createHash } from 'node:crypto'
@@ -25,7 +25,7 @@ import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
 
 const env = process.env
 const GEN_MODEL = env.N_LOCAL_MIN_MODEL ?? 'omlx/gemma-4-e4b-it-OptiQ-4bit'
-const JUDGE_MODEL = env.N_CURSOR_DOCGEN_JUDGE_MODEL ?? 'openai-codex/gpt-5.4-mini'
+const JUDGE_MODEL = env.N_CLOUD_MIN_MODEL ?? 'openai-codex/gpt-5.4-mini'
 const THRESHOLD = Number(env.N_CURSOR_DOC_FILES_THRESHOLD ?? QUALITY_THRESHOLD) || 70
 const CACHE_DIR = env.MEASURE_CACHE ?? '/tmp/docgen-judge-measure'
 const JUDGE_TIMEOUT = Number(env.MEASURE_JUDGE_TIMEOUT_MS ?? 120_000)
