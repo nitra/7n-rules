@@ -1,1 +1,1 @@
-{ "auto": "завжди", "lint": "per-file" }
+{ "auto": "завжди", "lint": "per-file", "llmFix": true }

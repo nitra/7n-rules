@@ -95,7 +95,7 @@ describe('lint — opportunistic LLM-fix (fix-by-default)', () => {
         }
         return 0
       }
-      expect(await lint(['src/a.mjs'], root)).toBe(0)
+      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(0)
       expect(state.calls).toHaveLength(1)
       expect(state.calls[0][0]).toHaveLength(1) // targets = 1 stale
     })
@@ -106,7 +106,7 @@ describe('lint — opportunistic LLM-fix (fix-by-default)', () => {
       await ensureDir(join(root, 'src'))
       await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
       state.impl = async () => 1 // preflight-фейл: нічого не згенеровано
-      expect(await lint(['src/a.mjs'], root)).toBe(1)
+      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(1)
       expect(state.calls).toHaveLength(1)
     })
   })
@@ -114,7 +114,16 @@ describe('lint — opportunistic LLM-fix (fix-by-default)', () => {
   test('свіже дерево: генерацію не чіпаємо', async () => {
     await withTmpDir(async root => {
       await writeSourceWithFreshDoc(root, 'src/a.mjs', 'export const a = 1\n')
-      expect(await lint(['src/a.mjs'], root)).toBe(0)
+      expect(await lint(['src/a.mjs'], root, { llmFix: true })).toBe(0)
+      expect(state.calls).toHaveLength(0)
+    })
+  })
+
+  test('без llmFix: detect-only (stale → 1, генерацію не чіпаємо)', async () => {
+    await withTmpDir(async root => {
+      await ensureDir(join(root, 'src'))
+      await writeFile(join(root, 'src', 'a.mjs'), 'export const a = 1\n')
+      expect(await lint(['src/a.mjs'], root)).toBe(1) // llmFix=undefined → opt-out
       expect(state.calls).toHaveLength(0)
     })
   })

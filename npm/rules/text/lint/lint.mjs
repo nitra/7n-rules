@@ -97,9 +97,10 @@ function preflight(dep) {
 /**
  * Внутрішні кроки `lint-text` без локу.
  * @param {boolean} [readOnly] true → лише детект без авто-фіксу (нуль мутацій — CI/pre-commit)
+ * @param {boolean} [llmFix] opt-in omlx-класифікація cspell (інші кроки фіксяться детерміновано за readOnly)
  * @returns {number} 0 — все OK, інакше — код першого кроку, що впав
  */
-function runLintTextSteps(readOnly = false) {
+function runLintTextSteps(readOnly = false, llmFix = false) {
   // Auto-install: throws on failure → propagates as exit 1 from runStandardLint
   ensureTool('shellcheck')
   ensureTool('dotenv-linter')
@@ -107,8 +108,8 @@ function runLintTextSteps(readOnly = false) {
   // patch потрібен лише для авто-фіксу shellcheck; у read-only пропускаємо preflight.
   if (!readOnly && !preflight(PATCH_PREFLIGHT)) return 1
 
-  console.log(`\n▶ cspell (${readOnly ? 'перевірка' : 'omlx-автофікс одруків + перевірка'})`)
-  const cspellCode = runCspellText(process.cwd(), readOnly)
+  console.log(`\n▶ cspell (${!readOnly && llmFix ? 'omlx-класифікація + словник + перевірка' : 'перевірка'})`)
+  const cspellCode = runCspellText(process.cwd(), readOnly, llmFix)
   if (cspellCode !== 0) return cspellCode
 
   console.log(`\n▶ shellcheck (${readOnly ? 'перевірка' : 'авто-фікс + фінальна перевірка'} *.sh)`)
@@ -129,8 +130,9 @@ function runLintTextSteps(readOnly = false) {
 
 /**
  * Публічна CLI-форма: серіалізує через `withLock('lint-text')` + дедуп за станом git-дерева.
- * @param {{ readOnly?: boolean }} [opts] readOnly → детект без авто-фіксу
+ * @param {{ readOnly?: boolean, llmFix?: boolean }} [opts] readOnly → детект без авто-фіксу;
+ *   llmFix → omlx-класифікація cspell (opt-in із `meta.json: llmFix:true`)
  * @returns {Promise<number>} код виходу
  */
 export const runLintTextCli = (opts = {}) =>
-  runStandardLint(import.meta.dirname, () => runLintTextSteps(opts.readOnly === true))
+  runStandardLint(import.meta.dirname, () => runLintTextSteps(opts.readOnly === true, opts.llmFix === true))

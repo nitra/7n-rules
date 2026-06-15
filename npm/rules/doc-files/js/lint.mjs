@@ -98,13 +98,14 @@ function collectStale(files, cwd) {
  * Крок агрегатора lint для doc-files (opportunistic LLM-fix tier).
  * @param {string[] | undefined} files quick: лише ці файли; undefined: весь репозиторій
  * @param {string} [cwd] корінь репо
- * @param {{ readOnly?: boolean }} [opts] readOnly: лише детект (CI/hook), без мутацій/LLM
+ * @param {{ readOnly?: boolean, llmFix?: boolean }} [opts] readOnly: лише детект (CI/hook);
+ *   llmFix: opt-in opportunistic-генерація (з `meta.json: llmFix:true`) — без нього detect-only
  * @returns {Promise<number>} 0 — доки свіжі; 1 — є застарілі (детект, fix пропущено чи помилка генерації)
  */
-export async function lint(files, cwd = process.cwd(), { readOnly = false } = {}) {
+export async function lint(files, cwd = process.cwd(), { readOnly = false, llmFix = false } = {}) {
   const stale = collectStale(files, cwd)
   if (stale.length === 0) return 0
-  if (readOnly) return reportStale(stale)
+  if (readOnly || !llmFix) return reportStale(stale)
 
   // fix-by-default: opportunistic-генерація через спільне ядро (preflight omlx →
   // батч із circuit-breaker'ом). omlx недоступний → runGenerationBatch друкує причину

@@ -113,9 +113,10 @@ export function appendWordsToDict(cwd, words) {
  * cspell-крок lint-text: класифікація → словник (нова схема).
  * @param {string} [cwd] корінь
  * @param {boolean} [readOnly] true → лише детект (нуль мутацій)
+ * @param {boolean} [llmFix] opt-in omlx-класифікація (з `meta.json: llmFix:true`); без нього — лише детект
  * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
  */
-export function runCspellText(cwd = process.cwd(), readOnly = false) {
+export function runCspellText(cwd = process.cwd(), readOnly = false, llmFix = false) {
   const bin = resolveCmd('npx')
   if (!bin) {
     process.stderr.write('❌ npx не знайдено в PATH (cspell).\n')
@@ -124,7 +125,7 @@ export function runCspellText(cwd = process.cwd(), readOnly = false) {
 
   const first = detectCspell(cwd, bin)
   if (first.code === 0) return 0
-  if (readOnly) {
+  if (readOnly || !llmFix) {
     process.stdout.write(first.out)
     return first.code
   }

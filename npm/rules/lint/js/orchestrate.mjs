@@ -108,15 +108,23 @@ export async function runLint(opts = {}) {
     return 0
   }
 
-  const ids = selectLintRules(readAllMeta(rulesDir), full)
+  const metaById = readAllMeta(rulesDir)
+  const ids = selectLintRules(metaById, full)
   for (const id of ids) {
     const lintPath = join(rulesDir, id, 'js', 'lint.mjs')
     if (!existsSync(lintPath)) {
       log(`⚠️  lint: правило ${id} має lint-фазу, але немає js/lint.mjs — пропускаю.\n`)
       continue
     }
+    // lintPath = join(rulesDir, id, …) — суто package-internal (rulesDir пакета + id зі
+    // selectLintRules за власним meta), не зовнішній вхід → ін'єкції немає.
+    // eslint-disable-next-line no-unsanitized/method
     const mod = await import(lintPath)
-    const code = await mod.lint(changed, cwd, { readOnly })
+    // `llmFix` (opt-in opportunistic LLM-fix, спека 2026-06-15): лише правила з
+    // `meta.json: llmFix:true` отримують fix-сходинку; решта — detect-only. Це й
+    // забезпечує safety-тріаж (логічні лінтери не вмикають LLM-fix випадково).
+    const llmFix = metaById[id]?.llmFix === true
+    const code = await mod.lint(changed, cwd, { readOnly, llmFix })
     if (code !== 0) return code
   }
 

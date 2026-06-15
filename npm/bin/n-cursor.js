@@ -1568,7 +1568,8 @@ try {
     case 'lint-text': {
       // Канонічний lint-text: cspell → shellcheck → dotenv → markdownlint → v8r (text.mdc).
       // `--read-only` (CI): без авто-фіксу (markdownlint/shellcheck/dotenv) — нуль мутацій.
-      process.exitCode = await runLintTextCli({ readOnly: args.includes('--read-only') })
+      // `llmFix:true` — text llmFix-capable, тож standalone lint-text робить omlx-класифікацію cspell.
+      process.exitCode = await runLintTextCli({ readOnly: args.includes('--read-only'), llmFix: true })
 
       break
     }
