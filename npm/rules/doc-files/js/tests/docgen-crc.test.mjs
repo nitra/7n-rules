@@ -38,7 +38,7 @@ describe('frontmatter', () => {
   test('buildDocFrontmatter → парситься назад (без quality — score:null)', () => {
     const fm = buildDocFrontmatter('src/lib/foo.js', 'a3f1c9e0')
     const { data, body } = parseDocFrontmatter(`${fm}\n## Огляд\n`)
-    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0', model: null, score: null, issues: [] })
+    expect(data).toEqual({ source: 'src/lib/foo.js', crc: 'a3f1c9e0', model: null, score: null, issues: [], retried: false, judgeModel: null })
     expect(body.trim()).toBe('## Огляд')
   })
 
@@ -135,18 +135,18 @@ describe('readDocQuality / QUALITY_THRESHOLD', () => {
 
   test('читає score/issues; null для відсутньої доки чи доки без score', async () => {
     await withTmpDir(async root => {
-      expect(readDocQuality(join(root, 'absent.md'))).toEqual({ score: null, issues: [] })
+      expect(readDocQuality(join(root, 'absent.md'))).toEqual({ score: null, issues: [], retried: false, judgeModel: null })
 
       const plain = join(root, 'plain.md')
       await writeFile(plain, stampDoc('## Огляд\n', 'src/a.js', 'deadbeef'))
-      expect(readDocQuality(plain)).toEqual({ score: null, issues: [] })
+      expect(readDocQuality(plain)).toEqual({ score: null, issues: [], retried: false, judgeModel: null })
 
       const degraded = join(root, 'degraded.md')
       await writeFile(
         degraded,
         stampDoc('## Огляд\n', 'src/b.js', 'deadbeef', { score: 55, issues: ['short-behavior'] })
       )
-      expect(readDocQuality(degraded)).toEqual({ score: 55, issues: ['short-behavior'] })
+      expect(readDocQuality(degraded)).toEqual({ score: 55, issues: ['short-behavior'], retried: false, judgeModel: null })
     })
   })
 })

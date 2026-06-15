@@ -234,7 +234,7 @@ function toRelSource(root, candidate) {
 /**
  * `doc-files check --degraded` — інформаційний список свіжих за CRC док зі
  * `score < QUALITY_THRESHOLD` (локальний конвеєр не дотягнув; ADR 260610-2228).
- * Не блокує (exit 0): degraded — борг для `gen --retry-degraded`, а не гейт.
+ * Не блокує (exit 0): degraded — борг, що автоматично доретраюється наступним `gen`, а не гейт.
  * @param {string} root абсолютний корінь
  * @returns {number} exit-код: завжди 0
  */
@@ -256,7 +256,7 @@ function runDegradedReport(root) {
     })
     .join('\n')
   console.log(
-    `⚠ doc-files: degraded-док ${degraded.length} (score < ${QUALITY_THRESHOLD}):\n${list}\n→ перегенеруй: npx @nitra/cursor fix-doc-files --retry-degraded`
+    `⚠ doc-files: degraded-док ${degraded.length} (score < ${QUALITY_THRESHOLD}):\n${list}\n→ доретраюються автоматично наступним \`gen\` (один раз на версію джерела).`
   )
   return 0
 }

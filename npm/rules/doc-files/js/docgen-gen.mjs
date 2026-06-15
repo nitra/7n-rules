@@ -9,7 +9,7 @@ import { docPathForSource } from './docgen-scan.mjs'
 import { extractFacts } from './docgen-extract.mjs'
 import { extractAnchors, anchorTokens } from './docgen-extract-anchors.mjs'
 import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
-import { JUDGE_ENABLED, judgeDoc, judgeFailsDoc } from './docgen-judge.mjs'
+import { JUDGE_ENABLED, JUDGE_MODEL, judgeDoc, judgeFailsDoc } from './docgen-judge.mjs'
 import {
   oneShotMessages,
   sectionMessages,
@@ -455,7 +455,7 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
   let judge = null
   if (JUDGE_ENABLED && score >= threshold) {
     try {
-      judge = judgeDoc(src, r.md)
+      judge = { ...judgeDoc(src, r.md), model: JUDGE_MODEL }
       if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
     } catch (error) {
       issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]

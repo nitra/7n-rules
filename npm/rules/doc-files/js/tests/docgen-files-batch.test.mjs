@@ -8,10 +8,11 @@
  */
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 
-const { generateDocMock, scanMock, healthMock } = vi.hoisted(() => ({
+const { generateDocMock, scanMock, healthMock, readDocQualityMock } = vi.hoisted(() => ({
   generateDocMock: vi.fn(),
   scanMock: vi.fn(),
-  healthMock: vi.fn(() => ({ ok: true, reason: null, detail: '' }))
+  healthMock: vi.fn(() => ({ ok: true, reason: null, detail: '' })),
+  readDocQualityMock: vi.fn(() => ({ score: null, issues: [], retried: false, judgeModel: null }))
 }))
 
 vi.mock('../docgen-gen.mjs', () => ({ generateDoc: generateDocMock, DEFAULT_LOCAL_MODEL: 'omlx/test-model' }))
@@ -19,7 +20,7 @@ vi.mock('../docgen-scan.mjs', () => ({ resolveRoot: () => '/fake-root', scanForD
 vi.mock('../docgen-crc.mjs', () => ({
   crc32: () => 'crc',
   stampDoc: md => md,
-  readDocQuality: () => ({ score: null, issues: [] }),
+  readDocQuality: readDocQualityMock,
   readDocModel: () => null,
   QUALITY_THRESHOLD: 80
 }))
@@ -35,7 +36,7 @@ vi.mock('node:fs', () => ({
   statSync: () => ({ size: 100 })
 }))
 
-const { runDocFilesGenCli } = await import('../docgen-files-batch.mjs')
+const { runDocFilesGenCli, selectTargets } = await import('../docgen-files-batch.mjs')
 
 /** @param {number} n кількість stale-цілей */
 const targets = n => Array.from({ length: n }, (_, i) => ({ sourcePath: `src/f${i}.js`, docPath: `src/docs/f${i}.md`, stale: true }))
@@ -84,5 +85,34 @@ describe('runDocFilesGenCli — circuit-breaker / класифікація', () 
     const code = await runDocFilesGenCli([])
     expect(code).toBe(1) // були помилки, але без systemic-abort
     expect(generateDocMock).toHaveBeenCalledTimes(5)
+  })
+})
+
+describe('selectTargets — stale + degraded-once guard', () => {
+  const mk = (sourcePath, docPath, stale) => ({ sourcePath, docPath, stale })
+
+  test('default: stale | degraded-not-retried → обрано; good | degraded-retried → пропущено', () => {
+    const all = [
+      mk('src/stale.js', 'd/stale.md', true),
+      mk('src/good.js', 'd/good.md', false),
+      mk('src/deg.js', 'd/deg.md', false),
+      mk('src/dret.js', 'd/dret.md', false)
+    ]
+    readDocQualityMock.mockImplementation(p =>
+      p.includes('good')
+        ? { score: 90, issues: [], retried: false, judgeModel: null } // ≥ поріг 80
+        : p.includes('dret')
+          ? { score: 40, issues: [], retried: true, judgeModel: null } // degraded, уже доретраяний
+          : { score: 40, issues: [], retried: false, judgeModel: null } // degraded, ще ні
+    )
+    const sel = selectTargets('/root', all, {})
+      .map(f => f.sourcePath)
+      .sort()
+    expect(sel).toEqual(['src/deg.js', 'src/stale.js'])
+  })
+
+  test('--overwrite → усі цілі незалежно від стану', () => {
+    const all = [mk('a.js', 'd/a.md', false), mk('b.js', 'd/b.md', false)]
+    expect(selectTargets('/root', all, { overwrite: true })).toHaveLength(2)
   })
 })

@@ -4,8 +4,8 @@
  * Уся черга/батчинг/CRC-штамп живуть тут, а не в контексті моделі — тому
  * масовий перший прогін на сотні файлів не «заморює» агента. Конвеєр суто
  * локальний: жодних cloud-ескалацій; якщо det-score нижче порогу — дока все
- * одно пишеться з degraded-маркером (`score`/`issues` у frontmatter), а
- * `gen --retry-degraded` адресно переганяє лише такі доки пізніше.
+ * одно пишеться з degraded-маркером (`score`/`issues` у frontmatter), а наступний
+ * `gen` автоматично доретраює такі доки (один раз на версію джерела — далі `retried:true`).
  *
  * Перед масовим прогоном — health-check omlx: memory-guard зайнятої 8GB машини
  * означає «відклади прогін», а не сотні хибних «✗» у звіті.
@@ -22,7 +22,7 @@ import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
 /**
  * Парсить `--limit N` / `--from N` / прапори режимів для дозапуску великого прогону.
  * @param {string[]} argv аргументи
- * @returns {{ from: number, limit: number, overwrite: boolean, retryDegraded: boolean }} зріз і режими
+ * @returns {{ from: number, limit: number, overwrite: boolean }} зріз і режими
  */
 function parseGenArgs(argv) {
   const num = (flag, dflt) => {
@@ -32,31 +32,29 @@ function parseGenArgs(argv) {
   return {
     from: num('--from', 0),
     limit: num('--limit', Infinity),
-    overwrite: argv.includes('--overwrite'),
-    retryDegraded: argv.includes('--retry-degraded')
+    overwrite: argv.includes('--overwrite')
   }
 }
 
 /**
- * Цілі генерації за режимом:
- *   - default          → застарілі (stale);
- *   - `--overwrite`     → усі;
- *   - `--retry-degraded` → свіжі за CRC, але зі `score < QUALITY_THRESHOLD`.
+ * Цілі генерації:
+ *   - default      → застарілі (stale) АБО degraded-доки, які ще не доретраювали при цьому CRC;
+ *   - `--overwrite` → усі.
+ * Degraded-док отримує рівно ОДИН доретрай на версію джерела: після невдалого доретраю
+ * (лишився degraded) штампується `retried: true` і його більше не чіпають до зміни джерела
+ * (нова версія → CRC-mismatch → stale → лічильник скидається). Конвеєр сходиться без прапора.
  * @param {string} root абсолютний корінь
  * @param {Array<object>} all результат scanForDocFiles
- * @param {{ overwrite: boolean, retryDegraded: boolean }} mode режими
+ * @param {{ overwrite: boolean }} mode режими
  * @returns {Array<object>} відфільтровані цілі
  */
-function selectTargets(root, all, { overwrite, retryDegraded }) {
-  if (retryDegraded) {
-    return all.filter(f => {
-      if (f.stale) return false
-      const { score } = readDocQuality(join(root, f.docPath))
-      return score !== null && score < QUALITY_THRESHOLD
-    })
-  }
+export function selectTargets(root, all, { overwrite }) {
   if (overwrite) return all
-  return all.filter(f => f.stale)
+  return all.filter(f => {
+    if (f.stale) return true
+    const { score, retried } = readDocQuality(join(root, f.docPath))
+    return score !== null && score < QUALITY_THRESHOLD && !retried
+  })
 }
 
 /**
@@ -84,13 +82,11 @@ export function preflightProblem() {
 
 /**
  * Текст-суфікс режиму для прогрес-рядка.
- * @param {{ overwrite: boolean, retryDegraded: boolean }} mode режими
- * @returns {string} ` (--overwrite)` / ` (--retry-degraded)` / порожній рядок
+ * @param {{ overwrite: boolean }} mode режими
+ * @returns {string} ` (--overwrite)` або порожній рядок
  */
-function modeSuffix({ overwrite, retryDegraded }) {
-  if (overwrite) return ' (--overwrite)'
-  if (retryDegraded) return ' (--retry-degraded)'
-  return ''
+function modeSuffix({ overwrite }) {
+  return overwrite ? ' (--overwrite)' : ''
 }
 
 /**
@@ -146,8 +142,13 @@ async function generateOne(file, root, progress, stats) {
     const result = await generateDoc(sourceAbs, { existingMd })
     const crc = crc32(readFileSync(sourceAbs))
     mkdirSync(dirname(docAbs), { recursive: true })
+    // retried: НЕ stale (отже це доретрай при тому ж CRC) і лишився degraded → штампуємо,
+    // щоб наступні `gen` його не чіпали до зміни джерела (сходимість без прапора).
+    const retried = !file.stale && result.degraded
     const quality =
-      result.score === null ? null : { score: result.score, issues: result.degraded ? result.issues : [] }
+      result.score === null
+        ? null
+        : { score: result.score, issues: result.degraded ? result.issues : [], retried, judge: result.judge }
     writeFileSync(docAbs, stampDoc(result.md, file.sourcePath, crc, quality, result.model))
     stats.ok++
     if (result.degraded) {
@@ -189,7 +190,7 @@ function reportStats(stats) {
     for (const e of stats.skipped) console.log(`  - ${e}`)
   }
   if (stats.degraded > 0) {
-    console.log(`Degraded-доки перегенеровуються пізніше: npx @nitra/cursor fix-doc-files --retry-degraded`)
+    console.log('Degraded-доки автоматично доретраюються наступним `gen` (один раз на версію джерела).')
   }
 }
 
@@ -200,22 +201,18 @@ function reportStats(stats) {
  */
 export async function runDocFilesGenCli(argv) {
   const root = resolveRoot(argv)
-  const { from, limit, overwrite, retryDegraded } = parseGenArgs(argv)
+  const { from, limit, overwrite } = parseGenArgs(argv)
 
   const all = scanForDocFiles(root)
-  const targets = selectTargets(root, all, { overwrite, retryDegraded }).slice(from, from + limit)
+  const targets = selectTargets(root, all, { overwrite }).slice(from, from + limit)
 
   if (targets.length === 0) {
-    console.log(
-      retryDegraded
-        ? '✓ doc-files: degraded-док немає. Нічого переганяти.'
-        : '✓ doc-files: усі файлові доки свіжі. Нічого генерувати.'
-    )
+    console.log('✓ doc-files: усі файлові доки свіжі й не-degraded. Нічого генерувати.')
     return 0
   }
 
   return runGenerationBatch(targets, root, {
-    headline: `📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite, retryDegraded })}`
+    headline: `📋 doc-files: до генерації ${targets.length} файл(ів)${modeSuffix({ overwrite })}`
   })
 }
 

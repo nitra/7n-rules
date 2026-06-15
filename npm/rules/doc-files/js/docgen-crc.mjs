@@ -10,8 +10,8 @@
  * Degraded-маркер (ADR 260610-2228): якщо локальний конвеєр не дотягнув до порогу
  * якості, дока все одно пишеться, а frontmatter додатково несе `score` (det-оцінка)
  * та `issues` (коди проблем). CRC при цьому свіжий — Stop-гейт не блокує задачі через
- * слабкість моделі; борг видимий через `check --degraded` і адресно перегенеровується
- * через `gen --retry-degraded`.
+ * слабкість моделі; борг видимий через `check --degraded` і автоматично доретраюється
+ * наступним `gen` (рівно один раз на версію джерела — далі `retried: true` у frontmatter).
  *
  * Frontmatter — єдиний дозволений виняток із правила «чистий Markdown без HTML»:
  * це машинні метадані, не контент. Формат:
@@ -54,6 +54,8 @@ const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
 const MODEL_RE = /^[ \t]{0,8}model:[ \t]{0,8}(.+)$/mu
 const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu
 const ISSUES_RE = /^[ \t]{0,8}issues:[ \t]{0,8}(.+)$/mu
+const RETRIED_RE = /^[ \t]{0,8}retried:[ \t]{0,8}true[ \t]*$/mu
+const JUDGE_MODEL_RE = /^[ \t]{0,8}judgeModel:[ \t]{0,8}(.+)$/mu
 const LEADING_NEWLINES_RE = /^\n+/u
 const ISSUE_CODE_TAIL_RE = /[,:]$/u
 
@@ -62,7 +64,7 @@ const ISSUE_CODE_TAIL_RE = /[,:]$/u
  * Поля `model`/`score`/`issues` опційні (back-compat зі старими доками): без них —
  * `model:null`, `score:null`, `issues:[]`.
  * @param {string} md вміст md-файлу
- * @returns {{ data: { source: string|null, crc: string|null, model: string|null, score: number|null, issues: string[] }|null, body: string }} метадані + тіло без frontmatter
+ * @returns {{ data: { source: string|null, crc: string|null, model: string|null, score: number|null, issues: string[], retried: boolean, judgeModel: string|null }|null, body: string }} метадані + тіло без frontmatter
  */
 export function parseDocFrontmatter(md) {
   const match = md.match(FRONTMATTER_RE)
@@ -81,7 +83,9 @@ export function parseDocFrontmatter(md) {
             .split(',')
             .map(s => s.trim())
             .filter(Boolean)
-        : []
+        : [],
+      retried: RETRIED_RE.test(block),
+      judgeModel: block.match(JUDGE_MODEL_RE)?.[1].trim() ?? null
     },
     body: md.slice(match[0].length)
   }
@@ -107,7 +111,7 @@ function issueCodes(issues) {
  * Будує frontmatter-блок із шляхом джерела, CRC, (опційно) моделлю-генератором і якістю.
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
- * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки; null — без полів якості
+ * @param {{ score: number, issues?: string[], retried?: boolean, judge?: {model?: string} }|null} [quality] det-оцінка доки (+ опц. `retried`-маркер і `judge.model` хмарного судді); null — без полів якості
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
  * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …[\n  model: …][\n  score: …][\n  issues: …]\n---\n`
  */
@@ -118,6 +122,8 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null) {
     lines.push(`score: ${quality.score}`)
     const codes = issueCodes(quality.issues ?? [])
     if (codes.length > 0) lines.push(`issues: ${codes.join(',')}`)
+    if (quality.retried) lines.push('retried: true')
+    if (quality.judge && quality.judge.model) lines.push(`judgeModel: ${quality.judge.model}`)
   }
   const indented = lines.map(l => '  ' + l).join('\n')
   return `---\ndocgen:\n${indented}\n---\n`
@@ -128,7 +134,7 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null) {
  * @param {string} md тіло доки (з frontmatter або без)
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
- * @param {{ score: number, issues?: string[] }|null} [quality] det-оцінка доки
+ * @param {{ score: number, issues?: string[], retried?: boolean, judge?: {model?: string} }|null} [quality] det-оцінка доки (+ опц. `retried`-маркер і `judge.model` хмарного судді)
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
  * @returns {string} md зі свіжим frontmatter
  */
@@ -150,12 +156,17 @@ export function readDocCrc(docAbsPath) {
 /**
  * Якість, збережена у frontmatter доки.
  * @param {string} docAbsPath абсолютний шлях md-доки
- * @returns {{ score: number|null, issues: string[] }} `score:null` — доки немає або поле відсутнє
+ * @returns {{ score: number|null, issues: string[], retried: boolean, judgeModel: string|null }} `score:null` — доки немає або поле відсутнє; `retried` — чи док уже доретраювали при цьому CRC; `judgeModel` — хмарна модель-суддя, що позначила док (або null)
  */
 export function readDocQuality(docAbsPath) {
-  if (!existsSync(docAbsPath)) return { score: null, issues: [] }
+  if (!existsSync(docAbsPath)) return { score: null, issues: [], retried: false, judgeModel: null }
   const data = parseDocFrontmatter(readFileSync(docAbsPath, 'utf8')).data
-  return { score: data?.score ?? null, issues: data?.issues ?? [] }
+  return {
+    score: data?.score ?? null,
+    issues: data?.issues ?? [],
+    retried: data?.retried ?? false,
+    judgeModel: data?.judgeModel ?? null
+  }
 }
 
 /**
