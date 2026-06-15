@@ -1,5 +1,11 @@
 # Changelog
 
+## [11.3.0] - 2026-06-15
+
+### Changed
+
+- lint: opt-in `meta.json: llmFix:true` тепер реально дротується (раніше прапор був декоративний — opportunistic LLM-fix біг просто на `!readOnly`). `runLint` читає `llmFix` з meta правила й передає в `lint(files, cwd, { readOnly, llmFix })`; правило без прапора лишається detect-only. Це й забезпечує safety-тріаж зі спеки (логічні лінтери не вмикають LLM-fix випадково). doc-files і text позначені `llmFix:true`; cspell-класифікація гейтиться через `llmFix` (проведено `runLintTextCli`/`runLintTextSteps`/`runCspellText`), standalone `lint-text` передає `llmFix:true`. Принагідно: justified `no-unsanitized/method`-disable на package-internal динамічний import у `runLint` (pre-existing).
+
 ## [11.2.0] - 2026-06-15
 
 ### Changed
