@@ -1,5 +1,11 @@
 # Changelog
 
+## [10.1.0] - 2026-06-15
+
+### Changed
+
+- Конформність-селекція: .n-cursor.json — єдине джерело правди. resolveCheckRuleIds бере активні правила прямо з конфіга (available ∩ enabled), .cursor/rules/*.mdc лишається лише fallback'ом коли конфіга нема. Прибрано дрейф «правило enabled, але .mdc нема → тихо пропущено». Per-rule whitelist-гейт у runRuleCli видалено як дубль — гейтинг живе виключно у селекції.
+
 ## [10.0.1] - 2026-06-14
 
 ### Changed
