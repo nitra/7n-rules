@@ -1,5 +1,11 @@
 # Changelog
 
+## [11.0.0] - 2026-06-15
+
+### Removed
+
+- CLI: прибрано надлишкові точки входу заради мінімальної поверхні. `lint-ci` видалено — це був чистий аліас `lint --read-only --full` (CI лишається тим самим прапор-комбо). Deprecated-аліас `doc-files <sub>` (`scan|check|gen|stamp`) видалено — 0 живих callerів (hook давно на `lint-doc-files`, скіл на `lint-doc-files`/`fix-doc-files`). Заодно полагоджено застарілу документацію точок входу в `bin/n-cursor.js` (мертві згадки `fix`, опис `lint` → data-driven по `meta.json:lint`) і схему `rule-meta.json` (enum `quick|ci` → `per-file|full`, відповідає реальним значенням і `parseRuleLintSpec`).
+
 ## [10.3.0] - 2026-06-15
 
 ### Added
