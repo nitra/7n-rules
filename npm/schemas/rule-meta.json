@@ -8,8 +8,8 @@
   "properties": {
     "lint": {
       "type": "string",
-      "enum": ["quick", "ci"],
-      "description": "Фаза lint-кроку: quick (по змінених, у lint і lint-ci) або ci (лише lint-ci)."
+      "enum": ["per-file", "full"],
+      "description": "Scope lint-кроку: per-file (декомпозиція по змінених файлах, дельта vs origin) або full (нероздільно крос-файловий, лише `lint --full`)."
     },
     "auto": {
       "description": "Умова автоактивації правила: \"завжди\", масив id правил-залежностей, glob, або іменований предикат.",

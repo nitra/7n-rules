@@ -4,19 +4,18 @@
  * n-cursor — CLI завантаження правил та перевірки проєкту
  *
  * Використання:
- *   `npx \@nitra/cursor`             — завантажити cursor-правила
- *   `npx \@nitra/cursor fix`         — автономний оркестратор: T0-auto + LLM (haiku→sonnet); convergence-loop до чистого стану [--max-iter N] [rules]
- *                                     якщо в корені вже є `.n-cursor.json`, спочатку зчитується конфіг і за потреби дописується `$schema`
- *   `npx \@nitra/cursor fix bun`     — оркестратор лише для вказаних правил; `--json` = check-only (structured output для CI)
+ *   `npx \@nitra/cursor`             — завантажити cursor-правила (синк); якщо в корені вже є `.n-cursor.json`,
+ *                                     спочатку зчитується конфіг і за потреби дописується `$schema`
  *   `npx \@nitra/cursor rename-yaml-extensions` — k8s `*.yml` → `*.yaml`, `.github` `*.yaml` → `*.yml` (опції: `--dry-run`, `--root=…`; див. bin/rename-yaml-extensions.mjs)
  *   `npx \@nitra/cursor post-tool-use-fix` — точка входу PostToolUse hook Claude Code: читає stdin JSON,
  *                                     дістає `tool_input.file_path`, маршрутизує його у відповідні правила
  *                                     (`*.mjs` → `js-lint`, `*.vue` → `js-lint style-lint vue` тощо) і викликає
  *                                     `fix` лише з ними. Прописується автоматично в `.claude/settings.json`.
- *   `npx \@nitra/cursor fix`         — автономний оркестратор (meta.json: orchestrator:true): T0-auto → LLM via pi (haiku→sonnet) → check-gate → loop; [--max-iter N] [rules]
- *   `npx \@nitra/cursor lint`        — оркестратор lint-ланцюжка з кореневого `package.json` з вимірюванням часу
- *                                     кожного `lint-*` / `oxfmt` скрипта (fail-fast); канонічна заміна
- *                                     раніше ручного `lint-ga && lint-js && …` агрегатора.
+ *   `npx \@nitra/cursor lint`        — data-driven оркестратор lint+конформності по `rules/<id>/meta.json` (`lint: per-file|full`):
+ *                                     за замовчуванням fix-by-default по дельті vs origin (лише `per-file` правила); `--full` =
+ *                                     весь репо (`per-file` ∪ `full`); `--read-only` = без мутацій/LLM (CI); позиційні
+ *                                     (не-флаг) аргументи — фільтр правил конформності (мапить колишній `fix <rule>`).
+ *                                     CI = `lint --read-only --full` (весь репо, нуль мутацій/LLM).
  *   `npx \@nitra/cursor lint-ga`     — канонічний lint-ga (ga.mdc): preflight на `shellcheck` →
  *                                     `bunx github-actionlint` → `uvx zizmor --offline --collect=workflows .`
  *   `npx \@nitra/cursor lint-rego`   — канонічний lint-rego (conftest.mdc + rego.mdc):
@@ -1542,12 +1541,6 @@ try {
 
       break
     }
-    case 'lint-ci': {
-      // CI = весь репо в read-only (нуль мутацій, нуль LLM) — еквівалент `lint --read-only --full`.
-      process.exitCode = await runLint({ full: true, readOnly: true })
-
-      break
-    }
     case 'lint-ga': {
       // Канонічний lint-ga з preflight на shellcheck → actionlint → zizmor → check-ga (ga.mdc).
       // Останній крок (check-ga) async — тому await обов'язковий, інакше process.exitCode буде Promise.
@@ -1727,7 +1720,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, lint-ci, trace, doc-files, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, trace, doc-files, doc-aggregate`
       )
       process.exitCode = 1
     }

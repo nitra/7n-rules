@@ -42,8 +42,13 @@ const IMPORT_AS_RE = /[ \t]{1,8}as[ \t]{1,8}.{0,200}/
 const WRITE_FS_RE = /\b(writeFile|mkdir|rmdir|unlink|appendFile|createWriteStream|rm\()/
 const CATCH_RE = /catch\s*\(/
 const TRY_RE = /\btry\s*\{/
-const FALSY_RETURN_RE = /return\s+(false|null|''|"")/
-const NETWORK_RE = /\bfetch\(|https?\.|axios|got\(/
+// Falsy-return як «fail-safe» — лише коли воно в catch/error-гілці (інакше це
+// звичайний guard `if (!x) return null`, не обробка помилки). Уникає over-claim.
+const FALSY_RETURN_RE = /catch[\s\S]{0,400}?return\s+(false|null|''|"")/
+// Мережа: окрім явного fetch/http, ловимо абстраговані клієнти (graphql/db/rpc/
+// octokit/.request/.query). Хибний false-negative тут = небезпечна гарантія
+// «без мережі», тож свідомо схиляємось до over-detection (м'якший бік помилки).
+const NETWORK_RE = /\bfetch\(|https?:\/\/|\bhttps?\.|axios|\bgot\(|graphql|\.request\(|\.query\(|\.mutate\(|octokit|node-fetch|undici|\bgrpc\b|websocket/i
 // Кеш — лише за ІМЕНОВАНИМ маркером (`cache`/`Cache`/`memoize`), не за будь-яким
 // `new Map()`: акумулятор (напр. `byPath = new Map()`) — не кеш, а хибна гарантія
 // «Кешує результати» гірша за пропуск (фабрикація > мовчання).

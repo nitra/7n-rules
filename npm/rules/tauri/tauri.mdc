@@ -2,7 +2,7 @@
 description: Tauri
 globs: "**/src-tauri/**,**/tauri.conf.json"
 alwaysApply: false
-version: '1.4'
+version: '1.5'
 ---
 
 У `.vscode/extensions.json` `recommendations` має містити `tauri-apps.tauri-vscode`:
@@ -66,3 +66,25 @@ exclude_globs = [
   - якщо обидва канонічні ключі (`additional_cargo_test_args`, `exclude_globs`) вже присутні — `manual cargo-mutants config preserved`, нічого не зміниться;
   - якщо якийсь канонічний ключ відсутній — додається окремим блоком у кінці файла, без зміни існуючих значень.
 - Послідовний `fix test` → `fix tauri` створює Tauri-config; повторний `fix tauri` не дублює секцій; повторний `fix test` не перетирає Tauri-tuning.
+
+## Tool Surface у Tauri (реалізація ядра `tool-surface`)
+
+Це per-stack реалізація правила **`tool-surface`** (`n-tool-surface`) для Tauri+Rust. Контракт (каталог → `dispatch` → UI/оркестратор/LLM, інваріант паритету, конверт) — у тому правилі; тут — як він лягає на Tauri.
+
+**Реальна робота живе в Rust, JS-каталог — тонкий call surface.** Handler тула не містить логіки сам — він **делегує** в native. Одна реалізація в Rust-крейті backs два споживачі:
+
+- **Бінарник** (`src-tauri` як CLI, або окремий crate-bin) — headless-вхід для оркестратора;
+- **Tauri-команда** (`#[tauri::command]`) — той самий крейт-fn, обгорнутий для UI.
+
+**Два транспорти одного каталогу** (`src/tool/transports`):
+
+- **UI (in-app):** `invoke(tool.tauri, input)` → Tauri-команда → крейт. Ключі `input` мапляться 1:1 на аргументи команди (camelCase, напр. `tasksDir`); поля вкладених struct лишаються snake_case (Tauri конвертить лише імена top-level аргументів).
+- **Оркестратор (headless):** `bin/<app>.mjs` спавнить зібраний бінарник (`<bin> <verb> …` per-verb, або уніфікований `<bin> exec '<json>'`), парсить JSON stdout.
+
+**Конверт:** Tauri-команда повертає `Result<T, String>`; адаптер мапить у `{ ok, output }` / `{ ok:false, error }`. Бінарник друкує конверт у stdout, exit ≠ 0 на `ok:false`.
+
+**Єдине джерело схем:** надавай перевагу `schemars`-derive на Rust-param-структурах → бінарник віддає маніфест (`<bin> schema`); або тримай схему в JS-каталозі й валідуй до `invoke`. **Не дублюй** контракт між Rust і JS — лише деривація + спільні тест-вектори.
+
+**Дозволи:** будь-який плагін, який смикають тули (`tauri-plugin-dialog`, `tauri-plugin-http` для локальної LLM тощо), має бути в `src-tauri/capabilities/*.json` і зареєстрований у `lib.rs` — інакше виклик тихо падає.
+
+**LLM-раннер in-app:** chat-loop ходить до OpenAI-сумісного ендпоінта через `tauri-plugin-http` fetch (бо webview-fetch обмежений CSP/capability), а тули виконує через спільний `dispatch` (той самий, що й UI).
