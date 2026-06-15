@@ -48,7 +48,12 @@ function cacheSet(key, val) {
   writeFileSync(join(CACHE_DIR, key + '.json'), JSON.stringify(val))
 }
 
-/** Генерує (з кешем за хешем src). */
+/**
+ * Генерує док (з кешем за хешем src).
+ * @param {string} file абсолютний шлях джерела
+ * @param {string} src вміст файлу
+ * @returns {{md: string, score: number|null, issues: string[], degraded: boolean, cached: boolean}} результат генерації
+ */
 function genCached(file, src) {
   const key = 'gen-' + sha(GEN_MODEL + '\0' + src)
   const hit = cacheGet(key)
@@ -59,7 +64,12 @@ function genCached(file, src) {
   return { ...out, cached: false }
 }
 
-/** Судить (з кешем за хешем src+doc). */
+/**
+ * Судить док сильною моделлю (з кешем за хешем src+doc).
+ * @param {string} src вміст вихідного файлу
+ * @param {string} doc згенерована документація
+ * @returns {{verdict: string, confidence: number, reason: string, offending?: string[], cached: boolean}} verdict судді
+ */
 function judgeCached(src, doc) {
   const key = 'judge-' + sha(JUDGE_MODEL + '\0' + src + '\0' + doc)
   const hit = cacheGet(key)
@@ -67,7 +77,7 @@ function judgeCached(src, doc) {
   const user = `SOURCE FILE:\n\`\`\`\n${src.slice(0, 12000)}\n\`\`\`\n\nGENERATED DOC:\n\`\`\`md\n${doc.slice(0, 8000)}\n\`\`\`\n\nReturn the JSON verdict.`
   const raw = callLlm([{ role: 'system', content: SYSTEM }, { role: 'user', content: user }], JUDGE_MODEL, { timeoutMs: JUDGE_TIMEOUT, temperature: 0 })
   const a = raw.indexOf('{'), b = raw.lastIndexOf('}')
-  if (a < 0 || b < 0) throw new Error('no JSON in judge reply: ' + raw.slice(0, 160))
+  if (a === -1 || b === -1) throw new Error('no JSON in judge reply: ' + raw.slice(0, 160))
   const v = JSON.parse(raw.slice(a, b + 1))
   cacheSet(key, v)
   return { ...v, cached: false }
@@ -85,11 +95,11 @@ function main() {
   for (const [i, file] of files.entries()) {
     const tag = `(${i + 1}/${files.length}) ${file}`
     let src
-    try { src = readFileSync(file, 'utf8') } catch (e) { console.error(`[skip] ${tag}: read ${e.message}`); continue }
+    try { src = readFileSync(file, 'utf8') } catch (error) { console.error(`[skip] ${tag}: read ${error.message}`); continue }
 
     let gen
-    try { gen = genCached(file, src) } catch (e) { console.error(`[gen-err] ${tag}: ${e.message.slice(0, 120)}`); rows.push({ file, error: 'gen', detail: e.message.slice(0, 200) }); continue }
-    if (gen.score == null) { console.error(`[unsupported] ${tag}`); rows.push({ file, score: null, unsupported: true }); continue }
+    try { gen = genCached(file, src) } catch (error) { console.error(`[gen-err] ${tag}: ${error.message.slice(0, 120)}`); rows.push({ file, error: 'gen', detail: error.message.slice(0, 200) }); continue }
+    if (gen.score === null) { console.error(`[unsupported] ${tag}`); rows.push({ file, score: null, unsupported: true }); continue }
 
     const passed = gen.score >= THRESHOLD
     const row = { file, score: gen.score, degraded: gen.degraded, passed, genCached: gen.cached }
@@ -100,7 +110,7 @@ function main() {
         const v = judgeCached(src, gen.md)
         row.verdict = v.verdict; row.confidence = v.confidence; row.reason = v.reason; row.offending = v.offending; row.judgeCached = v.cached
         console.error(`  [judge${v.cached ? '*' : ''}] ${v.verdict} (${v.confidence}) — ${(v.reason || '').slice(0, 90)}`)
-      } catch (e) { row.judgeError = e.message.slice(0, 200); console.error(`  [judge-err] ${e.message.slice(0, 120)}`) }
+      } catch (error) { row.judgeError = error.message.slice(0, 200); console.error(`  [judge-err] ${error.message.slice(0, 120)}`) }
     }
     rows.push(row)
   }

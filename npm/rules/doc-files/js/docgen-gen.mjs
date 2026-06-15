@@ -9,6 +9,7 @@ import { docPathForSource } from './docgen-scan.mjs'
 import { extractFacts } from './docgen-extract.mjs'
 import { extractAnchors, anchorTokens } from './docgen-extract-anchors.mjs'
 import { QUALITY_THRESHOLD } from './docgen-crc.mjs'
+import { JUDGE_ENABLED, judgeDoc, judgeFailsDoc } from './docgen-judge.mjs'
 import {
   oneShotMessages,
   sectionMessages,
@@ -449,6 +450,18 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
     }
   }
 
+  // Stage 3 (опц.): семантичний judge-гейт — лише за N_CURSOR_DOCGEN_JUDGE=1 і на
+  // доках, що ПРОЙШЛИ det-скорер (там ховаються false-positives). Scope: inaccurate.
+  let judge = null
+  if (JUDGE_ENABLED && score >= threshold) {
+    try {
+      judge = judgeDoc(src, r.md)
+      if (judgeFailsDoc(judge)) issues = [...issues, `judge:inaccurate:${judge.confidence}`]
+    } catch (error) {
+      issues = [...issues, `judge:error: ${error.message.slice(0, 80)}`]
+    }
+  }
+
   return {
     ...r,
     ms: Date.now() - t0,
@@ -456,7 +469,8 @@ export function generateDoc(file, { model = DEFAULT_LOCAL_MODEL, threshold = QUA
     llmCalls: llmMeter.calls,
     score,
     issues,
-    degraded: score < threshold,
+    judge,
+    degraded: score < threshold || judgeFailsDoc(judge),
     model
   }
 }
