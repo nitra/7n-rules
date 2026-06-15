@@ -1,20 +1,33 @@
 /**
- * cspell у ланцюжку lint-text із omlx-автофіксом (point 4 спеки).
+ * cspell у ланцюжку lint-text із omlx-класифікацією (нова схема — спека
+ * docs/specs/2026-06-15-opportunistic-llm-fix-tier.md).
  *
- * cspell не має нативного `--fix`. У fix-режимі: детект (захоплення виводу) → групування
- * знахідок по файлах → per-file omlx-фікс справжніх одруків (`llmLintFix`) → re-detect.
- * У read-only: лише детект (нуль мутацій). Валідні терміни omlx лишає — їх ловить повторний
- * cspell (далі — у словник `@nitra/cspell-dict`).
+ * cspell не має нативного `--fix`, а емпірично ~90% «Unknown word» на укр+тех-репо —
+ * валідні терміни, не одруки (вимір: 1406 знахідок / 292 файли, ~90% словникові
+ * кандидати). Тому fix-режим НЕ переписує файли (старий whole-file `llmLintFix`
+ * таймаутив/парс-фейлив — bounded-output принцип спеки), а **класифікує** знахідки:
+ *   detect → omlx-класифікація distinct-слів (bounded JSON-вихід) → валідні слова
+ *   авто-дописуються у `.cspell.json#words` (sorted/dedup, видно в diff) → ймовірні
+ *   одруки лишаються списком на рев'ю (НЕ авто-виправляються — апплай небезпечний) →
+ *   re-detect. read-only: лише детект (нуль мутацій).
+ *
+ * Гейт: валідні слова після дописування у словник зникають; нерозкласифіковані та
+ * typo лишаються → cspell повертає !=0 → exit 1 (людина доправляє одруки вручну).
  */
 import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { resolveCmd } from '../../../scripts/utils/resolve-cmd.mjs'
-import { llmLintFix } from '../../../scripts/lib/fix/llm-lint-fix.mjs'
+import { callLlm, preflightLocalModel } from '../../../lib/llm.mjs'
 
-/** Рядок cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
-const CSPELL_LINE_RE = /^(.+?):\d+:\d+\s+-\s+Unknown word/u
-/** Максимум файлів під omlx-фікс за прогін (без тихого обрізання — логуємо надлишок). */
-const MAX_FIX_FILES = 25
+/** Слово у рядку cspell: `<file>:<line>:<col> - Unknown word (xxx)`. */
+const UNKNOWN_WORD_RE = /Unknown word \(([^)]+)\)/u
+/** Максимум distinct-слів під класифікацію за прогін (без тихого обрізання — логуємо надлишок). */
+const MAX_CLASSIFY_WORDS = 80
+
+/** Локальна fix-модель (рішення: єдиний knob `N_LOCAL_MIN_MODEL`). */
+const fixModel = () => process.env.N_LOCAL_MIN_MODEL || ''
 
 /**
  * Запускає `cspell .` із захопленням виводу.
@@ -28,34 +41,76 @@ function detectCspell(cwd, bin) {
 }
 
 /**
- * Групує cspell-знахідки за файлом.
+ * Унікальні «Unknown word» зі stdout cspell.
  * @param {string} out вивід cspell
- * @returns {Map<string, string[]>} файл → рядки знахідок
+ * @returns {string[]} distinct-слова у порядку першої появи
  */
-export function groupFindingsByFile(out) {
-  /** @type {Map<string, string[]>} */
-  const byFile = new Map()
+export function unknownWords(out) {
+  const set = new Set()
   for (const line of out.split('\n')) {
-    const m = CSPELL_LINE_RE.exec(line.trim())
-    if (!m) continue
-    const file = m[1]
-    if (!byFile.has(file)) byFile.set(file, [])
-    byFile.get(file).push(line.trim())
+    const m = UNKNOWN_WORD_RE.exec(line)
+    if (m) set.add(m[1])
   }
-  return byFile
+  return [...set]
 }
 
-const CSPELL_INSTRUCTION = [
-  'Correct genuine spelling typos in the file(s).',
-  'Each flagged "Unknown word" is listed below.',
-  'ONLY fix obvious misspellings of real words.',
-  'If a flagged token is a valid identifier, technical term, abbreviation, proper noun, URL,',
-  'or an intentional non-English word, leave it UNCHANGED (it will be added to the dictionary).',
-  'Preserve all code, formatting, and unrelated text exactly.'
-].join(' ')
+/**
+ * Промпт класифікації: для укр+тех-репо bias у «valid» (додати валідне слово безпечно,
+ * «виправити» валідне — шкода). Вихід bounded — JSON-масив вердиктів.
+ * @param {string[]} words distinct-слова
+ * @returns {string} prompt
+ */
+function classifyPrompt(words) {
+  return [
+    'You triage cspell "unknown word" findings for a Ukrainian + technical codebase.',
+    'For each word decide:',
+    '- "valid": correct technical term, identifier, abbreviation, transliteration, jargon, or intentional Ukrainian word → dictionary candidate.',
+    '- "typo": a genuine misspelling of a real word.',
+    'Default to "valid" when unsure (adding a real word to the dictionary is safe; "fixing" a valid word is harmful).',
+    'Return ONLY a JSON array, no markdown fences: [{"w":"<word>","verdict":"valid"|"typo","fix":"<correction or null>"}]',
+    'Words:',
+    ...words.map(w => `- ${w}`)
+  ].join('\n')
+}
 
 /**
- * cspell-крок lint-text з omlx-автофіксом.
+ * Витягує JSON-масив із відповіді моделі (бере від першої «[» до останньої «]» — зрізає прозу й markdown-обрамлення).
+ * @param {string} text відповідь
+ * @returns {Array<{w:string, verdict:string, fix:string|null}>|null} вердикти або null
+ */
+function parseClassify(text) {
+  const start = text.indexOf('[')
+  const end = text.lastIndexOf(']')
+  if (start === -1 || end <= start) return null
+  try {
+    const arr = JSON.parse(text.slice(start, end + 1))
+    return Array.isArray(arr) ? arr : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Дописує слова у `.cspell.json#words` (sorted/dedup) — видно в git diff для рев'ю.
+ * @param {string} cwd корінь
+ * @param {string[]} words валідні слова
+ * @returns {number} к-сть фактично доданих (нових) слів
+ */
+export function appendWordsToDict(cwd, words) {
+  const cfgPath = join(cwd, '.cspell.json')
+  if (words.length === 0 || !existsSync(cfgPath)) return 0
+  const cfg = JSON.parse(readFileSync(cfgPath, 'utf8'))
+  const set = new Set(cfg.words)
+  const before = set.size
+  for (const w of words) set.add(w)
+  if (set.size === before) return 0
+  cfg.words = [...set].toSorted((a, b) => a.localeCompare(b))
+  writeFileSync(cfgPath, `${JSON.stringify(cfg, null, 2)}\n`)
+  return set.size - before
+}
+
+/**
+ * cspell-крок lint-text: класифікація → словник (нова схема).
  * @param {string} [cwd] корінь
  * @param {boolean} [readOnly] true → лише детект (нуль мутацій)
  * @returns {number} 0 — чисто; 1 — лишились знахідки / помилка середовища
@@ -74,30 +129,50 @@ export function runCspellText(cwd = process.cwd(), readOnly = false) {
     return first.code
   }
 
-  // Fix-режим: omlx по файлах зі справжніми одруками.
-  const byFile = groupFindingsByFile(first.out)
-  const files = [...byFile.keys()]
-  if (files.length === 0) {
+  // Fix-режим: класифікація знахідок (bounded JSON-вихід), валідні → у словник.
+  const model = fixModel()
+  const problem = preflightLocalModel(model)
+  if (problem) {
+    process.stdout.write(`⚠️  cspell: класифікацію пропущено (${problem})\n`)
     process.stdout.write(first.out)
     return first.code
   }
-  const targets = files.slice(0, MAX_FIX_FILES)
-  if (files.length > MAX_FIX_FILES) {
-    process.stdout.write(`ℹ️  cspell: omlx-фікс перших ${MAX_FIX_FILES}/${files.length} файлів (решта — наступний прогін)\n`)
+
+  const words = unknownWords(first.out)
+  const batch = words.slice(0, MAX_CLASSIFY_WORDS)
+  if (words.length > MAX_CLASSIFY_WORDS) {
+    process.stdout.write(`ℹ️  cspell: класифікація перших ${MAX_CLASSIFY_WORDS}/${words.length} слів (решта — наступний прогін)\n`)
   }
 
-  for (const file of targets) {
-    const res = llmLintFix({
-      tool: 'cspell',
-      instruction: CSPELL_INSTRUCTION,
-      findings: byFile.get(file).join('\n'),
-      filePaths: [file],
-      projectRoot: cwd
-    })
-    process.stdout.write(res.ok ? `  ⚡ cspell omlx-фікс: ${file}\n` : `  ⚠️  cspell omlx-фікс пропущено (${file}): ${res.error}\n`)
+  let text
+  try {
+    text = callLlm([{ role: 'user', content: classifyPrompt(batch) }], model, { caller: 'cspell-classify', maxTokens: 4000 })
+  } catch (error) {
+    process.stdout.write(`⚠️  cspell: omlx-класифікація впала (${error.message}) — без авто-словника\n`)
+    process.stdout.write(first.out)
+    return first.code
   }
 
-  // Re-detect: що лишилось (валідні терміни → у словник).
+  const parsed = parseClassify(text)
+  if (!parsed) {
+    process.stdout.write('⚠️  cspell: не вдалося розпарсити класифікацію — без авто-словника\n')
+    process.stdout.write(first.out)
+    return first.code
+  }
+
+  const valid = parsed.filter(x => x.verdict === 'valid' && typeof x.w === 'string').map(x => x.w)
+  const typos = parsed.filter(x => x.verdict === 'typo' && typeof x.w === 'string')
+  const added = appendWordsToDict(cwd, valid)
+  process.stdout.write(`✓ cspell: +${added} валідних слів у .cspell.json (з ${valid.length} класифікованих)\n`)
+  if (typos.length > 0) {
+    process.stdout.write("⚠️  cspell: ймовірні одруки на рев'ю (НЕ виправлено авто):\n")
+    for (const t of typos) {
+      const arrow = t.fix ? ` → ${t.fix}` : ''
+      process.stdout.write(`  - ${t.w}${arrow}\n`)
+    }
+  }
+
+  // Re-detect: валідні тепер у словнику → лишаються одруки/нерозкласифіковане → exit 1.
   const second = detectCspell(cwd, bin)
   if (second.code !== 0) process.stdout.write(second.out)
   return second.code

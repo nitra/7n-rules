@@ -23,3 +23,9 @@
 ## Зачіпає
 
 `npm/bin/n-cursor.js` (рядки 56, ~1136, ~1160)
+
+## Update 2026-06-05
+
+**Виправлення прямого `process.env` у тестах**: У `npm/rules/changelog/js/tests/consistency/tests/check.test.mjs:887` виявлено `process.env.N_CURSOR_CHANGELOG_AUTOFIX`. Замінено на `import { env } from 'node:process'` (опційна змінна — правило `n-js-run.mdc` допускає цей шлях для опційних змінних). Після виправлення: `fix js-run` → `✨ 1/1 правил без зауважень`.
+
+**Супутнє виправлення**: Відсутній крок `name: "Release (bump + CHANGELOG + tag)"` у job `release-publish` `.github/workflows/npm-publish.yml` виявлено через `❌ npm_publish_yml: ...` та відновлено відповідно до `n-npm-module.mdc`. Форматування після змін: `bunx oxfmt .`

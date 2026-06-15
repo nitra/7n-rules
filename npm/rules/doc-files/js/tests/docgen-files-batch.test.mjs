@@ -8,10 +8,9 @@
  */
 import { describe, expect, test, vi, beforeEach } from 'vitest'
 
-const { generateDocMock, scanMock, healthMock, readDocQualityMock } = vi.hoisted(() => ({
+const { generateDocMock, scanMock, readDocQualityMock } = vi.hoisted(() => ({
   generateDocMock: vi.fn(),
   scanMock: vi.fn(),
-  healthMock: vi.fn(() => ({ ok: true, reason: null, detail: '' })),
   readDocQualityMock: vi.fn(() => ({ score: null, issues: [], retried: false, judgeModel: null }))
 }))
 
@@ -26,7 +25,7 @@ vi.mock('../docgen-crc.mjs', () => ({
 }))
 vi.mock('../../../../lib/llm.mjs', async importOriginal => ({
   ...(await importOriginal()),
-  omlxHealthCheck: healthMock
+  preflightLocalModel: () => null // preflight завжди проходить — тестуємо circuit-breaker, не health-check
 }))
 vi.mock('node:fs', () => ({
   readFileSync: () => Buffer.from('x'),
@@ -98,16 +97,14 @@ describe('selectTargets — stale + degraded-once guard', () => {
       mk('src/deg.js', 'd/deg.md', false),
       mk('src/dret.js', 'd/dret.md', false)
     ]
-    readDocQualityMock.mockImplementation(p =>
-      p.includes('good')
-        ? { score: 90, issues: [], retried: false, judgeModel: null } // ≥ поріг 80
-        : p.includes('dret')
-          ? { score: 40, issues: [], retried: true, judgeModel: null } // degraded, уже доретраяний
-          : { score: 40, issues: [], retried: false, judgeModel: null } // degraded, ще ні
-    )
+    readDocQualityMock.mockImplementation(p => {
+      if (p.includes('good')) return { score: 90, issues: [], retried: false, judgeModel: null } // ≥ поріг 80
+      // degraded (score < 80); `dret` — уже доретраяний (retried:true), решта — ще ні
+      return { score: 40, issues: [], retried: p.includes('dret'), judgeModel: null }
+    })
     const sel = selectTargets('/root', all, {})
       .map(f => f.sourcePath)
-      .sort()
+      .toSorted()
     expect(sel).toEqual(['src/deg.js', 'src/stale.js'])
   })
 

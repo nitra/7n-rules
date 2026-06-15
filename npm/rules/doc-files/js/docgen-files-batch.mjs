@@ -14,7 +14,7 @@ import { readFileSync, mkdirSync, writeFileSync, existsSync, statSync } from 'no
 import { dirname, join } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
-import { omlxHealthCheck, pickBackend, classifyOmlxError } from '../../../lib/llm.mjs'
+import { classifyOmlxError, preflightLocalModel } from '../../../lib/llm.mjs'
 import { generateDoc, DEFAULT_LOCAL_MODEL } from './docgen-gen.mjs'
 import { crc32, stampDoc, readDocQuality, readDocModel, QUALITY_THRESHOLD } from './docgen-crc.mjs'
 import { resolveRoot, scanForDocFiles } from './docgen-scan.mjs'
@@ -55,29 +55,6 @@ export function selectTargets(root, all, { overwrite }) {
     const { score, retried } = readDocQuality(join(root, f.docPath))
     return score !== null && score < QUALITY_THRESHOLD && !retried
   })
-}
-
-/**
- * Preflight локального бекенда: для omlx-моделі — мінімальний chat-виклик.
- * @returns {string|null} текст фатальної проблеми або null якщо можна генерувати
- */
-export function preflightProblem() {
-  if (!DEFAULT_LOCAL_MODEL) {
-    return 'модель не задано. Вистав N_LOCAL_MIN_MODEL (напр. omlx/mlx-community--gemma-4-e4b-it-OptiQ-4bit) і повтори.'
-  }
-  if (pickBackend(DEFAULT_LOCAL_MODEL) !== 'omlx') return null
-  const hc = omlxHealthCheck({ model: DEFAULT_LOCAL_MODEL })
-  if (hc.ok) return null
-  if (hc.reason === 'memory-guard') {
-    return `omlx memory-guard: модель не влазить у динамічну стелю пам'яті (машина зайнята).\n  Звільни пам'ять або повтори прогін пізніше.\n  ${hc.detail}`
-  }
-  if (hc.reason === 'down') {
-    return `omlx-сервер не відповідає. Запусти \`omlx serve\` і повтори.\n  ${hc.detail}`
-  }
-  if (hc.reason === 'auth') {
-    return `omlx вимагає API-ключ. Вистав N_CURSOR_OMLX_KEY (auth.api_key з ~/.omlx/settings.json).\n  ${hc.detail}`
-  }
-  return `omlx помилка: ${hc.detail}`
 }
 
 /**
@@ -227,7 +204,7 @@ export async function runDocFilesGenCli(argv) {
  * @returns {Promise<number>} 0 — без помилок; 1 — фейл preflight або є помилки; 2 — systemic-abort
  */
 export async function runGenerationBatch(targets, root, { headline } = {}) {
-  const problem = preflightProblem()
+  const problem = preflightLocalModel(DEFAULT_LOCAL_MODEL)
   if (problem) {
     console.error(`✗ fix-doc-files: ${problem}`)
     return 1

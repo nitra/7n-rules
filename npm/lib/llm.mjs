@@ -168,3 +168,30 @@ export function omlxHealthCheck(opts = {}) {
     return { ok: false, reason: 'error', detail }
   }
 }
+
+/**
+ * Спільний preflight локальної fix/gen-моделі (opportunistic LLM-fix tier, спека
+ * docs/specs/2026-06-15-opportunistic-llm-fix-tier.md): чи можна звати модель зараз.
+ * Health-check лише для omlx-бекенду (pi/cloud — завжди дозволено). Використовують
+ * doc-files (генерація) і text/cspell (класифікація) — fast-skip замість приречених викликів.
+ * @param {string} model model-id (зазвичай `N_LOCAL_MIN_MODEL`)
+ * @returns {string|null} людинозрозумілий текст проблеми, або null якщо можна викликати
+ */
+export function preflightLocalModel(model) {
+  if (!model) {
+    return 'модель не задано. Вистав N_LOCAL_MIN_MODEL (напр. omlx/mlx-community--gemma-4-e4b-it-OptiQ-4bit) і повтори.'
+  }
+  if (pickBackend(model) !== 'omlx') return null
+  const hc = omlxHealthCheck({ model })
+  if (hc.ok) return null
+  if (hc.reason === 'memory-guard') {
+    return `omlx memory-guard: модель не влазить у динамічну стелю пам'яті (машина зайнята).\n  Звільни пам'ять або повтори прогін пізніше.\n  ${hc.detail}`
+  }
+  if (hc.reason === 'down') {
+    return `omlx-сервер не відповідає. Запусти \`omlx serve\` і повтори.\n  ${hc.detail}`
+  }
+  if (hc.reason === 'auth') {
+    return `omlx вимагає API-ключ. Вистав N_CURSOR_OMLX_KEY (auth.api_key з ~/.omlx/settings.json).\n  ${hc.detail}`
+  }
+  return `omlx помилка: ${hc.detail}`
+}
