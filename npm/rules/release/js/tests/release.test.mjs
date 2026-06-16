@@ -132,6 +132,83 @@ describe('release', () => {
     })
   })
 
+  test('push non-ff → fetch + rebase + повторний push, теги пересунуто на новий HEAD', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      const calls = []
+      let pushN = 0
+      const runGit = args => {
+        const key = args.join(' ')
+        calls.push(key)
+        if (key.startsWith('push')) return Promise.resolve(++pushN === 1 ? null : '') // перший push відхилено
+        if (key.startsWith('rev-parse')) return Promise.resolve('origin/main\n')
+        return Promise.resolve('') // fetch, rebase, tag — успіх
+      }
+      const released = await release({ cwd: dir, date: '2026-05-29', runGit })
+      expect(released).toEqual([{ ws: '.', name: 'p', newVersion: '1.0.1' }])
+      expect(calls.filter(c => c.startsWith('push')).length).toBe(2)
+      expect(calls).toContain('fetch origin')
+      expect(calls.some(c => c.startsWith('rebase origin/main'))).toBe(true)
+      expect(calls).toContain('tag -f p@1.0.1') // тег пересунуто на rebased-HEAD
+    })
+  })
+
+  test('push постійно non-ff → release кидає (commit-back не приземлився), публікація не відбудеться', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      const runGit = args => {
+        const key = args.join(' ')
+        if (key.startsWith('push')) return Promise.resolve(null) // завжди non-ff
+        if (key.startsWith('rev-parse')) return Promise.resolve('origin/main\n')
+        return Promise.resolve('') // fetch/rebase успішні, але push не приземлюється
+      }
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/push/u)
+    })
+  })
+
+  test('push non-ff + rebase-конфлікт → rebase --abort і кидає', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      const calls = []
+      const runGit = args => {
+        const key = args.join(' ')
+        calls.push(key)
+        if (key.startsWith('push')) return Promise.resolve(null)
+        if (key.startsWith('rev-parse')) return Promise.resolve('origin/main\n')
+        if (key.startsWith('rebase --abort')) return Promise.resolve('')
+        if (key.startsWith('rebase')) return Promise.resolve(null) // конфлікт
+        return Promise.resolve('')
+      }
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/rebase/u)
+      expect(calls).toContain('rebase --abort')
+    })
+  })
+
+  test('push non-ff без upstream → кидає, а не маскує помилку', async () => {
+    await withTmpDir(async dir => {
+      await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.0.0', files: ['CHANGELOG.md'] })
+      await writeFile(join(dir, 'CHANGELOG.md'), '# Changelog\n')
+      await mkdir(join(dir, '.changes'), { recursive: true })
+      await writeFile(join(dir, '.changes', '1.md'), '---\nbump: patch\nsection: Fixed\n---\nfix\n')
+      const runGit = args => {
+        const key = args.join(' ')
+        if (key.startsWith('push')) return Promise.resolve(null)
+        if (key.startsWith('rev-parse')) return Promise.resolve('') // upstream не налаштовано
+        return Promise.resolve('')
+      }
+      await expect(release({ cwd: dir, date: '2026-05-29', runGit })).rejects.toThrow(/commit-back/u)
+    })
+  })
+
   test('major bump через release()', async () => {
     await withTmpDir(async dir => {
       await writeJson(join(dir, 'package.json'), { name: 'p', version: '1.2.3', files: ['CHANGELOG.md'] })

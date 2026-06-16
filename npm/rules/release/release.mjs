@@ -65,6 +65,45 @@ async function collectChangeFiles(cwd, manifest, runGit) {
 }
 
 /**
+ * Пушить release-коміт (із тегами) у апстрім, переживаючи паралельні push у ту саму гілку.
+ * `runGit` — ТИХИЙ раннер (повертає null при помилці), тож non-fast-forward push не кидає, а
+ * повертає null; цей хелпер ЯВНО перевіряє результат, щоб реліз не «вдався» без приземленого
+ * commit-back (саме така мовчазна поразка лишала npm попереду git). За відмовою push:
+ * fetch + rebase release-коміту на свіжий апстрім, пересунути теги на новий HEAD і повторити
+ * (до `attempts` разів). Без апстріму або при rebase-конфлікті — кидаємо, а не маскуємо.
+ * @param {(args: string[]) => Promise<string | null>} runGit git-раннер
+ * @param {string[]} tags теги релізу (вже створені на поточному HEAD)
+ * @param {number} [attempts] максимум спроб push
+ * @returns {Promise<void>} результат; кидає, якщо push так і не приземлився
+ */
+async function pushReleaseWithRetry(runGit, tags, attempts = 5) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const pushed = await runGit(['push', '--follow-tags'])
+    if (pushed !== null) return
+    if (attempt === attempts) break
+    // push відхилено (найімовірніше non-fast-forward — апстрім пішов уперед) → інтегруємо й пробуємо ще
+    const upstream = (await runGit(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']))?.trim()
+    if (!upstream) {
+      throw new Error('release: git push відхилено, а upstream для rebase немає — commit-back не приземлився')
+    }
+    const remote = upstream.includes('/') ? upstream.slice(0, upstream.indexOf('/')) : 'origin'
+    await runGit(['fetch', remote])
+    const rebased = await runGit(['rebase', upstream])
+    if (rebased === null) {
+      await runGit(['rebase', '--abort'])
+      throw new Error(`release: push відхилено і rebase на ${upstream} дав конфлікт — розв'яжи вручну`)
+    }
+    // після rebase хеш release-коміту змінився → пересуваємо теги на новий HEAD
+    for (const tag of tags) {
+      await runGit(['tag', '-f', tag])
+    }
+  }
+  throw new Error(
+    `release: git push не вдався після ${attempts} спроб (non-fast-forward?) — commit-back не приземлився, реліз неуспішний`
+  )
+}
+
+/**
  * @param {object} [opts] опції
  * @param {string} [opts.cwd] корінь
  * @param {string} [opts.date] `YYYY-MM-DD` (за замовчуванням сьогодні)
@@ -112,7 +151,7 @@ export async function release(opts = {}) {
     for (const tag of tags) {
       await runGit(['tag', tag])
     }
-    await runGit(['push', '--follow-tags'])
+    await pushReleaseWithRetry(runGit, tags)
   }
   return released
 }

@@ -33,3 +33,7 @@ Chosen option: "`gemma3:4b`", because бенчмарк зафіксував се
 | `gemma2:9b` / `deepseek-coder-v2:16b` | ≥5 GB | Відхилено | Не влазять без свопу |
 
 Бенчмарк-скрипт: `/tmp/docgen-bench/run.py` — чистий запуск (`ollama stop` перед кожною моделлю), вимірює RAM (`ollama ps`), cold-load, ingest tok/s, gen tok/s, якість vs еталон `enabled.md`; запущений у фон, результат у transcript не зафіксований.
+
+## Update 2026-06-06
+
+Після додаткових бенчмарків (`~/docgen-bench3/duel.py`, `~/docgen-bench3/g4.py`) модельний вибір уточнено: **якість-first — `gemma4-e4b:q4`** (~5.3 GB, 56% CPU / 44% GPU офлоад на 8 GB, ~11 tok/s, ~92% vs еталон, ~30 год на 1042 файли); **швидкість-first — `gemma3:4b`** (~3.3 GB, 100% GPU, ~20 tok/s, ~85% vs еталон, ~14.5 год). `gemma4-e4b:q4` стабільно дотримується негативних обмежень (без stdlib/сигнатур/regex/приватних імен), яких `gemma3:4b` лише частково дотримувалась (+7 п.п. якості). Canonical alias: `ollama cp batiai/gemma4-e4b:q4 gemma4-e4b:q4` (shared blobs, ~0 диску). Реєстрація у pi: `~/.pi/agent/models.json`, масив `models` провайдера `ollama`, перша модель = дефолтна в межах провайдера; глобальний pi-default (`~/.pi/agent/settings.json`) навмисно не змінювався — щоб не перевести весь pi-кодинг на локальну модель.

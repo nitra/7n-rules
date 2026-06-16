@@ -36,3 +36,7 @@
 ## More Information
 
 Зачіпає: `npm/rules/test/js/stryker_config.mjs`, `npm/rules/test/js/tests/stryker_config.test.mjs`, `npm/rules/test/test.mdc`, `npm/CHANGELOG.md`. Канон цільової форми — `npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs`.
+
+## Update 2026-06-05
+
+Реалізацію завершено. Функція `augmentVueStrykerConfig` у `npm/rules/test/js/stryker_config.mjs`; helper-и: `arrayAppendEdit`, `propInsertEdit`, `applyEdits`, `detectIndent`, `ensureTrailingComma`, `quote`. Інтеграція у `check()` loop: `wasMissing` читається до `ensureBaselineFile`; якщо `!wasMissing && isVueRoot` → `augmentVueStrykerConfig`. Канонічні константи: `VITEST_RUNNER_PLUGIN = '@stryker-mutator/vitest-runner'`, `VUE_MACROS_PLUGIN = './stryker-vue-macros-ignorer.mjs'`, `VUE_MACROS_IGNORER = 'vue-macros'`. 7 нових кейсів у `npm/rules/test/js/tests/stryker_config.test.mjs` через `withTmpDir` (vue-root зі старим конфігом, вже-vue no-op, частково правильний конфіг, non-vue workspace, idempotency двічі, non-literal export default, syntax error). Документація оновлена у `npm/rules/test/test.mdc` секція «Vue SFC». `flow verify` + `flow gate`: PASS (score 100), lint — 0 порушень. Change-файл: `npm/.changes/260605-1442.md` (bump: minor, section: Added).
