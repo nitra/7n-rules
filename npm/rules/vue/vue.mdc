@@ -1,6 +1,6 @@
 ---
 description: Vue
-version: '2.2'
+version: '2.3'
 globs: "**/*.vue"
 alwaysApply: false
 ---
@@ -109,6 +109,24 @@ const additionalInstructions = `
 - **v-for** — стабільні унікальні **`:key`**; не плутай **v-if** (умовний mount) і **v-show** (перемикання visibility).
 - **debounce/throttle** для частих подій.
 - Після ручних **addEventListener** / підписок — прибирай у **onUnmounted**.
+
+### Функції в шаблоні
+
+Виклики функцій у шаблоні дозволені **лише** в обробниках подій (`@click`, `@change` тощо). У всіх інших місцях — `v-if`, `v-show`, атрибутах (`:prop`), інтерполяціях (`{{ }}`) — замінюй функції на `computed`-властивості: функція виконується при **кожному** render-і, тоді як `computed` кешується і перераховується лише при зміні залежностей.
+
+```vue
+<!-- ❌ функція в умові, атрибуті та інтерполяції -->
+<q-item v-if="getItems(order).length" :label="getLabel(item)">
+  {{ formatName(user) }}
+</q-item>
+
+<!-- ✅ реактивні змінні / computed / props -->
+<q-item v-if="itemsMap[order.id].length" :label="item.label">
+  {{ user.displayName }}
+</q-item>
+<!-- обробник події — виклик функції дозволений -->
+<q-btn @click="doSomething(item)" />
+```
 
 ### Безпека
 
