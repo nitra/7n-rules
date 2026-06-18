@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: walkDir.mjs
+resource: npm/scripts/utils/walkDir.mjs
 docgen:
-  source: npm/scripts/utils/walkDir.mjs
   crc: 5e5fec27
 ---
-
-# walkDir.mjs
-
-## Огляд
 
 Файл `n-cursor.js` забезпечує рекурсивний обхід каталогів для скриптів перевірки, дозволяючи виконувати callback-функцію для кожного звичайного файлу. Він обходить дерево каталогів від заданого кореня, ігноруючи певні директорії (наприклад, `.git`, `node_modules`) та шляхи, вказані в `ignorePaths`. Це дозволяє автоматизувати процес аналізу конфігураційних файлів та інших ресурсів у проєкті.
 

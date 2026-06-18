@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Розділення lint на quick (змінені файли) та ci (всі файли) через meta.json
 
 ## Context and Problem Statement

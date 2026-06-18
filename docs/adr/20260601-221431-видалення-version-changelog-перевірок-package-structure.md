@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення суперечливих перевірок version/CHANGELOG з `package_structure.mjs`"
+---
+
 # Видалення суперечливих перевірок version/CHANGELOG з `package_structure.mjs`
 
 **Status:** Accepted

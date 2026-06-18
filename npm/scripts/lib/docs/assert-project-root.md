@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: assert-project-root.mjs
+resource: npm/scripts/lib/assert-project-root.mjs
 docgen:
-  source: npm/scripts/lib/assert-project-root.mjs
   crc: adb87c16
   score: 100
 ---
-
-# assert-project-root.mjs
-
-## Огляд
 
 Файл перевіряє розташування поточного каталогу відносно кореня git-репозиторію. Функції надають доступ до шляху кореня репозиторію та перевірку, чи знаходиться поточний каталог саме в цьому корені. Код спирається на конфіги, визначені у `.n-cursor.json`.
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заміна stdin-сканування kubescape на тимчасовий файл"
+---
+
 # Заміна stdin-сканування kubescape на тимчасовий файл
 
 **Status:** Accepted

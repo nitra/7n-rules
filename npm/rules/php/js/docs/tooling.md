@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/php/js/tooling.mjs
 docgen:
-  source: npm/rules/php/js/tooling.mjs
   crc: a3e6a475
   score: 95
 ---
-
-# tooling.mjs
-
-## Огляд
 
 Огляд
 Файл перевіряє наявність конфігураційних файлів для визначення залежностей та робочих потоків. Файл використовується для встановлення наявності певних файлів у репозиторії.

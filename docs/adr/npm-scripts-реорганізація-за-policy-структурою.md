@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Реорганізація `npm/scripts/` за принципом `npm/policy/`"
+---
+
 # Реорганізація `npm/scripts/` за принципом `npm/policy/`
 
 **Status:** Accepted

@@ -300,21 +300,26 @@ export function validateMadr(content) {
   const errors = []
   if (!content || content.length < 80) errors.push('too short')
   if (RE_FENCE_LEAD.test(content) || RE_FENCE_TRAIL.test(content.trim())) errors.push('code-fence wrapper')
-  if (RE_FRONTMATTER.test(content.split('\n').slice(0, 3).join('\n'))) errors.push('has YAML frontmatter')
+  // OKF conformance: must have YAML frontmatter with type: ADR (not draft session: fields)
+  const fmMatch = /^---\n([\s\S]*?)\n---/.exec(content)
+  if (!fmMatch || !/^type:\s*ADR\s*$/m.test(fmMatch[1])) errors.push('missing OKF type: ADR frontmatter')
   if (RE_SESSION.test(content)) errors.push('leaked session: field')
-  if (!RE_H1.test(content)) errors.push('missing # title')
   if (!RE_STATUS.test(content)) errors.push('missing Status')
   if (!RE_DATE.test(content)) errors.push('missing/!ISO Date')
   for (const h of MADR_HEADINGS) if (!content.includes(h)) errors.push(`missing heading ${h}`)
   return { ok: errors.length === 0, errors }
 }
 
-const GEN_SYS = `Ти нормалізуєш чернетку ADR у чистий фінальний MADR 4.0.0. Чернетка вже містить секції — твоя задача ОЧИСТИТИ й привести до канону, НЕ вигадуючи нового.
+const GEN_SYS = `Ти нормалізуєш чернетку ADR у чистий фінальний MADR 4.0.0 з OKF v0.1 frontmatter. Чернетка вже містить секції — твоя задача ОЧИСТИТИ й привести до канону, НЕ вигадуючи нового.
 
-Поверни ЛИШЕ markdown файлу (починається з "# "), без code-fence, без передмови, без YAML frontmatter.
+Поверни ЛИШЕ markdown файлу, без code-fence, без передмови. Файл ПОЧИНАЄТЬСЯ з YAML frontmatter OKF v0.1, потім тіло MADR (без заголовка # — title вже є у frontmatter).
 
 Структура РІВНО така:
-# <Заголовок українською>
+---
+type: ADR
+title: <заголовок без "ADR:" prefix, лапки лише якщо є двокрапка чи спецсимвол>
+description: <одне речення — суть рішення>
+---
 
 **Status:** Accepted
 **Date:** <YYYY-MM-DD з поля captured чернетки, перші 10 символів>
@@ -334,7 +339,7 @@ Chosen option: "<...>", because <...>.
 ## More Information
 <файли, команди, API; якщо нема — "Додаткової інформації не зафіксовано.">
 
-Не вигадуй альтернатив, наслідків чи контексту, яких нема в чернетці. Прибери YAML frontmatter (session/captured/transcript) повністю.`
+Не вигадуй альтернатив, наслідків чи контексту, яких нема в чернетці. Прибери session:/captured:/transcript: — ці поля не входять в OKF frontmatter.`
 
 const slugify = (title) =>
   title.toLowerCase().replace(RE_SLUG_NONWORD, '-').replace(RE_LEAD_HYPHEN, '').slice(0, 60).replace(RE_TRAIL_HYPHEN, '') || 'adr'

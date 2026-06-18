@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/nginx-default-tpl/fix.mjs
 docgen:
-  source: npm/rules/nginx-default-tpl/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування політики безпеки до посилань mdc.
 

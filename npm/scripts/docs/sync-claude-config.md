@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: sync-claude-config.mjs
+resource: npm/scripts/sync-claude-config.mjs
 docgen:
-  source: npm/scripts/sync-claude-config.mjs
   crc: ad7b8440
   score: 95
 ---
-
-# sync-claude-config.mjs
-
-## Огляд
 
 Файл синхронізує конфігурацію Claude Code (`.claude/settings.json`), slash-команди з темплейту та Cursor hooks (`.cursor/hooks.json`) у поточний проєкт з використанням темплейтів пакету `npm/.claude-template/`. Він виконує злиття користувацьких полів, дозволів та хуків з різних джерел. Синхронізуються та видаляються залежні скрипти та фрагменти конфігурації.
 

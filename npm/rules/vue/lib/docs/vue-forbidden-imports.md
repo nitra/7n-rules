@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: vue-forbidden-imports.mjs
+resource: npm/rules/vue/lib/vue-forbidden-imports.mjs
 docgen:
-  source: npm/rules/vue/lib/vue-forbidden-imports.mjs
   crc: 946eb1a6
 ---
-
-# vue-forbidden-imports.mjs
-
-## Огляд
 
 Модуль `vue-forbidden-imports.mjs` — це бібліотека статичного аналізу `import`-декларацій, призначена для виявлення двох категорій порушень у вихідному коді Vue-проєкту:
 

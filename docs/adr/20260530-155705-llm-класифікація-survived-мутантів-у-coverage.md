@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Інтеграція LLM-класифікатора survived мутантів у `n-cursor coverage`"
+---
+
 # Інтеграція LLM-класифікатора survived мутантів у `n-cursor coverage`
 
 **Status:** Accepted

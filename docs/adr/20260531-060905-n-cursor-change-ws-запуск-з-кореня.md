@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`n-cursor change --ws` запускати тільки з кореня репозиторію"
+---
+
 # `n-cursor change --ws` запускати тільки з кореня репозиторію
 
 **Status:** Accepted

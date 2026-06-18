@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rego-полісі для повного канону `.markdownlint-cli2.jsonc`"
+---
+
 # Rego-полісі для повного канону `.markdownlint-cli2.jsonc`
 
 **Status:** Accepted

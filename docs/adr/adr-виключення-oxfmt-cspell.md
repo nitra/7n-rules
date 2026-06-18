@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виключення `**/adr/**` з перевірок `oxfmt` і `cspell`"
+---
+
 # Виключення `**/adr/**` з перевірок `oxfmt` і `cspell`
 
 **Status:** Accepted

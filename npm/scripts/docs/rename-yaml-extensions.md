@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: rename-yaml-extensions.mjs
+resource: npm/scripts/rename-yaml-extensions.mjs
 docgen:
-  source: npm/scripts/rename-yaml-extensions.mjs
   crc: 6ffbfdff
 ---
-
-# rename-yaml-extensions.mjs
-
-## Огляд
 
 Цей файл перейменовує розширення файлів YAML у репозиторіях, відповідно до узгоджених правил. Він автоматизує процес зміни розширення файлів `.yml` на `.yaml` для файлів, що відповідають певним шаблонам шляхів, зокрема для маніфестів Kubernetes та workflow-файлів GitHub. Це забезпечує узгодженість форматування YAML у репозиторії.
 

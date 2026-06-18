@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Дозвіл `@scaleleap/pg-format` для динамічних SQL-identifiers у правилі js-bun-db"
+---
+
 # Дозвіл `@scaleleap/pg-format` для динамічних SQL-identifiers у правилі js-bun-db
 
 **Status:** Accepted

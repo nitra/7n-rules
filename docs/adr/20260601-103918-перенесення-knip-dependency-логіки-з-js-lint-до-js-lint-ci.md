@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Перенесення knip/dependency-логіки з `js-lint` до `js-lint-ci`
 
 ## Context and Problem Statement

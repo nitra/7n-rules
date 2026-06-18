@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: hc-yaml.mjs
+resource: npm/rules/abie/lib/hc-yaml.mjs
 docgen:
-  source: npm/rules/abie/lib/hc-yaml.mjs
   crc: e9aba7c8
 ---
-
-# hc-yaml.mjs
-
-## Огляд
 
 Файл виконує структурну валідацію конфігурації `modeline` у файлах `hc.yaml`. Функція `validateAbieHcModeline` перевіряє відповідність конфігурації визначеному контракту. Валідація проводиться порівнянням конфігурації з визначеною схемою, доступною за посиланням https://datreeio.github.io/CRDs-catalog/networking.gke.io/healthcheckpolicy_v1.json. Цей процес забезпечує коректність конфігурації для ідентифікації (abie.mdc). Експортована константа ABIE_HC_SCHEMA_URL використовується для посилання на цю схему.
 

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: discover-checkable-rules.mjs
+resource: npm/scripts/lib/discover-checkable-rules.mjs
 docgen:
-  source: npm/scripts/lib/discover-checkable-rules.mjs
   crc: 39016d17
 ---
-
-# discover-checkable-rules.mjs
-
-## Огляд
 
 Модуль `discover-checkable-rules.mjs` — це discovery-шар для CLI-команди `fix`. Його завдання — швидко просканувати файлову структуру каталогу `npm/rules/` та виявити «прогонні» правила, тобто правила, у яких є щонайменше один JS-концерн або policy-концерн. Правила, які складаються тільки з декларативних артефактів (`.mdc` + `auto.md`) без жодного прогонного концерну, відсіюються.
 

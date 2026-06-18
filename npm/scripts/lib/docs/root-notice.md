@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: root-notice.mjs
+resource: npm/scripts/lib/root-notice.mjs
 docgen:
-  source: npm/scripts/lib/root-notice.mjs
   crc: 5f3ca2bb
 ---
-
-# root-notice.mjs
-
-## Огляд
 
 Цей файл вставляє root-guard preflight для скілів, які змінюють проєкт у поточному каталозі. Він забезпечує, що скіл виконується in-place, без ізоляції worktree, і використовується для випадків, коли не потрібна ізоляція worktree. Це гарантує коректне виконання скілу від імені проєкту.
 

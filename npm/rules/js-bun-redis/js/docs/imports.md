@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: imports.mjs
+resource: npm/rules/js-bun-redis/js/imports.mjs
 docgen:
-  source: npm/rules/js-bun-redis/js/imports.mjs
   crc: 678c233c
   score: 100
 ---
-
-# imports.mjs
-
-## Огляд
 
 Файл виконує збір та перевірку джерел коду. Він завантажує конфігурації пропущених шляхів з `package.json`, збирає абсолютні шляхи джерел та перевіряє їх на наявність заборонених імпортів пакетів. Перевірка проводиться відповідно до правила, визначеного у https://bun.com/docs/runtime/redis.
 

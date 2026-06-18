@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заміна process.env.* на env з node:process у bin/n-cursor.js"
+---
+
 # Заміна process.env.* на env з node:process у bin/n-cursor.js
 
 **Status:** Accepted

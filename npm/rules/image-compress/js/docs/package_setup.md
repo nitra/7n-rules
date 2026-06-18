@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: package_setup.mjs
+resource: npm/rules/image-compress/js/package_setup.mjs
 docgen:
-  source: npm/rules/image-compress/js/package_setup.mjs
   crc: 13f6d8f3
   score: 95
 ---
-
-# package_setup.mjs
-
-## Огляд
 
 Файл виконує перевірку наявності та видалення кешу. Він зчитує рядки з `.gitignore`, перевіряє наявність кешу `HASH_CACHE_FILENAME` та видаляє застарілий кеш `LEGACY_CACHE_FILENAME`. Код перевіряє відповідність правилу, визначеного в (image-compress.mdc).
 

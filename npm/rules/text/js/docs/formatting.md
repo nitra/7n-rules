@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: formatting.mjs
+resource: npm/rules/text/js/formatting.mjs
 docgen:
-  source: npm/rules/text/js/formatting.mjs
-  crc: 835343c3
+  crc: 67b016e2
   score: 100
 ---
-
-# formatting.mjs
-
-## Огляд
 
 Перевіряє наявність файлів з конфігурацій. Код використовує дані з конфігів з extensions.json, settings.json, target.json, .oxfmtrc.json, .cspell.json та package.json для виконання операцій.
 

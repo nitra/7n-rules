@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Введення `template/` директорії у правилах `npm/rules/<id>/`"
+---
+
 # Введення `template/` директорії у правилах `npm/rules/<id>/`
 
 **Status:** Accepted

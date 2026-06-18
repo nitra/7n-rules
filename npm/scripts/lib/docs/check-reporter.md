@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: check-reporter.mjs
+resource: npm/scripts/lib/check-reporter.mjs
 docgen:
-  source: npm/scripts/lib/check-reporter.mjs
   crc: b76ed480
 ---
-
-# check-reporter.mjs
-
-## Огляд
 
 Модуль `check-reporter.mjs` — це невелика спільна (shared) бібліотека-фабрика для check-скриптів (`check-*.mjs`) і для `lint-docker`. Вона надає уніфікований спосіб репортити результати перевірок: успіхи (`pass`) та помилки (`fail`), а також акумулювати фінальний код виходу процесу (`exit code`).
 

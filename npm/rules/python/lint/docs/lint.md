@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/python/lint/lint.mjs
 docgen:
-  source: npm/rules/python/lint/lint.mjs
   crc: 92c8f115
 ---
-
-# `lint.mjs` — лінт-крок `lint-python`
-
-## Огляд
 
 Модуль `npm/rules/python/lint/lint.mjs` реалізує крок `lint-python` — частину
 загального лінт-пайплайну монорепозиторію. Крок виконує перевірку Python-частини

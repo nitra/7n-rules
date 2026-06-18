@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Канонічні `.mdc`-файли правил зобов'язані мати markdown-посилання на template-файли"
+---
+
 # Канонічні `.mdc`-файли правил зобов'язані мати markdown-посилання на template-файли
 
 **Status:** Accepted

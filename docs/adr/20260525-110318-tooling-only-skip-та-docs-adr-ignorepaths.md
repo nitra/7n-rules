@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Детермінований скіп tooling-only сесій та `docs/adr/**` у канонічному cspell ignorePaths"
+---
+
 # Детермінований скіп tooling-only сесій та `docs/adr/**` у канонічному cspell ignorePaths
 
 **Status:** Accepted

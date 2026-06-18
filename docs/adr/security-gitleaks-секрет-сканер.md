@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Правило security — секрет-сканер через gitleaks"
+---
+
 # Правило security — секрет-сканер через gitleaks
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Stryker: розширення mutate-scope та npx замість bunx"
+---
+
 # Stryker: розширення mutate-scope та npx замість bunx
 
 **Status:** Accepted

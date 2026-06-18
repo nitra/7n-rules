@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: gha-workflow.mjs
+resource: npm/scripts/lib/gha-workflow.mjs
 docgen:
-  source: npm/scripts/lib/gha-workflow.mjs
   crc: 266986bf
 ---
-
-# gha-workflow.mjs
-
-## Огляд
 
 Модуль `gha-workflow.mjs` — це набір допоміжних чистих функцій для **структурного аналізу GitHub Actions workflow-файлів** (`.yml`) після їх розбору як YAML.
 

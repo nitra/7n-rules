@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: utils_imports.mjs
+resource: npm/rules/js-lint/js/utils_imports.mjs
 docgen:
-  source: npm/rules/js-lint/js/utils_imports.mjs
   crc: 7eaeaf96
 ---
-
-# utils_imports.mjs — перевірка кордону `utils/`-каталогів
-
-## Огляд
 
 Модуль `npm/rules/js-lint/js/utils_imports.mjs` реалізує одну з перевірок правила `js-lint.mdc`: жоден файл усередині будь-якого каталогу з ім'ям `utils/` не має імпортувати щось за межами цього самого каталогу через відносні шляхи з префіксом `..`.
 

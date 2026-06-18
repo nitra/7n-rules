@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/release/fix.mjs
 docgen:
-  source: npm/rules/release/fix.mjs
   crc: 22936815
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл ініціює виконання визначеного правила. Правило виконує необхідні дії з наданим контекстом. Виконане правило повертає отриманий результат.
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "js-bun-db: заборона pg-format-шимів — AST-детектори v1.6"
+---
+
 # js-bun-db: заборона pg-format-шимів — AST-детектори v1.6
 
 **Status:** Accepted

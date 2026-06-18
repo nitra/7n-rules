@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/text/lint/lint.mjs
 docgen:
-  source: npm/rules/text/lint/lint.mjs
-  crc: d475ffbb
+  crc: 02550273
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---
-
-# lint.mjs
-
-## Огляд
 
 runLintTextCli надає CLI-обгортку для послідовного лінтингу текстових файлів (text.mdc). Обгортка автоматично встановлює необхідні інструменти (`shellcheck`, `dotenv-linter`) через `ensureTool` перед виконанням ланцюжка перевірок. Ланцюжок включає: перевірку правопису (`cspell`), аналіз скриптів (`shellcheck`), перевірку конфігураційних файлів (`dotenv-linter`), форматування Markdown (`markdownlint-cli2`) та валідацію схем (`v8r`). При виявленні першого ненульового коду в ланцюжку, цей код повертається як код виходу, і подальші кроки не виконуються. runLintTextCli експортується для використання як підкоманда `lint-text` з `bin/n-cursor.js`.
 

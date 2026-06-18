@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-v8r.mjs
+resource: npm/rules/text/lint/run-v8r.mjs
 docgen:
-  source: npm/rules/text/lint/run-v8r.mjs
   crc: caf707a8
 ---
-
-# run-v8r.mjs
-
-## Огляд
 
 Модуль `run-v8r.mjs` — це послідовний раннер CLI-валідатора схем `v8r` для всіх типів файлів, які він підтримує (`.json`, `.json5`, `.yml`, `.yaml`, `.toml`). Він є проміжним рівнем між кореневою командою `lint-text` та `bunx v8r`.
 

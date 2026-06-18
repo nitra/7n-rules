@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: docgen-judge.mjs
+resource: npm/rules/doc-files/js/docgen-judge.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-judge.mjs
   crc: c6ab093a
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# docgen-judge.mjs
-
-## Огляд
 
 Модуль оцінює згенеровану документацію, порівнюючи її з вихідним файлом за допомогою великої мовної моделі. Це дозволяє визначити відповідність та якість документації. Модуль надає функції для запуску оцінки (`judgeDoc`, `judgeFailsDoc`), отримання результатів (`parseDocVerdict`), визначення моделі (`JUDGE_MODEL`), перевірки статусу оцінювача (`JUDGE_ENABLED`) та отримання рівня впевненості (`JUDGE_CONFIDENCE`).
 

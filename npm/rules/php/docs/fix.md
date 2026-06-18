@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/php/fix.mjs
 docgen:
-  source: npm/rules/php/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування політики JS-занепокоєних до mdc-refs на вхідному контексті прогону та повертає результат.
 

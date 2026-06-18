@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Суфікс-семантика template/-файлів та ізоляція opa test по пакетах"
+---
+
 # Суфікс-семантика template/-файлів та ізоляція opa test по пакетах
 
 **Status:** Accepted

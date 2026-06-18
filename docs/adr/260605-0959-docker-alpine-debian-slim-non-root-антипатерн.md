@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Антипатерн Alpine→Debian-slim заради non-root у Docker-правилі"
+---
+
 # Антипатерн Alpine→Debian-slim заради non-root у Docker-правилі
 
 **Status:** Accepted

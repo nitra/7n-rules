@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: overlay-paths.mjs
+resource: npm/rules/abie/lib/overlay-paths.mjs
 docgen:
-  source: npm/rules/abie/lib/overlay-paths.mjs
   crc: 752f7012
 ---
-
-# overlay-paths
-
-## Огляд
 
 Набір path-хелперів для перевірок правила abie, що працює з k8s-структурою пакетів монорепо. Розрізняє base-шар пакета та `ua/` overlay, виводить каталог пакета зі шляху overlay і визначає, які додаткові вимоги (HTTPRoute, Deployment) застосовуються до конкретного overlay. Усі хелпери — чисті обчислення над шляхами без побічних ефектів, окрім перевірок наявності файлів `vite.config.*` на диску.
 

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: apply.mjs
+resource: npm/scripts/coverage-classify/apply.mjs
 docgen:
-  source: npm/scripts/coverage-classify/apply.mjs
   crc: 0f54e6a0
 ---
-
-# apply.mjs
-
-## Огляд
 
 Модуль `apply.mjs` із пакета `coverage-classify` відповідає за **застосування вердиктів класифікатора мутаційних розривів** до табличних coverage-рядків. Він фільтрує список «вижилих» мутантів (`survived`) у кожному рядку, ділячи їх на дві категорії:
 

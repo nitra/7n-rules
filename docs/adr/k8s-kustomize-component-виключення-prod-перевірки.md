@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "k8s: Виключення Kustomize Component із prod-overlay-перевірки HPA/PDB"
+---
+
 # k8s: Виключення Kustomize Component із prod-overlay-перевірки HPA/PDB
 
 **Status:** Accepted

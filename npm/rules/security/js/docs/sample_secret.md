@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: sample_secret.mjs
+resource: npm/rules/security/js/sample_secret.mjs
 docgen:
-  source: npm/rules/security/js/sample_secret.mjs
   crc: ff1c0de8
   score: 90
 ---
-
-# sample_secret.mjs
-
-## Огляд
 
 Перевірка вмісту файлів на наявність визначених секретних даних. Файл перевіряє вміст файлів на відповідність шаблону.
 

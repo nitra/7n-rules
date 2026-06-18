@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Stryker `Ignore`-плагін для Vue `<script setup>` макросів"
+---
+
 # Stryker `Ignore`-плагін для Vue `<script setup>` макросів
 
 **Status:** Accepted

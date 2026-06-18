@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Slug-найменування чернеток ADR у capture-decisions.sh"
+---
+
 # Slug-найменування чернеток ADR у capture-decisions.sh
 
 **Status:** Accepted

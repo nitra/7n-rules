@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: worktree-fingerprint.mjs
+resource: npm/scripts/utils/worktree-fingerprint.mjs
 docgen:
-  source: npm/scripts/utils/worktree-fingerprint.mjs
   crc: df297382
 ---
-
-# worktree-fingerprint.mjs
-
-## Огляд
 
 Файл надає унікальний відбиток робочої директорії. Цей відбиток використовується для ідентифікації та порівняння робочих директорій, забезпечуючи їх унікальність у системі. Він слугує базовим інструментом для відстеження та управління версіями.
 

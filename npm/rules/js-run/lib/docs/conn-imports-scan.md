@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: conn-imports-scan.mjs
+resource: npm/rules/js-run/lib/conn-imports-scan.mjs
 docgen:
-  source: npm/rules/js-run/lib/conn-imports-scan.mjs
   crc: 5234d8ba
 ---
-
-# conn-imports-scan.mjs
-
-## Огляд
 
 Модуль реалізує AST-сканер для правила «Внутрішні аліаси» з `js-run.mdc`. Його завдання — знаходити в JS/TS-файлах ті імпорти, що створюють підключення до бази даних або зовнішнього GraphQL-сервісу, і які повинні жити **лише** в каталозі `conn` пакета (типово `src/conn/`). Решта коду пакета має споживати ці підключення через `pkg-import` `#conn/...`, оголошений у полі `imports` файла `package.json`.
 

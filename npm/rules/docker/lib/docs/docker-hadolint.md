@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: docker-hadolint.mjs
+resource: npm/rules/docker/lib/docker-hadolint.mjs
 docgen:
-  source: npm/rules/docker/lib/docker-hadolint.mjs
   crc: b97701f3
 ---
-
-# docker-hadolint.mjs
-
-## Огляд
 
 Модуль `docker-hadolint.mjs` інкапсулює спільну логіку запуску статичного аналізатора `hadolint` для перевірки `Dockerfile`-ів у межах правила `docker` (див. `.cursor/rules/docker.mdc` / `n-docker`). Він є тонким адаптером поверх системного бінарника `hadolint` та надає двом викликачам — `check.mjs` (skill `check-docker`) і `../../lint/lint.mjs` (skill `run-docker`) — єдину функцію перевірки одного `Dockerfile` плюс утиліту нормалізації шляхів.
 

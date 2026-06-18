@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: resolve-target-files.mjs
+resource: npm/scripts/lib/resolve-target-files.mjs
 docgen:
-  source: npm/scripts/lib/resolve-target-files.mjs
   crc: a3b361d9
 ---
-
-# resolve-target-files.mjs
-
-## Огляд
 
 Цей файл відповідає за перевірку наявності файлів, що відповідають певним правилам, вказаним у файлах `policy/<name>/target.json`. Він створює список файлів для подальшого використання, використовуючи або конкретні відносні шляхи, або обхід каталогу з використанням шаблонів та ігнорування файлів. Це забезпечує узгодженість та контроль над файлами, які потрібно обробити, відповідно до заданих політик.
 

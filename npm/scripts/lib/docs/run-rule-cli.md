@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: run-rule-cli.mjs
+resource: npm/scripts/lib/run-rule-cli.mjs
 docgen:
-  source: npm/scripts/lib/run-rule-cli.mjs
   crc: 264e7ab0
   score: 100
 ---
-
-# run-rule-cli.mjs
-
-## Огляд
 
 Файл є автономним CLI-запускачем для одного правила. Він друкує звіт про перевірку та повертає агрегований код виходу. Whitelist-гейту тут немає: гейтинг активних правил живе виключно у `resolveCheckRuleIds` (селекція за `.n-cursor.json`), а прямий запуск файлу правила — свідома debug/override-дія, тож виконується беззастережно.
 

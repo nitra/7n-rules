@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: applies.mjs
+resource: npm/rules/rust/js/applies.mjs
 docgen:
-  source: npm/rules/rust/js/applies.mjs
   crc: 4cc601f5
   score: 100
 ---
-
-# applies.mjs
-
-## Огляд
 
 Огляд
 Файл виконує перевірку наявності файлу Cargo.toml у кореневому репозиторії та підкаталогах. Функція check генерує звіт про порушення конфігураційних правил.

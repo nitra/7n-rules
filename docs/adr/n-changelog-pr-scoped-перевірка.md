@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Правило n-changelog — PR-scoped перевірка CHANGELOG у Bun-монорепо"
+---
+
 # Правило n-changelog — PR-scoped перевірка CHANGELOG у Bun-монорепо
 
 **Status:** Accepted

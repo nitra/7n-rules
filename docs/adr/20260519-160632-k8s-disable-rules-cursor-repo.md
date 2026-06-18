@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Вимкнення правила `k8s` у cursor-репо через `disable-rules`"
+---
+
 # Вимкнення правила `k8s` у cursor-репо через `disable-rules`
 
 **Status:** Accepted

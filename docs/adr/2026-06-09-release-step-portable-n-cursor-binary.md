@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "крок Release у `npm-publish.yml` викликає бінарник `n-cursor` з PATH"
+---
+
 # ADR: крок Release у `npm-publish.yml` викликає бінарник `n-cursor` з PATH
 
 **Дата:** 2026-06-09

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: diff.mjs
+resource: npm/skills/taze/js/diff.mjs
 docgen:
-  source: npm/skills/taze/js/diff.mjs
   crc: fe4d76ce
   score: 100
 ---
-
-# diff.mjs
-
-## Огляд
 
 parseVersion
 Парсить версію з specifier.

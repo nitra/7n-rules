@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: worktree-cli.mjs
+resource: npm/scripts/worktree-cli.mjs
 docgen:
-  source: npm/scripts/worktree-cli.mjs
   crc: 4fb54376
   score: 100
 ---
-
-# worktree-cli.mjs
-
-## Огляд
 
 Файл є CLI-оркестратором `worktree-tool` для керування конвенцією `.worktrees/`. Він забезпечує виконання Git-операцій для додавання, видалення, перегляду та прибирання робочих просторів.
 

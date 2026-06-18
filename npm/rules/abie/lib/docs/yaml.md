@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: yaml.mjs
+resource: npm/rules/abie/lib/yaml.mjs
 docgen:
-  source: npm/rules/abie/lib/yaml.mjs
   crc: 1b50e492
 ---
-
-# yaml.mjs
-
-## Огляд
 
 Спільний набір YAML-хелперів для перевірок правила `abie`. Інкапсулює читання й розбір YAML-файлів Kubernetes-маніфестів так, щоб усі abie-перевірки розбирали вміст однаково: з прибиранням BOM, ігноруванням службового modeline-рядка `# yaml-language-server: $schema=` і fail-safe-поведінкою при пошкоджених файлах.
 

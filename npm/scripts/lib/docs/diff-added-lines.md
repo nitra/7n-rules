@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: diff-added-lines.mjs
+resource: npm/scripts/lib/diff-added-lines.mjs
 docgen:
-  source: npm/scripts/lib/diff-added-lines.mjs
   crc: 161edaca
 ---
-
-# diff-added-lines.mjs
-
-## Огляд
 
 Файл визначає, чи є рядок коду новим (introduced) або вже існував у проєкті. Він використовується для класифікації результатів аналізу коду (lint-findings) на основі їхнього розташування відносно версії проєкту. Це допомагає розробникам розуміти, які зміни коду потребують негайної уваги.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: safety.mjs
+resource: npm/rules/js-bun-db/js/safety.mjs
 docgen:
-  source: npm/rules/js-bun-db/js/safety.mjs
   crc: eaeb52bc
   score: 100
 ---
-
-# safety.mjs
-
-## Огляд
 
 Огляд
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Розщеплення правила `image` на `image-compress` і `image-avif`"
+---
+
 # Розщеплення правила `image` на `image-compress` і `image-avif`
 
 **Status:** Accepted

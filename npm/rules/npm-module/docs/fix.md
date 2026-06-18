@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/npm-module/fix.mjs
 docgen:
-  source: npm/rules/npm-module/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує обробку JS-занепокоєних на наданому контексті прогону, застосовує політику [Політика_X] та генерує посилання MDC.
 

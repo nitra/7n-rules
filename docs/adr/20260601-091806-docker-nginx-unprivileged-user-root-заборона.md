@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Docker: заборона `USER root` і вимога `--chown` для `nginxinc/nginx-unprivileged`"
+---
+
 # Docker: заборона `USER root` і вимога `--chown` для `nginxinc/nginx-unprivileged`
 
 **Status:** Accepted

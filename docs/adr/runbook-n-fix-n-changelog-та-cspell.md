@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Runbook n-fix: усунення порушень n-changelog та стан cspell"
+---
+
 # Runbook n-fix: усунення порушень n-changelog та стан cspell
 
 **Status:** Accepted

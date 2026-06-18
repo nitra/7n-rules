@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Re-exec після self-upgrade у `@nitra/cursor` CLI"
+---
+
 # Re-exec після self-upgrade у `@nitra/cursor` CLI
 
 **Status:** Accepted

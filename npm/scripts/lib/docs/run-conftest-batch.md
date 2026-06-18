@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-conftest-batch.mjs
+resource: npm/scripts/lib/run-conftest-batch.mjs
 docgen:
-  source: npm/scripts/lib/run-conftest-batch.mjs
   crc: 5ec640a0
 ---
-
-# run-conftest-batch.mjs
-
-## Огляд
 
 Файл запускає `conftest test` на заданому списку файлів, виявляючи порушення правил, визначених у Rego-полісіях. Він використовується для автоматизованої перевірки конфігураційних файлів на відповідність заданим вимогам. Результати перевірки повертаються у структурованому вигляді, що дозволяє інтегрувати результати в інші процеси валідації.
 

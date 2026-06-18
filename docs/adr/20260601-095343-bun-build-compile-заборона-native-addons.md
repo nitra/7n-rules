@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заборона `bun build --compile` для проєктів з нативними `.node`-аддонами"
+---
+
 # Заборона `bun build --compile` для проєктів з нативними `.node`-аддонами
 
 **Status:** Accepted

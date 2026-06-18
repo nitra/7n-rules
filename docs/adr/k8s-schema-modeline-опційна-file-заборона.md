@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "K8s `$schema` Modeline: опційна для невідомих kind, `file:` — заборонений fallback"
+---
+
 # K8s `$schema` Modeline: опційна для невідомих kind, `file:` — заборонений fallback
 
 **Status:** Accepted

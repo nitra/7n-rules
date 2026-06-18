@@ -53,6 +53,15 @@ draft_transcript_path() {
   ' "$1" 2>/dev/null
 }
 
+# Витягає поле `captured:` з YAML frontmatter ADR-чернетки.
+draft_captured_date() {
+  awk '
+    NR==1 && /^---$/ { fm=1; next }
+    fm && /^---$/    { exit }
+    fm && /^captured: / { sub(/^captured: /, ""); print; exit }
+  ' "$1" 2>/dev/null
+}
+
 # Skip if repo is mid-rebase / mid-merge — editing files now would tangle the user.
 if [ -d "$PROJECT_ROOT/.git" ]; then
   for marker in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-apply rebase-merge; do
@@ -224,9 +233,13 @@ PROMPT_HEADER=$(cat <<'EOF'
 
 1. `delete` — драфт тривіальний / повністю покритий іншим існуючим clean-ADR-ом / порожній. Поясни короткою причиною українською.
 
-2. `rewrite` — драфт має самостійну цінність як decision record. Повертай у `content` повний фінальний вміст файлу у форматі MADR 4.0.0 minimal:
-   - Без YAML frontmatter (жодного `session:`, `captured:`, `transcript:`).
-   - Заголовок `# <Title>` українською.
+2. `rewrite` — драфт має самостійну цінність як decision record. Повертай у `content` повний фінальний вміст файлу у форматі MADR 4.0.0 minimal з OKF v0.1 frontmatter:
+   - YAML frontmatter OKF v0.1 на початку файлу (без `#` заголовка після — `title:` вже є у frontmatter):
+     ---
+     type: ADR
+     title: <заголовок без "ADR:" prefix, лапки якщо є двокрапка чи спецсимвол>
+     description: <одне речення — суть рішення>
+     ---
    - Один рядок `**Status:** Accepted` і один рядок `**Date:** YYYY-MM-DD` — дату беремо з поля `captured:` оригінальної чернетки (перші 10 символів ISO-дати).
    - Далі секції з точними MADR headings англійською: `## Context and Problem Statement`, `## Considered Options`, `## Decision Outcome`, `### Consequences`, `## More Information`.
    - У `## Considered Options` перелічуй лише варіанти, які є в драфті/transcript. Якщо альтернатив не було, додай bullet `Інші варіанти в transcript не обговорювалися.`
@@ -424,6 +437,24 @@ while IFS= read -r op_json; do
           ;;
       esac
       DEST_PATH=$(resolve_unique_slug_path "$DEST_SLUG")
+      # OKF fallback: if LLM omitted the type: ADR frontmatter, prepend minimal one.
+      OKF_HAS_TYPE=$(printf '%s\n' "$CONTENT" | awk '
+        /^---$/ && !fm { fm=1; next }
+        fm && /^---$/  { exit }
+        fm && /^type:/ { print "yes"; exit }
+      ')
+      if [ "$OKF_HAS_TYPE" != "yes" ]; then
+        DRAFT_TITLE=$(printf '%s\n' "$CONTENT" | awk '/^# / { sub(/^# (ADR: )?/, ""); print; exit }')
+        [ -z "$DRAFT_TITLE" ] && DRAFT_TITLE="$SLUG"
+        DRAFT_TITLE_YAML=$(printf '%s' "$DRAFT_TITLE" | sed 's/\\/\\\\/g; s/"/\\"/g')
+        CONTENT="---
+type: ADR
+title: \"${DRAFT_TITLE_YAML}\"
+---
+
+${CONTENT}"
+        log "okf-fallback: prepended OKF frontmatter for $FILE"
+      fi
       printf '%s\n' "$CONTENT" > "$DEST_PATH"
       rm -- "$SRC_PATH"
       # Record bare slug → final path so a same-batch merge-into can target

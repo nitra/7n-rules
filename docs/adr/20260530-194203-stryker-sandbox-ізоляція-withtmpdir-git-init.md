@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Ізоляція git-залежних тестів від Stryker sandbox через withTmpDir + git init"
+---
+
 # Ізоляція git-залежних тестів від Stryker sandbox через withTmpDir + git init
 
 **Status:** Accepted

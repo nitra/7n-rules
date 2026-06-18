@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Hasura ConfigMap required_env data-driven та overlay ENABLED_APIS override"
+---
+
 # Hasura ConfigMap required_env data-driven та overlay ENABLED_APIS override
 
 **Status:** Accepted

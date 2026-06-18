@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rego-first міграція: видалення JS-дублікатів checkPackageCompactness і isAllowedRootDevDependency"
+---
+
 # Rego-first міграція: видалення JS-дублікатів checkPackageCompactness і isAllowedRootDevDependency
 
 **Status:** Accepted

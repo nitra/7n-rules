@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Pi конкатенує system+user roles у plain-text без семантичної передачі в Ollama
 
 ## Context and Problem Statement

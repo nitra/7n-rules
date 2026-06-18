@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення `GATEWAY_API_GROUP_PREFIX` та Rego defense-in-depth для HPA/PDB у `k8s/base`"
+---
+
 # Виправлення `GATEWAY_API_GROUP_PREFIX` та Rego defense-in-depth для HPA/PDB у `k8s/base`
 
 **Status:** Accepted

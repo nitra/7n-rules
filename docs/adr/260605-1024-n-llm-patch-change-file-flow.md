@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-llm-patch: change-file flow замість ручного CHANGELOG.md / version bump"
+---
+
 # n-llm-patch: change-file flow замість ручного CHANGELOG.md / version bump
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Міграція канонічного Stryker baseline на vitest-runner із verify-first spike"
+---
+
 # Міграція канонічного Stryker baseline на vitest-runner із verify-first spike
 
 **Status:** Accepted

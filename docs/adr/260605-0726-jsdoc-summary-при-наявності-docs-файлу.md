@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "JSDoc у `.mjs` — одне речення-summary при наявності `docs/<filename>.md`"
+---
+
 # JSDoc у `.mjs` — одне речення-summary при наявності `docs/<filename>.md`
 
 **Status:** Accepted

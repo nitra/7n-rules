@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rego-поліси (conftest) для валідації канонічних GitHub Actions workflow"
+---
+
 # Rego-поліси (conftest) для валідації канонічних GitHub Actions workflow
 
 **Status:** Accepted

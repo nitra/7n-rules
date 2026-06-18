@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/style-lint/js/lint.mjs
 docgen:
-  source: npm/rules/style-lint/js/lint.mjs
   crc: 2013a66b
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 filterStyleFiles
 Вибирає файли, що мають розширення .css, .scss або .vue.

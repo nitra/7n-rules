@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Claude-first UX: підкоманда `claude` і bin `n-claude`"
+---
+
 # Claude-first UX: підкоманда `claude` і bin `n-claude`
 
 **Status:** Accepted

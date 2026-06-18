@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/doc-files/lint/lint.mjs
 docgen:
-  source: npm/rules/doc-files/lint/lint.mjs
   crc: a30dd81f
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 CLI-команда `lint-doc-files` — детермінований детектор застарілості файлових док. Працює без
 мовної моделі скрізь: локально, в hook'ах і в CI.

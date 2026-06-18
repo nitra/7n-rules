@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Міграція канонічного Stryker baseline на vitest runner з coverageAnalysis perTest"
+---
+
 # Міграція канонічного Stryker baseline на vitest runner з coverageAnalysis perTest
 
 **Status:** Accepted

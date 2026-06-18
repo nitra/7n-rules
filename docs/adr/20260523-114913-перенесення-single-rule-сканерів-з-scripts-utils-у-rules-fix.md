@@ -1,4 +1,5 @@
 ---
+type: ADR
 captured: 2026-05-23T11:49:13+03:00
 supersedes: 20260523-112217-розміщення-canonical-конфігів-у-npm-scripts-utils.md
 ---

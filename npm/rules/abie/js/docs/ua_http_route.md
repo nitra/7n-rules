@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: ua_http_route.mjs
+resource: npm/rules/abie/js/ua_http_route.mjs
 docgen:
-  source: npm/rules/abie/js/ua_http_route.mjs
   crc: d86624c8
   score: 100
 ---
-
-# ua_http_route.mjs
-
-## Огляд
 
 Файл надає публічний інструмент `check` для перевірки внутрішнього стану даних. Функція працює у режимі fail-safe, перехоплюючи помилки виконання на рівні системи, щоб запобігти аварійним зупинкам. Функція використовує кешування даних у межах поточного прогону.
 

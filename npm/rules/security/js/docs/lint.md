@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/security/js/lint.mjs
 docgen:
-  source: npm/rules/security/js/lint.mjs
   crc: f3265f82
 ---
-
-# lint.mjs — Security: TruffleHog filesystem scan
-
-## Огляд
 
 Файл `npm/rules/security/js/lint.mjs` реалізує CI-крок правила **security** для пошуку секретів у репозиторії. Це обгортка над зовнішнім інструментом [TruffleHog](https://github.com/trufflesecurity/trufflehog), яка запускає сканування всього робочого дерева (`filesystem` mode) і повертає його exit-код як результат лінтингу.
 

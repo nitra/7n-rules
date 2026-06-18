@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виключення `auto.md` із синку скілів у `.cursor/skills/`"
+---
+
 # Виключення `auto.md` із синку скілів у `.cursor/skills/`
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "k8s: зниження дефолту `resources.requests.cpu` до `0.05` для dev"
+---
+
 # k8s: зниження дефолту `resources.requests.cpu` до `0.05` для dev
 
 **Status:** Accepted

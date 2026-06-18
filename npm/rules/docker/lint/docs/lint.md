@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/docker/lint/lint.mjs
 docgen:
-  source: npm/rules/docker/lint/lint.mjs
   crc: 98a98d10
 ---
-
-# lint.mjs — реалізація підкоманди `lint-docker`
-
-## Огляд
 
 Модуль `npm/rules/docker/lint/lint.mjs` реалізує підкоманду `lint-docker` інструмента `n-cursor`. Її задача — знайти у дереві репозиторію канонічні Dockerfile-и та пропустити їх через `hadolint`, фіксуючи результат у форматі звіту `check-reporter` і виставляючи числовий код виходу.
 

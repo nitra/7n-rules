@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Обов'язкова перевірка depcheck у path-scoped GitHub Actions workflow"
+---
+
 # Обов'язкова перевірка depcheck у path-scoped GitHub Actions workflow
 
 **Status:** Accepted

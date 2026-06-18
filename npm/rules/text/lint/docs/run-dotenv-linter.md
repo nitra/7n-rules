@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-dotenv-linter.mjs
+resource: npm/rules/text/lint/run-dotenv-linter.mjs
 docgen:
-  source: npm/rules/text/lint/run-dotenv-linter.mjs
   crc: 4719ac66
 ---
-
-# run-dotenv-linter.mjs
-
-## Огляд
 
 Модуль `run-dotenv-linter.mjs` інкапсулює інтеграцію зовнішнього інструмента **dotenv-linter** у ланцюжок `lint-text` правила `text` (тека `npm/rules/text/lint/`). Він виконує дві послідовні фази:
 

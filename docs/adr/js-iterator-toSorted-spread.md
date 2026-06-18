@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "JavaScript: `Map.keys()` і `new Set()` не мають `.toSorted()` — потрібен spread"
+---
+
 # JavaScript: `Map.keys()` і `new Set()` не мають `.toSorted()` — потрібен spread
 
 **Status:** Accepted

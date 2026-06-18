@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: check-env-scan.mjs
+resource: npm/rules/js-run/lib/check-env-scan.mjs
 docgen:
-  source: npm/rules/js-run/lib/check-env-scan.mjs
   crc: 56c971d4
 ---
-
-# `check-env-scan.mjs` — AST-сканер правила «process.env / CheckEnv»
-
-## Огляд
 
 Модуль `npm/rules/js-run/lib/check-env-scan.mjs` — це **статичний AST-сканер**,
 що реалізує перевірку правила `js-run.mdc` для двох контрактів роботи зі

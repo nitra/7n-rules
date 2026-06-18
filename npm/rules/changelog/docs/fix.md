@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/changelog/fix.mjs
 docgen:
-  source: npm/rules/changelog/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування JS-занепокоєних на наданому контексті прогону. Застосовує визначену політику та генерує посилання MDC. Повертає результат прогону.
 

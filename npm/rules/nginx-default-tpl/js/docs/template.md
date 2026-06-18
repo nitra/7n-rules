@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: template.mjs
+resource: npm/rules/nginx-default-tpl/js/template.mjs
 docgen:
-  source: npm/rules/nginx-default-tpl/js/template.mjs
   crc: 2d912e28
   score: 90
 ---
-
-# template.mjs
-
-## Огляд
 
 Надає повну перевірку проєкту, включаючи перевірку шаблонів, Dockerfile та конфігурацій VSCode.
 

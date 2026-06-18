@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: trace.mjs
+resource: npm/scripts/dispatcher/trace.mjs
 docgen:
-  source: npm/scripts/dispatcher/trace.mjs
   crc: 8d541669
   score: 100
 ---
-
-# trace.mjs
-
-## Огляд
 
 Файл забезпечує наскрізну простежуваність артефактів. Він читає front-matter з директорій `docs/{tasks,specs,plans,adr}`, будує ланцюг за лінками та позначає розриви. Функції генерують аналіз, який потім рендериться у текстовий вивід, а трасування виконується для зчитування артефактів.
 

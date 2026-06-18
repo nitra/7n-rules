@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Невідповідність порядку транспортів у n-docgen llm.mjs і ADR-0007
 
 ## Context and Problem Statement

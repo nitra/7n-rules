@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: enabled.mjs
+resource: npm/rules/abie/lib/enabled.mjs
 docgen:
-  source: npm/rules/abie/lib/enabled.mjs
   crc: 6b02ea18
 ---
-
-# enabled.mjs
-
-## Огляд
 
 Файл керує активацією правил на рівні гейта. Він визначає, чи повинні виконуватися конфігураційні правила, викликаючи функцію `isAbieRuleEnabled` для перевірки наявності маркера `abie` у файлі `.n-cursor.json:rules`. Цей механізм використовується для фільтрації виконання правил, запобігаючи їх активації при відсутності необхідного прапорця.
 

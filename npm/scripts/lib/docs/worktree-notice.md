@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: worktree-notice.mjs
+resource: npm/scripts/lib/worktree-notice.mjs
 docgen:
-  source: npm/scripts/lib/worktree-notice.mjs
   crc: dc4fba22
 ---
-
-# worktree-notice.mjs
-
-## Огляд
 
 Цей файл вбудовує інструкції щодо використання git-worktree, коли `meta.json.worktree` встановлено в `true`. Він забезпечує паралельне виконання скілу лише в окремому git-worktree, запобігаючи потенційним проблемам з паралелізмом. Цей механізм дозволяє уникнути гонки з CDN та забезпечує надійний запуск скілу з локальною копією CLI.
 

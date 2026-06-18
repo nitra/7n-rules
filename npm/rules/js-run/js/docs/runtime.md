@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: runtime.mjs
+resource: npm/rules/js-run/js/runtime.mjs
 docgen:
-  source: npm/rules/js-run/js/runtime.mjs
   crc: 9c22e999
   score: 90
 ---
-
-# runtime.mjs
-
-## Огляд
 
 pgWriteContract перевіряє правила нейминга та експортів для файлів усередині `#conn/`.
 check перевіряє правила js-run.mdc лише для workspace-пакетів.

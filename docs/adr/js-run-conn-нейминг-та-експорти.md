@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Нейминг і експорти файлів у `src/conn/`"
+---
+
 # Нейминг і експорти файлів у `src/conn/`
 
 **Status:** Accepted

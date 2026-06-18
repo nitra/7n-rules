@@ -1,13 +1,11 @@
 ---
+type: TS Module
+title: index.ts
+resource: npm/.pi-template/extensions/n-cursor-adr/index.ts
 docgen:
-  source: npm/.pi-template/extensions/n-cursor-adr/index.ts
   crc: 3233716f
   score: 100
 ---
-
-# index.ts
-
-## Огляд
 
 Файл збирає записи сесії, серіалізує їх у формат JSONL, записує у тимчасову директорію, а потім ініціює виконання скриптів хуків capture та normalize.
 

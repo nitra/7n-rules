@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-files-batch.mjs
+resource: npm/rules/doc-files/js/docgen-files-batch.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-files-batch.mjs
-  crc: 6f01f8b9
+  crc: 975d6cfa
   score: 95
 ---
-
-# docgen-files-batch.mjs
-
-## Огляд
 
 runDocFilesGenCli
 Запускає генерацію документації для застарілих або відсутніх файлів.

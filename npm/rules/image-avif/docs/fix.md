@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/image-avif/fix.mjs
 docgen:
-  source: npm/rules/image-avif/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Обробляє JS-занепокоєні до політики для MDC-референсів на основі наданого контексту прогону та повертає результат
 

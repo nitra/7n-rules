@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "js-lint quick-режим: класифікація lint-findings на introduced vs pre-existing"
+---
+
 # js-lint quick-режим: класифікація lint-findings на introduced vs pre-existing
 
 **Status:** Accepted

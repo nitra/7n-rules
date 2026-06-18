@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Додавання NATS-порту TCP 4222 до in-cluster egress-блоку NetworkPolicy"
+---
+
 # Додавання NATS-порту TCP 4222 до in-cluster egress-блоку NetworkPolicy
 
 **Status:** Accepted

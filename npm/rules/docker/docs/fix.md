@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/docker/fix.mjs
 docgen:
-  source: npm/rules/docker/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Запуск правила приймає контекст прогону, застосовує JS-занепокоєні до політики до mdc-refs та повертає результат.
 

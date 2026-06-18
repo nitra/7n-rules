@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: docker-native-addon.mjs
+resource: npm/rules/docker/lib/docker-native-addon.mjs
 docgen:
-  source: npm/rules/docker/lib/docker-native-addon.mjs
   crc: 8b747dec
 ---
-
-# docker-native-addon.mjs
-
-## Огляд
 
 Модуль `docker-native-addon.mjs` — це dep-специфічний чек-модуль правила `docker` для виявлення антипатерну, коли проєкт залежить від нативного `.node`-аддона з динамічним завантаженням біндингу (через динамічний `require`), і одночасно намагається бути запакованим через `bun build --compile` у Dockerfile.
 

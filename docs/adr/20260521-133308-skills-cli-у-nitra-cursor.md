@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Skills CLI у пакеті `@nitra/cursor`"
+---
+
 # Skills CLI у пакеті `@nitra/cursor`
 
 **Status:** Accepted

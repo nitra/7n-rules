@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: no-relative-fs-path.mjs
+resource: npm/rules/test/js/no-relative-fs-path.mjs
 docgen:
-  source: npm/rules/test/js/no-relative-fs-path.mjs
   crc: 3b8f52db
   score: 100
 ---
-
-# no-relative-fs-path.mjs
-
-## Огляд
 
 Огляд
 Модуль виконує перевірку тестових файлів на наявність визначених порушень. Перевіряється наявність певних порушень та використання абсолютних шляхів у викликах функцій.

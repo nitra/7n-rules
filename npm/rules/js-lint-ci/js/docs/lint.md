@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/js-lint-ci/js/lint.mjs
 docgen:
-  source: npm/rules/js-lint-ci/js/lint.mjs
   crc: 5d06673f
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 Інструмент виконує аналіз коду за допомогою jscpd та knip. Інструменти ініціюються для проведення перевірок. Результати перевірок фіксуються.
 

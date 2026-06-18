@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/js-lint/js/tooling.mjs
 docgen:
-  source: npm/rules/js-lint/js/tooling.mjs
   crc: e847996e
   score: 80
 ---
-
-# tooling.mjs
-
-## Огляд
 
 OXLINT_CANONICAL_JSON_PATH
 Повертає шлях до канонічного JSON-файлу oxlint у пакету

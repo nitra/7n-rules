@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Обов'язковий блок concurrency у всіх GitHub Actions workflow"
+---
+
 # Обов'язковий блок concurrency у всіх GitHub Actions workflow
 
 **Status:** Accepted

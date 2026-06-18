@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: verdict-schema.mjs
+resource: npm/scripts/coverage-classify/verdict-schema.mjs
 docgen:
-  source: npm/scripts/coverage-classify/verdict-schema.mjs
   crc: ecf5dfe1
   score: 100
 ---
-
-# verdict-schema.mjs
-
-## Огляд
 
 Файл надає схему `VerdictSchema` для валідації вердиктів LLM-класифікатора. Функція `parseVerdict` витягує JSON-об'єкт з сирої текстової відповіді моделі та перевіряє його відповідність визначеній схемі.
 

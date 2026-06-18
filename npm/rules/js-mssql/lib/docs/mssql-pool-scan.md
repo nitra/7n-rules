@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: mssql-pool-scan.mjs
+resource: npm/rules/js-mssql/lib/mssql-pool-scan.mjs
 docgen:
-  source: npm/rules/js-mssql/lib/mssql-pool-scan.mjs
   crc: 7490294a
 ---
-
-# mssql-pool-scan.mjs
-
-## Огляд
 
 Модуль `mssql-pool-scan.mjs` — це набір AST-сканерів, що шукають **небезпечні патерни використання драйвера `mssql`** (Microsoft SQL Server для Node.js) у вихідних файлах JavaScript / TypeScript. Сканери призначені для статичного аналізу й використовуються з правил `js-mssql` (див. `js-mssql.mdc`).
 

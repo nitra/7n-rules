@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Meta-тести сканерів: уникнення false positives через конкатенацію та Identifier-аргументи"
+---
+
 # Meta-тести сканерів: уникнення false positives через конкатенацію та Identifier-аргументи
 
 **Status:** Accepted

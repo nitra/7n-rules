@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "ci4.mdc: Markdown як джерело істини про архітектуру"
+---
+
 # ci4.mdc: Markdown як джерело істини про архітектуру
 
 **Status:** Accepted

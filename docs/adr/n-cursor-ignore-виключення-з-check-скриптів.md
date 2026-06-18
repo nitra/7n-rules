@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Розширення семантики поля ignore у .n-cursor.json — виключення з обходу check-скриптів"
+---
+
 # Розширення семантики поля ignore у .n-cursor.json — виключення з обходу check-скриптів
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Явна devDependency для `@e18e/eslint-plugin` у корені монорепо"
+---
+
 # Явна devDependency для `@e18e/eslint-plugin` у корені монорепо
 
 **Status:** Accepted

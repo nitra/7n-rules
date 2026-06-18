@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "GraphQL: видалення вимоги `scripts.dump-schema` з правила `graphql.mdc`"
+---
+
 # GraphQL: видалення вимоги `scripts.dump-schema` з правила `graphql.mdc`
 
 **Status:** Accepted

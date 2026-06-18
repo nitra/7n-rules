@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Автодетект правила `rego` у `auto-rules.mjs`"
+---
+
 # Автодетект правила `rego` у `auto-rules.mjs`
 
 **Status:** Accepted

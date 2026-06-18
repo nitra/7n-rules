@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: orchestrate.mjs
+resource: npm/rules/lint/js/orchestrate.mjs
 docgen:
-  source: npm/rules/lint/js/orchestrate.mjs
-  crc: 2e5db1e7
+  crc: aed5ffe7
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# orchestrate.mjs
-
-## Огляд
 
 Оркестратор `n-cursor lint` визначає, які правила лінтування застосовувати, керуючись двома ортогональними осями: консолідацією правил та уніфікацією режиму `readonly`. Вибір правил відбувається на основі конфігурацій, зокрема файлів `meta.json`, які визначають обсяг дії (`per-file` чи `full`) для кожного правила. Запуск лінтування може сканувати лише змінені файли відносно origin (за замовчуванням) або весь репозиторій при використанні прапорця `--full`.
 

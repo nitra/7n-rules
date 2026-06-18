@@ -10,8 +10,8 @@
  * Перед масовим прогоном — health-check omlx: memory-guard зайнятої 8GB машини
  * означає «відклади прогін», а не сотні хибних «✗» у звіті.
  */
-import { readFileSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { readFileSync, readdirSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs'
+import { basename, dirname, join, relative } from 'node:path'
 
 import { isRunAsCli } from '../../../scripts/cli-entry.mjs'
 import { classifyOmlxError, preflightLocalModel } from '../../../lib/llm.mjs'
@@ -149,6 +149,61 @@ async function generateOne(file, root, progress, stats) {
   }
 }
 
+/** Regex для витягу OKF-полів із frontmatter існуючої доки (швидкий, без YAML-парсера). */
+const OKF_TITLE_RE = /^title: (.+)$/mu
+const OKF_TYPE_RE = /^type: (.+)$/mu
+const OKF_FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
+const OKF_RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
+
+/**
+ * Генерує/оновлює `index.md` у директорії `docs/` — OKF Directory Index із таблицею
+ * всіх наявних doc-файлів у цій директорії. Не зачіпає `index.md` при відсутності
+ * інших doc-файлів.
+ * @param {string} docsAbsDir абсолютний шлях директорії `docs/`
+ * @param {string} root абсолютний корінь проєкту
+ * @returns {void}
+ */
+function generateDirIndex(docsAbsDir, root) {
+  const allMd = readdirSync(docsAbsDir).filter(f => f.endsWith('.md')).sort()
+
+  // Якщо index.md вже є дока для source-файлу (має docgen.source → index.*) — не чіпаємо
+  if (allMd.includes('index.md')) {
+    const existingFm = readFileSync(join(docsAbsDir, 'index.md'), 'utf8').match(OKF_FRONTMATTER_RE)?.[1] ?? ''
+    const existingSource = existingFm.match(OKF_RESOURCE_RE)?.[1]?.trim() ?? ''
+    const existingType = existingFm.match(OKF_TYPE_RE)?.[1]?.trim() ?? ''
+    // Пропускаємо якщо це дока source-файлу, а не Directory Index
+    if (existingSource && existingType !== 'Directory Index') return
+  }
+
+  const files = allMd.filter(f => f !== 'index.md')
+  if (files.length === 0) return
+
+  const sourceDirRel = relative(root, dirname(docsAbsDir)) || '.'
+
+  const rows = files.map(f => {
+    const md = readFileSync(join(docsAbsDir, f), 'utf8')
+    const fm = md.match(OKF_FRONTMATTER_RE)?.[1] ?? ''
+    const resource = fm.match(OKF_RESOURCE_RE)?.[1]?.trim()
+    const title = fm.match(OKF_TITLE_RE)?.[1]?.trim() ?? (resource ? basename(resource) : f.replace(/\.md$/, ''))
+    const type = fm.match(OKF_TYPE_RE)?.[1]?.trim() ?? 'Source File'
+    return `| [${title}](${f}) | ${type} |`
+  })
+
+  const content = `---
+type: Directory Index
+title: ${sourceDirRel}
+resource: ${sourceDirRel}/
+---
+
+# ${sourceDirRel}
+
+| Файл | Тип |
+|---|---|
+${rows.join('\n')}
+`
+  writeFileSync(join(docsAbsDir, 'index.md'), content)
+}
+
 /**
  * Підсумковий звіт прогону у stdout.
  * @param {{ ok: number, degraded: number, err: number, errors: string[], skipped: string[] }} stats статистика
@@ -235,6 +290,13 @@ export async function runGenerationBatch(targets, root, { headline } = {}) {
   }
 
   reportStats(stats)
+
+  // Оновлюємо index.md у кожній docs/-директорії, якої торкнувся цей батч
+  const docsDirs = new Set(targets.map(f => dirname(join(root, f.docPath))))
+  for (const docsAbsDir of docsDirs) {
+    if (existsSync(docsAbsDir)) generateDirIndex(docsAbsDir, root)
+  }
+
   if (aborted) return 2
   return stats.err > 0 ? 1 : 0
 }
@@ -261,6 +323,15 @@ export function runDocFilesStampCli(argv) {
     stamped++
   }
   console.log(`✓ fix-doc-files --stamp: оновлено frontmatter у ${stamped} доці(ах).`)
+
+  // Після stamp — оновити index.md у всіх docs/-директоріях
+  const docsDirs = new Set(
+    scanForDocFiles(root)
+      .map(f => dirname(join(root, f.docPath)))
+      .filter(d => existsSync(d))
+  )
+  for (const docsAbsDir of docsDirs) generateDirIndex(docsAbsDir, root)
+
   return 0
 }
 

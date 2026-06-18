@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`isRunAsCli(metaUrl)` — параметр замість прямого `import.meta.url`"
+---
+
 # `isRunAsCli(metaUrl)` — параметр замість прямого `import.meta.url`
 
 **Status:** Accepted

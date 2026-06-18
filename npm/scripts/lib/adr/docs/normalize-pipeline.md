@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: normalize-pipeline.mjs
+resource: npm/scripts/lib/adr/normalize-pipeline.mjs
 docgen:
-  source: normalize-pipeline.mjs
-  crc: 6619ff48
+  crc: 6eb6ba69
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# normalize-pipeline.mjs
-
-## Огляд
 
 Файл реалізує локально-орієнтований конвеєр для нормалізації чернеток ADR. Він використовує LLM лише для вузьких, верифікованих бінарних суджень. Конвеєр працює у послідовних стадіях: JS виконує пошук кандидатів-ребер на основі лексичної схожості, LLM оцінює ці ребра (Stage 1: `same/different`) та драфти (Stage 1b: `standalone/trivial`), JS кластеризує підтверджені ребра (використовуючи `union-find`), LLM реформатує анотера (Stage 2: `gen-MADR`), а LLM генерує доповнення для злиття (Stage 3: `gen-merge`). Глобальний стан (кластери, слаги, покриття) зберігається в JS. Конвеєр повертає операції у форматі `operations[]`, сумісного з контрактом `apply-ops`.
 

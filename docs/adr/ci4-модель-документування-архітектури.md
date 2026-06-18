@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "CI4-модель: документування архітектури `@nitra/cursor`"
+---
+
 # CI4-модель: документування архітектури `@nitra/cursor`
 
 **Status:** Accepted

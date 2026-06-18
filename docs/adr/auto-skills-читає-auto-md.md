@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Auto-skills читає auto.md замість hardcoded мапи"
+---
+
 # Auto-skills читає auto.md замість hardcoded мапи
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`check changelog`: новий воркспейс без merge-base не вимагає version bump"
+---
+
 # `check changelog`: новий воркспейс без merge-base не вимагає version bump
 
 **Status:** Accepted

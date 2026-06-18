@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR: Застосування CLI-оркестратора до `n-docgen`
 
 **Status:** Proposed

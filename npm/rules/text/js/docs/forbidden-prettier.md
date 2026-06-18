@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: forbidden-prettier.mjs
+resource: npm/rules/text/js/forbidden-prettier.mjs
 docgen:
-  source: npm/rules/text/js/forbidden-prettier.mjs
   crc: a5dae608
   score: 100
 ---
-
-# forbidden-prettier.mjs
-
-## Огляд
 
 Огляд
 

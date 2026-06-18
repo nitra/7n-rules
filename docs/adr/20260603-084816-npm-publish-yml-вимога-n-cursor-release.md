@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Вимога наявності кроку `n-cursor release` у `npm-publish.yml`"
+---
+
 # Вимога наявності кроку `n-cursor release` у `npm-publish.yml`
 
 **Status:** Accepted

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: conn-file-rules.mjs
+resource: npm/rules/js-run/lib/conn-file-rules.mjs
 docgen:
-  source: npm/rules/js-run/lib/conn-file-rules.mjs
   crc: 4bebf12c
 ---
-
-# conn-file-rules.mjs
-
-## Огляд
 
 Модуль реалізує перевірки для файлів-підключень (connection files), що лежать у каталозі `src/conn/` (або в зоні дії lint-правила `conn-file` зі специфікації `js-run.mdc`, секції «Нейминг файлів у `src/conn/`» та «Експорти у файлах `src/conn/`»).
 

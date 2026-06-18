@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/rust/fix.mjs
 docgen:
-  source: npm/rules/rust/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Огляд
 Файл надає механізм для виконання стандартних правил. Використовується для запуску правил через функцію runStandardRule та для запуску правил у режимі командного рядка через runRuleCli.

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення lint-conftest та консолідація у npx @nitra/cursor check"
+---
+
 # Видалення lint-conftest та консолідація у npx @nitra/cursor check
 
 **Status:** Accepted

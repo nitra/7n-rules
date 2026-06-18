@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заборона Node-нативних імпортів у Vue SFC"
+---
+
 # Заборона Node-нативних імпортів у Vue SFC
 
 **Status:** Accepted

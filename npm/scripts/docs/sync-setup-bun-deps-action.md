@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: sync-setup-bun-deps-action.mjs
+resource: npm/scripts/sync-setup-bun-deps-action.mjs
 docgen:
-  source: npm/scripts/sync-setup-bun-deps-action.mjs
   crc: 098d7209
 ---
-
-# sync-setup-bun-deps-action.mjs
-
-## Огляд
 
 Файл містить конфігурацію GitHub Action `setup-bun-deps`, яка автоматично встановлює залежності проєкту Bun. Він використовується workflow для підготовки середовища проєкту, забезпечуючи узгодженість та спрощуючи виконання тестів та інших завдань, що потребують Bun. Це дозволяє workflow, що використовує `actions/checkout@v6`, безпосередньо використовувати action, не потребуючи додаткової конфігурації.
 

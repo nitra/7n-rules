@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Синхронний Stop hook як блокуючий quality gate"
+---
+
 # Синхронний Stop hook як блокуючий quality gate
 
 **Status:** Accepted

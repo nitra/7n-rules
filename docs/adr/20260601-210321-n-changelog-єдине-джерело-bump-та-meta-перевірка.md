@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`n-changelog.mdc` — єдине джерело істини для bump/CHANGELOG; meta-перевірка проти розходження правил"
+---
+
 # `n-changelog.mdc` — єдине джерело істини для bump/CHANGELOG; meta-перевірка проти розходження правил
 
 **Status:** Accepted

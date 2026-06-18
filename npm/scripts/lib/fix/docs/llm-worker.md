@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: llm-worker.mjs
+resource: npm/scripts/lib/fix/llm-worker.mjs
 docgen:
-  source: npm/scripts/lib/fix/llm-worker.mjs
   crc: 00730451
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# llm-worker.mjs
-
-## Огляд
 
 Модуль визначає моделі для стандартних та складних виправлень коду. Він надає функції для ініціалізації моделей (`MODEL`, `MODEL_HEAVY`) та для виконання роботи з мовною моделлю (`runLlmWorker`), застосовуючи згенеровані зміни до файлів проєкту.
 

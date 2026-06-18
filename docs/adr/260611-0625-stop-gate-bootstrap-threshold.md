@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Anti-bootstrap threshold у Stop-гейтах документації"
+---
+
 # ADR: Anti-bootstrap threshold у Stop-гейтах документації
 
 **Status:** Accepted

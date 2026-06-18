@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скіл як script-orchestrator проти LLM-driven (бенч n-fix) + local-first ladder"
+---
+
 # ADR: Скіл як script-orchestrator проти LLM-driven (бенч n-fix) + local-first ladder
 
 ## Status

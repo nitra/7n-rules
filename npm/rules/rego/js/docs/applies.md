@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: applies.mjs
+resource: npm/rules/rego/js/applies.mjs
 docgen:
-  source: npm/rules/rego/js/applies.mjs
   crc: 059e378c
   score: 100
 ---
-
-# applies.mjs
-
-## Огляд
 
 Файл виконує перевірку наявності файлів із розширенням `.rego` у визначеній директорії. Функція видає повідомлення про старт перевірки та повертає код виходу.
 

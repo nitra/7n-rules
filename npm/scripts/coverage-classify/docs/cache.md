@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: cache.mjs
+resource: npm/scripts/coverage-classify/cache.mjs
 docgen:
-  source: npm/scripts/coverage-classify/cache.mjs
   crc: 53b251b1
 ---
-
-# cache.mjs
-
-## Огляд
 
 Модуль `cache.mjs` реалізує **file-hash-keyed cache** для вердиктів класифікатора покриття мутаційного тестування (`coverage-classify`). Призначення — уникати повторної (зазвичай дорогої — через LLM) класифікації того ж самого мутанта в незмінному файлі.
 

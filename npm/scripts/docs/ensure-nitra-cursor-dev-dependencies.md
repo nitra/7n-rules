@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: ensure-nitra-cursor-dev-dependencies.mjs
+resource: npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
 docgen:
-  source: npm/scripts/ensure-nitra-cursor-dev-dependencies.mjs
   crc: c3df2c0e
 ---
-
-# ensure-nitra-cursor-dev-dependencies.mjs
-
-## Огляд
 
 Модуль `ensure-nitra-cursor-dev-dependencies.mjs` забезпечує, що пакет `@nitra/cursor` буде оголошений у `devDependencies` workspace-root `package.json` проєкту, в якому виконується CLI `n-cursor`. Якщо запис відсутній і в `devDependencies`, і в `dependencies`, модуль дописує його з діапазоном `^<version>`, узятим з поля `version` з `package.json` фактично завантаженого пакету `@nitra/cursor`.
 

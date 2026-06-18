@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: units.mjs
+resource: npm/rules/doc-files/js/units.mjs
 docgen:
-  source: npm/rules/doc-files/js/units.mjs
   crc: af91bd0d
   score: 100
 ---
-
-# units.mjs
-
-## Огляд
 
 Файл витягує одиниці з вмісту файлу залежно від розширення шляху. Якщо розширення належить до набору JS_EXT, використовується extractUnitsJs. Якщо розширення дорівнює 'rs', використовується extractUnitsRs. В інших випадках функція повертає null.
 

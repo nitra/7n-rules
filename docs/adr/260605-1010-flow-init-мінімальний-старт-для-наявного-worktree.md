@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`flow init` як мінімальний старт для наявного worktree"
+---
+
 # `flow init` як мінімальний старт для наявного worktree
 
 **Status:** Accepted

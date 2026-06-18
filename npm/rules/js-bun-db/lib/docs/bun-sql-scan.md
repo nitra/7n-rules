@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: bun-sql-scan.mjs
+resource: npm/rules/js-bun-db/lib/bun-sql-scan.mjs
 docgen:
-  source: npm/rules/js-bun-db/lib/bun-sql-scan.mjs
   crc: 990f04d7
 ---
-
-# bun-sql-scan.mjs
-
-## Огляд
 
 Модуль `bun-sql-scan.mjs` — це AST-сканер небезпечних патернів використання Bun SQL у JavaScript/TypeScript-коді. Він є частиною npm-правила `js-bun-db` (тека `npm/rules/js-bun-db/lib/`) і реалізує семантичний аналіз коду через парсер **oxc-parser** (без regex-сканування по сирому тексту, за винятком дешевих pre-filter-ів на наявність імпорту).
 

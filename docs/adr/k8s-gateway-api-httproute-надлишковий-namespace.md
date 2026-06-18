@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Gateway API HTTPRoute — заборона надлишкового namespace у backendRefs"
+---
+
 # Gateway API HTTPRoute — заборона надлишкового namespace у backendRefs
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/vue/fix.mjs
 docgen:
-  source: npm/rules/vue/fix.mjs
   crc: 38cf876b
   score: 90
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл застосовує правило `runStandardRule` до наданого контексту прогону через функцію `runStandardRule` і повертає отриманий результат. У режимі CLI він виконує команду `npx @nitra/cursor fix <id>` та визначає вихідний код процесу на основі отриманого результату.
 

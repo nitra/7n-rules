@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Augment існуючого `stryker.config.mjs` для Vue-roots через string-splice за AST-аналізом"
+---
+
 # Augment існуючого `stryker.config.mjs` для Vue-roots через string-splice за AST-аналізом
 
 **Status:** Accepted

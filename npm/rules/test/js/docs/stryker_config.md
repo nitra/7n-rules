@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: stryker_config.mjs
+resource: npm/rules/test/js/stryker_config.mjs
 docgen:
-  source: npm/rules/test/js/stryker_config.mjs
   crc: 7ea109c6
   score: 95
 ---
-
-# stryker_config.mjs
-
-## Огляд
 
 Цей файл виконує перевірку наявності певних файлів та конфігурацій у кореневих пакетах. Код працює з конфігами, визначеними у `mutation.json` та `package.json`, для забезпечення певних станів у системі.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: hooks.mjs
+resource: npm/rules/adr/js/hooks.mjs
 docgen:
-  source: npm/rules/adr/js/hooks.mjs
   crc: 3f239faf
   score: 100
 ---
-
-# hooks.mjs
-
-## Огляд
 
 Файл надає публічну функцію `check` для валідації даних. Код використовує конфігурацію з файлу `.local.json` для визначення логіки. Функція працює у режимі, де невдачі повертають `false` або `null` замість генерації винятків. Повідомлення про події передаються за допомогою маркера (adr.mdc).
 

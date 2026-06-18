@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Залишити 9 комітів при fast-forward merge гілки feat/rule-meta-json
 
 ## Context and Problem Statement

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: avif_generation.mjs
+resource: npm/rules/image-avif/js/avif_generation.mjs
 docgen:
-  source: npm/rules/image-avif/js/avif_generation.mjs
   crc: 101bb0dd
 ---
-
-# avif_generation.mjs
-
-## Огляд
 
 Модуль реалізує перевірку правила `image-avif.mdc`: генерацію AVIF-двійників растрових зображень і ув'язування цих двійників із посиланнями у `.vue`- та `.html`-файлах монорепо. Експортує функцію `check`, яку викликає CLI `n-cursor` для команди `check image-avif` / `fix image-avif`.
 

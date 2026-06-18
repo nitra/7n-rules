@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Читання `on:`-блоку GitHub Actions через `input[\"true\"]` у Rego-полісі"
+---
+
 # Читання `on:`-блоку GitHub Actions через `input["true"]` у Rego-полісі
 
 **Status:** Accepted

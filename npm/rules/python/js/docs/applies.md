@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: applies.mjs
+resource: npm/rules/python/js/applies.mjs
 docgen:
-  source: npm/rules/python/js/applies.mjs
   crc: ed79bd71
   score: 100
 ---
-
-# applies.mjs
-
-## Огляд
 
 Файл перевіряє наявність файлу pyproject.toml у корені репозиторію.
 

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: check-mdc-template-refs.mjs
+resource: npm/scripts/lib/check-mdc-template-refs.mjs
 docgen:
-  source: npm/scripts/lib/check-mdc-template-refs.mjs
   crc: 17b81322
 ---
-
-# check-mdc-template-refs.mjs
-
-## Огляд
 
 Модуль `check-mdc-template-refs.mjs` — це невелика утиліта, призначена для перевірки цілісності посилань між файлом правила `<id>.mdc` та шаблонами, що лежать у підкаталогах `template/` цього самого правила. Він обходить структуру каталогів правила (`fix/<concern>/template/`, `policy/<concern>/template/`), збирає всі знайдені файли й порівнює їхні відносні шляхи з вмістом основного файлу правила `<id>.mdc`. Результатом є перелік шаблонних файлів, на які у `.mdc` немає жодного markdown-посилання, тобто «осиротілі» (orphaned) шаблони.
 

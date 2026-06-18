@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: vitest-config-pool-forks.mjs
+resource: npm/rules/test/js/vitest-config-pool-forks.mjs
 docgen:
-  source: npm/rules/test/js/vitest-config-pool-forks.mjs
   crc: bb04a54b
   score: 100
 ---
-
-# vitest-config-pool-forks.mjs
-
-## Огляд
 
 Огляд
 Файл виконує перевірку конфігураційного файлу для підтвердження наявності певного параметра. Це робиться для запобігання гонці у process.cwd між паралельними тестовими файлами (test.mdc).

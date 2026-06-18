@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: find-package-json-paths.mjs
+resource: npm/scripts/utils/find-package-json-paths.mjs
 docgen:
-  source: npm/scripts/utils/find-package-json-paths.mjs
   crc: 06c208de
 ---
-
-# find-package-json-paths.mjs
-
-## Огляд
 
 Цей файл забезпечує спільну утиліту для збору всіх файлів `package.json` у дереві проєкту, ігноруючи вказані каталоги. Він сортує знайдені шляхи пакетів за відносним розташуванням, що полегшує їх подальше використання в скриптах перевірки. Це дозволяє уникнути дублювання коду з інших інструментів перевірки та спрощує процес збору інформації про залежності.
 

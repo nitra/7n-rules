@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: build-agents-commands.mjs
+resource: npm/scripts/build-agents-commands.mjs
 docgen:
-  source: npm/scripts/build-agents-commands.mjs
   crc: 5a4cde2f
 ---
-
-# build-agents-commands.mjs
-
-## Огляд
 
 Модуль `build-agents-commands.mjs` формує перелік маркованих елементів (bullet items) для секції «Команди» у файлі `AGENTS.md`, який згенерує CLI `@nitra/cursor` під час синхронізації правил/шаблону.
 

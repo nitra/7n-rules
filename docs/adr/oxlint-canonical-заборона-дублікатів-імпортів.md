@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Дублювання import-рядків вже заборонено через oxlint-canonical"
+---
+
 # Дублювання import-рядків вже заборонено через oxlint-canonical
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/rego/js/lint.mjs
 docgen:
-  source: npm/rules/rego/js/lint.mjs
   crc: 8c033173
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 Файл виконує передачу перевірок у наявні CLI правила. Функція повертає Promise з кодом виходу.
 

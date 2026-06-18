@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: bunyan-imports.mjs
+resource: npm/rules/js-run/lib/bunyan-imports.mjs
 docgen:
-  source: npm/rules/js-run/lib/bunyan-imports.mjs
   crc: 5f403a53
 ---
-
-# `bunyan-imports.mjs`
-
-## Огляд
 
 Модуль `bunyan-imports.mjs` — це AST-сканер, який знаходить у вихідних файлах JavaScript / TypeScript заборонені імпорти й виклики модулів `@nitra/bunyan` та застарілого `bunyan`. Згідно з правилом `js-run.mdc` уся логіка структурованого логування у проєкті переведена на `@nitra/pino`, тому будь-яке згадування `bunyan`/`@nitra/bunyan` має бути замінене на `@nitra/pino`.
 

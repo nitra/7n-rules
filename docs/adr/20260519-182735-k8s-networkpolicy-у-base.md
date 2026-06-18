@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Переміщення NetworkPolicy з `components/` у `base/`"
+---
+
 # Переміщення NetworkPolicy з `components/` у `base/`
 
 **Status:** Accepted

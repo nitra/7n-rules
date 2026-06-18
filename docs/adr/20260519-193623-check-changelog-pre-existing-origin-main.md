@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Check Changelog: Ігнорування Pre-existing Пакунків з origin/main"
+---
+
 # Check Changelog: Ігнорування Pre-existing Пакунків з origin/main
 
 **Status:** Accepted

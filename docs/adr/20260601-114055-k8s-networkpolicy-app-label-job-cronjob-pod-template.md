@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "k8s NetworkPolicy: мітка `app` для Job/CronJob — з pod-template labels"
+---
+
 # k8s NetworkPolicy: мітка `app` для Job/CronJob — з pod-template labels
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: header_doc_pointer.mjs
+resource: npm/rules/npm-module/js/header_doc_pointer.mjs
 docgen:
-  source: npm/rules/npm-module/js/header_doc_pointer.mjs
   crc: d96a2957
   score: 100
 ---
-
-# header_doc_pointer.mjs
-
-## Огляд
 
 Файл виконує перевірку документації для модулів. Сканує директорії npm/rules та npm/skills. Перевіряє наявність файлів docs/<stem>.md у піддиректоріях правил/скілів. Перевіряє, чи містить відповідні js-файли не більше одного рядка JSDoc. У разі перевищення ліміту, генерує звіт про порушення.
 

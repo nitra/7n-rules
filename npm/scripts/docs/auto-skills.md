@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: auto-skills.mjs
+resource: npm/scripts/auto-skills.mjs
 docgen:
-  source: npm/scripts/auto-skills.mjs
   crc: 44328898
 ---
-
-# `auto-skills.mjs`
-
-## Огляд
 
 Модуль `npm/scripts/auto-skills.mjs` відповідає за **автовизначення (auto-activation) скілів** для файлу конфігурації `.n-cursor.json`. Він сканує директорію `npm/skills/` і для кожного скілу читає його `meta.json`, щоб визначити, чи має скіл активуватися автоматично — завжди або лише за наявності певних виявлених auto-правил (rules).
 

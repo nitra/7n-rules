@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: kustomization-patches.mjs
+resource: npm/rules/abie/lib/kustomization-patches.mjs
 docgen:
-  source: npm/rules/abie/lib/kustomization-patches.mjs
   crc: 1dd36b33
 ---
-
-# kustomization-patches.mjs
-
-## Огляд
 
 Модуль розпізнає inline JSON6902-патчі всередині `kustomization.yaml` для abie ua-overlay і перевіряє, що вони відповідають вимогам правила `abie.mdc`. Обслуговує два сценарії: патч `nodeSelector` на `Deployment` (закріплення подів на не-preemptible вузлах) і патчі `HTTPRoute` (домени, namespace для `parentRefs` і `backendRefs`). Тіло `patch:` у YAML — це рядок із вкладеним JSON6902, тому розпізнавання спирається на пошук характерних підрядків (`path: …`, `value: …`), а не на повторний парсинг.
 

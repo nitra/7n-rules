@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/python/js/tooling.mjs
 docgen:
-  source: npm/rules/python/js/tooling.mjs
   crc: f4dc22e2
   score: 95
 ---
-
-# tooling.mjs
-
-## Огляд
 
 Файл виконує перевірку наявності конфігураційних та залежностей у кореневому каталозі репозиторію. Він перевіряє структуру проекту відповідно до вимог, визначених у package.json.
 

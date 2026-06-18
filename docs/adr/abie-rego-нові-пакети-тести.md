@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Нові rego-пакети abie з тестами та виправлення health_check_policy"
+---
+
 # Нові rego-пакети abie з тестами та виправлення health_check_policy
 
 **Status:** Accepted

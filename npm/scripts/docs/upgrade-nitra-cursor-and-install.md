@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: upgrade-nitra-cursor-and-install.mjs
+resource: npm/scripts/upgrade-nitra-cursor-and-install.mjs
 docgen:
-  source: npm/scripts/upgrade-nitra-cursor-and-install.mjs
   crc: b0742ab3
 ---
-
-# upgrade-nitra-cursor-and-install.mjs
-
-## Огляд
 
 Файл автоматично синхронізує правила командного інтерфейсу (CLI) з останньою версією `@nitra/cursor` з npm registry. Це забезпечує, що локальна версія `@nitra/cursor` завжди актуальна, а також інсталює необхідні залежності за допомогою `bun i`. Він використовується для підтримки узгодженості між локальним проєктом та офіційним репозиторієм npm.
 

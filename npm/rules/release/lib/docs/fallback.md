@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: fallback.mjs
+resource: npm/rules/release/lib/fallback.mjs
 docgen:
-  source: npm/rules/release/lib/fallback.mjs
   crc: 99eb10bc
 ---
-
-# fallback.mjs
-
-## Огляд
 
 Модуль `fallback.mjs` реалізує **третє рішення** з ADR `n-cursor-release-design`: коли в певному workspace монорепо виявлено релевантні зміни, але **жодного change-файлу** від розробника не з’явилося, релізний пайплайн все одно повинен мати запис у CHANGELOG. Для цього модуль **синтезує** один штучний запис `change` із commit-subject-ів, які з’явилися від моменту останнього релізного тегу формату `<name>@*` до `HEAD`, обмежуючи журнал git pathspec-ом самого workspace.
 

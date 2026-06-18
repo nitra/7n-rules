@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Аудитор отримує новий worktree з main — агент мержить при `graph audit`
 
 ## Context and Problem Statement

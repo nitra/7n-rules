@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скіп frontend-пакетів у check-js-run"
+---
+
 # Скіп frontend-пакетів у check-js-run
 
 **Status:** Accepted

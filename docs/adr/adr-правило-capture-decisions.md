@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Правило adr для автоматичного розгортання механізму capture-decisions"
+---
+
 # Правило adr для автоматичного розгортання механізму capture-decisions
 
 **Status:** Accepted

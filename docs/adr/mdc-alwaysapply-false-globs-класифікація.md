@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Перехід MDC-правил на `alwaysApply: false` + `globs`"
+---
+
 # Перехід MDC-правил на `alwaysApply: false` + `globs`
 
 **Status:** Accepted

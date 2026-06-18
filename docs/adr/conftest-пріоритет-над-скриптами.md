@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Пріоритет conftest-політик для задач, вирішуваних через OPA/Rego"
+---
+
 # Пріоритет conftest-політик для задач, вирішуваних через OPA/Rego
 
 **Status:** Accepted

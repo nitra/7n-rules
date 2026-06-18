@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: package_structure.mjs
+resource: npm/rules/npm-module/js/package_structure.mjs
 docgen:
-  source: npm/rules/npm-module/js/package_structure.mjs
   crc: 943e3b76
   score: 85
 ---
-
-# package_structure.mjs
-
-## Огляд
 
 globToRegex
 Перетворює glob-патерн у RegExp з якорями `^` та `$`.

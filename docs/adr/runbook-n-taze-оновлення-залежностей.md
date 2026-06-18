@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Runbook n-taze — оновлення залежностей з аналізом major-змін"
+---
+
 # Runbook n-taze — оновлення залежностей з аналізом major-змін
 
 **Status:** Accepted

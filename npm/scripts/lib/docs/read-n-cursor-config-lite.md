@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: read-n-cursor-config-lite.mjs
+resource: npm/scripts/lib/read-n-cursor-config-lite.mjs
 docgen:
-  source: npm/scripts/lib/read-n-cursor-config-lite.mjs
   crc: a5fb0592
 ---
-
-# read-n-cursor-config-lite.mjs
-
-## Огляд
 
 Цей файл читає файл `.n-cursor.json`, що містить список правил для конфігурації. Він повертає цей список, щоб `fix.mjs` міг використовувати правила для визначення конфігурації. Це забезпечує базове читання конфігурації правил для запуску `fix.mjs` з командного рядка.
 

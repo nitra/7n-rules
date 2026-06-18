@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/graphql/fix.mjs
 docgen:
-  source: npm/rules/graphql/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує обробку JS-занепокоєних та політики на вхідному контексті прогону, генеруючи посилання MDC та повертаючи результат.
 

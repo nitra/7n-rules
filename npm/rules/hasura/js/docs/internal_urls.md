@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: internal_urls.mjs
+resource: npm/rules/hasura/js/internal_urls.mjs
 docgen:
-  source: npm/rules/hasura/js/internal_urls.mjs
   crc: 83abefa3
   score: 90
 ---
-
-# internal_urls.mjs
-
-## Огляд
 
 parseInternalHasuraEndpoint
 Витягує значення HASURA_GRAPHQL_ENDPOINT з конфігурації для формування внутрішнього кластерного URL

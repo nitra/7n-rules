@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: skills-cli.mjs
+resource: npm/scripts/skills-cli.mjs
 docgen:
-  source: npm/scripts/skills-cli.mjs
   crc: 85da573a
   score: 100
 ---
-
-# skills-cli.mjs
-
-## Огляд
 
 Файл надає інструменти для запуску скілів пакета `@nitra/cursor` без синку правил у проєкт. Він зчитує інструкції скілів з файлів `SKILL.md` та збирає контекст з `package.json`, `tsconfig.json` та `.n-cursor.json` для формування промпту. Зібраний промпт делегується в `cursor-agent` або `claude` для виконання необхідних дій.
 

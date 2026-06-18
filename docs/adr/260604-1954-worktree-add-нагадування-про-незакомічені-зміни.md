@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "worktree add — нагадування про незакомічені зміни"
+---
+
 # worktree add — нагадування про незакомічені зміни
 
 **Status:** Accepted

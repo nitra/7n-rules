@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: inline-template-links.mjs
+resource: npm/scripts/lib/inline-template-links.mjs
 docgen:
-  source: npm/scripts/lib/inline-template-links.mjs
   crc: 7726f0ef
 ---
-
-# inline-template-links.mjs
-
-## Огляд
 
 Модуль `inline-template-links.mjs` — допоміжна утиліта для **build-кроку обробки `.mdc`-правил**. Її роль: у текстовому вмісті `.mdc`-документа знайти Markdown-посилання, які ведуть на template-файли (шлях містить сегмент `/template/` або `/templates/`), і **замінити** ці посилання на **інлайн fenced-блоки** з фактичним вмістом target-файлу.
 

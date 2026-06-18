@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Документація `ci4` не дублює `.cursor/rules`, лише посилається"
+---
+
 # Документація `ci4` не дублює `.cursor/rules`, лише посилається
 
 **Status:** Accepted

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: docker-nginx-user.mjs
+resource: npm/rules/docker/lib/docker-nginx-user.mjs
 docgen:
-  source: npm/rules/docker/lib/docker-nginx-user.mjs
   crc: 23fc4989
 ---
-
-# docker-nginx-user.mjs
-
-## Огляд
 
 Модуль `docker-nginx-user.mjs` — це чек-модуль для статичного аналізу Dockerfile (Containerfile), що спеціалізується на фінальному (runtime) `FROM`-stage на базі офіційного образу `nginxinc/nginx-unprivileged`. Належить до набору правил `npm/rules/docker/lib/` і викликається з агрегованого Docker-lint-набору.
 

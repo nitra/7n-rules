@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "omlx `memory-guard` як окремий клас помилки для intelligent backoff"
+---
+
 # ADR: omlx `memory-guard` як окремий клас помилки для intelligent backoff
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: stryker.config.baseline.mjs
+resource: npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
 docgen:
-  source: npm/rules/test/js/data/stryker_config/stryker.config.baseline.mjs
   crc: 2c7c9c37
   score: 90
 ---
-
-# stryker.config.baseline.mjs
-
-## Огляд
 
 Файл ініціює процес тестування. Він визначає конфігурацію, область покриття, директорію для тимчасових файлів та формує ім'я файлу для JSON-звіту. Він керує збереженням результатів між запусками.
 

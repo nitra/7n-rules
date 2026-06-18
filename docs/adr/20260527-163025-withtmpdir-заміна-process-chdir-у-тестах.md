@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заміна `withTmpCwd` на `withTmpDir` та policy-guards проти `process.chdir` у тестах"
+---
+
 # Заміна `withTmpCwd` на `withTmpDir` та policy-guards проти `process.chdir` у тестах
 
 **Status:** Accepted

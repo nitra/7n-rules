@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: rule_meta.mjs
+resource: npm/rules/npm-module/js/rule_meta.mjs
 docgen:
-  source: npm/rules/npm-module/js/rule_meta.mjs
   crc: 8262678c
   score: 100
 ---
-
-# rule_meta.mjs
-
-## Огляд
 
 Перевіряє наявність директорії npm/rules у вказаному шляху. Ітерує по всіх директоріях у директорії npm/rules. Для кожної директорії виконує перевірку наявності файлу auto.md та валідність полів auto та lint у конфігурації meta.json. Перевіряє наявність файлу js/lint.mjs у каталозі правила. Збирає результати валідації та повертає код виходу репортера.
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-start-check: smoke-перевірка воркспейсів bun-монорепо"
+---
+
 # n-start-check: smoke-перевірка воркспейсів bun-монорепо
 
 **Status:** Accepted

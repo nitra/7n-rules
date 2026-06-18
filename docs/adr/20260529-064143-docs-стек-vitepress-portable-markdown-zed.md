@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Docs-стек: VitePress і Portable Markdown для перегляду в Zed"
+---
+
 # Docs-стек: VitePress і Portable Markdown для перегляду в Zed
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR `human-pending` — правильна дефініція стану та семантика `--actor human`
 
 ## Context and Problem Statement

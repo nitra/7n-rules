@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: run-standard-rule.mjs
+resource: npm/scripts/lib/run-standard-rule.mjs
 docgen:
-  source: npm/scripts/lib/run-standard-rule.mjs
   crc: c1ae8f0e
   score: 90
 ---
-
-# run-standard-rule.mjs
-
-## Огляд
 
 Файл інкапсулює оркестрацію виконання правил. Він забезпечує запуск правила через визначений шлях, ізолюючи його виконання у блоці `withLock` для уникнення паралельних запусків.
 

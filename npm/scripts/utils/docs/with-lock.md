@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: with-lock.mjs
+resource: npm/scripts/utils/with-lock.mjs
 docgen:
-  source: npm/scripts/utils/with-lock.mjs
   crc: 21848085
   score: 95
 ---
-
-# with-lock.mjs
-
-## Огляд
 
 Файл реалізує механізм захисту важких команд через атомарне блокування та унікалізацію результатів. Функції дозволяють перевіряти можливість повторного використання результату з кешу та виконувати команду через серіалізований механізм. Механізм використовує `mkdirSync-based lock` та `sha256-dedup` з TTL.
 

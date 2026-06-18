@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Worktree-виключення у редакторах VSCode і Zed через правило worktree"
+---
+
 # Worktree-виключення у редакторах VSCode і Zed через правило worktree
 
 **Status:** Accepted

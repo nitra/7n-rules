@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Kubescape через `kustomize build` + stdin замість прямого сканування каталогу"
+---
+
 # Kubescape через `kustomize build` + stdin замість прямого сканування каталогу
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: cargo_mutants_config.mjs
+resource: npm/rules/tauri/js/cargo_mutants_config.mjs
 docgen:
-  source: npm/rules/tauri/js/cargo_mutants_config.mjs
   crc: 7dc410ce
   score: 80
 ---
-
-# cargo_mutants_config.mjs
-
-## Огляд
 
 Огляд
 

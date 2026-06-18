@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-shellcheck.mjs
+resource: npm/rules/text/lint/run-shellcheck.mjs
 docgen:
-  source: npm/rules/text/lint/run-shellcheck.mjs
   crc: 6b2daaa8
 ---
-
-# run-shellcheck.mjs
-
-## Огляд
 
 Модуль `run-shellcheck.mjs` — частина ланцюжка `lint-text` для перевірки якості shell-скриптів (`*.sh`) у проєкті за допомогою зовнішнього інструменту **ShellCheck**. Скрипт виконує два етапи:
 

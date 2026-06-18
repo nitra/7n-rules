@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Flow-стан як sibling-файл та `flow init` як ідемпотентна надмножина"
+---
+
 # Flow-стан як sibling-файл та `flow init` як ідемпотентна надмножина
 
 **Status:** Accepted

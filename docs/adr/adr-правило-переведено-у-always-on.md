@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Правило adr переведено з opt-in у always-on"
+---
+
 # Правило adr переведено з opt-in у always-on
 
 **Status:** Accepted

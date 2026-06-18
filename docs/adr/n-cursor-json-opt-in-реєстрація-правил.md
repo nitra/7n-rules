@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Opt-in реєстрація правил у .n-cursor.json"
+---
+
 # Opt-in реєстрація правил у .n-cursor.json
 
 **Status:** Accepted

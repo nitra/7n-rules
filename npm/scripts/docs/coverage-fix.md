@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: coverage-fix.mjs
+resource: npm/scripts/coverage-fix.mjs
 docgen:
-  source: npm/scripts/coverage-fix.mjs
   crc: 7f0568dd
 ---
-
-# coverage-fix.mjs
-
-## Огляд
 
 Файл `npm/scripts/coverage-fix.mjs` — це ESM-модуль, який реалізує fix-режим команди `n-cursor coverage --fix`. Його призначення — автоматично запустити агента Claude Code (через офіційний SDK `@anthropic-ai/claude-agent-sdk`) і доручити йому дописати unit-тести, які «вб'ють» вцілілих мутантів, знайдених попереднім прогоном Stryker.
 

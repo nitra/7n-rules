@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`.worktrees/` гарантовано gitignored через окремий sync-крок"
+---
+
 # `.worktrees/` гарантовано gitignored через окремий sync-крок
 
 **Status:** Accepted

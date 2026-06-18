@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/graphql/js/tooling.mjs
 docgen:
-  source: npm/rules/graphql/js/tooling.mjs
   crc: eb6b4713
   score: 100
 ---
-
-# tooling.mjs
-
-## Огляд
 
 Визначає ім'я файлу конфігурації (`GRAPHQL_RC_FILENAME` = ".graphqlrc.yml") та обов'язкове розширення VS Code (`REQUIRED_GRAPHQL_VSCODE_EXTENSION` = "graphql.vscode-graphql"). Перевіряє наявність конфігурації в `extensions.json` (конфігурація, на яку спирається код) та підтверджує необхідність розширення для роботи з GraphQL (graphql.mdc).
 

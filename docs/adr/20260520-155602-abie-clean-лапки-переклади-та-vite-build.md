@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Конвенція лапок та `bun vite build` у скілі `abie-clean`"
+---
+
 # Конвенція лапок та `bun vite build` у скілі `abie-clean`
 
 **Status:** Accepted

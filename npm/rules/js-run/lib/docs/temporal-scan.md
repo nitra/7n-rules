@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: temporal-scan.mjs
+resource: npm/rules/js-run/lib/temporal-scan.mjs
 docgen:
-  source: npm/rules/js-run/lib/temporal-scan.mjs
   crc: 5b15b070
 ---
-
-# temporal-scan.mjs
-
-## Огляд
 
 Цей файл є частиною системи, яка сканує код Bun workspace на наявність використання ключового слова `Temporal`. Він запобігає використанню `Temporal` у backend-коді, оскільки Bun 1.3.x ще не має глобального `Temporal`, та охоплює сценарії з імпортом та polyfill. Це забезпечує відповідність коду поточним вимогам Bun runtime щодо обробки часу.
 

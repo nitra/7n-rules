@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Bun native Redis: відсутність `keyPrefix` та ручний workaround"
+---
+
 # Bun native Redis: відсутність `keyPrefix` та ручний workaround
 
 **Status:** Accepted

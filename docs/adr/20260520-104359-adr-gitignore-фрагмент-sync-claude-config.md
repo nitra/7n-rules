@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Автоматичне додавання `.gitignore`-фрагмента для артефактів ADR Stop-hook'ів"
+---
+
 # Автоматичне додавання `.gitignore`-фрагмента для артефактів ADR Stop-hook'ів
 
 **Status:** Accepted

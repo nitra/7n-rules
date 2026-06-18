@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Підтримка двох форматів JSONL у capture-decisions.sh"
+---
+
 # Підтримка двох форматів JSONL у capture-decisions.sh
 
 **Status:** Accepted

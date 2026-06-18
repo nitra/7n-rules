@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: rule-predicates.mjs
+resource: npm/scripts/lib/rule-predicates.mjs
 docgen:
-  source: npm/scripts/lib/rule-predicates.mjs
   crc: 71fba574
   score: 95
 ---
-
-# rule-predicates.mjs
-
-## Огляд
 
 Реєстр незводимих до даних предикатів для автодетекту правил. Предикати використовують наявність файлів або вмісту для визначення умов. Умови, що вимагають парсингу залежностей чи сканування вмісту, читають дані з різних джерел. Виклик диспетчується через `auto-rules.mjs` за іменем предиката.
 

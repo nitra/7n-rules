@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Інструментарій Rego у VS Code та оновлення lint-rego"
+---
+
 # Інструментарій Rego у VS Code та оновлення lint-rego
 
 **Status:** Accepted

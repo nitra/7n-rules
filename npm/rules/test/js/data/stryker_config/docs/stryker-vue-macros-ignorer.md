@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: stryker-vue-macros-ignorer.mjs
+resource: npm/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs
 docgen:
-  source: npm/rules/test/js/data/stryker_config/stryker-vue-macros-ignorer.mjs
   crc: 30a5e9f9
 ---
-
-# stryker-vue-macros-ignorer.mjs
-
-## Огляд
 
 Файл `stryker-vue-macros-ignorer.mjs` — це Stryker `Ignore`-plugin (мутаційне тестування), який інструктує Stryker не мутувати виклики Vue `<script setup>`-макросів: `defineProps`, `defineEmits`, `defineModel`, `defineSlots`, `defineExpose`, `defineOptions`.
 

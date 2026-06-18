@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Розрізнення `js/templates/` та `js/data/` у правилах `@nitra/cursor`"
+---
+
 # Розрізнення `js/templates/` та `js/data/` у правилах `@nitra/cursor`
 
 **Status:** Accepted

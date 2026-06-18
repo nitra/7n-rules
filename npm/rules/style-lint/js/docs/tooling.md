@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/style-lint/js/tooling.mjs
 docgen:
-  source: npm/rules/style-lint/js/tooling.mjs
   crc: 631f5de8
   score: 80
 ---
-
-# tooling.mjs
-
-## Огляд
 
 Файл виконує перевірку конфігурації stylelint та файлів, пов'язаних з лінтуванням. Перевірка включає наявність конфігурації stylelint у `package.json` або зовнішньому файлі, файлів конфігу stylelint у директорії, файлів ігнорування stylelint та файлу workflow для лінтування.
 

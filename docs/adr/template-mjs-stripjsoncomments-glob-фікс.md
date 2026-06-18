@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення stripJsonComments для glob-патернів у JSON"
+---
+
 # Виправлення stripJsonComments для glob-патернів у JSON
 
 **Status:** Accepted

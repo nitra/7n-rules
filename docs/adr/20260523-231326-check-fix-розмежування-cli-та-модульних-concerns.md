@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Розмежування CLI-дієслова `fix` і модульних concern-файлів `check.mjs`"
+---
+
 # Розмежування CLI-дієслова `fix` і модульних concern-файлів `check.mjs`
 
 **Status:** Accepted

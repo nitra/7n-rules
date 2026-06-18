@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`@nitra/abie-docs` та `@nitra/efes-docs` обов'язкові у `devDependencies`"
+---
+
 # `@nitra/abie-docs` та `@nitra/efes-docs` обов'язкові у `devDependencies`
 
 **Status:** Accepted

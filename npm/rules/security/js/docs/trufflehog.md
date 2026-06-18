@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: trufflehog.mjs
+resource: npm/rules/security/js/trufflehog.mjs
 docgen:
-  source: npm/rules/security/js/trufflehog.mjs
   crc: 83f277a6
   score: 95
 ---
-
-# trufflehog.mjs
-
-## Огляд
 
 Огляд
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення фікстур тестів `check-js-run` — відповідність канону `src/conn/`"
+---
+
 # Виправлення фікстур тестів `check-js-run` — відповідність канону `src/conn/`
 
 **Status:** Accepted

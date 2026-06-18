@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: timing-summary.mjs
+resource: npm/scripts/lib/timing-summary.mjs
 docgen:
-  source: npm/scripts/lib/timing-summary.mjs
   crc: f21a9b91
 ---
-
-# timing-summary.mjs
-
-## Огляд
 
 Цей файл генерує табличне резюме часу виконання для команд `fix` та `lint`, які використовуються в orchestrator. Він підсумовує час виконання окремих правил та скриптів linting, надаючи інформацію для аналізу продуктивності. Результат представлений у вигляді рядка, який можна вивести для відображення користувачеві.
 

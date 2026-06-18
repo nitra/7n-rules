@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/text/js/lint.mjs
 docgen:
-  source: npm/rules/text/js/lint.mjs
-  crc: 49aab7ce
+  crc: eca3c531
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 Файл надає функцію lint, яка делегує завдання CLI правилам. Функція не підтримує режим per-file, і параметр files ігнорується. Функція повертає Promise з кодом виходу.
 

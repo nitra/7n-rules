@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: sync-gitignore-worktree.mjs
+resource: npm/scripts/lib/sync-gitignore-worktree.mjs
 docgen:
-  source: npm/scripts/lib/sync-gitignore-worktree.mjs
   crc: e691c42b
   score: 95
 ---
-
-# sync-gitignore-worktree.mjs
-
-## Огляд
 
 syncGitignoreWorktree
 Додає запис `.worktrees/` до кореневого `.gitignore`. Функція викликається для синхронізації локальних git-worktree з конфігурацією. Функція приймає шлях до кореня проєкту-споживача. Функція повертає результат, що вказує на успішність запису.

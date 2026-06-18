@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: omlx-trace.mjs
+resource: npm/lib/omlx-trace.mjs
 docgen:
-  source: npm/lib/omlx-trace.mjs
   crc: 3ff568d5
   score: 100
 ---
-
-# omlx-trace.mjs
-
-## Огляд
 
 Модуль збирає трасу викликів LLM, фіксуючи думки моделі та спостережуваний слід. Траса записується у локальний файл для ротації та готується для подальшої батч-агрегації. Дизайн-специфікація: docs/specs/2026-06-10-omlx-wire-trace-capture-design.md.
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`internalSymbols` як whitelist-based anti-hallucination у LLM-pipeline"
+---
+
 # ADR: `internalSymbols` як whitelist-based anti-hallucination у LLM-pipeline
 
 **Status:** Accepted

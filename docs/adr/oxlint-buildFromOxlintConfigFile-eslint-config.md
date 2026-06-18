@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Oxlint у `@nitra/eslint-config`: перехід на `buildFromOxlintConfigFile`"
+---
+
 # Oxlint у `@nitra/eslint-config`: перехід на `buildFromOxlintConfigFile`
 
 **Status:** Accepted

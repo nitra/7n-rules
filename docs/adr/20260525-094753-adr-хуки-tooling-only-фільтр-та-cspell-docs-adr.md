@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Детермінований tooling-only фільтр в ADR-хуках та виключення `docs/adr/**` з cspell"
+---
+
 # Детермінований tooling-only фільтр в ADR-хуках та виключення `docs/adr/**` з cspell
 
 **Status:** Accepted

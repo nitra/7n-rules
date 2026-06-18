@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/ga/lint/lint.mjs
 docgen:
-  source: npm/rules/ga/lint/lint.mjs
   crc: c391782d
 ---
-
-# lint.mjs
-
-## Огляд
 
 Файл надає CLI-обгортку для інструменту `lint-ga`, який автоматично встановлює необхідні інструменти, такі як `shellcheck` та `conftest`, для перевірки коду. Він послідовно виконує перевірку коду за допомогою Rego та JavaScript, забезпечуючи узгодженість з правилами `ga.mdc`. Цей файл служить централізованим джерелом для виконання та налаштування процесу linting, що спрощує інтеграцію в CI/CD.
 

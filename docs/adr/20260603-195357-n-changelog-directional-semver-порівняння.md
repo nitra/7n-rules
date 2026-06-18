@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-changelog: directional semver-порівняння у consistency check"
+---
+
 # n-changelog: directional semver-порівняння у consistency check
 
 **Status:** Accepted

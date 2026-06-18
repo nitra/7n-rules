@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Хибнопозитивна changelog-помилка `demo` при відсутності workspace на `dev`-гілці"
+---
+
 # Хибнопозитивна changelog-помилка `demo` при відсутності workspace на `dev`-гілці
 
 **Status:** Accepted

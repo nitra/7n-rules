@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Changeset-файли замість ручного bump версії: власний генератор у `n-cursor`"
+---
+
 # Changeset-файли замість ручного bump версії: власний генератор у `n-cursor`
 
 **Status:** Accepted

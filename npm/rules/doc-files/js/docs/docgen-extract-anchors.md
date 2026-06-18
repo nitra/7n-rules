@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-extract-anchors.mjs
+resource: npm/rules/doc-files/js/docgen-extract-anchors.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-extract-anchors.mjs
   crc: 49749e9c
   score: 80
 ---
-
-# docgen-extract-anchors.mjs
-
-## Огляд
 
 Витягує анкори з вихідного коду файлу.
 

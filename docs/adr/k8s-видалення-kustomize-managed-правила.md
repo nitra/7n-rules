@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення правила `k8s.kustomize_managed` через конфлікт із `k8s.base_manifest`"
+---
+
 # Видалення правила `k8s.kustomize_managed` через конфлікт із `k8s.base_manifest`
 
 **Status:** Accepted

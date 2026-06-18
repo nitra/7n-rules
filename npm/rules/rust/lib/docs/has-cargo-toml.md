@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: has-cargo-toml.mjs
+resource: npm/rules/rust/lib/has-cargo-toml.mjs
 docgen:
-  source: npm/rules/rust/lib/has-cargo-toml.mjs
   crc: f55fc57e
 ---
-
-# has-cargo-toml.mjs
-
-## Огляд
 
 Модуль `has-cargo-toml.mjs` — rule-local утиліта для правил Rust, що визначає наявність маніфесту Cargo (`Cargo.toml`) у дереві файлової системи, починаючи з заданого кореневого каталогу. Використовується як applies-walker на рівні правила: дозволяє правилу Rust динамічно вирішувати, чи варто застосовуватися до конкретного workspace/cwd, шукаючи `Cargo.toml` у поточному каталозі або в будь-якому з підкаталогів.
 

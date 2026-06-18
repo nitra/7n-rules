@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Мінімальна версія `@nitra/eslint-config` 3.10.0 — поріг у snippet-шаблоні"
+---
+
 # Мінімальна версія `@nitra/eslint-config` 3.10.0 — поріг у snippet-шаблоні
 
 **Status:** Accepted

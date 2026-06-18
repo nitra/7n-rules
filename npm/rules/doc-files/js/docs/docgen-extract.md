@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: docgen-extract.mjs
+resource: npm/rules/doc-files/js/docgen-extract.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-extract.mjs
   crc: a0680e77
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# docgen-extract.mjs
-
-## Огляд
 
 Витягує структурований факт-лист з вмісту файлів, аналізуючи їх залежно від мови. Для Rust витягує модульний опис, публічні експорти, локальні символи та класифікує імпорти й поведінкові маркери. Для JavaScript/TypeScript/MJS витягує опис, експортовані елементи з JSDoc, класифікує імпорти та визначає поведінкові маркери. При аналізі ігноруються директорії: .github, .git, node_modules, base/, ua/, .firebase. Звертається до мережі та кешує дані протягом одного прогону.
 

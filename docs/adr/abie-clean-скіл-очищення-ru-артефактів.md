@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скіл abie-clean: очищення проєктів від ru-артефактів"
+---
+
 # Скіл abie-clean: очищення проєктів від ru-артефактів
 
 **Status:** Accepted

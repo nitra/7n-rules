@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Autofix-режим правила changelog: автостворення change-файлу у pre-commit хуку"
+---
+
 # Autofix-режим правила changelog: автостворення change-файлу у pre-commit хуку
 
 **Status:** Accepted

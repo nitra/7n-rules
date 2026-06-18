@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: packages.mjs
+resource: npm/rules/vue/js/packages.mjs
 docgen:
-  source: npm/rules/vue/js/packages.mjs
   crc: 6119ae9c
   score: 85
 ---
-
-# packages.mjs
-
-## Огляд
 
 isVueComponentLibraryPkg
 Перевіряє, чи є пакет бібліотекою компонентів Vue шляхом перевірки `peerDependencies`.

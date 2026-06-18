@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rego-полісі мінімальних версій marketplace actions у GitHub Actions"
+---
+
 # Rego-полісі мінімальних версій marketplace actions у GitHub Actions
 
 **Status:** Accepted

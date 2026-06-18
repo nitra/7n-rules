@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: prompt.mjs
+resource: npm/scripts/coverage-classify/prompt.mjs
 docgen:
-  source: npm/scripts/coverage-classify/prompt.mjs
   crc: 12bfb99a
 ---
-
-# prompt.mjs
-
-## Огляд
 
 Модуль `prompt.mjs` — це prompt-builder для скрипта `coverage-classify`, що класифікує вцілілих мутантів зі звіту Stryker через LLM. Файл експонує дві сутності:
 

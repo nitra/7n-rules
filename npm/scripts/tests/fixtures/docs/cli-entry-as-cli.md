@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: cli-entry-as-cli.mjs
+resource: npm/scripts/tests/fixtures/cli-entry-as-cli.mjs
 docgen:
-  source: npm/scripts/tests/fixtures/cli-entry-as-cli.mjs
   crc: b8c5b5eb
 ---
-
-# cli-entry-as-cli.mjs
-
-## Огляд
 
 Файл є entry point для запуску Fixture через командний рядок. Він визначає, чи запущено файл як entry point, і виводить `TRUE` або `FALSE` відповідно. Це дозволяє перевірити правильність роботи `cli-entry.test.mjs` при запуску з командного рядка.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/k8s/fix.mjs
 docgen:
-  source: npm/rules/k8s/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл надає механізми для виконання визначених правил. Виконання цих правил здійснюється через публічну функцію run. Виконання відбувається у режимі командного рядка.
 

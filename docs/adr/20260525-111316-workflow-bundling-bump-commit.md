@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Workflow bundling: bump + CHANGELOG завжди в одному коміті з контентними змінами"
+---
+
 # Workflow bundling: bump + CHANGELOG завжди в одному коміті з контентними змінами
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "doc-files: local-only конвеєр claims→render з AST-декомпозицією замість cloud-ескалації"
+---
+
 # doc-files: local-only конвеєр claims→render з AST-декомпозицією замість cloud-ескалації
 
 **Status:** Accepted

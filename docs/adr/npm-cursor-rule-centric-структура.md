@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rule-Centric Структура Директорій npm-Пакету @nitra/cursor"
+---
+
 # Rule-Centric Структура Директорій npm-Пакету @nitra/cursor
 
 **Status:** Accepted

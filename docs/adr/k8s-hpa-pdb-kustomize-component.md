@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "k8s: HPA і PDB через Kustomize Component (`components/`)"
+---
+
 # k8s: HPA і PDB через Kustomize Component (`components/`)
 
 **Status:** Accepted

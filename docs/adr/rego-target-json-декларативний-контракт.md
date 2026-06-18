@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Декларативний контракт target.json для Rego-only правил"
+---
+
 # Декларативний контракт target.json для Rego-only правил
 
 **Status:** Accepted

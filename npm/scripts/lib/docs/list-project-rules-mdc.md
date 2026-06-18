@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: list-project-rules-mdc.mjs
+resource: npm/scripts/lib/list-project-rules-mdc.mjs
 docgen:
-  source: npm/scripts/lib/list-project-rules-mdc.mjs
   crc: e17e0855
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# list-project-rules-mdc.mjs
-
-## Огляд
 
 Експортує константу CURSOR_RULES_DIR, яка вказує на каталог правил у проєкті-споживачі. Надає функцію для отримання відсортованого списку всіх файлів правил `.mdc` з цього каталогу.
 

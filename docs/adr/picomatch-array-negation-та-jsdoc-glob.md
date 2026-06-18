@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Picomatch array-negation і JSDoc-коментар із glob-патерном"
+---
+
 # Picomatch array-negation і JSDoc-коментар із glob-патерном
 
 **Status:** Accepted

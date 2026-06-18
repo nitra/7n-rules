@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: discover-check-rules-from-cursor.mjs
+resource: npm/scripts/lib/discover-check-rules-from-cursor.mjs
 docgen:
-  source: npm/scripts/lib/discover-check-rules-from-cursor.mjs
   crc: 9a6916e1
   score: 100
 ---
-
-# discover-check-rules-from-cursor.mjs
-
-## Огляд
 
 Файл зчитує базові імена файлів `.mdc` у директорії `.cursor/rules/` та генерує список ідентифікаторів правил для `npx @nitra/cursor fix`, використовуючи перевірку через JS-концерн або policy з `target.json`.
 

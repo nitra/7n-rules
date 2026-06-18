@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Розчистка cspell-словника та ініціалізація CHANGELOG у workspace"
+---
+
 # Розчистка cspell-словника та ініціалізація CHANGELOG у workspace
 
 **Status:** Accepted

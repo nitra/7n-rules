@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Rego як дзеркало JS-авторитету: управління дрифтом і патерн object.get"
+---
+
 # Rego як дзеркало JS-авторитету: управління дрифтом і патерн object.get
 
 **Status:** Accepted

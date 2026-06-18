@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Multi-workspace iteration у `n-cursor coverage` (per-workspace, не Vitest workspaces)"
+---
+
 # Multi-workspace iteration у `n-cursor coverage` (per-workspace, не Vitest workspaces)
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Hasura image: перехід на ubuntu.amd64 і rego як єдине джерело"
+---
+
 # Hasura image: перехід на ubuntu.amd64 і rego як єдине джерело
 
 **Status:** Accepted

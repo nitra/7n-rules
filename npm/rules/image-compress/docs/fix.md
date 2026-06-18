@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/image-compress/fix.mjs
 docgen:
-  source: npm/rules/image-compress/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл виконує запуск правила. Він приймає контекст прогону і повертає отриманий результат.
 

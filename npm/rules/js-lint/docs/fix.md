@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/js-lint/fix.mjs
 docgen:
-  source: npm/rules/js-lint/fix.mjs
   crc: 38cf876b
   score: 90
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл застосовує визначене правило до вхідного контексту. Виконання відбувається через оркестрацію CLI, яка використовує імпорт та функцію `run`. Для роботи у режимі standalone використовується `runRuleCli` для визначення коду виходу та виконує еквівалент команди `npx @nitra/cursor fix <id>`.
 

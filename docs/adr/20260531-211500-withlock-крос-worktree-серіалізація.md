@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR withLock: крос-worktree серіалізація важких команд
 
 ## Context and Problem Statement

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Двопрохідний pre-scan у check image-avif"
+---
+
 # Двопрохідний pre-scan у check image-avif
 
 **Status:** Accepted

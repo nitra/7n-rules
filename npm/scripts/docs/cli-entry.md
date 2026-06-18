@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: cli-entry.mjs
+resource: npm/scripts/cli-entry.mjs
 docgen:
-  source: npm/scripts/cli-entry.mjs
   crc: b51b5d0a
 ---
-
-# `cli-entry.mjs`
-
-## Огляд
 
 Модуль `npm/scripts/cli-entry.mjs` — невеликий утилітарний ESM-модуль (Node.js, `.mjs`), який дає можливість іншому модулю-caller'у з'ясувати, **чи запущено його як точку входу CLI** (тобто прямим викликом `node my-script.mjs` або через `bin`-shim з `package.json`), **чи його просто імпортували** з іншого модуля (наприклад, з юніт-тестів, з фасадного CLI-агрегатора, з devtools).
 

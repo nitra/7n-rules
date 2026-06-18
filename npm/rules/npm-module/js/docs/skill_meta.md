@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: skill_meta.mjs
+resource: npm/rules/npm-module/js/skill_meta.mjs
 docgen:
-  source: npm/rules/npm-module/js/skill_meta.mjs
   crc: a069397b
   score: 100
 ---
-
-# skill_meta.mjs
-
-## Огляд
 
 Перевірка стану конфігурації. Файл перевіряє відповідність між полями worktree та requireRoot. Перевірка спирається на конфіги meta.json.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: deps.mjs
+resource: npm/rules/js-mssql/js/deps.mjs
 docgen:
-  source: npm/rules/js-mssql/js/deps.mjs
   crc: d5bc32ba
   score: 100
 ---
-
-# deps.mjs
-
-## Огляд
 
 request
 Витягує рядок версії `dependencies.mssql` з `package.json` (js-mssql.mdc)

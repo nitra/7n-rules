@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "AGENTS.md та n-changelog: обов'язковий post-change чеклист"
+---
+
 # AGENTS.md та n-changelog: обов'язковий post-change чеклист
 
 **Status:** Accepted

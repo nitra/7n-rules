@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "nginx-default-tpl: заміна `error_log off` на `error_log /dev/null crit`"
+---
+
 # nginx-default-tpl: заміна `error_log off` на `error_log /dev/null crit`
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Відмова від генераційного пайплайну oxlint-canonical.json — пряме редагування"
+---
+
 # Відмова від генераційного пайплайну oxlint-canonical.json — пряме редагування
 
 **Status:** Accepted

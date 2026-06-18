@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/doc-files/fix.mjs
 docgen:
-  source: npm/rules/doc-files/fix.mjs
   crc: 9df3e88d
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Точка входу правила doc-files для каналу `n-cursor fix doc-files`. Перевіряє структурні вимоги
 правила (наявність потрібного GA-workflow і скрипта в `package.json` через policy-канал), не

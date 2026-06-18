@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Рекомендувати squash-merge при завершенні worktree-гілки
 
 ## Context and Problem Statement

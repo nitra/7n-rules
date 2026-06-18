@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Відмова від обмежень на `metadata.name` і `metadata.namespace` для HTTPRoute"
+---
+
 # Відмова від обмежень на `metadata.name` і `metadata.namespace` для HTTPRoute
 
 **Status:** Accepted

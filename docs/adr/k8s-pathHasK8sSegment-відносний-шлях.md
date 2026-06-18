@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "k8s: `pathHasK8sSegment` перевіряє відносний шлях від кореня репо"
+---
+
 # k8s: `pathHasK8sSegment` перевіряє відносний шлях від кореня репо
 
 **Status:** Accepted

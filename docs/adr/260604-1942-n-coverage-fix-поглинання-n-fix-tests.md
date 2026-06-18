@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Злиття скілів n-fix-tests і n-coverage-fix"
+---
+
 # Злиття скілів n-fix-tests і n-coverage-fix
 
 **Status:** Accepted

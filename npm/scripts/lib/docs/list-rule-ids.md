@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: list-rule-ids.mjs
+resource: npm/scripts/lib/list-rule-ids.mjs
 docgen:
-  source: npm/scripts/lib/list-rule-ids.mjs
   crc: 5ef1ead5
 ---
-
-# list-rule-ids.mjs
-
-## Огляд
 
 Модуль `list-rule-ids.mjs` — невелика бібліотечна утиліта, призначена для перебору директорій-правил у каталозі `npm/rules/` та повернення відсортованого алфавітно списку ідентифікаторів правил, які реально містять виконуваний модуль `fix.mjs`.
 

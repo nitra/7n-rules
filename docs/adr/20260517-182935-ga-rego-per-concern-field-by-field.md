@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "GA rego: per-concern field-by-field та конвенції тест-пакетів"
+---
+
 # GA rego: per-concern field-by-field та конвенції тест-пакетів
 
 **Status:** Accepted

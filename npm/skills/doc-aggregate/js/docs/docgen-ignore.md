@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: docgen-ignore.mjs
+resource: npm/skills/doc-aggregate/js/docgen-ignore.mjs
 docgen:
-  source: npm/skills/doc-aggregate/js/docgen-ignore.mjs
   crc: 5faaffd0
 ---
-
-# docgen-ignore
-
-## Огляд
 
 Re-export спільного списку ignore-глобів зі скіла doc-files: обидва скіли документації (пофайлові доки й агрегати) мусять бачити однакове дерево кодових файлів, інакше агрегат посилатиметься на файли без док або навпаки.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: stryker.config.vue.baseline.mjs
+resource: npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs
 docgen:
-  source: npm/rules/test/js/data/stryker_config/stryker.config.vue.baseline.mjs
   crc: 579865c3
   score: 95
 ---
-
-# stryker.config.vue.baseline.mjs
-
-## Огляд
 
 Файл запускає тестування за допомогою фреймворку vitest. Використовує конфігурацію vitest з файлом mutation.json. Налаштовує аналіз покриття для запуску лише на мутовані лінії кожного тесту. Визначає директорію тимчасових файлів за допомогою tempDirName. Генерує звіти у форматах json та clear-text за допомогою reporters. Конфігурує jsonReporter для збереження результатів у файлі reports/stryker/mutation.json. Увімкнено incremental для збереження результатів між запусками та відновлення після збою. Використовує incrementalFile для збереження стану для інкрементального запуску. Ігнорує мутації Vue `<script setup>`-макросів за допомогою плагінів. Ігнорує Vue-макроси за допомогою плагінів.
 

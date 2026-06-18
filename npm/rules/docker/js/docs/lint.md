@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/docker/js/lint.mjs
 docgen:
-  source: npm/rules/docker/js/lint.mjs
   crc: 495d03ee
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 Модуль забезпечує декомпозицію структури Dockerfile для вилучення даних про багатостадійні збірки та залежності середовища. Функції, такі як `findDockerfilePaths` та `splitDockerfileStages`, використовуються для ідентифікації та розділення стадій збірки. Модуль надає інструменти для отримання підказок про виконання, включаючи визначення багатостадійного режиму (`getMultistageAndRuntimeHint`), компіляційних налаштувань (`getBunCompileHint`), та підказок про використання образу Nginx Alpine Slim (`getNginxAlpineSlimTagHint`). Додатково, він визначає необхідність роботи без прав root (`getNonRootRuntimeHint`). (docker.mdc)
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Gitignore-сніпет правила `test`: ігнорувати `**/coverage/` повністю"
+---
+
 # Gitignore-сніпет правила `test`: ігнорувати `**/coverage/` повністю
 
 **Status:** Accepted

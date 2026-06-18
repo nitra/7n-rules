@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Вбудовування вмісту `template/`-файлів у `.mdc` під час sync"
+---
+
 # Вбудовування вмісту `template/`-файлів у `.mdc` під час sync
 
 **Status:** Accepted

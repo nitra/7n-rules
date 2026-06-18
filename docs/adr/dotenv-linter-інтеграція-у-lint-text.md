@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Інтеграція dotenv-linter у ланцюжок `lint-text`"
+---
+
 # Інтеграція dotenv-linter у ланцюжок `lint-text`
 
 **Status:** Accepted

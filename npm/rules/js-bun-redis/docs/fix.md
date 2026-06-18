@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/js-bun-redis/fix.mjs
 docgen:
-  source: npm/rules/js-bun-redis/fix.mjs
   crc: 38cf876b
   score: 80
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл запускає визначене правило. Приймає контекст прогону, виконує пропуск через `runStandardRule` і повертає результат. Запуск через командний рядок виконує повний еквівалент команди `npx @nitra/cursor fix <id>` і встановлює код виходу процесу на результат `runRuleCli`.
 

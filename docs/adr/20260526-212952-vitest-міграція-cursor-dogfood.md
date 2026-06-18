@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Повна міграція `@nitra/cursor` з `bun:test` на `vitest` (догфудінг)"
+---
+
 # Повна міграція `@nitra/cursor` з `bun:test` на `vitest` (догфудінг)
 
 **Status:** Accepted

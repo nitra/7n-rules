@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: applies.mjs
+resource: npm/rules/abie/js/applies.mjs
 docgen:
-  source: npm/rules/abie/js/applies.mjs
   crc: f5b6777a
 ---
-
-# applies.mjs
-
-## Огляд
 
 Файл надає інструменти для валідації даних. Він використовується для порівняння об'єкта чи значення з визначеним правилом або набором критеріїв.
 

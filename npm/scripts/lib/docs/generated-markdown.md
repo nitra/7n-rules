@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: generated-markdown.mjs
+resource: npm/scripts/lib/generated-markdown.mjs
 docgen:
-  source: npm/scripts/lib/generated-markdown.mjs
   crc: 14b85a57
 ---
-
-# generated-markdown.mjs
-
-## Огляд
 
 Модуль `generated-markdown.mjs` містить набір чистих утиліт для генерації згенерованих маркдаун-файлів (зокрема `AGENTS.md` та `CLAUDE.md`) у межах CLI `n-cursor`. Він виконує дві основні задачі:
 

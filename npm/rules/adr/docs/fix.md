@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/adr/fix.mjs
 docgen:
-  source: npm/rules/adr/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує обробку JS-занепокоєних та політики на наданому контексті прогону. Генерація посилання MDC та повернення результату прогону.
 

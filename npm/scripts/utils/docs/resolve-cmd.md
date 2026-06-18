@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: resolve-cmd.mjs
+resource: npm/scripts/utils/resolve-cmd.mjs
 docgen:
-  source: npm/scripts/utils/resolve-cmd.mjs
   crc: 31c290fc
 ---
-
-# resolve-cmd.mjs
-
-## Огляд
 
 Цей файл надає функцію `resolveCmd` для отримання абсолютного шляху до виконуваного файлу, який відповідає заданій команді. Це дозволяє викликати зовнішні інструменти, використовуючи повний шлях до файлу, а не команду з змінної PATH. Це корисно для забезпечення чіткої та однозначної ідентифікації виконуваного файлу.
 

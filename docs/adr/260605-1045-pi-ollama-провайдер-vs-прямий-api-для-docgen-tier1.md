@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR pi (ollama-провайдер) vs прямий ollama API для docgen Tier 1
 
 ## Context and Problem Statement
@@ -38,3 +43,7 @@ Chosen option: "pi (ollama-провайдер)", because на однакових
 ## Update 2026-06-06
 
 Відхилено pi RPC-режим (`pi --mode rpc`) для docgen Tier 1. Benchmark (`~/docgen-bench3/pi_recipe.py`): RPC-сесія накопичує контекст між незалежними файлами — 267/144/296 с/файл проти ~30–74 с у per-file виклику. При накопиченні KV-cache (`ollama ps` показав `CONTEXT 4096, 100% GPU`) memory pressure на 8 GB збільшує latency і призводить до крос-забруднення документів. Рішення: per-file виклик (`pi -p --no-session ...`) з чистим контекстом на кожен файл — єдиний прийнятний режим для docgen; файли незалежні й потребують ізольованого контексту.
+
+## Update 2026-06-06
+
+**Per-file виклик vs персистентна RPC-сесія pi.** RPC-сесія (`--mode rpc`) неправильна для docgen Tier 1: незалежні файли в одній сесії накопичують контекст — файл N тягне файли 1…N-1 та їхні доки → кожен наступний виклик повільніший. Заміряно на 3 файлах: RPC — 267/144/296 с; per-file pi — 31/124/70 с. Причина сповільнення: thrashing на 8 GB (pi-node + ollama + накопичений контекст конкурують за unified memory). Boot overhead: per-file pi ~3.8–5 с/виклик, прямий HTTP <1 с (~1.1 год економії на 1042 файлах). Обраний патерн: per-file виклик або прямий HTTP per-file. Рецепт per-file pi: `pi -p --provider ollama --model gemma4:4b --no-tools --no-session --no-context-files --append-system-prompt "$STYLE"`.

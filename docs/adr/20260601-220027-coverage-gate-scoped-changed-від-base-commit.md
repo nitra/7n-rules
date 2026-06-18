@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скоуп coverage-гейту турнікета через `--changed` від `base_commit`"
+---
+
 # Скоуп coverage-гейту турнікета через `--changed` від `base_commit`
 
 **Status:** Accepted

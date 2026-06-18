@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: location.mjs
+resource: npm/rules/test/js/location.mjs
 docgen:
-  source: npm/rules/test/js/location.mjs
   crc: 9ea5f9b8
   score: 100
 ---
-
-# location.mjs
-
-## Огляд
 
 Файл перевіряє структуру директорій для ідентифікації та визначення тестів. Він призначений для перегляду шляхів та формування інструкцій щодо коректного розміщення тестів. (test.mdc)
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Git Worktree Lifecycle: критерії keep vs discard та виявлення shared drift"
+---
+
 # Git Worktree Lifecycle: критерії keep vs discard та виявлення shared drift
 
 **Status:** Accepted

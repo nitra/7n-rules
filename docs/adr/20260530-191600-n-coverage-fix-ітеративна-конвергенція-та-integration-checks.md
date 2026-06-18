@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-coverage-fix: Ітеративна конвергенція через COVERAGE.md та Integration Repo Checks"
+---
+
 # n-coverage-fix: Ітеративна конвергенція через COVERAGE.md та Integration Repo Checks
 
 **Status:** Accepted

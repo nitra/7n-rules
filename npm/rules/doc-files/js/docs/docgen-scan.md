@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-scan.mjs
+resource: npm/rules/doc-files/js/docgen-scan.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-scan.mjs
-  crc: dcc90d44
+  crc: 4c17838f
   score: 100
 ---
-
-# docgen-scan.mjs
-
-## Огляд
 
 isSourceFile перевіряє, чи є файл кодовим джерелом.
 docPathForSource обчислює шлях md-документа для кодового файлу.

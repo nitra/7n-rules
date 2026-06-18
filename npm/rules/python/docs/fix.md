@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/python/fix.mjs
 docgen:
-  source: npm/rules/python/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування JS-занепокоєних на вхідному контексті, застосовує визначену політику, генерує посилання на MDC та повертає результат прогону
 

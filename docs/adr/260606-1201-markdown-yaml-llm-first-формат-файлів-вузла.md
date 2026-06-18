@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Журнал відновлення"
+---
+
 ## ADR Markdown + YAML-фронтматер як LLM-first формат файлів вузла
 
 **Status:** Accepted

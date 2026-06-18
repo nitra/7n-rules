@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення `npm/CLAUDE.md` як path-scoped нагадування"
+---
+
 # Видалення `npm/CLAUDE.md` як path-scoped нагадування
 
 **Status:** Accepted

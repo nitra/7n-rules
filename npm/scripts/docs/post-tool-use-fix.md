@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: post-tool-use-fix.mjs
+resource: npm/scripts/post-tool-use-fix.mjs
 docgen:
-  source: npm/scripts/post-tool-use-fix.mjs
-  crc: f40e8a8b
+  crc: 9f313f04
   score: 95
 ---
-
-# post-tool-use-fix.mjs
-
-## Огляд
 
 Файл забезпечує точкова маршрутизацію шляху до правил для виправлення коду через хук PostToolUse. Він ініціює запуск команди `npx @nitra/cursor fix` для виправлення коду після зміни файлу.
 

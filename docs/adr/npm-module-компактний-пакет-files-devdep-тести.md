@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "npm-пакет: компактність — `files`, заборона `devDependencies`, тести поза опублікованим деревом"
+---
+
 # npm-пакет: компактність — `files`, заборона `devDependencies`, тести поза опублікованим деревом
 
 **Status:** Accepted

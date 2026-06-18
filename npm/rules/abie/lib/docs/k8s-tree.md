@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: k8s-tree.mjs
+resource: npm/rules/abie/lib/k8s-tree.mjs
 docgen:
-  source: npm/rules/abie/lib/k8s-tree.mjs
   crc: 077f3478
 ---
-
-# k8s-tree
-
-## Огляд
 
 Модуль обходить дерево репозиторію й постачає правилу `abie` два набори даних про Kubernetes-маніфести: усі YAML-файли під сегментом `k8s/` та каталоги, що містять `Deployment`. Результати кешуються на час одного прогону (module-level singleton), тож кілька перевірок у межах однієї сесії перевикористовують єдиний обхід замість повторного I/O.
 

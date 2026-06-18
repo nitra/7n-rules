@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "CLI-інструмент `n-cursor worktree` для крос-платформної роботи з git-worktree"
+---
+
 # CLI-інструмент `n-cursor worktree` для крос-платформної роботи з git-worktree
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Per-package git-теги у форматі `<name>@<version>`"
+---
+
 # Per-package git-теги у форматі `<name>@<version>`
 
 **Status:** Accepted

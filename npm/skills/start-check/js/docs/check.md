@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: check.mjs
+resource: npm/skills/start-check/js/check.mjs
 docgen:
-  source: npm/skills/start-check/js/check.mjs
   crc: 1f8fb2f0
   score: 95
 ---
-
-# check.mjs
-
-## Огляд
 
 Файл надає інструменти для класифікації типів процесу, сканування конфігурації воркспейсів, парсингу логів та запуску скриптів.
 

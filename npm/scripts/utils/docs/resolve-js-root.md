@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: resolve-js-root.mjs
+resource: npm/scripts/utils/resolve-js-root.mjs
 docgen:
-  source: npm/scripts/utils/resolve-js-root.mjs
   crc: 2c2b9f11
 ---
-
-# resolve-js-root.mjs
-
-## Огляд
 
 Цей файл визначає кореневий JavaScript-файл проєкту, необхідний для запуску інструментів аналізу коду. Він використовується як у великих проєктах з декількома workspace-ами, так і в окремих пакетах, забезпечуючи єдине місце для визначення кореневого розташування. Це спрощує інтеграцію з інструментами coverage та тестування.
 

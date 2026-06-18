@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виключення tooling-шляхів та виправлення non-ASCII у `changelog/consistency/check`"
+---
+
 # Виключення tooling-шляхів та виправлення non-ASCII у `changelog/consistency/check`
 
 **Status:** Accepted

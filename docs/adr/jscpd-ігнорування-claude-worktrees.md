@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "jscpd: Ігнорування `.claude/worktrees/` у всіх проєктах"
+---
+
 # jscpd: Ігнорування `.claude/worktrees/` у всіх проєктах
 
 **Status:** Accepted

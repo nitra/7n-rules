@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`check` без аргументів читає `.cursor/rules/`, не `AGENTS.md`"
+---
+
 # `check` без аргументів читає `.cursor/rules/`, не `AGENTS.md`
 
 **Status:** Accepted

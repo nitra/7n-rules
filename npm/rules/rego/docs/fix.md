@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/rego/fix.mjs
 docgen:
-  source: npm/rules/rego/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Огляд: Функція run виконує перевірку правила. Повертає число, що інформує про успішність або порушення. Виконання правила через командний рядок повертає код виходу, який встановлює статус процесу.
 

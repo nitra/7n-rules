@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: coverage-fix-extract.mjs
+resource: npm/scripts/coverage-fix-extract.mjs
 docgen:
-  source: npm/scripts/coverage-fix-extract.mjs
   crc: a7f39f0e
 ---
-
-# coverage-fix-extract.mjs
-
-## Огляд
 
 Цей файл витягує вцілілі мутанти з файлу `COVERAGE.md` у форматі JSON. Витягнуті дані надаються агенту для вирішення проблем з покриттям, зменшуючи навантаження на LLM-оркестратор та забезпечуючи ефективний обмін інформацією. Це ключовий компонент процесу `n-coverage-fix`, що дозволяє агенту швидко реагувати на зміни в покритті.
 

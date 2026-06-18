@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: cspell-fix.mjs
+resource: npm/rules/text/lint/cspell-fix.mjs
 docgen:
-  source: npm/rules/text/lint/cspell-fix.mjs
-  crc: 3ce66d8a
+  crc: b5585e0f
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---
-
-# cspell-fix.mjs
-
-## Огляд
 
 Модуль інтегрує `cspell` у ланцюжок `lint-text` для виявлення орфографічних помилок. У режимі з можливістю виправлення, процес відбувається шляхом: детект (захоплення виводу) $\rightarrow$ групування знахідок по файлах $\rightarrow$ per-file `omlx-фікс` справжніх помилок (`llmLintFix`) $\rightarrow$ re-detect. У read-only режимі виконується лише детект, що гарантує нуль мутацій. Валідні терміни omlx залишаються, їх ловить повторний `cspell` (далі — у словник `@nitra/cspell-dict`).
 

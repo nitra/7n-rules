@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: tooling.mjs
+resource: npm/rules/tauri/js/tooling.mjs
 docgen:
-  source: npm/rules/tauri/js/tooling.mjs
   crc: 8f7bbb45
   score: 90
 ---
-
-# tooling.mjs
-
-## Огляд
 
 Огляд
 Файл виконує перевірку наявності залежностей Tauri у `package.json`, одиничного workspace-пакета Tauri, маркера Tauri та конфігурації `extensions.json`. Перевірка проводиться відповідно до правил, визначених у `tauri.mdc`.

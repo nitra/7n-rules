@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/lint/fix.mjs
 docgen:
-  source: npm/rules/lint/fix.mjs
   crc: f85a9e1d
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Модуль забезпечує виконання логіки, визначеної правилом. Він ініціює виконання правила через публічну функцію `run`.
 

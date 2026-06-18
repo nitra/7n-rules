@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "тільки при result: failed:"
+---
+
 **Status:** Accepted
 **Date:** 2026-06-07
 

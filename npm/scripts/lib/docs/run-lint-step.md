@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-lint-step.mjs
+resource: npm/scripts/lib/run-lint-step.mjs
 docgen:
-  source: npm/scripts/lib/run-lint-step.mjs
   crc: 5932fa98
 ---
-
-# run-lint-step.mjs
-
-## Огляд
 
 Цей файл забезпечує спільний хелпер для запуску окремих кроків у ланцюжку linting, що використовується CLI-обгортками. Він імітує прямий виклик команд у shell, логуючи команди та перенаправляючи stdout/stderr на користувацькі stream-и. Це дозволяє уникнути дублювання обгорток у різних `rules/<id>/js/lint.mjs` файлах.
 

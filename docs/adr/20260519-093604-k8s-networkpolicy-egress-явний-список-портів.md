@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Явний список in-cluster портів замість відкритого `namespaceSelector: {}` у канонічному NetworkPolicy egress"
+---
+
 # Явний список in-cluster портів замість відкритого `namespaceSelector: {}` у канонічному NetworkPolicy egress
 
 **Status:** Accepted

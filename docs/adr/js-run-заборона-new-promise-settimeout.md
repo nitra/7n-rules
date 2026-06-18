@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заборона new Promise для пауз у Node.js бекенд-пакетах"
+---
+
 # Заборона new Promise для пауз у Node.js бекенд-пакетах
 
 **Status:** Accepted

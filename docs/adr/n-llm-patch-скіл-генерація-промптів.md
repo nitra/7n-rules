@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скіл n-llm-patch: read-only генератор промпту для іншої LLM"
+---
+
 # Скіл n-llm-patch: read-only генератор промпту для іншої LLM
 
 **Status:** Accepted

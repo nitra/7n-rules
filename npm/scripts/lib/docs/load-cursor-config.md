@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: load-cursor-config.mjs
+resource: npm/scripts/lib/load-cursor-config.mjs
 docgen:
-  source: npm/scripts/lib/load-cursor-config.mjs
   crc: c86a80f4
 ---
-
-# load-cursor-config.mjs
-
-## Огляд
 
 Утилітарний модуль для читання конфігураційного файлу `.n-cursor.json` з кореня репозиторію. Призначений для використання check-скриптами, що обходять файлову систему й мають виключати певні каталоги зі сканування.
 

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/hasura/fix.mjs
 docgen:
-  source: npm/rules/hasura/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування політики JS-занепокоєних на наданому контексті прогону, генеруючи посилання на MDC та повертаючи результат.
 

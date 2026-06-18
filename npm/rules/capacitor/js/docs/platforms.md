@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: platforms.mjs
+resource: npm/rules/capacitor/js/platforms.mjs
 docgen:
-  source: npm/rules/capacitor/js/platforms.mjs
   crc: d102129c
   score: 85
 ---
-
-# platforms.mjs
-
-## Огляд
 
 Огляд
 

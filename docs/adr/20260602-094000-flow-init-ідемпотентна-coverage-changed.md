@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "flow init ідемпотентна та coverage --changed без перезапису COVERAGE.md"
+---
+
 # flow init ідемпотентна та coverage --changed без перезапису COVERAGE.md
 
 **Status:** Accepted

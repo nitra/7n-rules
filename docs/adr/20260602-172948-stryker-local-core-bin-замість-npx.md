@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Stryker: запуск через локально встановлений core-bin замість npx"
+---
+
 # Stryker: запуск через локально встановлений core-bin замість npx
 
 **Status:** Accepted

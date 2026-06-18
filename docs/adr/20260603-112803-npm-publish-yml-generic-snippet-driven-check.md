@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення bespoke rego npm_publish_yml та перехід на generic snippet-driven check"
+---
+
 # Видалення bespoke rego npm_publish_yml та перехід на generic snippet-driven check
 
 **Status:** Accepted

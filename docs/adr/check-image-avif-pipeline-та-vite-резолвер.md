@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "AVIF-pipeline у check image: розподіл відповідальностей, Vite-резолвер та відкат sha1-кешу"
+---
+
 # AVIF-pipeline у check image: розподіл відповідальностей, Vite-резолвер та відкат sha1-кешу
 
 **Status:** Accepted

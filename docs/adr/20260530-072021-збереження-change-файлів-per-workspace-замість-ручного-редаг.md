@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-cursor release: change-файли per-workspace замість ручного bump/CHANGELOG"
+---
+
 # n-cursor release: change-файли per-workspace замість ручного bump/CHANGELOG
 
 **Status:** Accepted

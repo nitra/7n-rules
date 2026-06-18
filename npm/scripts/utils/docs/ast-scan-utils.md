@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: ast-scan-utils.mjs
+resource: npm/scripts/utils/ast-scan-utils.mjs
 docgen:
-  source: npm/scripts/utils/ast-scan-utils.mjs
   crc: 0f9b4a21
 ---
-
-# ast-scan-utils.mjs
-
-## Огляд
 
 Цей файл містить утиліти для AST-сканерів JavaScript та TypeScript, що використовуються для аналізу коду та виявлення потенційних проблем. Він надає інструменти для обробки AST, перетворення даних та взаємодії з різними типами вузлів, забезпечуючи основу для створення правил безпеки та аналізу коду. Ці утиліти спрощують розробку сканерів, усуваючи необхідність повторного написання boilerplate-коду.
 

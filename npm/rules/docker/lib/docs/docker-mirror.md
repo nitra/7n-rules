@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: docker-mirror.mjs
+resource: npm/rules/docker/lib/docker-mirror.mjs
 docgen:
-  source: npm/rules/docker/lib/docker-mirror.mjs
   crc: b7c0bd04
 ---
-
-# docker-mirror.mjs
-
-## Огляд
 
 Модуль `docker-mirror.mjs` — це частина правила `n-docker` (тека `npm/rules/docker/lib/`) монорепо `n-cursor`. Він реалізує чисту (без I/O, без побічних ефектів) бібліотеку функцій для статичного аналізу директив `FROM` у файлах `Dockerfile` / `Containerfile` та визначає, чи звертається образ до Docker Hub без використання GCR-дзеркала `mirror.gcr.io`.
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "NetworkPolicy snippet — джерело правди (два повних канони + annotation dispatch)"
+---
+
 # ADR: NetworkPolicy snippet — джерело правди (два повних канони + annotation dispatch)
 
 **Дата:** 2026-05-25

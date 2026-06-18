@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: package-manifest.mjs
+resource: npm/rules/changelog/lib/package-manifest.mjs
 docgen:
-  source: npm/rules/changelog/lib/package-manifest.mjs
   crc: ced8ad49
 ---
-
-# package-manifest.mjs
-
-## Огляд
 
 Модуль `package-manifest.mjs` реалізує **уніфіковану абстракцію маніфесту пакета** для перевірок changelog у багатомовному монорепо. Він приховує відмінності між двома типами маніфестів:
 

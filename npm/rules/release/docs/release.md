@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: release.mjs
+resource: npm/rules/release/release.mjs
 docgen:
-  source: npm/rules/release/release.mjs
-  crc: b2b02de4
+  crc: 9aa2796b
 ---
-
-# `release.mjs` — оркестратор реліз-процесу `n-cursor release`
-
-## Огляд
 
 Модуль `npm/rules/release/release.mjs` — це ядро команди `n-cursor release`. Він агрегує per-workspace change-файли (накопичені у `CHANGES_DIR` кожного воркспейсу) у:
 

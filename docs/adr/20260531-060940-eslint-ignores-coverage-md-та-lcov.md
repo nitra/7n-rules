@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "ESLint ignores: `COVERAGE.md` та `npm/coverage/`"
+---
+
 # ESLint ignores: `COVERAGE.md` та `npm/coverage/`
 
 **Status:** Accepted

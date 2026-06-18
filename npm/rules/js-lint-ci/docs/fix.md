@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/js-lint-ci/fix.mjs
 docgen:
-  source: npm/rules/js-lint-ci/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл застосовує визначене правило до вхідного контексту прогону. Застосовує правило та повертає отриманий результат.
 

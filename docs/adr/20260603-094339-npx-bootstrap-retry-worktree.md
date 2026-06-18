@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Retry-обгортка bootstrap-виклику `npx @nitra/cursor` у worktree-only скілах"
+---
+
 # Retry-обгортка bootstrap-виклику `npx @nitra/cursor` у worktree-only скілах
 
 **Status:** Accepted

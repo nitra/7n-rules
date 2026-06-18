@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: cargo_mutants_config.mjs
+resource: npm/rules/test/js/cargo_mutants_config.mjs
 docgen:
-  source: npm/rules/test/js/cargo_mutants_config.mjs
   crc: 4078e955
   score: 100
 ---
-
-# cargo_mutants_config.mjs
-
-## Огляд
 
 Огляд
 

@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: llm-lint-fix.mjs
+resource: npm/scripts/lib/fix/llm-lint-fix.mjs
 docgen:
-  source: npm/scripts/lib/fix/llm-lint-fix.mjs
   crc: de4439e9
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---
-
-# llm-lint-fix.mjs
-
-## Огляд
 
 Модуль реалізує механізм `omlx-фікс` для обробки знахідок лінтера, що стосуються `detect-only` тулів, які не мають нативного механізму виправлення (відповідно до `lint-orchestrator-fix-readonly`). Він зчитує уражені файли, ініціює запит до моделі через `callLlm` (маршрутизація через `omlx/<model>` з фолбеком каскаду), щоб отримати пропоновані зміни. Ці зміни застосовуються до файлової системи за допомогою спільного ядра `llm-fix-apply`.
 

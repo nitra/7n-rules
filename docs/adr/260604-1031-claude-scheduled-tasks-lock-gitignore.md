@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Додавання `.claude/scheduled_tasks.lock` до `.gitignore`"
+---
+
 # Додавання `.claude/scheduled_tasks.lock` до `.gitignore`
 
 **Status:** Accepted

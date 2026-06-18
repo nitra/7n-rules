@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint-findings.mjs
+resource: npm/rules/js-lint/js/lint-findings.mjs
 docgen:
-  source: npm/rules/js-lint/js/lint-findings.mjs
   crc: bee587da
   score: 100
 ---
-
-# lint-findings.mjs
-
-## Огляд
 
 parseOxlint
 Парсить текст у вивід oxlint

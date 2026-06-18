@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: docgen-prompts.mjs
+resource: npm/rules/doc-files/js/docgen-prompts.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-prompts.mjs
   crc: 28c9e818
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# docgen-prompts.mjs
-
-## Огляд
 
 Генерує технічну документацію на основі коду. Створює компоненти документації, такі як огляд (`overviewMessages`), повідомлення для секцій (`sectionMessages`), повідомлення для критики (`criticMessages`), повідомлення для уточнення (`refineMessages`) та гарантії, отримані з маркерів (`guaranteesFromMarkers`), застосовуючи заданий стиль (`STYLE`).
 

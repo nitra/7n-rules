@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Per-project kubescape exceptions через `.kubescape-exceptions.json`"
+---
+
 # Per-project kubescape exceptions через `.kubescape-exceptions.json`
 
 **Status:** Accepted

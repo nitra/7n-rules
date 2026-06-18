@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: units-js.mjs
+resource: npm/rules/doc-files/js/units-js.mjs
 docgen:
-  source: npm/rules/doc-files/js/units-js.mjs
   crc: 58b898cc
   score: 100
 ---
-
-# units-js.mjs
-
-## Огляд
 
 Файл парсить програму, ітеруючи по її елементах для збору юнітів. Для кожної декларації визначається опис. Для функцій та класів збираються виклики інших юнітів через ребра викликів.
 

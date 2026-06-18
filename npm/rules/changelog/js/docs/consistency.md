@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: consistency.mjs
+resource: npm/rules/changelog/js/consistency.mjs
 docgen:
-  source: npm/rules/changelog/js/consistency.mjs
   crc: eaf98d6d
   score: 100
 ---
-
-# consistency.mjs
-
-## Огляд
 
 Перевіряє версіонування проектів у монорепозиторії, порівнюючи версії, зазначені в маніфестах, з даними, отриманими з мережі з https://pypi.org/pypi/. Аналізує відповідність версій встановленим правилам, визначеним у конфігурації res.json. Визначає, чи відповідають версії формату, а також перевіряє наявність змін, порівнюючи їх із даними, описаними у (n-changelog.mdc). При невдачі перевірки повертає false/null, не кидаючи винятків.
 

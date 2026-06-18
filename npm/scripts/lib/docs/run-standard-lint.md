@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: run-standard-lint.mjs
+resource: npm/scripts/lib/run-standard-lint.mjs
 docgen:
-  source: npm/scripts/lib/run-standard-lint.mjs
   crc: e7e3f0ae
 ---
-
-# run-standard-lint.mjs
-
-## Огляд
 
 Файл забезпечує централізовану точку запуску для підкоманд `lint-<rule>` у `@nitra/cursor`. Він серіалізує та дедублює запуски, використовуючи `withLock`, щоб гарантувати узгодженість та ефективність. Це дозволяє легко інтегрувати нові правила та обробляти крос-cutting концерни, не вносячи змін у окремі файли правил.
 

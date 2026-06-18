@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: firebase_hosting.mjs
+resource: npm/rules/abie/js/firebase_hosting.mjs
 docgen:
-  source: npm/rules/abie/js/firebase_hosting.mjs
   crc: 3b2459a8
 ---
-
-# firebase_hosting.mjs
-
-## Огляд
 
 Функція `check` надає механізм валідації стану об'єктів проти визначеного контракту. Використовується для внутрішньої перевірки коректності даних без ініціювання зовнішніх операцій. Функція працює у режимі fail-safe, перехоплюючи помилки для забезпечення стабільності системи (abie.mdc).
 

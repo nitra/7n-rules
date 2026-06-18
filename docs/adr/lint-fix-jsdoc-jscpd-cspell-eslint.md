@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення lint-порушень у npm/scripts: JSDoc, ESLint, jscpd, cspell, markdownlint"
+---
+
 # Виправлення lint-порушень у npm/scripts: JSDoc, ESLint, jscpd, cspell, markdownlint
 
 **Status:** Accepted

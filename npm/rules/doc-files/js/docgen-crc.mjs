@@ -30,6 +30,7 @@
  * джерела. На staleness НЕ впливає — звіряється лише `crc`.
  */
 import { existsSync, readFileSync } from 'node:fs'
+import { basename, extname } from 'node:path'
 import { crc32 as zlibCrc32 } from 'node:zlib'
 import { env } from 'node:process'
 
@@ -49,7 +50,7 @@ export function crc32(input) {
 
 /** Провідний YAML-frontmatter-блок `---\n…\n---`. */
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?/u
-const SOURCE_RE = /^[ \t]{0,8}source:[ \t]{0,8}(.+)$/mu
+const RESOURCE_RE = /^resource:[ \t]+(.+)$/mu
 const CRC_RE = /^[ \t]{0,8}crc:[ \t]{0,8}(.+)$/mu
 const MODEL_RE = /^[ \t]{0,8}model:[ \t]{0,8}(.+)$/mu
 const SCORE_RE = /^[ \t]{0,8}score:[ \t]{0,8}(\d+)$/mu
@@ -72,9 +73,10 @@ export function parseDocFrontmatter(md) {
   const block = match[1]
   const scoreRaw = block.match(SCORE_RE)?.[1]
   const issuesRaw = block.match(ISSUES_RE)?.[1]
+  const source = block.match(RESOURCE_RE)?.[1].trim() ?? null
   return {
     data: {
-      source: block.match(SOURCE_RE)?.[1].trim() ?? null,
+      source,
       crc: block.match(CRC_RE)?.[1].trim() ?? null,
       model: block.match(MODEL_RE)?.[1].trim() ?? null,
       score: scoreRaw === undefined ? null : Number(scoreRaw),
@@ -94,6 +96,28 @@ export function parseDocFrontmatter(md) {
 /** Максимум кодів issues у frontmatter — це маркер, а не повний лог. */
 const MAX_ISSUE_CODES = 8
 
+/** OKF type для розширення файлу. */
+const EXT_TYPES = {
+  '.js': 'JS Module',
+  '.mjs': 'JS Module',
+  '.cjs': 'JS Module',
+  '.ts': 'TS Module',
+  '.vue': 'Vue Component',
+  '.py': 'Python Module',
+  '.rs': 'Rust Module',
+}
+
+/**
+ * OKF `type` для файлу-джерела за розширенням.
+ * @param {string} sourcePath відносний шлях джерела
+ * @returns {string} тип концепту
+ */
+function typeForSource(sourcePath) {
+  return EXT_TYPES[extname(sourcePath).toLowerCase()] ?? 'Source File'
+}
+
+
+
 /**
  * Нормалізує issues до YAML-безпечних кодів: бере фрагмент до першого пробілу
  * (зрізає людиночитні хвости помилок), відкидає порожні, обмежує кількість.
@@ -108,25 +132,34 @@ function issueCodes(issues) {
 }
 
 /**
- * Будує frontmatter-блок із шляхом джерела, CRC, (опційно) моделлю-генератором і якістю.
+ * Будує OKF-сумісний frontmatter-блок: OKF-поля верхнього рівня + вкладений `docgen:`
+ * з CRC/model/quality. OKF-поля виводяться першими, щоб будь-який OKF-парсер міг їх
+ * читати незалежно від `docgen:`-простору назв.
  * @param {string} source відносний шлях джерела
  * @param {string} crc CRC32 джерела у hex
- * @param {{ score: number, issues?: string[], retried?: boolean, judge?: {model?: string} }|null} [quality] det-оцінка доки (+ опц. `retried`-маркер і `judge.model` хмарного судді); null — без полів якості
+ * @param {{ score: number, issues?: string[], retried?: boolean, judge?: {model?: string} }|null} [quality] det-оцінка доки; null — без полів якості
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
- * @returns {string} рядок `---\ndocgen:\n  source: …\n  crc: …[\n  model: …][\n  score: …][\n  issues: …]\n---\n`
+ * @returns {string} OKF-сумісний YAML frontmatter
  */
 export function buildDocFrontmatter(source, crc, quality = null, model = null) {
-  const lines = [`source: ${source}`, `crc: ${crc}`]
-  if (model) lines.push(`model: ${model}`)
+  const okfLines = [
+    `type: ${typeForSource(source)}`,
+    `title: ${basename(source)}`,
+    `resource: ${source}`,
+  ]
+
+  // docgen namespace: лише CRC-механіка і quality (source перенесено у resource)
+  const docgenLines = [`crc: ${crc}`]
+  if (model) docgenLines.push(`model: ${model}`)
   if (quality && typeof quality.score === 'number') {
-    lines.push(`score: ${quality.score}`)
+    docgenLines.push(`score: ${quality.score}`)
     const codes = issueCodes(quality.issues ?? [])
-    if (codes.length > 0) lines.push(`issues: ${codes.join(',')}`)
-    if (quality.retried) lines.push('retried: true')
-    if (quality.judge && quality.judge.model) lines.push(`judgeModel: ${quality.judge.model}`)
+    if (codes.length > 0) docgenLines.push(`issues: ${codes.join(',')}`)
+    if (quality.retried) docgenLines.push('retried: true')
+    if (quality.judge && quality.judge.model) docgenLines.push(`judgeModel: ${quality.judge.model}`)
   }
-  const indented = lines.map(l => '  ' + l).join('\n')
-  return `---\ndocgen:\n${indented}\n---\n`
+  const indented = docgenLines.map(l => '  ' + l).join('\n')
+  return `---\n${okfLines.join('\n')}\ndocgen:\n${indented}\n---\n`
 }
 
 /**
@@ -138,9 +171,12 @@ export function buildDocFrontmatter(source, crc, quality = null, model = null) {
  * @param {string|null} [model] повний id моделі-генератора; null — без поля `model`
  * @returns {string} md зі свіжим frontmatter
  */
+const LEADING_H1_RE = /^#[^\n]*\n+/u
+
 export function stampDoc(md, source, crc, quality = null, model = null) {
   const { body } = parseDocFrontmatter(md)
-  return `${buildDocFrontmatter(source, crc, quality, model)}\n${body.replace(LEADING_NEWLINES_RE, '')}`
+  const cleanBody = body.replace(LEADING_NEWLINES_RE, '').replace(LEADING_H1_RE, '')
+  return `${buildDocFrontmatter(source, crc, quality, model)}\n${cleanBody}`
 }
 
 /**

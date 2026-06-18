@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/php/lint/lint.mjs
 docgen:
-  source: npm/rules/php/lint/lint.mjs
   crc: cafd914f
 ---
-
-# lint.mjs — PHP lint runner
-
-## Огляд
 
 Модуль `lint.mjs` реалізує крок `lint-php` згідно з правилом `php.mdc`. Він виконує статичний та безпековий аналіз PHP-проєкту, який лежить у поточному робочому каталозі (`process.cwd()`), послідовно прогоняючи такі інструменти:
 

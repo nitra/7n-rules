@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення LINT_TARGETS та конфігурація regal для rego-лінту"
+---
+
 # Виправлення LINT_TARGETS та конфігурація regal для rego-лінту
 
 **Status:** Accepted

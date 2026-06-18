@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Структурне сортування `patches` у Kustomize-перевірці"
+---
+
 # Структурне сортування `patches` у Kustomize-перевірці
 
 **Status:** Accepted

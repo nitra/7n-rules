@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/k8s/lint/lint.mjs
 docgen:
-  source: npm/rules/k8s/lint/lint.mjs
   crc: b6119c36
 ---
-
-# lint.mjs — лінт Kubernetes-маніфестів (kubeconform + kubescape)
-
-## Огляд
 
 Модуль `lint.mjs` реалізує підкоманду `lint-k8s` CLI `n-cursor`. Він автоматично знаходить у репозиторії всі дерева Kubernetes-маніфестів за конвенційним сегментом шляху `k8s/`, а потім послідовно валідує їх двома інструментами:
 

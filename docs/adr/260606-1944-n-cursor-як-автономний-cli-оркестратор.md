@@ -1,4 +1,5 @@
 ---
+type: ADR
 status: Proposed
 date: 2026-06-06
 ---

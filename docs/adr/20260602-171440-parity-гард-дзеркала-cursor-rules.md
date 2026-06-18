@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Parity-гард дзеркала `.cursor/rules` ↔ канонічні правила"
+---
+
 # Parity-гард дзеркала `.cursor/rules` ↔ канонічні правила
 
 **Status:** Accepted

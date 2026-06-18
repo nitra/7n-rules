@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення legacy `js/` fallback з `discover-checkable-rules` та `run-rule` (фаза 3)"
+---
+
 # Видалення legacy `js/` fallback з `discover-checkable-rules` та `run-rule` (фаза 3)
 
 **Status:** Accepted

@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: vitest.config.baseline.js
+resource: npm/rules/test/js/data/vitest_config/vitest.config.baseline.js
 docgen:
-  source: npm/rules/test/js/data/vitest_config/vitest.config.baseline.js
   crc: d32a8e2d
 ---
-
-# vitest.config.baseline.js
-
-## Огляд
 
 Файл `vitest.config.baseline.js` — це **еталонна (baseline) конфігурація Vitest**, яка використовується як test-data fixture у правилі `test` пакета `npm/rules`. Він задає мінімальний, але достатній набір опцій Vitest, що відповідає внутрішнім конвенціям проєкту: розкладку тестових файлів, exclude-патерни для штучних artefact-директорій (наприклад, sandbox-копій Stryker), середовище виконання та модель ізоляції паралельних воркерів.
 

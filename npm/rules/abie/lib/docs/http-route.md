@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: http-route.mjs
+resource: npm/rules/abie/lib/http-route.mjs
 docgen:
-  source: npm/rules/abie/lib/http-route.mjs
   crc: 3ec544d6
 ---
-
-# http-route.mjs
-
-## Огляд
 
 Файл надає інструмент для порівняльного аналізу конфігурації HTTP-маршрутів. Він виконує порівняння кількості `backendRefs` для сервісів `auth-run-hl` та `file-link-hl` у базових маніфестах пакета з кількістю патчів, визначеною в оверлеях. Цей механізм використовується для синхронізації кількості патчів у верхньому рівні з фактичною кількістю посилань у базі. (abie.mdc)
 

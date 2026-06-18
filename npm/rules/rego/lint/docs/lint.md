@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/rego/lint/lint.mjs
 docgen:
-  source: npm/rules/rego/lint/lint.mjs
   crc: 1059537a
 ---
-
-# lint.mjs — Лінт Rego-полісі (`opa` + `regal` + опційний `conftest`)
-
-## Огляд
 
 Модуль реалізує лінт-крок для Rego-полісі пакета `@nitra/cursor`, який живуть у каталозі
 `npm/rules/<id>/policy/<concern>/`. Він послідовно запускає три інструменти й повертає код

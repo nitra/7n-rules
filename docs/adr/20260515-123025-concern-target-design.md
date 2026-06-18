@@ -1,4 +1,5 @@
 ---
+type: ADR
 date: 2026-05-15
 topic: concern-based JS + per-policy target.json
 spec: docs/superpowers/specs/2026-05-15-npm-rules-concern-and-target-design.md

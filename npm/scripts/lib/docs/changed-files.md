@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: changed-files.mjs
+resource: npm/scripts/lib/changed-files.mjs
 docgen:
-  source: npm/scripts/lib/changed-files.mjs
   crc: 8148d84e
   score: 100
 ---
-
-# changed-files.mjs
-
-## Огляд
 
 Файл збирає змінені та незакомічені файли з робочого дерева. Визначає базовий комміт для перевірок у межах зміненого діапазону. Збирає змінені та незакомічені файли відносно базового комміту.
 

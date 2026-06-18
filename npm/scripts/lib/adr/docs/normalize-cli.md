@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: normalize-cli.mjs
+resource: npm/scripts/lib/adr/normalize-cli.mjs
 docgen:
-  source: normalize-cli.mjs
   crc: ce2f13af
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 90
 ---
-
-# normalize-cli.mjs
-
-## Огляд
 
 Цей файл є CLI-обгорткою для локального ADR-нормалізатора (`n-cursor adr-normalize-local`). Він використовується скриптом `.claude/hooks/normalize-decisions.sh` як локальний бекенд для обробки батчу чернеток та списку чистих ADR. Обгортка зчитує шляхи до чернеток та параметри з аргументів командного рядка та змінних середовища, а потім проганяє `normalizePipeline`. Результатом роботи є вивід JSON-контракту з операціями у stdout, який парситься зовнішнім скриптом. Прогрес відображається у stderr.
 

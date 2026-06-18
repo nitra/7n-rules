@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Централізація Rego-валідації: «Rego-authoritative + JS-orchestrator» (Plan B)"
+---
+
 # Централізація Rego-валідації: «Rego-authoritative + JS-orchestrator» (Plan B)
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Concern inventory для template-dir міграції"
+---
+
 # Concern inventory для template-dir міграції
 
 **Status: Accepted**

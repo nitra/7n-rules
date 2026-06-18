@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: hc_pairing.mjs
+resource: npm/rules/abie/js/hc_pairing.mjs
 docgen:
-  source: npm/rules/abie/js/hc_pairing.mjs
   crc: 5627bda6
   score: 100
 ---
-
-# hc_pairing.mjs
-
-## Огляд
 
 Модуль забезпечує валідацію даних відповідно до визначеного контракту. Функція check є публічною і є Read-only. Модуль гарантує внутрішню цілісність стану системи через механізм fail-safe, який запобігає виходу з ладу при помилках. Робота модуля стосується даних, визначених у (abie.mdc).
 

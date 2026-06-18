@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/capacitor/fix.mjs
 docgen:
-  source: npm/rules/capacitor/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування JS-занепокоєних на вхідний контекст прогону, застосовує визначену політику, генерує посилання MDC та повертає результат
 

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "`oxlint-canonical.json` як єдине джерело правил"
+---
+
 # `oxlint-canonical.json` як єдине джерело правил
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/worktree/fix.mjs
 docgen:
-  source: npm/rules/worktree/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування політики JS-занепокоєних та конфігурації на наданому контексті прогону, генеруючи посилання MDC та повертаючи результат.
 

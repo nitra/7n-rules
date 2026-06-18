@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Жорсткий root-guard для деструктивних CLI-команд та `requireRoot` у `meta.json`"
+---
+
 # Жорсткий root-guard для деструктивних CLI-команд та `requireRoot` у `meta.json`
 
 **Status:** Accepted

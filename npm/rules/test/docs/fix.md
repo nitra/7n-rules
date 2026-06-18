@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/test/fix.mjs
 docgen:
-  source: npm/rules/test/fix.mjs
   crc: 38cf876b
   score: 80
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл ініціює виконання визначеного правила. Він передає контекст прогону і викликає `runStandardRule` для отримання результату.
 

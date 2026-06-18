@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення ru-overlay з правила abie"
+---
+
 # Видалення ru-overlay з правила abie
 
 **Status:** Accepted

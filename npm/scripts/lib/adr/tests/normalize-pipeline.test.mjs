@@ -58,7 +58,11 @@ describe('isNoDecision (харднінг #1)', () => {
 })
 
 describe('validateMadr (gen-gate)', () => {
-  const good = `# Заголовок
+  const good = `---
+type: ADR
+title: Заголовок
+description: Суть рішення.
+---
 
 **Status:** Accepted
 **Date:** 2026-06-07
@@ -75,14 +79,21 @@ Chosen option: "X", because Y.
 ## More Information
 файли`
 
-  it('ok для валідного MADR', () => {
+  it('ok для валідного MADR з OKF frontmatter', () => {
     expect(validateMadr(good).ok).toBe(true)
   })
 
-  it('ловить YAML frontmatter та session:', () => {
-    const r = validateMadr(`---\nsession: abc\n---\n${good}`)
+  it('ловить відсутній OKF type: ADR (немає frontmatter)', () => {
+    const noFm = good.replace(/^---[\s\S]*?---\n\n/, '')
+    const r = validateMadr(noFm)
     expect(r.ok).toBe(false)
-    expect(r.errors).toContain('has YAML frontmatter')
+    expect(r.errors).toContain('missing OKF type: ADR frontmatter')
+  })
+
+  it('ловить session: (залишений з чернетки)', () => {
+    const r = validateMadr(good.replace('type: ADR\n', 'type: ADR\nsession: abc\n'))
+    expect(r.ok).toBe(false)
+    expect(r.errors).toContain('leaked session: field')
   })
 
   it('ловить code-fence обгортку', () => {
@@ -90,7 +101,7 @@ Chosen option: "X", because Y.
   })
 
   it('ловить відсутні MADR-заголовки', () => {
-    const r = validateMadr('# T\n\n**Status:** Accepted\n**Date:** 2026-06-07\n\n## Context and Problem Statement\nx')
+    const r = validateMadr('---\ntype: ADR\n---\n# T\n\n**Status:** Accepted\n**Date:** 2026-06-07\n\n## Context and Problem Statement\nx')
     expect(r.ok).toBe(false)
     expect(r.errors).toContain('missing heading ## Decision Outcome')
   })

@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: run-fix-check.mjs
+resource: npm/scripts/lib/fix/run-fix-check.mjs
 docgen:
-  source: npm/scripts/lib/fix/run-fix-check.mjs
   crc: 76874730
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# run-fix-check.mjs
-
-## Огляд
 
 Викликає конформність-фазу `lint` (read-only), движок (`orchestrator.mjs`, `t0.mjs`) та PostToolUse-хук. Перевірка конформності виконується як пряма функція, без зовнішньої обгортки через `subprocess`. Ізоляція на рівні кожного правила зберігається: кожен файл `rules/<id>/fix.mjs` все ще запускається окремим процесом `bun` (crash-isolation). Селекція активних правил — єдине джерело: `resolveCheckRuleIds` за `.n-cursor.json`; per-rule whitelist у спавнених процесах прибрано як дубль.
 

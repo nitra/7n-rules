@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Агентна пастка: JS-owned tool-free loop через omlx замість імітації pi tool-loop локально"
+---
+
 # Агентна пастка: JS-owned tool-free loop через omlx замість імітації pi tool-loop локально
 
 **Status:** Accepted

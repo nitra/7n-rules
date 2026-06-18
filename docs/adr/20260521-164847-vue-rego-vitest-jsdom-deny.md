@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Vue: машинна заборона `vitest` і `jsdom` через Rego-policy"
+---
+
 # Vue: машинна заборона `vitest` і `jsdom` через Rego-policy
 
 **Status:** Accepted

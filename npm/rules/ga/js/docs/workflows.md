@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: workflows.mjs
+resource: npm/rules/ga/js/workflows.mjs
 docgen:
-  source: npm/rules/ga/js/workflows.mjs
   crc: a9296cf1
   score: 100
 ---
-
-# workflows.mjs
-
-## Огляд
 
 Модуль виявляє наявність інструменту `shellcheck` та підтверджує відповідність конфігурації проєкту правилам ga.mdc. Він перевіряє відповідність workflow-файлів Rego-полісі, наявність обов'язкових компонентів та коректність шляхів тригерів GitHub Actions. Модуль свідомо пропускає шляхи `.github` та `.git` під час перевірки.
 

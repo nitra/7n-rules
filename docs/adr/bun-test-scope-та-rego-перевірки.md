@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "bun test не запускає Rego-перевірки"
+---
+
 # bun test не запускає Rego-перевірки
 
 **Status:** Accepted

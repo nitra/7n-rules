@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-gen.mjs
+resource: npm/rules/doc-files/js/docgen-gen.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-gen.mjs
-  crc: 70215974
+  crc: 7674d2b2
   score: 100
 ---
-
-# docgen-gen.mjs
-
-## Огляд
 
 Огляд
 Публічні функції виконують операції з текстом та оцінками. Вони включають виділення коду, вставлення інформації та генерацію документів на основі визначених параметрів.

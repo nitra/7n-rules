@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Нормалізація Плейсхолдера Паролів: `secret` → `sample-secret`"
+---
+
 # Нормалізація Плейсхолдера Паролів: `secret` → `sample-secret`
 
 **Status:** Accepted

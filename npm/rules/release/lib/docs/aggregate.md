@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: aggregate.mjs
+resource: npm/rules/release/lib/aggregate.mjs
 docgen:
-  source: npm/rules/release/lib/aggregate.mjs
   crc: 1f78a0fe
 ---
-
-# aggregate.mjs
-
-## Огляд
 
 Модуль `aggregate.mjs` забезпечує **агрегацію change-файлів одного workspace** у дві основні сутності:
 

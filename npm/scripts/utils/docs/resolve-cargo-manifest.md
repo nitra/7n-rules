@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: resolve-cargo-manifest.mjs
+resource: npm/scripts/utils/resolve-cargo-manifest.mjs
 docgen:
-  source: npm/scripts/utils/resolve-cargo-manifest.mjs
   crc: af1efa42
 ---
-
-# resolve-cargo-manifest.mjs
-
-## Огляд
 
 Цей файл визначає шлях до файлу Cargo.toml проєкту, незалежно від того, чи це кореневий Cargo.toml або один з підкаталогів workspace-у, особливо з урахуванням Tauri-патерну. Він служить утилітою для coverage-провайдера та test-концерну cargo_mutants_config, повертаючи `null` у разі невдачі для обробки ситуації без виключень. Це забезпечує гнучкий спосіб доступу до конфігурації проєкту Cargo.
 

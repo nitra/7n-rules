@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: no-process-chdir.mjs
+resource: npm/rules/test/js/no-process-chdir.mjs
 docgen:
-  source: npm/rules/test/js/no-process-chdir.mjs
   crc: 0ace6be6
   score: 100
 ---
-
-# no-process-chdir.mjs
-
-## Огляд
 
 Огляд
 Файл шукає викликний паттерн process.chdir у тестових файлах. Він перевіряє, чи викликає будь-який тестовий файл process.chdir, і генерує повідомлення про порушення (test.mdc).

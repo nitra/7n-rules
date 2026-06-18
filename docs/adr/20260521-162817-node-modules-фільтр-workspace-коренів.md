@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Фільтрація `node_modules` при зборі workspace-коренів у `@nitra/cursor`"
+---
+
 # Фільтрація `node_modules` при зборі workspace-коренів у `@nitra/cursor`
 
 **Status:** Accepted

@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Синхронний Stop hook як quality gate та async hooks для ADR-автоматизації"
+---
+
 # Синхронний Stop hook як quality gate та async hooks для ADR-автоматизації
 
 **Status:** Accepted

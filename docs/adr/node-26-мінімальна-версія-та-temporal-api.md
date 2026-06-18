@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Мінімальна версія Node.js ≥ 26 та використання Temporal API"
+---
+
 # Мінімальна версія Node.js ≥ 26 та використання Temporal API
 
 **Status:** Accepted

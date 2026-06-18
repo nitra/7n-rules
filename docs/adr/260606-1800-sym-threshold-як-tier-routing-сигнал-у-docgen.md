@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Сигнал складності sym ≥ 4 як детермінований tier-routing у docgen
 
 ## Context and Problem Statement

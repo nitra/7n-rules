@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: ua_node_selector.mjs
+resource: npm/rules/abie/js/ua_node_selector.mjs
 docgen:
-  source: npm/rules/abie/js/ua_node_selector.mjs
   crc: 6cde9837
   score: 100
 ---
-
-# ua_node_selector.mjs
-
-## Огляд
 
 Модуль надає публічну функцію `check` для валідації поточного стану вхідних даних. Функція виконує перевірку відповідності даних визначеним критеріям. Результат перевірки повертається у вигляді булевого значення. (abie.mdc)
 

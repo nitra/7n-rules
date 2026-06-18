@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Заміна gitleaks на TruffleHog для secret scanning"
+---
+
 # Заміна gitleaks на TruffleHog для secret scanning
 
 **Status:** Accepted

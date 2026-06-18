@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: layout.mjs
+resource: npm/rules/bun/js/layout.mjs
 docgen:
-  source: npm/rules/bun/js/layout.mjs
   crc: ba2a6730
   score: 100
 ---
-
-# layout.mjs
-
-## Огляд
 
 Файл надає інструмент для перевірки відповідності даних визначеному контракту. Функція `check` (bun.mdc) виконує перевірку стану даних і повертає логічний результат, що вказує на успішність виконання перевірки. У разі невдачі функція повертає `false` або `null` замість генерації винятку.
 

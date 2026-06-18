@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Міграція `check-*.mjs` на Rego/conftest: масовий порт"
+---
+
 # Міграція `check-*.mjs` на Rego/conftest: масовий порт
 
 **Status:** Accepted

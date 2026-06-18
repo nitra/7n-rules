@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Vue: виняток auto-import стеку для бібліотек компонентів"
+---
+
 # Vue: виняток auto-import стеку для бібліотек компонентів
 
 **Status:** Accepted

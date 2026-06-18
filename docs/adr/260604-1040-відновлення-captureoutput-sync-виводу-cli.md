@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Відновлення `captureOutput` для приховування sync-виводу CLI за відсутності помилок"
+---
+
 # Відновлення `captureOutput` для приховування sync-виводу CLI за відсутності помилок
 
 **Status:** Accepted

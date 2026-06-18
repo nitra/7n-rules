@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/tauri/fix.mjs
 docgen:
-  source: npm/rules/tauri/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Виконує застосування політики JS-занепокоєних та генерує посилання MDC. Повертає результат.
 

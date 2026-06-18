@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: docgen-judge-measure.mjs
+resource: npm/rules/doc-files/js/docgen-judge-measure.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-judge-measure.mjs
   crc: 7f72e520
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# docgen-judge-measure.mjs
-
-## Огляд
 
 Файл зчитує список файлів для аналізу, спираючись на конфігурацію `report.json`. Для кожного файлу генерується технічна документація за допомогою локальної моделі. Після генерації документація оцінюється хмарною моделлю. Результати оцінки кешуються у межах прогону, а потім збираються у звіт. Звіт зберігається у `report.json` та виводиться у консоль.
 

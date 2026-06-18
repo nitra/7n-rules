@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "cargo-mutants: інкрементальна мутація через `--in-diff`"
+---
+
 # cargo-mutants: інкрементальна мутація через `--in-diff`
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/doc-files/js/lint.mjs
 docgen:
-  source: npm/rules/doc-files/js/lint.mjs
-  crc: f25a3bbe
+  crc: fcdc1c2a
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 Адаптер правила doc-files до агрегатора `n-cursor lint`. Дає агрегатору відповідь на одне
 питання: чи має кожен дотичний кодовий файл актуальну файлову документацію поряд із собою.

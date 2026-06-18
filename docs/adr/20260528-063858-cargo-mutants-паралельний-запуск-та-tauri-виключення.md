@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Оптимізація `cargo mutants`: паралельний запуск і виключення `src/lib.rs`"
+---
+
 # Оптимізація `cargo mutants`: паралельний запуск і виключення `src/lib.rs`
 
 **Status:** Accepted

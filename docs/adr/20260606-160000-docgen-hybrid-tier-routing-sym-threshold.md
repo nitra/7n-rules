@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR Hybrid docgen routing: sym-threshold як детермінований tier-сигнал
 
 ## Context and Problem Statement

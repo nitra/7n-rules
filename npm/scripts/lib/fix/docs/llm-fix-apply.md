@@ -1,14 +1,12 @@
 ---
+type: JS Module
+title: llm-fix-apply.mjs
+resource: npm/scripts/lib/fix/llm-fix-apply.mjs
 docgen:
-  source: npm/scripts/lib/fix/llm-fix-apply.mjs
   crc: 80befb00
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
-
-# llm-fix-apply.mjs
-
-## Огляд
 
 Модуль є спільним ядром для застосування виправлень, згенерованих LLM, використовуючи конформні (`llm-worker.mjs`) та інструментальні (`llm-lint-fix.mjs`) механізми для уникнення дублювання логіки парсингу та застосування змін. Він парсить структуровану відповідь моделі, що містить список змін у форматі `{changes:[{path,content}]}`. Далі, він зчитує вміст файлів, зазначених у цих змінах, та застосовує оновлений вміст до відповідних файлів. Усі операції реалізовані з механізмом fail-safe: при невдачах функції повертають значення помилки (false/null/Err) замість викидання винятків.
 

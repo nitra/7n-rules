@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Узгодження виключення root-only тестових пакетів у `bun.mdc` та `package_json.rego`"
+---
+
 # Узгодження виключення root-only тестових пакетів у `bun.mdc` та `package_json.rego`
 
 **Status:** Accepted

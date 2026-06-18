@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "n-cursor release: bootstrap no-op fallback та CI local runner"
+---
+
 # n-cursor release: bootstrap no-op fallback та CI local runner
 
 **Status:** Accepted

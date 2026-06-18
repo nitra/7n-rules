@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: ensure-tool.mjs
+resource: npm/scripts/lib/ensure-tool.mjs
 docgen:
-  source: npm/scripts/lib/ensure-tool.mjs
   crc: 230254b3
 ---
-
-# ensure-tool.mjs
-
-## Огляд
 
 Модуль `ensure-tool.mjs` — єдина точка резолву зовнішніх CLI-залежностей пакета `@nitra/cursor`. Він гарантує, що потрібний бінарник (`hk`, `conftest`, `shellcheck`, `actionlint`, `dotenv-linter`, `opa`, `regal`, `hadolint`, `kubeconform`, `kubescape`) доступний у системі, виконуючи послідовний пошук:
 

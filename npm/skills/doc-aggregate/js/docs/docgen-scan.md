@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-scan.mjs
+resource: npm/skills/doc-aggregate/js/docgen-scan.mjs
 docgen:
-  source: npm/skills/doc-aggregate/js/docgen-scan.mjs
   crc: 193dd362
   score: 100
 ---
-
-# docgen-scan.mjs
-
-## Огляд
 
 isSourceFile
 Перевіряє, чи є файл коду, який слугує джерелом для документування.

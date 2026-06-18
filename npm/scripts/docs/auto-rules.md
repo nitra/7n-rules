@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: auto-rules.mjs
+resource: npm/scripts/auto-rules.mjs
 docgen:
-  source: npm/scripts/auto-rules.mjs
   crc: d50b922f
   score: 90
 ---
-
-# auto-rules.mjs
-
-## Огляд
 
 Файл читає метадані з `npm/rules/<id>/meta.json` для автоматичного визначення порядку та залежностей правил. Він обчислює spec активації для кожного правила, використовуючи дані з `RULE_PREDICATES` з `lib/rule-predicates.mjs`, визначає активні правила, обчислює залежності та об'єднує конфігурацію з виявленими правилами та поправками на legacy-id. Код спирається на конфіги `.n-cursor.json`, `meta.json` та `package.json`.
 

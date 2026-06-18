@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення директиви `shellcheck source` для sourced-скриптів у hook-файлах"
+---
+
 # Виправлення директиви `shellcheck source` для sourced-скриптів у hook-файлах
 
 **Status:** Accepted

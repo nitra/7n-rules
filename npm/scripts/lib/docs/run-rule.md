@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: run-rule.mjs
+resource: npm/scripts/lib/run-rule.mjs
 docgen:
-  source: npm/scripts/lib/run-rule.mjs
   crc: 27060842
   score: 95
 ---
-
-# run-rule.mjs
-
-## Огляд
 
 Файл слугує оркестратором правила. Він координує виконання перевірок, включаючи перевірку гейту, JS-концернів та policy-концернів.
 

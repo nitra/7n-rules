@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Per-rule `fix.mjs` entry-point та rename `fix/` → `js/`"
+---
+
 # Per-rule `fix.mjs` entry-point та rename `fix/` → `js/`
 
 **Status:** Accepted

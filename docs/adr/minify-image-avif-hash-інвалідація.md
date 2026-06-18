@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Патч @nitra/minify-image — інвалідація AVIF через поле avifHash"
+---
+
 # Патч @nitra/minify-image — інвалідація AVIF через поле avifHash
 
 **Status:** Accepted

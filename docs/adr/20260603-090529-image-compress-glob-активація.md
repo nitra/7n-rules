@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "image-compress: glob-активація замість залежності від bun"
+---
+
 # image-compress: glob-активація замість залежності від bun
 
 **Status:** Accepted

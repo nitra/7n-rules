@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Автоконверт `image-replace` з мультиоп-патчів у `images:` (check-k8s)"
+---
+
 # Автоконверт `image-replace` з мультиоп-патчів у `images:` (check-k8s)
 
 **Status:** Accepted

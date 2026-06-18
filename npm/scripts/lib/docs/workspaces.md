@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: workspaces.mjs
+resource: npm/scripts/lib/workspaces.mjs
 docgen:
-  source: npm/scripts/lib/workspaces.mjs
   crc: 995c1633
 ---
-
-# workspaces.mjs
-
-## Огляд
 
 Цей файл визначає список кореневих каталогів пакетів у монорепо, використовуючи конфігурацію `workspaces` з `package.json`. Він використовується скриптами перевірки монорепо для ідентифікації всіх проектів, які потрібно перевірити. Результат повертається для подальшого використання в процесах перевірки та аналізу.
 

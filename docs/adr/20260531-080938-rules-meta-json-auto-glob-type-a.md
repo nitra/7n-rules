@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Єдина glob-форма для Type-A умов у `rules/*/meta.json`"
+---
+
 # Єдина glob-форма для Type-A умов у `rules/*/meta.json`
 
 **Status:** Accepted

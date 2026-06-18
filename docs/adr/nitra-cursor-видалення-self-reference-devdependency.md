@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Видалення self-reference devDependency `@nitra/cursor` з `npm/package.json`"
+---
+
 # Видалення self-reference devDependency `@nitra/cursor` з `npm/package.json`
 
 **Status:** Accepted

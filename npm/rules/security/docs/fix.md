@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/security/fix.mjs
 docgen:
-  source: npm/rules/security/fix.mjs
   crc: 38cf876b
   score: 70
 ---
-
-# fix.mjs
-
-## Огляд
 
 Файл ініціює виконання визначеного правила. Правило виконує операцію `applies` з використанням `JS-concerns` для отримання `policy` з `mdc-refs`. При завершенні роботи, якщо виконання відбувається через командний рядок, повертається код виходу для встановлення статусу завершення процесу.
 

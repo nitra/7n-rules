@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: docgen-ignore.mjs
+resource: npm/rules/doc-files/js/docgen-ignore.mjs
 docgen:
-  source: npm/rules/doc-files/js/docgen-ignore.mjs
   crc: c17cd785
   score: 100
 ---
-
-# docgen-ignore.mjs
-
-## Огляд
 
 DOCGEN_IGNORE_GLOBS
 Список шляхів, які docgen повинен ігнорувати.

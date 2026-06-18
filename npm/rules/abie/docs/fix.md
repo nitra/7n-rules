@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: fix.mjs
+resource: npm/rules/abie/fix.mjs
 docgen:
-  source: npm/rules/abie/fix.mjs
   crc: 38cf876b
   score: 100
 ---
-
-# fix.mjs
-
-## Огляд
 
 Запуск правила приймає контекст прогону, застосовує JS-занепокоєні та політику, генерує посилання MDC та повертає результат прогону.
 

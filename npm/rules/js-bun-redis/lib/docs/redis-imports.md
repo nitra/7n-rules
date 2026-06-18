@@ -1,12 +1,10 @@
 ---
+type: JS Module
+title: redis-imports.mjs
+resource: npm/rules/js-bun-redis/lib/redis-imports.mjs
 docgen:
-  source: npm/rules/js-bun-redis/lib/redis-imports.mjs
   crc: 887fc929
 ---
-
-# redis-imports.mjs
-
-## Огляд
 
 Модуль `redis-imports.mjs` — це сканер вихідного коду, який знаходить **заборонені** імпорти Redis-клієнтів (`ioredis`, `node-redis`, кореневий пакет `redis` та супутні підпакети сімейства `@redis/*`) у JavaScript/TypeScript-файлах. Метою сканера є **виявлення місць, які треба замінити на Bun native Redis** — стандартизований API `import { redis } from 'bun'` (див. `https://bun.com/docs/runtime/redis`).
 

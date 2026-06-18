@@ -1,3 +1,8 @@
+---
+type: ADR
+title: ""
+---
+
 ## ADR: Глобальна класифікація моделей — `N_LOCAL_*` / `N_CLOUD_*`
 
 **Status:** Accepted  

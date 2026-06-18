@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Автоактивація скілів через поле `auto` у `meta.json`"
+---
+
 # Автоактивація скілів через поле `auto` у `meta.json`
 
 **Status:** Accepted

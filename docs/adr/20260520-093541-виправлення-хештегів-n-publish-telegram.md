@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Виправлення суперечності про хештеги в n-publish-telegram"
+---
+
 # Виправлення суперечності про хештеги в n-publish-telegram
 
 **Status:** Accepted

@@ -1,13 +1,11 @@
 ---
+type: JS Module
+title: lint.mjs
+resource: npm/rules/js-lint/js/lint.mjs
 docgen:
-  source: npm/rules/js-lint/js/lint.mjs
   crc: 1f38613e
   score: 100
 ---
-
-# lint.mjs
-
-## Огляд
 
 filterJsFiles
 Перевіряє шляхи та повертає лише ті, що відповідають розширенням js-подібних файлів.

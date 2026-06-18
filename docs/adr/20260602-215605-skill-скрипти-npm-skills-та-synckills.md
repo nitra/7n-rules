@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Скіл-специфічні скрипти у `npm/skills/<id>/js/` та syncSkills top-level фільтр"
+---
+
 # Скіл-специфічні скрипти у `npm/skills/<id>/js/` та syncSkills top-level фільтр
 
 **Status:** Accepted

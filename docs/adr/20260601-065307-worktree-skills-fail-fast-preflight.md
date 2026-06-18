@@ -1,3 +1,8 @@
+---
+type: ADR
+title: "Жорсткий fail-fast preflight для worktree-only skills"
+---
+
 # Жорсткий fail-fast preflight для worktree-only skills
 
 **Status:** Accepted
