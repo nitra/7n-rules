@@ -42,7 +42,7 @@ describe('release', () => {
       expect(cl.indexOf('## [1.3.0]')).toBeLessThan(cl.indexOf('## [1.2.3]'))
       expect(cl).toContain('Нова фіча')
       expect(existsSync(join(dir, '.changes', '1-a.md'))).toBe(false)
-      expect(gitCalls.some(c => c.startsWith('tag p@1.3.0'))).toBe(true)
+      expect(gitCalls).toContain('tag -a p@1.3.0 -m p@1.3.0')
       expect(gitCalls.some(c => c.startsWith('commit'))).toBe(true)
     })
   })
@@ -100,7 +100,10 @@ describe('release', () => {
       expect(JSON.parse(await readFile(join(dir, 'a', 'package.json'), 'utf8')).version).toBe('1.1.0')
       expect(JSON.parse(await readFile(join(dir, 'b', 'package.json'), 'utf8')).version).toBe('2.1.0')
       expect(calls.filter(c => c.startsWith('commit')).length).toBe(1)
-      expect(calls.filter(c => c.startsWith('tag ')).toSorted()).toEqual(['tag a@1.1.0', 'tag b@2.1.0'])
+      expect(calls.filter(c => c.startsWith('tag ')).toSorted()).toEqual([
+        'tag -a a@1.1.0 -m a@1.1.0',
+        'tag -a b@2.1.0 -m b@2.1.0'
+      ])
     })
   })
 
@@ -152,7 +155,7 @@ describe('release', () => {
       expect(calls.filter(c => c.startsWith('push')).length).toBe(2)
       expect(calls).toContain('fetch origin')
       expect(calls.some(c => c.startsWith('rebase origin/main'))).toBe(true)
-      expect(calls).toContain('tag -f p@1.0.1') // тег пересунуто на rebased-HEAD
+      expect(calls).toContain('tag -f -a p@1.0.1 -m p@1.0.1') // анотований тег пересунуто на rebased-HEAD
     })
   })
 

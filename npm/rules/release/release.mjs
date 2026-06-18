@@ -93,9 +93,10 @@ async function pushReleaseWithRetry(runGit, tags, attempts = 5) {
       await runGit(['rebase', '--abort'])
       throw new Error(`release: push відхилено і rebase на ${upstream} дав конфлікт — розв'яжи вручну`)
     }
-    // після rebase хеш release-коміту змінився → пересуваємо теги на новий HEAD
+    // після rebase хеш release-коміту змінився → пересуваємо АНОТОВАНІ теги на новий HEAD
+    // (force + annotated, бо --follow-tags несе лише анотовані теги, а HEAD уже інший)
     for (const tag of tags) {
-      await runGit(['tag', '-f', tag])
+      await runGit(['tag', '-f', '-a', tag, '-m', tag])
     }
   }
   throw new Error(
@@ -148,8 +149,11 @@ export async function release(opts = {}) {
     if (committed === null) {
       throw new Error('release: git commit не вдався — теги та push скасовано')
     }
+    // АНОТОВАНІ теги (`-a -m`), бо `git push --follow-tags` доправляє на remote лише
+    // анотовані теги; легкі (`git tag <name>`) лишалися б локальними. `-m` обов'язкове
+    // в non-interactive CI, інакше git відкрив би редактор; повідомлення — сам `<name>@<version>`.
     for (const tag of tags) {
-      await runGit(['tag', tag])
+      await runGit(['tag', '-a', tag, '-m', tag])
     }
     await pushReleaseWithRetry(runGit, tags)
   }
