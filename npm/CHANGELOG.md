@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.0.2] - 2026-06-18
+
+### Fixed
+
+- worktree: інжектований preflight-снипет і правило `worktree.mdc` кличуть `npx @7n/mt worktree …` (локальний резолв через node_modules/.bin), а не bare `mt` — узгоджено зі стратегією залежності `@7n/mt` (через npx, не глобально).
+
 ## [12.0.1] - 2026-06-18
 
 ### Changed
