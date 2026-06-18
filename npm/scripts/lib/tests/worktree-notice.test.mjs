@@ -28,7 +28,7 @@ describe('injectWorktreeNotice', () => {
     expect(out).toContain('[!IMPORTANT]')
     expect(out).toContain('git rev-parse --show-toplevel')
     expect(out).toContain('git branch --show-current')
-    expect(out).toContain('mt worktree create "feature/x-fix" "n-fix: worktree-only skill"')
+    expect(out).toContain('npx @7n/mt worktree create "feature/x-fix" "n-fix: worktree-only skill"')
     expect(out).toContain('cd ".worktrees/feature-x-fix"')
     expect(out).not.toContain('worktree add <branch>')
     expect(out).not.toContain('<навіщо>')

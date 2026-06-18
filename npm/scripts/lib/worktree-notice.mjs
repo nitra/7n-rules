@@ -134,7 +134,7 @@ git branch --show-current
 Якщо \`git rev-parse --show-toplevel\` показав, що ти **не** в \`.worktrees/\`, візьми вивід \`git branch --show-current\` як \`<current-branch>\` і виконай **literal-команди без shell expansion** (без command substitution, variable expansion чи backticks). Наприклад, якщо поточна гілка \`feature/x\`:
 
 \`\`\`bash
-mt worktree create "feature/x-${suffix}" "n-${suffix}: worktree-only skill"
+npx @7n/mt worktree create "feature/x-${suffix}" "n-${suffix}: worktree-only skill"
 cd ".worktrees/feature-x-${suffix}"
 \`\`\`
 
