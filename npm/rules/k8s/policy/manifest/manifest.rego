@@ -52,8 +52,8 @@ forbidden_service_annotations := {
 # тег у двох варіантах префіксу (із `docker.io/` і без). Digest (`@sha256:…`)
 # відрізається перед звіркою.
 allowed_hasura_images := {
-	"hasura/graphql-engine:v2.49.0.ubuntu.amd64",
-	"docker.io/hasura/graphql-engine:v2.49.0.ubuntu.amd64",
+	"hasura/graphql-engine:v2.49.2.ubuntu.amd64",
+	"docker.io/hasura/graphql-engine:v2.49.2.ubuntu.amd64",
 }
 
 # Канонічне значення `topologyKey` для `topologySpreadConstraints` (k8s.mdc).

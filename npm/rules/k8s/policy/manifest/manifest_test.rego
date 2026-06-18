@@ -193,7 +193,7 @@ test_allow_deployment_hasura_canonical_image if {
 			"template": {"spec": {
 				"containers": [{
 					"name": "graphql-engine",
-					"image": "hasura/graphql-engine:v2.49.0.ubuntu.amd64",
+					"image": "hasura/graphql-engine:v2.49.2.ubuntu.amd64",
 					"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
 				}],
 				"topologySpreadConstraints": [{
@@ -221,7 +221,7 @@ test_allow_deployment_hasura_canonical_image_with_digest if {
 			"template": {"spec": {
 				"containers": [{
 					"name": "graphql-engine",
-					"image": "docker.io/hasura/graphql-engine:v2.49.0.ubuntu.amd64@sha256:0000",
+					"image": "docker.io/hasura/graphql-engine:v2.49.2.ubuntu.amd64@sha256:0000",
 					"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
 				}],
 				"topologySpreadConstraints": [{
