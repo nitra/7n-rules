@@ -21,7 +21,9 @@
       "Bash(python3 -c ' *)",
       "Bash(rm .vscode/extensions.json.bak *)",
       "Skill(claude-api)",
-      "Skill(claude-api:*)"
+      "Skill(claude-api:*)",
+      "WebFetch(domain:suganthan.com)",
+      "WebFetch(domain:www.marktechpost.com)"
     ]
   }
 }

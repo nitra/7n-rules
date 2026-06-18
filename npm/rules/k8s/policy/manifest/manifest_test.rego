@@ -185,6 +185,10 @@ test_allow_deployment_hasura_canonical_image if {
 		"kind": "Deployment",
 		"metadata": {"name": "db-h", "namespace": "dev"},
 		"spec": {
+			"strategy": {
+				"type": "RollingUpdate",
+				"rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
+			},
 			"selector": {"matchLabels": {"app": "db-h"}},
 			"template": {"spec": {
 				"containers": [{
@@ -209,6 +213,10 @@ test_allow_deployment_hasura_canonical_image_with_digest if {
 		"kind": "Deployment",
 		"metadata": {"name": "db-h", "namespace": "dev"},
 		"spec": {
+			"strategy": {
+				"type": "RollingUpdate",
+				"rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
+			},
 			"selector": {"matchLabels": {"app": "db-h"}},
 			"template": {"spec": {
 				"containers": [{
@@ -225,6 +233,62 @@ test_allow_deployment_hasura_canonical_image_with_digest if {
 			}},
 		},
 	}
+}
+
+# ── Deployment: rollout strategy ─────────────────────────────────────────
+
+test_deny_deployment_missing_rollout_strategy if {
+	some msg in manifest.deny with input as {
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {"name": "api", "namespace": "dev"},
+		"spec": {
+			"selector": {"matchLabels": {"app": "api"}},
+			"template": {"spec": {
+				"containers": [{
+					"name": "main",
+					"image": "registry.example.com/api:1.0",
+					"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
+				}],
+				"topologySpreadConstraints": [{
+					"maxSkew": 1,
+					"topologyKey": "kubernetes.io/hostname",
+					"whenUnsatisfiable": "ScheduleAnyway",
+					"labelSelector": {"matchLabels": {"app": "api"}},
+				}],
+			}},
+		},
+	}
+	contains(msg, "spec.strategy")
+}
+
+test_deny_deployment_wrong_rollout_strategy if {
+	some msg in manifest.deny with input as {
+		"apiVersion": "apps/v1",
+		"kind": "Deployment",
+		"metadata": {"name": "api", "namespace": "dev"},
+		"spec": {
+			"strategy": {
+				"type": "RollingUpdate",
+				"rollingUpdate": {"maxUnavailable": 1, "maxSurge": 1},
+			},
+			"selector": {"matchLabels": {"app": "api"}},
+			"template": {"spec": {
+				"containers": [{
+					"name": "main",
+					"image": "registry.example.com/api:1.0",
+					"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
+				}],
+				"topologySpreadConstraints": [{
+					"maxSkew": 1,
+					"topologyKey": "kubernetes.io/hostname",
+					"whenUnsatisfiable": "ScheduleAnyway",
+					"labelSelector": {"matchLabels": {"app": "api"}},
+				}],
+			}},
+		},
+	}
+	contains(msg, "maxUnavailable=0")
 }
 
 # ── Deployment: topologySpreadConstraints ────────────────────────────────
@@ -275,6 +339,10 @@ test_allow_deployment_canonical_topology_spread if {
 		"kind": "Deployment",
 		"metadata": {"name": "api", "namespace": "dev"},
 		"spec": {
+			"strategy": {
+				"type": "RollingUpdate",
+				"rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
+			},
 			"selector": {"matchLabels": {"app": "api"}},
 			"template": {"spec": {
 				"containers": [{
@@ -300,10 +368,16 @@ test_allow_deployment_without_app_label_skips_topology if {
 		"apiVersion": "apps/v1",
 		"kind": "Deployment",
 		"metadata": {"name": "api", "namespace": "dev"},
-		"spec": {"template": {"spec": {"containers": [{
-			"name": "main",
-			"image": "registry.example.com/api:1.0",
-			"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
-		}]}}},
+		"spec": {
+			"strategy": {
+				"type": "RollingUpdate",
+				"rollingUpdate": {"maxUnavailable": 0, "maxSurge": 1},
+			},
+			"template": {"spec": {"containers": [{
+				"name": "main",
+				"image": "registry.example.com/api:1.0",
+				"resources": {"requests": {"cpu": "100m", "memory": "64Mi"}},
+			}]}},
+		},
 	}
 }

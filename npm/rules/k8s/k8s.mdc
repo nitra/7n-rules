@@ -414,6 +414,16 @@ images:
 
 Для **кожного** `kind: Deployment` у каталозі **`…/k8s/…/base/`** (у будь-якому файлі `.yaml`, наприклад **`deploy.yaml`**, **`deployment.yaml`**) сам Deployment має канонічні **`spec.template.spec.topologySpreadConstraints`**, а **HPA і PDB** живуть у **sibling каталозі** **`…/k8s/…/components/`** (Kustomize Component, фіксована назва каталогу — `components`). У `base/` локальні `hpa.yaml` і `pdb.yaml` **заборонені** (file-existence error). У дереві base-kustomize HPA / PDB також **не дозволені** через `resources` / `components` / `bases`.
 
+Кожен **Deployment** має явно задавати безпечну rollout strategy: **`spec.strategy.type: RollingUpdate`**, **`spec.strategy.rollingUpdate.maxUnavailable: 0`**, **`spec.strategy.rollingUpdate.maxSurge: 1`**. Це гарантує, що під час оновлення image Kubernetes спершу створить один новий Pod, дочекається його `Ready`, і лише потім прибере один старий Pod; для prod-overlays, що успадковують `base`, це запобігає короткому вікну без ready backend-ів.
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+```
+
 **NetworkPolicy** — інша історія: оскільки обмеження мережі мають діяти **і на dev**, NP лежить **у `base/`** (а не в `components/`). Для **кожного** з **`Deployment`**, **`StatefulSet`**, **`DaemonSet`**, **`Job`**, **`CronJob`** під `k8s` обов'язковий **NetworkPolicy**: у **`…/k8s/…/base/`** — у **`base/networkpolicy.yaml`** поруч з workload-маніфестом (multi-doc, якщо workload-ів кілька); у **не-base** — **`networkpolicy.yaml`** поруч із маніфестом workload у тому ж каталозі (overlay-specific override). `metadata.name` NetworkPolicy **= `metadata.name`** workload; `spec.podSelector.matchLabels.app` **= мітка `app`** з `spec.selector.matchLabels` (для **Job** — з `spec.template.metadata.labels.app`, для **CronJob** — з `spec.jobTemplate.spec.template.metadata.labels.app`; у Job/CronJob ручний `spec.selector` невалідний без `manualSelector: true`, тож джерело — pod-template labels). У `base/kustomization.yaml` `resources:` має бути `networkpolicy.yaml`. Відсутні документи **`check k8s`** створює автоматично і додає `networkpolicy.yaml` у `base/kustomization.yaml` `resources:`.
 
 **Канонічна структура `<pkg>/k8s/components/`** (sibling до `base/`) — лише HPA і PDB:

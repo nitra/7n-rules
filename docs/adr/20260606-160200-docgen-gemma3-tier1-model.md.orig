@@ -1,0 +1,113 @@
+---
+type: ADR
+title: ""
+---
+
+## ADR gemma3:4b як Tier 1 модель (відхилення gemma4:4b)
+
+## Context and Problem Statement
+На M2 MacBook з 8 GB RAM доступні дві Ollama-моделі для Tier 1 локальної генерації документації: `gemma3:4b` (3.3 GB) та `gemma4:4b` (5.3 GB). Потрібно обрати одну модель для tier 1 продуктивної генерації.
+
+## Considered Options
+* `gemma3:4b` — 3.3 GB, повністю поміщається у GPU VRAM на 8 GB M2 (усі шари у Metal)
+* `gemma4:4b` — 5.3 GB, 56%/44% CPU/GPU split на 8 GB M2 через перевищення VRAM
+
+## Decision Outcome
+Chosen option: "`gemma3:4b`", because бенчмарк зафіксував середній час 52s/файл для g3 проти 162s/файл для g4 (×3.1 повільніше) при нижчій якості g4 (75% vs 92% для orchestrated g3 на тих самих файлах).
+
+### Consequences
+* Good, because g4 overlay-paths: 258s на один файл через CPU swap; g4 k8s-tree: 149s; g3 аналоги: 55–68s — різниця ~3× підтверджена на кожному файлі.
+* Good, because gemma3:4b повністю поміщається у GPU VRAM і не конкурує з ОС за пам'ять під час генерації.
+* Bad, because gemma4:4b може показати кращі результати на інших типах файлів або при більшій VRAM (16 GB+) — не тестувалося.
+
+## More Information
+Вимірювання: `~/docgen-bench3/bench_final.mjs`; результати: `~/docgen-bench3/final/g3_ORCH__*.md`, `~/docgen-bench3/final/g4_ONE__*.md`. Команди Ollama: `ollama run gemma3:4b "" 2>/dev/null` (preload), `ollama stop gemma3:4b` (звільнення VRAM). Конфігурація у `docgen-gen.mjs`: `model = 'gemma3:4b'` (tier 1), `cloudModel = 'claude-sonnet-4-6'` (tier 2).
+
+## Update 2026-06-04
+
+### Розширений огляд кандидатів на роль Tier 1 Ollama-двигуна (8 GB M2)
+
+| Модель | Розмір | Статус | Примітки |
+|---|---|---|---|
+| `gemma4:e4b` | 9.6 GB | Відхилено | Своп → 0.4 tok/s gen, таймаут >10 хв |
+| `gemma3:4b` | 3.3 GB | **Базлайн** | 14 tok/s gen, ~22–38 год на 1042 файли |
+| `qwen3:4b` | ~2.5 GB | Кандидат | Прямий конкурент `gemma3:4b` за бюджетом пам'яті |
+| `qwen2.5-coder:7b` | ~4.7 GB | Кандидат | Найкращий код, слабша українська |
+| `llama3.1:8b` | ~4.9 GB | Кандидат | Ризик свопу при великому контексті |
+| `qwen2.5-coder:3b` / `llama3.2:3b` | ~1.9–2.0 GB | Кандидат | Найшвидші, але слабка українська |
+| `gemma2:9b` / `deepseek-coder-v2:16b` | ≥5 GB | Відхилено | Не влазять без свопу |
+
+Бенчмарк-скрипт: `/tmp/docgen-bench/run.py` — чистий запуск (`ollama stop` перед кожною моделлю), вимірює RAM (`ollama ps`), cold-load, ingest tok/s, gen tok/s, якість vs еталон `enabled.md`; запущений у фон, результат у transcript не зафіксований.
+
+## Update 2026-06-06
+
+Після додаткових бенчмарків (`~/docgen-bench3/duel.py`, `~/docgen-bench3/g4.py`) модельний вибір уточнено: **якість-first — `gemma4-e4b:q4`** (~5.3 GB, 56% CPU / 44% GPU офлоад на 8 GB, ~11 tok/s, ~92% vs еталон, ~30 год на 1042 файли); **швидкість-first — `gemma3:4b`** (~3.3 GB, 100% GPU, ~20 tok/s, ~85% vs еталон, ~14.5 год). `gemma4-e4b:q4` стабільно дотримується негативних обмежень (без stdlib/сигнатур/regex/приватних імен), яких `gemma3:4b` лише частково дотримувалась (+7 п.п. якості). Canonical alias: `ollama cp batiai/gemma4-e4b:q4 gemma4-e4b:q4` (shared blobs, ~0 диску). Реєстрація у pi: `~/.pi/agent/models.json`, масив `models` провайдера `ollama`, перша модель = дефолтна в межах провайдера; глобальний pi-default (`~/.pi/agent/settings.json`) навмисно не змінювався — щоб не перевести весь pi-кодинг на локальну модель.
+<<<<<<< поточна (HEAD)
+<<<<<<< поточна (HEAD)
+
+<<<<<<< поточна (HEAD)
+## Update 2026-06-06
+
+### Розширений бенчмарк 9 моделей та gemma4:4b як якість-first варіант
+
+Об'єктивний бенчмарк 9 кандидатів (чистий запуск перед кожною моделлю, ручна оцінка виходів проти еталонних доків за критеріями точність/повнота/мова/формат 4×25%):
+
+| Модель | RAM | GPU | tok/s | Якість | Висновок |
+|---|---|---|---|---|---|
+| gemma3:4b | 3.3 GB | 100% | ~20 | ~85–86% | ✅ швидкість-first |
+| gemma4:4b (batiai/gemma4-e4b:q4) | 5.3 GB | 44% GPU / 56% CPU | ~11 | ~92% | ✅ якість-first |
+| qwen2.5-coder:3b | 2.4 GB | 100% | ~28–36 | ~77% | ❌ мовні дефекти |
+| qwen2.5:7b, qwen2.5-coder:7b | 5.1 GB | 9% CPU | — | — | ❌ офлоад без якісної переваги |
+| llama3.1:8b | 5.7 GB | 13% CPU | — | — | ❌ офлоад |
+| llama3.2:3b, gemma2:2b, phi3.5 | — | — | — | — | ❌ слабка українська або зіпсований формат |
+| qwen3:4b | — | — | — | — | ❌ ігнорує /no_think, генерує не-UA мовою |
+| gemma4:e4b (оригінал 9.6 GB) | 9.6 GB | CPU своп | 0.4 | — | ❌ катастрофічний своп |
+
+**gemma4:4b** — alias на `batiai/gemma4-e4b:q4` через `ollama cp` (blob-и спільні, 0 додаткового диску). Слухає негативні обмеження промпта (без сигнатур/stdlib/внутрішніх імен) надійніше за решту 4B-класу. На 8 GB офлоадить 56% на CPU → ~11 tok/s; нестабільний час при зовнішньому навантаженні (memory thrashing підтверджено в марафоні).
+
+Екстраполяція (1042 файли, послідовно): gemma3:4b ~14.5 год, gemma4:4b ~30 год.
+
+**Ключовий висновок**: наявність system-prompt дає +14–16 п.п. якості (71% без system → 85–87% з system) — більший приріст, ніж різниця між моделями GPU-fit класу. Прямий `/api/chat` + system рівноцінний pi (85% vs 87%), різниця ±2 п.п. у межах шуму (~±3 п.п.) суб'єктивного оцінювання.
+
+Smoketests на трьох файлах: `firebase_hosting.mjs` (gemma4: 93%, gemma3: 89%), `overlay-paths.mjs` (92 vs 85%), `k8s-tree.mjs` (90 vs 80%).
+
+Конфіг pi: `~/.pi/agent/models.json`, провайдер `ollama`, `gemma4:4b` першою, `gemma3:4b` другою. `num_predict` задавати явно у прямому `/api/chat` — без нього прямий виклик обрізав вивід (overlay-paths: 62%).
+
+## Update 2026-06-06
+
+### gemma4:4b як якісна альтернатива та ризик memory thrash на 8 GB
+
+`batiai/gemma4-e4b:q4` (alias `gemma4:4b`): 5.3 GB, 56%/44% CPU/GPU, ~11 tok/s, якість ~89% через прямий API. Через pi (pi-node + 5.3 GB моделі → 8 GB тиск) нестабільно: 66–1200 с/файл, непрацездатно для Tier 1.
+
+| | gemma3:4b direct+sys | gemma3:4b pi | gemma4:4b direct+sys | gemma4:4b pi |
+|---|---|---|---|---|
+| RAM | 4.2 GB, 100% GPU | 4.2 GB + node | 6.2 GB, 56%/44% | 6.2 GB + node |
+| tok/s | ~20 | ~20 | ~11 | нестабільно |
+| Час/файл | ~53 с | ~77 с | ~104 с | 66–1200 с |
+| ~1042 файлів | ~15 год | ~22 год | ~30 год | непрацездатно |
+| Якість | 85% | ~80–87% | 89% | н/д |
+| Стабільність | ✓ | ✓ | ✓ | memory thrash |
+
+`gemma4:4b` через прямий API стабільна і дає +4 п.п. якості, але вдвічі повільніша (~30 год) — альтернатива якщо якість важливіша за час. pi має сенс лише з `gemma3:4b` (100% GPU) і лише якщо потрібна агентна оркестрація.
+
+Alias: `ollama cp batiai/gemma4-e4b:q4 gemma4:4b`. `OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1` зафіксовано в env. Бенч-файли: `~/docgen-bench3/`, `~/docgen-bench3/out/`.
+||||||| база
+=======
+## Update 2026-06-06
+
+**gemma4:4b — якість-first альтернатива gemma3:4b.** `batiai/gemma4-e4b:q4` (5.3 GB, q4-квант) перейменована в `gemma4:4b` через `ollama cp` (ділить blob-и, 0 додаткового диску). Бенчмарк на 3 файлах (`firebase_hosting.mjs`, `overlay-paths.mjs`, `k8s-tree.mjs`): ~92% vs еталон (проти ~85% у `gemma3:4b`); `gemma4:4b` надійніше дотримується негативних обмежень промпта (без сигнатур/stdlib/внутрішніх імен). Компроміс: 56%/44% CPU/GPU офлоад (RAM 6.2 GB при 8 GB), ~11 tok/s (~30 год на 1042 файли проти ~14.5 год у `gemma3:4b`). Вибір між варіантами — через явний `--model`; конфіг pi: `gemma4:4b` першою у провайдері `ollama`, `gemma3:4b` другою (швидкість-first). Blob ID `gemma4:4b`: `d682bf87e3a3`. Команда alias: `ollama cp batiai/gemma4-e4b:q4 gemma4:4b`.
+>>>>>>> джерело (origin/main)
+||||||| база
+=======
+
+## Update 2026-06-06
+
+**gemma4:4b — якість-first альтернатива gemma3:4b.** `batiai/gemma4-e4b:q4` (5.3 GB, q4-квант) перейменована в `gemma4:4b` через `ollama cp` (ділить blob-и, 0 додаткового диску). Бенчмарк на 3 файлах (`firebase_hosting.mjs`, `overlay-paths.mjs`, `k8s-tree.mjs`): ~92% vs еталон (проти ~85% у `gemma3:4b`); `gemma4:4b` надійніше дотримується негативних обмежень промпта (без сигнатур/stdlib/внутрішніх імен). Компроміс: 56%/44% CPU/GPU офлоад (RAM 6.2 GB при 8 GB), ~11 tok/s (~30 год на 1042 файли проти ~14.5 год у `gemma3:4b`). Вибір між варіантами — через явний `--model`; конфіг pi: `gemma4:4b` першою у провайдері `ollama`, `gemma3:4b` другою (швидкість-first). Blob ID `gemma4:4b`: `d682bf87e3a3`. Команда alias: `ollama cp batiai/gemma4-e4b:q4 gemma4:4b`.
+>>>>>>> джерело (origin/main)
+||||||| база
+=======
+
+## Update 2026-06-06
+
+**gemma4:4b — якість-first альтернатива gemma3:4b.** `batiai/gemma4-e4b:q4` (5.3 GB, q4-квант) перейменована в `gemma4:4b` через `ollama cp` (ділить blob-и, 0 додаткового диску). Бенчмарк на 3 файлах (`firebase_hosting.mjs`, `overlay-paths.mjs`, `k8s-tree.mjs`): ~92% vs еталон (проти ~85% у `gemma3:4b`); `gemma4:4b` надійніше дотримується негативних обмежень промпта (без сигнатур/stdlib/внутрішніх імен). Компроміс: 56%/44% CPU/GPU офлоад (RAM 6.2 GB при 8 GB), ~11 tok/s (~30 год на 1042 файли проти ~14.5 год у `gemma3:4b`). Вибір між варіантами — через явний `--model`; конфіг pi: `gemma4:4b` першою у провайдері `ollama`, `gemma3:4b` другою (швидкість-first). Blob ID `gemma4:4b`: `d682bf87e3a3`. Команда alias: `ollama cp batiai/gemma4-e4b:q4 gemma4:4b`.
+>>>>>>> джерело (origin/main)

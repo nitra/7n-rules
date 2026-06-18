@@ -3,7 +3,7 @@ name: npm-publish
 on:
   push:
     paths:
-      - 'npm/.changes/**'
+      - 'npm/**'
     branches:
       - main
 
@@ -15,20 +15,20 @@ jobs:
   release-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # commit-back + tag
+      contents: write # commit-back версії + git-тег
       id-token: write # КРИТИЧНО для OIDC!
 
     steps:
       - uses: actions/checkout@v6
         with:
-          persist-credentials: true
+          persist-credentials: true # release пушить commit-back + тег
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-bun-deps
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24' # includes npm@11.6.0
           registry-url: 'https://registry.npmjs.org'
 
       - name: Configure git identity

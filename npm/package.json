@@ -53,6 +53,7 @@
     "rename-yaml-extensions": "bun ./bin/n-cursor.js rename-yaml-extensions"
   },
   "dependencies": {
+    "@7n/mt": "^0.5.0",
     "oxc-parser": "^0.128.0",
     "picomatch": "^4.0.4",
     "smol-toml": "^1.6.1",

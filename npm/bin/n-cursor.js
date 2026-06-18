@@ -108,7 +108,6 @@ import { syncGitignoreWorktree } from '../scripts/lib/sync-gitignore-worktree.mj
 import { upgradeNitraCursorToLatestAndBunInstall } from '../scripts/upgrade-nitra-cursor-and-install.mjs'
 import { runRenameYamlExtensionsCli } from './rename-yaml-extensions.mjs'
 import { runSkillsCli } from '../scripts/skills-cli.mjs'
-import { runWorktreeCli } from '../scripts/worktree-cli.mjs'
 import { syncSetupBunDepsAction } from '../scripts/sync-setup-bun-deps-action.mjs'
 import { runLint } from '../rules/lint/js/orchestrate.mjs'
 
@@ -1472,7 +1471,7 @@ async function runSync() {
 /**
  * Команди, що мутують проєкт у CWD і вимагають кореня репо. `undefined`/`''` —
  * дефолтний sync; `check` — deprecated-alias `fix`. Решта (read-only `trace`,
- * `--root`-команди `lint-doc-files`/`fix-doc-files`/`doc-files`/`doc-aggregate`/`rename-yaml-extensions`, `worktree`,
+ * `--root`-команди `lint-doc-files`/`fix-doc-files`/`doc-files`/`doc-aggregate`/`rename-yaml-extensions`,
  * sub-лінтери) гард не зачіпає.
  */
 const ROOT_GUARDED_COMMANDS = new Set([undefined, '', 'lint', 'coverage', 'change', 'release'])
@@ -1635,11 +1634,6 @@ try {
 
       break
     }
-    case 'worktree': {
-      process.exitCode = await runWorktreeCli(args)
-
-      break
-    }
     case 'trace': {
       // n-cursor trace — наскрізна простежуваність (spec §5.4/§7): граф
       // ADR↔spec↔plan↔change за front-matter + флаг розривів. exit 1 на розрив.
@@ -1703,7 +1697,7 @@ try {
     default: {
       console.error(`❌ Невідома команда: ${command}`)
       console.error(
-        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, worktree, trace, doc-aggregate`
+        `   Очікується: (без аргументів) синхронізація правил, rename-yaml-extensions, post-tool-use-fix, adr-normalize-local, lint, lint-ga, lint-rego, lint-k8s, lint-docker, lint-text, lint-doc-files, fix-doc-files, coverage, coverage-fix, taze, start-check, change, release, skill, trace, doc-aggregate`
       )
       process.exitCode = 1
     }

@@ -4,10 +4,13 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  assembleMadr,
   buildEdges,
   draftTitle,
   isNoDecision,
   jaccard,
+  madrDate,
+  normalizeSections,
   tokenize,
   validateMadr
 } from '../normalize-pipeline.mjs'
@@ -104,6 +107,72 @@ Chosen option: "X", because Y.
     const r = validateMadr('---\ntype: ADR\n---\n# T\n\n**Status:** Accepted\n**Date:** 2026-06-07\n\n## Context and Problem Statement\nx')
     expect(r.ok).toBe(false)
     expect(r.errors).toContain('missing heading ## Decision Outcome')
+  })
+})
+
+describe('madrDate (детермінована дата каркасу)', () => {
+  it('бере перші 10 символів ISO з captured', () => {
+    expect(madrDate('2026-06-14T17:15:15+03:00')).toBe('2026-06-14')
+  })
+
+  it('fallback на timestamp-префікс імені файлу коли captured нема', () => {
+    expect(madrDate(undefined, '260614-1715-щось.md')).toBe('2026-06-14')
+  })
+
+  it("'' коли ні валідного captured, ні timestamp-імені", () => {
+    expect(madrDate('невідомо', 'no-date.md')).toBe('')
+  })
+})
+
+describe('normalizeSections (толерантний парс LLM-JSON)', () => {
+  it('рядок замість масиву → масив з одного елемента; пробіли/порожні відсіює', () => {
+    const s = normalizeSections({ options: 'єдиний варіант', good: ['  ', 'плюс'], context: '  текст ' })
+    expect(s.options).toEqual(['єдиний варіант'])
+    expect(s.good).toEqual(['плюс'])
+    expect(s.context).toBe('текст')
+  })
+
+  it('відсутні/null поля → порожні рядки й масиви', () => {
+    const s = normalizeSections({})
+    expect(s).toEqual({ context: '', options: [], chosen: '', rationale: '', good: [], bad: [], more: '' })
+  })
+})
+
+describe('assembleMadr (JS будує каркас, не LLM)', () => {
+  const date = '2026-06-14'
+  it('повний набір секцій → валідний MADR', () => {
+    const md = assembleMadr({
+      title: 'Тест-рішення',
+      date,
+      sections: normalizeSections({
+        context: 'Була проблема X.',
+        options: ['A', 'B'],
+        chosen: 'B',
+        rationale: 'воно простіше',
+        good: ['менше коду'],
+        bad: ['треба міграція'],
+        more: 'file.mjs'
+      })
+    })
+    expect(validateMadr(md).ok).toBe(true)
+    expect(md).toContain('# Тест-рішення')
+    expect(md).toContain('**Date:** 2026-06-14')
+    expect(md).toContain('Chosen option: "B", because воно простіше.')
+    expect(md).toContain('* Good, because менше коду')
+    expect(md).toContain('* Bad, because треба міграція')
+  })
+
+  it('порожні секції → детерміновані fallback-фрази, MADR валідний', () => {
+    const md = assembleMadr({ title: 'Мінімал', date, sections: normalizeSections({ context: 'лише контекст', chosen: 'X' }) })
+    expect(validateMadr(md).ok).toBe(true)
+    expect(md).toContain('Інші варіанти не обговорювалися.')
+    expect(md).toContain('Підтверджених наслідків не зафіксовано.')
+    expect(md).toContain('Додаткової інформації не зафіксовано.')
+  })
+
+  it('без chosen, але з rationale → outcome бере rationale', () => {
+    const md = assembleMadr({ title: 'T', date, sections: normalizeSections({ context: 'c', rationale: 'просто зробили так' }) })
+    expect(md).toContain('## Decision Outcome\nпросто зробили так')
   })
 })
 

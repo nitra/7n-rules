@@ -18,6 +18,8 @@
 #  - `kind: Deployment` з образом `hasura/graphql-engine` — образ має бути
 #    у білому списку `allowed_hasura_images` (з digest або без; префікс
 #    `docker.io/` дозволено);
+#  - `kind: Deployment` — rollout strategy має бути `RollingUpdate` з
+#    `maxUnavailable: 0` і `maxSurge: 1`;
 #  - `kind: Deployment` — наявність канонічного запису у
 #    `spec.template.spec.topologySpreadConstraints` (k8s.mdc).
 #
@@ -98,6 +100,12 @@ topology_spread_missing_template := concat(" ", [
 	"labelSelector.matchLabels.app=%q (k8s.mdc)",
 ])
 
+rollout_strategy_template := concat(" ", [
+	"Deployment %q: spec.strategy має бути RollingUpdate з",
+	"rollingUpdate.maxUnavailable=0 і rollingUpdate.maxSurge=1",
+	"(оновлення по одному pod без зменшення кількості ready pod-ів) (k8s.mdc)",
+])
+
 # ── deny: заборонені kind/apiVersion ──────────────────────────────────────
 
 deny contains ingress_template if {
@@ -175,6 +183,14 @@ deny contains msg if {
 	msg := sprintf(hasura_image_template, [deployment_name, container.name, container.image])
 }
 
+# ── deny: Deployment — безпечний RollingUpdate rollout ───────────────────
+
+deny contains msg if {
+	input.kind == "Deployment"
+	not has_canonical_rollout_strategy
+	msg := sprintf(rollout_strategy_template, [deployment_name])
+}
+
 # ── deny: Deployment — канонічний topologySpreadConstraints ───────────────
 #
 # Перевіряємо лише Deployment-и, що мають мітку `app` у
@@ -237,6 +253,36 @@ has_non_empty_memory_request(container) if {
 has_memory_field(container) if {
 	requests := object.get(object.get(container, "resources", {}), "requests", {})
 	"memory" in object.keys(requests)
+}
+
+# Чи Deployment має rollout strategy, яка під час оновлення спершу додає один
+# ready pod і тільки потім прибирає старий.
+has_canonical_rollout_strategy if {
+	strategy := object.get(object.get(input, "spec", {}), "strategy", {})
+	strategy.type == "RollingUpdate"
+	rolling := object.get(strategy, "rollingUpdate", {})
+	is_zero_int_or_string(rolling.maxUnavailable)
+	is_one_int_or_string(rolling.maxSurge)
+}
+
+is_zero_int_or_string(v) if {
+	is_number(v)
+	v == 0
+}
+
+is_zero_int_or_string(v) if {
+	is_string(v)
+	trim_space(v) == "0"
+}
+
+is_one_int_or_string(v) if {
+	is_number(v)
+	v == 1
+}
+
+is_one_int_or_string(v) if {
+	is_string(v)
+	trim_space(v) == "1"
 }
 
 # Чи рядок `image` посилається на репозиторій `hasura/graphql-engine` (з тегом

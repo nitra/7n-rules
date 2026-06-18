@@ -1,0 +1,156 @@
+---
+type: ADR
+title: ""
+---
+
+## ADR Orchestrated режим замість one-shot для Tier 1 локальних LLM
+
+## Context and Problem Statement
+При використанні gemma3:4b у one-shot режимі для складних файлів (overlay-paths, k8s-tree) модель генерувала документи з витоком implementation details, відсутністю `## Огляд` заголовків та generic гарантіями. Потрібно покращити якість без переходу на хмарну модель.
+
+## Considered Options
+* One-shot режим: один промпт із повним кодом та інструкціями для всього документа
+* Orchestrated режим (секційно-мінімальний контекст v2): окремі промпти для кожної секції; вихідний код передається лише у секцію `behavior`
+
+## Decision Outcome
+Chosen option: "Orchestrated режим v2 з Stage-2 `stripSignatures` та негативними маркерами кешу", because бенчмарк на 3 abie-файлах зафіксував 92% якості (ORCH) проти 47% (ONE) при однаковому середньому часі ~52–53s/файл.
+
+### Consequences
+* Good, because k8s-tree — ключовий кейс: one-shot дав 17% (impl dump: walkDir кроки, `.ya?ml` regex, `Set dirs`), orchestrated — 83%.
+* Good, because негативні маркери (`'Кешування: НЕМАЄ — не згадуй кеш у гарантіях'`) в `factsSummary` усунули cache-hallucination патерн без збільшення кількості токенів у generation-промпті.
+* Good, because Stage-2 `stripSignatures` (0 токенів, детерміновано) видаляє витоки функціональних підписів як пост-обробка — застосовується до обох режимів.
+* Bad, because для файлів з sym ≥ 4 orchestrated все одно деградує до <70% якості та займає 14+ хвилин — цей клас файлів вирішується hybrid routing (ADR `20260606-160000-docgen-hybrid-tier-routing-sym-threshold.md`), а не вибором режиму.
+
+## More Information
+Секційна оркестрація: `npm/skills/docgen/js/docgen-gen.mjs` → `generateOrchestrated()`, `sectionMessages()`. Промпти: `npm/skills/docgen/js/docgen-prompts.mjs`. Негативні маркери: `extractFacts()` у `docgen-extract.mjs`. Бенчмарк: `~/docgen-bench3/bench_final.mjs`; результати: `~/docgen-bench3/final/`. Commit: `45a7466c` (feat/docgen-orchestrator-pi → main, `5e9d3a7b`). Файли оцінені: `firebase_hosting.mjs`, `overlay-paths.mjs`, `k8s-tree.mjs` (3 abie-файли).
+
+## Update 2026-06-06
+
+Вартісний аналіз: повний хмарний прогін docgen на 1442 файлах — ~28–38 M токенів (~$300–770). Tier 1 (1042+ незалежних file-per-file задачі) → локальна Ollama → $0. Tier 2/3 (~2.6 M токенів, 16 модулів) → Claude (якість синтезу критична, коштує копійки порівняно з Tier 1). На 8 GB M2 Tier 1 з `concurrency=1` займає 14–42 год залежно від моделі — паралельний batch по 5 (хмарний патерн) зникає. Найдешевший важіль зменшення обсягу Tier 1 — `DOCGEN_IGNORE_GLOBS` у `docgen-ignore.mjs`. Вимога: Tier-1 промпт винести у `docgen-prompt.mjs` (спільний для Claude-субагентів і Ollama-CLI) щоб уникнути розходження.
+<<<<<<< поточна (HEAD)
+<<<<<<< поточна (HEAD)
+
+<<<<<<< OURS
+## Update 2026-06-06
+
+### Секційний 4-turn конвеєр — деталі архітектури
+
+Драфт сесії d943f92b зафіксував конкретну схему секційного конвеєра (Stage 0 → LLM turns → Stage 3):
+
+```
+File.mjs
+↓
+[Stage 0 — JS-парсер, 0 токенів LLM]
+exports[], jsdoc, behavioral_markers { skips, throws, readOnly, caches }
+↓
+[Ollama /api/chat, одна per-file keep_alive сесія]
+turn 1: system + source → "## Огляд" (1–3 речення)
+turn 2: + behavioral_markers → "## Поведінка" (кроки)
+turn 3: + exports[] → "## Публічний API" (тільки якщо >1 export)
+turn 4: + fact_list → "## Гарантії поведінки"
+↓
+[Stage 3 — JS-збирач]
+strip fences, canonical ## headers, quality-gate → write docs/path.md
+```
+
+KV-cache оптимізація: `system + код файлу` — стабільний незмінний префікс між turn-ами → ollama перевикористовує KV-cache, ре-інгест майже безкоштовний. JS контролює весь формат і структуру; модель відповідає лише за прозу.
+
+Точка входу: `npx @nitra/cursor docgen gen --engine ollama --model gemma4:4b [--root <dir>]`.
+
+Персистентна Ollama-сесія між різними файлами — шкідлива (накопичення контексту). `keep_alive` доцільна лише всередині одного файлу між turn-ами.
+
+Реалізація (worktree `feat/docgen-orchestrator-pi`): `npm/skills/docgen/js/docgen-extract.mjs` (Stage 0), `docgen-prompts.mjs`, `docgen-gen.mjs` з режимом `--oneshot` для AB-порівняння.
+
+## Update 2026-06-06
+
+### Секційно-мінімальний контекст (оркестратор v2)
+
+Проблема v1: повний код файлу надсилався у кожен із чотирьох секційних LLM-запитів → 3–5× повільніше за one-shot (firebase: 102 с vs 19 с, overlay: 310 с vs 57 с).
+
+Рішення v2: `src` передається **тільки** у секцію `Поведінка`; секції `Огляд`, `Публічний API`, `Гарантії` отримують лише compact fact-list (header, exports+JSDoc, behavioral_markers). Реалізація: `sectionMessages(section, facts, src)` у `docgen-prompts.mjs` — `src` передається лише коли `section === 'behavior'`.
+
+Бенч v2 (gemma3:4b, 3 файли): `overlay-paths` 310 с → 77 с (×4), `k8s-tree` 141 с → 55 с (швидше за one-shot). `firebase_hosting` v2 = 118 с — аномалія холодного старту; transcript не підтверджує стабільного покращення для першого файлу в серії.
+
+### Persistent session у межах одного файлу
+
+`messages` array розширюється після кожної секції (`role: 'assistant'` response + новий `role: 'user'` prompt) — одна сесія на файл, між файлами сесія закривається. Спільний `system`-prefix (код файлу) незмінний між секціями → ollama кешує інгест коду; оплачується один раз, а не 4×. Персистентна сесія між різними файлами шкідлива (крос-файлове забруднення).
+
+Fallback: `facts.unsupported === true` (не-JS файл або parse-error) → деградація до one-shot автоматично. Бенч-скрипт: `~/docgen-bench3/bench_orch.mjs`.
+
+## Update 2026-06-06
+
+### Stage 2: детермінований пост-лінт
+
+`docgen-gen.mjs` (WT: `.worktrees/feat-docgen-orchestrator-pi`) містить Stage 2: видалення сигнатур regex-ом і заборона `privateSymbols` у тексті виводу. Мета — виловлювати залишкові витоки реалізації без LLM-токенів.
+
+### Фінальні показники оркестратора v2 (gemma3:4b, 3 файли)
+
+- one-shot: ~80% якості, ~48 с/файл середньо.
+- orchestrated v2: ~86% якості (+6 п.п.), час ≈ one-shot (`overlay-paths` 57 с, `k8s-tree` 62 с; `firebase` аномалія ~118 с при холодному старті).
+- Параметр `--model` у `docgen-gen.mjs` дозволяє перемикатись між `gemma3:4b` (швидкість, 100% GPU) і `gemma4:4b` (якість, офлоад) без зміни оркестратора.
+- `docgen-extract.mjs` витягує: `header`, `exports`+JSDoc, `imports` (stdlib/npm/internal), `markers` (readOnly, catchesErrors, skips, caches), `privateSymbols`.
+||||||| BASE
+=======
+## Update 2026-06-06
+
+**Архітектура секційного конвеєру (JS-оркестратор, точка входу `docgen gen --engine ollama`).** Per-file pipeline:
+
+- Stage 0 (JS-парсер, 0 LLM-токенів): exports[], JSDoc, behavioral_markers {skips, throws, readOnly, caches}
+- Stage 1 (секційні LLM-виклики в одній Ollama-сесії `keep_alive`): turn 1 → `## Огляд`; turn 2 + behavioral_markers → `## Поведінка`; turn 3 + exports[] → `## Публічний API` (лише якщо >1 export); turn 4 + fact_list → `## Гарантії поведінки`
+- Stage 3 (JS-збирач): strip fences, перевірка секцій, запис `docs/path.md`
+
+KV-cache Ollama: стабільний префікс `system + source` перевикористовується між turn-ами — інгест коду платиться один раз. JS контролює структуру й формат, модель відповідає лише за прозу. Stage 0 прив'язаний до JS/MJS; `.vue`/`.py` деградують до fallback one-shot.
+
+## Update 2026-06-06 (реалізація)
+
+Реалізація JS-оркестратора ведеться у worktree `.worktrees/feat-docgen-orchestrator-pi` (гілка `feat/docgen-orchestrator-pi`). Модулі:
+- `npm/skills/docgen/js/docgen-extract.mjs` — Stage 0, детермінований парсер (0 LLM-токенів)
+- `npm/skills/docgen/js/docgen-prompts.mjs` — Stage 1, секційні промпти із факт-листа
+- `npm/skills/docgen/js/docgen-gen.mjs` — оркестратор із прапором `--oneshot` для A/B-порівняння
+
+Stage 0 smoke-тест: 6 per-function JSDoc для `overlay-paths.mjs` витягнуто коректно, автоматична класифікація stdlib/internal, без витоку stdlib у виводі. Прямий `ollama /api/chat` без pi визначено оптимальним транспортом для цього конвеєра (pi не додає переваги над прямий API + system-prompt, але додає ~4 с boot/виклик).
+>>>>>>> THEIRS
+||||||| база
+=======
+
+## Update 2026-06-06
+
+**Архітектура секційного конвеєру (JS-оркестратор, точка входу `docgen gen --engine ollama`).** Per-file pipeline:
+
+- Stage 0 (JS-парсер, 0 LLM-токенів): exports[], JSDoc, behavioral_markers {skips, throws, readOnly, caches}
+- Stage 1 (секційні LLM-виклики в одній Ollama-сесії `keep_alive`): turn 1 → `## Огляд`; turn 2 + behavioral_markers → `## Поведінка`; turn 3 + exports[] → `## Публічний API` (лише якщо >1 export); turn 4 + fact_list → `## Гарантії поведінки`
+- Stage 3 (JS-збирач): strip fences, перевірка секцій, запис `docs/path.md`
+
+KV-cache Ollama: стабільний префікс `system + source` перевикористовується між turn-ами — інгест коду платиться один раз. JS контролює структуру й формат, модель відповідає лише за прозу. Stage 0 прив'язаний до JS/MJS; `.vue`/`.py` деградують до fallback one-shot.
+
+## Update 2026-06-06 (реалізація)
+
+Реалізація JS-оркестратора ведеться у worktree `.worktrees/feat-docgen-orchestrator-pi` (гілка `feat/docgen-orchestrator-pi`). Модулі:
+- `npm/skills/docgen/js/docgen-extract.mjs` — Stage 0, детермінований парсер (0 LLM-токенів)
+- `npm/skills/docgen/js/docgen-prompts.mjs` — Stage 1, секційні промпти із факт-листа
+- `npm/skills/docgen/js/docgen-gen.mjs` — оркестратор із прапором `--oneshot` для A/B-порівняння
+
+Stage 0 smoke-тест: 6 per-function JSDoc для `overlay-paths.mjs` витягнуто коректно, автоматична класифікація stdlib/internal, без витоку stdlib у виводі. Прямий `ollama /api/chat` без pi визначено оптимальним транспортом для цього конвеєра (pi не додає переваги над прямий API + system-prompt, але додає ~4 с boot/виклик).
+>>>>>>> джерело (origin/main)
+||||||| база
+=======
+
+## Update 2026-06-06
+
+**Архітектура секційного конвеєру (JS-оркестратор, точка входу `docgen gen --engine ollama`).** Per-file pipeline:
+
+- Stage 0 (JS-парсер, 0 LLM-токенів): exports[], JSDoc, behavioral_markers {skips, throws, readOnly, caches}
+- Stage 1 (секційні LLM-виклики в одній Ollama-сесії `keep_alive`): turn 1 → `## Огляд`; turn 2 + behavioral_markers → `## Поведінка`; turn 3 + exports[] → `## Публічний API` (лише якщо >1 export); turn 4 + fact_list → `## Гарантії поведінки`
+- Stage 3 (JS-збирач): strip fences, перевірка секцій, запис `docs/path.md`
+
+KV-cache Ollama: стабільний префікс `system + source` перевикористовується між turn-ами — інгест коду платиться один раз. JS контролює структуру й формат, модель відповідає лише за прозу. Stage 0 прив'язаний до JS/MJS; `.vue`/`.py` деградують до fallback one-shot.
+
+## Update 2026-06-06 (реалізація)
+
+Реалізація JS-оркестратора ведеться у worktree `.worktrees/feat-docgen-orchestrator-pi` (гілка `feat/docgen-orchestrator-pi`). Модулі:
+- `npm/skills/docgen/js/docgen-extract.mjs` — Stage 0, детермінований парсер (0 LLM-токенів)
+- `npm/skills/docgen/js/docgen-prompts.mjs` — Stage 1, секційні промпти із факт-листа
+- `npm/skills/docgen/js/docgen-gen.mjs` — оркестратор із прапором `--oneshot` для A/B-порівняння
+
+Stage 0 smoke-тест: 6 per-function JSDoc для `overlay-paths.mjs` витягнуто коректно, автоматична класифікація stdlib/internal, без витоку stdlib у виводі. Прямий `ollama /api/chat` без pi визначено оптимальним транспортом для цього конвеєра (pi не додає переваги над прямий API + system-prompt, але додає ~4 с boot/виклик).
+>>>>>>> джерело (origin/main)
