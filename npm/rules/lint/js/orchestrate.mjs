@@ -122,10 +122,15 @@ async function runPerFileRules(ids, ctx) {
  * @returns {Promise<number>} код конформності
  */
 async function runFullConformancePhase(cwd, readOnly, log) {
-  const { escalationLogSize, maybeAnalyzeEscalation } = await import('../../../scripts/lib/fix/analyze-escalation.mjs')
+  const { escalationLogSize, maybeAnalyzeEscalation, reportRunStats } = await import(
+    '../../../scripts/lib/fix/analyze-escalation.mjs'
+  )
   const escOffset = readOnly ? 0 : escalationLogSize()
   const conformanceCode = await runConformance(cwd, readOnly, log)
-  if (!readOnly) maybeAnalyzeEscalation(cwd, escOffset, log)
+  if (!readOnly) {
+    reportRunStats(escOffset, log) // резюме викликів моделей (локальна / cloud-min / cloud-avg)
+    maybeAnalyzeEscalation(cwd, escOffset, log)
+  }
   return conformanceCode
 }
 

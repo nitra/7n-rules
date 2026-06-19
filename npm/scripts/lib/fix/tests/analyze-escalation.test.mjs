@@ -14,6 +14,7 @@ import {
   chunkRecords,
   escalationLogSize,
   readEscalationRecords,
+  summarizeCalls,
   writeAnalysisReport
 } from '../analyze-escalation.mjs'
 
@@ -104,6 +105,23 @@ describe('chunkRecords', () => {
     const chunks = chunkRecords(records, 300)
     expect(chunks.length).toBeGreaterThan(1)
     expect(chunks.flat()).toHaveLength(10)
+  })
+})
+
+describe('summarizeCalls', () => {
+  test('рахує виклики за тирами; skip-запис avg-кепу не рахується', () => {
+    const records = [
+      rec({ tier: 'local-min' }),
+      rec({ tier: 'local-min-retry' }),
+      rec({ tier: 'cloud-min' }),
+      rec({ tier: 'cloud-avg' }),
+      rec({ tier: 'cloud-avg', callError: 'cloud-avg cap reached' }) // skip — не виклик
+    ]
+    expect(summarizeCalls(records)).toEqual({ local: 2, cloudMin: 1, cloudAvg: 1 })
+  })
+
+  test('порожній лог → нулі', () => {
+    expect(summarizeCalls([])).toEqual({ local: 0, cloudMin: 0, cloudAvg: 0 })
   })
 })
 

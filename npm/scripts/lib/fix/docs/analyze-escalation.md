@@ -3,7 +3,7 @@ type: JS Module
 title: analyze-escalation.mjs
 resource: npm/scripts/lib/fix/analyze-escalation.mjs
 docgen:
-  crc: f802e47f
+  crc: 5a586df6
   model: omlx/gemma-4-e4b-it-OptiQ-4bit
   score: 100
 ---
@@ -16,6 +16,8 @@ docgen:
 
 ## Публічний API
 
+- `summarizeCalls(records)` — лічильники фактичних викликів за тирами `{ local, cloudMin, cloudAvg }` (skip-записи avg-кепу не рахуються).
+- `reportRunStats(sinceOffset, log)` — друкує резюме викликів моделей за прогін (no-op, якщо викликів не було).
 - `analysisEnabled()` — чи дозволено авто-аналіз (kill-switch `N_CURSOR_FIX_ANALYZE`).
 - `escalationLogSize(path?)` — розмір логу в байтах (since-offset).
 - `readEscalationRecords(path, sinceOffset?)` — записи від зсуву.

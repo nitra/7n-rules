@@ -107,6 +107,41 @@ export function readEscalationRecords(path, sinceOffset = 0) {
   return out
 }
 
+/** Маркер skip-запису avg-рунга (кеп вичерпано) — НЕ фактичний виклик моделі. */
+const AVG_SKIP_MARKER = 'cloud-avg cap reached'
+
+/**
+ * Рахує фактичні виклики моделей за тирами (skip-записи avg-кепу не рахуються).
+ * @param {object[]} records записи рунгів
+ * @returns {{ local: number, cloudMin: number, cloudAvg: number }} лічильники викликів
+ */
+export function summarizeCalls(records) {
+  const stats = { local: 0, cloudMin: 0, cloudAvg: 0 }
+  for (const r of records) {
+    if (r.callError === AVG_SKIP_MARKER) continue
+    if (r.tier === 'cloud-avg') stats.cloudAvg++
+    else if (r.tier === 'cloud-min') stats.cloudMin++
+    else if (typeof r.tier === 'string' && r.tier.startsWith('local')) stats.local++
+  }
+  return stats
+}
+
+/**
+ * Друкує резюме викликів моделей за цей прогін (локальна / cloud-min / cloud-avg).
+ * No-op, якщо викликів не було. Читає записи від `sinceOffset`.
+ * @param {number} sinceOffset байтовий зсув логу перед прогоном
+ * @param {(s: string) => void} log логер
+ * @returns {void}
+ */
+export function reportRunStats(sinceOffset, log) {
+  const { local, cloudMin, cloudAvg } = summarizeCalls(readEscalationRecords(escalationLogPath(), sinceOffset))
+  if (local + cloudMin + cloudAvg === 0) return
+  log(
+    `\n📊 LLM-виклики fix-конформності (цей прогін): ` +
+      `локальна ${local} · cloud-min ${cloudMin} · cloud-avg ${cloudAvg}\n`
+  )
+}
+
 /**
  * Стискає запис до полів, важливих для аналізу (без ts/ms-шуму).
  * @param {object} r сирий запис рунга
