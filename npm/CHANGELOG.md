@@ -1,5 +1,12 @@
 # Changelog
 
+## [12.1.0] - 2026-06-19
+
+### Added
+
+- fix-конформність: драбина ескалації моделей (local-min → local-min+feedback → cloud-min → cloud-avg) із per-рунговим escalation-логом (.n-cursor/fix-escalation.jsonl, поле diagnosis) і кепом --max-avg; прибрано --max-iter/MODEL_HEAVY
+- analyze-escalation: аналіз escalation-логу хмарною avg-моделлю (чанкінг + map-reduce) → markdown-звіт із пропозиціями нових T0-патернів / правок .mdc / змін скриптів; CLI n-cursor analyze-escalation і авто-хук наприкінці lint --full (kill-switch N_CURSOR_FIX_ANALYZE)
+
 ## [12.0.3] - 2026-06-18
 
 ### Fixed
