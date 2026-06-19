@@ -3,29 +3,28 @@ type: JS Module
 title: worktree-notice.mjs
 resource: npm/scripts/lib/worktree-notice.mjs
 docgen:
-  crc: dc4fba22
+  crc: 1f7d5e0d
+  model: omlx/gemma-4-e4b-it-OptiQ-4bit
+  score: 100
+  judgeModel: openai-codex/gpt-5.4-mini
 ---
 
-Цей файл вбудовує інструкції щодо використання git-worktree, коли `meta.json.worktree` встановлено в `true`. Він забезпечує паралельне виконання скілу лише в окремому git-worktree, запобігаючи потенційним проблемам з паралелізмом. Цей механізм дозволяє уникнути гонки з CDN та забезпечує надійний запуск скілу з локальною копією CLI.
+## Огляд
+
+Цей файл вшиває worktree-інструкцію у синкнутий `SKILL.md` (рішення D2 зі spec). Коли `meta.json.worktree === true`, скіл вставляє/замінює ідемпотентний ре-синкнутий блок, що містить маркери WORKTREE_START та WORKTREE_END, забезпечуючи виконання скілу в окремому git-worktree та запобігаючи паралелізації. Функція `injectWorktreeNotice` керує наявністю або відсутністю цього блоку в `SKILL.md` на основі конфігурації.
 
 ## Поведінка
 
-WORKTREE_START: вставляє маркер початку worktree-блоку.
-WORKTREE_END: вставляє маркер кінця worktree-блоку.
-injectWorktreeNotice: вставляє або видаляє worktree-блок у `SKILL.md` на основі значення `meta.json.worktree`. Якщо `meta.json.worktree` `true`, вставляє блок; інакше видаляє. Якщо блок вже існує, замінює його; якщо ні — додає. Враховує наявність YAML-frontmatter та вставляє блок після нього. Використовує транслітерацію для створення суфікса гілки. Реалізує retry-обгортку для `npx` з обмеженням часу та інтервалом для перевірки.
+WORKTREE_START — Маркер початку блоку інструкцій для роботи в окремому git-worktree.
+WORKTREE_END — Маркер кінця блоку інструкцій для роботи в окремому git-worktree.
+injectWorktreeNotice — Вставляє, оновлює або видаляє блок інструкцій для роботи в worktree у вмісті SKILL.md залежно від булевого значення.
 
 ## Публічний API
 
-WORKTREE_START — Початок блоку worktree.
-WORKTREE_END — Кінець блоку worktree.
-injectWorktreeNotice — Змінює вміст SKILL.md, додаючи, оновлюючи або видаляючи worktree-блок.
+WORKTREE_START — Позначає початок секції, що описує робоче дерево.
+WORKTREE_END — Позначає кінець секції, що описує робоче дерево.
+injectWorktreeNotice — Вставляє, змінює або видаляє блок інформації про робоче дерево у файлі `SKILL.md`.
 
 ## Гарантії поведінки
 
-Якщо `meta.json.worktree === true`, то скіл виконується в окремому git-worktree.
-Скіл не паралелізується.
-Після створення worktree виконується `bun install` у цьому worktree.
-Виконується shell-обгортка `n_cursor_npx` навколо `npx` для bootstrap-виклику.
-Обгортка `n_cursor_npx` виконує retry на транзитні помилки реєстру/мережі (інтервал 30с, дефолт 5 хв, `N_CURSOR_NPX_RETRY_MAX_MIN`, ceiling 10 хв).
-При виникненні nonzero CLI повертається одразу.
-Команди, що вимагають command substitution, виконуються після створення worktree.
+- Read-only: не виконує операцій запису (ФС/БД).
