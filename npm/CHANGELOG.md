@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.2.0] - 2026-06-19
+
+### Changed
+
+- lint fail-fast лише для --read-only: у fix-режимі per-file правило з ненульовим кодом не спиняє — прогін доходить до кроку виправлення (конформність-драбина). + applyChanges створює батьківську теку (mkdirSync) перед записом. + детермінований T0-патерн changelog-create-change-file (writeChange замість LLM)
+
 ## [12.1.0] - 2026-06-19
 
 ### Added
