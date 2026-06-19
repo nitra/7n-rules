@@ -14,6 +14,7 @@
  * Гейт: валідні слова після дописування у словник зникають; нерозкласифіковані та
  * typo лишаються → cspell повертає !=0 → exit 1 (людина доправляє одруки вручну).
  */
+import { env } from 'node:process'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -27,7 +28,7 @@ const UNKNOWN_WORD_RE = /Unknown word \(([^)]+)\)/u
 const MAX_CLASSIFY_WORDS = 80
 
 /** Локальна fix-модель (рішення: єдиний knob `N_LOCAL_MIN_MODEL`). */
-const fixModel = () => process.env.N_LOCAL_MIN_MODEL || ''
+const fixModel = () => env.N_LOCAL_MIN_MODEL || ''
 
 /**
  * Запускає `cspell .` із захопленням виводу.

@@ -1,4 +1,5 @@
-import { describe, expect, test, vi, afterEach } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+import { env } from 'node:process'
 
 vi.mock('node:fs', async importOriginal => ({ ...(await importOriginal()), readFileSync: vi.fn() }))
 
@@ -89,12 +90,12 @@ describe('scoreDoc — еталон', () => {
 
 describe('generateDoc — pre-send byte-guard', () => {
   afterEach(() => {
-    delete process.env.N_CURSOR_DOCGEN_CTX
+    delete env.N_CURSOR_DOCGEN_CTX
     vi.restoreAllMocks()
   })
 
   test('джерело понад бюджет → throw Prompt too long (skip, без LLM)', () => {
-    process.env.N_CURSOR_DOCGEN_CTX = '100' // бюджет = 50 токенів ≈ 200 байтів
+    env.N_CURSOR_DOCGEN_CTX = '100' // бюджет = 50 токенів ≈ 200 байтів
     readFileSync.mockReturnValue('x'.repeat(2000)) // ~500 токенів > 50
     expect(() => generateDoc('/big.js')).toThrow(/Prompt too long/)
   })

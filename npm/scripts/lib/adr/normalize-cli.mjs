@@ -16,6 +16,7 @@
  *   ADR_NORMALIZE_ALLOW_CLOUD=1  дозволити хмарну ескалацію tier-каскаду (default off)
  *   ADR_NORMALIZE_VOTES=N        голосів self-consistency для clean-ребер (default 2)
  */
+import { env } from 'node:process'
 import { readFileSync } from 'node:fs'
 import { basename, isAbsolute, join } from 'node:path'
 import { normalizePipeline } from './normalize-pipeline.mjs'
@@ -57,8 +58,8 @@ export function runAdrNormalizeLocalCli(argv) {
   })
   const cleanList = args.clean ? readLines(args.clean).map((c) => basename(c)) : []
 
-  const allowCloud = process.env.ADR_NORMALIZE_ALLOW_CLOUD === '1'
-  const votes = Number(process.env.ADR_NORMALIZE_VOTES) || 2
+  const allowCloud = env.ADR_NORMALIZE_ALLOW_CLOUD === '1'
+  const votes = Number(env.ADR_NORMALIZE_VOTES) || 2
 
   const { operations, stats, trace } = normalizePipeline(drafts, cleanList, {
     allowCloud,
